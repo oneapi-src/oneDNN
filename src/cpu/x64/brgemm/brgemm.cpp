@@ -410,6 +410,17 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
             && (brg->is_tmm))
         return status::unimplemented;
 
+    brg->prfA = brgattr.hint_prfA;
+    brg->prfB = brgattr.hint_prfB;
+    brg->prfC = brgattr.hint_prfC;
+
+    if (brgattr.hint_prefetching == brgemm_kernel_prefetching_t::brgemm_prf1
+            && brg->prfC.dist1 < 0)
+        brg->prfC.dist1 = 0;
+    if (brgattr.hint_prefetching == brgemm_kernel_prefetching_t::brgemm_prf2
+            && brg->prfC.dist2 < 0)
+        brg->prfC.dist2 = 0;
+
     return status::success;
 }
 

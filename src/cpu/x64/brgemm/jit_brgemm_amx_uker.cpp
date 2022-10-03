@@ -256,8 +256,9 @@ private:
     };
 
     struct prf_t {
+        brgemm_kernel_prefetching_t pft;
         int dist = -1;
-        int pfo_vec = 0;
+        int vec = 0;
     };
 
     // iteration map
@@ -265,14 +266,13 @@ private:
 
     // interleave stores
     bool use_ils_ = false;
-    int ils_store_ops_ = 0, ils_vecs_per_store_ = 0;
-    bool ils_buffer_ready_ = false;
+    bool was_prev_bi = false;
     // saved parameters for storing
-    brgemm_iteration_t ils_bi_;
+    brgemm_iteration_t prev_bi_;
     // current storing coordinates
     int ils_vec_ = 0, ils_bdb_ = 0, ils_ldb_ = 0, ils_bd_start_ = 0;
-    int pfo_vec_ = 0, pfo_vecs_per_store_ = 0;
     int ils_bd_step_ = 3; // heuristic value
+    prf_t prf1A, prf2A, prf1B, prf2B, prf1C, prf2C;
 
     bool dt_requires_saturation_ = false;
 
@@ -339,11 +339,19 @@ private:
     bool bi_shift_B(
             brgemm_iteration_t &bi, int shift, brgemm_iteration_t &res_bi);
 
-    void prefetch_output_range(brgemm_iteration_t &bi,
+    void uni_prefetch(const Address &addr, brgemm_kernel_prefetching_t pft);
+    void prefetch_CD_range(brgemm_iteration_t &bi,
             brgemm_kernel_prefetching_t pft, int bd_start, int bd_finish,
             int bd_inp_bdb, int ldb);
-    void prefetch_output_data(brgemm_iteration_t &bi, bool first_bs,
-            bool last_bs, bool prefetch_all);
+    int calc_ops_CD(brgemm_iteration_t &bi) const noexcept;
+    void prefetch_CD(brgemm_iteration_t &bi, brgemm_iteration_t &pfo_bi,
+            prf_t &prf, bool prefetch_all);
+
+    void prefetch_A(brgemm_iteration_t &bi, brgemm_iteration_t &pfo_bi,
+            prf_t &prf, bool prefetch_all);
+    void prefetch_B(brgemm_iteration_t &bi, brgemm_iteration_t &pfo_bi,
+            prf_t &prf, bool prefetch_all);
+    void prefetching(brgemm_iteration_t &bi, bool prefetch_all);
 
     void process_output_range(brgemm_iteration_t &bi, int bd_start,
             int bd_finish, int bd_inp_bdb, int bdb, int ldb);
@@ -404,17 +412,6 @@ private:
         return store_by_vectors;
     }
 
-    // returns bd position in input for bd block based on base_bd
-    // and defined by bdb_shift
-    int get_bd_inp_bdb(int base_bd, int bdb_shift) {
-        int res = base_bd;
-        for (int bdb = 0; bdb < bdb_shift; bdb++) {
-            res += brg.bd_block;
-            res = skipped_bd_mask(res);
-        }
-        return res;
-    }
-
     size_t A_offset(int bdb) const noexcept;
 
     size_t B_offset(int ldb) const noexcept;
@@ -441,7 +438,6 @@ private:
     int get_C_tensor(brgemm_iteration_t &bi, int m, int n) const noexcept;
     void top_loop(brgemm_iteration_t &bi);
 
-    int calc_ops_bs_loop(brgemm_iteration_t &bi) const noexcept;
     void fill_imap();
 };
 
@@ -449,6 +445,7 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_output(
         brgemm_iteration_t &bi, int shift, brgemm_iteration_t &res_bi) {
     res_bi = bi;
     if (shift == 0) return true;
+
     size_t lidx = 0;
     size_t bd_idx = 0;
     size_t ld_idx = 0;
@@ -471,12 +468,6 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_output(
     return true;
 }
 
-int jit_brgemm_amx_uker_base_t::calc_ops_bs_loop(brgemm_iteration_t &bi) const
-        noexcept {
-    return (brg.rdb + (brg.rdb_tail ? 1 : 0)) * bi.ldi.block2 * bi.bdi.block2
-            * (brg.brgattr.var_bs ? 1 : brg.brgattr.max_bs);
-}
-
 bool jit_brgemm_amx_uker_base_t::bi_shift_A(
         brgemm_iteration_t &bi, int shift, brgemm_iteration_t &res_bi) {
     res_bi = bi;
@@ -487,7 +478,6 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_A(
     const auto bd_idx = lidx / imap_.rdis.size();
     const auto rd_idx = lidx % imap_.rdis.size();
 
-    if (lidx >= imap_.rdis.size() * imap_.bdis.size()) return false;
     res_bi.bdi = imap_.bdis[bd_idx];
     res_bi.rdi = imap_.rdis[rd_idx];
 
@@ -504,7 +494,6 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_B(
     const auto ld_idx = lidx / imap_.rdis.size();
     const auto rd_idx = lidx % imap_.rdis.size();
 
-    if (lidx >= imap_.rdis.size() * imap_.ldis.size()) return false;
     res_bi.ldi = imap_.ldis[ld_idx];
     res_bi.rdi = imap_.rdis[rd_idx];
 
@@ -888,7 +877,15 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers(
     }
 }
 
-void jit_brgemm_amx_uker_base_t::prefetch_output_range(brgemm_iteration_t &bi,
+void jit_brgemm_amx_uker_base_t::uni_prefetch(
+        const Address &addr, brgemm_kernel_prefetching_t pft) {
+    if (pft == brgemm_kernel_prefetching_t::brgemm_prf1)
+        prefetcht1(addr);
+    else if (pft == brgemm_kernel_prefetching_t::brgemm_prf2)
+        prefetcht2(addr);
+}
+
+void jit_brgemm_amx_uker_base_t::prefetch_CD_range(brgemm_iteration_t &bi,
         brgemm_kernel_prefetching_t pft, int bd_start, int bd_finish,
         int bd_inp_bdb, int ldb) {
     auto ldb_pos = bi.ldi.pos + ldb;
@@ -898,16 +895,158 @@ void jit_brgemm_amx_uker_base_t::prefetch_output_range(brgemm_iteration_t &bi,
         if (bi.apply_postops) {
             const auto d_offset = D_offset(bd_out_bd, ldb_pos);
             auto ptr_D = EVEX_compress_addr(reg_D, d_offset);
-            prefetcht1(ptr_D);
+            uni_prefetch(ptr_D, pft);
         } else if (are_post_ops_applicable_) {
             const auto c_offset = C_offset(bd_out_bd, ldb_pos);
             auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
-            prefetcht1(ptr_C);
+            uni_prefetch(ptr_C, pft);
         } else {
             const auto d_offset = D_offset(bd_out_bd, ldb_pos);
             auto ptr_D = EVEX_compress_addr(reg_D, d_offset);
-            prefetcht1(ptr_D);
+            uni_prefetch(ptr_D, pft);
         }
+    }
+}
+
+int jit_brgemm_amx_uker_base_t::calc_ops_CD(brgemm_iteration_t &bi) const
+        noexcept {
+    return (brg.rdb + (brg.rdb_tail ? 1 : 0)) * bi.ldi.block2 * bi.bdi.block2
+            * (brg.brgattr.var_bs ? 1 : brg.brgattr.max_bs);
+}
+
+void jit_brgemm_amx_uker_base_t::prefetch_CD(brgemm_iteration_t &bi,
+        brgemm_iteration_t &pfo_bi, prf_t &prf, bool prefetch_all) {
+
+    const auto calc_ops = calc_ops_CD(bi);
+    const auto bdb_row = pfo_bi.bdi.block * pfo_bi.ldi.block2;
+    const auto tot_vecs = pfo_bi.bdi.block2 * bdb_row;
+    const auto pfo_vecs_per_store = (calc_ops) ? div_up(tot_vecs, calc_ops) : 0;
+
+    const auto nvecs = prefetch_all
+            ? tot_vecs
+            : nstl::min(pfo_vecs_per_store, tot_vecs - prf.vec);
+
+    const auto out_typesize
+            = (are_post_ops_applicable_ && !prev_bi_.apply_postops)
+            ? brg.typesize_C
+            : brg.typesize_D;
+    for (int iv = 0; iv < nvecs && prf.vec < tot_vecs; iv++) {
+        const auto bdb = prf.vec / bdb_row;
+        const auto vec_in_bdb_row = prf.vec - bdb * bdb_row;
+        const auto ldb = vec_in_bdb_row / pfo_bi.bdi.block;
+        const auto bd = vec_in_bdb_row % pfo_bi.bdi.block;
+        // prefetch output cache lines only once
+        if ((pfo_bi.ldi.pos + ldb) % (4 / out_typesize) == 0) {
+            auto bd_inp_bdb = pfo_bi.bdi.bdb_pos[bdb];
+            prefetch_CD_range(pfo_bi, prf.pft, 0, 1, bd_inp_bdb + bd, ldb);
+        }
+        prf.vec++;
+    }
+}
+
+void jit_brgemm_amx_uker_base_t::prefetch_A(brgemm_iteration_t &bi,
+        brgemm_iteration_t &pfo_bi, prf_t &prf, bool prefetch_all) {
+
+    const auto calc_ops = bi.ldi.block2 * bi.bdi.block2;
+    const auto tot_vecs = pfo_bi.bdi.block2 * pfo_bi.bdi.block;
+    const auto pfo_vecs_per_store = (calc_ops) ? div_up(tot_vecs, calc_ops) : 0;
+
+    const auto nvecs = prefetch_all
+            ? tot_vecs
+            : nstl::min(pfo_vecs_per_store, tot_vecs - prf.vec);
+
+    const auto rdb_A_off = rdb_A_offset(pfo_bi);
+
+    for (int iv = 0; iv < nvecs && prf.vec < tot_vecs; iv++) {
+        const auto bdb = prf.vec / pfo_bi.bdi.block;
+        const auto bd = prf.vec % pfo_bi.bdi.block;
+        const auto bd_inp_bdb = pfo_bi.bdi.bdb_pos[bdb];
+
+        //TODO: looks like we have to prefetch in each bs separately
+        const auto ptr_A = EVEX_compress_addr(
+                reg_aux_A, A_offset(bd_inp_bdb) + bd * LDA_size_ + rdb_A_off);
+        uni_prefetch(ptr_A, prf.pft);
+        prf.vec++;
+    }
+}
+
+void jit_brgemm_amx_uker_base_t::prefetch_B(brgemm_iteration_t &bi,
+        brgemm_iteration_t &pfo_bi, prf_t &prf, bool prefetch_all) {
+
+    const auto calc_ops = bi.ldi.block2 * bi.bdi.block2;
+    const auto tot_vecs = pfo_bi.ldi.block2 * pfo_bi.rdi.block;
+    const auto pfo_vecs_per_store = (calc_ops) ? div_up(tot_vecs, calc_ops) : 0;
+
+    const auto nvecs = prefetch_all
+            ? tot_vecs
+            : nstl::min(pfo_vecs_per_store, tot_vecs - prf.vec);
+
+    // TODO: check these addressing for correctness
+    const auto rdb_B_off = rdb_B_offset(pfo_bi) + ldb_B_offset(pfo_bi);
+
+    for (int iv = 0; iv < nvecs && prf.vec < tot_vecs; iv++) {
+
+        const auto ldb = prf.vec / pfo_bi.rdi.block;
+        const auto rb = prf.vec % pfo_bi.rdi.block;
+        //TODO: looks like we have to prefetch in each bs separately
+        const auto ptr_B = EVEX_compress_addr(
+                reg_aux_B, B_offset(ldb) + rdb_B_off + rb * LDB_size_);
+
+        uni_prefetch(ptr_B, prf.pft);
+        prf.vec++;
+    }
+}
+
+void jit_brgemm_amx_uker_base_t::prefetching(
+        brgemm_iteration_t &bi, bool prefetch_all) {
+    // for var_bs we do prefetch on last iteration by bs only
+    if (brg.brgattr.var_bs && !bi.bsi.is_last) return;
+    brgemm_iteration_t pfo_bi;
+    if (brg.prfC.dist1 >= 0) {
+        bool is_pfo_bi = false;
+        brgemm_iteration_t pfo_bi;
+        if (use_ils_ && get_store_by_vectors(bi.apply_postops)) {
+            if (was_prev_bi && brg.prfC.dist1 == 0) {
+                is_pfo_bi = true;
+                pfo_bi = prev_bi_;
+            } else if (brg.prfC.dist1 > 0) {
+                is_pfo_bi = bi_shift_output(bi, brg.prfC.dist1 - 1, pfo_bi);
+            }
+        } else {
+            is_pfo_bi = bi_shift_output(bi, brg.prfC.dist1, pfo_bi);
+        }
+        if (is_pfo_bi) prefetch_CD(bi, pfo_bi, prf1C, prefetch_all);
+    }
+    if (brg.prfC.dist2 >= 0) {
+        bool is_pfo_bi = false;
+        brgemm_iteration_t pfo_bi;
+        if (use_ils_ && get_store_by_vectors(bi.apply_postops)) {
+            if (was_prev_bi && brg.prfC.dist2 == 0) {
+                is_pfo_bi = true;
+                pfo_bi = prev_bi_;
+            } else if (brg.prfC.dist2 > 0) {
+                is_pfo_bi = bi_shift_output(bi, brg.prfC.dist2 - 1, pfo_bi);
+            }
+        } else {
+            is_pfo_bi = bi_shift_output(bi, brg.prfC.dist2, pfo_bi);
+        }
+        if (is_pfo_bi) prefetch_CD(bi, pfo_bi, prf2C, prefetch_all);
+    }
+    if (brg.prfA.dist1 >= 0) {
+        if (bi_shift_A(bi, brg.prfA.dist1, pfo_bi))
+            prefetch_A(bi, pfo_bi, prf1A, prefetch_all);
+    }
+    if (brg.prfA.dist2 >= 0) {
+        if (bi_shift_A(bi, brg.prfA.dist2, pfo_bi))
+            prefetch_A(bi, pfo_bi, prf2A, prefetch_all);
+    }
+    if (brg.prfB.dist1 >= 0) {
+        if (bi_shift_B(bi, brg.prfB.dist1, pfo_bi))
+            prefetch_B(bi, pfo_bi, prf1B, prefetch_all);
+    }
+    if (brg.prfB.dist2 >= 0) {
+        if (bi_shift_B(bi, brg.prfB.dist2, pfo_bi))
+            prefetch_B(bi, pfo_bi, prf2B, prefetch_all);
     }
 }
 
@@ -915,7 +1054,8 @@ void jit_brgemm_amx_uker_base_t::process_output_range(brgemm_iteration_t &bi,
         int bd_start, int bd_finish, int bd_inp_bdb, int bdb, int ldb) {
 
     const auto wsp_offset = (use_ils_ || brg.interleave_tilestores_)
-            ? (bdb * ils_bi_.ldi.block2 + ldb) * brg.bd_block * ld_block_C_size_
+            ? (bdb * prev_bi_.ldi.block2 + ldb) * brg.bd_block
+                    * ld_block_C_size_
             : 0;
 
     const auto k_mask = (!bi.ldi.is_tail) ? ld_full_mask : ld_tail_mask;
@@ -1068,57 +1208,16 @@ void jit_brgemm_amx_uker_base_t::store_vector(
         store_vector_without_post_ops(idx, ptr_D, is_ld_tail);
 }
 
-void jit_brgemm_amx_uker_base_t::prefetch_output_data(brgemm_iteration_t &bi,
-        bool first_bs, bool last_bs, bool prefetch_all) {
-
-    if (brg.brgattr.hint_prefetching
-            != brgemm_kernel_prefetching_t::brgemm_prf_output1)
-        return;
-
-    // for var_bs we do prefetch on first iteration by bs only
-    if (brg.brgattr.var_bs && !last_bs) return;
-
-    brgemm_iteration_t pfo_bi = ils_bi_;
-
-    // last bd_block may be bd_tail
-    const auto bdb_row = brg.bd_block * pfo_bi.ldi.block2;
-    const auto tot_vecs = (pfo_bi.bdi.block2 - 1) * bdb_row
-            + pfo_bi.bdi.block * pfo_bi.ldi.block2;
-
-    const auto nvecs = prefetch_all
-            ? tot_vecs
-            : nstl::min(pfo_vecs_per_store_, tot_vecs - pfo_vec_);
-
-    int out_typesize = (are_post_ops_applicable_ && !ils_bi_.apply_postops)
-            ? brg.typesize_C
-            : brg.typesize_D;
-    for (int vec = 0; vec < nvecs && pfo_vec_ < tot_vecs; vec++) {
-        int bdb = pfo_vec_ / bdb_row;
-        auto vec_in_bdb_row = pfo_vec_ - bdb * bdb_row;
-        int ldb = vec_in_bdb_row / pfo_bi.bdi.block;
-        // prefetch output cache lines only once
-        if ((pfo_bi.ldi.pos + ldb) % (4 / out_typesize) == 0) {
-            int bd = vec_in_bdb_row % pfo_bi.bdi.block;
-            auto bd_inp_bdb
-                    = get_bd_inp_bdb(skipped_bd_mask(pfo_bi.bdi.pos), bdb);
-            prefetch_output_range(pfo_bi,
-                    brgemm_kernel_prefetching_t::brgemm_prf_output1, 0, 1,
-                    bd_inp_bdb + bd, ldb);
-        }
-        pfo_vec_++;
-    }
-}
-
 void jit_brgemm_amx_uker_base_t::interleave_store(
         brgemm_iteration_t &bi, bool store_all) {
 
     if (!use_ils_) return;
-    if (!ils_buffer_ready_) return;
-    if (!get_store_by_vectors(bi.apply_postops)) return;
+    if (!was_prev_bi) return;
+    if (!get_store_by_vectors(prev_bi_.apply_postops)) return;
 
-    if (store_all) prefetch_output_data(ils_bi_, true, true, true);
+    if (store_all) prefetching(prev_bi_, true);
 
-    const auto bd_inp_bdb = ils_bi_.bdi.pos;
+    const auto bd_inp_bdb = prev_bi_.bdi.pos;
 
     auto cur_bdb = ils_bdb_;
     auto cur_ldb = ils_ldb_;
@@ -1126,44 +1225,49 @@ void jit_brgemm_amx_uker_base_t::interleave_store(
     // if first block
     if (ils_vec_ == 0) {
         if (!prepare_post_ops_registers_once_) {
-            prepare_post_ops_registers(ils_bi_);
+            prepare_post_ops_registers(prev_bi_);
         }
-        prepare_post_ops_registers_ldb(ils_bi_, 0);
+        prepare_post_ops_registers_ldb(prev_bi_, 0);
         ils_bd_start_ = 0;
-        auto bd_finish = nstl::min(ils_bd_step_, ils_bi_.bdi.block);
+        auto bd_finish = nstl::min(ils_bd_step_, prev_bi_.bdi.block);
         process_output_range(
-                ils_bi_, 0, bd_finish, bd_inp_bdb, cur_bdb, cur_ldb);
+                prev_bi_, 0, bd_finish, bd_inp_bdb, cur_bdb, cur_ldb);
     }
 
+    const auto calc_ops = calc_ops_CD(bi);
+    const auto ils_store_ops
+            = prev_bi_.ldi.block2 * prev_bi_.bdi.block2 * prev_bi_.bdi.block;
+    const auto ils_vecs_per_store
+            = (calc_ops) ? div_up(ils_store_ops, calc_ops) : 0;
+
     // last bd_block may be bd_tail
-    const auto bdb_row = brg.bd_block * ils_bi_.ldi.block2;
-    const auto total_vectors = (ils_bi_.bdi.block2 - 1) * bdb_row
-            + ils_bi_.bdi.block * ils_bi_.ldi.block2;
-    const auto nvecs = store_all ? total_vectors : ils_vecs_per_store_;
+    const auto bdb_row = prev_bi_.bdi.block * prev_bi_.ldi.block2;
+    const auto total_vectors = prev_bi_.bdi.block2 * bdb_row;
+    const auto nvecs = store_all ? total_vectors : ils_vecs_per_store;
     for (int vec = 0; vec < nvecs && ils_vec_ < total_vectors; vec++) {
         const auto bdb = ils_vec_ / bdb_row;
         const auto vec_in_bdb_row = ils_vec_ - bdb * bdb_row;
-        const auto ldb = vec_in_bdb_row / ils_bi_.bdi.block;
-        const auto bd = vec_in_bdb_row % ils_bi_.bdi.block;
+        const auto ldb = vec_in_bdb_row / prev_bi_.bdi.block;
+        const auto bd = vec_in_bdb_row % prev_bi_.bdi.block;
 
-        auto bd_inp_bdb = ils_bi_.bdi.bdb_pos[bdb];
-        if (ldb != cur_ldb) prepare_post_ops_registers_ldb(ils_bi_, ldb);
+        auto bd_inp_bdb = prev_bi_.bdi.bdb_pos[bdb];
+        if (ldb != cur_ldb) prepare_post_ops_registers_ldb(prev_bi_, ldb);
 
         if (bdb != cur_bdb || ldb != cur_ldb
                 || rnd_dn(bd, ils_bd_step_) != ils_bd_start_) {
             ils_bd_start_ = rnd_dn(bd, ils_bd_step_);
             auto bd_finish = nstl::min(
-                    ils_bd_start_ + ils_bd_step_, ils_bi_.bdi.block);
+                    ils_bd_start_ + ils_bd_step_, prev_bi_.bdi.block);
             process_output_range(
-                    ils_bi_, ils_bd_start_, bd_finish, bd_inp_bdb, bdb, ldb);
+                    prev_bi_, ils_bd_start_, bd_finish, bd_inp_bdb, bdb, ldb);
         }
 
         const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
         if (bd_out_bd != -1) {
-            auto vreg_acc = ils_bi_.ldi.is_tail ? accm(bd) | ld_tail_mask | T_z
-                                                : accm(bd);
+            auto vreg_acc = prev_bi_.ldi.is_tail ? accm(bd) | ld_tail_mask | T_z
+                                                 : accm(bd);
 
-            store_vector(ils_bi_, vreg_acc.getIdx(), bd_out_bd, ldb);
+            store_vector(prev_bi_, vreg_acc.getIdx(), bd_out_bd, ldb);
         }
         cur_bdb = bdb;
         cur_ldb = ldb;
@@ -1183,14 +1287,15 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(brgemm_iteration_t &bi) {
     } else
         mov(reg_stride_ld_block, LDC_size_);
 
-    ils_bi_ = bi;
+    prev_bi_ = bi;
 
     ils_vec_ = 0;
     ils_bdb_ = 0;
     ils_ldb_ = 0;
-    ils_buffer_ready_ = true;
-    ils_store_ops_ = bi.ldi.block2 * bi.bdi.block2 * brg.bd_block;
-    pfo_vec_ = 0;
+    was_prev_bi = true;
+
+    prf1C.vec = 0;
+    prf2C.vec = 0;
 
     if (store_by_vectors && !use_ils_ && !prepare_post_ops_registers_once_)
         prepare_post_ops_registers(bi);
@@ -1309,7 +1414,7 @@ void jit_brgemm_amx_uker_base_t::maybe_tilestore(brgemm_iteration_t &bi,
     const auto store_tensor_number = current_tensor_number + store_tensor_shift;
 
     const auto max_store_tensor_number
-            = ils_bi_.bdi.block2 * ils_bi_.ldi.block2;
+            = prev_bi_.bdi.block2 * prev_bi_.ldi.block2;
     bool perform_store
             = (do_pre_tilestore
                       && (store_tensor_number >= 2
@@ -1330,11 +1435,14 @@ void jit_brgemm_amx_uker_base_t::maybe_tilestore(brgemm_iteration_t &bi,
                     : 0;
             tilestored(ptr[reg_buf + reg_stride_ld_block + wsp_offset], acc);
         } else {
-            const auto store_inp_bi = do_pre_tilestore ? ils_bi_ : bi;
+            const auto &store_inp_bdi
+                    = do_pre_tilestore ? prev_bi_.bdi : bi.bdi;
+            const auto store_ldb_ind
+                    = do_pre_tilestore ? prev_bi_.ldi.pos : bi.ldi.pos;
             const auto bd_out_bdb
-                    = get_out_bd(store_inp_bi.bdi.bdb_pos[bdb_idx], 0);
-            const auto c_offset = C_block_offset(
-                    bd_out_bdb, store_inp_bi.ldi.pos + ldb_idx);
+                    = get_out_bd(store_inp_bdi.bdb_pos[bdb_idx], 0);
+            const auto c_offset
+                    = C_block_offset(bd_out_bdb, store_ldb_ind + ldb_idx);
             tilestored(ptr[reg_C + reg_stride_ld_block + c_offset], acc);
         }
         tilezero(acc);
@@ -1343,7 +1451,7 @@ void jit_brgemm_amx_uker_base_t::maybe_tilestore(brgemm_iteration_t &bi,
 
 void jit_brgemm_amx_uker_base_t::tdpbxxd(brgemm_iteration_t &bi, int bdb_idx,
         int ldb_idx, bool do_pre_tilestore, bool do_post_tilestore) {
-    prefetch_output_data(bi, bi.bsi.is_first, bi.bsi.is_last, false);
+    prefetching(bi, false);
     maybe_tilestore(bi, bdb_idx, ldb_idx, do_pre_tilestore, false);
 
     const Tmm &x1 = Tmm(get_C_tensor(bi, bdb_idx, ldb_idx));
@@ -1542,13 +1650,18 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
 }
 
 void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(brgemm_iteration_t &bi) {
+    prf1A.vec = 0;
+    prf2A.vec = 0;
+    prf1B.vec = 0;
+    prf2B.vec = 0;
+
     const auto store_by_vectors = get_store_by_vectors(bi.apply_postops);
 
     bool do_post_tilestore = (brg.interleave_tilestores_ && bi.bsi.is_last
             && imap_.is_last_rdi(bi.rdi));
 
     bool do_pre_tilestore = (brg.interleave_tilestores_ && bi.bsi.is_first
-            && bi.rdi.pos == 0);
+            && bi.rdi.pos == 0 && was_prev_bi);
 
     if (store_by_vectors)
         mov(reg_stride_ld_block, ld_block_C_size_);
@@ -1599,16 +1712,6 @@ void jit_brgemm_amx_uker_base_t::bs_loop_body(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
-    int calc_ops = brg.brgattr.max_bs * (brg.rdb + (brg.rdb_tail ? 1 : 0))
-            * bi.ldi.block2 * bi.bdi.block2;
-    ils_vecs_per_store_ = (calc_ops) ? div_up(ils_store_ops_, calc_ops) : 0;
-
-    int store_ops = bi.ldi.block2 * bi.bdi.block2 * brg.bd_block;
-    int calc_ops_for_prefteching
-            = brg.brgattr.var_bs ? calc_ops / brg.brgattr.max_bs : calc_ops;
-    pfo_vecs_per_store_ = (calc_ops_for_prefteching)
-            ? div_up(store_ops, calc_ops_for_prefteching)
-            : 0;
 
     load_accumulators(bi);
 
@@ -1694,11 +1797,12 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::bdb_loop_body(brgemm_iteration_t &bi) {
-
     if (brg.brgattr.hint_innermost_loop == brgemm_ld_loop_innermost)
         ldb_loop(bi);
-    else
+    else if (brg.brgattr.hint_innermost_loop == brgemm_bd_loop_innermost)
         bs_loop(bi);
+    else
+        assert(!"Unknown loop order!");
 };
 
 void jit_brgemm_amx_uker_base_t::bdb_loop(brgemm_iteration_t &bi) {
@@ -1714,8 +1818,10 @@ void jit_brgemm_amx_uker_base_t::top_loop(brgemm_iteration_t &bi) {
     init(bi);
     if (brg.brgattr.hint_innermost_loop == brgemm_ld_loop_innermost)
         bdb_loop(bi);
-    else
+    else if (brg.brgattr.hint_innermost_loop == brgemm_bd_loop_innermost)
         ldb_loop(bi);
+    else
+        assert(!"Unknown loop order!");
 
     if (brg.interleave_tilestores_) {
         bi.ldi = dim_iteration_t(0, brg.ld_block, brg.ld_block2);
@@ -1813,7 +1919,7 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
 }
 
 void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
-    ils_buffer_ready_ = false;
+    was_prev_bi = false;
 
     if (brg.brgattr.max_bs == 1) {
         if (brg.layout == brgemm_row_major) {
@@ -1875,6 +1981,18 @@ void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
     }
 
     fill_imap();
+    prf1A.pft = brgemm_kernel_prefetching_t::brgemm_prf1;
+    prf1A.dist = brg.prfA.dist1;
+    prf2A.pft = brgemm_kernel_prefetching_t::brgemm_prf2;
+    prf2A.dist = brg.prfA.dist2;
+    prf1B.pft = brgemm_kernel_prefetching_t::brgemm_prf1;
+    prf1B.dist = brg.prfB.dist1;
+    prf2B.pft = brgemm_kernel_prefetching_t::brgemm_prf2;
+    prf2B.dist = brg.prfB.dist2;
+    prf1C.pft = brgemm_kernel_prefetching_t::brgemm_prf1;
+    prf1C.dist = brg.prfC.dist1;
+    prf2C.pft = brgemm_kernel_prefetching_t::brgemm_prf2;
+    prf2C.dist = brg.prfC.dist2;
 }
 
 void jit_brgemm_amx_uker_base_t::generate() {

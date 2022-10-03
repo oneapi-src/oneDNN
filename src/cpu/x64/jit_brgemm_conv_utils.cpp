@@ -2030,8 +2030,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             jcp.use_M_mask = jcp.is_os_blocking ? 2 : 0;
             jcp.use_uker = true;
             jcp.use_interleave_stores = true;
-            jcp.hint_prefetching
-                    = brgemm_kernel_prefetching_t::brgemm_prf_output1;
+            jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf1;
             // assuming 2x2 decomposition in amx brgemm kernel
             // and overlap of input by kw
             const auto bd_blocking = 2 * jcp.amx_h;
@@ -2302,7 +2301,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         return status::unimplemented;
 
     if (jcp.use_uker)
-        jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf_output1;
+        jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf1;
     CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
     CHECK(attr.set_default_formats(&dst_md));
 
@@ -2807,7 +2806,7 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     jcp.od_block = utils::saturate(1, jcp.od, od_block_limit);
 
     jcp.use_interleave_stores = false;
-    jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf_output1;
+    jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf1;
     jcp.amx_tile_load_xx = false;
 
     if (one_of(jcp.harness, harness_2d_reduction, harness_3d_reduction)) {

@@ -75,6 +75,9 @@ dnnl_status_t brgemm_attr_init(
     if (key_str.find(STRINGIFY(setting)) != std::string::npos) \
         brgattr->setting = std::stoi(value_str);
 
+#define PROCESS_SETTING_KEY_VAL(setting, key) \
+    if (key_str.compare(STRINGIFY(key)) == 0) \
+        brgattr->setting = std::stoi(value_str);
         // TODO: `max_top_vpad` and `max_bottom_vpad` do not affect anything in
         // the kernel call and reference computation so far since
         // batch_element_t struct is not adjusted to incorporate different pad
@@ -97,7 +100,15 @@ dnnl_status_t brgemm_attr_init(
         PROCESS_KEY_VAL(hint_ld_block);
         PROCESS_KEY_VAL(hint_ld_block2);
 
+        PROCESS_SETTING_KEY_VAL(hint_prfA.dist1, hint_prfA_dist1);
+        PROCESS_SETTING_KEY_VAL(hint_prfA.dist2, hint_prfA_dist2);
+        PROCESS_SETTING_KEY_VAL(hint_prfB.dist1, hint_prfB_dist1);
+        PROCESS_SETTING_KEY_VAL(hint_prfB.dist2, hint_prfB_dist2);
+        PROCESS_SETTING_KEY_VAL(hint_prfC.dist1, hint_prfC_dist1);
+        PROCESS_SETTING_KEY_VAL(hint_prfC.dist2, hint_prfC_dist2);
+
 #undef PROCESS_KEY_VAL
+#undef PROCESS_SETTING_KEY_VAL
 
         if (key_str.find(STRINGIFY(hint_innermost_loop)) != std::string::npos)
             brgattr->hint_innermost_loop

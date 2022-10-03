@@ -66,7 +66,8 @@ typedef enum {
 
 typedef enum {
     brgemm_prf_default = 1,
-    brgemm_prf_output1 = 2,
+    brgemm_prf1 = 2,
+    brgemm_prf2 = 3,
 } brgemm_kernel_prefetching_t;
 
 typedef enum {
@@ -79,6 +80,11 @@ typedef enum {
     brgemm_hint_nt_false = 0,
     brgemm_hint_nt_true = 1,
 } brgemm_kernel_hint_nt_t;
+
+struct brgemm_prf_t {
+    int dist1 = -1;
+    int dist2 = -1;
+};
 
 struct DNNL_API brgemm_attr_t {
     brgemm_attr_t();
@@ -93,6 +99,8 @@ struct DNNL_API brgemm_attr_t {
     brgemm_kernel_loop_order_t hint_loop_order;
     brgemm_kernel_prefetching_t hint_prefetching
             = brgemm_kernel_prefetching_t::brgemm_prf_default;
+    brgemm_prf_t hint_prfA, hint_prfB, hint_prfC;
+
     bool wary_tail_read;
     bool generate_skip_accumulation;
     // bd_mask is char array in which each element is a boolean value that
@@ -242,6 +250,8 @@ struct brgemm_t {
     int is_M_tail;
 
     bool interleave_tilestores_ = false;
+
+    brgemm_prf_t prfA, prfB, prfC;
 
     bool is_row_major() const {
         assert(layout != brgemm_layout_undef);
