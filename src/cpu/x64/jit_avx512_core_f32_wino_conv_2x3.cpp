@@ -840,9 +840,9 @@ jit_avx512_core_f32_wino_conv_2x3_fwd_t::
 
 void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
         const float *src, const float *wei, const float *bia, float *dst,
+        const float *oscales,
         const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
-    const auto &oscales = pd()->attr()->output_scales_;
 
     const size_t wino_size_offset
             = (size_t)(pd()->jcp_.yb / 2) * (pd()->jcp_.xb / 2)
@@ -954,13 +954,12 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
                                 + y * jcp.ow * jcp.oc_block + x * jcp.oc_block;
                         auto local_w = wino_dst + m * jcp.oc;
 
-                        auto scales = oscales.scales_;
                         dst_trans_p.dst = local_d;
                         dst_trans_p.wino_dst = local_w;
                         dst_trans_p.v_y_masks = v_y_masks;
                         dst_trans_p.v_x_masks = v_x_masks;
 
-                        dst_trans_p.scales = scales;
+                        dst_trans_p.scales = oscales;
                         dst_trans_p.bias = bia;
 
                         (*dst_trans_)(&dst_trans_p);
@@ -971,9 +970,9 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
 
 void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
         const float *src, const float *wei, const float *bia, float *dst,
+        const float *oscales,
         const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
-    const auto &oscales = pd()->attr()->output_scales_;
 
     if (pd()->wants_padded_bias()) {
         auto padded_bias = scratchpad.get<float>(key_conv_padded_bias);
@@ -1074,13 +1073,12 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
                             + y * jcp.ow * jcp.oc_block + x * jcp.oc_block;
                     auto local_w = ptr_M + m * jcp.oc;
 
-                    auto scales = oscales.scales_;
                     dst_trans_p.dst = local_d;
                     dst_trans_p.wino_dst = local_w;
                     dst_trans_p.v_y_masks = v_y_masks;
                     dst_trans_p.v_x_masks = v_x_masks;
 
-                    dst_trans_p.scales = scales;
+                    dst_trans_p.scales = oscales;
                     dst_trans_p.bias = bia;
 
                     (*dst_trans_)(&dst_trans_p);
