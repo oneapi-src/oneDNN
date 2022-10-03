@@ -56,24 +56,6 @@ status_t scales_t::set(dim_t count, int mask, const float *scales) {
     return status::success;
 }
 
-status_t arg_scales_t::set(
-        int arg, dim_t count, int mask, const float *scales) {
-    if (!check_arg(arg)) return status::invalid_arguments;
-
-    return scales_[arg].set(count, mask, scales);
-}
-
-status_t arg_scales_t::get(
-        int arg, dim_t *count, int *mask, const float **scales) const {
-    if (!check_arg(arg)) return status::invalid_arguments;
-    const auto &s = get(arg);
-
-    if (count) *count = s.count_;
-    if (mask) *mask = s.mask_;
-    if (scales) *scales = s.scales_;
-    return status::success;
-}
-
 status_t zero_points_t::get(
         int arg, dim_t *count, int *mask, const int **zero_points) const {
     if (count) *count = 1;
@@ -131,9 +113,6 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
 #define CHECK_MASK(mask_name, mask_field) \
     CHECK_ARG(IMPLICATION( \
             (bool)(~mask & (mask_name)), (mask_field).has_default_values()))
-    CHECK_ARG(IMPLICATION(
-            !output_scales_.has_default_values(), !output_scales_.defined()));
-    CHECK_ARG(IMPLICATION(!scales_.has_default_values(), !scales_.defined()));
     CHECK_MASK(smask_t::oscale_runtime, output_scales_);
     CHECK_MASK(smask_t::scales, scales_);
     CHECK_MASK(smask_t::zero_points, zero_points_);
@@ -452,8 +431,7 @@ status_t dnnl_primitive_attr_set_output_scales(
         primitive_attr_t *attr, int mask) {
     bool ok = attr && mask >= 0 && attr->scales_.has_default_values();
     if (!ok) return invalid_arguments;
-    float scales = DNNL_RUNTIME_F32_VAL;
-    return attr->output_scales_.set(1, mask, &scales);
+    return attr->output_scales_.set(mask);
 }
 
 status_t dnnl_primitive_attr_set_scales(
@@ -461,9 +439,7 @@ status_t dnnl_primitive_attr_set_scales(
     bool ok = attr && mask >= 0 && arg >= 0
             && attr->output_scales_.has_default_values();
     if (!ok) return invalid_arguments;
-    // XXX: can be removed
-    float scales = DNNL_RUNTIME_F32_VAL;
-    return attr->scales_.set(arg, 1, mask, &scales);
+    return attr->scales_.set(arg, mask);
 }
 
 status_t dnnl_primitive_attr_get_scales(
@@ -471,11 +447,7 @@ status_t dnnl_primitive_attr_get_scales(
     bool ok = !any_null(attr, mask) && arg >= 0;
     if (!ok) return invalid_arguments;
 
-    // XXX: not used
-    const float *scales {nullptr};
-    dim_t count {0};
-
-    return attr->scales_.get(arg, &count, mask, &scales);
+    return attr->scales_.get(arg, mask);
 }
 
 status_t dnnl_primitive_attr_get_zero_points(

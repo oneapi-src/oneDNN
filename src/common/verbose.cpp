@@ -351,6 +351,11 @@ std::string md2desc_str(const memory_desc_t *md) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &ss, const runtime_scales_t &oscale) {
+    ss << oscale.mask_;
+    return ss;
+}
+
 std::ostream &operator<<(std::ostream &ss, const scales_t &oscale) {
     ss << oscale.mask_;
     const float val = oscale.scales_[0];
@@ -408,7 +413,7 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
 
     if (attr->has_default_values()) return ss;
 
-    const scales_t &os = attr->output_scales_;
+    const runtime_scales_t &os = attr->output_scales_;
     if (!os.has_default_values()) { ss << "attr-oscale:" << os << " "; }
 
     std::string empty_delim, attr_delim = "+";

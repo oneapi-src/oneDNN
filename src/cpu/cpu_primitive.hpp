@@ -31,8 +31,9 @@
     alignas(16) float CONCAT2(scales, _buf16)[16] = {0}; \
     const float *scales {nullptr}; \
     if ((attr)) { \
-        if ((attr)->output_scales_.defined()) { \
-            scales = (attr)->output_scales_.scales_; \
+        if ((attr)->output_scales_.has_default_values()) { \
+            utils::array_set(CONCAT2(scales, _buf16), 1.0f, 16); \
+            scales = CONCAT2(scales, _buf16); \
         } else { \
             scales = CTX_IN_MEM(const float *, arg); \
             if (scales == nullptr) return status::invalid_arguments; \
@@ -64,16 +65,17 @@
     MAYBE_UNUSED(zero_points_ptr);
 
 #define ASSIGN_ARG_SCALE_VALUE(scale, mem_arg) \
-    if (pd()->attr()->scales_.get(mem_arg).defined()) { \
-        scale = pd()->attr()->scales_.get(mem_arg).scales_; \
+    alignas(16) float CONCAT2(CONCAT2(scales, _buf16), mem_arg)[16] = {0}; \
+    if (pd()->attr()->scales_.get(mem_arg).has_default_values()) { \
+        utils::array_set(CONCAT2(CONCAT2(scales, _buf16), mem_arg), 1.0f, 16); \
+        scale = CONCAT2(CONCAT2(scales, _buf16), mem_arg); \
     } else { \
-        const auto scale_d \
-                = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | mem_arg); \
+        const auto scale_d = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | mem_arg); \
         bool ok = scale_d.data_type() == data_type::f32 \
                 && scale_d.ndims() == 1 && scale_d.dims()[0] == 1; \
         if (!ok) return status::invalid_arguments; \
-        const float *scale_p = CTX_IN_MEM( \
-                const float *, DNNL_ARG_ATTR_SCALES | mem_arg); \
+        const float *scale_p \
+                = CTX_IN_MEM(const float *, DNNL_ARG_ATTR_SCALES | mem_arg); \
         if (scale_p == nullptr) return status::invalid_arguments; \
         scale = scale_p; \
     }

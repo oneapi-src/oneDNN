@@ -191,17 +191,10 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
     if (!attr.output_scales_.has_default_values()) {
         // output_scales: mask
         seed = hash_combine(seed, attr.output_scales_.mask_);
-        // output_scales: count
-        seed = hash_combine(seed, attr.output_scales_.count_);
-        // output_scales: scales[:]
-        seed = get_array_hash(
-                seed, attr.output_scales_.scales_, attr.output_scales_.count_);
     } else if (!attr.scales_.has_default_values()) {
         // go through scales for all arguments
         for (const auto &p : attr.scales_.scales_) {
             seed = hash_combine(seed, p.second.mask_);
-            seed = hash_combine(seed, p.second.count_);
-            seed = get_array_hash(seed, p.second.scales_, p.second.count_);
         }
     }
     // zero_points

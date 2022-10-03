@@ -121,6 +121,7 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(rnn_tparams_t);
 };
 
+// Note: keep for RNN quantization
 struct scales_t : public c_compatible {
     scales_t() : count_(1), mask_(0), scales_(scales_buf_) { set(1.); }
     scales_t(dim_t count, int mask, const float *scales)
@@ -175,11 +176,32 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(scales_t);
 };
 
-struct arg_scales_t : public c_compatible {
-    arg_scales_t()  = default;
+struct runtime_scales_t : public c_compatible {
+    runtime_scales_t() = default;
 
-    const scales_t &get(int arg) const {
-        static const scales_t default_scales;
+    status_t set(int mask) {
+        mask_ = mask;
+        is_set_ = true;
+        return status::success;
+    }
+
+    bool operator==(const runtime_scales_t &rhs) const {
+        return mask_ == rhs.mask_ && is_set_ == rhs.is_set_;
+    }
+
+    bool has_default_values() const { return !is_set_; }
+
+    bool defined() const { return has_default_values(); }
+
+    int mask_ = 0;
+    bool is_set_ = false;
+};
+
+struct arg_scales_t : public c_compatible {
+    arg_scales_t() = default;
+
+    const runtime_scales_t &get(int arg) const {
+        static const runtime_scales_t default_scales;
         const auto it = scales_.find(arg);
         if (it == scales_.end()) return default_scales;
         return it->second;
@@ -205,25 +227,28 @@ struct arg_scales_t : public c_compatible {
                         skip = true;
                         break;
                     }
-                if (skip) continue;
-                else return false;
+                if (skip)
+                    continue;
+                else
+                    return false;
             }
         }
         return true;
     }
 
-    bool defined() const {
-        for (const auto &s : scales_) {
-            if (!s.second.defined()) return false;
-        }
-        return true;
+    status_t set(int arg, int mask) {
+        if (!check_arg(arg)) return status::invalid_arguments;
+        return scales_[arg].set(mask);
     }
 
-    status_t get(int arg, dim_t *count, int *mask, const float **scales) const;
-    status_t set(int arg, dim_t count, int mask, const float *scales);
-    status_t set(int arg, float single_scale) {
-        return set(arg, 1, 0, &single_scale);
+    status_t get(int arg, int *mask) const {
+        if (!check_arg(arg)) return status::invalid_arguments;
+        const auto &s = get(arg);
+        if (mask) *mask = s.mask_;
+        return status::success;
     }
+
+    bool defined() const { return has_default_values(); }
 
     status_t copy_from(const arg_scales_t &other) {
         for (auto it = other.scales_.begin(); it != other.scales_.end(); ++it) {
@@ -231,25 +256,16 @@ struct arg_scales_t : public c_compatible {
             // new object.
             if (scales_.count(it->first) == 1) {
                 auto &entry = scales_[it->first];
-                bool exists = entry.count_ == it->second.count_
-                        && entry.mask_ == it->second.mask_
-                        && !utils::any_null(entry.scales_, it->second.scales_)
-                        && !is_runtime_value(entry.scales_[0])
-                                == !is_runtime_value(it->second.scales_[0])
-                        && IMPLICATION(!is_runtime_value(entry.scales_[0]),
-                                utils::array_cmp(entry.scales_,
-                                        it->second.scales_, it->second.count_));
-
+                bool exists = entry.mask_ == it->second.mask_;
                 if (exists) continue;
             }
 
-            CHECK(set(it->first, it->second.count_, it->second.mask_,
-                    it->second.scales_));
+            CHECK(set(it->first, it->second.mask_));
         }
         return status::success;
     }
 
-    std::map<int, scales_t> scales_;
+    std::map<int, runtime_scales_t> scales_;
 
 private:
     bool check_arg(int arg) const {
@@ -643,8 +659,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::status_t copy_from(const dnnl_primitive_attr &other) {
         using namespace dnnl::impl;
 
-        CHECK(output_scales_.copy_from(other.output_scales_));
-        CHECK(scales_.copy_from(other.scales_));
+        output_scales_ = other.output_scales_;
+        scales_ = other.scales_;
         zero_points_ = other.zero_points_;
         scratchpad_mode_ = other.scratchpad_mode_;
         fpmath_mode_ = other.fpmath_mode_;
@@ -736,7 +752,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     }
 
     // NOTE: make sure that the types below have overloaded comparison operator
-    dnnl::impl::scales_t output_scales_;
+    dnnl::impl::runtime_scales_t output_scales_;
     dnnl::impl::arg_scales_t scales_;
     dnnl::impl::zero_points_t zero_points_;
     dnnl::impl::scratchpad_mode_t scratchpad_mode_;

@@ -61,14 +61,10 @@ struct ref_concat_t : public primitive_t {
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
                 if (!sc.has_default_values()) {
-                    dim_t count = 0;
                     int mask = 0;
-                    const float *value = nullptr;
-                    CHECK(sc.get(
-                            DNNL_ARG_MULTIPLE_SRC + i, &count, &mask, &value));
+                    CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask));
                     if (mask != 0) return status::unimplemented;
-                    if (value == nullptr) return status::runtime_error;
-                    r_attr.output_scales_.set(value[0]);
+                    r_attr.output_scales_.set(mask);
                 }
                 CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
                         src_md(i), src_image_md(i), &r_attr));

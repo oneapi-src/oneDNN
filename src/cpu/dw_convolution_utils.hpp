@@ -43,8 +43,7 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
     // post-ops after depthwise post-op.
     auto &dw_po = attr_1x1.post_ops_.entry_[dw_po_index].depthwise_conv;
     if (dw_po.wei_dt == data_type::s8 && dw_po.count) {
-        CHECK(attr_dw.output_scales_.set(
-                dw_po.count, dw_po.mask, dw_po.scales));
+        CHECK(attr_dw.output_scales_.set(dw_po.mask));
     }
 
     auto dw_po_len = attr_1x1.post_ops_.len() - (dw_po_index + 1);

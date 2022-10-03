@@ -45,7 +45,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
 
             primitive_attr_t gemm_attr;
             if (!attr()->output_scales_.has_default_values()) {
-                gemm_attr.output_scales_.copy_from(attr()->output_scales_);
+                gemm_attr.output_scales_ = attr()->output_scales_;
             }
 
             auto map_gemm_zp = [&](int arg, int gemm_arg) {

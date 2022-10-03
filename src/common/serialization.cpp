@@ -139,16 +139,10 @@ void serialize_attr(
     if (!attr.output_scales_.has_default_values()) {
         // output_scales: mask
         sstream.write(&attr.output_scales_.mask_);
-        // output_scales: count
-        sstream.write(&attr.output_scales_.count_);
-        // output_scales: scales[:]
-        sstream.write(attr.output_scales_.scales_, attr.output_scales_.count_);
     } else if (!attr.scales_.has_default_values()) {
         // go through scales for all arguments
         for (const auto &p : attr.scales_.scales_) {
             sstream.write(&p.second.mask_);
-            sstream.write(&p.second.count_);
-            sstream.write(p.second.scales_, p.second.count_);
         }
     }
     // zero_points

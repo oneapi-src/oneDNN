@@ -106,14 +106,6 @@ inline size_t get_array_hash<memory_desc_t>(
     return seed;
 }
 
-template <>
-inline size_t get_array_hash<float>(size_t seed, const float *v, int size) {
-    for (int i = 0; i < size; i++) {
-        seed = hash_combine(seed, float2int(v[i]));
-    }
-    return seed;
-}
-
 inline size_t get_array_hash(
         size_t seed, const std::vector<const memory_desc_t *> &mds) {
     for (const auto *md : mds)
