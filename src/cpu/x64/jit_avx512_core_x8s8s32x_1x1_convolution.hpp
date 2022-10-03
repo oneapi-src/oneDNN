@@ -63,13 +63,11 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && utils::one_of(src_md(0)->data_type, s8, u8)
                     && weights_md(0)->data_type == s8
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(
-                                    weights_md(1)->data_type, f32, s32, s8, u8))
+                    && IMPLICATION(with_bias(), weights_md(1)->data_type == f32)
                     && utils::one_of(
                             dst_md(0)->data_type, f32, s32, s8, u8, bf16)
                     && desc()->accum_data_type == s32
-                    && attr()->has_default_values(smask_t::oscale_runtime
+                    && attr()->has_default_values(smask_t::scales_runtime
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_md(0)->data_type)
@@ -293,8 +291,8 @@ private:
     void execute_forward_thr(const int ithr, const int nthr, const char *src,
             const char *weights, const char *bias, const char *weights_dw,
             const char *bias_dw, char *dst, const float *oscales,
-            const float *dw_oscales, const int32_t *src_zero_point,
-            const int32_t *dst_zero_point,
+            const float *dw_oscales, const float *dst_scales,
+            const int32_t *src_zero_point, const int32_t *dst_zero_point,
             const memory_tracking::grantor_t &scratchpad,
             const void *post_ops_binary_rhs_arg_vec,
             const void *post_ops_binary_rhs_arg_vec_dw) const;

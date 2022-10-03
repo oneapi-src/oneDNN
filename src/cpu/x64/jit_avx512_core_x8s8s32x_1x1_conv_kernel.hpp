@@ -59,6 +59,7 @@ private:
     const Xbyak::Reg64 reg_reduce_loop_work = r11;
     const Xbyak::Reg64 reg_bias_data = r12;
     const Xbyak::Reg64 reg_comp_data = r12;
+    const Xbyak::Reg64 reg_ptr_dst_scale = r12;
     const Xbyak::Reg64 reg_scratch = r13;
     const Xbyak::Reg64 aux_reg_bcast_data = r14;
     const Xbyak::Reg64 aux_reg_load_data = r15;
@@ -94,6 +95,8 @@ private:
     const Vmm vmm_zp = Vmm(30);
     const Vmm vmm_zp_tmp = vmm_zp;
 
+    const Vmm vmm_dst_scale = Vmm(30);
+
     /* bfloat16 */
     const Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(25);
     const Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(26);
@@ -115,9 +118,10 @@ private:
     constexpr static int reg_zp_compensation_off = 7 * reg64_size_;
     constexpr static int reg_src_zero_point_off = 8 * reg64_size_;
     constexpr static int reg_dst_zero_point_off = 9 * reg64_size_;
-    constexpr static int reg_binary_post_op_acc_off = 10 * reg64_size_;
-    constexpr static int reg_abi_param1_backup = 11 * reg64_size_;
-    constexpr static int stack_space_needed = 12 * reg64_size_;
+    constexpr static int reg_dst_scale_off = 10 * reg64_size_;
+    constexpr static int reg_binary_post_op_acc_off = 11 * reg64_size_;
+    constexpr static int reg_abi_param1_backup = 12 * reg64_size_;
+    constexpr static int stack_space_needed = 13 * reg64_size_;
 
     inline Vmm maybe_mask_vmm(Vmm vmm, bool mask_flag) {
         return mask_flag ? vmm | k_load_dim_mask_extended : vmm;

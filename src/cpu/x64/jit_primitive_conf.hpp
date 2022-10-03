@@ -603,6 +603,8 @@ struct jit_1x1_conv_conf_t {
     bool dst_zero_point;
     bool zp_src_is_common; // common, otherwise (TODO) per-channel
 
+    bool dst_scale;
+
     cpu_isa_t isa;
     bool uses_permw_transposition;
 };
@@ -619,6 +621,7 @@ struct jit_1x1_conv_call_s {
     const int32_t *zp_compensation;
     const int32_t *src_zero_point;
     const int32_t *dst_zero_point;
+    const void *dst_scale;
 
     // ptr to table of void * elements that are pointers to
     // post_op binary src1 tensors
