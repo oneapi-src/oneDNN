@@ -69,14 +69,14 @@ The RNN API provides four cell functions:
 ### Vanilla RNN
 
 A single-gate recurrent cell initialized
-with #dnnl::vanilla_rnn_forward::desc::desc()
-or #dnnl::vanilla_rnn_forward::desc::desc() as in the following example.
+with #dnnl::vanilla_rnn_forward::primitive_desc::primitive_desc()
+or #dnnl::vanilla_rnn_backward::primitive_desc::primitive_desc() as in the following example.
 
 ~~~cpp
-    auto vanilla_rnn_desc = dnnl::vanilla_rnn_forward::desc(
-        aprop, activation, direction, src_layer_desc, src_iter_desc,
-        weights_layer_desc, weights_iter_desc, bias_desc,
-        dst_layer_desc, dst_iter_desc);
+    auto vanilla_rnn_pd = dnnl::vanilla_rnn_forward::primitive_desc(
+        engine, aprop, activation, direction, src_layer_desc, src_iter_desc,
+        weights_layer_desc, weights_iter_desc, bias_desc, dst_layer_desc,
+        dst_iter_desc);
 ~~~
 
 The Vanilla RNN cell supports the ReLU, Tanh and Sigmoid activation
@@ -95,14 +95,14 @@ h_t &= activation(a_t)
 #### LSTM (or Vanilla LSTM)
 
 A four-gate long short-term memory recurrent cell initialized
-with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
-as in the following example.
+with #dnnl::lstm_forward::primitive_desc::primitive_desc() or
+#dnnl::lstm_backward::primitive_desc::primitive_desc() as in the following example.
 
 ~~~cpp
-    auto lstm_desc = lstm_forward::desc(
-        aprop, direction, src_layer_desc, src_iter_h_desc, src_iter_c_desc,
-        weights_layer_desc, weights_iter_desc, bias_desc, dst_layer_desc,
-        dst_iter_h_desc, dst_iter_c_desc);
+    auto lstm_pd = lstm_forward::primitive_desc(
+        engine, aprop, direction, src_layer_desc, src_iter_h_desc,
+        src_iter_c_desc, weights_layer_desc, weights_iter_desc, bias_desc,
+        dst_layer_desc, dst_iter_h_desc, dst_iter_c_desc);
 ~~~
 
 Note that for all tensors with a dimension depending on the gate number, we
@@ -134,12 +134,12 @@ channels(\dstiter)\f$.
 #### LSTM with Peephole
 
 A four-gate long short-term memory recurrent cell with peephole initialized
-with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
-as in the following example.
+with #dnnl::lstm_forward::primitive_desc::primitive_desc() or
+#dnnl::lstm_backward::primitive_desc::primitive_desc() as in the following example.
 
 ~~~cpp
-    auto lstm_desc = dnnl::lstm_forward::desc(
-        aprop, direction, src_layer_desc, src_iter_h_desc, src_iter_c_desc,
+    auto lstm_pd = dnnl::lstm_forward::primitive_desc(
+        engine, aprop, direction, src_layer_desc, src_iter_h_desc, src_iter_c_desc,
         weights_layer_desc, weights_iter_desc, weights_peephole_desc,
         bias_desc, dst_layer_desc, dst_iter_h_desc, dst_iter_c_desc);
 ~~~
@@ -174,12 +174,12 @@ primitive without peephole.
 #### LSTM with Projection (or LSTMP)
 
 A four-gate long short-term memory recurrent cell with projection initialized
-with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
-as in the following example.
+with #dnnl::lstm_forward::primitive_desc::primitive_desc() or
+#dnnl::lstm_backward::primitive_desc::primitive_desc() as in the following example.
 
 ~~~cpp
-    auto lstm_desc = dnnl::lstm_forward::desc(
-        aprop, direction, src_layer_desc, src_iter_h_desc, src_iter_c_desc,
+    auto lstm_pd = dnnl::lstm_forward::primitive_desc(
+        engine, aprop, direction, src_layer_desc, src_iter_h_desc, src_iter_c_desc,
         weights_layer_desc, weights_iter_desc, weights_peephole_desc,
         weights_projection_desc, bias_desc, dst_layer_desc, dst_iter_h_desc,
         dst_iter_c_desc);
@@ -215,12 +215,12 @@ primitive without projection.
 ### GRU
 
 A three-gate gated recurrent unit cell, initialized
-with #dnnl::gru_forward::desc::desc() or #dnnl::gru_backward::desc::desc()
-as in the following example.
+with #dnnl::gru_forward::primitive_desc::primitive_desc() or
+#dnnl::gru_backward::primitive_desc::primitive_desc() as in the following example.
 
 ~~~cpp
-    auto gru_desc = dnnl::gru_forward::desc(
-        aprop, direction, src_layer_desc, src_iter_desc,
+    auto gru_pd = dnnl::gru_forward::primitive_desc(
+        engine, aprop, direction, src_layer_desc, src_iter_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
 ~~~
@@ -249,12 +249,13 @@ This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
 ### Linear-Before-Reset GRU
 
 A three-gate gated recurrent unit cell with linear layer applied before the
-reset gate, initialized with #dnnl::lbr_gru_forward::desc::desc()
-or #dnnl::lbr_gru_backward::desc::desc() as in the following example.
+reset gate, initialized with #dnnl::lbr_gru_forward::primitive_desc::primitive_desc()
+or #dnnl::lbr_gru_backward::primitive_desc::primitive_desc()
+as in the following example.
 
 ~~~cpp
-    auto lbr_gru_desc = dnnl::lbr_gru_forward::desc(
-        aprop, direction, src_layer_desc, src_iter_desc,
+    auto lbr_gru_pd = dnnl::lbr_gru_forward::primitive_desc(
+        engine, aprop, direction, src_layer_desc, src_iter_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
 ~~~
@@ -284,14 +285,14 @@ This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
 ### AUGRU
 
 A three-gate gated recurrent unit cell, initialized
-with #dnnl::augru_forward::desc::desc() or #dnnl::augru_backward::desc::desc()
-as in the following example.
+with #dnnl::augru_forward::primitive_desc::primitive_desc() or
+#dnnl::augru_backward::primitive_desc::primitive_desc() as in the following example.
 
 ~~~cpp
-    auto augru_desc = dnnl::augru_forward::desc(
-        aprop, direction, src_layer_desc, src_iter_desc, attention_desc,
-        weights_layer_desc, weights_iter_desc, bias_desc,
-        dst_layer_desc, dst_iter_desc);
+    auto augru_pd = dnnl::augru_forward::primitive_desc(
+        engine, aprop, direction, src_layer_desc, src_iter_desc, attention_desc,
+        weights_layer_desc, weights_iter_desc, bias_desc, dst_layer_desc,
+        dst_iter_desc);
 ~~~
 
 Note that for all tensors with a dimension depending on the gate number, we
@@ -314,12 +315,13 @@ where \f$W_*\f$ are in \weightslayer, \f$U_*\f$ are in
 ### Linear-Before-Reset AUGRU
 
 A three-gate gated recurrent unit cell with linear layer applied before the
-reset gate, initialized with #dnnl::lbr_augru_forward::desc::desc()
-or #dnnl::lbr_augru_backward::desc::desc() as in the following example.
+reset gate, initialized with #dnnl::lbr_augru_forward::primitive_desc::primitive_desc()
+or #dnnl::lbr_augru_backward::primitive_desc::primitive_desc() as in the
+following example.
 
 ~~~cpp
-    auto lbr_augru_desc = dnnl::lbr_augru_forward::desc(
-        aprop, direction, src_layer_desc, src_iter_desc, attention_desc,
+    auto lbr_augru_pd = dnnl::lbr_augru_forward::primitive_desc(
+        engine, aprop, direction, src_layer_desc, src_iter_desc, attention_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
 ~~~

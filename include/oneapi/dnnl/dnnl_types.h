@@ -90,8 +90,7 @@ typedef enum {
     /// selected by a primitive automatically.
     dnnl_format_kind_any,
     /// A tensor in a generic format described by the stride and blocking
-    /// values in each dimension. See @ref dnnl_blocking_desc_t for more
-    /// information.
+    /// values in each dimension.
     dnnl_blocked,
     /// A special format kind that indicates that tensor format is opaque.
     dnnl_format_kind_opaque,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ inline threadpool_iface *get_threadpool(const dnnl::stream &astream) {
     return static_cast<threadpool_iface *>(tp);
 }
 
-/// @copydoc dnnl_sgemm_tp()
+/// @copydoc dnnl_threadpool_interop_sgemm()
 inline status sgemm(char transa, char transb, dnnl_dim_t M, dnnl_dim_t N,
         dnnl_dim_t K, float alpha, const float *A, dnnl_dim_t lda,
         const float *B, dnnl_dim_t ldb, float beta, float *C, dnnl_dim_t ldc,
@@ -78,7 +78,7 @@ inline status sgemm(char transa, char transb, dnnl_dim_t M, dnnl_dim_t N,
     return static_cast<status>(dnnl_threadpool_interop_sgemm(transa, transb, M,
             N, K, alpha, A, lda, B, ldb, beta, C, ldc, threadpool));
 }
-/// @copydoc dnnl_gemm_u8s8s32_tp()
+/// @copydoc dnnl_threadpool_interop_gemm_u8s8s32()
 inline status gemm_u8s8s32(char transa, char transb, char offsetc, dnnl_dim_t M,
         dnnl_dim_t N, dnnl_dim_t K, float alpha, const uint8_t *A,
         dnnl_dim_t lda, uint8_t ao, const int8_t *B, dnnl_dim_t ldb, int8_t bo,
@@ -89,7 +89,7 @@ inline status gemm_u8s8s32(char transa, char transb, char offsetc, dnnl_dim_t M,
             ldc, co, threadpool));
 }
 
-/// @copydoc dnnl_gemm_s8s8s32_tp()
+/// @copydoc dnnl_threadpool_interop_gemm_s8s8s32()
 inline status gemm_s8s8s32(char transa, char transb, char offsetc, dnnl_dim_t M,
         dnnl_dim_t N, dnnl_dim_t K, float alpha, const int8_t *A,
         dnnl_dim_t lda, int8_t ao, const int8_t *B, dnnl_dim_t ldb, int8_t bo,

@@ -334,8 +334,6 @@ void simple_net() {
     /// Create bidirectional RNN
 
     ///
-    /// @snippet cpu_rnn_inference_int8.cpp create rnn desc
-    ///
     /// Define RNN attributes that store quantization parameters
     /// @snippet cpu_rnn_inference_int8.cpp RNN attri
     ///

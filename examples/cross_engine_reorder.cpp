@@ -134,14 +134,12 @@ void cross_engine_reorder_tutorial() {
     /// Just as in the case of @ref dnnl::memory, a user should always go
     /// through (at least) three creation steps (which, however, can sometimes
     /// be combined thanks to C++11):
-    /// 1. Initialize an operation descriptor (in the case of this example,
-    ///    @ref dnnl::eltwise_forward::desc), which defines the operation
-    ///    parameters including a GPU memory descriptor.
-    /// 2. Create an operation primitive descriptor (here @ref
-    ///    dnnl::eltwise_forward::primitive_desc) on a GPU engine, which is a
-    ///    **lightweight** descriptor of the actual algorithm that
-    ///    **implements** the given operation.
-    /// 3. Create a primitive (here @ref dnnl::eltwise_forward) that can be
+    /// 1. Create an operation primitive descriptor (here @ref
+    ///    dnnl::eltwise_forward::primitive_desc) that defines the operation
+    ///    parameters including a GPU memory descriptor, and GPU engine.
+    ///    Primitive descriptor is a **lightweight** descriptor of the actual
+    ///    algorithm that **implements** the given operation.
+    /// 2. Create a primitive (here @ref dnnl::eltwise_forward) that can be
     ///    executed on GPU memory objects to compute the operation by a GPU
     ///    engine.
     ///

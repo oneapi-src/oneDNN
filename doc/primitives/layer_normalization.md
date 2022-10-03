@@ -206,7 +206,7 @@ The layer normalization primitive is optimized for the following memory formats:
 1. For data tensors \src, \dst, \diffsrc, and \diffdst, use memory formats
    for which the last logical axis is the last in the physical memory layout.
 
-2. For \mean and \variance, use the memory format that follows the data memory
+2. For `mean` and `variance`, use the memory format that follows the data memory
    format; i.e., if the data format is #dnnl_tnc, the best performance can be
    expected for statistics with #dnnl_tn and suboptimal for statistics with the
    #dnnl_nt format.

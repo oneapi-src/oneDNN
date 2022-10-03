@@ -105,9 +105,6 @@ dnnl_status_t DNNL_API dnnl_primitive_desc_destroy(
 ///     memory descriptor if the parameter is not needed.
 ///
 /// A few other use cases:
-///  - query a primitive descriptor for the underlying operation descriptor
-///    (#dnnl_query_convolution_d, #dnnl_query_eltwise_d, #dnnl_query_rnn_d,
-///    etc.)
 ///  - query a primitive descriptor for the implementation information string
 ///    (#dnnl_query_impl_info_str)
 ///  - query a primitive descriptor for the number of inputs and outputs
@@ -198,7 +195,7 @@ dnnl_status_t DNNL_API dnnl_primitive_create_from_cache_blob(
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 
-/// @note If any argument in @param args is padded (padded_dims >
+/// @note If any argument in @p args is padded (padded_dims >
 /// dims), the primitive execution will assume properly zero-padded
 /// input arguments, and produce zero-padded output arguments.
 dnnl_status_t DNNL_API dnnl_primitive_execute(const_dnnl_primitive_t primitive,
@@ -1774,7 +1771,7 @@ dnnl_status_t DNNL_API dnnl_pooling_backward_primitive_desc_create(
         const_dnnl_memory_desc_t diff_dst_desc, const dnnl_dims_t strides,
         const dnnl_dims_t kernel, const dnnl_dims_t dilation,
         const dnnl_dims_t padding_l, const dnnl_dims_t padding_r,
-        const_dnnl_primitive_desc_t hint_forward_primitive_desc,
+        const_dnnl_primitive_desc_t hint_fwd_pd,
         const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_pooling
@@ -2560,8 +2557,6 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_primitive_desc_create_v2(
 /// @param dst_iter_c_desc Memory descriptor for the output recurrent cell
 ///     state vector.
 /// @param flags Unused.
-/// @param hint_fwd_pd Primitive descriptor for a respective forward propagation
-///     primitive.
 /// @param attr Primitive attributes (can be NULL).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
@@ -3695,7 +3690,7 @@ dnnl_status_t DNNL_API dnnl_set_jit_profiling_jitdumpdir(const char *dir);
 /// @sa @ref dev_guide_cpu_dispatcher_control for more details
 ///
 /// @param isa Maximal ISA the library should dispatch to. Pass
-///     #dnnl_cpu_isa_default/#dnnl::cpu_isa::default to remove ISA restrictions
+///     #dnnl_cpu_isa_default/#dnnl::cpu_isa::isa_default to remove ISA restrictions
 ///     (except for ISAs with initial support in the library).
 /// @returns #dnnl_success/#dnnl::status::success on success and a
 ///     #dnnl_invalid_arguments/#dnnl::status::invalid_arguments if the @p isa

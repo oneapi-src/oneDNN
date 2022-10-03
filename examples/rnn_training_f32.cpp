@@ -16,6 +16,7 @@
 
 /// @example rnn_training_f32.cpp
 /// @copybrief rnn_training_f32_cpp
+/// > Annotated version: @ref rnn_training_f32_cpp
 ///
 /// @page rnn_training_f32_cpp RNN f32 training example
 /// This C++ API example demonstrates how to build GNMT model training.

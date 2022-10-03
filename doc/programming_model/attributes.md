@@ -29,7 +29,7 @@ users can change or destroy attributes right after that.
 
 If not modified, attributes can stay empty, which is equivalent to the default
 attributes. For that purpose, in the C API users can pass `NULL` as an
-attribute to the @ref dnnl_primitive_desc_create function. In the C++ API,
+attribute upon primitive descriptor creation. In the C++ API,
 primitive descriptors' constructors have empty attributes as default
 parameters, so, unless they are required, users can simply omit them.
 

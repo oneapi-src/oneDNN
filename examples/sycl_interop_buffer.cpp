@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 /// @example  sycl_interop_buffer.cpp
-/// Annotated version: @ref sycl_interop_buffer_cpp
+/// > Annotated version: @ref sycl_interop_buffer_cpp
 ///
 /// @page  sycl_interop_buffer_cpp Getting started on both CPU and GPU with SYCL extensions API
 /// Full example text: @ref sycl_interop_buffer.cpp

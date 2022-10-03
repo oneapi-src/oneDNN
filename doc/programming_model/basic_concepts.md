@@ -120,16 +120,13 @@ own.
 
 The sequence of actions to create a primitive is:
 
-1. Create an operation descriptor via, for example, @ref
-   dnnl::convolution_forward::desc. The operation descriptor can contain
-   memory descriptors with placeholder
+1. Create a primitive descriptor via, for example, @ref
+   dnnl::convolution_forward::primitive_desc. The primitive descriptor
+   can contain memory descriptors with placeholder
    [format_tag::any](@ref dnnl::memory::format_tag::any)
    memory formats if the primitive supports it.
 
-2. Create a primitive descriptor based on the operation descriptor, engine
-   and attributes.
-
-3. Create a primitive based on the primitive descriptor obtained in step 2.
+2. Create a primitive based on the primitive descriptor obtained in step 1.
 
 @note The above sequence does not relate to all primitives in its entirety. For
 instance, the reorder primitive does not have an operation descriptor.

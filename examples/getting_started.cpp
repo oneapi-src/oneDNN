@@ -277,7 +277,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
 
     /// We already have a memory buffer for the source memory object.  We pass
     /// it to the
-    /// @ref dnnl::memory::memory(const desc &, const engine &, void *)
+    /// @ref dnnl::memory::memory(const dnnl::memory::desc &, const dnnl::engine &, void *)
     /// constructor that takes a buffer pointer as its last argument.
     ///
     /// Let's use a constructor that instructs the library to allocate a
@@ -305,19 +305,16 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// function to each and every element of the source tensor.
     ///
     /// Just as in the case of @ref dnnl::memory, a user should always go
-    /// through (at least) three creation steps (which however, can be sometimes
+    /// through (at least) two creation steps (which however, can be sometimes
     /// combined thanks to C++11):
-    /// 1. Initialize an operation descriptor (in this example,
-    ///    @ref dnnl::eltwise_forward::desc), which defines the operation
-    ///    parameters.
-    /// 2. Create an operation primitive descriptor (here @ref
-    ///    dnnl::eltwise_forward::primitive_desc), which is a
-    ///    **lightweight** descriptor of the actual algorithm that
-    ///    **implements** the given operation. The user can query different
-    ///    characteristics of the chosen implementation such as memory
-    ///    consumptions and some others that will be covered in the next topic
-    ///    (@ref memory_format_propagation_cpp).
-    /// 3. Create a primitive (here @ref dnnl::eltwise_forward) that can be
+    /// 1. Create an operation primitive descriptor (here @ref
+    ///    dnnl::eltwise_forward::primitive_desc) that defines operation
+    ///    parameters and is a **lightweight** descriptor of the actual
+    ///    algorithm that **implements** the given operation.
+    ///    The user can query different characteristics of the chosen
+    ///    implementation such as memory consumptions and some others that will
+    ///    be covered in the next topic (@ref memory_format_propagation_cpp).
+    /// 2. Create a primitive (here @ref dnnl::eltwise_forward) that can be
     ///    executed on memory objects to compute the operation.
     ///
     /// oneDNN separates steps 2 and 3 to enable the user to inspect details of a

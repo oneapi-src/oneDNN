@@ -16,6 +16,7 @@
 
 /// @example cnn_training_f32.cpp
 /// @copybrief cnn_training_f32_cpp
+/// > Annotated version: @ref cnn_training_f32_cpp
 ///
 /// @page cnn_training_f32_cpp CNN f32 training example
 /// This C++ API example demonstrates how to build an AlexNet model training.

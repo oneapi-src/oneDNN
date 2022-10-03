@@ -748,9 +748,6 @@ inline dnnl_rnn_flags_t convert_to_c(rnn_flags flags) {
     return static_cast<dnnl_rnn_flags_t>(flags);
 }
 
-/// @addtogroup dnnl_api_rnn
-/// @{
-
 #define DNNL_DEFINE_BITMASK_OPS(enum_name) \
     inline enum_name operator|(enum_name lhs, enum_name rhs) { \
         return static_cast<enum_name>( \
@@ -1277,8 +1274,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// selected by a primitive automatically.
         any = dnnl_format_kind_any,
         /// A tensor in a generic format described by the stride and blocking
-        /// values in each dimension. See @ref dnnl_blocking_desc_t for more
-        /// information.
+        /// values in each dimension.
         blocked = dnnl_blocked,
         /// A special format kind that indicates that tensor format is opaque.
         opaque = dnnl_format_kind_opaque,
@@ -6516,13 +6512,12 @@ struct lrn_backward : public primitive {
         ///     primitive.
         ///
         /// @param aengine Engine to use.
-        /// @param aprop_kind Propagation kind. Possible values are
-        ///     #dnnl::prop_kind::forward_training, and
-        ///     #dnnl::prop_kind::forward_inference.
         /// @param aalgorithm LRN algorithm kind: either
         ///     #dnnl::algorithm::lrn_across_channels, or
         ///     #dnnl::algorithm::lrn_within_channel.
         /// @param data_desc Source and destination memory descriptors.
+        /// @param diff_data_desc Diff source and diff destination memory
+        ///     descriptor.
         /// @param local_size Regularization local size.
         /// @param alpha The alpha regularization parameter.
         /// @param beta The beta regularization parameter.
@@ -8662,7 +8657,6 @@ struct vanilla_rnn_forward : public primitive {
         /// @param dst_layer_desc Memory descriptor for the output vector.
         /// @param dst_iter_desc Memory descriptor for the output recurrent
         ///     hidden state vector.
-        /// @param flags Unused.
         /// @param attr Primitive attributes to use. Attributes are optional
         ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
@@ -8724,7 +8718,6 @@ struct vanilla_rnn_forward : public primitive {
         /// @param dst_layer_desc Memory descriptor for the output vector.
         /// @param dst_iter_desc Memory descriptor for the output recurrent
         ///     hidden state vector.
-        /// @param flags Unused.
         /// @param alpha Negative slope if activation is
         ///     #dnnl::algorithm::eltwise_relu.
         /// @param attr Primitive attributes to use. Attributes are optional
@@ -8891,7 +8884,6 @@ struct vanilla_rnn_backward : public primitive {
         ///     output vector.
         /// @param diff_dst_iter_desc Memory descriptor for the diff of output
         ///     recurrent hidden state vector.
-        /// @param flags Unused.
         /// @param hint_fwd_pd Primitive descriptor for a vanilla RNN
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
@@ -8980,7 +8972,6 @@ struct vanilla_rnn_backward : public primitive {
         ///     output vector.
         /// @param diff_dst_iter_desc Memory descriptor for the diff of output
         ///     recurrent hidden state vector.
-        /// @param flags Unused.
         /// @param alpha Negative slope if activation is
         ///     #dnnl::algorithm::eltwise_relu.
         /// @param hint_fwd_pd Primitive descriptor for a vanilla RNN
@@ -9196,7 +9187,6 @@ struct lstm_forward : public primitive {
         ///     hidden state vector.
         /// @param dst_iter_c_desc Memory descriptor for the output recurrent
         ///     cell state vector.
-        /// @param flags Unused.
         /// @param attr Primitive attributes to use. Attributes are optional
         ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
@@ -9266,7 +9256,6 @@ struct lstm_forward : public primitive {
         ///     hidden state vector.
         /// @param dst_iter_c_desc Memory descriptor for the output recurrent
         ///     cell state vector.
-        /// @param flags Unused.
         /// @param attr Primitive attributes to use. Attributes are optional
         ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
@@ -9331,7 +9320,6 @@ struct lstm_forward : public primitive {
         ///     hidden state vector.
         /// @param dst_iter_c_desc Memory descriptor for the output recurrent
         ///     cell state vector.
-        /// @param flags Unused.
         /// @param attr Primitive attributes to use. Attributes are optional
         ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
@@ -9531,7 +9519,6 @@ struct lstm_backward : public primitive {
         ///     recurrent hidden state vector.
         /// @param diff_dst_iter_c_desc Memory descriptor for the diff of
         ///     output recurrent cell state vector.
-        /// @param flags Unused.
         /// @param hint_fwd_pd Primitive descriptor for an LSTM
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
@@ -9645,7 +9632,6 @@ struct lstm_backward : public primitive {
         ///     recurrent hidden state vector.
         /// @param diff_dst_iter_c_desc Memory descriptor for the diff of
         ///     output recurrent cell state vector.
-        /// @param flags Unused.
         /// @param hint_fwd_pd Primitive descriptor for an LSTM
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
@@ -9747,7 +9733,6 @@ struct lstm_backward : public primitive {
         ///     recurrent hidden state vector.
         /// @param diff_dst_iter_c_desc Memory descriptor for the diff of
         ///     output recurrent cell state vector.
-        /// @param flags Unused.
         /// @param hint_fwd_pd Primitive descriptor for a convolution
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
@@ -9977,7 +9962,6 @@ struct gru_forward : public primitive {
         /// @param dst_layer_desc Memory descriptor for the output vector.
         /// @param dst_iter_desc Memory descriptor for the output recurrent
         ///     hidden state vector.
-        /// @param flags Unused.
         /// @param attr Primitive attributes to use. Attributes are optional
         ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
@@ -10125,7 +10109,6 @@ struct gru_backward : public primitive {
         ///     output vector.
         /// @param diff_dst_iter_desc Memory descriptor for the diff of output
         ///     recurrent hidden state vector.
-        /// @param flags Unused.
         /// @param hint_fwd_pd Primitive descriptor for a GRU
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
@@ -10311,7 +10294,6 @@ struct lbr_gru_forward : public primitive {
         /// @param dst_layer_desc Memory descriptor for the output vector.
         /// @param dst_iter_desc Memory descriptor for the output recurrent
         ///     hidden state vector.
-        /// @param flags Unused.
         /// @param attr Primitive attributes to use. Attributes are optional
         ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
@@ -10458,7 +10440,6 @@ struct lbr_gru_backward : public primitive {
         ///     output vector.
         /// @param diff_dst_iter_desc Memory descriptor for the diff of output
         ///     recurrent hidden state vector.
-        /// @param flags Unused.
         /// @param hint_fwd_pd Primitive descriptor for an LBR GRU
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
@@ -10644,7 +10625,6 @@ struct augru_forward : public primitive {
         /// @param dst_layer_desc Memory descriptor for the output vector.
         /// @param dst_iter_desc Memory descriptor for the output recurrent
         ///     hidden state vector.
-        /// @param flags Unused.
         /// @param attr Primitive attributes to use. Attributes are optional
         ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
@@ -10688,7 +10668,7 @@ struct augru_forward : public primitive {
         /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
         memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        /// @copydoc dnnl::rnn_primitive_desc_base::augru_attention_desc()const
         memory::desc attention_desc() const {
             return rnn_base::augru_attention_desc();
         }
@@ -10802,7 +10782,6 @@ struct augru_backward : public primitive {
         ///     output vector.
         /// @param diff_dst_iter_desc Memory descriptor for the diff of output
         ///     recurrent hidden state vector.
-        /// @param flags Unused.
         /// @param hint_fwd_pd Primitive descriptor for an AUGRU
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
@@ -10861,7 +10840,7 @@ struct augru_backward : public primitive {
         /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
         memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        /// @copydoc dnnl::rnn_primitive_desc_base::augru_attention_desc()const
         memory::desc attention_desc() const {
             return rnn_base::augru_attention_desc();
         }
@@ -10902,7 +10881,7 @@ struct augru_backward : public primitive {
             return rnn_base::diff_src_iter_desc();
         }
 
-        /// @copydoc dnnl::rnn_primitive_desc_base::diff_attention_desc()const
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_augru_attention_desc()const
         memory::desc diff_attention_desc() const {
             return rnn_base::diff_augru_attention_desc();
         }
@@ -11003,7 +10982,6 @@ struct lbr_augru_forward : public primitive {
         /// @param dst_layer_desc Memory descriptor for the output vector.
         /// @param dst_iter_desc Memory descriptor for the output recurrent
         ///     hidden state vector.
-        /// @param flags Unused.
         /// @param attr Primitive attributes to use. Attributes are optional
         ///     and default to empty attributes.
         /// @param allow_empty A flag signifying whether construction is
@@ -11047,7 +11025,7 @@ struct lbr_augru_forward : public primitive {
         /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
         memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        /// @copydoc dnnl::rnn_primitive_desc_base::augru_attention_desc()const
         memory::desc attention_desc() const {
             return rnn_base::augru_attention_desc();
         }
@@ -11160,7 +11138,6 @@ struct lbr_augru_backward : public primitive {
         ///     output vector.
         /// @param diff_dst_iter_desc Memory descriptor for the diff of output
         ///     recurrent hidden state vector.
-        /// @param flags Unused.
         /// @param hint_fwd_pd Primitive descriptor for an LBR AUGRU
         ///     forward propagation primitive. It is used as a hint for
         ///     deciding which memory format to use.
@@ -11219,7 +11196,7 @@ struct lbr_augru_backward : public primitive {
         /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc()const
         memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// @copydoc dnnl::rnn_primitive_desc_base::attention_desc()const
+        /// @copydoc dnnl::rnn_primitive_desc_base::augru_attention_desc()const
         memory::desc attention_desc() const {
             return rnn_base::augru_attention_desc();
         }
@@ -11260,7 +11237,7 @@ struct lbr_augru_backward : public primitive {
             return rnn_base::diff_src_iter_desc();
         }
 
-        /// @copydoc dnnl::rnn_primitive_desc_base::diff_attention_desc()const
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_augru_attention_desc()const
         memory::desc diff_attention_desc() const {
             return rnn_base::diff_augru_attention_desc();
         }

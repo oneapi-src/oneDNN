@@ -111,12 +111,14 @@ The information about a particular operation tensors has the following format:
 
 1. `tensor_name` is one of the tensors names listed in the
    [Naming Conventions](@ref dev_guide_conventions), and denotes a tensor
-   supported by the corresponding primitive, and
-2. `data_type`, `format_kind`, `format_tag`, and `extra_flags` denote values
-   from #dnnl::memory::data_type, #dnnl::memory::format_kind,
-   #dnnl::memory::format_tag, and #dnnl_memory_extra_flags_t respectively. Note,
-   that certain markers may be missing in some cases, such as `format_tag` for
-   the \weights tensor for the int8 Winograd convolution.
+   supported by the corresponding primitive
+2. `data_type`, `format_kind` and `format_tag` denote values from
+   #dnnl::memory::data_type, #dnnl::memory::format_kind and
+   #dnnl::memory::format_tag respectively. Note, that certain markers may be
+   missing in some cases, such as `format_tag` for the \weights tensor for
+   the int8 Winograd convolution.
+3. `extra_flags` is unspecified information that is intended for development
+    purposes
 
 Please see the profiling example [here](@ref performance_profiling_cpp), as it
 uses ONEDNN_VERBOSE output to tune oneDNN code to align with
