@@ -46,27 +46,26 @@ const sum_ab_t sum_b_col = dnnl_sum_b_col;
 const sum_ab_t sum_none = dnnl_sum_none;
 } // namespace sum_ab
 
-/** A descriptor for a matrix multiplication (gemm) operation */
+// A descriptor for a matrix multiplication (gemm) operation. To make the
+// interface consistent, the descriptor represent the GEMM operation in row
+// major.
 struct dnnl_gemm_desc_t {
-    /* To make the interface consistent, the descriptor represent the
-     * GEMM operation in row major */
-
-    /** The kind of primitive. Used for self identifying the primitive
-     * descriptor. Must be #dnnl_gemm. */
+    // The kind of primitive. Used for self identifying the primitive
+    // descriptor. Must be #dnnl_gemm.
     dnnl_primitive_kind_t primitive_kind;
     dnnl_memory_desc_t a_desc;
     dnnl_memory_desc_t b_desc;
     dnnl_memory_desc_t c_desc;
     dnnl_memory_desc_t bias_desc;
-    /** Type for accumulating A*B. */
+    // Type for accumulating A*B.
     dnnl_data_type_t acc_type;
-    /* Sum across k dimension in either A or B tensor
-      and output to sum_ab tensor  */
+    // Sum across k dimension in either A or B tensor
+    // and output to sum_ab tensor.
     sum_ab_t sum_ab;
 
-    // These accessors are to be used by the GEMM implementation
-    // Because the GEMM implementation currently assumes column major
-    // These accessors return data in column major fashion
+    // These accessors are to be used by the GEMM implementation. Because the
+    // GEMM implementation currently assumes column major. These accessors
+    // return data in column major fashion.
 
     inline bool is_batched() const { return c_desc.ndims >= 3; }
 
@@ -89,55 +88,55 @@ struct dnnl_gemm_desc_t {
         return batch;
     }
 
-    /** Number of rows of C. */
+    // Number of rows of C.
     dnnl_dim_t m() const { return c_desc.dims[c_desc.ndims - 1]; }
-    /** Number of columns of C. */
+    // Number of columns of C.
     dnnl_dim_t n() const { return c_desc.dims[c_desc.ndims - 2]; }
-    /** Size of inner dimension shared between A and B. */
+    // Size of inner dimension shared between A and B.
     dnnl_dim_t k() const { return a_desc.dims[a_desc.ndims - 1]; }
 
-    /** Stride between 2 matrices A in a batch. */
+    // Stride between 2 matrices A in a batch.
     dnnl_dim_t stride_a(int dim = 0) const {
         return (dim >= b_desc.ndims - 2 || b_desc.dims[dim] == 1)
                 ? 0
                 : b_desc.format_desc.blocking.strides[dim];
     };
-    /** Stride between 2 matrices B in a batch. */
+    // Stride between 2 matrices B in a batch.
     dnnl_dim_t stride_b(int dim = 0) const {
         return (dim >= a_desc.ndims - 2 || a_desc.dims[dim] == 1)
                 ? 0
                 : a_desc.format_desc.blocking.strides[dim];
     };
-    /** Stride between 2 matrices C in a batch. */
+    // Stride between 2 matrices C in a batch.
     dnnl_dim_t stride_c(int dim = 0) const {
         return (dim >= c_desc.ndims - 2)
                 ? 0
                 : c_desc.format_desc.blocking.strides[dim];
     };
 
-    // This assumes that one of the dimensions has strides 1
+    // This assumes that one of the dimensions has strides 1.
     dnnl_dim_t get_ld(dnnl_memory_desc_t md) const {
         auto strides = md.format_desc.blocking.strides;
         assert(strides[md.ndims - 1] == 1 || strides[md.ndims - 2] == 1);
         return strides[md.ndims - 1] != 1 ? strides[md.ndims - 1]
                                           : strides[md.ndims - 2];
     }
-    /** Leading dimension of A. */
+    // Leading dimension of A.
     dnnl_dim_t lda() const { return get_ld(b_desc); }
-    /** Leading dimension of B. */
+    // Leading dimension of B.
     dnnl_dim_t ldb() const { return get_ld(a_desc); }
-    /** Leading dimension of C. */
+    // Leading dimension of C.
     dnnl_dim_t ldc() const { return get_ld(c_desc); }
 
-    /** Type of matrix A. */
+    // Type of matrix A.
     dnnl_data_type_t a_type() const { return b_desc.data_type; }
-    /** Type of matrix B. */
+    // Type of matrix B.
     dnnl_data_type_t b_type() const { return a_desc.data_type; }
-    /** Type of matrix C. */
+    // Type of matrix C.
     dnnl_data_type_t c_type() const { return c_desc.data_type; }
-    /** Type of bias. */
+    // Type of bias.
     dnnl_data_type_t bias_type() const { return bias_desc.data_type; }
-    /** Type of bias. */
+    // Type of bias.
     int bias_mask() const {
         assert(bias_desc.ndims <= 3);
         int mask = 0;
