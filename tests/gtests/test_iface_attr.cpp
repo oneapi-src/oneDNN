@@ -551,7 +551,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetAttr) {
     std::vector<float> scales(512);
     ops.append_dw(dt, dt, dt, 3, 1, 1, 1 << 1, scales);
     attr_s.set_scales_mask(DNNL_ARG_SRC_0, 0);
-    attr_os.set_output_scales_mask(1 << 1);
+    attr_os.set_scales_mask(DNNL_ARG_DST, 0);
     attr_dw.set_post_ops(ops);
 
     memory::desc dat_md {{512, 512, 3, 3}, dt, memory::format_tag::nchw};
