@@ -86,8 +86,10 @@ private:
     const Xbyak::Reg64 reg_src_zero_point = aux_reg_ker_d;
     const Xbyak::Reg64 reg_dst_zero_point = reg_src_zero_point;
 
+    // dst scale
+    const Xbyak::Reg64 reg_dst_scale = reg_src_zero_point;
+
     /* counter regs */
-    const Xbyak::Reg64 reg_bias_alpha = abi_not_param1;
     const Xbyak::Reg64 reg_oi = rbx;
     const Xbyak::Reg64 reg_bias = rdx;
     const Xbyak::Reg64 reg_oc_blocks = rsi;
@@ -128,6 +130,8 @@ private:
     const Vmm vmm_zp = Vmm(25);
     const Vmm vmm_zp_one = Vmm(26);
     const Vmm vmm_zp_tmp = vmm_zp;
+
+    const Vmm vmm_dst_scale = Vmm(25);
 
     /* bf16 emulation */
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(26);
@@ -178,16 +182,6 @@ private:
         MAYBE_UNUSED(max_idx);
 
         return Xbyak::Zmm(idx);
-    }
-    Vmm vmm_bias_alpha() {
-        int nb_c_block
-                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return Vmm(nb_c_block * jcp.ur_w);
-    }
-    Xbyak::Xmm xmm_bias_alpha() {
-        int nb_c_block
-                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return Xbyak::Xmm(nb_c_block * jcp.ur_w);
     }
     int get_ow_start(int ki, int pad_l) {
         return nstl::max(0,

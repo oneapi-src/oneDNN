@@ -187,6 +187,9 @@ struct jit_conv_conf_t {
     bool zp_src_is_common; // common, otherwise (TODO) per-channel
     bool req_zero_point_buffer; // used for calculating padding compensation
     bool zp_pbuff_outer_compute; // indicates if zp_bbuff is computed in
+
+    bool dst_scale;
+
     // a separate parallel region
     int ow_pad, oh_pad, od_pad; // output elements with padding & filter overlap
 
@@ -417,6 +420,7 @@ struct jit_conv_call_s {
     const int32_t *dst_zero_point;
     const void *tile_cfg;
     const void *tile_cfg_tail;
+    const void *dst_scale;
 
     // ptr to table of void * elements that are pointers to
     // post_op binary src1 tensors
