@@ -74,19 +74,19 @@ inline threadpool_iface *get_threadpool(const dnnl::stream &astream) {
 inline status sgemm(char transa, char transb, dnnl_dim_t M, dnnl_dim_t N,
         dnnl_dim_t K, float alpha, const float *A, dnnl_dim_t lda,
         const float *B, dnnl_dim_t ldb, float beta, float *C, dnnl_dim_t ldc,
-        threadpool_iface *tp) {
-    return static_cast<status>(dnnl_threadpool_interop_sgemm(
-            transa, transb, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, tp));
+        threadpool_iface *threadpool) {
+    return static_cast<status>(dnnl_threadpool_interop_sgemm(transa, transb, M,
+            N, K, alpha, A, lda, B, ldb, beta, C, ldc, threadpool));
 }
 /// @copydoc dnnl_gemm_u8s8s32_tp()
 inline status gemm_u8s8s32(char transa, char transb, char offsetc, dnnl_dim_t M,
         dnnl_dim_t N, dnnl_dim_t K, float alpha, const uint8_t *A,
         dnnl_dim_t lda, uint8_t ao, const int8_t *B, dnnl_dim_t ldb, int8_t bo,
         float beta, int32_t *C, dnnl_dim_t ldc, const int32_t *co,
-        threadpool_iface *tp) {
-    return static_cast<status>(
-            dnnl_threadpool_interop_gemm_u8s8s32(transa, transb, offsetc, M, N,
-                    K, alpha, A, lda, ao, B, ldb, bo, beta, C, ldc, co, tp));
+        threadpool_iface *threadpool) {
+    return static_cast<status>(dnnl_threadpool_interop_gemm_u8s8s32(transa,
+            transb, offsetc, M, N, K, alpha, A, lda, ao, B, ldb, bo, beta, C,
+            ldc, co, threadpool));
 }
 
 /// @copydoc dnnl_gemm_s8s8s32_tp()
@@ -94,10 +94,10 @@ inline status gemm_s8s8s32(char transa, char transb, char offsetc, dnnl_dim_t M,
         dnnl_dim_t N, dnnl_dim_t K, float alpha, const int8_t *A,
         dnnl_dim_t lda, int8_t ao, const int8_t *B, dnnl_dim_t ldb, int8_t bo,
         float beta, int32_t *C, dnnl_dim_t ldc, const int32_t *co,
-        threadpool_iface *tp) {
-    return static_cast<status>(
-            dnnl_threadpool_interop_gemm_s8s8s32(transa, transb, offsetc, M, N,
-                    K, alpha, A, lda, ao, B, ldb, bo, beta, C, ldc, co, tp));
+        threadpool_iface *threadpool) {
+    return static_cast<status>(dnnl_threadpool_interop_gemm_s8s8s32(transa,
+            transb, offsetc, M, N, K, alpha, A, lda, ao, B, ldb, bo, beta, C,
+            ldc, co, threadpool));
 }
 
 } // namespace threadpool_interop
