@@ -52,6 +52,8 @@ struct params_t {
     // GeMM call can be made
     bool can_fuse_src_batch_dims_ = false;
 
+    float default_pp_scales_ = 1.0f;
+
     // an attribute for post processing kernel
     primitive_attr_t pp_attr_;
 
@@ -65,7 +67,7 @@ struct params_t {
     // returns scaling factors for post processing kernel
     const float *get_post_processing_scales(
             const float *primitive_scales) const {
-        return gemm_applies_output_scales_ ? pp_attr_.output_scales_.scales_
+        return gemm_applies_output_scales_ ? &default_pp_scales_
                                            : primitive_scales;
     }
 };

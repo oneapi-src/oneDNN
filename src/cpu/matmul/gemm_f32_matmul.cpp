@@ -123,8 +123,6 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     CHECK(params_.pp_attr_.copy_from(*attr()));
     params_.gemm_applies_output_scales_
             = attr()->output_scales_.mask_ == 0 && !with_bias();
-    if (params_.gemm_applies_output_scales_)
-        params_.pp_attr_.output_scales_.set(1.f);
 
     // check post-ops
     if (!check_attr_post_ops()) return status::unimplemented;
