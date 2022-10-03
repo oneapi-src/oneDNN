@@ -54,7 +54,7 @@ enum {
     /// AARCH64 SVE 384 bits
     dnnl_cpu_isa_sve_384 = 0xf,
     /// AARCH64 SVE 512 bits
-    dnnl_cpu_isa_sve_512 = 0x1f,
+    dnnl_cpu_isa_sve_512 = 0x27,
 };
 
 enum cpu_isa_bit_t : unsigned {
