@@ -2831,8 +2831,14 @@ struct memory : public handle<dnnl_memory_t> {
             dnnl_dims_t *c_dims;
             dnnl_status_t status = dnnl_memory_desc_query(
                     get(), dnnl::convert_to_c(what), &c_dims);
+
+            const int ndims
+                    = (what == query::inner_idxs || what == query::inner_blks)
+                    ? get_inner_nblks()
+                    : get_ndims();
+
             return status == dnnl_success
-                    ? memory::dims(*c_dims, *c_dims + get_ndims())
+                    ? memory::dims(*c_dims, *c_dims + ndims)
                     : memory::dims {};
         }
     };
