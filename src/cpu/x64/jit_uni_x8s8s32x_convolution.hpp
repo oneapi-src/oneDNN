@@ -56,7 +56,7 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
                                     weights_md(1)->data_type, f32, s32, s8, u8))
                     && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
                     && desc()->accum_data_type == s32
-                    && attr()->has_default_values(smask_t::oscale_runtime
+                    && attr()->has_default_values(smask_t::scales_runtime
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_md(0)->data_type)
@@ -122,7 +122,7 @@ private:
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
     const float *adjust_oscales(const memory_tracking::grantor_t &scratchpad,
-            const float *oscales) const;
+            const float *src_scales, const float *wei_scales) const;
 
     std::unique_ptr<jit_uni_x8s8s32x_fwd_kernel<isa>> kernel_;
 };

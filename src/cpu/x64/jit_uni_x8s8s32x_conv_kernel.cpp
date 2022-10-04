@@ -242,23 +242,14 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
         p_sum_scale = &p_entry.sum.scale;
         p_sum_zp = &p_entry.sum.zero_point;
     }
-    if (jcp.signed_input && (!jcp.has_vnni)) {
-        /* put 'wei_adj_scale = 0.5' for bias calculation */
-        mov(reg_bias_alpha, float2int(jcp.wei_adj_scale));
-        uni_vmovq(xmm_bias_alpha(), reg_bias_alpha);
-        uni_vbroadcastss(vmm_bias_alpha(), xmm_bias_alpha());
-    }
 
     for (int k = 0; k < nb_oc_block; ++k) {
         const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
         const int load_size = mask_flag ? get_tail_size() : get_blocking_size();
         int scale_offset = jcp.is_oc_scale * (sizeof(float) * k * oc_block);
         if (jcp.with_bias) {
-
             int bias_offset = jcp.typesize_bia * k * oc_block;
             cvt2ps(jcp.bia_dt, vmm_bias, reg_bias, bias_offset, load_size);
-            if (jcp.signed_input && (!jcp.has_vnni)) /* bias *= 0.5 */
-                uni_vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
         }
         if (jcp.signed_input) {
             const int comp_offset = sizeof(int32_t) * k * oc_block;
@@ -290,14 +281,27 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
             if (jcp.src_zero_point) uni_vpaddd(vmm, vmm, vmm_zp_comp);
             uni_vcvtdq2ps(vmm, vmm);
 
-            if (jcp.with_bias) uni_vaddps(vmm, vmm, vmm_bias);
-
             uni_vmulps(vmm, vmm, vmm_scale);
+
+            if (jcp.with_bias) uni_vaddps(vmm, vmm, vmm_bias);
         }
     }
 
     apply_postops(nb_oc_block, ur_w, last_oc_block_flag, oc_block, p_sum_scale,
             p_sum_zp);
+
+    if (jcp.dst_scale) {
+        mov(reg_dst_scale, ptr[param1 + GET_OFF(dst_scale)]);
+        uni_vmovups(vmm_dst_scale, ptr[reg_dst_scale]);
+
+        /* Apply dst scale to accumulator */
+        for (int k = 0; k < nb_oc_block; k++) {
+            for (int j = 0; j < ur_w; j++) {
+                const Vmm vmm = vmm_out(j, k);
+                uni_vmulps(vmm, vmm, vmm_dst_scale);
+            }
+        }
+    }
 
     if (jcp.dst_zero_point) {
         mov(reg_dst_zero_point, ptr[param1 + GET_OFF(dst_zero_point)]);
@@ -1575,12 +1579,17 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
 
     jcp.nb_ic_L2 = jcp.nb_ic;
 
-    const auto &oscales = attr.output_scales_;
-    jcp.is_oc_scale = oscales.mask_ == 1 << 1;
+    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+    const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
 
-    // only common and per-oc-channel scales are supported
-    const bool oscales_ok = one_of(oscales.mask_, 0, 1 << 1);
-    if (!oscales_ok) return status::unimplemented;
+    const int wei_mask_per_oc = 1 << with_groups;
+    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
+    jcp.dst_scale = !dst_scales.has_default_values();
+
+    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
+            && everyone_is(src_scales.mask_, dst_scales.mask_, 0);
+    if (!scales_ok) return status::unimplemented;
 
     jcp.wei_adj_scale
             = (weights_d.extra().flags & memory_extra_flags::scale_adjust)
@@ -1595,12 +1604,10 @@ void jit_uni_x8s8s32x_fwd_kernel<isa>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
 
-    if (jcp.signed_input && (!jcp.has_vnni)) {
-        const int mask = attr.output_scales_.mask_;
-        const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
-        dim_t count = scales_count == 1 ? (dim_t)8 : scales_count;
-        scratchpad.book<float>(key_conv_adjusted_scales, count);
-    }
+    const int mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+    dim_t count = scales_count == 1 ? (dim_t)8 : scales_count;
+    scratchpad.book<float>(key_conv_adjusted_scales, count);
 }
 
 template struct _jit_uni_x8s8s32x_fwd_kernel<avx2, Ymm>;

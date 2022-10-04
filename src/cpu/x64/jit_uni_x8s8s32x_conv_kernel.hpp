@@ -74,7 +74,6 @@ private:
     const Xbyak::Reg64 reg_ker_long_offt = r13;
 
     /* counter regs */
-    const Xbyak::Reg64 reg_bias_alpha = abi_not_param1;
     const Xbyak::Reg64 reg_oi = rbx;
     const Xbyak::Reg64 reg_bias = rdx;
     const Xbyak::Reg64 reg_oc_blocks = rsi;
@@ -92,6 +91,8 @@ private:
     const Xbyak::Reg64 reg_zp_compensation = aux_reg_inp;
     const Xbyak::Reg64 reg_src_zero_point = aux_reg_ker_d;
     const Xbyak::Reg64 reg_dst_zero_point = reg_src_zero_point;
+    // dst scale
+    const Xbyak::Reg64 reg_dst_scale = reg_dst_zero_point;
 
     /* binary post-ops operand */
     const Xbyak::Reg64 temp_offset_reg = r12;
@@ -111,6 +112,8 @@ private:
     const Vmm vmm_zp_one = Vmm(5);
     const Vmm vmm_zp_comp = vmm_zp_one;
     const Vmm vmm_zp_dw_tmp = vmm_zp_one;
+    /* dst scale */
+    const Vmm vmm_dst_scale = Vmm(6);
 
     /* used in compute_ker (but set during prepare_output) */
     const Vmm vmm_shift = Vmm(1); // only for signed input
@@ -144,16 +147,6 @@ private:
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
         assert(idx < ker_max_reg);
         return Vmm(ker_max_reg - idx);
-    }
-    Vmm vmm_bias_alpha() {
-        int nb_c_block
-                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return Vmm(ker_max_reg - nb_c_block * jcp.ur_w);
-    }
-    Xbyak::Xmm xmm_bias_alpha() {
-        int nb_c_block
-                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return Xbyak::Xmm(ker_max_reg - nb_c_block * jcp.ur_w);
     }
     int get_ow_start(int ki, int pad_l) {
         return nstl::max(0,

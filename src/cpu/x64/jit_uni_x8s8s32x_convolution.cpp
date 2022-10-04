@@ -41,16 +41,18 @@ using namespace nstl;
 
 template <cpu_isa_t isa>
 const float *jit_uni_x8s8s32x_convolution_fwd_t<isa>::adjust_oscales(
-        const memory_tracking::grantor_t &scratchpad,
-        const float *oscales) const {
+        const memory_tracking::grantor_t &scratchpad, const float *src_scales,
+        const float *wei_scales) const {
     auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
-    int mask = pd()->attr()->output_scales_.mask_;
-    float factor = 1.f / pd()->jcp_.wei_adj_scale;
-    if (mask == 0) {
-        utils::array_set(loc_scales, oscales[0] * factor, 8);
+    int wei_mask = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    float factor = (pd()->jcp_.signed_input && (!pd()->jcp_.has_vnni))
+            ? 1.f / pd()->jcp_.wei_adj_scale
+            : 1.0f;
+    if (wei_mask == 0) {
+        utils::array_set(loc_scales, src_scales[0] * wei_scales[0] * factor, 8);
     } else {
         for (dim_t c = 0; c < pd()->OC(); c++)
-            loc_scales[c] = oscales[c] * factor;
+            loc_scales[c] = src_scales[0] * wei_scales[c] * factor;
     }
     return loc_scales;
 }
@@ -83,10 +85,12 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_2d(
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    if (jcp.signed_input && (!jcp.has_vnni))
-        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+    const float *oscales = adjust_oscales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales);
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<char *>(weights);
@@ -187,6 +191,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_2d(
                     p.oc_blocks = ocb;
                     p.kh_padding = kh_padding;
                     p.scales = scales;
+                    p.dst_scale = dst_scales;
                     p.t_overflow = i_t_overflow;
                     p.b_overflow = i_b_overflow;
                     p.owb = owb;
@@ -248,10 +253,12 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_1d(
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    if (jcp.signed_input && (!jcp.has_vnni))
-        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+    const float *oscales = adjust_oscales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales);
 
     size_t extra_data_offset
             = weights_d.size() - weights_d.additional_buffer_size();
@@ -316,6 +323,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_1d(
             p.src = src + src_d.blk_off(n, g_ic, iw_s);
             p.filt = weights + wht_blk_off(weights_d, gb, ocb, 0);
             p.scales = &oscales[jcp.is_oc_scale * g_oc];
+            p.dst_scale = dst_scales;
             p.oc_blocks = jcp.is_depthwise ? gb : ocb;
             p.kh_padding = jcp.kh;
             p.t_overflow = 0;
@@ -383,10 +391,12 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_2d_dw(
     assert(jcp.nb_oc_blocking == 1);
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    if (jcp.signed_input && (!jcp.has_vnni))
-        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+    const float *oscales = adjust_oscales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales);
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<char *>(weights);
@@ -454,6 +464,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_2d_dw(
                 p.oc_blocks = gb;
                 p.kh_padding = kh_padding;
                 p.scales = scales;
+                p.dst_scale = dst_scales;
                 p.t_overflow = i_t_overflow;
                 p.b_overflow = i_b_overflow;
                 p.owb = owb;
@@ -496,10 +507,12 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_3d(
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    if (jcp.signed_input && (!jcp.has_vnni))
-        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+    const float *oscales = adjust_oscales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales);
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<char *>(weights);
@@ -620,6 +633,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa>::execute_forward_3d(
                     p.kh_padding = kh_padding;
                     p.kd_padding = kd_padding;
                     p.scales = scales;
+                    p.dst_scale = dst_scales;
                     p.t_overflow = i_t_overflow;
                     p.b_overflow = i_b_overflow;
                     p.f_overflow = d_f_overflow;
