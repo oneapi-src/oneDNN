@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ template <gpu_gen_t hw>
 void jit_post_op_injector<hw>::set_scratch(const ngen::GRFRange &scratch) {
     for (size_t idx = 0; idx < workers_.size(); ++idx) {
         workers_[idx].set_scratch(scratch);
+        if (workers_.size() == 1) workers_[idx].prepare();
     }
     scratch_ = scratch;
 }
@@ -53,6 +54,7 @@ void jit_post_op_injector<hw>::set_scratch(const ngen::GRFRange &scratch) {
 template <gpu_gen_t hw>
 void jit_post_op_injector<hw>::compute(const ngen::GRFRange &regs) {
     for (size_t idx = 0; idx < workers_.size(); ++idx) {
+        if (workers_.size() > 1) workers_[idx].prepare();
         workers_[idx].compute(regs);
     }
 }
