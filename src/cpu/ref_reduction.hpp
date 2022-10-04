@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,13 +40,9 @@ struct ref_reduction_t : public primitive_t {
 
             bool ok = src_type == src_md()->data_type
                     && dst_type == dst_md()->data_type
-                    && (acc_type
-                                    == types::default_accum_data_type(
-                                            src_type, dst_type)
-                            || (src_type == dnnl::impl::data_type::s8
-                                    && acc_type == dnnl::impl::data_type::s32)
-                            || (src_type == dnnl::impl::data_type::u8
-                                    && acc_type == dnnl::impl::data_type::s32))
+                    && acc_type
+                            == types::default_accum_data_type(
+                                    src_type, dst_type)
                     && platform::has_data_type_support(src_type)
                     && platform::has_data_type_support(dst_type)
                     && set_default_params() == status::success

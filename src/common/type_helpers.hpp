@@ -243,11 +243,14 @@ inline bool is_zero_md(const memory_desc_t *md) {
 }
 
 inline data_type_t default_accum_data_type(
-        data_type_t src_dt, data_type_t dst_dt) {
+        data_type_t src_dt, data_type_t dst_dt, bool strict = true) {
     using namespace utils;
     using namespace data_type;
 
-    if (one_of(src_dt, s8, u8) && dst_dt != f32) return s32;
+    // we allow to use f32 accumulation type only when the
+    // accumulation chain is small. Otherwise, strict should be set to
+    // true
+    if (one_of(src_dt, s8, u8) && (dst_dt != f32 || strict)) return s32;
 
     if (one_of(f16, src_dt, dst_dt)) return f32;
     if (one_of(bf16, src_dt, dst_dt)) return f32;

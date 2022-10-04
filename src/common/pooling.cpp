@@ -76,7 +76,7 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
     if (one_of(alg_kind, pooling_max, pooling_avg_include_padding,
                 pooling_avg_exclude_padding)) {
         pd.accum_data_type = types::default_accum_data_type(
-                src_desc->data_type, dst_desc->data_type);
+                src_desc->data_type, dst_desc->data_type, false);
         if (pd.accum_data_type == data_type::undef) return invalid_arguments;
     } else {
         pd.accum_data_type = dst_desc->data_type;
