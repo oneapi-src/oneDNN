@@ -32,6 +32,8 @@ namespace gpu {
 namespace nvidia {
 
 status_t cudnn_matmul_t::execute(const exec_ctx_t &ctx) const {
+    if (pd()->has_zero_dim_memory()) return status::success;
+
     const bool with_bias = matmul_impl_->with_bias();
     const bool has_runtime_args = matmul_impl_->has_runtime_params();
 

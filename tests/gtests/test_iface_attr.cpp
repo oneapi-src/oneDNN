@@ -634,6 +634,9 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetAttr) {
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetCppObjects) {
+    SKIP_IF_CUDA(true, "Binary post-op is not supported for CUDA");
+    SKIP_IF_HIP(true, "Binary post-op is not supported for HIP");
+
     auto engine_kind = get_test_engine_kind();
     engine eng {engine_kind, 0};
 

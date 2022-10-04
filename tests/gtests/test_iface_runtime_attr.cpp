@@ -485,6 +485,9 @@ TEST_F(runtime_attr_test_t, TestShuffle) {
 }
 
 TEST_F(runtime_attr_test_t, TestSoftmax) {
+    SKIP_IF_CUDA(true, "Unsupported datatype for CUDA");
+    SKIP_IF_HIP(true, "Unsupported datatype for HIP");
+
     memory::desc md {{2, 16}, data_type::u8, tag::ab};
 
     CHECK_OK(softmax_forward::primitive_desc(
