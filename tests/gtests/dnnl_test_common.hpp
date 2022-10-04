@@ -142,7 +142,8 @@ inline bool is_sycl_engine(dnnl::engine::kind eng_kind) {
     return false;
 }
 
-inline bool unsupported_data_type(memory::data_type dt, dnnl::engine eng) {
+inline bool unsupported_data_type(
+        memory::data_type dt, const dnnl::engine &eng) {
     bool supported = true; // optimism
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
@@ -169,6 +170,14 @@ inline bool unsupported_data_type(memory::data_type dt, dnnl::engine eng) {
 #ifdef DNNL_TEST_WITH_ENGINE_PARAM
 inline bool unsupported_data_type(memory::data_type dt) {
     return unsupported_data_type(dt, get_test_engine());
+}
+
+template <typename... Rest>
+inline bool unsupported_data_type(
+        memory::data_type first_dt, Rest... rest_dts) {
+    bool rval = unsupported_data_type(first_dt, get_test_engine());
+    if (!rval) return rval;
+    return unsupported_data_type(rest_dts...);
 }
 #endif
 
