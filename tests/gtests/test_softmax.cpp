@@ -198,7 +198,7 @@ protected:
         ASSERT_TRUE(pd.diff_weights_desc().is_zero());
 
         auto src = test::make_memory(src_desc, eng);
-        dst = test::make_memory(src_desc, eng);
+        dst = test::make_memory(dst_desc, eng);
         workspace = test::make_memory(workspace_desc, eng);
 
         fill_data(p.src_dt, src, 1, 1);
