@@ -87,8 +87,13 @@ status_t convert_to_acl_act(alg_kind_t eltwise_alg, float alpha, float beta,
             act_info = ActivationLayerInfo(act_func::LINEAR, alpha, beta);
             break;
         case eltwise_soft_relu:
-            act_info = ActivationLayerInfo(act_func::SOFT_RELU, alpha, beta);
-            break;
+            if (utils::one_of(alpha, 0.f, 1.f)) {
+                act_info
+                        = ActivationLayerInfo(act_func::SOFT_RELU, alpha, beta);
+                break;
+            } else {
+                return status::unimplemented;
+            }
         case eltwise_logistic:
             act_info = ActivationLayerInfo(act_func::LOGISTIC, alpha, beta);
             break;
