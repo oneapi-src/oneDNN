@@ -617,14 +617,15 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     }
 
     if (src_b && dst_b) {
-        int step = get_step();
         const int tmp_stride = 4;
         const int tmp_stride_bytes = tmp_stride * dst_type_size;
-        const int nregs = 1 + utils::div_up(step * tmp_stride_bytes, grf_size);
         // Any byte conversion requires saturation:
         // - ub -> b loses 1 bit of precision
         // - b -> ub loses sign bit
         const bool needs_saturation = src_type != dst_type;
+
+        int step = get_step();
+        const int nregs = 1 + utils::div_up(step * tmp_stride_bytes, grf_size);
         auto tmp = scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
@@ -637,38 +638,48 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             ngen::InstructionModifier mod = esize;
             if (needs_saturation) mod |= host->sat;
 
+            bool aligned = true;
             const bool needs_raw_mov = dst_stride == 1 || esize == 1;
-            if (dst_stride <= 2 && src_stride >= 2 * dst_stride) {
+            if ((src_stride == 1 || esize == 1) && needs_raw_mov) {
+                // Note: This case does not appear to be documented. Experiments
+                // seem to indicate that packed byte-to-packed byte move must be
+                // word-aligned on the destination.
+                aligned = d.offset() % 2 == 0;
+            } else if (dst_stride <= 2 && src_stride >= 2 * dst_stride) {
                 const int rel_stride = src_stride / dst_stride;
                 const int alignment_bdy = grf_size / rel_stride;
                 const int dst_aligned_offset = d.offset() % alignment_bdy;
                 const int src_aligned_offset = s.offset() / rel_stride;
-                const bool aligned = dst_aligned_offset == src_aligned_offset;
+                aligned = dst_aligned_offset == src_aligned_offset;
+            }
 
+            // Workaround for scalar byte conversion:
+            // - Broadcast to two locations with stride and conversion
+            // - Move one copy to the destination
+            if (needs_saturation && esize == 1) mod.setExecSize(2);
+
+            if (!aligned || (needs_saturation && needs_raw_mov)) {
                 const int tmp_rel_stride = tmp_stride / dst_stride;
                 const int tmp_alignment_bdy = grf_size / tmp_rel_stride;
                 const int tmp_aligned_offset = d.offset() % tmp_alignment_bdy;
                 const int tmp_offset = tmp_rel_stride * tmp_aligned_offset;
+                const int allowed_bytes = 2 * grf_size - tmp_offset;
 
-                if (needs_saturation && needs_raw_mov) {
-                    // Workaround for scalar byte conversion:
-                    // - Broadcast to two locations with stride and conversion
-                    // - Move one copy to the destination
-                    auto wa_esize = esize == 1 ? 2 : esize;
-                    auto wa_t = tmp.format(
-                            tmp_offset, dst_type, wa_esize, tmp_stride);
-                    auto t = tmp.format(
-                            tmp_offset, dst_type, esize, tmp_stride);
-                    plan(mov, wa_esize | host->sat, wa_t, s);
-                    mod = esize;
-                    s = t;
-                } else if (!aligned) {
-                    auto t = tmp.format(
-                            tmp_offset, dst_type, esize, tmp_stride);
-                    plan(mov, mod, t, s);
-                    mod = esize;
-                    s = t;
+                if ((mod.getExecSize() - 1) * tmp_stride + 1 > allowed_bytes) {
+                    // Workaround for cases where temporary is not grf aligned
+                    // and esize == 16 on XeHPG and below
+                    auto max_width = (allowed_bytes - 1) / tmp_stride + 1;
+                    auto tmp_esize = utils::rnd_down_pow2(max_width);
+                    mod.setExecSize(tmp_esize);
+                    esize = tmp_esize;
+                    step = tmp_esize;
                 }
+
+                auto t = tmp.format(
+                        tmp_offset, dst_type, mod.getExecSize(), tmp_stride);
+                plan(mov, mod, t, s);
+                mod = esize;
+                s = tmp.format(tmp_offset, dst_type, esize, tmp_stride);
             }
             plan(mov, mod, d, s);
         }
