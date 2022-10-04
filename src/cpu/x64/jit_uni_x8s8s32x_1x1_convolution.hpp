@@ -69,10 +69,12 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                                     weights_md(1)->data_type, f32, s32, s8, u8))
                     && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
                     && desc()->accum_data_type == s32
-                    && attr()->has_default_values(smask_t::oscale_runtime
+                    && attr()->has_default_values(smask_t::scales_runtime
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_md(0)->data_type)
+                    && attr()->scales_.has_default_values(
+                            {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
                     && attr()->post_ops_.check_sum_consistent_dt(
                             dst_md(0)->data_type)
                     && !has_zero_dim_memory() && zero_points_ok()
@@ -351,8 +353,8 @@ private:
     void execute_forward_thr(const int ithr, const int nthr, const char *src,
             const char *weights, const char *bias, const char *weights_dw,
             const char *bias_dw, char *dst, const float *oscales,
-            const float *dw_oscales, const int32_t *src_zero_point,
-            const int32_t *dst_zero_point,
+            const float *dst_scales, const float *dw_oscales,
+            const int32_t *src_zero_point, const int32_t *dst_zero_point,
             const memory_tracking::grantor_t &scratchpad,
             const void *post_ops_binary_rhs_arg_vec,
             const void *post_ops_binary_rhs_arg_vec_dw) const;

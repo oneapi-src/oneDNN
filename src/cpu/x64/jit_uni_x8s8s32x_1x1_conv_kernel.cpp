@@ -243,14 +243,6 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
         return Vmm(15 - vmm_idx);
     };
 
-    auto vmm_bias_alpha = [&]() {
-        const int vmm_idx = ur * load_loop_blk;
-        assert(vmm_idx < ker_max_reg_idx);
-        return Vmm(15 - vmm_idx);
-    };
-
-    auto xmm_bias_alpha = [&]() { return Xmm(vmm_bias_alpha().getIdx()); };
-
     auto bcast_ptr = [&](int i_reduce, int i_ur) {
         assert(i_ur < jcp.ur);
         assert(i_reduce <= jcp.reduce_loop_unroll);
@@ -301,11 +293,6 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
             mov(ptr[rsp + reg_load_data_off], reg_load_data);
             mov(reg_ptr_sum_scale, reinterpret_cast<size_t>(p_sum_scale));
         }
-        if (jcp.signed_input && (!jcp.has_vnni)) {
-            mov(reg_store_bcast, float2int(jcp.wei_adj_scale));
-            uni_vmovq(xmm_bias_alpha(), reg_store_bcast);
-            uni_vbroadcastss(vmm_bias_alpha(), xmm_bias_alpha());
-        }
         if (jcp.src_zero_point) {
             mov(reg_zp_compensation, ptr[rsp + reg_zp_compensation_off]);
             mov(reg_src_zero_point, ptr[rsp + reg_src_zero_point_off]);
@@ -319,12 +306,10 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
             const auto ptr_scales_offset
                     = jcp.is_oc_scale * (sizeof(float) * jcp.oc_block * i_load);
             if (jcp.with_bias) {
-                if (jcp.signed_input)
+                if (jcp.signed_input || jcp.dst_scale)
                     mov(reg_bias_data, ptr[rsp + reg_bias_data_off]);
                 cvt2ps(jcp.bia_dt, vmm_bias, reg_bias_data,
                         jcp.typesize_bia * jcp.oc_block * i_load, load_size);
-                if (jcp.signed_input && (!jcp.has_vnni))
-                    uni_vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
             }
             if (jcp.signed_input) {
                 mov(reg_comp_data, ptr[rsp + reg_comp_data_off]);
@@ -354,13 +339,27 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
                 uni_vcvtdq2ps(r, r);
                 if (jcp.signed_input) uni_vaddps(r, r, vmm_comp);
                 if (jcp.src_zero_point) uni_vaddps(r, r, vmm_zp_comp);
-                if (jcp.with_bias) uni_vaddps(r, r, vmm_bias);
 
                 uni_vmulps(r, r, vmm_scale);
+
+                if (jcp.with_bias) uni_vaddps(r, r, vmm_bias);
             }
         }
 
         apply_postops(ur, load_loop_blk, mask_flag_in, p_sum_scale, p_sum_zp);
+
+        if (jcp.dst_scale) {
+            mov(reg_ptr_dst_scale, ptr[rsp + reg_dst_scale_off]);
+            uni_vmovups(vmm_dst_scale, ptr[reg_ptr_dst_scale]);
+
+            /* Apply dst scale to accumulator */
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                for (int i_ur = 0; i_ur < ur; ++i_ur) {
+                    const auto r = vreg_accum(load_loop_blk, i_load, i_ur);
+                    uni_vmulps(r, r, vmm_dst_scale);
+                }
+            }
+        }
 
         if (jcp.dst_zero_point) {
             mov(reg_dst_zero_point, ptr[rsp + reg_dst_zero_point_off]);
@@ -520,6 +519,11 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::generate() {
         mov(reg_src_zero_point, ptr[param1 + GET_OFF(src_zero_point)]);
         mov(ptr[rsp + reg_src_zero_point_off], reg_src_zero_point);
     }
+    if (jcp.dst_scale) {
+        if (!jcp.signed_input) mov(ptr[rsp + reg_bias_data_off], reg_bias_data);
+        mov(reg_ptr_dst_scale, ptr[param1 + GET_OFF(dst_scale)]);
+        mov(ptr[rsp + reg_dst_scale_off], reg_ptr_dst_scale);
+    }
     if (jcp.dst_zero_point) {
         mov(reg_dst_zero_point, ptr[param1 + GET_OFF(dst_zero_point)]);
         mov(ptr[rsp + reg_dst_zero_point_off], reg_dst_zero_point);
@@ -540,11 +544,11 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::generate() {
         bcast_loop(load_loop_blk);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
         if (jcp.with_bias) {
-            if (jcp.signed_input)
+            if (jcp.signed_input || jcp.dst_scale)
                 mov(reg_bias_data, ptr[rsp + reg_bias_data_off]);
             add(reg_bias_data,
                     load_loop_blk * jcp.load_block * jcp.typesize_bia);
-            if (jcp.signed_input)
+            if (jcp.signed_input || jcp.dst_scale)
                 mov(ptr[rsp + reg_bias_data_off], reg_bias_data);
         }
         if (jcp.with_binary) {
@@ -902,12 +906,16 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
     // miniumum size of load dim chunk for work distribution within threads
     jcp.nb_load_chunk = 1;
 
-    const auto &oscales = attr.output_scales_;
-    jcp.is_oc_scale = oscales.mask_ == 1 << 1;
+    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+    const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
+    const int wei_mask_per_oc = 1 << with_groups;
+    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
+    jcp.dst_scale = !dst_scales.has_default_values();
 
-    // only common and per-oc-channel scales are supported
-    const bool oscales_ok = one_of(oscales.mask_, 0, 1 << 1);
-    if (!oscales_ok) return status::unimplemented;
+    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
+            && everyone_is(src_scales.mask_, dst_scales.mask_, 0);
+    if (!scales_ok) return status::unimplemented;
 
     jcp.wei_adj_scale
             = (weights_d.extra().flags & memory_extra_flags::scale_adjust)
@@ -923,12 +931,10 @@ void jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_scratchpad(
         const jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
     using namespace dnnl::impl::memory_tracking::names;
 
-    if (jcp.signed_input && (!jcp.has_vnni)) {
-        const int mask = attr.output_scales_.mask_;
-        const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
-        const dim_t count = nstl::max<dim_t>(scales_count, 8);
-        scratchpad.book<float>(key_conv_adjusted_scales, count);
-    }
+    const int wei_mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const dim_t scales_count = wei_mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+    const dim_t count = nstl::max<dim_t>(scales_count, 8);
+    scratchpad.book<float>(key_conv_adjusted_scales, count);
 }
 
 template struct _jit_uni_x8s8s32x_1x1_conv_kernel<avx2, Ymm>;
