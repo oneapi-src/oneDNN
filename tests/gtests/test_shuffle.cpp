@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <cmath>
-
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
@@ -23,9 +21,14 @@
 
 namespace dnnl {
 
+using tag = memory::format_tag;
+using dt = memory::data_type;
+
 struct shuffle_test_params_t {
-    prop_kind aprop_kind;
-    memory::format_tag data_format;
+    dt src_dt;
+    dt dst_dt;
+    tag src_tag;
+    tag dst_tag;
     memory::dims dims;
     int axis;
     memory::dim group_size;
@@ -33,365 +36,230 @@ struct shuffle_test_params_t {
     dnnl_status_t expected_status;
 };
 
-template <typename data_t>
-void check_shuffle(const shuffle_test_params_t &p, const memory &input,
-        const memory &output, memory::dim ROW) {
-    auto in_ptr = map_memory<data_t>(input);
-    auto out_ptr = map_memory<data_t>(output);
-
-    const memory::desc in_d = input.get_desc();
-    const memory::desc out_d = output.get_desc();
-
-    auto dims = in_d.get_dims();
-    auto ndims = in_d.get_ndims();
-
-    const dnnl::impl::memory_desc_wrapper input_mdw(in_d.get());
-    const dnnl::impl::memory_desc_wrapper output_mdw(out_d.get());
-
-    const int axis = p.axis;
-    memory::dim inner_size = 1, outer_size = 1;
-    const memory::dim axis_size = dims[axis];
-    const memory::dim padded_axis = in_d.get_padded_dims()[axis];
-
-    auto rev_transpose = [=](memory::dim a) {
-        memory::dim COL = axis_size / ROW;
-        memory::dim row = a / COL;
-        memory::dim col = a % COL;
-        return ROW * col + row;
-    };
-
-    for (int i = 0; i < axis; ++i)
-        outer_size *= (size_t)dims[i];
-    for (int i = axis + 1; i < ndims; ++i)
-        inner_size *= (size_t)dims[i];
-    const memory::dim dim = padded_axis * inner_size;
-
-    dnnl::impl::parallel_nd(outer_size, axis_size, inner_size,
-            [&](memory::dim ou, memory::dim a, memory::dim in) {
-                if (is_current_test_failed()) return;
-
-                data_t refout = in_ptr[input_mdw.off_l(
-                        ou * dim + rev_transpose(a) * inner_size + in, true)];
-                data_t out = out_ptr[output_mdw.off_l(
-                        ou * dim + a * inner_size + in, true)];
-                ASSERT_NEAR(out, refout, 0);
-            });
-}
-
-template <typename data_t>
 class shuffle_test_t : public ::testing::TestWithParam<shuffle_test_params_t> {
 private:
-    shuffle_forward::primitive_desc shuffle_fwd_prim_desc;
     shuffle_test_params_t p;
-    memory::dims padR;
-    engine eng;
-    stream strm;
-    memory::data_type data_type;
+    std::shared_ptr<shuffle_forward::primitive_desc> pd_fwd_hint;
 
 protected:
     void SetUp() override {
+        p = ::testing::TestWithParam<shuffle_test_params_t>::GetParam();
+
         SKIP_IF_CUDA(true, "Shuffle primitive not supported by CUDA");
-        data_type = data_traits<data_t>::data_type;
-        SKIP_IF(unsupported_data_type(data_type),
+
+        SKIP_IF(unsupported_data_type(p.src_dt, p.dst_dt),
                 "Engine does not support this data type.");
-        p = ::testing::TestWithParam<decltype(p)>::GetParam();
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
-    void Test() {
-        p = ::testing::TestWithParam<decltype(p)>::GetParam();
+    void Forward(prop_kind pk) {
+        // shuffle specific types and values
+        using pd_t = shuffle_forward::primitive_desc;
 
-        eng = get_test_engine();
-        strm = make_stream(eng);
-        data_type = data_traits<data_t>::data_type;
+        auto eng = get_test_engine();
+        auto strm = make_stream(eng);
 
-        bool is_training = p.aprop_kind == prop_kind::forward_training;
+        auto aa = allows_attr_t {false};
 
-        Forward();
-        if (is_training) Backward();
-    }
+        auto src_md = memory::desc(p.dims, p.src_dt, p.src_tag);
+        auto dst_md = memory::desc(p.dims, p.dst_dt, p.dst_tag);
 
-    void Forward() {
-        memory::desc src_desc(p.dims, data_type, p.data_format);
-        memory::desc dst_desc(p.dims, data_type, p.data_format);
+        // default pd ctor
+        auto pd = pd_t();
+        // regular pd ctor
+        pd = pd_t(eng, pk, src_md, dst_md, p.axis, p.group_size);
+        // test all pd ctors
+        test_fwd_pd_constructors<pd_t>(
+                pd, aa, pk, src_md, dst_md, p.axis, p.group_size);
+        pd_fwd_hint = std::make_shared<pd_t>(pd);
 
-        shuffle_fwd_prim_desc = shuffle_forward::primitive_desc(
-                eng, p.aprop_kind, src_desc, dst_desc, p.axis, p.group_size);
-        shuffle_fwd_prim_desc = shuffle_forward::primitive_desc(
-                shuffle_fwd_prim_desc.get()); // test construction from a C pd
+        EXPECT_ANY_THROW(shuffle_forward(pd, {}));
+        // default primitive ctor
+        auto shuffle = shuffle_forward();
+        // regular primitive ctor
+        shuffle = shuffle_forward(pd);
 
-        ASSERT_TRUE(
-                shuffle_fwd_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
-                == shuffle_fwd_prim_desc.src_desc());
-        ASSERT_TRUE(
-                shuffle_fwd_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
-                == shuffle_fwd_prim_desc.dst_desc());
-        if (p.data_format != memory::format_tag::any) {
-            ASSERT_TRUE(src_desc == shuffle_fwd_prim_desc.src_desc());
-        }
+        // check primitive kind is shuffle
+        ASSERT_TRUE(shuffle.get_kind() == primitive::kind::shuffle);
+        // query for descs from pd
+        const auto src_desc = pd.src_desc();
+        const auto dst_desc = pd.dst_desc();
+        // query for src_desc via exec arg
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_SRC) == src_desc);
+        if (p.src_tag != tag::any) { ASSERT_TRUE(src_md == src_desc); }
+        // query for dst_desc via exec arg
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_DST) == dst_desc);
+        if (p.dst_tag != tag::any) { ASSERT_TRUE(dst_md == dst_desc); }
 
-        ASSERT_EQ(shuffle_fwd_prim_desc.get_prop_kind(), p.aprop_kind);
-        ASSERT_EQ(shuffle_fwd_prim_desc.get_axis(), p.axis);
-        ASSERT_EQ(shuffle_fwd_prim_desc.get_group_size(), p.group_size);
+        // query primitive parameters
+        ASSERT_EQ(pd.get_prop_kind(), pk);
+        ASSERT_EQ(pd.get_axis(), p.axis);
+        ASSERT_EQ(pd.get_group_size(), p.group_size);
 
-        test_memory src(shuffle_fwd_prim_desc.src_desc(), eng);
-        test_memory dst(shuffle_fwd_prim_desc.dst_desc(), eng);
+        // check primitive returns zero_md for all rest md
+        ASSERT_TRUE(pd.weights_desc().is_zero());
+        ASSERT_TRUE(pd.diff_src_desc().is_zero());
+        ASSERT_TRUE(pd.diff_dst_desc().is_zero());
+        ASSERT_TRUE(pd.diff_weights_desc().is_zero());
 
-        fill_data<data_t>(src.get_size() / sizeof(data_t), src.get());
-        check_zero_tail<data_t>(1, src.get());
-        check_zero_tail<data_t>(1, dst.get());
+        auto src = test::make_memory(src_desc, eng);
+        auto dst = test::make_memory(dst_desc, eng);
 
-        EXPECT_ANY_THROW(shuffle_forward(shuffle_fwd_prim_desc, {}));
-        shuffle_forward(shuffle_fwd_prim_desc)
-                .execute(strm,
-                        {{DNNL_ARG_SRC, src.get()}, {DNNL_ARG_DST, dst.get()}});
+        fill_data(p.src_dt, src, 1, 1);
+        // test out-place mode
+        shuffle.execute(strm, {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
         strm.wait();
-
-        check_shuffle<data_t>(p, src.get(), dst.get(), p.group_size);
     }
 
     void Backward() {
-        memory::desc diff_dst_desc(p.dims, data_type, p.data_format);
-        memory::desc diff_src_desc(p.dims, data_type, p.data_format);
+        // shuffle specific types and values
+        using pd_t = shuffle_backward::primitive_desc;
+        using hint_pd_t = shuffle_forward::primitive_desc;
+        allows_attr_t aa {false}; // doesn't support anything
 
-        test_memory diff_dst(diff_dst_desc, eng);
-        test_memory diff_src(diff_src_desc, eng);
+        auto eng = get_test_engine();
+        auto strm = make_stream(eng);
 
-        auto shuffle_prim_desc = shuffle_backward::primitive_desc(eng,
-                diff_src_desc, diff_dst_desc, p.axis, p.group_size,
-                shuffle_fwd_prim_desc);
-        shuffle_prim_desc = shuffle_backward::primitive_desc(
-                shuffle_prim_desc.get()); // test construction from a C pd
+        auto diff_src_md = memory::desc(p.dims, p.src_dt, p.src_tag);
+        auto diff_dst_md = memory::desc(p.dims, p.dst_dt, p.dst_tag);
 
-        ASSERT_TRUE(shuffle_prim_desc.query_md(
-                            query::exec_arg_md, DNNL_ARG_DIFF_SRC)
-                == shuffle_prim_desc.diff_src_desc());
-        ASSERT_TRUE(shuffle_prim_desc.query_md(
-                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
-                == shuffle_prim_desc.diff_dst_desc());
-        if (p.data_format != memory::format_tag::any) {
-            ASSERT_TRUE(diff_src_desc == shuffle_prim_desc.diff_src_desc());
+        // default pd ctor
+        auto pd = pd_t();
+        // regular pd ctor
+        pd = pd_t(eng, diff_src_md, diff_dst_md, p.axis, p.group_size,
+                *pd_fwd_hint);
+        // test all pd ctors
+        test_bwd_pd_constructors<pd_t, hint_pd_t>(pd, *pd_fwd_hint, aa,
+                diff_src_md, diff_dst_md, p.axis, p.group_size);
+
+        EXPECT_ANY_THROW(shuffle_backward(pd, {}));
+        // default primitive ctor
+        auto shuffle = shuffle_backward();
+        // regular primitive ctor
+        shuffle = shuffle_backward(pd);
+
+        // check primitive kind is shuffle
+        ASSERT_TRUE(shuffle.get_kind() == primitive::kind::shuffle);
+
+        // query for descs from pd
+        const auto diff_src_desc = pd.diff_src_desc();
+        const auto diff_dst_desc = pd.diff_dst_desc();
+        // query for diff_src_desc via exec arg
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_SRC)
+                == diff_src_desc);
+        if (p.src_tag != tag::any) {
+            ASSERT_TRUE(diff_src_md == diff_src_desc);
         }
+        // query for diff_dst_desc via exec arg
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == diff_dst_desc);
+        if (p.dst_tag != tag::any) {
+            ASSERT_TRUE(diff_dst_md == diff_dst_desc);
+        }
+        // query primitive parameters
+        ASSERT_EQ(pd.get_prop_kind(), prop_kind::backward_data);
+        ASSERT_EQ(pd.get_axis(), p.axis);
+        ASSERT_EQ(pd.get_group_size(), p.group_size);
 
-        ASSERT_EQ(shuffle_prim_desc.get_prop_kind(), prop_kind::backward_data);
-        ASSERT_EQ(shuffle_prim_desc.get_axis(), p.axis);
-        ASSERT_EQ(shuffle_prim_desc.get_group_size(), p.group_size);
+        // check primitive returns zero_md for all rest md
+        ASSERT_TRUE(pd.src_desc().is_zero());
+        ASSERT_TRUE(pd.weights_desc().is_zero());
+        ASSERT_TRUE(pd.dst_desc().is_zero());
+        ASSERT_TRUE(pd.diff_weights_desc().is_zero());
 
-        fill_data<data_t>(diff_dst.get_size() / sizeof(data_t), diff_dst.get());
+        auto diff_src = test::make_memory(diff_src_desc, eng);
+        auto diff_dst = test::make_memory(diff_dst_desc, eng);
 
-        check_zero_tail<data_t>(1, diff_dst.get());
-        check_zero_tail<data_t>(1, diff_src.get());
+        fill_data(p.dst_dt, diff_dst, 2, 2);
 
-        EXPECT_ANY_THROW(shuffle_backward(shuffle_prim_desc, {}));
-        // Execute
-        shuffle_backward(shuffle_prim_desc)
-                .execute(strm,
-                        {{DNNL_ARG_DIFF_DST, diff_dst.get()},
-                                {DNNL_ARG_DIFF_SRC, diff_src.get()}});
+        // test out-place mode
+        shuffle.execute(strm,
+                {{DNNL_ARG_DIFF_DST, diff_dst}, {DNNL_ARG_DIFF_SRC, diff_src}});
         strm.wait();
+    }
 
-        const int axis_size = diff_dst_desc.get_dims()[p.axis];
-        check_shuffle<data_t>(
-                p, diff_dst.get(), diff_src.get(), axis_size / p.group_size);
+    void Test() {
+        const bool is_int8 = p.src_dt == dt::s8 || p.src_dt == dt::u8;
+        std::vector<prop_kind> pks = {is_int8 ? prop_kind::forward_inference
+                                              : prop_kind::forward_training};
+
+        for (auto pk : pks) {
+            Forward(pk);
+
+            bool to_continue = pk != prop_kind::forward_training;
+            if (to_continue) continue;
+
+            Backward();
+        }
+    }
+
+    bool is_fwd(prop_kind pk) const {
+        return pk == prop_kind::forward_training
+                || pk == prop_kind::forward_inference;
     }
 };
 
-using shuffle_test_float = shuffle_test_t<float>;
-using shuffle_test_float16 = shuffle_test_t<float16_t>;
-using shuffle_test_s8 = shuffle_test_t<int8_t>;
-using shuffle_test_u8 = shuffle_test_t<uint8_t>;
+using tp = shuffle_test_params_t;
 
-#define INST_TEST_CASE(test) \
-    TEST_P(test, TestsShuffle) {} \
-    INSTANTIATE_TEST_SUITE_P(TestShuffle_nChw16c, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw16c, {2, 16, 4, 4}, 2, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw16c, {2, 64, 4, 4}, 2, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw16c, {2, 32, 4, 4}, 2, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw16c, {2, 16, 4, 4}, 1, \
-                            2})); \
-\
-    INSTANTIATE_TEST_SUITE_P(TestShuffle_nChw16c_Tail, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw16c, {2, 24, 4, 4}, 2, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw16c, {2, 66, 4, 4}, 1, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw16c, {2, 34, 4, 4}, 2, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw16c, {2, 12, 10, 10}, 1, \
-                            2})); \
-\
-    INSTANTIATE_TEST_SUITE_P(TestShuffle_NCHW, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nchw, {2, 10, 4, 4}, 2, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nchw, {2, 10, 4, 4}, 1, 5})); \
-\
-    INSTANTIATE_TEST_SUITE_P(TestShuffle_NCDHW, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncdhw, {2, 10, 2, 4, 4}, 2, \
-                            2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncdhw, {2, 10, 2, 4, 4}, 1, \
-                            2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncdhw, {2, 10, 2, 4, 4}, 1, \
-                            2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncdhw, {2, 10, 2, 4, 4}, 1, \
-                            2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncdhw, {2, 12, 1, 7, 7}, 1, \
-                            4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncdhw, {2, 12, 2, 7, 7}, 1, \
-                            4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncdhw, {2, 12, 3, 7, 7}, 1, \
-                            2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncdhw, {2, 12, 1, 7, 7}, 1, \
-                            4})); \
-\
-    INSTANTIATE_TEST_SUITE_P(TestShuffleNHWC, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nhwc, {2, 10, 4, 4}, 3, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nhwc, {2, 10, 4, 4}, 2, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nhwc, {2, 10, 4, 4}, 1, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nhwc, {2, 10, 4, 4}, 1, 2})); \
-\
-    INSTANTIATE_TEST_SUITE_P(TestShuffle_nChw8c, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw8c, {2, 16, 4, 4}, 2, 4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw8c, {2, 16, 4, 4}, 2, 4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw8c, {2, 16, 4, 4}, 1, 8}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw8c, {2, 16, 4, 4}, 1, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw8c, {1, 8, 1, 1}, 1, 4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nChw8c, {1, 8, 1, 1}, 1, 2})); \
-\
-    INSTANTIATE_TEST_SUITE_P(TestShuffle_nCdhw16c, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {2, 16, 2, 4, 4}, 1, \
-                            2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {2, 16, 2, 4, 4}, 3, \
-                            4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {2, 16, 2, 4, 4}, 1, \
-                            8}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {2, 16, 2, 4, 4}, 1, \
-                            2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {1, 16, 2, 1, 1}, 1, \
-                            4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {1, 16, 2, 1, 1}, 1, \
-                            2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {1, 16, 2, 1, 1}, 1, \
-                            2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {1, 16, 2, 1, 1}, 1, \
-                            4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {1, 32, 1, 5, 5}, 1, \
-                            4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {1, 32, 1, 5, 5}, 1, \
-                            8}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {1, 32, 1, 5, 5}, 1, \
-                            2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nCdhw16c, {1, 32, 1, 15, 15}, \
-                            3, 5})); \
-\
-    INSTANTIATE_TEST_SUITE_P(TestShuffle_OIHW, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::oihw, {2, 16, 4, 4}, 2, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::oihw, {2, 64, 4, 4}, 2, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::oihw, {2, 32, 4, 4}, 2, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::oihw, {2, 16, 4, 4}, 1, 2})); \
-\
-    INSTANTIATE_TEST_SUITE_P(TestShuffle_NC, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nc, {10, 8}, 1, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nc, {10, 8}, 1, 4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nc, {2, 32}, 0, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nc, {10, 32}, 0, 5})); \
-\
-    INSTANTIATE_TEST_SUITE_P(TestShuffle_NCW, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncw, {10, 8, 5}, 1, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncw, {10, 8, 5}, 1, 4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncw, {2, 32, 5}, 0, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::ncw, {10, 32, 5}, 0, 5})); \
-\
-    INSTANTIATE_TEST_SUITE_P(TestShuffle_X, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::x, {10}, 0, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::x, {8}, 0, 4}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::x, {2}, 0, 2}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::x, {10}, 0, 5})); \
-\
-    INSTANTIATE_TEST_SUITE_P(TestShuffleEF_NCHW, test, \
-            ::testing::Values( \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nchw, {2, 15, 4, 4}, 1, 2, \
-                            true, dnnl_invalid_arguments}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nchw, {2, 64, 7, 7}, 2, 2, \
-                            true, dnnl_invalid_arguments}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nchw, {2, 32, 11, 11}, 2, 2, \
-                            true, dnnl_invalid_arguments}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::nchw, {2, 16, 4, 4}, 4, 2, \
-                            true, dnnl_invalid_arguments}, \
-                    shuffle_test_params_t {prop_kind::forward_training, \
-                            memory::format_tag::any, {2, 10, 4, 4}, 1, 2, \
-                            true, dnnl_invalid_arguments}));
+TEST_P(shuffle_test_t, TestsShuffle) {}
 
-INST_TEST_CASE(shuffle_test_float)
-INST_TEST_CASE(shuffle_test_float16)
-INST_TEST_CASE(shuffle_test_s8)
-INST_TEST_CASE(shuffle_test_u8)
+INSTANTIATE_TEST_SUITE_P(Test_Shuffle_EF, shuffle_test_t,
+        ::testing::Values(
+                // Negative dims
+                tp {dt::f32, dt::f32, tag::nchw, tag::nchw, {2, -4, 128, 256},
+                        1, 4, true, dnnl_invalid_arguments},
+                // Non-divisible group_size
+                tp {dt::f32, dt::f32, tag::nchw, tag::nchw, {2, 4, 128, 256}, 1,
+                        3, true, dnnl_invalid_arguments},
+                // Axis exceeds ndims
+                tp {dt::f32, dt::f32, tag::nchw, tag::nchw, {2, 4, 128, 256}, 4,
+                        4, true, dnnl_invalid_arguments},
+                // Tag for src on forward is not specified
+                tp {dt::f32, dt::f32, tag::any, tag::nchw, {2, 4, 128, 256}, 1,
+                        4, true, dnnl_invalid_arguments},
+                // Data type for src is not specified
+                tp {dt::undef, dt::f32, tag::nchw, tag::nchw, {2, 4, 128, 256},
+                        1, 4, true, dnnl_invalid_arguments},
+                // Different data types are not supported
+                tp {dt::f32, dt::bf16, tag::nchw, tag::nchw, {2, 4, 128, 256},
+                        1, 4, true, dnnl_unimplemented},
+                // Different memory formats are not supported
+                tp {dt::f32, dt::f32, tag::nchw, tag::nhwc, {2, 4, 128, 256}, 1,
+                        4, true, dnnl_unimplemented}));
+
+static auto all_cases = [](dt src_dt, dt dst_dt) {
+    return ::testing::Values(
+            tp {src_dt, dst_dt, tag::nwc, tag::nwc, {2, 16, 10}, 1, 4},
+            tp {src_dt, dst_dt, tag::ncw, tag::ncw, {2, 64, 27}, 1, 4},
+            tp {src_dt, dst_dt, tag::nhwc, tag::nhwc, {2, 15, 10, 8}, 1, 3},
+            tp {src_dt, dst_dt, tag::nchw, tag::nchw, {2, 64, 27, 27}, 0, 2},
+            tp {src_dt, dst_dt, tag::nChw8c, tag::nChw8c, {2, 16, 16, 8}, 1, 4},
+            tp {src_dt, dst_dt, tag::nChw16c, tag::nChw16c, {2, 16, 4, 4}, 1,
+                    4},
+            tp {src_dt, dst_dt, tag::ncdhw, tag::ncdhw, {2, 64, 7, 7, 7}, 2, 7},
+            tp {src_dt, dst_dt, tag::ncdhw, tag::ncdhw, {10, 10, 10, 10, 10}, 0,
+                    5},
+            tp {src_dt, dst_dt, tag::nCdhw16c, tag::nCdhw16c, {4, 16, 2, 2, 2},
+                    1, 4});
+};
+
+#define EXPAND_DTS(src, dst) memory::data_type::src, memory::data_type::dst
+
+#define INST_TEST_CASE(name, suite, ...) \
+    INSTANTIATE_TEST_SUITE_P(name, shuffle_test_t, suite(__VA_ARGS__));
+
+#define CPU_INST_TEST_CASE(name, suite, ...) \
+    CPU_INSTANTIATE_TEST_SUITE_P(name, shuffle_test_t, suite(__VA_ARGS__));
+
+#define GPU_INST_TEST_CASE(name, suite, ...) \
+    GPU_INSTANTIATE_TEST_SUITE_P(name, shuffle_test_t, suite(__VA_ARGS__));
+
+INST_TEST_CASE(ShuffleSimpleF32, all_cases, EXPAND_DTS(f32, f32));
+INST_TEST_CASE(ShuffleSimpleBF16, all_cases, EXPAND_DTS(bf16, bf16));
+INST_TEST_CASE(ShuffleSimpleF16, all_cases, EXPAND_DTS(f16, f16));
+INST_TEST_CASE(ShuffleSimpleU8, all_cases, EXPAND_DTS(u8, u8));
+INST_TEST_CASE(ShuffleSimpleS8, all_cases, EXPAND_DTS(s8, s8));
 
 } // namespace dnnl
