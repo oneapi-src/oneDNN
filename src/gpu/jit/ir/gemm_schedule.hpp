@@ -499,7 +499,8 @@ public:
     //     }
     //   }
     void split(const expr_t &var, int factor, expr_t &outer_var,
-            expr_t &inner_var) {
+            expr_t &inner_var, const std::string &outer_name = {},
+            const std::string &inner_name = {}) {
         auto &loop = find_loop(var);
         ir_assert(loop.is_leaf()) << "Can't split, non-leaf loop.";
 
@@ -512,8 +513,16 @@ public:
 
         ir_assert(bound % factor == 0) << "Can't split.";
 
-        outer_var = create_var({var}, "outer");
-        inner_var = create_var({var}, "inner");
+        if (outer_name.empty()) {
+            outer_var = create_var({var}, "outer");
+        } else {
+            outer_var = var_t::make(type_t::s32(), outer_name);
+        }
+        if (inner_name.empty()) {
+            inner_var = create_var({var}, "inner");
+        } else {
+            inner_var = var_t::make(type_t::s32(), inner_name);
+        }
         auto &outer_loop = create_loop(outer_var, bound / factor);
         auto &inner_loop = create_loop(inner_var, factor);
         loop.set_split(outer_loop, inner_loop);
@@ -634,6 +643,20 @@ public:
         }
         ir_assert(k_tg % k_thr == 0);
         return k_thr < k_tg;
+    }
+
+    bool with_kernel_grid_k_slicing() const {
+        ir_assert(is_finalized_);
+        dim_t k_loop = 1;
+        dim_t k = 1;
+        for (int i = 0; i < bmnk_mapper_.ndims(abc_kind_t::a); i++) {
+            if (bmnk_mapper_.bmnk_kind(abc_kind_t::a, i) != bmnk_kind_t::k)
+                continue;
+            auto info = get_split_info(a_view_.vvars()[i]);
+            k_loop *= info.dim(tile_level_t::loop);
+            k *= var_bound(a_view_.vvars()[i]);
+        }
+        return k_loop < k;
     }
 
     void finalize() {
