@@ -23,6 +23,7 @@
 #include "gpu/jit/codegen/register_allocator.hpp"
 #include "gpu/jit/ir/ir.hpp"
 #include "gpu/jit/ir/kernel_info.hpp"
+#include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 #include "gpu/jit/jit_generator.hpp"
 #include "gpu/jit/ngen/ngen.hpp"
@@ -228,12 +229,11 @@ public:
 
     ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
             const kernel_info_t &kernel_info, bool require_dpas,
-            bool require_global_atomics, grf_mode_t grf_mode = grf_mode_t::any)
+            grf_mode_t grf_mode = grf_mode_t::any)
         : kernel_name_(kernel_name)
         , exec_cfg_(exec_cfg)
         , kernel_info_(kernel_info)
         , require_dpas_(require_dpas)
-        , require_global_atomics_(require_global_atomics)
         , regs_((grf_mode == grf_mode_t::large)
                           ? 256
                           : (grf_mode == grf_mode_t::small) ? 128
@@ -253,7 +253,7 @@ public:
         requireSIMD(exec_cfg_.simd());
         requireBarrier();
         if (require_dpas_) requireDPAS();
-        if (require_global_atomics_) requireGlobalAtomics();
+        if (has_send_atomics(kernel_body)) requireGlobalAtomics();
 
         for (int i = 0; i < kernel_info_.nargs(); i++) {
             auto &name = kernel_info_.arg_name(i);
@@ -756,7 +756,6 @@ protected:
     exec_config_t exec_cfg_;
     kernel_info_t kernel_info_;
     bool require_dpas_;
-    bool require_global_atomics_;
     bool require_signal_header_ = false;
     int regs_;
     reg_allocator_t ra_;
