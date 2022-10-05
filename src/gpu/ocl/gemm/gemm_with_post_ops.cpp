@@ -40,6 +40,8 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
             attr_info_.with_common_oscales || attr_info_.with_per_oc_oscales);
     if (!ok) return status::unimplemented;
 
+    if (d->sum_ab != sum_ab::sum_none) return status::unimplemented;
+
     const auto impl_list = engine->get_implementation_list(op_desc());
     int current_impl_idx
             = impl_list_item_t::find<ocl::gemm_with_post_ops_t::pd_t>(
