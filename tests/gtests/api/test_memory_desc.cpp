@@ -26,7 +26,7 @@ class memory_desc_test_t : public ::testing::Test {};
 HANDLE_EXCEPTIONS_FOR_TEST(memory_desc_test_t, TestQueryDefaultConstructor) {
     memory::desc md;
     EXPECT_EQ(md.get_ndims(), 0);
-    EXPECT_EQ(md.get_size(), 0);
+    EXPECT_EQ(md.get_size(), size_t(0));
     EXPECT_EQ(md.get_submemory_offset(), 0);
     EXPECT_EQ(md.get_inner_nblks(), 0);
     EXPECT_EQ(md.get_format_kind(), memory::format_kind::undef);
@@ -52,7 +52,7 @@ HANDLE_EXCEPTIONS_FOR_TEST(memory_desc_test_t, TestQueryBlockedFormat) {
     const memory::dims exp_inner_blks = {16, 16};
     const memory::dims exp_inner_idxs = {0, 1};
     const memory::dims exp_strides = {9216, 2304, 768, 256};
-    const memory::dim exp_size = 73728;
+    const size_t exp_size = 73728;
 
     EXPECT_EQ(md.get_ndims(), (int)dims.size());
     EXPECT_EQ(md.get_submemory_offset(), exp_submemory_offset);
