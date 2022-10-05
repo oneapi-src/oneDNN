@@ -442,7 +442,9 @@ inline bool operator==(const gemm_desc_t &lhs, const gemm_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(b_desc)
             && COMPARE_DESC_MEMBERS(c_desc)
             && COMPARE_DESC_MEMBERS(bias_desc)
-            && COMPARE_DESC_MEMBERS(acc_type);
+            && COMPARE_DESC_MEMBERS(acc_type)
+            && COMPARE_DESC_MEMBERS(sum_ab)
+            && COMPARE_DESC_MEMBERS(sum_ab_type);
     return ret;
 }
 

@@ -314,6 +314,8 @@ void serialize_desc(serialization_stream_t &sstream, const gemm_desc_t &desc) {
     serialize_md(sstream, desc.bias_desc);
     // Accumulator type
     sstream.write(&desc.acc_type);
+    sstream.write(&desc.sum_ab);
+    sstream.write(&desc.sum_ab_type);
 }
 
 void serialize_desc(

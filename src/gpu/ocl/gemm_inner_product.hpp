@@ -231,7 +231,8 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
             gemm_ok = status::success
                     == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
                             &glob_zero_md, desc()->accum_data_type, attr(),
-                            true, reduce_bias);
+                            true, reduce_bias,
+                            desc()->diff_bias_desc.data_type);
 
             //fused bias reduction not supported, apply in separate kernel
             if (with_bias() && !gemm_ok) {

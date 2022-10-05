@@ -390,6 +390,7 @@ size_t get_desc_hash(const gemm_desc_t &desc) {
     // Accumulator type
     seed = hash_combine(seed, static_cast<size_t>(desc.acc_type));
     seed = hash_combine(seed, static_cast<size_t>(desc.sum_ab));
+    seed = hash_combine(seed, static_cast<size_t>(desc.sum_ab_type));
     // Combined hash for gemm desc
     return seed;
 }
