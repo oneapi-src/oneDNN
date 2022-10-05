@@ -28,8 +28,6 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_uni_resampling.hpp"
 
-#include "oneapi/dnnl/dnnl.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
