@@ -30,7 +30,7 @@ configuration options.
 
 ### Linux/macOS
 
-#### GCC, Clang, or Intel C/C++ Compiler
+#### GCC, Clang, or Intel oneAPI DPC++/C++ Compiler
 
 - Set up the environment for the compiler
 
@@ -43,9 +43,9 @@ cd build
 # export CC=clang
 # export CXX=clang++
 
-# Uncomment the following lines to build with Intel C/C++ Compiler
-# export CC=icc
-# export CXX=icpc
+# Uncomment the following lines to build with Intel oneAPI DPC++/C++ Compiler
+# export CC=icx
+# export CXX=icpx
 cmake .. <extra build options>
 ~~~
 
@@ -54,9 +54,9 @@ cmake .. <extra build options>
 make -j
 ~~~
 
-#### oneAPI DPC++ Compiler
+#### Intel oneAPI DPC++/C++ Compiler with SYCL runtime
 
-- Set up the environment for oneAPI DPC++ Compiler. For 
+- Set up the environment for Intel oneAPI DPC++ Compiler. For 
 Intel oneAPI Base Toolkit distribution installed to the default location, you can do
 this using the `setvars.sh` script:
 ~~~sh
@@ -77,13 +77,11 @@ cmake .. \
           <extra build options>
 ~~~
 
-Open-source version of oneAPI DPC++ Compiler may not contain OpenCL runtime.
-In this case, you can use `OPENCLROOT` CMake option or environment variable
-of the same name to specify path to the OpenCL runtime if it is installed in
-a custom location.
-
-@note Open-source version of oneAPI DPC++ Compiler does not have the icx/icpx
-drivers, use clang/clang++ instead.
+@note Open-source version of oneAPI DPC++ Compiler does not have the icx driver,
+use clang/clang++ instead. Open-source version of oneAPI DPC++ Compiler may not
+contain OpenCL runtime. In this case, you can use `OPENCLROOT` CMake option or
+environment variable of the same name to specify path to the OpenCL runtime if
+it is installed in a custom location.
 
 - Build the library
 ~~~sh
@@ -117,7 +115,7 @@ make -j
 - Configure CMake and generate makefiles
 ~~~sh
 export ACL_ROOT_DIR=<path/to/Compute Library>
-/cmake .. \
+cmake .. \
           -DDNNL_AARCH64_USE_ACL=ON \
           <extra build options>
 ~~~
@@ -129,24 +127,26 @@ make -j
 
 ### Windows
 
-#### Microsoft Visual C++ Compiler or Intel C/C++ Compiler
+#### Microsoft Visual C++ Compiler or Intel oneAPI DPC++/C++ Compiler
 
 - Generate a Microsoft Visual Studio solution
 ~~~bat
 mkdir build
 cd build
-cmake -G "Visual Studio 16 2019 Win64" ..
+cmake -G "Visual Studio 16 2019" ..
 ~~~
 For the solution to use the Intel C++ Compiler, select the corresponding
 toolchain using the cmake `-T` switch:
 ~~~bat
-cmake -G "Visual Studio 16 2019 Win64" -T "Intel C++ Compiler 19.0" ..
+cmake -G "Visual Studio 16 2019" -T "Intel C++ Compiler 2022" ..
 ~~~
 
 - Build the library
 ~~~bat
 cmake --build . --config=Release
 ~~~
+
+@warning Intel oneAPI DPC++/C++ Compiler on Windows requires CMake v3.21 or later.
 
 @note CMake's Microsoft Visual Studio generator does not respect `CMAKE_BUILD_TYPE` option.
 Solution file supports both Debug and Release builds with Debug being the default.
@@ -155,9 +155,9 @@ You can choose specific build type with `--config` option.
 @note You can also open `oneDNN.sln` to build the project from the
 Microsoft Visual Studio IDE.
 
-#### oneAPI DPC++ Compiler
+#### Intel oneAPI DPC++/C++ Compiler with SYCL Runtime
 
-- Set up the environment for oneAPI DPC++ Compiler. For
+- Set up the environment for Intel oneAPI DPC++/C++ Compiler. For
 Intel oneAPI Base Toolkit distribution installed to default location you can do
 this using `setvars.bat` script
 ~~~bat
@@ -165,10 +165,16 @@ this using `setvars.bat` script
 ~~~
 or open `Intel oneAPI Commmand Prompt` instead.
 
-- Download [oneAPI Level Zero headers](https://github.com/oneapi-src/level-zero/releases/tag/v1.0)
-from Github and unpack the archive.
+- Generate a Microsoft Visual Studio solution
+~~~bat
+cmake .. -G "Visual Studio 16 2019" ^
+         -T "Intel C++ Compiler 2022" ^
+         -DDNNL_CPU_RUNTIME=SYCL ^
+         -DDNNL_GPU_RUNTIME=SYCL ^
+         <extra build options>
+~~~
 
-- Generate `Ninja` project
+- Alternatively, you can use CMake's Ninja generator
 ~~~bat
 mkdir build
 cd build
@@ -178,20 +184,20 @@ set CC=icx
 set CXX=icx
 cmake .. -G Ninja -DDNNL_CPU_RUNTIME=DPCPP ^
                   -DDNNL_GPU_RUNTIME=DPCPP ^
-                  -DCMAKE_PREFIX_PATH=<path to Level Zero headers> ^
                   <extra build options>
 ~~~
 
-Open-source version of oneAPI DPC++ Compiler may not contain OpenCL runtime.
-In this case, you can use `OPENCLROOT` CMake option or environment variable
-of the same name to specify path to the OpenCL runtime if it is installed in
-a custom location.
+@warning Intel oneAPI DPC++/C++ Compiler on Windows requires CMake v3.21 or later.
+
+@note CMake's Microsoft Visual Studio generator does not respect `CMAKE_BUILD_TYPE` option.
+Solution file supports both Debug and Release builds with Debug being the default.
+You can choose specific build type with `--config` option.
 
 @note Open-source version of oneAPI DPC++ Compiler does not have the icx driver,
-use clang/clang++ instead.
-
-@note The only CMake generator that supports oneAPI DPC++ Compiler on Windows
-is Ninja. CC and CXX variables must be set to clang and clang++ respectively. 
+use clang/clang++ instead. Open-source version of oneAPI DPC++ Compiler may not
+contain OpenCL runtime. In this case, you can use `OPENCLROOT` CMake option or
+environment variable of the same name to specify path to the OpenCL runtime if
+it is installed in a custom location.
 
 - Build the library
 ~~~bat

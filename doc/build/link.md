@@ -46,9 +46,9 @@ defined in the `DNNLROOT` environment variable.
 ### Linux/macOS
 
 ~~~sh
-g++ -std=c++11 -I${DNNLROOT}/include -L${DNNLROOT}/lib simple_net.cpp -ldnnl
-clang++ -std=c++11 -I${DNNLROOT}/include -L${DNNLROOT}/lib simple_net.cpp -ldnnl
-icpc -std=c++11 -I${DNNLROOT}/include -L${DNNLROOT}/lib simple_net.cpp -ldnnl
+g++ -I${DNNLROOT}/include -L${DNNLROOT}/lib getting_started.cpp -ldnnl
+clang++ -I${DNNLROOT}/include -L${DNNLROOT}/lib getting_started.cpp -ldnnl
+icpx -I${DNNLROOT}/include -L${DNNLROOT}/lib getting_started.cpp -ldnnl
 ~~~
 
 @note
@@ -84,14 +84,17 @@ Example `Entitlements.plist`:
 
 ### Windows
 
-To link the application from the command line, set up the `LIB` and `INCLUDE`
-environment variables to point to the locations of the oneDNN headers and
-libraries.
+The examples below assume that oneDNN is installed in the directory
+defined in the `DNNLROOT` environment variable.
 
 ~~~bat
-icl /I%DNNLROOT%\include /Qstd=c++11 /qopenmp simple_net.cpp %DNNLROOT%\lib\dnnl.lib
-cl /I%DNNLROOT%\include simple_net.cpp %DNNLROOT%\lib\dnnl.lib
+icx /EHa /I"%DNNLROOT%\include" getting_started.cpp "%DNNLROOT%\lib\dnnl.lib"
+cl /EHa /I"%DNNLROOT%\include" getting_started.cpp "%DNNLROOT%\lib\dnnl.lib"
 ~~~
+
+@note
+You may also add paths to oneDNN headers and libraries to `LIB` and `INCLUDE`
+environment variables instead of specifying these in the build command.
 
 Refer to the
 [Microsoft Visual Studio documentation](https://docs.microsoft.com/en-us/cpp/build/walkthrough-creating-and-using-a-dynamic-link-library-cpp?view=vs-2017)
