@@ -25,7 +25,8 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#if defined(DNNL_X64) && DNNL_X64 == 1
+#if defined(DNNL_X64) && DNNL_X64 == 1 \
+        && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
 #include "src/cpu/x64/brgemm/brgemm.hpp"
 #endif
 

@@ -31,14 +31,14 @@
 
 #include "src/cpu/platform.hpp"
 
-#if DNNL_X64
+#if DNNL_X64 && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
 #include "src/cpu/x64/amx_tile_configure.hpp"
 #include "src/cpu/x64/cpu_isa_traits.hpp"
 #endif
 
 namespace dnnl {
 
-#if DNNL_X64
+#if DNNL_X64 && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
 
 inline impl::cpu::x64::cpu_isa_t cvt_to_internal_cpu_isa(cpu_isa input_isa) {
 #define HANDLE_ISA(isa) \
