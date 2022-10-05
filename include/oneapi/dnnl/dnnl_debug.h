@@ -34,7 +34,6 @@ extern "C" {
 
 const char DNNL_API *dnnl_status2str(dnnl_status_t v);
 const char DNNL_API *dnnl_dt2str(dnnl_data_type_t v);
-const char DNNL_API *dnnl_fmt_kind2str(dnnl_format_kind_t v);
 const char DNNL_API *dnnl_fmt_tag2str(dnnl_format_tag_t v);
 const char DNNL_API *dnnl_prop_kind2str(dnnl_prop_kind_t v);
 const char DNNL_API *dnnl_prim_kind2str(dnnl_primitive_kind_t v);
@@ -48,6 +47,7 @@ const char DNNL_API *dnnl_cpu_isa2str(dnnl_cpu_isa_t v);
 const char DNNL_API *dnnl_cpu_isa_hints2str(dnnl_cpu_isa_hints_t v);
 
 const char DNNL_API *dnnl_runtime2str(unsigned v);
+const char DNNL_API *dnnl_fmt_kind2str(dnnl_format_kind_t v);
 
 #ifdef __cplusplus
 }

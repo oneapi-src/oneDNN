@@ -74,6 +74,7 @@ extern "C" {
 
 %s
 const char DNNL_API *dnnl_runtime2str(unsigned v);
+const char DNNL_API *dnnl_fmt_kind2str(dnnl_format_kind_t v);
 
 #ifdef __cplusplus
 }
@@ -170,9 +171,8 @@ def maybe_skip(enum):
         'dnnl_normalization_flags_t',
         'dnnl_query_t',
         'dnnl_rnn_cell_flags_t',
-        'dnnl_rnn_packed_memory_format_t',
         'dnnl_stream_flags_t',
-        'dnnl_wino_memory_format_t',
+        'dnnl_format_kind_t',
         )
 
 
@@ -181,7 +181,6 @@ def enum_abbrev(enum):
     def_enum = re.sub(r'_t$', '', def_enum)
     return {
         'dnnl_data_type_t': 'dt',
-        'dnnl_format_kind_t': 'fmt_kind',
         'dnnl_format_tag_t': 'fmt_tag',
         'dnnl_primitive_kind_t': 'prim_kind',
         'dnnl_engine_kind_t': 'engine_kind',
@@ -195,7 +194,6 @@ def sanitize_value(v):
         return 'any'
     v = v.split('dnnl_fpmath_mode_')[-1]
     v = v.split('dnnl_scratchpad_mode_')[-1]
-    v = v.split('dnnl_format_kind_')[-1]
     v = v.split('dnnl_')[-1]
     return v
 
