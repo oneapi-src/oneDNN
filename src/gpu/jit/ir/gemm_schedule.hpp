@@ -716,7 +716,29 @@ public:
     }
 
 private:
-    enum class tile_level_t { thread_group, thread };
+    enum class tile_level_t { thread_group, loop, thread, kernel_grid };
+
+    static int nesting_level(tile_level_t level) {
+        switch (level) {
+            case tile_level_t::kernel_grid: return 0;
+            case tile_level_t::loop: return 1;
+            case tile_level_t::thread_group: return 2;
+            case tile_level_t::thread: return 3; // TODO: Rename to iter
+            default: ir_error_not_expected();
+        }
+        return -1;
+    }
+
+    static int nesting_level(loop_kind_t kind) {
+        switch (kind) {
+            case loop_kind_t::kernel_grid: return 0;
+            case loop_kind_t::serial: return 1;
+            case loop_kind_t::tg_grid: return 2;
+            case loop_kind_t::tensorized: return 3;
+            default: ir_error_not_expected();
+        }
+        return -1;
+    }
 
     // Describes split of a root loop into sub-loops.
     class split_info_t {
@@ -742,7 +764,8 @@ private:
                 switch (loop_kinds_[loop_idx]) {
                     case loop_kind_t::kernel_grid: return -1;
                     case loop_kind_t::tg_grid:
-                    case loop_kind_t::serial: return loop_levels_[loop_idx];
+                    // FIXME
+                    case loop_kind_t::serial: return 0;
                     case loop_kind_t::tensorized:
                         return std::numeric_limits<int>::max();
                     default: ir_error_not_expected();
@@ -761,16 +784,10 @@ private:
         // Returns total extent of all loops at a given tile level.
         dim_t dim(tile_level_t tile_level) const {
             dim_t ret = 1;
+            int t_level = nesting_level(tile_level);
             for (int i = 0; i < nloops(); i++) {
-                switch (loop_kinds_[i]) {
-                    case loop_kind_t::kernel_grid:
-                    case loop_kind_t::serial: continue;
-                    case loop_kind_t::tg_grid:
-                        if (tile_level == tile_level_t::thread) continue;
-                        break;
-                    case loop_kind_t::tensorized: break;
-                    default: ir_error_not_expected();
-                }
+                int i_level = nesting_level(loop_kinds_[i]);
+                if (i_level < t_level) continue;
                 ret *= to_cpp<dim_t>(loops_[i]->bound());
             }
             return ret;
@@ -778,20 +795,16 @@ private:
 
         // Returns initial offset expressed in the outer variables at a given
         // tile level.
-        expr_t start(
-                const expr_t &var_expanded, tile_level_t tile_level) const {
+        expr_t start(const expr_t &var_expanded, tile_level_t tile_level,
+                bool with_outer = true) const {
             auto ret = var_expanded;
+            int t_level = nesting_level(tile_level);
             for (int i = 0; i < nloops(); i++) {
-                switch (loop_kinds_[i]) {
-                    case loop_kind_t::kernel_grid:
-                    case loop_kind_t::serial:
-                        if (tile_level == tile_level_t::thread) break;
-                        continue;
-                    case loop_kind_t::tg_grid:
-                        if (tile_level == tile_level_t::thread) continue;
-                        break;
-                    case loop_kind_t::tensorized: break;
-                    default: ir_error_not_expected();
+                int i_level = nesting_level(loop_kinds_[i]);
+                if (with_outer) {
+                    if (i_level < t_level) continue;
+                } else {
+                    if (i_level + 1 == t_level) continue;
                 }
                 ret = substitute(ret, loops_[i]->var(), expr_t(0));
             }
@@ -985,12 +998,14 @@ private:
             tile_level_t tile_level) const {
         std::vector<dim_t> tile_dims;
         std::vector<expr_t> tile_start;
+        bool with_outer = (tile_level == tile_level_t::thread_group);
         for (auto &v : vars) {
             auto &split_info = split_infos.at(v);
             tile_dims.push_back(split_info.dim(tile_level));
 
             auto v_expanded = expand(v);
-            tile_start.push_back(split_info.start(v_expanded, tile_level));
+            tile_start.push_back(
+                    split_info.start(v_expanded, tile_level, with_outer));
         }
         return tensor_t(tile_dims, tile_start);
     }
