@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,15 +24,6 @@
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-
-#define DPRINT(...) \
-    do { \
-        int l = snprintf(str + written_len, str_len, __VA_ARGS__); \
-        if (l < 0) return l; \
-        if ((size_t)l >= str_len) return -1; \
-        written_len += l; \
-        str_len -= l; \
-    } while (0)
 
 const char *dnnl_runtime2str(unsigned runtime) {
     switch (runtime) {
