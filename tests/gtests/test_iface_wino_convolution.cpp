@@ -88,8 +88,12 @@ TEST_F(wino_conv_test_t, TestSmallPadding) {
                     fwd_hint = convolution_forward::primitive_desc(eng,
                             prop_kind::forward, algorithm::convolution_winograd,
                             src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}));
-            EXPECT_EQ(fwd_hint.weights_desc().get_format_kind(),
-                    memory::format_kind::opaque);
+#if DNNL_X64
+            if (input.wei_dt == data_type::s8) {
+                EXPECT_EQ(fwd_hint.weights_desc().get_format_kind(),
+                        memory::format_kind::opaque);
+            }
+#endif
             if (input.backward_supported) {
                 EXPECT_NO_THROW(convolution_backward_data::primitive_desc(eng,
                         algorithm::convolution_winograd, src_md, wei_md, dst_md,
