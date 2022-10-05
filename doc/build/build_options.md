@@ -6,8 +6,8 @@ oneDNN supports the following build-time options.
 | CMake Option                    | Supported values (defaults in bold)        | Description
 | :---                            | :---                                       | :---
 | ONEDNN_LIBRARY_TYPE             | **SHARED**, STATIC                         | Defines the resulting library type
-| ONEDNN_CPU_RUNTIME              | NONE, **OMP**, TBB, SEQ, THREADPOOL, DPCPP | Defines the threading runtime for CPU engines
-| ONEDNN_GPU_RUNTIME              | **NONE**, OCL, DPCPP                       | Defines the offload runtime for GPU engines
+| ONEDNN_CPU_RUNTIME              | NONE, **OMP**, TBB, SEQ, THREADPOOL, SYCL  | Defines the threading runtime for CPU engines
+| ONEDNN_GPU_RUNTIME              | **NONE**, OCL, SYCL                        | Defines the offload runtime for GPU engines
 | ONEDNN_BUILD_EXAMPLES           | **ON**, OFF                                | Controls building the examples
 | ONEDNN_BUILD_TESTS              | **ON**, OFF                                | Controls building the tests
 | ONEDNN_ARCH_OPT_FLAGS           | *compiler flags*                           | Specifies compiler optimization flags (see warning note below)

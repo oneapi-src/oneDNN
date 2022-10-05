@@ -190,7 +190,7 @@ option(DNNL_ENABLE_ITT_TASKS
 
 set(DNNL_CPU_RUNTIME "OMP" CACHE STRING
     "specifies the threading runtime for CPU engines;
-    supports OMP (default), TBB or DPCPP (DPC++ CPU engines).
+    supports OMP (default), TBB or SYCL (SYCL CPU engines).
 
     To use Threading Building Blocks (TBB) one should also
     set TBBROOT (either environment variable or CMake option) to the library
@@ -215,7 +215,7 @@ set(TBBROOT "" CACHE STRING
 set(DNNL_GPU_RUNTIME "NONE" CACHE STRING
     "specifies the runtime to use for GPU engines.
     Can be NONE (default; no GPU engines), OCL (OpenCL GPU engines)
-    or DPCPP (DPC++ GPU engines).
+    or SYCL (SYCL GPU engines).
 
     Using OpenCL for GPU requires setting OPENCLROOT if the libraries are
     installed in a non-standard location.")

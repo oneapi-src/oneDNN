@@ -56,7 +56,7 @@ make -j
 
 #### Intel oneAPI DPC++/C++ Compiler with SYCL runtime
 
-- Set up the environment for Intel oneAPI DPC++ Compiler. For 
+- Set up the environment for Intel oneAPI DPC++/C++ Compiler. For 
 Intel oneAPI Base Toolkit distribution installed to the default location, you can do
 this using the `setvars.sh` script:
 ~~~sh
@@ -72,8 +72,8 @@ export CC=icx
 export CXX=icpx
 
 cmake .. \
-          -DDNNL_CPU_RUNTIME=DPCPP
-          -DDNNL_GPU_RUNTIME=DPCPP
+          -DDNNL_CPU_RUNTIME=SYCL \
+          -DDNNL_GPU_RUNTIME=SYCL \
           <extra build options>
 ~~~
 
@@ -182,8 +182,8 @@ cd build
 :: Set C and C++ compilers
 set CC=icx
 set CXX=icx
-cmake .. -G Ninja -DDNNL_CPU_RUNTIME=DPCPP ^
-                  -DDNNL_GPU_RUNTIME=DPCPP ^
+cmake .. -G Ninja -DDNNL_CPU_RUNTIME=SYCL ^
+                  -DDNNL_GPU_RUNTIME=SYCL ^
                   <extra build options>
 ~~~
 
