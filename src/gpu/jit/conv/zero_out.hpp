@@ -32,10 +32,10 @@ class zero_out_kernel_t : public ir_kernel_t<hw> {
 public:
     IR_KERNEL_FORWARD(hw)
 
-    zero_out_kernel_t(const hw_config_t &hw_cfg,
+    zero_out_kernel_t(const exec_config_t &exec_cfg,
             const kernel_info_t &kernel_info, bool require_dpas,
             grf_mode_t grf_mode)
-        : ir_kernel_t<hw>("zero_out", hw_cfg, kernel_info, require_dpas,
+        : ir_kernel_t<hw>("zero_out", exec_cfg, kernel_info, require_dpas,
                 /*require_global_atomics=*/false, grf_mode) {
 
         setup_interface();

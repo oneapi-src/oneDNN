@@ -33,15 +33,17 @@ namespace jit {
 
 class reorder_ir_builder_t : public ir_builder_t {
 public:
-    reorder_ir_builder_t(const hw_config_t &hw_cfg,
+    reorder_ir_builder_t(const exec_config_t &exec_cfg,
             const kernel_info_t &kernel_info, const layout_t &src_layout,
             const layout_t &dst_layout)
         : ir_builder_t(kernel_info)
-        , hw_cfg_(hw_cfg)
+        , exec_cfg_(exec_cfg)
         , src_layout_(src_layout)
         , dst_layout_(dst_layout) {
         build();
     }
+
+    const grid_info_t &kernel_grid() const { return kernel_grid_; }
 
     static void compute_blocks(const layout_t &src, const layout_t &dst,
             std::vector<int> &iter_blocks, std::vector<int> &loop_blocks,
@@ -54,8 +56,8 @@ public:
     static void compute_grid(const layout_t &src, const layout_t &dst,
             const std::vector<int> &iter_blocks,
             const std::vector<int> &loop_blocks,
-            const std::vector<int> &tg_blocks, std::array<int, 3> &kernel_grid,
-            std::array<int, 3> &tg_grid, std::vector<int> *dim2grid = nullptr);
+            const std::vector<int> &tg_blocks, grid_info_t &kernel_grid,
+            grid_info_t &tg_grid, std::vector<int> *dim2grid = nullptr);
 
     static compute::nd_range_t nd_range(
             int simd, const layout_t &src, const layout_t &dst);
@@ -69,7 +71,9 @@ private:
     static const int default_max_iter_tile_bytes = 2048;
     static const int default_max_thr_tile_bytes = 2048;
 
-    hw_config_t hw_cfg_;
+    exec_config_t exec_cfg_;
+    grid_info_t kernel_grid_;
+    grid_info_t tg_grid_;
     layout_t src_layout_;
     layout_t dst_layout_;
 };

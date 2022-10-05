@@ -87,56 +87,18 @@ private:
     ngen::HW hw_;
 };
 
-struct slm_config_t {
-    slm_config_t() = default;
-    slm_config_t(const std::string &s);
-
-    int bufs;
-    int gmem_bufs;
-    int sync_version;
-};
-
-class tile_config_t {
-public:
-    tile_config_t() = default;
-    tile_config_t(const std::string &s);
-
-    int dim(const std::string &dim_name) const;
-
-private:
-    std::unordered_map<std::string, int> dims_;
-};
-
 class conv_config_t;
-
-class conv_config_params_t {
-public:
-    conv_config_params_t() : is_empty_(true) {}
-
-    conv_config_params_t(const std::string &s);
-
-    bool is_empty() const { return is_empty_; }
-
-    void apply(conv_config_t &cfg) const;
-
-private:
-    bool is_empty_ = false;
-    bool check_slm_size_;
-    slm_config_t slm_;
-    tile_config_t tg_tile_;
-};
 
 class conv_config_lookup_table_t {
 public:
     conv_config_lookup_table_t();
 
-    conv_config_params_t find(
-            const conv_problem_t &prb, const hw_config_t &hw_cfg) const;
+    const char *find(const conv_config_t &cfg) const;
 
 private:
     struct entry_t {
         conv_problem_filter_t filter;
-        conv_config_params_t params;
+        const char *s_params;
     };
 
     void add(const char *s_prb, const char *s_params);

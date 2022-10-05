@@ -36,8 +36,16 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+struct conv_pd_data_t {
+    conv_config_t pd_cfg;
+    tensor_config_t tensor_cfg;
+    std::vector<kernel_info_t> kernel_infos;
+};
+
 class gen_convolution_t {
 public:
+    static const int max_kernels = 16;
+
     template <typename T>
     static status_t init_pd(T *pd, engine_t *engine) {
         using compute::compute_engine_t;
@@ -47,8 +55,15 @@ public:
             return status::unimplemented;
         if (!pd->set_default_alg_kind(alg_kind::convolution_direct))
             return status::unimplemented;
-        pd->cfg = std::make_shared<conv_config_t>();
-        CHECK(pd->cfg->init(pd, &pd->attr_, engine));
+
+        conv_problem_t prb;
+        CHECK(prb.init(engine, pd));
+
+        pd->data = std::make_shared<conv_pd_data_t>();
+        CHECK(init_pd_time_cfg(prb, pd->data->pd_cfg, engine, pd, &pd->attr_));
+
+        pd->data->tensor_cfg = get_tensor_config(pd->data->pd_cfg);
+        pd->data->kernel_infos.reserve(max_kernels);
         CHECK(init_kernel_infos(pd));
 
         return status::success;
@@ -59,31 +74,34 @@ public:
     template <typename T>
     status_t init(T *primitive, engine_t *engine) {
         try {
-            auto &cfg = get_cfg(primitive);
+            auto &data = *primitive->pd()->data;
+            auto &tensor_cfg = data.tensor_cfg;
+            auto cfg = data.pd_cfg;
+            CHECK(init_cfg(cfg, primitive->pd()));
 
             ir_info() << "Configuration:" << std::endl;
             ir_info() << cfg;
 
-            auto &kernel_infos = primitive->pd()->kernel_infos;
+            init_nd_ranges(primitive, cfg);
+
+            auto &kernel_infos = data.kernel_infos;
             for (int i = 0; i < int(kernel_infos.size()); i++) {
-                auto &info = *kernel_infos[i];
+                auto &info = kernel_infos[i];
                 switch (info.id()) {
                     case kernel_id_t::convolution:
                         try {
                             kernels_.push_back(make_kernel<conv_kernel_t>(
-                                    primitive, engine, cfg.hw_cfg.hw(), cfg,
-                                    primitive->pd(), info));
+                                    primitive, engine, cfg, info));
                         } catch (const ngen::out_of_registers_exception &e) {
-                            if (cfg.hw_cfg.regs() < 256
-                                    && cfg.hw_cfg.large_grf_support()) {
+                            if (cfg.regs() < 256
+                                    && cfg.hw_cfg().large_grf_support()) {
                                 ir_warning()
                                         << "Failed to generate kernel with "
                                            "default register mode, attempting "
                                            "again with large_grf_mode "
                                            "enabled\n";
                                 kernels_.push_back(make_kernel<conv_kernel_t>(
-                                        primitive, engine, cfg.hw_cfg.hw(), cfg,
-                                        primitive->pd(), info,
+                                        primitive, engine, cfg, info,
                                         grf_mode_t::large));
                             } else {
                                 throw e;
@@ -91,33 +109,33 @@ public:
                         }
                         break;
                     case kernel_id_t::pre_reorder: {
-                        auto src_layout = cfg.tensor_config.user_layout(
-                                info.arg_name(1));
-                        auto dst_layout = cfg.tensor_config.compute_layout(
-                                info.arg_name(1));
-                        kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
-                                info, src_layout, dst_layout,
-                                cfg.is_dpas_or_dpasw_fma(),
-                                grf_mode_t::matches));
+                        auto src_layout
+                                = tensor_cfg.user_layout(info.arg_name(1));
+                        auto dst_layout
+                                = tensor_cfg.compute_layout(info.arg_name(1));
+                        kernels_.push_back(
+                                make_kernel<reorder_kernel_t>(primitive, engine,
+                                        cfg.exec_cfg(), info, src_layout,
+                                        dst_layout, cfg.is_dpas_or_dpasw_fma(),
+                                        grf_mode_t::matches));
                         break;
                     }
                     case kernel_id_t::post_reorder: {
-                        auto src_layout = cfg.tensor_config.compute_layout(
-                                info.arg_name(0));
-                        auto dst_layout = cfg.tensor_config.user_layout(
-                                info.arg_name(0));
-                        kernels_.push_back(make_kernel<reorder_kernel_t>(
-                                primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
-                                info, src_layout, dst_layout,
-                                cfg.is_dpas_or_dpasw_fma(),
-                                grf_mode_t::matches));
+                        auto src_layout
+                                = tensor_cfg.compute_layout(info.arg_name(0));
+                        auto dst_layout
+                                = tensor_cfg.user_layout(info.arg_name(0));
+                        kernels_.push_back(
+                                make_kernel<reorder_kernel_t>(primitive, engine,
+                                        cfg.exec_cfg(), info, src_layout,
+                                        dst_layout, cfg.is_dpas_or_dpasw_fma(),
+                                        grf_mode_t::matches));
                         break;
                     }
                     case kernel_id_t::zero_out:
                         kernels_.push_back(make_kernel<zero_out_kernel_t>(
-                                primitive, engine, cfg.hw_cfg.hw(), cfg.hw_cfg,
-                                info, cfg.is_dpas_or_dpasw_fma(),
+                                primitive, engine, cfg.exec_cfg(), info,
+                                cfg.is_dpas_or_dpasw_fma(),
                                 grf_mode_t::matches));
                         break;
                     default: ir_error_not_expected();
@@ -140,9 +158,10 @@ public:
     template <typename T>
     status_t init_res_storage(
             const T *primitive, engine_t *engine, gpu_resource_t *r) const {
-        auto &kernel_infos = primitive->pd()->kernel_infos;
+        auto &data = *primitive->pd()->data;
+        auto &kernel_infos = data.kernel_infos;
         for (int i = 0; i < int(kernel_infos.size()); i++) {
-            auto &kernel_info = *kernel_infos[i];
+            auto &kernel_info = kernel_infos[i];
             for (int j = 0; j < kernel_info.nargs(); j++) {
                 if (!kernel_info.is_resource(j)) continue;
 
@@ -161,14 +180,15 @@ public:
 
     template <typename T>
     status_t execute(const T *primitive, const exec_ctx_t &ctx) const {
-        auto &kernel_infos = primitive->pd()->kernel_infos;
+        auto &data = *primitive->pd()->data;
+        auto &kernel_infos = data.kernel_infos;
 
         int max_stage = 100;
         int nsubmitted = 0;
         int nkernels = int(kernel_infos.size());
         for (int stage = 0; stage < max_stage; stage++) {
             for (int i = 0; i < nkernels; i++) {
-                auto &info = *kernel_infos[i];
+                auto &info = kernel_infos[i];
                 if (info.stage_id() != stage) continue;
 
                 std::vector<memory_storage_wrapper_t> storage_list;
@@ -178,7 +198,7 @@ public:
                 info.set_args(arg_list, storage_list);
 
                 CHECK(primitive->parallel_for(
-                        ctx, info.nd_range(), kernels_[i], arg_list));
+                        ctx, nd_ranges_[i], kernels_[i], arg_list));
                 nsubmitted++;
                 if (nsubmitted == nkernels) break;
             }
@@ -189,31 +209,27 @@ public:
 
 private:
     template <typename T>
-    static const conv_config_t &get_cfg(const T *primitive) {
-        return *primitive->pd()->cfg;
-    }
-
-    template <typename T>
     static kernel_info_t &create_kernel_info(T *pd, kernel_id_t kernel_id) {
-        auto &infos = pd->kernel_infos;
-        infos.push_back(std::make_shared<kernel_info_t>());
-        auto &ret = *infos.back();
+        auto &infos = pd->data->kernel_infos;
+        ir_assert((int)infos.size() + 1 <= max_kernels);
+        infos.emplace_back();
+        auto &ret = infos.back();
         ret.set_id(kernel_id);
         return ret;
     }
 
     template <typename T>
     static status_t init_kernel_infos(T *pd) {
-        auto &cfg = *pd->cfg;
+        auto &data = *pd->data;
+        auto &cfg = data.pd_cfg;
         auto *attr = pd->attr();
 
         auto scratchpad = pd->scratchpad_registry().registrar();
-
         auto &conv_info = create_kernel_info(pd, kernel_id_t::convolution);
 
         // Initialize kernel arguments.
         uint32_t scratchpad_key = 1;
-        for (auto &t : cfg.tensor_config.tensors()) {
+        for (auto &t : data.tensor_cfg.tensors()) {
             int compute_arg_key = t.arg_key;
             int user_arg_key = t.arg_key;
             size_t elems = t.compute_layout.elems();
@@ -259,9 +275,8 @@ private:
                     auto elems_var = var_t::make(type_t::u32(), "elems");
                     reorder_info.register_internal_arg(
                             elems_var, uint32_t(elems));
-                    reorder_info.set_nd_range(
-                            reorder_kernel_t<>::nd_range(cfg.hw_cfg.simd_size(),
-                                    t.user_layout, t.compute_layout));
+                    reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
+                            cfg.simd(), t.user_layout, t.compute_layout));
                 }
                 if (t.is_output) {
                     auto &reorder_info
@@ -274,9 +289,8 @@ private:
                     auto elems_var = var_t::make(type_t::u32(), "elems");
                     reorder_info.register_internal_arg(
                             elems_var, uint32_t(elems));
-                    reorder_info.set_nd_range(
-                            reorder_kernel_t<>::nd_range(cfg.hw_cfg.simd_size(),
-                                    t.compute_layout, t.user_layout));
+                    reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
+                            cfg.simd(), t.compute_layout, t.user_layout));
                 }
             }
             if (t.needs_zero_out) {
@@ -295,19 +309,43 @@ private:
                 zero_out_info.register_internal_arg(
                         size_var, uint32_t(compute_size));
                 zero_out_info.set_nd_range(zero_out_kernel_t<>::nd_range(
-                        cfg.hw_cfg.simd_size(), int(compute_size)));
+                        cfg.simd(), int(compute_size)));
             }
             if (!t.needs_reorder)
                 conv_info.register_user_arg(user_buf, user_arg_key,
                         /*is_input=*/t.is_input && !t.is_output);
         }
 
-        conv_info.set_nd_range(cfg.nd_range());
-
         return status::success;
     }
 
+    template <typename T>
+    void init_nd_ranges(T *primitive, const conv_config_t &cfg) {
+        auto *pd = primitive->pd();
+        auto &data = *pd->data;
+        int nkernels = int(data.kernel_infos.size());
+        nd_ranges_.resize(nkernels);
+        for (int i = 0; i < nkernels; i++) {
+            auto &info = data.kernel_infos[i];
+            switch (info.id()) {
+                case kernel_id_t::convolution:
+                    // Convolution kernel info is initialized at PD creation
+                    // time when ND range/grid information are not known yet so
+                    // we need to directly query config here.
+                    nd_ranges_[i] = cfg.nd_range();
+                    break;
+                case kernel_id_t::pre_reorder:
+                case kernel_id_t::post_reorder:
+                case kernel_id_t::zero_out:
+                    nd_ranges_[i] = info.nd_range();
+                    break;
+                default: ir_error_not_expected();
+            }
+        }
+    }
+
     std::vector<compute::kernel_t> kernels_;
+    std::vector<compute::nd_range_t> nd_ranges_;
 };
 
 status_t gen_convolution_fwd_t::pd_t::init(engine_t *engine) {

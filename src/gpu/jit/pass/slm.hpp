@@ -29,7 +29,7 @@ namespace jit {
 stmt_t merge_slm_buffers(const stmt_t &_stmt, ir_context_t &ir_ctx);
 
 // Replaces some heavy GRF reorders by reorder through SLM (store and load).
-stmt_t inject_slm_reorder(const stmt_t &s, ir_context_t &ir_ctx, ngen::HW hw,
+stmt_t inject_slm_reorder(const stmt_t &s, ir_context_t &ir_ctx,
         const grid_info_t &tg_grid, bool has_slm_usage);
 
 } // namespace jit

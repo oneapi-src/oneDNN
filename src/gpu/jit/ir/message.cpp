@@ -705,9 +705,8 @@ bool access_builder_t::try_build_2d() {
     hint.transpose = transpose;
     hint.width = w;
     hint.height = h;
-    auto _send = send_t::make_2d(ir_ctx_->hw_cfg().hw(),
-            send_hint_.convert(send_op_), send_type, W, H, P, w, h, c, vnni,
-            transpose, send_cache_hint_);
+    auto _send = send_t::make_2d(ir_ctx_->hw(), send_hint_.convert(send_op_),
+            send_type, W, H, P, w, h, c, vnni, transpose, send_cache_hint_);
     auto &send = _send.as<send_t>();
 
     stmt_ = stmt_t();
@@ -887,8 +886,8 @@ bool access_builder_t::try_build(const layout_t &try_layout) {
     int reg_stride
             = (try_layout_blocks.empty() ? 0
                                          : (int)try_layout_blocks[0].stride);
-    auto send_list = send_t::get_all(ir_ctx_->hw_cfg().hw(), send_op_,
-            send_address_, mem_type_, send_cache_hint_);
+    auto send_list = send_t::get_all(ir_ctx_->hw(), send_op_, send_address_,
+            mem_type_, send_cache_hint_);
     reg_layout_walker_
             = utils::make_unique<layout_walker_t>(try_layout, grf_size());
     stmt_ = stmt_t();
@@ -1125,11 +1124,11 @@ send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
     return hint;
 }
 
-send_hint_t get_send_hint(const hw_config_t &hw_cfg, send_op_t send_op,
+send_hint_t get_send_hint(const exec_config_t &exec_cfg, send_op_t send_op,
         fma_kind_t fma_kind, abc_kind_t abc_kind, const view_t &view,
         const gemm_schedule_t &gemm_schedule, bool allow_2d) {
     if (!allow_2d) return send_hint_t();
-    if (hw_cfg.hw() < ngen::HW::XeHPC) return send_hint_t();
+    if (exec_cfg.hw() < ngen::HW::XeHPC) return send_hint_t();
     if (!utils::one_of(send_op, send_op_t::load, send_op_t::prefetch,
                 send_op_t::store))
         return send_hint_t();
@@ -1149,7 +1148,7 @@ send_hint_t get_send_hint(const hw_config_t &hw_cfg, send_op_t send_op,
     if (send_op == send_op_t::load && fma_kind == fma_kind_t::dpas
             && utils::one_of(abc_kind, abc_kind_t::a, abc_kind_t::b)) {
         bool is_dpas_src1 = (abc_kind == abc_kind_t::b);
-        int mn_blk = (is_dpas_src1 ? hw_cfg.simd_size() : 8);
+        int mn_blk = (is_dpas_src1 ? exec_cfg.simd() : 8);
         int k_blk = 32 / view.type().size();
 
         bool is_b0_k = (bmnk_mapper.bmnk_kind(abc_kind, b0.dim_idx)

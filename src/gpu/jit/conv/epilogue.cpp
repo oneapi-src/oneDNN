@@ -54,8 +54,8 @@ public:
     stmt_t build_stmt(const layout_t &reg_layout, const expr_t &reg_buf) const {
         ir_assert(mem_view_.nvdims() == reg_layout.ndims())
                 << "Incompatible view/layout.";
-        int max_step = std::min(16,
-                2 * ir_ctx_->hw_cfg().grf_size() / reg_layout.type().size());
+        int max_step = std::min(
+                16, 2 * ir_ctx_->grf_size() / reg_layout.type().size());
         auto base_tile = reg_layout.split_into_max_tile(
                 max_step, /*is_dense_tile=*/true);
         stmt_t stmt;
@@ -639,7 +639,7 @@ public:
         restore_zero_padding_ = post_op_ctx_.need_to_restore_zero_padding();
 
         for (auto &po : post_op_ctx_.post_ops()) {
-            post_op_builders_.emplace_back(cfg.hw(), po);
+            post_op_builders_.emplace_back(ir_ctx_.hw(), po);
         }
 
         // Estimate buffer sizes required to load the full tensor, do not do
@@ -734,7 +734,7 @@ private:
         }
 
         // Generate prefetch statements.
-        if (cfg_.is_ge_xe_hpc()) {
+        if (ir_ctx_.hw() >= ngen::HW::XeHPC) {
             for (auto &t : post_op_tensors_) {
                 if (!t.needs_load()) continue;
                 if (t.do_preload()) continue;
@@ -831,10 +831,11 @@ private:
         }
 
         // S_y -> GMEM.
-        auto send_op = cfg_.do_atomic_update ? send_op_t::atomic_fadd
-                                             : send_op_t::store;
-        auto send_hint = get_send_hint(cfg_.hw_cfg, send_op, abc_kind_t::c,
-                c_mem_tile_view, gemm_schedule_);
+        auto send_op = gemm_schedule_.with_kernel_grid_k_slicing()
+                ? send_op_t::atomic_fadd
+                : send_op_t::store;
+        auto send_hint = get_send_hint(ir_ctx_.exec_cfg(), send_op,
+                abc_kind_t::c, c_mem_tile_view, gemm_schedule_);
         auto r2g = make_access_builder(ir_ctx_, c_mem_tile_view, c_mem_buf_,
                 tmp_reg_buf, send_op, send_address_t::a64, send_hint);
 
@@ -860,7 +861,7 @@ private:
         c_stages.emplace_back(r2g.reg_layout(), tmp_reg_buf, r2g.stmt()); // S_y
 
         int nstages = int(c_stages.size());
-        bool is_dpasw = (cfg_.fma_kind == fma_kind_t::dpasw);
+        bool is_dpasw = (cfg_.fma_kind() == fma_kind_t::dpasw);
 
         // Generate reorders between C stages if needed.
         for (int i = 0; i < nstages; i++) {
@@ -913,7 +914,7 @@ private:
             auto &buf = s.buf_base();
             auto ret = seen.insert(buf);
             if (i == 0 || !ret.second) continue;
-            int size = utils::rnd_up(s.buf_size(), cfg_.hw_cfg.grf_size());
+            int size = utils::rnd_up(s.buf_size(), ir_ctx_.grf_size());
             tile_stmt = alloc_t::make(buf, size, alloc_kind_t::grf, tile_stmt);
         }
 
@@ -1021,7 +1022,7 @@ int get_post_op_mem_usage(const post_op_tensor_info_t &info, int c_elems,
     return load_size + cvt_size;
 }
 
-int find_tile_size(const hw_config_t &hw_cfg,
+int find_tile_size(const exec_config_t &exec_cfg,
         const post_op_context_t &post_op_ctx, const view_t &c_mem_view,
         const layout_t &c_reg_layout, int preload_max_size, int post_op_blk) {
     bool with_post_ops = !post_op_ctx.post_ops().empty();
@@ -1048,8 +1049,8 @@ int find_tile_size(const hw_config_t &hw_cfg,
         }
 
         int total_size = c_size + po_size;
-        int available_size
-                = hw_cfg.regs() * hw_cfg.grf_size() - (int)c_reg_layout.size();
+        int available_size = exec_cfg.regs() * exec_cfg.grf_size()
+                - (int)c_reg_layout.size();
         if (total_size <= available_size * 0.7) return tile_size;
     }
     ir_error_not_expected();
@@ -1069,7 +1070,7 @@ stmt_t create_epilogue_stmt(const conv_config_t &cfg, ir_context_t &ir_ctx,
     int post_op_blk = 8;
     // Tile size in bytes. All post-ops are applied to a single tile, then to
     // the next tile, etc.
-    int tile_size = find_tile_size(cfg.hw_cfg, post_op_ctx, c_mem_view,
+    int tile_size = find_tile_size(cfg.exec_cfg(), post_op_ctx, c_mem_view,
             c_reg_layout, preload_max_size, post_op_blk);
 
     ir_trace() << "Creating epilogue with parameters"

@@ -61,8 +61,8 @@ std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&... args) {
 }
 
 template <template <ngen::HW> class KernelT, typename... ArgsT>
-compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
-        gpu_gen_t arch, ArgsT &&... args) {
+compute::kernel_t make_kernel(
+        gpu_primitive_t *primitive, engine_t *engine, ArgsT &&... args) {
     using namespace compute;
     kernel_t kernel;
 
@@ -71,6 +71,10 @@ compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
         if (status != status::success) return kernel_t();
         return kernel;
     }
+
+    auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
+    auto *device_info = compute_engine->device_info();
+    auto arch = convert_dnnl_arch_to_ngen(device_info->gpu_arch());
 
     std::unique_ptr<jit::jit_generator_base> jit_kernel;
 #define CASE(gpu_arch) \
@@ -90,8 +94,6 @@ compute::kernel_t make_kernel(gpu_primitive_t *primitive, engine_t *engine,
 #undef CASE
 
 #ifdef GEN_CONV_DEBUG
-    auto compute_engine = utils::downcast<compute_engine_t *>(engine);
-    auto device_info = compute_engine->device_info();
     gpu_gen_t actual_arch = ngen::HW::Unknown;
     switch (device_info->gpu_arch()) {
         case gpu_arch_t::gen9: actual_arch = gpu_gen9; break;
@@ -224,22 +226,22 @@ public:
     friend class ir_to_ngen_t<hw>;
     friend class send_impl_t;
 
-    ir_kernel_t(const std::string &kernel_name, const hw_config_t &hw_cfg,
+    ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
             const kernel_info_t &kernel_info, bool require_dpas,
             bool require_global_atomics, grf_mode_t grf_mode = grf_mode_t::any)
         : kernel_name_(kernel_name)
-        , hw_cfg_(hw_cfg)
+        , exec_cfg_(exec_cfg)
         , kernel_info_(kernel_info)
         , require_dpas_(require_dpas)
         , require_global_atomics_(require_global_atomics)
         , regs_((grf_mode == grf_mode_t::large)
                           ? 256
                           : (grf_mode == grf_mode_t::small) ? 128
-                                                            : hw_cfg.regs())
+                                                            : exec_cfg.regs())
         , ra_(hw, kernel_name,
                   grf_mode == grf_mode_t::any ? reg_allocator_t::warn_all
                                               : reg_allocator_t::warn_default)
-        , emu_strategy(hw, hw_cfg.stepping_id()) {
+        , emu_strategy(hw, exec_cfg.hw_cfg().stepping_id()) {
         ra_.setRegisterCount(regs_);
     }
 
@@ -248,7 +250,7 @@ public:
         requireLocalID(3);
         requireLocalSize();
         requireGRF(regs_);
-        requireSIMD(hw_cfg_.simd_size());
+        requireSIMD(exec_cfg_.simd());
         requireBarrier();
         if (require_dpas_) requireDPAS();
         if (require_global_atomics_) requireGlobalAtomics();
@@ -751,7 +753,7 @@ public:
 
 protected:
     std::string kernel_name_;
-    hw_config_t hw_cfg_;
+    exec_config_t exec_cfg_;
     kernel_info_t kernel_info_;
     bool require_dpas_;
     bool require_global_atomics_;

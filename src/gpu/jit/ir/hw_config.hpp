@@ -47,8 +47,7 @@ static std::string to_string(ngen::HW hw) {
 }
 
 // Provides access to HW configuration which includes non-configurable
-// properties (e.g. EU count, stepping) and configurable properties (e.g. SIMD
-// size, number of registers).
+// properties.
 class hw_config_t {
 public:
     hw_config_t() = default;
@@ -78,52 +77,15 @@ public:
     ngen::HW hw() const { return hw_; }
     int stepping_id() const { return stepping_id_; }
     int eu_count() const { return eu_count_; }
+    int max_wg_size() const { return max_wg_size_; }
     int large_grf_support() const { return large_grf_support_; }
-    int simd_size() const { return simd_size_; }
-    int vec_size() const { return vec_size_; }
-    int regs() const { return regs_; }
     int grf_size() const { return ngen::GRF::bytes(hw_); }
 
-    void set_simd_size(int value) { simd_size_ = value; }
-    void set_vec_size(int value) { vec_size_ = value; }
-    void set_regs(int value) { regs_ = value; }
-    void set_max_tg_size(int value) {
-        max_tg_overriden_ = max_tg_size_ != 0;
-        max_tg_size_ = value;
-    }
-    bool max_tg_overriden() { return max_tg_overriden_; }
-
-    int max_tg_size() const {
-        if (max_tg_size_ != 0) return max_tg_size_;
-
-        const compute::gpu_arch_t arch = convert_ngen_arch_to_dnnl(hw_);
-        const int max_eus_per_wg = compute::device_info_t::max_eus_per_wg(arch);
-        const int threads_per_eu
-                = compute::device_info_t::threads_per_eu(arch, regs_ > 128);
-        const int wg_per_thr = simd_size_
-                * compute::device_info_t::threads_per_eu(arch) / threads_per_eu;
-
-        // Optimal thread group size may differ from hardware thread count due
-        // to simd_size used in computation.
-        return std::min(max_eus_per_wg * utils::rnd_down_pow2(threads_per_eu),
-                static_cast<int>(max_wg_size_ / wg_per_thr));
-    }
-
-    int max_slm_size() const {
-        return compute::device_info_t::max_slm_size_per_tg(
-                convert_ngen_arch_to_dnnl(hw_), regs_ > 128);
-    }
-
     std::string str() const {
-        using namespace ir_utils;
         std::ostringstream oss;
         oss << to_string(hw_);
         oss << ", stepping: " << stepping_id();
         oss << ", EUs: " << eu_count();
-        oss << ", max TG: " << max_tg_size();
-        oss << ", SIMD: " << simd_size();
-        if (vec_size() != simd_size()) oss << " (" << vec_size() << ")";
-        oss << ", regs: " << regs();
         return oss.str();
     }
 
@@ -135,17 +97,40 @@ private:
     int eu_count_;
     size_t max_wg_size_;
     bool large_grf_support_;
-    bool max_tg_overriden_ = false;
+};
 
-    // SIMD width (used for thread dispatching).
-    int simd_size_ = 0;
+class exec_config_t {
+public:
+    exec_config_t() = default;
+    exec_config_t(const hw_config_t &hw_cfg) : hw_cfg_(hw_cfg) {}
 
-    // Vector size - used as the execution size for compute instructions
-    // (mad/dp4a/dpas).
+    const hw_config_t &hw_cfg() const { return hw_cfg_; }
+    int regs() const { return regs_; }
+    int simd() const { return simd_; }
+    int vec_size() const { return vec_size_; }
+
+    ngen::HW hw() const { return hw_cfg_.hw(); }
+    int grf_size() const { return hw_cfg_.grf_size(); }
+
+    void set_regs(int regs) { regs_ = regs; }
+    void set_simd(int simd) { simd_ = simd; }
+    void set_vec_size(int vec_size) { vec_size_ = vec_size; }
+
+    std::string str(int max_tg_size) const {
+        std::ostringstream oss;
+        oss << hw_cfg_.str();
+        oss << ", max TG: " << max_tg_size;
+        oss << ", SIMD: " << simd();
+        if (vec_size() != simd()) oss << " (" << vec_size() << ")";
+        oss << ", regs: " << regs();
+        return oss.str();
+    }
+
+private:
+    hw_config_t hw_cfg_;
+    int regs_ = 0;
+    int simd_ = 0;
     int vec_size_ = 0;
-
-    int regs_ = 0; // Number of registers.
-    int max_tg_size_ = 0; // Max thread group size.
 };
 
 } // namespace jit

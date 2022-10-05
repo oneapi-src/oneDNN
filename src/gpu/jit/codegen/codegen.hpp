@@ -55,7 +55,7 @@ public:
         : host_(host)
         , expr_binding_(expr_binding)
         , simd_size_(host->getSIMD())
-        , eu_count_(host->hw_cfg_.eu_count()) {}
+        , eu_count_(host->exec_cfg_.hw_cfg().eu_count()) {}
 
     ~ir_to_ngen_t() {
 #ifdef GEN_CONV_DEBUG

@@ -143,7 +143,7 @@ private:
 
 stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = if_condition_fixer_t(ir_ctx.hw_cfg().simd_size()).mutate(s);
+    auto ret = if_condition_fixer_t(ir_ctx.exec_cfg().simd()).mutate(s);
     trace_pass("fixup_if_conditions", ret, ir_ctx);
     return ret;
 }
@@ -155,7 +155,7 @@ stmt_t maybe_strip_prefetches(
     int grf_usage = ir_usage + reserved_regs;
     auto ret = s;
     //strip prefetches when they exceed available registers
-    if (grf_usage > ir_ctx.hw_cfg().regs()) {
+    if (grf_usage > ir_ctx.exec_cfg().regs()) {
         ret = remove_stmt_group(s, stmt_label_t::prefetch());
         ir_warning() << "Dropping prefetches due to too lack of available "
                         "registers.\n";

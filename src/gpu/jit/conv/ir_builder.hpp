@@ -35,9 +35,9 @@ namespace jit {
 
 class conv_ir_builder_t : public ir_builder_t {
 public:
-    conv_ir_builder_t(const conv_config_t &cfg, const convolution_pd_t *pd,
-            const kernel_info_t &kernel_info)
-        : ir_builder_t(kernel_info), cfg_(cfg), pd_(pd) {
+    conv_ir_builder_t(
+            const conv_config_t &cfg, const kernel_info_t &kernel_info)
+        : ir_builder_t(kernel_info), prb_(cfg.prb()), cfg_(cfg) {
         build();
     }
 
@@ -54,8 +54,8 @@ private:
             expr_t &src_buf, expr_t &dst_buf, expr_t &wei_buf, expr_t &bia_buf,
             expr_t &bia_reduction_condition);
 
+    const conv_problem_t &prb_;
     const conv_config_t &cfg_;
-    const convolution_pd_t *pd_;
 };
 
 } // namespace jit

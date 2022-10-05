@@ -221,12 +221,12 @@ private:
     int slm_size_ = 0;
 };
 
-stmt_t inject_slm_reorder(const stmt_t &s, ir_context_t &ir_ctx, ngen::HW hw,
+stmt_t inject_slm_reorder(const stmt_t &s, ir_context_t &ir_ctx,
         const grid_info_t &tg_grid, bool has_slm_usage) {
     trace_start();
     if (has_slm_usage) return s;
-    if (hw < ngen::HW::XeHPC) return s;
-    slm_reorder_injector_t injector(s, hw, tg_grid);
+    if (ir_ctx.hw() < ngen::HW::XeHPC) return s;
+    slm_reorder_injector_t injector(s, ir_ctx.hw(), tg_grid);
     stmt_t ret = injector.mutate(s);
 
     auto &slm_buf = injector.slm_base();

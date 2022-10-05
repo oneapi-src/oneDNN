@@ -40,8 +40,7 @@ namespace jit {
 //             ...
 //         }
 //     }
-stmt_t update_loops_for_unrolling(
-        const stmt_t &s, ir_context_t &ir_ctx, bool do_unroll);
+stmt_t update_loops_for_unrolling(const stmt_t &s, ir_context_t &ir_ctx);
 
 // Unrolls loops according to their unroll attribute.
 // Before:

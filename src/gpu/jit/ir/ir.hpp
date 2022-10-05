@@ -35,10 +35,16 @@ class constraint_set_t;
 
 class ir_context_t {
 public:
-    ir_context_t(const hw_config_t &hw_cfg, constraint_set_t &cset)
-        : hw_cfg_(hw_cfg), cset_(cset) {}
+    ir_context_t(const exec_config_t &exec_cfg, constraint_set_t &cset)
+        : exec_cfg_(exec_cfg), cset_(cset) {}
 
-    const hw_config_t &hw_cfg() const { return hw_cfg_; }
+    const exec_config_t &exec_cfg() const { return exec_cfg_; }
+
+    const hw_config_t &hw_cfg() const { return exec_cfg().hw_cfg(); }
+
+    ngen::HW hw() const { return hw_cfg().hw(); }
+
+    int grf_size() const { return hw_cfg().grf_size(); }
 
     const constraint_set_t &cset() { return cset_; }
 
@@ -53,7 +59,7 @@ public:
     }
 
 private:
-    hw_config_t hw_cfg_;
+    exec_config_t exec_cfg_;
     constraint_set_t &cset_;
     std::unordered_map<std::string, int> prefix_ids_;
 };

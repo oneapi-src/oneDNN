@@ -42,10 +42,13 @@ class post_op_context_t {
 public:
     post_op_context_t() = default;
 
-    post_op_context_t(const convolution_pd_t *pd, const conv_config_t &cfg,
+    post_op_context_t(const conv_config_t &cfg,
             const gemm_schedule_t &gemm_schedule,
             const kernel_info_t &kernel_info)
-        : pd_(pd), cfg_(&cfg), cp_view_(gemm_schedule.c_view()) {
+        : prb_(&cfg.prb()), cfg_(&cfg), cp_view_(gemm_schedule.c_view()) {
+
+        auto *pd = prb_->conv_pd;
+        auto *attr = prb_->attr;
 
         auto c = add_tensor(/*is_input=*/false, /*is_output=*/false, cp_view_,
                 expr_t(), var_t::make(type_t::f32(), "c"));
@@ -58,8 +61,6 @@ public:
             auto bia = add_input_tensor(view, buf);
             post_ops_.emplace_back(c, c + bia);
         }
-
-        auto *attr = pd->attr();
 
         // Handle output scales.
         bool with_oscales = !attr->output_scales_.has_default_values();
@@ -85,9 +86,6 @@ public:
                 if (pd->is_bwd_w()) {
                     ir_assert(scale == 1) << "BWD_W doesn't support "
                                              "non-default scale for sum.";
-                    ir_assert(cfg.do_atomic_update)
-                            << "Sum post-op with BWD_W requires atomic "
-                               "updates.";
                     continue;
                 }
                 auto view = cp_view_;
@@ -117,10 +115,11 @@ public:
         }
 
         // Handle dst zero points.
-        if (cfg.zp_cfg.do_dst_compensation) {
-            if (cfg.zp_cfg.is_runtime_dst_zero_points) {
+        auto &zp_cfg = prb_->zp_cfg;
+        if (zp_cfg.do_dst_compensation) {
+            if (zp_cfg.is_runtime_dst_zero_points) {
                 uint32_t mask = normalize_mask(
-                        cfg.zp_cfg.is_common_dst_zero_point ? 0 : 1 << 1);
+                        zp_cfg.is_common_dst_zero_point ? 0 : 1 << 1);
                 auto view = create_view(type_t::s32(), mask);
                 auto buf = kernel_info.find_arg("dst_zero_points");
                 auto in = add_input_tensor(view, buf);
@@ -129,12 +128,12 @@ public:
                 auto func = eltwise_t::make(alg_kind::eltwise_linear,
                         /*scale=*/1.f,
                         /*alpha=*/1.f,
-                        /*beta=*/float(cfg.zp_cfg.common_dst_zero_point));
+                        /*beta=*/float(zp_cfg.common_dst_zero_point));
                 post_ops_.emplace_back(c, c, func);
             }
         }
 
-        need_to_restore_zero_padding_ = init_need_to_restore_zero_padding(pd);
+        need_to_restore_zero_padding_ = init_need_to_restore_zero_padding();
 
         // Require masked updates when needed.
         for (auto &info : tensor_infos_) {
@@ -168,9 +167,10 @@ public:
     }
 
 private:
-    bool init_need_to_restore_zero_padding(const convolution_pd_t *pd) const {
-        auto *attr = pd_->attr();
-        if (cfg_->with_bias) return true;
+    bool init_need_to_restore_zero_padding() const {
+        auto *pd = prb_->conv_pd;
+        auto *attr = prb_->attr;
+        if (prb_->with_bias) return true;
         for (int i = 0; i < attr->post_ops_.len(); i++) {
             auto &po = attr->post_ops_.entry_[i];
             if (po.is_eltwise()) {
@@ -210,12 +210,12 @@ private:
                 ir_error_not_expected();
             }
         }
-        if (cfg_->zp_cfg.do_src_compensation
-                && pd_->dst_md()->dims[0] != pd_->dst_md()->padded_dims[0])
+        if (prb_->zp_cfg.do_src_compensation
+                && pd->dst_md()->dims[0] != pd->dst_md()->padded_dims[0])
             return true;
-        if (cfg_->zp_cfg.do_dst_compensation
-                && cfg_->zp_cfg.is_common_dst_zero_point
-                && pd_->dst_md()->dims[1] != pd_->dst_md()->padded_dims[1])
+        if (prb_->zp_cfg.do_dst_compensation
+                && prb_->zp_cfg.is_common_dst_zero_point
+                && pd->dst_md()->dims[1] != pd->dst_md()->padded_dims[1])
             return true;
         return false;
     }
@@ -243,15 +243,15 @@ private:
             return false;
         }
 
-        int p = utils::pick(sp_idx, cfg_->pd, cfg_->ph, cfg_->pw);
-        int s = utils::pick(sp_idx, cfg_->sd, cfg_->sh, cfg_->sw);
-        int k = utils::pick(sp_idx, cfg_->kd, cfg_->kh, cfg_->kw);
-        int d = utils::pick(sp_idx, cfg_->dd, cfg_->dh, cfg_->dw);
+        int p = utils::pick(sp_idx, prb_->pd, prb_->ph, prb_->pw);
+        int s = utils::pick(sp_idx, prb_->sd, prb_->sh, prb_->sw);
+        int k = utils::pick(sp_idx, prb_->kd, prb_->kh, prb_->kw);
+        int d = utils::pick(sp_idx, prb_->dd, prb_->dh, prb_->dw);
 
-        if (cfg_->is_fwd) {
-            int o_value = utils::pick(sp_idx, cfg_->od, cfg_->oh, cfg_->ow);
+        if (prb_->is_fwd) {
+            int o_value = utils::pick(sp_idx, prb_->od, prb_->oh, prb_->ow);
             int o_bound = gemm_schedule.var_bound(var);
-            int i = utils::pick(sp_idx, cfg_->id, cfg_->ih, cfg_->iw);
+            int i = utils::pick(sp_idx, prb_->id, prb_->ih, prb_->iw);
 
             for (int o = o_value; o < o_bound; o++) {
                 int i_min = o * s - p;
@@ -260,10 +260,10 @@ private:
             return false;
         }
 
-        if (cfg_->is_bwd_d) {
-            int i_value = utils::pick(sp_idx, cfg_->id, cfg_->ih, cfg_->iw);
+        if (prb_->is_bwd_d) {
+            int i_value = utils::pick(sp_idx, prb_->id, prb_->ih, prb_->iw);
             int i_bound = gemm_schedule.var_bound(var);
-            int o = utils::pick(sp_idx, cfg_->od, cfg_->oh, cfg_->ow);
+            int o = utils::pick(sp_idx, prb_->od, prb_->oh, prb_->ow);
 
             for (int i = i_value; i < i_bound; i++) {
                 int os_min = i - (k - 1) * (d + 1) + p;
@@ -342,16 +342,18 @@ private:
         std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
         std::vector<dim_t> padded_dims(
                 md.padded_dims, md.padded_dims + md.ndims);
-        maybe_reshape_dims(cfg_->ndims, layout, dims, padded_dims);
-        layout = normalize_conv_layout(layout, /*with_groups=*/false, cfg_->g,
-                cfg_->is_dw, cfg_->reduced_dim, cfg_->fuse_spatial, add_groups,
+        maybe_reshape_dims(prb_->ndims, layout, dims, padded_dims);
+        layout = normalize_conv_layout(layout, /*with_groups=*/false, prb_->g,
+                prb_->is_dw, prb_->reduced_dim, cfg_->fuse_spatial(),
+                add_groups,
                 /*is_wei=*/false);
-        dims = normalize_conv_dims(dims, /*with_groups=*/false, cfg_->g,
-                cfg_->is_dw, cfg_->reduced_dim, cfg_->fuse_spatial, add_groups,
+        dims = normalize_conv_dims(dims, /*with_groups=*/false, prb_->g,
+                prb_->is_dw, prb_->reduced_dim, cfg_->fuse_spatial(),
+                add_groups,
                 /*is_wei=*/false);
         padded_dims = normalize_conv_dims(padded_dims,
-                /*with_groups=*/false, cfg_->g, cfg_->is_dw, cfg_->reduced_dim,
-                cfg_->fuse_spatial, add_groups, /*is_wei=*/false);
+                /*with_groups=*/false, prb_->g, prb_->is_dw, prb_->reduced_dim,
+                cfg_->fuse_spatial(), add_groups, /*is_wei=*/false);
         ir_assert(layout.ndims() == cp_ndims()) << "Incompatible dimensions.";
         uint32_t bound_check_mask = 0;
         for (int i = 0; i < cp_ndims(); i++) {
@@ -381,14 +383,14 @@ private:
         // Add groups to match ngcdhw layout.
         bool add_groups = (cp_view_.vvars()[1].as<var_t>().name == "g");
         // Number of dimensions before normalization.
-        int orig_ndims = 2 + cfg_->ndims;
+        int orig_ndims = 2 + prb_->ndims;
         std::vector<dim_t> dummy_dims(orig_ndims, 1);
         dim_t mask_set_value = 2;
         for (int i = 0; i < orig_ndims; i++) {
             if ((orig_mask & (1 << i)) != 0) dummy_dims[i] = mask_set_value;
         }
         auto cvt_dims = normalize_conv_dims(dummy_dims, /*with_groups=*/false,
-                cfg_->g, cfg_->is_dw, cfg_->reduced_dim, cfg_->fuse_spatial,
+                prb_->g, prb_->is_dw, prb_->reduced_dim, cfg_->fuse_spatial(),
                 /*add_groups=*/false,
                 /*is_wei=*/false);
         // Split channels into groups and channels to match ngcdhw layout.
@@ -402,7 +404,7 @@ private:
         return mask;
     }
 
-    const convolution_pd_t *pd_;
+    const conv_problem_t *prb_;
     const conv_config_t *cfg_;
 
     bool need_to_restore_zero_padding_ = false;
