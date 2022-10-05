@@ -2821,7 +2821,7 @@ struct memory : public handle<dnnl_memory_t> {
 
     private:
         int query_s32(query what) const {
-            memory::dim res;
+            int res;
             dnnl_status_t status = dnnl_memory_desc_query(
                     get(), dnnl::convert_to_c(what), &res);
             return status == dnnl_success ? res : 0;
