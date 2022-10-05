@@ -672,6 +672,7 @@ public:
     // Returns a statement describing the loop nest of the schedule.
     stmt_t create_loop_nest(const stmt_t &_body = stmt_t()) const {
         stmt_t body = _body;
+        auto found_vars = find_unique_objects<var_t>(body);
         auto skip_conds = skip_conditions_;
         for (auto it = vars_.rbegin(); it != vars_.rend(); it++) {
             auto &var = *it;
@@ -685,6 +686,10 @@ public:
                 cond_it->second = expr_t();
                 auto if_stmt = if_t::make(skip_cond, funcs::_continue());
                 body = if_stmt.append(body);
+            } else {
+                if (found_vars.count(var) == 0
+                        && to_cpp<int>(loop.bound()) == 1)
+                    continue;
             }
             body = for_t::make(
                     var, 0, loop.bound(), body, loop.unroll_factor());
