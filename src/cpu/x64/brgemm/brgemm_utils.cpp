@@ -170,8 +170,9 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 /*only avx512 or more can bcast*/
                 && is_superset(brg->isa_impl, avx512_core);
 
-        int ld_block = (brg->ldb2 != 0) ? brg->ld_block2 : brg->ldb2_tail;
-        int adj_ld_block = (ld_block == 0) ? (ld_block + 1) : ld_block;
+        const auto ld_block
+                = (brg->ldb2 != 0) ? brg->ld_block2 : brg->ldb2_tail;
+        const auto adj_ld_block = (ld_block == 0) ? (ld_block + 1) : ld_block;
 
         const int max_isa_regs
                 = is_superset(brg->isa_impl, avx512_core) ? 32 : 16;
@@ -182,8 +183,8 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 = (brg->req_cal_comp_pads || brg->brgattr.max_top_vpad > 0
                           || brg->brgattr.max_bottom_vpad > 0)
                 && brg->zp_type_a != brgemm_broadcast_t::none;
-        int max_regs = max_isa_regs - (adj_ld_block + max_bcst_regs);
-        int max_block
+        const auto max_regs = max_isa_regs - (adj_ld_block + max_bcst_regs);
+        auto max_block
                 = (brg->embd_bcst ? max_regs - 4
                                   : ((brg->beta == 1.f || brg->beta == 0.f)
                                                   ? max_regs
@@ -198,7 +199,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
             max_block
                     = nstl::min(max_block, 28); // bf16_emu only for avx512_core
         max_block /= adj_ld_block;
-        int min_block = 1;
+        const int min_block = 1;
         float best_bd_block_eff = 0.f;
         brg->bd_block = 1;
         for (int bd_block = max_block; bd_block >= min_block; bd_block--) {
@@ -332,7 +333,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
                     brg->bd_block = nstl::min(max_width, brg->bcast_dim);
                     brg->bdb_tail = brg->bcast_dim % max_width;
                     for (int i = max_width; i >= min_width; i--) {
-                        int i_tail = brg->bcast_dim % i;
+                        const auto i_tail = brg->bcast_dim % i;
                         if (i_tail > brg->bdb_tail || i_tail == 0) {
                             brg->bd_block = i;
                             brg->bdb_tail = i_tail;

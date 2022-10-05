@@ -273,7 +273,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     const auto &post_ops = brg->attr->post_ops_;
     const memory_desc_wrapper dst_d(dst_md);
 
-    const int binary_ind = post_ops.find(primitive_kind::binary);
+    const auto binary_ind = post_ops.find(primitive_kind::binary);
     brg->with_binary = binary_ind != -1;
 
     // NOTE: Using brg->isa_impl here is a bit dangerous as it can change before
@@ -297,7 +297,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
                                     broadcasting_strategy_t::no_broadcast})))
         return status::unimplemented;
 
-    const int sum_idx = post_ops.find(primitive_kind::sum);
+    const auto sum_idx = post_ops.find(primitive_kind::sum);
     const bool with_sum = sum_idx != -1;
     brg->with_sum = with_sum;
     brg->sum_scale = with_sum ? post_ops.entry_[sum_idx].sum.scale : 0;
@@ -306,7 +306,7 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
             = with_sum ? post_ops.entry_[sum_idx].sum.dt : data_type::undef;
     brg->sum_dt = sum_dt != data_type::undef ? sum_dt : dt_d;
 
-    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
+    const auto eltwise_ind = post_ops.find(primitive_kind::eltwise);
     brg->with_eltwise = eltwise_ind != -1;
 
     brg->with_scales = !attr->output_scales_.has_default_values();
@@ -499,7 +499,7 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
     if (!brg.is_tmm) return status::unimplemented;
 
     //TODO: Add support of tail processing by reduction dimension
-    int rd_block = (!brg.rdb && brg.rdb_tail) ? brg.rdb_tail : brg.rd_block;
+    auto rd_block = (!brg.rdb && brg.rdb_tail) ? brg.rdb_tail : brg.rd_block;
     if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
 
     palette_config_t *buff = (palette_config_t *)(palette);
@@ -511,11 +511,11 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
     const int typesize_A = brg.is_bf32 ? sizeof(bfloat16_t) : brg.typesize_A;
     const int typesize_B = brg.is_bf32 ? sizeof(bfloat16_t) : brg.typesize_B;
 
-    int rd_step = 4 / typesize_A;
+    const int rd_step = 4 / typesize_A;
 
-    int Ac = typesize_A * rd_block;
+    const auto Ac = typesize_A * rd_block;
 
-    int Br = (brg.typesize_C != 0) ? Ac / brg.typesize_C : 0;
+    const auto Br = (brg.typesize_C != 0) ? Ac / brg.typesize_C : 0;
 
     if (brg.ldb_tail && (brg.ld_block2 > 1)) return status::unimplemented;
     if (brg.get_num_A_tiles() + brg.get_num_B_tiles()
@@ -529,28 +529,33 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
         return status::unimplemented;
 
     for (int m = 0; m < brg.get_num_A_tiles(); m++) {
-        bool is_bd_tail = (brg.bdb_tail && m == (brg.get_num_A_tiles() - 1));
-        auto A_tensor = brg.get_A_tensor(m, is_bd_tail);
-        int Ar = is_bd_tail ? brg.bdb_tail : brg.bd_block;
+        const bool is_bd_tail
+                = (brg.bdb_tail && m == (brg.get_num_A_tiles() - 1));
+        const auto A_tensor = brg.get_A_tensor(m, is_bd_tail);
+        const auto Ar = is_bd_tail ? brg.bdb_tail : brg.bd_block;
         tc_configure_tile(buff, A_tensor, Ar, Ac);
     }
 
     for (int n = 0; n < brg.get_num_B_tiles(); n++) {
-        bool is_ld_tail = (brg.ldb_tail && n == (brg.get_num_B_tiles() - 1));
-        auto B_tensor = brg.get_B_tensor(n, is_ld_tail);
-        int Bc = (is_ld_tail ? brg.ldb_tail : brg.ld_block) * typesize_B
+        const bool is_ld_tail
+                = (brg.ldb_tail && n == (brg.get_num_B_tiles() - 1));
+        const auto B_tensor = brg.get_B_tensor(n, is_ld_tail);
+        const auto Bc = (is_ld_tail ? brg.ldb_tail : brg.ld_block) * typesize_B
                 * rd_step;
         tc_configure_tile(buff, B_tensor, Br, Bc);
     }
 
     for (int m = 0; m < brg.get_bd_block2(); m++) {
-        bool is_bd_tail = (brg.bdb_tail && m == (brg.get_bd_block2() - 1));
-        int Cr = is_bd_tail ? brg.bdb_tail : brg.bd_block;
+        const bool is_bd_tail
+                = (brg.bdb_tail && m == (brg.get_bd_block2() - 1));
+        const auto Cr = is_bd_tail ? brg.bdb_tail : brg.bd_block;
         for (int n = 0; n < brg.get_ld_block2(); n++) {
-            bool is_ld_tail = (brg.ldb_tail && n == (brg.get_ld_block2() - 1));
-            int Cc = (is_ld_tail ? brg.ldb_tail : brg.ld_block)
+            const bool is_ld_tail
+                    = (brg.ldb_tail && n == (brg.get_ld_block2() - 1));
+            const auto Cc = (is_ld_tail ? brg.ldb_tail : brg.ld_block)
                     * brg.typesize_C;
-            auto C_tensor = brg.get_C_tensor(m, n, is_bd_tail, is_ld_tail);
+            const auto C_tensor
+                    = brg.get_C_tensor(m, n, is_bd_tail, is_ld_tail);
             tc_configure_tile(buff, C_tensor, Cr, Cc);
         }
     }
