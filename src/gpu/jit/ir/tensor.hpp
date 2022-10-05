@@ -155,6 +155,8 @@ public:
     grid_info_t(int ndims) : dims_(ndims), offs_(ndims), idxs_(ndims) {}
     grid_info_t(const std::vector<int> &dims, const std::vector<expr_t> &idxs)
         : grid_info_t(dims, {}, idxs) {}
+    grid_info_t(const std::vector<int> &dims, const std::string &prefix)
+        : grid_info_t(dims, make_idxs(prefix, (int)dims.size())) {}
     grid_info_t(const std::vector<int> &dims, const std::vector<int> &offs,
             const std::vector<expr_t> &idxs)
         : dims_(dims), offs_(offs), idxs_(idxs) {
@@ -192,6 +194,9 @@ public:
     }
     const int &off(int dim_idx) const { return offs_[dim_idx]; }
     const expr_t &idx(int dim_idx) const { return idxs_[dim_idx]; }
+
+    int &operator[](int dim_idx) { return dim(dim_idx); }
+    const int &operator[](int dim_idx) const { return dim(dim_idx); }
 
     int ndims() const { return int(dims_.size()); }
     int elems() const {
@@ -260,13 +265,21 @@ public:
 
     std::string str() const {
         std::ostringstream oss;
-        oss << ir_utils::make_seq_print_helper(dims_, "x");
+        oss << ir_utils::make_seq_print_helper(dims_, " x ");
         return oss.str();
     }
 
     IR_DEFINE_DUMP()
 
 private:
+    static std::vector<expr_t> make_idxs(const std::string &prefix, int n) {
+        std::vector<expr_t> ret;
+        for (int i = 0; i < n; i++)
+            ret.push_back(
+                    var_t::make(type_t::s32(), prefix + std::to_string(i)));
+        return ret;
+    }
+
     std::vector<int> dims_;
     std::vector<int> offs_;
     std::vector<expr_t> idxs_;
