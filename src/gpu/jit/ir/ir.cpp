@@ -22,6 +22,7 @@
 #include "common/optional.hpp"
 #include "gpu/jit/codegen/register_allocator.hpp"
 #include "gpu/jit/ir/core.hpp"
+#include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/pass/simplify.hpp"
 
 namespace dnnl {
@@ -590,6 +591,22 @@ int get_peak_grf_usage(
     grf_usage_visitor_t visitor(grf_size, external_usage, skip_let);
     visitor.visit(stmt);
     return utils::div_up(visitor.peak_grf_usage(), grf_size);
+}
+
+class has_send_atomics_visitor_t : public ir_visitor_t {
+public:
+    void _visit(const func_call_t &obj) override {
+        auto *send = obj.func.as_ptr<send_t>();
+        if (send && send->is_atomic()) found = true;
+    }
+
+    bool found = false;
+};
+
+bool has_send_atomics(const stmt_t &s) {
+    has_send_atomics_visitor_t visitor;
+    visitor.visit(s);
+    return visitor.found;
 }
 
 bool relation_t::implies(const relation_t &other) const {

@@ -54,7 +54,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
         const kernel_info_t &kernel_info, grf_mode_t grf_mode)
     : ir_kernel_t<hw>("gen_conv", cfg.exec_cfg(), kernel_info,
             utils::one_of(cfg.fma_kind(), fma_kind_t::dpas, fma_kind_t::dpasw),
-            true, grf_mode)
+            grf_mode)
     , prb_(cfg.prb())
     , cfg_(cfg) {
 
