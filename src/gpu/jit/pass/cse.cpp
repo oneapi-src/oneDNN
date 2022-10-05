@@ -807,8 +807,8 @@ private:
 
 stmt_t eliminate_common_subexprs(const stmt_t &stmt, ir_context_t &ir_ctx,
         int reserved_regs, int gmem_bufs) {
-    int grf_size = ir_ctx.hw_cfg().grf_size();
-    int available_regs = ir_ctx.hw_cfg().regs() - reserved_regs;
+    int grf_size = ir_ctx.grf_size();
+    int available_regs = ir_ctx.exec_cfg().regs() - reserved_regs;
     int memory_usage_limit = available_regs * grf_size;
     if (gmem_bufs > 1) {
         g2s_buf_visitor_t v;

@@ -32,8 +32,8 @@ struct tensor_info_t {
     int arg_key;
     bool is_input;
     bool is_output;
-    layout_t user_layout;
     layout_t compute_layout;
+    layout_t user_layout;
 
     bool needs_reorder;
     bool needs_zero_out;
@@ -51,9 +51,24 @@ public:
         t.arg_key = arg_key;
         t.is_input = is_input;
         t.is_output = is_output;
-        t.user_layout = user_layout;
         t.compute_layout = user_layout;
+        t.user_layout = user_layout;
         t.needs_reorder = false;
+        t.needs_zero_out = false;
+    }
+
+    void add_tensor(const std::string &name, int arg_key, bool is_input,
+            bool is_output, const layout_t &compute_layout,
+            const layout_t &user_layout) {
+        tensors_.emplace_back();
+        auto &t = tensors_.back();
+        t.name = name;
+        t.arg_key = arg_key;
+        t.is_input = is_input;
+        t.is_output = is_output;
+        t.compute_layout = compute_layout;
+        t.user_layout = user_layout;
+        t.needs_reorder = (t.compute_layout != t.user_layout);
         t.needs_zero_out = false;
     }
 

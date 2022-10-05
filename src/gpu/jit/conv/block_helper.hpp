@@ -321,6 +321,10 @@ class block_helper_t {
 public:
     bool is_frozen() const { return is_frozen_; }
 
+    const std::unordered_map<std::string, dim_info_t> &dims() const {
+        return dims_;
+    }
+
     dim_info_t &dim(const std::string &name) {
         ir_assert(dims_.count(name) != 0) << "Dimension not found: " << name;
         return dims_.at(name);
@@ -334,6 +338,26 @@ public:
     void set_fma_kind(fma_kind_t fma_kind) {
         check_if_can_set();
         fma_kind_ = fma_kind;
+    }
+
+    void set_simd_size(int simd_size) {
+        check_if_can_set();
+        simd_size_ = simd_size;
+    }
+
+    void set_vec_size(int vec_size) {
+        check_if_can_set();
+        vec_size_ = vec_size;
+    }
+
+    void set_max_tg_size(int max_tg_size) {
+        check_if_can_set();
+        max_tg_size_ = max_tg_size;
+    }
+
+    void set_max_tg_overridden(bool max_tg_overridden) {
+        check_if_can_set();
+        max_tg_overridden_ = max_tg_overridden;
     }
 
     void set_abc_types(
@@ -455,8 +479,7 @@ public:
     void set_vector_dim(const std::string &name) {
         check_if_can_set();
         auto &d = dim(name);
-        d.set_base_iter_block(
-                math::lcm(hw_cfg_.vec_size(), d.base_iter_block()));
+        d.set_base_iter_block(math::lcm(vec_size_, d.base_iter_block()));
         vector_bmnk_ = d.bmnk();
     }
 
@@ -480,8 +503,7 @@ public:
             dim(name).set_order_key(key++);
     }
 
-    void init_blocks();
-    void finalize();
+    void compute();
 
     bool has_dim(const std::string &name) const {
         return dims_.count(name) != 0;
@@ -502,14 +524,6 @@ public:
 
     int padded_size(const std::string &name) const {
         return dim(name).padded_size();
-    }
-
-    const std::unordered_map<std::string, int> &padded_dim_sizes() const {
-        return padded_dim_sizes_;
-    }
-
-    const std::unordered_map<std::string, int> &iter_dims() const {
-        return iter_blocks_;
     }
 
     std::string str() const {
@@ -679,6 +693,10 @@ private:
     // General information about HW and computation.
     hw_config_t hw_cfg_;
     fma_kind_t fma_kind_ = fma_kind_t::unknown;
+    int vec_size_ = -1;
+    int simd_size_ = -1;
+    int max_tg_size_ = 0;
+    bool max_tg_overridden_ = false;
     data_type_t a_type_ = data_type::undef;
     data_type_t b_type_ = data_type::undef;
     data_type_t c_type_ = data_type::undef;
@@ -694,12 +712,6 @@ private:
 
     // Problem dimensions.
     std::unordered_map<std::string, dim_info_t> dims_;
-
-    // Padded dimension sizes according to block sizes and padding blocks.
-    std::unordered_map<std::string, int> padded_dim_sizes_;
-
-    // Iteration block sizes.
-    std::unordered_map<std::string, int> iter_blocks_;
 
     // BMNK dimensions.
     static const int bmnk_length = 4;

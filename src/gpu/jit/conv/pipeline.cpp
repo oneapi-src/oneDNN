@@ -1053,7 +1053,7 @@ public:
                 }
 
                 auto next = pipeline(
-                        cfg_.prefetch_bufs, loops[i], A_block, B_block);
+                        cfg_.prefetch().bufs(), loops[i], A_block, B_block);
                 A_block = next.prologue();
                 B_block = next.body();
                 prefetch_count++;
@@ -1099,16 +1099,16 @@ stmt_t inject_prefetch_pipeline(
 class slm_sync_manager_t {
 public:
     slm_sync_manager_t(const conv_config_t &cfg, bool with_unroll)
-        : slm_bufs_(cfg.slm_bufs)
-        , gmem_bufs_(cfg.gmem_bufs)
+        : slm_bufs_(cfg.slm().bufs())
+        , gmem_bufs_(cfg.slm().gmem_bufs())
         , with_unroll_(with_unroll) {
         switch (slm_bufs_) {
             case 2: ver_ = version_t::x2; break;
             case 3: ver_ = version_t::x3_v3; break;
             default: ver_ = version_t::undef;
         }
-        if (cfg.slm_sync_version != -1) {
-            ver_ = (version_t)cfg.slm_sync_version;
+        if (cfg.slm().sync_version() != -1) {
+            ver_ = (version_t)cfg.slm().sync_version();
         }
         switch (slm_bufs_) {
             case 2: ir_assert(ver_ == version_t::x2); break;
@@ -1334,10 +1334,11 @@ public:
         , slm_sync_mgr_(cfg, /*with_unroll=*/false) {}
 
     stmt_t inject() {
-        ir_assert(cfg_.gmem_bufs == 1) << "GRF buffering is not supported.";
-        if (utils::one_of(cfg_.slm_bufs, 0, 1)) return root_;
+        ir_assert(cfg_.slm().gmem_bufs() == 1)
+                << "GRF buffering is not supported.";
+        if (utils::one_of(cfg_.slm().bufs(), 0, 1)) return root_;
 
-        ir_assert(cfg_.use_a_slm == cfg_.use_b_slm)
+        ir_assert(cfg_.slm().a() == cfg_.slm().b())
                 << "Mixed SLM/GMEM loads are not supported.";
 
         auto loop = step_.compute_loop();
@@ -1375,7 +1376,7 @@ public:
 
         // Update slm_idx.
         auto mask = (slm_idx_load2
-                == shuffle_t::make_broadcast(cfg_.slm_bufs, 2));
+                == shuffle_t::make_broadcast(cfg_.slm().bufs(), 2));
         auto slm_idx_store_fix = store_t::make(slm_idx_buf, 0,
                 shuffle_t::make_broadcast(int_imm_t::make(0, type_t::s32()), 2),
                 store_t::default_stride, mask);
@@ -1419,9 +1420,9 @@ public:
         auto s2r_mul_body = s2r_mul;
         auto s2r_mul_tail = s2r_mul;
         auto slm_counter = slm_idx_load(2, 1);
-        auto cond = (slm_counter >= cfg_.slm_bufs - 1);
+        auto cond = (slm_counter >= cfg_.slm().bufs() - 1);
 
-        if (cfg_.slm_bufs == 2) {
+        if (cfg_.slm().bufs() == 2) {
             s2r_mul_body = if_t::make(cond, s2r_mul_body);
         } else {
             // In general we have to use SLM fence before signal to flush all
@@ -1444,17 +1445,18 @@ public:
 
         alloc_updater_t alloc_updater;
 
+        int slm_bufs = cfg_.slm().bufs();
         for (auto &mbuf : mask_bufs) {
             auto sz = alloc_mgr_.alloc_size(mbuf);
-            alloc_updater.resize(mbuf, sz * cfg_.slm_bufs);
+            alloc_updater.resize(mbuf, sz * slm_bufs);
             for (auto &m : masks)
-                m = substitute(m, mbuf, mbuf[sz * (cfg_.slm_bufs - 1)]);
+                m = substitute(m, mbuf, mbuf[sz * (slm_bufs - 1)]);
             layout_t comp_layout(type_t::u8(), 0, std::vector<dim_t> {sz});
-            for (int b = 1; b < cfg_.slm_bufs; b++) {
+            for (int b = 1; b < slm_bufs; b++) {
                 auto reorder = create_reorder_stmt(comp_layout, comp_layout,
                         mbuf + b * sz, mbuf + (b - 1) * sz);
                 s2r_mul_body = s2r_mul_body.append(reorder);
-                if ((cfg_.slm_bufs == 3) && (b == 1))
+                if ((slm_bufs == 3) && (b == 1))
                     s2r_mul_tail = s2r_mul_tail.append(reorder);
             }
         }
@@ -1470,7 +1472,7 @@ public:
         loop = slm_sync_mgr_.before_loop_prepend(loop);
 
         // Complete the remaining iterations.
-        int rem_iters = cfg_.slm_bufs - 1;
+        int rem_iters = slm_bufs - 1;
         int mul_start = std::max(0, rem_iters - loop_nest_.size());
         multi_loop_iterator_t multi(loop_nest_.loops());
         multi.advance(loop_nest_.size() - rem_iters + mul_start);
@@ -1490,7 +1492,7 @@ public:
             loop = loop.append(slm_idx_update);
         }
 
-        if (cfg_.assign_sbids)
+        if (cfg_.assign_sbids())
             loop = sbid_assigner_t(ir_ctx_.hw_cfg().hw()).assign(loop);
 
         const auto grf_size = ir_ctx_.hw_cfg().grf_size();
@@ -1501,7 +1503,7 @@ public:
         auto &slm_buf = slm_buffers[0];
         int non_ab_slm_size = alloc_mgr_.alloc_size(slm_buf) - ab_slm_size_;
         alloc_updater.resize(
-                slm_buf, non_ab_slm_size + ab_slm_size_ * cfg_.slm_bufs);
+                slm_buf, non_ab_slm_size + ab_slm_size_ * slm_bufs);
 
         auto ret = substitute(root_, step_.compute_loop(), loop, 1);
         ret = alloc_updater.update(ret);
@@ -1575,8 +1577,8 @@ public:
         , loop_nest_(root, ir_ctx)
         , slm_sync_mgr_(cfg, /*with_unroll=*/true) {
         int inner_iters = loop_nest_.inner_loops_size();
-        params_ = compute_params_t(cfg_.slm_bufs, cfg_.gmem_bufs, ab_slm_size,
-                cfg_.prefetch_bufs, inner_iters);
+        params_ = compute_params_t(cfg_.slm().bufs(), cfg_.slm().gmem_bufs(),
+                ab_slm_size, cfg_.prefetch().bufs(), inner_iters);
         if (params_.use_slm) {
             for (auto &b :
                     find_send_buffers(step_.g2s_load(), /*is_mem=*/false)) {
@@ -1610,13 +1612,15 @@ public:
             return s;
         };
 
-        int reduce_iter_bytes = cfg_.k_blk * cfg_.a_data_type_size;
+        bmnk_dim_helper_t h(cfg_);
+        int k_iter_blk = h.iter_dim('k');
+        int reduce_iter_bytes = k_iter_blk * cfg_.prb().a_data_type_size;
         // Add periodic signal-wait thread group synchronization in some cases.
         // This is to ensure threads access close reduction blocks and able to
         // reuse their common data from L1.
         bool do_sync
                 = (cfg_.hw() >= ngen::HW::XeHPC) && (reduce_iter_bytes > 32);
-        if (cfg_.use_a_slm || cfg_.use_b_slm) do_sync = false;
+        if (cfg_.slm()) do_sync = false;
         // Distance in iterations between signal and wait.
         int sync_dist = 3;
 
@@ -1686,8 +1690,8 @@ public:
 
             // Update buffer sizes.
             for (auto &b : g2s_reg_bufs_) {
-                alloc_updater.resize(
-                        b.buf, alloc_mgr_.alloc_size(b.buf) * cfg_.gmem_bufs);
+                alloc_updater.resize(b.buf,
+                        alloc_mgr_.alloc_size(b.buf) * cfg_.slm().gmem_bufs());
             }
 
             auto slm_buffers = alloc_mgr_.find_buffers(alloc_kind_t::slm);
@@ -1698,7 +1702,7 @@ public:
                 int non_ab_slm_size
                         = alloc_mgr_.alloc_size(slm_buf) - ab_slm_size_;
                 alloc_updater.resize(slm_buf,
-                        non_ab_slm_size + ab_slm_size_ * cfg_.slm_bufs);
+                        non_ab_slm_size + ab_slm_size_ * cfg_.slm().bufs());
             }
 
             ret = alloc_updater.update(ret);
@@ -1785,7 +1789,8 @@ private:
         }
 
         if (it.is_first_mul() && fuse_zero_out_with_fma_) {
-            mul = sub_fma_acc_with_zero(mul, cfg_.fma_kind == fma_kind_t::mad);
+            mul = sub_fma_acc_with_zero(
+                    mul, cfg_.fma_kind() == fma_kind_t::mad);
         }
 
         if (it.is_last_g2s_store())
@@ -1829,7 +1834,7 @@ private:
 
         iter_stmt = slm_sync_mgr_.after_S(iter_stmt, it.is_last_mul(), it.iter);
 
-        if (cfg_.assign_sbids)
+        if (cfg_.assign_sbids())
             iter_stmt = sbid_assigner_t(sbid_mgr).assign(iter_stmt);
 
         iter_stmt = inject_local_let(iter_stmt, lets, it.linear_id);

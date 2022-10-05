@@ -38,15 +38,15 @@ class reorder_kernel_t : public ir_kernel_t<hw> {
 public:
     IR_KERNEL_FORWARD(hw)
 
-    reorder_kernel_t(const hw_config_t &hw_cfg,
+    reorder_kernel_t(const exec_config_t &exec_cfg,
             const kernel_info_t &kernel_info, const layout_t &src_layout,
             const layout_t &dst_layout, bool require_dpas, grf_mode_t grf_mode)
-        : ir_kernel_t<hw>("reorder", hw_cfg, kernel_info, require_dpas,
-                /*require_global_atomics=*/false, grf_mode) {
+        : ir_kernel_t<hw>("reorder", exec_cfg, kernel_info, require_dpas, false,
+                grf_mode) {
 
         if (reorder_kernel_t<>::is_ir_based_reorder(src_layout, dst_layout)) {
             reorder_ir_builder_t builder(
-                    hw_cfg, kernel_info, src_layout, dst_layout);
+                    exec_cfg, kernel_info, src_layout, dst_layout);
             stmt_t body = builder.stmt();
             setup_interface(body);
             generate_prologue();

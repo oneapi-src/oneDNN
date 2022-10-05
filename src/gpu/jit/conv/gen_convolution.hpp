@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,8 +30,7 @@ namespace gpu {
 namespace jit {
 
 class gen_convolution_t;
-class conv_config_t;
-class kernel_info_t;
+struct conv_pd_data_t;
 
 class gen_convolution_fwd_t : public gpu_primitive_t {
 public:
@@ -46,8 +45,7 @@ public:
 
         status_t init(engine_t *engine);
 
-        std::shared_ptr<conv_config_t> cfg;
-        std::vector<std::shared_ptr<kernel_info_t>> kernel_infos;
+        std::shared_ptr<conv_pd_data_t> data;
     };
 
     using gpu_primitive_t::gpu_primitive_t;
@@ -77,8 +75,7 @@ public:
 
         status_t init(engine_t *engine);
 
-        std::shared_ptr<conv_config_t> cfg;
-        std::vector<std::shared_ptr<kernel_info_t>> kernel_infos;
+        std::shared_ptr<conv_pd_data_t> data;
     };
 
     using gpu_primitive_t::gpu_primitive_t;
@@ -109,8 +106,7 @@ public:
 
         status_t init(engine_t *engine);
 
-        std::shared_ptr<conv_config_t> cfg;
-        std::vector<std::shared_ptr<kernel_info_t>> kernel_infos;
+        std::shared_ptr<conv_pd_data_t> data;
     };
 
     using gpu_primitive_t::gpu_primitive_t;

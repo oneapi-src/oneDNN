@@ -17,6 +17,7 @@
 #ifndef GPU_JIT_UTILS_UTILS_HPP
 #define GPU_JIT_UTILS_UTILS_HPP
 
+#include <cctype>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -486,6 +487,33 @@ inline compute::gpu_arch_t getenv_gpu(const char *s, compute::gpu_arch_t arch,
 
 inline std::string to_string(bool b) {
     return b ? "True" : "False";
+}
+
+inline bool to_bool(const std::string &s) {
+    if (s == "0" || s == "false") return false;
+    return true;
+}
+
+inline std::vector<std::string> split(const std::string &s,
+        const std::string &delimiter = std::string(1, ' ')) {
+    size_t beg = 0;
+    size_t end = 0;
+    std::vector<std::string> ret;
+    while (end != std::string::npos) {
+        beg = (end == 0) ? 0 : end + delimiter.size();
+        end = s.find(delimiter, beg);
+        size_t len
+                = (end == std::string::npos) ? std::string::npos : (end - beg);
+        ret.push_back(s.substr(beg, len));
+    }
+    return ret;
+}
+
+inline std::string to_lower(const std::string &s) {
+    auto ret = s;
+    std::transform(ret.begin(), ret.end(), ret.begin(),
+            [](char c) { return std::tolower(c); });
+    return ret;
 }
 
 template <typename T>

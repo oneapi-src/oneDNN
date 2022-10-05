@@ -41,31 +41,31 @@ class conv_kernel_t : public ir_kernel_t<hw> {
 public:
     IR_KERNEL_FORWARD(hw)
 
-    conv_kernel_t(const conv_config_t &cfg, const convolution_pd_t *pd,
-            const kernel_info_t &kernel_info,
+    conv_kernel_t(const conv_config_t &cfg, const kernel_info_t &kernel_info,
             grf_mode_t grf_mode = grf_mode_t::any);
 
 private:
+    const conv_problem_t &prb_;
     const conv_config_t &cfg_;
 };
 
 template <ngen::HW hw>
 conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
-        const convolution_pd_t *pd, const kernel_info_t &kernel_info,
-        grf_mode_t grf_mode)
-    : ir_kernel_t<hw>("gen_conv", cfg.hw_cfg, kernel_info,
-            utils::one_of(cfg.fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw),
-            cfg.do_atomic_update, grf_mode)
+        const kernel_info_t &kernel_info, grf_mode_t grf_mode)
+    : ir_kernel_t<hw>("gen_conv", cfg.exec_cfg(), kernel_info,
+            utils::one_of(cfg.fma_kind(), fma_kind_t::dpas, fma_kind_t::dpasw),
+            true, grf_mode)
+    , prb_(cfg.prb())
     , cfg_(cfg) {
 
     // XXX: BWD_W does 32x32 multiplication in the inner loop which may cause
     // hangs when using with split barrier. Switch to emulation to work around
     // the issue.
-    if (cfg_.is_bwd_w && hw < ngen::HW::XeHPC) emu_strategy.emulate64 = true;
+    if (prb_.is_bwd_w && hw < ngen::HW::XeHPC) emu_strategy.emulate64 = true;
 
     ir_utils::debug_profiler_t profile("Conv Kernel Construction Profile");
     // Build IR for the kernel.
-    conv_ir_builder_t builder(cfg, pd, kernel_info);
+    conv_ir_builder_t builder(cfg, kernel_info);
     stmt_t body = builder.stmt();
     profile.stamp("Kernel Builder");
 
@@ -83,7 +83,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     // Bind "external" variables.
     expr_binding_t expr_binding(hw);
     bind_external_vars(
-            body, builder.kernel_grid(), builder.local_id(), expr_binding);
+            body, cfg_.kernel_grid(), builder.local_id(), expr_binding);
     profile.stamp("Bind Variables");
 
 #ifdef GEN_CONV_DEBUG
@@ -106,10 +106,11 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 #ifdef GEN_CONV_DEBUG
     ir_trace() << "Actual register usage:           "
                << ra_.get_peak_grf_usage() << std::endl;
-    if (ra_.get_peak_grf_usage() > cfg_.estimated_peak_grf_usage) {
+    int estimated_peak_grf_usage = estimate_register_count(cfg_);
+    if (ra_.get_peak_grf_usage() > estimated_peak_grf_usage) {
         ir_warning()
                 << "conv_kernel_t register usage underestimated: estimate = "
-                << cfg_.estimated_peak_grf_usage
+                << estimated_peak_grf_usage
                 << ", actual = " << ra_.get_peak_grf_usage() << "\n";
     }
 #endif

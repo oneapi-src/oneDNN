@@ -46,128 +46,89 @@ class conv_problem_t {
 public:
     conv_problem_t() = default;
 
-    status_t init(convolution_pd_t *conv_pd) {
-        if (conv_pd->has_zero_dim_memory()) return status::unimplemented;
-
-        is_fwd = conv_pd->is_fwd();
-        is_bwd_d = conv_pd->is_bwd_d();
-        is_bwd_w = conv_pd->is_bwd_w();
-        with_bias = conv_pd->with_bias();
-        with_groups = conv_pd->with_groups();
-        with_sum = with_sum_post_op(conv_pd);
-
-        src_data_type = conv_pd->invariant_src_md()->data_type;
-        wei_data_type = conv_pd->invariant_wei_md()->data_type;
-        bia_data_type = conv_pd->invariant_bia_md()->data_type;
-        dst_data_type = conv_pd->invariant_dst_md()->data_type;
-
-        ndims = conv_pd->ndims();
-
-        mb = conv_pd->MB();
-        g = conv_pd->G();
-        ic = ir_utils::safe_divide(conv_pd->IC(), g);
-        oc = ir_utils::safe_divide(conv_pd->OC(), g);
-
-        // Input spatial.
-        id = conv_pd->ID();
-        ih = conv_pd->IH();
-        iw = conv_pd->IW();
-
-        // Output spatial.
-        od = conv_pd->OD();
-        oh = conv_pd->OH();
-        ow = conv_pd->OW();
-
-        // Kernel sizes.
-        kd = conv_pd->KD();
-        kh = conv_pd->KH();
-        kw = conv_pd->KW();
-
-        // Strides.
-        sd = conv_pd->KSD();
-        sh = conv_pd->KSH();
-        sw = conv_pd->KSW();
-
-        // Padding.
-        pd = conv_pd->padFront();
-        ph = conv_pd->padT();
-        pw = conv_pd->padL();
-
-        // Dilation.
-        dd = conv_pd->KDD();
-        dh = conv_pd->KDH();
-        dw = conv_pd->KDW();
-
-        try_reduce_to_1d();
-
-        is_dw = with_groups && (g > 1) && (oc == 1) && (ic == 1);
-        osp = od * oh * ow;
-
-        return status::success;
-    }
+    status_t init(const engine_t *engine, const convolution_pd_t *conv_pd);
 
     bool is_stride1() const { return sd == 1 && sh == 1 && sw == 1; }
 
     // Reduces dimensions for 1x1 kernel.
-    void try_reduce_to_1d() {
-        bool is_1x1 = (kd * kh * kw == 1);
-        bool is_eq_oi = (od == id && oh == ih && ow == iw);
-        bool is_iw_1 = iw == 1 && kw == 1 && pw == 0 && ow == 1;
-        bool is_ih_1 = ih == 1 && kh == 1 && ph == 0 && oh == 1;
-        reduced_dim = 0;
-        auto shift_oh_to_ow = [&]() {
-            ow = oh;
-            iw = ih;
-            ih = 1;
-            oh = 1;
-            kw = kh;
-            kh = 1;
-            pw = ph;
-            ph = 0;
-            sw = sh;
-            sh = 1;
-            dw = dh;
-            dh = 0;
-            reduced_dim += 1;
-        };
-        auto shift_od_to_oh = [&]() {
-            oh = od;
-            ih = id;
-            id = 1;
-            od = 1;
-            kh = kd;
-            kd = 1;
-            ph = pd;
-            pd = 0;
-            sh = sd;
-            sd = 1;
-            dh = dd;
-            dd = 0;
-            reduced_dim += 1;
-        };
+    void try_reduce_to_1d();
 
-        if (is_iw_1) { shift_oh_to_ow(); }
-        if (is_ih_1 || is_iw_1) { shift_od_to_oh(); }
-        if (is_iw_1 && is_ih_1) { shift_oh_to_ow(); }
-
-        if (is_1x1 && is_stride1() && is_eq_oi) {
-            ir_assert(pd == 0 && ph == 0 && pw == 0);
-            ow = od * oh * ow;
-            iw = id * ih * iw;
-            od = id = kd = 1;
-            oh = ih = kh = 1;
-            reduced_dim = 3;
+    // Helper methods.
+    bool is_s32_accumulator() const { return acc_data_type == data_type::s32; }
+    bool is_f32_conv() const {
+        return utils::everyone_is(src_data_type, wei_data_type, data_type::f32);
+    }
+    bool is_f64_conv() const {
+        return utils::everyone_is(src_data_type, wei_data_type, data_type::f64);
+    }
+    bool is_int8_dst() const {
+        return utils::one_of(dst_data_type, data_type::s8, data_type::u8);
+    }
+    bool is_mixed_int8() const {
+        return utils::one_of(a_data_type, dnnl_f16, dnnl_f32)
+                && utils::one_of(c_data_type, dnnl_u8, dnnl_s8);
+    }
+    bool matches_user_types() const {
+        if (is_fwd) {
+            return a_data_type == src_data_type && b_data_type == wei_data_type
+                    && c_data_type == dst_data_type;
+        } else if (is_bwd_d) {
+            return a_data_type == dst_data_type && b_data_type == wei_data_type
+                    && c_data_type == src_data_type;
+        } else if (is_bwd_w) {
+            return a_data_type == src_data_type && b_data_type == dst_data_type
+                    && c_data_type == wei_data_type;
+        } else {
+            ir_error_not_expected();
+            return false;
         }
+    }
+
+    const memory_desc_t &a_md() const {
+        return *pick_a(conv_pd->invariant_src_md(), conv_pd->invariant_wei_md(),
+                conv_pd->invariant_dst_md());
+    }
+
+    const memory_desc_t &b_md() const {
+        return *pick_b(conv_pd->invariant_src_md(), conv_pd->invariant_wei_md(),
+                conv_pd->invariant_dst_md());
+    }
+
+    const memory_desc_t &c_md() const {
+        return *pick_c(conv_pd->invariant_src_md(), conv_pd->invariant_wei_md(),
+                conv_pd->invariant_dst_md());
+    }
+
+    template <typename T>
+    T &&pick_a(T &&src, T &&wei, T &&dst) const {
+        return (is_fwd || is_bwd_w) ? std::forward<T>(src)
+                                    : std::forward<T>(dst);
+    }
+
+    template <typename T>
+    T &&pick_b(T &&src, T &&wei, T &&dst) const {
+        return (is_fwd || is_bwd_d) ? std::forward<T>(wei)
+                                    : std::forward<T>(dst);
+    }
+
+    template <typename T>
+    T &&pick_c(T &&src, T &&wei, T &&dst) const {
+        return is_fwd
+                ? std::forward<T>(dst)
+                : (is_bwd_d ? std::forward<T>(src) : std::forward<T>(wei));
+    }
+
+    template <typename T>
+    T &&pick_by_dir(T &&fwd, T &&bwd_d, T &&bwd_w) const {
+        return is_fwd
+                ? std::forward<T>(fwd)
+                : (is_bwd_d ? std::forward<T>(bwd_d) : std::forward<T>(bwd_w));
     }
 
     std::string desc_str(bool print_mb = true) const;
 
-    static bool with_sum_post_op(const convolution_pd_t *pd) {
-        auto &post_ops = pd->attr()->post_ops_;
-        return post_ops.find(primitive_kind::sum) != -1;
-    }
-
-    tensor_config_t tensor_config;
+    const convolution_pd_t *conv_pd;
+    const primitive_attr_t *attr;
 
     data_type_t src_data_type;
     data_type_t wei_data_type;
@@ -187,433 +148,13 @@ public:
     int g; // Groups.
     int ic, oc; // Input and output channels.
     int id, ih, iw; // Input spatial sizes.
-    int od, oh, ow, osp; // Output spatial sizes.
+    int od, oh, ow; // Output spatial sizes.
     int kd, kh, kw; // Kernel sizes.
     int sd, sh, sw; // Strides.
     int pd, ph, pw; // Padding in the beginning.
     int dd, dh, dw; // Dilation.
     int reduced_dim; // Indicates which dims were shifted over or reduced.
-};
-
-class conv_config_t;
-
-int estimate_register_count(const conv_config_t &cfg);
-
-// Parameters for kernel generation.
-class conv_config_t : public conv_problem_t {
-public:
-    conv_config_t() = default;
-
-    status_t init(convolution_pd_t *conv_pd, primitive_attr_t *attr,
-            engine_t *engine) {
-
-        hw_config_t try_hw_cfg(engine);
-
-        // Try large GRF mode first.
-        int try_regs = try_hw_cfg.large_grf_support() ? 256 : 128;
-        if (g == 1 && is_f32_conv()) try_regs = 128;
-        try_hw_cfg.set_regs(try_regs);
-
-        bool regs_overriden = false;
-        bool max_tg_size_overriden = false;
-
-#ifdef GEN_CONV_DEBUG
-        int env_regs = getenv_int("regs", -1);
-        if (env_regs != -1) {
-            try_hw_cfg.set_regs(env_regs);
-            regs_overriden = true;
-        }
-        int env_max_tg_size = getenv_int("max_tg_size", -1);
-        if (env_max_tg_size != -1) {
-            try_hw_cfg.set_max_tg_size(env_max_tg_size);
-            max_tg_size_overriden = true;
-        }
-#endif
-
-        // Save the descriptors to reinitialize them at each new iteration.
-        const auto src_md = *conv_pd->invariant_src_md();
-        const auto wei_md = *conv_pd->invariant_wei_md();
-        const auto dst_md = *conv_pd->invariant_dst_md();
-        const auto bia_md = *conv_pd->invariant_bia_md();
-
-        // Use fixed iterations to avoid infinite loop.
-        int max_iters = 10;
-        bool ok = false;
-        for (int i = 0; i < max_iters; i++) {
-            // Reinitialize to cancel the previous iteration that didn`t work.
-            if (i > 0) {
-                *this = conv_config_t();
-                *conv_pd->invariant_src_md() = src_md;
-                *conv_pd->invariant_wei_md() = wei_md;
-                *conv_pd->invariant_dst_md() = dst_md;
-                *conv_pd->invariant_bia_md() = bia_md;
-            }
-            // TODO: refactor init_with_hw_config to accept 'const &conv_pd'
-            auto status = init_with_hw_config(conv_pd, attr, try_hw_cfg);
-
-            // Reduce thread group size if SLM size is too large.
-            if (!max_tg_size_overriden && status == status::runtime_error
-                    && not_enough_slm) {
-                try_hw_cfg.set_max_tg_size(hw_cfg.max_tg_size() / 2);
-                continue;
-            }
-            CHECK(status);
-
-            // If the kernel fits 128 registers, switch to the normal mode which is
-            // expected to have better performance for such cases.
-            int bound = (!is_dp_fma() ? 128 : 112);
-            if (!regs_overriden && regs() == 256
-                    && estimated_peak_grf_usage <= bound) {
-                try_hw_cfg.set_regs(128);
-                continue;
-            }
-            ok = true;
-            break;
-        }
-
-        return ok ? status::success : status::runtime_error;
-    }
-
-    status_t init_with_hw_config(convolution_pd_t *conv_pd,
-            primitive_attr_t *attr, const hw_config_t &_hw_cfg) {
-
-        hw_cfg = _hw_cfg;
-
-        // These functions have implicit dependencies between them. They cannot be
-        // reordered with verifying these dependencies are satisfied.
-        CHECK(conv_problem_t::init(conv_pd));
-        CHECK(init_abc_data_types(attr));
-        CHECK(init_acc_data_type());
-        CHECK(init_fma_kind_and_simd_size());
-
-        init_use_2d_send_nhwc(conv_pd);
-        CHECK(init_data_layouts(conv_pd));
-
-        if (!data_types_ok()) return status::unimplemented;
-
-        CHECK(init_common_config());
-
-        init_fuse_spatial();
-        init_hoist_masks_from_compute_loop();
-
-        CHECK(init_common_blocking());
-
-        const memory_desc_t *output_md = nullptr;
-        if (is_fwd) {
-            CHECK(init_fwd(conv_pd));
-            output_md = conv_pd->dst_md();
-        } else if (is_bwd_d) {
-            CHECK(init_bwd_d(conv_pd));
-            output_md = conv_pd->diff_src_md();
-        } else if (is_bwd_w) {
-            CHECK(init_bwd_w(conv_pd));
-            output_md = conv_pd->diff_weights_md();
-        } else {
-            ir_error_not_expected();
-        }
-
-        set_init_can_use_2d_send();
-        set_allow_grf_reorder();
-        CHECK(fixup_inference_consistency());
-        if (!try_reduce_grf_usage()) return status::unimplemented;
-
-        maybe_override_from_lookup_table();
-
-        estimated_peak_grf_usage = estimate_register_count(*this);
-
-        CHECK(attr->set_default_formats(output_md));
-
-        if (!zero_points_ok(conv_pd)) return status::unimplemented;
-        if (!post_ops_ok(conv_pd)) return status::unimplemented;
-
-        CHECK(init_extra_tensor_layouts(conv_pd));
-
-        return status::success;
-    }
-
-    status_t init_fwd(convolution_pd_t *conv_pd);
-    status_t init_bwd_d(convolution_pd_t *conv_pd);
-    status_t init_bwd_w(convolution_pd_t *conv_pd);
-
-    void maybe_override_from_lookup_table();
-
-    status_t init_common_config() {
-        using namespace ir_utils;
-
-        use_preload = true;
-
-        if (hw() <= ngen::HW::XeLP) use_preload = false;
-
-        // No SLM buffering by default (will be enabled later).
-        disable_slm_buffering();
-
-        // No prefetch by default (will be enabled later).
-        disable_prefetch();
-
-        do_b_reduction = false;
-        pad_slm = true;
-        assign_sbids = is_dp_fma();
-        do_pipeline_unroll = hw() > ngen::HW::XeLP;
-        reduce_grf_usage = true;
-        allow_a_grf_reorder = !matches_user_types();
-        allow_b_grf_reorder = !matches_user_types();
-        do_atomic_update = false;
-        reuse_headers = hw() <= ngen::HW::XeLP;
-        a_sub_tiles = 1;
-        b_sub_tiles = 1;
-        check_slm_size = true;
-        slm_sync_version = -1;
-
-        init_zero_points_default_config();
-
-#ifdef GEN_CONV_DEBUG
-        use_preload = getenv_bool("use_preload", use_preload);
-        pad_slm = getenv_bool("pad_slm", pad_slm);
-        assign_sbids = getenv_bool("assign_sbids", assign_sbids);
-        do_pipeline_unroll
-                = getenv_bool("do_pipeline_unroll", do_pipeline_unroll);
-        reduce_grf_usage = getenv_bool("reduce_grf_usage", reduce_grf_usage);
-        allow_a_grf_reorder
-                = getenv_bool("allow_a_grf_reorder", allow_a_grf_reorder);
-        allow_b_grf_reorder
-                = getenv_bool("allow_b_grf_reorder", allow_b_grf_reorder);
-        reuse_headers = getenv_bool("reuse_headers", reuse_headers);
-        a_sub_tiles = getenv_int("a_sub_tiles", a_sub_tiles);
-        b_sub_tiles = getenv_int("b_sub_tiles", b_sub_tiles);
-#endif
-
-        return status::success;
-    }
-
-    status_t init_common_blocking();
-
-    bool zero_points_ok(const convolution_pd_t *pd) const {
-        auto *attr = pd->attr();
-
-        // TODO: implement the rest of the cases and remove this 'if'
-        bool ic_kdhw = (ic <= 8) && (kd * kh * kw > 1) && !is_dw;
-        if (!attr->zero_points_.has_default_values(DNNL_ARG_SRC) && ic_kdhw)
-            return false;
-
-        using namespace data_type;
-        const auto src_type = (is_fwd) ? pd->invariant_src_md()->data_type
-                                       : pd->invariant_dst_md()->data_type;
-        int mask_src = 0, mask_dst = 0;
-        attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
-        attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
-
-        return IMPLICATION(!utils::one_of(src_type, s8, u8),
-                       attr->zero_points_.has_default_values())
-                && attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-                && (mask_src == 0 || mask_src == 1 << 1)
-                && (mask_dst == 0 || mask_dst == 1 << 1);
-    }
-
-    bool post_ops_ok(const convolution_pd_t *pd) const {
-        auto *attr = pd->attr();
-
-        // No post-ops are supported for f64
-        if (is_f64_conv() && !attr->has_default_values()) return false;
-
-        if (is_fwd || is_bwd_d) {
-            using sm = primitive_attr_t::skip_mask_t;
-            auto attr_skip_mask = sm::post_ops | sm::oscale_runtime | sm::sum_dt
-                    | sm::zero_points_runtime;
-            if (!attr->has_default_values(attr_skip_mask)) return false;
-        } else {
-            if (!attr->has_default_values()) return false;
-        }
-
-        if (!attr->output_scales_.has_default_values()) {
-            if (!is_s32_accumulator()) return false;
-            // Only common and per_oc output scales were tested.
-            if (!utils::one_of(attr->output_scales_.mask_, 0, (1 << 1)))
-                return false;
-        }
-        for (int i = 0; i < attr->post_ops_.len(); i++) {
-            auto &po = attr->post_ops_.entry_[i];
-            if (po.is_eltwise()) {
-                if (!jit_eltwise_injector_f32_is_supported(po.eltwise.alg))
-                    return false;
-            } else if (po.is_binary() || po.is_prelu()) {
-                int mask = po.is_prelu()
-                        ? po.prelu.mask
-                        : utils::get_dims_mask(pd->invariant_dst_md()->dims,
-                                po.binary.src1_desc.dims, ndims, true);
-                // These cases don't have message-related limitations.
-                if ((mask & (1 << 1)) == 0 || mask == (1 << 1)) continue;
-                auto rhs_layout = po.is_prelu() ? layout_t(type_t::f32(), 0,
-                                          get_prelu_weights_dims(po.prelu.mask,
-                                                  *pd->invariant_dst_md()))
-                                                : layout_t(po.binary.src1_desc);
-                // No blocks means it's a scalar, can be always loaded.
-                if (rhs_layout.blocks().empty()) return true;
-
-                auto rhs0 = rhs_layout.blocks()[0];
-                // Innermost block must:
-                // - be across output channels
-                // - be dense
-                if (rhs0.dim_idx != 1 || dim_t(rhs0.stride) != 1) return false;
-            }
-        }
-        return true;
-    }
-
-    bool data_types_ok() const {
-        bool is_bf16 = utils::one_of(data_type::bf16, src_data_type,
-                wei_data_type, dst_data_type, bia_data_type);
-        if (!is_f64_conv()
-                && utils::one_of(data_type::f64, src_data_type, wei_data_type,
-                        dst_data_type, bia_data_type))
-            return false;
-        if (is_bf16 && hw() <= ngen::HW::XeLP) return false;
-        if (is_f64_conv()
-                && utils::one_of(hw(), ngen::HW::XeLP, ngen::HW::XeHPG))
-            return false;
-        if (is_fwd) return true;
-        if (is_bwd_d) return true;
-        if (is_bwd_w) {
-            bool ok = true;
-            data_type_t default_acc_type = src_data_type == data_type::f64
-                    ? data_type::f64
-                    : data_type::f32;
-            ok &= utils::one_of(src_data_type, data_type::bf16, data_type::f32,
-                    data_type::f64);
-            ok &= (dst_data_type == src_data_type);
-            ok &= utils::one_of(wei_data_type, src_data_type, default_acc_type);
-            // atomic qword fadds unsupported on XeHP
-            ok &= IMPLICATION(is_f64_conv(), hw() >= ngen::HW::XeHPC);
-
-            if (with_bias) {
-                ok &= utils::one_of(
-                        bia_data_type, src_data_type, data_type::f32);
-            }
-            return ok;
-        }
-        return false;
-    }
-
-    int grid_dim(const std::string &name) const;
-    int padded_dim(const std::string &name) const;
-    const std::unordered_map<std::string, int> &padded_dims() const;
-    const std::unordered_map<std::string, int> &dim_blocks() const;
-
-    bool is_s32_accumulator() const { return acc_data_type == data_type::s32; }
-    bool is_f32_conv() const {
-        return utils::everyone_is(src_data_type, wei_data_type, data_type::f32);
-    }
-    bool is_f64_conv() const {
-        return utils::everyone_is(src_data_type, wei_data_type, data_type::f64);
-    }
-    bool is_int8_dst() const {
-        return utils::one_of(dst_data_type, data_type::s8, data_type::u8);
-    }
-    bool is_small_ic() const {
-        int size = (int)types::data_type_size(src_data_type);
-        if (size >= 4)
-            return ic <= 8;
-        else
-            return ic * size <= 16;
-    }
-    bool is_small_oc() const {
-        int size = (int)types::data_type_size(src_data_type);
-        if (size >= 4)
-            return oc <= 8;
-        else
-            return oc * size <= 16;
-    }
-    bool is_dw_large_mb() const { return is_dw && mb >= 16; }
-    bool is_mixed_int8() const {
-        return utils::one_of(a_data_type, dnnl_f16, dnnl_f32)
-                && utils::one_of(c_data_type, dnnl_u8, dnnl_s8);
-    }
-    bool is_dp_fma() const {
-        return utils::one_of(fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw,
-                fma_kind_t::dp4a);
-    }
-    bool is_dpas_or_dpasw_fma() const {
-        return utils::one_of(fma_kind, fma_kind_t::dpas, fma_kind_t::dpasw);
-    }
-
-    ngen::HW hw() const { return hw_cfg.hw(); }
-    int regs() const { return hw_cfg.regs(); }
-    int simd_size() const { return hw_cfg.simd_size(); }
-    int grf_size() const { return hw_cfg.grf_size(); }
-    bool is_ge_xe_hpc() const { return (hw_cfg.hw() >= ngen::HW::XeHPC); }
-
-    compute::nd_range_t nd_range() const {
-        size_t gws[3];
-        size_t lws[3];
-        for (int i = 0; i < 3; i++) {
-            lws[i] = tg_grid_dim[i] * (i == 0 ? simd_size() : 1);
-            gws[i] = kernel_grid_dim[i] * lws[i];
-        }
-        return compute::nd_range_t(gws, lws);
-    }
-
-    const layout_t &a_layout() const {
-        if (is_fwd) return src_layout;
-        if (is_bwd_d) return dst_layout;
-        return src_layout;
-    }
-
-    const layout_t &b_layout() const {
-        if (is_fwd) return wei_layout;
-        if (is_bwd_d) return wei_layout;
-        return dst_layout;
-    }
-
-    const layout_t &c_layout() const {
-        if (is_fwd) return dst_layout;
-        if (is_bwd_d) return src_layout;
-        return wei_layout;
-    }
-
-    bool a_is_small_c() const {
-        if (is_fwd) return is_small_ic();
-        if (is_bwd_d) return is_small_oc();
-        return is_small_ic();
-    }
-
-    const layout_t &compute_layout(const std::string &ab_tag) const {
-        const char *tag = nullptr;
-        if (ab_tag == "a") {
-            if (is_fwd || is_bwd_w)
-                tag = "src";
-            else if (is_bwd_d)
-                tag = "dst";
-        } else if (ab_tag == "b") {
-            if (is_fwd || is_bwd_d)
-                tag = "wei";
-            else if (is_bwd_w)
-                tag = "dst";
-        }
-        return tensor_config.compute_layout(tag);
-    }
-
-    std::string str() const;
-
-    static bool matches_tag(const layout_t &layout, const std::string &tag) {
-        if (layout.is_empty()) return false;
-        auto tag_layout = make_layout(layout.type(), layout.dims(), tag);
-        if (layout != tag_layout) return false;
-        return true;
-    }
-
-    static bool matches_tag_strict(
-            const layout_t &layout, const std::string &tag) {
-        if (layout.is_empty()) return false;
-        auto tag_layout = make_layout(layout.type(), layout.dims(), tag);
-        if (!layout.is_strictly_equal(tag_layout)) return false;
-        return true;
-    }
-
-    bool is_compute_nhwc(const std::string &tag) const {
-        auto &layout = tensor_config.compute_layout(tag);
-        return matches_tag(layout, "axb");
-    }
-
-    bool not_enough_slm = false;
+    int isp, osp, ksp; // Combined input/output/kernel spatial size.
 
     data_type_t a_data_type;
     data_type_t b_data_type;
@@ -624,107 +165,6 @@ public:
     int b_data_type_size;
     int c_data_type_size;
     int acc_data_type_size;
-
-    layout_t src_layout;
-    layout_t wei_layout;
-    layout_t dst_layout;
-    layout_t bia_layout;
-
-    hw_config_t hw_cfg;
-
-    // Thread group dimensions (thread group grid).
-    std::array<int, 3> tg_grid_dim;
-
-    // Number of thread groups across dimensions (kernel grid).
-    std::array<int, 3> kernel_grid_dim;
-
-    std::shared_ptr<block_helper_t> bh;
-
-    // Block sizes per thread group.
-    int g_tg_blk;
-    int ic_tg_blk;
-    int iw_tg_blk;
-    int kw_tg_blk;
-    int mb_tg_blk;
-    int oc_tg_blk;
-    int od_tg_blk;
-    int oh_tg_blk;
-    int ow_tg_blk;
-    int osp_tg_blk;
-
-    // Number of thread blocks across problem dimensions.
-    int ic_thr_dim;
-    int iw_thr_dim;
-    int mb_thr_dim;
-    int oc_thr_dim;
-    int ow_thr_dim;
-    int osp_thr_dim;
-
-    // Block sizes per thread.
-    int g_thr_blk;
-    int ic_thr_blk;
-    int iw_thr_blk;
-    int mb_thr_blk;
-    int oc_thr_blk;
-    int od_thr_blk;
-    int oh_thr_blk;
-    int ow_thr_blk;
-    int osp_thr_blk;
-
-    // Block sizes per iteration.
-    int ic_blk;
-    int kw_blk;
-    int mb_blk;
-    int oc_blk;
-    int ow_blk;
-
-    // Block sizes in GEMM notation.
-    int b_blk;
-    int m_tg_blk;
-    int n_tg_blk;
-    int k_blk;
-
-    // Unroll sizes.
-    int mb_unroll;
-    int ow_unroll;
-
-    bool do_b_reduction;
-
-    // Which instruction backend to use.
-    fma_kind_t fma_kind = fma_kind_t::unknown;
-
-    bool use_preload; // Whether to use SLM or prefetch.
-    bool use_a_slm; // Whether to use SLM for A.
-    bool use_b_slm; // Whether to use SLM for B.
-    bool use_prefetch; // Whether to use prefetch for A and B.
-    bool pad_slm; // Whether to pad SLM to avoid write conflicts.
-    bool assign_sbids; // Whether to manually assign SBID tokens.
-    int slm_bufs; // Number of SLM buffers to use.
-    int gmem_bufs; // Number of GRF buffers to use for GMEM -> SLM copy.
-    int prefetch_bufs; // Number of prefetch buffers for A and B.
-    bool do_pipeline_unroll; // Whether to fully unroll inner loops for pipelining.
-    bool reduce_grf_usage; // Whether to try to reduce GRF usage based on heuristics.
-    bool allow_a_grf_reorder; // Whether to allow GRF reorders to FMA-friendly layouts for A.
-    bool allow_b_grf_reorder; // Whether to allow GRF reorders to FMA-friendly layouts for B.
-    bool do_atomic_update; // Whether to use atomics during C update.
-    bool reuse_headers; // Whether to reuse header messages to reduce GRF usage.
-    bool bwd_d_optimize_strided; // Apply special optimization for strided BWD_D convolution.
-    bool bwd_d_optimize_strided_iw; // Apply special optimization for strided BWD_D convolution (iw dim).
-    bool use_ow_kw_grf_cache; // Whether to use GRF cache to reuse source for ow/kw pairs.
-    bool fuse_spatial; // Apply blocking to fused spatial (otherwise only `w` is blocked).
-    bool hoist_masks_from_compute_loop; // Whether to move send mask initialization out of compute loop.
-    bool allow_slm_tg_slicing; // Whether to allow thread group split for SLM load/store.
-    bool use_2d_send_nhwc; // Whether to use the optimal NHWC setup relying on 2D block messages.
-    bool can_use_a_2d_send; // Whether 2D block messages can be used for A.
-    bool can_use_b_2d_send; // Whether 2D block messages can be used for B
-    bool check_slm_size; // Whether to check SLM size to ensure full EU utilization.
-    int slm_sync_version; // Refer to slm_sync_manager_t::version_t for values.
-
-    static const int max_slm_bufs = 3; // Maximum number of SLM buffers.
-
-    // GRF usage for kernel arguments, local work IDs/sizes, signal header,
-    // temporary expressions, etc.
-    static const int reserved_regs = 16;
 
     // Specific to FWD int8
     struct zero_points_config_t {
@@ -738,42 +178,19 @@ public:
         int common_dst_zero_point;
     } zp_cfg;
 
-    // Sub-tiles to split into for the inner A x B multiplication:
-    // for i in range(0, a_sub_tiles):
-    //     A_i = load(...)
-    //     for j in range(0, b_sub_tiles):
-    //         B_j = load(...)
-    //         C_i_j += A_i * B_j
-    //
-    // GRF buffers for A_i and B_j are reused. Factors greater than one help to
-    // reduce GRF usage.
-    int a_sub_tiles;
-    int b_sub_tiles;
-    int estimated_peak_grf_usage = 0;
-
 private:
     // Initializes A/B/C data types (GEMM notation: C += A * B) according to
     // the following convention:
     // FWD:        src -> A,      wei -> B,      dst -> C
     // BWD_D: diff_dst -> A,      wei -> B, diff_src -> C
     // BWD_W:      src -> A, diff_dst -> B, diff_wei -> C
-    status_t init_abc_data_types(primitive_attr_t *attr) {
-        if (is_fwd) {
-            a_data_type = src_data_type;
-            b_data_type = wei_data_type;
-            c_data_type = dst_data_type;
-        } else if (is_bwd_d) {
-            a_data_type = dst_data_type;
-            b_data_type = wei_data_type;
-            c_data_type = src_data_type;
-        } else if (is_bwd_w) {
-            a_data_type = src_data_type;
-            b_data_type = dst_data_type;
-            // Always use f32 for accumulation/storing in the main kernel.
-            c_data_type = data_type::f32;
-        } else {
-            ir_error_not_expected();
-        }
+    status_t init_abc_data_types(ngen::HW hw) {
+        a_data_type = pick_a(src_data_type, wei_data_type, dst_data_type);
+        b_data_type = pick_b(src_data_type, wei_data_type, dst_data_type);
+        // Always use f32 for accumulation/storing in the main kernel.
+        c_data_type = is_bwd_w
+                ? data_type::f32
+                : pick_c(src_data_type, wei_data_type, dst_data_type);
 
         if (utils::everyone_is(
                     data_type::f32, a_data_type, b_data_type, c_data_type)) {
@@ -787,20 +204,20 @@ private:
 #endif
             if (use_matching_fpmath
                     && attr->mayidownconvert(data_type::f32, data_type::bf16)
-                    && fma_kind::get_supported_kind(hw(), data_type::bf16,
+                    && fma_kind::get_supported_kind(hw, data_type::bf16,
                                data_type::bf16, data_type::f32)
                             != fma_kind_t::unknown) {
                 a_data_type = data_type::bf16;
                 b_data_type = data_type::bf16;
             } else if (use_matching_fpmath
                     && attr->mayidownconvert(data_type::f32, data_type::f16)
-                    && fma_kind::get_supported_kind(hw(), data_type::f16,
+                    && fma_kind::get_supported_kind(hw, data_type::f16,
                                data_type::f16, data_type::f32)
                             != fma_kind_t::unknown) {
                 a_data_type = data_type::f16;
                 b_data_type = data_type::f16;
             } else if (attr->mayidownconvert(data_type::f32, data_type::tf32)
-                    && fma_kind::get_supported_kind(hw(), data_type::tf32,
+                    && fma_kind::get_supported_kind(hw, data_type::tf32,
                                data_type::tf32, data_type::f32)
                             != fma_kind_t::unknown) {
                 a_data_type = data_type::tf32;
@@ -812,22 +229,6 @@ private:
         b_data_type_size = (int)types::data_type_size(b_data_type);
         c_data_type_size = (int)types::data_type_size(c_data_type);
         return status::success;
-    }
-
-    bool matches_user_types() const {
-        if (is_fwd) {
-            return a_data_type == src_data_type && b_data_type == wei_data_type
-                    && c_data_type == dst_data_type;
-        } else if (is_bwd_d) {
-            return a_data_type == dst_data_type && b_data_type == wei_data_type
-                    && c_data_type == src_data_type;
-        } else if (is_bwd_w) {
-            return a_data_type == src_data_type && b_data_type == dst_data_type
-                    && c_data_type == wei_data_type;
-        } else {
-            ir_error_not_expected();
-            return false;
-        }
     }
 
     status_t init_acc_data_type() {
@@ -852,461 +253,961 @@ private:
         return status::success;
     }
 
-    status_t init_fma_kind_and_simd_size() {
-        fma_kind = fma_kind::get_supported_kind(
-                hw(), a_data_type, b_data_type, acc_data_type);
+    status_t init_zero_points_config();
 
-        // Force mad for some cases.
-        if (is_dw) fma_kind = fma_kind_t::mad;
+    bool with_sum_post_op() {
+        auto &post_ops = attr->post_ops_;
+        return post_ops.find(primitive_kind::sum) != -1;
+    }
+};
 
-#ifdef GEN_CONV_DEBUG
-        fma_kind = fma_kind::from_string(ir_utils::getenv_str(
-                "fma_kind", fma_kind::to_string(fma_kind)));
-#endif
+class conv_hint_t {
+public:
+    conv_hint_t() = default;
+    conv_hint_t(int def_max_tg_size) : def_max_tg_size_(def_max_tg_size) {}
 
-        if (fma_kind == fma_kind_t::unknown) return status::unimplemented;
-
-        init_simd_size();
-
-        // Disable using mad instruction pre-XeHP until performance parity is
-        // reached with OpenCL kernels.
-        if (hw() < ngen::HW::XeHP) return status::unimplemented;
-
-        return status::success;
+    int max_tg_size() const {
+        if (max_tg_size_ != 0) return max_tg_size_;
+        return def_max_tg_size_;
     }
 
-    void init_simd_size() {
-        int simd_size = fma_kind::get_simd_size(
-                hw(), fma_kind, a_data_type, b_data_type, acc_data_type);
-        int vec_size = simd_size;
-        if (fma_kind == fma_kind_t::mad) {
-            int vec_dim = (is_fwd || is_bwd_w) ? oc : ic;
-            if (vec_dim <= 8) vec_size = std::min(8, vec_size);
-        }
-        hw_cfg.set_simd_size(simd_size);
-#ifdef GEN_CONV_DEBUG
-        vec_size = getenv_int("vec_size", vec_size);
-#endif
-        hw_cfg.set_vec_size(vec_size);
+    bool max_tg_overridden() const { return max_tg_overridden_; }
+
+    void set_max_tg_size(int value) {
+        max_tg_overridden_ = max_tg_size_ != 0;
+        max_tg_size_ = value;
     }
 
-    void init_data_tags(bool allow_src_reorder, bool allow_wei_reorder,
-            bool allow_dst_reorder, const memory_desc_t &src_md,
-            const memory_desc_t &wei_md, const memory_desc_t &dst_md,
-            std::string &src_tag, std::string &wei_tag, std::string &dst_tag,
-            std::string &user_wei_tag);
-    status_t init_data_layouts(convolution_pd_t *conv_pd);
+private:
+    int max_tg_size_ = 0;
+    int def_max_tg_size_ = 0;
+    bool max_tg_overridden_ = false;
+};
 
-    int slm_size() const {
-        if (prefer_prefetch()) return 0;
-
-        int a_slm_size = m_tg_blk * k_blk * a_data_type_size;
-        int b_slm_size = n_tg_blk * k_blk * b_data_type_size;
-
-        int ret = 0;
-        if (use_a_slm) ret += a_slm_size;
-        if (use_b_slm) ret += b_slm_size;
-        ret *= slm_bufs;
-
-        return ret;
-    }
-
-    std::vector<dim_t> get_prelu_weights_dims(
-            uint32_t mask, const memory_desc_t &md) const {
-        std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
-        for (int i = 0; i < md.ndims; ++i)
-            dims[i] = (mask & (1 << i)) ? dims[i] : 1;
-        return dims;
-    }
-
-    status_t init_extra_tensor_layouts(const convolution_pd_t *conv_pd) {
-        auto *attr = conv_pd->attr();
-        if (zp_cfg.do_src_compensation && zp_cfg.is_runtime_src_zero_points) {
-            int zp_ic = (zp_cfg.is_common_src_zero_point) ? 1 : ic;
-            std::vector<dim_t> dims = {zp_ic};
-            layout_t zp_layout(type_t::s32(), 0, dims);
-            int arg_key = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC;
-            tensor_config.add_tensor("src_zero_points", arg_key,
-                    /*is_input=*/true, /*is_output=*/false, zp_layout);
-        }
-        if (zp_cfg.do_dst_compensation && zp_cfg.is_runtime_dst_zero_points) {
-            std::vector<dim_t> dims = {oc};
-            layout_t zp_layout(type_t::s32(), 0, dims);
-            int arg_key = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST;
-            tensor_config.add_tensor("dst_zero_points", arg_key,
-                    /*is_input=*/true, /*is_output=*/false, zp_layout);
-        }
-        bool with_oscales = !attr->output_scales_.has_default_values();
-        if (with_oscales) {
-            std::vector<dim_t> dims = {attr->output_scales_.count_};
-            layout_t oscales_layout(type_t::f32(), 0, dims);
-            int arg_key = -1;
-            if (!attr->output_scales_.defined())
-                arg_key = DNNL_ARG_ATTR_OUTPUT_SCALES;
-            tensor_config.add_tensor("oscales", arg_key, /*is_input=*/true,
-                    /*is_output=*/false, oscales_layout);
-        }
-        for (int i = 0; i < attr->post_ops_.len(); i++) {
-            auto &po = attr->post_ops_.entry_[i];
-            if (po.is_eltwise()
-                    || po.is_sum(/*require_scale_one=*/false,
-                            /*require_zp_zero=*/false)) {
-                // No extra tensors.
-            } else if (po.is_binary()) {
-                auto layout = make_layout(po.binary.src1_desc);
-                int arg_key
-                        = DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1;
-                tensor_config.add_tensor("binary_rhs_" + std::to_string(i),
-                        arg_key, /*is_input=*/true,
-                        /*is_output=*/false, layout);
-            } else if (po.is_prelu()) {
-                layout_t layout(type_t::f32(), 0,
-                        get_prelu_weights_dims(
-                                po.prelu.mask, *conv_pd->invariant_dst_md()));
-                int arg_key
-                        = DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_WEIGHTS;
-                tensor_config.add_tensor("prelu_rhs_" + std::to_string(i),
-                        arg_key,
-                        /*is_input=*/true, /*is_output=*/false, layout);
-            } else {
-                ir_error_not_expected();
-            }
-        }
-        return status::success;
-    }
-
-    bool can_use_2d_send(const layout_t &l, bool is_a) const;
-    bool should_use_spatial_blocking(int d, int h, int w) const;
-    void init_use_2d_send_nhwc(const convolution_pd_t *conv_pd);
-    void init_fuse_spatial();
-    void init_hoist_masks_from_compute_loop();
-    void init_bwd_d_optimize_strided(int iw_thr_blk);
-    void init_use_ow_kw_grf_cache();
-    void init_allow_slm_tg_slicing(
-            int m_blk, int n_blk, int m_tg_dim, int n_tg_dim);
-
-    void init_zero_points_default_config() {
-        zp_cfg.do_src_compensation = false;
-        zp_cfg.do_dst_compensation = false;
-        zp_cfg.is_runtime_src_zero_points = false;
-        zp_cfg.is_runtime_dst_zero_points = false;
-        zp_cfg.is_common_src_zero_point = false;
-        zp_cfg.is_common_dst_zero_point = false;
-        zp_cfg.common_src_zero_point = 0;
-        zp_cfg.common_dst_zero_point = 0;
-    }
-
-    status_t init_zero_points_config(convolution_pd_t *conv_pd);
-
-    bool prefer_prefetch() const {
-        bool ret = false;
-        if (is_ge_xe_hpc()) ret = true;
-
-#ifdef GEN_CONV_DEBUG
-        ret = ir_utils::getenv_bool("prefer_prefetch", ret);
-#endif
-        return ret;
-    }
-
-    bool can_split_across_thread_group(int elems, int type_size) const {
-        // Thread group grid is limited to powers of two. We can reliably split
-        // only powers of two elements across such grids.
-        if (!math::is_pow2(elems)) return false;
-
-        // Check that the buffer can be uniformly distributed.
-        int tg_size = (tg_grid_dim[0] * tg_grid_dim[1] * tg_grid_dim[2]);
-        if (elems % tg_size != 0) return false;
-
-        // Check that SLM can be stored with oword messages.
-        int bytes_per_thr = (elems / tg_size) * type_size;
-        if (bytes_per_thr % 16 != 0) return false;
-
-        return true;
-    }
-
-    void enable_slm_buffering() {
-        using namespace ir_utils;
-        if (!use_ow_kw_grf_cache) {
-            //Check that SLM can be stored with oword messages.
-            int tg_size = tg_grid_dim[0] * tg_grid_dim[1] * tg_grid_dim[2];
-            int bytes_per_tg = (m_tg_blk * k_blk * a_data_type_size);
-            bool can_split_a = bytes_per_tg % 16 == 0
-                    && bytes_per_tg / tg_size >= k_blk && k_blk % 2 == 0;
-            use_a_slm = (tg_grid_dim[0] > 1) && can_split_a;
-        }
-        bool can_split_b = can_split_across_thread_group(
-                n_tg_blk * k_blk, b_data_type_size);
-        use_b_slm = (tg_grid_dim[1] > 1) && can_split_b;
-
-        if (use_a_slm || use_b_slm) {
-            bool is_small_tg = (tg_grid_dim[0] * tg_grid_dim[1] <= 8);
-            int pref_slm_bufs
-                    = ((is_small_tg || is_f32_conv()) && mb > 1 ? 2 : 3);
-            if (do_pipeline_unroll) {
-                slm_bufs = pref_slm_bufs;
-                gmem_bufs = (is_dp_fma() ? 2 : 1);
-            } else {
-                // Double/triple SLM buffering is not supported when only one
-                // matrix is SLM-buffered.
-                slm_bufs = (use_a_slm == use_b_slm ? pref_slm_bufs : 1);
-                gmem_bufs = 1;
-            }
-        } else {
-            slm_bufs = 0;
-            gmem_bufs = 0;
-        }
-#ifdef GEN_CONV_DEBUG
-        use_a_slm = getenv_bool("use_a_slm", use_a_slm);
-        use_b_slm = getenv_bool("use_b_slm", use_b_slm);
-        slm_bufs = getenv_int("slm_bufs", slm_bufs);
-        gmem_bufs = getenv_int("gmem_bufs", gmem_bufs);
-#endif
-    }
-
-    void enable_prefetch() {
-        using namespace ir_utils;
-
-        bool can_split_a = (tg_grid_dim[0] == 1)
-                || can_split_across_thread_group(
-                        m_tg_blk * k_blk, a_data_type_size);
-        bool can_split_b = (tg_grid_dim[1] == 1)
-                || can_split_across_thread_group(
-                        n_tg_blk * k_blk, b_data_type_size);
-
-        use_prefetch = (can_split_a && can_split_b);
-        prefetch_bufs = is_f32_conv() ? 2 : 3;
-#ifdef GEN_CONV_DEBUG
-        use_prefetch = getenv_bool("use_prefetch", use_prefetch);
-        prefetch_bufs = getenv_int("prefetch_bufs", prefetch_bufs);
-#endif
-    }
-
-    void disable_slm_buffering() {
-        use_a_slm = false;
-        use_b_slm = false;
-        slm_bufs = 0;
-        gmem_bufs = 0;
-    }
-
-    void disable_prefetch() {
-        use_prefetch = false;
-        prefetch_bufs = 0;
-    }
-
-    // Overwrites parameters that are implied by other parameters.
-    status_t fixup_inference_consistency();
-
-    bool try_reduce_grf_usage() {
-        if (!reduce_grf_usage) return true;
-
-        // TODO: improve estimate register count, it fails to account for tmp
-        // values like mask_registers among other things.
-        int max_regs = regs();
-        int est_regs = estimate_register_count(*this);
-        if (est_regs <= max_regs) return true;
-
-        // Try to disable GRF buffering.
-        if (gmem_bufs > 1) {
-            gmem_bufs = 1;
-            int est_regs = estimate_register_count(*this);
-            if (est_regs <= max_regs) return true;
-        }
-
-        // Try to use sub-tiles for B.
-        int n_thr_blk = utils::div_up(n_tg_blk, tg_grid_dim[0]);
-        int max_b_sub_tiles
-                = std::min((use_b_slm ? 4 : 2), n_thr_blk / simd_size());
-        // XXX: avoid layout mismatch for B loads
-        if (is_ge_xe_hpc() && is_bwd_w)
-            max_b_sub_tiles = std::min(2, max_b_sub_tiles);
-        while (b_sub_tiles < max_b_sub_tiles) {
-            b_sub_tiles *= 2;
-            int est_regs = estimate_register_count(*this);
-            if (est_regs <= max_regs) return true;
-        }
-
-        // Try to use sub-tiles for A.
-        int m_thr_blk = utils::div_up(m_tg_blk, tg_grid_dim[1]);
-        int max_a_sub_tiles = std::min((use_a_slm ? 4 : 2), m_thr_blk / 8);
-        if (b_sub_tiles > 1) max_a_sub_tiles = 1;
-        while (a_sub_tiles < max_a_sub_tiles) {
-            a_sub_tiles *= 2;
-            int est_regs = estimate_register_count(*this);
-            if (est_regs <= max_regs) return true;
-        }
-
-        // Try to use double SLM buffering.
-        if (slm_bufs == 3) {
-            slm_bufs = 2;
-            int est_regs = estimate_register_count(*this);
-            if (est_regs <= max_regs) return true;
-        }
-
-        // Try to use single SLM buffering.
-        if (slm_bufs == 2) {
-            slm_bufs = 1;
-            int est_regs = estimate_register_count(*this);
-            if (est_regs <= max_regs) return true;
-        }
-
-        // Last resort settings to reduce GRF usage.
-        reuse_headers = true;
-        do_pipeline_unroll = false;
-
-        return estimate_register_count(*this) <= max_regs;
-    }
+class conv_arg_helper_t {
+public:
+    conv_arg_helper_t(const conv_problem_t &prb) : prb_(prb) {}
 
     int src_arg_key() const {
-        if (is_fwd) return DNNL_ARG_SRC;
-        if (is_bwd_d) return DNNL_ARG_DIFF_SRC;
-        if (is_bwd_w) return DNNL_ARG_SRC;
+        if (prb_.is_fwd) return DNNL_ARG_SRC;
+        if (prb_.is_bwd_d) return DNNL_ARG_DIFF_SRC;
+        if (prb_.is_bwd_w) return DNNL_ARG_SRC;
         ir_error_not_expected();
         return -1;
     }
 
-    bool is_src_input() const { return is_fwd || is_bwd_w; }
-    bool is_src_output() const { return is_bwd_d; }
+    bool is_src_input() const { return prb_.is_fwd || prb_.is_bwd_w; }
+    bool is_src_output() const { return prb_.is_bwd_d; }
 
     int wei_arg_key() const {
-        if (is_fwd) return DNNL_ARG_WEIGHTS;
-        if (is_bwd_d) return DNNL_ARG_WEIGHTS;
-        if (is_bwd_w) return DNNL_ARG_DIFF_WEIGHTS;
+        if (prb_.is_fwd) return DNNL_ARG_WEIGHTS;
+        if (prb_.is_bwd_d) return DNNL_ARG_WEIGHTS;
+        if (prb_.is_bwd_w) return DNNL_ARG_DIFF_WEIGHTS;
         ir_error_not_expected();
         return -1;
     }
 
-    bool is_wei_input() const { return is_fwd || is_bwd_d; }
-    bool is_wei_output() const { return is_bwd_w; }
+    bool is_wei_input() const { return prb_.is_fwd || prb_.is_bwd_d; }
+    bool is_wei_output() const { return prb_.is_bwd_w; }
 
     int bia_arg_key() const {
-        if (is_fwd) return DNNL_ARG_BIAS;
-        if (is_bwd_d) return DNNL_ARG_BIAS;
-        if (is_bwd_w) return DNNL_ARG_DIFF_BIAS;
+        if (prb_.is_fwd) return DNNL_ARG_BIAS;
+        if (prb_.is_bwd_d) return DNNL_ARG_BIAS;
+        if (prb_.is_bwd_w) return DNNL_ARG_DIFF_BIAS;
         ir_error_not_expected();
         return -1;
     }
 
-    bool is_bia_input() const { return is_fwd || is_bwd_d; }
-    bool is_bia_output() const { return is_bwd_w; }
+    bool is_bia_input() const { return prb_.is_fwd || prb_.is_bwd_d; }
+    bool is_bia_output() const { return prb_.is_bwd_w; }
 
     int dst_arg_key() const {
-        if (is_fwd) return DNNL_ARG_DST;
-        if (is_bwd_d) return DNNL_ARG_DIFF_DST;
-        if (is_bwd_w) return DNNL_ARG_DIFF_DST;
+        if (prb_.is_fwd) return DNNL_ARG_DST;
+        if (prb_.is_bwd_d) return DNNL_ARG_DIFF_DST;
+        if (prb_.is_bwd_w) return DNNL_ARG_DIFF_DST;
         ir_error_not_expected();
         return -1;
     }
 
-    bool is_dst_input() const { return is_bwd_d || is_bwd_w; }
-    bool is_dst_output() const { return is_fwd; }
+    bool is_dst_input() const { return prb_.is_bwd_d || prb_.is_bwd_w; }
+    bool is_dst_output() const { return prb_.is_fwd; }
 
-    void set_allow_grf_reorder();
-    void set_init_can_use_2d_send();
+private:
+    const conv_problem_t &prb_;
+};
 
-    static std::string prepend_groups_to_tag(const std::string &tag) {
-        auto ret = tag;
-        for (auto &c : ret) {
-            bool is_lower_dim = ('a' <= c && c < 'a' + DNNL_MAX_NDIMS);
-            bool is_upper_dim = ('A' <= c && c < 'A' + DNNL_MAX_NDIMS);
-            if (!is_lower_dim && !is_upper_dim) continue;
-            c += 1;
+class param_t {
+public:
+    virtual std::string name() const = 0;
+    virtual std::string short_name() const { return name(); }
+    virtual std::string desc() const = 0;
+    virtual void set(const std::string &s) = 0;
+};
+
+template <typename T>
+class value_param_t : public param_t {
+public:
+    using value_t = T;
+
+    value_param_t() = default;
+    value_param_t(const T &value) : value_(value) {}
+
+    const T &get() const { return value_; }
+
+    operator const T &() const { return get(); }
+
+    void set(const T &value) { value_ = value; }
+
+    virtual void set(const std::string &s) { ir_error_not_expected(); }
+
+protected:
+    T value_;
+};
+
+class bool_param_t : public value_param_t<bool> {
+public:
+    using value_param_t::set;
+    using value_param_t::value_param_t;
+
+    void set(const std::string &s) override { value_ = ir_utils::to_bool(s); }
+};
+
+class int_param_t : public value_param_t<int> {
+public:
+    using value_param_t::set;
+    using value_param_t::value_param_t;
+
+    void set(const std::string &s) override { value_ = std::stoi(s); }
+};
+
+class grid_param_t : public value_param_t<grid_info_t> {
+public:
+    using value_param_t::set;
+    using value_param_t::value_param_t;
+};
+
+class layout_param_t : public param_t {
+public:
+    const layout_t &user() const { return user_; }
+    const layout_t &compute() const { return compute_; }
+    const layout_t &user_unnormalized() const { return user_unnormalized_; }
+    const layout_t &compute_unnormalized() const {
+        return compute_unnormalized_;
+    }
+
+    void set(const std::string &s) override { ir_error_not_implemented(); }
+
+    void set_user(const layout_t &l) { user_ = l; }
+    void set_compute(const layout_t &l) { compute_ = l; }
+    void set_user_unnormalized(const layout_t &l) { user_unnormalized_ = l; }
+    void set_compute_unnormalized(const layout_t &l) {
+        compute_unnormalized_ = l;
+    }
+
+private:
+    layout_t user_;
+    layout_t compute_;
+    layout_t user_unnormalized_;
+    layout_t compute_unnormalized_;
+};
+
+class map_param_t : public param_t {
+public:
+    using value_t = std::unordered_map<std::string, int>;
+
+    const value_t &get() const { return map_; }
+
+    bool is_empty() const { return map_.empty(); }
+
+    int get(const std::string &name) const {
+        auto it = map_.find(name);
+        if (it == map_.end()) return 1;
+        return it->second;
+    }
+
+    int operator()(const std::string &name) const { return get(name); }
+
+    void set(const std::string &s) override {
+        int name_beg = -1;
+        int value_beg = -1;
+        for (int pos = 0; pos < (int)s.size() + 1; pos++) {
+            bool prev_digit = pos > 0 && std::isdigit(s[pos - 1]);
+            bool cur_digit = pos < (int)s.size() && std::isdigit(s[pos]);
+            if ((pos == 0 || prev_digit) && !cur_digit) {
+                if (name_beg != -1 && value_beg != -1) {
+                    auto key = s.substr(name_beg, value_beg - name_beg);
+                    auto value
+                            = std::stoi(s.substr(value_beg, pos - value_beg));
+                    map_[key] = value;
+                }
+                name_beg = pos;
+                value_beg = -1;
+            }
+            if (!prev_digit && cur_digit) value_beg = pos;
         }
-        return "a" + ret;
     }
 
-    static void set_default_format(memory_desc_t &md, const std::string &tag) {
-        if (md.format_kind != format_kind::any) return;
-        md = make_layout(md, tag).to_dnnl(md.dims);
-    }
+    void set(const std::string &name, int dim) { map_[name] = dim; }
 
-    static layout_t init_layout(
-            memory_desc_t &user_md, const std::string &optimal_tag) {
-        auto optimal = make_layout(user_md, optimal_tag);
-        if (user_md.format_kind != format_kind::any) {
-            auto user = make_layout(user_md);
-            // If layouts are physically different return the layout passed by
-            // the user and return unimplemented later.
-            if (user != optimal) return user;
-        } else {
-            user_md = optimal.to_dnnl(user_md.dims);
+    void set(const value_t &value) { map_ = value; }
+
+    std::string str() const {
+        std::ostringstream oss;
+        for (auto &kv : map_) {
+            oss << kv.first << kv.second;
         }
-        return optimal;
+        return oss.str();
     }
 
-    static layout_t make_layout(const memory_desc_t &md) {
-        return layout_t(md, /*do_normalize=*/false);
+    IR_DEFINE_DUMP()
+
+private:
+    value_t map_;
+};
+
+// Parameters for kernel generation.
+
+// TODO: Remove, GRF reorder is to be emitted/accounted for depending on
+// layouts, FMA kind and other parameters.
+class allow_a_grf_reorder_param_t : public bool_param_t {
+public:
+    allow_a_grf_reorder_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "allow-a-grf-reorder"; }
+    std::string desc() const override {
+        return "Whether to allow GRF reorders to FMA-friendly layouts for A.";
+    }
+};
+
+// TODO: Remove, GRF reorder is to be emitted/accounted for depending on
+// layouts, FMA kind and other parameters.
+class allow_b_grf_reorder_param_t : public bool_param_t {
+public:
+    allow_b_grf_reorder_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "allow-b-grf-reorder"; }
+    std::string desc() const override {
+        return "Whether to allow GRF reorders to FMA-friendly layouts for B.";
+    }
+};
+
+// TODO: Remove, use internal logic to determine if SLM thread group slicing is
+// needed.
+class allow_slm_tg_slicing_param_t : public bool_param_t {
+public:
+    allow_slm_tg_slicing_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "allow-slm-tg-slicing"; }
+    std::string desc() const override {
+        return "Whether to allow thread group split for SLM load/store.";
+    }
+};
+
+class assign_sbids_param_t : public bool_param_t {
+public:
+    assign_sbids_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "assign-sbids"; }
+    std::string desc() const override {
+        return "Whether to manually assign SBIDs tokens to dpas/send.";
+    }
+};
+
+class bia_layout_param_t : public layout_param_t {
+    std::string name() const override { return "bia"; }
+    std::string desc() const override { return "Bias layout."; }
+};
+
+class bwd_d_optimize_strided_param_t : public bool_param_t {
+public:
+    bwd_d_optimize_strided_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "bwd-d-optimize-strided"; }
+    std::string desc() const override {
+        return "Apply special optimization for strided BWD_D convolution.";
+    }
+};
+
+class bwd_d_optimize_strided_iw_param_t : public bool_param_t {
+public:
+    bwd_d_optimize_strided_iw_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "bwd-d-optimize-strided-iw"; }
+    std::string desc() const override {
+        return "Apply special optimization for strided BWD_D convolution (iw "
+               "dimension).";
+    }
+};
+
+// TODO: Remove, use heuristics to determine if it's worth to sacrifice EU
+// utilization for larger SLM size.
+class check_slm_size_param_t : public bool_param_t {
+public:
+    check_slm_size_param_t() : bool_param_t(true) {}
+    std::string name() const override { return "check-slm-size"; }
+    std::string short_name() const override { return "c"; }
+    std::string desc() const override {
+        return "Whether to check SLM size to ensure full EU utilization.";
+    }
+};
+
+class dims_param_t : public map_param_t {
+public:
+    std::string name() const override { return "dims"; }
+    std::string desc() const override { return "Problem dimensions."; }
+};
+
+class dst_layout_param_t : public layout_param_t {
+    std::string name() const override { return "dst"; }
+    std::string desc() const override { return "Destination layout."; }
+};
+
+class exec_cfg_param_t : public value_param_t<exec_config_t> {
+public:
+    using value_param_t::set;
+    using value_param_t::value_param_t;
+
+    std::string name() const override { return "exec-cfg"; }
+    std::string desc() const override {
+        return "Execution config (hardware config, number of registers, SIMD, "
+               "etc).";
+    }
+};
+
+class fma_kind_param_t : public value_param_t<fma_kind_t> {
+public:
+    using value_param_t::set;
+    using value_param_t::value_param_t;
+
+    std::string name() const override { return "fma"; }
+    std::string desc() const override { return "FMA kind."; }
+
+    void set(const std::string &s) override {
+        value_ = fma_kind::from_string(s);
+    }
+};
+
+class fuse_spatial_param_t : public bool_param_t {
+public:
+    fuse_spatial_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "fuse-spatial"; }
+    std::string desc() const override {
+        return "Whether to apply blocking to fused spatial (otherwise only `w` "
+               "is blocked).";
+    }
+};
+
+class hint_param_t : public value_param_t<conv_hint_t> {
+public:
+    using value_param_t::set;
+    using value_param_t::value_param_t;
+
+    std::string name() const override { return "hint"; }
+    std::string desc() const override { return "Configuration hint."; }
+};
+
+// TODO: Remove, use internal logic.
+class hoist_masks_from_compute_loop_param_t : public bool_param_t {
+public:
+    hoist_masks_from_compute_loop_param_t() : bool_param_t(false) {}
+    std::string name() const override {
+        return "hoist-masks-from-compute-loop";
+    }
+    std::string desc() const override {
+        return "Whether to move send mask initialization out of compute loop.";
+    }
+};
+
+class kernel_grid_param_t : public grid_param_t {
+public:
+    std::string name() const override { return "kernel-grid"; }
+    std::string desc() const override {
+        return "Number of thread groups across dimensions (kernel grid).";
+    }
+};
+
+class iter_dims_param_t : public map_param_t {
+public:
+    std::string name() const override { return "iter"; }
+    std::string desc() const override {
+        return "Iteration-level dimension blocks.";
+    }
+};
+
+class ow_kw_grf_cache_param_t : public bool_param_t {
+public:
+    ow_kw_grf_cache_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "ow-kw-grf-cache"; }
+    std::string desc() const override {
+        return "Whether to use GRF cache to reuse source for ow/kw pairs";
+    }
+};
+
+class pad_slm_param_t : public bool_param_t {
+public:
+    pad_slm_param_t() : bool_param_t(true) {}
+    std::string name() const override { return "pad-slm"; }
+    std::string desc() const override {
+        return "Whether to pad SLM layout to avoid bank conflicts.";
+    }
+};
+
+class padded_dims_param_t : public map_param_t {
+public:
+    std::string name() const override { return "pad"; }
+    std::string desc() const override {
+        return "Padded dimensions (rounded-up for blocks and to comply with "
+               "required zero padding in output layouts) .";
+    }
+};
+
+class pipeline_param_t : public param_t {
+public:
+    std::string name() const override { return "pipeline"; }
+    std::string desc() const override { return "General pipeline parameters."; }
+
+    bool do_unroll() const { return do_unroll_; }
+    bool reuse_headers() const { return !do_unroll(); }
+
+    void set(const std::string &s) override { ir_error_not_implemented(); }
+    void set(bool do_unroll) { do_unroll_ = do_unroll; }
+
+private:
+    bool do_unroll_ = true;
+};
+
+class prb_param_t : public value_param_t<conv_problem_t> {
+public:
+    using value_param_t::set;
+    using value_param_t::value_param_t;
+
+    std::string name() const override { return "prb"; }
+    std::string desc() const override { return "Convolution problem."; }
+
+    void set_pd(const convolution_pd_t *pd) {
+        value_.conv_pd = pd;
+        value_.attr = pd->attr();
+    }
+};
+
+class prefetch_param_t : public param_t {
+public:
+    std::string name() const override { return "prefetch"; }
+    std::string desc() const override { return "Parameters for prefetching."; }
+
+    int bufs() const { return bufs_; }
+
+    operator bool() const { return bufs_ > 0; }
+
+    void set(const std::string &s) override {}
+
+    void set(int bufs) { bufs_ = bufs; }
+
+private:
+    int bufs_ = 0;
+};
+
+class reduce_b_param_t : public bool_param_t {
+public:
+    reduce_b_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "reduce-b"; }
+    std::string desc() const override {
+        return "Whether to reduce B tensor (used for dst reduction in backward "
+               "by weights).";
+    }
+};
+
+class reduce_grf_usage_param_t : public bool_param_t {
+public:
+    reduce_grf_usage_param_t() : bool_param_t(true) {}
+    std::string name() const override { return "reduce-grf-usage"; }
+    std::string desc() const override {
+        return "Whether to try to reduce GRF usage based on heuristics.";
+    }
+};
+
+// TODO: Remove this parameter and enable 2D block messages based on the
+// generation flow.
+class send_2d_nhwc_param_t : public bool_param_t {
+public:
+    send_2d_nhwc_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "2d-send-nhwc"; }
+    std::string desc() const override {
+        return "Whether to use the optimal NHWC setup relying on 2D block "
+               "messages.";
+    }
+};
+
+class slm_param_t : public param_t {
+public:
+    std::string name() const override { return "slm"; }
+    std::string short_name() const override { return "s"; }
+    std::string desc() const override { return "SLM buffering parameters."; }
+
+    int bufs() const { return bufs_; }
+    int gmem_bufs() const { return gmem_bufs_; }
+    int sync_version() const { return sync_version_; }
+    bool a() const { return a_; }
+    bool b() const { return b_; }
+
+    operator bool() const { return bufs() > 0; }
+
+    void set(const std::string &s) override {
+        auto parts = ir_utils::split(s, ".");
+        for (auto &p : parts) {
+            ir_assert(p.size() >= 2) << p;
+            char name = p[0];
+            int value = std::stoi(p.substr(1));
+            switch (name) {
+                case 'x': bufs_ = value; break;
+                case 'g': gmem_bufs_ = value; break;
+                case 'v': sync_version_ = value; break;
+                default: ir_error_not_expected() << p;
+            }
+        }
     }
 
-    static layout_t make_layout(
-            const memory_desc_t &md, const std::string &tag) {
-        return layout_t(md, tag, /*do_normalize=*/false);
+    void set(int bufs, int gmem_bufs, bool a, bool b) {
+        bufs_ = bufs;
+        gmem_bufs_ = gmem_bufs;
+        a_ = a;
+        b_ = b;
     }
 
-    static layout_t make_layout(const type_t &type,
-            const std::vector<dim_t> &dims, const std::string &tag) {
-        return layout_t(type, 0, tag, dims, /*do_normalize=*/false);
+    void set_bufs(int bufs) { bufs_ = bufs; }
+    void set_gmem_bufs(int gmem_bufs) { gmem_bufs_ = gmem_bufs; }
+
+private:
+    // Number of SLM buffers to use (0, 1, 2 or 3).
+    int bufs_ = 0;
+    // Number of GRF buffers to use for GMEM -> SLM copy (0, 1 or 2).
+    int gmem_bufs_ = 0;
+    // See slm_sync_manager_t for more details.
+    int sync_version_ = -1;
+    // Whether SLM buffering for A is enabled.
+    bool a_ = false;
+    // Whether SLM buffering for B is enabled.
+    bool b_ = false;
+};
+
+class src_layout_param_t : public layout_param_t {
+public:
+    std::string name() const override { return "src"; }
+    std::string desc() const override { return "Source layout."; }
+};
+
+// Sub-tiles to split into for the inner A x B multiplication:
+//
+// Case 1. a_sub_tiles = 1, b_sub_tiles = 1
+//     A = load(...)
+//     B = load(...)
+//     C += A * B
+//
+// Case 2. a_sub_tiles > 1, b_sub_tiles = 1
+//     B = load(...)
+//     for i in range(0, a_sub_tiles):
+//         A_i = load(...)
+//         C_i += A_i * B
+//
+// Case 3. a_sub_tiles = 1, b_sub_tiles > 1
+//     A = load(...)
+//     for j in range(0, b_sub_tiles):
+//         B_j = load(...)
+//         C_j += A * B_j
+//
+// Tiling for A and tiling for B are mutually exclusive. Using sub-tiles helps
+// to reduce GRF consumption.
+class sub_tiles_param_t : public param_t {
+public:
+    std::string name() const override { return "sub-tiles"; }
+    std::string desc() const override { return "Sub-iteration blocking."; }
+
+    int a() const { return a_; }
+    int b() const { return b_; }
+
+    void set(const std::string &s) override {}
+    void set(int a, int b) {
+        a_ = a;
+        b_ = b;
     }
 
-    static bool matches_tag(const memory_desc_t &md, const std::string &tag) {
-        if (md.format_kind == format_kind::any) return false;
-        return matches_tag(make_layout(md), tag);
+    void set_a(int a) { a_ = a; }
+    void set_b(int b) { b_ = b; }
+
+private:
+    int a_ = 1;
+    int b_ = 1;
+};
+
+class thread_group_grid_param_t : public grid_param_t {
+public:
+    std::string name() const override { return "tg-grid"; }
+    std::string desc() const override { return "Thread group grid."; }
+};
+
+class thread_group_dims_param_t : public map_param_t {
+public:
+    std::string name() const override { return "tg"; }
+    std::string short_name() const override { return "T"; }
+    std::string desc() const override {
+        return "Thread group-level dimension blocks.";
+    }
+};
+
+class thread_dims_param_t : public map_param_t {
+public:
+    std::string name() const override { return "thr"; }
+    std::string desc() const override { return ""; }
+};
+
+class unroll_param_t : public map_param_t {
+public:
+    std::string name() const override { return "unroll"; }
+    std::string desc() const override {
+        return "Per-dimension unroll factors.";
+    }
+};
+
+class wei_layout_param_t : public layout_param_t {
+    std::string name() const override { return "wei"; }
+    std::string desc() const override { return "Weights layout."; }
+};
+
+namespace constants {
+// Maximum number of SLM buffers.
+static const int max_slm_bufs = 3;
+
+// GRF usage for kernel arguments, local work IDs/sizes, signal header,
+// temporary expressions, etc.
+static const int reserved_regs = 16;
+} // namespace constants
+
+class conv_config_t {
+public:
+    conv_config_t() = default;
+    conv_config_t(const std::string &s) { set(s); }
+
+#define DECL_PARAM(name) \
+    const name##_param_t::value_t &name() const { return name##_.get(); } \
+    void set_##name(const name##_param_t::value_t &value) { \
+        name##_.set(value); \
     }
 
-    static bool matches_tag_strict(
-            const memory_desc_t &md, const std::string &tag) {
-        if (md.format_kind == format_kind::any) return false;
-        return matches_tag_strict(make_layout(md), tag);
+#define DECL_PARAM2(name) \
+    const name##_param_t &name() const { return name##_; } \
+    name##_param_t &name() { return name##_; }
+
+    DECL_PARAM(allow_a_grf_reorder)
+    DECL_PARAM(allow_b_grf_reorder)
+    DECL_PARAM(allow_slm_tg_slicing)
+    DECL_PARAM(assign_sbids)
+    DECL_PARAM(bwd_d_optimize_strided)
+    DECL_PARAM(bwd_d_optimize_strided_iw)
+    DECL_PARAM(check_slm_size)
+    DECL_PARAM(exec_cfg)
+    DECL_PARAM(fma_kind)
+    DECL_PARAM(fuse_spatial)
+    DECL_PARAM(hint)
+    DECL_PARAM(hoist_masks_from_compute_loop)
+    DECL_PARAM(kernel_grid)
+    DECL_PARAM(ow_kw_grf_cache)
+    DECL_PARAM(pad_slm)
+    DECL_PARAM(prb)
+    DECL_PARAM(reduce_b)
+    DECL_PARAM(reduce_grf_usage)
+    DECL_PARAM(send_2d_nhwc)
+    DECL_PARAM(thread_group_grid)
+    DECL_PARAM2(bia_layout)
+    DECL_PARAM2(dims)
+    DECL_PARAM2(dst_layout)
+    DECL_PARAM2(iter_dims)
+    DECL_PARAM2(padded_dims)
+    DECL_PARAM2(pipeline)
+    DECL_PARAM2(prefetch)
+    DECL_PARAM2(slm)
+    DECL_PARAM2(src_layout)
+    DECL_PARAM2(sub_tiles)
+    DECL_PARAM2(thread_dims)
+    DECL_PARAM2(thread_group_dims)
+    DECL_PARAM2(unroll)
+    DECL_PARAM2(wei_layout)
+
+#undef DECL_PARAM
+#undef DECL_PARAM2
+
+    void set(const std::string &s);
+
+    std::string str() const;
+
+    std::string blocking_brief_str() const;
+
+    // Helper methods.
+    int dim(const std::string &name) const { return dims()(name); }
+
+    int iter_dim(const std::string &name) const { return iter_dims()(name); }
+
+    int padded_dim(const std::string &name) const {
+        return padded_dims()(name);
     }
 
-    int get_thread_groups() const {
-        return kernel_grid_dim[0] * kernel_grid_dim[1] * kernel_grid_dim[2];
-    }
-    int get_thread_group_size() const {
-        return tg_grid_dim[0] * tg_grid_dim[1] * tg_grid_dim[2];
-    }
-    int get_thread_count() const {
-        return get_thread_groups() * get_thread_group_size();
+    int thread_dim(const std::string &name) const {
+        return thread_dims()(name);
     }
 
-    // Return thread utilization as a percentage. If this value is low,
-    // parallelism is a fundamental limitation to the current work scheduling.
-    float get_thread_utilization() const {
-        auto arch = convert_ngen_arch_to_dnnl(hw());
-        int slice_eu_count = compute::device_info_t::max_eus_per_wg(arch);
-        int slice_count = hw_cfg.eu_count() / slice_eu_count;
-
-        int min_wg_per_slice_wave
-                = std::max(slice_eu_count / get_thread_group_size(), 1);
-        int min_wg_per_wave = slice_count * min_wg_per_slice_wave;
-
-        int wg = get_thread_groups();
-
-        return ((float)wg / utils::rnd_up(wg, min_wg_per_wave)) * 100;
+    int thread_group_dim(const std::string &name) const {
+        return thread_group_dims()(name);
     }
 
-    // Return wave utilization as a percentage. If this value is low, memory
-    // latency may be an issue due to limited use of SMT to hide the latency.
-    float get_wave_utilization() const {
-        auto arch = convert_ngen_arch_to_dnnl(hw());
-        int threads_per_eu = compute::device_info_t::threads_per_eu(
-                arch, hw_cfg.large_grf_support());
-        int slice_eu_count = compute::device_info_t::max_eus_per_wg(arch);
-        int slice_count = hw_cfg.eu_count() / slice_eu_count;
+    // Blocks for padding. This is to comply with
+    // zero-padding requirements. For example if the output
+    // layout is nChw32c but there are only 8 channels to
+    // compute and store, we still need to pad 8 to 32 and
+    // spawn more thread groups to ensure 32c block is
+    // properly zero-padded.
+    int pad_block(const std::string &name) const {
+        auto &src = src_layout().compute();
+        auto &wei = wei_layout().compute();
+        auto &dst = dst_layout().compute();
 
-        int max_wg_per_slice_wave
-                = slice_eu_count * threads_per_eu / get_thread_group_size();
-        int max_wg_per_wave = slice_count * max_wg_per_slice_wave;
+#define CASE(_name, layout, idx) \
+    if (name == _name) return layout.inner_block(idx)
 
-        int wg = get_thread_groups();
-
-        return ((float)wg / utils::rnd_up(wg, max_wg_per_wave)) * 100;
+        if (prb().is_fwd) {
+            CASE("mb", dst, 0);
+            CASE("g", dst, 1);
+            CASE("oc", dst, 2);
+        } else if (prb().is_bwd_d) {
+            CASE("mb", src, 0);
+            CASE("g", src, 1);
+            CASE("ic", src, 2);
+        } else if (prb().is_bwd_w) {
+            CASE("g", wei, 0);
+            CASE("oc", wei, 1);
+            CASE("ic", wei, 2);
+        }
+#undef CASE
+        return 1;
     }
+
+    int unroll(const std::string &name) const { return unroll()(name); }
+
+    int reserved_regs() const { return constants::reserved_regs; }
+
+    const hw_config_t &hw_cfg() const { return exec_cfg().hw_cfg(); }
+
+    ngen::HW hw() const { return hw_cfg().hw(); }
+
+    bool is_ge_xe_hpc() const { return hw() >= ngen::HW::XeHPC; }
+
+    int grf_size() const { return hw_cfg().grf_size(); }
+
+    int regs() const { return exec_cfg().regs(); }
+
+    int simd() const { return exec_cfg().simd(); }
+
+    int vec_size() const { return exec_cfg().vec_size(); }
+
+    bool is_dp_fma() const {
+        return utils::one_of(fma_kind(), fma_kind_t::dpas, fma_kind_t::dpasw,
+                fma_kind_t::dp4a);
+    }
+
+    bool is_dpas_or_dpasw_fma() const {
+        return utils::one_of(fma_kind(), fma_kind_t::dpas, fma_kind_t::dpasw);
+    }
+
+    const layout_param_t &a_layout() const {
+        return prb().pick_a<const layout_param_t &>(
+                src_layout(), wei_layout(), dst_layout());
+    }
+
+    const layout_param_t &b_layout() const {
+        return prb().pick_b<const layout_param_t &>(
+                src_layout(), wei_layout(), dst_layout());
+    }
+
+    compute::nd_range_t nd_range() const {
+        size_t gws[3];
+        size_t lws[3];
+        for (int i = 0; i < 3; i++) {
+            lws[i] = thread_group_grid().dim(i) * (i == 0 ? simd() : 1);
+            gws[i] = kernel_grid().dim(i) * lws[i];
+        }
+        return compute::nd_range_t(gws, lws);
+    }
+
+    int grid_dim(const std::string &dim) const {
+        return ir_utils::safe_divide(padded_dim(dim),
+                thread_dim(dim) * thread_group_dim(dim) * iter_dim(dim));
+    }
+
+    int iter_dim(std::initializer_list<const char *> dims) const {
+        int ret = 1;
+        for (auto *dim : dims)
+            ret *= iter_dim(dim);
+        return ret;
+    }
+
+    void set_pd(const convolution_pd_t *pd) { prb_.set_pd(pd); }
+
+    void set_regs(int regs) {
+        auto tmp = exec_cfg();
+        tmp.set_regs(regs);
+        set_exec_cfg(tmp);
+    }
+
+    void set_simd(int simd) {
+        auto tmp = exec_cfg();
+        tmp.set_simd(simd);
+        set_exec_cfg(tmp);
+    }
+
+    void set_vec_size(int vec_size) {
+        auto tmp = exec_cfg();
+        tmp.set_vec_size(vec_size);
+        set_exec_cfg(tmp);
+    }
+
+private:
+    struct param_init_t {};
+
+    template <typename GetParamFuncT, typename PtrT>
+    static param_init_t register_param(
+            PtrT ptr, std::vector<GetParamFuncT> &get_params_) {
+        get_params_.push_back([=](conv_config_t *cfg) { return &(cfg->*ptr); });
+        return param_init_t();
+    }
+
+    std::vector<std::function<param_t *(conv_config_t *)>> get_params_;
+
+#define INIT_PARAM(name) \
+    name##_param_t name##_; \
+    param_init_t name##_init_ \
+            = register_param(&conv_config_t::name##_, get_params_);
+
+    INIT_PARAM(allow_a_grf_reorder)
+    INIT_PARAM(allow_b_grf_reorder)
+    INIT_PARAM(allow_slm_tg_slicing)
+    INIT_PARAM(assign_sbids)
+    INIT_PARAM(bia_layout)
+    INIT_PARAM(bwd_d_optimize_strided)
+    INIT_PARAM(bwd_d_optimize_strided_iw)
+    INIT_PARAM(check_slm_size)
+    INIT_PARAM(dims)
+    INIT_PARAM(dst_layout)
+    INIT_PARAM(exec_cfg)
+    INIT_PARAM(fma_kind)
+    INIT_PARAM(fuse_spatial)
+    INIT_PARAM(hint)
+    INIT_PARAM(hoist_masks_from_compute_loop)
+    INIT_PARAM(iter_dims)
+    INIT_PARAM(kernel_grid)
+    INIT_PARAM(ow_kw_grf_cache)
+    INIT_PARAM(pad_slm)
+    INIT_PARAM(padded_dims)
+    INIT_PARAM(pipeline)
+    INIT_PARAM(prb)
+    INIT_PARAM(prefetch)
+    INIT_PARAM(reduce_b)
+    INIT_PARAM(reduce_grf_usage)
+    INIT_PARAM(send_2d_nhwc)
+    INIT_PARAM(slm)
+    INIT_PARAM(src_layout)
+    INIT_PARAM(sub_tiles)
+    INIT_PARAM(thread_dims)
+    INIT_PARAM(thread_group_dims)
+    INIT_PARAM(thread_group_grid)
+    INIT_PARAM(unroll)
+    INIT_PARAM(wei_layout)
+
+#undef INIT_PARAM
 };
 
 inline std::ostream &operator<<(std::ostream &out, const conv_config_t &cfg) {
     out << cfg.str();
     return out;
 }
+
+class bmnk_dim_helper_t {
+public:
+    bmnk_dim_helper_t(const conv_config_t &cfg) : prb_(cfg.prb()), cfg_(cfg) {}
+
+    int iter_dim(char bmnk) const {
+        int ret = 1;
+        for (auto &kv : cfg_.iter_dims().get()) {
+            if (to_bmnk(kv.first) != bmnk) continue;
+            ret *= kv.second;
+        }
+        return ret;
+    }
+
+    int thread_dim(char bmnk) const {
+        int ret = 1;
+        for (auto &kv : cfg_.thread_dims().get()) {
+            if (to_bmnk(kv.first) != bmnk) continue;
+            ret *= kv.second;
+        }
+        return ret;
+    }
+
+    int thread_group_dim(char bmnk) const {
+        int ret = 1;
+        for (auto &kv : cfg_.thread_group_dims().get()) {
+            if (to_bmnk(kv.first) != bmnk) continue;
+            ret *= kv.second;
+        }
+        return ret;
+    }
+
+private:
+    static bool contains(const char **array, const std::string &s) {
+        for (const char **ptr = array; *ptr; ptr++) {
+            if (s == *ptr) return true;
+        }
+        return false;
+    }
+
+    char to_bmnk(const std::string &dim_name) const {
+        static const char *fwd_b_dims[] = {"g", nullptr};
+        static const char *fwd_m_dims[]
+                = {"mb", "osp", "od", "oh", "ow", nullptr};
+        static const char *fwd_n_dims[] = {"oc", nullptr};
+        static const char *fwd_k_dims[] = {"ic", "kd", "kh", "kw", nullptr};
+        static const char *bwd_d_b_dims[] = {"g", nullptr};
+        static const char *bwd_d_m_dims[] = {"mb", "id", "ih", "iw", nullptr};
+        static const char *bwd_d_n_dims[] = {"ic", nullptr};
+        static const char *bwd_d_k_dims[] = {"oc", "kd", "kh", "kw", nullptr};
+        static const char *bwd_w_b_dims[] = {"g", nullptr};
+        static const char *bwd_w_m_dims[] = {"ic", "kd", "kh", "kw", nullptr};
+        static const char *bwd_w_n_dims[] = {"oc", nullptr};
+        static const char *bwd_w_k_dims[] = {"mb", "od", "oh", "ow", nullptr};
+
+        const char **b_dims = prb_.pick_by_dir<const char **>(
+                fwd_b_dims, bwd_d_b_dims, bwd_w_b_dims);
+        const char **m_dims = prb_.pick_by_dir<const char **>(
+                fwd_m_dims, bwd_d_m_dims, bwd_w_m_dims);
+        const char **n_dims = prb_.pick_by_dir<const char **>(
+                fwd_n_dims, bwd_d_n_dims, bwd_w_n_dims);
+        const char **k_dims = prb_.pick_by_dir<const char **>(
+                fwd_k_dims, bwd_d_k_dims, bwd_w_k_dims);
+
+        if (contains(b_dims, dim_name)) return 'b';
+        if (contains(m_dims, dim_name)) return 'm';
+        if (contains(n_dims, dim_name)) return 'n';
+        if (contains(k_dims, dim_name)) return 'k';
+
+        ir_error_not_expected() << dim_name;
+        return ' ';
+    }
+
+    const conv_problem_t &prb_;
+    const conv_config_t &cfg_;
+};
+
+status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
+        const engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr);
+status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd);
+tensor_config_t get_tensor_config(const conv_config_t &cfg);
+int estimate_register_count(const conv_config_t &cfg);
+bool can_use_a_2d_send(const conv_config_t &cfg);
+bool can_use_b_2d_send(const conv_config_t &cfg);
+const char **get_kernel_grid_conv_dims(const conv_problem_t &prb, int idx);
+const char **get_thread_group_grid_conv_dims(
+        const conv_problem_t &prb, int idx);
 
 } // namespace jit
 } // namespace gpu

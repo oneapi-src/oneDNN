@@ -78,11 +78,9 @@ private:
     std::vector<const let_t *> lets_;
 };
 
-stmt_t update_loops_for_unrolling(
-        const stmt_t &s, ir_context_t &ir_ctx, bool do_unroll) {
+stmt_t update_loops_for_unrolling(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = s;
-    if (do_unroll) ret = unrolling_updater_t().mutate(s);
+    auto ret = unrolling_updater_t().mutate(s);
     trace_pass("update_loops_for_unrolling", ret, ir_ctx);
     return ret;
 }

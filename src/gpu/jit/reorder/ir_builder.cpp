@@ -274,7 +274,7 @@ void reorder_ir_builder_t::compute_blocks(const layout_t &src,
 void reorder_ir_builder_t::compute_grid(const layout_t &src,
         const layout_t &dst, const std::vector<int> &iter_blocks,
         const std::vector<int> &loop_blocks, const std::vector<int> &tg_blocks,
-        std::array<int, 3> &kernel_grid, std::array<int, 3> &tg_grid,
+        grid_info_t &kernel_grid, grid_info_t &tg_grid,
         std::vector<int> *dim2grid) {
     int ndims = src.ndims();
     std::vector<dim_t> dims(ndims);
@@ -285,21 +285,20 @@ void reorder_ir_builder_t::compute_grid(const layout_t &src,
     if (dim2grid) dim2grid->resize(ndims, -1);
 
     const int grid_ndims = 3;
-    for (int i = 0; i < grid_ndims; i++) {
-        kernel_grid[i] = 1;
-        tg_grid[i] = 1;
-    }
-
+    std::vector<int> kernel_grid_dims(grid_ndims, 1);
+    std::vector<int> tg_grid_dims(grid_ndims, 1);
     int grid_idx = 0;
     int max_grid_idx = grid_ndims - 1;
     for (int i = 0; i < ndims; i++) {
         if (dim2grid) (*dim2grid)[i] = grid_idx;
         int outer = utils::div_up(
                 dims[i], iter_blocks[i] * loop_blocks[i] * tg_blocks[i]);
-        tg_grid[grid_idx] *= tg_blocks[i];
-        kernel_grid[grid_idx] *= outer;
+        tg_grid_dims[grid_idx] *= tg_blocks[i];
+        kernel_grid_dims[grid_idx] *= outer;
         if (outer != 1 && grid_idx != max_grid_idx) grid_idx++;
     }
+    kernel_grid = grid_info_t(kernel_grid_dims, "grid_idx");
+    tg_grid = grid_info_t(tg_grid_dims, "grid_idx");
 }
 
 compute::nd_range_t reorder_ir_builder_t::nd_range(
@@ -308,13 +307,13 @@ compute::nd_range_t reorder_ir_builder_t::nd_range(
     std::vector<int> loop_blocks;
     std::vector<int> tg_blocks;
     compute_blocks(src, dst, iter_blocks, loop_blocks, tg_blocks);
-    std::array<int, 3> kernel_grid;
-    std::array<int, 3> tg_grid;
+    grid_info_t kernel_grid;
+    grid_info_t tg_grid;
     compute_grid(src, dst, iter_blocks, loop_blocks, tg_blocks, kernel_grid,
             tg_grid);
     std::array<size_t, 3> global;
     std::array<size_t, 3> local;
-    for (size_t i = 0; i < kernel_grid.size(); i++) {
+    for (int i = 0; i < kernel_grid.ndims(); i++) {
         global[i] = kernel_grid[i] * tg_grid[i];
         local[i] = tg_grid[i];
         if (i == 0) {
@@ -380,15 +379,13 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
         vars.push_back(var_t::make(type_t::s32(), std::string(1, letter)));
     }
 
-    std::array<int, 3> kernel_grid_dims;
-    std::array<int, 3> tg_grid_dims;
     std::vector<int> dim2grid;
     compute_grid(src_layout_, dst_layout_, iter_blocks, loop_blocks, tg_blocks,
-            kernel_grid_dims, tg_grid_dims, &dim2grid);
+            kernel_grid_, tg_grid_, &dim2grid);
 
     std::vector<stmt_t> init_stmts;
-    init_kernel_grid(kernel_grid_dims, tg_grid_dims, hw_cfg_.simd_size(),
-            init_cset, init_stmts);
+    init_kernel_grid(
+            kernel_grid_, tg_grid_, exec_cfg_.simd(), init_cset, init_stmts);
 
     auto &x = view_t::placeholder_var();
 
@@ -471,7 +468,7 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     auto src_buf = kernel_info_.arg_var(0);
     auto dst_buf = kernel_info_.arg_var(1);
 
-    ir_context_t ir_ctx(hw_cfg_, init_cset);
+    ir_context_t ir_ctx(exec_cfg_, init_cset);
     auto reg_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "reg");
 
     std::vector<stmt_t> allocs;
@@ -521,15 +518,15 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     stmt_ = split_wide_stores(stmt_, ir_ctx);
     stmt_ = fix_int32_overflow(stmt_, ir_ctx);
     stmt_ = eliminate_common_subexprs(
-            stmt_, ir_ctx, hw_cfg_.regs() * hw_cfg_.grf_size());
+            stmt_, ir_ctx, exec_cfg_.regs() * exec_cfg_.grf_size());
     stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = optimize_alloc_let(stmt_, ir_ctx);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
-    int ir_usage = get_peak_grf_usage(stmt_, hw_cfg_.grf_size());
+    int ir_usage = get_peak_grf_usage(stmt_, exec_cfg_.grf_size());
     int reserved_usage = 16;
     int grf_usage = ir_usage + reserved_usage;
-    if (grf_usage > hw_cfg_.regs()) {
+    if (grf_usage > exec_cfg_.regs()) {
         ir_warning()
                 << "Estimated GRF usage is " << grf_usage
                 << " which exceeds available space, retry with a smaller tile."

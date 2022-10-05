@@ -309,16 +309,13 @@ private:
     dim_value_t rem_prb_dim_ = 0;
 };
 
-void block_helper_t::init_blocks() {
+void block_helper_t::compute() {
+    is_frozen_ = true;
     ir_assert(vectorize_by_b() || vectorize_by_n());
 
     init_bmnk_dims();
     init_bmnk_blocks();
     init_prb_blocks();
-}
-
-void block_helper_t::finalize() {
-    is_frozen_ = true;
 
 #ifdef GEN_CONV_DEBUG
     for (auto &kv : dims_) {
@@ -354,13 +351,6 @@ void block_helper_t::finalize() {
         }
         ir_assert(iter_blk % bmnk_dim(bmnk).base_iter_block() == 0);
     }
-
-    // Initialize padded dim and iter block sizes.
-    for (auto &kv : dims_) {
-        auto &d = kv.second;
-        padded_dim_sizes_.emplace(d.name(), d.padded_size());
-        iter_blocks_.emplace(d.name(), d.iter_dim());
-    }
 }
 
 void block_helper_t::init_bmnk_blocks() {
@@ -388,7 +378,7 @@ void block_helper_t::init_bmnk_blocks() {
         case fma_kind_t::mad: {
             int max_m_iter_dim = prb_max_dim('M', tile_level_t::iter);
             m_inst_blk = std::min(8, utils::rnd_down_pow2(max_m_iter_dim));
-            bn_inst_blk = hw_cfg_.vec_size();
+            bn_inst_blk = vec_size_;
             k_inst_blk = 1;
             bool use_small_m_block = hw_cfg_.hw() <= ngen::HW::XeHP
                     && m_dim().base_iter_block() == 1;
@@ -398,7 +388,7 @@ void block_helper_t::init_bmnk_blocks() {
                     && !m_dim().pref_tg_block();
             if (!m_dim().pref_tg_block())
                 m_dim().set_max_dim(tile_level_t::tg, small_m_tg ? 1 : 4);
-            bn_blk = hw_cfg_.vec_size();
+            bn_blk = vec_size_;
             k_blk = compute_mad_k_block();
             if (!allow_k_grid_slicing_ && !allow_k_tg_slicing_) {
                 do {
@@ -508,7 +498,7 @@ void block_helper_t::init_bmnk_blocks() {
     // Set thread group blocks.
     bool with_k_tg_slicing = (k_dim().tg_dim() > 1);
     if (!with_k_tg_slicing) {
-        int target_tg_size = hw_cfg_.max_tg_size();
+        int target_tg_size = max_tg_size_;
         int est_threads = 1;
         for (char bmnk : {'B', 'M', 'N'})
             est_threads *= bmnk_dim(bmnk).grid_dim();
@@ -524,9 +514,9 @@ void block_helper_t::init_bmnk_blocks() {
                     / d.iter_dim();
             //restrict maximum single tg dim as max_tg size is reduced
             return std::min(utils::rnd_down_pow2(base_tg_dim),
-                    hw_cfg_.max_tg_overriden() ? target_tg_size
+                    max_tg_overridden_ ? target_tg_size
                                     / (hw_cfg_.hw() >= ngen::HW::XeHPC ? 2 : 4)
-                                               : hw_cfg_.simd_size());
+                                       : simd_size_);
         };
 
         // Compute max thread group blocks, independently for each dimension.
@@ -611,7 +601,7 @@ void block_helper_t::init_k_blocking() {
 
     int k_nblks = utils::div_up(
             prb_blocked_dim('K').size(), k_dim().base_iter_block());
-    int tg_dim0 = min(hw_cfg_.max_tg_size(), k_dim().max_dim(tile_level_t::tg));
+    int tg_dim0 = min(max_tg_size_, k_dim().max_dim(tile_level_t::tg));
     for (int tg_dim = tg_dim0; tg_dim >= 1; tg_dim /= 2) {
         if (k_nblks % tg_dim == 0) {
             k_dim().set_thr_dim(k_nblks / tg_dim);

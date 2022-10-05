@@ -79,7 +79,7 @@ enum class kernel_id_t {
 // Kernel information, includes:
 // - Kernel identifier
 // - Kernel arguments
-// - ND-range for submission
+// - ND-range for submission (optional)
 // Kernel arguments can be of the following kinds:
 // - Internal arguments: only scalar
 //   - Examples: common output scales (contain a single value)

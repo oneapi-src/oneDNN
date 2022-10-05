@@ -221,38 +221,41 @@ private:
 // Helper class to provide GRF usage estimation.
 class grf_usage_helper_t {
 public:
-    grf_usage_helper_t(const conv_config_t &cfg) : cfg_(cfg) {
-        auto &tg_grid_dim = cfg_.tg_grid_dim;
+    grf_usage_helper_t(const conv_config_t &cfg) : prb_(cfg.prb()), cfg_(cfg) {
+        auto &tg_grid = cfg_.thread_group_grid();
 
         reg_bytes_ = cfg_.grf_size();
-        tg_size_ = tg_grid_dim[0] * tg_grid_dim[1] * tg_grid_dim[2];
-        m_tg_dim_ = tg_grid_dim[1];
-        n_tg_dim_ = tg_grid_dim[0];
+        tg_size_ = tg_grid.elems();
 
-        int m_iter_blk = utils::div_up(cfg_.m_tg_blk, tg_grid_dim[1]);
-        int n_iter_blk = utils::div_up(cfg_.n_tg_blk, tg_grid_dim[0]);
+        bmnk_dim_helper_t h(cfg_);
+        m_tg_dim_ = h.thread_group_dim('m');
+        n_tg_dim_ = h.thread_group_dim('n');
 
-        if (!cfg_.use_ow_kw_grf_cache) {
-            a_thr_elems_ = cfg_.b_blk * m_iter_blk * cfg_.k_blk;
+        int b_iter_blk = h.iter_dim('b');
+        int m_iter_blk = h.iter_dim('m');
+        int n_iter_blk = h.iter_dim('n');
+        int k_iter_blk = h.iter_dim('k');
+
+        if (!cfg_.ow_kw_grf_cache()) {
+            a_thr_elems_ = b_iter_blk * m_iter_blk * k_iter_blk;
         } else {
-            ir_assert(!cfg_.use_a_slm);
-            int a_m_blk = (cfg_.sw * (m_iter_blk - 1)
-                    + (cfg_.kw - 1) * (1 + cfg_.dw) + 1);
-            int a_k_blk = utils::div_up(cfg_.k_blk, cfg_.kw);
-            a_thr_elems_ = cfg_.b_blk * a_m_blk * a_k_blk;
+            ir_assert(!cfg_.slm().a());
+            int a_m_blk = (prb_.sw * (m_iter_blk - 1)
+                    + (prb_.kw - 1) * (1 + prb_.dw) + 1);
+            int a_k_blk = utils::div_up(k_iter_blk, prb_.kw);
+            a_thr_elems_ = b_iter_blk * a_m_blk * a_k_blk;
         }
 
-        b_thr_elems_ = cfg_.b_blk * cfg_.k_blk * n_iter_blk;
-        c_thr_elems_ = cfg_.b_blk * m_iter_blk * n_iter_blk;
+        b_thr_elems_ = b_iter_blk * n_iter_blk * k_iter_blk;
+        c_thr_elems_ = b_iter_blk * m_iter_blk * n_iter_blk;
         a_tg_elems_ = a_thr_elems_ * m_tg_dim_;
         b_tg_elems_ = b_thr_elems_ * n_tg_dim_;
-        a_sub_tile_elems_ = utils::div_up(a_thr_elems_, cfg_.a_sub_tiles);
-        b_sub_tile_elems_ = utils::div_up(b_thr_elems_, cfg_.b_sub_tiles);
+        a_sub_tile_elems_ = utils::div_up(a_thr_elems_, cfg_.sub_tiles().a());
+        b_sub_tile_elems_ = utils::div_up(b_thr_elems_, cfg_.sub_tiles().b());
+        can_reliably_use_dpasw_ = can_reliably_use_dpasw(h);
     }
 
     grf_usage_t estimate() const {
-        //int regs = 0;
-
         int max_reuse_header_regs = 0;
         int a_slm_store_payload_regs = 0;
         int b_slm_store_payload_regs = 0;
@@ -273,43 +276,43 @@ public:
         info.add(grf_usage_label_t::slm_load, slm_load_usage);
         info.add(grf_usage_label_t::reorder, reorder_usage);
         info.add(grf_usage_label_t::reused_headers, max_reuse_header_regs);
-        info.add(grf_usage_label_t::reserved, cfg_.reserved_regs);
+        info.add(grf_usage_label_t::reserved, constants::reserved_regs);
         info.add(grf_usage_label_t::zero_points, zp_usage);
         return info;
     }
 
 private:
     int estimate_c_buf_usage() const {
-        int c_bytes = c_thr_elems_ * cfg_.acc_data_type_size;
+        int c_bytes = c_thr_elems_ * prb_.acc_data_type_size;
         return utils::div_up(c_bytes, reg_bytes_);
     }
 
     int estimate_gmem_load_usage(int &max_reuse_header_regs) const {
         int regs = 0;
+        bool use_a_2d_send = can_use_a_2d_send(cfg_);
+        bool use_b_2d_send = can_use_b_2d_send(cfg_);
         for (bool is_a : {true, false}) {
             bool use_slm = ab_use_slm(is_a);
             int per_thr_elems = utils::div_up(ab_tg_elems(is_a), tg_size_);
             int load_elems
                     = (use_slm ? per_thr_elems : ab_sub_tile_elems(is_a));
             auto layout = get_gmem_layout(is_a);
-            bool use_2d_send
-                    = (is_a ? cfg_.can_use_a_2d_send : cfg_.can_use_b_2d_send);
+            bool use_2d_send = (is_a ? use_a_2d_send : use_b_2d_send);
             access_grf_usage_helper_t load(layout, load_elems, reg_bytes_,
                     /*is_slm=*/false, use_2d_send);
-            if (is_a && !use_slm && can_reliably_use_dpasw())
+            if (is_a && !use_slm && can_reliably_use_dpasw_)
                 load.enable_fused_eus_sharing();
-            int mult = (use_slm ? cfg_.gmem_bufs : 1);
+            int mult = (use_slm ? cfg_.slm().gmem_bufs() : 1);
             regs += mult * load.payload_regs();
-            if (cfg_.reuse_headers) {
+            if (cfg_.pipeline().reuse_headers()) {
                 max_reuse_header_regs = std::max(
                         max_reuse_header_regs, load.header_regs_per_msg());
             } else {
-                int sub_tiles = (is_a ? cfg_.a_sub_tiles : cfg_.b_sub_tiles);
+                int sub_tiles
+                        = (is_a ? cfg_.sub_tiles().a() : cfg_.sub_tiles().b());
                 int mult = (use_slm ? 1 : sub_tiles);
-                bool use_2d_send = (is_a ? cfg_.can_use_a_2d_send
-                                         : cfg_.can_use_b_2d_send);
                 regs += mult * load.header_regs();
-                if (cfg_.use_prefetch) {
+                if (cfg_.prefetch()) {
                     access_grf_usage_helper_t prefetch(layout, per_thr_elems,
                             reg_bytes_, /*is_slm=*/false, use_2d_send);
                     regs += prefetch.header_regs();
@@ -332,7 +335,7 @@ private:
                     /*is_slm=*/true, /*use_2d_send=*/false);
             int &payload_regs = (is_a ? a_payload_regs : b_payload_regs);
             payload_regs = store.payload_regs();
-            if (cfg_.reuse_headers) {
+            if (cfg_.pipeline().reuse_headers()) {
                 max_reuse_header_regs = std::max(
                         max_reuse_header_regs, store.header_regs_per_msg());
             } else {
@@ -351,10 +354,10 @@ private:
             auto slm_layout = dummy_slm_layout(bytes);
             access_grf_usage_helper_t load(slm_layout, bytes, reg_bytes_,
                     /*is_slm=*/true, /*use_2d_send=*/false);
-            if (is_a && can_reliably_use_dpasw())
+            if (is_a && can_reliably_use_dpasw_)
                 load.enable_fused_eus_sharing();
             regs += load.payload_regs();
-            if (cfg_.reuse_headers) {
+            if (cfg_.pipeline().reuse_headers()) {
                 max_reuse_header_regs = std::max(
                         max_reuse_header_regs, load.header_regs_per_msg());
             } else {
@@ -368,10 +371,11 @@ private:
     // Extra registers for GRF <-> GRF reorders.
     // Estimates upper bound for A/B reorders to temporary buffers.
     int estimate_reorder_usage(int a_payload_regs, int b_payload_regs) const {
-        if (!cfg_.allow_a_grf_reorder && !cfg_.allow_b_grf_reorder) return 0;
+        if (!cfg_.allow_a_grf_reorder() && !cfg_.allow_b_grf_reorder())
+            return 0;
 
         int regs = 0;
-        if (cfg_.is_bwd_w) {
+        if (prb_.is_bwd_w) {
             // Hardcode the size of the temporary reorder buffer for BWD_W to
             // avoid suboptimal performance.
             int bwd_w_reorder_regs = 16;
@@ -379,8 +383,8 @@ private:
         }
 
         for (bool is_a : {true, false}) {
-            bool allow_grf_reorder = (is_a ? cfg_.allow_a_grf_reorder
-                                           : cfg_.allow_b_grf_reorder);
+            bool allow_grf_reorder = (is_a ? cfg_.allow_a_grf_reorder()
+                                           : cfg_.allow_b_grf_reorder());
             if (!allow_grf_reorder) continue;
             int reorder_regs = 0;
             if (ab_use_slm(is_a)) {
@@ -397,15 +401,12 @@ private:
     }
 
     int estimate_zero_point_usage() const {
-        if (!cfg_.zp_cfg.do_src_compensation) return 0;
+        if (!prb_.zp_cfg.do_src_compensation) return 0;
         int sp_iter_dim = 1;
         for (auto *name : {"ow", "iw", "osp"}) {
-            if (cfg_.bh->has_dim(name)) {
-                sp_iter_dim = cfg_.bh->iter_dim(name);
-                break;
-            }
+            sp_iter_dim *= cfg_.iter_dim(name);
         }
-        int sub_tiles = cfg_.a_sub_tiles * cfg_.b_sub_tiles;
+        int sub_tiles = cfg_.sub_tiles().a() * cfg_.sub_tiles().b();
         int zp_mask0_regs = 2
                 * utils::div_up(
                         sp_iter_dim * (int)sizeof(uint32_t), reg_bytes_);
@@ -420,9 +421,9 @@ private:
     }
 
     layout_t get_gmem_layout(bool is_a) const {
-        auto layout = (is_a ? cfg_.a_layout() : cfg_.b_layout());
-        bool is_src_dst = is_a || cfg_.is_bwd_w;
-        if (is_src_dst && cfg_.is_dw) {
+        auto layout = (is_a ? cfg_.a_layout() : cfg_.b_layout()).compute();
+        bool is_src_dst = is_a || prb_.is_bwd_w;
+        if (is_src_dst && prb_.is_dw) {
             auto &blocks = layout.blocks();
             if (!blocks.empty()) {
                 auto &b0 = blocks[0];
@@ -441,8 +442,8 @@ private:
     }
 
     int ab_type_size(bool is_a) const {
-        auto ret = is_a ? cfg_.a_data_type_size : cfg_.b_data_type_size;
-        if (cfg_.is_s32_accumulator() && cfg_.fma_kind == fma_kind_t::mad) {
+        auto ret = is_a ? prb_.a_data_type_size : prb_.b_data_type_size;
+        if (prb_.is_s32_accumulator() && cfg_.fma_kind() == fma_kind_t::mad) {
             // s8/u8 is converted to dword-strided word for mad.
             ir_assert(ret == 1);
             ret = 4;
@@ -463,20 +464,23 @@ private:
     }
 
     int ab_use_slm(bool is_a) const {
-        return is_a ? cfg_.use_a_slm : cfg_.use_b_slm;
+        return is_a ? cfg_.slm().a() : cfg_.slm().b();
     }
 
-    bool can_reliably_use_dpasw() const {
-        if (cfg_.fma_kind != fma_kind_t::dpasw) return false;
-        if (!cfg_.use_a_slm) return false;
-        int m_tg_bytes = cfg_.m_tg_blk * cfg_.a_data_type_size;
+    bool can_reliably_use_dpasw(const bmnk_dim_helper_t &h) {
+        if (cfg_.fma_kind() != fma_kind_t::dpasw) return false;
+        if (!cfg_.slm().a()) return false;
+        int m_tg_bytes = h.thread_group_dim('m') * h.iter_dim('m')
+                * prb_.a_data_type_size;
         int m_thr_bytes
-                = ir_utils::safe_divide(m_tg_bytes, cfg_.tg_grid_dim[1]);
+                = ir_utils::safe_divide(m_tg_bytes, h.thread_group_dim('m'));
         int owordx16_size = 256;
-        if (cfg_.a_layout().innermost_block_layout().size() < owordx16_size)
+        if (cfg_.a_layout().compute().innermost_block_layout().size()
+                < owordx16_size)
             return false;
-        if (m_thr_bytes * cfg_.k_blk % owordx16_size != 0) return false;
-        int nmsgs = m_thr_bytes * cfg_.k_blk / owordx16_size;
+        int k_iter_blk = h.iter_dim('k');
+        if (m_thr_bytes * k_iter_blk % owordx16_size != 0) return false;
+        int nmsgs = m_thr_bytes * k_iter_blk / owordx16_size;
         if (nmsgs % 2 != 0) return false;
         return true;
     }
@@ -492,6 +496,7 @@ private:
         return layout_t(type_t::byte(), 2, 0, blocks, /*do_normalize=*/false);
     }
 
+    const conv_problem_t &prb_;
     const conv_config_t &cfg_;
 
     int reg_bytes_;
@@ -505,6 +510,7 @@ private:
     int c_thr_elems_;
     int a_sub_tile_elems_;
     int b_sub_tile_elems_;
+    bool can_reliably_use_dpasw_;
 };
 
 grf_usage_t estimate_grf_usage(const conv_config_t &cfg) {
@@ -748,24 +754,24 @@ grf_usage_t get_grf_usage(const stmt_t &body, int grf_size) {
     return analyzer.get_grf_usage(0);
 }
 
-void compare(const grf_usage_t &cfg_usage, const grf_usage_t &ir_usage,
+void compare(const grf_usage_t &est_usage, const grf_usage_t &ir_usage,
         const ir_usage_analyzer_t &analyzer) {
     std::vector<std::string> headers
             = {"Label", "Estimated regs", "IR regs", "Status"};
     ir_utils::table_t table("Compare GRF usage:", headers);
-    int cfg_total = 0;
+    int est_total = 0;
     int ir_total = 0;
     for (auto label : all_grf_usage_labels()) {
-        int cfg_regs = cfg_usage.get(label);
+        int est_regs = est_usage.get(label);
         int ir_regs = ir_usage.get(label);
-        table << "  " + to_string(label) << cfg_regs << ir_regs;
-        table << (ir_regs > cfg_regs ? "FAIL" : "");
+        table << "  " + to_string(label) << est_regs << ir_regs;
+        table << (ir_regs > est_regs ? "FAIL" : "");
         table << std::endl;
-        cfg_total += cfg_regs;
+        est_total += est_regs;
         ir_total += ir_regs;
     }
-    table << "  Total" << cfg_total << ir_total;
-    table << (ir_total > cfg_total ? "FAIL" : "");
+    table << "  Total" << est_total << ir_total;
+    table << (ir_total > est_total ? "FAIL" : "");
     table << std::endl;
     ir_trace() << table << std::endl;
     ir_trace() << ir_usage.buf_usage() << std::endl;
@@ -773,13 +779,12 @@ void compare(const grf_usage_t &cfg_usage, const grf_usage_t &ir_usage,
 
 void verify_grf_usage(
         const conv_config_t &cfg, const stmt_t &body, int external_usage) {
-    int grf_size = ngen::GRF::bytes(cfg.hw());
-    ir_usage_analyzer_t analyzer(grf_size);
+    ir_usage_analyzer_t analyzer(cfg.grf_size());
     analyzer.analyze(body);
 
     auto ir_info = analyzer.get_grf_usage(external_usage);
-    auto cfg_info = estimate_grf_usage(cfg);
-    compare(cfg_info, ir_info, analyzer);
+    auto est_info = estimate_grf_usage(cfg);
+    compare(est_info, ir_info, analyzer);
 }
 
 } // namespace jit
