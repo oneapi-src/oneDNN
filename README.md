@@ -1,9 +1,11 @@
 oneAPI Deep Neural Network Library (oneDNN)
 ===========================================
 
-> This software was previously known as
-> **Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)**
-> and **Deep Neural Network Library (DNNL)**.
+> **WARNING**
+>
+> This branch includes backward incompatible changes towards oneDNN v3.0 release:
+> * [Memory and primitive descriptors refactoring](https://github.com/densamoilov/oneDNN/tree/dsamoylo/rfcs/make-opdesc-and-md-opaque/rfcs/20220608-make-opdesc-and-md-opaque)
+> * [API cleanup](https://github.com/dzarukin/oneDNN/tree/dzarukin/rfcs/v3_cleanup/rfcs/20220815-v3.0-API-cleanup)
 
 <img align="left" src="https://spec.oneapi.io/oneapi-logo-white-scaled.jpg" alt="oneAPI logo">
 
