@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 * Copyright 2018 YANDEX LLC
 * Copyright 2020-2022 FUJITSU LIMITED
 *
@@ -23,11 +23,10 @@
 #include <functional>
 #include <memory>
 
-#include "common/c_types_map.hpp"
-#include "common/type_helpers.hpp"
-#include "common/utils.hpp"
-#include "cpu/aarch64/jit_generator.hpp"
+#include "common/memory_tracking.hpp"
 
+#include "cpu/aarch64/injectors/jit_uni_postops_injector.hpp"
+#include "cpu/aarch64/jit_generator.hpp"
 #include "cpu/aarch64/jit_primitive_conf.hpp"
 
 using namespace Xbyak_aarch64;
@@ -48,8 +47,8 @@ struct jit_uni_pool_kernel : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_pool_kernel)
 
     static status_t init_conf(jit_pool_conf_t &jbp,
-            memory_tracking::registrar_t &scratchpad, const pooling_pd_t *ppd,
-            int nthreads);
+            memory_tracking::registrar_t &scratchpad, primitive_attr_t &attr,
+            const pooling_pd_t *ppd);
 
 private:
     using TReg = typename cpu_isa_traits<isa>::TReg;
@@ -90,14 +89,15 @@ private:
 
     ZReg z_tmp0 = z4;
 
-    PReg k_c_tail_mask = p4;
+    PReg k_c_tail_mask_s = p4;
+    PReg k_c_tail_mask_s_not = p2;
+    PReg k_c_tail_mask_b = p7;
     PReg k_mask_cvt = p5;
     PReg k_store_mask = p6;
 
     /* Caution: Chose predicate registers not used by x64's implementation. */
     PReg p_all_zero = p1;
     PReg p_tmp0 = p3;
-    PReg p_lsb = P_ALL_ONE;
 
     using xreg_t = const XReg;
     xreg_t reg_param = x0;
@@ -110,7 +110,7 @@ private:
     xreg_t kj = x14;
     xreg_t oi_iter = x15;
     xreg_t reg_kh = x7;
-    xreg_t reg_k_shift = x3;
+    const WReg reg_k_shift = w3;
     xreg_t tmp_gpr = x6;
     xreg_t reg_ker_area_h = x2;
     xreg_t reg_nbc = x1;
@@ -122,16 +122,9 @@ private:
     xreg_t ki = x12;
     xreg_t aux_reg_input_d = x4;
 
-    xreg_t aux_xreg_input = x5;
-    xreg_t xreg_output = x12;
-    xreg_t xreg_index = x10;
-    xreg_t xreg_zero_ptr = x5;
-
     int prev_kw;
 
     void prepare_tail_mask();
-    void put_one_in_vmm();
-    void uni_broadcast_reg_val(const int reg_idx, const int vmm_idx);
     void push_vmm_val(const int idx);
     void pop_vmm_val(const int idx);
     void load(const int idx, const xreg_t &reg_ptr, const int offset,
@@ -165,8 +158,14 @@ private:
 
     void generate() override;
 
+    void apply_postops(int ur_bc, int ur_w, int c_block,
+            const std::function<bool(int)> &is_tail_predicate);
+
     static bool post_ops_ok(jit_pool_conf_t &jpp, const primitive_attr_t &attr,
             const memory_desc_wrapper &dst_d);
+
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+            postops_injector_;
 };
 
 } // namespace aarch64

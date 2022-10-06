@@ -52,6 +52,7 @@ struct prb_t {
     ptrdiff_t ooff;
     scale_type_t scale_type;
     float beta;
+    int full_ndims;
 };
 
 status_t prb_init(prb_t &prb, const memory_desc_t &imd,

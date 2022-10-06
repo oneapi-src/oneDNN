@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2017-2022 Intel Corporation
+* Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
 #ifndef CPU_AARCH64_JIT_UNI_POOLING_HPP
 #define CPU_AARCH64_JIT_UNI_POOLING_HPP
 
@@ -26,9 +27,10 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_pooling_pd.hpp"
+
 #include "cpu/aarch64/jit_uni_pool_kernel.hpp"
 #include "cpu/aarch64/jit_uni_reorder.hpp"
-#include "cpu/cpu_pooling_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -51,13 +53,12 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace utils;
 
-            const bool ok = true && set_default_params() == status::success
-                    && is_fwd() && !has_zero_dim_memory()
+            const bool ok = is_fwd() && !has_zero_dim_memory()
                     && everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, d_type)
-                    && !is_dilated();
+                    && !is_dilated() && set_default_params() == status::success;
             if (!ok) return status::unimplemented;
 
             const bool is_training
@@ -66,8 +67,11 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
                 init_default_ws();
 
             auto scratchpad = scratchpad_registry().registrar();
-            return jit_uni_pool_kernel<isa>::init_conf(
-                    jpp_, scratchpad, this, dnnl_get_max_threads());
+
+            CHECK(jit_uni_pool_kernel<isa>::init_conf(
+                    jpp_, scratchpad, attr_, this));
+
+            return status::success;
         }
 
         jit_pool_conf_t jpp_;
@@ -83,12 +87,9 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        status_t status = status::success;
         auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-        auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
-        CHECK(status);
-        auto ws = CTX_OUT_CLEAN_MEM(char *, DNNL_ARG_WORKSPACE, status);
-        CHECK(status);
+        auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+        auto ws = CTX_OUT_MEM(char *, DNNL_ARG_WORKSPACE);
 
         if (pd()->ndims() == 5)
             execute_forward_3d(src, dst, ws, ctx);
@@ -133,9 +134,13 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
                 init_default_ws();
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
+
             auto scratchpad = scratchpad_registry().registrar();
-            return jit_uni_pool_kernel<isa>::init_conf(
-                    jpp_, scratchpad, this, dnnl_get_max_threads());
+
+            CHECK(jit_uni_pool_kernel<isa>::init_conf(
+                    jpp_, scratchpad, attr_, this));
+
+            return status::success;
         }
 
         jit_pool_conf_t jpp_;
@@ -151,11 +156,9 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
     status_t init(engine_t *engine) override;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        status_t status = status::success;
         auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
         auto ws = CTX_IN_MEM(const char *, DNNL_ARG_WORKSPACE);
-        auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
-        CHECK(status);
+        auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
         if (pd()->ndims() == 5)
             execute_backward_3d(diff_dst, ws, diff_src, ctx);
