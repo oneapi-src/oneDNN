@@ -694,6 +694,8 @@ void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
     if (src_stride == 0) return;
 
     bool is_xf = ngen_is_xf(src.type()) || ngen_is_xf(dst.type());
+    bool is_bf_to_f = (src.type() == ngen::DataType::bf)
+            && (dst.type() == ngen::DataType::f);
     int src_type_size = ngen::getBytes(src.type());
     int src_off = src.offset();
     int dst_off = dst.offset();
@@ -701,7 +703,7 @@ void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
     int dst_byte_off = dst.byte_offset();
 
     // If src is aligned with dst, return.
-    if (is_xf && src_off == dst_off) return;
+    if ((is_xf || is_bf_to_f) && src_off == dst_off) return;
     if (!is_xf && src_byte_off == dst_byte_off) return;
 
     int new_src_byte_off = (is_xf ? dst_off * src_type_size : dst_byte_off);
