@@ -37,6 +37,31 @@ if(NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT" AND DNNL_SYCL_HIP)
     message(FATAL_ERROR "DNNL_DPCPP_HOST_COMPILER options is not supported for AMD.")
 endif()
 
+# Link SYCL library explicitly for open-source compiler on Windows.
+# In other cases, the compiler is able to automatically link it.
+if(WIN32 AND CMAKE_BASE_NAME STREQUAL "clang++")
+    # TODO: we can drop this workaround once an open-source release
+    # for Windows has a fix for the issue.
+    foreach(sycl_lib_version 6 "")
+        if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+            set(SYCL_LIBRARY_NAME "sycl${sycl_lib_version}d")
+        else()
+            set(SYCL_LIBRARY_NAME "sycl${sycl_lib_version}")
+        endif()
+
+        find_library(SYCL_LIBRARY ${SYCL_LIBRARY_NAME})
+
+        if(EXISTS "${SYCL_LIBRARY}")
+            list(APPEND EXTRA_SHARED_LIBS ${SYCL_LIBRARY})
+            set(SYCL_LIBRARY_FOUND TRUE)
+            break()
+        endif()
+    endforeach()
+    if(NOT SYCL_LIBRARY_FOUND)
+        message(FATAL_ERROR "Cannot find a SYCL library")
+    endif()
+endif()
+
 if(DNNL_SYCL_CUDA)
     # XXX: Suppress warning coming from SYCL headers:
     #   error: use of function template name with no prior declaration in
