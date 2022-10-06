@@ -29,16 +29,6 @@ endif()
 include(FindPackageHandleStandardArgs)
 include("cmake/dpcpp_driver_check.cmake")
 
-# Explicitly link against sycl as Intel oneAPI DPC++ Compiler does not
-# always do it implicitly.
-if(WIN32)
-    list(APPEND EXTRA_SHARED_LIBS
-        $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithMDd>>:sycld>
-        $<$<AND:$<NOT:$<CONFIG:Debug>>,$<NOT:$<CONFIG:RelWithMDd>>>:sycl>)
-else()
-    list(APPEND EXTRA_SHARED_LIBS sycl)
-endif()
-
 if(NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT" AND DNNL_SYCL_CUDA)
     message(FATAL_ERROR "DNNL_DPCPP_HOST_COMPILER options is not supported for NVIDIA.")
 endif()
