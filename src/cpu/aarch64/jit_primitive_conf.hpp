@@ -453,6 +453,7 @@ struct jit_pool_conf_t {
 
     int dt_size;
     bool is_bf16;
+    bool is_f16;
     jit_memory_tag_kind_t tag_kind;
     bool is_plain() const {
         return (tag_kind == jit_memory_tag_kind_t::ncsp
@@ -464,6 +465,8 @@ struct jit_pool_conf_t {
     bool with_postops;
     bool with_eltwise;
     bool with_binary;
+    int nthr;
+    memory_desc_t tmp_md;
 };
 
 struct jit_pool_call_s {
@@ -474,7 +477,8 @@ struct jit_pool_call_s {
     const void *dst_prf;
     const void *indices_prf;
     const void *post_ops_binary_rhs_arg_vec;
-    size_t c_elem_off;
+    const void *dst_orig;
+    const void *dst_po_helper;
     size_t zero_ih;
     size_t zero_id;
     const void *zero_ptr;
