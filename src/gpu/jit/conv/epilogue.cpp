@@ -1049,7 +1049,7 @@ int find_tile_size(const hw_config_t &hw_cfg,
         int total_size = c_size + po_size;
         int available_size
                 = hw_cfg.regs() * hw_cfg.grf_size() - (int)c_reg_layout.size();
-        if (total_size <= available_size * 0.75) return tile_size;
+        if (total_size <= available_size * 0.7) return tile_size;
     }
     ir_error_not_expected();
     return -1;
