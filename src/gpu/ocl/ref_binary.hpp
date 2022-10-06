@@ -46,8 +46,9 @@ struct ref_binary_t : public gpu_primitive_t {
             const auto attr_skip_mask = sm::post_ops | sm::scales_runtime;
 
             bool ok = set_default_params() == status::success
-                    && (utils::everyone_is(bf16, src_md(0)->data_type,
-                                src_md(1)->data_type, dst_md()->data_type)
+                    && ((utils::everyone_is(bf16, src_md(0)->data_type,
+                                 src_md(1)->data_type)
+                                && utils::one_of(dst_md()->data_type, bf16, u8))
                             || (utils::one_of(
                                         src_md(0)->data_type, f16, f32, s8, u8)
                                     && utils::one_of(src_md(1)->data_type, f16,
@@ -60,7 +61,11 @@ struct ref_binary_t : public gpu_primitive_t {
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(
                             attr(), dst_md()->data_type, MAX_NDIMS)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
+                    && attr_.set_default_formats(dst_md(0)) == status::success
+                    && !(attr()->post_ops_.len() > 0
+                            && src_md(0)->data_type == bf16
+                            && src_md(1)->data_type == bf16
+                            && dst_md()->data_type == u8);
 
             if (!ok) return status::unimplemented;
 
