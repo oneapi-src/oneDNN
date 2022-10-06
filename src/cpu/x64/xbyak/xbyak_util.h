@@ -458,6 +458,8 @@ public:
 	static const Type tCLDEMOTE;
 	static const Type tMOVDIRI;
 	static const Type tMOVDIR64B;
+	static const Type tAVX_VNNI_INT8;
+	static const Type tAVX_NE_CONVERT;
 
 	CpuT()
 		: type_(NONE)
@@ -592,6 +594,8 @@ public:
 				if (type_ & tAVX512F) {
 					if (EAX & (1U << 5)) type_ |= tAVX512_BF16;
 				}
+				if (EDX & (1U << 4)) type_ |= tAVX_VNNI_INT8;
+				if (EDX & (1U << 5)) type_ |= tAVX_NE_CONVERT;
 			}
 		}
 		setFamily();
@@ -685,7 +689,8 @@ template<int dummy> const Type CpuT<dummy>::tCLFLUSHOPT = uint64_t(1) << 63;
 template<int dummy> const Type CpuT<dummy>::tCLDEMOTE = Type(0, 1 << 0);
 template<int dummy> const Type CpuT<dummy>::tMOVDIRI = Type(0, 1 << 1);
 template<int dummy> const Type CpuT<dummy>::tMOVDIR64B = Type(0, 1 << 2);
-
+template<int dummy> const Type CpuT<dummy>::tAVX_VNNI_INT8 = Type(0, 1 << 3);
+template<int dummy> const Type CpuT<dummy>::tAVX_NE_CONVERT = Type(0, 1 << 4);
 } // local
 
 typedef local::CpuT<> Cpu;
