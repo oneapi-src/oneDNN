@@ -28,22 +28,13 @@
 #error "Unsupported compiler"
 #endif
 
-#if DNNL_USE_SYCL121_API
-#include <CL/sycl/backend/level_zero.hpp>
-#else
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-#endif
 
 #include "common/utils.hpp"
 #include "gpu/compute/device_info.hpp"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_engine_base.hpp"
-
-#if DNNL_USE_SYCL121_API
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#endif
 
 namespace dnnl {
 namespace impl {
@@ -57,7 +48,6 @@ namespace compat {
 using namespace gpu::compute;
 
 namespace {
-#if !DNNL_USE_SYCL121_API
 status_t get_kernel_from_bundle(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const ::sycl::kernel_bundle<::sycl::bundle_state::executable>
                 &kernel_bundle,
@@ -104,18 +94,12 @@ status_t get_kernel_from_bundle(std::unique_ptr<::sycl::kernel> &sycl_kernel,
     }
     return status::success;
 }
-#endif
 
 template <typename T>
 status_t cache_program(
         const binary_t *binary, const T &program, program_list_t *programs) {
     if (!programs) return status::success;
 
-#if DNNL_USE_SYCL121_API
-    static_assert(std::is_same<T, ::sycl::program>::value,
-            "This function expects sycl::program when SYCL 2017 API is used");
-    programs->add(binary, new T(program));
-#else
     static_assert(
             std::is_same<T,
                     ::sycl::kernel_bundle<::sycl::bundle_state::executable>>::
@@ -123,25 +107,16 @@ status_t cache_program(
             "This function expects sycl::kernel_bundle when SYCL 2020 API is "
             "used");
     programs->add(binary, new T(program));
-#endif
     return status::success;
 }
 
 template <typename sycl_object_t>
 void *get_native_impl(backend_t backend, const sycl_object_t &sycl_object) {
     if (backend == backend_t::opencl) {
-#if DNNL_USE_SYCL121_API
-        return sycl_object.template get_native<::sycl::backend::opencl>();
-#else
         return ::sycl::get_native<::sycl::backend::opencl>(sycl_object);
-#endif
     } else if (backend == backend_t::level0) {
-#if DNNL_USE_SYCL121_API
-        return sycl_object.template get_native<::sycl::backend::level_zero>();
-#else
         return ::sycl::get_native<::sycl::backend::ext_oneapi_level_zero>(
                 sycl_object);
-#endif
     } else {
         assert(!"unexpected");
         return nullptr;
@@ -174,14 +149,6 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
     if (backend == backend_t::opencl) {
         gpu::ocl::ocl_wrapper_t<cl_program> ocl_program(
                 reinterpret_cast<cl_program>(native_program_handle));
-#if DNNL_USE_SYCL121_API
-        auto sycl_program = ::sycl::opencl::make<::sycl::program>(
-                sycl_engine->context(), ocl_program.release());
-
-        sycl_kernel = utils::make_unique<::sycl::kernel>(
-                sycl_program.get_kernel(kernel_name));
-        CHECK(cache_program(binary, sycl_program, programs));
-#else
         cl_int err;
         cl_kernel ocl_kernel
                 = clCreateKernel(ocl_program, kernel_name.c_str(), &err);
@@ -200,17 +167,9 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
             CHECK(cache_program(binary, kernel_bundle, programs));
         }
 
-#endif
     } else if (backend == backend_t::level0) {
         ze_module_handle_t ze_module
                 = reinterpret_cast<ze_module_handle_t>(native_program_handle);
-#if DNNL_USE_SYCL121_API
-        auto sycl_program = ::sycl::level_zero::make<::sycl::program>(
-                sycl_engine->context(), ze_module);
-        sycl_kernel = utils::make_unique<::sycl::kernel>(
-                sycl_program.get_kernel(kernel_name));
-        CHECK(cache_program(binary, sycl_program, programs));
-#else
         ::sycl::kernel_bundle<::sycl::bundle_state::executable> kernel_bundle
                 = ::sycl::make_kernel_bundle<
                         ::sycl::backend::ext_oneapi_level_zero,
@@ -227,7 +186,6 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         auto k = ::sycl::make_kernel<::sycl::backend::ext_oneapi_level_zero>(
                 {kernel_bundle, ze_kernel}, sycl_engine->context());
         sycl_kernel = utils::make_unique<::sycl::kernel>(k);
-#endif
     } else {
         assert(!"unexpected");
         return status::invalid_arguments;
@@ -240,44 +198,24 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const binary_t *binary, const program_list_t *programs) {
     if (!programs) return status::success;
 
-#if DNNL_USE_SYCL121_API
-    auto *p = programs->get<::sycl::program *>(binary);
-    if (p) {
-        sycl_kernel = utils::make_unique<::sycl::kernel>(
-                p->get_kernel(kernel_name));
-        if (!sycl_kernel) return status::out_of_memory;
-    }
-#else
     auto *kb = programs->get<
             ::sycl::kernel_bundle<::sycl::bundle_state::executable> *>(binary);
     if (kb) {
         CHECK(get_kernel_from_bundle(
                 sycl_kernel, *kb, kernel_name, sycl_engine));
     }
-#endif
     return status::success;
 }
 
 std::function<void(void *)> get_program_list_deleter() {
-#if DNNL_USE_SYCL121_API
-    return [](void *p) { delete reinterpret_cast<::sycl::program *>(p); };
-#else
     return [](void *p) {
         delete reinterpret_cast<
                 ::sycl::kernel_bundle<::sycl::bundle_state::executable> *>(p);
     };
-#endif
 }
 
 uint64_t init_extensions(const ::sycl::device &dev) {
     uint64_t extensions = 0;
-#if DNNL_USE_SYCL121_API
-    for (uint64_t i_ext = 1; i_ext < (uint64_t)device_ext_t::last;
-            i_ext <<= 1) {
-        const char *s_ext = ext2cl_str((device_ext_t)i_ext);
-        if (s_ext && dev.has_extension(s_ext)) { extensions |= i_ext; }
-    }
-#else
 
 // The compiler marks `int64_base_atomics` and `int64_extended_atomics`
 // as deprecated but hasn't implemented the `aspect::atomic64` replacement yet.
@@ -320,14 +258,8 @@ uint64_t init_extensions(const ::sycl::device &dev) {
         if (is_ext_supported) extensions |= i_ext;
     }
 #pragma clang diagnostic pop
-
-#endif
     return extensions;
 }
-
-#if DNNL_USE_SYCL121_API
-#pragma clang diagnostic pop
-#endif
 
 } // namespace compat
 } // namespace sycl
