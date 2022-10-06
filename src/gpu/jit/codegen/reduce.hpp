@@ -29,10 +29,11 @@ namespace jit {
 
 class reduce_impl_t {
 public:
-    reduce_impl_t(ngen::HW hw, const reduce_t &reduce)
+    reduce_impl_t(ngen::HW hw, const reduce_t &reduce, int simd_size)
         : hw_(hw)
         , src_layout_(reduce.src_layout)
-        , dst_layout_(reduce.dst_layout) {}
+        , dst_layout_(reduce.dst_layout)
+        , simd_size_(simd_size) {}
 
     template <typename GeneratorT>
     void emit(GeneratorT *host, ngen_register_scope_t &scope,
@@ -54,6 +55,7 @@ public:
         auto src_tile_layout = src_layout_.map(tile);
         auto src_tile_blocks = src_tile_layout.blocks();
         ir_assert(src_tile_blocks.size() <= 1);
+        ngen_register_scope_t block_scope(scope.register_allocator());
         int src_stride
                 = src_tile_blocks.empty() ? 1 : (int)src_tile_blocks[0].stride;
         int grf_size = ngen::GRF::bytes(hw_);
@@ -136,7 +138,7 @@ private:
         int min_step = std::min(a_grf_elems, b_grf_elems);
         int max_step = 2 * min_step;
 
-        min_step = std::min(8, min_step);
+        min_step = std::min(std::min(simd_size_, min_step), (int)a0.block);
 
         ir_assert(a0.block % min_step == 0) << "Reduction is not supported.";
 
@@ -150,6 +152,7 @@ private:
     ngen::HW hw_;
     layout_t src_layout_;
     layout_t dst_layout_;
+    int simd_size_;
 };
 
 } // namespace jit
