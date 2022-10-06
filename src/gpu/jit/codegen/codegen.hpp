@@ -593,7 +593,7 @@ private:
         auto &src_op = reduce_t::arg_src_buf(args);
         auto &dst_op = reduce_t::arg_dst_buf(args);
 
-        reduce_impl_t reduce_impl(hw, reduce_func);
+        reduce_impl_t reduce_impl(hw, reduce_func, simd_size_);
         reduce_impl.emit(
                 host_, scope, src_op.reg_buf_data(), dst_op.reg_buf_data());
     }
