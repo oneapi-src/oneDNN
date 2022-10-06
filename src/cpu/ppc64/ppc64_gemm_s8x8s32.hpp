@@ -20,83 +20,6 @@
 namespace dnnl {
 namespace impl {
 
-static inline void memcpy_4(void *__restrict d, const void *__restrict s) {
-    int *di, *si;
-    di = (int *)(d);
-    si = (int *)(s);
-    di[0] = si[0];
-}
-
-static inline void memcpy_14(void *__restrict d, const void *__restrict s) {
-    int *di, *si;
-    di = (int *)(d);
-    si = (int *)(s);
-    di[0] = si[0];
-    di[1] = si[1];
-    di[2] = si[2];
-    *(short *)&di[3] = *(short *)&si[3];
-}
-
-static inline void memcpy_16(void *__restrict d, const void *__restrict s) {
-    int *di, *si;
-    di = (int *)(d);
-    si = (int *)(s);
-    di[0] = si[0];
-    di[1] = si[1];
-    di[2] = si[2];
-    di[3] = si[3];
-}
-
-static inline void memcpy_32(void *__restrict d, const void *__restrict s) {
-    int *di, *si;
-    di = (int *)(d);
-    si = (int *)(s);
-    di[0] = si[0];
-    di[1] = si[1];
-    di[2] = si[2];
-    di[3] = si[3];
-    di[4] = si[4];
-    di[5] = si[5];
-    di[6] = si[6];
-    di[7] = si[7];
-}
-
-static inline void memcpy_64(void *__restrict d, const void *__restrict s) {
-    int *di, *si;
-    di = (int *)(d);
-    si = (int *)(s);
-    di[0] = si[0];
-    di[1] = si[1];
-    di[2] = si[2];
-    di[3] = si[3];
-    di[4] = si[4];
-    di[5] = si[5];
-    di[6] = si[6];
-    di[7] = si[7];
-    di[8] = si[8];
-    di[9] = si[9];
-    di[10] = si[10];
-    di[11] = si[11];
-    di[12] = si[12];
-    di[13] = si[13];
-    di[14] = si[14];
-    di[15] = si[15];
-}
-
-static inline void memcpy_n(
-        void *__restrict d, const void *__restrict s, int n) {
-    int i, *di, *si;
-    int8_t *dc, *sc;
-    di = (int *)(d);
-    si = (int *)(s);
-    for (i = 0; i < (n >> 2); ++i)
-        di[i] = si[i];
-    dc = (int8_t *)&di[n >> 3];
-    sc = (int8_t *)&si[n >> 3];
-    for (i = 0; i < (n & 3); ++i)
-        dc[i] = sc[i];
-}
-
 uint64_t mker;
 
 typedef __vector signed long long vec_i64 __attribute__((aligned(8)));
@@ -105,11 +28,11 @@ typedef __vector unsigned char vec_t;
 typedef __vector signed char vec_st;
 
 int pack_N16_16bit(dim_t k, dim_t m, short *a, dim_t lda, short *ap) {
-    int i, j;
-    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
+    int32_t i, j;
+    int32_t kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
             chunk4count, k8, m4, m16;
-    int m_cap = (m + 3) & ~3;
-    int k_cap = (k + 1) & ~1;
+    int32_t m_cap = (m + 3) & ~3;
+    int32_t k_cap = (k + 1) & ~1;
     krows = (k + 1) >> 1;
     mrows = (m + 3) >> 2;
     block4 = 4 * krows;
@@ -270,11 +193,11 @@ int pack_N16_16bit(dim_t k, dim_t m, short *a, dim_t lda, short *ap) {
 }
 
 int pack_T16_16bit(dim_t k, dim_t m, short *a, dim_t lda, short *ap) {
-    int i, j;
-    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
+    int32_t i, j;
+    int32_t kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
             chunk4count, k4, m8, m16;
-    int m_cap = (m + 3) & ~3;
-    int k_cap = (k + 1) & ~1;
+    int32_t m_cap = (m + 3) & ~3;
+    int32_t k_cap = (k + 1) & ~1;
     krows = (k + 1) >> 1;
     mrows = (m + 3) >> 2;
     block4 = 4 * krows;
@@ -434,10 +357,10 @@ int pack_T16_16bit(dim_t k, dim_t m, short *a, dim_t lda, short *ap) {
 }
 
 int pack_T8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
-    int i, j;
-    int kcell, cell, koff, noff, krows, k4, n8, n16;
-    int n_cap = (n + 3) & ~3;
-    int k_cap = (k + 1) & ~1;
+    int32_t i, j;
+    int32_t kcell, cell, koff, noff, krows, k4, n8, n16;
+    int32_t n_cap = (n + 3) & ~3;
+    int32_t k_cap = (k + 1) & ~1;
     krows = (k + 1) >> 1;
     k4 = (k >> 2) << 2;
     n8 = (n >> 3) << 3;
@@ -483,7 +406,7 @@ int pack_T8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
             *(vec_t *)&dst2367[24] = D7;
         }
         for (j = n16; j < n8; j += 8) {
-            int columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
             short *dst = &bp[8 * (columns_done * krows + (i & (~1)))];
             vec_t V0, V1, V2, V3;
             vec_t D0, D1, D2, D3;
@@ -513,10 +436,10 @@ int pack_T8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
         for (j = n8; j < n_cap; ++j) {
             kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 1;
             noff = j & 3;
@@ -532,10 +455,10 @@ int pack_T8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
         for (j = 0; j < n8; ++j) {
             kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 1;
             noff = j & 3;
@@ -551,10 +474,10 @@ int pack_T8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
         for (j = n8; j < n_cap; ++j) {
             kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 1;
             noff = j & 3;
@@ -568,10 +491,10 @@ int pack_T8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
 }
 
 int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
-    int i, j;
-    int kcell, cell, koff, noff, krows, k8, k16, n4, n8;
-    int n_cap = (n + 3) & ~3;
-    int k_cap = (k + 1) & ~1;
+    int32_t i, j;
+    int32_t kcell, cell, koff, noff, krows, k8, k16, n4, n8;
+    int32_t n_cap = (n + 3) & ~3;
+    int32_t k_cap = (k + 1) & ~1;
     krows = (k + 1) >> 1;
     k8 = (k >> 3) << 3;
     k16 = (k >> 4) << 4;
@@ -582,8 +505,8 @@ int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
     for (j = 0; j < n8; j += 4) {
         for (i = 0; i < k16; i += 16) {
             kcell = i >> 1; // 0, 1, 2, 3
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             koff = i & 1;
             noff = j & 3;
             short *dst = &bp[8 * (columns_done * krows + kcell * 2 + j_hiflag)];
@@ -637,8 +560,8 @@ int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
         }
         for (i = k16; i < k8; i += 8) {
             kcell = i >> 1; // 0, 1, 2, 3
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             koff = i & 1;
             noff = j & 3;
             short *dst = &bp[8 * (columns_done * krows + kcell * 2 + j_hiflag)];
@@ -679,10 +602,10 @@ int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
     for (j = n8; j < n4; ++j) {
         for (i = 0; i < k8; ++i) {
             kcell = i >> 1;
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 1;
             noff = j & 3;
@@ -695,10 +618,10 @@ int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
         for (i = 0; i < k8; ++i) {
             kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 1;
             noff = j & 3;
@@ -714,10 +637,10 @@ int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
         for (i = k8; i < k_cap; ++i) {
             kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 1;
             noff = j & 3;
@@ -733,10 +656,10 @@ int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
         for (i = k8; i < k_cap; ++i) {
             kcell = i >> 1;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 1;
             noff = j & 3;
@@ -750,10 +673,10 @@ int pack_N8_16bit(dim_t k, dim_t n, short *b, dim_t ldb, short *bp) {
 }
 
 int pack_T16_8bit(dim_t k, dim_t m, const int8_t *a, dim_t lda, int8_t *ap) {
-    int i, j;
-    int m_cap = (m + 3) & ~3;
-    int k_cap = (k + 3) & ~3;
-    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
+    int32_t i, j;
+    int32_t m_cap = (m + 3) & ~3;
+    int32_t k_cap = (k + 3) & ~3;
+    int32_t kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
             chunk4count, m16, k4;
     m16 = (m >> 4) << 4;
     k4 = (k >> 2) << 2;
@@ -889,10 +812,10 @@ int pack_T16_8bit(dim_t k, dim_t m, const int8_t *a, dim_t lda, int8_t *ap) {
 }
 
 int pack_N8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
-    int i, j;
-    int kcell, cell, koff, noff, krows, k8, n8;
-    int n_cap = (n + 3) & ~3;
-    int k_cap = (k + 3) & ~3;
+    int32_t i, j;
+    int32_t kcell, cell, koff, noff, krows, k8, n8;
+    int32_t n_cap = (n + 3) & ~3;
+    int32_t k_cap = (k + 3) & ~3;
     krows = (k + 3) >> 2;
     k8 = k >> 3;
     n8 = n >> 3;
@@ -935,10 +858,10 @@ int pack_N8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
         for (i = 0; i < (k8 << 3); ++i) {
             kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 3;
             noff = j & 3;
@@ -954,10 +877,10 @@ int pack_N8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
         for (i = (k8 << 3); i < k_cap; ++i) {
             kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 3;
             noff = j & 3;
@@ -973,10 +896,10 @@ int pack_N8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
         for (i = (k8 << 3); i < k_cap; ++i) {
             kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 3;
             noff = j & 3;
@@ -991,10 +914,10 @@ int pack_N8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
 }
 
 int pack_N16_8bit(dim_t k, dim_t m, const int8_t *a, dim_t lda, int8_t *ap) {
-    int i, j;
-    int m_cap = (m + 3) & ~3;
-    int k_cap = (k + 3) & ~3;
-    int kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
+    int32_t i, j;
+    int32_t m_cap = (m + 3) & ~3;
+    int32_t k_cap = (k + 3) & ~3;
+    int32_t kcell, cell, koff, moff, krows, mrows, block4, block2, mcell,
             chunk4count, m16, k4, k16;
     m16 = (m >> 4) << 4;
     k4 = (k >> 2) << 2;
@@ -1210,10 +1133,10 @@ int pack_N16_8bit(dim_t k, dim_t m, const int8_t *a, dim_t lda, int8_t *ap) {
 }
 
 int pack_T8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
-    int i, j;
-    int kcell, cell, koff, noff, krows, k8, n8;
-    int n_cap = (n + 3) & ~3;
-    int k_cap = (k + 3) & ~3;
+    int32_t i, j;
+    int32_t kcell, cell, koff, noff, krows, k8, n8;
+    int32_t n_cap = (n + 3) & ~3;
+    int32_t k_cap = (k + 3) & ~3;
     krows = (k + 3) >> 2;
     k8 = (k >> 3) << 3;
     n8 = (n >> 3) << 3;
@@ -1274,10 +1197,10 @@ int pack_T8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
         for (j = n8; j < n_cap; ++j) {
             kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 3;
             noff = j & 3;
@@ -1293,10 +1216,10 @@ int pack_T8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
         for (j = 0; j < n8; ++j) {
             kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 3;
             noff = j & 3;
@@ -1312,10 +1235,10 @@ int pack_T8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
         for (j = n8; j < n_cap; ++j) {
             kcell = i >> 2;
             // special handling if j is in a PARTIAL last "group of 8"
-            int maingroup = (j & (~7)) < (n & (~7));
-            int columns_done = ((j & (~7)) >> 3) << 1;
-            int groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
-            int j_hiflag = (j & 4) >> 2;
+            int32_t maingroup = (j & (~7)) < (n & (~7));
+            int32_t columns_done = ((j & (~7)) >> 3) << 1;
+            int32_t groupwidth = (maingroup || ((n & 7) > 4)) ? 2 : 1;
+            int32_t j_hiflag = (j & 4) >> 2;
             cell = columns_done * krows + kcell * groupwidth + j_hiflag;
             koff = i & 3;
             noff = j & 3;
@@ -1329,7 +1252,7 @@ int pack_T8_8bit(dim_t k, dim_t n, const uint8_t *b, dim_t ldb, uint8_t *bp) {
     return 0;
 }
 
-typedef __vector signed int v4si_t __attribute__((aligned(4)));
+typedef __vector int32_t v4si_t __attribute__((aligned(4)));
 
 #define SWIZZLE_4x4 \
     { \
@@ -1481,14 +1404,14 @@ typedef __vector signed int v4si_t __attribute__((aligned(4)));
 #define MMA __builtin_mma_xvi16ger2pp
 
 void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
-        short *B, int *C, float beta, dim_t ldc) {
-    int i;
-    int m_cap = (m + 3) & ~3;
-    int n_cap = (n + 3) & ~3;
-    int k_cap = (k + 1) & ~1;
-    int m_skip;
-    int n_skip = (n & 8) != (n_cap & 8);
-    int fastpath;
+        short *B, int32_t *C, float beta, dim_t ldc) {
+    int32_t i;
+    int32_t m_cap = (m + 3) & ~3;
+    int32_t n_cap = (n + 3) & ~3;
+    int32_t k_cap = (k + 1) & ~1;
+    int32_t m_skip;
+    int32_t n_skip = (n & 8) != (n_cap & 8);
+    int32_t fastpath;
     v4si_t result[4], result_i[4], result_t[4];
     vec_t swizA = {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23};
     vec_t swizB
@@ -1501,8 +1424,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
     /* Loop for multiples of 8 */
     i = n_cap >> 3;
     while (i) {
-        int j;
-        int *CO;
+        int32_t j;
+        int32_t *CO;
         short *AO;
         CO = C;
         C += ldc << 3;
@@ -1517,7 +1440,7 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
             v4si_t *rowC;
             __vector_quad acc0, acc1, acc2, acc3, acc4, acc5, acc6, acc7;
             SET_ACC_ZERO8();
-            int l;
+            int32_t l;
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
             for (l = 0; l < k_cap / 2; l++) {
@@ -1557,8 +1480,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
                 CO += 4;
                 if (((j == 1) && m_skip) || ((i == 1) && n_skip)) {
                     if ((j == 1) && m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc6);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -1617,8 +1540,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
                 CO += 4;
                 if (((j == 1) && m_skip) || ((i == 1) && n_skip)) {
                     if ((j == 1) && m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc6);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -1679,7 +1602,7 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
             SET_ACC_ZERO4();
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
-            int l;
+            int32_t l;
             for (l = 0; l < k_cap / 2; l++) {
                 MMA(&acc0, rowA[0], rowB[0]);
                 MMA(&acc1, rowA[0], rowB[1]);
@@ -1699,8 +1622,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
                 CO += 4;
                 if (m_skip || ((i == 1) & n_skip)) {
                     if (m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc2);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -1745,8 +1668,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
                 CO += 4;
                 if (m_skip || ((i == 1) & n_skip)) {
                     if (m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc2);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -1807,7 +1730,7 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
             __builtin_mma_xxsetaccz(&acc1);
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
-            int l = 0;
+            int32_t l = 0;
             for (l = 0; l < k_cap / 2; l++) {
                 MMA(&acc0, rowA[0], rowB[0]);
                 MMA(&acc1, rowA[0], rowB[1]);
@@ -1818,8 +1741,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
             if (fastpath) {
                 if (m_skip || ((i == 1) & n_skip)) {
                     if (m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc0);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -1863,8 +1786,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
             } else {
                 if (m_skip || ((i == 1) & n_skip)) {
                     if (m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc0);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -1928,13 +1851,13 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
     }
 
     if (n_cap & 4) {
-        int j;
-        int *CO;
+        int32_t j;
+        int32_t *CO;
         short *AO;
         CO = C;
         C += ldc << 2;
         AO = A;
-        int n_skip = (n != n_cap);
+        int32_t n_skip = (n != n_cap);
         /* Loop for m >= 32. */
         m_skip = (m >> 5) != (m_cap >> 5);
         for (j = 0; j < (m_cap >> 5); j++) {
@@ -1946,7 +1869,7 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowA1 = (vec_t *)A1;
             vec_t *rowB = (vec_t *)BO;
-            int l;
+            int32_t l;
             for (l = 0; l < k_cap / 2; l++) {
                 MMA(&acc0, rowA[0], rowB[0]);
                 MMA(&acc1, rowA[1], rowB[0]);
@@ -1971,8 +1894,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
                     SAVE_ACC_COND_ABSC(&acc5, 20);
                     SAVE_ACC_COND_ABSC(&acc6, 24);
                     if ((j == (m_cap >> 5) - 1) && m_skip) {
-                        int ii;
-                        int count = 4 - (m_cap - m);
+                        int32_t ii;
+                        int32_t count = 4 - (m_cap - m);
                         __builtin_mma_disassemble_acc((void *)result, &acc7);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + 28 + ii]
@@ -2014,8 +1937,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
                     SAVE_ACC_COND(&acc5, 20);
                     SAVE_ACC_COND(&acc6, 24);
                     if ((j == (m_cap >> 5) - 1) && m_skip) {
-                        int ii;
-                        int count = 4 - (m_cap - m);
+                        int32_t ii;
+                        int32_t count = 4 - (m_cap - m);
                         __builtin_mma_disassemble_acc((void *)result, &acc7);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + 28 + ii]
@@ -2070,7 +1993,7 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
             SET_ACC_ZERO4();
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
-            int l;
+            int32_t l;
             for (l = 0; l < k_cap / 2; l++) {
                 MMA(&acc0, rowA[0], rowB[0]);
                 MMA(&acc1, rowA[1], rowB[0]);
@@ -2087,8 +2010,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
                     SAVE_ACC_COND_ABSC(&acc2, 8);
                     if (m_skip) {
                         __builtin_mma_disassemble_acc((void *)result, &acc3);
-                        SWIZZLE_4x4 int count = 4 - (m_cap - m);
-                        int ii;
+                        SWIZZLE_4x4 int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         for (ii = 0; ii < count; ++ii)
                             CO[0 * ldc + 12 + ii] = result_t[0][ii];
                         if ((n_cap - n) < 3)
@@ -2119,8 +2042,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
                     SAVE_ACC_COND(&acc2, 8);
                     if (m_skip) {
                         __builtin_mma_disassemble_acc((void *)result, &acc3);
-                        SWIZZLE_4x4 int count = 4 - (m_cap - m);
-                        int ii;
+                        SWIZZLE_4x4 int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         for (ii = 0; ii < count; ++ii)
                             CO[0 * ldc + 12 + ii] = beta * CO[0 * ldc + 12 + ii]
                                     + alpha * result_t[0][ii];
@@ -2168,7 +2091,7 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
             __builtin_mma_xxsetaccz(&acc1);
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
-            int l;
+            int32_t l;
             for (l = 0; l < k_cap / 2; l++) {
                 MMA(&acc0, rowA[0], rowB[0]);
                 MMA(&acc1, rowA[1], rowB[0]);
@@ -2180,8 +2103,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
                 if (m_skip || n_skip) {
                     SAVE_ACC_COND_ABSC(&acc0, 0);
                     if (m_skip) {
-                        int ii;
-                        int count = 4 - (m_cap - m);
+                        int32_t ii;
+                        int32_t count = 4 - (m_cap - m);
                         __builtin_mma_disassemble_acc((void *)result, &acc1);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + 4 + ii]
@@ -2206,8 +2129,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
                 if (m_skip || n_skip) {
                     SAVE_ACC_COND(&acc0, 0);
                     if (m_skip) {
-                        int ii;
-                        int count = 4 - (m_cap - m);
+                        int32_t ii;
+                        int32_t count = 4 - (m_cap - m);
                         __builtin_mma_disassemble_acc((void *)result, &acc1);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + 4 + ii]
@@ -2250,7 +2173,7 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
             v4si_t *rowC;
             __vector_quad acc0;
             __builtin_mma_xxsetaccz(&acc0);
-            int l;
+            int32_t l;
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
             for (l = 0; l < k_cap / 2; l++) {
@@ -2261,8 +2184,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
 
             if (fastpath) {
                 if (m_skip || n_skip) {
-                    int count = 4 - (m_cap - m);
-                    int ii;
+                    int32_t count = 4 - (m_cap - m);
+                    int32_t ii;
                     __builtin_mma_disassemble_acc((void *)result, &acc0);
                     SWIZZLE_4x4 for (ii = 0; ii < count; ++ii) CO[0 * ldc + ii]
                             = result_t[0][ii];
@@ -2280,8 +2203,8 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
                 }
             } else {
                 if (m_skip || n_skip) {
-                    int count = 4 - (m_cap - m);
-                    int ii;
+                    int32_t count = 4 - (m_cap - m);
+                    int32_t ii;
                     __builtin_mma_disassemble_acc((void *)result, &acc0);
                     SWIZZLE_4x4 for (ii = 0; ii < count; ++ii) CO[0 * ldc + ii]
                             = beta * CO[0 * ldc + ii] + alpha * result_t[0][ii];
@@ -2316,14 +2239,14 @@ void gemm_kernel_16bit(dim_t m, dim_t n, dim_t k, float alpha, short *A,
 #define MMA __builtin_mma_xvi8ger4pp
 
 void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
-        uint8_t *B, int *C, float beta, dim_t ldc) {
-    int i;
-    int m_cap = (m + 3) & ~3;
-    int n_cap = (n + 3) & ~3;
-    int k_cap = (k + 3) & ~3;
-    int m_skip;
-    int n_skip = (n & 8) != (n_cap & 8);
-    int fastpath;
+        uint8_t *B, int32_t *C, float beta, dim_t ldc) {
+    int32_t i;
+    int32_t m_cap = (m + 3) & ~3;
+    int32_t n_cap = (n + 3) & ~3;
+    int32_t k_cap = (k + 3) & ~3;
+    int32_t m_skip;
+    int32_t n_skip = (n & 8) != (n_cap & 8);
+    int32_t fastpath;
     v4si_t result[4], result_i[4], result_t[4];
     vec_t swizA = {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23};
     vec_t swizB
@@ -2336,8 +2259,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
     /* Loop for multiples of 8 */
     i = n_cap >> 3;
     while (i) {
-        int j;
-        int *CO;
+        int32_t j;
+        int32_t *CO;
         int8_t *AO;
         CO = C;
         C += ldc << 3;
@@ -2352,7 +2275,7 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
             v4si_t *rowC;
             __vector_quad acc0, acc1, acc2, acc3, acc4, acc5, acc6, acc7;
             SET_ACC_ZERO8();
-            int l;
+            int32_t l;
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
             for (l = 0; l < k_cap / 4; l++) {
@@ -2392,8 +2315,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
                 CO += 4;
                 if (((j == 1) && m_skip) || ((i == 1) && n_skip)) {
                     if ((j == 1) && m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc6);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -2452,8 +2375,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
                 CO += 4;
                 if (((j == 1) && m_skip) || ((i == 1) && n_skip)) {
                     if ((j == 1) && m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc6);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -2514,7 +2437,7 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
             SET_ACC_ZERO4();
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
-            int l;
+            int32_t l;
             for (l = 0; l < k_cap / 4; l++) {
                 MMA(&acc0, rowA[0], rowB[0]);
                 MMA(&acc1, rowA[0], rowB[1]);
@@ -2534,8 +2457,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
                 CO += 4;
                 if (m_skip || ((i == 1) & n_skip)) {
                     if (m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc2);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -2580,8 +2503,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
                 CO += 4;
                 if (m_skip || ((i == 1) & n_skip)) {
                     if (m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc2);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -2642,7 +2565,7 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
             __builtin_mma_xxsetaccz(&acc1);
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
-            int l = 0;
+            int32_t l = 0;
             for (l = 0; l < k_cap / 4; l++) {
                 MMA(&acc0, rowA[0], rowB[0]);
                 MMA(&acc1, rowA[0], rowB[1]);
@@ -2653,8 +2576,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
             if (fastpath) {
                 if (m_skip || ((i == 1) & n_skip)) {
                     if (m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc0);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -2698,8 +2621,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
             } else {
                 if (m_skip || ((i == 1) & n_skip)) {
                     if (m_skip) {
-                        int count = 4 - (m_cap - m);
-                        int ii;
+                        int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         __builtin_mma_disassemble_acc((void *)result, &acc0);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + ii]
@@ -2763,13 +2686,13 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
     }
 
     if (n_cap & 4) {
-        int j;
-        int *CO;
+        int32_t j;
+        int32_t *CO;
         int8_t *AO;
         CO = C;
         C += ldc << 2;
         AO = A;
-        int n_skip = (n != n_cap);
+        int32_t n_skip = (n != n_cap);
         /* Loop for m >= 32. */
         m_skip = (m >> 5) != (m_cap >> 5);
         for (j = 0; j < (m_cap >> 5); j++) {
@@ -2781,7 +2704,7 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowA1 = (vec_t *)A1;
             vec_t *rowB = (vec_t *)BO;
-            int l;
+            int32_t l;
             for (l = 0; l < k_cap / 4; l++) {
                 MMA(&acc0, rowA[0], rowB[0]);
                 MMA(&acc1, rowA[1], rowB[0]);
@@ -2806,8 +2729,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
                     SAVE_ACC_COND_ABSC(&acc5, 20);
                     SAVE_ACC_COND_ABSC(&acc6, 24);
                     if ((j == (m_cap >> 5) - 1) && m_skip) {
-                        int ii;
-                        int count = 4 - (m_cap - m);
+                        int32_t ii;
+                        int32_t count = 4 - (m_cap - m);
                         __builtin_mma_disassemble_acc((void *)result, &acc7);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + 28 + ii]
@@ -2849,8 +2772,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
                     SAVE_ACC_COND(&acc5, 20);
                     SAVE_ACC_COND(&acc6, 24);
                     if ((j == (m_cap >> 5) - 1) && m_skip) {
-                        int ii;
-                        int count = 4 - (m_cap - m);
+                        int32_t ii;
+                        int32_t count = 4 - (m_cap - m);
                         __builtin_mma_disassemble_acc((void *)result, &acc7);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + 28 + ii]
@@ -2905,7 +2828,7 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
             SET_ACC_ZERO4();
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
-            int l;
+            int32_t l;
             for (l = 0; l < k_cap / 4; l++) {
                 MMA(&acc0, rowA[0], rowB[0]);
                 MMA(&acc1, rowA[1], rowB[0]);
@@ -2922,8 +2845,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
                     SAVE_ACC_COND_ABSC(&acc2, 8);
                     if (m_skip) {
                         __builtin_mma_disassemble_acc((void *)result, &acc3);
-                        SWIZZLE_4x4 int count = 4 - (m_cap - m);
-                        int ii;
+                        SWIZZLE_4x4 int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         for (ii = 0; ii < count; ++ii)
                             CO[0 * ldc + 12 + ii] = result_t[0][ii];
                         if ((n_cap - n) < 3)
@@ -2954,8 +2877,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
                     SAVE_ACC_COND(&acc2, 8);
                     if (m_skip) {
                         __builtin_mma_disassemble_acc((void *)result, &acc3);
-                        SWIZZLE_4x4 int count = 4 - (m_cap - m);
-                        int ii;
+                        SWIZZLE_4x4 int32_t count = 4 - (m_cap - m);
+                        int32_t ii;
                         for (ii = 0; ii < count; ++ii)
                             CO[0 * ldc + 12 + ii] = beta * CO[0 * ldc + 12 + ii]
                                     + alpha * result_t[0][ii];
@@ -3003,7 +2926,7 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
             __builtin_mma_xxsetaccz(&acc1);
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
-            int l;
+            int32_t l;
             for (l = 0; l < k_cap / 4; l++) {
                 MMA(&acc0, rowA[0], rowB[0]);
                 MMA(&acc1, rowA[1], rowB[0]);
@@ -3015,8 +2938,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
                 if (m_skip || n_skip) {
                     SAVE_ACC_COND_ABSC(&acc0, 0);
                     if (m_skip) {
-                        int ii;
-                        int count = 4 - (m_cap - m);
+                        int32_t ii;
+                        int32_t count = 4 - (m_cap - m);
                         __builtin_mma_disassemble_acc((void *)result, &acc1);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + 4 + ii]
@@ -3041,8 +2964,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
                 if (m_skip || n_skip) {
                     SAVE_ACC_COND(&acc0, 0);
                     if (m_skip) {
-                        int ii;
-                        int count = 4 - (m_cap - m);
+                        int32_t ii;
+                        int32_t count = 4 - (m_cap - m);
                         __builtin_mma_disassemble_acc((void *)result, &acc1);
                         SWIZZLE_4x4 for (ii = 0; ii < count; ++ii)
                                 CO[0 * ldc + 4 + ii]
@@ -3085,7 +3008,7 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
             v4si_t *rowC;
             __vector_quad acc0;
             __builtin_mma_xxsetaccz(&acc0);
-            int l;
+            int32_t l;
             vec_t *rowA = (vec_t *)AO;
             vec_t *rowB = (vec_t *)BO;
             for (l = 0; l < k_cap / 4; l++) {
@@ -3096,8 +3019,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
 
             if (fastpath) {
                 if (m_skip || n_skip) {
-                    int count = 4 - (m_cap - m);
-                    int ii;
+                    int32_t count = 4 - (m_cap - m);
+                    int32_t ii;
                     __builtin_mma_disassemble_acc((void *)result, &acc0);
                     SWIZZLE_4x4 for (ii = 0; ii < count; ++ii) CO[0 * ldc + ii]
                             = result_t[0][ii];
@@ -3115,8 +3038,8 @@ void gemm_kernel_8bit(dim_t m, dim_t n, dim_t k, float alpha, int8_t *A,
                 }
             } else {
                 if (m_skip || n_skip) {
-                    int count = 4 - (m_cap - m);
-                    int ii;
+                    int32_t count = 4 - (m_cap - m);
+                    int32_t ii;
                     __builtin_mma_disassemble_acc((void *)result, &acc0);
                     SWIZZLE_4x4 for (ii = 0; ii < count; ++ii) CO[0 * ldc + ii]
                             = beta * CO[0 * ldc + ii] + alpha * result_t[0][ii];
