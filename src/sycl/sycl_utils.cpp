@@ -59,7 +59,7 @@ backend_t get_sycl_gpu_backend() {
         const auto gpu_type = ::sycl::info::device_type::gpu;
         if (::sycl::device::get_devices(gpu_type).empty()) return fallback;
 
-        ::sycl::device dev {::sycl::gpu_selector {}};
+        ::sycl::device dev {compat::gpu_selector_v};
         backend_t backend = get_sycl_backend(dev);
 
         return backend;
