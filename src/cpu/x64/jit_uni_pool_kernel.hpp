@@ -72,7 +72,7 @@ private:
 
     const Xbyak::AddressFrame &vmmword = (isa == sse41)
             ? xword
-            : (isa == avx || isa == avx2) ? yword : zword;
+            : utils::one_of(isa, avx, avx2, avx2_vnni_2) ? yword : zword;
 
     Xmm vmm_mask = Xmm(0);
     Xmm xmm_tmp_1 = Xmm(0);
@@ -81,6 +81,7 @@ private:
 
     // Used only for avx and if c tail is present
     Vmm vmm_c_tail_mask = Vmm(2);
+    Xmm xmm_c_tail_mask = Xmm(2);
 
     Xmm xmm_tmp = Xmm(3);
 
@@ -248,6 +249,10 @@ private:
 
     static bool post_ops_ok(jit_pool_conf_t &jpp, const primitive_attr_t &attr,
             const memory_desc_wrapper &dst_d);
+
+    inline bool use_bf16_emulation() const {
+        return jpp.is_bf16 && !isa_has_bf16(jpp.isa) && isa != avx2_vnni_2;
+    }
 
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
     std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
