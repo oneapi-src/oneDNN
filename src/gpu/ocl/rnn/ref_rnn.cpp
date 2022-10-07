@@ -1119,7 +1119,9 @@ void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
     arg_list.set(4, scratch_gates);
     arg_list.set(5, scratch_cell);
 
-    auto nd_range = get_nd_range({dhc, n_bias});
+    auto nd_range = pd()->use_subgroup_reduction
+            ? get_nd_range({pd()->subgroup_size, dhc, n_bias})
+            : get_nd_range({dhc, n_bias});
 
     parallel_for(ctx, nd_range, gates_reduction_kernel_, arg_list);
 }
