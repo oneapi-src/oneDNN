@@ -22,6 +22,8 @@
 #include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl_sycl.hpp"
 
+#include "sycl/sycl_compat.hpp"
+
 #include <algorithm>
 #include <memory>
 #include <vector>
@@ -359,9 +361,9 @@ TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
 
     std::unique_ptr<queue> q;
     if (eng_kind == engine::kind::cpu) {
-        q.reset(new queue(cpu_selector {}));
+        q.reset(new queue(dnnl::impl::sycl::compat::cpu_selector_v));
     } else {
-        q.reset(new queue(gpu_selector {}));
+        q.reset(new queue(dnnl::impl::sycl::compat::gpu_selector_v));
     }
 
     q->submit([&](handler &cgh) {
