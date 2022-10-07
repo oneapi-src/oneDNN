@@ -43,19 +43,19 @@ bool need_src_or_dst_check(
 // | Tile level | Nesting level | Maps to                |
 // |------------|---------------|------------------------|
 // | grid_dim   | 0             | Thread group           |
-// | thr_dim    | 1             | Loop in thread         |
+// | loop_dim   | 1             | Loop in thread         |
 // | tg_dim     | 2             | Thread in thread group |
 // | iter_dim   | 3             | Iteration in loop      |
 class dim_tile_t {
 public:
     const expr_t &grid_idx() const { return not_empty(grid_idx_); }
     const expr_t &tg_idx() const { return not_empty(tg_idx_); }
-    const expr_t &thr_idx() const { return not_empty(thr_idx_); }
+    const expr_t &loop_idx() const { return not_empty(loop_idx_); }
     const expr_t &iter_idx() const { return not_empty(iter_idx_); }
 
     void set_grid_idx(const expr_t &idx) { grid_idx_ = idx; }
     void set_tg_idx(const expr_t &idx) { tg_idx_ = idx; }
-    void set_thr_idx(const expr_t &idx) { thr_idx_ = idx; }
+    void set_loop_idx(const expr_t &idx) { loop_idx_ = idx; }
     void set_iter_idx(const expr_t &idx) { iter_idx_ = idx; }
 
 private:
@@ -66,7 +66,7 @@ private:
 
     expr_t grid_idx_;
     expr_t tg_idx_;
-    expr_t thr_idx_;
+    expr_t loop_idx_;
     expr_t iter_idx_;
 };
 
@@ -74,16 +74,16 @@ dim_tile_t create_tile(gemm_schedule_t &gemm_schedule, const conv_config_t &cfg,
         const expr_t &dim) {
     dim_tile_t tile;
     auto &name = dim.as<var_t>().name;
-    int thr_dim = cfg.thread_dim(name);
+    int loop_dim = cfg.loop_dim(name);
     int tg_dim = cfg.thread_group_dim(name);
     int iter_dim = cfg.iter_dim(name);
 
-    std::vector<int> dims = {1, thr_dim, tg_dim, iter_dim};
+    std::vector<int> dims = {1, loop_dim, tg_dim, iter_dim};
     int ndims = (int)dims.size();
     std::vector<expr_t> idxs(ndims);
 
     static const char *suffixes[]
-            = {"_grid_idx", "_thr_idx", "_tg_idx", "_iter_idx"};
+            = {"_grid_idx", "_loop_idx", "_tg_idx", "_iter_idx"};
     auto &dim_name = dim.as<var_t>().name;
 
     auto has_block = [&](int dim_idx) {
@@ -113,7 +113,7 @@ dim_tile_t create_tile(gemm_schedule_t &gemm_schedule, const conv_config_t &cfg,
     idxs[0] = idx;
 
     tile.set_grid_idx(idxs[0]);
-    tile.set_thr_idx(idxs[1]);
+    tile.set_loop_idx(idxs[1]);
     tile.set_tg_idx(idxs[2]);
     tile.set_iter_idx(idxs[3]);
 
@@ -303,7 +303,7 @@ void conv_ir_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
     gemm_schedule.tensorize(kw_tile.iter_idx());
     gemm_schedule.tensorize(ic_tile.iter_idx());
 
-    gemm_schedule.reorder({ic_tile.thr_idx(), kd, kh, kw_tile.thr_idx(),
+    gemm_schedule.reorder({ic_tile.loop_idx(), kd, kh, kw_tile.loop_idx(),
             oc_tile.tg_idx(), mb_osp_tg_idx, ic_tile.tg_idx()});
 
     src_buf = kernel_info_.find_arg("src");
@@ -470,9 +470,9 @@ void conv_ir_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
         if (cfg_.bwd_d_optimize_strided_iw())
             gemm_schedule.set_skip_condition(kw, ow % prb_.sw != 0);
         // Put kd/kh/kw outermost to allow pipelining in oc loop.
-        gemm_schedule.reorder({kd, kh, kw, oc_tile.thr_idx()});
+        gemm_schedule.reorder({kd, kh, kw, oc_tile.loop_idx()});
     } else {
-        gemm_schedule.reorder({oc_tile.thr_idx(), kd, kh, kw});
+        gemm_schedule.reorder({oc_tile.loop_idx(), kd, kh, kw});
     }
 
     src_buf = kernel_info_.find_arg("src");
@@ -631,10 +631,10 @@ void conv_ir_builder_t::init_bwd_w(gemm_schedule_t &gemm_schedule,
     gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(1));
 
     gemm_schedule.reorder({od_tile.iter_idx(), oh_tile.iter_idx(),
-            ow_tile.iter_idx(), mb_tile.thr_idx()});
+            ow_tile.iter_idx(), mb_tile.loop_idx()});
 
-    gemm_schedule.unroll(mb_tile.thr_idx(), cfg_.unroll("mb"));
-    gemm_schedule.unroll(ow_tile.thr_idx(), cfg_.unroll("ow"));
+    gemm_schedule.unroll(mb_tile.loop_idx(), cfg_.unroll("mb"));
+    gemm_schedule.unroll(ow_tile.loop_idx(), cfg_.unroll("ow"));
 
     gemm_schedule.tensorize(g_tile.iter_idx());
     gemm_schedule.tensorize(oc_tile.iter_idx());
