@@ -4278,7 +4278,7 @@ protected:
 
         int nspatial_dims = 0;
         if (md) {
-            memory::dim ndims;
+            int ndims;
             error::wrap_c_api(
                     dnnl_memory_desc_query(md, dnnl_query_ndims_s32, &ndims),
                     "could not query ndims from a memory descriptor");
