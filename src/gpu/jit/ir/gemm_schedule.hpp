@@ -361,7 +361,7 @@ private:
 };
 
 // Defines GEMM computation including:
-// - Blocking scheme (order of loops, tiles per thread group/thread)
+// - Blocking scheme (order of loops, tiles per thread group/iteration)
 // - Mapping of problem dimensions to GEMM dimensions (BMNK)
 class gemm_schedule_t {
 public:
@@ -440,7 +440,7 @@ public:
     }
 
     tensor_t thr_view_tile(const view_t &view, bool is_relative = true) const {
-        auto thr_tile = view_tile(view, tile_level_t::thread);
+        auto thr_tile = view_tile(view, tile_level_t::iter);
         if (is_relative) return thr_tile;
         return tg_view_tile(view).create_sub_tensor(thr_tile);
     }
@@ -739,14 +739,14 @@ public:
     }
 
 private:
-    enum class tile_level_t { thread_group, loop, thread, kernel_grid };
+    enum class tile_level_t { kernel_grid, loop, thread_group, iter };
 
     static int nesting_level(tile_level_t level) {
         switch (level) {
             case tile_level_t::kernel_grid: return 0;
             case tile_level_t::loop: return 1;
             case tile_level_t::thread_group: return 2;
-            case tile_level_t::thread: return 3; // TODO: Rename to iter
+            case tile_level_t::iter: return 3;
             default: ir_error_not_expected();
         }
         return -1;
@@ -946,11 +946,11 @@ private:
         c_tg_tile_ = compute_problem_tile(
                 c_view_.vvars(), split_infos, tile_level_t::thread_group);
         a_thr_tile_ = compute_problem_tile(
-                a_view_.vvars(), split_infos, tile_level_t::thread);
+                a_view_.vvars(), split_infos, tile_level_t::iter);
         b_thr_tile_ = compute_problem_tile(
-                b_view_.vvars(), split_infos, tile_level_t::thread);
+                b_view_.vvars(), split_infos, tile_level_t::iter);
         c_thr_tile_ = compute_problem_tile(
-                c_view_.vvars(), split_infos, tile_level_t::thread);
+                c_view_.vvars(), split_infos, tile_level_t::iter);
     }
 
     void init_constraint_set() {

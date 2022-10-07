@@ -45,14 +45,14 @@ namespace jit {
 enum class tile_level_t {
     unknown,
     iter, // Number of elements per iteration.
-    thr, // Number of iterations per thread.
     tg, // Number of threads per thread group.
+    loop, // Number of iterations per loop.
     _last,
 };
 
 // Min/max integer indices of tile levels.
 const int min_tile_level_idx = (int)tile_level_t::iter;
-const int max_tile_level_idx = (int)tile_level_t::tg;
+const int max_tile_level_idx = (int)tile_level_t::loop;
 
 // Describes the dimension value, contains either an integer or a special
 // "unlimited" value which behaves like infinity when mixing in operations with
@@ -167,7 +167,7 @@ public:
         return ir_utils::safe_divide(padded_size(), tg_blk());
     }
     dim_value_t tg_dim() const { return dim(tile_level_t::tg); }
-    dim_value_t thr_dim() const { return dim(tile_level_t::thr); }
+    dim_value_t loop_dim() const { return dim(tile_level_t::loop); }
     dim_value_t iter_dim() const { return dim(tile_level_t::iter); }
     dim_value_t dim(tile_level_t level) const {
         int idx = (int)level;
@@ -182,7 +182,7 @@ public:
     bool pref_tg_block() { return pref_tg_block_; }
     void set_pref_tg_block(bool value = true) { pref_tg_block_ = value; }
     void set_tg_dim(dim_value_t value) { set_dim(tile_level_t::tg, value); }
-    void set_thr_dim(dim_value_t value) { set_dim(tile_level_t::thr, value); }
+    void set_loop_dim(dim_value_t value) { set_dim(tile_level_t::loop, value); }
     void set_iter_dim(dim_value_t value) { set_dim(tile_level_t::iter, value); }
     void set_dim(tile_level_t level, dim_value_t value) {
         int idx = (int)level;
@@ -200,12 +200,12 @@ public:
     void incr_inner_dims() { inner_dims_++; }
 
     int iter_blk() const { return iter_dim(); }
-    int thr_blk() const { return thr_dim() * iter_blk(); }
-    int tg_blk() const { return tg_dim() * thr_blk(); }
+    int loop_blk() const { return loop_dim() * iter_blk(); }
+    int tg_blk() const { return tg_dim() * loop_blk(); }
 
     bool has_any_blocking() const {
         if (iter_dim() != 1) return true;
-        if (thr_dim() != 1) return true;
+        if (loop_dim() != 1) return true;
         if (tg_dim() != 1) return true;
         return false;
     }
@@ -222,7 +222,7 @@ public:
         oss << "  Allow split:       " << to_string(allow_split_) << std::endl;
         oss << "  Order key:         " << order_key_ << std::endl;
 
-        const char *tags[] = {"Iteration", "Thread", "Thread group", nullptr};
+        const char *tags[] = {"Iteration", "Thread group", "Loop", nullptr};
         int level_id = min_tile_level_idx;
         for (const char **tag = tags; *tag; tag++) {
             tile_level_t level = (tile_level_t)level_id++;
@@ -241,8 +241,8 @@ public:
         std::ostringstream oss;
         oss << "Dimension " << name_ << pad_str(":", -18 + (int)name_.length());
         oss << "(grid:" << pad_int(grid_dim(), 5) << ") x ";
+        oss << "(loop:" << pad_int(loop_dim(), 5) << ") x ";
         oss << "(tg:" << pad_int(tg_dim(), 5) << ") x ";
-        oss << "(thr:" << pad_int(thr_dim(), 5) << ") x ";
         oss << "(iter:" << pad_int(iter_dim(), 5) << ")";
         return oss.str();
     }
@@ -315,7 +315,7 @@ private:
 //   - Maximal block sizes (e.g. to limit GRF usage)
 //   - Fuse/split settings - to get the desired blocking decomposition
 //   - K-slicing settings (grid or thread group sliciing)
-// - Computing block sizes for each tile: per iteration, per thread, per thread
+// - Computing block sizes for each tile: per iteration, per loop, per thread
 //   group
 class block_helper_t {
 public:
@@ -421,8 +421,8 @@ public:
         }
     }
 
-    void set_thr_dim(const std::string &name, int value) {
-        dim(name).set_thr_dim(value);
+    void set_loop_dim(const std::string &name, int value) {
+        dim(name).set_loop_dim(value);
     }
 
     void set_tg_dim(const std::string &name, int value) {
@@ -433,8 +433,8 @@ public:
         dim(name).set_max_dim(tile_level_t::iter, value);
     }
 
-    void set_max_thr_dim(const std::string &name, int value) {
-        dim(name).set_max_dim(tile_level_t::thr, value);
+    void set_max_loop_dim(const std::string &name, int value) {
+        dim(name).set_max_dim(tile_level_t::loop, value);
     }
 
     void set_max_tg_dim(const std::string &name, int value) {
@@ -510,12 +510,12 @@ public:
     }
 
     int iter_dim(const std::string &name) const { return dim(name).iter_dim(); }
-    int thr_dim(const std::string &name) const { return dim(name).thr_dim(); }
+    int loop_dim(const std::string &name) const { return dim(name).loop_dim(); }
     int tg_dim(const std::string &name) const { return dim(name).tg_dim(); }
     int grid_dim(const std::string &name) const { return dim(name).grid_dim(); }
 
     int iter_blk(const std::string &name) const { return dim(name).iter_blk(); }
-    int thr_blk(const std::string &name) const { return dim(name).thr_blk(); }
+    int loop_blk(const std::string &name) const { return dim(name).loop_blk(); }
     int tg_blk(const std::string &name) const { return dim(name).tg_blk(); }
 
     dim_value_t max_iter_dim(const std::string &name) const {

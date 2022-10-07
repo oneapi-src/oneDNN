@@ -628,6 +628,12 @@ public:
     }
 };
 
+class loop_dims_param_t : public dims_param_t {
+public:
+    std::string name() const override { return "loop"; }
+    std::string desc() const override { return "Loop-level dimension blocks."; }
+};
+
 class ow_kw_grf_cache_param_t : public bool_param_t {
 public:
     ow_kw_grf_cache_param_t() : bool_param_t(false) {}
@@ -848,12 +854,6 @@ public:
     }
 };
 
-class thread_dims_param_t : public map_param_t {
-public:
-    std::string name() const override { return "thr"; }
-    std::string desc() const override { return ""; }
-};
-
 class unroll_param_t : public map_param_t {
 public:
     std::string name() const override { return "unroll"; }
@@ -915,13 +915,13 @@ public:
     DECL_PARAM2(dims)
     DECL_PARAM2(dst_layout)
     DECL_PARAM2(iter_dims)
+    DECL_PARAM2(loop_dims)
     DECL_PARAM2(padded_dims)
     DECL_PARAM2(pipeline)
     DECL_PARAM2(prefetch)
     DECL_PARAM2(slm)
     DECL_PARAM2(src_layout)
     DECL_PARAM2(sub_tiles)
-    DECL_PARAM2(thread_dims)
     DECL_PARAM2(thread_group_dims)
     DECL_PARAM2(unroll)
     DECL_PARAM2(wei_layout)
@@ -944,9 +944,7 @@ public:
         return padded_dims()(name);
     }
 
-    int thread_dim(const std::string &name) const {
-        return thread_dims()(name);
-    }
+    int loop_dim(const std::string &name) const { return loop_dims()(name); }
 
     int thread_group_dim(const std::string &name) const {
         return thread_group_dims()(name);
@@ -1032,7 +1030,7 @@ public:
 
     int grid_dim(const std::string &dim) const {
         return ir_utils::safe_divide(padded_dim(dim),
-                thread_dim(dim) * thread_group_dim(dim) * iter_dim(dim));
+                loop_dim(dim) * thread_group_dim(dim) * iter_dim(dim));
     }
 
     int iter_dim(std::initializer_list<const char *> dims) const {
@@ -1096,6 +1094,7 @@ private:
     INIT_PARAM(hoist_masks_from_compute_loop)
     INIT_PARAM(iter_dims)
     INIT_PARAM(kernel_grid)
+    INIT_PARAM(loop_dims)
     INIT_PARAM(ow_kw_grf_cache)
     INIT_PARAM(pad_slm)
     INIT_PARAM(padded_dims)
@@ -1108,7 +1107,6 @@ private:
     INIT_PARAM(slm)
     INIT_PARAM(src_layout)
     INIT_PARAM(sub_tiles)
-    INIT_PARAM(thread_dims)
     INIT_PARAM(thread_group_dims)
     INIT_PARAM(thread_group_grid)
     INIT_PARAM(unroll)
@@ -1135,18 +1133,18 @@ public:
         return ret;
     }
 
-    int thread_dim(char bmnk) const {
+    int thread_group_dim(char bmnk) const {
         int ret = 1;
-        for (auto &kv : cfg_.thread_dims().get()) {
+        for (auto &kv : cfg_.thread_group_dims().get()) {
             if (to_bmnk(kv.first) != bmnk) continue;
             ret *= kv.second;
         }
         return ret;
     }
 
-    int thread_group_dim(char bmnk) const {
+    int loop_dim(char bmnk) const {
         int ret = 1;
-        for (auto &kv : cfg_.thread_group_dims().get()) {
+        for (auto &kv : cfg_.loop_dims().get()) {
             if (to_bmnk(kv.first) != bmnk) continue;
             ret *= kv.second;
         }

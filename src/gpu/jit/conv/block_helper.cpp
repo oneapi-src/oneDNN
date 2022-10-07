@@ -203,8 +203,8 @@ private:
         return ret;
     }
 
-    bool is_thr_unlimited() const {
-        if (level_ != tile_level_t::thr) return false;
+    bool is_loop_unlimited() const {
+        if (level_ != tile_level_t::loop) return false;
         if (rem_bmnk_dim_.is_unlimited()) return false;
         if (bmnk_dim_.tg_dim() != 1) return false;
         return true;
@@ -227,7 +227,7 @@ private:
     bool try_assign_multi_blocks() {
         // Check restrictions to apply the heuristics.
         if (!allow_fuse()) return false;
-        if (!is_thr_unlimited() && !is_iter_full_match()) return false;
+        if (!is_loop_unlimited() && !is_iter_full_match()) return false;
 
         int nprb_dims = (int)prb_dims_.size();
         std::vector<int> rem_dims(nprb_dims, 1);
@@ -320,7 +320,7 @@ void block_helper_t::compute() {
 #ifdef GEN_CONV_DEBUG
     for (auto &kv : dims_) {
         auto &d = kv.second;
-        const char *tags[] = {"iter", "thr", "tg"};
+        const char *tags[] = {"iter", "tg", "loop"};
         for (int i = min_tile_level_idx; i <= max_tile_level_idx; i++) {
             auto level = (tile_level_t)i;
             std::string env_name
@@ -575,7 +575,7 @@ void block_helper_t::init_k_blocking() {
     // Thread and thread group dims must not be set yet.
     for (char bmnk : {'B', 'M', 'N', 'K'}) {
         auto &d = bmnk_dim(bmnk);
-        ir_assert(d.thr_dim() == 1);
+        ir_assert(d.loop_dim() == 1);
         ir_assert(d.tg_dim() == 1);
     }
 
@@ -583,19 +583,19 @@ void block_helper_t::init_k_blocking() {
         int est_threads = 1;
         for (char bmnk : {'B', 'M', 'N', 'K'})
             est_threads *= bmnk_dim(bmnk).grid_dim();
-        int def_k_thr_dim = utils::div_up(est_threads, 2 * hw_cfg_.eu_count());
-        def_k_thr_dim = std::min(100, def_k_thr_dim);
-        def_k_thr_dim = std::max(1, def_k_thr_dim);
-        int k_thr_dim = def_k_thr_dim;
+        int def_k_loop_dim = utils::div_up(est_threads, 2 * hw_cfg_.eu_count());
+        def_k_loop_dim = std::min(100, def_k_loop_dim);
+        def_k_loop_dim = std::max(1, def_k_loop_dim);
+        int k_loop_dim = def_k_loop_dim;
 #ifdef GEN_CONV_DEBUG
-        k_thr_dim = getenv_int("k_thr_dim", k_thr_dim);
+        k_loop_dim = getenv_int("k_loop_dim", k_loop_dim);
 #endif
-        k_dim().set_thr_dim(k_thr_dim);
+        k_dim().set_loop_dim(k_loop_dim);
         return;
     }
 
     if (!enable_k_tg_slicing()) {
-        k_dim().set_thr_dim(dim_value_t::unlimited());
+        k_dim().set_loop_dim(dim_value_t::unlimited());
         return;
     }
 
@@ -604,14 +604,14 @@ void block_helper_t::init_k_blocking() {
     int tg_dim0 = min(max_tg_size_, k_dim().max_dim(tile_level_t::tg));
     for (int tg_dim = tg_dim0; tg_dim >= 1; tg_dim /= 2) {
         if (k_nblks % tg_dim == 0) {
-            k_dim().set_thr_dim(k_nblks / tg_dim);
+            k_dim().set_loop_dim(k_nblks / tg_dim);
             k_dim().set_tg_dim(tg_dim);
             return;
         }
     }
 
     // Couldn't enable TG slicing.
-    k_dim().set_thr_dim(dim_value_t::unlimited());
+    k_dim().set_loop_dim(dim_value_t::unlimited());
 }
 
 bool block_helper_t::enable_k_tg_slicing() const {

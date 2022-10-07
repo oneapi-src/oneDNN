@@ -559,7 +559,7 @@ bool can_use_2d_send(const conv_config_t &cfg, const layout_t &l, bool is_a) {
     if (!cfg.is_ge_xe_hpc()) return false;
 
     bool with_blocking
-            = !cfg.iter_dims().is_empty() || !cfg.thread_dims().is_empty();
+            = !cfg.iter_dims().is_empty() || !cfg.loop_dims().is_empty();
 
     // Can't use 2D block messages for non-trivial strided dimensions.
     if (is_a && (prb.is_fwd || prb.is_bwd_w) && prb.sw != 1
@@ -1246,12 +1246,12 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
         bh.set_max_n_tg_dim(2);
     }
 
-    bh.set_thr_dim("kd", prb.kd);
-    bh.set_thr_dim("kh", prb.kh);
+    bh.set_loop_dim("kd", prb.kd);
+    bh.set_loop_dim("kh", prb.kh);
     if (is_small_ic(prb) && !is_dw_large_mb(prb)) {
         bh.set_block_dims({"kw"});
     } else {
-        bh.set_thr_dim("kw", prb.kw);
+        bh.set_loop_dim("kw", prb.kw);
         // mad is not tested with thread group k-slicing.
         if (cfg.is_dp_fma()) {
             bh.allow_k_tg_slicing();
@@ -1321,9 +1321,9 @@ void init_bwd_d(conv_config_t &cfg, block_helper_t &bh) {
     using namespace ir_utils;
 
     const auto &prb = cfg.prb();
-    bh.set_thr_dim("kw", prb.kw);
-    bh.set_thr_dim("kd", prb.kd);
-    bh.set_thr_dim("kh", prb.kh);
+    bh.set_loop_dim("kw", prb.kw);
+    bh.set_loop_dim("kd", prb.kd);
+    bh.set_loop_dim("kh", prb.kh);
     bh.set_block_dims({"g", "oc", "ic", "mb", "iw"});
     bh.set_vector_dim(prb.is_dw ? "g" : "ic");
     bh.allow_split({"oc", "ic"});
@@ -1374,8 +1374,8 @@ void init_bwd_w(conv_config_t &cfg, block_helper_t &bh) {
     // enough). Extra oh/od loops may result in assembly bloat due to pipeline
     // unroll.
     if (prb.mb >= 32 && prb.ow >= 16) {
-        bh.set_max_thr_dim("oh", 1);
-        bh.set_max_thr_dim("od", 1);
+        bh.set_max_loop_dim("oh", 1);
+        bh.set_max_loop_dim("od", 1);
     }
 
     bh.set_max_iter_dim("oh", 1);
@@ -1383,7 +1383,7 @@ void init_bwd_w(conv_config_t &cfg, block_helper_t &bh) {
     bh.allow_split({"oc", "ic", "mb", "ow"});
     bh.allow_fuse({"ic", "kw"});
     bh.allow_fuse({"mb", "oh", "ow"});
-    bh.set_max_thr_dim("mb", 2);
+    bh.set_max_loop_dim("mb", 2);
     bh.set_base_iter_block("mb", math::gcd(16, bh.dim("mb").base_iter_block()));
 
     bh.reorder({"mb", "ow", "oh"});
@@ -1413,7 +1413,7 @@ void init_blocking(conv_config_t &cfg) {
         cfg.dims().set(name, d.size());
         cfg.iter_dims().set(name, d.iter_dim());
         cfg.thread_group_dims().set(name, d.tg_dim());
-        cfg.thread_dims().set(name, d.thr_dim());
+        cfg.loop_dims().set(name, d.loop_dim());
     }
 }
 
@@ -1467,8 +1467,8 @@ void init_padded_dims(conv_config_t &cfg) {
         int dim = cfg.dim(name);
         int iter = cfg.iter_dim(name);
         int tg = cfg.thread_group_dim(name);
-        int thr = cfg.thread_dim(name);
-        int blk = iter * tg * thr;
+        int loop = cfg.loop_dim(name);
+        int blk = iter * tg * loop;
         int pad_blk = cfg.pad_block(name);
         int padded = utils::rnd_up(dim, math::lcm(blk, pad_blk));
         cfg.padded_dims().set(name, padded);
@@ -1480,9 +1480,9 @@ void init_kernel_grid(conv_config_t &cfg) {
     auto get = [&](const char *name) {
         int padded = cfg.padded_dim(name);
         int iter = cfg.iter_dim(name);
-        int thr = cfg.thread_dim(name);
+        int loop = cfg.loop_dim(name);
         int tg = cfg.thread_group_dim(name);
-        int tg_block = iter * thr * tg;
+        int tg_block = iter * loop * tg;
         return ir_utils::safe_divide(padded, tg_block);
     };
 
@@ -1551,11 +1551,11 @@ void init_unroll(conv_config_t &cfg) {
     const auto &prb = cfg.prb();
 
     if (prb.is_bwd_w) {
-        int mb_thr_dim = cfg.thread_dim("mb");
-        int ow_thr_dim = cfg.thread_dim("ow");
-        cfg.unroll().set("mb", mb_thr_dim);
-        if (cfg.iter_dim("ow") > 1 && ow_thr_dim <= 8 && cfg.is_dp_fma()) {
-            cfg.unroll().set("ow", ow_thr_dim);
+        int mb_loop_dim = cfg.loop_dim("mb");
+        int ow_loop_dim = cfg.loop_dim("ow");
+        cfg.unroll().set("mb", mb_loop_dim);
+        if (cfg.iter_dim("ow") > 1 && ow_loop_dim <= 8 && cfg.is_dp_fma()) {
+            cfg.unroll().set("ow", ow_loop_dim);
         }
     }
 }
@@ -2121,13 +2121,13 @@ std::string conv_config_t::blocking_brief_str() const {
     for (auto &name : names) {
         int iter = iter_dim(name);
         int tg = thread_group_dim(name);
-        int thr = thread_dim(name);
+        int loop = loop_dim(name);
         int grid = grid_dim(name);
-        if (iter == 1 && thr == 1 && tg == 1) continue;
+        if (iter == 1 && loop == 1 && tg == 1) continue;
         oss << "  Dimension " << name << pad_str(":", -18 + (int)name.length());
         oss << "(grid:" << pad_int(grid, 5) << ") x ";
         oss << "(tg:" << pad_int(tg, 5) << ") x ";
-        oss << "(thr:" << pad_int(thr, 5) << ") x ";
+        oss << "(loop:" << pad_int(loop, 5) << ") x ";
         oss << "(iter:" << pad_int(iter, 5) << ")\n";
     }
     return oss.str();
