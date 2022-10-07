@@ -48,25 +48,40 @@ public:
 
     template <typename T>
     static status_t init_pd(T *pd, engine_t *engine) {
-        using compute::compute_engine_t;
-        auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
+        try {
+            using compute::compute_engine_t;
+            auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
 
-        if (!compute_engine->mayiuse_ngen_kernels())
-            return status::unimplemented;
-        if (!pd->set_default_alg_kind(alg_kind::convolution_direct))
-            return status::unimplemented;
+            if (!compute_engine->mayiuse_ngen_kernels())
+                return status::unimplemented;
+            if (!pd->set_default_alg_kind(alg_kind::convolution_direct))
+                return status::unimplemented;
 
-        conv_problem_t prb;
-        CHECK(prb.init(engine, pd));
+            conv_problem_t prb;
+            CHECK(prb.init(engine, pd));
 
-        pd->data = std::make_shared<conv_pd_data_t>();
-        CHECK(init_pd_time_cfg(prb, pd->data->pd_cfg, engine, pd, &pd->attr_));
+            pd->data = std::make_shared<conv_pd_data_t>();
+            CHECK(init_pd_time_cfg(
+                    prb, pd->data->pd_cfg, engine, pd, &pd->attr_));
 
-        pd->data->tensor_cfg = get_tensor_config(pd->data->pd_cfg);
-        pd->data->kernel_infos.reserve(max_kernels);
-        CHECK(init_kernel_infos(pd));
+            // XXX: This is to be removed once we'll be able to properly handle
+            // out-of-registers cases during primitive creation.
+            auto tmp_cfg = pd->data->pd_cfg;
+            CHECK(init_cfg(tmp_cfg, pd));
 
-        return status::success;
+            pd->data->tensor_cfg = get_tensor_config(pd->data->pd_cfg);
+            pd->data->kernel_infos.reserve(max_kernels);
+            CHECK(init_kernel_infos(pd));
+
+            return status::success;
+        } catch (std::runtime_error &err) {
+            // If verbose is enabled, print the primitive case and rethrow the
+            // exception.
+            if (get_verbose())
+                printf("onednn_verbose,error,%s\n", pd->info(engine));
+            std::cerr << err.what() << "\n";
+            return status::runtime_error;
+        }
     }
 
     gen_convolution_t() = default;
