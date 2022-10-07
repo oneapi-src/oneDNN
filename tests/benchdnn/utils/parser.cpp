@@ -584,6 +584,7 @@ static bool parse_mode(
             if (_str[i] == 'c' || _str[i] == 'C') mode |= CORR;
             if (_str[i] == 'p' || _str[i] == 'P') mode |= PERF;
             if (_str[i] == 'l' || _str[i] == 'L') mode |= LIST;
+            if (_str[i] == 'o' || _str[i] == 'O') mode |= PROF;
         }
         if (!(mode & LIST).none() && mode.count() > 1) {
             fprintf(stderr,

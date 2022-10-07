@@ -107,8 +107,8 @@ extern std::string skip_impl; /* empty or "" means skip nothing */
     T(const T &) = delete; \
     T &operator=(const T &) = delete;
 
-using bench_mode_t = std::bitset<4>;
-extern bench_mode_t RUN, CORR, PERF, LIST; // pre-defined modes
+using bench_mode_t = std::bitset<8>;
+extern bench_mode_t RUN, CORR, PERF, LIST, PROF; // pre-defined modes
 extern bench_mode_t bench_mode; // user mode
 extern const char *driver_name;
 

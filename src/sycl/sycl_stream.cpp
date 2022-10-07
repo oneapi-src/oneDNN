@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,7 +16,9 @@
 
 #include "sycl/sycl_stream.hpp"
 
+#include "common/verbose.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/profile.hpp"
 #include "sycl/sycl_engine.hpp"
 
 #include <map>
@@ -32,12 +34,12 @@ status_t sycl_stream_t::init() {
             && (flags() & stream_flags::out_of_order) == 0)
         return status::invalid_arguments;
 
+    auto &sycl_engine = *utils::downcast<sycl_engine_base_t *>(engine());
+    auto &sycl_ctx = sycl_engine.context();
+    auto &sycl_dev = sycl_engine.device();
+
     // If queue_ is not set then construct it
     if (!queue_) {
-        auto &sycl_engine = *utils::downcast<sycl_engine_base_t *>(engine());
-        auto &sycl_ctx = sycl_engine.context();
-        auto &sycl_dev = sycl_engine.device();
-
         // FIXME: workaround for Intel(R) oneAPI DPC++ Compiler
         // Intel(R) oneAPI DPC++ Compiler does not work with multiple queues so
         // try to reuse the service stream from the engine.
@@ -46,10 +48,20 @@ status_t sycl_stream_t::init() {
         // If service stream is NULL then the current stream will be service
         // so construct it from scratch.
         if (!sycl_engine.is_service_stream_created()) {
-            ::sycl::property_list props = (flags() & stream_flags::in_order)
-                    ? ::sycl::
-                            property_list {::sycl::property::queue::in_order {}}
-                    : ::sycl::property_list {};
+            ::sycl::property_list props;
+            if (gpu::is_profiling_enabled() && sycl_dev.is_gpu()) {
+                props = (flags() & stream_flags::in_order)
+                        ? ::sycl::property_list {::sycl::property::queue::
+                                                         in_order {},
+                                ::sycl::property::queue::enable_profiling {}}
+                        : ::sycl::property_list {
+                                ::sycl::property::queue::enable_profiling {}};
+            } else {
+                props = (flags() & stream_flags::in_order)
+                        ? ::sycl::property_list {::sycl::property::queue::
+                                        in_order {}}
+                        : ::sycl::property_list {};
+            }
             queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev, props));
         } else {
             // XXX: multiple queues support has some issues, so always re-use
@@ -71,6 +83,16 @@ status_t sycl_stream_t::init() {
                 && IMPLICATION(engine()->kind() == engine_kind::cpu,
                         (sycl_dev.is_cpu() || sycl_dev.is_host()));
         if (!args_ok) return status::invalid_arguments;
+    }
+
+    if (gpu::is_profiling_enabled() && sycl_dev.is_gpu()
+            && !queue_->is_in_order()) {
+        if (get_verbose()) {
+            printf("onednn_verbose,gpu,error,DPC++ kernel profiling is not "
+                   "supported with out-of-order queues\n");
+            fflush(0);
+        }
+        return status::invalid_arguments;
     }
 
     return status::success;

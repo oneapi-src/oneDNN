@@ -208,6 +208,67 @@ extern dnnl_engine_kind_t engine_tgt_kind;
 extern size_t engine_index;
 extern isa_hints_t hints;
 
+struct engine_t {
+    engine_t(dnnl_engine_kind_t engine_kind);
+    engine_t(dnnl_engine_t engine);
+    engine_t(const engine_t &other);
+    ~engine_t();
+    operator dnnl_engine_t() const { return engine_; }
+
+private:
+    engine_t &operator=(engine_t &other) = delete;
+    dnnl_engine_t engine_;
+    bool is_owner_;
+};
+
+struct stream_t {
+    stream_t(dnnl_engine_t engine);
+    ~stream_t();
+    operator dnnl_stream_t() const { return stream_; }
+
+private:
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
+    dnnl_stream_t stream_;
+};
+
+// Engine used to run oneDNN primitives for testing.
+inline const engine_t &get_test_engine() {
+    if (is_bench_mode(PROF)) {
+        bool is_profiling_supported = false;
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+        is_profiling_supported = (engine_tgt_kind == dnnl_gpu);
+#endif
+
+        if (!is_profiling_supported) {
+            fprintf(stderr,
+                    "Profiling-based performance mode is supported for OpenCL "
+                    "and DPC++ only.\n");
+            exit(2);
+        }
+    }
+    static const engine_t instance(engine_tgt_kind);
+    return instance;
+}
+
+// Engine used to run reference implementations (fast-ref-gpu option).
+inline const engine_t &get_cpu_engine() {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    fprintf(stderr,
+            "CPU engine is not available for GPU only configurations\n");
+    SAFE_V(FAIL);
+    assert(!"unexpected");
+#endif
+    static const engine_t instance(dnnl_cpu);
+    return instance;
+}
+
+bool is_cpu(const dnnl_engine_t &engine = get_test_engine());
+bool is_gpu(const dnnl_engine_t &engine = get_test_engine());
+bool is_sycl_engine(const dnnl_engine_t &engine = get_test_engine());
+bool is_opencl_engine(const dnnl_engine_t &engine = get_test_engine());
+bool is_nvidia_gpu(const dnnl_engine_t &engine = get_test_engine());
+
 // Extended version of dnnl_sycl_interop_memory_kind_t enumeration.
 enum class memory_kind_ext_t {
     usm, // Same as dnnl_sycl_interop_usm
@@ -317,47 +378,6 @@ benchdnn_dnnl_wrapper_t<T> make_benchdnn_dnnl_wrapper(T t) {
     return benchdnn_dnnl_wrapper_t<T>(t);
 }
 
-struct engine_t {
-    engine_t(dnnl_engine_kind_t engine_kind);
-    engine_t(dnnl_engine_t engine);
-    engine_t(const engine_t &other);
-    ~engine_t();
-    operator dnnl_engine_t() const { return engine_; }
-
-private:
-    engine_t &operator=(engine_t &other) = delete;
-    dnnl_engine_t engine_;
-    bool is_owner_;
-};
-
-struct stream_t {
-    stream_t(dnnl_engine_t engine);
-    ~stream_t();
-    operator dnnl_stream_t() const { return stream_; }
-
-private:
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
-    dnnl_stream_t stream_;
-};
-
-// Engine used to run oneDNN primitives for testing.
-inline const engine_t &get_test_engine() {
-    static const engine_t instance(engine_tgt_kind);
-    return instance;
-}
-
-// Engine used to run reference implementations (fast-ref-gpu option).
-inline const engine_t &get_cpu_engine() {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
-    fprintf(stderr,
-            "CPU engine is not available for GPU only configurations\n");
-    SAFE_V(FAIL);
-    assert(!"unexpected");
-#endif
-    static const engine_t instance(dnnl_cpu);
-    return instance;
-}
-
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(res_t *res, const dnnl_primitive_desc_t &pd_no_attr);
 int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
@@ -448,6 +468,7 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
         const args_t &args);
 int execute_and_wait(dnnl_primitive_t prim, const args_t &args);
 
+void maybe_reset_profiling(uint64_t *nsec = nullptr);
 int measure_perf(res_t *res, perf_function_t &perf_func, args_t &args);
 int measure_perf(res_t *res, dnnl_primitive_t prim, args_t &args);
 
@@ -472,11 +493,6 @@ void check_sum_post_ops(const attr_t &attr, res_t *res,
 void check_inplace(res_t *res, dnnl_data_type_t sdt, dnnl_data_type_t ddt,
         const std::string &stag, const std::string &dtag);
 
-bool is_cpu(const dnnl_engine_t &engine = get_test_engine());
-bool is_gpu(const dnnl_engine_t &engine = get_test_engine());
-bool is_sycl_engine(const dnnl_engine_t &engine = get_test_engine());
-bool is_opencl_engine(const dnnl_engine_t &engine = get_test_engine());
-bool is_nvidia_gpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_nvidia_eltwise_ok(
         dir_t dir, attr_t::post_ops_t::kind_t alg, float alpha);
 inline bool is_nvidia_eltwise_ok(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/profile.hpp"
+#include "sycl/profile.hpp"
 #include "sycl/sycl_gpu_engine.hpp"
 #include "sycl/sycl_memory_storage.hpp"
 
@@ -197,6 +199,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 cgh.copy(acc_src, acc_dst);
             });
         }
+        if (gpu::is_profiling_enabled()) register_profiling_event(e);
         set_deps({e});
 
         return status::success;
@@ -234,6 +237,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 cgh.fill(acc_dst, pattern);
             });
         }
+        if (gpu::is_profiling_enabled()) register_profiling_event(out_event);
         set_deps({out_event});
         return status::success;
     }

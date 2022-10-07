@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,11 +60,19 @@ void timer_t::start() {
     ms_start_ = ms_now();
 }
 
-void timer_t::stop(int add_times) {
+void timer_t::stop(int add_times, unsigned long long add_ticks) {
     if (add_times == 0) return;
 
-    unsigned long long d_ticks = ticks_now() - ticks_start_;
-    double d_ms = ms_now() - ms_start_;
+    unsigned long long d_ticks;
+    double d_ms;
+
+    if (add_ticks > 0) {
+        d_ticks = add_ticks;
+        d_ms = add_ticks / 1e6;
+    } else {
+        d_ticks = ticks_now() - ticks_start_;
+        d_ms = ms_now() - ms_start_;
+    }
 
     ticks_start_ += d_ticks;
     ms_start_ += d_ms;
