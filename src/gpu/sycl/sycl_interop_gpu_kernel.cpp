@@ -175,9 +175,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
                     cgh.set_arg((int)i, nullptr);
                 }
             } else if (arg.is_local()) {
-                auto acc = ::sycl::accessor<uint8_t, 1,
-                        ::sycl::access::mode::read_write,
-                        ::sycl::access::target::local>(
+                auto acc = compat::local_accessor<uint8_t, 1>(
                         ::sycl::range<1>(arg.size()), cgh);
                 cgh.set_arg((int)i, acc);
             } else {

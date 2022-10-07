@@ -122,10 +122,9 @@ status_t sycl_device_info_t::init_attributes(engine_t *engine) {
             cl_device_id ocl_dev = compat::get_native<cl_device_id>(device);
             CHECK(gpu::ocl::get_ocl_device_eu_count(ocl_dev, &eu_count_));
         } else {
-            auto slices = device.get_info<
-                    ::sycl::info::device::ext_intel_gpu_slices>();
+            auto slices = device.get_info<compat::ext_intel_gpu_slices>();
             auto sub_slices = device.get_info<
-                    ::sycl::info::device::ext_intel_gpu_subslices_per_slice>();
+                    compat::ext_intel_gpu_subslices_per_slice>();
             auto eus_per_subslice = device.get_info<::sycl::info::device::
                             ext_intel_gpu_eu_count_per_subslice>();
             eu_count_ = slices * sub_slices * eus_per_subslice;
