@@ -26,18 +26,18 @@ using namespace sycl;
 
 namespace dnnl {
 
-enum class dev_kind { cpu, cpu_only, gpu, gpu_only, host };
-enum class ctx_kind { cpu, cpu_only, gpu, gpu_only, host };
+enum class dev_kind { cpu, cpu_only, gpu, gpu_only };
+enum class ctx_kind { cpu, cpu_only, gpu, gpu_only };
 
 namespace {
 
 std::string to_string(dev_kind kind) {
-    static const char *strs[] = {"CPU", "CPU-only", "GPU", "GPU-only", "Host"};
+    static const char *strs[] = {"CPU", "CPU-only", "GPU", "GPU-only"};
     return strs[static_cast<int>(kind)];
 }
 
 std::string to_string(ctx_kind kind) {
-    static const char *strs[] = {"CPU", "CPU-only", "GPU", "GPU-only", "Host"};
+    static const char *strs[] = {"CPU", "CPU-only", "GPU", "GPU-only"};
     return strs[static_cast<int>(kind)];
 }
 
@@ -60,7 +60,7 @@ protected:
                         gpu_dev.reset(new device(dev));
                         gpu_ctx.reset(new context(*gpu_dev));
                     }
-                    if (!gpu_only_dev && !dev.is_cpu() && !dev.is_host()) {
+                    if (!gpu_only_dev && !dev.is_cpu()) {
                         gpu_only_dev.reset(new device(dev));
                         gpu_only_ctx.reset(new context(*gpu_only_dev));
                     }
@@ -69,14 +69,9 @@ protected:
                         cpu_dev.reset(new device(dev));
                         cpu_ctx.reset(new context(*cpu_dev));
                     }
-                    if (!cpu_only_dev && !dev.is_gpu() && !dev.is_host()) {
+                    if (!cpu_only_dev && !dev.is_gpu()) {
                         cpu_only_dev.reset(new device(dev));
                         cpu_only_ctx.reset(new context(*cpu_only_dev));
-                    }
-                } else if (dev.is_host()) {
-                    if (!host_dev) {
-                        host_dev.reset(new device(dev));
-                        host_ctx.reset(new context(*host_dev));
                     }
                 }
             }
@@ -87,10 +82,8 @@ protected:
 
     std::unique_ptr<device> cpu_dev, cpu_only_dev;
     std::unique_ptr<device> gpu_dev, gpu_only_dev;
-    std::unique_ptr<device> host_dev;
     std::unique_ptr<context> cpu_ctx, cpu_only_ctx;
     std::unique_ptr<context> gpu_ctx, gpu_only_ctx;
-    std::unique_ptr<context> host_ctx;
 };
 
 TEST_P(sycl_engine_test, BasicInterop) {
@@ -107,7 +100,6 @@ TEST_P(sycl_engine_test, BasicInterop) {
         case dev_kind::cpu_only: dev_ptr = cpu_only_dev.get(); break;
         case dev_kind::gpu: dev_ptr = gpu_dev.get(); break;
         case dev_kind::gpu_only: dev_ptr = gpu_only_dev.get(); break;
-        case dev_kind::host: dev_ptr = host_dev.get(); break;
     }
     context *ctx_ptr = nullptr;
     switch (param.actx_kind) {
@@ -115,7 +107,6 @@ TEST_P(sycl_engine_test, BasicInterop) {
         case ctx_kind::cpu_only: ctx_ptr = cpu_only_ctx.get(); break;
         case ctx_kind::gpu: ctx_ptr = gpu_ctx.get(); break;
         case ctx_kind::gpu_only: ctx_ptr = gpu_only_ctx.get(); break;
-        case ctx_kind::host: ctx_ptr = host_ctx.get(); break;
     }
 
     SKIP_IF(!dev_ptr, to_string(param.adev_kind) + " device not found");
@@ -146,49 +137,6 @@ TEST_P(sycl_engine_test, BasicInterop) {
                 EXPECT_EQ(sycl_interop::get_context(eng), ctx);
             },
             param.expected_status != dnnl_success, param.expected_status);
-}
-
-TEST(sycl_engine_test, HostDevice) {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
-    SKIP_IF(true, "Skip test for host device for GPU only configuration");
-#endif
-
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
-    SKIP_IF(true, "Skip this test for classic CPU runtime");
-#endif
-
-    device dev(host_selector {});
-    context ctx(dev);
-
-    auto eng = sycl_interop::make_engine(dev, ctx);
-
-    memory::dims tz = {2, 3, 4, 5};
-    memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
-    auto mem = test::make_memory(mem_d, eng);
-
-    {
-        auto *ptr = mem.map_data<float>();
-        GTEST_EXPECT_NE(ptr, nullptr);
-        for (size_t i = 0; i < mem_d.get_size() / sizeof(float); ++i)
-            ptr[i] = float(i) * (i % 2 == 0 ? 1 : -1);
-        mem.unmap_data(ptr);
-    }
-
-    auto eltwise_d = eltwise_forward::desc(
-            prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
-    auto eltwise = eltwise_forward({eltwise_d, eng});
-
-    stream s(eng);
-    eltwise.execute(s, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
-    s.wait();
-
-    {
-        auto *ptr = mem.map_data<float>();
-        GTEST_EXPECT_NE(ptr, nullptr);
-        for (size_t i = 0; i < mem_d.get_size() / sizeof(float); ++i)
-            ASSERT_EQ(ptr[i], (i % 2 == 0 ? i : 0));
-        mem.unmap_data(ptr);
-    }
 }
 
 TEST_P(sycl_engine_test, SubDevice) {
@@ -256,9 +204,7 @@ INSTANTIATE_TEST_SUITE_P(Simple, sycl_engine_test,
         ::testing::Values(sycl_engine_test_params {dev_kind::gpu, ctx_kind::gpu,
                                   dnnl_success},
                 sycl_engine_test_params {
-                        dev_kind::cpu, ctx_kind::cpu, dnnl_success},
-                sycl_engine_test_params {
-                        dev_kind::host, ctx_kind::host, dnnl_success}));
+                        dev_kind::cpu, ctx_kind::cpu, dnnl_success}));
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
 INSTANTIATE_TEST_SUITE_P(InvalidArgs, sycl_engine_test,
