@@ -79,11 +79,13 @@ protected:
     constexpr static int simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
     using Vmm_down_t = typename vreg_traits<Vmm>::Vmm_lower_t;
-    const Xbyak::AddressFrame &vword_out = yword;
 
     const Vmm vmm_input = Vmm(0);
     const Vmm_down_t vmm_output = Vmm_down_t(1);
 
+    // used in avx2_vnni_2
+    const Vmm vmm_in_mask = Vmm(2);
+    const Vmm_down_t vmm_out_mask = Vmm(3);
     // used in bf16 emulation
     const Vmm vmm_one = Vmm(2);
     const Vmm vmm_even = Vmm(3);
@@ -138,6 +140,9 @@ struct jit_cvt_ps_to_xf16_t {
         else if (data_type == data_type::bf16 && mayiuse(avx512_core))
             kernel_ = utils::make_unique<jit_avx512_core_cvt_ps_to_bf16_t>(
                     data_type, nelems);
+        else if (mayiuse(avx2_vnni_2))
+            kernel_ = utils::make_unique<jit_uni_cvt_ps_to_xf16_t<avx2_vnni_2>>(
+                    data_type, nelems);
         else {
             assert(!"unsupported ISA for converter");
             return;
@@ -169,12 +174,15 @@ struct jit_uni_cvt_xf16_to_ps_t : public jit_generator {
 
     void generate() override;
 
-    void operator()(cvt_xf16_support::jit_cvt_xf16_to_ps_params_t *p) const {
+    void operator()(cvt_xf16_support::jit_cvt_xf16_to_ps_params_t *p)
+            const { // override?
+        printf("operator sub-class\n");
         jit_generator::operator()(p);
         msan_unpoison(p->out, p->nelems * sizeof(float));
     }
 
 protected:
+    constexpr static int elem_granularity = isa == avx2_vnni_2 ? 2 : 1;
     constexpr static int simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
     using Vmm_down_t = typename vreg_traits<Vmm>::Vmm_lower_t;
@@ -195,14 +203,26 @@ protected:
     const Xbyak::Reg64 reg_rollback = r11;
     const Xbyak::Reg64 reg_nelems_save = r12;
 
-    const Xbyak::Reg64 reg_tmp = r12;
-    const Xbyak::Reg64 reg_scratch = r13;
+    const Xbyak::Reg64 reg_tmp = r13;
 
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(1);
 
-    Vmm vmm_cvt(int idx) { return Vmm(idx); }
+    const Vmm vmm_tmp = Vmm(13);
+    const Vmm vmm_dst = Vmm(14);
+    const Vmm vmm_dst_2 = Vmm(15);
+    const Vmm_down_t vmm_in_mask = Vmm_down_t(15);
 
-    void convert_xf16(const int idx);
+    Vmm get_vmm_src(int idx) { return Vmm(get_even_src_idx(idx)); }
+    int get_even_src_idx(int idx) {
+        assert(idx < 4);
+        return idx;
+    }
+    int get_odd_src_idx(int idx) {
+        assert(idx < 4);
+        return idx + 4;
+    }
+
+    void convert_xf16(const int idx, const bool handle_x2);
     void cvt_tail();
 };
 
@@ -217,7 +237,17 @@ struct jit_cvt_xf16_to_ps_t {
         else if (data_type == data_type::bf16 && mayiuse(avx512_core))
             kernel_ = utils::make_unique<jit_uni_cvt_xf16_to_ps_t<avx512_core>>(
                     data_type, with_add, row_stride);
-        else {
+        else if (mayiuse(avx2_vnni_2)) {
+            if (row_stride != 0) {
+                assert(!"unsupported row_stride for avx2_vnni_2");
+                return;
+            } else if (with_add) {
+                assert(!"untested implementation 'with_add' for avx2_vnni_2");
+                return;
+            }
+            kernel_ = utils::make_unique<jit_uni_cvt_xf16_to_ps_t<avx2_vnni_2>>(
+                    data_type, with_add, row_stride);
+        } else {
             assert(!"unsupported configuration for converter");
             return;
         }
