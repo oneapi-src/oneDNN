@@ -106,7 +106,9 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
             : brgemm_broadcast_t::none;
     matmul_conf_for_reorder_.has_zero_point_a
             = matmul_conf_for_reorder_.src_zp_type != brgemm_broadcast_t::none;
-    matmul_conf_for_reorder_.isa = get_max_cpu_isa();
+    assert(!utils::one_of(data_type::f16, type_i, type_o)
+            && "ISA should be avx512_core_fp16 for f16 data type");
+    matmul_conf_for_reorder_.isa = avx512_core;
 
     auto mask_ok = [&](bool check, int mask) {
         return IMPLICATION(
