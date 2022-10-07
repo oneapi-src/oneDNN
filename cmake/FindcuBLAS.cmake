@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 # Copyright 2020 Codeplay Software Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,9 +19,15 @@ find_package(CUDA 10.0 REQUIRED)
 find_package(Threads REQUIRED)
 
 find_path(CUBLAS_INCLUDE_DIR "cublas_v2.h"
-          HINTS ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-find_library(CUBLAS_LIBRARY cublas)
+        HINTS ${CUDA_TOOLKIT_ROOT_DIR}
+        PATH_SUFFIXES include)
+
 find_library(CUDA_DRIVER_LIBRARY cuda)
+
+find_library(
+    CUBLAS_LIBRARY cublas
+    HINTS ${CUDA_TOOLKIT_ROOT_DIR}
+    PATH_SUFFIXES lib lib64 bin)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(cuBLAS

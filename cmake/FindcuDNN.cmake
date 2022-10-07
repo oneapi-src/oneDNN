@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2022 Intel Corporation
 # Copyright 2020 Codeplay Software Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,23 +16,20 @@
 #===============================================================================
 
 find_package(CUDA 10.0 REQUIRED)
-
-set(cudnn_inc_dir_hints "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES};/usr/local/cuda/include")
-find_path(CUDNN_INCLUDE_DIR "cudnn.h" HINTS ${cudnn_inc_dir_hints})
-
-find_library(CUDNN_LIBRARY cudnn)
-find_library(CUDA_DRIVER_LIBRARY cuda)
-# this is work around to avoid duplication half creation in both cuda and SYCL
-
 find_package(Threads REQUIRED)
 
-include(FindPackageHandleStandardArgs)
+find_path(CUDNN_INCLUDE_DIR "cudnn.h"
+        HINTS ${CUDA_TOOLKIT_ROOT_DIR}
+        PATH_SUFFIXES include)
+
+find_library(CUDA_DRIVER_LIBRARY cuda)
 
 find_library(
     CUDNN_LIBRARY cudnn
     HINTS ${CUDA_TOOLKIT_ROOT_DIR}
     PATH_SUFFIXES lib lib64 bin)
 
+include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(cuDNN
     REQUIRED_VARS
         CUDNN_INCLUDE_DIR
