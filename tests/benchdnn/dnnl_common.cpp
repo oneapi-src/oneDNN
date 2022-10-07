@@ -823,9 +823,10 @@ static size_t get_md_size(const_dnnl_memory_desc_t md,
 
     // reference memories are always fp32, hence need rescaling factor
     size_t ref_mem_factor = 1;
-    if (md->data_type != dnnl_data_type_undef)
-        ref_mem_factor = dnnl_data_type_size(dnnl_f32)
-                / dnnl_data_type_size(md->data_type);
+    const auto md_dt = query_md_data_type(md);
+    if (md_dt != dnnl_data_type_undef)
+        ref_mem_factor
+                = dnnl_data_type_size(dnnl_f32) / dnnl_data_type_size(md_dt);
     // correctness pass allocates additional plain f32 memory to compare values.
     if (add_ref_out_size && is_bench_mode(CORR)) ref_mem_factor *= 2;
 
