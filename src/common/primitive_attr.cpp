@@ -68,9 +68,9 @@ status_t arg_scales_t::get(
     if (!check_arg(arg)) return status::invalid_arguments;
     const auto &s = get(arg);
 
-    *count = s.count_;
-    *mask = s.mask_;
-    *scales = s.scales_;
+    if (count) *count = s.count_;
+    if (mask) *mask = s.mask_;
+    if (scales) *scales = s.scales_;
     return status::success;
 }
 
