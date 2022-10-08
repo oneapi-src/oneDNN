@@ -3,17 +3,13 @@
 --mb=2
 --stag=any,axb
 
---attr-oscale=common:2.25 --attr-post-ops=sum:1.5+relu:0.5
+--attr-oscale=common:2.25* --attr-post-ops=sum:1.5+relu:0.5
 --dir=FWD_B
 --cfg=u8s8s8  --batch=shapes_resnet_50
 
---attr-oscale=common:2.25 --attr-post-ops=sum:1.5
+--attr-oscale=common:2.25* --attr-post-ops=sum:1.5
 --dir=FWD_D
 --cfg=u8s8u8  --batch=shapes_resnet_50
---cfg=u8s8s8  --batch=shapes_resnet_50
-
---attr-oscale=per_oc:2.25 --attr-post-ops=sum:1.5+relu:0.5
---dir=FWD_B
 --cfg=u8s8s8  --batch=shapes_resnet_50
 
 --attr-oscale=per_oc:1.25* --attr-post-ops=sum:0.5+relu:2.5

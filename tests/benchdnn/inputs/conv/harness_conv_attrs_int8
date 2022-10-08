@@ -3,7 +3,7 @@
 --mb=2
 --skip-impl=ref
 --dir=FWD_B
---attr-oscale=per_oc:2.25 --attr-post-ops=sum:1.5:2+relu:0:0:2.6
+--attr-oscale=per_oc:2.25* --attr-post-ops=sum:1.5:2+relu:0:0:2.6
 --cfg=u8s8u8  --batch=shapes_vgg_19
 --cfg=u8s8f32 --batch=shapes_googlenet_v2
 --cfg=s8s8u8  --batch=shapes_vgg_19
@@ -29,10 +29,6 @@
 --dir=FWD_B
 --attr-oscale=per_oc:2.25* --attr-post-ops=sum:1.5:2+relu
 --cfg=s8s8f32,s8s8u8,u8s8f32,u8s8u8  --batch=shapes_tails
-
---dir=FWD_D
---attr-oscale=common:2.25 --attr-post-ops=sum:1.5:2
---cfg=s8s8s32,s8s8s8,u8s8s32,u8s8s8  --batch=shapes_tails
 
 # i8 conv + f32 leaky relu
 --reset --dir=FWD_B --mb=2
