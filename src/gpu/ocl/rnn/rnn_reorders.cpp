@@ -31,7 +31,7 @@ status_t rnn_weights_reorder_t::pd_t::init_conf(engine_t *engine) {
     status_t status = status::success;
 
     const auto &dims = dst_mdw.padded_dims();
-    conf.with_sum_ab = (alpha() != 1.f || beta() != 0.f);
+    conf.with_sum_ab = with_alpha() || beta() != 0.f;
     conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
     conf.do_reorder = src_mdw != dst_mdw;
     conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
@@ -145,7 +145,7 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
     if (do_reorder) {
         wspace = ctx.get_scratchpad_grantor().get_memory_storage(
                 key_reorder_rnn_space);
-        scales_buf = &CTX_GPU_RES_STORAGE(SCALES_);
+        scales_buf = &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
     }
 
     // Copy to gpu

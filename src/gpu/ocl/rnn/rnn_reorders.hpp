@@ -111,30 +111,9 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
-protected:
-    status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override {
-        if (!pd()->conf.do_reorder) return status::success;
-        memory_storage_t *tmp_mem_storage_ptr = nullptr;
-        size_t size = pd()->conf.scales_count * sizeof(float);
-        CHECK(engine->create_memory_storage(&tmp_mem_storage_ptr, size));
-
-        void *scales_ptr = nullptr;
-        std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
-        CHECK(tmp_mem_storage->map_data(
-                &scales_ptr, nullptr, sizeof(float) * pd()->conf.scales_count));
-        utils::array_copy((float *)scales_ptr,
-                pd()->attr()->rnn_weights_qparams_.scales_,
-                pd()->conf.scales_count);
-        CHECK(tmp_mem_storage->unmap_data(scales_ptr, nullptr));
-        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
-        return status::success;
-    }
-
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
-    enum { SCALES_ = 0 };
 };
 
 } // namespace ocl
