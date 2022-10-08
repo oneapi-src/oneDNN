@@ -62,7 +62,7 @@ TEST(Execute, BinaryOp) {
 
         impl::pass::pass_base_ptr apass = get_pass(pass_names[i]);
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -122,7 +122,7 @@ TEST(Execute, MulEltwise) {
         impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         ASSERT_NE(apass.get(), nullptr);
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -183,7 +183,7 @@ TEST(Execute, BinaryOpAddFusion) {
 
         impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -233,7 +233,7 @@ TEST(Execute, BinarySub) {
 
     impl::pass::pass_base_ptr apass = get_pass("sub_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -293,7 +293,7 @@ TEST(Execute, MinEltwise) {
         impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         ASSERT_NE(apass.get(), nullptr);
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -352,7 +352,7 @@ TEST(Execute, MaxEltwise) {
         impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         ASSERT_NE(apass.get(), nullptr);
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -443,7 +443,7 @@ TEST(ExecuteSubgraphFp32, BinarySwish) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -521,7 +521,7 @@ TEST(Execute, Eltwise3BinaryPostops) {
 
     impl::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -648,7 +648,7 @@ TEST(ExecuteSubgraphFp32, Binary3Postops) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -705,7 +705,7 @@ TEST(Execute, Add) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -781,7 +781,7 @@ TEST(Execute, AddWithDifferentFormat) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -842,7 +842,7 @@ TEST(Execute, BroadcastAdd) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -916,7 +916,7 @@ TEST(Execute, SwapBroadcastAdd) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -985,7 +985,7 @@ TEST(Execute, MultidirectionalBroadcastAddBA) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1058,7 +1058,7 @@ TEST(Execute, multidirectionalbBroadcastAddAB) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1114,7 +1114,7 @@ TEST(Execute, MultidirectionalBroadcastAdd) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1170,7 +1170,7 @@ TEST(Execute, MultidirectionalBroadcastAddExpandDim) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1221,7 +1221,7 @@ TEST(Compile, AddShapeMismatchCase0) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1258,7 +1258,7 @@ TEST(Compile, AddShapeMismatch1) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1296,7 +1296,7 @@ TEST(Compile, AddShapeMismatch2) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1340,7 +1340,7 @@ TEST(Execute, ReversedDifferentFormatBroadcastAdd) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1408,7 +1408,7 @@ TEST(Execute, BiasAdd) {
 
         impl::pass::pass_base_ptr apass = get_pass("bias_add_pass");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -1476,7 +1476,7 @@ TEST(Execute, AddMul) {
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1544,7 +1544,7 @@ TEST(Execute, AddMulPostSrcAsNxc) {
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1606,7 +1606,7 @@ TEST(Execute, AddRelu) {
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1671,7 +1671,7 @@ TEST(Execute, AddSigmoid) {
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     impl::partition_t p;
     p.init(part);
@@ -1748,7 +1748,7 @@ TEST(Execute, AddAdd) {
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -1809,7 +1809,7 @@ TEST(Execute, ScalarScalarAdd) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1869,7 +1869,7 @@ TEST(Execute, ScalarVectorAdd) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1939,7 +1939,7 @@ TEST(Execute, MulAddPerTensorBroadcast) {
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -2003,7 +2003,7 @@ TEST(Execute, MulAddPerHwBroadcast) {
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -2067,7 +2067,7 @@ TEST(Execute, MulAddPerChannelBroadcast) {
 
     impl::pass::pass_base_ptr apass = get_pass("binary_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -2144,7 +2144,7 @@ TEST(Execute, MulAddAdd) {
     g.build_graph();
 
     run_all_passes(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -2195,7 +2195,7 @@ TEST(Execute, AddEmptyInput) {
 
     impl::pass::pass_base_ptr apass = get_pass("sum_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile

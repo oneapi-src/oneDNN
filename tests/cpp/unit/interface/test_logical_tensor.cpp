@@ -112,7 +112,7 @@ TEST(LogicalTensor, PushToVector) {
     }
 
     for (size_t i = 0; i < num_inputs; ++i) {
-        ASSERT_EQ(lt_vec[i].ndims, dims.size());
+        ASSERT_EQ(static_cast<size_t>(lt_vec[i].ndims), dims.size());
     }
 }
 
@@ -167,10 +167,10 @@ TEST(LogicalTensor, GetWeightSpatialDims) {
 
     auto wrap = ltw(lt);
     ASSERT_EQ(wrap.get_weight_spatial_dims("XXX").empty(), true);
-    ASSERT_EQ(wrap.get_weight_spatial_dims("XIO")[0], 1);
-    ASSERT_EQ(wrap.get_weight_spatial_dims("XIO")[1], 2);
-    ASSERT_EQ(wrap.get_weight_spatial_dims("OIX")[0], 2);
-    ASSERT_EQ(wrap.get_weight_spatial_dims("OIX")[1], 1);
+    ASSERT_EQ(wrap.get_weight_spatial_dims("XIO")[0], 1U);
+    ASSERT_EQ(wrap.get_weight_spatial_dims("XIO")[1], 2U);
+    ASSERT_EQ(wrap.get_weight_spatial_dims("OIX")[0], 2U);
+    ASSERT_EQ(wrap.get_weight_spatial_dims("OIX")[1], 1U);
 }
 
 TEST(LogicalTensor, GetSrcSpatialDims) {
@@ -179,11 +179,11 @@ TEST(LogicalTensor, GetSrcSpatialDims) {
             0, {1, 2, 2, 1}, impl::data_type::f32, impl::layout_type::strided);
 
     auto wrap = ltw(lt);
-    ASSERT_EQ(wrap.get_src_spatial_dims("XXX").size(), 0);
-    ASSERT_EQ(wrap.get_src_spatial_dims("NCX")[0], 2);
-    ASSERT_EQ(wrap.get_src_spatial_dims("NCX")[1], 1);
-    ASSERT_EQ(wrap.get_src_spatial_dims("NXC")[0], 2);
-    ASSERT_EQ(wrap.get_src_spatial_dims("NXC")[1], 2);
+    ASSERT_EQ(wrap.get_src_spatial_dims("XXX").size(), 0U);
+    ASSERT_EQ(wrap.get_src_spatial_dims("NCX")[0], 2U);
+    ASSERT_EQ(wrap.get_src_spatial_dims("NCX")[1], 1U);
+    ASSERT_EQ(wrap.get_src_spatial_dims("NXC")[0], 2U);
+    ASSERT_EQ(wrap.get_src_spatial_dims("NXC")[1], 2U);
 }
 
 TEST(LogicalTensor, GetWeightOrSrcIO) {
@@ -193,16 +193,16 @@ TEST(LogicalTensor, GetWeightOrSrcIO) {
 
     auto wrap = ltw(lt);
     ASSERT_EQ(wrap.get_weight_i("XXX"), DNNL_GRAPH_UNKNOWN_DIM);
-    ASSERT_EQ(wrap.get_weight_i("OIX"), 2);
-    ASSERT_EQ(wrap.get_weight_i("XIO"), 2);
+    ASSERT_EQ(wrap.get_weight_i("OIX"), 2U);
+    ASSERT_EQ(wrap.get_weight_i("XIO"), 2U);
 
     ASSERT_EQ(wrap.get_weight_o("XXX"), DNNL_GRAPH_UNKNOWN_DIM);
-    ASSERT_EQ(wrap.get_weight_o("OIX"), 1);
-    ASSERT_EQ(wrap.get_weight_o("XIO"), 1);
+    ASSERT_EQ(wrap.get_weight_o("OIX"), 1U);
+    ASSERT_EQ(wrap.get_weight_o("XIO"), 1U);
 
     ASSERT_EQ(wrap.get_src_c("XXX"), DNNL_GRAPH_UNKNOWN_DIM);
-    ASSERT_EQ(wrap.get_src_c("NCX"), 2);
-    ASSERT_EQ(wrap.get_src_c("NXC"), 1);
+    ASSERT_EQ(wrap.get_src_c("NCX"), 2U);
+    ASSERT_EQ(wrap.get_src_c("NXC"), 1U);
 }
 
 TEST(LogicalTensor, IsIdentical) {

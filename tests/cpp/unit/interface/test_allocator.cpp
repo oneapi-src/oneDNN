@@ -71,7 +71,7 @@ TEST(Allocator, Monitor) {
     // single thread
     for (size_t iter = 0; iter < 4; iter++) {
         allocator_t::monitor_t::reset_peak_temp_memory(alloc);
-        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(alloc), 0);
+        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(alloc), 0U);
 
         callee(); // call the callee to do memory operation
 
@@ -89,7 +89,7 @@ TEST(Allocator, Monitor) {
     // multiple threads
     auto thread_func = [&]() {
         allocator_t::monitor_t::reset_peak_temp_memory(alloc);
-        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(alloc), 0);
+        ASSERT_EQ(allocator_t::monitor_t::get_peak_temp_memory(alloc), 0U);
         callee();
         ASSERT_EQ(
                 allocator_t::monitor_t::get_peak_temp_memory(alloc), temp_size);

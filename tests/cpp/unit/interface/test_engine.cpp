@@ -23,11 +23,11 @@ TEST(Engine, SimpleEngine) {
     dnnl::graph::impl::engine_t engine_cpu(akind, 0);
 
     ASSERT_EQ(engine_cpu.kind(), akind);
-    ASSERT_EQ(engine_cpu.index(), 0);
+    ASSERT_EQ(engine_cpu.index(), 0U);
 
     akind = dnnl::graph::impl::engine_kind::gpu;
-    dnnl::graph::impl::engine_t engine_gpu(akind, 0);
+    dnnl::graph::impl::engine_t engine_gpu(akind, 0U);
 
     ASSERT_EQ(engine_gpu.kind(), akind);
-    ASSERT_EQ(engine_gpu.index(), 0);
+    ASSERT_EQ(engine_gpu.index(), 0U);
 }

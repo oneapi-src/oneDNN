@@ -28,7 +28,7 @@ using namespace dnnl::graph::impl;
 TEST(Partition, CreateSimple) {
     dnnl_impl::dnnl_partition_impl_t p(
             engine_kind::cpu, fpmath_mode::strict, partition_kind::undef);
-    ASSERT_EQ(p.get_ops().size(), 0);
+    ASSERT_EQ(p.get_ops().size(), 0U);
     ASSERT_EQ(p.get_fpmath_mode(), fpmath_mode::strict);
     ASSERT_EQ(p.get_kind(), partition_kind::undef);
 }
@@ -39,7 +39,7 @@ TEST(Partition, AddOps) {
     size_t id = 100;
     std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));
     p.add_op(n);
-    ASSERT_EQ(p.get_ops().size(), 1);
+    ASSERT_EQ(p.get_ops().size(), 1U);
 
     std::vector<size_t> ids {101, 102};
     std::vector<std::shared_ptr<op_t>> ops;
@@ -48,7 +48,7 @@ TEST(Partition, AddOps) {
         p.add_op(ops.back());
     }
 
-    ASSERT_EQ(p.get_ops().size(), 3);
+    ASSERT_EQ(p.get_ops().size(), 3U);
 }
 
 TEST(Partition, GetOps) {
@@ -58,8 +58,8 @@ TEST(Partition, GetOps) {
     std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));
     p.add_op(n);
     auto ops = p.get_ops();
-    ASSERT_EQ(ops.size(), 1);
-    ASSERT_EQ(ops[0]->get_id(), 100);
+    ASSERT_EQ(ops.size(), 1U);
+    ASSERT_EQ(ops[0]->get_id(), 100U);
 }
 
 TEST(Partition, Init) {

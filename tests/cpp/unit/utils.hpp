@@ -173,7 +173,7 @@ static inline void verify_op_schema(const dnnl::graph::impl::op_kind_t op_kind_,
     for (const auto &attr_data : attrs_data) {
         const auto &attr_name = attr_data.first;
         const auto is_required = attr_data.second;
-        EXPECT_EQ(op_schema_->get_attrs().count(attr_name), 1);
+        EXPECT_EQ(op_schema_->get_attrs().count(attr_name), 1U);
         EXPECT_EQ(op_schema_->get_attrs().at(attr_name).required_, is_required);
     }
 }

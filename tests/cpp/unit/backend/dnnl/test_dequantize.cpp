@@ -55,7 +55,7 @@ TEST(Execute, DequantizePerTensor) {
 
     impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -114,7 +114,7 @@ TEST(Execute, DequantizePerTensorAnyLayout) {
 
     impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -171,7 +171,7 @@ TEST(Execute, DequantizePerChannelSymmetric) {
 
     impl::pass::pass_base_ptr apass = get_pass("dequant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -236,7 +236,7 @@ TEST(Execute, DynamicDequantizeS32ZpsPerTensor) {
 
     impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -303,7 +303,7 @@ TEST(Execute, DynamicDequantizeNoZpsPerTensor) {
 
     impl::pass::pass_base_ptr apass = get_pass("dync_dequant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;

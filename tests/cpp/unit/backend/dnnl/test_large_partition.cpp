@@ -91,11 +91,11 @@ TEST(Execute, ConvResBlock) {
     g.add_op(&relu2);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 7);
+    ASSERT_EQ(g.get_ops().size(), 7U);
 
     impl::pass::pass_base_ptr apass = get_pass("conv_simple_resblock_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -215,11 +215,11 @@ TEST(Execute, ConvResBlockWithNhwcLayout) {
     g.add_op(&relu2);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 7);
+    ASSERT_EQ(g.get_ops().size(), 7U);
 
     impl::pass::pass_base_ptr apass = get_pass("conv_simple_resblock_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -287,12 +287,12 @@ TEST(Execute, F32ConvolutionalBottleneckResBlock) {
     utils::construct_convolutional_bottleneck_resblock(&g, id_gen);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 8);
+    ASSERT_EQ(g.get_ops().size(), 8U);
 
     impl::pass::pass_base_ptr apass
             = get_pass("convolutional_bottleneck_resblock_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -301,8 +301,8 @@ TEST(Execute, F32ConvolutionalBottleneckResBlock) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 10);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 10U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -360,12 +360,12 @@ TEST(Execute, Int8IdenticalBottleneckResBlock) {
     utils::construct_int8_identical_bottleneck_resblock(&g, id_gen);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 17);
+    ASSERT_EQ(g.get_ops().size(), 17U);
 
     impl::pass::pass_base_ptr apass
             = get_pass("int8_identical_bottleneck_resblock_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -374,8 +374,8 @@ TEST(Execute, Int8IdenticalBottleneckResBlock) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 8);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 8U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -424,11 +424,11 @@ TEST(Execute, Int8Resnet50Stage2Block) {
     utils::construct_int8_resnet50_stage2_block(&g, id_gen, 3);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 72);
+    ASSERT_EQ(g.get_ops().size(), 72U);
 
     impl::pass::pass_base_ptr apass = get_pass("int8_resnet50_stage_2_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -437,8 +437,8 @@ TEST(Execute, Int8Resnet50Stage2Block) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 28);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 28U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -488,11 +488,11 @@ TEST(Execute, F32Resnet50Stage2Block) {
             &g, id_gen, 3, /* use biasadd */ true);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 42);
+    ASSERT_EQ(g.get_ops().size(), 42U);
 
     impl::pass::pass_base_ptr apass = get_pass("f32_resnet50_stage_2_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -501,8 +501,8 @@ TEST(Execute, F32Resnet50Stage2Block) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 28);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 28U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -554,12 +554,12 @@ TEST(Execute, ItexInt8Resnet50Stage2Block) {
     utils::construct_itex_int8_resnet50_stage2_block(&g, id_gen, 3);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 98);
+    ASSERT_EQ(g.get_ops().size(), 98U);
 
     impl::pass::pass_base_ptr apass
             = get_pass("itex_int8_resnet50_stage_2_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -568,8 +568,8 @@ TEST(Execute, ItexInt8Resnet50Stage2Block) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 28);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 28U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -621,12 +621,12 @@ TEST(Execute, Int8ResneXt101Stage3Block) {
     utils::construct_int8_resnext101_stage3_block(&g, id_gen, 22);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 395);
+    ASSERT_EQ(g.get_ops().size(), 395U);
 
     impl::pass::pass_base_ptr apass
             = get_pass("int8_resnext101_stage_3_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -635,8 +635,8 @@ TEST(Execute, Int8ResneXt101Stage3Block) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 142);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 142U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -684,11 +684,11 @@ TEST(Execute, ChainedReLU) {
     utils::construct_chained_relu(&g);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 3);
+    ASSERT_EQ(g.get_ops().size(), 3U);
 
     impl::pass::pass_base_ptr apass = get_pass("chained_relu_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -697,8 +697,8 @@ TEST(Execute, ChainedReLU) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 1);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 1U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -741,12 +741,12 @@ TEST(Execute, Int8ConvBiasReluConvBiasReluBlock) {
     utils::construct_int8_conv_bias_relu_conv_bias_relu_block(&g, id_gen);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 10);
+    ASSERT_EQ(g.get_ops().size(), 10U);
 
     impl::pass::pass_base_ptr apass
             = get_pass("int8_conv_bias_relu_conv_bias_relu_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -755,8 +755,8 @@ TEST(Execute, Int8ConvBiasReluConvBiasReluBlock) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -805,12 +805,12 @@ TEST(Execute, Int8ConvBiasReluConvBiasReluConvBiasConvBiasAddReluBlock) {
     utils::construct_int8_convolutional_bottleneck_resblock(&g, id_gen);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 21);
+    ASSERT_EQ(g.get_ops().size(), 21U);
 
     impl::pass::pass_base_ptr apass
             = get_pass("int8_convolutional_bottleneck_resblock_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -819,8 +819,8 @@ TEST(Execute, Int8ConvBiasReluConvBiasReluConvBiasConvBiasAddReluBlock) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 10);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 10U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -868,7 +868,7 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
     utils::construct_int8_convolutional_bottleneck_resblock(&g, id_gen);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 21);
+    ASSERT_EQ(g.get_ops().size(), 21U);
 
     impl::pass::pass_base_ptr apass1
             = get_pass("int8_identical_bottleneck_resblock_fusion");
@@ -878,7 +878,7 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
                             : "int8_conv_post_ops_int8_add_fusion_cpu");
     apass1->run(g);
     apass2->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 2);
+    ASSERT_EQ(g.get_num_partitions(), 2U);
     auto part0 = g.get_partitions()[0];
     auto part1 = g.get_partitions()[1];
 
@@ -888,8 +888,8 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
 
     auto partition_inputs1 = p1.get_inputs();
     auto partition_outputs1 = p1.get_outputs();
-    ASSERT_EQ(partition_inputs1.size(), 3);
-    ASSERT_EQ(partition_outputs1.size(), 1);
+    ASSERT_EQ(partition_inputs1.size(), 3U);
+    ASSERT_EQ(partition_outputs1.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs1, outputs1;
     for (auto &lt : partition_inputs1) {
@@ -911,8 +911,8 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
 
     auto partition_inputs0 = p0.get_inputs();
     auto partition_outputs0 = p0.get_outputs();
-    ASSERT_EQ(partition_inputs0.size(), 8);
-    ASSERT_EQ(partition_outputs0.size(), 1);
+    ASSERT_EQ(partition_inputs0.size(), 8U);
+    ASSERT_EQ(partition_outputs0.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs0, outputs0;
     for (auto &lt : partition_inputs0) {
@@ -932,7 +932,7 @@ TEST(Compile, Int8ConvBlockGetInplacePair) {
     impl::compiled_partition_t cp0(p0);
     ASSERT_EQ(p0.compile(&cp0, inputs0, outputs0, &eng), impl::status::success);
     auto pairs = cp0.get_inplace_pairs();
-    ASSERT_EQ(pairs.size(), 1);
+    ASSERT_EQ(pairs.size(), 1U);
     ASSERT_EQ(pairs[0].input_id, outputs1[0]->id);
     ASSERT_EQ(pairs[0].output_id, outputs0[0]->id);
 }
@@ -997,7 +997,7 @@ TEST(Compile, ConvBiasReluAdd) {
     impl::pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
     apass->run(g);
 
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile conv+add partition
@@ -1022,11 +1022,11 @@ TEST(Execute, Int8Mha) {
     utils::construct_int8_MHA(&g);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 21);
+    ASSERT_EQ(g.get_ops().size(), 21U);
 
     impl::pass::pass_base_ptr apass = get_pass("int8_MHA_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1035,8 +1035,8 @@ TEST(Execute, Int8Mha) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -1084,11 +1084,11 @@ TEST(Execute, F32Mha) {
     utils::construct_f32_MHA(&g);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 13);
+    ASSERT_EQ(g.get_ops().size(), 13U);
 
     impl::pass::pass_base_ptr apass = get_pass("f32_MHA_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1097,8 +1097,8 @@ TEST(Execute, F32Mha) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -1153,11 +1153,11 @@ TEST(Execute, Int8Bf16Mha) {
     utils::construct_int8_bf16_MHA(&g);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 29);
+    ASSERT_EQ(g.get_ops().size(), 29U);
 
     impl::pass::pass_base_ptr apass = get_pass("int8_bf16_MHA_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1166,8 +1166,8 @@ TEST(Execute, Int8Bf16Mha) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -1209,11 +1209,11 @@ TEST(Execute, F32MhaReshapeSoftMax) {
     utils::construct_reshaped_softmax_f32_mha(&g);
     g.build_graph();
 
-    ASSERT_EQ(g.get_ops().size(), 14);
+    ASSERT_EQ(g.get_ops().size(), 14U);
 
     impl::pass::pass_base_ptr apass = get_pass("f32_MHA_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1222,8 +1222,8 @@ TEST(Execute, F32MhaReshapeSoftMax) {
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 4);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 4U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {

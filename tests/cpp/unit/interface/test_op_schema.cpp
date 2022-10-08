@@ -725,7 +725,7 @@ TEST(OpSchema, GenerateDefaultAttribute) {
     graph_t agraph;
     ASSERT_EQ(agraph.add_op(&matmul_op), status::success);
     agraph.build_graph();
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.num_ops(), 1U);
 
     const auto &graph_matmul_op = agraph.get_ops()[0];
     EXPECT_TRUE(graph_matmul_op->get_attr<bool>(op_attr::transpose_a));

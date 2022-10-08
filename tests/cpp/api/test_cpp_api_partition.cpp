@@ -68,7 +68,7 @@ TEST(APIPartition, PartitionTest) {
 
     //create_partition
     auto partitions = g.get_partitions(partition::policy::fusion);
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     // check partition engine kind
     ASSERT_EQ(partitions[0].get_engine_kind(), engine_kind);
@@ -78,12 +78,12 @@ TEST(APIPartition, PartitionTest) {
 
     //get_ops
     std::vector<size_t> ops = partitions[0].get_ops();
-    ASSERT_EQ(ops.size(), 2);
-    ASSERT_EQ(partitions[0].get_ops_num(), 2);
+    ASSERT_EQ(ops.size(), 2U);
+    ASSERT_EQ(partitions[0].get_ops_num(), 2U);
 
     // The returned op ids in partition must be in topo order
-    ASSERT_EQ(partitions[0].get_ops()[0], 0);
-    ASSERT_EQ(partitions[0].get_ops()[1], 1);
+    ASSERT_EQ(partitions[0].get_ops()[0], 0U);
+    ASSERT_EQ(partitions[0].get_ops()[1], 1U);
 
     logical_tensor lt1_plain {0, logical_tensor::data_type::f32, input_dims,
             logical_tensor::layout_type::strided};
@@ -155,7 +155,7 @@ TEST(APIPartition, GetInputOutputIDs) {
 
     // get partitions
     auto partitions = g.get_partitions(partition::policy::fusion);
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     // check ids of inputs
     std::vector<logical_tensor> got_inputs = partitions[0].get_in_ports();
@@ -203,7 +203,7 @@ TEST(APIPartition, UnsupportedPartitions) {
     g.add_op(end);
 
     std::vector<partition> partitions = g.get_partitions();
-    ASSERT_EQ(partitions.size(), 2);
+    ASSERT_EQ(partitions.size(), 2U);
     for (auto &p : partitions)
         ASSERT_FALSE(p.is_supported());
 }
@@ -230,7 +230,7 @@ TEST(APIPartition, AddInferShape) {
 
     g.add_op(add);
     auto ps = g.get_partitions();
-    ASSERT_EQ(ps.size(), 1);
+    ASSERT_EQ(ps.size(), 1U);
 }
 
 TEST(APIPartition, SingleConvPartition) {
@@ -267,7 +267,7 @@ TEST(APIPartition, SingleConvPartition) {
 
     // get_ops
     std::vector<size_t> ops = part.get_ops();
-    ASSERT_EQ(ops.size(), 1);
+    ASSERT_EQ(ops.size(), 1U);
 
     // supported?
     ASSERT_TRUE(part.is_supported());
@@ -292,7 +292,7 @@ TEST(APIPartition, CompileWildcardPartition) {
 
     // get_ops
     std::vector<size_t> ops = part.get_ops();
-    ASSERT_EQ(ops.size(), 1);
+    ASSERT_EQ(ops.size(), 1U);
 
     // supported?
     ASSERT_FALSE(part.is_supported());

@@ -56,7 +56,7 @@ TEST(Pass, FakeSingleOpReplacement) {
         ASSERT_EQ(orig_op->get_partition()->get_assigned_backend()->get_name(),
                 std::string("fake_backend"));
 
-        ASSERT_EQ(agraph.get_partitions().size(), 1);
+        ASSERT_EQ(agraph.get_partitions().size(), 1U);
         auto replaced_op = static_cast<fake_impl::fake_partition_impl_t *>(
                 agraph.get_partitions()[0].get())
                                    ->get_fused_op();

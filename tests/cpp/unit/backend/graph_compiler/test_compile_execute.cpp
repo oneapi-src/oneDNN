@@ -41,7 +41,7 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
             = impl::compiler_impl::compiler_backend_t::get_singleton();
     compiler_backend_ptr.get_partitions(agraph, impl::partition_policy::fusion);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), expected_part_size);
+    ASSERT_EQ(partitions.size(), static_cast<size_t>(expected_part_size));
     if (dynamic_callback) { ASSERT_EQ(expected_part_size, 1); }
     // TODO(yifei): generalize the logic here
     // sort partitions to run forward first according to num ops
@@ -238,7 +238,7 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading) {
             = impl::compiler_impl::compiler_backend_t::get_singleton();
     compiler_backend_ptr.get_partitions(agraph, impl::partition_policy::fusion);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
@@ -291,11 +291,11 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading) {
     };
 
     std::vector<std::thread> workers;
-    for (size_t t_num = 0; t_num < thread_num; t_num++) {
+    for (int t_num = 0; t_num < thread_num; t_num++) {
         workers.emplace_back(thread_func, t_num);
     }
 
-    for (size_t t_num = 0; t_num < thread_num; t_num++) {
+    for (int t_num = 0; t_num < thread_num; t_num++) {
         workers[t_num].join();
     }
 }
@@ -316,7 +316,7 @@ TEST(GCGraphTest, AllocatorEarlyRelease) {
             = impl::compiler_impl::compiler_backend_t::get_singleton();
     compiler_backend_ptr.get_partitions(agraph, impl::partition_policy::fusion);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);

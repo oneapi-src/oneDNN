@@ -57,16 +57,16 @@ TEST(GCPatternTests, INT8MHAPattern) {
             = get_pass(compiler_backend_ptr, "int8_mha_pattern");
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 20);
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(p.num_ops(), 20U);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 TEST(GCPatternTests, INT8MHAPattern2) {
@@ -81,16 +81,16 @@ TEST(GCPatternTests, INT8MHAPattern2) {
             = get_pass(compiler_backend_ptr, "int8_mha_pattern");
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 19);
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(p.num_ops(), 19U);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 // test fp32 MHA pattern
@@ -107,16 +107,16 @@ TEST(GCPatternTests, FP32MHAPattern) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 14);
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(p.num_ops(), 14U);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 TEST(GCPatternTests, FP32MHAPattern2) {
@@ -131,16 +131,16 @@ TEST(GCPatternTests, FP32MHAPattern2) {
             = get_pass(compiler_backend_ptr, "fp32_mha_pattern");
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 13);
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(p.num_ops(), 13U);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 // test fp32 MHA pattern alternative
@@ -157,16 +157,16 @@ TEST(GCPatternTests, FP32MHAPatternAlternative) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 7);
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(p.num_ops(), 7U);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 // test fp32 MHA pattern (no reshape)
@@ -182,16 +182,16 @@ TEST(GCPatternTests, FP32MHAPatternOptionalReshape) {
             = get_pass(compiler_backend_ptr, "fp32_mha_pattern");
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 13);
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(p.num_ops(), 13U);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 TEST(GCPatternTests, INT8BF16MHAPattern) {
@@ -206,16 +206,16 @@ TEST(GCPatternTests, INT8BF16MHAPattern) {
             = get_pass(compiler_backend_ptr, "int8_bf16_mha_pattern");
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(p.num_ops(), 25);
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(p.num_ops(), 25U);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 // test bf16 MHA pattern
@@ -234,21 +234,21 @@ TEST(GCPatternTests, BF16MHAPattern) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 0);
+    ASSERT_EQ(partitions.size(), 0U);
 
     apass = get_pass(compiler_backend_ptr, "bf16_mha_pattern");
     REQUIRE_BF16_AMXBF16();
     apass->run(agraph);
     partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 // test bf16 MHA pattern alternative
@@ -267,21 +267,21 @@ TEST(GCPatternTests, BF16MHAPatternAlternative) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 0);
+    ASSERT_EQ(partitions.size(), 0U);
 
     apass = get_pass(compiler_backend_ptr, "bf16_mha_pattern_alternative");
     REQUIRE_BF16_AMXBF16();
     apass->run(agraph);
     partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
 
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 // test MHA pattern matcher v2 on graph variations
@@ -297,8 +297,8 @@ TEST(GCPatternTests, INT8MHAPatternVariation1) {
             = get_pass(compiler_backend_ptr, "int8_mha_pattern");
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 20);
+    ASSERT_EQ(partitions.size(), 1U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 20U);
 }
 
 TEST(GCPatternTests, INT8MHAPatternVariation2) {
@@ -314,8 +314,8 @@ TEST(GCPatternTests, INT8MHAPatternVariation2) {
             = get_pass(compiler_backend_ptr, "int8_mha_pattern");
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 20);
+    ASSERT_EQ(partitions.size(), 1U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 20U);
 }
 
 TEST(GCPatternTests, INT8MHAPatternVariation3) {
@@ -334,8 +334,8 @@ TEST(GCPatternTests, INT8MHAPatternVariation3) {
             = get_pass(compiler_backend_ptr, "int8_mha_pattern");
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 20);
+    ASSERT_EQ(partitions.size(), 1U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 20U);
 }
 
 TEST(GCPatternTests, FP32DLRMBottom) {
@@ -352,7 +352,7 @@ TEST(GCPatternTests, FP32DLRMBottom) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
@@ -360,10 +360,10 @@ TEST(GCPatternTests, FP32DLRMBottom) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
 
-    ASSERT_EQ(p.num_ops(), 6);
+    ASSERT_EQ(p.num_ops(), 6U);
 
-    ASSERT_EQ(partition_inputs.size(), 7);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 7U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 TEST(GCPatternTests, FP32DLRMTop) {
@@ -382,7 +382,7 @@ TEST(GCPatternTests, FP32DLRMTop) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
@@ -390,10 +390,10 @@ TEST(GCPatternTests, FP32DLRMTop) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
 
-    ASSERT_EQ(p.num_ops(), 10);
+    ASSERT_EQ(p.num_ops(), 10U);
 
-    ASSERT_EQ(partition_inputs.size(), 11);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 11U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 TEST(GCPatternTests, INT8DLRMBottom) {
@@ -410,7 +410,7 @@ TEST(GCPatternTests, INT8DLRMBottom) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
@@ -418,10 +418,10 @@ TEST(GCPatternTests, INT8DLRMBottom) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
 
-    ASSERT_EQ(p.num_ops(), 15);
+    ASSERT_EQ(p.num_ops(), 15U);
 
-    ASSERT_EQ(partition_inputs.size(), 7);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 7U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 TEST(GCPatternTests, INT8DLRMTop) {
@@ -440,7 +440,7 @@ TEST(GCPatternTests, INT8DLRMTop) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
@@ -448,10 +448,10 @@ TEST(GCPatternTests, INT8DLRMTop) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
 
-    ASSERT_EQ(p.num_ops(), 25);
+    ASSERT_EQ(p.num_ops(), 25U);
 
-    ASSERT_EQ(partition_inputs.size(), 11);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 11U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 TEST(GCPatternTests, FP32MLPSeparateAdd) {
@@ -471,7 +471,7 @@ TEST(GCPatternTests, FP32MLPSeparateAdd) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
@@ -479,10 +479,10 @@ TEST(GCPatternTests, FP32MLPSeparateAdd) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
 
-    ASSERT_EQ(p.num_ops(), 15);
+    ASSERT_EQ(p.num_ops(), 15U);
 
-    ASSERT_EQ(partition_inputs.size(), 11);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 11U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 TEST(GCPatternTests, FP32MLPNoActivation) {
@@ -502,7 +502,7 @@ TEST(GCPatternTests, FP32MLPNoActivation) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
@@ -510,10 +510,10 @@ TEST(GCPatternTests, FP32MLPNoActivation) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
 
-    ASSERT_EQ(p.num_ops(), 5);
+    ASSERT_EQ(p.num_ops(), 5U);
 
-    ASSERT_EQ(partition_inputs.size(), 11);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 11U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
@@ -534,7 +534,7 @@ TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
@@ -542,10 +542,10 @@ TEST(GCPatternTests, FP32MLPSeparateAddNoActivation) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
 
-    ASSERT_EQ(p.num_ops(), 10);
+    ASSERT_EQ(p.num_ops(), 10U);
 
-    ASSERT_EQ(partition_inputs.size(), 11);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 11U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 TEST(GCPatternTests, INT8MLPNoActivation) {
@@ -565,7 +565,7 @@ TEST(GCPatternTests, INT8MLPNoActivation) {
 
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
 
     impl::partition_t p;
     p.init(partitions[0]);
@@ -573,10 +573,10 @@ TEST(GCPatternTests, INT8MLPNoActivation) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
 
-    ASSERT_EQ(p.num_ops(), 20);
+    ASSERT_EQ(p.num_ops(), 20U);
 
-    ASSERT_EQ(partition_inputs.size(), 11);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 11U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
 TEST(GCPatternTests, FP32MLPTraining) {
@@ -599,9 +599,9 @@ TEST(GCPatternTests, FP32MLPTraining) {
     apass_bwd->run(agraph);
 
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 6);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 18);
+    ASSERT_EQ(partitions.size(), 2U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 6U);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 18U);
 }
 
 TEST(GCPatternTests, FP32MHATrainingPattern) {
@@ -621,13 +621,13 @@ TEST(GCPatternTests, FP32MHATrainingPattern) {
     bwd_apass->run(agraph);
 
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 8);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 6);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 3);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 11);
-    ASSERT_EQ(partitions[1]->get_inputs().size(), 8);
-    ASSERT_EQ(partitions[1]->get_outputs().size(), 3);
+    ASSERT_EQ(partitions.size(), 2U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 8U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 6U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 3U);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 11U);
+    ASSERT_EQ(partitions[1]->get_inputs().size(), 8U);
+    ASSERT_EQ(partitions[1]->get_outputs().size(), 3U);
 }
 
 TEST(GCPatternTests, BF16MHATrainingPattern) {
@@ -646,13 +646,13 @@ TEST(GCPatternTests, BF16MHATrainingPattern) {
     bwd_apass->run(agraph);
 
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 2);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 8);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 6);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 3);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 11);
-    ASSERT_EQ(partitions[1]->get_inputs().size(), 8);
-    ASSERT_EQ(partitions[1]->get_outputs().size(), 3);
+    ASSERT_EQ(partitions.size(), 2U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 8U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 6U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 3U);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 11U);
+    ASSERT_EQ(partitions[1]->get_inputs().size(), 8U);
+    ASSERT_EQ(partitions[1]->get_outputs().size(), 3U);
 }
 
 TEST(GCPatternTests, FP32IdenticalBottleneckPattern1) {
@@ -672,10 +672,10 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern1) {
     apass->run(agraph);
 
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 5);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 5);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 5U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 5U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
 }
 
 TEST(GCPatternTests, FP32IdenticalBottleneckPattern2) {
@@ -697,10 +697,10 @@ TEST(GCPatternTests, FP32IdenticalBottleneckPattern2) {
     apass->run(agraph);
 
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 9);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 9);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 9U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 9U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
 }
 
 TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1) {
@@ -720,10 +720,10 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern1) {
     apass->run(agraph);
 
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 6);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 7);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 6U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 7U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
 }
 
 TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2) {
@@ -746,10 +746,10 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckPattern2) {
     apass->run(agraph);
 
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 10);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 11);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 10U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 11U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
 }
 
 TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
@@ -769,10 +769,10 @@ TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
     apass->run(agraph);
 
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 7);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 7);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 7U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 7U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
 }
 
 TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
@@ -795,10 +795,10 @@ TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
     apass->run(agraph);
 
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 26);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 11);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 26U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 11U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
 }
 
 TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern) {
@@ -819,8 +819,8 @@ TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern) {
     apass->run(agraph);
 
     auto partitions = agraph.get_partitions();
-    ASSERT_EQ(partitions.size(), 1);
-    ASSERT_EQ(partitions[0]->get_ops().size(), 8);
-    ASSERT_EQ(partitions[0]->get_inputs().size(), 9);
-    ASSERT_EQ(partitions[0]->get_outputs().size(), 1);
+    ASSERT_EQ(partitions.size(), 1U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 8U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 9U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
 }

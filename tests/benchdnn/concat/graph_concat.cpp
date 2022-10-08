@@ -52,7 +52,7 @@ static void check_ranks_shapes_and_dtypes(
     }
 
     // Shapes for all inputs should match at every position except axis position
-    for (auto i = 0; i < rank; ++i) {
+    for (size_t i = 0; i < rank; ++i) {
         if (axis == static_cast<int64_t>(i)) continue;
         const auto d = prb->dst_dims[i];
         const auto same_dim
@@ -131,10 +131,10 @@ fill_status_t append_graph_with_block(const ::concat::prb_t *prb) {
 
     auto src_dt = dequantize_dtype(orig_dts[0]);
     std::vector<size_t> src_ids;
-    for (size_t i = 0; i < prb->n_inputs(); ++i) {
+    for (int i = 0; i < prb->n_inputs(); ++i) {
         const auto src_i_id = (i == 0 && connect_to_previous_block)
                 ? graph.get_last_block_out_id()
-                : graph.generate_id_for(op_id, lt_kind::SRC_I, i);
+                : graph.generate_id_for(op_id, lt_kind::SRC_I, (size_t)i);
         graph.create_lt(src_i_id, src_dt, prb->vdims[i], prb->stag[i]);
         src_ids.push_back(src_i_id);
     }

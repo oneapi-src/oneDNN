@@ -57,14 +57,14 @@ TEST(Graph, GetDnnlPartitions) {
     ASSERT_EQ(agraph.add_op(&conv), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&end), status::success);
-    ASSERT_EQ(agraph.num_ops(), 3);
+    ASSERT_EQ(agraph.num_ops(), 3U);
 
     ASSERT_EQ(agraph.build_graph(), status::success);
     auto &dnnl_bkd = dnnl_impl::dnnl_backend::get_singleton();
     dnnl_bkd.get_partitions(agraph, partition_policy::fusion);
     auto &fake_bkd = fake_impl::fake_backend_t::get_singleton();
     fake_bkd.get_partitions(agraph, partition_policy::fusion);
-    ASSERT_EQ(agraph.get_num_partitions(), 2);
+    ASSERT_EQ(agraph.get_num_partitions(), 2U);
     auto p1 = agraph.get_partitions()[0].get();
     ASSERT_NE(p1->get_assigned_backend()->get_name(),
             std::string("fake_backend"));

@@ -1404,7 +1404,8 @@ status_t infer_common_transpose_output_shape(
     // check order should be in [-n, n-1] and cover all input axis
     // if order < 0, convert it to positive order
     if (!order.empty()) {
-        if (order.size() != in_ndims) return status::invalid_shape;
+        if (order.size() != static_cast<size_t>(in_ndims))
+            return status::invalid_shape;
         for (auto axis : order) {
             if (axis < -in_ndims || axis > in_ndims - 1)
                 return status::invalid_shape;
@@ -1515,18 +1516,20 @@ status_t infer_interpolate_output_shape(op_t *n,
 
     if (!scales.empty()) {
         // scales length should equal spatial_ndim
-        if (scales.size() != spatial_ndim) return status::invalid_arguments;
+        if (scales.size() != static_cast<size_t>(spatial_ndim))
+            return status::invalid_arguments;
 
         // spatial_ndim
-        for (size_t i = 0; i < spatial_ndim; i++) {
+        for (size_t i = 0; i < static_cast<size_t>(spatial_ndim); i++) {
             in_dims[i + spatial_dim_start_axis] *= scales[i];
         }
     }
     if (!sizes.empty()) {
         // sizes length should equal spatial_ndim
-        if (sizes.size() != spatial_ndim) return status::invalid_arguments;
+        if (sizes.size() != static_cast<size_t>(spatial_ndim))
+            return status::invalid_arguments;
 
-        for (size_t i = 0; i < spatial_ndim; i++) {
+        for (size_t i = 0; i < static_cast<size_t>(spatial_ndim); i++) {
             in_dims[i + spatial_dim_start_axis] = sizes[i];
         }
     }

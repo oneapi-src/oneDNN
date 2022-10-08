@@ -50,64 +50,64 @@ TEST(CAPI, FilterConBNStandalone) {
     int64_t dilation[] = {1, 1};
     float epsilon = 0.001f;
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
-                           conv2d, dnnl_graph_op_attr_strides, stride, 2),
+                           conv2d, dnnl_graph_op_attr_strides, stride, 2U),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
-                           conv2d, dnnl_graph_op_attr_pads_begin, padding, 2),
+                           conv2d, dnnl_graph_op_attr_pads_begin, padding, 2U),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
-                           conv2d, dnnl_graph_op_attr_pads_end, padding, 2),
+                           conv2d, dnnl_graph_op_attr_pads_end, padding, 2U),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
-                           conv2d, dnnl_graph_op_attr_dilations, dilation, 2),
+                           conv2d, dnnl_graph_op_attr_dilations, dilation, 2U),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
-                           conv2d, dnnl_graph_op_attr_data_format, "NCX", 1),
+                           conv2d, dnnl_graph_op_attr_data_format, "NCX", 1U),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
-                           conv2d, dnnl_graph_op_attr_filter_format, "OIX", 1),
+                           conv2d, dnnl_graph_op_attr_filter_format, "OIX", 1U),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_f32(
-                           bn, dnnl_graph_op_attr_epsilon, &epsilon, 0),
+                           bn, dnnl_graph_op_attr_epsilon, &epsilon, 0U),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
 
     dnnl_graph_logical_tensor_t conv2d_src_desc, conv2d_weight_desc,
             conv2d_dst_desc, bn_src_desc, bn_gamma_desc, bn_beta_desc,
             bn_mean_desc, bn_var_desc, bn_dst_desc;
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_src_desc, 0,
-                           dnnl_graph_f32, 4, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_src_desc, 0U,
+                           dnnl_graph_f32, 4U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_weight_desc, 1,
-                           dnnl_graph_f32, 4, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_weight_desc, 1U,
+                           dnnl_graph_f32, 4U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_dst_desc, 2,
-                           dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_dst_desc, 2U,
+                           dnnl_graph_f32, 0U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_src_desc, 0,
-                           dnnl_graph_f32, 4, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_src_desc, 0U,
+                           dnnl_graph_f32, 4U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_gamma_desc, 3,
-                           dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_gamma_desc, 3U,
+                           dnnl_graph_f32, 0U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_beta_desc, 4,
-                           dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_beta_desc, 4U,
+                           dnnl_graph_f32, 0U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_mean_desc, 5,
-                           dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_mean_desc, 5U,
+                           dnnl_graph_f32, 0U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_var_desc, 6,
-                           dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_var_desc, 6U,
+                           dnnl_graph_f32, 0U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_dst_desc, 7,
-                           dnnl_graph_f32, 4, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_dst_desc, 7U,
+                           dnnl_graph_f32, 4U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_CONV_BN_STANDALONE_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_add_input(conv2d, &conv2d_src_desc),
@@ -139,7 +139,7 @@ TEST(CAPI, FilterConBNStandalone) {
 
     dnnl_graph_graph_get_partition_num(agraph, &part_num);
 
-    ASSERT_EQ_SAFE(part_num, 2, FILTER_CONV_BN_STANDALONE_DESTROY);
+    ASSERT_EQ_SAFE(part_num, 2U, FILTER_CONV_BN_STANDALONE_DESTROY);
 
     FILTER_CONV_BN_STANDALONE_DESTROY;
 #undef FILTER_CONV_BN_STANDALONE_DESTROY
@@ -171,36 +171,36 @@ TEST(CAPI, FilterConvBNFused) {
     int64_t padding[] = {0, 0};
     int64_t dilation[] = {1, 1};
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
-                           conv2d, dnnl_graph_op_attr_strides, stride, 2),
+                           conv2d, dnnl_graph_op_attr_strides, stride, 2U),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
-                           conv2d, dnnl_graph_op_attr_pads_begin, padding, 2),
+                           conv2d, dnnl_graph_op_attr_pads_begin, padding, 2U),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
-                           conv2d, dnnl_graph_op_attr_pads_end, padding, 2),
+                           conv2d, dnnl_graph_op_attr_pads_end, padding, 2U),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(
-                           conv2d, dnnl_graph_op_attr_dilations, dilation, 2),
+                           conv2d, dnnl_graph_op_attr_dilations, dilation, 2U),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
-                           conv2d, dnnl_graph_op_attr_data_format, "NCX", 1),
+                           conv2d, dnnl_graph_op_attr_data_format, "NCX", 1U),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
-                           conv2d, dnnl_graph_op_attr_filter_format, "OIX", 1),
+                           conv2d, dnnl_graph_op_attr_filter_format, "OIX", 1U),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
 
     dnnl_graph_logical_tensor_t conv2d_src_desc, conv2d_weight_desc,
             conv2d_dst_desc;
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_src_desc, 0,
-                           dnnl_graph_f32, 4, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_src_desc, 0U,
+                           dnnl_graph_f32, 4U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_weight_desc, 1,
-                           dnnl_graph_f32, 4, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_weight_desc, 1U,
+                           dnnl_graph_f32, 4U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_dst_desc, 2,
-                           dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&conv2d_dst_desc, 2U,
+                           dnnl_graph_f32, 0U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_add_input(conv2d, &conv2d_src_desc),
@@ -211,30 +211,30 @@ TEST(CAPI, FilterConvBNFused) {
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
 
     op_kind = dnnl_graph_op_batch_norm_inference;
-    dnnl_graph_op_create(&bn, 2, op_kind, "bn");
+    dnnl_graph_op_create(&bn, 2U, op_kind, "bn");
     float epsilon = 0.001f;
     ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_f32(
-                           bn, dnnl_graph_op_attr_epsilon, &epsilon, 0),
+                           bn, dnnl_graph_op_attr_epsilon, &epsilon, 0U),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
     dnnl_graph_logical_tensor_t bn_gamma_desc, bn_beta_desc, bn_mean_desc,
             bn_var_desc, bn_dst_desc;
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_gamma_desc, 3,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_gamma_desc, 3U,
                            dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_beta_desc, 4,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_beta_desc, 4U,
                            dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_mean_desc, 5,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_mean_desc, 5U,
                            dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_var_desc, 6,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_var_desc, 6U,
                            dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_dst_desc, 7,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&bn_dst_desc, 7U,
                            dnnl_graph_f32, 4, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILETER_CONV_BN_FUSED_DESTROY);
@@ -262,7 +262,7 @@ TEST(CAPI, FilterConvBNFused) {
 
     dnnl_graph_graph_get_partition_num(agraph, &part_num);
 
-    ASSERT_EQ_SAFE(part_num, 1, FILETER_CONV_BN_FUSED_DESTROY);
+    ASSERT_EQ_SAFE(part_num, 1U, FILETER_CONV_BN_FUSED_DESTROY);
 
     FILETER_CONV_BN_FUSED_DESTROY;
 #undef FILETER_CONV_BN_FUSED_DESTROY
@@ -290,16 +290,16 @@ TEST(CAPI, FilterReluAdd) {
     } while (0);
 
     dnnl_graph_logical_tensor_t relu_src_desc, relu_dst_desc, add_dst_desc;
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&relu_src_desc, 0,
-                           dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&relu_src_desc, 0U,
+                           dnnl_graph_f32, 0U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_RELU_ADD_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&relu_dst_desc, 1,
-                           dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&relu_dst_desc, 1U,
+                           dnnl_graph_f32, 0U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_RELU_ADD_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&add_dst_desc, 2,
-                           dnnl_graph_f32, 0, dnnl_graph_layout_type_strided,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&add_dst_desc, 2U,
+                           dnnl_graph_f32, 0U, dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, FILTER_RELU_ADD_DESTROY);
     ASSERT_EQ_SAFE(dnnl_graph_op_add_input(relu, &relu_src_desc),
@@ -331,7 +331,7 @@ TEST(CAPI, DifferentLogicalTensorWithSameID) {
     dnnl_graph_graph_t agraph = NULL;
     dnnl_graph_op_t add = NULL;
     dnnl_graph_op_kind_t op_kind = dnnl_graph_op_add;
-    dnnl_graph_op_create(&add, 1, op_kind, "add");
+    dnnl_graph_op_create(&add, 1U, op_kind, "add");
 
 #define DIFFERENT_LT_WITH_SAME_ID_DESTROY \
     do { \
@@ -344,15 +344,15 @@ TEST(CAPI, DifferentLogicalTensorWithSameID) {
     dnnl_graph_logical_tensor_t x1, x2, y;
     // x1 and x2 are two different tensors (with different layout_type)
     // but with same id
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&x1, 0, dnnl_graph_f32, 0,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&x1, 0U, dnnl_graph_f32, 0U,
                            dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, DIFFERENT_LT_WITH_SAME_ID_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&x2, 0, dnnl_graph_f32, 0,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&x2, 0U, dnnl_graph_f32, 0U,
                            dnnl_graph_layout_type_any,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, DIFFERENT_LT_WITH_SAME_ID_DESTROY);
-    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&y, 1, dnnl_graph_f32, 0,
+    ASSERT_EQ_SAFE(dnnl_graph_logical_tensor_init(&y, 1U, dnnl_graph_f32, 0U,
                            dnnl_graph_layout_type_strided,
                            dnnl_graph_tensor_property_undef),
             dnnl_graph_success, DIFFERENT_LT_WITH_SAME_ID_DESTROY);

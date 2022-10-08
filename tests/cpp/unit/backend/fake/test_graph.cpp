@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,11 +48,11 @@ TEST(Graph, GetFakePartitions) {
     ASSERT_EQ(agraph.add_op(&wildcard), status::success);
     ASSERT_EQ(agraph.add_op(&index), status::success);
     ASSERT_EQ(agraph.add_op(&end), status::success);
-    ASSERT_EQ(agraph.num_ops(), 3);
+    ASSERT_EQ(agraph.num_ops(), 3U);
 
     auto &bkd = fake_impl::fake_backend_t::get_singleton();
     bkd.get_partitions(agraph, partition_policy::fusion);
-    ASSERT_EQ(agraph.get_num_partitions(), 3);
+    ASSERT_EQ(agraph.get_num_partitions(), 3U);
     auto partition = agraph.get_partitions()[0].get();
     ASSERT_EQ(partition->get_assigned_backend()->get_name(),
             std::string("fake_backend"));

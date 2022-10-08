@@ -53,7 +53,7 @@ TEST(Graph, AddOp) {
     op1.add_output(t2);
     ASSERT_EQ(agraph.add_op(&op0), status::invalid_op);
     ASSERT_EQ(agraph.add_op(&op1), status::success);
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.num_ops(), 1U);
 
     auto ret = agraph.get_ops()[0];
     ASSERT_EQ(*ret, op1);
@@ -64,8 +64,8 @@ TEST(Graph, AddNullOp) {
 
     graph_t agraph;
     ASSERT_EQ(agraph.add_op(nullptr), status::invalid_op);
-    ASSERT_EQ(agraph.num_ops(), 0);
-    ASSERT_EQ(agraph.get_ops().size(), 0);
+    ASSERT_EQ(agraph.num_ops(), 0U);
+    ASSERT_EQ(agraph.get_ops().size(), 0U);
 }
 
 TEST(Graph, DeleteOp) {
@@ -85,12 +85,12 @@ TEST(Graph, DeleteOp) {
     op1.add_output(t2);
     ASSERT_EQ(agraph.add_op(&op0), status::invalid_op);
     ASSERT_EQ(agraph.add_op(&op1), status::success);
-    ASSERT_EQ(agraph.num_ops(), 1);
-    ASSERT_EQ(agraph.get_ops().size(), 1);
+    ASSERT_EQ(agraph.num_ops(), 1U);
+    ASSERT_EQ(agraph.get_ops().size(), 1U);
 
     agraph.delete_op(&op1);
-    ASSERT_EQ(agraph.num_ops(), 0);
-    ASSERT_EQ(agraph.get_ops().size(), 0);
+    ASSERT_EQ(agraph.num_ops(), 0U);
+    ASSERT_EQ(agraph.get_ops().size(), 0U);
 }
 
 TEST(Graph, GetOutputOps) {
@@ -110,9 +110,9 @@ TEST(Graph, GetOutputOps) {
     op1.add_output(t2);
     ASSERT_EQ(agraph.add_op(&op0), status::success);
     ASSERT_EQ(agraph.add_op(&op1), status::success);
-    ASSERT_EQ(agraph.num_ops(), 2);
+    ASSERT_EQ(agraph.num_ops(), 2U);
     agraph.build_graph();
-    ASSERT_EQ(agraph.get_output_ops().size(), 1);
+    ASSERT_EQ(agraph.get_output_ops().size(), 1U);
     ASSERT_EQ(*(agraph.get_output_ops()[0]), op1);
 }
 
@@ -138,7 +138,7 @@ TEST(Graph, GetOutputOps2) {
     ASSERT_EQ(agraph.add_op(&op0), status::success);
     ASSERT_EQ(agraph.add_op(&op1), status::success);
     ASSERT_EQ(agraph.add_op(&op2), status::success);
-    ASSERT_EQ(agraph.num_ops(), 3);
+    ASSERT_EQ(agraph.num_ops(), 3U);
     agraph.build_graph();
     ASSERT_EQ(agraph.get_ops()[1]
                       ->get_output_value(0)
@@ -171,12 +171,12 @@ TEST(Graph, BuildGraph) {
     op1.add_output(t2);
     ASSERT_EQ(agraph.add_op(&op0), status::invalid_op);
     ASSERT_EQ(agraph.add_op(&op1), status::success);
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.num_ops(), 1U);
 
     ASSERT_EQ(agraph.build_graph(), status::success);
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.num_ops(), 1U);
     ASSERT_EQ(agraph.build_graph(), status::success);
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.num_ops(), 1U);
 }
 
 TEST(Graph, InvalidOp) {
@@ -196,7 +196,7 @@ TEST(Graph, InvalidOp) {
     op1.add_output(t2);
     ASSERT_EQ(agraph.add_op(&op0), status::invalid_op);
     ASSERT_EQ(agraph.add_op(&op1), status::success);
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.num_ops(), 1U);
 
     /*
     ASSERT_EQ(agraph.run_pass(partition_policy::fusion), status::invalid_graph);
@@ -217,7 +217,7 @@ TEST(Graph, Wildcard) {
     op.add_input(t0);
     op.add_output(t1);
     ASSERT_EQ(agraph.add_op(&op), status::success);
-    ASSERT_EQ(agraph.num_ops(), 1);
+    ASSERT_EQ(agraph.num_ops(), 1U);
 }
 
 TEST(Graph, GetInputOutputEdges) {
@@ -276,29 +276,29 @@ TEST(Graph, GetInputOutputEdges) {
     ASSERT_EQ(agraph.add_op(&op1), status::success);
     ASSERT_EQ(agraph.add_op(&op2), status::success);
     ASSERT_EQ(agraph.add_op(&op3), status::success);
-    ASSERT_EQ(agraph.num_ops(), 4);
+    ASSERT_EQ(agraph.num_ops(), 4U);
     agraph.build_graph();
 
     auto ops = agraph.get_ops();
     ops.pop_back();
     graph_t subgraph(ops);
-    ASSERT_EQ(subgraph.num_ops(), 3);
+    ASSERT_EQ(subgraph.num_ops(), 3U);
 
     auto in_vals = subgraph.get_input_values();
-    ASSERT_EQ(in_vals.size(), 4);
+    ASSERT_EQ(in_vals.size(), 4U);
     ASSERT_EQ(ltw(in_vals[0]->get_logical_tensor()), ltw(src));
     ASSERT_EQ(ltw(in_vals[1]->get_logical_tensor()), ltw(weight));
     ASSERT_EQ(ltw(in_vals[2]->get_logical_tensor()), ltw(bias));
     ASSERT_EQ(ltw(in_vals[3]->get_logical_tensor()), ltw(other));
 
     auto out_vals = subgraph.get_output_values();
-    ASSERT_EQ(out_vals.size(), 2);
+    ASSERT_EQ(out_vals.size(), 2U);
     logical_tensor_t out_lt1 = out_vals[0]->get_logical_tensor();
     logical_tensor_t out_lt2 = out_vals[1]->get_logical_tensor();
     if (out_lt1.id == 6)
-        ASSERT_EQ(out_lt2.id, 4);
+        ASSERT_EQ(out_lt2.id, 4U);
     else if (out_lt1.id == 4)
-        ASSERT_EQ(out_lt2.id, 6);
+        ASSERT_EQ(out_lt2.id, 6U);
     else
         ASSERT_TRUE(false);
 }
@@ -356,11 +356,11 @@ TEST(Graph, InferShape) {
     ASSERT_EQ(agraph.add_op(&op0), status::success);
     ASSERT_EQ(agraph.add_op(&op1), status::success);
     ASSERT_EQ(agraph.add_op(&op2), status::success);
-    ASSERT_EQ(agraph.num_ops(), 3);
+    ASSERT_EQ(agraph.num_ops(), 3U);
     agraph.build_graph();
 
     auto in_vals = agraph.get_input_values();
-    ASSERT_EQ(in_vals.size(), 4);
+    ASSERT_EQ(in_vals.size(), 4U);
     ASSERT_EQ(ltw(in_vals[0]->get_logical_tensor()), ltw(src));
     ASSERT_EQ(ltw(in_vals[1]->get_logical_tensor()), ltw(weight));
     ASSERT_EQ(ltw(in_vals[2]->get_logical_tensor()), ltw(bias));
@@ -369,9 +369,9 @@ TEST(Graph, InferShape) {
     ASSERT_EQ(agraph.infer_shape(), status::success);
 
     auto out_vals = agraph.get_output_values();
-    ASSERT_EQ(out_vals.size(), 1);
+    ASSERT_EQ(out_vals.size(), 1U);
     logical_tensor_t out_lt = out_vals[0]->get_logical_tensor();
-    ASSERT_EQ(out_lt.id, 6);
+    ASSERT_EQ(out_lt.id, 6U);
     ASSERT_EQ(out_lt.ndims, 4);
     ASSERT_EQ(out_lt.dims[0], 8);
     ASSERT_EQ(out_lt.dims[1], 96);
@@ -449,13 +449,13 @@ TEST(Graph, Rewrite) {
             all_ops[2].get(), all_ops[3].get()};
 
     impl::rewrite(g, {fusion_ops});
-    ASSERT_EQ(g.num_ops(), 2);
+    ASSERT_EQ(g.num_ops(), 2U);
 
     auto fused_op = g.get_ops()[1];
     // The inputs are mm0_src, mm0_weight, mm2_weight
-    ASSERT_EQ(fused_op->num_inputs(), 3);
+    ASSERT_EQ(fused_op->num_inputs(), 3U);
     // The outputs are mm0_dst, mm2_dst
-    ASSERT_EQ(fused_op->num_outputs(), 2);
+    ASSERT_EQ(fused_op->num_outputs(), 2U);
 }
 
 TEST(Graph, SetFpmathMode) {

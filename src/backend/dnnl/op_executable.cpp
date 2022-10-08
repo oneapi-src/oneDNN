@@ -1616,13 +1616,14 @@ static void get_arg_indices_for_post_ops(const impl::op_t *op,
             ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
     const auto &pops = fusion_info.get_post_ops();
-    for (int i = 0; i < pops.size(); i++) {
+    for (size_t i = 0; i < pops.size(); i++) {
         if (pops[i]->is_post_sum()) {
             indices.insert(
                     {DNNL_GRAPH_ARG_POST_SRC, indice_t {input, base_indice++}});
         } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_binary) {
-            indices.insert({DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1,
-                    indice_t {input, base_indice++}});
+            indices.insert(
+                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP((int)i) | DNNL_ARG_SRC_1,
+                            indice_t {input, base_indice++}});
         } else if (pops[i]->get_op()->get_kind() == op_kind::dnnl_convolution) {
             indices.insert({DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
                     indice_t {input, base_indice++}});
@@ -1806,9 +1807,9 @@ static arg_indices_t get_arg_indices_for_miso_op(
     UNUSED(mgr);
     arg_indices_t arg_indices;
 
-    for (int i = 0; i < op->num_inputs(); ++i) {
-        arg_indices.insert({DNNL_ARG_MULTIPLE_SRC + i,
-                indice_t {input, static_cast<size_t>(i)}});
+    for (size_t i = 0; i < op->num_inputs(); ++i) {
+        arg_indices.insert(
+                {DNNL_ARG_MULTIPLE_SRC + (int)i, indice_t {input, i}});
     }
 
     arg_indices.insert({DNNL_ARG_DST, indice_t {output, 0}});

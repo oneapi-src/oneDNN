@@ -102,7 +102,7 @@ TEST(Op, ValidateMatmul) {
     using namespace dnnl::graph::impl;
 
     op_t matmul {0, op_kind::MatMul, std::string("matmul")};
-    ASSERT_EQ(matmul.get_id(), 0);
+    ASSERT_EQ(matmul.get_id(), 0U);
     ASSERT_EQ(matmul.get_kind(), op_kind::MatMul);
     ASSERT_EQ(matmul.get_name(), std::string("matmul"));
     ASSERT_FALSE(matmul.is_internal());
@@ -112,7 +112,7 @@ TEST(Op, CreateInternal) {
     using namespace dnnl::graph::impl;
 
     op_t matmul {0, op_kind::MatMul, std::string("matmul"), true};
-    ASSERT_EQ(matmul.get_id(), 0);
+    ASSERT_EQ(matmul.get_id(), 0U);
     ASSERT_EQ(matmul.get_kind(), op_kind::MatMul);
     ASSERT_EQ(matmul.get_name(), std::string("matmul"));
     ASSERT_TRUE(matmul.is_internal());
@@ -133,16 +133,16 @@ TEST(Op, AddInput) {
     using namespace dnnl::graph::tests::unit::utils;
 
     op_t matmul {0, op_kind::MatMul, std::string("matmul")};
-    ASSERT_EQ(matmul.num_inputs(), 0);
-    ASSERT_EQ(matmul.num_outputs(), 0);
+    ASSERT_EQ(matmul.num_inputs(), 0U);
+    ASSERT_EQ(matmul.num_outputs(), 0U);
 
     logical_tensor_t lt0 = logical_tensor_init(1, data_type::f32);
     logical_tensor_t lt1 = logical_tensor_init(2, data_type::f32);
     matmul.add_input(lt0);
     matmul.add_input(lt1);
 
-    ASSERT_EQ(matmul.num_inputs(), 2);
-    ASSERT_EQ(matmul.num_outputs(), 0);
+    ASSERT_EQ(matmul.num_inputs(), 2U);
+    ASSERT_EQ(matmul.num_outputs(), 0U);
 }
 
 TEST(Op, GetInput) {
@@ -175,7 +175,7 @@ TEST(Op, GetInputValues) {
     matmul.add_input(lt1);
 
     auto values = matmul.get_input_values();
-    ASSERT_EQ(values.size(), 2);
+    ASSERT_EQ(values.size(), 2U);
     ASSERT_EQ(logical_tensor_wrapper_t(values[0]->get_logical_tensor()),
             logical_tensor_wrapper_t(lt0));
     ASSERT_EQ(logical_tensor_wrapper_t(values[1]->get_logical_tensor()),
@@ -200,10 +200,10 @@ TEST(Op, SetInputOp) {
 
     auto op0 = matmul.get_input_op(0);
     ASSERT_EQ(op0->get_kind(), op_kind::ReLU);
-    ASSERT_EQ(op0->get_id(), 0);
+    ASSERT_EQ(op0->get_id(), 0U);
     ASSERT_EQ(op0->get_name(), std::string("relu"));
 
-    ASSERT_EQ(relu.num_output_consumers(0), 1);
+    ASSERT_EQ(relu.num_output_consumers(0), 1U);
 }
 
 TEST(Op, AddOutput) {
@@ -211,14 +211,14 @@ TEST(Op, AddOutput) {
     using namespace dnnl::graph::tests::unit::utils;
 
     op_t matmul {0, op_kind::MatMul, std::string("matmul")};
-    ASSERT_EQ(matmul.num_inputs(), 0);
-    ASSERT_EQ(matmul.num_outputs(), 0);
+    ASSERT_EQ(matmul.num_inputs(), 0U);
+    ASSERT_EQ(matmul.num_outputs(), 0U);
 
     logical_tensor_t lt = logical_tensor_init(1, data_type::f32);
     matmul.add_output(lt);
 
-    ASSERT_EQ(matmul.num_inputs(), 0);
-    ASSERT_EQ(matmul.num_outputs(), 1);
+    ASSERT_EQ(matmul.num_inputs(), 0U);
+    ASSERT_EQ(matmul.num_outputs(), 1U);
 }
 
 TEST(Op, GetOutput) {
@@ -243,7 +243,7 @@ TEST(Op, GetOutputValues) {
     matmul.add_output(lt);
 
     auto values = matmul.get_output_values();
-    ASSERT_EQ(values.size(), 1);
+    ASSERT_EQ(values.size(), 1U);
     ASSERT_EQ(logical_tensor_wrapper_t(values[0]->get_logical_tensor()),
             logical_tensor_wrapper_t(lt));
 }
@@ -255,7 +255,7 @@ TEST(Op, SetAttributeBool) {
     matmul.set_attr<bool>(op_attr::transpose_a, true);
     matmul.set_attr<bool>(op_attr::transpose_b, false);
 
-    ASSERT_EQ(matmul.num_attributes(), 2);
+    ASSERT_EQ(matmul.num_attributes(), 2U);
     ASSERT_TRUE(matmul.has_attr(op_attr::transpose_a));
     ASSERT_TRUE(matmul.has_attr(op_attr::transpose_b));
     ASSERT_FALSE(matmul.has_attr(op_attr::undef));
@@ -284,7 +284,7 @@ TEST(Op, SetAttributeInt64Vector) {
 
     conv.set_attr<std::vector<int64_t>>(op_attr::pads_begin, {1, 1});
     auto ret = conv.get_attr<std::vector<int64_t>>(op_attr::pads_begin);
-    ASSERT_EQ(ret.size(), 2);
+    ASSERT_EQ(ret.size(), 2U);
     ASSERT_EQ(ret[0], 1);
     ASSERT_EQ(ret[1], 1);
 }
@@ -303,7 +303,7 @@ TEST(Op, MergeAttributes) {
     other.insert({op_attr::pads_begin, {pad}});
 
     conv.merge_attributes(other);
-    ASSERT_EQ(conv.num_attributes(), 4);
+    ASSERT_EQ(conv.num_attributes(), 4U);
 }
 
 TEST(Op, ValidateSameAttributes) {
@@ -351,7 +351,7 @@ TEST(Op, OverwriteAttributes) {
     op_t matmul {0, op_kind::MatMul, std::string("matmul")};
     matmul.set_attr<bool>(op_attr::transpose_a, true);
     matmul.set_attr<bool>(op_attr::transpose_b, false);
-    ASSERT_EQ(matmul.num_attributes(), 2);
+    ASSERT_EQ(matmul.num_attributes(), 2U);
     ASSERT_TRUE(matmul.has_attr(op_attr::transpose_a));
     ASSERT_TRUE(matmul.has_attr(op_attr::transpose_b));
     ASSERT_TRUE(matmul.get_attr<bool>(op_attr::transpose_a));
@@ -360,7 +360,7 @@ TEST(Op, OverwriteAttributes) {
     // reset boolean attributes
     matmul.set_attr<bool>(op_attr::transpose_a, false);
     matmul.set_attr<bool>(op_attr::transpose_b, true);
-    ASSERT_EQ(matmul.num_attributes(), 2);
+    ASSERT_EQ(matmul.num_attributes(), 2U);
     ASSERT_TRUE(matmul.has_attr(op_attr::transpose_a));
     ASSERT_TRUE(matmul.has_attr(op_attr::transpose_b));
     ASSERT_FALSE(matmul.get_attr<bool>(op_attr::transpose_a));

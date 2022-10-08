@@ -80,7 +80,7 @@ TEST(Scratchpad, Registry) {
 
     for (size_t i = 0; i < keys.size(); i++) {
         char *address = aligned_grantor.get(keys[i]);
-        ASSERT_EQ((size_t)address % alignment, 0);
+        ASSERT_EQ((size_t)address % alignment, 0U);
     }
 
     char *piece_end = aligned_grantor.get(keys.back()) + sizes.back();
@@ -92,12 +92,12 @@ TEST(Scratchpad, Registry) {
     grantor_t unaligned_grantor = registry.grantor(unaligned_base_ptr);
 
     ASSERT_TRUE(unaligned_grantor.get(keys[0]) > unaligned_base_ptr);
-    ASSERT_TRUE((unaligned_grantor.get(keys[0]) - unaligned_base_ptr)
+    ASSERT_TRUE((size_t)(unaligned_grantor.get(keys[0]) - unaligned_base_ptr)
             < registry.lcm_alignment());
 
     for (size_t i = 0; i < keys.size(); i++) {
         char *address = unaligned_grantor.get(keys[i]);
-        ASSERT_EQ((size_t)address % alignment, 0);
+        ASSERT_EQ((size_t)address % alignment, 0U);
     }
 
     piece_end = unaligned_grantor.get(keys.back()) + sizes.back();
@@ -131,7 +131,7 @@ TEST(Scratchpad, RegistryMultithreading) {
 
         for (size_t i = 0; i < keys.size(); i++) {
             char *address = grantor.get(keys[i]);
-            ASSERT_EQ((size_t)address % alignment, 0);
+            ASSERT_EQ((size_t)address % alignment, 0U);
         }
 
         char *piece_end = grantor.get(keys.back()) + sizes.back();

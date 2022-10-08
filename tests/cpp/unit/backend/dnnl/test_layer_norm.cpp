@@ -69,7 +69,7 @@ TEST(Execute, LayernormTraining) {
 
     impl::pass::pass_base_ptr apass = get_pass("ln_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -141,7 +141,7 @@ TEST(Execute, LayernormInference) {
 
     impl::pass::pass_base_ptr apass = get_pass("ln_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -198,7 +198,7 @@ TEST(Execute, LayernormInferenceWithoutScaleShift) {
 
     impl::pass::pass_base_ptr apass = get_pass("ln_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -306,7 +306,7 @@ TEST(Execute, LayerNormBackpropFp32) {
 
         impl::pass::pass_base_ptr apass = get_pass("ln_bw_pass");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -325,7 +325,7 @@ TEST(Execute, LayerNormBackpropFp32) {
                 impl::status::success);
 
         auto inplace_pairs = cp.get_inplace_pairs();
-        ASSERT_EQ(inplace_pairs.size(), 1);
+        ASSERT_EQ(inplace_pairs.size(), 1U);
         ASSERT_EQ(inplace_pairs[0].input_id, diff_dst.id);
         ASSERT_EQ(inplace_pairs[0].output_id, diff_src.id);
 
@@ -434,7 +434,7 @@ TEST(ExecuteSubgraphInt8, LayernormTypecastQuant) {
 
     impl::pass::pass_base_ptr apass = get_pass("layernorm_post_ops_fusion_cpu");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile

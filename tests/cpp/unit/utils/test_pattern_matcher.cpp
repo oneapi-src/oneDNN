@@ -150,7 +150,7 @@ TEST(PatternMatcher, GraphAppendNonLeafOp) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 2);
+    ASSERT_EQ(fusion_ops.size(), 2U);
 
     // matched dnnl_graph_op will be marked
     for (auto &p : fusion_ops) {
@@ -221,7 +221,7 @@ TEST(PatternMatcher, ConvAddFusion) {
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(
             agraph.get_ops()[0].get(), pattern_graph, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 2);
+    ASSERT_EQ(fusion_ops.size(), 2U);
 }
 
 TEST(PatternMatcher, FailToFuseConvAdd) {
@@ -289,7 +289,7 @@ TEST(PatternMatcher, ConvAddFusionCase2) {
 
     EXPECT_TRUE(match_pattern(
             agraph1.get_ops()[1].get(), pattern_graph, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 2);
+    ASSERT_EQ(fusion_ops.size(), 2U);
 }
 
 TEST(PatternMatcher, CommutativeInputBothConstrained) {
@@ -339,7 +339,7 @@ TEST(PatternMatcher, CommutativeInputBothConstrained) {
         std::vector<op_t *> fusion_ops;
         EXPECT_TRUE(match_pattern(
                 agraph.get_ops()[0].get(), pattern_graph, fusion_ops));
-        ASSERT_EQ(fusion_ops.size(), 4);
+        ASSERT_EQ(fusion_ops.size(), 4U);
     }
 }
 
@@ -394,7 +394,7 @@ TEST(PatternMatcher, CommutativeInput) {
     fusion_ops.clear();
     EXPECT_TRUE(match_pattern(
             agraph.get_ops()[2].get(), pattern_graph, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 5);
+    ASSERT_EQ(fusion_ops.size(), 5U);
 }
 
 //
@@ -438,7 +438,7 @@ TEST(PatternMatcher, ConvBiasActivationFusion) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 3);
+    ASSERT_EQ(fusion_ops.size(), 3U);
 }
 
 //
@@ -485,7 +485,7 @@ TEST(PatternMatcher, ConvBiasSumActivationFusion) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 4);
+    ASSERT_EQ(fusion_ops.size(), 4U);
 }
 
 //
@@ -526,7 +526,7 @@ TEST(PatternMatcher, MatmulBiasSumFusion) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 3);
+    ASSERT_EQ(fusion_ops.size(), 3U);
 }
 
 //
@@ -567,7 +567,7 @@ TEST(PatternMatcher, MatmulActivationFusion) {
     EXPECT_FALSE(match_pattern(agraph.get_ops()[1].get(), graphp, fusion_ops));
     fusion_ops.clear();
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 2);
+    ASSERT_EQ(fusion_ops.size(), 2U);
 }
 
 TEST(PatternMatcher, ConvSwishFusion) {
@@ -613,7 +613,7 @@ TEST(PatternMatcher, ConvSwishFusion) {
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(
             agraph.get_ops()[0].get(), pattern_graph, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 3);
+    ASSERT_EQ(fusion_ops.size(), 3U);
 }
 
 TEST(PatternMatcher, ConvSumEltwiseFusion) {
@@ -651,7 +651,7 @@ TEST(PatternMatcher, ConvSumEltwiseFusion) {
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(
             agraph.get_ops()[0].get(), pattern_graph, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 2);
+    ASSERT_EQ(fusion_ops.size(), 2U);
 }
 
 //
@@ -715,7 +715,7 @@ TEST(PatternMatcher, Alternation) {
     EXPECT_FALSE(match_pattern(agraph.get_ops()[1].get(), graphp, fusion_ops));
     fusion_ops.clear();
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 2);
+    ASSERT_EQ(fusion_ops.size(), 2U);
 }
 
 TEST(PatternMatcher, AlternationWithConsumer) {
@@ -783,7 +783,7 @@ TEST(PatternMatcher, AlternationWithConsumer) {
     std::vector<op_t *> fusion_ops;
     // should match the 1st rep_unit
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    EXPECT_EQ(fusion_ops.size(), 4);
+    EXPECT_EQ(fusion_ops.size(), 4U);
 }
 
 //
@@ -841,7 +841,7 @@ TEST(PatternMatcher, Repetition) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 4);
+    ASSERT_EQ(fusion_ops.size(), 4U);
 }
 
 TEST(PatternMatcher, RepetitionFail) {
@@ -932,7 +932,7 @@ TEST(PatternMatcher, Optional) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 2);
+    ASSERT_EQ(fusion_ops.size(), 2U);
 
     graph_t agraph2;
     op_t matmul2 {0, MatMul, "matmul"};
@@ -956,7 +956,7 @@ TEST(PatternMatcher, Optional) {
 
     fusion_ops.clear();
     EXPECT_TRUE(match_pattern(agraph2.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 3);
+    ASSERT_EQ(fusion_ops.size(), 3U);
 }
 
 //
@@ -1073,7 +1073,7 @@ TEST(PatternMatcher, ComplexRepetition) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 7);
+    ASSERT_EQ(fusion_ops.size(), 7U);
 
     graph_t agraph2;
     op_t conv4 {0, Convolution, "conv4"};
@@ -1119,7 +1119,7 @@ TEST(PatternMatcher, ComplexRepetition) {
 
     fusion_ops.clear();
     EXPECT_TRUE(match_pattern(agraph3.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 3);
+    ASSERT_EQ(fusion_ops.size(), 3U);
 }
 
 TEST(PatternMatcher, ParallelMatmul) {
@@ -1166,7 +1166,7 @@ TEST(PatternMatcher, ParallelMatmul) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 3);
+    ASSERT_EQ(fusion_ops.size(), 3U);
 }
 
 TEST(PatternMatcher, OptionalInput) {
@@ -1222,7 +1222,7 @@ TEST(PatternMatcher, OptionalInput) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 3);
+    ASSERT_EQ(fusion_ops.size(), 3U);
 }
 
 //
@@ -1265,7 +1265,7 @@ TEST(PatternMatcher, NestedMatchingFailure) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 2);
+    ASSERT_EQ(fusion_ops.size(), 2U);
 }
 
 TEST(PatternMatcher, RepetitionWithMultipleConsumers) {
@@ -1313,11 +1313,11 @@ TEST(PatternMatcher, RepetitionWithMultipleConsumers) {
     ASSERT_EQ(agraph.add_op(&wildcard1), status::success);
     ASSERT_EQ(agraph.add_op(&wildcard2), status::success);
     agraph.build_graph();
-    ASSERT_EQ(agraph.num_ops(), 4);
+    ASSERT_EQ(agraph.num_ops(), 4U);
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 2);
+    ASSERT_EQ(fusion_ops.size(), 2U);
 }
 
 TEST(PatternMatcher, MultipleConsumer) {
@@ -1362,7 +1362,7 @@ TEST(PatternMatcher, MultipleConsumer) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 3);
+    ASSERT_EQ(fusion_ops.size(), 3U);
 }
 
 TEST(PatternMatcher, MultipleConsumerDifferentPartition) {
@@ -1453,7 +1453,7 @@ TEST(PatternMatcher, MultipleConsumerDifferentPartition) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 5);
+    ASSERT_EQ(fusion_ops.size(), 5U);
 }
 
 TEST(PatternMatcher, NestedRepetitionOptional) {
@@ -1499,7 +1499,7 @@ TEST(PatternMatcher, NestedRepetitionOptional) {
     std::vector<op_t *> fusion_ops;
 
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 3);
+    ASSERT_EQ(fusion_ops.size(), 3U);
 }
 
 TEST(PatternMatcher, RepetitionExternalOutput) {
@@ -1584,7 +1584,7 @@ TEST(PatternMatcher, RepetitionExternalOutput) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 4);
+    ASSERT_EQ(fusion_ops.size(), 4U);
 }
 
 TEST(PatternMatcher, RepetitionExternalOutputSwapOrder) {
@@ -1676,7 +1676,7 @@ TEST(PatternMatcher, RepetitionExternalOutputSwapOrder) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[3].get(), graphp, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 4);
+    ASSERT_EQ(fusion_ops.size(), 4U);
 }
 
 TEST(PatternMatcher, CyclicCheck) {
@@ -1879,7 +1879,7 @@ TEST(PatternMatcher, ComplexCyclicCheck) {
     std::vector<op_t *> fusion_ops;
     // should match the 1st rep_unit
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    EXPECT_EQ(fusion_ops.size(), 3);
+    EXPECT_EQ(fusion_ops.size(), 3U);
 }
 
 TEST(PatternMatcher, ComplexUndirectCyclicCheck) {
@@ -1969,7 +1969,7 @@ TEST(PatternMatcher, ComplexUndirectCyclicCheck) {
     std::vector<op_t *> fusion_ops;
     // should match the 1st rep_unit
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    EXPECT_EQ(fusion_ops.size(), 3);
+    EXPECT_EQ(fusion_ops.size(), 3U);
 }
 
 TEST(PatternMatcher, OptionalSubgraphFailure) {
@@ -2018,7 +2018,7 @@ TEST(PatternMatcher, OptionalSubgraphFailure) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 3);
+    ASSERT_EQ(fusion_ops.size(), 3U);
 }
 
 TEST(PatternMatcher, OptionalSubgraphFailure3) {
@@ -2063,7 +2063,7 @@ TEST(PatternMatcher, OptionalSubgraphFailure3) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 2);
+    ASSERT_EQ(fusion_ops.size(), 2U);
 }
 
 TEST(PatternMatcher, OptionalSubgraphFailure4) {
@@ -2112,7 +2112,7 @@ TEST(PatternMatcher, OptionalSubgraphFailure4) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), pgraph, fusion_ops));
-    ASSERT_EQ(fusion_ops.size(), 1);
+    ASSERT_EQ(fusion_ops.size(), 1U);
 }
 
 TEST(PatternMatcher, ShouldNotMatchIdenticalResblock) {
@@ -2245,7 +2245,7 @@ TEST(PatternMatcher, ShouldNotMatchIdenticalResblock) {
 
     agraph.build_graph();
 
-    ASSERT_EQ(agraph.get_ops().size(), 10);
+    ASSERT_EQ(agraph.get_ops().size(), 10U);
 
     std::vector<op_t *> fusion_ops;
     // should not match, so should be false
@@ -2327,5 +2327,5 @@ TEST(PatternMatcher, RepetitionOportExternalOutput) {
 
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
-    EXPECT_EQ(fusion_ops.size(), 5);
+    EXPECT_EQ(fusion_ops.size(), 5U);
 }

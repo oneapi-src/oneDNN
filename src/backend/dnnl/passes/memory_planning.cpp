@@ -82,7 +82,7 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
         }
 
         std::shared_ptr<value_t> post_sum_input;
-        for (int i = 0; i < pops.size(); i++) {
+        for (size_t i = 0; i < pops.size(); i++) {
             if (pops[i]->is_post_sum()) {
                 post_sum_input = op.get_input_value(index);
                 break; // assume only one post sum

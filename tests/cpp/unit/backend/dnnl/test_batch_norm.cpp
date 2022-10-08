@@ -107,7 +107,7 @@ static inline void ref_batchnorm_fwd(impl::dim_t mb, impl::dim_t ic,
                 }
             }
         }
-        for (int k = 0; k < ic_; k++) {
+        for (size_t k = 0; k < ic_; k++) {
             running_mean_ptr[k]
                     = momentum * est_mean_ptr[k] + (1 - momentum) * mean_ptr[k];
             running_variance_ptr[k] = momentum * est_variance_ptr[k]
@@ -266,7 +266,7 @@ public:
                 : (is_training ? get_pass("bn_fw_train_pass")
                                : get_pass("bn_pass"));
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -417,7 +417,7 @@ public:
                     &ref_batch_variance_ts, params.epsilon, momentum,
                     activation, params.data_format == "NXC",
                     params.op_kind == impl::op_kind::BatchNormForwardTraining);
-            for (size_t i = 0; i < IC; ++i) {
+            for (int64_t i = 0; i < IC; ++i) {
                 ASSERT_NEAR(
                         running_mean_data[i], ref_running_mean_data[i], 1.e-6f);
                 ASSERT_NEAR(running_variance_data[i],
@@ -534,7 +534,7 @@ TEST(Compile, BatchNormBackpropFp32) {
 
     impl::pass::pass_base_ptr apass = get_pass("bn_bw_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -626,7 +626,7 @@ TEST(Compile, BatchNormBackpropFp32WithSingleOutput) {
 
     impl::pass::pass_base_ptr apass = get_pass("bn_bw_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile

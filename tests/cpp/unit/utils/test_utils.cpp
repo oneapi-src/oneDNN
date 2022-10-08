@@ -63,7 +63,7 @@ TEST(Utils, sizeoftype) {
     EXPECT_EQ(sizeof(int8_t), size_of(data_type::s8));
     EXPECT_EQ(sizeof(int16_t), size_of(data_type::f16));
     EXPECT_EQ(sizeof(int16_t), size_of(data_type::bf16));
-    EXPECT_EQ(0, size_of(static_cast<data_type_t>(data_type::bf16 + 10)));
+    EXPECT_EQ(0U, size_of(static_cast<data_type_t>(data_type::bf16 + 10)));
 }
 
 TEST(Utils, iffy_getenv) {

@@ -98,7 +98,7 @@ public:
 
         impl::pass::pass_base_ptr apass = get_pass("concat_pass");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -190,7 +190,7 @@ TEST(Compile, ConcatWithMoreInputs) {
 
     impl::pass::pass_base_ptr apass = get_pass("concat_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -335,7 +335,7 @@ TEST(ExecuteSubgraphInt8, Concat) {
     impl::pass::pass_base_ptr apass = get_pass("int8_concat_fusion");
     apass->run(g);
 
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -382,7 +382,7 @@ TEST(Execute, ConcatEmptyInput) {
 
     impl::pass::pass_base_ptr apass = get_pass("concat_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile

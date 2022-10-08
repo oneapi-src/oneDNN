@@ -70,7 +70,7 @@ impl::status_t insert_permute_for_conv_or_deconv(
 
         size_t num_post_binary_ops = 0;
         const auto &pops = fusion_info.get_post_ops();
-        for (int n = 0; n < pops.size(); ++n) {
+        for (size_t n = 0; n < pops.size(); ++n) {
             if (pops[n]->get_op()->get_kind() == op_kind::dnnl_binary)
                 num_post_binary_ops++;
         }
@@ -171,7 +171,7 @@ impl::status_t insert_permute_for_op_only_require_data_format(
 
         // permute extra inputs for fused post-binary
         const auto &pops = fusion_info.get_post_ops();
-        for (int n = 0; n < pops.size(); ++n) {
+        for (size_t n = 0; n < pops.size(); ++n) {
             if (!pops[n]->is_post_binary() && !pops[n]->is_post_sum()) continue;
             const size_t idx = pops[n]->get_unfused_input_indices()[0];
 
@@ -418,7 +418,7 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
             int64_t key = cur_op->get_attr<int64_t>(op_attr::fusion_info_key);
             fusion_info_t &fusion_info = mgr.get_mutable_info(key);
             const auto &pops = fusion_info.get_post_ops();
-            for (int i = 0; i < pops.size(); i++) {
+            for (size_t i = 0; i < pops.size(); i++) {
                 if (!pops[i]->is_post_binary() && !pops[i]->is_post_sum())
                     continue;
                 const size_t offset = pops[i]->get_unfused_input_indices()[0];

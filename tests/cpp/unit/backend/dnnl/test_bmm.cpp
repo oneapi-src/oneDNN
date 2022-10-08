@@ -114,7 +114,7 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
     impl::pass::pass_base_ptr apass
             = get_pass("int8_matmul_post_ops_fusion_cpu");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -234,7 +234,7 @@ TEST(ExecuteSubgraphInt8, BmmDivU8u8f32) {
                             ? "int8_matmul_post_ops_fusion_gpu"
                             : "int8_matmul_post_ops_fusion_cpu");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -367,7 +367,7 @@ TEST(ExecuteSubgraphInt8, BmmDivAddU8u8f32) {
     impl::pass::pass_base_ptr apass
             = get_pass("int8_matmul_div_add_fusion_cpu");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -508,7 +508,7 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
                                     ? "int8_bf16_matmul_post_ops_fusion_gpu"
                                     : "int8_bf16_matmul_post_ops_fusion_cpu");
             apass->run(g);
-            ASSERT_EQ(g.get_num_partitions(), 1);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
 
             // compile
@@ -661,7 +661,7 @@ TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
                                     ? "int8_bf16_matmul_post_ops_fusion_gpu"
                                     : "int8_bf16_matmul_post_ops_fusion_cpu");
             apass->run(g);
-            ASSERT_EQ(g.get_num_partitions(), 1);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
 
             // compile
@@ -824,7 +824,7 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
             impl::pass::pass_base_ptr apass
                     = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
             apass->run(g);
-            ASSERT_EQ(g.get_num_partitions(), 1);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
 
             // compile
@@ -999,7 +999,7 @@ TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
                                     ? "int8_bf16_matmul_scale_add_fusion_gpu"
                                     : "int8_bf16_matmul_scale_add_fusion_cpu");
             apass->run(g);
-            ASSERT_EQ(g.get_num_partitions(), 1);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
 
             // compile
@@ -1137,7 +1137,7 @@ TEST(ExecuteSubgraphInt8, BmmMulAddTransposeBU8s8f32) {
                             ? "int8_matmul_post_ops_fusion_gpu"
                             : "int8_matmul_post_ops_fusion_cpu");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1267,7 +1267,7 @@ TEST(ExecuteSubgraphInt8, U8u8bf16DivBmm) {
     impl::pass::pass_base_ptr apass
             = get_pass("x8x8bf16_div_matmul_fusion_cpu");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile

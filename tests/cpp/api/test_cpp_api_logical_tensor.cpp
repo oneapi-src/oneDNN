@@ -39,29 +39,29 @@ TEST(APILogicalTensor, CreateWithShape) {
     logical_tensor lt_0 {id, data_type::f32, logical_tensor::dims_t {},
             layout_type::strided};
     ASSERT_EQ(lt_0.get_id(), id);
-    ASSERT_EQ(lt_0.get_dims().size(), 0);
+    ASSERT_EQ(lt_0.get_dims().size(), 0U);
 
     // 1D
     logical_tensor lt_1 {id, data_type::f32, logical_tensor::dims_t {3},
             layout_type::strided};
     ASSERT_EQ(lt_1.get_id(), id);
-    ASSERT_EQ(lt_1.get_dims().size(), 1);
+    ASSERT_EQ(lt_1.get_dims().size(), 1U);
 
     // 2D
     logical_tensor lt_2 {id, data_type::f32, {3, 4}, layout_type::strided};
     ASSERT_EQ(lt_2.get_id(), id);
-    ASSERT_EQ(lt_2.get_dims().size(), 2);
+    ASSERT_EQ(lt_2.get_dims().size(), 2U);
 
     // 3D
     logical_tensor lt_3 {id, data_type::f32, {3, 4, 5}, layout_type::strided};
     ASSERT_EQ(lt_3.get_id(), id);
-    ASSERT_EQ(lt_3.get_dims().size(), 3);
+    ASSERT_EQ(lt_3.get_dims().size(), 3U);
 
     // 4D
     logical_tensor lt_4 {
             id, data_type::f32, {3, 4, 5, 6}, layout_type::strided};
     ASSERT_EQ(lt_4.get_id(), id);
-    ASSERT_EQ(lt_4.get_dims().size(), 4);
+    ASSERT_EQ(lt_4.get_dims().size(), 4U);
 }
 
 TEST(APILogicalTensor, CreateWithStrides) {
@@ -72,19 +72,19 @@ TEST(APILogicalTensor, CreateWithStrides) {
     // 0D
     logical_tensor lt_0 {id, data_type::f32, {}, {}};
     ASSERT_EQ(lt_0.get_id(), id);
-    ASSERT_EQ(lt_0.get_dims().size(), 0);
+    ASSERT_EQ(lt_0.get_dims().size(), 0U);
 
     // 1D
     logical_tensor lt_1 {id, data_type::f32, {3}, logical_tensor::dims_t {1}};
     ASSERT_EQ(lt_1.get_id(), id);
-    ASSERT_EQ(lt_1.get_dims().size(), 1);
+    ASSERT_EQ(lt_1.get_dims().size(), 1U);
     ASSERT_EQ(lt_1.get_dims()[0], 3);
     ASSERT_EQ(lt_1.get_strides()[0], 1);
 
     // 2D
     logical_tensor lt_2 {id, data_type::f32, {3, 4}, {4, 1}};
     ASSERT_EQ(lt_2.get_id(), id);
-    ASSERT_EQ(lt_2.get_dims().size(), 2);
+    ASSERT_EQ(lt_2.get_dims().size(), 2U);
     ASSERT_EQ(lt_2.get_dims()[0], 3);
     ASSERT_EQ(lt_2.get_dims()[1], 4);
     ASSERT_EQ(lt_2.get_strides()[0], 4);
@@ -93,7 +93,7 @@ TEST(APILogicalTensor, CreateWithStrides) {
     // 3D
     logical_tensor lt_3 {id, data_type::f32, {3, 4, 5}, {20, 5, 1}};
     ASSERT_EQ(lt_3.get_id(), id);
-    ASSERT_EQ(lt_3.get_dims().size(), 3);
+    ASSERT_EQ(lt_3.get_dims().size(), 3U);
     ASSERT_EQ(lt_3.get_dims()[0], 3);
     ASSERT_EQ(lt_3.get_dims()[1], 4);
     ASSERT_EQ(lt_3.get_dims()[2], 5);
@@ -104,7 +104,7 @@ TEST(APILogicalTensor, CreateWithStrides) {
     // 4D
     logical_tensor lt_4 {id, data_type::f32, {3, 4, 5, 6}, {120, 30, 6, 1}};
     ASSERT_EQ(lt_4.get_id(), id);
-    ASSERT_EQ(lt_4.get_dims().size(), 4);
+    ASSERT_EQ(lt_4.get_dims().size(), 4U);
     ASSERT_EQ(lt_4.get_dims()[0], 3);
     ASSERT_EQ(lt_4.get_dims()[1], 4);
     ASSERT_EQ(lt_4.get_dims()[2], 5);

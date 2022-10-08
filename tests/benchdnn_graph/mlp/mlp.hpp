@@ -91,7 +91,7 @@ struct mlp_graph_spec_t {
         , raw_wei_tag(wtag)
         , batch_sz(a_dims.dims[0])
         , dir(dir) {
-        assert(actfunc[0].entry.size() == prb_dims.ndims - 2);
+        assert(actfunc[0].entry.size() == (size_t)prb_dims.ndims - 2);
         num_hidden_layers = prb_dims.ndims - 2;
         for (int i = 1; i < prb_dims.ndims - 1; i++) {
             layer_dims.push_back({batch_sz, prb_dims.dims[i]});

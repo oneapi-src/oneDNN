@@ -292,7 +292,9 @@ static bool post_binary_fusible_impl(const impl::op_t *base_op,
     if (base_op->has_attr(op_attr::data_format)) {
         const auto data_fmt
                 = base_op->get_attr<std::string>(op_attr::data_format);
-        int32_t orig_c_axis = data_fmt == "NCX" ? 1 : output_ndims - 1;
+        size_t orig_c_axis = data_fmt == "NCX"
+                ? 1U
+                : static_cast<size_t>(output_ndims) - 1;
         return c_axis == orig_c_axis;
     }
 
@@ -320,7 +322,7 @@ std::pair<bool, std::pair<size_t, int64_t>> shuffle_fusible(
     size_t last_unmatched_pos = tp_order.size();
     size_t matched_pos = 0;
     for (size_t i = 0; i < tp_order.size(); ++i) {
-        if (tp_order[i] == i)
+        if (static_cast<size_t>(tp_order[i]) == i)
             ++matched_pos;
         else
             last_unmatched_pos = i;
@@ -331,7 +333,9 @@ std::pair<bool, std::pair<size_t, int64_t>> shuffle_fusible(
     // all positions were matched
     if (last_unmatched_pos == tp_order.size()) return dflt_res;
     // transposition not on consecutive positions
-    if (last_unmatched_pos != tp_order[last_unmatched_pos - 1]) return dflt_res;
+    if (last_unmatched_pos
+            != static_cast<size_t>(tp_order[last_unmatched_pos - 1]))
+        return dflt_res;
 
     const size_t g_pos = last_unmatched_pos;
     const size_t c_over_g_pos = g_pos - 1;

@@ -50,7 +50,7 @@ TEST(Execute, Softmax) {
 
     impl::pass::pass_base_ptr apass = get_pass("softmax_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     impl::partition_t p;
     p.init(part);
@@ -102,7 +102,7 @@ TEST(Execute, SoftmaxWithLastDim) {
 
     impl::pass::pass_base_ptr apass = get_pass("softmax_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     impl::partition_t p;
     p.init(part);
@@ -166,7 +166,7 @@ static inline void test_softmax_bwd_common(const impl::op_kind_t op_kind,
             : get_pass("logsoftmax_bwd_pass");
 
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     impl::partition_t p;
     p.init(part);
@@ -250,7 +250,7 @@ TEST(Execute, LogSoftmax) {
     impl::pass::pass_base_ptr apass = get_pass("logsoftmax_pass");
     ASSERT_TRUE(apass);
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     impl::partition_t p;
     p.init(part);
@@ -332,7 +332,7 @@ static inline void test_softmax_bwd_get_inplace_pair_common(
             : get_pass("logsoftmax_bwd_pass");
     apass->run(g);
 
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     impl::partition_t p;
     p.init(part);
@@ -345,7 +345,7 @@ static inline void test_softmax_bwd_get_inplace_pair_common(
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
     std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
-    ASSERT_EQ(inplace_pairs.size(), 1);
+    ASSERT_EQ(inplace_pairs.size(), 1U);
     ASSERT_EQ(inplace_pairs[0].input_id, diff_dst_lt.id);
     ASSERT_EQ(inplace_pairs[0].output_id, diff_src_lt.id);
 }
@@ -400,7 +400,7 @@ TEST(ExecuteSubgraphInt8, SoftmaxTypecastQuant) {
 
     impl::pass::pass_base_ptr apass = get_pass("softmax_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -459,7 +459,7 @@ TEST(Compile, SoftmaxGetInplacePair) {
 
     impl::pass::pass_base_ptr apass = get_pass("softmax_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     impl::partition_t p;
     p.init(part);
@@ -472,7 +472,7 @@ TEST(Compile, SoftmaxGetInplacePair) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
     auto pairs = cp.get_inplace_pairs();
-    ASSERT_EQ(pairs.size(), 1);
-    ASSERT_EQ(pairs[0].input_id, 0);
-    ASSERT_EQ(pairs[0].output_id, 1);
+    ASSERT_EQ(pairs.size(), 1U);
+    ASSERT_EQ(pairs[0].input_id, 0U);
+    ASSERT_EQ(pairs[0].output_id, 1U);
 }

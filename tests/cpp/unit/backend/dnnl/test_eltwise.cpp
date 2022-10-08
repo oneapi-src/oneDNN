@@ -60,7 +60,7 @@ static inline void test_eltwise_common(test::vector<float> &src,
 
     impl::pass::pass_base_ptr apass = get_pass(pass_name);
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -172,7 +172,7 @@ static inline void test_eltwise_bwd_common(
     std::string pass_name = op_name + "_pass";
     impl::pass::pass_base_ptr apass = get_pass(pass_name);
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -599,7 +599,7 @@ TEST(ExecuteSubgraphFp32, Shuffle) {
 
         impl::pass::pass_base_ptr apass = get_pass("shuffle_fusion");
         apass->run(agraph);
-        ASSERT_EQ(agraph.get_num_partitions(), 1);
+        ASSERT_EQ(agraph.get_num_partitions(), 1U);
         auto part = agraph.get_partitions()[0];
 
         impl::partition_t p;
@@ -660,7 +660,7 @@ TEST(ExecuteSubgraphFp32, ReciprocalMul) {
 
     impl::pass::pass_base_ptr apass = get_pass("reciprocal_multiply_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     impl::partition_t p;
     p.init(part);
@@ -761,7 +761,7 @@ TEST(Execute, Sum) {
     impl::pass::pass_base_ptr apass = get_pass("sum_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
     auto part = agraph.get_partitions()[0];
 
     // compile
@@ -823,7 +823,7 @@ TEST(Compile, EltwiseGetInplacePair) {
 
     impl::pass::pass_base_ptr apass = get_pass("tanh_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     impl::partition_t p;
     p.init(part);
@@ -836,9 +836,9 @@ TEST(Compile, EltwiseGetInplacePair) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
     auto pairs = cp.get_inplace_pairs();
-    ASSERT_EQ(pairs.size(), 1);
-    ASSERT_EQ(pairs[0].input_id, 0);
-    ASSERT_EQ(pairs[0].output_id, 1);
+    ASSERT_EQ(pairs.size(), 1U);
+    ASSERT_EQ(pairs[0].input_id, 0U);
+    ASSERT_EQ(pairs[0].output_id, 1U);
 }
 
 struct dnnl_graph_test_eltwise_binary_params {
@@ -902,7 +902,7 @@ public:
 
         impl::pass::pass_base_ptr apass = get_pass("eltwise_binary_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile

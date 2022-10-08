@@ -186,7 +186,7 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
                                 : "int8_pool_binary_fusion_cpu");
         apass->run(g);
 
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -314,7 +314,7 @@ TEST(ExecuteSubgraphFp32, Pool3Postops) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass = get_pass("pool_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -380,7 +380,7 @@ TEST(Execute, AvgPoolExcludePad) {
 
     impl::pass::pass_base_ptr apass = get_pass("avg_pool_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -443,7 +443,7 @@ TEST(Execute, AvgPoolIncludePad) {
 
     impl::pass::pass_base_ptr apass = get_pass("avg_pool_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -506,7 +506,7 @@ TEST(Execute, AvgPoolBackwardExcludePad) {
     g.build_graph();
     impl::pass::pass_base_ptr apass = get_pass("avg_pool_bw_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -564,7 +564,7 @@ TEST(Execute, AvgPoolBackwardIncludePad) {
     g.build_graph();
     impl::pass::pass_base_ptr apass = get_pass("avg_pool_bw_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -698,7 +698,7 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
                                 ? "int8_pool_binary_fusion_gpu"
                                 : "int8_pool_binary_fusion_cpu");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -757,7 +757,7 @@ TEST(Execute, MaxPool) {
 
     impl::pass::pass_base_ptr apass = get_pass("max_pool_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -831,7 +831,7 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
     impl::pass::pass_base_ptr apass2 = get_pass("max_pool_pass");
     apass1->run(g);
     apass2->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 2);
+    ASSERT_EQ(g.get_num_partitions(), 2U);
     auto dq_part = g.get_partitions()[0];
     auto mp_part = g.get_partitions()[1];
 
@@ -916,7 +916,7 @@ TEST(Execute, MaxPoolBackwardWithIncides) {
     g.build_graph();
     impl::pass::pass_base_ptr apass = get_pass("max_pool_bw_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -982,7 +982,7 @@ TEST(Execute, MaxPoolBackwardWithoutIncides) {
     g.build_graph();
     impl::pass::pass_base_ptr apass = get_pass("max_pool_bw_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1041,7 +1041,7 @@ TEST(Execute, MaxPoolBackwardWithoutIncidesPlainGrad) {
     g.build_graph();
     impl::pass::pass_base_ptr apass = get_pass("max_pool_bw_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1178,7 +1178,7 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
                                 ? "int8_pool_binary_fusion_gpu"
                                 : "int8_pool_binary_fusion_cpu");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -1295,7 +1295,7 @@ public:
 
             impl::pass::pass_base_ptr apass = get_pass("pool_post_ops_fusion");
             apass->run(g);
-            ASSERT_EQ(g.get_num_partitions(), 1);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
 
             // compile
@@ -1492,7 +1492,7 @@ TEST(ExecuteSubgraphInt8, DequantizePoolReshapeQunatize) {
                                 : "int8_pool_binary_fusion_cpu");
         apass->run(g);
 
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;

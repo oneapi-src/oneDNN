@@ -707,7 +707,7 @@ inline int measure_perf_aggregate(timer::timer_t &t,
     // Warm-up run, this is not measured due to possibility the associated
     // kernel has not been built and skews the results.
     auto sz = perf_func_v.size();
-    for (int i = 0; i < sz; i++) {
+    for (size_t i = 0; i < sz; i++) {
         BENCHDNNEXT_SAFE(
                 perf_func_v[i](stream, inputs_v[i], outputs_v[i]), WARN);
         BENCHDNNEXT_SAFE(stream.wait(), WARN);
@@ -721,7 +721,7 @@ inline int measure_perf_aggregate(timer::timer_t &t,
 
     bool is_first_loop = true;
     while (true) {
-        for (int i = 0; i < sz; i++) {
+        for (size_t i = 0; i < sz; i++) {
             for (int j = 0; j < cur_batch_times; j++) {
                 BENCHDNNEXT_SAFE(
                         perf_func_v[i](stream, inputs_v[i], outputs_v[i]),
@@ -765,7 +765,7 @@ inline int measure_perf_individual(timer::timer_t &t,
     t.reset();
     while (true) {
         auto sz = perf_func_v.size();
-        for (int i = 0; i < sz; i++) {
+        for (size_t i = 0; i < sz; i++) {
             BENCHDNNEXT_SAFE(
                     perf_func_v[i](stream, inputs_v[i], outputs_v[i]), WARN);
         }
@@ -798,7 +798,7 @@ int measure_perf(timer::timer_t &t,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v,
         res_t *res) {
     std::vector<perf_function_t> perf_func_v;
-    for (int i = 0; i < cp_v.size(); i++) {
+    for (size_t i = 0; i < cp_v.size(); i++) {
         perf_func_v.push_back(std::bind(&compiled_partition_executor, cp_v[i],
                 std::placeholders::_1, std::placeholders::_2,
                 std::placeholders::_3));

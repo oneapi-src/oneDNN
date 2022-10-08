@@ -107,11 +107,11 @@ TEST(Value, Offset) {
     impl::op_t matmul {0, impl::op_kind::MatMul, std::string("matmul")};
     impl::value_t val {matmul, 1, lt};
     size_t offset = val.get_offset();
-    ASSERT_EQ(offset, 1);
+    ASSERT_EQ(offset, 1U);
 
     val.set_offset(2);
     offset = val.get_offset();
-    ASSERT_EQ(offset, 2);
+    ASSERT_EQ(offset, 2U);
 }
 
 TEST(Value, DefaultOffset) {
@@ -124,7 +124,7 @@ TEST(Value, DefaultOffset) {
 
     val.set_offset(2);
     offset = val.get_offset();
-    ASSERT_EQ(offset, 2);
+    ASSERT_EQ(offset, 2U);
 }
 
 TEST(Value, AddConsumer) {
@@ -134,12 +134,12 @@ TEST(Value, AddConsumer) {
     impl::value_t val {matmul, 0, lt};
 
     std::vector<impl::value_t::consumer_t> consumers = val.get_consumers();
-    ASSERT_EQ(consumers.size(), 0);
+    ASSERT_EQ(consumers.size(), 0U);
 
     impl::op_t relu {2, impl::op_kind::ReLU, std::string("relu")};
     val.add_consumer(relu, 0);
     consumers = val.get_consumers();
-    ASSERT_EQ(consumers.size(), 1);
+    ASSERT_EQ(consumers.size(), 1U);
 }
 
 TEST(Value, FindConsumer) {

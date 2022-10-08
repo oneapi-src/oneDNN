@@ -25,7 +25,7 @@ namespace mlp {
 
 void compute_ref_mlp(
         const mlp_graph_spec_t *spec, const std::vector<args_t> &args) {
-    for (int i = 0; i < spec->activation_func.size(); i++) {
+    for (size_t i = 0; i < spec->activation_func.size(); i++) {
         vdims_t strides {vdims_t(STRIDES_SIZE)};
         std::vector<::matmul::dims_mask_t> rt_dims_masks {};
         int bias_mask = BIAS_MASK_DEFAULT;

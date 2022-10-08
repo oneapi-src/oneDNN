@@ -48,7 +48,7 @@ TEST(Execute, Typecast) {
 
     impl::pass::pass_base_ptr apass = get_pass("typecast_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -88,7 +88,7 @@ TEST(Compile, TypecastNegativeInput) {
 
     impl::pass::pass_base_ptr apass = get_pass("typecast_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile

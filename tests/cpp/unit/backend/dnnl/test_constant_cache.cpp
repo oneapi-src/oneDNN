@@ -27,7 +27,7 @@ namespace impl = dnnl::graph::impl;
 TEST(ConstantCache, SetGetCapacity) {
     impl::dnnl_impl::constant_cache_t cache;
     ASSERT_EQ(cache.set_capacity(11), impl::status::success);
-    ASSERT_EQ(cache.get_capacity(), 11);
+    ASSERT_EQ(cache.get_capacity(), 11U);
 }
 
 TEST(ConstantCache, GetOrAddEmpty) {

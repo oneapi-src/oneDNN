@@ -96,7 +96,7 @@ TEST(Execute, MixUseMultipleBackends) {
     ASSERT_EQ(g.add_op(&matmul), impl::status::success);
 
     g.build_graph();
-    ASSERT_EQ(g.get_ops().size(), 14);
+    ASSERT_EQ(g.get_ops().size(), 14U);
 
     /*----------- partitioning stage ----------------------*/
 #ifdef DNNL_GRAPH_ENABLE_COMPILER_BACKEND
@@ -120,7 +120,7 @@ TEST(Execute, MixUseMultipleBackends) {
     dnnl_bkd_pass->run(g);
 
     size_t num_partitions = g.get_num_partitions();
-    ASSERT_EQ(num_partitions, 2);
+    ASSERT_EQ(num_partitions, 2U);
 
     impl::partition_t part0, part1;
     std::vector<impl::partition_t *> partitions {&part0, &part1};
@@ -129,8 +129,8 @@ TEST(Execute, MixUseMultipleBackends) {
     /*------------ compilation stage: single matmul --------*/
     auto partition_inputs = part0.get_inputs();
     auto partition_outputs = part0.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 2);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 2U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -175,8 +175,8 @@ TEST(Execute, MixUseMultipleBackends) {
     /*------------ compilation stage: MHA --------------*/
     partition_inputs = part1.get_inputs();
     partition_outputs = part1.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     inputs.clear();
     outputs.clear();
@@ -255,7 +255,7 @@ TEST(Execute, MixUseMultipleBackendsReverseOrder) {
     ASSERT_EQ(g.add_op(&matmul), impl::status::success);
 
     g.build_graph();
-    ASSERT_EQ(g.get_ops().size(), 14);
+    ASSERT_EQ(g.get_ops().size(), 14U);
 
     /*----------- partitioning stage ----------------------*/
 #ifdef DNNL_GRAPH_ENABLE_COMPILER_BACKEND
@@ -279,7 +279,7 @@ TEST(Execute, MixUseMultipleBackendsReverseOrder) {
     dnnl_bkd_pass->run(g);
 
     size_t num_partitions = g.get_num_partitions();
-    ASSERT_EQ(num_partitions, 2);
+    ASSERT_EQ(num_partitions, 2U);
 
     impl::partition_t part0, part1;
     std::vector<impl::partition_t *> partitions {&part0, &part1};
@@ -288,8 +288,8 @@ TEST(Execute, MixUseMultipleBackendsReverseOrder) {
     /*------------ compilation stage: MHA --------------*/
     auto partition_inputs = part0.get_inputs();
     auto partition_outputs = part0.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 5);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const impl::logical_tensor_t *> inputs, outputs;
     for (auto &lt : partition_inputs) {
@@ -331,8 +331,8 @@ TEST(Execute, MixUseMultipleBackendsReverseOrder) {
 
     partition_inputs = part1.get_inputs();
     partition_outputs = part1.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 2);
-    ASSERT_EQ(partition_outputs.size(), 1);
+    ASSERT_EQ(partition_inputs.size(), 2U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
 
     inputs.clear();
     outputs.clear();

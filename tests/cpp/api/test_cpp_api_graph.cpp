@@ -35,7 +35,7 @@ TEST(APIGraph, GetPartitions) {
     // with default policy: partition::policy::fusion
     auto partitions = g.get_partitions();
 
-    EXPECT_EQ(partitions.size(), 1);
+    EXPECT_EQ(partitions.size(), 1U);
 }
 
 TEST(APIGraph, AddOp) {

@@ -53,7 +53,7 @@ TEST(Execute, InterpolateForwardNearest) {
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     ASSERT_TRUE(part != nullptr);
 
@@ -122,7 +122,7 @@ TEST(Execute, InterpolateAddForwardNearest) {
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     ASSERT_TRUE(part != nullptr);
 
@@ -188,11 +188,11 @@ TEST(Execute, InterpolateSwish) {
     ASSERT_EQ(g.add_op(&sigmoid_node), impl::status::success);
     ASSERT_EQ(g.add_op(&mul_node), impl::status::success);
     ASSERT_EQ(g.build_graph(), impl::status::success);
-    ASSERT_EQ(g.num_ops(), 3);
+    ASSERT_EQ(g.num_ops(), 3U);
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     ASSERT_TRUE(part != nullptr);
 
@@ -262,11 +262,11 @@ TEST(Execute, Interpolate3PostOps) {
     ASSERT_EQ(g.add_op(&sigmoid_node), impl::status::success);
     ASSERT_EQ(g.add_op(&div_node), impl::status::success);
     ASSERT_EQ(g.build_graph(), impl::status::success);
-    ASSERT_EQ(g.num_ops(), 4);
+    ASSERT_EQ(g.num_ops(), 4U);
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     ASSERT_TRUE(part != nullptr);
 
@@ -358,7 +358,7 @@ TEST(Execute, InterpolatePostOps) {
         impl::pass::pass_base_ptr apass
                 = get_pass("interpolate_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
         ASSERT_TRUE(part != nullptr);
 
@@ -422,7 +422,7 @@ TEST(Execute, InterpolateForwardLinear) {
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
     ASSERT_TRUE(part != nullptr);
 
@@ -475,7 +475,7 @@ TEST(Execute, InterpolateBackwardNearest) {
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_bwd_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -529,7 +529,7 @@ TEST(Execute, InterpolateBackwardLinear) {
 
     impl::pass::pass_base_ptr apass = get_pass("interpolate_bwd_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;

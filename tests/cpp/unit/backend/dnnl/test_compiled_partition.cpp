@@ -57,7 +57,7 @@ TEST(CompiledPartition, Relu) {
     g.build_graph();
     run_all_passes(g);
 
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -133,7 +133,7 @@ TEST(CompiledPartition, SearchRequiredInputsOutputs) {
 
     run_all_passes(g);
 
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -247,7 +247,7 @@ TEST(CompiledPartition, AllowRepeatedInputs) {
     g.build_graph();
     run_all_passes(g);
 
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile

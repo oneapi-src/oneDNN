@@ -345,8 +345,7 @@ public:
                                             != impl::data_type::undef;
                                     if (must_have_shape) {
                                         valid = valid && given.ndims > 0;
-                                        for (size_t i = 0; i < given.ndims;
-                                                i++) {
+                                        for (int i = 0; i < given.ndims; i++) {
                                             valid = valid
                                                     && given.dims[i] != -1;
                                         }

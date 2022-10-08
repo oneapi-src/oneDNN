@@ -68,13 +68,13 @@ public:
         size_t part_num = 0;
 
         ASSERT_EQ_SAFE(create_logic_tensor(p.tensor_dims.input_dims, &input,
-                               p.data_type, p.tensor_layout.input_layout, 1),
+                               p.data_type, p.tensor_layout.input_layout, 1U),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(create_logic_tensor(p.tensor_dims.weight_dims, &weight,
-                               p.data_type, p.tensor_layout.weight_layout, 2),
+                               p.data_type, p.tensor_layout.weight_layout, 2U),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(create_logic_tensor(p.tensor_dims.output_dims, &output,
-                               p.data_type, p.tensor_layout.output_layout, 3),
+                               p.data_type, p.tensor_layout.output_layout, 3U),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
 
         api_test_dnnl_graph_graph_create(&agraph, p.engine);
@@ -109,13 +109,13 @@ public:
                         static_cast<int64_t>(p.attr_value.dilations.size())),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_s64(op, dnnl_graph_op_attr_groups,
-                               p.attr_value.groups.data(), 0),
+                               p.attr_value.groups.data(), 0U),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
-                               op, dnnl_graph_op_attr_data_format, "NCX", 1),
+                               op, dnnl_graph_op_attr_data_format, "NCX", 1U),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(dnnl_graph_op_set_attr_str(
-                               op, dnnl_graph_op_attr_filter_format, "OIX", 1),
+                               op, dnnl_graph_op_attr_filter_format, "OIX", 1U),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
 
         ASSERT_EQ_SAFE(dnnl_graph_add_op(agraph, op), dnnl_graph_success,
@@ -124,7 +124,7 @@ public:
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(dnnl_graph_graph_get_partition_num(agraph, &part_num),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
-        ASSERT_EQ_SAFE(part_num, 1, TEST_CONV2D_DESTROY);
+        ASSERT_EQ_SAFE(part_num, 1U, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(dnnl_graph_partition_create(&partition),
                 dnnl_graph_success, TEST_CONV2D_DESTROY);
         ASSERT_EQ_SAFE(
@@ -148,7 +148,7 @@ public:
                         compiled_partition, &num_inplace_pairs, &inplace_pairs),
                 dnnl_graph_success);
         // Convolutional operator W/O sum has no in-place operation.
-        EXPECT_EQ(num_inplace_pairs, 0);
+        EXPECT_EQ(num_inplace_pairs, 0U);
 
         TEST_CONV2D_DESTROY;
 #undef TEST_CONV2D_DESTROY

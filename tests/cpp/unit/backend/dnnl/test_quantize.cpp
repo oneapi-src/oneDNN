@@ -59,7 +59,7 @@ TEST(Execute, QuantizePerTensor) {
 
     impl::pass::pass_base_ptr apass = get_pass("quant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -118,7 +118,7 @@ TEST(Execute, QuantizePerTensorAnyLayout) {
 
     impl::pass::pass_base_ptr apass = get_pass("quant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -174,7 +174,7 @@ TEST(Execute, QuantizePerChannelSymmetric) {
 
     impl::pass::pass_base_ptr apass = get_pass("quant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -238,7 +238,7 @@ TEST(Execute, TypecastQuantize) {
 
     impl::pass::pass_base_ptr apass = get_pass("typecast_quantize_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -298,7 +298,7 @@ TEST(Execute, DynamicQuantizeS32ZpsPerTensor) {
 
     impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -375,7 +375,7 @@ TEST(Execute, DynamicQuantizeS32ZpsPerChannel) {
 
     impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -446,7 +446,7 @@ TEST(Execute, DynamicQuantizeS8ZpsPerTensor) {
 
     impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -513,7 +513,7 @@ TEST(Execute, DynamicQuantizeNoZpsPerTensor) {
 
     impl::pass::pass_base_ptr apass = get_pass("dync_quant_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;

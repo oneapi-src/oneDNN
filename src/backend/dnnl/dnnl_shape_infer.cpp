@@ -83,7 +83,7 @@ status_t infer_dnnl_conv_output_shape(op_t *n,
         dims.erase(dims.begin());
 
         inputs[1]->ndims = ndims;
-        for (size_t i = 0; i < ndims; i++) {
+        for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
             inputs[1]->dims[i] = dims[i];
         }
     }
@@ -137,7 +137,7 @@ status_t infer_dnnl_convtranspose_output_shape(op_t *n,
         dims.erase(dims.begin());
 
         inputs[1]->ndims = ndims;
-        for (size_t i = 0; i < ndims; i++) {
+        for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
             inputs[1]->dims[i] = dims[i];
         }
     }
@@ -166,7 +166,7 @@ status_t infer_dnnl_convtranspose_bwd_data_output_shape(op_t *n,
         dims.erase(dims.begin());
 
         inputs[1]->ndims = ndims;
-        for (size_t i = 0; i < ndims; i++) {
+        for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
             inputs[1]->dims[i] = dims[i];
         }
     }
@@ -382,7 +382,7 @@ status_t infer_dnnl_conv_bwd_data_output_shape(op_t *n,
         dims.erase(dims.begin());
 
         inputs[1]->ndims = ndims;
-        for (size_t i = 0; i < ndims; i++) {
+        for (size_t i = 0; i < static_cast<size_t>(ndims); i++) {
             inputs[1]->dims[i] = dims[i];
         }
     }

@@ -90,7 +90,7 @@ TEST(Compile, TestReduce) {
 
         impl::pass::pass_base_ptr apass = get_pass("reduce_pass");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -206,7 +206,7 @@ TEST(ExecuteSubgraphFp32, ReduceAdd) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass = get_pass("reduction_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -298,7 +298,7 @@ TEST(ExecuteSubgraphFp32, ReduceRelu) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass = get_pass("reduction_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -394,7 +394,7 @@ TEST(ExecuteSubgraphFp32, ReduceSwish) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass = get_pass("reduction_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -508,7 +508,7 @@ TEST(ExecuteSubgraphFp32, ReduceWith3PostOps) {
         // -------------------------case 2----------------------------------
         impl::pass::pass_base_ptr apass = get_pass("reduction_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -570,7 +570,7 @@ TEST(Execute, ReduceMeanOutputDims) {
         g.build_graph();
         impl::pass::pass_base_ptr apass = get_pass("reduce_pass");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
         // compile
         impl::partition_t p;
@@ -586,7 +586,7 @@ TEST(Execute, ReduceMeanOutputDims) {
         impl::logical_tensor_t dst_lt;
         cp.query_logical_tensor(dst.id, &dst_lt);
         ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
-        ASSERT_EQ(dst_lt.ndims, new_dst_shape.size());
+        ASSERT_EQ(static_cast<size_t>(dst_lt.ndims), new_dst_shape.size());
         impl::tensor_t src0_ts(src0, &eng, src0_data.data());
         impl::tensor_t dst_ts(dst_lt, &eng, dst_data.data());
 

@@ -70,7 +70,7 @@ TEST(Compile, ConvolutionFp32) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -126,7 +126,7 @@ TEST(Compile, ConvolutionBackpropDataFp32) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_data_bw_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -175,7 +175,7 @@ TEST(Compile, ConvolutionBackpropFilterFp32) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -232,7 +232,7 @@ TEST(Compile, ConvolutionBackpropFiltersWithGroupsAndFiltersAnyLayout) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_filter_bw_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -290,7 +290,7 @@ TEST(Execute, ConvolutionNcxOix) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -357,7 +357,7 @@ TEST(Execute, ConvtransposeWithGroups) {
 
     impl::pass::pass_base_ptr apass = get_pass("convtranspose_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -422,7 +422,7 @@ TEST(Execute, Convolution3DNcxOix) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -489,7 +489,7 @@ TEST(Execute, ConvolutionNcxXio) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -556,7 +556,7 @@ TEST(Execute, Convolution3DNcxXio) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -624,7 +624,7 @@ TEST(Execute, ConvolutionNxcXio) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -692,7 +692,7 @@ TEST(Execute, Convolution3DNxcXio) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -759,7 +759,7 @@ TEST(Execute, ConvolutionNxcOix) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -826,7 +826,7 @@ TEST(Execute, Convolution3DNxcOix) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -894,7 +894,7 @@ TEST(Execute, ConvolutionF16F16F16) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -963,7 +963,7 @@ TEST(Execute, ConvolutionBf16Bf16Bf16) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1035,7 +1035,7 @@ TEST(Compile, ConvAddSharedInputs) {
     // run pass
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile conv+add partition
@@ -1049,7 +1049,7 @@ TEST(Compile, ConvAddSharedInputs) {
 
     // check inplace pairs
     std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
-    ASSERT_EQ(inplace_pairs.size(), 0);
+    ASSERT_EQ(inplace_pairs.size(), 0U);
 }
 
 TEST(Compile, ConvAddInplace) {
@@ -1103,7 +1103,7 @@ TEST(Compile, ConvAddInplace) {
     // run pass
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile conv+add partition
@@ -1118,7 +1118,7 @@ TEST(Compile, ConvAddInplace) {
 
     // check inplace pairs
     std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
-    ASSERT_EQ(inplace_pairs.size(), 1);
+    ASSERT_EQ(inplace_pairs.size(), 1U);
     ASSERT_EQ(inplace_pairs[0].input_id, add_src_lt.id);
     ASSERT_EQ(inplace_pairs[0].output_id, add_dst_lt.id);
 }
@@ -1156,7 +1156,7 @@ TEST(Execute, GroupConvolution) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1231,7 +1231,7 @@ TEST(Execute, ConvolutionBackpropData) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_data_bw_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1356,7 +1356,7 @@ TEST(Execute, ConvolutionBnFp32) {
     // run fusion partition
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1467,7 +1467,7 @@ TEST(Compile, ConvBnSharedInputs) {
     // run fusion partition
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1553,7 +1553,7 @@ TEST(Execute, ConvAdd) {
 
         impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -1639,7 +1639,7 @@ TEST(Execute, ConvAddPerTensorBroadcast) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1721,7 +1721,7 @@ TEST(Execute, ConvAddExpandedPerTensorBroadcast) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1804,7 +1804,7 @@ TEST(Execute, ConvAddPerChannelBroadcast) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1887,7 +1887,7 @@ TEST(Execute, ConvAddPerChannelBroadcastNxc) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -1967,7 +1967,7 @@ TEST(Compile, ConvAddBroadcast) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -2041,7 +2041,7 @@ TEST(Execute, ConvAddRelu) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -2157,7 +2157,7 @@ TEST(Execute, ConvMultiplePostOps) {
 
     impl::pass::pass_base_ptr apass = get_pass("conv_bias_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -2173,7 +2173,7 @@ TEST(Execute, ConvMultiplePostOps) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
     std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
-    ASSERT_EQ(inplace_pairs.size(), 1);
+    ASSERT_EQ(inplace_pairs.size(), 1U);
     ASSERT_EQ(inplace_pairs[0].input_id, sum_other_lt.id);
     ASSERT_EQ(inplace_pairs[0].output_id, add_dst_lt.id);
 
@@ -2279,7 +2279,7 @@ TEST(Execute, ConvBiasEltwise) {
 
         impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -2393,7 +2393,7 @@ TEST(Execute, ConvBiasAddEltwise) {
 
         impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -2511,7 +2511,7 @@ TEST(Execute, ConvAddEltwise) {
 
         impl::pass::pass_base_ptr apass = get_pass(param.pass_name);
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -2623,7 +2623,7 @@ TEST(ExecuteSubgraphFp32, ConvDepthwise) {
     // -------------------------case 2----------------------------------
     impl::pass::pass_base_ptr apass = get_pass("conv_depthwise_fusion_cpu");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -2797,7 +2797,7 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -2975,7 +2975,7 @@ static inline void quantized_conv2d_eltwise(
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -3216,7 +3216,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -3435,7 +3435,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -3607,7 +3607,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -3775,7 +3775,7 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
                                 ? "int8_conv_post_ops_int8_add_fusion_gpu"
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -3980,7 +3980,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -4191,7 +4191,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -4405,7 +4405,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -4612,7 +4612,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
 
         apass->run(g);
 
-        ASSERT_EQ(g.get_num_partitions(), 2);
+        ASSERT_EQ(g.get_num_partitions(), 2U);
         auto part2 = g.get_partitions()[0]; // int8_conv_sum_relu
         auto part1 = g.get_partitions()[1]; // int8_conv
 
@@ -4645,7 +4645,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
         std::vector<impl::inplace_pair_t> inplace_pairs
                 = cp2.get_inplace_pairs();
 
-        ASSERT_EQ(inplace_pairs.size(), 1);
+        ASSERT_EQ(inplace_pairs.size(), 1U);
         ASSERT_EQ(inplace_pairs[0].input_id, dst_s8_2.id);
         ASSERT_EQ(inplace_pairs[0].output_id, dst_s8.id);
     }
@@ -4789,7 +4789,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
                                 ? "int8_conv_bias_fusion_gpu"
                                 : "int8_conv_bias_fusion_cpu");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -4982,7 +4982,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
                                 ? "int8_conv_bias_fusion_gpu"
                                 : "int8_conv_bias_fusion_cpu");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -5154,7 +5154,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
                                 ? "int8_conv_bias_fusion_gpu"
                                 : "int8_conv_bias_fusion_cpu");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -5355,7 +5355,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
                                 ? "int8_conv_bias_fusion_gpu"
                                 : "int8_conv_bias_fusion_cpu");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -5514,7 +5514,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionAddU8s8u8MixBf16) {
     impl::pass::pass_base_ptr apass
             = get_pass("int8_bf16_conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -5608,7 +5608,7 @@ TEST(Execute, ConvSumSum) {
     g.build_graph();
 
     run_all_passes(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -5710,9 +5710,9 @@ TEST(Execute, ConvolutionBf16InFp32Out) {
     // run fusion partition
     impl::pass::pass_base_ptr apass = get_pass("conv_post_ops_fusion");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
-    ASSERT_EQ(part->get_ops().size(), 3);
+    ASSERT_EQ(part->get_ops().size(), 3U);
 
     // compile
     impl::partition_t p;
@@ -5927,7 +5927,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -6165,7 +6165,7 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
                                 : "int8_conv_post_ops_int8_add_fusion_cpu");
 
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile

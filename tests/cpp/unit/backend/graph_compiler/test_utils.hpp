@@ -2242,7 +2242,7 @@ inline void construct_convolutional_bottleneck_resblock(
             1e-6f, false);
 
     auto right = input;
-    for (int i = 1; i < filter_shapes.size(); ++i) {
+    for (size_t i = 1; i < filter_shapes.size(); ++i) {
         right = utils::create_convolution(id_gen, *agraph, right,
                 filter_infos[i][0], filter_infos[i][1], filter_infos[i][2], 1,
                 strides[i], {1, 1}, paddings[i], paddings[i], data_format,
@@ -2272,7 +2272,7 @@ inline void construct_identical_bottleneck_resblock(
         filter_infos.push_back(extract_filter_info(shape, filter_format));
     }
     auto temp_input = input;
-    for (int i = 0; i < filter_shapes.size(); ++i) {
+    for (size_t i = 0; i < filter_shapes.size(); ++i) {
         temp_input = utils::create_convolution(id_gen, *agraph, temp_input,
                 filter_infos[i][0], filter_infos[i][1], filter_infos[i][2], 1,
                 strides[i], {1, 1}, paddings[i], paddings[i], data_format,
@@ -2305,7 +2305,7 @@ inline void construct_int8_identical_bottleneck_resblock(
         filter_infos.push_back(extract_filter_info(shape, filter_format));
     }
     auto temp_src = src;
-    for (int i = 0; i < filter_shapes.size(); ++i) {
+    for (size_t i = 0; i < filter_shapes.size(); ++i) {
         std::vector<float> scale_wei(filter_infos[i][2], 1 / 127.f);
         temp_src = utils::create_int8_convolution(id_gen, *agraph, temp_src,
                 filter_infos[i][0], filter_infos[i][1], filter_infos[i][2], 1,
@@ -2355,7 +2355,7 @@ inline void construct_int8_convolutional_bottleneck_resblock(
             impl::data_type::u8);
 
     auto right = src;
-    for (int i = 1; i < filter_shapes.size(); ++i) {
+    for (size_t i = 1; i < filter_shapes.size(); ++i) {
         scale_wei = std::vector<float>(filter_infos[i][2], 1 / 127.f);
         right = utils::create_int8_convolution(id_gen, *agraph, right,
                 filter_infos[i][0], filter_infos[i][1], filter_infos[i][2], 1,

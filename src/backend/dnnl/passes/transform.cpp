@@ -383,7 +383,7 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
         std::vector<float> fused_scale(
                 std::max(dq_src_scales.size(), dq_wei_scales.size()), 0);
         if (dq_src_scales.size() >= dq_wei_scales.size()) {
-            for (int i = 0; i < dq_src_scales.size(); i++)
+            for (size_t i = 0; i < dq_src_scales.size(); i++)
                 fused_scale[i] = (dq_src_scales[i] * dq_wei_scales[0]);
             mul_op->set_attr<int64_t>(
                     op_attr::axis, in0->get_attr<int64_t>(op_attr::axis));
@@ -399,11 +399,11 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
             if (conv_op->get_kind() == op_kind::dnnl_convtranspose
                     && group > 1) {
                 fused_scale.resize(group * dq_wei_scales.size(), 0);
-                for (int i = 0; i < fused_scale.size(); ++i)
+                for (size_t i = 0; i < fused_scale.size(); ++i)
                     fused_scale[i] = (dq_src_scales[0]
                             * dq_wei_scales[i % dq_wei_scales.size()]);
             } else {
-                for (int i = 0; i < fused_scale.size(); ++i)
+                for (size_t i = 0; i < fused_scale.size(); ++i)
                     fused_scale[i] = (dq_src_scales[0] * dq_wei_scales[i]);
             }
             // FIXME(qun) set the axis to 1 is ok now since oneDNN always treat
@@ -433,7 +433,7 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
                     "scales can't be zero");
 
             std::vector<float> inv_scales(fused_scale.size());
-            for (int i = 0; i < fused_scale.size(); i++)
+            for (size_t i = 0; i < fused_scale.size(); i++)
                 inv_scales[i] = 1.f / fused_scale[i];
 
             // FIXME(xxx) add other attrs

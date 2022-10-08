@@ -51,7 +51,7 @@ TEST(Execute, ReorderData) {
 
     impl::pass::pass_base_ptr apass = get_pass("reorder_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -126,7 +126,7 @@ TEST(Execute, Int8Reorder) {
 
     impl::pass::pass_base_ptr apass = get_pass("int8_reorder_fusion");
     apass->run(agraph);
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
     auto part = agraph.get_partitions()[0];
 
     // compile
@@ -169,7 +169,7 @@ TEST(Compile, ReorderNegativeInput) {
 
     impl::pass::pass_base_ptr apass = get_pass("reorder_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -211,7 +211,7 @@ TEST(Execute, ReorderDataBf16) {
 
     impl::pass::pass_base_ptr apass = get_pass("reorder_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -272,7 +272,7 @@ TEST(Execute, ReorderAddBf16) {
     impl::pass::pass_base_ptr apass = get_pass("reorder_sum_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
     auto part = agraph.get_partitions()[0];
     impl::partition_t p;
     p.init(part);
@@ -322,7 +322,7 @@ TEST(Compile, ReorderAddGetInplacePair) {
     impl::pass::pass_base_ptr apass = get_pass("reorder_sum_fusion");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
     auto part = agraph.get_partitions()[0];
     impl::partition_t p;
     p.init(part);
@@ -335,7 +335,7 @@ TEST(Compile, ReorderAddGetInplacePair) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
     std::vector<impl::inplace_pair_t> inplace_pairs = cp.get_inplace_pairs();
-    ASSERT_EQ(inplace_pairs.size(), 1);
+    ASSERT_EQ(inplace_pairs.size(), 1U);
     ASSERT_EQ(inplace_pairs[0].input_id, add_src_lt.id);
     ASSERT_EQ(inplace_pairs[0].output_id, add_dst_lt.id);
 }
@@ -419,7 +419,7 @@ TEST(Execute, Int8ReorderAdd) {
                             : "int8_reorder_sum_fusion_gpu");
     apass->run(agraph);
 
-    ASSERT_EQ(agraph.get_num_partitions(), 1);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
     auto part = agraph.get_partitions()[0];
 
     // compile

@@ -48,15 +48,15 @@ TEST(ThreadLocalCache, SingleThread) {
 
     ASSERT_TRUE(cache.has_resource(key1));
     ASSERT_TRUE(cache.has_resource(key2));
-    ASSERT_EQ(resource_ptr1->data_, 10);
-    ASSERT_EQ(resource_ptr2->data_, 20);
+    ASSERT_EQ(resource_ptr1->data_, 10U);
+    ASSERT_EQ(resource_ptr2->data_, 20U);
 
     // the given creator will not take effect since the key1 is already in the
     // mapper
     resource_ptr1 = cache.get_or_add(
             key1, []() { return std::make_shared<test_resource_t>(100); });
-    ASSERT_EQ(resource_ptr1->data_, 10);
-    ASSERT_EQ(cache.size(), 2);
+    ASSERT_EQ(resource_ptr1->data_, 10U);
+    ASSERT_EQ(cache.size(), 2U);
 
     cache.remove_if_exist(key1);
     cache.remove_if_exist(key2);
@@ -67,7 +67,7 @@ TEST(ThreadLocalCache, Multithreading) {
         thread_local_cache_t<test_resource_t> cache;
         cache.clear();
 
-        ASSERT_EQ(cache.size(), 0);
+        ASSERT_EQ(cache.size(), 0U);
 
         size_t key1 = (size_t)1;
         test_resource_t *resource_ptr1 = cache.get_or_add(
@@ -79,17 +79,17 @@ TEST(ThreadLocalCache, Multithreading) {
 
         ASSERT_TRUE(cache.has_resource(key1));
         ASSERT_TRUE(cache.has_resource(key2));
-        ASSERT_EQ(resource_ptr1->data_, 10);
-        ASSERT_EQ(resource_ptr2->data_, 20);
+        ASSERT_EQ(resource_ptr1->data_, 10U);
+        ASSERT_EQ(resource_ptr2->data_, 20U);
 
         resource_ptr1->data_ = 30;
-        ASSERT_EQ(resource_ptr1->data_, 30);
+        ASSERT_EQ(resource_ptr1->data_, 30U);
 
         size_t key3 = (size_t)3;
         cache.get_or_add(
                 key3, []() { return std::make_shared<test_resource_t>(100); });
 
-        ASSERT_EQ(cache.size(), 3);
+        ASSERT_EQ(cache.size(), 3U);
     };
 
     std::thread t1(func);

@@ -143,7 +143,7 @@ static int fill_scales(const ::reorder::prb_t *prb, const int64_t axis,
     }
     //Need to inverse scale
     if (prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8) {
-        for (int i = 0; i < scales.size(); i++) {
+        for (size_t i = 0; i < scales.size(); i++) {
             scales[i] = 1.f / scales[i];
         }
     }
@@ -156,7 +156,7 @@ static void prepare_runtime_scales(const ::reorder::prb_t *prb,
     // scales is required input for dynamic q/deq
     scales_dt = make_dnn_mem(in, dt::f32, tag::x);
     fill_scales(prb, axis, scales);
-    for (int i = 0; i < scales.size(); i++) {
+    for (size_t i = 0; i < scales.size(); i++) {
         scales_dt.set_elem(i, scales[i]);
     }
 }
@@ -172,11 +172,11 @@ static void maybe_prepare_runtime_zero_points(const ::reorder::prb_t *prb,
     fill_zps(prb, axis, src_zps, dst_zps);
 
     if (is_quantize(convert_dt(prb->sdt), convert_dt(prb->ddt))) {
-        for (int i = 0; i < dst_zps.size(); i++) {
+        for (size_t i = 0; i < dst_zps.size(); i++) {
             zps_dt.set_elem(i, static_cast<int32_t>(dst_zps[i]));
         }
     } else {
-        for (int i = 0; i < src_zps.size(); i++) {
+        for (size_t i = 0; i < src_zps.size(); i++) {
             zps_dt.set_elem(i, static_cast<int32_t>(src_zps[i]));
         }
     }

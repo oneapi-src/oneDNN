@@ -110,7 +110,7 @@ public:
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -221,7 +221,7 @@ public:
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_data_bwd_pass");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -312,7 +312,7 @@ public:
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_filter_bwd_pass");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         impl::partition_t p;
@@ -424,7 +424,7 @@ public:
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -505,7 +505,7 @@ TEST(Compile, ConvtransposeFp32) {
 
     impl::pass::pass_base_ptr apass = get_pass("convtranspose_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     // compile
@@ -660,7 +660,7 @@ TEST(Compile, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
 
     impl::pass::pass_base_ptr apass = get_pass("convtranspose_filter_bwd_pass");
     apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
     impl::partition_t p;
@@ -772,7 +772,7 @@ TEST(operator_kernel, convtranspose_relu) {
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -871,7 +871,7 @@ TEST(operator_kernel, convtranspose_swish) {
         impl::pass::pass_base_ptr apass
                 = get_pass("convtranspose_post_ops_fusion");
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -1066,7 +1066,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
                                 : "int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
 
         // compile
@@ -1284,7 +1284,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
                 = get_pass("int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
-        ASSERT_EQ(graph.get_num_partitions(), 1);
+        ASSERT_EQ(graph.get_num_partitions(), 1U);
         auto part = graph.get_partitions()[0];
 
         // compile
@@ -1485,7 +1485,7 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
                 = get_pass("int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
-        ASSERT_EQ(graph.get_num_partitions(), 1);
+        ASSERT_EQ(graph.get_num_partitions(), 1U);
         auto part = graph.get_partitions()[0];
 
         // compile
@@ -1646,7 +1646,7 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
                                 : "int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
-        ASSERT_EQ(graph.get_num_partitions(), 1);
+        ASSERT_EQ(graph.get_num_partitions(), 1U);
         auto part = graph.get_partitions()[0];
 
         // compile
@@ -1885,7 +1885,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
                                 : "int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
-        ASSERT_EQ(graph.get_num_partitions(), 1);
+        ASSERT_EQ(graph.get_num_partitions(), 1U);
         auto part = graph.get_partitions()[0];
 
         // compile
@@ -2086,8 +2086,8 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dBinary) {
                                 : "int8_convtranspose_post_ops_fusion_cpu");
         ASSERT_TRUE(apass != nullptr);
         apass->run(graph);
-        ASSERT_EQ(graph.get_num_partitions(), 1);
-        ASSERT_EQ(graph.get_partitions()[0]->get_ops().size(), 5);
+        ASSERT_EQ(graph.get_num_partitions(), 1U);
+        ASSERT_EQ(graph.get_partitions()[0]->get_ops().size(), 5U);
 
         auto part = graph.get_partitions()[0];
 
@@ -2324,7 +2324,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
         impl::pass::pass_base_ptr apass
                 = get_pass("int8_convtranspose_post_ops_fusion_cpu");
         apass->run(graph);
-        ASSERT_EQ(graph.get_num_partitions(), 2);
+        ASSERT_EQ(graph.get_num_partitions(), 2U);
         auto part2 = graph.get_partitions()[0]; // int8_convtranspose
         auto part1 = graph.get_partitions()[1]; // int8_convtranspose_add
 
@@ -2357,7 +2357,7 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
         std::vector<impl::inplace_pair_t> inplace_pairs
                 = cp2.get_inplace_pairs();
 
-        ASSERT_EQ(inplace_pairs.size(), 1);
+        ASSERT_EQ(inplace_pairs.size(), 1U);
         ASSERT_EQ(inplace_pairs[0].input_id, dst_s8_2.id);
         ASSERT_EQ(inplace_pairs[0].output_id, dst_s8.id);
     }
@@ -2525,7 +2525,7 @@ TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
                 = get_pass("convtranspose_post_ops_fusion");
         ASSERT_TRUE(apass != nullptr);
         apass->run(agraph);
-        ASSERT_EQ(agraph.get_num_partitions(), 1);
+        ASSERT_EQ(agraph.get_num_partitions(), 1U);
         auto part = agraph.get_partitions()[0];
 
         // compile
