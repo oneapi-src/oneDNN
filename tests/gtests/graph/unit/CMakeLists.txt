@@ -35,8 +35,7 @@ get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)
 add_executable(test_graph_unit ${COMMON_UNIT_TESTS} ${UNIT_TEST_DEPS} ${LIB_DEPS})
 
 # Set path to non exported headers
-target_include_directories(test_graph_unit
-    PRIVATE
+include_directories_with_host_compiler(
     ${PROJECT_SOURCE_DIR}/tests/gtests/graph
     ${PROJECT_SOURCE_DIR}/tests/gtests/gtest
     ${PROJECT_SOURCE_DIR}/include

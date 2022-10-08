@@ -50,8 +50,7 @@ target_link_libraries(test_graph_api
     ${EXTRA_SHARED_LIBS}
     )
 
-target_include_directories(test_graph_api
-    PRIVATE
+include_directories_with_host_compiler(
     ${PROJECT_SOURCE_DIR}/tests/gtests/graph
     ${PROJECT_SOURCE_DIR}/tests/gtests/gtest
     ${PROJECT_SOURCE_DIR}/include

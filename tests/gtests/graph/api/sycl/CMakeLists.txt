@@ -21,8 +21,7 @@ file(GLOB SOURCES
 set(OBJ_LIB graph_api_test_sycl)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 
-target_include_directories(${OBJ_LIB}
-    PRIVATE
+include_directories_with_host_compiler(
     ${PROJECT_SOURCE_DIR}/tests/gtests/graph
     ${PROJECT_SOURCE_DIR}/tests/gtests/gtest
     ${PROJECT_SOURCE_DIR}/include
