@@ -82,42 +82,12 @@ struct ref_matmul_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             non_default_attrs_ = !attr()->has_default_values();
-            is_defined_[SCALES_] = !attr()->output_scales_.has_default_values();
-            is_defined_[A0_]
-                    = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC);
-            is_defined_[B0_] = !attr()->zero_points_.has_default_values(
-                    DNNL_ARG_WEIGHTS);
-            is_defined_[C0_]
-                    = !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
-            status_t status = init_scales_md();
-            if (status != status::success) return status;
-
-            status = init_zero_points_md(A0_, a0_md_);
-            if (status != status::success) return status;
-
-            status = init_zero_points_md(B0_, b0_md_);
-            if (status != status::success) return status;
-
-            status = init_zero_points_md(C0_, c0_md_);
-            if (status != status::success) return status;
-
             attr_info_ = attr_info_t::create(attr());
 
             return status::success;
         }
 
-        const memory_desc_t *scales_md() const { return &scales_md_; }
-        const memory_desc_t *zero_points_md(int idx) const {
-            switch (idx) {
-                case A0_: return &a0_md_;
-                case B0_: return &b0_md_;
-                case C0_: return &c0_md_;
-            }
-            return nullptr;
-        }
-
         bool non_default_attrs_ = false;
-        bool is_defined_[4] = {};
         data_type_t bia_dt_ = data_type::undef;
         data_type_t src_dt_ = data_type::undef;
         data_type_t dst_dt_ = data_type::undef;
@@ -130,27 +100,6 @@ struct ref_matmul_t : public gpu_primitive_t {
             const auto &oscale = attr()->output_scales_;
             return oscale.mask_ == 0 || oscale.mask_ == (1 << (batched() + 1));
         }
-
-        status_t init_scales_md() {
-            scales_md_.data_type = data_type::f32;
-            scales_md_.ndims = 1;
-            scales_md_.dims[0]
-                    = is_defined_[SCALES_] ? attr()->output_scales_.count_ : 1;
-            return memory_desc_init_by_tag(scales_md_, format_tag::x);
-        }
-
-        status_t init_zero_points_md(int idx, memory_desc_t &md_) {
-            //TODO: add count when set for the primitive
-            md_.data_type = data_type::s32;
-            md_.ndims = 1;
-            md_.dims[0] = 1;
-            return memory_desc_init_by_tag(md_, format_tag::x);
-        }
-
-        memory_desc_t a0_md_ = memory_desc_t();
-        memory_desc_t b0_md_ = memory_desc_t();
-        memory_desc_t c0_md_ = memory_desc_t();
-        memory_desc_t scales_md_ = memory_desc_t();
     };
 
     status_t init(engine_t *engine) override {
@@ -177,79 +126,10 @@ struct ref_matmul_t : public gpu_primitive_t {
         return execute_ref(ctx);
     }
 
-    status_t handle_runtime_value(engine_t *engine, int idx,
-            const memory_desc_t *md,
-            std::unique_ptr<memory_storage_t> &mem_storage) const {
-        const primitive_attr_t &attr = *pd()->attr();
-        void *p;
-        memory_desc_wrapper mdw(*md);
-        size_t sz = (idx == SCALES_) ? sizeof(float) : sizeof(int);
-        memory_storage_t *mem_s_ptr;
-        status_t status
-                = engine->create_memory_storage(&mem_s_ptr, mdw.nelems() * sz);
-        if (status != status::success) {
-            mem_storage.reset();
-            return status;
-        }
-        mem_storage.reset(mem_s_ptr);
-        assert(sizeof(float) == sizeof(int));
-        status = mem_storage->map_data(
-                &p, nullptr, sizeof(float) * mdw.nelems());
-        if (status != status::success) return status;
-        if (!pd()->is_defined_[idx]) {
-            if (idx == SCALES_) {
-                utils::array_set((float *)p, (float)1, mdw.nelems());
-            } else {
-                utils::array_set((int *)p, (int)0, mdw.nelems());
-            }
-        } else {
-            switch (idx) {
-                case SCALES_:
-                    utils::array_copy((float *)p, attr.output_scales_.scales_,
-                            attr.output_scales_.count_);
-                    break;
-                case A0_:
-                    utils::array_copy((int *)p,
-                            (int *)attr.zero_points_.get(DNNL_ARG_SRC),
-                            mdw.nelems());
-                    break;
-                case B0_:
-                    utils::array_copy((int *)p,
-                            (int *)attr.zero_points_.get(DNNL_ARG_WEIGHTS),
-                            mdw.nelems());
-                    break;
-                case C0_:
-                    utils::array_copy((int *)p,
-                            (int *)attr.zero_points_.get(DNNL_ARG_DST),
-                            mdw.nelems());
-                    break;
-            }
-        }
-        status = mem_storage->unmap_data(p, nullptr);
-        return status;
-    }
-
-protected:
-    status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override {
-        std::unique_ptr<memory_storage_t> tmp_mem_storage;
-        for (const auto &idx : {A0_, B0_, C0_}) {
-            CHECK(handle_runtime_value(
-                    engine, idx, pd()->zero_points_md(idx), tmp_mem_storage));
-            r->add_memory_storage(idx, std::move(tmp_mem_storage));
-        }
-
-        CHECK(handle_runtime_value(
-                engine, SCALES_, pd()->scales_md(), tmp_mem_storage));
-        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
-        return status::success;
-    }
-
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
     compute::kernel_t kernel_;
-    enum { SCALES_ = 0, A0_ = 1, B0_ = 2, C0_ = 3 };
 };
 
 } // namespace ocl

@@ -36,6 +36,21 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
     int n = get_global_id(1);
     int mb = get_global_id(2);
 
+#if WITH_SRC_ZPOINTS
+    int src_zp = a0[0];
+#else
+    int src_zp = 0;
+#endif
+#if WITH_WEI_ZPOINTS
+    int wei_zp = b0[0];
+#else
+    int wei_zp = 0;
+#endif
+#if WITH_DST_ZPOINTS
+    int dst_zp = c0[0];
+#else
+    int dst_zp = 0;
+#endif
     // NOTE: non-standard notation
     // In matmul all dimensions above 2 are considered as batch
     // In below code that deals with broadcast of batch dimensions,
@@ -56,8 +71,8 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
             long wei_off
                     = offset6D(k, n, d0, d1, d2, d3, b_stride_k, b_stride_n,
                             b_stride_d0, b_stride_d1, b_stride_d2, b_stride_d3);
-            acc += TO_ACC(SRC_TO_REF(A[src_off]) - a0[0])
-                    * TO_ACC(WEI_TO_REF(B[wei_off]) - b0[0]);
+            acc += TO_ACC(SRC_TO_REF(A[src_off]) - src_zp)
+                    * TO_ACC(WEI_TO_REF(B[wei_off]) - wei_zp);
         }
 
         long dst_off = offset6D(m, n, d0, d1, d2, d3, c_stride_m, c_stride_n,
@@ -70,7 +85,9 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
                 bia_stride_d3);
         temp += bia[bia_off];
 #endif // WITH_BIAS
+#if WITH_SCALES
         temp *= scales[scale_stride * n];
+#endif
 
         float dst_data;
 #if WITH_SUM
@@ -95,7 +112,7 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
             APPLY_POST_OPS_SERIAL(po_acc, float, dst_data, float, d3, 1, d2, 1,
                     d1, 1, d0, 1, m, 1, n, 1);
 
-        po_acc += c0[0];
+        po_acc += dst_zp;
         C[dst_off] = TO_DST(po_acc);
 #else // WITH_BIAS || NON_DEFAULT_ATTRS
         C[dst_off] = TO_DST(acc);
