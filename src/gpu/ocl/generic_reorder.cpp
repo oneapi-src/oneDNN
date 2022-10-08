@@ -796,17 +796,11 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
 
     const auto &padded_dims = dst_mdw.padded_dims();
     const auto &zp = attr()->zero_points_;
-    conf.with_sum_ab = (alpha() != 1.f || beta() != 0.f);
+    conf.with_sum_ab = with_alpha() || beta() != 0.f;
     conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
     conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
     conf.with_src_zp = !zp.has_default_values(DNNL_ARG_SRC);
     conf.with_dst_zp = !zp.has_default_values(DNNL_ARG_DST);
-    conf.common_src_zp = conf.with_src_zp && zp.defined(DNNL_ARG_SRC)
-            ? *zp.get(DNNL_ARG_SRC)
-            : 0;
-    conf.common_dst_zp = conf.with_dst_zp && zp.defined(DNNL_ARG_DST)
-            ? *zp.get(DNNL_ARG_DST)
-            : 0;
     conf.ndims = src_mdw.ndims();
     conf.nelems = utils::array_product(padded_dims, conf.ndims);
 
@@ -886,11 +880,7 @@ status_t generic_reorder_t::pd_t::init_kernel_ctx(
     }
 
     kernel_ctx.define_int("WITH_SRC_ZPOINTS", conf.with_src_zp);
-    kernel_ctx.define_int(
-            "RUNTIME_SRC_ZPOINTS", conf.with_src_zp && conf.common_src_zp == 0);
     kernel_ctx.define_int("WITH_DST_ZPOINTS", conf.with_dst_zp);
-    kernel_ctx.define_int(
-            "RUNTIME_DST_ZPOINTS", conf.with_dst_zp && conf.common_dst_zp == 0);
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
@@ -986,7 +976,7 @@ status_t generic_reorder_t::execute(const exec_ctx_t &ctx) const {
 
     const auto &conf = pd()->conf;
     if (conf.nelems == 0) { return status::success; }
-    const float alpha = pd()->alpha();
+    const float alpha = 1.0f;
     const float beta = pd()->beta();
 
     compute::kernel_arg_list_t arg_list;
@@ -997,39 +987,23 @@ status_t generic_reorder_t::execute(const exec_ctx_t &ctx) const {
 
     std::shared_ptr<memory_storage_t> scales;
     if (conf.scale_quant) {
-        if (pd()->attr()->output_scales_.defined()) {
-            scales = ctx.get_scratchpad_grantor().get_memory_storage(
-                    key_reorder_scales);
-
-            void *tmp_ptr = nullptr;
-            status = scales->map_data(&tmp_ptr, ctx.stream(),
-                    sizeof(float) * pd()->attr()->output_scales_.count_);
-            if (status != status::success) { return status; }
-            utils::array_copy((float *)tmp_ptr,
-                    pd()->attr()->output_scales_.scales_,
-                    pd()->attr()->output_scales_.count_);
-            status = scales->unmap_data(tmp_ptr, ctx.stream());
-            if (status != status::success) { return status; }
-            arg_list.set(4, *scales);
-        } else {
-            auto &runtime_scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
-            arg_list.set(4, runtime_scales);
-        }
+        auto &runtime_scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
+        arg_list.set(4, runtime_scales);
     } else {
         arg_list.set(4, memory_storage_t::empty_storage());
     }
 
-    if (conf.with_src_zp && conf.common_src_zp == 0) {
+    if (conf.with_src_zp) {
         auto &zps = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
         arg_list.set(5, zps);
     } else
-        arg_list.set(5, conf.common_src_zp);
+        arg_list.set(5, memory_storage_t::empty_storage());
 
-    if (conf.with_dst_zp && conf.common_dst_zp == 0) {
+    if (conf.with_dst_zp) {
         auto &zps = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
         arg_list.set(6, zps);
     } else
-        arg_list.set(6, conf.common_dst_zp);
+        arg_list.set(6, memory_storage_t::empty_storage());
 
     auto nd_range = conf.dispatch.nd_range();
 
