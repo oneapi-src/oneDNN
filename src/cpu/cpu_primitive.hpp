@@ -27,16 +27,16 @@
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
 
-#define DEFINE_SCALES_BUFFER_ATTR(attr, scales) \
+#define DEFINE_SCALES_BUFFER_ATTR_ARG(attr, scales, arg) \
     alignas(16) float CONCAT2(scales, _buf16)[16] = {0}; \
     const float *scales {nullptr}; \
     if ((attr)) { \
         if ((attr)->output_scales_.defined()) { \
             scales = (attr)->output_scales_.scales_; \
         } else { \
-            scales = CTX_IN_MEM(const float *, DNNL_ARG_ATTR_OUTPUT_SCALES); \
+            scales = CTX_IN_MEM(const float *, arg); \
             if (scales == nullptr) return status::invalid_arguments; \
-            const auto scales_d = ctx.memory_mdw(DNNL_ARG_ATTR_OUTPUT_SCALES); \
+            const auto scales_d = ctx.memory_mdw(arg); \
             bool ok = scales_d.data_type() == data_type::f32 \
                     && scales_d.ndims() == 1; \
             if (!ok) return status::invalid_arguments; \
@@ -47,6 +47,9 @@
         } \
     } \
     MAYBE_UNUSED(scales);
+
+#define DEFINE_SCALES_BUFFER_ATTR(attr, scales) \
+    DEFINE_SCALES_BUFFER_ATTR_ARG(attr, scales, DNNL_ARG_ATTR_OUTPUT_SCALES);
 
 #define DEFINE_SCALES_BUFFER(scales) \
     DEFINE_SCALES_BUFFER_ATTR(pd()->attr(), scales)

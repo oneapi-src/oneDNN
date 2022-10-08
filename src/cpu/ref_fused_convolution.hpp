@@ -125,6 +125,9 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                     && attr_post_op_dw_inputs() > 1)
                 return arg_usage_t::input;
 
+            if (arg == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_OUTPUT_SCALES))
+                return arg_usage_t::input;
+
             return convolution_fwd_pd_t::arg_usage(arg);
         }
 
@@ -198,6 +201,8 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             arg_cache_t arg_cache;
             arg_cache.append_ctx_arg(DNNL_ARG_SRC);
             arg_cache.append_ctx_arg(DNNL_ARG_WEIGHTS);
+            if (!attr_1x1.output_scales_.has_default_values())
+                arg_cache.append_ctx_arg(DNNL_ARG_ATTR_OUTPUT_SCALES);
             if (desc()->bias_desc.data_type != data_type::undef)
                 arg_cache.append_ctx_arg(DNNL_ARG_BIAS);
             arg_cache.append_inout_arg(DNNL_ARG_DST, inout_sp_offset_end,
@@ -259,6 +264,10 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 arg_cache.append_ctx_arg(DNNL_ARG_DST);
                 arg_cache.append_ctx_arg(DNNL_ARG_WEIGHTS,
                         DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+                if (!attr_dw.output_scales_.has_default_values())
+                    arg_cache.append_ctx_arg(DNNL_ARG_ATTR_OUTPUT_SCALES,
+                            DNNL_ARG_ATTR_POST_OP_DW
+                                    | DNNL_ARG_ATTR_OUTPUT_SCALES);
                 if (op->weights_md(1)->data_type != data_type::undef)
                     arg_cache.append_ctx_arg(DNNL_ARG_BIAS,
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);

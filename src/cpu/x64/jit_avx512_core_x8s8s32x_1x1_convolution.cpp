@@ -53,9 +53,9 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
             : std::vector<const void *> {};
 
     DEFINE_SCALES_BUFFER(scales);
-    DEFINE_SCALES_BUFFER_ATTR(
+    DEFINE_SCALES_BUFFER_ATTR_ARG(
             pd()->dw_conv_pd_.get() ? pd()->dw_conv_pd_->attr() : nullptr,
-            dw_scales);
+            dw_scales, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_OUTPUT_SCALES);
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
