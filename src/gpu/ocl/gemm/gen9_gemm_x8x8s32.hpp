@@ -124,7 +124,9 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                             || !attr()->zero_points_.defined(DNNL_ARG_DST));
         }
 
-        float alpha() const { return attr()->output_scales_.scales_[0]; }
+        bool with_alpha() const {
+            return !attr()->output_scales_.has_default_values();
+        }
 
         float beta() const {
             using namespace primitive_kind;
@@ -218,24 +220,26 @@ private:
             const memory_storage_t &b, const memory_storage_t &c,
             int64_t offset_a, int64_t offset_b, int64_t offset_c, int64_t lda,
             int64_t ldb, int64_t ldc, int64_t m, int64_t n, int64_t k,
-            int64_t beta, int32_t ao, int32_t bo, const memory_storage_t &co,
+            int64_t beta, const memory_storage_t &ao,
+            const memory_storage_t &bo, const memory_storage_t &co,
             int64_t offset_co, bool apply_co, bool apply_eltwise,
             float eltwise_alpha, float eltwise_beta, float eltwise_scale) const;
 
     status_t launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
             compute::compute_stream_t *s, const memory_storage_t &c_temp,
             const memory_storage_t &c, char offsetc, int64_t offset_c,
-            int64_t m, int64_t n, int64_t ldc, float alpha, float beta,
-            const memory_storage_t &co, int64_t offset_co, bool alpha_is_zero,
-            bool apply_eltwise, float eltwise_alpha, float eltwise_beta,
-            float eltwise_scale) const;
+            int64_t m, int64_t n, int64_t ldc, const memory_storage_t &alpha,
+            float beta, const memory_storage_t &co, int64_t offset_co,
+            bool alpha_is_zero, bool apply_eltwise, float eltwise_alpha,
+            float eltwise_beta, float eltwise_scale) const;
 
     status_t launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
             compute::compute_stream_t *s, const memory_storage_t &c_temp,
             const memory_storage_t &c, char offsetc, int64_t offset_c,
-            int64_t m, int64_t n, int64_t ldc, float alpha, float beta,
-            const memory_storage_t &co, int64_t offset_co, bool alpha_is_zero,
-            bool apply_eltwise, float eltwise_alpha, float eltwise_beta) const;
+            int64_t m, int64_t n, int64_t ldc, const memory_storage_t &alpha,
+            float beta, const memory_storage_t &co, int64_t offset_co,
+            bool alpha_is_zero, bool apply_eltwise, float eltwise_alpha,
+            float eltwise_beta) const;
 
     virtual status_t execute_standard(const gemm_exec_ctx_t &ctx) const;
 

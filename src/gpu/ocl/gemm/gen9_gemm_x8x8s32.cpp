@@ -39,10 +39,11 @@ status_t gen9_gemm_x8x8s32_t::launch_x8x8s32(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c, int64_t offset_a,
         int64_t offset_b, int64_t offset_c, int64_t lda, int64_t ldb,
-        int64_t ldc, int64_t m, int64_t n, int64_t k, int64_t beta, int32_t ao,
-        int32_t bo, const memory_storage_t &co, int64_t offset_co,
-        bool apply_co, bool apply_eltwise, float eltwise_alpha,
-        float eltwise_beta, float eltwise_scale) const {
+        int64_t ldc, int64_t m, int64_t n, int64_t k, int64_t beta,
+        const memory_storage_t &ao, const memory_storage_t &bo,
+        const memory_storage_t &co, int64_t offset_co, bool apply_co,
+        bool apply_eltwise, float eltwise_alpha, float eltwise_beta,
+        float eltwise_scale) const {
 
     int unroll_m, unroll_n, block_m, block_n;
     gen9_gemm_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
@@ -103,10 +104,10 @@ status_t gen9_gemm_x8x8s32_t::launch_x8x8s32(const gemm_exec_ctx_t &ctx,
 status_t gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &c_temp, const memory_storage_t &c, char offsetc,
-        int64_t offset_c, int64_t m, int64_t n, int64_t ldc, float alpha,
-        float beta, const memory_storage_t &co, int64_t offset_co,
-        bool alpha_is_zero, bool apply_eltwise, float eltwise_alpha,
-        float eltwise_beta, float eltwise_scale) const {
+        int64_t offset_c, int64_t m, int64_t n, int64_t ldc,
+        const memory_storage_t &alpha, float beta, const memory_storage_t &co,
+        int64_t offset_co, bool alpha_is_zero, bool apply_eltwise,
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale) const {
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, c_temp);
@@ -181,14 +182,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     auto ldb = pd()->desc()->ldb();
     auto ldc = pd()->desc()->ldc();
 
-    const int *ao_i32 = nullptr;
-    const int *bo_i32 = nullptr;
-    pd()->attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
-    pd()->attr()->zero_points_.get(DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
-    auto ao = *ao_i32;
-    auto bo = *bo_i32;
-
-    auto alpha = pd()->alpha();
+    const auto with_alpha = pd()->with_alpha();
     auto beta = pd()->beta();
 
     auto eltwise_alpha = pd()->attr_info.eltwise_alpha;
@@ -198,7 +192,10 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     auto &a = GEMM_CTX_ARG_STORAGE(b);
     auto &b = GEMM_CTX_ARG_STORAGE(a);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
+    auto &ao = GEMM_CTX_ARG_STORAGE(a_zero_point);
+    auto &bo = GEMM_CTX_ARG_STORAGE(b_zero_point);
     auto &co = GEMM_CTX_ARG_STORAGE(c_zero_point);
+    auto &alpha = GEMM_CTX_ARG_STORAGE(output_scales);
 
     size_t off_a0
             = a.offset() / types::data_type_size(a_type) + pd()->dyn_offset_a;
@@ -209,9 +206,9 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     size_t offset_co
             = co.offset() / types::data_type_size(c_type) + pd()->dyn_offset_co;
 
-    bool do_compute = ((k > 0) && (alpha != 0.0f));
-    bool do_scale = !(
-            (k > 0) && (alpha == 1.0f) && ((beta == 0.0f) || (beta == 1.0f)));
+    bool do_compute = (k > 0);
+    bool do_scale
+            = !((k > 0) && !with_alpha && ((beta == 0.0f) || (beta == 1.0f)));
 
     status_t status;
 

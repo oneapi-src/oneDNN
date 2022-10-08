@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/gemm/ocl_gemm_attrs.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
@@ -29,9 +30,10 @@
 #endif
 
 kernel void gen9_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
-        long offset_c, long m, long n, long ldc, float alpha, float beta,
-        global int *co, long offset_co, int alpha_is_zero, int apply_eltwise,
-        float eltwise_alpha, float eltwise_beta, float eltwise_scale) {
+        long offset_c, long m, long n, long ldc, global float *alpha,
+        float beta, global int *co, long offset_co, int alpha_is_zero,
+        int apply_eltwise, float eltwise_alpha, float eltwise_beta,
+        float eltwise_scale) {
 
     int idx = get_group_id(0);
     int idy = get_group_id(1);
@@ -53,7 +55,7 @@ kernel void gen9_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
     if (trc == 'R') offset_co += 16 * idy;
     for (j = 0; j < n; j++) {
         if (m > 0) {
-            float val = (alpha_is_zero ? 0 : alpha) * cc[offset_cc + 0]
+            float val = (alpha_is_zero ? 0 : ATTR_ALPHA) * cc[offset_cc + 0]
                     + beta * c[offset_c + 0];
             POST_OP(val);
             c[offset_c] = convert_int_sat_rte(
@@ -61,7 +63,7 @@ kernel void gen9_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
             if (trc == 'C') { offset_x++; }
         }
         if (m > 1) {
-            float val = (alpha_is_zero ? 0 : alpha) * cc[offset_cc + 1]
+            float val = (alpha_is_zero ? 0 : ATTR_ALPHA) * cc[offset_cc + 1]
                     + beta * c[offset_c + 1];
             POST_OP(val);
             c[offset_c + 1] = convert_int_sat_rte(
