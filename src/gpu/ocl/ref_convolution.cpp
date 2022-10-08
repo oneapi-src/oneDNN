@@ -174,7 +174,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
 status_t ref_convolution_fwd_t::pd_t::init_conf(engine_t *engine) {
     CHECK(init_conf_common(conf, this, engine));
-    CHECK(init_scales_md());
     return status::success;
 }
 
@@ -198,7 +197,6 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
             = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
 
     auto &conf = pd()->conf;
-    auto common_oscales = conf.attr_info.common_oscales;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -209,25 +207,21 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     unsigned arg_idx = append_post_ops_to_arg_list(
             ctx, arg_list, 4, pd()->attr()->post_ops_);
 
-    arg_list.set(arg_idx, common_oscales);
     if (conf.attr_info.with_runtime_oscales) {
-        arg_list.set(++arg_idx, oscales);
-    } else if (conf.attr_info.with_oscales
-            && !conf.attr_info.with_common_oscales) {
-        arg_list.set(++arg_idx, CTX_GPU_RES_STORAGE(SCALES_));
+        arg_list.set(arg_idx++, oscales);
     } else {
-        arg_list.set(++arg_idx, memory_storage_t::empty_storage());
+        arg_list.set(arg_idx++, memory_storage_t::empty_storage());
     }
 
     if (conf.attr_info.with_src_zpoints)
-        arg_list.set(++arg_idx, src_zpoints);
+        arg_list.set(arg_idx++, src_zpoints);
     else
-        arg_list.set(++arg_idx, memory_storage_t::empty_storage());
+        arg_list.set(arg_idx++, memory_storage_t::empty_storage());
 
     if (conf.attr_info.with_dst_zpoints)
-        arg_list.set(++arg_idx, dst_zpoints);
+        arg_list.set(arg_idx++, dst_zpoints);
     else
-        arg_list.set(++arg_idx, memory_storage_t::empty_storage());
+        arg_list.set(arg_idx++, memory_storage_t::empty_storage());
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
@@ -237,7 +231,6 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
 status_t ref_convolution_bwd_data_t::pd_t::init_conf(engine_t *engine) {
     CHECK(init_conf_common(conf, this, engine));
-    CHECK(init_scales_md());
     return status::success;
 }
 
@@ -262,7 +255,6 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
             = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
 
     auto &conf = pd()->conf;
-    auto common_oscales = conf.attr_info.common_oscales;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, diff_src);
@@ -273,25 +265,21 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
     unsigned arg_idx = append_post_ops_to_arg_list(
             ctx, arg_list, 4, pd()->attr()->post_ops_);
 
-    arg_list.set(arg_idx, common_oscales);
     if (conf.attr_info.with_runtime_oscales) {
-        arg_list.set(++arg_idx, oscales);
-    } else if (conf.attr_info.with_oscales
-            && !conf.attr_info.with_common_oscales) {
-        arg_list.set(++arg_idx, CTX_GPU_RES_STORAGE(SCALES_));
+        arg_list.set(arg_idx++, oscales);
     } else {
-        arg_list.set(++arg_idx, memory_storage_t::empty_storage());
+        arg_list.set(arg_idx++, memory_storage_t::empty_storage());
     }
 
     if (conf.attr_info.with_src_zpoints)
-        arg_list.set(++arg_idx, src_zpoints);
+        arg_list.set(arg_idx++, src_zpoints);
     else
-        arg_list.set(++arg_idx, memory_storage_t::empty_storage());
+        arg_list.set(arg_idx++, memory_storage_t::empty_storage());
 
     if (conf.attr_info.with_dst_zpoints)
-        arg_list.set(++arg_idx, dst_zpoints);
+        arg_list.set(arg_idx++, dst_zpoints);
     else
-        arg_list.set(++arg_idx, memory_storage_t::empty_storage());
+        arg_list.set(arg_idx++, memory_storage_t::empty_storage());
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 

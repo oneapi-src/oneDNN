@@ -29,9 +29,8 @@
 KERNEL_ATTR
 __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
         const __global WEI_DATA_T *wei, const __global BIA_DATA_T *bias,
-        __global DST_DATA_T *dst POST_OP_ARGS, float common_scale,
-        const __global float *scales, const __global int *src_zpoints,
-        const __global int *dst_zpoints) {
+        __global DST_DATA_T *dst POST_OP_ARGS, const __global float *scales,
+        const __global int *src_zpoints, const __global int *dst_zpoints) {
 
     src += SRC_OFFSET0;
     dst += DST_OFFSET0;
@@ -60,12 +59,11 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
                     const uint wei_off = WEI_OFF(g, oc, ic, kd, kh, kw);
                     d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wei[wei_off]);
 #if WITH_SRC_ZPOINTS
-                    const int src_zp = SRC_ZPOINT_COMMON != 0
-                            ? SRC_ZPOINT_COMMON
-                            : src_zpoints[WITH_SRC_ZPOINTS_PER_IC ? g * IC + ic
+                    const int src_zp
+                            = src_zpoints[WITH_SRC_ZPOINTS_PER_IC ? g * IC + ic
                                                                   : 0];
                     d -= src_zp * WEI_TO_REF(wei[wei_off]);
-#endif // WITH_SRC_ZPOINTS
+#endif
                 }
     POST_OP_DATA_T tmp = d;
 
@@ -79,8 +77,6 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
 #elif SCALES_COMMON
 #if WITH_RUNTIME_SCALES
     tmp *= scales[0];
-#else
-    tmp *= common_scale;
 #endif
 #endif
 #endif
@@ -112,9 +108,7 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
             g * OC + oc, 1, po_d2, 1, po_d3, 1, po_d4, 1, 0, 1);
 
 #if WITH_DST_ZPOINTS
-    const int dst_zp = DST_ZPOINT_COMMON != 0
-            ? DST_ZPOINT_COMMON
-            : dst_zpoints[WITH_DST_ZPOINTS_PER_OC ? g * OC + oc : 0];
+    const int dst_zp = dst_zpoints[WITH_DST_ZPOINTS_PER_OC ? g * OC + oc : 0];
     tmp += dst_zp;
 #endif // WITH_DST_ZPOINTS
 
@@ -126,7 +120,7 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
 KERNEL_ATTR
 __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
         const __global WEI_DATA_T *wei, const __global DST_DATA_T *diff_dst,
-        const __global BIA_DATA_T *bias POST_OP_ARGS, float common_scale,
+        const __global BIA_DATA_T *bias POST_OP_ARGS,
         const __global float *scales, const __global int *src_zpoints,
         const __global int *dst_zpoints) {
     const int n = GWS_GET_MB();
@@ -158,11 +152,10 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
             const uint wei_off = WEI_OFF(g, oc, ic, kd, kh, kw);
             d += DST_TO_REF(diff_dst[dst_off]) * WEI_TO_REF(wei[wei_off]);
 #if WITH_SRC_ZPOINTS
-            const int src_zp = SRC_ZPOINT_COMMON != 0
-                    ? SRC_ZPOINT_COMMON
-                    : src_zpoints[WITH_SRC_ZPOINTS_PER_IC ? g * OC + oc : 0];
+            const int src_zp
+                    = src_zpoints[WITH_SRC_ZPOINTS_PER_IC ? g * OC + oc : 0];
             d -= src_zp * WEI_TO_REF(wei[wei_off]);
-#endif // WITH_SRC_ZPOINTS
+#endif
         }
     }
 
@@ -180,8 +173,6 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
 #elif SCALES_COMMON
 #if WITH_RUNTIME_SCALES
     accumulator *= scales[0];
-#else
-    accumulator *= common_scale;
 #endif
 #endif
 #endif
@@ -207,9 +198,7 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
             1, po_d2, 1, po_d3, 1, po_d4, 1, 0, 1);
 
 #if WITH_DST_ZPOINTS
-    const int dst_zp = DST_ZPOINT_COMMON != 0
-            ? DST_ZPOINT_COMMON
-            : dst_zpoints[WITH_DST_ZPOINTS_PER_OC ? g * IC + ic : 0];
+    const int dst_zp = dst_zpoints[WITH_DST_ZPOINTS_PER_OC ? g * IC + ic : 0];
     accumulator += dst_zp;
 #endif // WITH_DST_ZPOINTS
 
