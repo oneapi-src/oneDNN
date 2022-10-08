@@ -2218,11 +2218,11 @@ void init_extra_tensors(const conv_config_t &cfg, tensor_config_t &tensor_cfg) {
     }
     bool with_oscales = !attr->output_scales_.has_default_values();
     if (with_oscales) {
-        std::vector<dim_t> dims = {attr->output_scales_.count_};
+        int mask = attr->output_scales_.mask_;
+        int os_dim = mask == 0 ? 1 : prb.oc;
+        std::vector<dim_t> dims = {os_dim};
         layout_t oscales_layout(type_t::f32(), 0, dims);
-        int arg_key = -1;
-        if (!attr->output_scales_.defined())
-            arg_key = DNNL_ARG_ATTR_OUTPUT_SCALES;
+        int arg_key = DNNL_ARG_ATTR_OUTPUT_SCALES;
         tensor_cfg.add_tensor("oscales", arg_key, /*is_input=*/true,
                 /*is_output=*/false, oscales_layout);
     }

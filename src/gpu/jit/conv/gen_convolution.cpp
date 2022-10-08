@@ -183,15 +183,7 @@ public:
             auto &kernel_info = kernel_infos[i];
             for (int j = 0; j < kernel_info.nargs(); j++) {
                 if (!kernel_info.is_resource(j)) continue;
-
-                auto &arg_name = kernel_info.arg_name(j);
-                int key = kernel_info.key(j);
-                if (arg_name == "oscales") {
-                    CHECK(primitive->init_output_scales_res_storage(
-                            engine, r, key));
-                } else {
-                    ir_error_not_expected();
-                }
+                ir_error_not_expected();
             }
         }
         return status::success;
@@ -243,7 +235,6 @@ private:
     static status_t init_kernel_infos(T *pd) {
         auto &data = *pd->data;
         auto &cfg = data.pd_cfg;
-        auto *attr = pd->attr();
 
         auto scratchpad = pd->scratchpad_registry().registrar();
         auto &conv_info = create_kernel_info(pd, kernel_id_t::convolution);
@@ -262,18 +253,7 @@ private:
             if (user_arg_key == -1) {
                 ir_assert(!t.needs_reorder);
                 ir_assert(!t.needs_zero_out);
-
-                if (t.name == "oscales") {
-                    if (elems == 1) {
-                        auto oscales_var = var_t::make(type_t::f32(), t.name);
-                        conv_info.register_internal_arg(
-                                oscales_var, attr->output_scales_.scales_[0]);
-                    } else {
-                        conv_info.register_resource_arg(make_buffer(t.name));
-                    }
-                } else {
-                    ir_error_not_expected();
-                }
+                ir_error_not_expected();
                 continue;
             }
 
