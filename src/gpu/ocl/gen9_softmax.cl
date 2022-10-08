@@ -104,7 +104,11 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #else
         d[k] = d[k] * denom_;
 #endif
+#if WITH_SCALES
         dst[axis_channel_id] = FLOAT_TO_DATA(DST, d[k] * scale[0]);
+#else
+        dst[axis_channel_id] = FLOAT_TO_DATA(DST, d[k]);
+#endif
     }
 
 #else
@@ -151,8 +155,12 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #else
         d[k] = d[k] * denom_;
 #endif
+#if WITH_SCALES
         STORE_FLOAT8(
                 DST, &dst[k * VECT_SIZE * SUB_GROUP_SIZE], scale[0] * d[k]);
+#else
+        STORE_FLOAT8(DST, &dst[k * VECT_SIZE * SUB_GROUP_SIZE], d[k]);
+#endif
     }
 #endif
 }
