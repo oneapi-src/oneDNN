@@ -46,7 +46,7 @@ struct ref_concat_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
-            if (!attr()->has_default_values(sm::scales))
+            if (!attr()->has_default_values(sm::scales_runtime))
                 return status::unimplemented;
             status_t status = gpu_concat_pd_t::init();
             if (status != status::success) {
@@ -65,14 +65,12 @@ struct ref_concat_t : public gpu_primitive_t {
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
                 if (!sc.has_default_values()) {
-                    dim_t count = 0;
                     int mask = 0;
-                    const float *value = nullptr;
-                    CHECK(sc.get(
-                            DNNL_ARG_MULTIPLE_SRC + i, &count, &mask, &value));
+                    CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, nullptr, &mask,
+                            nullptr));
                     if (mask != 0) return status::unimplemented;
-                    if (value == nullptr) return status::runtime_error;
-                    r_attr.output_scales_.set(value[0]);
+                    float scale = DNNL_RUNTIME_F32_VAL;
+                    r_attr.output_scales_.set(1, mask, &scale);
                 }
                 CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
                         src_md(i), src_image_md(i), &r_attr));
@@ -129,10 +127,13 @@ struct ref_concat_t : public gpu_primitive_t {
 
         auto execute_reorder = [&](const std::shared_ptr<primitive_t> &reorder,
                                        const memory_arg_t &src,
-                                       const memory_arg_t &dst, int r_num) {
+                                       const memory_arg_t &dst,
+                                       const memory_arg_t *src_scales,
+                                       int r_num) {
             exec_args_t r_args;
             r_args[DNNL_ARG_SRC] = src;
             r_args[DNNL_ARG_DST] = dst;
+            if (src_scales) r_args[DNNL_ARG_ATTR_OUTPUT_SCALES] = *src_scales;
             exec_ctx_t r_ctx(ctx, std::move(r_args));
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + r_num, reorder);
@@ -147,18 +148,33 @@ struct ref_concat_t : public gpu_primitive_t {
             memory_t tent_dst(
                     engine, &pd()->tent_dst_md_, std::move(scratchpad));
 
-            for (int i = 0; i < n; ++i)
+            for (int i = 0; i < n; ++i) {
+                const auto &src_scales_arg = ctx.args().find(
+                        DNNL_ARG_ATTR_INPUT_SCALES | (DNNL_ARG_MULTIPLE_SRC + i));
+
+                const memory_arg_t *src_scales = nullptr;
+                if (src_scales_arg != ctx.args().end())
+                    src_scales = &src_scales_arg->second;
                 CHECK(execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst, false}, i));
+                        {&tent_dst, false}, src_scales, i));
+            }
 
             CHECK(execute_reorder(reorders_[n], {&tent_dst, true},
-                    ctx.args().at(DNNL_ARG_DST), n));
+                    ctx.args().at(DNNL_ARG_DST), nullptr, n));
         } else {
-            for (int i = 0; i < n; ++i)
+            for (int i = 0; i < n; ++i) {
+                const auto &src_scales_arg = ctx.args().find(
+                        DNNL_ARG_ATTR_INPUT_SCALES | (DNNL_ARG_MULTIPLE_SRC + i));
+
+                const memory_arg_t *src_scales = nullptr;
+                if (src_scales_arg != ctx.args().end()) {
+                    src_scales = &src_scales_arg->second;
+                }
                 CHECK(execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        ctx.args().at(DNNL_ARG_DST), i));
+                        ctx.args().at(DNNL_ARG_DST), src_scales, i));
+            }
         }
 
         return status::success;
