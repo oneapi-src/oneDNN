@@ -120,6 +120,11 @@ struct reorder_pd_t : public primitive_desc_t {
     int n_inputs() const override { return 1; }
     int n_outputs() const override { return 1; }
 
+    bool with_alpha() const {
+        const auto &osc = attr()->output_scales_;
+        return !osc.has_default_values();
+    }
+
     float alpha() const { return attr()->output_scales_.scales_[0]; }
     float beta() const {
         const int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
