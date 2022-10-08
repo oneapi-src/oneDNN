@@ -182,13 +182,11 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const auto &conf = pd()->conf;
 
-    const memory_storage_t *src0_scale = !pd()->attr()->scales_.defined()
-            ? &CTX_IN_STORAGE(DNNL_ARG_SRC_0 | DNNL_ARG_ATTR_INPUT_SCALES)
-            : &CTX_GPU_RES_STORAGE(SRC0_SCALE_);
+    auto &src0_scale
+            = CTX_IN_STORAGE(DNNL_ARG_SRC_0 | DNNL_ARG_ATTR_INPUT_SCALES);
 
-    const memory_storage_t *src1_scale = !pd()->attr()->scales_.defined()
-            ? &CTX_IN_STORAGE(DNNL_ARG_SRC_1 | DNNL_ARG_ATTR_INPUT_SCALES)
-            : &CTX_GPU_RES_STORAGE(SRC1_SCALE_);
+    auto &src1_scale
+            = CTX_IN_STORAGE(DNNL_ARG_SRC_1 | DNNL_ARG_ATTR_INPUT_SCALES);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src0);
@@ -198,8 +196,8 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     unsigned arg_idx = append_post_ops_to_arg_list(
             ctx, arg_list, 3, pd()->attr()->post_ops_);
 
-    arg_list.set(arg_idx++, *src0_scale);
-    arg_list.set(arg_idx, *src1_scale);
+    arg_list.set(arg_idx++, src0_scale);
+    arg_list.set(arg_idx, src1_scale);
 
     auto nd_range = conf.dispatch.nd_range();
 
