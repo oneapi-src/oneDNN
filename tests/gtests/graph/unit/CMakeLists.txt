@@ -53,6 +53,7 @@ endif()
 target_link_libraries(test_graph_unit
     dnnl_gtest
     ${EXTRA_SHARED_LIBS}
+    ${EXTRA_STATIC_LIBS}
     )
 
 set(sycl_rt_pattern "(DPCPP)")
