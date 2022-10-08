@@ -233,13 +233,8 @@
 
 #if WITH_SRC_ZPOINTS
 #define SRC_SHIFT ZP_SHIFT
-#if RUNTIME_SRC_ZPOINTS
 #define GET_SRC_ZP ZP_READ_PTR
 #define SRC_ZP_T __global int *
-#else
-#define GET_SRC_ZP ZP_READ_VAL
-#define SRC_ZP_T int
-#endif
 #else
 #define SRC_SHIFT ZP_NO_SHIFT
 #define GET_SRC_ZP ZP_ZERO
@@ -249,13 +244,8 @@
 #if WITH_DST_ZPOINTS
 #define DST_SHIFT ZP_SHIFT
 #define DST_UNSHIFT ZP_UNSHIFT
-#if RUNTIME_DST_ZPOINTS
 #define GET_DST_ZP ZP_READ_PTR
 #define DST_ZP_T __global int *
-#else
-#define GET_DST_ZP ZP_READ_VAL
-#define DST_ZP_T int
-#endif
 #else
 #define DST_SHIFT ZP_NO_SHIFT
 #define DST_UNSHIFT ZP_NO_SHIFT

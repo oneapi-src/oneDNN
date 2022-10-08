@@ -102,11 +102,7 @@ int calc_src_compensation_x32(int4 z, int8 wei) {
 #else // !WITH_SRC_ZPOINTS_PER_IC
 
 int read_src_zero_point(const __global int *ptr) {
-#if SRC_ZPOINT_COMMON != 0
-    const int z = SRC_ZPOINT_COMMON;
-#else
     const int z = ptr[0];
-#endif
     return z;
 }
 
@@ -170,7 +166,7 @@ int4 read_dst_zero_points_32c(const __global int *ptr, const int oc) {
         z = as_int4(intel_sub_group_block_read4((const __global uint *)ptr));
     }
 #else
-    const int4 z = DST_ZPOINT_COMMON != 0 ? DST_ZPOINT_COMMON : ptr[0];
+    const int4 z = ptr[0];
 #endif // WITH_DST_ZPOINTS_PER_OC
     return z;
 }
@@ -196,8 +192,6 @@ int2 read_dst_zero_points_32g(const __global int *ptr, const int g) {
     {
         z = as_int2(intel_sub_group_block_read2((const __global uint *)ptr));
     }
-#elif DST_ZPOINT_COMMON != 0
-    const int2 z = (int2)(DST_ZPOINT_COMMON);
 #else
     const int2 z = (int2)(ptr[0]);
 #endif // WITH_DST_ZPOINTS_PER_OC

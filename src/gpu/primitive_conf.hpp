@@ -153,10 +153,6 @@ struct attr_info_t {
         const auto &scales_mask = attr->output_scales_.mask_;
         attr_info.with_common_oscales
                 = attr_info.with_oscales && (scales_mask == 0);
-        attr_info.common_oscales = (attr_info.with_common_oscales
-                        ? attr->output_scales_.scales_[0]
-                        : 1.0f);
-
         attr_info.with_per_oc_oscales
                 = attr_info.with_oscales && (scales_mask == (1 << 1));
 
@@ -164,12 +160,10 @@ struct attr_info_t {
 
         const auto &src0_scales = attr->scales_.get(DNNL_ARG_SRC_0);
         attr_info.with_src0_scale = !src0_scales.has_default_values();
-        attr_info.src0_scale = *src0_scales.scales_;
         assert(src0_scales.mask_ == 0);
 
         const auto &src1_scales = attr->scales_.get(DNNL_ARG_SRC_1);
         attr_info.with_src1_scale = !src1_scales.has_default_values();
-        attr_info.src1_scale = *src1_scales.scales_;
         assert(src1_scales.mask_ == 0);
 
         // zero points
@@ -180,17 +174,9 @@ struct attr_info_t {
 
         attr_info.with_per_ic_src_zpoints = attr_info.with_src_zpoints
                 && !zp.defined(DNNL_ARG_SRC) && !zp.common(DNNL_ARG_SRC);
-        attr_info.common_src_zpoint
-                = attr_info.with_src_zpoints && zp.defined(DNNL_ARG_SRC)
-                ? *zp.get(DNNL_ARG_SRC)
-                : 0;
 
         attr_info.with_per_oc_dst_zpoints = attr_info.with_dst_zpoints
                 && !zp.defined(DNNL_ARG_DST) && !zp.common(DNNL_ARG_DST);
-        attr_info.common_dst_zpoint
-                = attr_info.with_dst_zpoints && zp.defined(DNNL_ARG_DST)
-                ? *zp.get(DNNL_ARG_DST)
-                : 0;
 
         attr_info.initialized = true;
         return attr_info;
@@ -214,23 +200,17 @@ struct attr_info_t {
 
     bool with_oscales;
     bool with_common_oscales;
-    float common_oscales;
     bool with_per_oc_oscales;
     bool with_runtime_oscales;
 
     bool with_src0_scale;
-    float src0_scale;
-
     bool with_src1_scale;
-    float src1_scale;
 
     bool with_src_zpoints;
     bool with_wei_zpoints;
     bool with_dst_zpoints;
     bool with_per_ic_src_zpoints;
     bool with_per_oc_dst_zpoints;
-    int common_src_zpoint;
-    int common_dst_zpoint;
 };
 
 struct offsets_t {
@@ -713,7 +693,6 @@ struct reorder_conf_t {
     bool has_padding;
     bool scale_quant, with_sum_ab, with_sum_a;
     bool with_src_zp, with_dst_zp;
-    int common_src_zp, common_dst_zp;
     reorder_kernel_t implementation;
     int ndims;
     size_t nelems;
@@ -1360,8 +1339,6 @@ inline void def_attr_info(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_SRC_ZPOINTS", attr_info.with_src_zpoints);
     kernel_ctx.define_int("WITH_WEI_ZPOINTS", attr_info.with_wei_zpoints);
     kernel_ctx.define_int("WITH_DST_ZPOINTS", attr_info.with_dst_zpoints);
-    kernel_ctx.define_int("SRC_ZPOINT_COMMON", attr_info.common_src_zpoint);
-    kernel_ctx.define_int("DST_ZPOINT_COMMON", attr_info.common_dst_zpoint);
     kernel_ctx.define_int(
             "WITH_SRC_ZPOINTS_PER_IC", attr_info.with_per_ic_src_zpoints);
     kernel_ctx.define_int(

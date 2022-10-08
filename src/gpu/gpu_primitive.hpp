@@ -191,28 +191,6 @@ protected:
         return status::success;
     }
 
-    status_t init_output_scales_res_storage(engine_t *engine, gpu_resource_t *r,
-            gpu_resource_t::key_memory_t storage_key) const {
-        auto &oscales = pd()->attr()->output_scales_;
-        if (oscales.has_default_values() || !oscales.defined())
-            return status::success;
-        if (oscales.mask_ == 0 && oscales.defined()) return status::success;
-
-        assert(utils::one_of(oscales.mask_, 0, 1 << 1));
-
-        auto scales_sz = oscales.count_ * sizeof(float);
-        memory_storage_t *tmp_mem_storage_ptr;
-        CHECK(engine->create_memory_storage(&tmp_mem_storage_ptr, scales_sz));
-
-        std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
-        void *scales_ptr = nullptr;
-        CHECK(tmp_mem_storage->map_data(&scales_ptr, nullptr, scales_sz));
-        utils::array_copy((float *)scales_ptr, oscales.scales_, oscales.count_);
-        CHECK(tmp_mem_storage->unmap_data(scales_ptr, nullptr));
-        r->add_memory_storage(storage_key, std::move(tmp_mem_storage));
-        return status::success;
-    }
-
     // TODO: use inheritance for exec_ctx_t to get rid of such places...
     status_t parallel_for(const gemm_exec_ctx_t &ctx,
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
