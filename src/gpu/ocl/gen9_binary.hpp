@@ -47,7 +47,7 @@ struct gen9_binary_t : public gpu_primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            const auto attr_skip_mask = sm::post_ops | sm::scales;
+            const auto attr_skip_mask = sm::post_ops | sm::scales_runtime;
             const memory_desc_wrapper dst_d(dst_md());
             format_tag_t dst_tag
                     = dst_d.matches_one_of_tag(nc, ncw, nchw, ncdhw);
@@ -123,8 +123,10 @@ struct gen9_binary_t : public gpu_primitive_t {
 
         const auto &conf = pd()->conf;
 
-        auto src0_scale = conf.attr_info.src0_scale;
-        auto src1_scale = conf.attr_info.src1_scale;
+        auto &src0_scale
+                = CTX_IN_STORAGE(DNNL_ARG_SRC_0 | DNNL_ARG_ATTR_INPUT_SCALES);
+        auto &src1_scale
+                = CTX_IN_STORAGE(DNNL_ARG_SRC_1 | DNNL_ARG_ATTR_INPUT_SCALES);
 
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, src0);

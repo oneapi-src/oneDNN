@@ -20,7 +20,7 @@
 KERNEL_ATTR
 __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
-        float src0_scale, float src1_scale) {
+        __global float *src0_scale, __global float *src1_scale) {
 
     int dims0[6] = {0};
 
@@ -51,12 +51,12 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     dst += dst_off;
 
 #if WITH_SRC0_SCALE
-#define src0_scale_val src0_scale
+#define src0_scale_val src0_scale[0]
 #else
 #define src0_scale_val 1
 #endif
 #if WITH_SRC1_SCALE
-#define src1_scale_val src1_scale
+#define src1_scale_val src1_scale[0]
 #else
 #define src1_scale_val 1
 #endif
@@ -99,7 +99,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 KERNEL_ATTR
 __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
-        float src0_scale, float src1_scale) {
+        __global float *src0_scale, __global float *src1_scale) {
 
     src0 += SRC0_OFFSET0;
     src1 += SRC1_OFFSET0;
@@ -168,10 +168,10 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
             float dst_data;
 
 #if WITH_SRC0_SCALE
-            tmp_src0 = tmp_src0 * src0_scale;
+            tmp_src0 = tmp_src0 * src0_scale[0];
 #endif
 #if WITH_SRC1_SCALE
-            tmp_src1 = tmp_src1 * src1_scale;
+            tmp_src1 = tmp_src1 * src1_scale[0];
 #endif
             res = get_eltwise_op(tmp_src0, tmp_src1);
 
@@ -200,7 +200,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 KERNEL_ATTR
 __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
-        float src0_scale, float src1_scale) {
+        __global float *src0_scale, __global float *src1_scale) {
     // since gws = no. of total elems in A, id will be the logical offset
     int dims0[6] = {0};
     dims0[0] = GWS_GET_D0();
@@ -234,10 +234,10 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
             float8 tmp_src0 = CONVERT_FLOAT8_T(SRC0_BLOCK_READ8(&t_src0[0]));
             float8 tmp_src1 = CONVERT_FLOAT8_T(SRC1_BLOCK_READ8(&t_src1[0]));
 #if WITH_SRC0_SCALE
-            tmp_src0 = tmp_src0 * src0_scale;
+            tmp_src0 = tmp_src0 * src0_scale[0];
 #endif
 #if WITH_SRC1_SCALE
-            tmp_src1 = tmp_src1 * src1_scale;
+            tmp_src1 = tmp_src1 * src1_scale[0];
 #endif
             d = get_eltwise_op(tmp_src0, tmp_src1);
 #if WITH_SUM
@@ -274,7 +274,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 KERNEL_ATTR
 __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         __global SRC1_DATA_T *src1, __global DST_DATA_T *dst POST_OP_ARGS,
-        float src0_scale, float src1_scale) {
+        __global float *src0_scale, __global float *src1_scale) {
 
     // since gws = no. of total elems in A, id will be the logical offset
     int dims0[6] = {0};
@@ -329,10 +329,10 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #endif
 
 #if WITH_SRC0_SCALE
-    tmp_src0 = tmp_src0 * src0_scale;
+    tmp_src0 = tmp_src0 * src0_scale[0];
 #endif
 #if WITH_SRC1_SCALE
-    tmp_src1 = tmp_src1 * src1_scale;
+    tmp_src1 = tmp_src1 * src1_scale[0];
 #endif
 
     d = get_eltwise_op(tmp_src0, tmp_src1);
