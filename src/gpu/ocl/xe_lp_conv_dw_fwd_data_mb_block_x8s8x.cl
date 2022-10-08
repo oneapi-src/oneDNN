@@ -25,8 +25,8 @@
 #define SCALE scales
 #define SCALE_VEC8 scales.s01010101
 #elif SCALES_COMMON
-#define SCALE scale
-#define SCALE_VEC8 scale
+#define SCALE runtime_scales[0]
+#define SCALE_VEC8 runtime_scales[0]
 #else
 #define SCALE 1
 #define SCALE_VEC8 1
@@ -36,7 +36,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_dw_fwd_mb_block_x8s8x(const __global uchar *src, const __global char *wei,
         const __global float *bias, __global DST_DATA_T *dst POST_OP_ARGS,
-        float scale, const __global float *scales_per_oc,
+        const __global float *runtime_scales,
         const __global int *src_compensation, const __global int *src_zpoints,
         const __global int *dst_compensation) {
 
@@ -238,7 +238,7 @@ conv_dw_fwd_mb_block_x8s8x(const __global uchar *src, const __global char *wei,
 
 #if SCALES_PER_OC
     float2 scales = as_float2(intel_sub_group_block_read2(
-            (const __global uint *)&scales_per_oc[g]));
+            (const __global uint *)&runtime_scales[g]));
 #endif
 
 #if WITH_BIAS

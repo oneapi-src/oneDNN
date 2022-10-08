@@ -540,18 +540,9 @@ status_t xe_lp_x8s8x_convolution_fwd_t::execute_forward(
     unsigned arg_idx = append_post_ops_to_arg_list(
             ctx, arg_list, 4, pd()->attr()->post_ops_);
 
-    if (conf.attr_info.common_oscales) {
-        float scales = pd()->attr()->output_scales_.scales_[0];
-        arg_list.set(arg_idx++, scales);
-    } else {
-        arg_list.set(arg_idx++, 1.0f);
-    }
-
-    if (conf.attr_info.with_per_oc_oscales) {
-        if (conf.attr_info.with_runtime_oscales)
-            arg_list.set(arg_idx++, oscales);
-        else
-            arg_list.set(arg_idx++, CTX_GPU_RES_STORAGE(SCALES_));
+    if (conf.attr_info.with_common_oscales
+            || conf.attr_info.with_per_oc_oscales) {
+        arg_list.set(arg_idx++, oscales);
     } else {
         arg_list.set(arg_idx++, memory_storage_t::empty_storage());
     }

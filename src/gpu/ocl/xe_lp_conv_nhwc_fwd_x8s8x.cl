@@ -66,12 +66,12 @@ DECLARE_MMAD_EMU(mmad_tail, idot4, IC_NBLOCKS_TAIL, 8, SRC_DATA_BLOCK_T, int8,
 
 #define BLOCK_READ_SCALES(data, idx) \
     data = as_float4(intel_sub_group_block_read4( \
-            (__global uint *)&scales_per_oc[idx]));
+            (__global uint *)&runtime_scales[idx]));
 
 #if SCALES_PER_OC
 #define SCALE scales
 #elif SCALES_COMMON
-#define SCALE scale
+#define SCALE runtime_scales[0]
 #else
 #define SCALE 1
 #endif
@@ -162,7 +162,7 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __kernel void
 conv_nhwc_fwd_x8s8x(const __global SRC_DATA_T *src, const __global char *wei,
         const __global float *bias, __global DATA_T *dst POST_OP_ARGS,
-        float scale, const __global float *scales_per_oc,
+        const __global float *runtime_scales,
         const __global int *src_compensation, const __global int *src_zpoints,
         const __global int *dst_compensation) {
     const int group_oc = get_group_id(0) * OC_GROUP;
@@ -383,7 +383,7 @@ conv_nhwc_fwd_x8s8x(const __global SRC_DATA_T *src, const __global char *wei,
 #if SCALES_PER_OC
         float4 scales = {0, 0, 0, 0};
         scales = read_bias_scale_block4(
-                scales_per_oc + (group_oc + oc) * OC_BLOCK,
+                runtime_scales + (group_oc + oc) * OC_BLOCK,
                 (group_oc + oc) * OC_BLOCK);
 #endif
 

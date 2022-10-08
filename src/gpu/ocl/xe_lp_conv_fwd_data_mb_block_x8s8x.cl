@@ -52,12 +52,12 @@
 
 #define BLOCK_READ_SCALES(data, idx) \
     data = as_float4(intel_sub_group_block_read4( \
-            (__global uint *)&scales_per_oc[idx]));
+            (__global uint *)&runtime_scales[idx]));
 
 #if SCALES_PER_OC
 #define SCALE scales
 #elif SCALES_COMMON
-#define SCALE scale
+#define SCALE runtime_scales[0]
 #else
 #define SCALE 1
 #endif
@@ -66,7 +66,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_fwd_mb_block_x8s8x(const __global uchar *src, const __global char *wei,
         const __global float *bias, __global DST_DATA_T *dst POST_OP_ARGS,
-        float scale, const __global float *scales_per_oc,
+        const __global float *runtime_scales,
         const __global int *src_compensation, const __global int *src_zpoints,
         const __global int *dst_compensation) {
 #ifdef MB_FULL_BLOCK

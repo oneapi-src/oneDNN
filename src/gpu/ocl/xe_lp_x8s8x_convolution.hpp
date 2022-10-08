@@ -84,8 +84,6 @@ struct xe_lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
 
             init_scratchpad();
 
-            CHECK(init_scales_md());
-
             ok = set_default_formats_common(
                     conf.src_tag, conf.wei_tag, conf.dst_tag);
             if (!ok) return status::unimplemented;
@@ -99,21 +97,7 @@ struct xe_lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
-        const memory_desc_t *scales_md() const { return &scales_md_; }
-
         conv_conf_t conf;
-
-    private:
-        status_t init_scales_md() {
-            if (!conf.attr_info.with_per_oc_oscales) return status::success;
-
-            scales_md_.data_type = data_type::f32;
-            scales_md_.ndims = 1;
-            scales_md_.dims[0] = attr()->output_scales_.count_;
-            return memory_desc_init_by_tag(scales_md_, format_tag::x);
-        }
-
-        memory_desc_t scales_md_;
     };
 
     status_t init(engine_t *engine) override {
@@ -166,36 +150,11 @@ struct xe_lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
         return execute_forward(ctx);
     }
 
-protected:
-    status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override {
-        if (!pd()->conf.attr_info.with_per_oc_oscales
-                || pd()->conf.attr_info.with_runtime_oscales)
-            return status::success;
-
-        memory_desc_wrapper scales_mdw(pd()->scales_md());
-        memory_storage_t *tmp_mem_storage_ptr;
-        CHECK(engine->create_memory_storage(
-                &tmp_mem_storage_ptr, scales_mdw.nelems() * sizeof(float)));
-
-        std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
-        void *scales_ptr = nullptr;
-        CHECK(tmp_mem_storage->map_data(&scales_ptr, nullptr,
-                sizeof(float) * pd()->attr()->output_scales_.count_));
-        utils::array_copy((float *)scales_ptr,
-                pd()->attr()->output_scales_.scales_,
-                pd()->attr()->output_scales_.count_);
-        CHECK(tmp_mem_storage->unmap_data(scales_ptr, nullptr));
-        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
-        return status::success;
-    }
-
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)gpu_primitive_t::pd().get(); }
     compute::kernel_t kernel_;
     compute::kernel_t src_compensation_kernel_;
-    enum { SCALES_ = 0 };
 };
 
 struct xe_lp_x8s8x_convolution_bwd_data_t : public gpu_primitive_t {

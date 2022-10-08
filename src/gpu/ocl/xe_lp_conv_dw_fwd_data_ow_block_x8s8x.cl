@@ -29,7 +29,7 @@ inline ushort16 read_block16(const __global ushort *p)
 #if SCALES_PER_OC
 #define SCALE scales.s0101010101010101
 #elif SCALES_COMMON
-#define SCALE scale
+#define SCALE runtime_scales[0]
 #else
 #define SCALE 1
 #endif
@@ -41,7 +41,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_dw_fwd_ow_block_x8s8x(const __global uchar *src, const __global char *wei,
         const __global float *bias, __global DST_DATA_T *dst POST_OP_ARGS,
-        float scale, const __global float *scales_per_oc,
+        const __global float *runtime_scales,
         const __global int *src_compensation, const __global int *src_zpoints,
         const __global int *dst_compensation) {
     const int osp = get_global_id(1);
@@ -65,10 +65,10 @@ conv_dw_fwd_ow_block_x8s8x(const __global uchar *src, const __global char *wei,
     int16 S1 = 0;
 #if SCALES_PER_OC
     // TODO: use block read after fix from compiler
-    // float2 scales = as_float2(intel_sub_group_block_read_ul((const __global ulong *)&scales_per_oc[g]));
+    // float2 scales = as_float2(intel_sub_group_block_read_ul((const __global ulong *)&runtime_scales[g]));
     float2 scales;
-    scales.s0 = scales_per_oc[g + 2 * get_sub_group_local_id()];
-    scales.s1 = scales_per_oc[g + 2 * get_sub_group_local_id() + 1];
+    scales.s0 = runtime_scales[g + 2 * get_sub_group_local_id()];
+    scales.s1 = runtime_scales[g + 2 * get_sub_group_local_id() + 1];
 #endif
 
     for (int kd = 0; kd < KD; kd++) {
