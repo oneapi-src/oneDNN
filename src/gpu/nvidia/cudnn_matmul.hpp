@@ -129,12 +129,8 @@ struct cudnn_matmul_t : public primitive_t {
         const auto status
                 = matmul_impl_->init((matmul_pd_t *)primitive_t::pd().get());
 
-        if (pd()->attr()->output_scales_.defined()) {
-            output_scale_ = pd()->attr()->output_scales_.scales_;
-        } else {
-            // Only single-element scale is supported
-            output_scale_ = new float;
-        }
+        // Only single-element scale is supported
+        output_scale_ = new float;
 
         const bool with_bias = matmul_impl_->with_bias();
         const bool has_runtime_args = matmul_impl_->has_runtime_params();
@@ -165,9 +161,7 @@ struct cudnn_matmul_t : public primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
-    virtual ~cudnn_matmul_t() {
-        if (!pd()->attr()->output_scales_.defined()) { delete output_scale_; }
-    }
+    virtual ~cudnn_matmul_t() { delete output_scale_; }
 
     std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_;
     std::shared_ptr<cudnn_matmul_exec_base_t> executor_;
