@@ -36,20 +36,10 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             ? bias.offset() / types::data_type_size(exec_d->bias_type())
             : 0;
 
-    const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
-            ? &GEMM_CTX_ARG_STORAGE(output_scales)
-            : &CTX_GPU_RES_STORAGE(SCALES_);
-    const memory_storage_t *a0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_A)
-            ? &GEMM_CTX_ARG_STORAGE(a_zero_point)
-            : &CTX_GPU_RES_STORAGE(A0_);
-
-    const memory_storage_t *b0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_B)
-            ? &GEMM_CTX_ARG_STORAGE(b_zero_point)
-            : &CTX_GPU_RES_STORAGE(B0_);
-
-    const memory_storage_t *c0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_C)
-            ? &GEMM_CTX_ARG_STORAGE(c_zero_point)
-            : &CTX_GPU_RES_STORAGE(C0_);
+    const auto &scales = GEMM_CTX_ARG_STORAGE(output_scales);
+    const auto &a0 = GEMM_CTX_ARG_STORAGE(a_zero_point);
+    const auto &b0 = GEMM_CTX_ARG_STORAGE(b_zero_point);
+    const auto &c0 = GEMM_CTX_ARG_STORAGE(c_zero_point);
 
     int c0_mask = 0;
     pd()->attr()->zero_points_.get(DNNL_ARG_C, nullptr, &c0_mask, nullptr);
@@ -100,11 +90,11 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     arg_list.set(21, eltwise_beta);
     arg_list.set(22, eltwise_scale);
     arg_list.set(23, bias_mask);
-    arg_list.set(24, *a0);
-    arg_list.set(25, *b0);
-    arg_list.set(26, *c0);
+    arg_list.set(24, a0);
+    arg_list.set(25, b0);
+    arg_list.set(26, c0);
     arg_list.set(27, c0_mask);
-    arg_list.set(28, *scales);
+    arg_list.set(28, scales);
     arg_list.set(29, scale_stride);
     arg_list.set(30, beta);
 

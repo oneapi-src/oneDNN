@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/gemm/ocl_gemm_attrs.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
@@ -36,7 +37,7 @@ __kernel void ref_gemm(__global A_DATA_T *a, __global B_DATA_T *b,
         int transb, long MB, long M, long N, long K, long stride_a,
         long stride_b, long stride_c, long lda, long ldb, long ldc,
         float eltwise_alpha, float eltwise_beta, float eltwise_scale,
-        int bias_mask, __global int *a0, __global int *b0, __global int *c0,
+        int bias_mask, __global int *ao, __global int *bo, __global int *c0,
         int c0_mask, __global float *scales, long scale_stride, float beta) {
 
     int n = get_global_id(1);
@@ -54,17 +55,19 @@ __kernel void ref_gemm(__global A_DATA_T *a, __global B_DATA_T *b,
     b += offset_b0;
     c += offset_c0;
 
+#if WITH_DST_ZPOINTS
     long c0_strides[3];
     get_strides(
             c0_mask, MB, M, N, &c0_strides[0], &c0_strides[1], &c0_strides[2]);
+#endif
 
     for (long m = 0; m < M; ++m) {
         ACC_DATA_T acc = 0;
         for (long k = 0; k < K; ++k) {
             long off_a = mb * stride_a + (transa ? m * lda + k : k * lda + m);
             long off_b = mb * stride_b + (transb ? k * ldb + n : n * ldb + k);
-            acc += TO_ACC(A_TO_REF(a[off_a]) - a0[0])
-                    * TO_ACC(B_TO_REF(b[off_b]) - b0[0]);
+            acc += TO_ACC(A_TO_REF(a[off_a]) - ATTR_A0)
+                    * TO_ACC(B_TO_REF(b[off_b]) - ATTR_B0);
         }
 
         long off_c = mb * stride_c + n * ldc + m;
@@ -74,16 +77,20 @@ __kernel void ref_gemm(__global A_DATA_T *a, __global B_DATA_T *b,
         long off_bias = mb * b_strides[0] + m * b_strides[1] + n * b_strides[2];
         temp += BIA_TO_REF(bias[off_bias]);
 #endif
+#if WITH_SCALES
         temp *= scales[scale_stride * n];
+#endif
 #if WITH_SUM
         temp += (POST_OP_DATA_T)(beta * C_TO_REF(c[off_c]));
 #endif
 #if WITH_ELTWISE
         temp = fwd_eltwise(temp, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
+#if WITH_DST_ZPOINTS
         long off_c0
                 = mb * c0_strides[0] + m * c0_strides[1] + n * c0_strides[2];
         temp += c0[off_c0];
+#endif
         c[off_c] = TO_C(temp);
 #else
         c[off_c] = TO_C(acc);

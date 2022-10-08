@@ -149,30 +149,9 @@ struct ref_gemm_t : public gpu_gemm_t {
 
     status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
-protected:
-    status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override {
-        const auto *attr = pd()->attr();
-        std::unique_ptr<memory_storage_t> tmp_mem_storage;
-        for (const auto idx : {A0_, B0_, C0_}) {
-            CHECK(gemm_utils::prepare_zero_points(
-                    attr, engine, idx, tmp_mem_storage));
-            r->add_memory_storage(idx, std::move(tmp_mem_storage));
-        }
-        CHECK(gemm_utils::prepare_scales(attr, engine, tmp_mem_storage));
-        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
-        return status::success;
-    }
-
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
-    enum {
-        A0_ = DNNL_ARG_A,
-        B0_ = DNNL_ARG_B,
-        C0_ = DNNL_ARG_C,
-        SCALES_ = DNNL_ARG_ATTR_OUTPUT_SCALES
-    };
 };
 
 } // namespace ocl
