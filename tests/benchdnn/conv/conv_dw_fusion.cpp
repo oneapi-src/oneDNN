@@ -108,6 +108,7 @@ std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *prb) {
     attr_t attr;
     attr.oscale.scale = prb->attr.oscale.scale;
     attr.oscale.policy = prb->attr.oscale.policy;
+    attr.oscale.runtime = prb->attr.oscale.runtime;
     for (int i = 0; i < fusion_index; ++i) {
         attr.post_ops.entry.push_back(prb->attr.post_ops.entry[i]);
     }
@@ -126,6 +127,7 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
     attr_t fusion_attr;
     fusion_attr.oscale.scale = fused_conv_po.oscale.scale;
     fusion_attr.oscale.policy = fused_conv_po.oscale.policy;
+    fusion_attr.oscale.runtime = fused_conv_po.oscale.runtime;
     for (int i = fusion_index + 1; i < po.len(); ++i) {
         fusion_attr.post_ops.entry.push_back(prb->attr.post_ops.entry[i]);
     }
@@ -303,6 +305,10 @@ int doit(const prb_t *prb, res_t *res) {
                  const_pd0, binary_po_args0, binary_po_dt0, binary_po_fp0),
             WARN);
 
+    dnn_mem_t scales;
+    maybe_prepare_runtime_scales(
+            scales, prb->attr.oscale, prb->oc, prb->scales);
+
     SAFE(conv::fill_src(p0.get(), src_dt0, src_fp0, res), WARN);
     SAFE(conv::fill_wei(p0.get(), wei_dt0, wei_fp0, res), WARN);
     SAFE(conv::fill_bia(p0.get(), bia_dt0, bia_fp0, res), WARN);
@@ -355,6 +361,10 @@ int doit(const prb_t *prb, res_t *res) {
                  const_pd1, binary_po_args1, binary_po_dt1, binary_po_fp1),
             WARN);
 
+    dnn_mem_t scales_dw;
+    maybe_prepare_runtime_scales(
+            scales_dw, p1->attr.oscale, p1->oc, p1->scales);
+
     SAFE(conv::fill_wei(p1.get(), wei_dt1, wei_fp1, res), WARN);
     SAFE(conv::fill_bia(p1.get(), bia_dt1, bia_fp1, res), WARN);
     SAFE(conv::fill_dst(p1.get(), dst_dt1, dst_fp1, res), WARN);
@@ -383,6 +393,7 @@ int doit(const prb_t *prb, res_t *res) {
         args0.set(DNNL_ARG_WEIGHTS, wei_dt0);
         args0.set(DNNL_ARG_BIAS, bia_dt0);
         args0.set(DNNL_ARG_DST, dst_dt0);
+        args0.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
         args0.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt0);
         args0.set(binary_po_args0, binary_po_dt0);
 
@@ -393,6 +404,7 @@ int doit(const prb_t *prb, res_t *res) {
         args1.set(DNNL_ARG_WEIGHTS, wei_dt1);
         args1.set(DNNL_ARG_BIAS, bia_dt1);
         args1.set(DNNL_ARG_DST, dst_dt1);
+        args1.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales_dw);
         args1.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt1);
         args1.set(binary_po_args1, binary_po_dt1);
 
@@ -429,8 +441,11 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
         args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
+        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
         args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, fused_wei_dt);
         args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS, fused_bia_dt);
+        args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_OUTPUT_SCALES,
+                scales_dw);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
         args.set(binary_po_args, binary_po_dt);
 
