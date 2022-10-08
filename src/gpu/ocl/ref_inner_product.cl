@@ -47,7 +47,9 @@ __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
     tmp += BIA_TO_REF(bias[oc]);
 #endif
 
+#if WITH_SCALES
     tmp *= output_scale[0];
+#endif
 
     float dest_data;
 #if WITH_SUM

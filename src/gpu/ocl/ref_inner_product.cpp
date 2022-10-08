@@ -190,11 +190,9 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     unsigned arg_idx = append_post_ops_to_arg_list(
             ctx, arg_list, 4, pd()->attr()->post_ops_);
 
-    const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
-            ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES)
-            : &CTX_GPU_RES_STORAGE(SCALES_);
+    const auto &scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
 
-    arg_list.set(arg_idx, *scales);
+    arg_list.set(arg_idx, scales);
 
     auto nd_range = conf.dispatch.nd_range();
 
