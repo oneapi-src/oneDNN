@@ -1,5 +1,10 @@
-#bert.tr.bf16.pt.mb16
---reset --allow-enum-tags-only=0 --dt=bf16 --flags=S --dir=FWD_D --tag=abc 1x8192x1024n"bert.tr.bf16.pt.mb16*1"
---reset --allow-enum-tags-only=0 --dt=bf16 --flags=S --dir=FWD_D --tag=ab 8192x1024n"bert.tr.bf16.pt.mb16*89"
---reset --allow-enum-tags-only=0 --dt=bf16 --flags=S --dir=BWD_DW --tag=ab 8192x1024n"bert.tr.bf16.pt.mb16*98"
---reset --allow-enum-tags-only=0 --dt=bf16 --flags=S --dir=BWD_DW --tag=abc 1x8192x1024n"bert.tr.bf16.pt.mb16*2"
+#bert.inf.fp16.pt.mb64_pvc
+--reset --allow-enum-tags-only=0 --dt=f16 --flags=S --dir=FWD_I --tag=abc 1x24576x1024n"bert.inf.fp16.pt.mb64_pvc*49"
+#bert.inf.fp16.tf.mb64_pvc
+--reset --allow-enum-tags-only=0 --dt=f16 --flags=CH --dir=FWD_I --tag=abc 64x384x1024n"bert.inf.fp16.tf.mb64_pvc*1"
+--reset --allow-enum-tags-only=0 --dt=f16 --flags=CH --dir=FWD_I --tag=ab 24576x1024n"bert.inf.fp16.tf.mb64_pvc*48"
+#bert.inf.fp32.pt.mb64_pvc
+--reset --allow-enum-tags-only=0 --dt=f32 --flags=S --dir=FWD_D --tag=abc 1x24576x1024n"bert.inf.fp32.pt.mb64_pvc*49"
+#bert.tr.bf16.pt.mb16_pvc
+--reset --allow-enum-tags-only=0 --dt=bf16 --flags=S --dir=FWD_D --tag=abc 1x8192x1024n"bert.tr.bf16.pt.mb16_pvc*799"
+--reset --allow-enum-tags-only=0 --dt=bf16 --flags=S --dir=BWD_DW --tag=abc 1x8192x1024n"bert.tr.bf16.pt.mb16_pvc*800"

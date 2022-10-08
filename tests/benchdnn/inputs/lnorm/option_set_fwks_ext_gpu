@@ -1,0 +1,11 @@
+#bert.inf.bf16.pt.mb64_pvc
+--reset --allow-enum-tags-only=0 --dt=bf16 --flags=S --dir=FWD_D --tag=abc 1x24576x1024n"bert.inf.bf16.pt.mb64_pvc*49"
+#bert.inf.bf16.tf.mb64_pvc
+--reset --allow-enum-tags-only=0 --dt=bf16 --flags=CH --dir=FWD_I --tag=abc 64x384x1024n"bert.inf.bf16.tf.mb64_pvc*1"
+--reset --allow-enum-tags-only=0 --dt=bf16 --flags=CH --dir=FWD_I --tag=ab 24576x1024n"bert.inf.bf16.tf.mb64_pvc*48"
+#bert.inf.fp32.tf.mb64_pvc
+--reset --allow-enum-tags-only=0 --dt=f32 --flags=CH --dir=FWD_I --tag=abc 64x384x1024n"bert.inf.fp32.tf.mb64_pvc*1"
+--reset --allow-enum-tags-only=0 --dt=f32 --flags=CH --dir=FWD_I --tag=ab 24576x1024n"bert.inf.fp32.tf.mb64_pvc*48"
+#gpt3p6b.tr.bf16.deepspeed.s13_pvc
+--reset --allow-enum-tags-only=0 --dt=bf16 --flags=S --dir=FWD_D --tag=abc 1x16384x3072n"gpt3p6b.tr.bf16.deepspeed.s13_pvc*121"
+--reset --allow-enum-tags-only=0 --dt=bf16 --flags=S --dir=BWD_DW --tag=abc 1x16384x3072n"gpt3p6b.tr.bf16.deepspeed.s13_pvc*61"

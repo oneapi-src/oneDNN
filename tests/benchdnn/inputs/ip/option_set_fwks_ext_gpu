@@ -1,0 +1,22 @@
+#wide_and_deep.tr.fp32.tf.mb262144_pvc
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb262144ic1024oc1024n"wide_and_deep.tr.fp32.tf.mb262144_pvc*4"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb262144ic1053oc1024n"wide_and_deep.tr.fp32.tf.mb262144_pvc*1"
+#anti-spoof-mn3.inf.int8.ov.mb32
+--reset --allow-enum-tags-only=0 --cfg=s8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0 mb32ic72ih1iw1oc24n"anti-spoof-mn3.inf.int8.ov.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+clip:0:6:65.9733 mb32ic24ih1iw1oc72n"anti-spoof-mn3.inf.int8.ov.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0 mb32ic120ih1iw1oc32n"anti-spoof-mn3.inf.int8.ov.mb32*2"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+clip:0:6:74.1848 mb32ic32ih1iw1oc120n"anti-spoof-mn3.inf.int8.ov.mb32*2"
+--reset --allow-enum-tags-only=0 --cfg=s8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0 mb32ic480ih1iw1oc120n"anti-spoof-mn3.inf.int8.ov.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+clip:0:6:69.1174 mb32ic120ih1iw1oc480n"anti-spoof-mn3.inf.int8.ov.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0 mb32ic672ih1iw1oc168n"anti-spoof-mn3.inf.int8.ov.mb32*2"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+clip:0:6:77.4188 mb32ic168ih1iw1oc672n"anti-spoof-mn3.inf.int8.ov.mb32*2"
+--reset --allow-enum-tags-only=0 --cfg=s8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0 mb32ic960ih1iw1oc240n"anti-spoof-mn3.inf.int8.ov.mb32*2"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+clip:0:6:73.4335 mb32ic240ih1iw1oc960n"anti-spoof-mn3.inf.int8.ov.mb32*2"
+--reset --allow-enum-tags-only=0 --cfg=s8s8f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0 mb32ic1280ih1iw1oc2n"anti-spoof-mn3.inf.int8.ov.mb32*1"
+#asl-recognition-0003.inf.int8.ov.mb32
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb32ic960ih1iw1oc256n"asl-recognition-0003.inf.int8.ov.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0 mb32ic256ih1iw1oc100n"asl-recognition-0003.inf.int8.ov.mb32*1"
+#asl-recognition-0004.inf.int8.ov.mb32
+--reset --allow-enum-tags-only=0 --cfg=s8s8f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0 mb32ic256ih1iw1oc100n"asl-recognition-0004.inf.int8.ov.mb32*1"
+#common-sign-language-0002.inf.int8.ov.mb32
+--reset --allow-enum-tags-only=0 --cfg=s8s8f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0 mb32ic256ih1iw1oc12n"common-sign-language-0002.inf.int8.ov.mb32*1"
