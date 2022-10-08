@@ -35,9 +35,10 @@ status_t xe_lp_gemm_t::launch_x8x8s32(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c, int offset_a,
         int offset_b, int offset_c, int lda, int ldb, int ldc, int m, int n,
-        int k, int beta, int ao, int bo, const memory_storage_t &co,
-        int offset_co, bool apply_co, bool apply_eltwise, float eltwise_alpha,
-        float eltwise_beta, float eltwise_scale, bool aligned) const {
+        int k, int beta, const memory_storage_t &ao, const memory_storage_t &bo,
+        const memory_storage_t &co, int offset_co, bool apply_co,
+        bool apply_eltwise, float eltwise_alpha, float eltwise_beta,
+        float eltwise_scale, bool aligned) const {
 
     auto &kernel = compute_x8x8s32_kernel_[aligned];
     assert(kernel);
@@ -105,10 +106,10 @@ status_t xe_lp_gemm_t::launch_x8x8s32(const gemm_exec_ctx_t &ctx,
 status_t xe_lp_gemm_t::launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &c_temp, const memory_storage_t &c, char offsetc,
-        int offset_c, int m, int n, int ldc, float alpha, float beta,
-        const memory_storage_t &co, int offset_co, bool alpha_is_zero,
-        bool apply_eltwise, float eltwise_alpha, float eltwise_beta,
-        float eltwise_scale) const {
+        int offset_c, int m, int n, int ldc, const memory_storage_t &alpha,
+        float beta, const memory_storage_t &co, int offset_co,
+        bool alpha_is_zero, bool apply_eltwise, float eltwise_alpha,
+        float eltwise_beta, float eltwise_scale) const {
 
     auto &kernel = scale_x8x8s32_kernel_;
 
@@ -182,14 +183,6 @@ status_t xe_lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     auto ldb = pd()->desc()->ldb();
     auto ldc = pd()->desc()->ldc();
 
-    const int *ao_i32 = nullptr;
-    const int *bo_i32 = nullptr;
-    pd()->attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
-    pd()->attr()->zero_points_.get(DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
-    auto ao = *ao_i32;
-    auto bo = *bo_i32;
-
-    auto alpha = pd()->alpha();
     auto beta = pd()->beta();
 
     auto eltwise_alpha = pd()->eltwise_alpha();
@@ -198,8 +191,15 @@ status_t xe_lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
 
     auto &a = GEMM_CTX_ARG_STORAGE(b);
     auto &b = GEMM_CTX_ARG_STORAGE(a);
-    auto &co = GEMM_CTX_ARG_STORAGE(c_zero_point);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
+
+    auto &empty_storage = memory_storage_t::empty_storage();
+    auto &scale = pd()->with_alpha() ? GEMM_CTX_ARG_STORAGE(output_scales)
+                                     : empty_storage;
+
+    auto &ao = GEMM_CTX_ARG_STORAGE(a_zero_point);
+    auto &bo = GEMM_CTX_ARG_STORAGE(b_zero_point);
+    auto &co = GEMM_CTX_ARG_STORAGE(c_zero_point);
 
     auto temp_buf = ctx.get_scratchpad_grantor().get_memory_storage(
             memory_tracking::names::key_gemm_tmp_buffer);
@@ -291,7 +291,7 @@ status_t xe_lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     bool alpha_is_zero = false;
     if (do_scale) {
         status = launch_scale_x8x8s32(ctx, compute_stream, *temp_buf, c,
-                offsetc_char, off_c0, m, n, ldc, alpha, beta, co, offset_co,
+                offsetc_char, off_c0, m, n, ldc, scale, beta, co, offset_co,
                 (int)alpha_is_zero, true, eltwise_alpha, eltwise_beta,
                 eltwise_scale);
         if (status) return status;

@@ -44,7 +44,7 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
                 const hint_class *)
             : gpu_gemm_pd_t(adesc, attr, nullptr) {}
 
-        DECLARE_COMMON_PD_T("ocl:gemm:any", xe_lp_gemm_t);
+        DECLARE_COMMON_PD_T("ocl:xe_lp_gemm:any", xe_lp_gemm_t);
         status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
@@ -55,8 +55,8 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops
-                    | smask_t::zero_points_runtime;
+            const auto attr_skip_mask = smask_t::oscale_runtime
+                    | smask_t::post_ops | smask_t::zero_points_runtime;
 
             bool ok = set_default_formats();
             if (!ok) return status::unimplemented;
@@ -122,11 +122,11 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
         }
 
         bool do_compute() const {
-            return ((desc()->k() > 0) && (alpha() != 0.0f));
+            return ((desc()->k() > 0) && (with_alpha()));
         }
 
         bool do_scale() const {
-            return !((desc()->k() > 0) && (alpha() == 1.0f)
+            return !((desc()->k() > 0) && (with_alpha())
                     && ((beta() == 0.0f) || (beta() == 1.0f)));
         }
 
@@ -173,7 +173,10 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
                     : dnnl_alg_kind_undef;
         }
 
-        float alpha() const { return attr()->output_scales_.scales_[0]; }
+        bool with_alpha() const {
+            const auto &osc = attr()->output_scales_;
+            return !osc.has_default_values();
+        }
 
         float beta() const {
             using namespace primitive_kind;
@@ -269,7 +272,8 @@ private:
             compute::compute_stream_t *s, const memory_storage_t &a,
             const memory_storage_t &b, const memory_storage_t &c, int offset_a,
             int offset_b, int offset_c, int lda, int ldb, int ldc, int m, int n,
-            int k, int beta, int ao, int bo, const memory_storage_t &co,
+            int k, int beta, const memory_storage_t &ao,
+            const memory_storage_t &bo, const memory_storage_t &co,
             int offset_co, bool apply_co, bool apply_eltwise,
             float eltwise_alpha, float eltwise_beta, float eltwise_scale,
             bool aligned) const;
@@ -277,9 +281,10 @@ private:
     status_t launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
             compute::compute_stream_t *s, const memory_storage_t &c_temp,
             const memory_storage_t &c, char offsetc, int offset_c, int m, int n,
-            int ldc, float alpha, float beta, const memory_storage_t &co,
-            int offset_co, bool alpha_is_zero, bool apply_eltwise,
-            float eltwise_alpha, float eltwise_beta, float eltwise_scale) const;
+            int ldc, const memory_storage_t &alpha, float beta,
+            const memory_storage_t &co, int offset_co, bool alpha_is_zero,
+            bool apply_eltwise, float eltwise_alpha, float eltwise_beta,
+            float eltwise_scale) const;
 
     virtual status_t execute_standard(const gemm_exec_ctx_t &ctx) const;
 
