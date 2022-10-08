@@ -54,7 +54,7 @@ status_t cross_engine_reorder_t::pd_t::init(
 
     if (src_mdw.has_runtime_dims_or_strides()) return status::unimplemented;
 
-    bool with_sum_ab = alpha() != 1.0 || beta() != 0.0;
+    bool with_sum_ab = with_alpha() || beta() != 0.0;
     do_reorder_ = with_sum_ab || src_mdw != dst_mdw;
 
     engine_t *reorder_engine
@@ -97,12 +97,15 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
                         std::move(scratchpad))));
     }
 
-    auto exec_reorder = [&](const memory_t *src_mem, const memory_t *dst_mem) {
+    auto exec_reorder = [&](const memory_t *src_mem, const memory_t *dst_mem,
+                                const memory_t *scales_mem) {
         exec_args_t r_args;
         r_args[DNNL_ARG_SRC]
                 = memory_arg_t {const_cast<memory_t *>(src_mem), true};
         r_args[DNNL_ARG_DST]
                 = memory_arg_t {const_cast<memory_t *>(dst_mem), false};
+        r_args[DNNL_ARG_ATTR_OUTPUT_SCALES]
+                = memory_arg_t {const_cast<memory_t *>(scales_mem), true};
 
         exec_ctx_t r_ctx(ctx, std::move(r_args));
 
@@ -120,7 +123,8 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
                         dst, *wspace->memory_storage(), dst_mdw.size());
             }
             if (status == status::success)
-                status = exec_reorder(ctx.input(DNNL_ARG_FROM), wspace.get());
+                status = exec_reorder(ctx.input(DNNL_ARG_FROM), wspace.get(),
+                        ctx.input(DNNL_ARG_ATTR_OUTPUT_SCALES));
         }
         if (status == status::success) {
             status = compute_stream->copy(
@@ -134,7 +138,8 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
                 pd()->do_reorder_ ? *wspace->memory_storage() : dst,
                 src_mdw.size());
         if (status == status::success && pd()->do_reorder_) {
-            status = exec_reorder(wspace.get(), ctx.output(DNNL_ARG_TO));
+            status = exec_reorder(wspace.get(), ctx.output(DNNL_ARG_TO),
+                    ctx.input(DNNL_ARG_ATTR_OUTPUT_SCALES));
         }
     }
     return status;
