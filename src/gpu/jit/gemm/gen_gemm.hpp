@@ -61,7 +61,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             // - runtime dims are not supported
             bool ok = true;
 
-            auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
+            auto attr_skip_mask = smask_t::post_ops;
 
             dev_info_ = compute_engine->device_info();
             arch_ = dev_info_->gpu_arch();
@@ -344,7 +344,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             return !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
         }
 
-        float alpha() const { return attr()->output_scales_.scales_[0]; }
+        float alpha() const { return 1.0f; }
 
         float beta() const {
             using namespace primitive_kind;

@@ -71,7 +71,7 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
                     : s32;
         }
 
-        float alpha() const { return attr()->output_scales_.scales_[0]; }
+        float alpha() const { return 1.0f; }
 
         float beta() const {
             using namespace primitive_kind;
