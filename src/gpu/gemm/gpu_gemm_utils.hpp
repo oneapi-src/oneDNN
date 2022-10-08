@@ -27,65 +27,6 @@ namespace impl {
 namespace gpu {
 namespace gemm_utils {
 
-inline status_t prepare_scales(const primitive_attr_t *attr, engine_t *engine,
-        std::unique_ptr<memory_storage_t> &mem_storage) {
-    mem_storage.reset();
-    status_t s = status::success;
-    const bool is_defined = attr->output_scales_.defined();
-
-    if (!is_defined) return status::success;
-
-    const dim_t count = attr->output_scales_.count_;
-    const float *s_data = attr->output_scales_.scales_;
-
-    const size_t size = count * sizeof(float);
-    memory_storage_t *mem_storage_ptr = nullptr;
-    s = engine->create_memory_storage(&mem_storage_ptr, size);
-    if (s != status::success) return s;
-    mem_storage.reset(mem_storage_ptr);
-
-    float *mapped_mem_storage = nullptr;
-    s = mem_storage->map_data(
-            (void **)&mapped_mem_storage, nullptr, sizeof(*s_data) * count);
-    if (s != status::success) return s;
-    utils::array_copy(mapped_mem_storage, s_data, count);
-    s = mem_storage->unmap_data((void *)mapped_mem_storage, nullptr);
-    if (s != status::success) return s;
-
-    return s;
-}
-
-inline status_t prepare_zero_points(const primitive_attr_t *attr,
-        engine_t *engine, int arg,
-        std::unique_ptr<memory_storage_t> &mem_storage) {
-    mem_storage.reset();
-    status_t s = status::success;
-    const bool is_defined = attr->zero_points_.defined(arg);
-
-    if (!is_defined) return status::success;
-
-    dim_t count = 0;
-    const int *zp_data = nullptr;
-    s = attr->zero_points_.get(arg, &count, nullptr, &zp_data);
-    if (s != status::success) return s;
-
-    const size_t size = count * sizeof(int);
-    memory_storage_t *mem_storage_ptr = nullptr;
-    s = engine->create_memory_storage(&mem_storage_ptr, size);
-    if (s != status::success) return s;
-    mem_storage.reset(mem_storage_ptr);
-
-    int *mapped_mem_storage = nullptr;
-    s = mem_storage->map_data(
-            (void **)&mapped_mem_storage, nullptr, sizeof(*zp_data) * count);
-    if (s != status::success) return s;
-    utils::array_copy(mapped_mem_storage, zp_data, count);
-    s = mem_storage->unmap_data((void *)mapped_mem_storage, nullptr);
-    if (s != status::success) return s;
-
-    return s;
-}
-
 inline const gpu_gemm_t *gpu_gemm(const std::shared_ptr<primitive_t> &p) {
     return utils::downcast<gpu_gemm_t *>(p.get());
 }
