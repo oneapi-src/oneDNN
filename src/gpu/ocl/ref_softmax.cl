@@ -88,8 +88,8 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 #endif
 
 __kernel void
-ref_softmax_fwd_generic(
-        __global SRC_DATA_T *src, __global DATA_T *dst, __global float *scale) {
+ref_softmax_fwd_generic(__global SRC_DATA_T *src, __global DATA_T *dst,
+        __global float *scales) {
 
     const int dim[] = {
             (get_global_id(0) / GROUP_SIZE) % BLOCK_0,
@@ -99,6 +99,12 @@ ref_softmax_fwd_generic(
             get_global_id(1) / BLOCK_1,
             get_global_id(2) / BLOCK_2,
     };
+
+    float scale = 1.0f;
+#if WITH_SCALES
+    scale = scales[0];
+#endif
+
 #if SUB_GROUP_SIZE == 16
     const int local_id = get_local_id(0);
 
@@ -195,9 +201,9 @@ ref_softmax_fwd_generic(
             unscaled = d[i - begin] * denom_;
 #endif
 #if DT_S8 == 1 || DT_U8 == 1
-            dst[data_off] = REF_TO_DST(round(scale[0] * unscaled));
+            dst[data_off] = REF_TO_DST(round(scale * unscaled));
 #else
-            dst[data_off] = REF_TO_DST(scale[0] * unscaled);
+            dst[data_off] = REF_TO_DST(scale * unscaled);
 #endif
         }
     }

@@ -31,10 +31,8 @@ status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
     arg_list.set(0, src);
     arg_list.set(1, dst);
 
-    const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
-            ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES)
-            : &CTX_GPU_RES_STORAGE(SCALES_);
-    arg_list.set(2, *scales);
+    const auto &scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
+    arg_list.set(2, scales);
 
     if (pd()->group_size > 1) {
         auto nd_range = compute::nd_range_t(pd()->gws, pd()->lws);
