@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/gemm/ocl_gemm_attrs.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
@@ -140,7 +141,7 @@
     do { \
         if (jrem > 0) \
             if (irem > i) { \
-                float val = alpha * c[i / 4].s##ii \
+                float val = ATTR_ALPHA * c[i / 4].s##ii \
                         + ((betaZero) ? 0 : beta * *C); \
                 POST_OP(val); \
                 *C = val; \
@@ -152,13 +153,13 @@
     do { \
         if (irem > i) { \
             if (jrem > 0) { \
-                float val = alpha * c[i / 4][0].s##ii \
+                float val = ATTR_ALPHA * c[i / 4][0].s##ii \
                         + ((betaZero) ? 0 : beta * *(C_ptrs[0])); \
                 POST_OP(val); \
                 *(C_ptrs[0]) = val; \
             } \
             if (jrem > 16) { \
-                float val = alpha * c[i / 4][1].s##ii \
+                float val = ATTR_ALPHA * c[i / 4][1].s##ii \
                         + ((betaZero) ? 0 : beta * *(C_ptrs[1])); \
                 POST_OP(val); \
                 *(C_ptrs[1]) = val; \
@@ -229,7 +230,7 @@ __attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
-        int m, int n, int k, float alpha, float beta, int last_k_block,
+        int m, int n, int k, global float *alpha, float beta, int last_k_block,
         float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
@@ -375,7 +376,7 @@ __attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
-        int m, int n, int k, float alpha, float beta, int last_k_block,
+        int m, int n, int k, global float *alpha, float beta, int last_k_block,
         float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
@@ -528,7 +529,7 @@ __attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
-        int m, int n, int k, float alpha, float beta, int last_k_block,
+        int m, int n, int k, global float *alpha, float beta, int last_k_block,
         float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
@@ -644,7 +645,7 @@ __attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
 kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
-        int m, int n, int k, float alpha, float beta, int last_k_block,
+        int m, int n, int k, global float *alpha, float beta, int last_k_block,
         float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,

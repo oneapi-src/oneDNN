@@ -14,10 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/gemm/ocl_gemm_attrs.h"
 #include "gpu/ocl/ocl_types.h"
 
 __kernel void gen9_gemm_copy(long m, long n, __global SRC_DATA_T *a,
-        long offseta, long lda, float alpha, __global DATA_T *b, long offsetb) {
+        long offseta, long lda, __global float *alpha, __global DATA_T *b,
+        long offsetb) {
     int idx = get_group_id(0);
     int idy = get_group_id(1) * COPY_UNROLL;
     int i;
@@ -33,7 +35,8 @@ __kernel void gen9_gemm_copy(long m, long n, __global SRC_DATA_T *a,
     n -= idy;
 
     for (i = 0; i < COPY_UNROLL; i++) {
-        b[offsetb] = (i < n) ? (alpha * SRC_TO_REF(a[offseta])) : DATA_ZERO;
+        b[offsetb]
+                = (i < n) ? (ATTR_ALPHA * SRC_TO_REF(a[offseta])) : DATA_ZERO;
 
 #ifdef USE_TRANS
         offseta++;

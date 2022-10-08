@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/gemm/ocl_gemm_attrs.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
@@ -118,7 +119,7 @@
     do { \
         if (jrem > 0) \
             if (irem > i) { \
-                float val = alpha * c[i / 4].s##ii \
+                float val = ATTR_ALPHA * c[i / 4].s##ii \
                         + ((betaZero) ? 0 : beta * *C); \
                 POST_OP(val); \
                 *C = val; \
@@ -202,8 +203,8 @@ kernel void
 gen9_gemm_nocopy_superkernel_f32(global int *plan, int threads,
         global float *A0, global float *B0, global float *C0, long offsetA,
         long offsetB, long offsetC, int lda, int ldb, int ldc, int m, int n,
-        int k, float alpha, float beta, int last_k_block, float eltwise_alpha,
-        float eltwise_beta, float eltwise_scale) {
+        int k, global float *alpha, float beta, int last_k_block,
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale) {
     SUPERKERNEL_PROLOGUE
 
     float2 a[4]; // 32 x 4  block of A, 4x 32x1 block accesses
@@ -310,8 +311,8 @@ kernel void
 gen9_gemm_nocopy_superkernel_f32(global int *plan, int threads,
         global float *A0, global float *B0, global float *C0, long offsetA,
         long offsetB, long offsetC, int lda, int ldb, int ldc, int m, int n,
-        int k, float alpha, float beta, int last_k_block, float eltwise_alpha,
-        float eltwise_beta, float eltwise_scale) {
+        int k, global float *alpha, float beta, int last_k_block,
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale) {
     SUPERKERNEL_PROLOGUE
 
     float2 a[2]; // 32 x 2  block of A, 2x 32x1 block accesses

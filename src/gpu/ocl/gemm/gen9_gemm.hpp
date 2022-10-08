@@ -74,7 +74,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
+            const auto attr_skip_mask
+                    = smask_t::oscale_runtime | smask_t::post_ops;
 
             dev_info_ = compute_engine->device_info();
             arch_ = dev_info_->gpu_arch();
@@ -267,7 +268,9 @@ struct gen9_gemm_t : public gpu_gemm_t {
                     : 1.0f;
         }
 
-        float alpha() const { return attr()->output_scales_.scales_[0]; }
+        bool with_alpha() const {
+            return !attr()->output_scales_.has_default_values();
+        }
 
         float beta() const {
             using namespace primitive_kind;
@@ -541,8 +544,8 @@ private:
     status_t launch_copy(const gemm_exec_ctx_t &ctx,
             compute::compute_stream_t *s, int64_t m, int64_t n,
             const memory_storage_t &a, int64_t offseta, int64_t lda,
-            float alpha, const memory_storage_t &b, int64_t offsetb, bool outer,
-            bool trans) const;
+            const memory_storage_t &alpha, const memory_storage_t &b,
+            int64_t offsetb, bool outer, bool trans) const;
 
     status_t launch_compute(const gemm_exec_ctx_t &ctx,
             compute::compute_stream_t *s, int64_t m, int64_t n, int64_t k,
@@ -556,8 +559,8 @@ private:
             const memory_storage_t &b, const memory_storage_t &c,
             int64_t offset_a, int64_t offset_b, int64_t offset_c, int32_t lda,
             int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
-            float alpha, float beta, int last_k_block, float eltwise_alpha,
-            float eltwise_beta, float eltwise_scale,
+            const memory_storage_t &alpha, float beta, int last_k_block,
+            float eltwise_alpha, float eltwise_beta, float eltwise_scale,
             memory_storage_t &flag) const;
 
     status_t launch_nocopy_superkernel(const gemm_exec_ctx_t &ctx,
@@ -566,8 +569,8 @@ private:
             const memory_storage_t &b, const memory_storage_t &c,
             int64_t offset_a, int64_t offset_b, int64_t offset_c, int32_t lda,
             int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
-            float alpha, float beta, int last_k_block, float eltwise_alpha,
-            float eltwise_beta, float eltwise_scale) const;
+            const memory_storage_t &alpha, float beta, int last_k_block,
+            float eltwise_alpha, float eltwise_beta, float eltwise_scale) const;
 
     virtual status_t execute_standard(const gemm_exec_ctx_t &ctx) const;
     virtual status_t execute_superkernel(const gemm_exec_ctx_t &ctx) const;
