@@ -93,6 +93,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_concurrency.cpp
                               test_layer_normalization.cpp
                               test_lrn.cpp
+                              test_prelu.cpp
                               )
 
 if(DNNL_CPU_RUNTIME STREQUAL "NONE")
