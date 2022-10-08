@@ -16,6 +16,7 @@
 #include "gpu/ocl/ocl_math_utils.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
+
 #if defined(DST_DT_BF16)
 #define DST_TO_ACC(x) cvt_bf16_to_f32(x)
 #else

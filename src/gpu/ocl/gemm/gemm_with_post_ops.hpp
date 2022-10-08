@@ -55,7 +55,6 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
         bool use_reorder = false;
         compute::dispatch_t dispatch_;
         attr_info_t attr_info_;
-        float scale_ = 1;
     };
 
     status_t init(engine_t *engine) override {
@@ -72,32 +71,10 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
 
     status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
-protected:
-    status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override {
-        const auto *attr = pd()->attr();
-        std::unique_ptr<memory_storage_t> tmp_mem_storage;
-        //TODO: Add zero points support
-        for (const auto idx : {A0_, B0_, C0_}) {
-            CHECK(gemm_utils::prepare_zero_points(
-                    attr, engine, idx, tmp_mem_storage));
-            r->add_memory_storage(idx, std::move(tmp_mem_storage));
-        }
-        CHECK(gemm_utils::prepare_scales(attr, engine, tmp_mem_storage));
-        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
-        return status::success;
-    }
-
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> gemm_prim_;
     compute::kernel_t post_process_kernel_;
-    enum {
-        A0_ = DNNL_ARG_A,
-        B0_ = DNNL_ARG_B,
-        C0_ = DNNL_ARG_C,
-        SCALES_ = DNNL_ARG_ATTR_OUTPUT_SCALES
-    };
 };
 
 } // namespace ocl
