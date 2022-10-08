@@ -57,7 +57,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
 
             const primitive_attr_t::skip_mask_t attr_skip_mask
-                    = primitive_attr_t::skip_mask_t::oscale
+                    = primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops;
 
             bool ok = is_fwd() && set_default_params() == success
@@ -94,9 +94,6 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
 
             status_t scratchpad_status = init_ip_scratchpad_md();
             if (scratchpad_status != success) return scratchpad_status;
-
-            status_t scales_status = init_scales_md();
-            if (scales_status != success) return scales_status;
             init_scratchpad();
 
             return success;
@@ -118,7 +115,6 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
         const memory_desc_t *ip_scratchpad_md() const {
             return &ip_scratchpad_md_;
         }
-        const memory_desc_t *scales_md() const { return &scales_md_; }
 
         status_t init_ip_scratchpad_md() {
             if (use_scratchpad()) {
@@ -137,20 +133,8 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_scales_md() {
-            if (attr_info_.with_oscales) {
-                scales_md_.data_type = data_type::f32;
-                scales_md_.ndims = 1;
-                scales_md_.dims[0] = attr()->output_scales_.count_;
-                return memory_desc_init_by_tag(scales_md_, format_tag::x);
-            }
-
-            return status::success;
-        }
-
         std::shared_ptr<primitive_desc_t> gemm_pd_;
 
-        memory_desc_t scales_md_;
         memory_desc_t ip_scratchpad_md_;
         bool is_int8_ = false;
         attr_info_t attr_info_ = {};
@@ -219,34 +203,12 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
         return execute_forward(ctx);
     }
 
-protected:
-    status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override {
-        if (!pd()->attr_info_.with_oscales) return status::success;
-        memory_desc_wrapper scales_mdw(pd()->scales_md());
-        memory_storage_t *tmp_mem_storage_ptr;
-        CHECK(engine->create_memory_storage(
-                &tmp_mem_storage_ptr, scales_mdw.nelems() * sizeof(float)));
-
-        std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
-        void *scales_ptr = nullptr;
-        CHECK(tmp_mem_storage->map_data(&scales_ptr, nullptr,
-                sizeof(float) * pd()->attr()->output_scales_.count_));
-        utils::array_copy((float *)scales_ptr,
-                pd()->attr()->output_scales_.scales_,
-                pd()->attr()->output_scales_.count_);
-        CHECK(tmp_mem_storage->unmap_data(scales_ptr, nullptr));
-        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
-        return status::success;
-    }
-
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::shared_ptr<primitive_t> gemm_;
     compute::kernel_t post_process_kernel_;
-    enum { SCALES_ = 0 };
 };
 
 } // namespace ocl
