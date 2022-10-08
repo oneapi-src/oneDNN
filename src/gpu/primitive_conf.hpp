@@ -175,6 +175,7 @@ struct attr_info_t {
         // zero points
         const auto &zp = attr->zero_points_;
         attr_info.with_src_zpoints = !zp.has_default_values(DNNL_ARG_SRC);
+        attr_info.with_wei_zpoints = !zp.has_default_values(DNNL_ARG_WEIGHTS);
         attr_info.with_dst_zpoints = !zp.has_default_values(DNNL_ARG_DST);
 
         attr_info.with_per_ic_src_zpoints = attr_info.with_src_zpoints
@@ -224,6 +225,7 @@ struct attr_info_t {
     float src1_scale;
 
     bool with_src_zpoints;
+    bool with_wei_zpoints;
     bool with_dst_zpoints;
     bool with_per_ic_src_zpoints;
     bool with_per_oc_dst_zpoints;
@@ -1356,6 +1358,7 @@ inline void def_attr_info(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("SCALES_COMMON", attr_info.with_common_oscales);
 
     kernel_ctx.define_int("WITH_SRC_ZPOINTS", attr_info.with_src_zpoints);
+    kernel_ctx.define_int("WITH_WEI_ZPOINTS", attr_info.with_wei_zpoints);
     kernel_ctx.define_int("WITH_DST_ZPOINTS", attr_info.with_dst_zpoints);
     kernel_ctx.define_int("SRC_ZPOINT_COMMON", attr_info.common_src_zpoint);
     kernel_ctx.define_int("DST_ZPOINT_COMMON", attr_info.common_dst_zpoint);
