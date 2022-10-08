@@ -24,3 +24,6 @@
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=BWD_D --alg=linear --tag=acdb mb4ic40_ih40oh80_iw64ow128n"cosmictagger.tr.fp32.pt.mb4*3"
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=BWD_D --alg=linear --tag=acdb mb4ic48_ih20oh40_iw32ow64n"cosmictagger.tr.fp32.pt.mb4*3"
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=BWD_D --alg=linear --tag=acdb mb4ic56_ih10oh20_iw16ow32n"cosmictagger.tr.fp32.pt.mb4*3"
+#yolo.inf.int8.pt.mb64
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --dir=FWD_D --alg=nearest --tag=ABcd32a32b mb64ic256_ih13oh26_iw13ow26n"yolo.inf.int8.pt.mb64*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --dir=FWD_D --alg=nearest --tag=ABcd32a32b mb64ic128_ih26oh52_iw26ow52n"yolo.inf.int8.pt.mb64*1"

@@ -55,3 +55,7 @@
 --p=1,2 --eps=0.5
 --alg=norm_lp_sum
 --batch=shapes_gpu_small_set
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu
