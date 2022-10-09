@@ -2330,6 +2330,145 @@ TEST(PatternMatcher, RepetitionOportExternalOutput) {
     EXPECT_EQ(fusion_ops.size(), 5U);
 }
 
+TEST(PatternMatcher, OptionalCommutative) {
+    /*
+    pattern:
+          relu
+           |   \
+         Conv   |
+           |    |
+  [0-1]*BiasAdd |
+           |   /
+          Add
+    graph:
+          relu
+        /  |
+       |  Conv
+       |   |
+       | BiasAdd*[0-1]
+        \  |
+          Add
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+
+    auto prelu = graphp->append_op(impl::op_kind::ReLU);
+    auto pconv = graphp->append_op(
+            impl::op_kind::Convolution, in_edges_t {in_edge(0, prelu, 0)});
+    auto biasadd_subgraph = std::make_shared<pb_graph_t>("biasadd_subgraph");
+    auto biasadd
+            = biasadd_subgraph->append_op(impl::op_kind::BiasAdd, "biasadd");
+    biasadd_subgraph->create_input_port(0, biasadd, 0);
+    biasadd_subgraph->create_output_port(0, biasadd, 0);
+    auto optional_biasadd = graphp->append_optional(
+            biasadd_subgraph, in_edges_t {in_edge(0, pconv, 0)});
+
+    in_edges_t add_in_edges = in_edges_t {in_edge(0, optional_biasadd, 0)};
+    add_in_edges.emplace_back(in_edge(1, prelu, 0));
+    auto padd = graphp->append_op(impl::op_kind::Add, add_in_edges);
+    UNUSED(padd);
+
+    graph_t agraph;
+    op_t relu {0, ReLU, "relu"};
+    op_t conv {1, Convolution, "conv"};
+    set_conv_common_attr(conv);
+    op_t bias {2, BiasAdd, "bias"};
+    op_t add {3, Add, "add"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
+    relu.add_input(lt_vec[0]);
+    relu.add_output(lt_vec[1]);
+    conv.add_input(lt_vec[1]);
+    conv.add_input(lt_vec[2]);
+    conv.add_output(lt_vec[3]);
+    bias.add_input(lt_vec[3]);
+    bias.add_input(lt_vec[4]);
+    bias.add_output(lt_vec[5]);
+    add.add_input(lt_vec[1]);
+    add.add_input(lt_vec[5]);
+    add.add_output(lt_vec[6]);
+
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&bias), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    EXPECT_EQ(fusion_ops.size(), 4U);
+}
+
+TEST(PatternMatcher, AlternativeCommutative) {
+    /*
+    pattern:
+          relu______________
+           |                \
+         Conv               |
+           |                |
+  [0-1]*(ReLU|Tanh|Sigmoid) |
+           |  ______________/
+           | /
+          Add
+    graph:
+          relu
+        /  |
+       |  Conv
+       |   |
+       | [0-1]*(ReLU|Tanh|Sigmoid)
+        \  |
+          Add
+    */
+    auto graphp = std::make_shared<pb_graph_t>("pgraph");
+
+    auto prelu = graphp->append_op(impl::op_kind::ReLU);
+    auto pconv = graphp->append_op(
+            impl::op_kind::Convolution, in_edges_t {in_edge(0, prelu, 0)});
+    auto palt_subgraph = std::make_shared<pb_graph_t>("alt_subgraph");
+    auto palt = palt_subgraph->append_alternation(
+            {impl::op_kind::ReLU, impl::op_kind::Tanh, impl::op_kind::Sigmoid},
+            "alt");
+    palt_subgraph->create_input_port(0, palt, 0);
+    palt_subgraph->create_output_port(0, palt, 0);
+    auto optional_biasadd = graphp->append_optional(
+            palt_subgraph, in_edges_t {in_edge(0, pconv, 0)});
+
+    in_edges_t add_in_edges = in_edges_t {in_edge(0, optional_biasadd, 0)};
+    add_in_edges.emplace_back(in_edge(1, prelu, 0));
+    auto padd = graphp->append_op(impl::op_kind::Add, add_in_edges);
+    UNUSED(padd);
+
+    graph_t agraph;
+    op_t relu {0, ReLU, "relu"};
+    op_t conv {1, Convolution, "conv"};
+    set_conv_common_attr(conv);
+    op_t relu2 {2, ReLU, "relu2"};
+    op_t add {3, Add, "add"};
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
+    relu.add_input(lt_vec[0]);
+    relu.add_output(lt_vec[1]);
+    conv.add_input(lt_vec[1]);
+    conv.add_input(lt_vec[2]);
+    conv.add_output(lt_vec[3]);
+    relu2.add_input(lt_vec[3]);
+    relu2.add_output(lt_vec[4]);
+    add.add_input(lt_vec[1]);
+    add.add_input(lt_vec[4]);
+    add.add_output(lt_vec[5]);
+
+    ASSERT_EQ(agraph.add_op(&relu), status::success);
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&relu2), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+
+    agraph.build_graph();
+
+    std::vector<op_t *> fusion_ops;
+    EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
+    EXPECT_EQ(fusion_ops.size(), 4U);
+}
+
 TEST(PatternMatcher, CreateOutputPort) {
     auto post_subgraph = std::make_shared<pb_graph_t>("post_subgraph");
     std::vector<impl::op_kind_t> unary_binary

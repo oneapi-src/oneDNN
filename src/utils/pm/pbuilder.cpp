@@ -123,6 +123,7 @@ decision_function pb_node_t::get_decision_function(size_t index) {
 
 pb_op_t::pb_op_t(const decision_function &p_fn) {
     node_kind_ = pb_node_kind::PB_NODE_KIND_OP;
+    p_ops_.insert(this);
     if (p_fn) { decision_functions_.emplace_back(p_fn); }
 }
 
@@ -235,6 +236,7 @@ pb_op_t *pb_graph_t::append_op(const decision_function &p_fn,
     p_op->set_name(std::move(name));
     connect_edges(p_op.get(), p_in_edges);
     nodes_.push_back(dynamic_pointer_cast<pb_node_t>(p_op));
+    p_ops_.insert(p_op.get());
     return p_op.get();
 }
 
@@ -273,6 +275,8 @@ alternation_t *pb_graph_t::append_alternation(
     p_alternation->set_name(std::move(name));
     connect_edges(p_alternation.get(), p_in_edges);
     nodes_.push_back(dynamic_pointer_cast<pb_node_t>(p_alternation));
+    auto contained_ops = p_alternation->get_contained_ops();
+    p_ops_.insert(contained_ops.begin(), contained_ops.end());
     return p_alternation.get();
 }
 
@@ -290,6 +294,8 @@ repetition_t *pb_graph_t::append_repetition(std::shared_ptr<pb_graph_t> p_node,
     p_repetition->set_name(std::move(name));
     connect_edges(p_repetition.get(), p_in_edges);
     nodes_.push_back(dynamic_pointer_cast<pb_node_t>(p_repetition));
+    auto contained_ops = p_repetition->get_contained_ops();
+    p_ops_.insert(contained_ops.begin(), contained_ops.end());
     return p_repetition.get();
 }
 
@@ -331,6 +337,10 @@ repetition_t *pb_graph_t::append_optional(
 alternation_t::alternation_t(std::vector<std::shared_ptr<pb_graph_t>> p_nodes)
     : alternatives_ {std::move(p_nodes)} {
     node_kind_ = pb_node_kind::PB_NODE_KIND_ALTERNATION;
+    for (const auto &node : alternatives_) {
+        auto contained_ops = node->get_contained_ops();
+        p_ops_.insert(contained_ops.begin(), contained_ops.end());
+    }
 }
 
 std::vector<pb_graph_t *> alternation_t::get_alternatives() {
@@ -348,12 +358,16 @@ repetition_t::repetition_t(std::shared_ptr<pb_graph_t> p_node, port_map p_map,
     , min_rep_ {min_rep}
     , max_rep_ {max_rep} {
     node_kind_ = pb_node_kind::PB_NODE_KIND_REPETITION;
+    auto contained_ops = body_->get_contained_ops();
+    p_ops_.insert(contained_ops.begin(), contained_ops.end());
 }
 
 repetition_t::repetition_t(std::shared_ptr<pb_graph_t> p_node)
     : body_ {std::move(p_node)}, min_rep_ {0}, max_rep_ {2} {
     node_kind_ = pb_node_kind::PB_NODE_KIND_REPETITION;
     port_map_ = {0, 0};
+    auto contained_ops = body_->get_contained_ops();
+    p_ops_.insert(contained_ops.begin(), contained_ops.end());
 }
 
 pb_graph_t *repetition_t::get_body() {

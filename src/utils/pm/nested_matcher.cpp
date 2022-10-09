@@ -602,7 +602,13 @@ bool match_graph_helper(const binding_t &local_bind, match_context_t *ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     if (local_bind.bind_node->get_node_kind()
             != pb_node_kind::PB_NODE_KIND_OP) {
-        if (matched_op_map.count(local_bind.bind_op)) return true;
+        // if current op has been visited
+        if (matched_op_map.count(local_bind.bind_op)) {
+            auto contained_ops = local_bind.bind_node->get_contained_ops();
+            if (contained_ops.find(matched_op_map[local_bind.bind_op])
+                    != contained_ops.end())
+                return true;
+        }
         if (!resolve_node(local_bind, ctx, matched_op_map)) return false;
     } else {
         pb_op_t *bind_pb_op = dynamic_cast<pb_op_t *>(local_bind.bind_node);
