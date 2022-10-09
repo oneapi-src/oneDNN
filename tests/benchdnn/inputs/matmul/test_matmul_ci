@@ -32,8 +32,8 @@
 
 # Zero-points check
 --cfg=s8s8s8,u8s8f32,u8s8bf16
---attr-zero-points=src:common:1+wei:common:-1+dst:common:2, \
-                   src:common:-1+wei:common:1, \
+--attr-zero-points=src:common:1*+wei:common:-1*+dst:common:2*, \
+                   src:common:-1*+wei:common:1*, \
                    src:per_dim_1:-1*+wei:common:1*+dst:common:2*
 --batch=shapes_2d_ci
 --batch=shapes_3d

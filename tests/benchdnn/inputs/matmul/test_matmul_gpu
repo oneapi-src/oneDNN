@@ -45,7 +45,7 @@
 --bia_dt=undef,u8
 --stag=ba --wtag=ab,ba --dtag=ab
 --attr-oscale=common:2*
---attr-zero-points=src:common:1+wei:common:-2+dst:common:3*
+--attr-zero-points=src:common:1+wei:common:-2*+dst:common:3*
 --attr-post-ops=sum+relu+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_tensor
 10x100:100x10:10x10
 
