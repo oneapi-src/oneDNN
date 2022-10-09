@@ -176,13 +176,18 @@ void fill_buffer(void *src, size_t total_size, int val) {
 }
 
 #ifdef DNNL_WITH_SYCL
+
+template <typename dtype>
+class init_kernel;
+
 template <typename dtype>
 void fill_buffer(sycl::queue &q, void *usm_buffer, size_t length, dtype value) {
     dtype *usm_buffer_casted = static_cast<dtype *>(usm_buffer);
-    q.parallel_for(sycl::range<1>(length), [=](sycl::id<1> i) {
-         int idx = (int)i[0];
-         usm_buffer_casted[idx] = value;
-     }).wait();
+    auto ker = [=](sycl::id<1> i) {
+        int idx = (int)i[0];
+        usm_buffer_casted[idx] = value;
+    };
+    q.parallel_for<init_kernel<dtype>>(sycl::range<1>(length), ker).wait();
 }
 #endif
 
