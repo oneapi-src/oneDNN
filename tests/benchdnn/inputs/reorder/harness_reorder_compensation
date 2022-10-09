@@ -2,7 +2,7 @@
 --reset
 --sdt=f32
 --ddt=s8
---attr-oscale=,common:2,per_dim_0:2,per_dim_1:3,per_dim_01:3,per_tensor:0.7
+--attr-oscale=,common:2*,per_dim_0:2*,per_dim_1:3*,per_dim_01:3*,per_tensor:0.7*
 --oflag=,s8s8_comp:1,zp_comp:1,s8s8_comp:1+zp_comp:1
 --stag=abx,xba,bxa
 --dtag=xba,ABx2b8a4b,ABx4a4b,ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
@@ -16,7 +16,7 @@
 --ddt=s8
 
 # Non-grouped cases
---attr-oscale=,common:2
+--attr-oscale=,common:2*
 --oflag=,s8s8_comp:1,zp_comp:1,s8s8_comp:1+zp_comp:1
 --stag=abx,xba,bxa
 --dtag=xba,ABx2b8a4b,ABx4a4b,ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
@@ -29,7 +29,7 @@
 # Special case: no general 0D-spatial support
 --dtag=ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
 80x24
---attr-oscale=per_dim_01:1 --dtag=ABc2b8a4b 4x4x1
+--attr-oscale=per_dim_01:1* --dtag=ABc2b8a4b 4x4x1
 
 # Following tags have no s8s8 compensation support.
 --attr-oscale=
@@ -43,7 +43,7 @@
 --dtag=Adcb16a 32x32x3x3
 
 # Grouped cases
---attr-oscale=,common:2
+--attr-oscale=,common:2*
 --oflag=,s8s8_comp:3,zp_comp:3,s8s8_comp:3+zp_comp:3
 --stag=abx,xcab
 --dtag=xcab        2x32x32x3 2x32x32x3x3 16x32x32x3x3x3

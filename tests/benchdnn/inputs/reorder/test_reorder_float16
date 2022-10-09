@@ -23,6 +23,6 @@
 --stag=aBCde4c8b2c 4x16x16x3x3 2x16x6x3x2 2x2x10x2x3
 
 --reset
---attr-oscale=per_dim_1:0.5
+--attr-oscale=per_dim_1:0.5*
 --sdt=f32 --ddt=f16 3x5x7x11
 --sdt=f16 --ddt=f32 3x5x7x11

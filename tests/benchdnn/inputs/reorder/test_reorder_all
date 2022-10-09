@@ -5,23 +5,23 @@
 --sdt=f32,s32,s8,u8
 --ddt=f32,s32,s8,u8
 
---attr-oscale=per_dim_1:0.
+--attr-oscale=per_dim_1:0.5*
 --stag=abx,axb,aBx4b,aBx8b,aBx16b
 --dtag=abx,axb,aBx8b,aBx16b
 2x64x3x3
 
 --stag=abx,axb,aBx16b
 --dtag=abx,axb,aBx16b
---attr-oscale=,per_dim_1:0.
+--attr-oscale=,per_dim_1:0.5*
 --attr-post-ops=sum:0.5
 2x64x1x1
 
---attr-oscale=per_dim_0:0.
+--attr-oscale=per_dim_0:0.5*
 --stag=abx,xba
 --dtag=abx,xba
 2x64x3x3
 
---attr-oscale=per_dim_01:0.
+--attr-oscale=per_dim_01:0.5*
 --stag=abx,gOIhw16i16o
 --dtag=abx,gOIhw16i16o
 3x32x32x2x2
@@ -31,7 +31,7 @@
 --stag=aBx16b      --dtag=aBx8b  2x40x3x3
 --stag=ab --dtag=AB16b16a2b 16x63
 
---attr-oscale=common:0.
+--attr-oscale=common:0.25*
 --stag=abx,axb
 --dtag=abx,axb
 2x8x8 # special 8x8 kernel
