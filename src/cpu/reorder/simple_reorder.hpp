@@ -76,7 +76,8 @@ struct conv_req_comp {}; // {s8, u8: asymmetric quantization}
     MAYBE_UNUSED(scratchpad); \
     const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM, pd->src_md()); \
     const auto output_d = ctx.memory_mdw(DNNL_ARG_TO, pd->dst_md()); \
-    const float alpha = pd->alpha(); \
+    DEFINE_SCALES_BUFFER_ATTR(pd->attr(), scales); \
+    const float alpha = scales[0]; \
     MAYBE_UNUSED(alpha); \
     const float beta = pd->beta(); \
     MAYBE_UNUSED(beta);
@@ -187,7 +188,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t H = w_height ? dims[w_groups + w_depth + 2] : 1;
         const dim_t W = dims[w_groups + w_depth + w_height + 2];
 
-        DEFINE_SCALES_BUFFER_ATTR(pd->attr(), scales);
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
         const bool has_asymmetric_comp = output_d.extra().flags
@@ -394,7 +394,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         // TODO: Such masks can be either prohibited at pd creation step at
         // API level or checked by each implementation that relies on it.
         smask &= (1 << ndims) - 1;
-        DEFINE_SCALES_BUFFER_ATTR(pd->attr(), scales);
 
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
@@ -566,7 +565,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t H = is_1d ? 1 : dims[2 + w_groups + is_3d];
         const dim_t W = dims[w_groups + is_3d + 3 - is_1d];
 
-        DEFINE_SCALES_BUFFER_ATTR(pd->attr(), scales);
         const size_t D_mask = utils::array_product(input_d.dims(),
                 math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
         const bool has_asymmetric_comp = output_d.extra().flags
@@ -732,7 +730,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t H = is_1d ? 1 : dims[2 + w_groups + is_3d];
         const dim_t W = dims[w_groups + is_3d + 3 - is_1d];
 
-        DEFINE_SCALES_BUFFER_ATTR(pd->attr(), scales);
         const size_t D_mask = utils::array_product(input_d.dims(),
                 math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
         const bool has_asymmetric_comp = output_d.extra().flags
@@ -888,7 +885,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t NB_D1dim = pdims[ndims - 1] / D1_blksize;
         assert(pdims[ndims - 1] == NB_D1dim * D1_blksize);
 
-        DEFINE_SCALES_BUFFER_ATTR(pd->attr(), scales);
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
         const bool has_asymmetric_comp = output_d.extra().flags
@@ -1046,7 +1042,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const size_t D_mask = utils::array_product(input_d.dims(),
                 math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
-        DEFINE_SCALES_BUFFER_ATTR(pd->attr(), scales);
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
         const bool has_asymmetric_comp = output_d.extra().flags

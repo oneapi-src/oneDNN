@@ -125,7 +125,6 @@ struct reorder_pd_t : public primitive_desc_t {
         return !osc.has_default_values();
     }
 
-    float alpha() const { return attr()->output_scales_.scales_[0]; }
     float beta() const {
         const int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
         return sum_idx == -1 ? 0 : attr()->post_ops_.entry_[sum_idx].sum.scale;
