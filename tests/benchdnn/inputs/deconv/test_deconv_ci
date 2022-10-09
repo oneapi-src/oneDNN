@@ -43,5 +43,5 @@
 --batch=shapes_ci
 
 --attr-post-ops=
---attr-zero-points=,src:common:31+dst:common:15
+--attr-zero-points=,src:common:31*+dst:common:15*
 --batch=shapes_ci
