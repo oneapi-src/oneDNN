@@ -85,7 +85,7 @@
 --reset
 --sdt=s32
 --ddt=s32
---attr-zero-points=src:common:-1+dst:common:2,src:common:-1*+dst:common:2*
+--attr-zero-points=,src:common:-1*+dst:common:2*
 --stag=abx
 --dtag=abx
 2x16x3x4 1x17x5x3
