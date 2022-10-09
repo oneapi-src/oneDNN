@@ -57,19 +57,10 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
             && utils::one_of(d->c_type(), s32, f32, s8, u8, f16));
 
     if (dt_int_ok) {
-        if (attr()->zero_points_.defined(DNNL_ARG_SRC)) {
-            const int *ao_i32 = nullptr;
-            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
-            a_zp_ = (*ao_i32 != 0);
-        } else if (!attr()->zero_points_.has_default_values(DNNL_ARG_SRC))
+        if (!attr()->zero_points_.has_default_values(DNNL_ARG_SRC))
             return status::unimplemented;
 
-        if (attr()->zero_points_.defined(DNNL_ARG_WEIGHTS)) {
-            const int *bo_i32 = nullptr;
-            attr()->zero_points_.get(
-                    DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
-            b_zp_ = (*bo_i32 != 0);
-        } else if (!attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS))
+        if (!attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS))
             return status::unimplemented;
 
         c_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
@@ -129,9 +120,9 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
                         c_zp_, !attr()->zero_points_.defined(DNNL_ARG_DST));
 
         int cmask_a = 0, cmask_b = 0, cmask_c = 0;
-        attr()->zero_points_.get(DNNL_ARG_WEIGHTS, nullptr, &cmask_b, nullptr);
-        attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &cmask_a, nullptr);
-        attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask_c, nullptr);
+        attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &cmask_b);
+        attr()->zero_points_.get(DNNL_ARG_SRC, &cmask_a);
+        attr()->zero_points_.get(DNNL_ARG_DST, &cmask_c);
         ok &= (cmask_a == 0) && (cmask_b == 0)
                 && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
         ok &= IMPLICATION(utils::one_of(d->c_type(), f32, s8, u8, f16),
@@ -408,7 +399,7 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
     int cmask = -1;
 
     if (pd()->with_c_zero_points())
-        pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
+        pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask);
     else if (pd()->with_bias())
         cmask = pd()->bias_cmask();
 
@@ -990,13 +981,7 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     size_t off_co0 = 0;
 
     if (pd()->with_ab_zero_points()) {
-        const int *ao_i32 = nullptr;
-        const int *bo_i32 = nullptr;
-        pd()->attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
-        pd()->attr()->zero_points_.get(
-                DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
-        ao = -*ao_i32;
-        bo = -*bo_i32;
+        // TODO: Handle RT A & B zero points
     }
 
     if (pd()->with_bias()) {

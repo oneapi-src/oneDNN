@@ -168,7 +168,7 @@ status_t xe_lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     bool transb = (pd()->desc()->transb() == dnnl_trans);
 
     int cmask = 0;
-    pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
+    pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask);
 
     char offsetc_char;
 

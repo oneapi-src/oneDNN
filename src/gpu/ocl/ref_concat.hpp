@@ -66,11 +66,9 @@ struct ref_concat_t : public gpu_primitive_t {
                 primitive_attr_t r_attr;
                 if (!sc.has_default_values()) {
                     int mask = 0;
-                    CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, nullptr, &mask,
-                            nullptr));
+                    CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask));
                     if (mask != 0) return status::unimplemented;
-                    float scale = DNNL_RUNTIME_F32_VAL;
-                    r_attr.output_scales_.set(1, mask, &scale);
+                    r_attr.output_scales_.set(mask);
                 }
                 CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
                         src_md(i), src_image_md(i), &r_attr));

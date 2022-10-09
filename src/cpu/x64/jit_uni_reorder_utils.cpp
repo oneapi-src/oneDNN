@@ -269,8 +269,8 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     p.itype = ild.dt;
     p.otype = old.dt;
     p.is_tail_present = is_tail_present;
-    p.req_src_zp = *attr->zero_points_.get(DNNL_ARG_SRC);
-    p.req_dst_zp = *attr->zero_points_.get(DNNL_ARG_DST);
+    p.req_src_zp = !attr->zero_points_.has_default_values(DNNL_ARG_SRC);
+    p.req_dst_zp = !attr->zero_points_.has_default_values(DNNL_ARG_DST);
     p.scale_type = attr->output_scales_.has_default_values()
             ? scale_type_t::NONE
             : (attr->output_scales_.mask_ == 0 ? scale_type_t::COMMON

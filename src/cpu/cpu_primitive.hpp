@@ -56,9 +56,10 @@
     DEFINE_SCALES_BUFFER_ATTR(pd()->attr(), scales)
 
 #define DEFINE_ZERO_POINTS_BUFFER(zero_points_ptr, mem_arg) \
+    int32_t CONCAT2(default_zero_point_, mem_arg) = 0; \
     const int32_t *zero_points_ptr \
             = pd()->attr()->zero_points_.defined(mem_arg) \
-            ? pd()->attr()->zero_points_.get(mem_arg) \
+            ? &CONCAT2(default_zero_point_, mem_arg) \
             : CTX_IN_MEM( \
                     const int32_t *, DNNL_ARG_ATTR_ZERO_POINTS | mem_arg); \
     if (zero_points_ptr == nullptr) return status::invalid_arguments; \
@@ -82,12 +83,7 @@
 
 #define DEFINE_ZERO_POINT_VALUE(zero_point, mem_arg) \
     int32_t zero_point = 0; \
-    if (pd()->attr()->zero_points_.defined(mem_arg)) { \
-        const bool is_common = pd()->attr()->zero_points_.common(mem_arg); \
-        assert(is_common && "expect common zero point"); \
-        if (!is_common) return status::runtime_error; \
-        zero_point = *pd()->attr()->zero_points_.get(mem_arg); \
-    } else { \
+    if (!pd()->attr()->zero_points_.has_default_values(mem_arg)) { \
         const auto zero_points_d \
                 = ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | mem_arg); \
         bool ok = zero_points_d.data_type() == data_type::s32 \

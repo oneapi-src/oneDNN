@@ -103,8 +103,8 @@ bool zero_points_valid(
     static constexpr int common_mask = 0x0,
                          per_oc_mask = 0x2; // mask for common and per_oc_bcast
 
-    attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
-    attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+    attr->zero_points_.get(DNNL_ARG_SRC, &mask_src);
+    attr->zero_points_.get(DNNL_ARG_DST, &mask_dst);
 
     const bool src_mask_valid = per_oc_bcast_accepted
             ? utils::one_of(mask_src, common_mask, per_oc_mask)

@@ -56,37 +56,27 @@ status_t scales_t::set(dim_t count, int mask, const float *scales) {
     return status::success;
 }
 
-status_t zero_points_t::get(
-        int arg, dim_t *count, int *mask, const int **zero_points) const {
-    if (count) *count = 1;
+status_t zero_points_t::get(int arg, int *mask) const {
     if (mask) *mask = get_mask(arg);
-    if (zero_points) *zero_points = get(arg);
     return status::success;
 }
 
-status_t zero_points_t::set(
-        int arg, dim_t count, int mask, const int *zero_points) {
-    if (zero_points == nullptr) return status::invalid_arguments;
-
+status_t zero_points_t::set(int arg, int mask) {
     const bool supported_arg
             = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST);
-    const bool ok = count == 1
-            && IMPLICATION(mask != 0,
-                    supported_arg && zero_points[0] == DNNL_RUNTIME_S32_VAL)
-            && IMPLICATION(!supported_arg, *zero_points == 0);
-    if (!ok) return status::unimplemented;
+    if (!supported_arg) return status::unimplemented;
 
     switch (arg) {
         case DNNL_ARG_SRC:
-            zero_point_src = *zero_points;
+            is_set_src = true;
             mask_src = mask;
             break;
         case DNNL_ARG_WEIGHTS:
-            zero_point_wei = *zero_points;
+            is_set_wei = true;
             mask_wei = mask;
             break;
         case DNNL_ARG_DST:
-            zero_point_dst = *zero_points;
+            is_set_dst = true;
             mask_dst = mask;
             break;
     }
@@ -454,18 +444,15 @@ status_t dnnl_primitive_attr_get_zero_points(
         const primitive_attr_t *attr, int arg, int *mask) {
     if (attr == nullptr) return invalid_arguments;
 
-    const int *zero_points {nullptr};
-    dim_t count {0};
-
-    return attr->zero_points_.get(arg, &count, mask, &zero_points);
+    return attr->zero_points_.get(arg, mask);
 }
 
 status_t dnnl_primitive_attr_set_zero_points(
         primitive_attr_t *attr, int arg, int mask) {
     bool ok = attr && mask >= 0;
     if (!ok) return invalid_arguments;
-    int zero_points = DNNL_RUNTIME_S32_VAL;
-    return attr->zero_points_.set(arg, 1, mask, &zero_points);
+
+    return attr->zero_points_.set(arg, mask);
 }
 
 status_t dnnl_primitive_attr_get_post_ops(

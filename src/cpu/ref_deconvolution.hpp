@@ -246,8 +246,8 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         bool zero_points_ok() const {
             using namespace data_type;
             int mask_src = 0, mask_dst = 0;
-            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
-            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src);
+            attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
 
             return IMPLICATION(!utils::one_of(src_md()->data_type, s8, u8),
                            attr()->zero_points_.has_default_values())

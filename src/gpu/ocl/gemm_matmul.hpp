@@ -50,12 +50,9 @@ struct gemm_matmul_t : public gpu_primitive_t {
 
             auto map_gemm_zp = [&](int arg, int gemm_arg) {
                 if (!attr()->zero_points_.has_default_values(arg)) {
-                    dim_t count = 0;
                     int mask = 0;
-                    const int *zero_points = nullptr;
-                    attr()->zero_points_.get(arg, &count, &mask, &zero_points);
-                    gemm_attr.zero_points_.set(
-                            gemm_arg, count, mask, zero_points);
+                    attr()->zero_points_.get(arg, &mask);
+                    gemm_attr.zero_points_.set(gemm_arg, mask);
                 }
             };
 

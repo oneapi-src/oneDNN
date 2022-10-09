@@ -86,31 +86,16 @@ struct gen_gemm_t : public gpu_gemm_t {
                                     DNNL_ARG_DST)
                                 || !attr()->zero_points_.defined(DNNL_ARG_DST));
 
-                if (attr()->zero_points_.defined(DNNL_ARG_SRC)) {
-                    const int *ao_i32 = nullptr;
-                    attr()->zero_points_.get(
-                            DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
-                    ab_zp_ |= (*ao_i32 != 0);
-                } else if (!attr()->zero_points_.has_default_values(
-                                   DNNL_ARG_SRC))
+                if (!attr()->zero_points_.has_default_values(DNNL_ARG_SRC))
                     return status::unimplemented;
 
-                if (attr()->zero_points_.defined(DNNL_ARG_WEIGHTS)) {
-                    const int *bo_i32 = nullptr;
-                    attr()->zero_points_.get(
-                            DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
-                    ab_zp_ |= (*bo_i32 != 0);
-                } else if (!attr()->zero_points_.has_default_values(
-                                   DNNL_ARG_WEIGHTS))
+                if (!attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS))
                     return status::unimplemented;
 
                 int cmask_a = 0, cmask_b = 0, cmask_c = 0;
-                attr()->zero_points_.get(
-                        DNNL_ARG_WEIGHTS, nullptr, &cmask_b, nullptr);
-                attr()->zero_points_.get(
-                        DNNL_ARG_SRC, nullptr, &cmask_a, nullptr);
-                attr()->zero_points_.get(
-                        DNNL_ARG_DST, nullptr, &cmask_c, nullptr);
+                attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &cmask_b);
+                attr()->zero_points_.get(DNNL_ARG_SRC, &cmask_a);
+                attr()->zero_points_.get(DNNL_ARG_DST, &cmask_c);
                 ok &= (cmask_a == 0) && (cmask_b == 0)
                         && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
 

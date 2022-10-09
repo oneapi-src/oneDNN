@@ -259,12 +259,8 @@ status_t conv_problem_t::init_zero_points_config() {
             = !attr->zero_points_.defined(DNNL_ARG_DST);
     zp_cfg.is_common_src_zero_point = attr->zero_points_.common(DNNL_ARG_SRC);
     zp_cfg.is_common_dst_zero_point = attr->zero_points_.common(DNNL_ARG_DST);
-    zp_cfg.common_src_zero_point = attr->zero_points_.defined(DNNL_ARG_SRC)
-            ? *attr->zero_points_.get(DNNL_ARG_SRC)
-            : 0;
-    zp_cfg.common_dst_zero_point = attr->zero_points_.defined(DNNL_ARG_DST)
-            ? *attr->zero_points_.get(DNNL_ARG_DST)
-            : 0;
+    zp_cfg.common_src_zero_point = 0;
+    zp_cfg.common_dst_zero_point = 0;
     return status::success;
 }
 
@@ -910,8 +906,8 @@ bool zero_points_ok(const conv_problem_t &prb) {
     const auto input_type = (prb.is_fwd) ? pd->invariant_src_md()->data_type
                                          : pd->invariant_dst_md()->data_type;
     int mask_src = 0, mask_dst = 0;
-    attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
-    attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+    attr->zero_points_.get(DNNL_ARG_SRC, &mask_src);
+    attr->zero_points_.get(DNNL_ARG_DST, &mask_dst);
 
     return IMPLICATION(!utils::one_of(input_type, s8, u8),
                    attr->zero_points_.has_default_values())

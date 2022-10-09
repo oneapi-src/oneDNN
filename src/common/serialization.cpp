@@ -148,16 +148,10 @@ void serialize_attr(
     // zero_points
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
         if (!attr.zero_points_.has_default_values(arg)) {
-            dim_t count = 0;
             int mask = 0;
-            const int *zero_points = nullptr;
-            attr.zero_points_.get(arg, &count, &mask, &zero_points);
-            // zero_points: count
-            sstream.write(&count);
+            attr.zero_points_.get(arg, &mask);
             // zero_points: mask
             sstream.write(&mask);
-            // zero_points: zero_points[:]
-            sstream.write(zero_points, count);
         }
     // post_ops: entry[:]
     for (int i = 0; i < attr.post_ops_.len(); i++) {

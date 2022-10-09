@@ -167,7 +167,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     bool transb = (pd()->desc()->transb() == dnnl_trans);
 
     int cmask = 0;
-    pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
+    pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask);
 
     char offsetc_char;
 

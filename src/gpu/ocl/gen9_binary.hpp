@@ -124,9 +124,9 @@ struct gen9_binary_t : public gpu_primitive_t {
         const auto &conf = pd()->conf;
 
         auto &src0_scale
-                = CTX_IN_STORAGE(DNNL_ARG_SRC_0 | DNNL_ARG_ATTR_INPUT_SCALES);
+                = CTX_IN_STORAGE(DNNL_ARG_SRC_0 | DNNL_ARG_ATTR_SCALES);
         auto &src1_scale
-                = CTX_IN_STORAGE(DNNL_ARG_SRC_1 | DNNL_ARG_ATTR_INPUT_SCALES);
+                = CTX_IN_STORAGE(DNNL_ARG_SRC_1 | DNNL_ARG_ATTR_SCALES);
 
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, src0);

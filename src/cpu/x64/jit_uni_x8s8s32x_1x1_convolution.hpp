@@ -143,8 +143,8 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         bool zero_points_ok() const {
             // Only common zero points are supported -> mask should only be 0
             int mask_src = 0, mask_dst = 0;
-            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
-            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src);
+            attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
             return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
                     && mask_src == 0 && mask_dst == 0;
         }

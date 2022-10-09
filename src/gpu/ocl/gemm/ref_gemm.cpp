@@ -42,7 +42,7 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     const auto &c0 = GEMM_CTX_ARG_STORAGE(c_zero_point);
 
     int c0_mask = 0;
-    pd()->attr()->zero_points_.get(DNNL_ARG_C, nullptr, &c0_mask, nullptr);
+    pd()->attr()->zero_points_.get(DNNL_ARG_C, &c0_mask);
 
     const dim_t MB = exec_d->batch();
     const dim_t M = exec_d->m();

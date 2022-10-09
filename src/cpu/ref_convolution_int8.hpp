@@ -81,8 +81,8 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
 
         bool zero_points_ok() const {
             int mask_src = 0, mask_dst = 0;
-            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
-            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src);
+            attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
 
             return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
                     && (mask_src == 0 || mask_src == 1 << 1)

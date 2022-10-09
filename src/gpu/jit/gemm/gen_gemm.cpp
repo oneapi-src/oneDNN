@@ -247,7 +247,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     if (pd()->with_c_zero_points()) {
         off_co0 = co->offset() / types::data_type_size(c_type)
                 + pd()->dyn_offset_co;
-        pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
+        pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask);
     } else if (pd()->with_bias()) {
         off_co0 = bias.offset() / types::data_type_size(c_type);
         co = &bias;
@@ -259,13 +259,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     }
 
     if (pd()->with_ab_zero_points()) {
-        const int *ao_i32 = nullptr;
-        const int *bo_i32 = nullptr;
-        pd()->attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
-        pd()->attr()->zero_points_.get(
-                DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
-        ao = *ao_i32;
-        bo = *bo_i32;
+        // TODO: Add handling for RT A & B zero points
     }
 
     if (swapab) {

@@ -441,12 +441,9 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
             if (zp.has_default_values(arg)) continue;
 
             int mask = 0;
-            const int *zpp = nullptr;
-            zp.get(arg, nullptr, &mask, &zpp);
+            zp.get(arg, &mask);
 
             ss << delim << arg2str(arg) << ":" << mask;
-            if (mask == 0 || is_runtime_value(*zpp))
-                ss << ":" << get_val_str(*zpp);
             delim = attr_delim;
         }
         ss << " ";

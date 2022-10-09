@@ -288,50 +288,29 @@ struct zero_points_t : public c_compatible {
         auto eq = [](int a, int b) {
             return a == b || (is_runtime_value(a) && is_runtime_value(b));
         };
-        return eq(zero_point_src, rhs.zero_point_src)
-                && eq(mask_src, rhs.mask_src)
-                && eq(zero_point_wei, rhs.zero_point_wei)
-                && eq(mask_wei, rhs.mask_wei)
-                && eq(zero_point_dst, rhs.zero_point_dst)
+        return eq(mask_src, rhs.mask_src) && eq(mask_wei, rhs.mask_wei)
                 && eq(mask_dst, rhs.mask_dst);
     }
 
     // arg-specific checks
     bool common(int arg) const { return get_mask(arg) == 0; }
-    bool defined(int arg) const { return !is_runtime_value(*get(arg)); }
-    bool has_default_values(int arg) const {
-        return *get(arg) == 0 && get_mask(arg) == 0;
-    }
+    bool defined(int arg) const { return has_default_values(arg); }
+    bool has_default_values(int arg) const { return is_set(arg) == false; }
 
     // same checks but for all supported arguments at once
     bool common() const { return check_all(&zero_points_t::common); }
-    bool defined() const { return check_all(&zero_points_t::defined); }
+    bool defined() const { return has_default_values(); }
     bool has_default_values() const {
         return check_all(&zero_points_t::has_default_values);
     }
 
-    const int *get(int arg) const {
-        arg &= ~DNNL_ARG_ATTR_ZERO_POINTS;
-        switch (arg) {
-            case DNNL_ARG_SRC: return &zero_point_src;
-            case DNNL_ARG_WEIGHTS: return &zero_point_wei;
-            case DNNL_ARG_DST: return &zero_point_dst;
-        }
-        static int zero = 0;
-        return &zero;
-    }
+    status_t get(int arg, int *mask) const;
 
-    status_t get(
-            int arg, dim_t *count, int *mask, const int **zero_points) const;
-
-    status_t set(int arg, dim_t count, int mask, const int *zero_points);
-    status_t set(int arg, int single_zero_points) {
-        return set(arg, 1, 0, &single_zero_points);
-    }
+    status_t set(int arg, int mask);
+    status_t set(int arg) { return set(arg, 0); }
 
 private:
-    // TODO: support count and mask
-    int zero_point_src = 0, zero_point_wei = 0, zero_point_dst = 0;
+    bool is_set_src = false, is_set_wei = false, is_set_dst = false;
     int mask_src = 0, mask_wei = 0, mask_dst = 0;
 
     int get_mask(int arg) const {
@@ -343,6 +322,17 @@ private:
             default: mask = 0;
         }
         return mask;
+    }
+
+    bool is_set(int arg) const {
+        bool arg_is_set = false;
+        switch (arg) {
+            case DNNL_ARG_SRC: arg_is_set = is_set_src; break;
+            case DNNL_ARG_WEIGHTS: arg_is_set = is_set_wei; break;
+            case DNNL_ARG_DST: arg_is_set = is_set_dst; break;
+            default: arg_is_set = 0;
+        }
+        return arg_is_set;
     }
 
     bool check_all(bool (zero_points_t::*f)(int) const) const {

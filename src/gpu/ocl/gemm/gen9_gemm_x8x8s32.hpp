@@ -181,7 +181,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         compute::kernel_ctx_t kernel_ctx;
 
         int cmask = 0;
-        pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
+        pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask);
         bool fixed_c = (0 == cmask);
         bool column_c = (1 << 0 == cmask);
         bool row_c = (1 << 1 == cmask);

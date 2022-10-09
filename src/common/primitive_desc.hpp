@@ -93,9 +93,10 @@ struct primitive_desc_t : public c_compatible {
         if (arg == DNNL_ARG_ATTR_OUTPUT_SCALES
                 && !attr()->output_scales_.defined())
             return arg_usage_t::input;
-        if ((arg & DNNL_ARG_ATTR_ZERO_POINTS)
-                && !attr()->zero_points_.defined(arg))
-            return arg_usage_t::input;
+        if (arg & DNNL_ARG_ATTR_ZERO_POINTS) {
+            int zp_arg = arg & ~DNNL_ARG_ATTR_ZERO_POINTS;
+            if (!attr()->zero_points_.defined(zp_arg))
+                return arg_usage_t::input;
         }
         if (arg & DNNL_ARG_ATTR_SCALES) {
             int scale_arg = arg & ~DNNL_ARG_ATTR_SCALES;

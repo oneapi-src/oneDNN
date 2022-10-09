@@ -200,16 +200,9 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
     // zero_points
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
         if (!attr.zero_points_.has_default_values(arg)) {
-            dim_t count = 0;
             int mask = 0;
-            const int *zero_points = nullptr;
-            attr.zero_points_.get(arg, &count, &mask, &zero_points);
-            // zero_points: count
-            seed = hash_combine(seed, count);
             // zero_points: mask
             seed = hash_combine(seed, mask);
-            // zero_points: zero_points[:]
-            seed = get_array_hash(seed, zero_points, count);
         }
     // post_ops: entry[:]
     for (int i = 0; i < attr.post_ops_.len(); i++) {
