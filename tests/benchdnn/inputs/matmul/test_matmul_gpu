@@ -7,11 +7,11 @@
 --bia_mask=1,2,3
 10x30:30x20:10x20
 
---attr-oscale=common:2
+--attr-oscale=common:2*
 --attr-post-ops=sum+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_tensor
 10x30:30x20:10x20
 
---attr-oscale=per_oc:2
+--attr-oscale=per_oc:2*
 --attr-post-ops=relu+add:f32+add:u8:per_tensor+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01
 10x30:30x20:10x20
 
@@ -44,7 +44,7 @@
 --runtime_dims_masks=2:1,2:3
 --bia_dt=undef,u8
 --stag=ba --wtag=ab,ba --dtag=ab
---attr-oscale=common:2
+--attr-oscale=common:2*
 --attr-zero-points=src:common:1+wei:common:-2+dst:common:3*
 --attr-post-ops=sum+relu+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_tensor
 10x100:100x10:10x10
@@ -56,7 +56,7 @@
 --runtime_dims_masks=0,4:2,0:4,4:6,2:0,6:2,2:4,6:6,1:1,5:3,1:5,5:7,3:1,7:3,3:5,7:7
 --bia_dt=undef,f32
 --bia_mask=4,6
---attr-oscale=common:2
+--attr-oscale=common:2*
 --attr-post-ops=sum+add:f32+add:u8:per_dim_01+mul:f32:per_dim_0+add:s8:per_tensor+add:f32:per_dim_01+linear:2:-1
 3x30x1:3x1x20:3x30x20
 
@@ -77,7 +77,7 @@
 --reset
 --cfg=u8s8f32 --bia_dt=f32  --stag=any --wtag=any --dtag=any
 --attr-post-ops=eltwise_gelu_tanh:0:0:21.5742
---attr-oscale=per_oc  --attr-scratchpad=user
+--attr-oscale=per_oc*  --attr-scratchpad=user
 24576x1024:1024x4096:24576x4096
 
 # runtime_zero_point_wrong_values
@@ -86,17 +86,12 @@
 --attr-zero-points=wei:common:2*+src:common:1* 
 1x2x4:1x4x12:1x2x12
 
-# runtime oscale test
---reset
---attr-oscale=common:2*
-512x16:16x16:512x16
-
 # test all features at once: 6D tensors with two-way broadcast, bias, postops, scale
 --reset
 --cfg=bf16bf16bf16
 --stag=abx --wtag=abx --dtag=abx
 --bia_dt=f32 --bia_mask=4
---attr-oscale=common:2
+--attr-oscale=common:2*
 --attr-post-ops=sum+add:f32+add:u8:per_dim_01+mul:f32:per_dim_0+add:s8:per_tensor+add:f32:per_dim_01+linear:2:-1
 1x5x4x3x30x2:6x1x4x3x2x20:6x5x4x3x30x20
 

@@ -38,7 +38,7 @@
 --cfg=u8s8s8
 --runtime_dims_masks=0
 --bia_dt=undef
---attr-oscale=common:1
+--attr-oscale=common:1*
 --attr-zero-points=src:common:-5, \
                    src:common:-2*+wei:common:128+dst:common:-129
 --attr-post-ops=
