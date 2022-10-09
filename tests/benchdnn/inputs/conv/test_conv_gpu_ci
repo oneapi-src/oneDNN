@@ -42,7 +42,7 @@
 --attr-zero-points=
 --batch=shapes_basic_gpu
 --attr-post-ops=
---attr-zero-points=,src:common:2+dst:common:1,src:per_dim_1:1*+dst:per_dim_1:1*
+--attr-zero-points=,src:common:2*+dst:common:1*,src:per_dim_1:1*+dst:per_dim_1:1*
 --batch=shapes_basic_gpu
 
 # Wino

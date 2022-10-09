@@ -63,7 +63,7 @@
 --attr-zero-points=
 --batch=shapes_basic
 --attr-post-ops=
---attr-zero-points=,src:common:2+dst:common:1,src:per_dim_1:1*+dst:per_dim_1:1*
+--attr-zero-points=,src:common:2*+dst:common:1*,src:per_dim_1:1*+dst:per_dim_1:1*
 --batch=shapes_basic
 ### Signed input
 --cfg=s8s8s8
@@ -77,7 +77,7 @@
 --attr-zero-points=
 --batch=shapes_basic
 --attr-post-ops=
---attr-zero-points=,src:common:2+dst:common:1,src:per_dim_1:1*+dst:per_dim_1:1*
+--attr-zero-points=,src:common:2*+dst:common:1*,src:per_dim_1:1*+dst:per_dim_1:1*
 --batch=shapes_basic
 ## Wino
 --alg=wino
