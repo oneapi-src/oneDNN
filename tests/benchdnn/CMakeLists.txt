@@ -25,7 +25,8 @@ list(APPEND SOURCES ${TEST_THREAD})
 if(ONEDNN_BUILD_GRAPH)
     add_definitions_with_host_compiler(-DBUILD_GRAPH)
 else()
-    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/graph/*.cpp)
+    file(GLOB_RECURSE GRAPH_SRC ${CMAKE_CURRENT_SOURCE_DIR}/graph/*.cpp)
+    list(REMOVE_ITEM SOURCES ${GRAPH_SRC})
 endif()
 include_directories_with_host_compiler(
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -68,8 +69,12 @@ function(register_benchdnn_test engine driver test_file)
     if (ARGC GREATER 3)
         message(ERROR "Incorrect use of function")
     endif()
-
-    set(test_mode "C")
+    # TODO: remove this part after C mode ready for graph driver
+    if(driver STREQUAL "graph")
+        set(test_mode "P")
+    else()
+        set(test_mode "C")
+    endif()
     if(DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI_NO_CORR)
         set(test_mode "R")
     endif()
@@ -133,8 +138,9 @@ endif()
 
 # Very sad CMake older then 3.2 does not support continue() command.
 file(GLOB all_drivers RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs inputs/*)
-# Graph driver don't support CORR mode for now
-list(REMOVE_ITEM all_drivers graph)
+if(NOT ONEDNN_BUILD_GRAPH)
+    list(REMOVE_ITEM all_drivers graph)
+endif()
 foreach(driver ${all_drivers})
     set(driver_dir ${CMAKE_CURRENT_SOURCE_DIR}/inputs/${driver})
     # Collect input files in groups
@@ -186,63 +192,3 @@ foreach(driver ${all_drivers})
         endif()
     endif()
 endforeach()
-
-if(ONEDNN_BUILD_GRAPH)
-function(register_benchdnn_graph_test engine bench_mode test_file)
-    if (ARGC GREATER 3)
-        message(FATAL_ERROR "Incorrect use of function")
-    endif()
-
-    if (bench_mode STREQUAL "P" OR bench_mode STREQUAL "p")
-        set(TEST_NAME_PREFIX "test_perf")
-    # Todo enable correctness check mode later
-    else()
-        message(FATAL_ERROR "Unkown bench mode - " ${bench_mode})
-    endif()
-    set(TEST_NAME_PREFIX "${TEST_NAME_PREFIX}_benchdnn_")
-
-    set(cmd "-v1 --engine=${engine} --mode=${bench_mode} --graph"
-            "--batch=${test_file}")
-    string(REPLACE "test_" "${TEST_NAME_PREFIX}" target_name ${test_file})
-    set(benchdnn_target ${target_name}_${engine})
-
-    if(DNNL_BUILD_FOR_CI)
-        string(REPLACE " " ";" cmd "benchdnn ${cmd}")
-        add_dnnl_test(${benchdnn_target} ${cmd})
-    else()
-        string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
-
-        if(WIN32)
-            set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
-            set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
-        endif()
-
-        add_custom_target(${benchdnn_target}
-            COMMAND ${cmd}
-            DEPENDS benchdnn
-            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        )
-
-        set_target_properties(${benchdnn_target} PROPERTIES
-            EXCLUDE_FROM_DEFAULT_BUILD TRUE)
-        maybe_configure_windows_test(${benchdnn_target} TARGET)
-
-        # Create non-suffixed target for compatibility
-        if(engine STREQUAL "cpu")
-            add_custom_target(${target_name} DEPENDS ${benchdnn_target})
-            maybe_configure_windows_test(${target_name} TARGET)
-        endif()
-    endif()
-endfunction()
-
-    file(GLOB benchdnn_graph_ci RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs/graph inputs/graph/test*)
-
-    foreach(test_file ${benchdnn_graph_ci})
-        if(DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI)
-            register_benchdnn_graph_test("cpu" "P" "${test_file}")
-            if(has_gpu)
-                register_benchdnn_graph_test("gpu" "P" "${test_file}")
-            endif()
-        endif()
-    endforeach()
-endif()
