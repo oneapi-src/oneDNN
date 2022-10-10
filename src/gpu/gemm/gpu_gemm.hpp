@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,6 +49,10 @@ struct gpu_gemm_t : public gpu_primitive_t {
         return execute(gemm_ctx);
     }
 };
+
+inline const gpu_gemm_t *gpu_gemm(const std::shared_ptr<primitive_t> &p) {
+    return utils::downcast<gpu_gemm_t *>(p.get());
+}
 
 } // namespace gpu
 } // namespace impl

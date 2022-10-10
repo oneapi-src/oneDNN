@@ -19,7 +19,6 @@
 
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
-#include "gpu/gemm/gpu_gemm_utils.hpp"
 #include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"

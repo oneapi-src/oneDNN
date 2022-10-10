@@ -27,7 +27,6 @@ namespace ocl {
 status_t gemm_post_ops_inner_product_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
-    using namespace gemm_utils;
 
     gemm_exec_args_t gemm_args;
     gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_SRC);

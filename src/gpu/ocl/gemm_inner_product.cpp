@@ -16,7 +16,7 @@
 
 #include "gpu/ocl/gemm_inner_product.hpp"
 
-#include "gpu/gemm/gpu_gemm_utils.hpp"
+#include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 
 namespace dnnl {
@@ -27,7 +27,6 @@ namespace ocl {
 status_t gemm_inner_product_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
-    using namespace gemm_utils;
 
     gemm_exec_args_t gemm_args;
     gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_SRC);
@@ -65,7 +64,6 @@ status_t gemm_inner_product_fwd_t::execute_forward(
 status_t gemm_inner_product_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
-    using namespace gemm_utils;
 
     gemm_exec_args_t gemm_args;
     gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
@@ -86,7 +84,6 @@ status_t gemm_inner_product_bwd_data_t::execute_backward_data(
 status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
-    using namespace gemm_utils;
 
     gemm_exec_args_t gemm_args;
     if (pd()->wei_tr()) {

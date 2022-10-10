@@ -26,7 +26,6 @@
 #include "common/primitive_desc_iterator.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
-#include "gpu/gemm/gpu_gemm_utils.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"

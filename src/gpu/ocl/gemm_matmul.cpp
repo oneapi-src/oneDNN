@@ -16,7 +16,7 @@
 
 #include "gpu/ocl/gemm_matmul.hpp"
 
-#include "gpu/gemm/gpu_gemm_utils.hpp"
+#include "gpu/gemm/gpu_gemm.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -25,7 +25,6 @@ namespace ocl {
 
 status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
-    using namespace gemm_utils;
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);

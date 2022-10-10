@@ -34,7 +34,6 @@
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
-#include "gpu/gemm/gpu_gemm_utils.hpp"
 
 #define DEBUGPRINT 0
 #if DEBUGPRINT
@@ -934,7 +933,6 @@ status_t _ref_rnn_common_t<aprop>::init_res_storage(
 
 template <prop_kind_t aprop>
 gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
-    using namespace gemm_utils;
 
     // FIXME: This should be created once per execute() instead of creating
     // memory before each gemm call. Each cell type (+prop kind) might have

@@ -15,7 +15,6 @@
 *******************************************************************************/
 
 #include "gpu/ocl/gemm/gemm_with_post_ops.hpp"
-#include "gpu/gemm/gpu_gemm_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -176,7 +175,7 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
     gemm_ex_ctx.set_resource_mapper(ctx.get_resource_mapper());
     gemm_ex_ctx.set_scratchpad_grantor(g_ns.grantor());
 
-    exec_status = gemm_utils::gpu_gemm(gemm_prim_)->execute(gemm_ex_ctx);
+    exec_status = gpu_gemm(gemm_prim_)->execute(gemm_ex_ctx);
     CHECK(exec_status);
 
     compute::kernel_arg_list_t arg_list;
