@@ -882,6 +882,7 @@ public:
             auto a_tile = a_it.tile();
             auto b_tile = b_it.tile();
             if (non_one_ndims(a_tile) > 2 || non_one_ndims(b_tile) > 2) break;
+            if (!a.map(a_tile).is_dense() || !b.map(b_tile).is_dense()) break;
             dim_t a_elems = a_tile.elems();
             dim_t b_elems = b_tile.elems();
 
@@ -1507,7 +1508,7 @@ private:
             return true;
         };
 
-        for (auto tile : tiles) {
+        for (auto &tile : tiles) {
             if (tile.elems() > max_elems) break;
             if (all_pow2(tile)) max_tile = tile;
         }
