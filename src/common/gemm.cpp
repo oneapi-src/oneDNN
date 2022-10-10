@@ -86,11 +86,9 @@ std::string get_descriptor(dim_t M, dim_t N, dim_t K) {
         if (!is_src_ab && lda != M) ss << "lda:" << lda << " "; \
         if (is_wei_ab && ldb != N) ss << "ldb:" << ldb << " "; \
         if (!is_wei_ab && ldb != K) ss << "ldb:" << ldb << " "; \
-        if (alpha != 1.f) \
-            ss << "attr-oscale:common:" << std::scientific << alpha << " "; \
-        if (beta != 0.f) \
-            ss << "attr-post-ops:sum:" << std::scientific << beta << " "; \
-        ss << "," << get_descriptor(M, N, K); \
+        if (alpha != 1.f) ss << "attr-oscale:common:" << alpha << " "; \
+        if (beta != 0.f) ss << "attr-post-ops:sum:" << beta << " "; \
+        ss << ",," << get_descriptor(M, N, K); \
         ss << "," << duration_ms << std::flush; \
         printf("%s\n", ss.str().c_str()); \
     } else { \
