@@ -20,6 +20,7 @@
 #include "builder.hpp"
 #include "pass/func_dependency.hpp"
 #include "visitor.hpp"
+#include <compiler/ir/pass/printer.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <unordered_set>
 #include <util/any_map.hpp>
@@ -239,13 +240,8 @@ func_t ir_module_t::make_init_func() const {
     return func_t();
 }
 ostream &operator<<(ostream &os, const ir_module_t &m) {
-    for (auto &f : m.get_module_vars()) {
-        os << f << '\n';
-    }
-    for (auto &f : m.get_contents()) {
-        os << f << '\n';
-    }
-    return os;
+    ir_printer_t p {os};
+    return p.do_dispatch(m);
 }
 ostream &operator<<(ostream &os, const const_ir_module_ptr &m) {
     return (os << *m);

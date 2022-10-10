@@ -596,7 +596,7 @@ public:
      * Dumps the IR node as string to the ostream
      * @param os the output stream_t
      * */
-    virtual void to_string(ostream &os) const = 0;
+    virtual void to_string(ostream &os) const;
     /**
      * Does shallow copying copy on this IR node.
      * Makes a new IR node with the same type and the same values of fields.
@@ -673,7 +673,6 @@ public:
     constant_node(const std::vector<union_val> &val, sc_data_type_t dtype)
         : expr_base(dtype, sc_expr_type::constant), value_(val) {};
 
-    void to_string(ostream &os) const override;
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
     bool is_vector() const { return dtype_.lanes_ > 1; }
@@ -727,7 +726,6 @@ public:
     // the variable name
     std::string name_;
 
-    void to_string(ostream &os) const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
     expr remake() const override;
 };
@@ -748,7 +746,7 @@ public:
         : expr_base(type, sc_expr_type::cast), in_(std::move(in_expr)) {}
     // the expression to convert
     expr in_;
-    void to_string(ostream &os) const override;
+
     bool equals(expr_c other, ir_comparer &ctx) const override;
     expr remake() const override;
 };
@@ -785,7 +783,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::add;
     add_node(const expr &l, const expr &r)
         : binary_node(sc_expr_type::add, l, r) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(add)
@@ -798,7 +796,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::sub;
     sub_node(const expr &l, const expr &r)
         : binary_node(sc_expr_type::sub, l, r) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(sub)
@@ -811,7 +809,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::mul;
     mul_node(const expr &l, const expr &r)
         : binary_node(sc_expr_type::mul, l, r) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(mul)
@@ -824,7 +822,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::div;
     div_node(const expr &l, const expr &r)
         : binary_node(sc_expr_type::div, l, r) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(div)
@@ -837,7 +835,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::mod;
     mod_node(const expr &l, const expr &r)
         : binary_node(sc_expr_type::mod, l, r) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(mod)
@@ -872,7 +870,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::cmp_eq;
     cmp_eq_node(expr l, expr r)
         : cmp_node(sc_expr_type::cmp_eq, std::move(l), std::move(r)) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(cmp_eq)
@@ -886,7 +884,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::cmp_ne;
     cmp_ne_node(expr l, expr r)
         : cmp_node(sc_expr_type::cmp_ne, std::move(l), std::move(r)) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(cmp_ne)
@@ -900,7 +898,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::cmp_lt;
     cmp_lt_node(expr l, expr r)
         : cmp_node(sc_expr_type::cmp_lt, std::move(l), std::move(r)) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(cmp_lt)
@@ -914,7 +912,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::cmp_le;
     cmp_le_node(expr l, expr r)
         : cmp_node(sc_expr_type::cmp_le, std::move(l), std::move(r)) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(cmp_le)
@@ -928,7 +926,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::cmp_gt;
     cmp_gt_node(expr l, expr r)
         : cmp_node(sc_expr_type::cmp_gt, std::move(l), std::move(r)) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(cmp_gt)
@@ -942,7 +940,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::cmp_ge;
     cmp_ge_node(expr l, expr r)
         : cmp_node(sc_expr_type::cmp_ge, std::move(l), std::move(r)) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(cmp_ge)
@@ -979,7 +977,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::logic_and;
     logic_and_node(expr l, expr r)
         : logic_node(sc_expr_type::logic_and, std::move(l), std::move(r)) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(logic_and)
@@ -993,7 +991,7 @@ public:
     static constexpr sc_expr_type type_code_ = sc_expr_type::logic_or;
     logic_or_node(expr l, expr r)
         : logic_node(sc_expr_type::logic_or, std::move(l), std::move(r)) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
 };
 SC_DEFINE_EXPR_NODE_PTR(logic_or)
@@ -1009,7 +1007,7 @@ public:
     logic_not_node(const expr &in)
         : expr_base(in->dtype_, sc_expr_type::logic_not), in_(in) {};
     expr in_;
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };
@@ -1042,7 +1040,7 @@ public:
     expr l_;
     // obtained expr when condition is false
     expr r_;
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };
@@ -1131,7 +1129,7 @@ public:
     std::vector<expr> args_;
     std::vector<parallel_attr_t> para_attr_;
     func_t get_prototype() const;
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };
@@ -1147,6 +1145,7 @@ enum class address_space {
     host,
 };
 
+class ir_printer_t;
 /**
  * The tensor node. A tensor is a single/multidimemsion array.
  * @param dtype the type of the elements of the tensor
@@ -1190,15 +1189,16 @@ public:
     // when the tensor is defined in a global scope, or is zero-initialized
     std::shared_ptr<static_data_t> init_value_;
     std::vector<expr> strides_;
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
     /**
      * Prints the tensor with the name and its dimensions, like:
      * name[dim1, dim2, ...]
      * @param os the output stream
+     * @param printer the IR printer
      * */
-    void to_string_full(ostream &os);
+    void to_string_full(ir_printer_t &printer);
     static const std::shared_ptr<static_data_t> &get_zero_tensor_initializer();
     static std::shared_ptr<static_data_t> make_tensor_initializer(
             union_val val);
@@ -1237,7 +1237,7 @@ public:
     expr ptr_;
     std::vector<expr> idx_;
     expr mask_;
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };
@@ -1274,7 +1274,7 @@ public:
     indexing base_;
     std::vector<expr> shape_;
     bool is_slice_;
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };
@@ -1359,7 +1359,7 @@ public:
     // intrinsic_handler_t::on_initialize
     intrin_call_node(intrin_type intrin, const std::vector<expr> &args,
             const any_map_t &attrs);
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };
@@ -1383,7 +1383,7 @@ public:
     // path
     bool is_loop_phi_;
     ssa_phi_node(const std::vector<expr> &values, bool is_loop_phi);
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };
@@ -1404,7 +1404,7 @@ public:
     func_t func_;
     func_addr_node(func_t f)
         : expr_base(datatypes::pointer, type_code_), func_(std::move(f)) {};
-    void to_string(ostream &os) const override;
+
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };
@@ -1427,7 +1427,6 @@ public:
     int64_t type_;
     std::vector<expr> args_;
     low_level_intrin_node(int64_t intrin, const std::vector<expr> &args);
-    virtual void to_string(ostream &os) const override;
     expr remake() const override;
     bool equals(expr_c other, ir_comparer &ctx) const override;
 };

@@ -27,6 +27,7 @@
 #include "ssa_data.hpp"
 #include "visitable.hpp"
 #include <compiler/dimensions.hpp>
+#include <compiler/ir/pass/printer.hpp>
 #include <util/any_map.hpp>
 namespace sc {
 
@@ -245,43 +246,14 @@ ostream &operator<<(ostream &os, const expr_base *e) {
     return os;
 }
 
+void expr_base::to_string(ostream &os) const {
+    ir_printer_t p {os};
+    p.dispatch(node_ptr_from_this());
+}
+
 bool expr_base::equals(expr_c other) const {
     ir_comparer cmper;
     return this->equals(std::move(other), cmper);
-}
-
-void constant_node::to_string(ostream &os) const {
-    if (is_vector()) { os << '('; }
-    for (unsigned i = 0; i < value_.size(); i++) {
-        switch (dtype_.type_code_) {
-            case sc_data_etype::F32: {
-                if (this->value_[i].f32 - static_cast<int>(this->value_[i].f32)
-                        == 0) {
-                    os << this->value_[i].f32 << ".f";
-                } else {
-                    os.precision(std::numeric_limits<float>::max_digits10);
-                    os << this->value_[i].f32;
-                }
-                break;
-            }
-            case sc_data_etype::S8:
-            case sc_data_etype::S32: os << this->value_[i].s64; break;
-            case sc_data_etype::U8:
-            case sc_data_etype::U16:
-            case sc_data_etype::U32:
-            case sc_data_etype::BF16:
-            case sc_data_etype::INDEX: os << this->value_[i].u64 << "UL"; break;
-            case sc_data_etype::BOOLEAN:
-                os << (this->value_[0].u64 ? "true" : "false");
-                break;
-            case sc_data_etype::POINTER:
-                os << "((void*)" << this->value_[i].u64 << ')';
-                break;
-            default: assert(0 && "Unknown type for const");
-        }
-        if (i != value_.size() - 1) { os << ',' << ' '; }
-    }
-    if (is_vector()) { os << ')'; }
 }
 
 expr constant_node::remake() const {
@@ -342,10 +314,6 @@ bool constant_node::equals(expr_c v, ir_comparer &ctx) const {
     return false;
 }
 
-void var_node::to_string(ostream &os) const {
-    os << name_;
-}
-
 expr var_node::remake() const {
     return copy_attr(*this, builder::make_var(dtype_, name_));
 }
@@ -363,10 +331,6 @@ bool var_node::equals(expr_c v, ir_comparer &ctx) const {
     }
     // all other checks are done in ASCAST_OR_RETURN
     return true;
-}
-
-void cast_node::to_string(ostream &os) const {
-    os << dtype_ << '(' << in_ << ')';
 }
 
 expr cast_node::remake() const {
@@ -413,16 +377,10 @@ bool cmp_node::equals(expr_c v, ir_comparer &ctx) const {
 }
 
 #define GEN_BINARY(CLASS, OP) \
-    void CLASS##_node::to_string(ostream &os) const { \
-        os << '(' << l_ << (OP) << r_ << ')'; \
-    } \
     expr CLASS##_node::remake() const { \
         return copy_attr(*this, builder::make_##CLASS(l_, r_)); \
     }
 
-void add_node::to_string(ostream &os) const {
-    os << '(' << l_ << " + " << r_ << ')';
-}
 expr add_node::remake() const {
     auto ret = builder::make_add(l_, r_);
     if (dtype_ != datatypes::undef) ret->dtype_ = dtype_;
@@ -442,10 +400,6 @@ GEN_BINARY(cmp_ne, " != ")
 GEN_BINARY(logic_and, " && ")
 GEN_BINARY(logic_or, " || ")
 
-void logic_not_node::to_string(ostream &os) const {
-    os << "!(" << in_ << ')';
-}
-
 bool logic_not_node::equals(expr_c v, ir_comparer &ctx) const {
     ASCAST_OR_RETURN(v, other);
     return in_->equals(other->in_, ctx);
@@ -453,10 +407,6 @@ bool logic_not_node::equals(expr_c v, ir_comparer &ctx) const {
 
 expr logic_not_node::remake() const {
     return copy_attr(*this, builder::make_logic_not(in_));
-}
-
-void select_node::to_string(ostream &os) const {
-    os << "(" << cond_ << "?" << l_ << ":" << r_ << ")";
 }
 
 bool select_node::equals(expr_c v, ir_comparer &ctx) const {
@@ -467,18 +417,6 @@ bool select_node::equals(expr_c v, ir_comparer &ctx) const {
 
 expr select_node::remake() const {
     return copy_attr(*this, builder::make_select(cond_, l_, r_));
-}
-
-void indexing_node::to_string(ostream &os) const {
-    os << ptr_ << '[';
-    assert(!idx_.empty());
-    for (size_t i = 0; i < idx_.size() - 1; i++) {
-        os << idx_.at(i) << ", ";
-    }
-    os << idx_.back();
-    if (dtype_.lanes_ > 1) { os << " @ " << dtype_.lanes_; }
-    if (mask_.defined()) { os << " M= " << mask_; }
-    os << ']';
 }
 
 expr indexing_node::remake() const {
@@ -542,31 +480,6 @@ func_t call_node::get_prototype() const {
     return proto_func;
 }
 
-void call_node::to_string(ostream &os) const {
-    if (auto func = std::dynamic_pointer_cast<func_base>(func_)) {
-        os << func->name_;
-    } else {
-        auto theexpr = std::dynamic_pointer_cast<expr_base>(func_);
-        assert(theexpr);
-        os << theexpr.get();
-    }
-    os << '(';
-    if (!args_.empty()) {
-        for (unsigned i = 0; i < args_.size() - 1; i++) {
-            os << args_.at(i) << ", ";
-        }
-        os << args_.back();
-    }
-    os << ')';
-    if (!para_attr_.empty()) {
-        os << "@parallel(";
-        for (auto &v : para_attr_) {
-            os << '[' << v.begin_ << ", " << v.end_ << ", " << v.step_ << "], ";
-        }
-        os << ')';
-    }
-}
-
 expr call_node::remake() const {
     return copy_attr(*this, make_expr<call_node>(func_, args_));
 }
@@ -623,17 +536,14 @@ tensor_node::tensor_node(sc_data_type_t dtype, const std::string &name,
     if (strides_.empty()) { strides_ = dims_to_dense_stride(dims_); }
 }
 
-void tensor_node::to_string(ostream &os) const {
-    os << name_;
-}
-
-void tensor_node::to_string_full(ostream &os) {
-    os << name_ << ": [" << elem_dtype_ << " * ";
+void tensor_node::to_string_full(ir_printer_t &printer) {
+    auto &os = printer.os_;
+    printer.do_dispatch(node_ptr_from_this()) << ": [" << elem_dtype_ << " * ";
     if (!dims_.empty()) {
         for (unsigned i = 0; i < dims_.size() - 1; i++) {
-            os << dims_.at(i) << " * ";
+            printer.do_dispatch(dims_.at(i)) << " * ";
         }
-        os << dims_.back();
+        printer.do_dispatch(dims_.back());
     }
     os << ']';
     if (address_space_ != address_space::automatic) {
@@ -699,10 +609,6 @@ bool tensor_node::equals(expr_c v, ir_comparer &ctx) const {
             && ctx.expr_arr_equals(strides_, other->strides_));
 }
 
-void tensorptr_node::to_string(ostream &os) const {
-    os << '&' << base_;
-}
-
 expr tensorptr_node::remake() const {
     return copy_attr(
             *this, make_expr<tensorptr_node>(base_, shape_, is_slice_));
@@ -713,18 +619,6 @@ bool tensorptr_node::equals(expr_c v, ir_comparer &ctx) const {
     if (other->is_slice_ != is_slice_) { RETURN(false); }
     if (!ctx.expr_arr_equals(shape_, other->shape_)) { RETURN(false); }
     return base_->equals(other->base_, ctx);
-}
-
-void intrin_call_node::to_string(ostream &os) const {
-    auto &v = get_intrinsic_handler(type_);
-    os << v.name_ << '(';
-    if (!args_.empty()) {
-        for (unsigned i = 0; i < args_.size() - 1; i++) {
-            os << args_.at(i) << ", ";
-        }
-        os << args_.back();
-    }
-    os << ')';
 }
 
 intrin_call_node::intrin_call_node(intrin_type intrin,
@@ -755,10 +649,6 @@ bool intrin_call_node::equals(expr_c v, ir_comparer &ctx) const {
     RETURN(ctx.expr_arr_equals(args_, other->args_));
 }
 
-void func_addr_node::to_string(ostream &os) const {
-    os << '&' << func_->name_;
-}
-
 expr func_addr_node::remake() const {
     return copy_attr(*this, make_expr<func_addr_node>(func_));
 }
@@ -779,18 +669,6 @@ ssa_phi_node::ssa_phi_node(const std::vector<expr> &values, bool is_loop_phi)
     }
 }
 
-void ssa_phi_node::to_string(ostream &os) const {
-    os << "phi(";
-    if (!values_.empty()) {
-        for (unsigned i = 0; i < values_.size() - 1; i++) {
-            os << values_[i] << ", ";
-        }
-        os << values_.back();
-    }
-    if (is_loop_phi_) { os << " loop"; }
-    os << ')';
-}
-
 expr ssa_phi_node::remake() const {
     return copy_attr(*this, make_expr<ssa_phi_node>(values_, is_loop_phi_));
 }
@@ -799,17 +677,6 @@ bool ssa_phi_node::equals(expr_c v, ir_comparer &ctx) const {
     ASCAST_OR_RETURN(v, other);
     RETURN(other->is_loop_phi_ == is_loop_phi_
             && ctx.expr_arr_equals(values_, other->values_));
-}
-
-void low_level_intrin_node::to_string(ostream &os) const {
-    os << "low_level_intrin" << '[' << type_ << ']' << '(';
-    if (!args_.empty()) {
-        for (unsigned i = 0; i < args_.size() - 1; i++) {
-            os << args_.at(i) << ", ";
-        }
-        os << args_.back();
-    }
-    os << ')';
 }
 
 low_level_intrin_node::low_level_intrin_node(

@@ -18,6 +18,7 @@
 #include "builder.hpp"
 #include "ir_comparer.hpp"
 #include "visitable.hpp"
+#include <compiler/ir/pass/printer.hpp>
 #include <util/any_map.hpp>
 namespace sc {
 
@@ -65,12 +66,14 @@ std::ostream &operator<<(std::ostream &os, sc_stmt_type val) {
     return os;
 }
 
-void assign_node_t::to_string(ostream &os, int indent) const {
-    os << var_ << " = " << value_;
-}
-
 stmt assign_node_t::remake() const {
     return copy_attr(*this, make_stmt<assign_node_t>(var_, value_));
+}
+
+void stmt_base_t::to_string(ostream &os, int indent) const {
+    ir_printer_t p {os};
+    p.indents_ = indent;
+    p.dispatch(node_ptr_from_this());
 }
 
 bool stmt_base_t::equals(stmt_c other) const {
@@ -90,17 +93,6 @@ bool assign_node_t::equals(stmt_c v, ir_comparer &ctx) const {
     return var_->equals(other->var_, ctx) && value_->equals(other->value_, ctx);
 }
 
-void stmts_node_t::to_string(ostream &os, int indent) const {
-    os << "{\n";
-    for (auto &s : seq_) {
-        print_indents(os, indent + 1);
-        s->to_string(os, indent + 1);
-        os << '\n';
-    }
-    print_indents(os, indent);
-    os << "}";
-}
-
 stmt stmts_node_t::remake() const {
     std::vector<stmt> seq = seq_;
     return copy_attr(*this, make_stmt<stmts_node_t>(std::move(seq)));
@@ -117,15 +109,6 @@ bool stmts_node_t::equals(stmt_c v, ir_comparer &ctx) const {
     return true;
 }
 
-void if_else_node_t::to_string(ostream &os, int indent) const {
-    os << "if (" << condition_ << ") ";
-    then_case_->to_string(os, indent);
-    if (else_case_.defined()) {
-        os << " else ";
-        else_case_->to_string(os, indent);
-    }
-}
-
 stmt if_else_node_t::remake() const {
     return copy_attr(*this,
             make_stmt<if_else_node_t>(condition_, then_case_, else_case_));
@@ -138,10 +121,6 @@ bool if_else_node_t::equals(stmt_c v, ir_comparer &ctx) const {
             && ctx.check_equals_may_null(else_case_, other->else_case_);
 }
 
-void evaluate_node_t::to_string(ostream &os, int indent) const {
-    os << "evaluate{" << value_ << '}';
-}
-
 stmt evaluate_node_t::remake() const {
     return copy_attr(*this, make_stmt<evaluate_node_t>(value_));
 }
@@ -149,11 +128,6 @@ stmt evaluate_node_t::remake() const {
 bool evaluate_node_t::equals(stmt_c v, ir_comparer &ctx) const {
     CAST_OR_RETURN(v);
     return value_->equals(other->value_, ctx);
-}
-
-void returns_node_t::to_string(ostream &os, int indent) const {
-    os << "return ";
-    if (value_.defined()) { os << value_; }
 }
 
 stmt returns_node_t::remake() const {
@@ -165,46 +139,6 @@ bool returns_node_t::equals(stmt_c v, ir_comparer &ctx) const {
     return ctx.check_equals_may_null(value_, other->value_);
 }
 
-void define_node_t::to_string(ostream &os, int indent) const {
-    if (attr_) {
-        if (auto comments
-                = attr_->get_or_null<std::vector<std::string>>("comments")) {
-            for (auto &str : *comments) {
-                os << "// " << str << "\n";
-                print_indents(os, indent);
-            }
-        }
-    }
-    auto v = var_.as<var>();
-    switch (linkage_) {
-        case linkage::local: break;
-        case linkage::static_local: os << "static "; break;
-        case linkage::private_global: os << "private "; break;
-        case linkage::public_global: os << "public "; break;
-        default: break;
-    }
-    if (v.defined()) {
-        os << "var " << v->name_ << ": " << v->dtype_;
-        if (init_.defined()) { os << " = " << init_; }
-        return;
-    }
-    auto t = var_.as<tensor>();
-    if (t.defined()) {
-        os << "tensor ";
-        t->to_string_full(os);
-        if (t->init_value_) {
-            if (t->init_value_ != tensor_node::get_zero_tensor_initializer()) {
-                os << " = [addr=" << t->init_value_->data_
-                   << ", size=" << t->init_value_->size_ << ']';
-            }
-        }
-        if (init_.defined()) { os << " = " << init_; }
-        return;
-    } else {
-        os << "(Bad var type)";
-    }
-}
-
 stmt define_node_t::remake() const {
     return copy_attr(*this, make_stmt<define_node_t>(var_, linkage_, init_));
 }
@@ -213,21 +147,6 @@ bool define_node_t::equals(stmt_c v, ir_comparer &ctx) const {
     CAST_OR_RETURN(v);
     return var_->equals(other->var_, ctx) && linkage_ == other->linkage_
             && ctx.check_equals_may_null(init_, other->init_);
-}
-
-void for_loop_node_t::to_string(ostream &os, int indent) const {
-    const char *type;
-    if (kind_ == for_type::PARALLEL) {
-        type = "parallel ";
-    } else if (kind_ == for_type::GROUPED_PARALLEL) {
-        type = "grouped_parallel ";
-    } else {
-        type = "";
-    }
-    os << "for " << var_ << " in (" << iter_begin_ << ", " << iter_end_ << ", "
-       << step_ << ") " << type;
-    if (num_threads_ > 0) { os << '(' << num_threads_ << ')'; }
-    body_->to_string(os, indent);
 }
 
 stmt for_loop_node_t::remake() const {

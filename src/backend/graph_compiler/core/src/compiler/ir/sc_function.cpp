@@ -18,6 +18,7 @@
 #include <utility>
 #include "builder.hpp"
 #include "ir_comparer.hpp"
+#include <compiler/ir/pass/printer.hpp>
 #include <util/any_map.hpp>
 
 namespace sc {
@@ -31,26 +32,9 @@ ostream &operator<<(ostream &os, const func_base *e) {
     return os;
 }
 
-static ostream &print_single_arg(ostream &os, const expr &arg) {
-    if (arg.isa<tensor>()) {
-        auto a = arg.static_as<tensor>();
-        a->to_string_full(os);
-    } else {
-        os << arg << ": " << arg->dtype_;
-    }
-    return os;
-}
-
 void func_base::to_string(ostream &os) const {
-    os << "func " << name_ << '(';
-    if (!params_.empty()) {
-        for (unsigned i = 0; i < params_.size() - 1; i++) {
-            print_single_arg(os, params_.at(i)) << ", ";
-        }
-        print_single_arg(os, params_.back());
-    }
-    os << "): " << ret_type_ << ' ';
-    if (body_.defined()) { body_->to_string(os, 0); }
+    ir_printer_t p {os};
+    p.dispatch(shared_from_this());
 }
 
 func_t::func_t(func_base *ptr) : std::shared_ptr<func_base>(ptr) {}

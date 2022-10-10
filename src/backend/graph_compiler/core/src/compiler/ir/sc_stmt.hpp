@@ -83,7 +83,7 @@ public:
      * Dump the IR node as string to the ostream
      * @param os the output stream
      * */
-    virtual void to_string(ostream &os, int indent) const = 0;
+    virtual void to_string(ostream &os, int indent) const;
 
     /**
      * Does shallow copying copy on this IR node.
@@ -136,7 +136,6 @@ public:
         : stmt_base_t(sc_stmt_type::assign)
         , var_(std::move(var))
         , value_(std::move(value)) {};
-    void to_string(ostream &os, int indent) const override;
     stmt remake() const override;
     bool equals(stmt_c other, ir_comparer &ctx) const override;
 };
@@ -160,7 +159,6 @@ public:
      * @return size
      * */
     size_t size() const { return seq_.size(); };
-    void to_string(ostream &os, int indent) const override;
     stmt remake() const override;
     bool equals(stmt_c other, ir_comparer &ctx) const override;
 
@@ -200,7 +198,6 @@ public:
         , condition_(std::move(condition))
         , then_case_(std::move(then_case))
         , else_case_(std::move(else_case)) {};
-    void to_string(ostream &os, int indent) const override;
     stmt remake() const override;
     bool equals(stmt_c other, ir_comparer &ctx) const override;
 };
@@ -219,7 +216,6 @@ class evaluate_node_t : public stmt_base_t,
 public:
     static constexpr sc_stmt_type type_code_ = sc_stmt_type::evaluate;
     expr value_;
-    void to_string(ostream &os, int indent) const override;
     stmt remake() const override;
     bool equals(stmt_c other, ir_comparer &ctx) const override;
     evaluate_node_t(expr value)
@@ -237,7 +233,6 @@ class returns_node_t : public stmt_base_t,
 public:
     static constexpr sc_stmt_type type_code_ = sc_stmt_type::returns;
     expr value_;
-    void to_string(ostream &os, int indent) const override;
     stmt remake() const override;
     bool equals(stmt_c other, ir_comparer &ctx) const override;
     returns_node_t(expr value)
@@ -261,7 +256,6 @@ public:
     expr var_;
     expr init_;
     linkage linkage_;
-    void to_string(ostream &os, int indent) const override;
     stmt remake() const override;
     bool equals(stmt_c other, ir_comparer &ctx) const override;
     define_node_t(expr var, linkage linkage, expr init)
@@ -535,7 +529,6 @@ public:
      * */
     void parallel_merge(const stmt &parent, const ptr_type &ax);
 
-    void to_string(ostream &os, int indent) const override;
     stmt remake() const override;
     bool equals(stmt_c other, ir_comparer &ctx) const override;
 

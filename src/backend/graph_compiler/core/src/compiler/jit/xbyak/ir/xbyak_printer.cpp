@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include <compiler/ir/pass/printer.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/register_allocation.hpp>
 
@@ -34,7 +35,8 @@ ostream &xbyak_printer_t::print_expr_info(ostream &os, const expr &arg) {
     os << "{";
     if (arg.isa<tensor>()) {
         auto a = arg.static_as<tensor>();
-        a->to_string_full(os);
+        ir_printer_t p {os};
+        a->to_string_full(p);
     } else {
         os << arg << ": " << arg->dtype_;
     }
