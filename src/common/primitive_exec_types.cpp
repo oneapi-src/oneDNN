@@ -48,11 +48,11 @@ status_t cvt_primitive_args(const primitive_desc_t *pd, int nargs,
                 n_inputs++;
                 extra_inputs += (arg == DNNL_ARG_ATTR_OUTPUT_SCALES)
                         || (arg & DNNL_ARG_ATTR_ZERO_POINTS)
-                        || (arg & DNNL_ARG_ATTR_SCALES);
-                // 1x1 + dw conv fusion
-                extra_inputs += arg
-                        == (DNNL_ARG_ATTR_POST_OP_DW
-                                | DNNL_ARG_ATTR_OUTPUT_SCALES);
+                        || (arg & DNNL_ARG_ATTR_SCALES)
+                        // 1x1 + dw conv fusion
+                        || (arg
+                                == (DNNL_ARG_ATTR_POST_OP_DW
+                                        | DNNL_ARG_ATTR_OUTPUT_SCALES));
                 break;
             case primitive_desc_t::arg_usage_t::output:
                 if (args.count(arg) != 0) return invalid_arguments;
