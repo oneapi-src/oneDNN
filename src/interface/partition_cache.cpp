@@ -237,7 +237,7 @@ void lru_compiled_partition_cache_t::update_entry(const key_t &key,
 void lru_compiled_partition_cache_t::evict(size_t n) {
     using v_t = std::unordered_map<key_t, timed_entry_t>::value_type;
 
-    if (n == capacity_) {
+    if (n == cache_mapper().size()) {
         cache_mapper().clear();
         return;
     }
