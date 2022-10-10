@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@
 
 #include "common/memory_desc_wrapper.hpp"
 #include "common/primitive.hpp"
-#include "common/reorder_pd.hpp"
+#include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/nvidia/cudnn_reorder_impl.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
@@ -33,8 +33,9 @@ namespace nvidia {
 struct cudnn_reorder_t : public primitive_t {
     using primitive_t::primitive_t;
 
-    struct pd_t : public reorder_pd_t {
-        using reorder_pd_t::reorder_pd_t;
+    struct pd_t : public gpu_reorder_pd_t {
+        using gpu_reorder_pd_t::gpu_reorder_pd_t;
+
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_reorder_t);
 
         // Function to verify data and memory format
@@ -76,9 +77,13 @@ struct cudnn_reorder_t : public primitive_t {
 
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
-            bool ok = true && (engine == dst_engine)
-                    && (src_engine->kind() == engine_kind::gpu)
-                    && valid_data_n_mem_format() && check_scales_mask();
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
+                    | primitive_attr_t::skip_mask_t::post_ops;
+            bool ok = engine == dst_engine
+                    && src_engine->kind() == engine_kind::gpu
+                    && valid_data_n_mem_format()
+                    && attr()->has_default_values(attr_skip_mask)
+                    && check_scales_mask();
             if (!ok) return status::unimplemented;
             if (has_different_block_size(src_md(), dst_md())) {
                 reorder_.reset(new cudnn_reorder_ex_t());
@@ -91,21 +96,7 @@ struct cudnn_reorder_t : public primitive_t {
         std::shared_ptr<cudnn_reorder_generic_t> reorder_;
 
     private:
-        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
-                const primitive_attr_t *attr, engine_t *src_engine,
-                const memory_desc_t *src_md, engine_t *dst_engine,
-                const memory_desc_t *dst_md) {
-            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
-                    dst_engine->kind(), dst_md);
-            if (_pd == nullptr) return status::out_of_memory;
-            if (_pd->init(engine, src_engine, dst_engine) != status::success) {
-                delete _pd;
-                return status::unimplemented;
-            }
-            _pd->init_scratchpad_md();
-            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
-        }
-        friend dnnl::impl::impl_list_item_t;
+        DECLARE_GPU_REORDER_CREATE();
     };
 
     status_t execute(const exec_ctx_t &ctx) const override;
