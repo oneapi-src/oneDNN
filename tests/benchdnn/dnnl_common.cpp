@@ -868,7 +868,8 @@ static void add_md_size(const_dnnl_memory_desc_t md,
 
     // Reference memories are always tag::abx fp32, hence need re-creating
     // memory descriptor and take its size.
-    auto ref_md = dnn_mem_t::init_md(md->ndims, md->dims, dnnl_f32, tag::abx);
+    auto ref_md = dnn_mem_t::init_md(
+            query_md_ndims(md), query_md_dims(md), dnnl_f32, tag::abx);
     const auto ref_md_size = dnnl_memory_desc_get_size(ref_md);
 
     // Correctness pass allocates additional tag::abx f32 memory.
