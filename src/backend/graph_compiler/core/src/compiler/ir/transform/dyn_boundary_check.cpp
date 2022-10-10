@@ -20,8 +20,8 @@
 #include <vector>
 #include "auto_cast.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/visitor.hpp>
-#include <microkernel/builtin.hpp>
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
 

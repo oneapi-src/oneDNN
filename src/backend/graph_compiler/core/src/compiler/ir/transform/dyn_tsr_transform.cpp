@@ -22,11 +22,11 @@
 
 #include "dyn_tsr_transform.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/util_module_passes.hpp>
 #include <compiler/ir/visitor.hpp>
-#include <microkernel/builtin.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 
 namespace sc {

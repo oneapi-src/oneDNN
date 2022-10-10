@@ -17,11 +17,11 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/closurize_impl.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
-#include <microkernel/builtin.hpp>
 #include <runtime/config.hpp>
 #include <runtime/trace.hpp>
 #include <util/any_map.hpp>

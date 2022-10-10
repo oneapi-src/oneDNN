@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_MICROKERNEL_BUILTIN_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_MICROKERNEL_BUILTIN_HPP
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_BUILTIN_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_BUILTIN_HPP
 
 #include <functional>
 #include <string>

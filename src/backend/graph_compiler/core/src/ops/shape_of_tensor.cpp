@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 #include <compiler/ir/builder.hpp>
-#include <microkernel/builtin.hpp>
+#include <compiler/ir/builtin.hpp>
 namespace sc {
 namespace ops {
 

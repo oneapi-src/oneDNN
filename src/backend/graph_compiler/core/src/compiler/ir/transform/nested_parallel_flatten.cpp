@@ -18,10 +18,10 @@
 #include <utility>
 #include <vector>
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/visitor.hpp>
-#include <microkernel/builtin.hpp>
 #include <runtime/barrier.hpp>
 #include <runtime/config.hpp>
 #include <unordered_map>

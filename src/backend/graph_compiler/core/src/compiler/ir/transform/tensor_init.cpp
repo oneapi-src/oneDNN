@@ -18,12 +18,12 @@
 #include <vector>
 #include "tensor_init.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/parallel_workload_attr.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/visitor.hpp>
-#include <microkernel/builtin.hpp>
 #include <util/any_map.hpp>
 
 namespace sc {

@@ -20,9 +20,9 @@
 #include "conv_fwd.hpp"
 #include "utils.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
-#include <microkernel/builtin.hpp>
 #include <runtime/config.hpp>
 #include <unordered_set>
 #include <util/any_map.hpp>

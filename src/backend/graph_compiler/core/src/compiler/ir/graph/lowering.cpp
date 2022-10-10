@@ -27,6 +27,7 @@
 #include "runtime_op.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
@@ -38,7 +39,6 @@
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/index2var.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
-#include <microkernel/builtin.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/matmul_core.hpp>

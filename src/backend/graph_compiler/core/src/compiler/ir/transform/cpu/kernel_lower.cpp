@@ -26,8 +26,8 @@
 #include "../buffer_schedule.hpp"
 #include "../index_flatten.hpp"
 #include "kernel_lower.hpp"
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
-#include <microkernel/builtin.hpp>
 #include <util/hash_utils.hpp>
 
 SC_MODULE(pass.kernel_lowering_cpu)

@@ -20,13 +20,13 @@
 #include <string>
 #include "utils.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
-#include <microkernel/builtin.hpp>
 #include <ops/matmul_core.hpp>
 #include <runtime/config.hpp>
 #include <runtime/parallel.hpp>

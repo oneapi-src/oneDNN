@@ -22,11 +22,11 @@
 #include <vector>
 #include "utils.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
-#include <microkernel/builtin.hpp>
 #include <runtime/config.hpp>
 #include <runtime/trace.hpp>
 #include <util/any_map.hpp>

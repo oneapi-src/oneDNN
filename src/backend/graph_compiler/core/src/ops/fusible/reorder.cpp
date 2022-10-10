@@ -17,8 +17,8 @@
 #include <assert.h>
 
 #include <utility>
+#include "compiler/ir/builtin.hpp"
 #include "memory_movement.hpp"
-#include "microkernel/builtin.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>

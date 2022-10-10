@@ -20,8 +20,8 @@
 #include <utility>
 #include <vector>
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/visitor.hpp>
-#include <microkernel/builtin.hpp>
 #include <runtime/config.hpp>
 #include <runtime/trace.hpp>
 

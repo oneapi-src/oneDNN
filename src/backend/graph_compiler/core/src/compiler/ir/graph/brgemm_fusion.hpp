@@ -17,7 +17,7 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_BRGEMM_FUSION_HPP
 #include <vector>
 #include "graph.hpp"
-#include <microkernel/builtin.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <runtime/microkernel/cpu/brgemm_common.hpp>
 namespace sc {
 // When fusion manager executing `do_compute_blocks` pass, check if it can be

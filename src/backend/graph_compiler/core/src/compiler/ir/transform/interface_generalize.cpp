@@ -20,7 +20,7 @@
 #include "../builder.hpp"
 #include "../easy_build.hpp"
 #include "interface_generalize.hpp"
-#include <microkernel/builtin.hpp>
+#include <compiler/ir/builtin.hpp>
 
 namespace sc {
 

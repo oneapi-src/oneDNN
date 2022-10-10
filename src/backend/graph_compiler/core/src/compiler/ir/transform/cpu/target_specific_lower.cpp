@@ -20,6 +20,7 @@
 
 #include "target_specific_lower.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/intrinsics.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
@@ -28,7 +29,6 @@
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/visitor.hpp>
-#include <microkernel/builtin.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <util/any_map.hpp>
 

@@ -27,9 +27,9 @@
 #include "static_memory_planner.hpp"
 #include "tensor_inplace_info.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/intrinsics.hpp>
 #include <compiler/ir/visitor.hpp>
-#include <microkernel/builtin.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <util/any_map.hpp>

@@ -25,6 +25,7 @@
 #include "../easy_build.hpp"
 #include "fusible_op.hpp"
 #include "fusion_mgr_utils.hpp"
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/visitor.hpp>
@@ -34,7 +35,6 @@
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <compiler/ir/visitor.hpp>
-#include <microkernel/builtin.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
