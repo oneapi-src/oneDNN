@@ -1536,6 +1536,8 @@ using ngen::BinaryCodeGenerator<hw>::store; \
 using ngen::BinaryCodeGenerator<hw>::atomic; \
 template <typename... Targs> void memfence(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::memfence(std::forward<Targs>(args)...); } \
 template <typename... Targs> void slmfence(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::slmfence(std::forward<Targs>(args)...); } \
+template <typename... Targs> void loadlid(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::loadlid(std::forward<Targs>(args)...); } \
+template <typename... Targs> void loadargs(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::loadargs(std::forward<Targs>(args)...); } \
 template <typename... Targs> void epilogue(int GRFCount, bool hasSLM, const ngen::RegData &r0_info) { ngen::BinaryCodeGenerator<hw>::epilogue(GRFCount, hasSLM, r0_info); } \
 template <typename... Targs> void pushStream(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::pushStream(std::forward<Targs>(args)...); } \
 template <typename... Targs> InstructionStream *popStream(Targs&&... args) { return ngen::BinaryCodeGenerator<hw>::popStream(std::forward<Targs>(args)...); } \
@@ -1807,8 +1809,8 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 1);
-    src0.fixup(emod.getExecSize(), defaultType, false, 1);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 1);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 1);
 
     encodeCommon8(i, op, emod);
     i.common.accessMode = std::is_base_of<Align16Operand, D>::value;
@@ -1840,8 +1842,8 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 1);
-    src0.fixup(emod.getExecSize(), defaultType, false, 1);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 1);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 1);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -1869,8 +1871,8 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 1);
-    src0.fixup(emod.getExecSize(), defaultType, false, 1);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 1);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 1);
 
     encodeCommon8(i, op, emod);
     i.common.accessMode = std::is_base_of<Align16Operand, D>::value;
@@ -1905,8 +1907,8 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 1);
-    src0.fixup(emod.getExecSize(), defaultType, false, 1);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 1);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 1);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -1944,9 +1946,9 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 2);
-    src0.fixup(emod.getExecSize(), defaultType, false, 2);
-    src1.fixup(emod.getExecSize(), defaultType, false, 2);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 2);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 2);
+    src1.fixup(hw, emod.getExecSize(), defaultType, false, 2);
 
     encodeCommon8(i, op, emod);
     i.common.accessMode = std::is_base_of<Align16Operand, D>::value;
@@ -1986,9 +1988,9 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 2);
-    src0.fixup(emod.getExecSize(), defaultType, false, 2);
-    src1.fixup(emod.getExecSize(), defaultType, false, 2);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 2);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 2);
+    src1.fixup(hw, emod.getExecSize(), defaultType, false, 2);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -2019,9 +2021,9 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 2);
-    src0.fixup(emod.getExecSize(), defaultType, false, 2);
-    src1.fixup(emod.getExecSize(), defaultType, false, 2);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 2);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 2);
+    src1.fixup(hw, emod.getExecSize(), defaultType, false, 2);
 
     encodeCommon8(i, op, emod);
     i.common.accessMode = std::is_base_of<Align16Operand, D>::value;
@@ -2057,9 +2059,9 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 2);
-    src0.fixup(emod.getExecSize(), defaultType, false, 2);
-    src1.fixup(emod.getExecSize(), defaultType, false, 2);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 2);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 2);
+    src1.fixup(hw, emod.getExecSize(), defaultType, false, 2);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -2107,10 +2109,10 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     Instruction8 i{};
     InstructionModifier emod = mod | defaultModifier | Align16;
 
-    dst.getReg().fixup(emod.getExecSize(), defaultType, true, 3);
-    src0.getReg().fixup(emod.getExecSize(), defaultType, false, 3);
-    src1.getReg().fixup(emod.getExecSize(), defaultType, false, 3);
-    src2.getReg().fixup(emod.getExecSize(), defaultType, false, 3);
+    dst.getReg().fixup(hw, emod.getExecSize(), defaultType, true, 3);
+    src0.getReg().fixup(hw, emod.getExecSize(), defaultType, false, 3);
+    src1.getReg().fixup(hw, emod.getExecSize(), defaultType, false, 3);
+    src2.getReg().fixup(hw, emod.getExecSize(), defaultType, false, 3);
 
     encodeCommon8(i, op, emod);
 
@@ -2148,10 +2150,10 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     Instruction8 i{};
     InstructionModifier emod = mod | defaultModifier;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 3);
-    src0.fixup(emod.getExecSize(), defaultType, false, 3);
-    src1.fixup(emod.getExecSize(), defaultType, false, 3);
-    src2.fixup(emod.getExecSize(), defaultType, false, 3);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 3);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 3);
+    src1.fixup(hw, emod.getExecSize(), defaultType, false, 3);
+    src2.fixup(hw, emod.getExecSize(), defaultType, false, 3);
 
     encodeCommon8(i, op, emod);
 
@@ -2174,10 +2176,10 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     Instruction12 i{};
     InstructionModifier emod = mod | defaultModifier;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 3);
-    src0.fixup(emod.getExecSize(), defaultType, false, 3);
-    src1.fixup(emod.getExecSize(), defaultType, false, 3);
-    src2.fixup(emod.getExecSize(), defaultType, false, 3);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 3);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 3);
+    src1.fixup(hw, emod.getExecSize(), defaultType, false, 3);
+    src2.fixup(hw, emod.getExecSize(), defaultType, false, 3);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -2223,10 +2225,10 @@ void BinaryCodeGenerator<hw>::opBfn(Opcode op, DataType defaultType, const Instr
     Instruction12 i{};
     InstructionModifier emod = mod | defaultModifier;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 3);
-    src0.fixup(emod.getExecSize(), defaultType, false, 3);
-    src1.fixup(emod.getExecSize(), defaultType, false, 3);
-    src2.fixup(emod.getExecSize(), defaultType, false, 3);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 3);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 3);
+    src1.fixup(hw, emod.getExecSize(), defaultType, false, 3);
+    src2.fixup(hw, emod.getExecSize(), defaultType, false, 3);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -2254,10 +2256,10 @@ void BinaryCodeGenerator<hw>::opDpas(Opcode op, DataType defaultType, const Inst
     Instruction12 i{};
     InstructionModifier emod = mod | defaultModifier;
 
-    dst.fixup(emod.getExecSize(), defaultType, true, 3);
-    src0.fixup(emod.getExecSize(), defaultType, false, 3);
-    src1.fixup(emod.getExecSize(), defaultType, false, 3);
-    src2.fixup(emod.getExecSize(), defaultType, false, 3);
+    dst.fixup(hw, emod.getExecSize(), defaultType, true, 3);
+    src0.fixup(hw, emod.getExecSize(), defaultType, false, 3);
+    src1.fixup(hw, emod.getExecSize(), defaultType, false, 3);
+    src2.fixup(hw, emod.getExecSize(), defaultType, false, 3);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -2619,7 +2621,7 @@ BinaryCodeGenerator<hw>::opJmpi(Opcode op, const InstructionModifier &mod, const
 
     encodeCommon8(i, op, emod);
 
-    src0.fixup(emod.getExecSize(), DataType::d, false, 2);
+    src0.fixup(hw, emod.getExecSize(), DataType::d, false, 2);
 
     i.binary.dst = encodeBinaryOperand8<true>(dst).bits;
     i.binary.src0 = encodeBinaryOperand8<false>(src0).bits;

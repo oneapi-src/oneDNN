@@ -139,7 +139,7 @@ inline void Label::outputText(std::ostream &str, PrintDetail detail, LabelManage
 
 struct NoOperand {
     static const bool emptyOp = true;
-    void fixup(int esize, DataType defaultType, bool isDest, int arity) const {}
+    void fixup(HW hw, int esize, DataType defaultType, bool isDest, int arity) const {}
     constexpr bool isScalar() const { return false; }
 
     void outputText(std::ostream &str, PrintDetail detail, LabelManager &man) const {}
@@ -1688,10 +1688,10 @@ void AsmCodeGenerator::opX(Opcode op, DataType defaultType, const InstructionMod
         throw invalid_execution_size_exception();
 #endif
 
-    dst.fixup(esize, defaultType, true, arity);
-    src0.fixup(esize, defaultType, false, arity);
-    src1.fixup(esize, defaultType, false, arity);
-    src2.fixup(esize, defaultType, false, arity);
+    dst.fixup(hardware, esize, defaultType, true, arity);
+    src0.fixup(hardware, esize, defaultType, false, arity);
+    src1.fixup(hardware, esize, defaultType, false, arity);
+    src2.fixup(hardware, esize, defaultType, false, arity);
 
     streamStack.back()->append(op, ext, emod, dst, src0, src1, src2, NoOperand{}, &labelManager);
 }

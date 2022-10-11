@@ -975,7 +975,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
     }
 
     auto esize = 1 << ((hw >= HW::XeHPC) ? commonXeHPC.execSize : common.execSize);
-    rd.fixup(esize, DataType::invalid, opNum < 0, 2);
+    rd.fixup(hw, esize, DataType::invalid, opNum < 0, 2);
     region = DependencyRegion(hw, esize, rd);
     return true;
 }

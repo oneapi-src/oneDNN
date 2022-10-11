@@ -481,8 +481,12 @@ public:
         return id;
     }
 
+    bool defined(const LabelManager &man) const {
+        return !uninit && man.hasTarget(id);
+    }
+
     /* for compatibility with RegData */
-    void fixup(int execSize, DataType defaultType, bool isDest, int arity) {}
+    void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity) {}
     constexpr14 bool isScalar() const { return false; }
 
 #ifdef NGEN_ASM
@@ -556,7 +560,7 @@ public:
     void invalidate()                     { invalid = true; }
     RegData &operator=(const Invalid &i)  { this->invalidate(); return *this; }
 
-    inline void fixup(int execSize, DataType defaultType, bool isDest, int arity);                    // Adjust automatically-computed strides given ESize.
+    inline void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity);                    // Adjust automatically-computed strides given ESize.
 
     constexpr RegData operator+() const { return *this; }
     constexpr14 RegData operator-() const {
@@ -593,7 +597,7 @@ inline RegData abs(const RegData &r)
     return result.setMods(1);
 }
 
-inline void RegData::fixup(int execSize, DataType defaultType, bool isDest, int arity)
+inline void RegData::fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity)
 {
 #ifdef NGEN_SAFE
     if (isInvalid()) throw invalid_object_exception();
@@ -614,6 +618,13 @@ inline void RegData::fixup(int execSize, DataType defaultType, bool isDest, int 
             int maxWidth = 32 / getBytes();
             width = (hs == 0) ? 1 : std::min<int>({int(maxWidth / hs), execSize, 16});
             vs = width * hs;
+            if (arity == 3 && hw >= HW::Gen12LP && vs == 2) {
+#ifdef NGEN_SAFE
+                if (hs != 1) throw invalid_region_exception();
+#endif
+                vs = 1;
+                hs = 0;
+            }
         }
         if (isDest && hs == 0)
             hs = 1;
@@ -663,8 +674,8 @@ public:
     bool isValid()                        const { return !rd.isInvalid(); }
     constexpr bool isScalar()             const { return rd.isScalar(); }
 
-    void fixup(int execSize, DataType defaultType, bool isDest, int arity) {
-        rd.fixup(execSize, defaultType, isDest, arity);
+    void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity) {
+        rd.fixup(hw, execSize, defaultType, isDest, arity);
     }
 
 #ifdef NGEN_ASM
@@ -987,8 +998,8 @@ public:
     constexpr ExtendedReg(RegData base_, uint8_t mmeNum_) : base(base_), mmeNum(mmeNum_) {}
     constexpr ExtendedReg(RegData base_, SpecialAccumulatorRegister acc) : base(base_), mmeNum(acc.getMME()) {}
 
-    void fixup(int execSize, DataType defaultType, bool isDest, int arity) {
-        base.fixup(execSize, defaultType, isDest, arity);
+    void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity) {
+        base.fixup(hw, execSize, defaultType, isDest, arity);
     }
 
     constexpr int getMods()         const { return base.getMods(); }
@@ -1203,7 +1214,9 @@ public:
 
     operator GRF() const { return (*this)[0]; }
 
-    void fixup(int execSize, DataType defaultType, bool isDest, int arity) {}
+    inline Subregister sub(HW hw, int offset, DataType type) const;
+
+    void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity) {}
 };
 
 static inline GRFRange operator-(const GRF &reg1, const GRF &reg2)
@@ -1226,6 +1239,11 @@ static inline bool operator==(const GRFRange &r1, const GRFRange &r2)
 static inline bool operator!=(const GRFRange &r1, const GRFRange &r2)
 {
     return !(r1 == r2);
+}
+
+Subregister GRFRange::sub(HW hw, int offset, DataType type) const {
+    const int lg2Len = GRF::log2Bytes(hw) - getLog2Bytes(type);
+    return (*this)[offset >> lg2Len].sub(offset - ((offset >> lg2Len) << lg2Len), type);
 }
 
 enum class ConditionModifier {
@@ -1918,7 +1936,7 @@ public:
         return Immediate(payload, DataType::vf);
     }
 
-    void fixup(int execSize, DataType defaultType, bool isDest, int arity) const {
+    void fixup(HW hw, int execSize, DataType defaultType, bool isDest, int arity) const {
 #ifdef NGEN_SAFE
         if (getBytes(type) > (16 >> arity))
             throw invalid_immediate_exception();

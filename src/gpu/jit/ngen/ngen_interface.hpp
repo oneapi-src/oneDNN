@@ -113,6 +113,9 @@ public:
     void setSkipPerThreadOffset(int32_t offset)          { offsetSkipPerThread = offset; }
     void setSkipCrossThreadOffset(int32_t offset)        { offsetSkipCrossThread = offset; }
 
+    inline GRF getCrossthreadBase(bool effective = true) const;
+    inline GRF getArgLoadBase() const;
+
     inline void finalize();
 
     template <typename CodeGenerator>
@@ -174,7 +177,6 @@ protected:
     int inlineGRFs = 0;
     inline int getCrossthreadGRFs() const;
     inline int getCrossthreadBytes() const;
-    inline GRF getCrossthreadBase(bool effective = true) const;
     int grfsPerLID() const { return (simd > 16 && GRF::bytes(hw) < 64) ? 2 : 1; }
 
     static inline int defaultInlineGRFs(HW hw);
@@ -459,6 +461,11 @@ GRF InterfaceHandler::getCrossthreadBase(bool effective) const
         return GRF(1 + 3 * grfsPerLID());
 }
 
+GRF InterfaceHandler::getArgLoadBase() const
+{
+    return getCrossthreadBase().advance(inlineGRFs);
+}
+
 int InterfaceHandler::getCrossthreadBytes() const
 {
 #ifdef NGEN_SAFE
@@ -494,7 +501,7 @@ void InterfaceHandler::generatePrologue(CodeGenerator &generator, const GRF &tem
     if (needLocalID)
         generator.loadlid(getCrossthreadBytes(), needLocalID, simd, temp, 12*16);
     if (getCrossthreadGRFs() > inlineGRFs)
-        generator.loadargs(getCrossthreadBase().advance(inlineGRFs), getCrossthreadGRFs() - inlineGRFs, temp);
+        generator.loadargs(getArgLoadBase(), getCrossthreadGRFs() - inlineGRFs, temp);
 #endif
 }
 
