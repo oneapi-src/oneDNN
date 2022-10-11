@@ -495,7 +495,8 @@ void loadlid(int argBytes, int dims = 3, int simd = 8, const GRF &temp = GRF(127
                 nop();
         }
 
-        mark(_labelLocalIDsLoaded);
+        if (!_labelLocalIDsLoaded.defined(labelManager))
+            mark(_labelLocalIDsLoaded);
     }
 }
 
@@ -521,7 +522,8 @@ void loadargs(const GRF &base, int argGRFs, const GRF &temp = GRF(127))
             defaultModifier = dmSave;
         }
 
-        mark(_labelArgsLoaded);
+        if (!_labelArgsLoaded.defined(labelManager))
+            mark(_labelArgsLoaded);
     }
 }
 
