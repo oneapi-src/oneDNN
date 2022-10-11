@@ -189,6 +189,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     match_params[0].stepping = stepping;
 
     auto tags = const_cast<char *>(match_params[0].tags);
+    while (*tags) tags++;
     if (lda * problem_.Ta >= 64) *tags++ = kcatalog::ReqBlock2DA;
     if (ldb * problem_.Tb >= 64) *tags++ = kcatalog::ReqBlock2DB;
     if (ldc * problem_.Tc >= 64) *tags++ = kcatalog::ReqBlock2DC;
@@ -329,7 +330,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     match_params.unroll[LoopN] = unroll_n;
 
     const char alt_tag[2] = {kcatalog::ReqCustom1, '\0'};
-    if (alt) match_params.tags = &alt_tag[0];
+    if (alt) match_params.lateTags = match_params.tags = &alt_tag[0];
 
     EvaluateParams eval_params;
 
