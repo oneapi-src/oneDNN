@@ -26,6 +26,7 @@ const impl_list_map_t &regular_f16_impl_list_map() {
     static const impl_list_map_t the_map = REG_REORDER_P({
         // f16 ->
         {{f16, data_type::undef, 0}, {
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::brgemm_matmul_matrix_B_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 

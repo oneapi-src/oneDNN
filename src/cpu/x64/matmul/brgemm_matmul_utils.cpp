@@ -122,7 +122,8 @@ status_t check_isa_with_datatype(
                     one_of(isa, avx512_core_amx, avx512_core_vnni))
             && IMPLICATION(bm_conf_utils.is_bf16(),
                     one_of(isa, avx512_core_amx, avx512_core_bf16))
-            && IMPLICATION(bm_conf_utils.is_f16(), isa == avx512_core_fp16)
+            && IMPLICATION(bm_conf_utils.is_f16(),
+                    one_of(isa, avx512_core_amx_fp16, avx512_core_fp16))
             && IMPLICATION(bm_conf_utils.is_int8_with_bf16_dst(),
                     mayiuse(avx512_core_vnni));
     return ok ? status::success : status::unimplemented;
@@ -277,7 +278,9 @@ format_tag_t brgemm_matmul_conf_utils_t::pick_blocked_B_layout(
             default: return format_tag::undef;
         }
 
-    if (this->is_bf16()) switch (n_blk) {
+    if (this->is_bf16()
+            || (this->is_f16() && bgmmc.isa == avx512_core_amx_fp16))
+        switch (n_blk) {
             case 64: return bgmmc.ndims == 3 ? aCB16b64c2b : BA16a64b2a;
             case 48: return bgmmc.ndims == 3 ? aCB16b48c2b : BA16a48b2a;
             case 32: return bgmmc.ndims == 3 ? aCB16b32c2b : BA16a32b2a;
@@ -533,11 +536,12 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
     const int min_k_per_thread = 1024;
     const int max_k_parallel_work
             = div_up(static_cast<int>(bgmmc.K), min_k_per_thread);
-    const bool is_amx_bf16 = bgmmc.is_amx
-            && (bm_conf_utils.is_bf16() || bm_conf_utils.is_bf32());
+    const bool is_amx_xf16 = bgmmc.is_amx
+            && (bm_conf_utils.is_bf16() || bm_conf_utils.is_f16()
+                    || bm_conf_utils.is_bf32());
     const bool is_amx_int8 = bgmmc.is_amx && bm_conf_utils.is_int8();
 
-    const int max_nthr_k = is_amx_bf16 && bgmmc.batch == 1
+    const int max_nthr_k = is_amx_xf16 && bgmmc.batch == 1
             ? nstl::min(saturate(1, 7, bgmmc.nthr / 8), max_k_parallel_work)
             : 1;
     int iter = 0;
@@ -558,7 +562,7 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
                 = (maybe_low_blocking || low_parallelism) && bgmmc.M_blk > 32
                 ? div_up(bgmmc.M_blk, 2)
                 : bgmmc.M_blk;
-        const int min_N_blk = low_parallelism && is_amx_bf16
+        const int min_N_blk = low_parallelism && is_amx_xf16
                         && !bm_conf_utils.check_n_blk_fixed()
                         && bgmmc.N_blk > 32
                 ? 32
@@ -809,7 +813,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     CHECK(check_isa_with_datatype(isa, bm_conf_utils));
 
-    bgmmc.is_amx = isa == avx512_core_amx;
+    bgmmc.is_amx = is_superset(isa, avx512_core_amx);
     bgmmc.a_dt_sz = bgmmc.tr_a_dt_sz = types::data_type_size(bgmmc.src_dt);
     bgmmc.b_dt_sz = bgmmc.tr_b_dt_sz = types::data_type_size(bgmmc.wei_dt);
 
@@ -822,7 +826,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         bgmmc.wei_dt = bf16;
         bgmmc.tr_a_dt_sz = types::data_type_size(bf16);
         bgmmc.tr_b_dt_sz = types::data_type_size(bf16);
-    } else if (bm_conf_utils.is_f16()) {
+    } else if (bm_conf_utils.is_f16() && bgmmc.isa == avx512_core_fp16) {
         // Similar to bf32, convert input data before compute
         bgmmc.src_dt = f32;
         bgmmc.wei_dt = f32;
@@ -906,13 +910,16 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     bgmmc.transposed_A = (bm_conf_utils.check_is_transposed(bgmmc.src_tag)
             || bgmmc.src_tag == adbc);
-    const bool lda_is_big_2pow = bm_conf_utils.is_bf16() && !bgmmc.transposed_A
-            && math::is_pow2(bgmmc.K) && bgmmc.K >= 4096 && bgmmc.M >= 1024;
+    const bool lda_is_big_2pow
+            = (bm_conf_utils.is_bf16()
+                      || (bgmmc.is_amx && bm_conf_utils.is_f16()))
+            && !bgmmc.transposed_A && math::is_pow2(bgmmc.K) && bgmmc.K >= 4096
+            && bgmmc.M >= 1024;
     const bool is_copy_a_required
             = (bgmmc.is_amx
                       && ((bgmmc.K % bgmmc.required_k_granularity != 0)
                               || bm_conf_utils.is_bf32()))
-            || bm_conf_utils.is_f16()
+            || (bm_conf_utils.is_f16() && isa == avx512_core_fp16)
             || bgmmc.wei_zp_type != brgemm_broadcast_t::none
             || bgmmc.transposed_A || lda_is_big_2pow;
     bgmmc.use_buffer_a = is_copy_a_required;
@@ -1119,7 +1126,7 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 bgmmc.nthr * bgmmc.zp_b_comp_elems_per_thr,
                 types::data_type_size(s32));
 
-    if (bgmmc.isa == avx512_core_amx)
+    if (is_superset(bgmmc.isa, avx512_core_amx))
         scratchpad.book(key_conv_amx_tile_buffer,
                 static_cast<size_t>(bgmmc.nthr) * bgmmc.wsp_tile_per_thr_bytes,
                 default_data_align);

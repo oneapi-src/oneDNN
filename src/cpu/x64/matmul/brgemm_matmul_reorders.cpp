@@ -36,18 +36,19 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
 
     const auto type_i = id.data_type();
     const auto type_o = od.data_type();
-    // TODO: enable support for f16 and for supported in copy_b
-    //       type_i != type_o cases
+    // TODO: enable support for type_i != type_o cases
     const bool dt_ok = true && type_i == type_o
-            && utils::one_of(
-                    type_o, data_type::s8, data_type::bf16, data_type::f32);
+            && utils::one_of(type_o, data_type::s8, data_type::bf16,
+                    data_type::f16, data_type::f32);
+    const bool is_f16 = utils::one_of(data_type::f16, type_i, type_o);
     const bool has_adj_scale
             = od.extra().flags & memory_extra_flags::scale_adjust;
     const bool args_ok = true && dt_ok && id.is_dense()
-            && utils::one_of(ndims, 2, 3) && mayiuse(avx512_core)
-            && !has_adj_scale && attr()->has_default_values()
-            && od.is_blocking_desc() && !od.has_runtime_dims_or_strides()
-            && !od.has_zero_dim();
+            && utils::one_of(ndims, 2, 3)
+            && IMPLICATION(is_f16, mayiuse(avx512_core_fp16))
+            && IMPLICATION(!is_f16, mayiuse(avx512_core)) && !has_adj_scale
+            && attr()->has_default_values() && od.is_blocking_desc()
+            && !od.has_runtime_dims_or_strides() && !od.has_zero_dim();
     if (!args_ok) return invalid_arguments;
 
     const auto &dims = id.dims();
@@ -106,9 +107,7 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
             : brgemm_broadcast_t::none;
     matmul_conf_for_reorder_.has_zero_point_a
             = matmul_conf_for_reorder_.src_zp_type != brgemm_broadcast_t::none;
-    assert(!utils::one_of(data_type::f16, type_i, type_o)
-            && "ISA should be avx512_core_fp16 for f16 data type");
-    matmul_conf_for_reorder_.isa = avx512_core;
+    matmul_conf_for_reorder_.isa = is_f16 ? avx512_core_fp16 : avx512_core;
 
     auto mask_ok = [&](bool check, int mask) {
         return IMPLICATION(

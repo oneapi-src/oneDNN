@@ -2298,11 +2298,15 @@ status_t create_brgemm_matmul_copy_b(
     const bool is_bf16
             = everyone_is(data_type::bf16, conf->src_dt, conf->wei_dt);
     const bool is_f32 = everyone_is(data_type::f32, conf->src_dt, conf->wei_dt);
+    // Note: f16 support through avx512_core_fp16 sets src_dt and wei_dt as f32
+    // to imply upconverting. So, the assumption is `is_f1`6 below evaluates to
+    // `false` on avx512_core_fp16.
+    const bool is_f16 = everyone_is(data_type::f16, conf->src_dt, conf->wei_dt);
     if (is_B_transposed) {
         CHECK(safe_ptr_assign(
                 copy_ker, new jit_brgemm_matmul_copy_b_transposed_t(conf)));
     } else {
-        if (is_bf16 || conf->is_bf32) {
+        if (is_bf16 || is_f16 || conf->is_bf32) {
             CHECK(safe_ptr_assign(
                     copy_ker, new jit_brgemm_matmul_copy_b_bf16_t(conf)));
         } else if (is_f32 || conf->isa == avx512_core_fp16) {
