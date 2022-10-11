@@ -960,38 +960,6 @@ std::vector<layout_t> access_builder_t::candidate_payload_layouts() const {
 
     std::vector<layout_t> ret;
 
-    auto &vblocks = vlayout.blocks();
-    auto &tblocks = mem_view_.tlayout().blocks();
-    int grf_size = this->grf_size();
-
-    // This is to support layouts that are half-GRF blocked (e.g. u8/s8 32c on
-    // XeHPC). In this case we can pad the block to full register and apply GRF
-    // reorder later - this may be more efficient than using scattered
-    // messages.
-    auto is_sub_grf_blocked = [&]() {
-        int grf_elems = grf_size / type_size;
-        auto vlayout = mem_view_.create_pseudo_vlayout();
-        return vlayout.split_into_max_tile(grf_elems, true).elems() < grf_elems;
-    };
-    if (send_address_ != send_address_t::slm && !vblocks.empty()
-            && !tblocks.empty()
-            && (is_sub_grf_blocked()
-                    || mem_walker_->mask_tensor()
-                               .reinterpret(type_t::u(8, grf_size))
-                               .is_empty())) {
-        auto &v0 = vblocks[0];
-        auto &t0 = tblocks[0];
-        int v0_size = type_size * v0.block;
-        int t0_size = type_size * t0.block;
-        int half_grf_size = grf_size / 2;
-        if (v0.dim_idx == t0.dim_idx && (int)v0.stride == 1
-                && (int)t0.stride == 1 && v0_size % half_grf_size == 0
-                && t0_size % half_grf_size == 0 && v0_size < grf_size) {
-            auto tmp = vlayout.make_strided(grf_size / type_size, 1);
-            ret.push_back(tmp);
-        }
-    }
-
     // Dense payload layout directly mapping to the memory view.
     ret.push_back(vlayout);
 
