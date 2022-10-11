@@ -29,6 +29,7 @@ otherwise disabled by default.
 | \                    | AVX              | Intel Advanced Vector Extensions (Intel AVX)
 | \                    | AVX2             | Intel Advanced Vector Extensions 2 (Intel AVX2)
 | \                    | AVX2_VNNI        | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost)
+| \                    | AVX2_VNNI_2      | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost) with 8-bit integer, float16 and bfloat16 support
 | \                    | AVX512_CORE      | Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions
 | \                    | AVX512_CORE_VNNI | Intel AVX-512 with Intel DL Boost
 | \                    | AVX512_CORE_BF16 | Intel AVX-512 with Intel DL Boost and bfloat16 support
@@ -37,7 +38,7 @@ otherwise disabled by default.
 | \                    | **DEFAULT**      | **No restrictions (default)**
 
 @note The ISAs are partially ordered:
-* SSE41 < AVX < AVX2 < AVX2_VNNI,
+* SSE41 < AVX < AVX2 < AVX2_VNNI < AVX2_VNNI_2,
 * AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16 < AVX512_CORE_FP16 < AVX512_CORE_AMX,
 * AVX2_VNNI < AVX512_CORE_FP16.
 
