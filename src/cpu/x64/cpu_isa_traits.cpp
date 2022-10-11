@@ -50,6 +50,7 @@ cpu_isa_t init_max_cpu_isa() {
         ELSEIF_HANDLE_CASE(avx512_core_bf16);
         ELSEIF_HANDLE_CASE(avx512_core_fp16);
         ELSEIF_HANDLE_CASE(avx512_core_amx);
+        ELSEIF_HANDLE_CASE(avx512_core_amx_fp16);
 
 #undef IF_HANDLE_CASE
 #undef ELSEIF_HANDLE_CASE
@@ -91,6 +92,7 @@ struct isa_info_t {
     // so the internal and external enum types do not coincide.
     dnnl_cpu_isa_t convert_to_public_enum(void) const {
         switch (isa) {
+            case avx512_core_amx_fp16: return dnnl_cpu_isa_avx512_core_amx_fp16;
             case avx512_core_amx: return dnnl_cpu_isa_avx512_core_amx;
             case avx512_core_fp16: return dnnl_cpu_isa_avx512_core_fp16;
             case avx512_core_bf16_ymm: // fallback to avx512_core_bf16
@@ -108,6 +110,10 @@ struct isa_info_t {
 
     const char *get_name() const {
         switch (isa) {
+            case avx512_core_amx_fp16:
+                return "Intel AVX-512 with float16, Intel DL Boost and "
+                       "bfloat16 support and Intel AMX with bfloat16, float16 "
+                       "and 8-bit integer support ";
             case avx512_core_amx:
                 return "Intel AVX-512 with float16, Intel DL Boost and "
                        "bfloat16 support and Intel AMX with bfloat16 and 8-bit "
@@ -143,6 +149,7 @@ static isa_info_t get_isa_info_t(void) {
     // descending order due to mayiuse check
 #define HANDLE_CASE(cpu_isa) \
     if (mayiuse(cpu_isa)) return isa_info_t(cpu_isa);
+    HANDLE_CASE(avx512_core_amx_fp16);
     HANDLE_CASE(avx512_core_amx);
     HANDLE_CASE(avx512_core_fp16);
     HANDLE_CASE(avx512_core_bf16_ymm);
@@ -206,6 +213,7 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
         HANDLE_CASE(avx512_core_bf16);
         HANDLE_CASE(avx512_core_amx);
         HANDLE_CASE(avx512_core_fp16);
+        HANDLE_CASE(avx512_core_amx_fp16);
         default: return invalid_arguments;
     }
     assert(isa_to_set != isa_undef);
