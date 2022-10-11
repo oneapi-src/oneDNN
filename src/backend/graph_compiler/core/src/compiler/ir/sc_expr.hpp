@@ -617,7 +617,7 @@ public:
      * @param other the other IR node to compare
      * @return true if the nodes are the same
      * */
-    virtual bool equals(expr_c other) const;
+    virtual bool equals(expr_c other) const; // NOLINT
 };
 
 /**

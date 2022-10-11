@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include <algorithm>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <utility>
@@ -22,6 +23,7 @@
 
 #include "codegen_llvm.hpp"
 #include "precodegen_passes.hpp"
+#include <compiler/ir/pass/printer.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
@@ -52,6 +54,7 @@
 #include <unordered_set>
 #include <util/any_map.hpp>
 #include <util/scoped_timer.hpp>
+#include <util/unique_file_name.hpp>
 
 #if SC_LLVM_BACKEND > 8
 #include <llvm/IR/IntrinsicsX86.h>
@@ -92,6 +95,9 @@ public:
     LLVMContext &context_;
     IRBuilder<> builder_;
     std::unique_ptr<Module> module_;
+    std::unique_ptr<DIBuilder> dbuilder_;
+    DICompileUnit *dbg_cu_;
+    std::vector<DIScope *> dbg_scopes_;
     Function *current_func_;
     Value *current_val_;
     // the **pointer** of local var in a function
@@ -102,11 +108,13 @@ public:
     std::unordered_map<std::string, Function *> name_to_func_;
     bool is_lvalue_mode_ = false;
 
-    codegen_llvm_vis_t(const context_ptr &ctx, LLVMContext &context)
+    codegen_llvm_vis_t(const context_ptr &ctx, LLVMContext &context,
+            const std::string &source_dir, const std::string &source_file_name)
         : ctx_(ctx)
         , context_(context)
         , builder_(context_)
-        , module_(utils::make_unique<Module>("name", context_)) {
+        , module_(utils::make_unique<Module>("name", context_))
+        , dbuilder_(utils::make_unique<DIBuilder>(*module_)) {
         static bool initialized = []() {
             // make sure LLVM native targets are initialized once and avoid race
             // condition
@@ -123,10 +131,38 @@ public:
         fmflag.setFast(true);
         fmflag.setAllowContract(false);
         builder_.setFastMathFlags(fmflag);
+        if (ctx->flags_.debug_info_) {
+            dbg_cu_ = dbuilder_->createCompileUnit(dwarf::DW_LANG_C,
+                    dbuilder_->createFile(source_file_name, source_dir),
+                    "oneDNN Graph Compiler", false, "", 0);
+
+            if (!tm->getTargetTriple().isOSWindows()) {
+                // Add the current debug info version into the module.
+                module_->addModuleFlag(Module::Warning, "Debug Info Version",
+                        DEBUG_METADATA_VERSION);
+
+                // Darwin only supports dwarf2.
+                if (tm->getTargetTriple().isOSDarwin())
+                    module_->addModuleFlag(
+                            llvm::Module::Warning, "Dwarf Version", 2);
+            } else {
+                module_->addModuleFlag(llvm::Module::Warning, "CodeView", 1);
+            }
+        }
     }
 
     using ir_viewer_t::dispatch;
     using ir_viewer_t::view;
+
+    expr_c dispatch(expr_c v) override {
+        emit_location(v.get());
+        return ir_viewer_t::dispatch(v);
+    }
+
+    stmt_c dispatch(stmt_c v) override {
+        emit_location(v.get());
+        return ir_viewer_t::dispatch(v);
+    }
 
     const std::string &get_node_name(const expr_c &c) {
         if (c.isa<var>()) { return c.static_as<var>()->name_; }
@@ -141,6 +177,15 @@ public:
         FunctionType *FT
                 = FunctionType::get(get_type(v->ret_type_), tys, false);
         return FT;
+    }
+
+    DISubroutineType *create_func_dtype(const func_c &v) {
+        std::vector<Metadata *> tys {get_type_both(v->ret_type_).second};
+        for (auto &param : v->params_) {
+            tys.push_back(get_type_both(param->dtype_).second);
+        }
+        return dbuilder_->createSubroutineType(
+                dbuilder_->getOrCreateTypeArray(tys));
     }
 
     Function *get_or_create_func(const func_c &v) {
@@ -175,29 +220,79 @@ public:
         return current_val_;
     }
 
-    std::unordered_map<uint64_t, Type *> type_cache_;
-    Type *do_get_type(sc_data_type_t dtype) {
+    std::unordered_map<uint64_t, std::pair<Type *, DIType *>> type_cache_;
+    std::pair<Type *, DIType *> do_get_type(sc_data_type_t dtype) {
         Type *ty = nullptr;
+        DIType *dty = nullptr;
         if (dtype.is_etype_pointer()
                 && dtype.type_code_ != sc_data_etype::POINTER) {
-            return do_get_type(dtype.get_pointer_element())->getPointerTo();
+            auto ret = do_get_type(dtype.get_pointer_element());
+            return {ret.first->getPointerTo(),
+                    dbuilder_->createPointerType(ret.second, 64)};
         }
         switch (dtype.type_code_) {
             case sc_data_etype::UNDEF:
                 throw std::runtime_error("Unsupported dtype");
-            case sc_data_etype::BF16: ty = builder_.getInt16Ty(); break;
-            case sc_data_etype::F16: ty = builder_.getHalfTy(); break;
-            case sc_data_etype::U16: ty = builder_.getInt16Ty(); break;
-            case sc_data_etype::F32: ty = builder_.getFloatTy(); break;
+            case sc_data_etype::BF16:
+                ty = builder_.getInt16Ty();
+                dty = dbuilder_->createBasicType(
+                        "bf16", 16, dwarf::DW_ATE_unsigned);
+                break;
+            case sc_data_etype::F16:
+                ty = builder_.getHalfTy();
+                dty = dbuilder_->createBasicType(
+                        "f16", 16, dwarf::DW_ATE_unsigned);
+                break;
+            case sc_data_etype::U16:
+                ty = builder_.getInt16Ty();
+                dty = dbuilder_->createBasicType(
+                        "u16", 16, dwarf::DW_ATE_unsigned);
+                break;
+            case sc_data_etype::F32:
+                ty = builder_.getFloatTy();
+                dty = dbuilder_->createBasicType(
+                        "f32", 32, dwarf::DW_ATE_float);
+                break;
             case sc_data_etype::S32:
-            case sc_data_etype::U32: ty = builder_.getInt32Ty(); break;
+                ty = builder_.getInt32Ty();
+                dty = dbuilder_->createBasicType(
+                        "s32", 32, dwarf::DW_ATE_signed);
+                break;
+            case sc_data_etype::U32:
+                ty = builder_.getInt32Ty();
+                dty = dbuilder_->createBasicType(
+                        "u32", 32, dwarf::DW_ATE_unsigned);
+                break;
             case sc_data_etype::S8:
-            case sc_data_etype::U8: ty = builder_.getInt8Ty(); break;
+                ty = builder_.getInt8Ty();
+                dty = dbuilder_->createBasicType("s8", 8, dwarf::DW_ATE_signed);
+                break;
+            case sc_data_etype::U8:
+                ty = builder_.getInt8Ty();
+                dty = dbuilder_->createBasicType(
+                        "u8", 8, dwarf::DW_ATE_unsigned);
+                break;
             case sc_data_etype::INDEX:
-            case sc_data_etype::GENERIC: ty = builder_.getInt64Ty(); break;
-            case sc_data_etype::BOOLEAN: ty = builder_.getInt1Ty(); break;
-            case sc_data_etype::VOID_T: ty = builder_.getVoidTy(); break;
-            case sc_data_etype::POINTER: ty = builder_.getInt8PtrTy(); break;
+            case sc_data_etype::GENERIC:
+                ty = builder_.getInt64Ty();
+                dty = dbuilder_->createBasicType(
+                        "u64", 64, dwarf::DW_ATE_unsigned);
+                break;
+            case sc_data_etype::BOOLEAN:
+                ty = builder_.getInt1Ty();
+                dty = dbuilder_->createBasicType(
+                        "bool", 1, dwarf::DW_ATE_unsigned);
+                break;
+            case sc_data_etype::VOID_T:
+                ty = builder_.getVoidTy();
+                dty = dbuilder_->createBasicType(
+                        "void", 0, dwarf::DW_ATE_address);
+                break;
+            case sc_data_etype::POINTER:
+                ty = builder_.getInt8PtrTy();
+                dty = dbuilder_->createBasicType(
+                        "pointer", 64, dwarf::DW_ATE_address);
+                break;
 
             default: assert("Unreachable" && 0); break;
         }
@@ -207,17 +302,25 @@ public:
 #else
             ty = VectorType::get(ty, dtype.lanes_);
 #endif
+
+            auto subscript = dbuilder_->getOrCreateSubrange(0, dtype.lanes_);
+            llvm::DINodeArray subscriptarray
+                    = dbuilder_->getOrCreateArray(subscript);
+            dty = dbuilder_->createVectorType(
+                    utils::get_sizeof_type(dtype) * 8, 8, dty, subscriptarray);
         }
-        return ty;
+        return {ty, dty};
     }
 
-    Type *get_type(sc_data_type_t dtype) {
+    std::pair<Type *, DIType *> get_type_both(sc_data_type_t dtype) {
         auto itr = type_cache_.find(dtype);
         if (itr != type_cache_.end()) { return itr->second; }
         auto ret = do_get_type(dtype);
         type_cache_.insert(std::make_pair(dtype, ret));
         return ret;
     }
+
+    Type *get_type(sc_data_type_t dtype) { return get_type_both(dtype).first; }
 
     Value *get_defined_var_ptr(const expr_c &e) {
         auto itr = var_ptr_in_func_.find(e);
@@ -233,6 +336,42 @@ public:
         return ptr;
     }
 
+    void set_dbg_info_for_func_arg(llvm::Value *v, DISubprogram *SP,
+            DIFile *dunit, sc_data_type_t type, const std::string &name,
+            int argidx, int lineno, bool need_ref) {
+        if (!ctx_->flags_.debug_info_) { return; }
+        auto types = get_type_both(type);
+        auto dbgtype = types.second;
+        if (need_ref) {
+            auto tmp = builder_.CreateAlloca(v->getType());
+            builder_.CreateStore(v, tmp);
+            v = tmp;
+        }
+        // Create a debug descriptor for the variable.
+        DILocalVariable *D = dbuilder_->createParameterVariable(
+                SP, name, argidx, dunit, lineno, dbgtype, true);
+
+        dbuilder_->insertDeclare(v, D, dbuilder_->createExpression(),
+                DILocation::get(SP->getContext(), lineno, 0, SP),
+                builder_.GetInsertBlock());
+    }
+
+    void emit_location(const node_base *p) {
+        if (!ctx_->flags_.debug_info_) { return; }
+        if (!p) { return builder_.SetCurrentDebugLocation(DebugLoc()); }
+        if (p->attr_) {
+            if (auto loc = p->attr_->get_or_null<source_pos>("source_pos")) {
+                DIScope *Scope;
+                if (dbg_scopes_.empty())
+                    Scope = dbg_cu_;
+                else
+                    Scope = dbg_scopes_.back();
+                builder_.SetCurrentDebugLocation(DILocation::get(
+                        Scope->getContext(), loc->line_, loc->pos_, Scope));
+            }
+        }
+    }
+
     func_c dispatch(func_c v) override {
         var_ptr_in_func_.clear();
         tsr_to_alias_scope_.clear();
@@ -240,6 +379,34 @@ public:
         auto F = get_or_create_func(v);
         BasicBlock *BB = BasicBlock::Create(context_, "entry", F);
         builder_.SetInsertPoint(BB);
+
+        unsigned LineNo = 1;
+        unsigned ScopeLine = 1;
+        DIFile *dunit = nullptr;
+        DISubprogram *SP = nullptr;
+        if (ctx_->flags_.debug_info_) {
+            auto pos = v->attr_->get<source_pos>("source_pos");
+
+            LineNo = pos.line_;
+            ScopeLine = LineNo;
+            dunit = dbuilder_->createFile(
+                    dbg_cu_->getFilename(), dbg_cu_->getDirectory());
+
+            SP = dbuilder_->createFunction(dunit, v->name_, StringRef(), dunit,
+                    LineNo, create_func_dtype(v), ScopeLine,
+                    DINode::FlagPrototyped, DISubprogram::SPFlagDefinition);
+            F->setSubprogram(SP);
+
+            // Push the current scope.
+            dbg_scopes_.push_back(SP);
+
+            // Unset the location for the prologue emission (leading
+            // instructions with no location in a function are considered part
+            // of the prologue and the debugger will run past them when breaking
+            // on a function)
+            emit_location(nullptr);
+        }
+
         current_func_ = F;
         F->addFnAttr("no-frame-pointer-elim", "true");
         F->addFnAttr("frame-pointer", "all");
@@ -326,20 +493,34 @@ public:
             Value *arg = F->args().begin() + i;
             auto &p = v->params_[i];
             if (p.isa<var>()) {
+                auto varnode = p.static_as<var>();
                 switch (i) {
                     case 0:
                         assert(arg->getName() == "__stream_arg");
                         var_ptr_in_func_.insert(std::make_pair(p, arg));
+                        set_dbg_info_for_func_arg(arg, SP, dunit, p->dtype_,
+                                varnode->name_, i + 1, LineNo, true);
                         break;
                     case 1:
                         assert(arg->getName() == "__module_data_arg");
                         var_ptr_in_func_.insert(std::make_pair(p, arg));
+                        set_dbg_info_for_func_arg(arg, SP, dunit, p->dtype_,
+                                varnode->name_, i + 1, LineNo, true);
                         break;
-                    default: define_var(v->params_[i], arg); break;
+                    default: {
+                        auto varalloca = define_var(v->params_[i], arg);
+                        set_dbg_info_for_func_arg(varalloca, SP, dunit,
+                                p->dtype_, varnode->name_, i + 1, LineNo,
+                                false);
+                        break;
+                    }
                 }
             } else {
                 assert(p.isa<tensor>());
+                auto tnode = p.static_as<tensor>();
                 var_ptr_in_func_.insert(std::make_pair(p, arg));
+                set_dbg_info_for_func_arg(arg, SP, dunit, tnode->dtype_,
+                        tnode->name_, i + 1, LineNo, true);
             }
         }
         dispatch(v->body_);
@@ -348,6 +529,7 @@ public:
             assert(v->ret_type_ == datatypes::void_t);
             builder_.CreateRetVoid();
         }
+        if (ctx_->flags_.debug_info_) { dbg_scopes_.pop_back(); }
         return v;
     }
 
@@ -1345,6 +1527,36 @@ public:
         }
     }
 
+    void set_dbg_info_for_local_var(const source_pos *pos, sc_data_type_t type,
+            const std::string &name, Value *llvm_value, bool need_ref) {
+        if (!ctx_->flags_.debug_info_) { return; }
+        auto types = get_type_both(type);
+        auto dbgtype = types.second;
+        if (need_ref) {
+            auto tmp = builder_.CreateAlloca(llvm_value->getType());
+            builder_.CreateStore(llvm_value, tmp);
+            llvm_value = tmp;
+        }
+        // Create a debug descriptor for the variable.
+        DILocalVariable *D = dbuilder_->createAutoVariable(dbg_scopes_.back(),
+                name, dbg_cu_->getFile(), pos->line_, dbgtype, true);
+
+        dbuilder_->insertDeclare(llvm_value, D, dbuilder_->createExpression(),
+                DILocation::get(dbg_scopes_.back()->getContext(), pos->line_,
+                        pos->pos_, dbg_scopes_.back()),
+                builder_.GetInsertBlock());
+    }
+
+    void set_dbg_info_for_local_var(const define_node_t *v,
+            const std::string &name, Value *llvm_value, bool need_ref) {
+        if (!ctx_->flags_.debug_info_) { return; }
+        auto pos = v->attr_->get_or_null<source_pos>("source_pos");
+        if (pos) {
+            set_dbg_info_for_local_var(
+                    pos, v->var_->dtype_, name, llvm_value, need_ref);
+        }
+    }
+
     void view(define_c v) override {
         COMPILE_ASSERT(v->linkage_ != linkage::static_local
                         && v->linkage_ != linkage::private_global,
@@ -1366,10 +1578,12 @@ public:
                         get_type(thevar->dtype_)->getPointerTo(),
                         thevar->name_);
                 var_ptr_in_func_.insert(std::make_pair(thevar, ptr));
+                set_dbg_info_for_local_var(v.get(), thevar->name_, ptr, false);
             } else {
                 Value *init_v = nullptr;
                 if (v->init_.defined()) { init_v = generate_expr(v->init_); }
-                define_var(thevar, init_v);
+                auto retv = define_var(thevar, init_v);
+                set_dbg_info_for_local_var(v.get(), thevar->name_, retv, false);
             }
         } else if (v->var_.isa<tensor>()) {
             tensor t = v->var_.static_as<tensor>();
@@ -1379,6 +1593,7 @@ public:
                 ptr = builder_.CreatePointerCast(ptr,
                         get_type(t->elem_dtype_)->getPointerTo(), t->name_);
                 var_ptr_in_func_.insert(std::make_pair(t, ptr));
+                set_dbg_info_for_local_var(v.get(), t->name_, ptr, true);
                 return;
             }
 
@@ -1407,6 +1622,7 @@ public:
             if (need_align) { ptr->setAlignment(SC_LLVM_ALIGN(64)); }
 
             var_ptr_in_func_.insert(std::make_pair(t, ptr));
+            set_dbg_info_for_local_var(v.get(), t->name_, ptr, true);
         } else {
             assert(0 && "Bad var type");
         }
@@ -1416,6 +1632,14 @@ public:
         COMPILE_ASSERT(v->kind_ == for_type::NORMAL,
                 "LLVM backend can only handle normal for-loops");
         auto itr_v = define_var(v->var_, generate_expr(v->iter_begin_));
+
+        if (ctx_->flags_.debug_info_) {
+            auto pos = v->attr_->get_or_null<source_pos>("source_pos");
+            if (pos) {
+                set_dbg_info_for_local_var(pos, v->var_->dtype_,
+                        v->var_.checked_as<var>()->name_, itr_v, false);
+            }
+        }
 
         BasicBlock *chk
                 = BasicBlock::Create(context_, "for_check", current_func_);
@@ -1464,13 +1688,27 @@ static std::string dump_module_to_string(Module *m) {
 }
 
 const_ir_module_ptr llvm_generator_pass::operator()(const_ir_module_ptr f) {
-    codegen_llvm_vis_t vis {f->ctx_, llvm_ctx_};
     auto passes = get_default_precodegen_passes(f->ctx_, gen_wrapper_);
     auto mod = run_precodegen_passes(passes, f);
+    std::string unique_name;
+    const auto &tmpdir = utils::compiler_configs_t::get().temp_dir_;
+    if (f->ctx_->flags_.debug_info_) {
+        std::string file_name;
+        file_name = "llvm_jit-" + utils::get_unique_name_for_file() + ".gcir";
+        std::string unique_name = tmpdir + "/" + file_name;
+        std::ofstream ofs(unique_name);
+        out_source_path_ = unique_name;
+        print_ir_and_annotate_source_pos(*mod, ofs);
+    } else {
+        out_source_path_ = "";
+    }
+
+    codegen_llvm_vis_t vis {f->ctx_, llvm_ctx_, tmpdir, out_source_path_};
     auto timer = SC_SCOPED_TIMER_INFO("pass.time.llvm_generator_pass", "");
     for (auto &funct : mod->get_contents()) {
         vis.dispatch(funct);
     }
+    if (f->ctx_->flags_.debug_info_) { vis.dbuilder_->finalize(); }
     out_module_ = std::move(vis.module_);
     SC_MODULE_INFO << dump_module_to_string(out_module_.get());
     return mod;

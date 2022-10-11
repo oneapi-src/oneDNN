@@ -32,6 +32,7 @@
 #include <unordered_map>
 #include <util/scoped_timer.hpp>
 #include <util/string_utils.hpp>
+#include <util/unique_file_name.hpp>
 #include <util/utils.hpp>
 
 #ifdef _WIN32
@@ -43,7 +44,6 @@
 SC_MODULE(cfakejit)
 namespace sc {
 using namespace runtime;
-static std::atomic<int32_t> cnt {0};
 
 #ifdef _WIN32
 std::shared_ptr<jit_module> cfake_jit::make_jit_module(
@@ -189,10 +189,7 @@ statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
 
 std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         const_ir_module_ptr module, bool generate_wrapper) {
-    std::stringstream name_maker;
-    name_maker << getpid() << '_' << ++cnt;
-    std::string unique_name = name_maker.str();
-
+    auto unique_name = utils::get_unique_name_for_file();
     // If we're invoking gcc/g++ with the "-save-temps=obj" option, we
     // want to have just one "." character in the name. Otherwise it
     // seems to get confused and the saved intermediate files lack the

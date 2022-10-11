@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 
+#include <stdlib.h>
 #include "llvm_jit.hpp"
 #include "llvm_jit_resolver.hpp"
 #include <compiler/codegen/codegen_llvm.hpp>
@@ -111,6 +112,7 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
             ir_module_t::attr_key_t::MODULE_DATA_BUFFERS);
     bool use_managed_tp = new_mod->attr_.get<bool>(
             ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
+    std::string source_path = std::move(gen.out_source_path_);
     std::string err;
     llvm::raw_string_ostream ss(err);
     if (llvm::verifyModule(*llvmmod, &ss)) {
@@ -149,7 +151,8 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
     if (init_func) { init_func(nullptr, attr_table.data_.data_); }
     auto ret = std::make_shared<llvm_jit_module>(
             std::unique_ptr<llvm::ExecutionEngine>(engine), std::move(llvm_ctx),
-            std::move(attr_table), std::move(outlisteners), use_managed_tp);
+            std::move(attr_table), std::move(outlisteners), use_managed_tp,
+            source_path);
     ret->update_runtime_op_tables(module);
     return ret;
 }
@@ -157,13 +160,24 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
 llvm_jit_module::llvm_jit_module(std::unique_ptr<llvm::ExecutionEngine> engine,
         std::unique_ptr<llvm::LLVMContext> llvm_ctx, statics_table_t &&globals,
         std::shared_ptr<llvm_jit_listeners> &&listeners,
-        bool managed_thread_pool)
+        bool managed_thread_pool, const std::string &source_path)
     : jit_module(std::move(globals), managed_thread_pool)
     , listeners_(std::move(listeners))
     , llvm_ctx_(std::move(llvm_ctx))
-    , engine_(std::move(engine)) {}
+    , engine_(std::move(engine))
+    , source_path_(source_path) {}
 
-llvm_jit_module::~llvm_jit_module() = default;
+std::vector<std::string> llvm_jit_module::get_temp_filenames() const {
+    if (source_path_.empty()) { return {}; }
+    return {source_path_};
+}
+
+llvm_jit_module::~llvm_jit_module() {
+    if (!utils::compiler_configs_t::get().keep_gen_code_
+            && !source_path_.empty()) {
+        remove(source_path_.c_str());
+    }
+}
 
 static void *resolve_llvm_symbol(
         llvm::ExecutionEngine *engine, const std::string &name) {

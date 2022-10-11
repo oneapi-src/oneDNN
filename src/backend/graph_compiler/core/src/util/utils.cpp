@@ -23,6 +23,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #endif
+#include <atomic>
 #include <stdlib.h>
 #include <string>
 #include "utils.hpp"
@@ -31,8 +32,22 @@
 #include <runtime/env_vars.hpp>
 #include <runtime/logging.hpp>
 
+#ifdef _WIN32
+#define getprocessid GetCurrentProcessId
+#else
+#define getprocessid getpid
+#endif
+
 namespace sc {
 namespace utils {
+
+static std::atomic<int32_t> cnt {0};
+
+std::string get_unique_name_for_file() {
+    std::stringstream name_maker;
+    name_maker << getprocessid() << '_' << ++cnt;
+    return name_maker.str();
+}
 
 std::string get_dyn_lib_path(void *addr) {
 #ifdef _WIN32

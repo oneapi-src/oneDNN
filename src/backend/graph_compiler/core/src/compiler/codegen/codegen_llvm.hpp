@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <memory>
 #include <ostream>
 
+#include <string>
 #include <compiler/ir/module_pass.hpp>
 #include <llvm/IR/Module.h>
 
@@ -29,6 +30,7 @@ public:
     llvm::LLVMContext &llvm_ctx_;
     std::unique_ptr<llvm::Module> &out_module_;
     bool gen_wrapper_;
+    std::string out_source_path_;
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;
     llvm_generator_pass(llvm::LLVMContext &llvm_ctx,
             std::unique_ptr<llvm::Module> &out_module, bool gen_wrapper)

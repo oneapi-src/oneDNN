@@ -61,7 +61,7 @@ public:
     cfake_jit(context_ptr ctx = get_default_context())
         : jit_engine_t(std::move(ctx)) {
         opt_level_ = context_->flags_.backend_opt_level;
-        debug_info_ = opt_level_ <= 1;
+        debug_info_ = opt_level_ <= 1 || context_->flags_.debug_info_;
     }
     std::string command_ = "g++";
     unsigned opt_level_;

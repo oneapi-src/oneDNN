@@ -20,7 +20,7 @@
 #include <memory>
 #include <string>
 #include <utility>
-
+#include <vector>
 #include <compiler/ir/sc_function.hpp>
 #include <compiler/jit/jit.hpp>
 #include <runtime/generic_val.hpp>
@@ -45,17 +45,20 @@ public:
             std::unique_ptr<llvm::LLVMContext> llvm_ctx,
             statics_table_t &&globals,
             std::shared_ptr<llvm_jit_listeners> &&listeners,
-            bool managed_thread_pool);
+            bool managed_thread_pool, const std::string &source_path);
     // listeners_ reference will be destructed after engine_, to make sure
     // jit_listeners are still alive when ExecutionEngine is destroyed
     std::shared_ptr<llvm_jit_listeners> listeners_;
     std::unique_ptr<llvm::LLVMContext> llvm_ctx_;
     std::unique_ptr<llvm::ExecutionEngine> engine_;
+    std::string source_path_;
     ~llvm_jit_module();
 
     void *get_address_of_symbol(const std::string &name) override;
     std::shared_ptr<jit_function_t> get_function(
             const std::string &name) override;
+
+    std::vector<std::string> get_temp_filenames() const override;
 };
 
 class SC_INTERNAL_API llvm_jit : public jit_engine_t {
