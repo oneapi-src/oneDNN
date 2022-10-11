@@ -150,7 +150,8 @@ private:
             }
             // Nothing to hoist for this loop, continue.
             if (invariant_args.empty()) continue;
-            if (invariant_args.size() == 1 && is_var(invariant_args[0]))
+            if (invariant_args.size() == 1 && is_var(invariant_args[0])
+                    && !other_args.empty())
                 continue;
 
             // Introduce new variable for the invariant sub-expression.
