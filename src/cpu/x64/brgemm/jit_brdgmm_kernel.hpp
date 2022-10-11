@@ -87,7 +87,6 @@ private:
     const reg64_t reg_total_padding = reg_table_base;
     const reg64_t reg_aux_bias = reg_table_base;
     const reg64_t reg_aux_scales = reg_table_base;
-    const reg64_t reg_binary_po_stack_frame = reg_BS_loop;
     const reg64_t reg_binary_params = abi_param1; // default for binary ops
     const reg64_t reg_ptr_sum_scale = reg_aux_A_vpad_top;
     const reg64_t reg_ptr_sum_zp = reg_aux_A_vpad_bottom;
@@ -114,12 +113,9 @@ private:
     constexpr static int reg_A_offs_ = 24; // brgemm_strd
     constexpr static int reg_B_offs_ = 32; // brgemm_strd
     constexpr static int abi_param1_offs_ = 40;
-    constexpr static int reg_binary_postops_oc_l_offs_ = 48;
-    constexpr static int reg_data_C_ptr_offs_ = 56;
-    constexpr static int stack_space_needed_ = 64;
+    constexpr static int stack_space_needed_ = 48;
 
-    bool handle_binary_po_offset_ = false;
-    bool with_binary_per_oc_bcast_ = false;
+    bool with_binary_non_scalar_bcast_ = false;
 
     inline int M() { return brg.bcast_dim; };
     inline int N() { return brg.load_dim; };

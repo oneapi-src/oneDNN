@@ -50,7 +50,8 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
 
         static const bcast_set_t enabled_bcast_strategy
                 = {broadcasting_strategy_t::scalar,
-                        broadcasting_strategy_t::per_oc};
+                        broadcasting_strategy_t::per_oc,
+                        broadcasting_strategy_t::no_broadcast};
         const binary_injector::rhs_arg_static_params_t rhs_sp {
                 static_cast<size_t>(vmm_b().getIdx()), r14, r15, preserve_gpr,
                 preserve_vmm, GET_OFF(post_ops_binary_rhs_arg_vec),
@@ -63,11 +64,9 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
         postops_injector_ = utils::make_unique<po_injector_t>(
                 this, brg.attr->post_ops_, bsp);
 
-        using namespace dnnl::impl::cpu::binary_injector_utils;
-        std::tie(with_binary_per_oc_bcast_)
-                = bcast_strategies_present_tup(brg.attr->post_ops_.entry_,
-                        dst_md_wrapper, broadcasting_strategy_t::per_oc);
-        handle_binary_po_offset_ = with_binary_per_oc_bcast_;
+        with_binary_non_scalar_bcast_
+                = binary_injector::any_binary_postop_rhs_non_scalar_broadcast(
+                        brg.attr->post_ops_, dst_md_wrapper);
     }
     if (brg.is_bf16_emu)
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
@@ -128,11 +127,6 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::read_params() {
     }
 
     if (brg.with_binary) mov(ptr[rsp + abi_param1_offs_], param1);
-
-    if (with_binary_per_oc_bcast_) {
-        mov(reg_tmp, ptr[param1 + GET_OFF(oc_logical_off)]);
-        mov(ptr[rsp + reg_binary_postops_oc_l_offs_], reg_tmp);
-    }
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -219,8 +213,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::apply_post_ops(
     if (brg.with_binary) {
         mov(reg_binary_params, ptr[rsp + abi_param1_offs_]);
 
-        if (handle_binary_po_offset_) {
-            mov(reg_binary_po_stack_frame, rsp);
+        if (with_binary_non_scalar_bcast_) {
 
             for_(int m_i = 0; m_i < m_blocks; m_i++)
             for (int n_i = 0; n_i < n_blocks; n_i++) {
@@ -244,8 +237,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::apply_post_ops(
 
         const injector_utils::conditional_register_preserve_guard_t
                 register_guard_sum_scale(
-                        (handle_binary_po_offset_) && p_sum_scale_reg_set, this,
-                        {reg_ptr_sum_scale});
+                        (with_binary_non_scalar_bcast_) && p_sum_scale_reg_set,
+                        this, {reg_ptr_sum_scale});
         const injector_utils::conditional_register_preserve_guard_t
                 register_guard_sum_zp(p_sum_zp_reg_set, this, {reg_ptr_sum_zp});
 
@@ -701,10 +694,6 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_loop() {
                 add(reg_a_offset, n_loop_step * brg.typesize_A);
                 add(reg_aux_C, n_loop_step * brg.typesize_C);
                 add(reg_aux_D, n_loop_step * brg.typesize_D);
-                if (with_binary_per_oc_bcast_) {
-                    add(qword[rsp + reg_binary_postops_oc_l_offs_],
-                            n_loop_step);
-                }
             }
 
             if (do_loop_n) {
@@ -739,10 +728,6 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_loop() {
                 add(reg_a_offset, A_offset(m_blocks, -n_loop_offset));
                 add(reg_aux_C, C_offset(m_blocks, -n_loop_offset));
                 add(reg_aux_D, D_offset(m_blocks, -n_loop_offset));
-                if (with_binary_per_oc_bcast_) {
-                    add(qword[rsp + reg_binary_postops_oc_l_offs_],
-                            oc_logical_offset(-n_loop_offset));
-                }
             }
 
             if (do_loop_m) {
