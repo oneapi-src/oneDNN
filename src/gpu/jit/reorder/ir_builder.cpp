@@ -137,14 +137,14 @@ private:
     size_t block_idx_ = 0;
 };
 
-void reorder_ir_builder_t::compute_blocks(const layout_t &src,
-        const layout_t &dst, std::vector<int> &iter_blocks,
+void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
+        const layout_t &src, const layout_t &dst, std::vector<int> &iter_blocks,
         std::vector<int> &loop_blocks, std::vector<int> &tg_blocks,
         int max_iter_tile_bytes, int max_thr_tile_bytes) {
     if (max_iter_tile_bytes <= 0)
-        max_iter_tile_bytes = default_max_iter_tile_bytes;
+        max_iter_tile_bytes = max_tile_size(exec_cfg.hw_cfg(), dst, src);
     if (max_thr_tile_bytes <= 0)
-        max_thr_tile_bytes = default_max_thr_tile_bytes;
+        max_thr_tile_bytes = max_tile_size(exec_cfg.hw_cfg(), dst, src);
 
     ir_assert(src.ndims() == dst.ndims());
     int ndims = src.ndims();
@@ -258,12 +258,12 @@ void reorder_ir_builder_t::compute_blocks(const layout_t &src,
     }
 }
 
-void reorder_ir_builder_t::compute_blocks(const layout_t &src,
-        const layout_t &dst, std::vector<int> &tile_blocks,
+void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
+        const layout_t &src, const layout_t &dst, std::vector<int> &tile_blocks,
         std::vector<int> &tg_blocks) {
     std::vector<int> iter_blocks;
     std::vector<int> loop_blocks;
-    compute_blocks(src, dst, iter_blocks, loop_blocks, tg_blocks);
+    compute_blocks(exec_cfg, src, dst, iter_blocks, loop_blocks, tg_blocks);
     size_t n = iter_blocks.size();
     tile_blocks.resize(n);
     for (size_t i = 0; i < n; i++) {
@@ -302,11 +302,13 @@ void reorder_ir_builder_t::compute_grid(const layout_t &src,
 }
 
 compute::nd_range_t reorder_ir_builder_t::nd_range(
-        int simd, const layout_t &src, const layout_t &dst) {
+        const exec_config_t &exec_cfg, const layout_t &src,
+        const layout_t &dst) {
+    const int simd = exec_cfg.simd();
     std::vector<int> iter_blocks;
     std::vector<int> loop_blocks;
     std::vector<int> tg_blocks;
-    compute_blocks(src, dst, iter_blocks, loop_blocks, tg_blocks);
+    compute_blocks(exec_cfg, src, dst, iter_blocks, loop_blocks, tg_blocks);
     grid_info_t kernel_grid;
     grid_info_t tg_grid;
     compute_grid(src, dst, iter_blocks, loop_blocks, tg_blocks, kernel_grid,
@@ -328,11 +330,12 @@ void reorder_ir_builder_t::build() {
     std::vector<int> iter_blocks;
     std::vector<int> loop_blocks;
     std::vector<int> tg_blocks;
-    compute_blocks(
-            src_layout_, dst_layout_, iter_blocks, loop_blocks, tg_blocks);
+    compute_blocks(exec_cfg_, src_layout_, dst_layout_, iter_blocks,
+            loop_blocks, tg_blocks);
 
     int max_iters = 10;
-    int cur_iter_bytes = default_max_iter_tile_bytes;
+    int cur_iter_bytes
+            = max_tile_size(exec_cfg_.hw_cfg(), dst_layout_, src_layout_);
     for (int i = 0; i < max_iters; i++) {
         if (try_build(iter_blocks, loop_blocks, tg_blocks)) {
             ir_info() << "Reorder configuration:" << std::endl;
@@ -355,7 +358,7 @@ void reorder_ir_builder_t::build() {
         cur_iter_bytes /= 2;
         while (cur_iter_bytes >= 1) {
             std::vector<int> new_iter_blocks;
-            compute_blocks(src_layout_, dst_layout_, new_iter_blocks,
+            compute_blocks(exec_cfg_, src_layout_, dst_layout_, new_iter_blocks,
                     loop_blocks, tg_blocks, cur_iter_bytes);
             if (!ir_utils::is_equal(new_iter_blocks, iter_blocks)) {
                 iter_blocks = new_iter_blocks;

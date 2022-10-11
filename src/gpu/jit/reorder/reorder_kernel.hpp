@@ -282,8 +282,9 @@ public:
         return true;
     }
 
-    static compute::nd_range_t nd_range(
-            int simd, const layout_t &src, const layout_t &dst) {
+    static compute::nd_range_t nd_range(const exec_config_t &exec_cfg,
+            const layout_t &src, const layout_t &dst) {
+        const int simd = exec_cfg.simd();
 
         if (is_f32_to_bf16(src, dst)) {
             ir_assert(src.elems() == dst.elems());
@@ -304,7 +305,7 @@ public:
         // Handle IR-based reorder.
         ir_assert(reorder_kernel_t<>::is_ir_based_reorder(src, dst));
 
-        return reorder_ir_builder_t::nd_range(simd, src, dst);
+        return reorder_ir_builder_t::nd_range(exec_cfg, src, dst);
     }
 
 private:

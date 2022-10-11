@@ -45,12 +45,14 @@ public:
 
     const grid_info_t &kernel_grid() const { return kernel_grid_; }
 
-    static void compute_blocks(const layout_t &src, const layout_t &dst,
+    static void compute_blocks(const exec_config_t &exec_cfg,
+            const layout_t &src, const layout_t &dst,
             std::vector<int> &iter_blocks, std::vector<int> &loop_blocks,
             std::vector<int> &tg_blocks, int max_iter_tile_bytes = 0,
             int max_thr_tile_bytes = 0);
 
-    static void compute_blocks(const layout_t &src, const layout_t &dst,
+    static void compute_blocks(const exec_config_t &exec_cfg,
+            const layout_t &src, const layout_t &dst,
             std::vector<int> &tile_blocks, std::vector<int> &tg_blocks);
 
     static void compute_grid(const layout_t &src, const layout_t &dst,
@@ -59,8 +61,8 @@ public:
             const std::vector<int> &tg_blocks, grid_info_t &kernel_grid,
             grid_info_t &tg_grid, std::vector<int> *dim2grid = nullptr);
 
-    static compute::nd_range_t nd_range(
-            int simd, const layout_t &src, const layout_t &dst);
+    static compute::nd_range_t nd_range(const exec_config_t &exec_cfg,
+            const layout_t &src, const layout_t &dst);
 
 private:
     void build() override;
@@ -68,8 +70,12 @@ private:
             const std::vector<int> &loop_blocks,
             const std::vector<int> &tg_blocks);
 
-    static const int default_max_iter_tile_bytes = 2048;
-    static const int default_max_thr_tile_bytes = 2048;
+    static int max_tile_size(const hw_config_t &hw_cfg, const layout_t &dst,
+            const layout_t &src) {
+        // XeHPC is fine with 2048 bytes, XeHPG and below can fit 2048 bytes if
+        // reorder is a simple copy.
+        return (hw_cfg.hw() <= ngen::HW::XeHPG && dst != src) ? 1024 : 2048;
+    }
 
     exec_config_t exec_cfg_;
     grid_info_t kernel_grid_;

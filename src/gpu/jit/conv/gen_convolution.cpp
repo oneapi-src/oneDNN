@@ -297,7 +297,7 @@ private:
                     reorder_info.register_internal_arg(
                             elems_var, uint32_t(elems));
                     reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
-                            cfg.simd(), t.user_layout, t.compute_layout));
+                            cfg.exec_cfg(), t.user_layout, t.compute_layout));
                 }
                 if (t.is_output) {
                     auto &reorder_info
@@ -311,7 +311,7 @@ private:
                     reorder_info.register_internal_arg(
                             elems_var, uint32_t(elems));
                     reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
-                            cfg.simd(), t.compute_layout, t.user_layout));
+                            cfg.exec_cfg(), t.compute_layout, t.user_layout));
                 }
             }
             if (t.needs_zero_out) {
