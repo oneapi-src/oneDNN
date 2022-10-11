@@ -124,8 +124,10 @@ void set_isa_impl(brgemm_t *brg) {
                 avx512_core_amx, is_isa_ok(avx512_core_bf16), avx512_core_bf16,
                 is_isa_ok(avx2_vnni_2), avx2_vnni_2);
     } else if (brg->is_f16) {
-        brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_fp16),
-                avx512_core_fp16, is_isa_ok(avx2_vnni_2), avx2_vnni_2);
+        brg->isa_impl
+                = utils::map(true, isa_undef, is_isa_ok(avx512_core_amx_fp16),
+                        avx512_core_amx_fp16, is_isa_ok(avx512_core_fp16),
+                        avx512_core_fp16, is_isa_ok(avx2_vnni_2), avx2_vnni_2);
     } else if (brg->is_int8) {
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_amx),
                 avx512_core_amx, is_isa_ok(avx512_core_vnni), avx512_core_vnni,
@@ -134,7 +136,8 @@ void set_isa_impl(brgemm_t *brg) {
 }
 
 void set_brg_vmm(brgemm_t *brg) {
-    brg->is_tmm = brg->is_int8_tmm || brg->is_bf16_tmm || brg->is_bf32;
+    brg->is_tmm = brg->is_int8_tmm || brg->is_bf16_tmm || brg->is_f16_tmm
+            || brg->is_bf32;
     brg->is_zmm = !brg->is_tmm && mayiuse(avx512_core)
             && is_superset(brg->isa_impl, avx512_core);
     brg->is_ymm
@@ -366,8 +369,11 @@ status_t brgemm_blocking(brgemm_t *brg) {
         }
         if (!is_decomposition_defined) try_2x2_decomposition();
 
-        const auto max_rd_block = (brg->is_bf16_tmm || brg->is_bf32) ? 32 : 64;
-        const auto rd_block_step = (brg->is_bf16_tmm || brg->is_bf32) ? 2 : 4;
+        const auto max_rd_block
+                = (brg->is_bf16_tmm || brg->is_f16_tmm || brg->is_bf32) ? 32
+                                                                        : 64;
+        const auto rd_block_step
+                = (brg->is_bf16_tmm || brg->is_f16_tmm || brg->is_bf32) ? 2 : 4;
         // TODO: if rd_block calculated is very small then maybe it makes
         // sense to use 1x2 or 2x1 blocking with supporting rd_block
         // and rdb_tail
@@ -385,7 +391,10 @@ status_t brgemm_blocking(brgemm_t *brg) {
         // dimension)
         if (!IMPLICATION(brg->rdb > 0 && brg->rdb_tail, brg->is_bf32))
             return status::unimplemented;
-        if (!IMPLICATION((brg->rdb_tail % ((brg->is_bf16_tmm) ? 2 : 4)) != 0,
+        if (!IMPLICATION(
+                    (brg->rdb_tail
+                            % ((brg->is_bf16_tmm || brg->is_f16_tmm) ? 2 : 4))
+                            != 0,
                     brg->is_bf32))
             return status::unimplemented;
     }
@@ -458,6 +467,7 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     set_isa_impl(brg);
     brg->is_int8_tmm = brg->is_int8 && brg->isa_impl == avx512_core_amx;
     brg->is_bf16_tmm = brg->is_bf16 && brg->isa_impl == avx512_core_amx;
+    brg->is_f16_tmm = brg->is_f16 && brg->isa_impl == avx512_core_amx_fp16;
     brg->is_bf32 = is_bf32
             && utils::one_of(brg->isa_user, isa_undef, avx512_core_amx)
             && mayiuse(avx512_core_amx);
@@ -488,7 +498,9 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
             = is_b_in_vnni_format ? data_type_vnni_granularity(brg->dt_b) : 1;
 
     const bool has_no_vnni_compute_instruction
-            = brg->is_f16 || (brg->is_bf16 && brg->isa_impl == avx2_vnni_2);
+            = (brg->is_f16
+                      && one_of(brg->isa_impl, avx2_vnni_2, avx512_core_fp16))
+            || (brg->is_bf16 && brg->isa_impl == avx2_vnni_2);
     brg->rd_step = has_no_vnni_compute_instruction
             ? 1
             : data_type_vnni_granularity(brg->dt_b);

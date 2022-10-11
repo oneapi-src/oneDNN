@@ -111,9 +111,10 @@ private:
             typename utils::conditional<std::is_same<Wmm, Xbyak::Tmm>::value,
                     Xbyak::Zmm, Wmm>::type;
     using Vmm_lower_t = typename vreg_traits<Vmm>::Vmm_lower_t;
-    static constexpr cpu_isa_t po_isa_t
-            = utils::map(isa, avx512_core, avx512_core_fp16, avx512_core_fp16,
-                    avx2_vnni_2, avx2_vnni_2, avx2_vnni, avx2, avx2, avx2);
+    static constexpr cpu_isa_t po_isa_t = utils::map(isa, avx512_core,
+            avx512_core_amx_fp16, avx512_core_fp16, avx512_core_amx,
+            avx512_core_fp16, avx512_core_fp16, avx512_core_fp16, avx2_vnni_2,
+            avx2_vnni_2, avx2_vnni, avx2, avx2, avx2);
     using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_t, Vmm>;
     std::unique_ptr<po_injector_t> postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
@@ -1606,6 +1607,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel_amx(int bd_block2,
     auto tdpbxxd = [=](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
         if (brg.dt_a == data_type::bf16 && brg.dt_b == data_type::bf16) {
             tdpbf16ps(x1, x2, x3);
+        } else if (brg.dt_a == data_type::f16 && brg.dt_b == data_type::f16) {
+            tdpfp16ps(x1, x2, x3);
         } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::u8) {
             tdpbuud(x1, x2, x3);
         } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::s8) {
@@ -2404,6 +2407,7 @@ brgemm_kernel_common_t<isa, Wmm>::~brgemm_kernel_common_t() {
 
 // isa specific instantiations are required because
 // post-ops require template isa param.
+template struct brgemm_kernel_common_t<avx512_core_amx_fp16, Xbyak::Tmm>;
 template struct brgemm_kernel_common_t<avx512_core_amx, Xbyak::Tmm>;
 template struct brgemm_kernel_common_t<avx512_core_fp16, Xbyak::Zmm>;
 template struct brgemm_kernel_common_t<avx512_core_bf16, Xbyak::Zmm>;

@@ -448,9 +448,15 @@ status_t brgemm_kernel_create(
                 *brg_kernel, new brgemm_amx_uker_t(brg)));
     } else {
         if (brg.is_tmm) {
-            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                    new brgemm_kernel_common_t<avx512_core_amx, Xbyak::Tmm>(
-                            brg)));
+            if (brg.is_f16_tmm) {
+                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                        new brgemm_kernel_common_t<avx512_core_amx_fp16,
+                                Xbyak::Tmm>(brg)));
+            } else {
+                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
+                        new brgemm_kernel_common_t<avx512_core_amx, Xbyak::Tmm>(
+                                brg)));
+            }
         } else if (brg.is_zmm) {
             // isa specific instantiations are required because
             // post-ops require template isa param.

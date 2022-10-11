@@ -67,7 +67,7 @@ inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
 }
 
 bool is_amx(cpu_isa_t isa) {
-    return isa == avx512_core_amx;
+    return is_superset(isa, avx512_core_amx);
 }
 
 bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
@@ -106,7 +106,10 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper bias_d(&bias_md);
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    const bool is_not_vnni_tag = one_of(jcp.wei_dt, f32, f16);
+    const int vnni_granularity
+            = (jcp.wei_dt == f16 && jcp.isa == avx512_core_fp16)
+            ? 1
+            : data_type_vnni_granularity(jcp.wei_dt);
 
     const bool is_1d = jcp.ndims == 3;
     const bool is_2d = jcp.ndims == 4;
@@ -115,233 +118,267 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
     if (jcp.wei_plain) {
         jcp.LDB = jcp.oc;
         if (is_3d) {
-            if (is_not_vnni_tag)
-                wei_tag = with_groups ? gdhwio : dhwio;
-            else if (jcp.wei_dt == s8)
-                wei_tag = with_groups ? gdhwIo4i : dhwIo4i;
-            else if (jcp.wei_dt == bf16) {
-                wei_tag = with_groups ? gdhwIo2i : dhwIo2i;
-            } else
-                return status::unimplemented;
+            switch (vnni_granularity) {
+                case 1: wei_tag = with_groups ? gdhwio : dhwio; break;
+                case 2: wei_tag = with_groups ? gdhwIo2i : dhwIo2i; break;
+                case 4: wei_tag = with_groups ? gdhwIo4i : dhwIo4i; break;
+                default: return status::unimplemented;
+            }
         } else if (is_1d) {
-            if (is_not_vnni_tag)
-                wei_tag = with_groups ? gwio : wio;
-            else if (jcp.wei_dt == s8)
-                wei_tag = with_groups ? gwIo4i : wIo4i;
-            else if (jcp.wei_dt == bf16) {
-                wei_tag = with_groups ? gwIo2i : wIo2i;
-            } else
-                return status::unimplemented;
+            switch (vnni_granularity) {
+                case 1: wei_tag = with_groups ? gwio : wio; break;
+                case 2: wei_tag = with_groups ? gwIo2i : wIo2i; break;
+                case 4: wei_tag = with_groups ? gwIo4i : wIo4i; break;
+                default: return status::unimplemented;
+            }
         } else {
             assert(is_2d);
             UNUSED(is_2d);
-            if (is_not_vnni_tag)
-                wei_tag = with_groups ? ghwio : hwio;
-            else if (jcp.wei_dt == s8)
-                wei_tag = with_groups ? ghwIo4i : hwIo4i;
-            else if (jcp.wei_dt == bf16) {
-                wei_tag = with_groups ? ghwIo2i : hwIo2i;
-            } else
-                return status::unimplemented;
+            switch (vnni_granularity) {
+                case 1: wei_tag = with_groups ? ghwio : hwio; break;
+                case 2: wei_tag = with_groups ? ghwIo2i : hwIo2i; break;
+                case 4: wei_tag = with_groups ? ghwIo4i : hwIo4i; break;
+                default: return status::unimplemented;
+            }
         }
     } else {
         jcp.LDB = jcp.oc_block;
         if (jcp.oc_block == 64) {
             if (is_3d) {
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOdhwi64o : Odhwi64o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOdhwI16i64o4i : OdhwI16i64o4i;
-                    else
-                        wei_tag = with_groups ? gOdhwI64o4i : OdhwI64o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOdhwI16i64o2i : OdhwI16i64o2i;
-                    else
-                        wei_tag = with_groups ? gOdhwI64o2i : OdhwI64o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOdhwi64o : Odhwi64o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOdhwI16i64o2i
+                                                  : OdhwI16i64o2i;
+                        else
+                            wei_tag = with_groups ? gOdhwI64o2i : OdhwI64o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOdhwI16i64o4i
+                                                  : OdhwI16i64o4i;
+                        else
+                            wei_tag = with_groups ? gOdhwI64o4i : OdhwI64o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             } else if (is_1d) {
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOwi64o : Owi64o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOwI16i64o4i : OwI16i64o4i;
-                    else
-                        wei_tag = with_groups ? gOwI64o4i : OwI64o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOwI16i64o2i : OwI16i64o2i;
-                    else
-                        wei_tag = with_groups ? gOwI64o2i : OwI64o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOwi64o : Owi64o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOwI16i64o2i : OwI16i64o2i;
+                        else
+                            wei_tag = with_groups ? gOwI64o2i : OwI64o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOwI16i64o4i : OwI16i64o4i;
+                        else
+                            wei_tag = with_groups ? gOwI64o4i : OwI64o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             } else {
                 assert(is_2d);
                 UNUSED(is_2d);
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOhwi64o : Ohwi64o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOhwI16i64o4i : OhwI16i64o4i;
-                    else
-                        wei_tag = with_groups ? gOhwI64o4i : OhwI64o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOhwI16i64o2i : OhwI16i64o2i;
-                    else
-                        wei_tag = with_groups ? gOhwI64o2i : OhwI64o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOhwi64o : Ohwi64o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOhwI16i64o2i
+                                                  : OhwI16i64o2i;
+                        else
+                            wei_tag = with_groups ? gOhwI64o2i : OhwI64o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOhwI16i64o4i
+                                                  : OhwI16i64o4i;
+                        else
+                            wei_tag = with_groups ? gOhwI64o4i : OhwI64o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             }
         } else if (jcp.oc_block == 48) {
             if (is_3d) {
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOdhwi48o : Odhwi48o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOdhwI16i48o4i : OdhwI16i48o4i;
-                    else
-                        wei_tag = with_groups ? gOdhwI48o4i : OdhwI48o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOdhwI16i48o2i : OdhwI16i48o2i;
-                    else
-                        wei_tag = with_groups ? gOdhwI48o2i : OdhwI48o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOdhwi48o : Odhwi48o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOdhwI16i48o2i
+                                                  : OdhwI16i48o2i;
+                        else
+                            wei_tag = with_groups ? gOdhwI48o2i : OdhwI48o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOdhwI16i48o4i
+                                                  : OdhwI16i48o4i;
+                        else
+                            wei_tag = with_groups ? gOdhwI48o4i : OdhwI48o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             } else if (is_1d) {
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOwi48o : Owi48o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOwI16i48o4i : OwI16i48o4i;
-                    else
-                        wei_tag = with_groups ? gOwI48o4i : OwI48o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOwI16i48o2i : OwI16i48o2i;
-                    else
-                        wei_tag = with_groups ? gOwI48o2i : OwI48o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOwi48o : Owi48o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOwI16i48o2i : OwI16i48o2i;
+                        else
+                            wei_tag = with_groups ? gOwI48o2i : OwI48o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOwI16i48o4i : OwI16i48o4i;
+                        else
+                            wei_tag = with_groups ? gOwI48o4i : OwI48o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             } else {
                 assert(is_2d);
                 UNUSED(is_2d);
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOhwi48o : Ohwi48o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOhwI16i48o4i : OhwI16i48o4i;
-                    else
-                        wei_tag = with_groups ? gOhwI48o4i : OhwI48o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOhwI16i48o2i : OhwI16i48o2i;
-                    else
-                        wei_tag = with_groups ? gOhwI48o2i : OhwI48o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOhwi48o : Ohwi48o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOhwI16i48o2i
+                                                  : OhwI16i48o2i;
+                        else
+                            wei_tag = with_groups ? gOhwI48o2i : OhwI48o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOhwI16i48o4i
+                                                  : OhwI16i48o4i;
+                        else
+                            wei_tag = with_groups ? gOhwI48o4i : OhwI48o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             }
         } else if (jcp.oc_block == 32) {
             if (is_3d) {
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOdhwi32o : Odhwi32o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOdhwI16i32o4i : OdhwI16i32o4i;
-                    else
-                        wei_tag = with_groups ? gOdhwI32o4i : OdhwI32o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOdhwI16i32o2i : OdhwI16i32o2i;
-                    else
-                        wei_tag = with_groups ? gOdhwI32o2i : OdhwI32o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOdhwi32o : Odhwi32o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOdhwI16i32o2i
+                                                  : OdhwI16i32o2i;
+                        else
+                            wei_tag = with_groups ? gOdhwI32o2i : OdhwI32o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOdhwI16i32o4i
+                                                  : OdhwI16i32o4i;
+                        else
+                            wei_tag = with_groups ? gOdhwI32o4i : OdhwI32o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             } else if (is_1d) {
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOwi32o : Owi32o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOwI16i32o4i : OwI16i32o4i;
-                    else
-                        wei_tag = with_groups ? gOwI32o4i : OwI32o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOwI16i32o2i : OwI16i32o2i;
-                    else
-                        wei_tag = with_groups ? gOwI32o2i : OwI32o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOwi32o : Owi32o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOwI16i32o2i : OwI16i32o2i;
+                        else
+                            wei_tag = with_groups ? gOwI32o2i : OwI32o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOwI16i32o4i : OwI16i32o4i;
+                        else
+                            wei_tag = with_groups ? gOwI32o4i : OwI32o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             } else {
                 assert(is_2d);
                 UNUSED(is_2d);
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOhwi32o : Ohwi32o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOhwI16i32o4i : OhwI16i32o4i;
-                    else
-                        wei_tag = with_groups ? gOhwI32o4i : OhwI32o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOhwI16i32o2i : OhwI16i32o2i;
-                    else
-                        wei_tag = with_groups ? gOhwI32o2i : OhwI32o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOhwi32o : Ohwi32o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOhwI16i32o2i
+                                                  : OhwI16i32o2i;
+                        else
+                            wei_tag = with_groups ? gOhwI32o2i : OhwI32o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOhwI16i32o4i
+                                                  : OhwI16i32o4i;
+                        else
+                            wei_tag = with_groups ? gOhwI32o4i : OhwI32o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             }
         } else {
             if (is_3d) {
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOdhwi16o : Odhwi16o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOdhwI16i16o4i : OdhwI16i16o4i;
-                    else
-                        wei_tag = with_groups ? gOdhwI16o4i : OdhwI16o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOdhwI16i16o2i : OdhwI16i16o2i;
-                    else
-                        wei_tag = with_groups ? gOdhwI16o2i : OdhwI16o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOdhwi16o : Odhwi16o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOdhwI16i16o2i
+                                                  : OdhwI16i16o2i;
+                        else
+                            wei_tag = with_groups ? gOdhwI16o2i : OdhwI16o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOdhwI16i16o4i
+                                                  : OdhwI16i16o4i;
+                        else
+                            wei_tag = with_groups ? gOdhwI16o4i : OdhwI16o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             } else if (is_1d) {
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOwi16o : Owi16o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOwI16i16o4i : OwI16i16o4i;
-                    else
-                        wei_tag = with_groups ? gOwI16o4i : OwI16o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOwI16i16o2i : OwI16i16o2i;
-                    else
-                        wei_tag = with_groups ? gOwI16o2i : OwI16o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOwi16o : Owi16o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOwI16i16o2i : OwI16i16o2i;
+                        else
+                            wei_tag = with_groups ? gOwI16o2i : OwI16o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOwI16i16o4i : OwI16i16o4i;
+                        else
+                            wei_tag = with_groups ? gOwI16o4i : OwI16o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             } else {
                 assert(is_2d);
                 UNUSED(is_2d);
 
-                if (is_not_vnni_tag)
-                    wei_tag = with_groups ? gOhwi16o : Ohwi16o;
-                else if (jcp.wei_dt == s8) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOhwI16i16o4i : OhwI16i16o4i;
-                    else
-                        wei_tag = with_groups ? gOhwI16o4i : OhwI16o4i;
-                } else if (jcp.wei_dt == bf16) {
-                    if (jcp.is_ic_padded)
-                        wei_tag = with_groups ? gOhwI16i16o2i : OhwI16i16o2i;
-                    else
-                        wei_tag = with_groups ? gOhwI16o2i : OhwI16o2i;
-                } else
-                    return status::unimplemented;
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOhwi16o : Ohwi16o; break;
+                    case 2:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOhwI16i16o2i
+                                                  : OhwI16i16o2i;
+                        else
+                            wei_tag = with_groups ? gOhwI16o2i : OhwI16o2i;
+                        break;
+                    case 4:
+                        if (jcp.is_ic_padded)
+                            wei_tag = with_groups ? gOhwI16i16o4i
+                                                  : OhwI16i16o4i;
+                        else
+                            wei_tag = with_groups ? gOhwI16o4i : OhwI16o4i;
+                        break;
+                    default: return status::unimplemented;
+                }
             }
         }
     }
@@ -1687,9 +1724,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.is_bf32 = everyone_is(f32, jcp.src_dt, jcp.wei_dt)
             && attr.fpmath_mode_ == fpmath_mode::bf16 && isa == avx512_core_amx;
 
-    const bool is_not_vnni_tag = one_of(jcp.wei_dt, f32, f16);
     brg_blocking_t::last_ic_block_size
-            = is_not_vnni_tag ? 1 : data_type_vnni_granularity(jcp.wei_dt);
+            = (jcp.wei_dt == f16 && isa == avx512_core_fp16)
+            ? 1
+            : data_type_vnni_granularity(jcp.wei_dt);
 
     // TODO: optimize depthwise convolutions (for now direct approach is faster)
     const bool is_depthwise
@@ -1810,7 +1848,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     }
 
     const auto ic_padded_block = 16 * brg_blocking_t::last_ic_block_size;
-    jcp.is_ic_padded = !jcp.is_1x1 && one_of(jcp.wei_dt, bf16, s8)
+    jcp.is_ic_padded = !jcp.is_1x1 && one_of(jcp.wei_dt, bf16, f16, s8)
             && jcp.ic * jcp.kw_sets > ic_padded_block && is_amx(isa);
 
     jcp.idp = jcp.id + jcp.f_pad + jcp.back_pad;

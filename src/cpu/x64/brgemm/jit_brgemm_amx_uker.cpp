@@ -1194,6 +1194,8 @@ void jit_brgemm_amx_uker_base_t::tdpbxxd(
     if (brg.is_bf32
             || (brg.dt_a == data_type::bf16 && brg.dt_b == data_type::bf16)) {
         tdpbf16ps(x1, x2, x3);
+    } else if (brg.dt_a == data_type::f16 && brg.dt_b == data_type::f16) {
+        tdpfp16ps(x1, x2, x3);
     } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::u8) {
         tdpbuud(x1, x2, x3);
     } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::s8) {
