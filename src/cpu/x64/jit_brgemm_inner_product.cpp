@@ -92,7 +92,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     auto c_buffer_global = (jbgp.use_buffer)
             ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
             : nullptr;
-    static constexpr bool is_amx = isa == avx512_core_amx;
+    const bool is_amx = jbgp.is_amx;
     auto wsp_tile_base = is_amx
             ? ctx.get_scratchpad_grantor().template get<char>(
                     key_conv_amx_tile_buffer)
@@ -473,6 +473,7 @@ template struct brgemm_inner_product_fwd_t<avx512_core_bf16>;
 template struct brgemm_inner_product_fwd_t<avx512_core_vnni>;
 template struct brgemm_inner_product_fwd_t<avx512_core_amx>;
 template struct brgemm_inner_product_fwd_t<avx512_core_fp16>;
+template struct brgemm_inner_product_fwd_t<avx512_core_amx_fp16>;
 
 template <cpu_isa_t isa>
 void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
@@ -492,12 +493,13 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
 
     const auto &jbgp = pd()->jbgp_;
 
-    static constexpr bool is_amx = (isa == avx512_core_amx);
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const bool is_bf16 = everyone_is(bf16, jbgp.wei_dt, jbgp.dst_dt);
     const bool is_f16 = everyone_is(f16, jbgp.wei_dt, jbgp.dst_dt);
     const bool is_f32_out = jbgp.src_dt == f32;
-    const size_t buf_dt_size = is_bf16 ? sizeof(bfloat16_t) : sizeof(float);
+    const bool is_amx = jbgp.is_amx;
+    const size_t buf_dt_size = types::data_type_size(
+            isa == avx512_core_fp16 ? f32 : jbgp.wei_dt);
 
     const dim_t wei_dt_size = types::data_type_size(jbgp.wei_dt);
 
@@ -573,7 +575,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
 
         int fwd_ocb_simd = (ocb * jbgp.oc_block) % fwd_oc_block;
         int fwd_icb_simd = (icb * jbgp.ic_block) % fwd_ic_block;
-        int blk_sz = jbgp.wei_dt == data_type::bf16 ? 2 : 1;
+        int blk_sz = is_bf16 || (is_f16 && isa != avx512_core_fp16) ? 2 : 1;
 
         return ptr_wei_local
                 + wei_dt_size
@@ -883,6 +885,7 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
 template struct brgemm_inner_product_bwd_data_t<avx512_core>;
 template struct brgemm_inner_product_bwd_data_t<avx512_core_amx>;
 template struct brgemm_inner_product_bwd_data_t<avx512_core_bf16>;
+template struct brgemm_inner_product_bwd_data_t<avx512_core_amx_fp16>;
 template struct brgemm_inner_product_bwd_data_t<avx512_core_fp16>;
 
 template <cpu_isa_t isa>
@@ -912,13 +915,13 @@ struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
             const exec_ctx_t &ctx, int ithr)
         : scratchpad(ctx.get_scratchpad_grantor()), ithr(ithr) {
 
-        constexpr bool is_amx = (isa == avx512_core_amx);
-
         src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
         diff_dst = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
         diff_weights = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_WEIGHTS);
         diff_bias = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_BIAS);
         const auto &jbgp = self->pd()->jbgp_;
+
+        const bool is_amx = jbgp.is_amx;
 
         buffer_c = (jbgp.use_buffer)
                 ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
@@ -970,8 +973,9 @@ struct brgemm_inner_product_bwd_weights_t<isa>::thread_info_t {
         }
 
         if (jbgp.use_buffer_b) {
-            const auto buf_dt
-                    = jbgp.dst_dt == f16 ? data_type::f32 : jbgp.dst_dt;
+            const auto buf_dt = jbgp.dst_dt == f16 && isa == avx512_core_fp16
+                    ? data_type::f32
+                    : jbgp.dst_dt;
             const size_t dt_sz = buf_dt_size(jbgp.dst_dt, jbgp.isa);
             assert(types::data_type_size(buf_dt) == dt_sz);
             const size_t block_B_size = dt_sz * jbgp.LDB * jbgp.K;
@@ -1092,7 +1096,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::transpose_matrix_c_chunk(
         int ic_size, bool is_reduction) const {
     const auto &jbgp = pd()->jbgp_;
 
-    if (isa == avx512_core_amx) {
+    if (jbgp.is_amx) {
         auto p = jit_amx_ip_trans_diff_wei::ctx_t();
 
         const dim_t ext_nb_ic = div_up(jbgp.ic, ext_ic_block_);
@@ -1134,8 +1138,8 @@ void brgemm_inner_product_bwd_weights_t<isa>::transpose_matrix_c_chunk(
 template <cpu_isa_t isa>
 dim_t brgemm_inner_product_bwd_weights_t<isa>::get_wei_offset(
         int ocb, int icb) const {
-    if (isa == avx512_core_amx) {
-        const auto &jbgp = pd()->jbgp_;
+    const auto &jbgp = pd()->jbgp_;
+    if (jbgp.is_amx) {
         const dim_t offset
                 = jbgp.kd * jbgp.kh * jbgp.kw * jbgp.ic_block * jbgp.oc_block;
         return (ocb * jbgp.nb_ic + icb) * offset;
@@ -1150,7 +1154,6 @@ char *brgemm_inner_product_bwd_weights_t<isa>::get_wei_acc_ptr(
         const thread_info_t *ti, int ocb, int icb,
         int reduction_buf_idx) const {
     const auto &jbgp = pd()->jbgp_;
-    const bool is_amx_bf16 = isa == avx512_core_amx && jbgp.wei_dt == bf16;
 
     const int reduction_buf_start_idx = jbgp.wei_dt == f32;
     // reduction_buf_idx argument allows manually set up required reduction
@@ -1166,7 +1169,7 @@ char *brgemm_inner_product_bwd_weights_t<isa>::get_wei_acc_ptr(
             || (jbgp.wei_dt == jbgp.acc_dt && reduction_buf_idx < 0
                     && ti->ithr_os_c == 0)) {
         MAYBE_UNUSED(reduction_buf_idx);
-        const int icb_scale = (!is_amx_bf16 || jbgp.wei_dt == jbgp.acc_dt)
+        const int icb_scale = (!jbgp.is_amx || jbgp.wei_dt == jbgp.acc_dt)
                 ? jbgp.ic_block / jbgp.simd_w
                 : 1;
         const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
@@ -1312,7 +1315,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                     types::data_type_size(jbgp.acc_dt) * jbgp.ic_block
                             * jbgp.oc_block);
         if (nb_os_b > 0 && brg_kernel != nullptr) {
-            if (is_amx_bf16)
+            if (jbgp.is_amx)
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
             if (transform_a) {
                 const memory_desc_wrapper src_d(pd()->src_md());
@@ -1418,7 +1421,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                             false, use_init_ker, is_ic_tail, is_oc_tail, true);
             auto brg_kernel_os_tail = brg_kernels_[brg_ker_idx_os_tail].get();
             if (brg_kernel_os_tail != nullptr) {
-                if (is_amx_bf16)
+                if (jbgp.is_amx)
                     amx_tile_configure(
                             &brg_kernel_palettes_[brg_ker_idx_os_tail][0]);
                 brgemm_kernel_execute(brg_kernel_os_tail, 1, addr_batch,
@@ -1497,7 +1500,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                         osc_work);
         };
     }
-    if (is_amx_bf16) amx_tile_release();
+    if (jbgp.is_amx) amx_tile_release();
 }
 
 template <cpu_isa_t isa>
@@ -1617,6 +1620,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::execute_backward_weights(
     }
 }
 
+template struct brgemm_inner_product_bwd_weights_t<avx512_core_amx_fp16>;
 template struct brgemm_inner_product_bwd_weights_t<avx512_core_fp16>;
 template struct brgemm_inner_product_bwd_weights_t<avx512_core_amx>;
 template struct brgemm_inner_product_bwd_weights_t<avx512_core_bf16>;

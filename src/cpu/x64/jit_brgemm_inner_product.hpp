@@ -113,7 +113,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     brgattr.generate_skip_accumulation = true;
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
                 }
-                if (isa == avx512_core_amx) {
+                if (jbgp_.is_amx) {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = bs;
                     brgattr.wary_tail_read = false;
@@ -183,7 +183,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             brgemm_kernel_t *ker = nullptr;
             CHECK(brgemm_kernel_create(&ker, pd()->brg_descs_[idx]));
             CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
-            if (isa == avx512_core_amx)
+            if (pd()->jbgp_.is_amx)
                 CHECK(brgemm_init_tiles(
                         pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
         }
@@ -272,8 +272,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                 auto LDD = jbgp_.ic_without_padding;
                 CHECK(brgemm_desc_set_postops(
                         &brg, attr(), &diff_src_md_, LDD, jbgp_.bia_dt));
-
-                if (isa == avx512_core_amx) {
+                if (jbgp_.is_amx) {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = bs;
                     brgattr.wary_tail_read = false;
@@ -345,7 +344,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             brgemm_kernel_t *ker = nullptr;
             CHECK(brgemm_kernel_create(&ker, pd()->brg_descs_[idx]));
             CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
-            if (isa == avx512_core_amx)
+            if (jbgp.is_amx)
                 CHECK(brgemm_init_tiles(
                         pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
         }
@@ -439,7 +438,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, dt_a, dt_b,
                         false, false, brgemm_row_major, alpha, vbeta, jbgp_.LDA,
                         jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
-                if (isa == avx512_core_amx) {
+                if (jbgp_.is_amx) {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = bs;
                     brgattr.wary_tail_read = false;
@@ -507,7 +506,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             brgemm_kernel_t *ker = nullptr;
             CHECK(brgemm_kernel_create(&ker, pd()->brg_descs_[idx]));
             CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
-            if (isa == avx512_core_amx)
+            if (jbgp.is_amx)
                 CHECK(brgemm_init_tiles(
                         pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
 
@@ -522,7 +521,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 }
             }
         }
-        if (isa == avx512_core_amx) {
+        if (jbgp.is_amx) {
             ext_ic_block_ = jbgp.ic_block_ext;
             ext_oc_block_ = jbgp.oc_block_ext;
         }
@@ -532,12 +531,13 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             CHECK(create_brgemm_trans_to_vnni(trans_B_kernel_, &pd()->jbgp_,
                     jit_brgemm_trans_to_vnni_t::matrix_to_transform::matrix_B));
 
-        if (isa != avx512_core_amx) {
+        if (!jbgp.is_amx) {
             if (jbgp.wei_dt != jbgp.acc_dt)
                 CHECK(create_brgemm_trans_to_vnni(trans_C_kernel_, &pd()->jbgp_,
                         jit_brgemm_trans_to_vnni_t::matrix_to_transform::
                                 matrix_C));
-        } else if (jbgp.wei_dt == dnnl::impl::data_type::bf16) {
+        } else if (utils::one_of(
+                           jbgp.wei_dt, data_type::bf16, data_type::f16)) {
             CHECK(create_brgemm_amx_ip_trans_wei(diff_wei_trans_kernel_,
                     &pd()->jbgp_, ext_ic_block_, ext_oc_block_));
         }

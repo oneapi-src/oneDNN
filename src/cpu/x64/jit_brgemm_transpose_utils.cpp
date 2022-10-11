@@ -572,9 +572,9 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
             = {0, 16, 2, 18, 8, 24, 10, 26, 4, 20, 6, 22, 12, 28, 14, 30, 1, 17,
                     3, 19, 9, 25, 11, 27, 5, 21, 7, 23, 13, 29, 15, 31};
 
-    constexpr int amx_bf16_granularity = 2;
-    const bool last_row_padded = conf_->isa == avx512_core_amx
-            && conf_->os % amx_bf16_granularity != 0;
+    constexpr int amx_xf16_granularity = 2;
+    const bool last_row_padded = is_superset(conf_->isa, avx512_core_amx)
+            && conf_->os % amx_xf16_granularity != 0;
     const int eff_K_tail = conf_->K_tail - (last_row_padded ? 1 : 0);
 
     const int os_block = conf_->os_block;
@@ -1340,9 +1340,9 @@ void jit_trans_to_vnni_t::generate() {
     if (matrix_to_transform_ == matrix_B) {
         int row_block = conf_->os_block;
 
-        constexpr int amx_bf16_granularity = 2;
-        const bool last_row_padded = conf_->isa == avx512_core_amx
-                && conf_->os % amx_bf16_granularity != 0;
+        constexpr int amx_xf16_granularity = 2;
+        const bool last_row_padded = is_superset(conf_->isa, avx512_core_amx)
+                && conf_->os % amx_xf16_granularity != 0;
         const int eff_K_tail = conf_->K_tail - (last_row_padded ? 1 : 0);
 
         last_row_block_tail = eff_K_tail % transpose_size;
@@ -2770,8 +2770,15 @@ void jit_amx_ip_trans_diff_wei_to_vnni_t::generate() {
                 vmovups(zmm_src_1 | load_mask | T_z,
                         ptr[reg_input + inp_offset
                                 + typesize_acc * (ic2 * jbgp_->oc_block)]);
-
-                vcvtne2ps2bf16(zmm_src_0, zmm_src_1, zmm_src_0);
+                if (jbgp_->wei_dt == data_type::bf16) {
+                    vcvtne2ps2bf16(zmm_src_0, zmm_src_1, zmm_src_0);
+                } else {
+                    assert(jbgp_->wei_dt == data_type::f16);
+                    vcvtps2phx(Ymm(zmm_src_0.getIdx()), zmm_src_0);
+                    vcvtps2phx(Ymm(zmm_src_1.getIdx()), zmm_src_1);
+                    vinsertf32x8(
+                            zmm_src_0, zmm_src_0, Ymm(zmm_src_1.getIdx()), 1);
+                }
                 vpermw(zmm_src_0, zmm_idx, zmm_src_0);
 
                 vmovups(ptr[reg_output + out_offset
@@ -2780,17 +2787,18 @@ void jit_amx_ip_trans_diff_wei_to_vnni_t::generate() {
             }
             if (ic_block % 2) {
                 int ic1 = 2 * ic;
-                int ic2 = 2 * ic + 1;
-
                 auto zmm_src_0 = get_zmm_src(ic1);
-                auto zmm_src_1 = get_zmm_src(ic2);
 
                 vmovups(zmm_src_0 | load_mask | T_z,
                         ptr[reg_input + inp_offset
                                 + typesize_acc * (ic1 * jbgp_->oc_block)]);
-                vpxord(zmm_src_1, zmm_src_1, zmm_src_1);
 
-                vcvtne2ps2bf16(zmm_src_0, zmm_src_1, zmm_src_0);
+                if (jbgp_->wei_dt == data_type::bf16) {
+                    vcvtneps2bf16(Ymm(zmm_src_0.getIdx()), zmm_src_0);
+                } else {
+                    assert(jbgp_->wei_dt == data_type::f16);
+                    vcvtps2phx(Ymm(zmm_src_0.getIdx()), zmm_src_0);
+                }
                 vpermw(zmm_src_0, zmm_idx, zmm_src_0);
 
                 vmovups(ptr[reg_output + out_offset
@@ -2889,8 +2897,8 @@ status_t create_brgemm_trans_src(
 
     if (conf->src_dt == data_type::f32) {
         CHECK(safe_ptr_assign(trans_ker, new jit_brgemm_trans_m_k_f32_t(conf)));
-    } else if (conf->prop_kind == dnnl_backward_weights
-            && conf->src_dt == data_type::bf16) {
+    } else if (utils::one_of(conf->src_dt, data_type::bf16, data_type::f16)
+            && conf->isa != avx512_core_fp16) {
         CHECK(safe_ptr_assign(
                 trans_ker, new jit_brgemm_trans_m_k_bf16_t(conf)));
     } else if (conf->src_dt == data_type::f16) {
@@ -2906,7 +2914,7 @@ status_t create_brgemm_trans_src(
 status_t create_brgemm_copy_to_coarse(
         std::unique_ptr<jit_brgemm_copy_to_coarse_t> &copy_ker,
         const jit_brgemm_primitive_conf_t *conf) {
-    if (conf->isa == avx512_core_amx)
+    if (is_superset(conf->isa, avx512_core_amx))
         CHECK(safe_ptr_assign(copy_ker, new jit_brgemm_copy_to_coarse_t(conf)));
     else
         return status::invalid_arguments;
@@ -2924,7 +2932,8 @@ status_t create_brgemm_trans_to_vnni(
     if (conf->dst_dt == data_type::f32) {
         CHECK(safe_ptr_assign(
                 trans_ker, new jit_copy_f32_t(conf, matrix_to_transform)));
-    } else if (conf->dst_dt == data_type::bf16) {
+    } else if (one_of(conf->dst_dt, data_type::bf16, data_type::f16)
+            && conf->isa != avx512_core_fp16) {
         CHECK(safe_ptr_assign(
                 trans_ker, new jit_trans_to_vnni_t(conf, matrix_to_transform)));
     } else if (conf->dst_dt == data_type::f16) {
@@ -2945,7 +2954,8 @@ status_t create_brgemm_trans_wei(
 
     if (conf->wei_dt == data_type::f32) {
         CHECK(safe_ptr_assign(trans_ker, new jit_brgemm_trans_wei_f32_t(conf)));
-    } else if (conf->wei_dt == data_type::bf16) {
+    } else if (one_of(conf->wei_dt, data_type::bf16, data_type::f16)
+            && conf->isa != avx512_core_fp16) {
         CHECK(safe_ptr_assign(
                 trans_ker, new jit_brgemm_trans_wei_bf16_t(conf)));
     } else if (conf->wei_dt == data_type::f16) {
@@ -2963,7 +2973,7 @@ status_t create_brgemm_amx_ip_trans_wei(
         const jit_brgemm_primitive_conf_t *conf, const int ext_ic_block,
         const int ext_oc_block) {
     if (conf->prop_kind == dnnl_backward_weights
-            && conf->wei_dt == data_type::bf16) {
+            && one_of(conf->wei_dt, data_type::bf16, data_type::f16)) {
         CHECK(safe_ptr_assign(trans_ker,
                 new jit_amx_ip_trans_diff_wei_to_vnni_t(
                         conf, ext_ic_block, ext_oc_block)));

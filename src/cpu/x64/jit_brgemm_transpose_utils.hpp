@@ -74,7 +74,7 @@ struct jit_brgemm_copy_to_coarse_t : public jit_generator {
         , tr_data_stride_(tr_row_size_ * typesize_) {
 
         // Kernel is supposed to be called under the following constraints
-        assert(conf_->isa == avx512_core_amx);
+        assert(is_superset(conf_->isa, avx512_core_amx));
         assert(row_size_ % row_granularity_ != 0);
 
         MAYBE_UNUSED(row_granularity_);

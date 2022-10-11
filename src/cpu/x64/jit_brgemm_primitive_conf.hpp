@@ -62,6 +62,7 @@ struct jit_brgemm_primitive_conf_t {
     data_type_t acc_dt;
     data_type_t bia_dt;
 
+    bool is_amx;
     bool use_buffer;
     bool use_buffer_a;
     bool use_buffer_b;
