@@ -228,6 +228,11 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     graph_t agraph;
     std::vector<int64_t> zps {0};
     std::vector<float> scales {0.5f};
+    std::vector<int64_t> src_shape {1, 1024};
+    std::vector<int64_t> weight_shape {1024, 512};
+    std::vector<int64_t> bias_shape {1};
+    std::vector<int64_t> dst_shape {1, 512};
+
     op_t dequant1 {0, Dequantize, "dequant"};
     dequant1.set_attr(op_attr::scales, scales);
     dequant1.set_attr(op_attr::zps, zps);
@@ -241,28 +246,36 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     op_t quant {4, Quantize, "quant"};
     quant.set_attr(op_attr::scales, scales);
     quant.set_attr(op_attr::zps, zps);
-    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
-    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t int8_data
+            = logical_tensor_init(0, src_shape, data_type::u8);
+    logical_tensor_t fp32_data
+            = logical_tensor_init(1, src_shape, data_type::f32);
     dequant1.add_input(int8_data);
     dequant1.add_output(fp32_data);
 
-    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
-    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    logical_tensor_t s8_weight
+            = logical_tensor_init(2, weight_shape, data_type::s8);
+    logical_tensor_t fp32_weight
+            = logical_tensor_init(3, weight_shape, data_type::f32);
     dequant2.add_input(s8_weight);
     dequant2.add_output(fp32_weight);
 
-    logical_tensor_t fp32_bias = logical_tensor_init(4, data_type::f32);
-    logical_tensor_t fp32_matmul_out = logical_tensor_init(5, data_type::f32);
+    logical_tensor_t fp32_bias
+            = logical_tensor_init(4, bias_shape, data_type::f32);
+    logical_tensor_t fp32_matmul_out
+            = logical_tensor_init(5, bias_shape, data_type::f32);
     matmul.add_input(fp32_data);
     matmul.add_input(fp32_weight);
     matmul.add_input(fp32_bias);
     matmul.add_output(fp32_matmul_out);
 
-    logical_tensor_t fp32_relu_out = logical_tensor_init(6, data_type::f32);
+    logical_tensor_t fp32_relu_out
+            = logical_tensor_init(6, dst_shape, data_type::f32);
     relu.add_input(fp32_matmul_out);
     relu.add_output(fp32_relu_out);
 
-    logical_tensor_t int8_out = logical_tensor_init(7, data_type::u8);
+    logical_tensor_t int8_out
+            = logical_tensor_init(7, dst_shape, data_type::u8);
     quant.add_input(fp32_relu_out);
     quant.add_output(int8_out);
 
@@ -791,12 +804,28 @@ TEST_P(TestInt8MatmulPassesWithDiffInputs, Int8MatmulPasses) {
 INSTANTIATE_TEST_SUITE_P(SubgraphPass, TestInt8MatmulPassesWithDiffInputs,
         testing::Values(ut_matmul_params {{1, 1024}, {1000, 1024}, {1000},
                                 {1, 1000}, false, true, false, 4, 5},
+                ut_matmul_params {{1, 1024}, {1000, 1024}, {1, 1000}, {1, 1000},
+                        false, true, false, 3, 4},
                 ut_matmul_params {{1, 1024}, {1000, 1024}, {1000}, {1, 1000},
                         false, true, true, 4, 5},
+                ut_matmul_params {{1024, 1000}, {1024, 1000}, {1024},
+                        {1024, 1024}, false, true, true, 4, 5},
                 ut_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
                         true, false, 5, 6},
                 ut_matmul_params {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
-                        true, true, 5, 6}));
+                        true, true, 5, 6},
+                ut_matmul_params {{4, 3, 64}, {3, 64}, {1, 1, 1}, {4, 3, 3},
+                        false, true, true, 4, 5},
+                ut_matmul_params {{4, 3, 64}, {3, 64}, {4, 1, 1}, {4, 3, 3},
+                        false, true, true, 4, 5},
+                ut_matmul_params {{4, 3, 64}, {3, 64}, {1, 3, 1}, {4, 3, 3},
+                        false, true, true, 4, 5},
+                ut_matmul_params {{4, 3, 64}, {3, 64}, {1, 1, 3}, {4, 3, 3},
+                        false, true, true, 4, 5},
+                ut_matmul_params {{4, 3, 64}, {3, 64}, {4, 1, 3}, {4, 3, 3},
+                        false, true, true, 4, 5},
+                ut_matmul_params {{4, 3, 64}, {3, 64}, {4, 3, 3}, {4, 3, 3},
+                        false, true, true, 4, 5}));
 
 class TestMatmulPassesWithDiffInputs
     : public ::testing::TestWithParam<ut_matmul_params> {};

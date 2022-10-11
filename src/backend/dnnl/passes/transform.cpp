@@ -383,8 +383,11 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
         std::vector<float> fused_scale(
                 std::max(dq_src_scales.size(), dq_wei_scales.size()), 0);
         if (dq_src_scales.size() >= dq_wei_scales.size()) {
-            for (size_t i = 0; i < dq_src_scales.size(); i++)
-                fused_scale[i] = (dq_src_scales[i] * dq_wei_scales[0]);
+            // doesn't support src: per_channel, weight: per_tensor
+            // because the output scale cannot be calculated
+            if (dq_src_scales.size() != 1) return status::invalid_shape;
+            // src: per_tensor, weight: per_tensor
+            fused_scale[0] = dq_src_scales[0] * dq_wei_scales[0];
             mul_op->set_attr<int64_t>(
                     op_attr::axis, in0->get_attr<int64_t>(op_attr::axis));
             mul_op->set_attr<std::string>(
@@ -508,8 +511,11 @@ impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg) {
             mul_scales_op->set_attr<std::string>(
                     op_attr::qtype, in1->get_attr<std::string>(op_attr::qtype));
         } else {
-            for (size_t i = 0; i < dq_src_scales.size(); ++i)
-                fused_scales[i] = dq_src_scales[i] * dq_wei_scales[0];
+            // doesn't support src: per_channel, weight: per_tensor
+            // because the output scale cannot be calculated
+            if (dq_src_scales.size() != 1) return status::invalid_shape;
+            // src: per_tensor, weight: per_tensor
+            fused_scales[0] = dq_src_scales[0] * dq_wei_scales[0];
             mul_scales_op->set_attr<int64_t>(
                     op_attr::axis, in0->get_attr<int64_t>(op_attr::axis));
             mul_scales_op->set_attr<std::string>(
@@ -543,7 +549,20 @@ impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg) {
                 inv_scales[i] = 1.f / fused_scales[i];
             bias_mul_op->set_attr<std::vector<float>>(
                     op_attr::scales, inv_scales);
-            bias_mul_op->set_attr<int64_t>(op_attr::axis, 0);
+            // bias can be 1D or ND (same as output)
+            std::vector<dim_t> bias_shape = logical_tensor_wrapper_t(
+                    matmul_op->get_input_value(2)->get_logical_tensor())
+                                                    .vdims();
+            int64_t bias_axis = bias_shape.size() == 1
+                    ? 0
+                    : mul_scales_op->get_attr<int64_t>(op_attr::axis);
+            // for per_channel scale,
+            // bias needs to have the same length as its scales
+            if (inv_scales.size() != 1
+                    && bias_shape[bias_axis]
+                            != static_cast<dim_t>(inv_scales.size()))
+                return status::invalid_shape;
+            bias_mul_op->set_attr<int64_t>(op_attr::axis, bias_axis);
             bias_mul_op->set_attr<std::string>(op_attr::qtype,
                     mul_scales_op->get_attr<std::string>(op_attr::qtype));
 
