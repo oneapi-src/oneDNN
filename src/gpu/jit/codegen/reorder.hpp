@@ -43,10 +43,41 @@ public:
 
     void operator()(const single_src_op_t &op, inst_mod_t mod, reg_data_t dst,
             reg_data_t src) const {
-        fixup(op, mod, dst, src);
+        // Rewrite a single-src instruction that spans more than 2 GRFs into
+        // multiple ops
+        auto dst_esize = max_esize(dst, /*is_dst=*/true);
+        auto src_esize = max_esize(src, /*is_dst=*/false);
+        auto original_esize = mod.getExecSize();
+        auto original_width = src.getWidth();
+        auto esize = std::min(std::min(dst_esize, src_esize), original_esize);
+
+        mod.setExecSize(esize);
+        if (esize < original_width)
+            // Width must be at most esize
+            set_contiguous_region(src, esize, src.getHS());
+
+        for (int i = 0; i < original_esize; i += esize) {
+            fixup(op, mod, dst, src);
+            shift_offset(dst, esize);
+            shift_offset(src, esize);
+        }
     }
 
 private:
+    int max_esize(const reg_data_t &reg, bool is_dst) const {
+        auto size = reg.getBytes();
+        auto width = reg.getWidth();
+        auto hs = reg.getHS();
+        auto vs = reg.getVS();
+        auto remaining_bytes = 2 * grf_size_ - reg.getByteOffset();
+        auto stride = hs;
+        if (!is_dst && width == 1) stride = vs;
+        if (is_dst && stride == 0) stride = 1;
+        if (stride == 0) return 16; // Broadcast can have max step
+        auto max_step = (remaining_bytes - 1) / (stride * size) + 1;
+        return utils::rnd_down_pow2(max_step);
+    }
+
     void fixup(const single_src_op_t &op, inst_mod_t mod, reg_data_t dst,
             reg_data_t src) const {
         // Rewrite src0 to cross GRF boundaries using vertical striding
