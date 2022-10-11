@@ -291,6 +291,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         ir_assert(utils::one_of(dst_stride_bytes, 2, 4));
         ir_assert(utils::one_of(src_stride_bytes, 1, 4));
         int step = get_step();
+        const int align_bdy = grf_size / 2;
         const int step_size = step * (int)sizeof(uint32_t);
         const int nregs = utils::div_up(step_size, grf_size);
         auto tmp1 = scope.alloc_reg_buf_data(nregs);
@@ -302,7 +303,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
-            auto byte_offset = 2 * (d.getByteOffset() % 32);
+            auto byte_offset = 2 * (d.getByteOffset() % align_bdy);
             auto t1 = tmp1.subregister(byte_offset, ngen::DataType::w);
             auto t2 = tmp2.subregister(byte_offset, ngen::DataType::f);
             auto t1_as_hf = t1.reinterpret(0, ngen::DataType::hf);
