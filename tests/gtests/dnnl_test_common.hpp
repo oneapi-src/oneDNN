@@ -176,7 +176,7 @@ template <typename... Rest>
 inline bool unsupported_data_type(
         memory::data_type first_dt, Rest... rest_dts) {
     bool rval = unsupported_data_type(first_dt, get_test_engine());
-    if (!rval) return rval;
+    if (rval) return rval;
     return unsupported_data_type(rest_dts...);
 }
 #endif
