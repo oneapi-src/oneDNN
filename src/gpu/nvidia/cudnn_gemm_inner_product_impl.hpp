@@ -126,7 +126,7 @@ struct cudnn_gemm_inner_product_fwd_impl_t
         // this must be applied on bias if exists.
         do_scaling_ = !pd->attr()->output_scales_.has_default_values();
         runtime_scaling_ = !pd->attr()->output_scales_.defined();
-        output_scales_ = pd->attr()->output_scales_.scales_[0]; // alpha
+        output_scales_ = 1.0f; // alpha
         with_sum_ = with_sum;
         // scaling factor to add the previous destination value to the current
         // computation. This is equivalent of
