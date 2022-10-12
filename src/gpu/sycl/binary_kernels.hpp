@@ -33,8 +33,14 @@ struct binary_kernel_vec_t {
 
     binary_kernel_vec_t(const sycl_binary_conf_t &conf,
             sycl_in_memory_arg_t &src0, sycl_in_memory_arg_t &src1,
-            sycl_out_memory_arg_t &dst)
-        : conf_(conf), src0_(src0), src1_(src1), dst_(dst) {}
+            sycl_out_memory_arg_t &dst, sycl_in_memory_arg_t &src0_scale,
+            sycl_in_memory_arg_t &src1_scale)
+        : conf_(conf)
+        , src0_(src0)
+        , src1_(src1)
+        , dst_(dst)
+        , src0_scale_(src0_scale)
+        , src1_scale_(src1_scale) {}
 
     [[sycl::reqd_sub_group_size(32)]] void operator()(
             ::sycl::nd_item<1> item) const {
@@ -55,6 +61,9 @@ struct binary_kernel_vec_t {
             auto dst_vec = load_float_vec<vec_len>(
                     dst_md().data_type(), dst_ptr(), base + i);
 
+            if (conf_.do_scale_src0) src0_vec *= src0_scale_ptr()[0];
+            if (conf_.do_scale_src1) src1_vec *= src1_scale_ptr()[0];
+
             auto acc_vec = compute_alg(src0_vec, src1_vec, conf_.alg_kind);
             // TODO: Adding post-ops seems to be interfering with compiler's
             // optimizations. Figure out how to make the compiler to generate
@@ -72,6 +81,12 @@ private:
     void *src0_ptr() const { return src0_.get_pointer(); }
     void *src1_ptr() const { return src1_.get_pointer(); }
     void *dst_ptr() const { return dst_.get_pointer(); }
+    float *src0_scale_ptr() const {
+        return static_cast<float *>(src0_scale_.get_pointer());
+    }
+    float *src1_scale_ptr() const {
+        return static_cast<float *>(src1_scale_.get_pointer());
+    }
 
     template <int width>
     ::sycl::vec<float, width> compute_alg(::sycl::vec<float, width> src0,
@@ -104,6 +119,8 @@ private:
     sycl_in_memory_arg_t src0_;
     sycl_in_memory_arg_t src1_;
     sycl_out_memory_arg_t dst_;
+    sycl_in_memory_arg_t src0_scale_;
+    sycl_in_memory_arg_t src1_scale_;
 };
 
 } // namespace sycl

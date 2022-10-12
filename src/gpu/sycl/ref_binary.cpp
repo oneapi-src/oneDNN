@@ -45,12 +45,7 @@ status_t ref_binary_t::pd_t::init_conf() {
 
     conf_.alg_kind = desc()->alg_kind;
     // Limitations:
-    // - Runtime scales are not supported.
     // - Only common scale policy is supported.
-    // XXX: oneDNN can stop supporting non-RT scales in 3.0 hence
-    // this code can be thrown away in 3.0.
-    conf_.src0_scale = attr()->scales_.get(DNNL_ARG_SRC_0).scales_[0];
-    conf_.src1_scale = attr()->scales_.get(DNNL_ARG_SRC_1).scales_[0];
     conf_.do_scale_src0
             = !attr()->scales_.get(DNNL_ARG_SRC_0).has_default_values();
     conf_.do_scale_src1
@@ -75,12 +70,17 @@ status_t ref_binary_t::execute(const exec_ctx_t &ctx) const {
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         auto src0_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0);
         auto src1_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_1);
+        auto src0_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
+                DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0);
+        auto src1_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
+                DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1);
         auto dst_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
 
         auto nelems_A = memory_desc_wrapper(pd()->src_md(0)).nelems();
 
-        binary_kernel_vec_t binary_kernel(
-                pd()->conf_, src0_mem_arg, src1_mem_arg, dst_mem_arg);
+        binary_kernel_vec_t binary_kernel(pd()->conf_, src0_mem_arg,
+                src1_mem_arg, dst_mem_arg, src0_scale_mem_arg,
+                src1_scale_mem_arg);
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;
         cgh.parallel_for(::sycl::nd_range<1>(nelems_A / block_size, wg_size),

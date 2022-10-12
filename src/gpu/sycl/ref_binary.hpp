@@ -50,7 +50,8 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
             const bool ok = set_default_params() == status::success
                     && check_data_types(src0_d, src1_d, dst_d)
                     && check_formats(src0_d, src1_d, dst_d) && is_tensor_op()
-                    && attr()->has_default_values(sm::scales | sm::post_ops)
+                    && attr()->has_default_values(
+                            sm::scales_runtime | sm::post_ops)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask())
                     && post_ops_ok();

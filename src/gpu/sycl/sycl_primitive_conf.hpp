@@ -31,8 +31,6 @@ struct sycl_binary_conf_t {
     sycl_md_t dst_md;
 
     alg_kind_t alg_kind;
-    float src0_scale;
-    float src1_scale;
     bool do_scale_src0;
     bool do_scale_src1;
     int broadcast_dims[sycl_md_t::max_dims];
