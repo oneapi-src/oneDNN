@@ -91,7 +91,8 @@ std::map<std::string, float> convert_eltw_entry(
 dnnl::graph::graph::fpmath_mode convert_fpmath_mode(
         const dnnl_fpmath_mode_t mode) noexcept;
 
-int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales);
+int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales,
+        const int bia_mask);
 
 dnnl_format_tag_t dnnl_fmt_str2tag(const std::string &fmt_str);
 

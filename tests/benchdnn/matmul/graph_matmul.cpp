@@ -385,7 +385,8 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
                                 convert_dt(prb->dst_dt())})) {
             bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::abx);
             scale_bia(bia_fp_scaled, bia_fp,
-                    get_scales(prb->attr.oscale, prb->scales, prb->n));
+                    get_scales(prb->attr.oscale, prb->scales, prb->n),
+                    prb->bia_mask);
             ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
         } else {
             ref_args.set(DNNL_ARG_BIAS, bia_fp);

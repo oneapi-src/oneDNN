@@ -469,8 +469,10 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             dnn_mem_t bia_fp_scaled;
             if (prb->dir == FWD_B) {
                 bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
-                scale_bia(bia_fp_scaled, bia_fp,
-                        get_scales(prb->attr.oscale, prb->scales, prb->oc));
+                std::vector<float> scales
+                        = get_scales(prb->attr.oscale, prb->scales, prb->oc);
+                int bia_mask = scales.size() == 1 ? 0 : 1;
+                scale_bia(bia_fp_scaled, bia_fp, scales, bia_mask);
             }
             ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
 

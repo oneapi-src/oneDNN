@@ -299,7 +299,7 @@ int doit(const mlp_graph_spec_t *spec, res_t *res) {
                 bias_fp_scaled.emplace_back(make_dnn_mem(
                         graph_prb.ltid_desc_lut[id].lt, dt::f32, tag::abx));
                 scale_bia(bias_fp_scaled[i], mem_fp[idx],
-                        {spec->attr.oscale.scale});
+                        {spec->attr.oscale.scale}, 0);
             }
         }
         //compute reference

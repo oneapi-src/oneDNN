@@ -351,8 +351,8 @@ dnnl::graph::graph::fpmath_mode convert_fpmath_mode(
     }
 }
 
-int scale_bia(
-        dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales) {
+int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales,
+        const int bia_mask) {
     if (scales.empty()) {
         dst = std::move(src);
         return OK;
@@ -361,7 +361,6 @@ int scale_bia(
     std::vector<float> bia_scales(scales.size(), 0.f);
     std::transform(scales.begin(), scales.end(), bia_scales.begin(),
             [eps](const float scale) { return 1.f / (scale + eps); });
-    const int bia_mask = bia_scales.size() == 1 ? 0 : 1;
     dnnl_primitive_attr_t bia_attr = nullptr;
     dnnl_primitive_attr_create(&bia_attr);
     dnnl_primitive_attr_set_output_scales(
