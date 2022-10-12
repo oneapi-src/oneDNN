@@ -47,7 +47,7 @@ struct cudnn_binary_t : public primitive_t {
                     && check_data_types() && check_no_blocking()
                     && check_broadcast()
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::scales)
+                            primitive_attr_t::skip_mask_t::scales_runtime)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask());
 
@@ -117,10 +117,23 @@ struct cudnn_binary_t : public primitive_t {
         std::shared_ptr<cudnn_binary_impl_base_t> binary_impl_;
     };
 
+    status_t init(engine_t *engine) override {
+        // Only single-element scale is supported
+        host_scales_ = new float[2];
+        if (!host_scales_) return status::out_of_memory;
+        host_scales_[0] = 1.0f;
+        host_scales_[1] = 1.0f;
+        return status::success;
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override;
+
+    virtual ~cudnn_binary_t() { delete[] host_scales_; }
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    float *host_scales_ = nullptr;
 };
 
 } // namespace nvidia

@@ -35,7 +35,6 @@ struct cudnn_binary_impl_base_t {
     cudnnOpTensorDescriptor_t op_desc = nullptr;
     cudnnTensorDescriptor_t tensor_descs[NUM_IO] = {};
     cudnnOpTensorOp_t alg_kind;
-    float alpha[2];
     float beta = 0.0f;
 
     virtual ~cudnn_binary_impl_base_t() {
@@ -52,10 +51,11 @@ struct cudnn_binary_impl_base_t {
 
     virtual status_t init(const binary_pd_t *pd) = 0;
 
-    void execute(cudnnHandle_t handle, void *a, void *b, void *c) const {
-        CUDNN_EXECUTE_FUNC(cudnnOpTensor, handle, op_desc, &alpha[0],
-                tensor_descs[src_0], a, &alpha[1], tensor_descs[src_1], b,
-                &beta, tensor_descs[dst_0], c);
+    void execute(cudnnHandle_t handle, void *a, void *b, void *c, void *a_scale,
+            void *b_scale) const {
+        CUDNN_EXECUTE_FUNC(cudnnOpTensor, handle, op_desc, a_scale,
+                tensor_descs[src_0], a, b_scale, tensor_descs[src_1], b, &beta,
+                tensor_descs[dst_0], c);
     }
 
     virtual status_t create_and_set_op_descriptor() {
@@ -120,9 +120,6 @@ struct cudnn_binary_impl_t : public cudnn_binary_impl_base_t {
         CHECK(convert_data_type(pd->src_md(0), &data_types[src_0]));
         CHECK(convert_data_type(pd->src_md(1), &data_types[src_1]));
         CHECK(convert_data_type(pd->dst_md(), &data_types[dst_0]));
-
-        alpha[0] = pd->attr()->scales_.get(1).scales_[0];
-        alpha[1] = pd->attr()->scales_.get(2).scales_[0];
 
         CHECK(create_and_set_tensor_descriptor(&tensor_descs[src_0],
                 data_types[src_0], ndims, dims[src_0], strides[src_0]));

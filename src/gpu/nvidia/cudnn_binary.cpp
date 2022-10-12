@@ -18,6 +18,8 @@
 #include "gpu/nvidia/cudnn_binary.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/sycl_cuda_stream_utils.hpp"
+#include "gpu/nvidia/sycl_cuda_utils.hpp"
 #include "sycl/sycl_buffer_memory_storage.hpp"
 #include "sycl/sycl_memory_storage_helper.hpp"
 
@@ -32,6 +34,15 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
 
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+
+    if (!pd()->attr()->scales_.get(DNNL_ARG_SRC_0).defined())
+        CHECK(stream_utils::copy_input_arg_to_host(ctx, cuda_stream,
+                &host_scales_[0], DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0,
+                sizeof(float)));
+    if (!pd()->attr()->scales_.get(DNNL_ARG_SRC_1).defined())
+        CHECK(stream_utils::copy_input_arg_to_host(ctx, cuda_stream,
+                &host_scales_[1], DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1,
+                sizeof(float)));
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_src_0 = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC_0);
@@ -48,7 +59,8 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
             void *b = arg_src_1.get_native_pointer(ih);
             void *c = arg_dst.get_native_pointer(ih);
 
-            pd()->binary_impl_->execute(handle, a, b, c);
+            pd()->binary_impl_->execute(
+                    handle, a, b, c, &host_scales_[0], &host_scales_[1]);
         });
     });
 }
