@@ -138,6 +138,9 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         return false;
     if (src_stride != 1) return false;
     if (dst_stride != 1) return false;
+    // XeHPG seems to have a problem with scalar byte writes with saturation;
+    // defer to the non-batched implementation's workaround
+    if (width == 1) return false;
 
     int batch = 128;
     int max_step = 8;
@@ -291,7 +294,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         ir_assert(utils::one_of(dst_stride_bytes, 2, 4));
         ir_assert(utils::one_of(src_stride_bytes, 1, 4));
         int step = get_step();
-        const int align_bdy = grf_size / 2;
+        const int align_boundary = grf_size / 2;
         const int step_size = step * (int)sizeof(uint32_t);
         const int nregs = utils::div_up(step_size, grf_size);
         auto tmp1 = scope.alloc_reg_buf_data(nregs);
@@ -303,7 +306,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
-            auto byte_offset = 2 * (d.getByteOffset() % align_bdy);
+            auto byte_offset = 2 * (d.getByteOffset() % align_boundary);
             auto t1 = tmp1.subregister(byte_offset, ngen::DataType::w);
             auto t2 = tmp2.subregister(byte_offset, ngen::DataType::f);
             auto t1_as_hf = t1.reinterpret(0, ngen::DataType::hf);
@@ -336,7 +339,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
             const int t1_offset = s.getByteOffset();
-            const int t2_offset = (d.getOffset() % 16) * 4 * dst_type_size;
+            const int t2_offset = (d.getOffset() % 16) * tmp_stride_bytes;
             auto t1 = tmp1.subregister(t1_offset, dst_type);
             auto t2 = tmp2.subregister(t2_offset, dst_type);
 
@@ -495,8 +498,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 if (dst_stride_bytes == 1 || esize == 1) {
                     auto offset_bytes = src_f ? s.getByteOffset()
                                               : 4 * (d.getByteOffset() % 16);
-                    auto t = tmp.subregister(offset_bytes, dst_type)(4);
-                    plan(mov, std::max(2, esize) | host->sat, t, s(src_stride));
+                    auto t = tmp.subregister(offset_bytes, dst_type)(2);
+                    plan(mov, std::max(2, esize) | host->sat, t, s);
                     plan(mov, esize, d(dst_stride), t);
                 } else {
                     plan(mov, esize | host->sat, d(dst_stride), s(src_stride));
