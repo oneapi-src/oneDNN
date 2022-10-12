@@ -539,7 +539,6 @@ std::string InterfaceHandler::generateZeInfo() const
            << "        - " << walkOrder[1] << "\n"
            << "        - " << std::max(walkOrder[2], 0) << "\n";
     }
-    md << "      actual_kernel_start_offset: " << offsetSkipCrossThread << '\n';
     if (offsetSkipPerThread > 0)
         md << "      offset_to_skip_per_thread_data_load: " << offsetSkipPerThread << '\n';
     if (barrierCount > 0)
