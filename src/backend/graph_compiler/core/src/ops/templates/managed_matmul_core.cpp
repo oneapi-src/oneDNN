@@ -52,16 +52,6 @@ SC_CLASS_END();
 
 namespace ops {
 
-template <typename T>
-static std::vector<T> concat_vec(
-  const std::vector<T> &a, const std::vector<T> &b) {
-  std::vector<T> result(a);
-  for (const T &it : b) {
-    result.push_back(it);
-  }
-  return result;
-}
-
 static std::vector<int> get_splits(const int X) {
   std::vector<int> splits;
   for (auto i = 1; i <= X; ++i) {
@@ -83,23 +73,6 @@ static expr get_balance211_length(
   n_start
     = builder::make_select(idx <= T1, idx * n1, T1 * n1 + (idx - T1) * n2);
   return builder::make_select(idx < T1, n1, n2);
-}
-
-static void get_blocks_and_ib_blocks(const int X, const int X_split_num,
-  const int ix_block, int &X_block_size, int &X_ib_block_size) {
-  if (utils::divide_and_ceil(X, X_block_size) < (size_t)X_split_num
-    && X_block_size > ix_block) {
-    X_block_size -= ix_block;
-  }
-  // M, N, K imbalance block size
-  X_ib_block_size = X - X_block_size * X_split_num <= 0
-    ? X - X_block_size * (X_split_num - 1)
-    : X_block_size + ix_block;
-  if (X_ib_block_size < 0) {
-    // cannot use all the threads
-    X_ib_block_size = X - X / X_block_size * X_block_size;
-  }
-  if (X_ib_block_size == 0) { X_ib_block_size = X_block_size; }
 }
 
 config_ptr gen_managed_matmul_core_t::get_default_config(
@@ -463,9 +436,9 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
           }
           _var_init_(anchor_iter, datatypes::index, UINT64_C(0));
           // TODO(xxx): reduce the if-else node in IR
-          _if_(m_s < config.M_split_num - M_anchor_info[0] || m_s == 0) {
+          _if_(m_s < M_anchor_info[0]) {
             // 0-8
-            _if_(n_s < config.N_split_num - N_anchor_info[0] || n_s == 0) {
+            _if_(n_s < N_anchor_info[0]) {
               // 0-4
               _if_(m_b < m_b_bigger_num) {
                 _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(0); }
@@ -488,7 +461,7 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
             }
           }
           _else_ {
-            _if_(n_s < config.N_split_num - N_anchor_info[0] || n_s == 0) {
+            _if_(n_s < N_anchor_info[0]) {
               _if_(m_b < m_b_bigger_num) {
                 _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(8); }
                 _else_ { anchor_iter = UINT64_C(9); }
@@ -527,21 +500,12 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
 
 /**
  * For each single thread we may deal with different size of matmuls
- * Take M axis as example, we have three following candidates:
- * 1) M_block_size
-      M_block_size is used for all matmul shapes. It can be divided by 32.
-      For instance, if M = 1792 with M_split_num=28, we have M_block_size=32
- * 2) M_ib_block_size (imbalance)
-      M_ib_block_size is used for some specific shapes. For M=2240,
- M_split_num=28, we may choose96 as M_block_size. However, such a block size
- will leave 4 cores with no workload. So we need to choose 64 as M_block_size
- instead. Thus, 14 cores will process an M of 64, another 14 cores will process
- 96, which is defined as M_ib_block_size.
- * 3) tail_M
-      tail_M will be used when M cannot be divided by 32. For instance, if
- M=1791, M_split_num=28, we have tail_M=63. Note that tail_M will be round up
- into a number that is divisible by 32. This value is either M_block_size or
- M_ib_block_size.
+ * For either axes, we have following candidates:
+ * 1) X_block_size
+ * 2) X_ib_block_size (imbalance)
+      X_block_size and X_ib_block_size are calculated by balance211 algrithm.
+ Specially, X_block_size >= X_ib_block_size, and the gap is either 0 or
+ iix_block_.
  * */
 bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   const managed_matmul_core_config_t &config, fusion_manager *fusion,
@@ -557,88 +521,29 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   int K_split_num = num_threads / M_split_num / N_split_num;
   int M_sub_block = config.M_sub_block, N_sub_block = config.N_sub_block,
       K_sub_block = config.K_sub_block, im_loop_order = config.im_loop_order;
-  int M = static_cast<int>(in_tensors_[0].get_plain_dims()[0]),
-      K = static_cast<int>(in_tensors_[0].get_plain_dims()[1]),
-      N = static_cast<int>(in_tensors_[1].get_plain_dims()[1]);
+  int M = static_cast<int>(
+        utils::rnd_up(in_tensors_[0].get_plain_dims()[0], iim_block_)),
+      K = static_cast<int>(
+        utils::rnd_up(in_tensors_[0].get_plain_dims()[1], iik_block_)),
+      N = static_cast<int>(
+        utils::rnd_up(in_tensors_[1].get_plain_dims()[1], iin_block_));
   int M_block_size
-    = utils::divide_and_ceil(utils::divide_and_ceil(M, M_split_num), iim_block_)
-    * iim_block_;
+    = utils::divide_and_ceil(M / iim_block_, M_split_num) * iim_block_;
+  int M_ib_block_size = M / iim_block_ / M_split_num * iim_block_;
   int N_block_size
-    = utils::divide_and_ceil(utils::divide_and_ceil(N, N_split_num), iin_block_)
-    * iin_block_;
+    = utils::divide_and_ceil(N / iin_block_, N_split_num) * iin_block_;
+  int N_ib_block_size = N / iin_block_ / N_split_num * iin_block_;
   int K_block_size
-    = utils::divide_and_ceil(utils::divide_and_ceil(K, K_split_num), iik_block_)
-    * iik_block_;
-  // make sure that each thread has workload
-  int M_ib_block_size, N_ib_block_size, K_ib_block_size;
-  get_blocks_and_ib_blocks(
-    M, M_split_num, iim_block_, M_block_size, M_ib_block_size);
-  get_blocks_and_ib_blocks(
-    N, N_split_num, iin_block_, N_block_size, N_ib_block_size);
-  get_blocks_and_ib_blocks(
-    K, K_split_num, iik_block_, K_block_size, K_ib_block_size);
-  // update X_block_size and X_ib_block_size to minimize their gaps
-  if (M_block_size >= iim_block_ * 2) {
-    int M_new_ib_block_size, M_new_block_size = M_block_size - iim_block_;
-    get_blocks_and_ib_blocks(
-      M, M_split_num, iim_block_, M_new_block_size, M_new_ib_block_size);
-    if (std::abs(M_block_size - M_ib_block_size)
-      > std::abs(M_new_block_size - M_new_ib_block_size)) {
-      M_block_size = M_new_block_size;
-      M_ib_block_size = M_new_ib_block_size;
-    }
-  }
-  if (N_block_size >= iin_block_ * 2) {
-    int N_new_ib_block_size, N_new_block_size = N_block_size - iin_block_;
-    get_blocks_and_ib_blocks(
-      N, N_split_num, iin_block_, N_new_block_size, N_new_ib_block_size);
-    if (std::abs(N_block_size - N_ib_block_size)
-      > std::abs(N_new_block_size - N_new_ib_block_size)) {
-      N_block_size = N_new_block_size;
-      N_ib_block_size = N_new_ib_block_size;
-    }
-  }
-  if (K_block_size >= iik_block_ * 2) {
-    int K_new_ib_block_size, K_new_block_size = K_block_size - iik_block_;
-    get_blocks_and_ib_blocks(
-      K, K_split_num, iik_block_, K_new_block_size, K_new_ib_block_size);
-    if (std::abs(K_block_size - K_ib_block_size)
-      > std::abs(K_new_block_size - K_new_ib_block_size)) {
-      K_block_size = K_new_block_size;
-      K_ib_block_size = K_new_ib_block_size;
-    }
-  }
-  // M, N, K imbalance block num
-  int M_ib_num = M - M_block_size * M_split_num < 0
-    ? 1
-    : utils::divide_and_ceil(M - M_block_size * M_split_num, iim_block_);
-  int N_ib_num = N - N_block_size * N_split_num < 0
-    ? 1
-    : utils::divide_and_ceil(N - N_block_size * N_split_num, iin_block_);
-  int K_ib_num = K - K_block_size * K_split_num < 0
-    ? 1
-    : utils::divide_and_ceil(K - K_block_size * K_split_num, iik_block_);
-  int tail_M = M_ib_num <= 1 ? M_ib_block_size
-                             : M_ib_block_size
-      - (M_ib_num * M_ib_block_size + (M_split_num - M_ib_num) * M_block_size
-        - M);
-  int tail_N = N_ib_num <= 1 ? N_ib_block_size
-                             : N_ib_block_size
-      - (N_ib_num * N_ib_block_size + (N_split_num - N_ib_num) * N_block_size
-        - N);
-  int tail_K = K_ib_num <= 1 ? K_ib_block_size
-                             : K_ib_block_size
-      - (K_ib_num * K_ib_block_size + (K_split_num - K_ib_num) * K_block_size
-        - K);
-  assert(M_ib_num >= 0 && M_ib_num <= M_split_num && N_ib_num >= 0
-    && N_ib_num <= N_split_num && K_ib_num >= 0 && K_ib_num <= K_split_num);
+    = utils::divide_and_ceil(K / iik_block_, K_split_num) * iik_block_;
+  int K_ib_block_size = K / iik_block_ / K_split_num * iik_block_;
 
-  M_ib_block_size = utils::rnd_up(M_ib_block_size, iim_block_);
-  N_ib_block_size = utils::rnd_up(N_ib_block_size, iin_block_);
-  K_ib_block_size = utils::rnd_up(K_ib_block_size, iik_block_);
-  tail_M = utils::rnd_up(tail_M, iim_block_);
-  tail_N = utils::rnd_up(tail_N, iin_block_);
-  tail_K = utils::rnd_up(tail_K, iik_block_);
+  if (M_ib_block_size == 0) { M_ib_block_size = M_block_size; }
+  if (N_ib_block_size == 0) { N_ib_block_size = N_block_size; }
+  if (K_ib_block_size == 0) { K_ib_block_size = K_block_size; }
+
+  // M, N block num with block size equals to X_block_size
+  int M_blk_num = (M - (M_block_size - iim_block_) * M_split_num) / iim_block_;
+  int N_blk_num = (N - (N_block_size - iin_block_) * N_split_num) / iin_block_;
 
   COMPILE_ASSERT(M_block_size / iim_block_ >= M_sub_block
       && M_ib_block_size / iim_block_ >= M_sub_block,
@@ -668,8 +573,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   expr A = inputs[op_params_t::in_A];
   expr B = inputs[op_params_t::in_B];
   // used for anchor construction when K_split_num==1 && K_sub_block>1
-  std::vector<int> M_anchor_info = {M_ib_num, M_block_size, M_ib_block_size},
-                   N_anchor_info = {N_ib_num, N_block_size, N_ib_block_size};
+  std::vector<int> M_anchor_info = {M_blk_num, M_block_size, M_ib_block_size},
+                   N_anchor_info = {N_blk_num, N_block_size, N_ib_block_size};
   for_loop mloop;
   int M_real_split = std::min(
     static_cast<int>(utils::divide_and_ceil(M, iim_block_)), M_split_num);
@@ -679,82 +584,29 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
     static_cast<int>(utils::divide_and_ceil(K, iik_block_)), K_split_num);
 
   if (K_split_num == 1) {
-    expr m_idx, n_idx, k_idx, M_single_thr_size, N_single_thr_size;
+    expr m_idx, n_idx, k_idx, M_single_thr_size, N_single_thr_size,
+      X_bigger_num;
     _named_for_(
       mloop, m_s, 0, M_real_split, 1, for_type::PARALLEL, M_split_num) {
       _for_(n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
-        if (M_block_size == M_ib_block_size) {
-          M_single_thr_size = M_block_size;
-          m_idx = m_s * M_block_size;
-        } else {
-          if (M - M_block_size * M_split_num <= 0) {
-            // cannot use all the cores due to small shapes
-            m_idx = m_s * M_block_size;
-          } else {
-            m_idx = builder::make_select(m_s < M_split_num - M_ib_num,
-              m_s * M_block_size,
-              (M_split_num - M_ib_num) * M_block_size
-                + (m_s + M_ib_num - M_split_num) * M_ib_block_size);
-          }
-          if (tail_M != M_ib_block_size) {
-            // has tail and imbalance
-            M_single_thr_size
-              = builder::make_select(m_s < M_split_num - M_ib_num, M_block_size,
-                builder::make_select(
-                  m_s == M_split_num - 1, tail_M, M_ib_block_size));
-          } else {
-            if (M - M_block_size * M_split_num <= 0) {
-              // cannot use all the cores due to small shapes
-              M_single_thr_size = builder::make_select(
-                m_s < M / M_block_size, M_block_size, M_ib_block_size);
-            } else {
-              M_single_thr_size = builder::make_select(
-                m_s < M_split_num - M_ib_num, M_block_size, M_ib_block_size);
-            }
-          }
-        }
-        if (N_block_size == N_ib_block_size) {
-          N_single_thr_size = N_block_size;
-          n_idx = n_s * N_block_size;
-        } else {
-          if (N - N_block_size * N_split_num <= 0) {
-            // cannot use all the cores due to small shapes
-            n_idx = n_s * N_block_size;
-          } else {
-            n_idx = builder::make_select(n_s < N_split_num - N_ib_num,
-              n_s * N_block_size,
-              (N_split_num - N_ib_num) * N_block_size
-                + (n_s + N_ib_num - N_split_num) * N_ib_block_size);
-          }
+        M_single_thr_size = get_balance211_length(
+          M / iim_block_, M_split_num, m_s, m_idx, X_bigger_num);
+        M_single_thr_size = M_single_thr_size * iim_block_;
+        m_idx = m_idx * iim_block_;
 
-          if (tail_N != N_ib_block_size) {
-            // has tail and imbalance
-            N_single_thr_size
-              = builder::make_select(n_s < N_split_num - N_ib_num, N_block_size,
-                builder::make_select(
-                  n_s == N_split_num - 1, tail_N, N_ib_block_size));
-          } else {
-            if (N - N_block_size * N_split_num <= 0) {
-              // cannot use all the cores due to small shapes
-              N_single_thr_size = builder::make_select(
-                n_s < N / N_block_size, N_block_size, N_ib_block_size);
-            } else {
-              N_single_thr_size = builder::make_select(
-                n_s < N_split_num - N_ib_num, N_block_size, N_ib_block_size);
-            }
-          }
-        }
+        N_single_thr_size = get_balance211_length(
+          N / iin_block_, N_split_num, n_s, n_idx, X_bigger_num);
+        N_single_thr_size = N_single_thr_size * iin_block_;
+        n_idx = n_idx * iin_block_;
         _for_(k_s, 0, K_split_num, 1,
           M_split_num * N_split_num == num_threads ? for_type::NORMAL
                                                    : for_type::PARALLEL,
           M_split_num * N_split_num == num_threads ? 0 : K_split_num) {
-          _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-            single_thread_matmul_call(in_tensors_[0], in_tensors_[1],
-              out_tensors_[0], config, M_single_thr_size, N_single_thr_size,
-              (int)utils::rnd_up(K, iik_block_), m_idx, n_idx, k_s, A, B, C,
-              dtype_block, fusion, im_loop_order, m_s, n_s, M_anchor_info,
-              N_anchor_info);
-          }
+          single_thread_matmul_call(in_tensors_[0], in_tensors_[1],
+            out_tensors_[0], config, M_single_thr_size, N_single_thr_size,
+            (int)utils::rnd_up(K, iik_block_), m_idx, n_idx, k_s, A, B, C,
+            dtype_block, fusion, im_loop_order, m_s, n_s, M_anchor_info,
+            N_anchor_info);
         }
         if (fusion) {
           slice_range_list mm_multi_slice;
@@ -793,9 +645,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             mm_multi_slice.pop_back();
             mm_multi_slice.pop_back();
             assert(mm_multi_slice.size() == 2);
-            _if_(n_s < config.N_split_num - N_ib_num || n_s == 0) {
-              middle_anchor_iter = UINT64_C(0);
-            }
+            _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(0); }
             _else_ { middle_anchor_iter = UINT64_C(1); }
             _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
               fusion->create_iterated_fusion_anchor(
@@ -806,9 +656,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             mm_multi_slice.pop_back();
             mm_multi_slice.erase(mm_multi_slice.begin() + 1);
             assert(mm_multi_slice.size() == 2);
-            _if_(m_s < config.M_split_num - M_ib_num || m_s == 0) {
-              middle_anchor_iter = UINT64_C(0);
-            }
+            _if_(m_s < M_blk_num) { middle_anchor_iter = UINT64_C(0); }
             _else_ { middle_anchor_iter = UINT64_C(1); }
             _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
               fusion->create_iterated_fusion_anchor(
@@ -816,16 +664,12 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             }
           } else {
             // different length on both M and N
-            _if_(m_s < config.M_split_num - M_ib_num || m_s == 0) {
-              _if_(n_s < config.N_split_num - N_ib_num || n_s == 0) {
-                middle_anchor_iter = UINT64_C(0);
-              }
+            _if_(m_s < M_blk_num) {
+              _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(0); }
               _else_ { middle_anchor_iter = UINT64_C(1); }
             }
             _else_ {
-              _if_(n_s < config.N_split_num - N_ib_num || n_s == 0) {
-                middle_anchor_iter = UINT64_C(2);
-              }
+              _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(2); }
               _else_ { middle_anchor_iter = UINT64_C(3); }
             }
             _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
@@ -862,9 +706,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               {{m_idx, M_ib_block_size}, {0, N}}};
           }
           _var_init_(outer_anchor_iter, datatypes::index, UINT64_C(0));
-          _if_(m_s < config.M_split_num - M_ib_num || m_s == 0) {
-            outer_anchor_iter = UINT64_C(0);
-          }
+          _if_(m_s < M_blk_num) { outer_anchor_iter = UINT64_C(0); }
           _else_ { outer_anchor_iter = UINT64_C(1); }
           fusion->create_iterated_fusion_anchor(
             outer_anchor_iter, C, mm_multi_slice);
@@ -883,114 +725,33 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
     auto out_dtype = utils::is_one_of(A_dtype, datatypes::u8, datatypes::s8)
       ? datatypes::s32
       : datatypes::f32;
-    expr m_idx, n_idx, k_idx, M_single_thr_size, N_single_thr_size;
+    expr m_idx, n_idx, k_idx, M_single_thr_size, N_single_thr_size,
+      X_bigger_num;
     _tensor_(out_tmp_buf, out_dtype, out_tmp_buf_shape_expr);
     _named_for_(
       mloop, m_s, 0, M_real_split, 1, for_type::PARALLEL, M_split_num) {
       _for_(n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
-        if (M_block_size == M_ib_block_size) {
-          M_single_thr_size = M_block_size;
-          m_idx = m_s * M_block_size;
-        } else {
-          if (M - M_block_size * M_split_num <= 0) {
-            // cannot use all the cores due to small shapes
-            m_idx = m_s * M_block_size;
-          } else {
-            m_idx = builder::make_select(m_s < M_split_num - M_ib_num,
-              m_s * M_block_size,
-              (M_split_num - M_ib_num) * M_block_size
-                + (m_s + M_ib_num - M_split_num) * M_ib_block_size);
-          }
-          if (tail_M != M_ib_block_size) {
-            // has tail and imbalance
-            M_single_thr_size
-              = builder::make_select(m_s < M_split_num - M_ib_num, M_block_size,
-                builder::make_select(
-                  m_s == M_split_num - 1, tail_M, M_ib_block_size));
-          } else {
-            if (M - M_block_size * M_split_num <= 0) {
-              // cannot use all the cores due to small shapes
-              M_single_thr_size = builder::make_select(
-                m_s < M / M_block_size, M_block_size, M_ib_block_size);
-            } else {
-              M_single_thr_size = builder::make_select(
-                m_s < M_split_num - M_ib_num, M_block_size, M_ib_block_size);
-            }
-          }
-        }
-        if (N_block_size == N_ib_block_size) {
-          N_single_thr_size = N_block_size;
-          n_idx = n_s * N_block_size;
-        } else {
-          if (N - N_block_size * N_split_num <= 0) {
-            // cannot use all the cores due to small shapes
-            n_idx = n_s * N_block_size;
-          } else {
-            n_idx = builder::make_select(n_s < N_split_num - N_ib_num,
-              n_s * N_block_size,
-              (N_split_num - N_ib_num) * N_block_size
-                + (n_s + N_ib_num - N_split_num) * N_ib_block_size);
-          }
+        M_single_thr_size = get_balance211_length(
+          M / iim_block_, M_split_num, m_s, m_idx, X_bigger_num);
+        M_single_thr_size = M_single_thr_size * iim_block_;
+        m_idx = m_idx * iim_block_;
 
-          if (tail_N != N_ib_block_size) {
-            // has tail and imbalance
-            N_single_thr_size
-              = builder::make_select(n_s < N_split_num - N_ib_num, N_block_size,
-                builder::make_select(
-                  n_s == N_split_num - 1, tail_N, N_ib_block_size));
-          } else {
-            if (N - N_block_size * N_split_num <= 0) {
-              // cannot use all the cores due to small shapes
-              N_single_thr_size = builder::make_select(
-                n_s < N / N_block_size, N_block_size, N_ib_block_size);
-            } else {
-              N_single_thr_size = builder::make_select(
-                n_s < N_split_num - N_ib_num, N_block_size, N_ib_block_size);
-            }
-          }
-        }
+        N_single_thr_size = get_balance211_length(
+          N / iin_block_, N_split_num, n_s, n_idx, X_bigger_num);
+        N_single_thr_size = N_single_thr_size * iin_block_;
+        n_idx = n_idx * iin_block_;
 
-        _for_(k_s, 0, K_real_split, 1, for_type::PARALLEL,
-          K_split_num) { //
+        _for_(k_s, 0, K_real_split, 1, for_type::PARALLEL, K_split_num) {
           expr K_single_thr_size;
-          if (K_block_size == K_ib_block_size) {
-            K_single_thr_size = K_block_size;
-            k_idx = k_s * K_block_size;
-          } else {
-            if (K - K_block_size * K_split_num <= 0) {
-              // cannot use all the cores due to small shapes
-              k_idx = k_s * K_block_size;
-            } else {
-              k_idx = builder::make_select(k_s < K_split_num - K_ib_num,
-                k_s * K_block_size,
-                (K_split_num - K_ib_num) * K_block_size
-                  + (k_s + K_ib_num - K_split_num) * K_ib_block_size);
-            }
-            if (tail_K != K_ib_block_size) {
-              // has tail and imbalance
-              K_single_thr_size = builder::make_select(
-                k_s < K_split_num - K_ib_num, K_block_size,
-                builder::make_select(
-                  k_s == K_split_num - 1, tail_K, K_ib_block_size));
-            } else {
-              if (K - K_block_size * K_split_num <= 0) {
-                // cannot use all the cores due to small shapes
-                K_single_thr_size = builder::make_select(
-                  k_s < K / K_block_size, K_block_size, K_ib_block_size);
-              } else {
-                K_single_thr_size = builder::make_select(
-                  k_s < K_split_num - K_ib_num, K_block_size, K_ib_block_size);
-              }
-            }
-          }
-          _if_(
-            m_idx < (uint64_t)M && n_idx < (uint64_t)N && k_idx < (uint64_t)K) {
-            single_thread_matmul_call(in_tensors_[0], in_tensors_[1],
-              out_tensors_[0], config, M_single_thr_size, N_single_thr_size,
-              K_single_thr_size, m_idx, n_idx, k_idx, A, B, out_tmp_buf,
-              dtype_block, fusion, im_loop_order, m_s, n_s, M_anchor_info,
-              N_anchor_info, true, k_s);
-          }
+          K_single_thr_size = get_balance211_length(
+            K / iik_block_, K_split_num, k_s, k_idx, X_bigger_num);
+          K_single_thr_size = K_single_thr_size * iik_block_;
+          k_idx = k_idx * iik_block_;
+          single_thread_matmul_call(in_tensors_[0], in_tensors_[1],
+            out_tensors_[0], config, M_single_thr_size, N_single_thr_size,
+            K_single_thr_size, m_idx, n_idx, k_idx, A, B, out_tmp_buf,
+            dtype_block, fusion, im_loop_order, m_s, n_s, M_anchor_info,
+            N_anchor_info, true, k_s);
         }
         // do reduce here
         for_loop rm, rn;
@@ -1090,9 +851,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               mm_multi_slice.pop_back();
               mm_multi_slice.pop_back();
               assert(mm_multi_slice.size() == 2);
-              _if_(n_s < config.N_split_num - N_ib_num || n_s == 0) {
-                inner_anchor_iter = UINT64_C(0);
-              }
+              _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(0); }
               _else_ { inner_anchor_iter = UINT64_C(1); }
               _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
                 fusion->create_iterated_fusion_anchor(
@@ -1103,9 +862,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               mm_multi_slice.pop_back();
               mm_multi_slice.erase(mm_multi_slice.begin() + 1);
               assert(mm_multi_slice.size() == 2);
-              _if_(m_s < config.M_split_num - M_ib_num || m_s == 0) {
-                inner_anchor_iter = UINT64_C(0);
-              }
+              _if_(m_s < M_blk_num) { inner_anchor_iter = UINT64_C(0); }
               _else_ { inner_anchor_iter = UINT64_C(1); }
               _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
                 fusion->create_iterated_fusion_anchor(
@@ -1113,16 +870,12 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               }
             } else {
               // different length on both M and N
-              _if_(m_s < config.M_split_num - M_ib_num || m_s == 0) {
-                _if_(n_s < config.N_split_num - N_ib_num || n_s == 0) {
-                  inner_anchor_iter = UINT64_C(0);
-                }
+              _if_(m_s < M_blk_num) {
+                _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(0); }
                 _else_ { inner_anchor_iter = UINT64_C(1); }
               }
               _else_ {
-                _if_(n_s < config.N_split_num - N_ib_num || n_s == 0) {
-                  inner_anchor_iter = UINT64_C(2);
-                }
+                _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(2); }
                 _else_ { inner_anchor_iter = UINT64_C(3); }
               }
               _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
@@ -1160,9 +913,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               {{m_idx, M_ib_block_size}, {0, N}}};
           }
           _var_init_(outer_anchor_iter, datatypes::index, UINT64_C(0));
-          _if_(m_s < config.M_split_num - M_ib_num || m_s == 0) {
-            outer_anchor_iter = UINT64_C(0);
-          }
+          _if_(m_s < M_blk_num) { outer_anchor_iter = UINT64_C(0); }
           _else_ { outer_anchor_iter = UINT64_C(1); }
           fusion->create_iterated_fusion_anchor(
             outer_anchor_iter, C, mm_multi_slice);
