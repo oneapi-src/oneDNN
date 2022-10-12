@@ -63,7 +63,11 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
         // be further loosened.
         const bool is_gigantic_shape
                 = jbgp.ic >= 9216 && jbgp.oc >= 4096 && jbgp.os >= 512;
-        max_os_block = is_gigantic_shape ? 128 : 64;
+        const bool use_128_block_for_amx
+                = is_amx_xf16 && jbgp.os % 128 == 0 && jbgp.oc > 128;
+        const bool enable_128_os_blocking
+                = use_128_block_for_amx || is_gigantic_shape;
+        max_os_block = enable_128_os_blocking ? 128 : 64;
         // Work done by each thread is given by:
         //     (nb_oc / nb_oc_blocking) * (nb_os / nb_os_blocking)
         // As a first approximation we take nb_oc_blocking = nb_os_blocking = 1
@@ -219,10 +223,14 @@ bool ip_fwd_adjust_thread_balance(const jit_brgemm_primitive_conf_t &jbgp) {
     int oc_chunks = div_up(nb_oc, nb_oc_blocking);
 
     int work_amount = oc_chunks * os_chunks;
+    const auto work_per_thread = work_amount / jbgp.nthr;
+    float wb_ratio = static_cast<float>(work_amount % jbgp.nthr) / jbgp.nthr;
 
-    float wb_ratio = (float)work_amount / (float)jbgp.nthr;
-
-    return (wb_ratio != 1.f && wb_ratio < 2.5f);
+    // return true if work distribution between threads has significant
+    // imbalance - amount of work per thread is small and the last iteration
+    // is able to load less than half of threads available for the current
+    // block sizes
+    return (work_per_thread < 3 && wb_ratio > 0.0f && wb_ratio < .5f);
 }
 
 int ip_fwd_get_adjusted_oc_block(const jit_brgemm_primitive_conf_t &jbgp) {
