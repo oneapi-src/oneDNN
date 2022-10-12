@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -66,14 +66,10 @@ protected:
         ndims = std::max(4, pd->ndims());
         if (ndims > 6) { return status::invalid_arguments; }
 
-        const bool do_scaling
-                = pd->src_md()->data_type == dnnl_data_type_t::dnnl_s8;
-        const auto scales_0 = pd->attr()->scales_.get(1).scales_;
         const auto lrn_desc = pd->desc();
         const auto dst_wrap = memory_desc_wrapper(pd->dst_md());
 
         dst_size = dst_wrap.nelems();
-        alpha = do_scaling ? scales_0[0] : 1.0f;
         is_training = pd->desc()->prop_kind == prop_kind::forward_training;
 
         lrn_K = lrn_desc->lrn_k;
