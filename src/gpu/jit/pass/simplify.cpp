@@ -1593,6 +1593,10 @@ public:
         // Substitute constants.
         auto value = simplify(obj.value);
         if (is_const(value)) {
+            // Constants are not necessarily the same type as the assigned
+            // variable
+            value = cast_t::make(obj.var.as<var_t>().type, value);
+
             auto body = substitute(obj.body, obj.var, value);
             return mutate(body);
         }
