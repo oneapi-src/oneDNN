@@ -85,6 +85,7 @@ struct cudnn_reorder_t : public primitive_t {
                     && attr()->has_default_values(attr_skip_mask)
                     && check_scales_mask();
             if (!ok) return status::unimplemented;
+
             if (has_different_block_size(src_md(), dst_md())) {
                 reorder_.reset(new cudnn_reorder_ex_t());
             } else {
@@ -99,10 +100,19 @@ struct cudnn_reorder_t : public primitive_t {
         DECLARE_GPU_REORDER_CREATE();
     };
 
+    status_t init(engine_t *engine) override {
+        alpha_ = new float;
+        if (!alpha_) return status::out_of_memory;
+        *alpha_ = 1.0f;
+        return status::success;
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    float *alpha_ = nullptr;
 };
 
 } // namespace nvidia

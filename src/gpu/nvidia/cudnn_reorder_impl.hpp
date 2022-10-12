@@ -30,7 +30,8 @@ struct cudnn_reorder_generic_t {
 public:
     virtual status_t init(const reorder_pd_t *pd) = 0;
 
-    virtual void execute(cudnnHandle_t handle, void *src, void *dst) const = 0;
+    virtual void execute(
+            cudnnHandle_t handle, void *src, void *dst, void *alpha) const = 0;
 
     virtual ~cudnn_reorder_generic_t() {
         CUDNN_EXECUTE_FUNC_V(cudnnDestroyTensorDescriptor, src_desc_);
@@ -47,7 +48,7 @@ protected:
     int dims_[DNNL_MAX_NDIMS];
     cudnnTensorDescriptor_t src_desc_;
     cudnnTensorDescriptor_t dst_desc_;
-    float alpha_, beta_;
+    float beta_ = 0.0f;
     int dst_offset_in_bytes_ = 0;
     int src_offset_in_bytes_ = 0;
 };
@@ -69,7 +70,6 @@ public:
                 * types::data_type_size(pd->dst_md()->data_type);
         src_offset_in_bytes_ = pd->src_md()->offset0
                 * types::data_type_size(pd->src_md()->data_type);
-        alpha_ = pd->alpha();
         beta_ = pd->beta();
 
         CHECK(convert_data_type(pd->src_md(), &src_data_type_));
@@ -103,10 +103,11 @@ public:
         return status::success;
     }
 
-    void execute(cudnnHandle_t handle, void *src, void *dst) const override {
+    void execute(cudnnHandle_t handle, void *src, void *dst,
+            void *alpha) const override {
         // cudnnTransformTensorEx() function is required to support blocking.
         // It requires the output tensor to be in cuDNN supported format.
-        CUDNN_EXECUTE_FUNC(cudnnTransformTensorEx, handle, trans_desc_, &alpha_,
+        CUDNN_EXECUTE_FUNC(cudnnTransformTensorEx, handle, trans_desc_, alpha,
                 src_desc_, src, &beta_, dst_desc_, dst);
     }
 
@@ -138,7 +139,6 @@ public:
                 * types::data_type_size(pd->dst_md()->data_type);
         src_offset_in_bytes_ = pd->src_md()->offset0
                 * types::data_type_size(pd->src_md()->data_type);
-        alpha_ = pd->alpha();
         beta_ = pd->beta();
 
         convert_dims(pd->dst_md()->dims, dims_, pd->dst_md()->ndims);
@@ -173,12 +173,13 @@ public:
         return status::success;
     }
 
-    void execute(cudnnHandle_t handle, void *src, void *dst) const override {
+    void execute(cudnnHandle_t handle, void *src, void *dst,
+            void *alpha) const override {
         // We don't need to specify the format (deducible using the strides)
         // in case of cudnnTransformTensor().
         // For example, this is useful when converting from abcd to bacd
-        CUDNN_EXECUTE_FUNC(cudnnTransformTensor, handle, &alpha_, src_desc_,
-                src, &beta_, dst_desc_, dst);
+        CUDNN_EXECUTE_FUNC(cudnnTransformTensor, handle, alpha, src_desc_, src,
+                &beta_, dst_desc_, dst);
     }
 
 private:

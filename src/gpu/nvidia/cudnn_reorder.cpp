@@ -18,6 +18,7 @@
 #include "gpu/nvidia/cudnn_reorder.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/sycl_cuda_stream_utils.hpp"
 
 #include "sycl/sycl_memory_storage_helper.hpp"
 
@@ -32,6 +33,11 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
 
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+
+    if (!pd()->attr()->output_scales_.defined())
+        CHECK(stream_utils::copy_input_arg_to_host(ctx, cuda_stream, alpha_,
+                DNNL_ARG_ATTR_OUTPUT_SCALES, sizeof(float)));
+
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
         auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -50,7 +56,7 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
             auto b = static_cast<uint8_t *>(dst_)
                     + pd()->reorder_->dst_offset_in_bytes();
 
-            pd()->reorder_->execute(handle, a, b);
+            pd()->reorder_->execute(handle, a, b, alpha_);
         });
     });
 }
