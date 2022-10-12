@@ -45,7 +45,7 @@
 --bia_dt=undef,u8
 --stag=ba --wtag=ab,ba --dtag=ab
 --attr-oscale=common:2*
---attr-zero-points=src:common:1+wei:common:-2*+dst:common:3*
+--attr-zero-points=src:common:1*+wei:common:-2*+dst:common:3*
 --attr-post-ops=sum+relu+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_tensor
 10x100:100x10:10x10
 
@@ -77,7 +77,7 @@
 --reset
 --cfg=u8s8f32 --bia_dt=f32  --stag=any --wtag=any --dtag=any
 --attr-post-ops=eltwise_gelu_tanh:0:0:21.5742
---attr-oscale=per_oc*  --attr-scratchpad=user
+--attr-oscale=per_oc:2*  --attr-scratchpad=user
 24576x1024:1024x4096:24576x4096
 
 # runtime_zero_point_wrong_values
