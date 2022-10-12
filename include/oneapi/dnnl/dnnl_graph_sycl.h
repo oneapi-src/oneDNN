@@ -17,7 +17,6 @@
 #ifndef ONEAPI_DNNL_DNNL_GRAPH_SYCL_H
 #define ONEAPI_DNNL_DNNL_GRAPH_SYCL_H
 
-#include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl_graph.h"
 
 #ifdef __cplusplus

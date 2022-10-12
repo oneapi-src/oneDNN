@@ -20,7 +20,7 @@
 #ifndef ONEAPI_DNNL_DNNL_GRAPH_H
 #define ONEAPI_DNNL_DNNL_GRAPH_H
 
-#include "oneapi/dnnl/dnnl.h"
+#include "oneapi/dnnl/dnnl_common.h"
 #include "oneapi/dnnl/dnnl_config.h"
 #include "oneapi/dnnl/dnnl_graph_types.h"
 

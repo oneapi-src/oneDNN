@@ -29,66 +29,13 @@ extern "C" {
 #include <stdint.h>
 /// @endcond
 
+#include "oneapi/dnnl/dnnl_common_types.h"
+
 /// @addtogroup dnnl_api
 /// @{
 
-/// @addtogroup dnnl_api_utils
-/// @{
-
-/// Status values returned by the library functions.
-typedef enum {
-    /// The operation was successful
-    dnnl_success = 0,
-    /// The operation failed due to an out-of-memory condition
-    dnnl_out_of_memory = 1,
-    /// The operation failed because of incorrect function arguments
-    dnnl_invalid_arguments = 2,
-    /// The operation failed because requested functionality is not implemented
-    dnnl_unimplemented = 3,
-    /// The last available implementation is reached
-    dnnl_last_impl_reached = 4,
-    /// Primitive or engine failed on execution
-    dnnl_runtime_error = 5,
-    /// Queried element is not required for given primitive
-    dnnl_not_required = 6,
-    /// The graph is not legitimate
-    dnnl_invalid_graph = 7,
-    /// The operation is not legitimate according to op schema
-    dnnl_invalid_graph_op = 8,
-    /// The shape cannot be inferred or compiled
-    dnnl_invalid_shape = 9,
-    /// The data type cannot be inferred or compiled
-    dnnl_invalid_data_type = 10,
-} dnnl_status_t;
-
-/// @} dnnl_api_utils
-
 /// @addtogroup dnnl_api_memory
 /// @{
-
-/// Data type specification
-typedef enum {
-    /// Undefined data type, used for empty memory descriptors.
-    dnnl_data_type_undef = 0,
-    /// 16-bit/half-precision floating point.
-    dnnl_f16 = 1,
-    /// non-standard 16-bit (bfloat16 w/ 7 bit mantissa) floating point.
-    dnnl_bf16 = 2,
-    /// 32-bit/single-precision floating point.
-    dnnl_f32 = 3,
-    /// 32-bit signed integer.
-    dnnl_s32 = 4,
-    /// 8-bit signed integer.
-    dnnl_s8 = 5,
-    /// 8-bit unsigned integer.
-    dnnl_u8 = 6,
-    /// 64-bit/double-precision floating point.
-    dnnl_f64 = 7,
-
-    /// Parameter to allow internal only data_types without undefined behavior.
-    /// This parameter is chosen to be valid for so long as sizeof(int) >= 2.
-    dnnl_data_type_max = 0x7fff,
-} dnnl_data_type_t;
 
 /// Memory format kind
 typedef enum {
@@ -1922,11 +1869,6 @@ typedef enum {
 /// @addtogroup dnnl_api_memory
 /// @{
 
-/// Maximum number of dimensions a tensor can have. Only restricts the amount
-/// of space used for the tensor description. Individual computational
-/// primitives may support only tensors of certain dimensions.
-#define DNNL_MAX_NDIMS 12
-
 /// A wildcard value for dimensions that are unknown at a primitive creation
 /// time.
 #define DNNL_RUNTIME_DIM_VAL INT64_MIN
@@ -1955,12 +1897,6 @@ static const int DNNL_RUNTIME_S32_VAL_REP = INT32_MIN;
 /// A wildcard value for int32_t values that are unknown at a primitive creation
 /// time.
 #define DNNL_RUNTIME_S32_VAL DNNL_RUNTIME_S32_VAL_REP
-
-/// A type to describe tensor dimension.
-typedef int64_t dnnl_dim_t;
-
-/// A type to describe tensor dimensions.
-typedef dnnl_dim_t dnnl_dims_t[DNNL_MAX_NDIMS];
 
 /// @struct dnnl_memory_desc
 /// An opaque structure to describe a memory descriptor.
@@ -2024,32 +1960,6 @@ typedef enum {
 
 /// @} dnnl_api_primitives
 
-/// @addtogroup dnnl_api_engine
-/// @{
-
-/// @brief Kinds of engines.
-typedef enum {
-    /// An unspecified engine.
-    dnnl_any_engine,
-    /// CPU engine.
-    dnnl_cpu,
-    /// GPU engine.
-    dnnl_gpu,
-} dnnl_engine_kind_t;
-
-/// @struct dnnl_engine
-/// @brief An opaque structure to describe an engine.
-struct dnnl_engine;
-/// @brief An engine handle.
-typedef struct dnnl_engine *dnnl_engine_t;
-#if 0
-// FIXME: looks like this never happens
-/// @brief A constant engine handle.
-typedef const struct dnnl_engine *const_dnnl_engine_t;
-#endif
-
-/// @} dnnl_api_engine
-
 /// @addtogroup dnnl_api_primitives
 /// @{
 /// @addtogroup dnnl_api_primitives_common
@@ -2069,20 +1979,6 @@ typedef const struct dnnl_primitive_desc *const_dnnl_primitive_desc_t;
 
 /// @addtogroup dnnl_api_attributes
 /// @{
-
-/// Floating-point math mode
-typedef enum {
-    /// Default behavior, no downconversions allowed
-    dnnl_fpmath_mode_strict,
-    /// Implicit f32->bf16 conversions allowed
-    dnnl_fpmath_mode_bf16,
-    /// Implicit f32->f16 conversions allowed
-    dnnl_fpmath_mode_f16,
-    /// Implicit f32->f16 or f32->bf16 conversions allowed
-    dnnl_fpmath_mode_any,
-    /// Implicit f32->tf32 conversions allowed
-    dnnl_fpmath_mode_tf32,
-} dnnl_fpmath_mode_t;
 
 /// Scratchpad mode
 typedef enum {
@@ -2510,66 +2406,8 @@ typedef enum {
 
 /// @} dnnl_api_primitives
 
-/// @addtogroup dnnl_api_stream
-/// @{
-
-/// @brief Stream flags.
-typedef enum {
-    // In-order execution.
-    dnnl_stream_in_order = 0x1U,
-    /// Out-of-order execution.
-    dnnl_stream_out_of_order = 0x2U,
-    /// Default stream configuration.
-    dnnl_stream_default_flags = dnnl_stream_in_order,
-} dnnl_stream_flags_t;
-
-/// @struct dnnl_stream
-/// An opaque structure to describe an execution stream.
-struct dnnl_stream;
-/// An execution stream handle.
-typedef struct dnnl_stream *dnnl_stream_t;
-/// A constant execution stream handle.
-typedef const struct dnnl_stream *const_dnnl_stream_t;
-
-/// @} dnnl_api_stream
-
 /// @addtogroup dnnl_api_service
 /// @{
-
-/// No runtime (disabled)
-#define DNNL_RUNTIME_NONE 0u
-
-/// Sequential runtime (CPU only)
-#define DNNL_RUNTIME_SEQ 1u
-
-/// OpenMP runtime (CPU only)
-#define DNNL_RUNTIME_OMP 2u
-
-/// TBB runtime (CPU only)
-#define DNNL_RUNTIME_TBB 4u
-
-/// Threadpool runtime (CPU only)
-#define DNNL_RUNTIME_THREADPOOL 8u
-
-/// OpenCL runtime
-#define DNNL_RUNTIME_OCL 256u
-
-/// SYCL runtime
-#define DNNL_RUNTIME_SYCL 512u
-
-/// DPC++ runtime
-#define DNNL_RUNTIME_DPCPP DNNL_RUNTIME_SYCL
-
-/// Structure containing version information as per [Semantic
-/// Versioning](https://semver.org)
-typedef struct {
-    int major; ///< Major version
-    int minor; ///< Minor version
-    int patch; ///< Patch version
-    const char *hash; ///< Git hash of the sources (may be absent)
-    unsigned cpu_runtime; ///< CPU runtime
-    unsigned gpu_runtime; ///< GPU runtime
-} dnnl_version_t;
 
 /// Disable profiling completely
 #define DNNL_JIT_PROFILE_NONE 0u

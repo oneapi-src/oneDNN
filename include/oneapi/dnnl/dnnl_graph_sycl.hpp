@@ -28,7 +28,6 @@
 #error "Unsupported compiler"
 #endif
 
-#include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
 /// @endcond

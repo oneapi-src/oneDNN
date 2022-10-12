@@ -28,7 +28,7 @@ extern "C" {
 #include <limits.h>
 #include <stddef.h>
 
-#include "oneapi/dnnl/dnnl_types.h"
+#include "oneapi/dnnl/dnnl_common_types.h"
 /// @endcond
 
 /// @addtogroup dnnl_graph_api

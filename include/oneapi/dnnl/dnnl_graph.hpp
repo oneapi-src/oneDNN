@@ -17,7 +17,7 @@
 #ifndef ONEAPI_DNNL_DNNL_GRAPH_HPP
 #define ONEAPI_DNNL_DNNL_GRAPH_HPP
 
-#include "oneapi/dnnl/dnnl.hpp"
+#include "oneapi/dnnl/dnnl_common.hpp"
 #include "oneapi/dnnl/dnnl_graph.h"
 
 #include <limits>
@@ -39,56 +39,57 @@ namespace graph {
 /// Utility types and definitions
 /// @{
 
-namespace detail {
+/// @cond DO_NOT_DOCUMENT_THIS
 
-template <typename T, dnnl_status_t (*del)(T)>
-class handle {
-public:
-    static constexpr auto default_del = del;
+/// A class that provides the destructor for a oneDNN graph C API handle.
+template <typename T>
+struct graph_handle_traits : public dnnl::handle_traits<T> {};
 
-    /// Creates an empty wrapper for underlying C API handle
-    handle() = default;
-    virtual ~handle() = default;
-
-    /// Custom constructor
-    ///
-    /// @param t Raw pointer to the C API handle
-    /// @param weak A flag which indicates whether this wrapper
-    ///     is a weak pointer
-    handle(T t, bool weak = false) { reset(t, weak); }
-
-    /// Copy constructor
-    handle(const handle &) = default;
-    /// Copy assign constructor
-    handle &operator=(const handle &) = default;
-    /// Move constructor
-    handle(handle &&) = default;
-    /// Move assign constructor
-    handle &operator=(handle &&) = default;
-
-    /// Resets the handle wrapper object to wrap a new C API handle
-    ///
-    /// @param t The raw pointer of C API handle
-    /// @param weak A flag which indicates whether this wrapper is a
-    ///     weak pointer
-    void reset(T t, bool weak = false) {
-        data_.reset(t, weak ? dummy_del : default_del);
+template <>
+struct graph_handle_traits<dnnl_graph_op_t> {
+    static dnnl_status_t destructor(dnnl_graph_op_t p) {
+        return dnnl_graph_op_destroy(p);
     }
+};
 
-    /// Returns the underlying C API handle
-    ///
-    /// @returns The underlying C API handle
-    T get() const { return data_.get(); }
+template <>
+struct graph_handle_traits<dnnl_graph_graph_t> {
+    static dnnl_status_t destructor(dnnl_graph_graph_t p) {
+        return dnnl_graph_graph_destroy(p);
+    }
+};
 
-private:
-    std::shared_ptr<typename std::remove_pointer<T>::type> data_ {0};
-    /// Dummy destructor
-    static dnnl_status_t dummy_del(T) { return dnnl_success; }
+template <>
+struct graph_handle_traits<dnnl_graph_tensor_t> {
+    static dnnl_status_t destructor(dnnl_graph_tensor_t p) {
+        return dnnl_graph_tensor_destroy(p);
+    }
+};
+
+template <>
+struct graph_handle_traits<dnnl_graph_partition_t> {
+    static dnnl_status_t destructor(dnnl_graph_partition_t p) {
+        return dnnl_graph_partition_destroy(p);
+    }
+};
+
+template <>
+struct graph_handle_traits<dnnl_graph_compiled_partition_t> {
+    static dnnl_status_t destructor(dnnl_graph_compiled_partition_t p) {
+        return dnnl_graph_compiled_partition_destroy(p);
+    }
+};
+
+template <>
+struct graph_handle_traits<dnnl_graph_allocator_t> {
+    static dnnl_status_t destructor(dnnl_graph_allocator_t p) {
+        return dnnl_graph_allocator_destroy(p);
+    }
 };
 
 #define DNNL_GRAPH_HANDLE_ALIAS(type) \
-    using type##_handle = detail::handle<dnnl_graph_##type##_t, \
-            dnnl_graph_##type##_destroy>
+    using type##_handle = dnnl::handle<dnnl_graph_##type##_t, \
+            graph_handle_traits<dnnl_graph_##type##_t>>
 
 DNNL_GRAPH_HANDLE_ALIAS(allocator);
 DNNL_GRAPH_HANDLE_ALIAS(graph);
@@ -98,10 +99,6 @@ DNNL_GRAPH_HANDLE_ALIAS(compiled_partition);
 DNNL_GRAPH_HANDLE_ALIAS(partition);
 
 #undef DNNL_GRAPH_HANDLE_ALIAS
-
-} // namespace detail
-
-/// @cond DO_NOT_DOCUMENT_THIS
 
 template <bool B>
 using requires = typename std::enable_if<B, bool>::type;
@@ -152,9 +149,9 @@ enum class status {
 /// @{
 
 /// Allocator
-class allocator : public detail::allocator_handle {
+class allocator : public allocator_handle {
 public:
-    using detail::allocator_handle::handle;
+    using allocator_handle::handle;
 
     /// Constructs an allocator according to given function pointers
     ///
@@ -539,7 +536,7 @@ private:
 /// @{
 
 /// A tensor object
-class tensor : public detail::tensor_handle {
+class tensor : public tensor_handle {
 public:
     using dims_t = std::vector<dnnl_dim_t>;
 
@@ -602,7 +599,7 @@ public:
 /// @{
 
 /// A compiled partition object.
-class compiled_partition : public detail::compiled_partition_handle {
+class compiled_partition : public compiled_partition_handle {
 public:
     /// Default constructor. Constructs an empty object.
     compiled_partition() = default;
@@ -695,7 +692,7 @@ public:
 /// @{
 
 /// An op object.
-class op : public detail::op_handle {
+class op : public op_handle {
 public:
     /// Kinds of operations
     enum class kind {
@@ -1097,7 +1094,7 @@ private:
 /// @{
 
 /// A partition object.
-class partition : public detail::partition_handle {
+class partition : public partition_handle {
 public:
     /// Policy specifications for partitioning.
     enum class policy {
@@ -1301,7 +1298,7 @@ private:
 /// @{
 
 /// A graph object.
-class graph : public detail::graph_handle {
+class graph : public graph_handle {
 public:
     /// Constructs a graph with an engine kind.
     ///
