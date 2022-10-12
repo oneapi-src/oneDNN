@@ -165,11 +165,12 @@ private:
             uint64_t entrySize = 0;
         } sectionHeaders[5];
         struct Note {
-            uint32_t nameSize = 0;
+            uint32_t nameSize = 8;
             uint32_t descSize = 4;
             enum Type : uint32_t {
                 ProductFamily = 1, GfxCoreFamily = 2, TargetMetadata = 3
             } type = Type::GfxCoreFamily;
+            const char name[8] = "IntelGT";
             uint32_t payload;
         } noteGfxCore;
         struct StringTable {
@@ -190,18 +191,7 @@ private:
             fileHeader.sectionTableOff = offsetof(ZebinELF, sectionHeaders);
             fileHeader.sectionCount = sizeof(sectionHeaders) / sizeof(SectionHeader);
 
-#ifdef NGEN_OLD_ZEBIN_ELF
-            fileHeader.type = ZebinExec;
-            fileHeader.sectionCount--;
-#endif
-
             fileHeader.flags.all = 0;
-            fileHeader.flags.parts.useGfxCoreFamily = 1;
-            fileHeader.machine = static_cast<uint16_t>(npack::encodeGfxCoreFamily(hw));
-            if (hw == HW::XeHPG) {
-                fileHeader.flags.parts.useGfxCoreFamily = 0;
-                fileHeader.machine = static_cast<uint16_t>(npack::ProductFamily::DG2);
-            }
 
             sectionHeaders[0].name = 0;
             sectionHeaders[0].type = SectionHeader::Type::Null;
@@ -395,7 +385,7 @@ inline void ELFCodeGenerator<hw>::getBinaryHWInfo(const std::vector<uint8_t> &bi
                 auto rstart = reinterpret_cast<const uint8_t *>(start);
                 if (start->descSize == sizeof(start->payload)) {
                     auto *actualPayload = reinterpret_cast<const uint32_t *>(
-                        rstart + offsetof(Note, payload) + utils::alignup_pow2(start->nameSize, 4)
+                        rstart + offsetof(Note, payload) - sizeof(Note::name) + utils::alignup_pow2(start->nameSize, 4)
                     );
                     switch (start->type) {
                         case Note::Type::ProductFamily: {
