@@ -32,6 +32,39 @@ using FCreatePattern = impl::pass::FCreatePattern;
 #define MLP_NUM_LAYER_LOWER_BOUND 2
 #define MLP_NUM_LAYER_UPPER_BOUND 11
 
+pm::pb_node_t *weight_grad_alternation_unit(
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op_t *activation) {
+    /* Create 2 subgraph for alternation */
+    auto weight_grad_option1
+            = std::make_shared<pb_graph_t>("weight_grad_option1");
+    auto transpose_subgraph1
+            = std::make_shared<pb_graph_t>("transpose_subgraph1");
+    auto transpose_x1 = transpose_subgraph1->append_op(
+            impl::op_kind::StaticTranspose, "transpose_x");
+    transpose_subgraph1->create_input_port(0, transpose_x1, 0);
+    transpose_subgraph1->create_output_port(0, transpose_x1, 0);
+    auto optional_transpose_x = weight_grad_option1->append_optional(
+            transpose_subgraph1, "optional_transpose_x");
+    auto matmul_grad_w1 = weight_grad_option1->append_op(impl::op_kind::MatMul,
+            {in_edge(0, optional_transpose_x, 0)}, "matmul_weight");
+    weight_grad_option1->create_input_port(0, matmul_grad_w1, 1);
+    weight_grad_option1->create_output_port(0, matmul_grad_w1, 0);
+
+    auto weight_grad_option2
+            = std::make_shared<pb_graph_t>("weight_grad_option2");
+    auto transpose_x2 = weight_grad_option2->append_op(
+            impl::op_kind::StaticTranspose, "transpose_x");
+    auto matmul_grad_w2 = weight_grad_option2->append_op(impl::op_kind::MatMul,
+            {in_edge(0, transpose_x2, 0)}, "matmul_weight");
+    weight_grad_option2->create_input_port(0, transpose_x2, 0);
+    weight_grad_option2->create_output_port(0, matmul_grad_w2, 0);
+
+    auto weight_grad = pgraph->append_alternation(
+            {weight_grad_option1, weight_grad_option2},
+            {in_edge(0, activation, 0)}, "weight_grad");
+    return weight_grad;
+};
+
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_mlp_pattern)
 
 /*
@@ -93,17 +126,34 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 });
 
 /*
-repetition unit:
-  (f32)[gradient_x_next]     [gradient](f32)
-        [x](f32)      \       /     [weight](f32)
-            |          \     /           |
-     StaticTranspose   Backprop    StaticTranspose
-(optional)     \     /    |   \     /     (optional)
-                Matmul Reduce  Matmul
-                   |      |      |
+[repetition unit]:
+          (f32)[x_next]     [gradient_x_next](f32)
+                      \       /     [weight](f32)
+                       \     /           |
+                       Backprop    StaticTranspose
+                     /    |   \     /     (optional)
+    [grad_w_subgraph]  Reduce  Matmul
+             |            |      |
        [gradient_w](f32)  |  [gradient_x](f32)
                           |
                   [gradient_bias](f32)
+
+[optional unit]:
+          (f32)[x_next]   [repetition_unit_out](f32)
+                      \       /
+                       \     /
+                      Backprop
+                     /    |
+      [grad_w_subgraph] Reduce
+             |            |
+       [gradient_w](f32)  |
+                          |
+                  [gradient_bias](f32)
+
+pattern:
+        [repetition unit]*[1-10]
+                |
+        [optional unit] (optional)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_backward_pattern)
@@ -119,14 +169,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     activation_bwd->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
 
-                    auto transpose_subgraph1 = std::make_shared<pb_graph_t>(
-                            "transpose_subgraph1");
-                    auto transpose_x = transpose_subgraph1->append_op(
-                            impl::op_kind::StaticTranspose, "transpose_x");
-                    transpose_subgraph1->create_input_port(0, transpose_x, 0);
-                    transpose_subgraph1->create_output_port(0, transpose_x, 0);
-                    auto optional_transpose_x = bwd_mlp_layer->append_optional(
-                            transpose_subgraph1, "optional_transpose_x");
+                    weight_grad_alternation_unit(bwd_mlp_layer, activation_bwd);
 
                     auto transpose_subgraph2 = std::make_shared<pb_graph_t>(
                             "transpose_subgraph2");
@@ -136,34 +179,54 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     transpose_subgraph2->create_output_port(0, transpose_w, 0);
                     auto optional_transpose_w = bwd_mlp_layer->append_optional(
                             transpose_subgraph2, "optional_transpose_w");
-
-                    bwd_mlp_layer->append_op(impl::op_kind::MatMul,
-                            {in_edge(0, optional_transpose_x, 0),
-                                    in_edge(1, activation_bwd, 0)},
-                            "matmul_weight");
                     auto matmul_layer = bwd_mlp_layer->append_op(
                             impl::op_kind::MatMul,
                             {in_edge(0, activation_bwd, 0),
                                     in_edge(1, optional_transpose_w, 0)},
                             "matmul_layer");
 
-                    auto reduce_bias
-                            = bwd_mlp_layer->append_op(impl::op_kind::ReduceSum,
-                                    {in_edge(0, activation_bwd, 0)}, "reduce");
+                    auto reduce_bias = bwd_mlp_layer->append_op(
+                            impl::op_kind::ReduceSum,
+                            {in_edge(0, activation_bwd, 0)}, "reduce_bias");
                     reduce_bias->append_decision_function(check_reduce_attrs);
 
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
                     bwd_mlp_layer->create_output_port(0, matmul_layer, 0);
 
-                    // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
-                    pgraph->append_repetition(bwd_mlp_layer, {0, 0},
-                            MLP_NUM_LAYER_LOWER_BOUND,
+                    // repeat layer for [LOWER_BOUND - 1, UPPER_BOUND) times
+                    auto repetition = pgraph->append_repetition(bwd_mlp_layer,
+                            {0, 0}, MLP_NUM_LAYER_LOWER_BOUND - 1,
                             MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
+
+                    // start append the optional last layer
+                    auto last_layer
+                            = std::make_shared<pb_graph_t>("last_layer");
+                    auto activation_bwd_last = last_layer->append_alternation(
+                            {impl::op_kind::ReLUBackprop,
+                                    impl::op_kind::SigmoidBackprop},
+                            "activation_bwd");
+                    activation_bwd_last->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    // still allow extra grad_input computation
+                    activation_bwd_last->allow_external_outputs();
+
+                    auto weight_grad = weight_grad_alternation_unit(
+                            last_layer, activation_bwd_last);
+                    auto reduce_bias_last
+                            = last_layer->append_op(impl::op_kind::ReduceSum,
+                                    {in_edge(0, activation_bwd_last, 0)},
+                                    "reduce_bias");
+                    reduce_bias_last->append_decision_function(
+                            check_reduce_attrs);
+                    last_layer->create_input_port(0, activation_bwd_last, 1);
+                    last_layer->create_output_port(0, weight_grad, 0);
+                    pgraph->append_optional(last_layer,
+                            {in_edge(0, repetition, 0)}, "optional_last_layer");
                 });
 
 /*
-repetition unit:
-  (f32)[gradient_x_next]     [gradient](f32)
+[repetition unit]:
+           (f32)[x_next]     [gradient_x_next](bf16)
         [x](f32)      \       /     [weight](f32)
             |          \     /           |
      StaticTranspose   Backprop    StaticTranspose
@@ -171,6 +234,21 @@ repetition unit:
                 Matmul         Matmul
                    |             |
        [gradient_w](f32)     [gradient_x](f32)
+
+[optional unit]:
+           (f32)[x_next]   [repetition_unit_out](f32)
+        [x](f32)      \       /
+            |          \     /
+     StaticTranspose  Backprop
+(optional)     \     /
+                Matmul
+                   |
+          [gradient_w](f32)
+
+pattern:
+        [repetition unit]*[1-10]
+                |
+         [optional unit] (optional)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_backward_pattern_v2)
@@ -185,6 +263,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             "activation_bwd");
                     activation_bwd->append_decision_function(
                             check_input_dtype<impl::data_type::f32>);
+                    activation_bwd->allow_external_outputs();
 
                     auto transpose_subgraph1 = std::make_shared<pb_graph_t>(
                             "transpose_subgraph1");
@@ -217,10 +296,44 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
                     bwd_mlp_layer->create_output_port(0, matmul_layer, 0);
 
-                    // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
-                    pgraph->append_repetition(bwd_mlp_layer, {0, 0},
-                            MLP_NUM_LAYER_LOWER_BOUND,
+                    // repeat layer for [LOWER_BOUND - 1, UPPER_BOUND) times
+                    auto repetition = pgraph->append_repetition(bwd_mlp_layer,
+                            {0, 0}, MLP_NUM_LAYER_LOWER_BOUND - 1,
                             MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
+
+                    // start append the optional last layer
+                    auto last_layer
+                            = std::make_shared<pb_graph_t>("last_layer");
+                    auto activation_bwd_last = last_layer->append_alternation(
+                            {impl::op_kind::ReLUBackprop,
+                                    impl::op_kind::SigmoidBackprop},
+                            "activation_bwd");
+                    activation_bwd_last->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    // still allow extra grad_input computation
+                    activation_bwd_last->allow_external_outputs();
+
+                    auto transpose_subgraph_last = std::make_shared<pb_graph_t>(
+                            "transpose_subgraph");
+                    auto transpose_x_last = transpose_subgraph_last->append_op(
+                            impl::op_kind::StaticTranspose, "transpose_x");
+                    transpose_subgraph_last->create_input_port(
+                            0, transpose_x_last, 0);
+                    transpose_subgraph_last->create_output_port(
+                            0, transpose_x_last, 0);
+                    auto optional_transpose_x_last
+                            = last_layer->append_optional(
+                                    transpose_subgraph_last,
+                                    "optional_transpose_x");
+                    auto matmul_last
+                            = last_layer->append_op(impl::op_kind::MatMul,
+                                    {in_edge(0, optional_transpose_x_last, 0),
+                                            in_edge(1, activation_bwd_last, 0)},
+                                    "matmul_weight");
+                    last_layer->create_input_port(0, activation_bwd_last, 1);
+                    last_layer->create_output_port(0, matmul_last, 0);
+                    pgraph->append_optional(last_layer,
+                            {in_edge(0, repetition, 0)}, "optional_last_layer");
                 });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
@@ -357,17 +470,34 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 });
 
 /*
-repetition unit:
- (bf16)[gradient_x_next]     [gradient](bf16)
-       [x](bf16)      \       /     [weight](bf16)
-            |          \     /           |
-     StaticTranspose  Backprop    StaticTranspose
-(optional)     \     /    |   \     /     (optional)
-                Matmul Reduce  Matmul
-                   |      |      |
+[repetition unit]:
+          (bf16)[x_next]     [gradient_x_next](bf16)
+                      \       /     [weight](bf16)
+                       \     /           |
+                       Backprop    StaticTranspose
+                     /    |   \     /     (optional)
+    [grad_w_subgraph]  Reduce  Matmul
+             |            |      |
       [gradient_w](bf16)  |  [gradient_x](bf16)
                           |
                   [gradient_bias](bf16)
+
+[optional unit]:
+          (bf16)[x_next]   [repetition_unit_out](bf16)
+                      \       /
+                       \     /
+                      Backprop
+                     /    |
+      [grad_w_subgraph] Reduce
+             |            |
+      [gradient_w](bf16)  |
+                          |
+                  [gradient_bias](bf16)
+
+pattern:
+        [repetition unit]*[1-10]
+                |
+        [optional unit] (optional)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_backward_pattern)
@@ -383,14 +513,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     activation_bwd->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
 
-                    auto transpose_subgraph1 = std::make_shared<pb_graph_t>(
-                            "transpose_subgraph1");
-                    auto transpose_x = transpose_subgraph1->append_op(
-                            impl::op_kind::StaticTranspose, "transpose_x");
-                    transpose_subgraph1->create_input_port(0, transpose_x, 0);
-                    transpose_subgraph1->create_output_port(0, transpose_x, 0);
-                    auto optional_transpose_x = bwd_mlp_layer->append_optional(
-                            transpose_subgraph1, "optional_transpose_x");
+                    weight_grad_alternation_unit(bwd_mlp_layer, activation_bwd);
 
                     auto transpose_subgraph2 = std::make_shared<pb_graph_t>(
                             "transpose_subgraph2");
@@ -400,11 +523,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     transpose_subgraph2->create_output_port(0, transpose_w, 0);
                     auto optional_transpose_w = bwd_mlp_layer->append_optional(
                             transpose_subgraph2, "optional_transpose_w");
-
-                    bwd_mlp_layer->append_op(impl::op_kind::MatMul,
-                            {in_edge(0, optional_transpose_x, 0),
-                                    in_edge(1, activation_bwd, 0)},
-                            "matmul_weight");
                     auto matmul_layer = bwd_mlp_layer->append_op(
                             impl::op_kind::MatMul,
                             {in_edge(0, activation_bwd, 0),
@@ -413,21 +531,46 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 
                     auto reduce_bias = bwd_mlp_layer->append_op(
                             impl::op_kind::ReduceSum,
-                            {in_edge(0, activation_bwd, 0)}, "optional_reduce");
+                            {in_edge(0, activation_bwd, 0)}, "reduce_bias");
                     reduce_bias->append_decision_function(check_reduce_attrs);
 
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
                     bwd_mlp_layer->create_output_port(0, matmul_layer, 0);
 
-                    // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
-                    pgraph->append_repetition(bwd_mlp_layer, {0, 0},
-                            MLP_NUM_LAYER_LOWER_BOUND,
+                    // repeat layer for [LOWER_BOUND - 1, UPPER_BOUND) times
+                    auto repetition = pgraph->append_repetition(bwd_mlp_layer,
+                            {0, 0}, MLP_NUM_LAYER_LOWER_BOUND - 1,
                             MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
+
+                    // start append the optional last layer
+                    auto last_layer
+                            = std::make_shared<pb_graph_t>("last_layer");
+                    auto activation_bwd_last = last_layer->append_alternation(
+                            {impl::op_kind::ReLUBackprop,
+                                    impl::op_kind::SigmoidBackprop},
+                            "activation_bwd");
+                    activation_bwd_last->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    // still allow extra grad_input computation
+                    activation_bwd_last->allow_external_outputs();
+
+                    auto weight_grad = weight_grad_alternation_unit(
+                            last_layer, activation_bwd_last);
+                    auto reduce_bias_last
+                            = last_layer->append_op(impl::op_kind::ReduceSum,
+                                    {in_edge(0, activation_bwd_last, 0)},
+                                    "reduce_bias");
+                    reduce_bias_last->append_decision_function(
+                            check_reduce_attrs);
+                    last_layer->create_input_port(0, activation_bwd_last, 1);
+                    last_layer->create_output_port(0, weight_grad, 0);
+                    pgraph->append_optional(last_layer,
+                            {in_edge(0, repetition, 0)}, "optional_last_layer");
                 });
 
 /*
-repetition unit:
- (bf16)[gradient_x_next]     [gradient](bf16)
+[repetition unit]:
+          (bf16)[x_next]     [gradient_x_next](bf16)
        [x](bf16)      \       /     [weight](bf16)
             |          \     /           |
      StaticTranspose  Backprop    StaticTranspose
@@ -435,6 +578,21 @@ repetition unit:
                 Matmul         Matmul
                    |             |
       [gradient_w](bf16)     [gradient_x](bf16)
+
+[optional unit]:
+          (bf16)[x_next]   [repetition_unit_out](bf16)
+       [x](bf16)      \       /
+            |          \     /
+     StaticTranspose  Backprop
+(optional)     \     /
+                Matmul
+                   |
+      [gradient_w](bf16)
+
+pattern:
+        [repetition unit]*[1-10]
+                |
+         [optional unit] (optional)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_backward_pattern_v2)
@@ -449,6 +607,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             "activation_bwd");
                     activation_bwd->append_decision_function(
                             check_input_dtype<impl::data_type::bf16>);
+                    activation_bwd->allow_external_outputs();
 
                     auto transpose_subgraph1 = std::make_shared<pb_graph_t>(
                             "transpose_subgraph1");
@@ -481,10 +640,44 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
                     bwd_mlp_layer->create_output_port(0, matmul_layer, 0);
 
-                    // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
-                    pgraph->append_repetition(bwd_mlp_layer, {0, 0},
-                            MLP_NUM_LAYER_LOWER_BOUND,
+                    // repeat layer for [LOWER_BOUND - 1, UPPER_BOUND) times
+                    auto repetition = pgraph->append_repetition(bwd_mlp_layer,
+                            {0, 0}, MLP_NUM_LAYER_LOWER_BOUND - 1,
                             MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
+
+                    // start append the optional last layer
+                    auto last_layer
+                            = std::make_shared<pb_graph_t>("last_layer");
+                    auto activation_bwd_last = last_layer->append_alternation(
+                            {impl::op_kind::ReLUBackprop,
+                                    impl::op_kind::SigmoidBackprop},
+                            "activation_bwd");
+                    activation_bwd_last->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    // still allow extra grad_input computation
+                    activation_bwd_last->allow_external_outputs();
+
+                    auto transpose_subgraph_last = std::make_shared<pb_graph_t>(
+                            "transpose_subgraph");
+                    auto transpose_x_last = transpose_subgraph_last->append_op(
+                            impl::op_kind::StaticTranspose, "transpose_x");
+                    transpose_subgraph_last->create_input_port(
+                            0, transpose_x_last, 0);
+                    transpose_subgraph_last->create_output_port(
+                            0, transpose_x_last, 0);
+                    auto optional_transpose_x_last
+                            = last_layer->append_optional(
+                                    transpose_subgraph_last,
+                                    "optional_transpose_x");
+                    auto matmul_last
+                            = last_layer->append_op(impl::op_kind::MatMul,
+                                    {in_edge(0, optional_transpose_x_last, 0),
+                                            in_edge(1, activation_bwd_last, 0)},
+                                    "matmul_weight");
+                    last_layer->create_input_port(0, activation_bwd_last, 1);
+                    last_layer->create_output_port(0, matmul_last, 0);
+                    pgraph->append_optional(last_layer,
+                            {in_edge(0, repetition, 0)}, "optional_last_layer");
                 });
 
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END

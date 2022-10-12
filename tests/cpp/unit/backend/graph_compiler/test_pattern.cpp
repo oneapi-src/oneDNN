@@ -593,7 +593,7 @@ TEST(GCPatternTests, FP32MLPTraining) {
     pass::pass_base_ptr apass_fwd
             = get_pass(compiler_backend_ptr, "fp32_mlp_forward_pattern");
     pass::pass_base_ptr apass_bwd
-            = get_pass(compiler_backend_ptr, "fp32_mlp_backward_pattern");
+            = get_pass(compiler_backend_ptr, "fp32_mlp_backward_pattern_v2");
 
     apass_fwd->run(agraph);
     apass_bwd->run(agraph);
@@ -601,7 +601,7 @@ TEST(GCPatternTests, FP32MLPTraining) {
     auto partitions = agraph.get_partitions();
     ASSERT_EQ(partitions.size(), 2U);
     ASSERT_EQ(partitions[0]->get_ops().size(), 6U);
-    ASSERT_EQ(partitions[1]->get_ops().size(), 18U);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 13U);
 }
 
 TEST(GCPatternTests, FP32MHATrainingPattern) {

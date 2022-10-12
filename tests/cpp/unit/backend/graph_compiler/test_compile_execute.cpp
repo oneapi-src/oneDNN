@@ -486,7 +486,7 @@ TEST(GCGraphTest, BF16MLPDynamicGraphCompileExecution) {
 TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    compiler_utils::add_mlp_training_graph(&agraph, 1, 5,
+    compiler_utils::add_mlp_training_graph(&agraph, 128, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
                     impl::op_kind::ReLU, impl::op_kind::Sigmoid},
@@ -498,10 +498,26 @@ TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution) {
     compile_execution_pipeline(agraph, 2);
 }
 
+TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution2) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_mlp_training_graph(&agraph, 128, 5,
+            {479, 1024, 1024, 512, 256, 1},
+            {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
+                    impl::op_kind::ReLU, impl::op_kind::Sigmoid},
+            {impl::op_kind::SigmoidBackprop, impl::op_kind::ReLUBackprop,
+                    impl::op_kind::ReLUBackprop, impl::op_kind::ReLUBackprop,
+                    impl::op_kind::ReLUBackprop},
+            false, true, true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 2);
+}
+
 TEST(GCGraphTest, BF16MLPTrainingGraphCompileExecution) {
     REQUIRE_BF16_AMXBF16();
     impl::graph_t agraph;
-    compiler_utils::add_mlp_training_graph(&agraph, 1, 5,
+    compiler_utils::add_mlp_training_graph(&agraph, 128, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
                     impl::op_kind::ReLU, impl::op_kind::Sigmoid},
