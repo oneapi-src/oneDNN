@@ -251,10 +251,9 @@ public:
 
 #define HANDLE_IR_OBJECT(type) \
     object_t _mutate(const type &obj) override { \
-        auto *this_mutator = (substitute_mutator_t *)this; \
-        if (this_mutator->from_.impl() == (const object_impl_t *)&obj) { \
-            this_mutator->substitutions_++; \
-            return this_mutator->to_; \
+        if (from_.impl() == (const object_impl_t *)&obj) { \
+            substitutions_++; \
+            return to_; \
         } \
         return ir_mutator_t::_mutate(obj); \
     };
@@ -374,8 +373,6 @@ object_t substitute(const object_t &root, const object_t &from,
     auto ret = sm.mutate(root);
     ir_assert(sm.substitutions() <= max_substitutions)
             << "Unexpected number of substitutions.";
-    MAYBE_UNUSED(&substitute_mutator_t::substitutions);
-    MAYBE_UNUSED(max_substitutions);
     return ret;
 }
 

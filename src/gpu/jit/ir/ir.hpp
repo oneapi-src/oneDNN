@@ -294,7 +294,7 @@ expr_t nary_op_canonicalize(const expr_t &_e);
 expr_t make_nary_op(op_kind_t op_kind, const std::vector<expr_t> &args);
 std::vector<expr_t> cvt_expr_to_nary_op_args(const expr_t &e);
 
-// Substitutes all occurrences of `from` to `to` in `root.
+// Substitutes all occurrences of `from` to `to` in `root`.
 object_t substitute(const object_t &root, const object_t &from,
         const object_t &to,
         int max_substitutions = std::numeric_limits<int>::max());
