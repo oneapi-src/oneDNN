@@ -42,6 +42,9 @@
 #define GEN_CONV_PROFILE
 #endif
 
+// Uncomment this when aborting on ir_assert is desired:
+// #define IR_ABORT_ON_ERROR
+
 #ifdef GEN_CONV_PROFILE
 #include "common/profiler.hpp"
 #endif
@@ -195,6 +198,10 @@ public:
     ~error_stream_t() noexcept(false) {
         if (data_ == nullptr) return;
 
+#ifdef IR_ABORT_ON_ERROR
+        std::cout << data_->out.str() << "\n";
+        std::abort();
+#else
         auto err = std::runtime_error(data_->out.str());
         delete data_;
         data_ = nullptr;
@@ -203,6 +210,7 @@ public:
         // debug builds and since it is only used by ir_assert() which signals
         // an ill-defined program state, nested throws is not a concern.
         throw err; // NOLINT
+#endif
     }
 
 private:
