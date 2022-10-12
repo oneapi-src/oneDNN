@@ -15,7 +15,6 @@
 #===============================================================================
 
 set(API_TEST_SRCS
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_base.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_logical_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_tensor.cpp
