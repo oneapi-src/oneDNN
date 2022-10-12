@@ -142,7 +142,7 @@ public:
             auto old_var = var;
             var = ir_ctx_.create_tmp_var(
                     value.type(), old_var.as<var_t>().name);
-            body = substitute(body, old_var, var);
+            body = substitute_with_different_type(body, old_var, var);
         }
         return let_t::make(var, value, body);
     }

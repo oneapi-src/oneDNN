@@ -183,7 +183,7 @@ public:
             const_shuffle = shuffle_t::make(vec_const, o.idx);
             if (!is_consts_bcast) {
                 expr_t offset;
-                for (auto &k : const_shuffles) {
+                for (auto &k : const_shuffles_) {
                     offset = get_bcast_difference(const_shuffle, k);
                     if (!offset.is_empty()) {
                         vec_bcast = add(vec_bcast, offset);
@@ -195,7 +195,7 @@ public:
                 }
 
                 if (offset.is_empty()) {
-                    const_shuffles.emplace(const_shuffle);
+                    const_shuffles_.emplace(const_shuffle);
                 }
             }
 
@@ -215,7 +215,7 @@ public:
     }
 
 private:
-    object_eq_set_t<expr_t> const_shuffles;
+    object_eq_set_t<expr_t> const_shuffles_;
     static std::vector<expr_t> split_by_add(const expr_t &e, int elems) {
         auto *shuffle = e.as_ptr<shuffle_t>();
         if (shuffle && shuffle->is_broadcast() && shuffle->elems() == elems) {

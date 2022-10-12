@@ -269,6 +269,67 @@ private:
     int substitutions_ = 0;
 };
 
+class substitute_and_type_mutator_t : public ir_mutator_t {
+public:
+    substitute_and_type_mutator_t(const object_t &from, const object_t &to) {
+        substitutes_[from] = to;
+    }
+
+    int substitutions() const { return substitutions_; }
+
+    template <typename T>
+    object_t _mutate_after(const T &obj) {
+        return ir_mutator_t::_mutate(obj);
+    }
+
+    object_t _mutate_after(const let_t &obj) {
+        auto var = mutate(obj.var);
+        auto value = mutate(obj.value);
+
+        // Allow changing variable types when performing substitutions. Avoids
+        // the following invalid substitute transformation sequence:
+        //
+        // tmp0.s32            -> tmp0_0.u64
+        // tmp1.s32 = tmp0.s32 -> tmp1.s32 = tmp0_0.u64
+        if (!value.is_empty()) {
+            auto &value_type = expr_t(value).type();
+            if (var.as<var_t>().type != value_type) {
+                auto var_old = var;
+                var = var_t::make(value_type, var.as<var_t>().name);
+
+                substitutes_[var_old] = var;
+            }
+        }
+
+        auto body = mutate(obj.body);
+
+        if (var.is_same(obj.var) && value.is_same(obj.value)
+                && body.is_same(obj.body))
+            return obj;
+
+        return let_t::make(var, value, body);
+    }
+
+#define HANDLE_IR_OBJECT(type) \
+    object_t _mutate(const type &obj) override { \
+        auto it = substitutes_.find(obj); \
+        if (it != substitutes_.end()) { \
+            substitutions_++; \
+            return it->second; \
+        } \
+        return _mutate_after(obj); \
+    };
+
+    HANDLE_ALL_IR_OBJECTS()
+
+#undef HANDLE_IR_OBJECT
+
+private:
+    object_eq_map_t<object_t, object_t> substitutes_;
+
+    int substitutions_ = 0;
+};
+
 class stmt_flattener_t : public ir_visitor_t {
 public:
 #define HANDLE_IR_OBJECT(type) \
@@ -370,6 +431,16 @@ object_t substitute(const object_t &root, const object_t &from,
         const object_t &to, int max_substitutions) {
     if (to.is_same(from)) return root;
     substitute_mutator_t sm(from, to);
+    auto ret = sm.mutate(root);
+    ir_assert(sm.substitutions() <= max_substitutions)
+            << "Unexpected number of substitutions.";
+    return ret;
+}
+
+object_t substitute_with_different_type(const object_t &root,
+        const object_t &from, const object_t &to, int max_substitutions) {
+    if (to.is_same(from)) return root;
+    substitute_and_type_mutator_t sm(from, to);
     auto ret = sm.mutate(root);
     ir_assert(sm.substitutions() <= max_substitutions)
             << "Unexpected number of substitutions.";

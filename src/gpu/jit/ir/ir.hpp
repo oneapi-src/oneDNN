@@ -299,6 +299,12 @@ object_t substitute(const object_t &root, const object_t &from,
         const object_t &to,
         int max_substitutions = std::numeric_limits<int>::max());
 
+// Substitutes all occurrences of `from` to `to` in `root` and propagates any
+// required type changes.
+object_t substitute_with_different_type(const object_t &root,
+        const object_t &from, const object_t &to,
+        int max_substitutions = std::numeric_limits<int>::max());
+
 // Returns leaf statements of `root`. Uses inorder traversal.
 std::vector<stmt_t> flatten_statements(const stmt_t &root);
 
