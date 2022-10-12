@@ -165,7 +165,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     if (post_ops.len() > 0) {
         problem_.post_ops = post_ops;
         if (a_type == data_type::f16) problem_.Ts = Type::f32;
-        for (int i = 0, ibinary = 0; i < post_ops.len(); i++) {
+        for (int i = 0; i < post_ops.len(); i++) {
             const auto &entry = post_ops.entry_[i];
             if (entry.kind != primitive_kind::binary) continue;
 
@@ -200,8 +200,6 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
             atype.setAlignment(T.size());
 
             problem_.binary.push_back(atype);
-
-            ibinary++;
         }
     }
     if (c_offset || bias || reduce_ab != sum_ab::sum_none) {
