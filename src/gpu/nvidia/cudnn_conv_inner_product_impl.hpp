@@ -124,7 +124,7 @@ struct cudnn_conv_inner_product_fwd_impl_t
         use_fused_path_for_blocking_ = use_fuse_path_for_blocking;
         do_scaling_ = !pd->attr()->output_scales_.has_default_values();
         runtime_scaling_ = !pd->attr()->output_scales_.defined();
-        output_scales_ = pd->attr()->output_scales_.scales_[0];
+        output_scales_ = 1.0f;
         with_sum_ = with_sum;
         scale_bias_ = (do_scaling_) && with_bias_;
         // scaling factor to add the previous destination value to the current
