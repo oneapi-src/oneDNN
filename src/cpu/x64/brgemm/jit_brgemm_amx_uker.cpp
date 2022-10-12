@@ -73,8 +73,7 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
             esp.preserve_vmm = preserve_vmm;
             esp.preserve_p_table = false;
 
-            postops_injector_ = utils::make_unique<
-                    injector::jit_uni_postops_injector_t<avx512_core>>(
+            postops_injector_ = utils::make_unique<po_injector_t>(
                     this, brg.attr->post_ops_, bsp, esp);
 
             using namespace dnnl::impl::cpu::binary_injector_utils;
@@ -101,8 +100,9 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
     brgemm_t brg;
 
 private:
-    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
-            postops_injector_;
+    static constexpr cpu_isa_t po_isa_ = avx512_core_fp16;
+    using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_>;
+    std::unique_ptr<po_injector_t> postops_injector_;
 
     using reg64_t = const Xbyak::Reg64;
     enum {
@@ -487,12 +487,12 @@ void jit_brgemm_amx_uker_base_t::cvt2ps(data_type_t type_in,
             vpmovzxwd(zmm, op);
             vpslld(zmm, zmm, 16);
             break;
+        case data_type::f16: vcvtph2ps(zmm, op); break;
         case data_type::s8: vpmovsxbd(zmm, op); break;
         case data_type::u8: vpmovzxbd(zmm, op); break;
         default: assert(!"unsupported data type");
     }
-    if (!one_of(type_in, data_type::f32, data_type::bf16))
-        vcvtdq2ps(zmm_in, zmm_in);
+    if (types::is_integral_dt(type_in)) vcvtdq2ps(zmm_in, zmm_in);
 }
 
 void jit_brgemm_amx_uker_base_t::read_params() {
@@ -900,6 +900,10 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
         case data_type::s32: vmovups(addr, r_zmm); break;
         case data_type::bf16:
             vcvtneps2bf16(ymm, zmm);
+            vmovdqu16(addr, r_ymm);
+            break;
+        case data_type::f16:
+            vcvtps2ph(ymm, zmm, _op_mxcsr);
             vmovdqu16(addr, r_ymm);
             break;
         case data_type::s8: vpmovsdb(addr, r_zmm); break;
