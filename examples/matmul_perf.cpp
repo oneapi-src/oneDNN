@@ -74,7 +74,7 @@ void fill_random(std::vector<float> &out, bool is_integer) {
 
         random_data_i.resize(nrand);
         for (auto &d : random_data_i)
-            d = dist_i(generator);
+            d = static_cast<float>(dist_i(generator));
 
         random_data_f.resize(nrand);
         for (auto &d : random_data_f)
@@ -218,7 +218,8 @@ void run(engine::kind engine_kind, dt type, gemm_dims_t dims,
                 double mnk_expand = std::exp2(
                         std::round(std::log2(nruns_est / min_runs) / 3.));
                 if (mnk_expand <= 1) break;
-                mnk = std::min<double>(max_mnk, mnk * mnk_expand);
+                mnk = static_cast<int>(
+                        std::min<double>(max_mnk, mnk * mnk_expand));
             }
 
             dims.m = dims.n = dims.k = mnk;
