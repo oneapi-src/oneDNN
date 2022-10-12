@@ -139,7 +139,6 @@ public:
         beta = 0.0f;
         do_scaling = !pd->attr()->output_scales_.has_default_values();
         runtime_scaling = !pd->attr()->output_scales_.defined();
-        oscale = pd->attr()->output_scales_.scales_[0];
         dnnl_descs[x] = *pd->invariant_src_md();
         dnnl_descs[weights] = *pd->invariant_wei_md();
         dnnl_descs[y] = *pd->invariant_dst_md();
