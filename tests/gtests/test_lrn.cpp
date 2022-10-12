@@ -38,6 +38,29 @@ struct lrn_test_params_t {
     dnnl_status_t expected_status;
 };
 
+bool cuda_check_format_tag(tag atag) {
+    return impl::utils::one_of(atag, tag::ncdhw, tag::nchw, tag::nhwc, tag::ncw,
+            tag::nwc, tag::any);
+}
+
+template <typename... Rest>
+bool cuda_check_format_tag(tag first_tag, Rest... rest_tags) {
+    const bool ok = cuda_check_format_tag(first_tag);
+    if (!ok) return ok;
+    return cuda_check_format_tag(rest_tags...);
+}
+
+bool hip_check_format_tag(tag atag) {
+    return impl::utils::one_of(atag, tag::nchw, tag::any);
+}
+
+template <typename... Rest>
+bool hip_check_format_tag(tag first_tag, Rest... rest_tags) {
+    const bool ok = hip_check_format_tag(first_tag);
+    if (!ok) return ok;
+    return hip_check_format_tag(rest_tags...);
+}
+
 class lrn_test_t : public ::testing::TestWithParam<lrn_test_params_t> {
 private:
     lrn_test_params_t p;
@@ -81,23 +104,6 @@ protected:
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
-    }
-
-    template <typename... Rest>
-    bool cuda_check_format_tag(tag first_tag, Rest... rest_tags) {
-        bool ok = impl::utils::one_of(first_tag, tag::ncdhw, tag::nchw,
-                tag::nhwc, tag::ncw, tag::nwc, tag::any);
-        if (ok && sizeof...(rest_tags) > 0)
-            ok = cuda_check_format_tag(rest_tags...);
-        return ok;
-    }
-
-    template <typename... Rest>
-    bool hip_check_format_tag(tag first_tag, Rest... rest_tags) {
-        bool ok = impl::utils::one_of(first_tag, tag::nchw, tag::any);
-        if (ok && sizeof...(rest_tags) > 0)
-            ok = hip_check_format_tag(rest_tags...);
-        return ok;
     }
 
     void Forward(prop_kind pk, algorithm aalgorithm) {
