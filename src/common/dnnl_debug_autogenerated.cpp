@@ -586,6 +586,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_abCdef4c) return "abCdef4c";
     if (v == dnnl_abCde32c) return "abCde32c";
     if (v == dnnl_abCdef32c) return "abCdef32c";
+    if (v == dnnl_ABcd16a32b) return "ABcd16a32b";
     if (v == dnnl_format_tag_last) return "format_tag_last";
     if (v == dnnl_x) return "x";
     if (v == dnnl_nc) return "nc";
@@ -661,6 +662,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_NChw16n16c) return "NChw16n16c";
     if (v == dnnl_NCw32n16c) return "NCw32n16c";
     if (v == dnnl_NChw32n16c) return "NChw32n16c";
+    if (v == dnnl_NChw16n32c) return "NChw16n32c";
     if (v == dnnl_NCdhw32n16c) return "NCdhw32n16c";
     if (v == dnnl_NCw32n32c) return "NCw32n32c";
     if (v == dnnl_NChw32n32c) return "NChw32n32c";
@@ -801,6 +803,8 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_gOIw2o4i2o) return "gOIw2o4i2o";
     if (v == dnnl_gOIw4i8o2i) return "gOIw4i8o2i";
     if (v == dnnl_gOIw4o8i2o) return "gOIw4o8i2o";
+    if (v == dnnl_goIw4i) return "goIw4i";
+    if (v == dnnl_goIw32i) return "goIw32i";
     if (v == dnnl_gIOhw16i16o) return "gIOhw16i16o";
     if (v == dnnl_gIOhw16o16i) return "gIOhw16o16i";
     if (v == dnnl_gOhwi16o) return "gOhwi16o";
@@ -831,6 +835,8 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_gOIhw8o4i) return "gOIhw8o4i";
     if (v == dnnl_Goihw32g) return "Goihw32g";
     if (v == dnnl_gOwhi16o) return "gOwhi16o";
+    if (v == dnnl_goIhw4i) return "goIhw4i";
+    if (v == dnnl_goIhw32i) return "goIhw32i";
     if (v == dnnl_OIw4o8i8o4i) return "OIw4o8i8o4i";
     if (v == dnnl_OIhw4o8i8o4i) return "OIhw4o8i8o4i";
     if (v == dnnl_IOw4i8o8i4o) return "IOw4i8o8i4o";
@@ -879,6 +885,8 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_gOIdhw4i8o2i) return "gOIdhw4i8o2i";
     if (v == dnnl_gOIdhw2o4i2o) return "gOIdhw2o4i2o";
     if (v == dnnl_gOIdhw4o8i2o) return "gOIdhw4o8i2o";
+    if (v == dnnl_goIdhw4i) return "goIdhw4i";
+    if (v == dnnl_goIdhw32i) return "goIdhw32i";
     if (v == dnnl_Owi32o) return "Owi32o";
     if (v == dnnl_OwI32o2i) return "OwI32o2i";
     if (v == dnnl_OwI32o4i) return "OwI32o4i";

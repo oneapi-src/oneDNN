@@ -691,6 +691,7 @@ const format_tag_t aBC16b16c = dnnl_aBC16b16c;
 const format_tag_t aBC16b32c = dnnl_aBC16b32c;
 const format_tag_t AB16a16b = dnnl_AB16a16b;
 const format_tag_t AB16a32b = dnnl_AB16a32b;
+const format_tag_t ABcd16a32b = dnnl_ABcd16a32b;
 
 const format_tag_t last = dnnl_format_tag_last;
 
