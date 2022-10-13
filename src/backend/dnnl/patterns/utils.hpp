@@ -135,6 +135,39 @@ inline bool check_if_constant_weight(op_t *op) {
     }
 }
 
+// Optional BiasAdd after operator like Conv/ConvTranspose/Matmul. If
+// `maybe_typecase` is true, there will also be an optional TypeCast before the
+// 2nd input of BiasAdd.
+inline impl::utils::pm::repetition_t *optional_bias_add(
+        const std::shared_ptr<impl::utils::pm::pb_graph_t> &pgraph,
+        impl::utils::pm::pb_op_t *input, bool maybe_typecast = false) {
+    auto popt_bias_graph
+            = std::make_shared<impl::utils::pm::pb_graph_t>("poptional_bias");
+    impl::utils::pm::pb_op_t *pbias = nullptr;
+    if (maybe_typecast) {
+        auto popt_tc_graph
+                = std::make_shared<impl::utils::pm::pb_graph_t>("poptional_tc");
+        impl::utils::pm::pb_op_t *typecast_bias
+                = popt_tc_graph->append_op(impl::op_kind::TypeCast, "tc_bias");
+        typecast_bias->append_decision_function(
+                check_output_dtype<impl::data_type::bf16>);
+        popt_tc_graph->create_input_port(0, typecast_bias, 0);
+        popt_tc_graph->create_output_port(0, typecast_bias, 0);
+        auto popt_tc
+                = popt_bias_graph->append_optional(popt_tc_graph, "popt_tc");
+        pbias = popt_bias_graph->append_op(impl::op_kind::BiasAdd,
+                impl::utils::pm::in_edges_t {in_edge(1, popt_tc, 0)}, "pbias");
+    } else {
+        pbias = popt_bias_graph->append_op(impl::op_kind::BiasAdd, "pbias");
+    }
+    pbias->append_decision_function(check_producer_input_num<2>);
+    popt_bias_graph->create_input_port(0, pbias, 0);
+    popt_bias_graph->create_output_port(0, pbias, 0);
+    auto popt_bias = pgraph->append_optional(popt_bias_graph,
+            impl::utils::pm::in_edges_t {in_edge(0, input, 0)}, "popt_bias");
+    return popt_bias;
+};
+
 } // namespace pattern
 } // namespace dnnl_impl
 } // namespace impl

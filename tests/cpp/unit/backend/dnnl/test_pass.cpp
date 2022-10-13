@@ -11445,6 +11445,132 @@ TEST(PassSystem, MixInt8AndBf16Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 10U);
 }
 
+TEST(PassSystem, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    std::vector<bool> with_bias_typecasts {false, true};
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    std::vector<int64_t> transpose_order {0, 2, 1, 3};
+    std::vector<int64_t> reshape_shape {0, 0, 0, 0};
+    for (auto with_bias_typecast : with_bias_typecasts) {
+        graph_t agraph;
+        op_t dqdata_op(1, Dequantize, "dqdata_op");
+        dqdata_op.set_attr<std::vector<int64_t>>(op_attr::zps, zps);
+        dqdata_op.set_attr<std::vector<float>>(op_attr::scales, scales);
+        op_t tcdata_op(2, TypeCast, "tcdata_op");
+        op_t qweight_op(3, Quantize, "qweight_op");
+        qweight_op.set_attr<std::vector<int64_t>>(op_attr::zps, zps);
+        qweight_op.set_attr<std::vector<float>>(op_attr::scales, scales);
+        op_t dqweight_op(4, Dequantize, "dqweight_op");
+        dqweight_op.set_attr<std::vector<int64_t>>(op_attr::zps, zps);
+        dqweight_op.set_attr<std::vector<float>>(op_attr::scales, scales);
+        op_t tcweight_op(5, TypeCast, "tcweight_op");
+        op_t matmul_op(6, MatMul, "matmul_op");
+        matmul_op.set_attr<bool>(op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(op_attr::transpose_b, false);
+        op_t tc_bias_op(7, TypeCast, "tcbias_op");
+        op_t biasadd_op(8, BiasAdd, "biasadd_op");
+        biasadd_op.set_attr<std::string>(op_attr::data_format, "NXC");
+        op_t transpose_op(9, StaticTranspose, "transpose_op");
+        transpose_op.set_attr(op_attr::order, transpose_order);
+        op_t reshape_op(10, StaticReshape, "reshape_op");
+        reshape_op.set_attr(op_attr::shape, reshape_shape);
+        reshape_op.set_attr(op_attr::special_zero, false);
+        op_t tcout_op(11, TypeCast, "tcout_op");
+        op_t qout_op(12, Quantize, "qout_op");
+        qout_op.set_attr<std::vector<int64_t>>(op_attr::zps, zps);
+        qout_op.set_attr<std::vector<float>>(op_attr::scales, scales);
+
+        // prepare logical tensor
+        logical_tensor_t src_u8 = logical_tensor_init(1, data_type::u8);
+        logical_tensor_t src_f32_dq = logical_tensor_init(2, data_type::f32);
+        logical_tensor_t src_bf16_dq = logical_tensor_init(3, data_type::bf16);
+        logical_tensor_t weight_f32 = logical_tensor_init(4, data_type::f32);
+        logical_tensor_t weight_s8 = logical_tensor_init(5, data_type::s8);
+        logical_tensor_t weight_f32_dq = logical_tensor_init(6, data_type::f32);
+        logical_tensor_t weight_bf16_dq
+                = logical_tensor_init(7, data_type::bf16);
+        logical_tensor_t bias_f32 = logical_tensor_init(8, data_type::f32);
+        logical_tensor_t bias_bf16 = logical_tensor_init(9, data_type::bf16);
+        logical_tensor_t biasadd_bf16
+                = logical_tensor_init(10, data_type::bf16);
+        logical_tensor_t dst_bf16 = logical_tensor_init(11, data_type::bf16);
+        logical_tensor_t transpose_bf16
+                = logical_tensor_init(12, data_type::bf16);
+        logical_tensor_t reshape_bf16
+                = logical_tensor_init(13, data_type::bf16);
+        logical_tensor_t reshape_f32 = logical_tensor_init(14, data_type::f32);
+        logical_tensor_t dst_s8 = logical_tensor_init(15, data_type::s8);
+
+        dqdata_op.add_input(src_u8);
+        dqdata_op.add_output(src_f32_dq);
+
+        tcdata_op.add_input(src_f32_dq);
+        tcdata_op.add_output(src_bf16_dq);
+
+        qweight_op.add_input(weight_f32);
+        qweight_op.add_output(weight_s8);
+
+        dqweight_op.add_input(weight_s8);
+        dqweight_op.add_output(weight_f32_dq);
+
+        tcweight_op.add_input(weight_f32_dq);
+        tcweight_op.add_output(weight_bf16_dq);
+
+        matmul_op.add_input(src_bf16_dq);
+        matmul_op.add_input(weight_bf16_dq);
+        matmul_op.add_output(dst_bf16);
+
+        tc_bias_op.add_input(bias_f32);
+        tc_bias_op.add_output(bias_bf16);
+
+        biasadd_op.add_input(dst_bf16);
+        biasadd_op.add_input(bias_bf16);
+        biasadd_op.add_output(biasadd_bf16);
+
+        transpose_op.add_input(biasadd_bf16);
+        transpose_op.add_output(transpose_bf16);
+
+        reshape_op.add_input(transpose_bf16);
+        reshape_op.add_output(reshape_bf16);
+
+        tcout_op.add_input(reshape_bf16);
+        tcout_op.add_output(reshape_f32);
+
+        qout_op.add_input(reshape_f32);
+        qout_op.add_output(dst_s8);
+        ASSERT_EQ(agraph.add_op(&dqdata_op), status::success);
+        ASSERT_EQ(agraph.add_op(&tcdata_op), status::success);
+        ASSERT_EQ(agraph.add_op(&qweight_op), status::success);
+        ASSERT_EQ(agraph.add_op(&dqweight_op), status::success);
+        ASSERT_EQ(agraph.add_op(&tcweight_op), status::success);
+        ASSERT_EQ(agraph.add_op(&matmul_op), status::success);
+        if (with_bias_typecast) {
+            ASSERT_EQ(agraph.add_op(&tc_bias_op), status::success);
+        }
+        ASSERT_EQ(agraph.add_op(&biasadd_op), status::success);
+        ASSERT_EQ(agraph.add_op(&transpose_op), status::success);
+        ASSERT_EQ(agraph.add_op(&reshape_op), status::success);
+        ASSERT_EQ(agraph.add_op(&tcout_op), status::success);
+        ASSERT_EQ(agraph.add_op(&qout_op), status::success);
+        ASSERT_EQ(agraph.build_graph(), status::success);
+
+        pm.run_passes(agraph, "no_config");
+        ASSERT_EQ(agraph.get_num_partitions(), 1U);
+        auto part = agraph.get_partitions()[0];
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 1U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 4U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id,
+                with_bias_typecast ? 8U : 9U);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 15U);
+    }
+}
+
 TEST(Pass, MixInt8AndBf16ConvolutionBias) {
     /*
         | (u8/s8)  | s8

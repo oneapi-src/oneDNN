@@ -152,16 +152,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             = pgraph->append_op(impl::op_kind::MatMul);
 
                     // Optional bias_add
-                    auto popt_bias_graph
-                            = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op_t *pbias = popt_bias_graph->append_op(
-                            impl::op_kind::BiasAdd, "pbias");
-                    pbias->append_decision_function(
-                            check_producer_input_num<2>);
-                    popt_bias_graph->create_input_port(0, pbias, 0);
-                    popt_bias_graph->create_output_port(0, pbias, 0);
-                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
-                            in_edges_t {in_edge(0, pmatmul, 0)}, "popt_bias");
+                    auto popt_bias = optional_bias_add(pgraph, pmatmul, false);
 
                     // Optional pre reshape
                     auto popt_reshape_pre_graph = std::make_shared<pb_graph_t>(
@@ -322,16 +313,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                     "matmul");
 
                     // Optional bias_add
-                    auto popt_bias_graph
-                            = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op_t *pbias = popt_bias_graph->append_op(
-                            impl::op_kind::BiasAdd, "pbias");
-                    pbias->append_decision_function(
-                            check_producer_input_num<2>);
-                    popt_bias_graph->create_input_port(0, pbias, 0);
-                    popt_bias_graph->create_output_port(0, pbias, 0);
-                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
-                            in_edges_t {in_edge(0, pmatmul, 0)}, "popt_bias");
+                    auto popt_bias = optional_bias_add(pgraph, pmatmul, false);
 
                     auto pint8_binary_graph = std::make_shared<pb_graph_t>(
                             "pint8_binary_graph");
@@ -424,16 +406,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                     "matmul");
 
                     // Optional bias_add
-                    auto popt_bias_graph
-                            = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op_t *pbias = popt_bias_graph->append_op(
-                            impl::op_kind::BiasAdd, "pbias");
-                    pbias->append_decision_function(
-                            check_producer_input_num<2>);
-                    popt_bias_graph->create_input_port(0, pbias, 0);
-                    popt_bias_graph->create_output_port(0, pbias, 0);
-                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
-                            in_edges_t {in_edge(0, pmatmul, 0)}, "popt_bias");
+                    auto popt_bias = optional_bias_add(pgraph, pmatmul, false);
 
                     auto pint8_binary_graph = std::make_shared<pb_graph_t>(
                             "pint8_binary_graph");
@@ -584,7 +557,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
    typecast_data    typecast_weight
         \_____       _____/
               matmul
-                |
+                | [typecast]*
+                |   /
               [bias]*    [dequant_other -> typecast_other]* for Add
                 |          /
  [ ReLU/GELU/Divide/Multiply/Add ]
@@ -638,21 +612,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                             in_edge(1, typecast_weight, 0)});
 
                     // Optional bias
-                    auto popt_bias_graph
-                            = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op_t *typecast_bias = popt_bias_graph->append_op(
-                            impl::op_kind::TypeCast, "tc_bias");
-                    typecast_bias->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-                    pm::pb_op_t *pbias = popt_bias_graph->append_op(
-                            impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(1, typecast_bias, 0)}, "pbias");
-                    pbias->append_decision_function(
-                            check_producer_input_num<2>);
-                    popt_bias_graph->create_input_port(0, pbias, 0);
-                    popt_bias_graph->create_output_port(0, pbias, 0);
-                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
-                            in_edges_t {in_edge(0, matmul, 0)}, "popt_bias");
+                    auto popt_bias = optional_bias_add(pgraph, matmul, true);
 
                     // post add with dequant->typecast
                     auto padd_graph
@@ -758,21 +718,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                             in_edge(1, typecast_weight, 0)});
 
                     // Optional bias
-                    auto popt_bias_graph
-                            = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op_t *typecast_bias = popt_bias_graph->append_op(
-                            impl::op_kind::TypeCast, "tc_bias");
-                    typecast_bias->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-                    pm::pb_op_t *pbias = popt_bias_graph->append_op(
-                            impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(1, typecast_bias, 0)}, "pbias");
-                    pbias->append_decision_function(
-                            check_producer_input_num<2>);
-                    popt_bias_graph->create_input_port(0, pbias, 0);
-                    popt_bias_graph->create_output_port(0, pbias, 0);
-                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
-                            in_edges_t {in_edge(0, matmul, 0)}, "popt_bias");
+                    auto popt_bias = optional_bias_add(pgraph, matmul, true);
 
                     // post add with dequant->typecast
                     auto padd_graph
@@ -859,16 +805,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                     "matmul");
 
                     // Optional bias_add
-                    auto popt_bias_graph
-                            = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op_t *pbias = popt_bias_graph->append_op(
-                            impl::op_kind::BiasAdd, "pbias");
-                    pbias->append_decision_function(
-                            check_producer_input_num<2>);
-                    popt_bias_graph->create_input_port(0, pbias, 0);
-                    popt_bias_graph->create_output_port(0, pbias, 0);
-                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
-                            in_edges_t {in_edge(0, pmatmul, 0)}, "popt_bias");
+                    auto popt_bias = optional_bias_add(pgraph, pmatmul, false);
 
                     // Optional pre reshape
                     auto popt_reshape_pre_graph = std::make_shared<pb_graph_t>(
@@ -959,21 +896,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                     "matmul");
 
                     // Optional bias_add
-                    auto popt_bias_graph
-                            = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op_t *typecast_bias = popt_bias_graph->append_op(
-                            impl::op_kind::TypeCast, "tc_bias");
-                    typecast_bias->append_decision_function(
-                            check_output_dtype<impl::data_type::bf16>);
-                    pm::pb_op_t *pbias = popt_bias_graph->append_op(
-                            impl::op_kind::BiasAdd,
-                            in_edges_t {in_edge(1, typecast_bias, 0)}, "pbias");
-                    pbias->append_decision_function(
-                            check_producer_input_num<2>);
-                    popt_bias_graph->create_input_port(0, pbias, 0);
-                    popt_bias_graph->create_output_port(0, pbias, 0);
-                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
-                            in_edges_t {in_edge(0, pmatmul, 0)}, "popt_bias");
+                    auto popt_bias = optional_bias_add(pgraph, pmatmul, true);
 
                     // Optional pre reshape
                     auto popt_reshape_pre_graph = std::make_shared<pb_graph_t>(
