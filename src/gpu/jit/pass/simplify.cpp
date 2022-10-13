@@ -1599,7 +1599,11 @@ public:
 
             auto body = substitute(obj.body, obj.var, value);
             return mutate(body);
+        } else if (is_var(value)) {
+            auto body = substitute(obj.body, obj.var, value);
+            return mutate(body);
         }
+
         auto cset_old = cset_;
         cset_.add_constraint(obj.var == value);
         auto new_obj = let_t::make(obj.var, value, obj.body);
