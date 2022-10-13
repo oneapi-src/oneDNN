@@ -42,7 +42,7 @@ struct ref_concat_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
-            if (!attr()->has_default_values(sm::scales))
+            if (!attr()->has_default_values(sm::scales_runtime))
                 return status::unimplemented;
             status_t status = cpu_concat_pd_t::init();
             if (status != status::success) {
@@ -60,7 +60,7 @@ struct ref_concat_t : public primitive_t {
             reorder_pds_.resize(n_ + use_tent_dst());
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
-                if (!sc.has_default_values()) {
+                if (!sc.get(DNNL_ARG_MULTIPLE_SRC + i).has_default_values()) {
                     int mask = 0;
                     CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask));
                     if (mask != 0) return status::unimplemented;
@@ -69,7 +69,6 @@ struct ref_concat_t : public primitive_t {
                 CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
                         src_md(i), src_image_md(i), &r_attr));
             }
-
             if (use_tent_dst()) {
                 assert(tent_dst_md_.format_kind != format_kind::undef);
                 assert(dst_md_.format_kind != format_kind::undef);
@@ -122,10 +121,13 @@ struct ref_concat_t : public primitive_t {
 
         auto execute_reorder = [&](const std::shared_ptr<primitive_t> &reorder,
                                        const memory_arg_t &src,
-                                       const memory_arg_t &dst, int r_num) {
+                                       const memory_arg_t &dst,
+                                       const memory_arg_t *src_scales,
+                                       int r_num) {
             exec_args_t r_args;
             r_args[DNNL_ARG_SRC] = src;
             r_args[DNNL_ARG_DST] = dst;
+            if (src_scales) r_args[DNNL_ARG_ATTR_OUTPUT_SCALES] = *src_scales;
             exec_ctx_t r_ctx(ctx, std::move(r_args));
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + r_num, reorder);
@@ -142,23 +144,33 @@ struct ref_concat_t : public primitive_t {
             for (int i = 0; i < n; ++i) {
                 memory_t tent_dst_i(engine, pd()->src_image_md(i),
                         tent_dst_storage->clone());
+                const auto &src_scales_arg = ctx.args().find(
+                        DNNL_ARG_ATTR_SCALES | (DNNL_ARG_MULTIPLE_SRC + i));
+                const memory_arg_t *src_scales = nullptr;
+                if (src_scales_arg != ctx.args().end())
+                    src_scales = &src_scales_arg->second;
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst_i, false}, i);
+                        {&tent_dst_i, false}, src_scales, i);
             }
 
             memory_t tent_dst(
                     engine, &pd()->tent_dst_md_, tent_dst_storage->clone());
             execute_reorder(reorders_[n], {&tent_dst, true},
-                    ctx.args().at(DNNL_ARG_DST), n);
+                    ctx.args().at(DNNL_ARG_DST), nullptr, n);
         } else {
             auto &dst_mem_storage = CTX_OUT_STORAGE(DNNL_ARG_DST);
             for (int i = 0; i < n; ++i) {
                 memory_t tent_dst_i(
                         engine, pd()->src_image_md(i), dst_mem_storage.clone());
+                const auto &src_scales_arg = ctx.args().find(
+                        DNNL_ARG_ATTR_SCALES | (DNNL_ARG_MULTIPLE_SRC + i));
+                const memory_arg_t *src_scales = nullptr;
+                if (src_scales_arg != ctx.args().end())
+                    src_scales = &src_scales_arg->second;
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst_i, false}, i);
+                        {&tent_dst_i, false}, src_scales, i);
             }
         }
         return status::success;
