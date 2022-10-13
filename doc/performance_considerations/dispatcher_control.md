@@ -15,7 +15,7 @@ At build-time, support for this feature is controlled via cmake option
 | :---                        | :---                                | :---
 | ONEDNN_ENABLE_MAX_CPU_ISA   | **ON**, OFF                         | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
 
-## Run-time Controls
+## Runtime Controls
 
 When the feature is enabled at build-time, the `ONEDNN_MAX_CPU_ISA` environment
 variable can be used to limit processor features oneDNN is able to detect to
@@ -41,8 +41,8 @@ otherwise disabled by default.
 * AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16 < AVX512_CORE_FP16 < AVX512_CORE_AMX,
 * AVX2 < AVX2_VNNI.
 
-This feature can also be managed at run-time with the following functions:
-* @ref dnnl::set_max_cpu_isa function allows changing the ISA at run-time. The
+This feature can also be managed at runtime with the following functions:
+* @ref dnnl::set_max_cpu_isa function allows changing the ISA at runtime. The
   limitation is that it is possible to set the value only once. This ensures
   that the JIT-ed code observe consistent CPU features both during generation
   and execution. In addition, it is advised to call this function before any
