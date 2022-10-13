@@ -25,9 +25,9 @@
 /// Concepts:
 /// - **Static** and **dynamic** quantization
 /// - Asymmetric quantization
-///   - Run-time output scales: dnnl::primitive_attr::set_output_scales() and
+///   - Run-time output scales: dnnl::primitive_attr::set_output_scales_mask() and
 ///     #DNNL_RUNTIME_F32_VAL
-///   - Run-time zero points: dnnl::primitive_attr::set_zero_points() and
+///   - Run-time zero points: dnnl::primitive_attr::set_zero_points_mask() and
 ///     #DNNL_RUNTIME_S32_VAL
 ///
 /// @page cpu_matmul_quantization_cpp MatMul Tutorial: Quantization
@@ -233,8 +233,8 @@ void quantize(const std::vector<float> &X_f32, float scale_X, int32_t zp_X,
     memory X_f32_m(x_f32_md, eng, (void *)X_f32.data());
 
     primitive_attr q10n_attr;
-    q10n_attr.set_output_scales(/* mask */ 0);
-    q10n_attr.set_zero_points(DNNL_ARG_DST, /* mask */ 0);
+    q10n_attr.set_output_scales_mask(/* mask */ 0);
+    q10n_attr.set_zero_points_mask(DNNL_ARG_DST, /* mask */ 0);
 
     reorder::primitive_desc q10n_pd(eng, x_f32_md, eng, x_int_md, q10n_attr);
     memory scale_X_m({{1}, dt::f32, {1}}, eng, &inv_scale_X);
@@ -330,8 +330,8 @@ void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
     // Create and compute a reduced precision MatMul primitive
     {
         primitive_attr matmul_attr;
-        matmul_attr.set_output_scales(/* mask */ 0);
-        matmul_attr.set_zero_points(DNNL_ARG_SRC, /* mask */ 0);
+        matmul_attr.set_output_scales_mask(/* mask */ 0);
+        matmul_attr.set_zero_points_mask(DNNL_ARG_SRC, /* mask */ 0);
 
         matmul::primitive_desc matmul_pd(
                 eng, a_u8_md, b_s8_md, c_f32_md, matmul_attr);

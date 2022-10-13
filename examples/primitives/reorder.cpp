@@ -93,7 +93,7 @@ void reorder_example(dnnl::engine::kind engine_kind) {
 
     // Create primitive post-ops (per-channel output scales)
     primitive_attr reorder_attr;
-    reorder_attr.set_output_scales(1 << ic_dim);
+    reorder_attr.set_output_scales_mask(1 << ic_dim);
     auto oscales_mem = memory({{IC}, dt::f32, tag::x}, engine);
     write_to_dnnl_memory(scales.data(), oscales_mem);
 

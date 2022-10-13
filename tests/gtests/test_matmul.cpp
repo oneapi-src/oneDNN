@@ -166,7 +166,7 @@ protected:
             int mask = scales_mask == P::PER_N ? 1 << (ndims - 1) : 0;
             memory::dim scale_size = mask ? p.base.dst.dims[ndims - 1] : 1;
 
-            attr.set_output_scales(mask);
+            attr.set_output_scales_mask(mask);
 
             scales_m = test::make_memory(
                     {{scale_size}, memory::data_type::f32, {1}}, eng);
@@ -205,7 +205,7 @@ protected:
             int mask = zero_points_mask == P::PER_N ? 1 << (ndims - 1) : 0;
             memory::dim zero_points_size = mask ? md.dims[ndims - 1] : 1;
 
-            attr.set_zero_points(arg, mask);
+            attr.set_zero_points_mask(arg, mask);
             zero_points_m = test::make_memory(
                     {{zero_points_size}, memory::data_type::s32, {1}}, eng);
             auto z = map_memory<int32_t>(zero_points_m);
@@ -370,7 +370,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
 
     const int ndims = std::get<4>(GetParam());
     // per-channel output scales
-    attr.set_output_scales(1 << (ndims - 1));
+    attr.set_output_scales_mask(1 << (ndims - 1));
 
     dnnl::post_ops ops;
     ops.append_sum(1.0);

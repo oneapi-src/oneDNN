@@ -122,45 +122,29 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScratchpadArg) {
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestIntOutputScales) {
     dnnl::primitive_attr attr;
 
-    int mask = INT_MAX;
-
-    // default scales
-    attr.get_output_scales(mask);
-    ASSERT_EQ(mask, 0);
-
     // non-default scale
-    attr.set_output_scales(0);
-    attr.get_output_scales(mask);
-    ASSERT_EQ(mask, 0);
+    attr.set_output_scales_mask(0);
+
+    // invalid mask
+    EXPECT_ANY_THROW(attr.set_output_scales_mask(-1));
 }
 
 TEST_F(attr_test_t, TestZeroPoints) {
     dnnl::primitive_attr attr;
 
-    const std::vector<int> supported_args
-            = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+    const std::vector<int> supported_args = {DNNL_ARG_SRC, DNNL_ARG_DST};
     const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_DST_2,
             DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
-    int zero_points_mask = INT_MAX;
 
-    // default zero points
-    for (int arg : supported_args) {
-        attr.get_zero_points(arg, zero_points_mask);
-        ASSERT_EQ(zero_points_mask, 0);
+    for (auto arg : supported_args) {
+        // single non-default zero_point for supported arg
+        attr.set_zero_points_mask(arg, 0);
     }
 
-    for (int arg : unsupported_args) {
-        attr.get_zero_points(arg, zero_points_mask);
-        ASSERT_EQ(zero_points_mask, 0);
+    for (auto arg : unsupported_args) {
+        // single **default** zero_point for **unsupported** arg
+        EXPECT_ANY_THROW(attr.set_zero_points_mask(arg, 0));
     }
-
-    // single non-default zero_point for supported arg
-    attr.set_zero_points(supported_args[0], 0);
-    attr.get_zero_points(supported_args[0], zero_points_mask);
-    ASSERT_EQ(zero_points_mask, 0);
-
-    // single **default** zero_point for **unsupported** arg
-    EXPECT_ANY_THROW(attr.set_zero_points(unsupported_args[0], 0));
 
     // multiple zero_points not implemented yet ...
 }
@@ -171,10 +155,10 @@ TEST_F(attr_test_t, TestZeroPointsExpectFailure) {
     const int unsupported_arg = DNNL_ARG_MEAN;
 
     // single non-default zero_point for unsupported arg
-    EXPECT_ANY_THROW(attr.set_zero_points(unsupported_arg, 0));
+    EXPECT_ANY_THROW(attr.set_zero_points_mask(unsupported_arg, 0));
 
     // multiple zero points for unsupported args
-    EXPECT_ANY_THROW(attr.set_zero_points(unsupported_arg, 1 << 1));
+    EXPECT_ANY_THROW(attr.set_zero_points_mask(unsupported_arg, 1 << 1));
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScales) {
@@ -184,23 +168,18 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScales) {
             DNNL_ARG_MULTIPLE_SRC, DNNL_ARG_MULTIPLE_SRC + 42};
     const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_DST_2,
             DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
-    int scales_mask = INT_MAX;
 
-    // default scales
-    for (int arg : supported_args) {
-        attr.get_scales(arg, scales_mask);
-        ASSERT_EQ(scales_mask, 0);
+    for (auto arg : supported_args) {
+        // single non-default scales for supported arg
+        attr.set_scales_mask(arg, 0);
+        // multiple scales
+        attr.set_scales_mask(arg, 1 << 1);
     }
 
-    // single non-default scales for supported arg
-    attr.set_scales(supported_args[0], 0);
-    attr.get_scales(supported_args[0], scales_mask);
-    ASSERT_EQ(scales_mask, 0);
-
-    // multiple scales
-    attr.set_scales(supported_args[0], 1 << 1);
-    attr.get_scales(supported_args[0], scales_mask);
-    ASSERT_EQ(scales_mask, 1 << 1);
+    for (auto arg : unsupported_args) {
+        // single scales for unsupported args
+        EXPECT_ANY_THROW(attr.set_scales_mask(arg, 0));
+    }
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestRNNDataQuantization) {
@@ -283,8 +262,8 @@ TEST_F(attr_test_t, TestScalesExpectFailure) {
     const int unsupported_arg = DNNL_ARG_MEAN;
 
     // non-default scales for unsupported arg
-    EXPECT_ANY_THROW(attr.set_scales(unsupported_arg, 0));
-    EXPECT_ANY_THROW(attr.set_scales(unsupported_arg, 1 << 1));
+    EXPECT_ANY_THROW(attr.set_scales_mask(unsupported_arg, 0));
+    EXPECT_ANY_THROW(attr.set_scales_mask(unsupported_arg, 1 << 1));
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestPostOps) {
@@ -571,8 +550,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetAttr) {
     dnnl::post_ops ops;
     std::vector<float> scales(512);
     ops.append_dw(dt, dt, dt, 3, 1, 1, 1 << 1, scales);
-    attr_s.set_scales(DNNL_ARG_SRC_0, 0);
-    attr_os.set_output_scales(1 << 1);
+    attr_s.set_scales_mask(DNNL_ARG_SRC_0, 0);
+    attr_os.set_output_scales_mask(1 << 1);
     attr_dw.set_post_ops(ops);
 
     memory::desc dat_md {{512, 512, 3, 3}, dt, memory::format_tag::nchw};

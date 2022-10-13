@@ -408,23 +408,14 @@ status_t dnnl_primitive_attr_set_scratchpad_mode(
     return attr->set_scratchpad_mode(scratchpad_mode);
 }
 
-status_t dnnl_primitive_attr_get_output_scales(
-        const primitive_attr_t *attr, int *mask) {
-    if (any_null(attr, mask)) return invalid_arguments;
-
-    *mask = attr->output_scales_.mask_;
-
-    return success;
-}
-
-status_t dnnl_primitive_attr_set_output_scales(
+status_t dnnl_primitive_attr_set_output_scales_mask(
         primitive_attr_t *attr, int mask) {
     bool ok = attr && mask >= 0 && attr->scales_.has_default_values();
     if (!ok) return invalid_arguments;
     return attr->output_scales_.set(mask);
 }
 
-status_t dnnl_primitive_attr_set_scales(
+status_t dnnl_primitive_attr_set_scales_mask(
         primitive_attr_t *attr, int arg, int mask) {
     bool ok = attr && mask >= 0 && arg >= 0
             && attr->output_scales_.has_default_values();
@@ -432,22 +423,7 @@ status_t dnnl_primitive_attr_set_scales(
     return attr->scales_.set(arg, mask);
 }
 
-status_t dnnl_primitive_attr_get_scales(
-        primitive_attr_t *attr, int arg, int *mask) {
-    bool ok = !any_null(attr, mask) && arg >= 0;
-    if (!ok) return invalid_arguments;
-
-    return attr->scales_.get(arg, mask);
-}
-
-status_t dnnl_primitive_attr_get_zero_points(
-        const primitive_attr_t *attr, int arg, int *mask) {
-    if (attr == nullptr) return invalid_arguments;
-
-    return attr->zero_points_.get(arg, mask);
-}
-
-status_t dnnl_primitive_attr_set_zero_points(
+status_t dnnl_primitive_attr_set_zero_points_mask(
         primitive_attr_t *attr, int arg, int mask) {
     bool ok = attr && mask >= 0;
     if (!ok) return invalid_arguments;

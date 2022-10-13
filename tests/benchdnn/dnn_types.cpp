@@ -907,7 +907,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
         const auto &os_args = attr_args.get(DNNL_ARG_ATTR_OUTPUT_SCALES);
         const auto &policy = attr.oscale.policy;
         const auto mask = os_args.get_mask(policy);
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(dnnl_attr, mask));
+        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales_mask(dnnl_attr, mask));
     } else if (!attr.scales.is_def()) {
         const auto &as = attr.scales;
         for (const auto &arg : as.scales) {
@@ -920,8 +920,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
             // Only common policy is supported in the library at this point
             int mask = attr_t::get_default_mask(e.policy);
 
-            DNN_SAFE_V(
-                    dnnl_primitive_attr_set_scales(dnnl_attr, arg_name, mask));
+            DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
+                    dnnl_attr, arg_name, mask));
         }
     }
 
@@ -938,7 +938,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
             // at this point
             int mask = attr_t::get_default_mask(e.policy);
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(
+            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points_mask(
                     dnnl_attr, arg_name, mask));
         }
     }

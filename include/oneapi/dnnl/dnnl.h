@@ -313,29 +313,6 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_scratchpad_mode(
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_scratchpad_mode(
         dnnl_primitive_attr_t attr, dnnl_scratchpad_mode_t mode);
 
-/// Returns primitive attributes output scaling factors correspondence mask
-/// and values.
-///
-/// @warning
-///     The @p scales array is an internal part of the primitive attributes
-///     @p attr, so it is an error to modify or destroy the @p scales array.
-///
-/// @warning
-///     The lifetime of @p scales array is the same as that of the primitive
-///     attributes @p attr to which it belongs, so it is an error to use
-///     @p scales after @p attr is destroyed.
-///
-/// @param attr Primitive attributes.
-/// @param mask Output scaling factors correspondence mask that defines the
-///     correspondence between the output tensor dimensions and the @p scales
-///     vector. The set i-th bit indicates that a dedicated output scaling
-///     factor is used for each index along that dimension. The mask value of
-///     0 implies a common output scaling factor for the whole output tensor.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_primitive_attr_get_output_scales(
-        const_dnnl_primitive_attr_t attr, int *mask);
-
 /// Sets output scaling factors correspondence mask and values.
 ///
 /// @note
@@ -356,7 +333,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_output_scales(
 ///
 ///     dnnl_primitive_attr_t attr;
 ///     dnnl_primitive_attr_create(&attr); // create primitive attributes
-///     dnnl_primitive_attr_set_output_scales(attr, 1 << oc_dim);
+///     dnnl_primitive_attr_set_output_scales_mask(attr, 1 << oc_dim);
 ///
 ///     dnnl_primitive_desc_t conv_pd;
 ///     dnnl_primitive_desc_create(&conv_pd, &conv_d, attr, engine, NULL);
@@ -370,40 +347,13 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_output_scales(
 ///     0 implies a common output scaling factor for the whole output tensor.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_primitive_attr_set_output_scales(
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_output_scales_mask(
         dnnl_primitive_attr_t attr, int mask);
-
-/// Returns primitive attributes scaling factors correspondence mask and values
-/// for a given memory argument.
-///
-/// @warning
-///     The output @p scales array is an internal part of the primitive
-///     attributes @p attr, so it is an error to modify or destroy the @p
-///     scales array.
-///
-/// @warning
-///     The lifetime of the @p scales array is the same as that of the primitive
-///     attributes @p attr to which it belongs, so it is an error to use @p
-///     scales after @p attr is destroyed.
-///
-///
-/// @param attr Primitive attributes.
-/// @param arg Parameter argument index as passed to the
-///     dnnl_primitive_execute() call.
-/// @param mask Output scaling factors correspondence mask that defines the
-///     correspondence between the output tensor dimensions and the @p
-///     scales array. The set i-th bit indicates that a dedicated output scaling
-///     factor is used for each index along that dimension. The mask value of 0
-///     implies a common scaling factor for the whole output tensor.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_primitive_attr_get_scales(
-        dnnl_primitive_attr_t attr, int arg, int *mask);
 
 /// Sets primitive attributes scaling factors for primitive operations for a
 /// given memory argument.
 ///
-/// @sa dnnl_primitive_attr_set_output_scales
+/// @sa dnnl_primitive_attr_set_output_scales_mask
 ///
 ///
 /// @param attr Primitive attributes.
@@ -416,41 +366,13 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_scales(
 ///     scaling factor for the whole output tensor.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_primitive_attr_set_scales(
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_scales_mask(
         dnnl_primitive_attr_t attr, int arg, int mask);
-
-/// Returns @p count, correspondence zero point @p mask, and a pointer to a
-/// constant int32_t array of @p zero_points for given @p attr and memory
-/// argument (index), previously set by dnnl_primitive_attr_set_zero_points.
-///
-/// @warning
-///     The output @p zero_points array is an internal part of the primitive
-///     attributes @p attr, so it is an error to modify or destroy the @p
-///     zero_points array.
-///
-/// @warning
-///     The lifetime of @p zero_points array is the same as that of the
-///     primitive attributes @p attr to which it belongs, so it is an error
-///     to use @p zero_points after @p attr is destroyed.
-///
-///
-/// @param attr Primitive attributes.
-/// @param arg Parameter argument index as passed to the
-///     dnnl_primitive_execute() call.
-/// @param mask Output zero points correspondence mask that defines the
-///     correspondence between the output tensor dimensions and the @p
-///     zero_points array. The set i-th bit indicates that a dedicated output
-///     zero point is used for each index along that dimension. The mask
-///     value of 0 implies a common zero point for the whole output tensor.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_primitive_attr_get_zero_points(
-        const_dnnl_primitive_attr_t attr, int arg, int *mask);
 
 /// Sets primitive attributes zero points for primitive operations for a given
 /// memory argument.
 ///
-/// @sa dnnl_primitive_attr_set_output_scales
+/// @sa dnnl_primitive_attr_set_output_scales_mask
 ///
 ///
 /// @param attr Primitive attributes.
@@ -463,7 +385,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_zero_points(
 ///     mask to 0 to use a common zero point for the whole output tensor.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points_mask(
         dnnl_primitive_attr_t attr, int arg, int mask);
 
 /// Returns primitive attributes post-ops.

@@ -50,7 +50,7 @@ TEST_F(pd_test_t, ConvTestNotEmpty) {
 
 TEST_F(pd_test_t, ConvTestEmpty) {
     auto attrs = primitive_attr {};
-    attrs.set_output_scales(0);
+    attrs.set_output_scales_mask(0);
 
     for (bool allow_empty : {true, false}) {
         bool no_exception = true;

@@ -43,20 +43,20 @@ class comparison_operators_t : public ::testing::Test {};
 HANDLE_EXCEPTIONS_FOR_TEST(comparison_operators_t, TestAttrOutputScales) {
     dnnl::primitive_attr attr;
 
-    attr.set_output_scales(0);
+    attr.set_output_scales_mask(0);
     TEST_SELF_COMPARISON(attr);
 
-    attr.set_output_scales(1 << 1);
+    attr.set_output_scales_mask(1 << 1);
     TEST_SELF_COMPARISON(attr);
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST(comparison_operators_t, TestAttrArgScales) {
     dnnl::primitive_attr attr;
 
-    attr.set_scales(DNNL_ARG_SRC_0, 0);
+    attr.set_scales_mask(DNNL_ARG_SRC_0, 0);
     TEST_SELF_COMPARISON(attr);
 
-    attr.set_scales(DNNL_ARG_SRC_0, 1 << 1);
+    attr.set_scales_mask(DNNL_ARG_SRC_0, 1 << 1);
     TEST_SELF_COMPARISON(attr);
 }
 

@@ -3450,19 +3450,6 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set scratchpad mode primitive attribute");
     }
 
-    /// Returns output scaling factors correspondence mask and values.
-    ///
-    /// @param mask Scaling factors correspondence mask that defines the
-    ///     correspondence between the output tensor dimensions and the @p
-    ///     scales vector. The set i-th bit indicates that a dedicated output
-    ///     scaling factor is used for each index along that dimension. The
-    ///     mask value of 0 implies a common output scaling factor for the
-    ///     whole output tensor.
-    void get_output_scales(int &mask) const {
-        error::wrap_c_api(dnnl_primitive_attr_get_output_scales(get(), &mask),
-                "could not get output scales primitive attribute");
-    }
-
     /// Sets output scaling factors correspondence mask and values.
     ///
     /// Example usage:
@@ -3477,7 +3464,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     dnnl::convolution::desc conv_d;
     ///
     ///     dnnl::primitive_attr attr;
-    ///     attr.set_output_scales(attr, 1 << oc_dim);
+    ///     attr.set_output_scales_mask(attr, 1 << oc_dim);
     ///
     ///     dnnl::primitive_desc conv_pd(conv_d, attr, engine);
     /// @endcode
@@ -3495,34 +3482,17 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     that a dedicated scaling factor is used for each index along that
     ///     dimension. Set the mask to 0 to use a common output scaling factor
     ///     for the whole output tensor.
-    void set_output_scales(int mask) {
-        error::wrap_c_api(dnnl_primitive_attr_set_output_scales(get(), mask),
+    void set_output_scales_mask(int mask) {
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_output_scales_mask(get(), mask),
                 "could not set output scales primitive attribute");
-    }
-
-    /// Returns scaling factors correspondence mask and values for a given
-    /// memory argument.
-    ///
-    /// @param arg Parameter argument index as passed to the
-    ///     primitive::execute() call.
-    /// @param mask Scaling factors correspondence mask that defines the
-    ///     correspondence between the output tensor dimensions and the @p
-    ///     scales vector. The set i-th bit indicates that a dedicated scaling
-    ///     factor is used for each index along that dimension. Set the mask to
-    ///     0 to use a common scaling factor for the whole output tensor.
-    void get_scales(int arg, int &mask) const {
-        int c_mask;
-        error::wrap_c_api(dnnl_primitive_attr_get_scales(get(), arg, &c_mask),
-                "could not get scales primitive attributes");
-
-        mask = c_mask;
     }
 
     /// Sets scaling factors for primitive operations for a given memory
     /// argument.
     ///
-    /// @sa dnnl_primitive_attr_set_scales
-    /// @sa dnnl::primitive_attr::set_output_scales
+    /// @sa dnnl_primitive_attr_set_scales_mask
+    /// @sa dnnl::primitive_attr::set_output_scales_mask
     ///
     /// @param arg Parameter argument index as passed to the
     ///     primitive::execute() call.
@@ -3531,33 +3501,15 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     vector. The set i-th bit indicates that a dedicated scaling factor
     ///     is used for each index along that dimension. Set the mask to 0 to
     ///     use a common scaling factor for the whole output tensor.
-    void set_scales(int arg, int mask) {
-        error::wrap_c_api(dnnl_primitive_attr_set_scales(get(), arg, mask),
+    void set_scales_mask(int arg, int mask) {
+        error::wrap_c_api(dnnl_primitive_attr_set_scales_mask(get(), arg, mask),
                 "could not set scales primitive attribute");
-    }
-
-    /// Returns zero points correspondence mask and values.
-    ///
-    /// @param arg Parameter argument index as passed to the
-    ///     primitive::execute() call.
-    /// @param mask Zero points correspondence mask that defines the
-    ///     correspondence between the output tensor dimensions and the @p
-    ///     zero_points vector. The set i-th bit indicates that a dedicated
-    ///     zero point is used for each index along that dimension. Set the
-    ///     mask to 0 to use a common zero point for the whole output tensor.
-    /// @param zero_points Output vector of zero points.
-    void get_zero_points(int arg, int &mask) const {
-        int c_mask;
-        error::wrap_c_api(
-                dnnl_primitive_attr_get_zero_points(get(), arg, &c_mask),
-                "could not get zero points primitive attribute");
-        mask = c_mask;
     }
 
     /// Sets zero points for primitive operations for a given memory argument.
     ///
-    /// @sa dnnl_primitive_attr_set_zero_points
-    /// @sa dnnl::primitive_attr::set_output_scales
+    /// @sa dnnl_primitive_attr_set_zero_points_mask
+    /// @sa dnnl::primitive_attr::set_output_scales_mask
     ///
     /// @param arg Parameter argument index as passed to the
     ///     primitive::execute() call.
@@ -3566,8 +3518,9 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     zero_points vector. The set i-th bit indicates that a dedicated
     ///     zero point is used for each index along that dimension. Set the
     ///     mask to 0 to use a common zero point for the whole output tensor.
-    void set_zero_points(int arg, int mask) {
-        error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg, mask),
+    void set_zero_points_mask(int arg, int mask) {
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_zero_points_mask(get(), arg, mask),
                 "could not set zero points primitive attribute");
     }
 

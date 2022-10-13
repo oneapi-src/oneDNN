@@ -34,13 +34,13 @@ protected:
 
     static primitive_attr gen_attr_with_oscale() {
         primitive_attr attr;
-        attr.set_output_scales(0);
+        attr.set_output_scales_mask(0);
         return attr;
     }
 
     static primitive_attr gen_attr_with_zp(int arg, int mask = 0) {
         primitive_attr attr;
-        attr.set_zero_points(arg, mask);
+        attr.set_zero_points_mask(arg, mask);
         return attr;
     }
 

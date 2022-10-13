@@ -132,7 +132,7 @@ void simple_net_int8(engine::kind engine_kind) {
     /// @snippet cnn_inference_int8.cpp Configure scaling
     //[Configure scaling]
     primitive_attr conv_attr;
-    conv_attr.set_output_scales(conv_mask);
+    conv_attr.set_output_scales_mask(conv_mask);
     auto oscale_md = memory::desc({384}, dt::f32, tag::x);
     auto oscale_memory = memory(oscale_md, eng);
     write_to_dnnl_memory(conv_scales.data(), oscale_memory);
@@ -198,7 +198,7 @@ void simple_net_int8(engine::kind engine_kind) {
     //[Quantize data and weights]
     auto conv_src_memory = memory(conv_prim_desc.src_desc(), eng);
     primitive_attr src_attr;
-    src_attr.set_output_scales(src_mask);
+    src_attr.set_output_scales_mask(src_mask);
     auto src_oscale_md = memory::desc({1}, dt::f32, tag::x);
     auto src_oscale_memory = memory(src_oscale_md, eng);
     write_to_dnnl_memory(src_scales.data(), src_oscale_memory);
@@ -212,7 +212,7 @@ void simple_net_int8(engine::kind engine_kind) {
 
     auto conv_weights_memory = memory(conv_prim_desc.weights_desc(), eng);
     primitive_attr weight_attr;
-    weight_attr.set_output_scales(weight_mask);
+    weight_attr.set_output_scales_mask(weight_mask);
     auto wei_oscale_md = memory::desc({1}, dt::f32, tag::x);
     auto wei_oscale_memory = memory(wei_oscale_md, eng);
     write_to_dnnl_memory(weight_scales.data(), wei_oscale_memory);
@@ -227,7 +227,7 @@ void simple_net_int8(engine::kind engine_kind) {
 
     auto conv_bias_memory = memory(conv_prim_desc.bias_desc(), eng);
     primitive_attr bias_attr;
-    bias_attr.set_output_scales(bias_mask);
+    bias_attr.set_output_scales_mask(bias_mask);
     auto bias_oscale_md = memory::desc({1}, dt::f32, tag::x);
     auto bias_oscale_memory = memory(bias_oscale_md, eng);
     write_to_dnnl_memory(bias_scales.data(), bias_oscale_memory);
@@ -268,7 +268,7 @@ void simple_net_int8(engine::kind engine_kind) {
     auto user_dst_memory = memory({{conv_dst_tz}, dt::f32, tag::nchw}, eng);
     write_to_dnnl_memory(user_dst.data(), user_dst_memory);
     primitive_attr dst_attr;
-    dst_attr.set_output_scales(dst_mask);
+    dst_attr.set_output_scales_mask(dst_mask);
     auto dst_oscale_md = memory::desc({1}, dt::f32, tag::x);
     auto dst_oscale_memory = memory(dst_oscale_md, eng);
     write_to_dnnl_memory(dst_scales.data(), dst_oscale_memory);
