@@ -23,10 +23,330 @@
 #include "auto_cast.hpp"
 #include "constant_fold.hpp"
 #include <compiler/ir/ir_comparer.hpp>
+#include <compiler/ir/viewer.hpp>
+#include <unordered_map>
+#include <util/any_map.hpp>
 #include <util/utils.hpp>
+#include <util/variant.hpp>
 
 namespace sc {
 namespace constant_folding {
+
+// the range from start to end (including end)
+struct const_range_t {
+    type_category cate;
+    union_val start;
+    union_val end;
+
+    enum class infer_result { YES, NO, UNKNOWN };
+
+    bool is_single_value() const { return start == end; }
+
+    bool union_val_less(union_val a, union_val b) const {
+        switch (cate) {
+            case CATE_FLOAT: return a.f32 < b.f32; break;
+            case CATE_INT: return a.s64 < b.s64; break;
+            case CATE_UINT: return a.u64 < b.u64; break;
+            default:
+                throw std::runtime_error("Bad type for type_category");
+                return false;
+                break;
+        }
+    }
+
+    bool is_good_range() const {
+        return union_val_less(start, end) || is_single_value();
+    }
+
+#define def_operator(name, OP) \
+    union_val union_val_##name(union_val a, union_val b) const { \
+        switch (cate) { \
+            case CATE_FLOAT: return a.f32 OP b.f32; break; \
+            case CATE_INT: return a.s64 OP b.s64; break; \
+            case CATE_UINT: return a.u64 OP b.u64; break; \
+            default: \
+                throw std::runtime_error("Bad type for type_category"); \
+                return 0UL; \
+                break; \
+        } \
+    }
+
+    def_operator(add, +);
+    def_operator(sub, -);
+    def_operator(mul, *);
+    def_operator(div, /);
+
+    void assert_same_category(const const_range_t &other) const {
+        COMPILE_ASSERT(
+                cate == other.cate, "const_ranges should have same categories");
+    }
+
+    infer_result query_equal(const const_range_t &other) const {
+        assert_same_category(other);
+        if (!is_good_range() || !other.is_good_range()) {
+            // there is overflow
+            return infer_result::UNKNOWN;
+        }
+        //[s,e] [s2,e2]
+        if (union_val_less(end, other.start)) { return infer_result::NO; }
+        // [s2, e2] [s, e]
+        if (union_val_less(other.end, start)) { return infer_result::NO; }
+        return infer_result::UNKNOWN;
+    }
+
+    infer_result less_than(const const_range_t &other, bool allow_equal) const {
+        assert_same_category(other);
+        if (!is_good_range() || !other.is_good_range()) {
+            // there is overflow
+            return infer_result::UNKNOWN;
+        }
+        //[s,e] [s2,e2]
+        if (union_val_less(end, other.start)) { return infer_result::YES; }
+        // [s,e = s2, e2]
+        if (end == other.start) {
+            if (allow_equal) {
+                return infer_result::YES;
+            } else {
+                return infer_result::UNKNOWN;
+            }
+        }
+        // [s2, e2==s, e]
+        if (start == other.end) {
+            if (allow_equal)
+                return infer_result::UNKNOWN;
+            else
+                return infer_result::NO;
+        }
+
+        // [s2, e2] [s, e]
+        if (union_val_less(other.end, start)) { return infer_result::NO; }
+
+        // otherwise, overlapping
+        return infer_result::UNKNOWN;
+    }
+
+    bool operator==(const const_range_t &other) const {
+        assert_same_category(other);
+        return start == other.start && end == other.end;
+    }
+
+    const_range_t operator+(const const_range_t &other) const {
+        assert_same_category(other);
+        return const_range_t {cate, union_val_add(start, other.start),
+                union_val_add(end, other.end)};
+    }
+
+    const_range_t operator-(const const_range_t &other) const {
+        assert_same_category(other);
+        return const_range_t {cate, union_val_sub(start, other.end),
+                union_val_sub(end, other.start)};
+    }
+
+    const_range_t operator*(const const_range_t &other) const {
+        assert_same_category(other);
+        return const_range_t {cate, union_val_mul(start, other.start),
+                union_val_mul(end, other.end)};
+    }
+
+    const_range_t operator/(const const_range_t &other) const {
+        assert_same_category(other);
+        return const_range_t {cate, union_val_div(start, other.end),
+                union_val_div(end, other.start)};
+    }
+
+    const_range_t get_mod_range() const {
+        COMPILE_ASSERT(cate != CATE_FLOAT, "'%' cannot be applied on floats");
+        return const_range_t {cate, union_val {0UL}, start.u64 - 1};
+    }
+};
+
+struct constant_fold_analysis_result_t {
+private:
+    // use raw pointers to avoid cycles of dependency
+    variant<const_range_t, expr_base *> range_or_assignment;
+
+public:
+    constant_fold_analysis_result_t() = default;
+    constant_fold_analysis_result_t(expr_base *v) : range_or_assignment {v} {}
+    constant_fold_analysis_result_t(const const_range_t &v)
+        : range_or_assignment {v} {}
+    const const_range_t *get_range() const {
+        if (range_or_assignment.isa<const_range_t>()) {
+            return &range_or_assignment.get<const_range_t>();
+        }
+        if (range_or_assignment.isa<expr_base *>()) {
+            auto result
+                    = range_or_assignment.get<expr_base *>()
+                              ->get_temp_data()
+                              .get_or_null<constant_fold_analysis_result_t>();
+            return result ? result->get_range() : nullptr;
+        }
+        return nullptr;
+    }
+    expr_base *get_assigned_expr() const {
+        return range_or_assignment.isa<expr_base *>()
+                ? range_or_assignment.get<expr_base *>()
+                : nullptr;
+    }
+    void set_range(const const_range_t &v) { range_or_assignment = v; }
+};
+
+static bool parse_bool_infer_result(
+        const_range_t::infer_result r, const_range_t &out) {
+    if (r == const_range_t::infer_result::YES) {
+        out = {type_category::CATE_UINT, 1UL, 1UL};
+        return true;
+    } else if (r == const_range_t::infer_result::NO) {
+        out = {type_category::CATE_UINT, 0UL, 0UL};
+        return true;
+    }
+    return false;
+}
+
+static const_range_t::infer_result flip_infer_result(
+        const_range_t::infer_result r) {
+    if (r == const_range_t::infer_result::YES) {
+        return const_range_t::infer_result::NO;
+    }
+    if (r == const_range_t::infer_result::NO) {
+        return const_range_t::infer_result::YES;
+    }
+    return r;
+}
+
+static bool compute_range(const expr_c &parent, const const_range_t *l,
+        const const_range_t *r, const_range_t &out) {
+    if (parent->node_type_ == sc_expr_type::mod) {
+        out = r->get_mod_range();
+        return true;
+    }
+    if (!l) return false;
+    switch (parent->node_type_) {
+        case sc_expr_type::add:
+            out = *l + *r;
+            return true;
+            break;
+        case sc_expr_type::sub:
+            out = *l - *r;
+            return true;
+            break;
+        case sc_expr_type::mul:
+            out = *l * *r;
+            return true;
+            break;
+        case sc_expr_type::div:
+            out = *l / *r;
+            return true;
+            break;
+
+        case sc_expr_type::cmp_eq:
+            return parse_bool_infer_result(l->query_equal(*r), out);
+            break;
+        case sc_expr_type::cmp_ne:
+            return parse_bool_infer_result(
+                    flip_infer_result(l->query_equal(*r)), out);
+            break;
+        case sc_expr_type::cmp_le:
+            return parse_bool_infer_result(l->less_than(*r, true), out);
+            break;
+        case sc_expr_type::cmp_lt:
+            return parse_bool_infer_result(l->less_than(*r, false), out);
+            break;
+        case sc_expr_type::cmp_ge:
+            // l>=r ====> r<l
+            return parse_bool_infer_result(r->less_than(*l, false), out);
+            break;
+        case sc_expr_type::cmp_gt:
+            // l>r ====> r<=l
+            return parse_bool_infer_result(r->less_than(*l, true), out);
+            break;
+        default: break;
+    }
+    return false;
+}
+
+static void mark_range_for_const(const expr_c &v, bool fast) {
+    if (!fast && v.isa<constant>() && v->dtype_.lanes_ == 1
+            && !v->get_temp_data().isa<constant_fold_analysis_result_t>()) {
+        auto cate = get_type_category_nothrow(v->dtype_);
+        if (cate != CATE_OTHER) {
+            auto constv = v.static_as<constant>()->value_.front();
+            v->temp_data() = constant_fold_analysis_result_t {
+                    const_range_t {cate, constv, constv}};
+        }
+    }
+}
+
+static const const_range_t *get_range_of_expr(const expr_c &v, bool fast) {
+    if (fast) { return nullptr; }
+    auto ana
+            = v->get_temp_data().get_or_null<constant_fold_analysis_result_t>();
+    if (!ana) return nullptr;
+    return ana->get_range();
+}
+
+static const expr_base *get_assigned_expr(const expr_base *v) {
+    auto ana
+            = v->get_temp_data().get_or_null<constant_fold_analysis_result_t>();
+    if (!ana) { return v; }
+    if (auto single_assign = ana->get_assigned_expr()) {
+        return get_assigned_expr(single_assign);
+    }
+    return v;
+}
+
+// mark the vars that is actually constants. mark the ranges of for-loop-iter
+// vars
+class constant_fold_analysis_t : public ir_viewer_t {
+public:
+    // the map of var to single assign value. if key=value, it means that this
+    // var is not single assign
+    std::unordered_map<expr_c, expr> single_assign_;
+
+    expr_c dispatch(expr_c v) override { return v; }
+
+    func_c dispatch(func_c v) override {
+        ir_viewer_t::dispatch(v);
+        for (auto &kv : single_assign_) {
+            // if the var is assigned once
+            if (kv.second.defined() && !kv.first.ptr_same(kv.second)) {
+                auto cate = get_type_category_nothrow(kv.first->dtype_);
+                if (cate != CATE_OTHER) {
+                    mark_range_for_const(kv.second, false);
+                    kv.first->temp_data()
+                            = constant_fold_analysis_result_t {kv.second.get()};
+                }
+            }
+        }
+        return v;
+    }
+
+    void view(define_c v) override {
+        if (v->var_.isa<var>() && v->var_->dtype_.lanes_ == 1) {
+            if (v->init_.defined()) {
+                assert(single_assign_.find(v->var_) == single_assign_.end());
+                single_assign_[v->var_] = v->init_;
+            } else {
+                single_assign_[v->var_] = expr();
+            }
+        }
+    }
+
+    void view(assign_c v) override {
+        if (v->var_.isa<var>() && v->var_->dtype_.lanes_ == 1) {
+            auto itr = single_assign_.find(v->var_);
+            if (itr != single_assign_.end()) {
+                if (itr->second.defined()) {
+                    // the var is already assigned elsewhere, it is not a
+                    // single-assign var
+                    itr->second = v->var_; // mark it
+                } else {
+                    itr->second = v->value_;
+                }
+            }
+        }
+    }
+};
 
 template <typename T>
 union_val make_val(T) = delete;
@@ -427,7 +747,8 @@ public:
     using ir_consistent_visitor_t::visit;
     // a comparer with strict var/tensor comparison
     ir_comparer cmper;
-    constant_fold_t() : cmper(false, true, true, false) {}
+    bool fast_;
+    constant_fold_t(bool fast) : cmper(false, true, true, false), fast_(fast) {}
 
     bool is_same_op(expr_c &v1, expr_c &v2) {
         if (v1->node_type_ != v2->node_type_) return false;
@@ -499,6 +820,17 @@ public:
                     parent = make_expr<constant_node>(0UL, parent->dtype_);
                     return true;
                 }
+                // fold a + b - c ==> b
+                if (lhs.isa<add>()) {
+                    if (cmper.compare(lhs.static_as<add>()->l_, rhs)) {
+                        parent = lhs.static_as<add>()->r_;
+                        return true;
+                    }
+                    if (cmper.compare(lhs.static_as<add>()->r_, rhs)) {
+                        parent = lhs.static_as<add>()->l_;
+                        return true;
+                    }
+                }
                 break;
             case sc_expr_type::mod:
                 if (cmper.compare(lhs, rhs)) {
@@ -510,12 +842,30 @@ public:
                     return false;
                 }
                 if (rhs.isa<constant_c>()) {
-                    int rv1 = get_const_as_int(rhs.checked_as<constant_c>());
+                    int64_t rv1
+                            = get_const_as_int(rhs.checked_as<constant_c>());
+                    // fold i % C ==> i, if 0 <= i < C
+                    if (auto rng = get_range_of_expr(lhs, fast_)) {
+                        int64_t end_r = -1;
+                        int64_t start_r = -1;
+                        if (rng->cate == CATE_INT) {
+                            end_r = rng->end.s64;
+                            start_r = rng->start.s64;
+                        } else if (rng->cate == CATE_UINT) {
+                            end_r = rng->end.u64;
+                            start_r = rng->start.u64;
+                        }
+                        if (rng->is_good_range() && end_r >= 0 && start_r >= 0
+                                && rv1 > 0 && end_r < rv1) {
+                            parent = lhs;
+                            return true;
+                        }
+                    }
                     // fold (x * nC) % C = 0
                     if (lhs->node_type_ == sc_expr_type::mul) {
                         auto rhs_of_lhs = get_operand_from_binary(lhs).second;
                         if (rhs_of_lhs.isa<constant_c>()) {
-                            int rv2 = get_const_as_int(
+                            int64_t rv2 = get_const_as_int(
                                     rhs_of_lhs.checked_as<constant_c>());
                             if (rv2 % rv1 == 0) {
                                 parent = make_expr<constant_node>(
@@ -529,7 +879,7 @@ public:
                         auto r_l = get_operand_from_binary(lhs);
                         auto rhs_of_lhs = r_l.second;
                         if (rhs_of_lhs.isa<constant_c>()) {
-                            int rv2 = get_const_as_int(
+                            int64_t rv2 = get_const_as_int(
                                     rhs_of_lhs.checked_as<constant_c>());
                             if (rv2 == rv1) {
                                 parent = builder::make_mod(r_l.first, rhs);
@@ -711,8 +1061,8 @@ public:
 
     expr_c fold_binary_impl(
             expr_c parent, const expr_c &lhs, const expr_c &rhs) {
-        auto l = dispatch(lhs);
-        auto r = dispatch(rhs);
+        auto l = fold_range_dispatch(lhs);
+        auto r = fold_range_dispatch(rhs);
 
         if (l.isa<constant>() && r.isa<constant>()) {
             auto cl = l.static_as<constant_c>();
@@ -728,10 +1078,33 @@ public:
         if (fold_special_exprs(parent, l, r)) { return parent; }
         if (fold_successive_div(parent, l, r)) { return parent; }
 
-        if (!l.ptr_same(lhs) || !r.ptr_same(rhs)) {
-            return builder::remake_binary(l, r, parent);
+        mark_range_for_const(l, fast_);
+        mark_range_for_const(r, fast_);
+        auto l_range = get_range_of_expr(l, fast_);
+        auto r_range = get_range_of_expr(r, fast_);
+        constant_fold_analysis_result_t new_range;
+        bool successful_infer = false;
+        if (r_range) {
+            const_range_t rg;
+            successful_infer = compute_range(parent, l_range, r_range, rg);
+            if (successful_infer) {
+                if (rg.is_single_value()) {
+                    return make_expr<constant_node>(rg.start, parent->dtype_);
+                }
+            }
+            new_range.set_range(rg);
         }
-        return parent;
+
+        expr_c ret;
+        if (!l.ptr_same(lhs) || !r.ptr_same(rhs)) {
+            ret = builder::remake_binary(l, r, parent);
+        } else {
+            ret = parent;
+        }
+        if (successful_infer && !get_range_of_expr(ret, fast_)) {
+            ret->temp_data() = new_range;
+        }
+        return ret;
     }
 
     // run fold_binary_impl repeatedly on the expr until no changes happen
@@ -755,8 +1128,21 @@ public:
         }
     }
 
+    expr_c fold_range_dispatch(const expr_c &in) {
+        auto v = dispatch(in);
+        if (v.isa<constant>()) { return v; }
+        if (auto data = get_range_of_expr(v, fast_)) {
+            if (data->is_single_value()) {
+                return make_expr<constant_node>(data->start, v->dtype_);
+            }
+        }
+        return v;
+    }
+
+    // expr_c visit(cast_c v) override {
+    // }
     expr_c visit(cast_c v) override {
-        auto in = dispatch(v->in_);
+        auto in = fold_range_dispatch(v->in_);
         bool changed = !in.ptr_same(v->in_);
         if (in.isa<constant>()) {
             auto inconst = in.as<constant_c>();
@@ -784,11 +1170,21 @@ public:
                 }
             }
         }
+        expr_c ret;
         if (changed) {
-            return copy_attr(*v, builder::make_cast(v->dtype_, in));
+            ret = copy_attr(*v, builder::make_cast(v->dtype_, in));
         } else {
-            return v;
+            ret = v;
         }
+        if (auto ana = get_range_of_expr(in, fast_)) {
+            auto cur_cate = get_type_category(v->dtype_);
+            if (ana->cate != CATE_FLOAT && cur_cate != CATE_FLOAT
+                    && !get_range_of_expr(ret, fast_)) {
+                ret->temp_data() = constant_fold_analysis_result_t {
+                        const_range_t {cur_cate, ana->start, ana->end}};
+            }
+        }
+        return ret;
     }
 
     expr_c visit(binary_c v) override { return fold_binary(v); }
@@ -809,7 +1205,7 @@ public:
         return ret;
     }
     expr_c visit(logic_not_c v) override {
-        auto in = dispatch(v->in_);
+        auto in = fold_range_dispatch(v->in_);
         bool changed = !in.ptr_same(v->in_);
         if (in.isa<constant>()) {
             auto inconst = in.as<constant>();
@@ -840,8 +1236,87 @@ public:
         return ret;
     }
 
+    stmt_c visit(for_loop_c v) override {
+        // don't fold range for the var
+        auto var = dispatch(v->var_);
+        auto begin = fold_range_dispatch(v->iter_begin_);
+        auto end = fold_range_dispatch(v->iter_end_);
+        auto step = fold_range_dispatch(v->step_);
+
+        mark_range_for_const(begin, fast_);
+        mark_range_for_const(end, fast_);
+        if (step.isa<constant>()) {
+            auto stepc = get_const_as_int(step.static_as<constant_c>());
+            auto begin_r = get_range_of_expr(begin, fast_);
+            auto end_r = get_range_of_expr(end, fast_);
+            if (stepc > 0 && begin_r && end_r) {
+                int64_t max_loop_len = end_r->end.s64 - begin_r->start.s64;
+                int64_t real_loop_len = max_loop_len / stepc * stepc;
+                if (max_loop_len > 0 && real_loop_len > 0) {
+                    var->temp_data() = constant_fold_analysis_result_t {
+                            const_range_t {get_type_category(var->dtype_),
+                                    begin_r->start,
+                                    begin_r->start.s64 + real_loop_len - 1}};
+                }
+            }
+        }
+
+        int64_t loop_len_hint = -1;
+        if (!fast_ && v->attr_) {
+            loop_len_hint = v->attr_->get_or_else("loop_len_hint", INT64_C(-1));
+        }
+        // try to fold the for range like for(i = A to A+1 step 1) {}
+        if (!fast_ && loop_len_hint == -1) {
+            if (!begin.isa<constant>() && !end.isa<constant>()) {
+                expr_c real_begin
+                        = get_assigned_expr(begin.get())->node_ptr_from_this();
+                expr_c real_end
+                        = get_assigned_expr(end.get())->node_ptr_from_this();
+                auto ths = this;
+                auto try_fold = [ths, &loop_len_hint](const expr_c &beg_v,
+                                        const expr_c &end_v,
+                                        const expr_c &step_v) -> bool {
+                    auto loop_len = ths->fold_range_dispatch(
+                            (end_v - beg_v) / step_v);
+                    if (loop_len.isa<constant>()) {
+                        loop_len_hint = get_expr_as_int(loop_len);
+                        return true;
+                    }
+                    return false;
+                };
+                if (try_fold(real_begin, real_end, step)) {
+                    // fall through
+                } else if (!real_end.ptr_same(end)
+                        && try_fold(real_begin, end, step)) {
+                    // fall through
+                } else if (!real_begin.ptr_same(begin)
+                        && try_fold(begin, real_end, step)) {
+                    // fall through
+                }
+            }
+        }
+
+        auto body = dispatch(v->body_);
+
+        bool changed = !(var.ptr_same(v->var_) && begin.ptr_same(v->iter_begin_)
+                && end.ptr_same(v->iter_end_) && step.ptr_same(v->step_)
+                && body.ptr_same(v->body_));
+        stmt ret;
+        if (changed) {
+            ret = copy_attr(*v,
+                    builder::make_for_loop_unattached(var, begin, end, step,
+                            body, v->incremental_, v->kind_, v->num_threads_));
+        } else {
+            ret = std::move(v).remove_const();
+        }
+        if (loop_len_hint >= 0) {
+            ret->attr()["loop_len_hint"] = loop_len_hint;
+        }
+        return ret;
+    }
+
     stmt_c visit(if_else_c v) override {
-        auto cond = dispatch(v->condition_);
+        auto cond = fold_range_dispatch(v->condition_);
         auto thencase = dispatch(v->then_case_);
 
         stmt_c elsecase;
@@ -867,20 +1342,45 @@ public:
         }
         return v;
     }
+
+    func_c dispatch(func_c v) override {
+        if (!fast_) {
+            func_c cur_f = v;
+            func_c ret;
+            for (;;) {
+                constant_fold_analysis_t ana;
+                ana.dispatch(cur_f);
+                // keep the exprs alive to make sure the raw pointers in
+                // analysis result is valid
+                auto keep_alive = std::move(ana.single_assign_);
+                ret = ir_visitor_t::dispatch(cur_f);
+                if (ret == cur_f) {
+                    for (auto &kv : keep_alive) {
+                        if (kv.first->temp_data_) {
+                            kv.first->temp_data_->clear();
+                        }
+                    }
+                    return ret;
+                }
+                cur_f = ret;
+            }
+        }
+        return ir_visitor_t::dispatch(v);
+    }
 };
 
-func_c constant_folder_t::operator()(func_c f) {
-    constant_fold_t pass;
+func_c constant_folder_t::operator()(func_c f) const {
+    constant_fold_t pass {fast_};
     return pass.dispatch(std::move(f));
 }
 
-stmt_c constant_folder_t::operator()(stmt_c f) {
-    constant_fold_t pass;
+stmt_c constant_folder_t::operator()(stmt_c f) const {
+    constant_fold_t pass {fast_};
     return pass.dispatch(std::move(f));
 }
 
-expr_c constant_folder_t::operator()(expr_c f) {
-    constant_fold_t pass;
+expr_c constant_folder_t::operator()(expr_c f) const {
+    constant_fold_t pass {fast_};
     return pass.dispatch(std::move(f));
 }
 
@@ -892,7 +1392,7 @@ expr_c constant_folder_t::operator()(expr_c f) {
  *  @param max_iter: maximum iteration time, default is one.
  * */
 expr_c constant_folder_t::expand_polynomial(expr_c f, int max_iter) {
-    constant_fold_t pass;
+    constant_fold_t pass {true};
     auto ret = pass.dispatch(std::move(f));
     for (int i = 0; i < max_iter; i++) {
         auto old = ret;
@@ -903,13 +1403,13 @@ expr_c constant_folder_t::expand_polynomial(expr_c f, int max_iter) {
 }
 
 const_ir_module_ptr constant_folder_t::operator()(const_ir_module_ptr f) {
-    constant_fold_t pass;
+    constant_fold_t pass {fast_};
     return dispatch_module_on_visitor(&pass, f);
 }
 
 expr do_cast_and_fold(const expr &in) {
     static auto_caster_t caster;
-    static constant_folder_t folder;
+    static constant_folder_t folder {false};
     return folder(caster(in)).remove_const();
 }
 

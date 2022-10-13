@@ -315,7 +315,7 @@ public:
     template <typename T>
     const T &get() const {
         if (id_ == get_id_of_type<T>()) {
-            return *reinterpret_cast<T *>(&data_);
+            return *reinterpret_cast<const T *>(&data_);
         } else {
             throw std::runtime_error("Bad variant cast");
         }

@@ -256,6 +256,18 @@ public:
         return std::move(v);
     }
 
+    stmt_c dispatch_loop_body_replace_loop_var(
+            const expr_c &var, const expr_c &begin, const stmt &body) {
+        auto old_should_replace_expr = should_replace_expr_;
+        should_replace_expr_ = true;
+        replace_map_[var] = begin;
+        auto outbody = dispatch(body);
+        // the replace map should only affect in current scope
+        replace_map_.erase(var);
+        should_replace_expr_ = old_should_replace_expr;
+        return outbody;
+    }
+
     // eliminate loop
     bool is_loop_merge = false;
     stmt_c visit(for_loop_c v) override {
@@ -269,6 +281,21 @@ public:
         auto begin = dispatch(v->iter_begin_);
         auto end = dispatch(v->iter_end_);
         auto step = dispatch(v->step_);
+
+        // check if the constant folder has attached loop_len_hint
+        if (v->attr_) {
+            int64_t loop_len
+                    = v->attr_->get_or_else("loop_len_hint", INT64_C(-1));
+            if (loop_len >= 0) {
+                if (loop_len == 0) {
+                    return copy_attr(
+                            *v, make_stmt<stmts_node_t>(std::vector<stmt> {}));
+                } else if (loop_len == 1) {
+                    return dispatch_loop_body_replace_loop_var(
+                            var, begin, v->body_);
+                }
+            }
+        }
 
         is_loop_merge |= (v->attr_
                 && v->attr_->get_or_else(stmt_attr_key::merge_loop, false));
@@ -284,14 +311,9 @@ public:
             // (begin + step) >= end
             if ((get_expr_as_int(begin) + get_expr_as_int(step))
                     >= get_expr_as_int(end)) {
-                auto old_should_replace_expr = should_replace_expr_;
-                should_replace_expr_ = true;
-                replace_map_[var] = begin;
-                auto body = dispatch(v->body_);
-                // the replace map should only affect in current scope
-                replace_map_.erase(var);
+                auto body = dispatch_loop_body_replace_loop_var(
+                        var, begin, v->body_);
                 is_loop_merge = cached_loop_merge;
-                should_replace_expr_ = old_should_replace_expr;
                 return body;
             }
         }

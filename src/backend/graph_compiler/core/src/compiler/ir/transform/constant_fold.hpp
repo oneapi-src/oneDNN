@@ -44,12 +44,17 @@ bool is_op_commutative_and_associative(const expr_c &v);
  * a (+ - * && ||) 0/false
  * a (* / % && ||) 1/true
  * a (- / % && || max min > >= < <= == !=) a
+ *
+ * @param fast whether check if varaibles are actually constants. If true, will
+ * skip this check and keep the variables
  * */
 class constant_folder_t : public module_pass_t {
 public:
-    func_c operator()(func_c f);
-    stmt_c operator()(stmt_c f);
-    expr_c operator()(expr_c f);
+    bool fast_;
+    constant_folder_t(bool fast = true) : fast_(fast) {}
+    func_c operator()(func_c f) const;
+    stmt_c operator()(stmt_c f) const;
+    expr_c operator()(expr_c f) const;
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;
     expr_c expand_polynomial(expr_c f, int max_iter = 1);
 };
