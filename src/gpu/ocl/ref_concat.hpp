@@ -64,7 +64,7 @@ struct ref_concat_t : public gpu_primitive_t {
             reorder_pds_.resize(n_ + use_tent_dst());
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
-                if (!sc.has_default_values()) {
+                if (!sc.get(DNNL_ARG_MULTIPLE_SRC + i).has_default_values()) {
                     int mask = 0;
                     CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask));
                     if (mask != 0) return status::unimplemented;
