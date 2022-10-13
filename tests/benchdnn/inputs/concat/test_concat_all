@@ -41,7 +41,7 @@
 --ddt=f32,s32,s8
 --stag=aBx16b:aBx16b
 --axis=2
---attr-scales=,msrc0:common:1.5,msrc0:common:1.5+msrc1:common:2.5
+--attr-scales=,msrc0:common:1.5*,msrc0:common:1.5*+msrc1:common:2.5*
 6x5x3x4:6x5x3x4
 6x25x3x4:6x25x3x4
 6x23x0x4:6x23x3x4
