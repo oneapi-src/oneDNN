@@ -204,12 +204,15 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     // Add quantization info to tensors
     if (acp.is_int8) {
-        const float *scales = attr.output_scales_.scales_;
-        acp.src_info.set_quantization_info(arm_compute::QuantizationInfo(1, 0));
-        acp.bia_info.set_quantization_info(arm_compute::QuantizationInfo(1, 0));
-        acp.wei_info.set_quantization_info(arm_compute::QuantizationInfo(1, 0));
-        acp.dst_info.set_quantization_info(
-                arm_compute::QuantizationInfo(1.0f / scales[0], 0));
+        // TODO: Add runtime scales support. Creation time scales will be remove
+        // in 3.0.
+        // const float *scales = attr.output_scales_.scales_;
+        //acp.src_info.set_quantization_info(arm_compute::QuantizationInfo(1, 0));
+        //acp.bia_info.set_quantization_info(arm_compute::QuantizationInfo(1, 0));
+        //acp.wei_info.set_quantization_info(arm_compute::QuantizationInfo(1, 0));
+        //acp.dst_info.set_quantization_info(
+        //       arm_compute::QuantizationInfo(1.0f / scales[0], 0));
+        return status::unimplemented;
     }
 
     return status::success;
