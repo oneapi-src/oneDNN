@@ -426,6 +426,8 @@ SC_VECTOR_TYPE_DEF2(T[N]);
 
 // explicit instantiation of commonly used types, implemented in reflection.cpp
 extern template struct reflection::type_registry<std::vector<int64_t>>;
+extern template struct reflection::type_registry<
+        std::vector<std::vector<int64_t>>>;
 extern template struct reflection::type_registry<std::vector<int>>;
 extern template struct reflection::type_registry<std::vector<float>>;
 

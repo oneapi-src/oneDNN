@@ -22,8 +22,8 @@ namespace sc {
 
 // clang-format off
 SC_CLASS(sc_data_type_t)
-  SC_FIELD(type_code_)
-  SC_FIELD(ldata_)
+    SC_FIELD(type_code_)
+    SC_FIELD(ldata_)
 SC_CLASS_END();
 
 SC_CLASS_WITH_NAME(std_any_map, std::unordered_map<std::string, any_t>)
@@ -39,6 +39,7 @@ SC_CLASS_END();
 
 // explicit explicit instantiation of commonly used types
 template struct reflection::type_registry<std::vector<int64_t>>;
+template struct reflection::type_registry<std::vector<std::vector<int64_t>>>;
 template struct reflection::type_registry<std::vector<int>>;
 template struct reflection::type_registry<std::vector<float>>;
 
