@@ -67,7 +67,7 @@ private:
 };
 
 stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
-        const expr_t &src_buf, const expr_t &dst_buf, const tensor_t &_sub_tile,
+        const expr_t &src_buf, const expr_t &dst_buf, const tensor_t &_subtile,
         uint32_t reduction_mask, bool drop_dims = true);
 
 } // namespace jit

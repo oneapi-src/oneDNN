@@ -250,8 +250,8 @@ public:
         c_thr_elems_ = b_iter_blk * m_iter_blk * n_iter_blk;
         a_tg_elems_ = a_thr_elems_ * m_tg_dim_;
         b_tg_elems_ = b_thr_elems_ * n_tg_dim_;
-        a_sub_tile_elems_ = utils::div_up(a_thr_elems_, cfg_.sub_tiles().a());
-        b_sub_tile_elems_ = utils::div_up(b_thr_elems_, cfg_.sub_tiles().b());
+        a_subtile_elems_ = utils::div_up(a_thr_elems_, cfg_.subtiles().a());
+        b_subtile_elems_ = utils::div_up(b_thr_elems_, cfg_.subtiles().b());
         can_reliably_use_dpasw_ = can_reliably_use_dpasw(h);
     }
 
@@ -294,8 +294,7 @@ private:
         for (bool is_a : {true, false}) {
             bool use_slm = ab_use_slm(is_a);
             int per_thr_elems = utils::div_up(ab_tg_elems(is_a), tg_size_);
-            int load_elems
-                    = (use_slm ? per_thr_elems : ab_sub_tile_elems(is_a));
+            int load_elems = (use_slm ? per_thr_elems : ab_subtile_elems(is_a));
             auto layout = get_gmem_layout(is_a);
             bool use_2d_send = (is_a ? use_a_2d_send : use_b_2d_send);
             access_grf_usage_helper_t load(layout, load_elems, reg_bytes_,
@@ -308,9 +307,9 @@ private:
                 max_reuse_header_regs = std::max(
                         max_reuse_header_regs, load.header_regs_per_msg());
             } else {
-                int sub_tiles
-                        = (is_a ? cfg_.sub_tiles().a() : cfg_.sub_tiles().b());
-                int mult = (use_slm ? 1 : sub_tiles);
+                int subtiles
+                        = (is_a ? cfg_.subtiles().a() : cfg_.subtiles().b());
+                int mult = (use_slm ? 1 : subtiles);
                 regs += mult * load.header_regs();
                 if (cfg_.prefetch()) {
                     access_grf_usage_helper_t prefetch(layout, per_thr_elems,
@@ -350,7 +349,7 @@ private:
         for (bool is_a : {true, false}) {
             if (!ab_use_slm(is_a)) continue;
 
-            int bytes = ab_sub_tile_elems(is_a) * ab_type_size(is_a);
+            int bytes = ab_subtile_elems(is_a) * ab_type_size(is_a);
             auto slm_layout = dummy_slm_layout(bytes);
             access_grf_usage_helper_t load(slm_layout, bytes, reg_bytes_,
                     /*is_slm=*/true, /*use_2d_send=*/false);
@@ -391,7 +390,7 @@ private:
                 int &payload_regs = (is_a ? a_payload_regs : b_payload_regs);
                 reorder_regs = payload_regs;
             } else {
-                int size = ab_sub_tile_elems(is_a) * ab_type_size(is_a);
+                int size = ab_subtile_elems(is_a) * ab_type_size(is_a);
                 reorder_regs = utils::div_up(size, reg_bytes_);
             }
             regs += reorder_regs;
@@ -406,15 +405,15 @@ private:
         for (auto *name : {"ow", "iw", "osp"}) {
             sp_iter_dim *= cfg_.iter_dim(name);
         }
-        int sub_tiles = cfg_.sub_tiles().a() * cfg_.sub_tiles().b();
+        int subtiles = cfg_.subtiles().a() * cfg_.subtiles().b();
         int zp_mask0_regs = 2
                 * utils::div_up(
                         sp_iter_dim * (int)sizeof(uint32_t), reg_bytes_);
-        int zp_mask1_regs = sub_tiles
+        int zp_mask1_regs = subtiles
                 * utils::div_up(
                         sp_iter_dim * (int)sizeof(uint16_t), reg_bytes_);
-        int zp_buf_regs = sub_tiles * utils::div_up(128, reg_bytes_);
-        int zp_header_regs = sub_tiles;
+        int zp_buf_regs = subtiles * utils::div_up(128, reg_bytes_);
+        int zp_header_regs = subtiles;
         int zp_let_regs = 4;
         return zp_mask0_regs + zp_mask1_regs + zp_buf_regs + zp_header_regs
                 + zp_let_regs;
@@ -459,8 +458,8 @@ private:
         return is_a ? a_thr_elems_ : b_thr_elems_;
     }
 
-    int ab_sub_tile_elems(bool is_a) const {
-        return is_a ? a_sub_tile_elems_ : b_sub_tile_elems_;
+    int ab_subtile_elems(bool is_a) const {
+        return is_a ? a_subtile_elems_ : b_subtile_elems_;
     }
 
     int ab_use_slm(bool is_a) const {
@@ -508,8 +507,8 @@ private:
     int a_thr_elems_;
     int b_thr_elems_;
     int c_thr_elems_;
-    int a_sub_tile_elems_;
-    int b_sub_tile_elems_;
+    int a_subtile_elems_;
+    int b_subtile_elems_;
     bool can_reliably_use_dpasw_;
 };
 
