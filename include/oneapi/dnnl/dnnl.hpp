@@ -3450,7 +3450,9 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set scratchpad mode primitive attribute");
     }
 
-    /// Sets output scaling factors correspondence mask and values.
+    /// Sets the output scaling factors correspondence mask and values. The
+    /// scaling factors must be passed at execution time as an argument with
+    /// index #DNNL_ARG_ATTR_OUTPUT_SCALES.
     ///
     /// Example usage:
     /// @code
@@ -3489,7 +3491,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     }
 
     /// Sets scaling factors for primitive operations for a given memory
-    /// argument.
+    /// argument. The scaling factors must be passed at execution time
+    /// as an argument with index #DNNL_ARG_ATTR_SCALES | arg.
     ///
     /// @sa dnnl_primitive_attr_set_scales_mask
     /// @sa dnnl::primitive_attr::set_output_scales_mask
@@ -3507,6 +3510,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     }
 
     /// Sets zero points for primitive operations for a given memory argument.
+    /// The zero points must be passed at execution time as an argument with
+    /// index #DNNL_ARG_ATTR_ZERO_POINTS | arg.
     ///
     /// @sa dnnl_primitive_attr_set_zero_points_mask
     /// @sa dnnl::primitive_attr::set_output_scales_mask

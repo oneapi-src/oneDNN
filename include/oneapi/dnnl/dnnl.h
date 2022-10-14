@@ -313,7 +313,9 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_scratchpad_mode(
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_scratchpad_mode(
         dnnl_primitive_attr_t attr, dnnl_scratchpad_mode_t mode);
 
-/// Sets output scaling factors correspondence mask and values.
+/// Sets output scaling factors correspondence mask and values. The output
+/// scaling factors must be passed at execution time as an argument with index
+/// #DNNL_ARG_ATTR_OUTPUT_SCALES.
 ///
 /// @note
 ///     The order of dimensions does not depend on how elements are laid
@@ -351,7 +353,8 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_output_scales_mask(
         dnnl_primitive_attr_t attr, int mask);
 
 /// Sets primitive attributes scaling factors for primitive operations for a
-/// given memory argument.
+/// given memory argument. The scaling factors must be passed at execution time
+/// as an argument with index #DNNL_ARG_ATTR_SCALES | arg.
 ///
 /// @sa dnnl_primitive_attr_set_output_scales_mask
 ///
@@ -370,7 +373,8 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_scales_mask(
         dnnl_primitive_attr_t attr, int arg, int mask);
 
 /// Sets primitive attributes zero points for primitive operations for a given
-/// memory argument.
+/// memory argument. The zero points must be passed at execution time
+/// as an argument with index #DNNL_ARG_ATTR_ZERO_POINTS | arg.
 ///
 /// @sa dnnl_primitive_attr_set_output_scales_mask
 ///
