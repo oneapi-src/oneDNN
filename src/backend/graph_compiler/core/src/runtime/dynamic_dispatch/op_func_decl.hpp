@@ -21,6 +21,15 @@
 namespace sc {
 
 extern "C" {
+SC_API void infer_shape_matmul_op(void *out, void *data, void *weight);
+SC_API void infer_shape_unary_fusible_op(void *out, void *in);
+SC_API void infer_shape_binary_fusible_op(void *out, void *in0, void *in1);
+SC_API void infer_shape_reduce_op(
+        void *out, void *in, int *rd_axis, int num_axis);
+SC_API void infer_shape_transpose_op(
+        void *out, void *in, int *tr_axis, int num_axis);
+SC_API void infer_shape_tensor_view_op(void *out, void *in, int64_t *old_axis,
+        int num_old_axis, int64_t *new_axis, int num_new_axis);
 
 SC_API void query_format_matmul_core_op(void *table, void *out, void *data,
         void *weight, uint64_t *out_fmt, uint64_t *data_fmt,

@@ -52,15 +52,18 @@ static void check_and_set_fusible_impl(runtime::dynamic_tensor_t *in0,
     if (in1_fmt_st) { in1_fmt_st->set_impl_alg(impl_alg); }
 }
 
-extern "C" void query_format_unary_fusible_op(void *table, void *out, void *in,
-        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel) {
-    // update output shape and mask.
+extern "C" void infer_shape_unary_fusible_op(void *out, void *in) {
     runtime::dynamic_tensor_t *out_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
     runtime::dynamic_tensor_t *in_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(in);
     runtime::deep_copy_dynamic_tensor(out_dyn_tsr, in_dyn_tsr);
+}
 
+extern "C" void query_format_unary_fusible_op(void *table, void *out, void *in,
+        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel) {
+    // infer shape
+    infer_shape_unary_fusible_op(out, in);
     runtime::op_dispatch_tables_t *op_table
             = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
     // query format
@@ -78,16 +81,10 @@ extern "C" void query_format_unary_fusible_op(void *table, void *out, void *in,
         *reinterpret_cast<void **>(kernel) = func;
     }
     // query inplace
-    *out_size = calculate_blocking_dims(out_dyn_tsr, out_fmt);
+    *out_size = runtime::calculate_blocking_dims(out, out_fmt);
 }
 
-// we have partern like a fused op connected before two reorders, when we query
-// the first reorder, we query the fused op first, the shape of dyn tsr of
-// second reorder's output is unknown.
-extern "C" void query_format_binary_fusible_op(void *table, void *out,
-        void *in0, void *in1, uint64_t *out_fmt, uint64_t *in0_fmt,
-        uint64_t *in1_fmt, uint64_t *out_size, void *kernel) {
-    // update output shape and mask.
+extern "C" void infer_shape_binary_fusible_op(void *out, void *in0, void *in1) {
     runtime::dynamic_tensor_t *out_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
     runtime::dynamic_tensor_t *in0_dyn_tsr
@@ -97,7 +94,6 @@ extern "C" void query_format_binary_fusible_op(void *table, void *out,
     bool dims_equal = in0_dyn_tsr->ndims_ == in1_dyn_tsr->ndims_;
     assert(dims_equal || in1_dyn_tsr->ndims_ == 1);
     out_dyn_tsr->ndims_ = in0_dyn_tsr->ndims_;
-    out_dyn_tsr->dyn_mask_ = in0_dyn_tsr->dyn_mask_ | in1_dyn_tsr->dyn_mask_;
     for (int i = 0; i < in0_dyn_tsr->ndims_; i++) {
         if (dims_equal) {
             out_dyn_tsr->dims_[i]
@@ -106,6 +102,24 @@ extern "C" void query_format_binary_fusible_op(void *table, void *out,
             out_dyn_tsr->dims_[i] = in0_dyn_tsr->dims_[i];
         }
     }
+}
+
+// we have partern like a fused op connected before two reorders, when we query
+// the first reorder, we query the fused op first, the shape of dyn tsr of
+// second reorder's output is unknown.
+extern "C" void query_format_binary_fusible_op(void *table, void *out,
+        void *in0, void *in1, uint64_t *out_fmt, uint64_t *in0_fmt,
+        uint64_t *in1_fmt, uint64_t *out_size, void *kernel) {
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *in0_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in0);
+    runtime::dynamic_tensor_t *in1_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in1);
+    // infer shape
+    infer_shape_binary_fusible_op(out, in0, in1);
+    // update dyn_mask
+    out_dyn_tsr->dyn_mask_ = in0_dyn_tsr->dyn_mask_ | in1_dyn_tsr->dyn_mask_;
 
     runtime::op_dispatch_tables_t *op_table
             = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
@@ -128,23 +142,18 @@ extern "C" void query_format_binary_fusible_op(void *table, void *out,
         *reinterpret_cast<void **>(kernel) = func;
     }
     // query inplace
-    *out_size = calculate_blocking_dims(out_dyn_tsr, out_fmt);
+    *out_size = runtime::calculate_blocking_dims(out, out_fmt);
 }
 
 // actually reorder op does not need to query format, we only query kernel here.
 extern "C" void query_format_reorder_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel) {
-    // update output shape and mask.
+    // infer shape
+    infer_shape_unary_fusible_op(out, in);
     runtime::dynamic_tensor_t *out_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
     runtime::dynamic_tensor_t *in_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(in);
-    out_dyn_tsr->ndims_ = in_dyn_tsr->ndims_;
-    out_dyn_tsr->dyn_mask_ = in_dyn_tsr->dyn_mask_;
-    for (int i = 0; i < in_dyn_tsr->ndims_; i++) {
-        out_dyn_tsr->dims_[i] = in_dyn_tsr->dims_[i];
-    }
-
     runtime::op_dispatch_tables_t *op_table
             = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
     // query kernel
@@ -169,16 +178,36 @@ extern "C" void query_format_reorder_op(void *table, void *out, void *in,
     if (*in_fmt == uint64_t(out_fmt)) {
         *out_size = 0;
     } else {
-        *out_size = calculate_blocking_dims(out_dyn_tsr, out_fmt);
+        *out_size = runtime::calculate_blocking_dims(out, out_fmt);
+    }
+}
+
+extern "C" void infer_shape_reduce_op(
+        void *out, void *in, int *rd_axis, int num_axis) {
+    // todo: currently we only support keep dimension reduce.
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *in_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in);
+    assert(num_axis > 0);
+    assert(in_dyn_tsr->ndims_ >= num_axis);
+    out_dyn_tsr->ndims_ = in_dyn_tsr->ndims_;
+    for (int i = 0; i < in_dyn_tsr->ndims_; i++) {
+        out_dyn_tsr->dims_[i] = in_dyn_tsr->dims_[i];
+    }
+    for (int i = 0; i < num_axis; i++) {
+        out_dyn_tsr->dims_[rd_axis[i]] = 1;
     }
 }
 
 extern "C" void query_format_reduce_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel) {
-    // update output shape and mask.
+    // check the output shape should be infered before query.
     runtime::dynamic_tensor_t *out_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
-
+    for (int i = 0; i < out_dyn_tsr->ndims_; i++) {
+        assert(out_dyn_tsr->dims_[i] > 0);
+    }
     runtime::op_dispatch_tables_t *op_table
             = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
     // query format
@@ -200,7 +229,7 @@ extern "C" void query_format_reduce_op(void *table, void *out, void *in,
         *reinterpret_cast<void **>(kernel) = func;
     }
     // query inplace
-    *out_size = calculate_blocking_dims(out_dyn_tsr, out_fmt);
+    *out_size = runtime::calculate_blocking_dims(out_dyn_tsr, out_fmt);
 }
 
 extern "C" void query_format_tensor_view_op(
@@ -218,4 +247,47 @@ extern "C" void query_format_tensor_view_op(
     auto &kernel_table = op_table->kernel_table_;
     assert(!kernel_table);
 }
+
+extern "C" void infer_shape_transpose_op(
+        void *out, void *in, int *tr_axis, int num_axis) {
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *in_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in);
+    assert(in_dyn_tsr->ndims_ == num_axis || num_axis == 0);
+    out_dyn_tsr->ndims_ = in_dyn_tsr->ndims_;
+    if (num_axis == 0) {
+        for (int i = 0; i < in_dyn_tsr->ndims_; i++) {
+            out_dyn_tsr->dims_[i] = in_dyn_tsr->dims_[i];
+        }
+    } else {
+        for (int i = 0; i < num_axis; i++) {
+            out_dyn_tsr->dims_[i] = in_dyn_tsr->dims_[tr_axis[i]];
+        }
+    }
+}
+
+extern "C" void infer_shape_tensor_view_op(void *out, void *in,
+        int64_t *old_axis, int num_old_axis, int64_t *new_axis,
+        int num_new_axis) {
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *in_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in);
+    assert(num_old_axis > 0 && num_new_axis > 0);
+    out_dyn_tsr->ndims_ = num_new_axis;
+    int old_idx = 0, new_idx = 0;
+    for (; new_idx < num_new_axis; new_idx++) {
+        if (new_axis[new_idx] < 0) {
+            while (old_idx < num_old_axis && old_axis[old_idx] > 0) {
+                old_idx++;
+            }
+            assert(old_idx < num_old_axis);
+            new_axis[new_idx] = in_dyn_tsr->dims_[old_idx];
+            old_idx++;
+        }
+        out_dyn_tsr->dims_[new_idx] = new_axis[new_idx];
+    }
+}
+
 } // namespace sc

@@ -57,6 +57,30 @@ static void check_and_set_matmul_impl(runtime::dynamic_tensor_t *data_dyn_tsr,
     weight_fmt_st->set_impl_alg(impl_alg);
     out_fmt_st->set_impl_alg(impl_alg);
 }
+
+extern "C" void infer_shape_matmul_op(void *out, void *data, void *weight) {
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *data_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(data);
+    runtime::dynamic_tensor_t *weight_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(weight);
+    int data_ndims = data_dyn_tsr->ndims_;
+    int weight_ndims = weight_dyn_tsr->ndims_;
+    int &out_ndims = out_dyn_tsr->ndims_;
+    // Currently not support  2D x ND
+    assert(data_ndims == weight_ndims);
+    out_dyn_tsr->ndims_ = data_ndims;
+
+    // batch dims
+    int64_t *batch_dims = data_dyn_tsr->dims_;
+    for (int i = 0; i < out_ndims - 2; i++) {
+        out_dyn_tsr->dims_[i] = batch_dims[i];
+    }
+    out_dyn_tsr->dims_[out_ndims - 2] = data_dyn_tsr->dims_[data_ndims - 2];
+    out_dyn_tsr->dims_[out_ndims - 1] = weight_dyn_tsr->dims_[weight_ndims - 1];
+}
+
 extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
         void *weight, void *ori_data, void *ori_weight, uint64_t *out_fmt,
         uint64_t *data_fmt, uint64_t *weight_fmt, uint64_t *ori_data_fmt,
@@ -78,22 +102,15 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
     int data_ndims = data_dyn_tsr->ndims_;
     int weight_ndims = weight_dyn_tsr->ndims_;
     int &out_ndims = out_dyn_tsr->ndims_;
-    // Currently not support  2D x ND
-    assert(data_ndims == weight_ndims);
-    out_dyn_tsr->ndims_ = data_ndims;
+
     int64_t M = data_dyn_tsr->dims_[data_ndims - 2];
     int64_t K = data_dyn_tsr->dims_[data_ndims - 1];
     int64_t K1 = weight_dyn_tsr->dims_[weight_ndims - 2];
     int64_t N = weight_dyn_tsr->dims_[weight_ndims - 1];
     assert(K == K1);
-    // batch dims
-    int64_t *batch_dims = data_dyn_tsr->dims_;
-    for (int i = 0; i < out_ndims - 2; i++) {
-        out_dyn_tsr->dims_[i] = batch_dims[i];
-    }
-    out_dyn_tsr->dims_[out_ndims - 2] = M;
-    out_dyn_tsr->dims_[out_ndims - 1] = N;
-    // mask
+    // infer shape
+    infer_shape_matmul_op(out, data, weight);
+    // update dyn_mask
     out_dyn_tsr->dyn_mask_
             = data_dyn_tsr->dyn_mask_ | weight_dyn_tsr->dyn_mask_;
     // M mask

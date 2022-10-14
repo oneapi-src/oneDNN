@@ -15,6 +15,7 @@
  *******************************************************************************/
 
 #include <limits>
+#include <string.h>
 #include "../dispatch_key.hpp"
 #include "utils.hpp"
 #include <util/simple_math.hpp>
@@ -52,9 +53,7 @@ void deep_copy_dynamic_tensor(
         runtime::dynamic_tensor_t *out, const runtime::dynamic_tensor_t *in) {
     out->ndims_ = in->ndims_;
     out->dyn_mask_ = in->dyn_mask_;
-    for (int i = 0; i < in->ndims_; i++) {
-        out->dims_[i] = in->dims_[i];
-    }
+    memcpy(out->dims_, in->dims_, sizeof(int64_t) * in->ndims_);
 }
 
 uint64_t calculate_blocking_dims(void *placeholder, uint64_t *format) {

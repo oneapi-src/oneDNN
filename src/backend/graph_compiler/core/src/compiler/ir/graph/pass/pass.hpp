@@ -83,6 +83,29 @@ SC_INTERNAL_API bool compare_graph(sc_op_ptr &first_diff_lhs,
 SC_INTERNAL_API bool compare_graph(const sc_graph_t &lhs, const sc_graph_t &rhs,
         const std::unordered_map<int, int> &lhs_rhs_input_mapping = {});
 
+namespace runtime {
+struct dynamic_tensor_t;
+}
+/**
+ * The api for dynamic infer shape.
+ * At runtime, given input real shapes of partition, infer the output shapes.
+ * After calling this api, the sizes of output buffers are known for allocation.
+ * @param graph cached raw graph after translation(after graph inline and
+ * constant optimization) but not graph driver. We need original graph cache to
+ * preserve all semantics of ops
+ * @param ins a pointer to dynamic tensor vector of inputs, contains real shape
+ * info.
+ * @param outs a pointer to dynamic tensor vector of outputs, the real shape
+ * need to be infered.
+ * @param num_ins, the length of input dynamic tensor vector, should be equal to
+ * number of inputs in graph.
+ * @param num_outs, the length of output dynamic tensor vector, should be equal
+ * to number of outputs in graph.
+ * */
+SC_API void dynamic_infer_shape_by_graph(sc_graph_t &graph,
+        runtime::dynamic_tensor_t **ins, runtime::dynamic_tensor_t **outs,
+        size_t num_ins, size_t num_outs);
+
 } // namespace sc
 
 #endif
