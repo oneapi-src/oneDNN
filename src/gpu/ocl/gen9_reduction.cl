@@ -105,6 +105,16 @@
 #define AS_C_BLOCK_DATA_T AS_DATA2_T
 #define CONVERT_C_BLOCK_T TO_DEF_ACC_DATA2_T
 #define C_BLOCK_T DEF_ACC_DATA2_T
+#elif INITIAL_C_CHUNKS == 4
+#define C_BLOCK_READ BLOCK_READ4
+#define AS_C_BLOCK_DATA_T AS_DATA4_T
+#define CONVERT_C_BLOCK_T TO_DEF_ACC_DATA4_T
+#define C_BLOCK_T DEF_ACC_DATA4_T
+#elif INITIAL_C_CHUNKS == 8
+#define C_BLOCK_READ BLOCK_READ8
+#define AS_C_BLOCK_DATA_T AS_DATA8_T
+#define CONVERT_C_BLOCK_T TO_DEF_ACC_DATA8_T
+#define C_BLOCK_T DEF_ACC_DATA8_T
 #endif
 
 #define ROUND_DOWN(a, b) ((a) - ((a) % (b)))
@@ -247,8 +257,8 @@ __kernel void gen9_initial_reduce(__global SRC_DATA_T *src,
 #else // VECT_DT_N == 1
 #if INITIAL_C_CHUNKS == 1
             vector_acc[0] = ACCUMULATE(vector_acc[0], data);
-#elif INITIAL_C_CHUNKS == 2
-            // data[0] and data[1] must be accumulated separately as they contain different C
+#else
+            // data[0] and data[i] must be accumulated separately as they contain different C
             for (int i = 0; i < INITIAL_C_CHUNKS; i++) {
                 vector_acc[i] = ACCUMULATE(vector_acc[i], data[i]);
             }
@@ -266,21 +276,25 @@ __kernel void gen9_initial_reduce(__global SRC_DATA_T *src,
     for (int i = 0; i < elems_to_accumulate; i++) {
         acc = ACCUMULATE_AGAIN(acc, vector_acc[i]);
     }
-#elif INITIAL_C_CHUNKS == 2
-    DEF_ACC_DATA2_T acc = INIT_ACC;
-    for (int i = 0; i < elems_to_accumulate; i += 2) {
-        acc[0] = ACCUMULATE_AGAIN(acc[0], vector_acc[i]);
-        acc[1] = ACCUMULATE_AGAIN(acc[1], vector_acc[i + 1]);
+#else
+    C_BLOCK_T acc = INIT_ACC;
+    for (int i = 0; i < elems_to_accumulate; i += INITIAL_C_CHUNKS) {
+        unroll_for(int j = 0; j < INITIAL_C_CHUNKS; j++) {
+            acc[j] = ACCUMULATE_AGAIN(acc[j], vector_acc[i + j]);
+        }
     }
 #endif // INITIAL_C_CHUNKS == 1
 #endif // VECT_DT_N == 1
     const int local_id = get_sub_group_local_id();
 #if IS_C_REDUCED
-#if INITIAL_C_CHUNKS == 2
-    DEF_ACC_DATA_T c_acc = acc[0] + acc[1];
-#elif INITIAL_C_CHUNKS == 1
+#if INITIAL_C_CHUNKS == 1
     DEF_ACC_DATA_T c_acc = acc;
-#endif // INITIAL_C_CHUNKS == 2
+#else
+    DEF_ACC_DATA_T c_acc = acc[0];
+    for (int i = 1; i < INITIAL_C_CHUNKS; i++) {
+        c_acc += acc[i];
+    }
+#endif // INITIAL_C_CHUNKS == 1
     const int dst_off
             = INITIAL_DST_OFFSET(n_chunk_idx, c_block_idx, hwd_chunk_idx);
     c_acc = SUB_GROUP_REDUCE(c_acc, c);
