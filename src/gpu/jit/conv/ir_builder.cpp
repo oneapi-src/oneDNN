@@ -716,10 +716,10 @@ public:
     }
 
     stmt_t create_reduce_stmt(const layout_t &b_layout, const expr_t &b_buf,
-            const tensor_t &sub_tile = tensor_t()) {
+            const tensor_t &subtile = tensor_t()) {
         auto reduction_stmt
                 = jit::create_reduce_stmt(b_layout, b_reduced_reg_layout_,
-                        b_buf, b_reduced_reg_buf_, sub_tile, reduction_mask_);
+                        b_buf, b_reduced_reg_buf_, subtile, reduction_mask_);
         return reduction_stmt;
     }
 
@@ -765,15 +765,15 @@ private:
     uint32_t reduction_mask_ = (1 << 1) | (1 << 2);
 };
 
-class sub_tile_info_t {
+class subtile_info_t {
 public:
     using post_load_func_t = std::function<stmt_t(
             const layout_t &, const expr_t &, const tensor_t &)>;
 
-    sub_tile_info_t(ir_context_t &ir_ctx, const gemm_schedule_t &gemm_schedule,
+    subtile_info_t(ir_context_t &ir_ctx, const gemm_schedule_t &gemm_schedule,
             const fma_helper_t &fma_helper, abc_kind_t abc_kind, bool use_slm,
             bool load_buffered, bool allow_2d_load, int idx,
-            const view_t &mem_view, const tensor_t &sub_tile,
+            const view_t &mem_view, const tensor_t &subtile,
             const expr_t &mem_buf, const expr_t &slm_buf, const expr_t &reg_buf,
             const expr_t &tmp_buf)
         : ir_ctx_(ir_ctx)
@@ -785,7 +785,7 @@ public:
         , allow_2d_load_(allow_2d_load)
         , idx_(idx)
         , mem_view_(mem_view)
-        , sub_tile_(sub_tile)
+        , subtile_(subtile)
         , mem_buf_(mem_buf)
         , slm_buf_(slm_buf)
         , reg_buf_(reg_buf)
@@ -817,7 +817,7 @@ public:
         load_impl(ir_ctx_, load_layout, reg_view_, send_hint_, stmt);
 
         if (post_load) {
-            stmt = stmt.append(post_load(load_layout, reg_buf_, sub_tile_));
+            stmt = stmt.append(post_load(load_layout, reg_buf_, subtile_));
         }
 
         reg_layout_ = load_layout;
@@ -887,7 +887,7 @@ private:
     bool allow_2d_load_;
     int idx_;
     view_t mem_view_;
-    tensor_t sub_tile_;
+    tensor_t subtile_;
 
     expr_t mem_buf_;
     expr_t slm_buf_;
@@ -922,7 +922,7 @@ public:
         , bp_buf_(bp_buf)
         , b_slm_buf_(b_slm_buf)
         , kernel_info_(kernel_info) {
-        ir_assert(cfg_.sub_tiles().a() == 1 || cfg_.sub_tiles().b() == 1)
+        ir_assert(cfg_.subtiles().a() == 1 || cfg_.subtiles().b() == 1)
                 << "At most one tensor can be tiled.";
 
         ab_tmp_buf_ = make_buffer("ab_tmp");
@@ -940,18 +940,18 @@ public:
                     gemm_schedule_.b_thr_tile(/*is_relative=*/false));
         }
 
-        // TODO: Specify loops over sub-tiles in the schedule, use unrolling.
+        // TODO: Specify loops over subtiles in the schedule, use unrolling.
         // Sub-tile indices.
         a_idx_ = ir_ctx_.create_tmp_var(type_t::s32(), "a_idx");
         b_idx_ = ir_ctx_.create_tmp_var(type_t::s32(), "b_idx");
 
         // Sub-tile views.
-        a_i_view_ = create_sub_tile_view(abc_kind_t::a, a_thr_view_,
-                cfg_.sub_tiles().a(), a_idx_, bmnk_kind_t::m,
-                &a_i_outer_blocks_, a_i_tile_);
-        b_j_view_ = create_sub_tile_view(abc_kind_t::b, b_thr_view_,
-                cfg_.sub_tiles().b(), b_idx_, bmnk_kind_t::n,
-                &b_j_outer_blocks_, b_j_tile_);
+        a_i_view_ = create_subtile_view(abc_kind_t::a, a_thr_view_,
+                cfg_.subtiles().a(), a_idx_, bmnk_kind_t::m, &a_i_outer_blocks_,
+                a_i_tile_);
+        b_j_view_ = create_subtile_view(abc_kind_t::b, b_thr_view_,
+                cfg_.subtiles().b(), b_idx_, bmnk_kind_t::n, &b_j_outer_blocks_,
+                b_j_tile_);
 
         build();
     }
@@ -965,9 +965,9 @@ public:
     const layout_t &c_reg_layout() const { return c_reg_layout_; }
 
 private:
-    view_t create_sub_tile_view(abc_kind_t abc_kind, const view_t &thr_view,
-            int sub_tiles, const expr_t &idx, bmnk_kind_t bmnk_kind,
-            std::vector<block_t> *outer_blocks, tensor_t &sub_tile) const {
+    view_t create_subtile_view(abc_kind_t abc_kind, const view_t &thr_view,
+            int subtiles, const expr_t &idx, bmnk_kind_t bmnk_kind,
+            std::vector<block_t> *outer_blocks, tensor_t &subtile) const {
         auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
         auto layout = thr_view.create_pseudo_vlayout();
         dim_t mn_dim = 1;
@@ -976,47 +976,47 @@ private:
             if (b_bmnk_kind == bmnk_kind) mn_dim *= b.block;
         }
 
-        std::vector<dim_t> sub_tile_dims(thr_view.nvdims(), 1);
-        dim_t mn_sub_tile_dim = ir_utils::safe_divide(mn_dim, dim_t(sub_tiles));
+        std::vector<dim_t> subtile_dims(thr_view.nvdims(), 1);
+        dim_t mn_subtile_dim = ir_utils::safe_divide(mn_dim, dim_t(subtiles));
         for (auto &b : layout.blocks()) {
             auto b_bmnk_kind = bmnk_mapper.bmnk_kind(abc_kind, b.dim_idx);
             if (b_bmnk_kind == bmnk_kind) {
-                if (mn_sub_tile_dim == 1) continue;
+                if (mn_subtile_dim == 1) continue;
                 dim_t next_block;
-                if (mn_sub_tile_dim % b.block == 0) {
+                if (mn_subtile_dim % b.block == 0) {
                     next_block = b.block;
                 } else {
-                    ir_assert(b.block % mn_sub_tile_dim == 0);
-                    next_block = mn_sub_tile_dim;
+                    ir_assert(b.block % mn_subtile_dim == 0);
+                    next_block = mn_subtile_dim;
                 }
-                sub_tile_dims[b.dim_idx] *= next_block;
-                mn_sub_tile_dim /= next_block;
+                subtile_dims[b.dim_idx] *= next_block;
+                mn_subtile_dim /= next_block;
             } else {
-                sub_tile_dims[b.dim_idx] *= b.block;
+                subtile_dims[b.dim_idx] *= b.block;
             }
         }
-        grid_info_t grid({sub_tiles}, {idx});
-        sub_tile = layout.split(tensor_t(sub_tile_dims), grid, outer_blocks);
-        return thr_view.create_sub_view(sub_tile);
+        grid_info_t grid({subtiles}, {idx});
+        subtile = layout.split(tensor_t(subtile_dims), grid, outer_blocks);
+        return thr_view.create_sub_view(subtile);
     }
 
     void build() {
         int max_iters = 2;
         bool load_ok = false;
         for (int iter = 0; iter < max_iters; iter++) {
-            if (try_load_sub_tiles(/*allow_2d_load=*/iter == 0)) {
+            if (try_load_subtiles(/*allow_2d_load=*/iter == 0)) {
                 load_ok = true;
                 break;
             }
         }
-        ir_assert(load_ok) << "Can't generate load statements for sub-tiles.";
+        ir_assert(load_ok) << "Can't generate load statements for subtiles.";
 
-        auto a_sub_tiles = cfg_.sub_tiles().a();
-        auto b_sub_tiles = cfg_.sub_tiles().b();
+        auto a_subtiles = cfg_.subtiles().a();
+        auto b_subtiles = cfg_.subtiles().b();
 
-        for (int i = 0; i < a_sub_tiles; i++) {
-            for (int j = 0; j < b_sub_tiles; j++) {
-                build_sub_tile(i, j);
+        for (int i = 0; i < a_subtiles; i++) {
+            for (int j = 0; j < b_subtiles; j++) {
+                build_subtile(i, j);
             }
         }
 
@@ -1027,19 +1027,19 @@ private:
 
         // Handle temporary buffer in case of GRF reorders.
         int tmp_buf_size = 0;
-        for (int i = 0; i < a_sub_tiles; i++)
+        for (int i = 0; i < a_subtiles; i++)
             tmp_buf_size
-                    = std::max(tmp_buf_size, a_sub_tiles_[i].tmp_buf_size());
-        for (int j = 0; j < b_sub_tiles; j++)
+                    = std::max(tmp_buf_size, a_subtiles_[i].tmp_buf_size());
+        for (int j = 0; j < b_subtiles; j++)
             tmp_buf_size
-                    = std::max(tmp_buf_size, b_sub_tiles_[j].tmp_buf_size());
+                    = std::max(tmp_buf_size, b_subtiles_[j].tmp_buf_size());
         if (tmp_buf_size > 0)
             register_buffer(ab_tmp_buf_, tmp_buf_size, alloc_kind_t::grf);
 
         // C layout in problem notation.
-        auto c_layout = c_sub_tile_layout_;
+        auto c_layout = c_subtile_layout_;
 
-        // Add outer blocks coming from A/B sub-tiles.
+        // Add outer blocks coming from A/B subtiles.
         auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
         for (auto &b : a_i_outer_blocks_) {
             auto &var = bmnk_mapper.var(abc_kind_t::a, b.dim_idx);
@@ -1075,14 +1075,14 @@ private:
         return false;
     }
 
-    bool try_load_sub_tiles(bool allow_2d_load) {
-        int a_sub_tiles = cfg_.sub_tiles().a();
-        int b_sub_tiles = cfg_.sub_tiles().b();
+    bool try_load_subtiles(bool allow_2d_load) {
+        int a_subtiles = cfg_.subtiles().a();
+        int b_subtiles = cfg_.subtiles().b();
         bool use_a_slm = cfg_.slm().a();
         bool use_b_slm = cfg_.slm().b();
-        a_sub_tiles_.clear();
-        b_sub_tiles_.clear();
-        for (int i = 0; i < a_sub_tiles; i++) {
+        a_subtiles_.clear();
+        b_subtiles_.clear();
+        for (int i = 0; i < a_subtiles; i++) {
             auto view = a_i_view_.substitute(a_idx_, i);
             auto tile = a_i_tile_.substitute(a_idx_, i);
             // Using buffered view is enabled only when:
@@ -1093,13 +1093,13 @@ private:
             //   overlapping when applying KW blocking )
             bool load_buffered = cfg_.ow_kw_grf_cache() && !use_a_slm
                     && cfg_.fma_kind() == fma_kind_t::mad;
-            a_sub_tiles_.emplace_back(ir_ctx_, gemm_schedule_, fma_helper_,
+            a_subtiles_.emplace_back(ir_ctx_, gemm_schedule_, fma_helper_,
                     abc_kind_t::a, use_a_slm, load_buffered,
                     allow_2d_load && can_use_2d_load(abc_kind_t::a, a_i_view_),
                     i, view, tile, ap_buf_, a_slm_buf_, a_buf_, ab_tmp_buf_);
-            a_sub_tiles_.back().load();
+            a_subtiles_.back().load();
         }
-        sub_tile_info_t::post_load_func_t b_post_load;
+        subtile_info_t::post_load_func_t b_post_load;
         if (!use_b_slm && cfg_.reduce_b()) {
             b_post_load = [&](const layout_t &reg_layout, const expr_t &reg_buf,
                                   const tensor_t &tile) {
@@ -1107,28 +1107,28 @@ private:
                         reg_layout, reg_buf, tile);
             };
         }
-        for (int j = 0; j < b_sub_tiles; j++) {
+        for (int j = 0; j < b_subtiles; j++) {
             auto view = b_j_view_.substitute(b_idx_, j);
             auto tile = b_j_tile_.substitute(b_idx_, j);
-            b_sub_tiles_.emplace_back(ir_ctx_, gemm_schedule_, fma_helper_,
+            b_subtiles_.emplace_back(ir_ctx_, gemm_schedule_, fma_helper_,
                     abc_kind_t::b, use_b_slm,
                     /*load_buffered=*/false,
                     allow_2d_load && can_use_2d_load(abc_kind_t::b, b_j_view_),
                     j, view, tile, bp_buf_, b_slm_buf_, b_buf_, ab_tmp_buf_);
 
-            b_sub_tiles_.back().load(b_post_load);
+            b_subtiles_.back().load(b_post_load);
         }
 
-        // Validate sub-tile loads, when VNNI permutation is applied, both A/B
+        // Validate subtile loads, when VNNI permutation is applied, both A/B
         // have to use the same pattern.
         int vnni_permute_factor
-                = a_sub_tiles_[0].send_hint().hint_2d.vnni_permute_factor;
-        for (int i = 1; i < a_sub_tiles; i++) {
-            int f = a_sub_tiles_[i].send_hint().hint_2d.vnni_permute_factor;
+                = a_subtiles_[0].send_hint().hint_2d.vnni_permute_factor;
+        for (int i = 1; i < a_subtiles; i++) {
+            int f = a_subtiles_[i].send_hint().hint_2d.vnni_permute_factor;
             if (f != vnni_permute_factor) return false;
         }
-        for (int j = 0; j < b_sub_tiles; j++) {
-            int f = b_sub_tiles_[j].send_hint().hint_2d.vnni_permute_factor;
+        for (int j = 0; j < b_subtiles; j++) {
+            int f = b_subtiles_[j].send_hint().hint_2d.vnni_permute_factor;
             if (f != vnni_permute_factor) return false;
         }
         return true;
@@ -1717,7 +1717,7 @@ private:
             }
             for (int i_n = 0; i_n < desc_n; i_n += blk / m_blk) {
                 int off_n = i_m / m_blk * desc_n + i_n;
-                const int ij_buf = i_buf * cfg_.sub_tiles().b() + j_buf;
+                const int ij_buf = i_buf * cfg_.subtiles().b() + j_buf;
                 auto dst = c_buf_ + off_n * m_blk * d_type.size()
                         + ij_buf * mul_builder.c_layout().size();
                 type_t vi(i_type.kind(), blk);
@@ -1764,38 +1764,38 @@ private:
         return data.append(masks.maybe_gen_mask_let(full));
     }
 
-    void build_sub_tile(int i, int j) {
+    void build_subtile(int i, int j) {
         bool is_first = (i == 0 && j == 0);
 
         stmt_t ab_s2r_load;
         stmt_t ab_g2r_load;
-        if (!a_sub_tiles_[i].is_loaded()) {
-            ab_s2r_load = ab_s2r_load.append(a_sub_tiles_[i].s2r_load());
-            ab_g2r_load = ab_g2r_load.append(a_sub_tiles_[i].g2r_load());
-            a_sub_tiles_[i].set_loaded();
+        if (!a_subtiles_[i].is_loaded()) {
+            ab_s2r_load = ab_s2r_load.append(a_subtiles_[i].s2r_load());
+            ab_g2r_load = ab_g2r_load.append(a_subtiles_[i].g2r_load());
+            a_subtiles_[i].set_loaded();
         }
-        if (!b_sub_tiles_[j].is_loaded()) {
-            ab_s2r_load = ab_s2r_load.append(b_sub_tiles_[j].s2r_load());
-            ab_g2r_load = ab_g2r_load.append(b_sub_tiles_[j].g2r_load());
-            b_sub_tiles_[j].set_loaded();
+        if (!b_subtiles_[j].is_loaded()) {
+            ab_s2r_load = ab_s2r_load.append(b_subtiles_[j].s2r_load());
+            ab_g2r_load = ab_g2r_load.append(b_subtiles_[j].g2r_load());
+            b_subtiles_[j].set_loaded();
         }
         load_mul_stmt_ = load_mul_stmt_.append(
                 stmt_group_t::make(stmt_label_t::g2r_load(i + j), ab_g2r_load));
         load_mul_stmt_ = load_mul_stmt_.append(
                 stmt_group_t::make(stmt_label_t::s2r_load(i + j), ab_s2r_load));
 
-        auto &a_i_view = a_sub_tiles_[i].reg_view();
-        auto &b_j_view = b_sub_tiles_[j].reg_view();
+        auto &a_i_view = a_subtiles_[i].reg_view();
+        auto &b_j_view = b_subtiles_[j].reg_view();
 
         // Multiply C_i_j += A_i x B_j in GEMM notation.
         multiply_builder_t mul_builder(cfg_, gemm_schedule_.bmnk_mapper(),
                 a_i_view, b_j_view, a_buf_, b_buf_, c_buf_[c_buf_off_]);
-        c_sub_tile_layout_ = mul_builder.c_layout();
+        c_subtile_layout_ = mul_builder.c_layout();
 
         auto mul_total
                 = maybe_add_src_zps(a_i_view, b_j_view, mul_builder, i, j);
 
-        c_buf_off_ += c_sub_tile_layout_.size();
+        c_buf_off_ += c_subtile_layout_.size();
         ir_trace() << "Multiply (" << i << ", " << j << "):\n"
                    << mul_total.str() << std::endl;
 
@@ -1803,15 +1803,15 @@ private:
                 stmt_group_t::make(stmt_label_t::mul(i + j), mul_total));
 
         if (!is_first) {
-            ir_assert(mul_builder.c_layout() == c_sub_tile_layout_)
+            ir_assert(mul_builder.c_layout() == c_subtile_layout_)
                     << "Sub-tile layouts must be equal.";
             return;
         }
 
         register_buffer(
-                a_buf_, a_sub_tiles_[i].reg_buf_size(), alloc_kind_t::grf);
+                a_buf_, a_subtiles_[i].reg_buf_size(), alloc_kind_t::grf);
         register_buffer(
-                b_buf_, b_sub_tiles_[j].reg_buf_size(), alloc_kind_t::grf);
+                b_buf_, b_subtiles_[j].reg_buf_size(), alloc_kind_t::grf);
     }
     void register_buffer(const stmt_t &alloc) {
         ir_assert(alloc.is<alloc_t>());
@@ -1864,8 +1864,8 @@ private:
     tensor_t a_i_tile_;
     tensor_t b_j_tile_;
 
-    std::vector<sub_tile_info_t> a_sub_tiles_;
-    std::vector<sub_tile_info_t> b_sub_tiles_;
+    std::vector<subtile_info_t> a_subtiles_;
+    std::vector<subtile_info_t> b_subtiles_;
 
     std::vector<block_t> a_i_outer_blocks_;
     std::vector<block_t> b_j_outer_blocks_;
@@ -1875,7 +1875,7 @@ private:
     stmt_t load_mul_stmt_;
 
     int c_buf_off_ = 0;
-    layout_t c_sub_tile_layout_;
+    layout_t c_subtile_layout_;
 
     const kernel_info_t &kernel_info_;
 };

@@ -26,11 +26,11 @@ namespace gpu {
 namespace jit {
 
 stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
-        const expr_t &src_buf, const expr_t &dst_buf, const tensor_t &_sub_tile,
+        const expr_t &src_buf, const expr_t &dst_buf, const tensor_t &_subtile,
         uint32_t reduction_mask, bool drop_dims) {
-    auto sub_tile = _sub_tile;
-    if (sub_tile.is_empty()) sub_tile = tensor_t(src.dims());
-    ir_assert(src.ndims() == sub_tile.ndims());
+    auto subtile = _subtile;
+    if (subtile.is_empty()) subtile = tensor_t(src.dims());
+    ir_assert(src.ndims() == subtile.ndims());
     int ndims = src.ndims();
 
     // Align dst layout with src layout according to the mask if needed.
@@ -56,8 +56,8 @@ stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
         dst_aligned = dst;
     }
 
-    std::vector<dim_t> dst_tile_dims = sub_tile.dims();
-    std::vector<expr_t> dst_tile_start = sub_tile.start();
+    std::vector<dim_t> dst_tile_dims = subtile.dims();
+    std::vector<expr_t> dst_tile_start = subtile.start();
     for (int i = 0; i < ndims; i++) {
         if ((reduction_mask & (1 << i)) == 0) {
             dst_tile_dims[i] = 1;

@@ -796,30 +796,30 @@ public:
     std::string desc() const override { return "Source layout."; }
 };
 
-// Sub-tiles to split into for the inner A x B multiplication:
+// Subtiles to split into for the inner A x B multiplication:
 //
-// Case 1. a_sub_tiles = 1, b_sub_tiles = 1
+// Case 1. a_subtiles = 1, b_subtiles = 1
 //     A = load(...)
 //     B = load(...)
 //     C += A * B
 //
-// Case 2. a_sub_tiles > 1, b_sub_tiles = 1
+// Case 2. a_subtiles > 1, b_subtiles = 1
 //     B = load(...)
-//     for i in range(0, a_sub_tiles):
+//     for i in range(0, a_subtiles):
 //         A_i = load(...)
 //         C_i += A_i * B
 //
-// Case 3. a_sub_tiles = 1, b_sub_tiles > 1
+// Case 3. a_subtiles = 1, b_subtiles > 1
 //     A = load(...)
-//     for j in range(0, b_sub_tiles):
+//     for j in range(0, b_subtiles):
 //         B_j = load(...)
 //         C_j += A * B_j
 //
-// Tiling for A and tiling for B are mutually exclusive. Using sub-tiles helps
+// Tiling for A and tiling for B are mutually exclusive. Using subtiles helps
 // to reduce GRF consumption.
-class sub_tiles_param_t : public param_t {
+class subtiles_param_t : public param_t {
 public:
-    std::string name() const override { return "sub-tiles"; }
+    std::string name() const override { return "subtiles"; }
     std::string desc() const override { return "Sub-iteration blocking."; }
 
     int a() const { return a_; }
@@ -921,7 +921,7 @@ public:
     DECL_PARAM2(prefetch)
     DECL_PARAM2(slm)
     DECL_PARAM2(src_layout)
-    DECL_PARAM2(sub_tiles)
+    DECL_PARAM2(subtiles)
     DECL_PARAM2(thread_group_dims)
     DECL_PARAM2(unroll)
     DECL_PARAM2(wei_layout)
@@ -1106,7 +1106,7 @@ private:
     INIT_PARAM(send_2d_nhwc)
     INIT_PARAM(slm)
     INIT_PARAM(src_layout)
-    INIT_PARAM(sub_tiles)
+    INIT_PARAM(subtiles)
     INIT_PARAM(thread_group_dims)
     INIT_PARAM(thread_group_grid)
     INIT_PARAM(unroll)

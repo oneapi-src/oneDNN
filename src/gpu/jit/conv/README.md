@@ -509,9 +509,9 @@ builder generates the following kernel parts:
         - Each thread computes `(m_thr x n_thr)` tile of C tensor
             - `m_thr = m_tg / Y`
             - `n_thr = n_tg / X`
-    - Split per-thread blocked multiplication to sub-tiles according to the
+    - Split per-thread blocked multiplication to subtiles according to the
       configuration (to reduce GRF consumption and reuse GRF buffers)
-        - Typically `b_sub_tiles > 1` is used (B tile is split into sub-tiles)
+        - Typically `b_subtiles > 1` is used (B tile is split into subtiles)
     - Generate loads (from SLM or global memory) for A/B tensors
     - Generate GRF-to-GRF reorders (when needed) to match FMA layout. This is
       mainly needed for dpas.

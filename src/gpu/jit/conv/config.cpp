@@ -1833,25 +1833,25 @@ bool try_reduce_grf_usage(conv_config_t &cfg) {
 
     bmnk_dim_helper_t h(cfg);
 
-    // Try to use sub-tiles for B.
+    // Try to use subtiles for B.
     int n_iter_blk = h.iter_dim('n');
-    int max_b_sub_tiles
+    int max_b_subtiles
             = std::min((cfg.slm().b() ? 4 : 2), n_iter_blk / cfg.simd());
     // XXX: avoid layout mismatch for B loads
     if (cfg.hw() >= ngen::HW::XeHPC && prb.is_bwd_w)
-        max_b_sub_tiles = std::min(2, max_b_sub_tiles);
-    while (cfg.sub_tiles().b() < max_b_sub_tiles) {
-        cfg.sub_tiles().set_b(cfg.sub_tiles().b() * 2);
+        max_b_subtiles = std::min(2, max_b_subtiles);
+    while (cfg.subtiles().b() < max_b_subtiles) {
+        cfg.subtiles().set_b(cfg.subtiles().b() * 2);
         int est_regs = estimate_register_count(cfg);
         if (est_regs <= max_regs) return true;
     }
 
-    // Try to use sub-tiles for A.
+    // Try to use subtiles for A.
     int m_iter_blk = h.iter_dim('m');
-    int max_a_sub_tiles = std::min((cfg.slm().a() ? 4 : 2), m_iter_blk / 8);
-    if (cfg.sub_tiles().b() > 1) max_a_sub_tiles = 1;
-    while (cfg.sub_tiles().a() < max_a_sub_tiles) {
-        cfg.sub_tiles().set_a(cfg.sub_tiles().a() * 2);
+    int max_a_subtiles = std::min((cfg.slm().a() ? 4 : 2), m_iter_blk / 8);
+    if (cfg.subtiles().b() > 1) max_a_subtiles = 1;
+    while (cfg.subtiles().a() < max_a_subtiles) {
+        cfg.subtiles().set_a(cfg.subtiles().a() * 2);
         int est_regs = estimate_register_count(cfg);
         if (est_regs <= max_regs) return true;
     }
@@ -2095,7 +2095,7 @@ std::string conv_config_t::str() const {
     oss << "  Reduce GRF usage:           " << to_string(reduce_grf_usage()) << std::endl;
     oss << "  Reuse headers:              " << to_string(pipeline().reuse_headers()) << std::endl;
     oss << "  Allow GRF reorder:          " << "A: " << to_string(allow_a_grf_reorder()) << ", B: " << to_string(allow_b_grf_reorder()) << std::endl;
-    oss << "  Sub-tiles:                  " << "A: " << sub_tiles().a() << ", B: " << sub_tiles().b() << std::endl;
+    oss << "  Subtiles:                   " << "A: " << subtiles().a() << ", B: " << subtiles().b() << std::endl;
     oss << "  Estimated GRF usage:        " << estimated_peak_grf_usage << std::endl;
     // clang-format on
     return oss.str();
