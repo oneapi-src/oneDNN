@@ -372,8 +372,8 @@ TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
                 range<1>(N), [=](id<1> i) { a[i] = (int)i.get(0) - N / 2; });
     });
 
-    auto eltwise_pd = eltwise_forward::primitive_desc(
-            eng, prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
+    auto eltwise_pd = eltwise_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::eltwise_relu, mem_d, mem_d, 0.0f);
     auto eltwise = eltwise_forward(eltwise_pd);
 
     stream s(eng);

@@ -177,7 +177,7 @@ TEST_P(sycl_engine_test, SubDevice) {
 
                     auto eltwise_pd = eltwise_forward::primitive_desc(eng,
                             prop_kind::forward, algorithm::eltwise_relu, mem_d,
-                            0.0f);
+                            mem_d, 0.0f);
                     auto eltwise = eltwise_forward(eltwise_pd);
 
                     stream s(eng);
