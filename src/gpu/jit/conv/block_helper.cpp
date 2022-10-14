@@ -179,7 +179,17 @@ private:
             if (is_last_dim) step = rem_target_base_blk;
         }
 
-        int ret = utils::rnd_dn(target_dim, step);
+        int dimension_bound = [&]() {
+            // Prefer powers of 2 for small dimensions as they generally
+            // result in better load instructions.
+            int bound = utils::rnd_up_pow2(dim);
+            if (bound % step == 0 && (double)dim / bound >= target_eff)
+                return bound;
+            return utils::rnd_up(dim, step);
+        }();
+        int target_bound = utils::rnd_dn(target_dim, step);
+        int ret = std::min(dimension_bound, target_bound);
+
         while (ret >= step) {
             bool ok = true;
             if (require_pow_2 && !math::is_pow2(ret)) ok = false;
