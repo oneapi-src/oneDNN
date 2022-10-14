@@ -3658,8 +3658,8 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
                     weights_d.data_type() == s8,
                     one_of(diff_src_d.data_type(), f32, s32, s8, u8));
 
-    bool supported = mayiuse(avx512_core_amx)
-            && (is_bf16_convolution || is_int8_deconvolution);
+    bool supported
+            = mayiuse(avx512_core_amx) && (is_bf16 || is_int8_deconvolution);
     if (!supported) return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
