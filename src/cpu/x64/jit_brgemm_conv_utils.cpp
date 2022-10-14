@@ -909,13 +909,16 @@ float brg_blocking_t::est_eff() {
     const auto nb_sp_thr = nstl::min(nb_sp, div_up(job, dim_sp));
     const auto sp_thr = nstl::min(sp, nb_sp_thr * sp_block);
 
-    const auto dim_oh = nb_sp * dim_sp;
-    const auto nb_oh_thr = nstl::min(nb_oh, div_up(job, dim_oh));
-    const auto oh_thr = nstl::min(oh, nb_oh_thr * oh_block);
+    int nb_oh_thr {1}, oh_thr {1}, nb_od_thr {1}, od_thr {1};
+    if (!is_os_blocking) {
+        const auto dim_oh = nb_sp * dim_sp;
+        nb_oh_thr = nstl::min(nb_oh, div_up(job, dim_oh));
+        oh_thr = nstl::min(oh, nb_oh_thr * oh_block);
 
-    const auto dim_od = nb_oh * dim_oh;
-    const auto nb_od_thr = nstl::min(nb_od, div_up(job, dim_od));
-    const auto od_thr = nstl::min(od, nb_od_thr * od_block);
+        const auto dim_od = nb_oh * dim_oh;
+        nb_od_thr = nstl::min(nb_od, div_up(job, dim_od));
+        od_thr = nstl::min(od, nb_od_thr * od_block);
+    }
 
     src_is = kd * kh * rnd_inp_simd(sp_block, kw, ic);
 
@@ -966,10 +969,10 @@ float brg_blocking_t::est_eff() {
     loop[l].dst.set(od_thr * oh_thr * sp_thr * nsimd_oc_thr * simd_w, 1);
     loop[l].wei.set(kd * kh * kw * nsimd_oc_thr * simd_w * ic, mb_thr);
 
-    const auto src_op = static_cast<dim_t>(mb_thr) * od_thr
-            * (is_os_blocking ? 1 : oh_thr) * sp_thr * kd * kh * kw * ic;
-    const auto dst_op = static_cast<dim_t>(mb_thr) * od_thr
-            * (is_os_blocking ? 1 : oh_thr) * sp_thr * nsimd_oc_thr;
+    const auto src_op = static_cast<dim_t>(mb_thr) * od_thr * oh_thr * sp_thr
+            * kd * kh * kw * ic;
+    const auto dst_op = static_cast<dim_t>(mb_thr) * od_thr * oh_thr * sp_thr
+            * nsimd_oc_thr;
     wei_op = kd * kh * kw * nsimd_oc_thr * ic;
 
     // for "real" application set bench_iterations to 1
@@ -1273,15 +1276,16 @@ float brg_blocking_t::est_eff_1x1() {
     const auto nb_sp_thr = nstl::min(nb_sp, div_up(job, dim_sp));
     const auto sp_thr = nstl::min(sp, nb_sp_thr * sp_block);
 
-    const auto dim_oh = nb_sp * dim_sp;
-    const auto nb_oh_thr = nstl::min(nb_oh, div_up(job, dim_oh));
-    const auto oh_thr
-            = is_os_blocking ? 1 : nstl::min(oh, nb_oh_thr * oh_block);
+    int nb_oh_thr {1}, oh_thr {1}, nb_od_thr {1}, od_thr {1};
+    if (!is_os_blocking) {
+        const auto dim_oh = nb_sp * dim_sp;
+        nb_oh_thr = nstl::min(nb_oh, div_up(job, dim_oh));
+        oh_thr = nstl::min(oh, nb_oh_thr * oh_block);
 
-    const auto dim_od = nb_oh * dim_oh;
-    const auto nb_od_thr = nstl::min(nb_od, div_up(job, dim_od));
-    const auto od_thr
-            = is_os_blocking ? 1 : nstl::min(od, nb_od_thr * od_block);
+        const auto dim_od = nb_oh * dim_oh;
+        nb_od_thr = nstl::min(nb_od, div_up(job, dim_od));
+        od_thr = nstl::min(od, nb_od_thr * od_block);
+    }
 
     auto job_eff = 1.f;
     if (job < nthr) {
@@ -1441,10 +1445,10 @@ float brg_blocking_t::est_eff_1x1() {
     loop[l].dst.set(nsimd_oc_thr * simd_w * od_thr * oh_thr * sp_thr, 1);
     loop[l].wei.set(nsimd_oc_thr * ic * simd_w, mb_thr);
 
-    const auto src_op = static_cast<dim_t>(mb_thr) * od_thr
-            * (is_os_blocking ? 1 : oh_thr) * sp_thr * ic_blocking_size;
+    const auto src_op = static_cast<dim_t>(mb_thr) * od_thr * oh_thr * sp_thr
+            * ic_blocking_size;
     const auto dst_op = static_cast<dim_t>(mb_thr) * nsimd_oc_thr * od_thr
-            * (is_os_blocking ? 1 : oh_thr) * sp_thr;
+            * oh_thr * sp_thr;
     wei_op = nsimd_oc_thr * ic;
 
     // for "real" application set bench_iterations to 1
