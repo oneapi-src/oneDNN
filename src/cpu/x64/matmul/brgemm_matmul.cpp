@@ -165,7 +165,7 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
         brgemm_kernel_t *ker = nullptr;
         CHECK(brgemm_kernel_create(&ker, pd()->get_brg_desc(idx)));
         CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
-        if (is_superset(isa, avx512_core_amx_fp16))
+        if (is_superset(isa, avx512_core_amx))
             CHECK(brgemm_init_tiles(
                     pd()->get_brg_desc(idx), &brg_kernel_palettes_[idx][0]));
     }
