@@ -922,6 +922,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
     }
   }
   mloop->attr()[stmt_attr_key::parallel_merge_loop] = true;
+  mloop->attr()[stmt_attr_key::parallel_merge_loop_granularity] = iim_block_;
   loops = {};
   return true;
 }

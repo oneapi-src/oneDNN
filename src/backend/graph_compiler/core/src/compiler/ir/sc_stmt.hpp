@@ -62,6 +62,10 @@ constexpr const char *unroll_loop = "unroll_loop";
 // Boolean. If true, for_loop_node_t will be merged by parallel, currently only
 // available for parallel loop with `thread_num > 1`
 constexpr const char *parallel_merge_loop = "parallel_merge_loop";
+
+// int. Indicate the partition granularity (default =1)
+constexpr const char *parallel_merge_loop_granularity
+        = "parallel_merge_loop_granularity";
 }; // namespace stmt_attr_key
 
 std::ostream &operator<<(std::ostream &os, sc_stmt_type val);

@@ -935,6 +935,14 @@ static bool try_merge_mixed_parti_parallel(
         return false;
     }
 
+    // cannot do parallel merge when loop split granularity are different
+    if (outermost_loop_target->attr().get_or_else(
+                stmt_attr_key::parallel_merge_loop_granularity, 1)
+            != outermost_loop_append->attr().get_or_else(
+                    stmt_attr_key::parallel_merge_loop_granularity, 1)) {
+        return false;
+    }
+
     // evaluate two partition by cost model
     float score_target = target_parti->evaluate_perf(),
           score_append = append_parti->evaluate_perf();
