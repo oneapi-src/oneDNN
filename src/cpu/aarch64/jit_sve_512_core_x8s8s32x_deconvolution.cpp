@@ -1416,7 +1416,7 @@ status_t jit_sve_512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_1d(
     const int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     const int nb_groups = jcp.nb_ch;
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
     int32_t *compensation = (!jcp.signed_input)
@@ -1514,7 +1514,7 @@ status_t jit_sve_512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_2d(
     size_t dst_h_stride = dst_d.blk_off(0, 0, 1);
     size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
     int32_t *compensation = (!jcp.signed_input)
@@ -1675,7 +1675,7 @@ status_t jit_sve_512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_3d(
     size_t wht_kd_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
     size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 0, 1);
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
     int32_t *compensation = (!jcp.signed_input)
