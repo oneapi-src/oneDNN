@@ -930,7 +930,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::zero_accumulators(int bd_block2,
         for_(int bdb = 0; bdb < bd_block2; bdb++)
         for (int ldb = 0; ldb < ld_block2; ldb++) {
             int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
-            tilezero(Tmm(brg.get_C_tensor(bdb, idx)));
+            tilezero(Tmm(brg.get_C_tensor(bdb, idx, is_bdb_tail, is_ld_tail)));
         }
     } else {
         int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
@@ -1359,7 +1359,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
         auto store_accumulators_amx = [=](const bool apply_post_ops) {
             mov(reg_buf, ptr[rsp + reg_buf_offs_]);
             for (int bdb = 0; bdb < bd_block2; bdb++) {
-                int adj_bd_block = (brg.is_M_tail && bdb == brg.bd_block2 - 1)
+                int adj_bd_block = (brg.is_M_tail && is_bdb_tail)
                         ? brg.bdb_tail
                         : brg.bd_block;
                 for (int ldb = 0; ldb < ld_block2; ldb++) {
@@ -1372,7 +1372,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
                             }
                         } else {
                             tilestored(ptr[reg_buf + reg_stride_ld_block],
-                                    Tmm(brg.get_C_tensor(bdb, idx)));
+                                    Tmm(brg.get_C_tensor(bdb, idx, is_bdb_tail,
+                                            is_ld_tail)));
                             for (int bd = 0; bd < adj_bd_block; bd++) {
                                 size_t buf_offset
                                         = (bd * brg.ld_block) * brg.typesize_C;
@@ -1400,7 +1401,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
                         mov(reg_buf, ptr[rsp + reg_buf_offs_]);
                     } else {
                         tilestored(ptr[reg_aux_C + reg_stride_ld_block],
-                                Tmm(brg.get_C_tensor(bdb, idx)));
+                                Tmm(brg.get_C_tensor(
+                                        bdb, idx, is_bdb_tail, is_ld_tail)));
                     }
                     add(reg_aux_C, ldb_C_offset(1));
                 }
@@ -1591,22 +1593,24 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel_amx(int bd_block2,
     int rbd_block = (is_rd_tail) ? 1 : brg.rdb;
     for (int rdb = 0; rdb < rbd_block; rdb++) {
         for (int bdb = 0; bdb < bd_block2; bdb++) {
-            maybe_tileloadd_nt(Tmm(brg.get_A_tensor(bdb)), reg_aux_A,
-                    rdb * rdb_A_offset() + A_offset(bdb, 0, true),
+            maybe_tileloadd_nt(Tmm(brg.get_A_tensor(bdb, is_bdb_tail)),
+                    reg_aux_A, rdb * rdb_A_offset() + A_offset(bdb, 0, true),
                     reg_stride_lda,
                     brg.brgattr.hint_innermost_loop
                             == brgemm_bd_loop_innermost);
         }
         for (int ldb = 0; ldb < ld_block2; ldb++) {
             const int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
-            maybe_tileloadd_nt(Tmm(brg.get_B_tensor(idx)), reg_aux_B,
-                    rdb * rdb_B_offset() + B_offset(ldb, 0, true),
+            maybe_tileloadd_nt(Tmm(brg.get_B_tensor(idx, is_ld_tail)),
+                    reg_aux_B, rdb * rdb_B_offset() + B_offset(ldb, 0, true),
                     reg_stride_ldb,
                     brg.brgattr.hint_innermost_loop
                             == brgemm_ld_loop_innermost);
             for (int bdb = 0; bdb < bd_block2; bdb++) {
-                tdpbxxd(Tmm(brg.get_C_tensor(bdb, idx)),
-                        Tmm(brg.get_A_tensor(bdb)), Tmm(brg.get_B_tensor(idx)));
+                tdpbxxd(Tmm(brg.get_C_tensor(
+                                bdb, idx, is_bdb_tail, is_ld_tail)),
+                        Tmm(brg.get_A_tensor(bdb, is_bdb_tail)),
+                        Tmm(brg.get_B_tensor(idx, is_ld_tail)));
             }
         }
     }
@@ -2229,7 +2233,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::bdb_loop() {
     };
     auto bdb_loop_amx = [=](bool skip_accumulation) {
         Label bdb_loop_label;
-        if (brg.bd_block2 > 1) {
+        if (brg.bd_block2 >= 1) {
             mov(reg_bdb_loop, brg.bdb2);
             mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
             L_aligned(bdb_loop_label, 64);
@@ -2246,7 +2250,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::bdb_loop() {
         if (brg.bdb2_tail > 0)
             bdb_loop_body(
                     brg.bdb2_tail, false, false, false, 0, skip_accumulation);
-        if (!brg.is_M_tail && brg.bdb_tail > 0)
+        if (brg.bdb_tail > 0)
             do_ldb_loop(1, true, false, false, 0, skip_accumulation);
     };
 
