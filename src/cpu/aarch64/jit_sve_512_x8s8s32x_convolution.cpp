@@ -61,7 +61,7 @@ jit_sve_512_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_1d(
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<wei_data_t *>(weights);
@@ -174,7 +174,7 @@ jit_sve_512_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_2d(
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<wei_data_t *>(weights);
@@ -319,7 +319,7 @@ status_t jit_sve_512_x8s8s32x_convolution_fwd_t<src_type,
     assert(jcp.nb_oc_blocking == 1);
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<wei_data_t *>(weights);
@@ -408,7 +408,7 @@ jit_sve_512_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_3d(
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
-    const float *oscales = pd()->attr()->output_scales_.scales_;
+    DEFINE_SCALES_BUFFER(oscales);
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<wei_data_t *>(weights);
