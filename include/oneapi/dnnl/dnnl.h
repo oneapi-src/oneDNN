@@ -1091,7 +1091,7 @@ dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
 /// @note
 ///     Both memory descriptors must have the same number of dimensions.
 ///     Element broadcasting is supported for memory descriptor @p src1_desc
-///     and are applied to @ src1_desc dimensions that have size equal to 1.
+///     and are applied to @p src1_desc dimensions that have size equal to 1.
 ///
 /// @param primitive_desc Output primitive descriptor.
 /// @param engine Engine to use.
