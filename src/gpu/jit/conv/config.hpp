@@ -341,13 +341,44 @@ public:
     virtual std::string name() const = 0;
     virtual std::string short_name() const { return name(); }
     virtual std::string desc() const = 0;
-    virtual void set(const std::string &s) = 0;
+
+    virtual bool accept_key(const std::string &key) const {
+        return key == short_name();
+    }
+
+    virtual void set(const std::string &s) { ir_error_not_expected(); }
+    virtual void set(const std::string &key, const std::string &value) {
+        if (key == short_name()) {
+            set(value);
+            return;
+        }
+        ir_error_not_expected();
+    }
+    void override_set(const std::string &key, const std::string &value) {
+        is_overridden_[key] = true;
+        set(key, value);
+    }
+
+    bool is_overridden() const {
+        if (is_overridden_.empty()) return false;
+        return is_overridden(short_name());
+    }
+
+    bool is_overridden(const std::string &key) const {
+        auto it = is_overridden_.find(key);
+        if (it == is_overridden_.end()) return false;
+        return it->second;
+    }
+
+private:
+    std::unordered_map<std::string, bool> is_overridden_;
 };
 
 template <typename T>
 class value_param_t : public param_t {
 public:
     using value_t = T;
+    using param_t::is_overridden;
 
     value_param_t() = default;
     value_param_t(const T &value) : value_(value) {}
@@ -357,8 +388,6 @@ public:
     operator const T &() const { return get(); }
 
     void set(const T &value) { value_ = value; }
-
-    virtual void set(const std::string &s) { ir_error_not_expected(); }
 
 protected:
     T value_;
@@ -411,6 +440,27 @@ private:
     layout_t compute_unnormalized_;
 };
 
+inline std::unordered_map<std::string, int> to_map(const std::string &s) {
+    std::unordered_map<std::string, int> ret;
+    int name_beg = -1;
+    int value_beg = -1;
+    for (int pos = 0; pos < (int)s.size() + 1; pos++) {
+        bool prev_digit = pos > 0 && std::isdigit(s[pos - 1]);
+        bool cur_digit = pos < (int)s.size() && std::isdigit(s[pos]);
+        if ((pos == 0 || prev_digit) && !cur_digit) {
+            if (name_beg != -1 && value_beg != -1) {
+                auto key = s.substr(name_beg, value_beg - name_beg);
+                auto value = std::stoi(s.substr(value_beg, pos - value_beg));
+                ret[key] = value;
+            }
+            name_beg = pos;
+            value_beg = -1;
+        }
+        if (!prev_digit && cur_digit) value_beg = pos;
+    }
+    return ret;
+}
+
 class map_param_t : public param_t {
 public:
     using value_t = std::unordered_map<std::string, int>;
@@ -428,26 +478,18 @@ public:
     int operator()(const std::string &name) const { return get(name); }
 
     void set(const std::string &s) override {
-        int name_beg = -1;
-        int value_beg = -1;
-        for (int pos = 0; pos < (int)s.size() + 1; pos++) {
-            bool prev_digit = pos > 0 && std::isdigit(s[pos - 1]);
-            bool cur_digit = pos < (int)s.size() && std::isdigit(s[pos]);
-            if ((pos == 0 || prev_digit) && !cur_digit) {
-                if (name_beg != -1 && value_beg != -1) {
-                    auto key = s.substr(name_beg, value_beg - name_beg);
-                    auto value
-                            = std::stoi(s.substr(value_beg, pos - value_beg));
-                    map_[key] = value;
-                }
-                name_beg = pos;
-                value_beg = -1;
-            }
-            if (!prev_digit && cur_digit) value_beg = pos;
-        }
+        map_.clear();
+        map_ = to_map(s);
     }
 
-    void set(const std::string &name, int dim) { map_[name] = dim; }
+    void set(const std::string &name, int dim) {
+        auto it = map_.find(name);
+        if (dim == 1) {
+            if (it != map_.end()) map_.erase(it);
+            return;
+        }
+        map_[name] = dim;
+    }
 
     void set(const value_t &value) { map_ = value; }
 
@@ -558,6 +600,8 @@ class dst_layout_param_t : public layout_param_t {
 
 class exec_cfg_param_t : public value_param_t<exec_config_t> {
 public:
+    using value_param_t::accept_key;
+    using value_param_t::is_overridden;
     using value_param_t::set;
     using value_param_t::value_param_t;
 
@@ -565,6 +609,19 @@ public:
     std::string desc() const override {
         return "Execution config (hardware config, number of registers, SIMD, "
                "etc).";
+    }
+
+    bool accept_key(const std::string &key) const override {
+        if (key == "simd") return true;
+        return false;
+    }
+
+    void set(const std::string &key, const std::string &value) override {
+        if (key == "simd") {
+            value_.set_simd(std::stoi(value));
+        } else {
+            ir_error_not_expected() << key;
+        }
     }
 };
 
@@ -585,6 +642,7 @@ class fuse_spatial_param_t : public bool_param_t {
 public:
     fuse_spatial_param_t() : bool_param_t(false) {}
     std::string name() const override { return "fuse-spatial"; }
+    std::string short_name() const override { return "fsp"; }
     std::string desc() const override {
         return "Whether to apply blocking to fused spatial (otherwise only `w` "
                "is blocked).";
@@ -623,6 +681,7 @@ public:
 class iter_dims_param_t : public map_param_t {
 public:
     std::string name() const override { return "iter"; }
+    std::string short_name() const override { return "i"; }
     std::string desc() const override {
         return "Iteration-level dimension blocks.";
     }
@@ -631,6 +690,7 @@ public:
 class loop_dims_param_t : public dims_param_t {
 public:
     std::string name() const override { return "loop"; }
+    std::string short_name() const override { return "l"; }
     std::string desc() const override { return "Loop-level dimension blocks."; }
 };
 
@@ -664,16 +724,26 @@ public:
 class pipeline_param_t : public param_t {
 public:
     std::string name() const override { return "pipeline"; }
+    std::string short_name() const override { return "P"; }
     std::string desc() const override { return "General pipeline parameters."; }
 
     bool do_unroll() const { return do_unroll_; }
     bool reuse_headers() const { return !do_unroll(); }
 
-    void set(const std::string &s) override { ir_error_not_implemented(); }
+    void set(const std::string &s) override {
+        do_unroll_ = false;
+        for (auto c : s) {
+            switch (c) {
+                case 'u': do_unroll_ = true; break;
+                default: ir_error_not_expected() << s;
+            }
+        }
+    }
+
     void set(bool do_unroll) { do_unroll_ = do_unroll; }
 
 private:
-    bool do_unroll_ = true;
+    bool do_unroll_ = false;
 };
 
 class prb_param_t : public value_param_t<conv_problem_t> {
@@ -693,13 +763,25 @@ public:
 class prefetch_param_t : public param_t {
 public:
     std::string name() const override { return "prefetch"; }
+    std::string short_name() const override { return "p"; }
     std::string desc() const override { return "Parameters for prefetching."; }
 
     int bufs() const { return bufs_; }
 
     operator bool() const { return bufs_ > 0; }
 
-    void set(const std::string &s) override {}
+    void set(const std::string &s) override {
+        auto parts = ir_utils::split(s, ".");
+        for (auto &p : parts) {
+            ir_assert(p.size() >= 2) << p;
+            char name = p[0];
+            int value = std::stoi(p.substr(1));
+            switch (name) {
+                case 'x': bufs_ = value; break;
+                default: ir_error_not_expected() << p;
+            }
+        }
+    }
 
     void set(int bufs) { bufs_ = bufs; }
 
@@ -829,7 +911,20 @@ public:
     int a() const { return a_; }
     int b() const { return b_; }
 
-    void set(const std::string &s) override {}
+    void set(const std::string &s) override {
+        a_ = 1;
+        b_ = 1;
+        for (auto &kv : to_map(s)) {
+            if (kv.first == "a") {
+                a_ = kv.second;
+            } else if (kv.first == "b") {
+                b_ = kv.second;
+            } else {
+                ir_error_not_expected() << kv.first;
+            }
+        }
+    }
+
     void set(int a, int b) {
         a_ = a;
         b_ = b;
@@ -883,9 +978,10 @@ static const int reserved_regs = 16;
 class conv_config_t {
 public:
     conv_config_t() = default;
-    conv_config_t(const std::string &s) { set(s); }
 
 #define DECL_PARAM(name) \
+    const name##_param_t &name##_param() const { return name##_; } \
+    name##_param_t &name##_param() { return name##_; } \
     const name##_param_t::value_t &name() const { return name##_.get(); } \
     void set_##name(const name##_param_t::value_t &value) { \
         name##_.set(value); \
@@ -933,7 +1029,7 @@ public:
 #undef DECL_PARAM
 #undef DECL_PARAM2
 
-    void set(const std::string &s);
+    void override_set(const std::string &s);
 
     std::string str() const;
 
