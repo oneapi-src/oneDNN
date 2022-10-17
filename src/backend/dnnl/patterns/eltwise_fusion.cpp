@@ -57,6 +57,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, eltwise_binary_fusion)
                             = std::make_shared<pb_graph_t>("pbinary_graph");
                     pm::pb_op_t *pbinary_op = pbinary_graph->append_alternation(
                             get_binary_ops(), "pbinary_op");
+                    pbinary_op->allow_internal_inputs();
                     pbinary_graph->create_input_port(0, pbinary_op, 0);
                     pbinary_graph->create_input_port(1, pbinary_op, 1);
                     pbinary_graph->create_output_port(0, pbinary_op, 0);

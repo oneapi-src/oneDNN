@@ -15185,3 +15185,61 @@ TEST(PassSystem, PoolFusionWithInternalInputs) {
         ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
     }
 }
+
+TEST(PassSystem, EltwiseFusionWithInternalInputs) {
+    /*
+        Abs/Clamp/Elu/Exp/GELU/HardSwish/LeakyReLU/Log/
+        Mish/Sigmoid/SoftPlus/Pow/ReLU/Round/Sqrt/Square/Tanh
+                |  (both inputs come from the eltwise op, 
+               / \  the 2nd input should be an internal input)
+        Add/Divide/Maximum/Minimum/Multiply/Subtract
+    */
+    std::vector<op_kind_t> eltwise_ts
+            = {Abs, Clamp, Elu, Exp, GELU, HardSwish, LeakyReLU, Log, Mish,
+                    Sigmoid, SoftPlus, Pow, ReLU, Round, Sqrt, Square, Tanh};
+    std::vector<op_kind_t> binary_ts
+            = {Add, Divide, Maximum, Minimum, Multiply, Subtract};
+    for_(auto elt_t : eltwise_ts)
+    for (auto bin_t : binary_ts) {
+        op_t eltwise_op {0, elt_t, "eltwise"};
+        if (elt_t == Clamp) {
+            eltwise_op.set_attr<float>(op_attr::min, 1.0f);
+            eltwise_op.set_attr<float>(op_attr::max, 3.0f);
+        } else if (elt_t == Elu) {
+            eltwise_op.set_attr<float>(op_attr::alpha, 1.0f);
+        } else if (elt_t == LeakyReLU)
+            eltwise_op.set_attr<float>(op_attr::alpha, 0.02f);
+        op_t binary_op {1, bin_t, "binary"};
+
+        std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
+        eltwise_op.add_input(lt_vec[0]);
+        eltwise_op.add_output(lt_vec[1]);
+        binary_op.add_input(lt_vec[1]);
+        binary_op.add_input(lt_vec[1]);
+        binary_op.add_output(lt_vec[2]);
+        if (elt_t == Pow) eltwise_op.add_input(lt_vec[3]);
+
+        graph_t agraph;
+        ASSERT_EQ(agraph.add_op(&eltwise_op), status::success);
+        ASSERT_EQ(agraph.add_op(&binary_op), status::success);
+        agraph.build_graph();
+
+        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+        pm.run_passes(agraph, "no_config");
+
+        ASSERT_EQ(agraph.get_num_partitions(), 1U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 2U);
+        ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+                impl::partition_kind::unary_post_ops);
+
+        if (elt_t == Pow)
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
+        else
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
+    }
+}
