@@ -2178,6 +2178,23 @@ std::string conv_config_t::blocking_brief_str() const {
     return oss.str();
 }
 
+bool conv_config_t::can_skip_wei_zero_out() const {
+    if (!prb().is_bwd_w) return true;
+    bmnk_dim_helper_t h(*this);
+    int k_iter_dim = h.iter_dim('k');
+    int k_loop_dim = h.loop_dim('k');
+    int k_tg_dim = h.thread_group_dim('k');
+    int k_tg_block = k_iter_dim * k_loop_dim * k_tg_dim;
+    int k_padded = padded_dim("mb") * padded_dim("od") * padded_dim("oh")
+            * padded_dim("ow");
+    return k_tg_block >= k_padded;
+}
+
+bool conv_config_t::can_skip_bia_zero_out() const {
+    if (!prb().is_bwd_w || !prb().with_bias) return true;
+    return can_skip_wei_zero_out() && !slm().b();
+}
+
 void init_extra_tensors(const conv_config_t &cfg, tensor_config_t &tensor_cfg) {
     const auto &prb = cfg.prb();
     auto &zp_cfg = prb.zp_cfg;

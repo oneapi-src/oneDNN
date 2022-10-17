@@ -148,6 +148,10 @@ public:
                         break;
                     }
                     case kernel_id_t::zero_out:
+                        if (can_skip_zero_out(info, cfg)) {
+                            kernels_.emplace_back();
+                            continue;
+                        }
                         kernels_.push_back(make_kernel<zero_out_kernel_t>(
                                 primitive, engine, cfg.exec_cfg(), info,
                                 cfg.is_dpas_or_dpasw_fma(),
@@ -206,14 +210,16 @@ public:
                 auto &info = kernel_infos[i];
                 if (info.stage_id() != stage) continue;
 
-                std::vector<memory_storage_wrapper_t> storage_list;
-                info.init_memory_storage_list(storage_list, ctx, primitive);
+                if (kernels_[i]) {
+                    std::vector<memory_storage_wrapper_t> storage_list;
+                    info.init_memory_storage_list(storage_list, ctx, primitive);
 
-                compute::kernel_arg_list_t arg_list;
-                info.set_args(arg_list, storage_list);
+                    compute::kernel_arg_list_t arg_list;
+                    info.set_args(arg_list, storage_list);
 
-                CHECK(primitive->parallel_for(
-                        ctx, nd_ranges_[i], kernels_[i], arg_list));
+                    CHECK(primitive->parallel_for(
+                            ctx, nd_ranges_[i], kernels_[i], arg_list));
+                }
                 nsubmitted++;
                 if (nsubmitted == nkernels) break;
             }
@@ -357,6 +363,16 @@ private:
                 default: ir_error_not_expected();
             }
         }
+    }
+
+    static bool can_skip_zero_out(
+            const kernel_info_t &info, const conv_config_t &cfg) {
+        ir_assert(info.id() == kernel_id_t::zero_out);
+        auto &buf_name = info.arg_var(0).as<var_t>().name;
+        if (buf_name == "wei") return cfg.can_skip_wei_zero_out();
+        if (buf_name == "bia") return cfg.can_skip_bia_zero_out();
+        ir_error_not_expected();
+        return false;
     }
 
     std::vector<compute::kernel_t> kernels_;
