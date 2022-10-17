@@ -566,6 +566,15 @@ void for_each(const std::vector<T> &bounds, const F &f) {
     for_each_impl(0, idx, bounds, f);
 }
 
+template <typename MapContainerT, typename KeyT,
+        typename ValueT = typename MapContainerT::mapped_type>
+ValueT get_or_default(const MapContainerT &map, const KeyT &key,
+        const ValueT &default_value) {
+    auto it = map.find(key);
+    if (it == map.end()) return default_value;
+    return it->second;
+}
+
 struct debug_profiler_t {
 #ifdef GEN_CONV_PROFILE
     debug_profiler_t(std::string profile_name) : profile(profile_name) {};
