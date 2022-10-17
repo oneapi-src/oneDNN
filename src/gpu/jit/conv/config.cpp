@@ -958,6 +958,25 @@ const memory_desc_t *output_md(const convolution_pd_t *pd) {
     return nullptr;
 }
 
+void maybe_override_from_lookup_table(conv_config_t &cfg) {
+    static conv_config_lookup_table_t table;
+    auto *s_params = table.find(cfg);
+    if (s_params) cfg.override_set(s_params);
+}
+
+void maybe_override_from_env(conv_config_t &cfg) {
+    auto cfg_env = ir_utils::getenv_str("cfg", "");
+    if (cfg_env.empty()) return;
+    cfg.override_set(cfg_env.c_str());
+}
+
+void maybe_override(conv_config_t &cfg) {
+    maybe_override_from_lookup_table(cfg);
+#ifdef GEN_CONV_DEBUG
+    maybe_override_from_env(cfg);
+#endif
+}
+
 status_t init_fma_kind(conv_config_t &cfg) {
     const auto &prb = cfg.prb();
     auto fma_kind = fma_kind::get_supported_kind(
@@ -970,6 +989,8 @@ status_t init_fma_kind(conv_config_t &cfg) {
 }
 
 status_t init_simd(conv_config_t &cfg) {
+    if (cfg.exec_cfg_param().is_overridden("simd")) return status::success;
+
     const auto &prb = cfg.prb();
     int simd = fma_kind::get_simd_size(cfg.hw(), cfg.fma_kind(),
             prb.a_data_type, prb.b_data_type, prb.acc_data_type);
@@ -1030,6 +1051,8 @@ status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
     cfg.set_prb(prb);
     cfg.set_exec_cfg(exec_config_t(hw_cfg));
 
+    maybe_override(cfg);
+
     CHECK(init_fma_kind(cfg));
     CHECK(init_simd(cfg));
     CHECK(init_vec_size(cfg));
@@ -1055,6 +1078,8 @@ void init_hint(conv_config_t &cfg) {
 }
 
 void init_pipeline(conv_config_t &cfg) {
+    if (cfg.pipeline().is_overridden()) return;
+
     const auto &prb = cfg.prb();
     bool do_unroll = true;
     if (prb.is_fwd) {
@@ -1121,6 +1146,8 @@ void init_send_2d_nhwc(conv_config_t &cfg) {
 }
 
 void init_fuse_spatial(conv_config_t &cfg) {
+    if (cfg.fuse_spatial_param().is_overridden()) return;
+
     const auto &prb = cfg.prb();
     if (!prb.is_fwd || is_small_ic(prb)) return;
 
@@ -1437,13 +1464,19 @@ void init_blocking(conv_config_t &cfg) {
         ir_error_not_expected();
     }
 
+    auto &dims = cfg.dims();
+    auto &iter_dims = cfg.iter_dims();
+    auto &thread_group_dims = cfg.thread_group_dims();
+    auto &loop_dims = cfg.loop_dims();
+
     for (auto &kv : bh.dims()) {
         auto &name = kv.first;
         auto &d = kv.second;
-        cfg.dims().set(name, d.size());
-        cfg.iter_dims().set(name, d.iter_dim());
-        cfg.thread_group_dims().set(name, d.tg_dim());
-        cfg.loop_dims().set(name, d.loop_dim());
+        if (!dims.is_overridden()) dims.set(name, d.size());
+        if (!iter_dims.is_overridden()) iter_dims.set(name, d.iter_dim());
+        if (!thread_group_dims.is_overridden())
+            thread_group_dims.set(name, d.tg_dim());
+        if (!loop_dims.is_overridden()) loop_dims.set(name, d.loop_dim());
     }
 }
 
@@ -1492,7 +1525,7 @@ const char **get_thread_group_grid_conv_dims(
 }
 
 void init_padded_dims(conv_config_t &cfg) {
-    for (auto &kv : cfg.iter_dims().get()) {
+    for (auto &kv : cfg.dims().get()) {
         auto &name = kv.first;
         int dim = cfg.dim(name);
         int iter = cfg.iter_dim(name);
@@ -1606,6 +1639,8 @@ bool can_split_across_thread_group(int tg_size, int elems, int type_size) {
 }
 
 void init_slm(conv_config_t &cfg) {
+    if (cfg.slm().is_overridden()) return;
+
     const auto &prb = cfg.prb();
     if (cfg.hw() >= ngen::HW::XeHPC) return;
 
@@ -1649,6 +1684,8 @@ void init_slm(conv_config_t &cfg) {
 }
 
 void init_prefetch(conv_config_t &cfg) {
+    if (cfg.prefetch().is_overridden()) return;
+
     const auto &prb = cfg.prb();
     if (cfg.hw() < ngen::HW::XeHPC) return;
 
@@ -1906,27 +1943,6 @@ bool try_reduce_grf_usage(conv_config_t &cfg) {
     return estimate_register_count(cfg) <= max_regs;
 }
 
-void fixup_overriding(conv_config_t &cfg) {
-    init_padded_dims(cfg);
-    init_kernel_grid(cfg);
-    init_thread_group_grid(cfg);
-}
-
-void maybe_override_from_lookup_table(conv_config_t &cfg) {
-    static conv_config_lookup_table_t table;
-    auto *s_params = table.find(cfg);
-    if (s_params) {
-        cfg.set(s_params);
-        // TODO: Move overriding to init_*() functions to follow the expected
-        // setup order and avoid fixup_overriding() logic.
-        fixup_overriding(cfg);
-    }
-}
-
-void maybe_override_from_env(conv_config_t &) {
-    //  TODO: Implement overriding from environment variables.
-}
-
 status_t try_init_cfg(conv_config_t &cfg) {
     init_hint(cfg);
     init_send_2d_nhwc(cfg);
@@ -1951,9 +1967,6 @@ status_t try_init_cfg(conv_config_t &cfg) {
     CHECK(check_config(cfg));
 
     if (!try_reduce_grf_usage(cfg)) return status::unimplemented;
-
-    maybe_override_from_lookup_table(cfg);
-    maybe_override_from_env(cfg);
 
     return status::success;
 }
@@ -2032,7 +2045,7 @@ status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd) {
     return ok ? status::success : status::runtime_error;
 }
 
-void conv_config_t::set(const std::string &s) {
+void conv_config_t::override_set(const std::string &s) {
     std::vector<param_t *> params;
     for (auto &gp : get_params_)
         params.push_back(gp(this));
@@ -2044,8 +2057,10 @@ void conv_config_t::set(const std::string &s) {
         auto &value = sub_parts[1];
         bool found = false;
         for (auto *p : params) {
-            if (p->short_name() == key) {
-                p->set(value);
+            if (p->accept_key(key)) {
+                ir_info() << "Override " << p->name() << ": " << key << "="
+                          << value << std::endl;
+                p->override_set(key, value);
                 found = true;
                 break;
             }

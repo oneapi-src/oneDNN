@@ -1519,6 +1519,7 @@ public:
 
     void set_tmasks(const std::unordered_map<std::string, int> &padded_dims,
             const std::unordered_map<std::string, int> &dim_blocks) {
+        using namespace ir_utils;
         auto &x = placeholder_var();
         for (int i = 0; i < ntdims(); i++) {
             auto &tdim = tdims_[i];
@@ -1526,10 +1527,10 @@ public:
             int vidx = tdim.vidx(0);
             int dim = tlayout_.dim(i);
             auto &dim_name = vvars_[vidx].as<var_t>().name;
-            int padded_dim = padded_dims.at(dim_name);
+            int padded_dim = get_or_default(padded_dims, dim_name, 1);
             if (dim >= padded_dim) continue;
             int inner_blk = ir_utils::max_pow2_divisor(dim);
-            int dim_blk = dim_blocks.at(dim_name);
+            int dim_blk = get_or_default(dim_blocks, dim_name, 1);
             if (math::is_pow2(dim_blk)) {
                 inner_blk = std::min(inner_blk, dim_blk);
             }
