@@ -82,7 +82,7 @@ bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
 
     const auto &post_ops = attr.post_ops_;
 
-    return injector::post_ops_ok(post_ops_ok_args_t(get_max_cpu_isa(),
+    return injector::post_ops_ok(post_ops_ok_args_t(jcp.isa,
             {sum, eltwise, binary}, post_ops, &dst_d,
             false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
             false /*sum_requires_zp_zero*/,
@@ -326,7 +326,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                     default: return status::unimplemented;
                 }
             }
-        } else {
+        } else if (jcp.oc_block == 16) {
             if (is_3d) {
                 switch (vnni_granularity) {
                     case 1: wei_tag = with_groups ? gOdhwi16o : Odhwi16o; break;
@@ -386,6 +386,13 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                     default: return status::unimplemented;
                 }
             }
+        } else if (jcp.oc_block == 8) {
+            if (vnni_granularity == 1)
+                wei_tag = with_groups ? gOhwi8o : Ohwi8o;
+            else
+                return status::unimplemented;
+        } else {
+            return status::unimplemented;
         }
     }
 
@@ -443,10 +450,14 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
         sp_block = 0;
         nb_sp = 0;
         eff = 0;
+        max_regs = isa_num_vregs(isa);
+        bcast_simd = acc_simd_w;
     }
 
     int ur, ur_block, ur_block_tail;
     int nb_kd, nb_kh, nb_kw;
+    int max_regs;
+    int bcast_simd;
     float eff;
     static unsigned L1;
     static unsigned L2;
@@ -462,8 +473,6 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     // memory.
     static constexpr float mem_k = 15.f;
     static constexpr int bench_iterations = 1;
-    static constexpr int max_regs = 32;
-    static constexpr int bcast_simd = 16;
 
     int sp, sp_block, nb_sp;
     static int last_ic_block_size;
@@ -577,7 +586,7 @@ void brg_blocking_t::select_ic_block() {
     auto nb_simd = utils::div_up(ic, simd_w);
     auto max_simd_blocks = nstl::min(5 * simd_w, nb_simd);
     const auto nb_icb_eff_threshold = 0.5f;
-    const auto padded_ic = last_ic_block_size * (is_ic_padded ? 16 : 1);
+    const auto padded_ic = last_ic_block_size * (is_ic_padded ? acc_simd_w : 1);
     if (is_amx(isa)) {
         if (ic * kw_sets < simd_w) {
             // this is current requirement from brgemm kernel
@@ -652,7 +661,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
 
     // Configure matrix sizes
     // for amx if ic_block != ic then we use exec_trans so K is ic_block
-    const auto padded_ic = last_ic_block_size * (is_ic_padded ? 16 : 1);
+    const auto padded_ic = last_ic_block_size * (is_ic_padded ? acc_simd_w : 1);
 
     icp = rnd_up(ic, padded_ic);
     M = brgM = sp >= sp_block ? sp_block : 0;
@@ -807,7 +816,7 @@ void brg_blocking_t::update_blocks() {
 bool brg_blocking_t::fast_check_oc_block() const {
     // This function for reducing the number of blocking variants
     // TODO: eliminate heuristic in this function
-    const auto rnd_oc = rnd_up(oc, 16);
+    const auto rnd_oc = rnd_up(oc, acc_simd_w);
     auto res = false;
     if (oc_block == 64) {
         res = (rnd_oc % oc_block == 0 && rnd_oc * wei_dsz < 192 * 4);
@@ -823,7 +832,7 @@ bool brg_blocking_t::fast_check_oc_block() const {
 }
 
 float brg_blocking_t::est_eff() {
-    const auto ocblock = oc_block / 16;
+    const auto ocblock = oc_block / acc_simd_w;
 
     const auto brgemm_microkernel_eff
             = (static_cast<float>(ocblock) * ur) / ((ur + ocblock) * max_regs);
@@ -1244,7 +1253,7 @@ bool brg_blocking_t::fast_check_oc_block_1x1() const {
     // This function for reducing the number of blocking variants
     // TODO: eliminate heuristic in this function
     if (is_1x1 && is_amx(isa)) return true;
-    const auto rnd_oc = rnd_up(oc, 16);
+    const auto rnd_oc = rnd_up(oc, acc_simd_w);
     auto res = false;
     if (oc_block == 64) {
         const auto big_spatial
@@ -1260,7 +1269,7 @@ bool brg_blocking_t::fast_check_oc_block_1x1() const {
 }
 
 float brg_blocking_t::est_eff_1x1() {
-    const auto ocblock = oc_block / 16;
+    const auto ocblock = oc_block / acc_simd_w;
 
     auto calc_ave_blk = [&](int dim, int block, bool use_ave) -> float {
         const int nb = dim / block;
@@ -1272,7 +1281,7 @@ float brg_blocking_t::est_eff_1x1() {
         return (float(nb2) * block2 + nb2_tail) / div_up(nb, block2);
     };
     const bool use_ocb_ave = true;
-    const auto ocb_ave = calc_ave_blk(oc_block, 16, use_ocb_ave);
+    const auto ocb_ave = calc_ave_blk(oc_block, acc_simd_w, use_ocb_ave);
     const bool use_spb_ave = false;
     const auto spb_ave = calc_ave_blk(sp_block, ur_block, use_spb_ave);
     const auto M_n_sp_blks = ur_block > 0 ? nstl::max(M, M_tail) / ur_block : 0;
@@ -1657,8 +1666,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     brg_blocking_t::L2 = platform::get_per_core_cache_size(2);
     brg_blocking_t::L3 = platform::get_per_core_cache_size(2);
 
-    if (!mayiuse(avx512_core)) return status::unimplemented;
-
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
@@ -1729,6 +1736,21 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.wei_dt = weights_md.data_type;
     jcp.bia_dt = jcp.with_bias ? bias_md.data_type : data_type::undef;
 
+    if (one_of(jcp.src_dt, u8, s8)) {
+        jcp.acc_dt = s32;
+    } else if (one_of(jcp.src_dt, f32, bf16, f16)) {
+        jcp.acc_dt = f32;
+    } else
+        return status::unimplemented;
+
+    jcp.src_dsz = types::data_type_size(jcp.src_dt);
+    jcp.wei_dsz = types::data_type_size(jcp.wei_dt);
+    jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
+    jcp.acc_dsz = types::data_type_size(jcp.acc_dt);
+    jcp.bia_dsz = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
+
+    jcp.simd_w = isa_max_vlen(isa) / jcp.src_dsz;
+    jcp.acc_simd_w = isa_max_vlen(isa) / jcp.acc_dsz;
     jcp.is_bf32 = everyone_is(f32, jcp.src_dt, jcp.wei_dt)
             && attr.fpmath_mode_ == fpmath_mode::bf16 && isa == avx512_core_amx;
 
@@ -1745,7 +1767,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     // TODO: optimize grouped convolutions with small ic
     const bool is_grouped_small_ic
             = jcp.prop_kind != prop_kind::backward_weights && with_groups
-            && jcp.ngroups > 1 && jcp.ic <= 16
+            && jcp.ngroups > 1 && jcp.ic <= jcp.acc_simd_w
             && IMPLICATION(is_amx(jcp.isa),
                     jcp.ic < 16
                             && jcp.oc < 16
@@ -1780,25 +1802,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         return status::unimplemented;
     const bool is_f32
             = utils::everyone_is(f32, jcp.src_dt, jcp.wei_dt, jcp.dst_dt);
-    if (!IMPLICATION(is_f32, isa == avx512_core || jcp.is_bf32))
+    if (!IMPLICATION(is_f32, one_of(isa, avx512_core, avx2) || jcp.is_bf32))
         return status::unimplemented;
-
-    if (one_of(jcp.src_dt, u8, s8)) {
-        jcp.acc_dt = s32;
-    } else if (one_of(jcp.src_dt, f32, bf16, f16)) {
-        jcp.acc_dt = f32;
-    } else
-        return status::unimplemented;
-
-    jcp.src_dsz = types::data_type_size(jcp.src_dt);
-    jcp.wei_dsz = types::data_type_size(jcp.wei_dt);
-    jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
-    jcp.acc_dsz = types::data_type_size(jcp.acc_dt);
-    jcp.bia_dsz = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
 
     if (!post_ops_ok(jcp, attr, dst_d)) return status::unimplemented;
 
-    jcp.simd_w = cpu_isa_traits<avx512_core>::vlen / jcp.src_dsz;
     jcp.amx_h = 16;
     jcp.amx_w = 64 / (jcp.is_bf32 ? types::data_type_size(bf16) : jcp.src_dsz);
 
@@ -1853,7 +1861,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             CHECK(memory_desc_init_by_tag(bias_md, x));
     }
 
-    const auto ic_padded_block = 16 * brg_blocking_t::last_ic_block_size;
+    const auto ic_padded_block
+            = jcp.acc_simd_w * brg_blocking_t::last_ic_block_size;
     jcp.is_ic_padded = !jcp.is_1x1 && one_of(jcp.wei_dt, bf16, f16, s8)
             && jcp.ic * jcp.kw_sets > ic_padded_block && is_amx(isa);
 
@@ -1913,7 +1922,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     jcp.loop_order = (bcast_amount < wei_amount) ? loop_ngcdhw : loop_ndhwgc;
 
-    const int min_oc_block = 16;
+    const int min_oc_block = jcp.acc_simd_w;
 
     int selected_ur = 0;
     MAYBE_UNUSED(selected_ur);
@@ -1926,12 +1935,12 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         auto start_ocb = (is_amx(isa) && jcp.is_os_blocking) ? 2 : 4;
         if (jcp.wei_plain)
             start_ocb = nstl::min(jcp.ic > 128 ? (jcp.ic > 256 ? 8 : 16) : 32,
-                    div_up(jcp.oc, 16));
-        start_ocb = nstl::min(div_up(jcp.oc, 16), start_ocb);
+                    div_up(jcp.oc, jcp.acc_simd_w));
+        start_ocb = nstl::min(div_up(jcp.oc, jcp.acc_simd_w), start_ocb);
 
         auto finish_ocb = 1;
         for (auto ocb = start_ocb; ocb >= finish_ocb; ocb--) {
-            cur_brgb.oc_block = ocb * 16;
+            cur_brgb.oc_block = ocb * jcp.acc_simd_w;
             cur_brgb.nb_oc = utils::div_up(jcp.oc, cur_brgb.oc_block);
             if (!cur_brgb.fast_check_oc_block()) continue;
 
@@ -1965,7 +1974,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         try_exec_vpad = true;
     }
 
-    const auto ic_padded_block = 16 * brg_blocking_t::last_ic_block_size;
+    const auto ic_padded_block
+            = jcp.acc_simd_w * brg_blocking_t::last_ic_block_size;
     // TODO: remove this restriction
     const auto w_padding = jcp.l_pad > 0 || jcp.r_pad > 0;
     if (is_amx(isa)) {
@@ -2187,11 +2197,12 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         // round up ic if needed
         const int vnni_width = brg_blocking_t::last_ic_block_size;
         const int n_vnni_blocks = utils::div_up(jcp.ic, vnni_width);
-        const int ic_block = nstl::min(16, n_vnni_blocks) * vnni_width;
+        const int ic_block
+                = nstl::min(jcp.acc_simd_w, n_vnni_blocks) * vnni_width;
         const bool do_zeropad = (!jcp.is_bf32)
                 && (jcp.ic % vnni_width != 0 || jcp.ic > ic_block);
         if (do_zeropad) jcp.ic = utils::rnd_up(jcp.ic, ic_block);
-        const auto ic_padded_block = 16 * vnni_width;
+        const auto ic_padded_block = jcp.acc_simd_w * vnni_width;
         jcp.is_ic_padded = jcp.ic > ic_padded_block && !(jcp.is_bf32);
 
         // try to choose optimal loop order
@@ -2205,7 +2216,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         jcp.loop_order = use_loop_ngcdhw ? loop_ngcdhw : loop_ndhwgc;
     }
 
-    const auto min_oc_block = 16;
+    const auto min_oc_block = jcp.acc_simd_w;
 
     jcp.brg_type = brgemm_addr; // TODO: Choose right type of BRGEMM
 
@@ -2222,8 +2233,8 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     auto start_ocb = 4;
     if (jcp.wei_plain)
         start_ocb = nstl::min(jcp.ic > 128 ? (jcp.ic > 256 ? 8 : 16) : 32,
-                div_up(jcp.oc, 16));
-    start_ocb = nstl::min(div_up(jcp.oc, 16), start_ocb);
+                div_up(jcp.oc, jcp.acc_simd_w));
+    start_ocb = nstl::min(div_up(jcp.oc, jcp.acc_simd_w), start_ocb);
 
     auto finish_ocb = 1;
     for (auto ocb = start_ocb; ocb >= finish_ocb; ocb--) {

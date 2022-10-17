@@ -820,7 +820,7 @@ struct jit_brgemm_conv_conf_t {
     prop_kind_t prop_kind;
     conv_brgemm_loop_order_t loop_order;
     conv_harness_t harness;
-    int simd_w, amx_w, amx_h;
+    int simd_w, acc_simd_w, amx_w, amx_h;
     int ndims;
     int mb;
     int ngroups, ic, oc, oc_without_padding, ic_without_padding;

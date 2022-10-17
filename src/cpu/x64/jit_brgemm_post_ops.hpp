@@ -347,7 +347,7 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
             static constexpr bool use_exact_tail_scalar_bcast = false;
 
             const binary_injector::rhs_arg_static_params_t rhs_sp {
-                    static_cast<size_t>(Xbyak::Zmm(28).getIdx()), this->r14,
+                    static_cast<size_t>(vmm_tmp(4).getIdx()), this->r14,
                     this->r15, preserve_gpr, preserve_vmm,
                     GET_OFF(ptr_binary_post_ops_rhs), GET_OFF(dst_orig),
                     memory_desc_wrapper(brg.dst_md),
@@ -410,6 +410,7 @@ private:
     int bia_typesize_;
 
     int is_oc_scale_;
+    constexpr static int max_vregs_ = cpu_isa_traits<po_isa_t>::n_vregs;
 
     using reg64_t = const Xbyak::Reg64;
     using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm,
@@ -463,6 +464,8 @@ private:
 
     const int n_block2_ = 4;
 
+    Vmm vmm_tmp(int i) const { return Vmm(max_vregs_ - 1 - i); }
+
     int zp_c_values_offset(int n, bool is_tail = false) const noexcept {
         if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
             return (is_tail) ? sizeof(int32_t) * brg.ldb_tail
@@ -491,27 +494,37 @@ private:
     template <typename T>
     const T maybe_mask(const T vmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask) {
+        assert(IMPLICATION(mask_flag, isa_has_masks(isa)));
         return mask_flag
                 ? (store ? vmm_in | ktail_mask : vmm_in | ktail_mask | T_z)
                 : vmm_in;
     }
 
-    // skip_cvt2ps == true -> convert integral values to s32, not f32
     void cvt2ps(data_type_t type_in, const Vmm vmm_in, const Xbyak::Operand &op,
-            bool mask_flag, bool store, Xbyak::Opmask ktail_mask,
+            int tail_size, bool store, Xbyak::Opmask ktail_mask,
             bool skip_cvt2ps = false) {
-        const Vmm vmm = maybe_mask(vmm_in, mask_flag, store, ktail_mask);
-        switch (type_in) {
-            case data_type::f32:
-            case data_type::s32: vmovups(vmm, op); break;
-            case data_type::s8: vpmovsxbd(vmm, op); break;
-            case data_type::u8: vpmovzxbd(vmm, op); break;
-            case data_type::bf16:
-                vpmovzxwd(vmm, op);
-                vpslld(vmm, vmm, 16);
-                break;
-            case data_type::f16: vcvtph2ps(vmm, op); break;
-            default: assert(!"unsupported data type");
+        const bool is_tail = op.isMEM()
+                && tail_size != vreg_traits<Vmm>::vlen / sizeof(float)
+                // The current kernel is written such that tail_size = 0 implies
+                // no tail and full vmm must be processed.
+                && tail_size > 0;
+
+        if (IMPLICATION(is_tail, isa_has_masks(isa))) {
+            const Vmm vmm = maybe_mask(vmm_in, is_tail, store, ktail_mask);
+            switch (type_in) {
+                case data_type::f32:
+                case data_type::s32: vmovups(vmm, op); break;
+                case data_type::s8: vpmovsxbd(vmm, op); break;
+                case data_type::u8: vpmovzxbd(vmm, op); break;
+                case data_type::bf16:
+                    vpmovzxwd(vmm, op);
+                    vpslld(vmm, vmm, 16);
+                    break;
+                case data_type::f16: vcvtph2ps(vmm, op); break;
+                default: assert(!"unsupported data type");
+            }
+        } else {
+            load_data(type_in, vmm_in, op.getAddress(), tail_size);
         }
         if (!skip_cvt2ps && types::is_integral_dt(type_in))
             vcvtdq2ps(vmm_in, vmm_in);
@@ -530,7 +543,7 @@ private:
             const int32_t *p_sum_zp = &p.entry_[sum_idx].sum.zero_point;
             if (*p_sum_scale != 1.f)
                 mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
-            auto vmm_sum_zp = Vmm(30);
+            auto vmm_sum_zp = vmm_tmp(1);
             if (*p_sum_zp != 0) {
                 mov(reg_ptr_sum_zp, (size_t)p_sum_zp);
                 vcvtdq2ps(vmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
@@ -542,13 +555,21 @@ private:
                 const auto addr = ptr[aux_reg_out
                         + out_typesize_ * (m * LDD_ + n * brg.ld_block)];
 
-                const auto vmm_prev_dst = Vmm(31);
-                cvt2ps(sum_dt, vmm_prev_dst, addr, true, false, k_mask);
+                const auto vmm_prev_dst = vmm_tmp(0);
+                cvt2ps(sum_dt, vmm_prev_dst, addr, tail, false, k_mask);
                 if (*p_sum_zp != 0) vsubps(vmm_prev_dst, vmm_sum_zp);
                 if (*p_sum_scale == 1.f)
                     vaddps(vmm, vmm_prev_dst);
-                else
-                    vfmadd231ps(vmm, vmm_prev_dst, zword_b[reg_ptr_sum_scale]);
+                else {
+                    if (is_superset(isa, avx512_core)) {
+                        vfmadd231ps(
+                                vmm, vmm_prev_dst, ptr_b[reg_ptr_sum_scale]);
+                    } else {
+                        auto vmm_sum_scale = vmm_tmp(1);
+                        vpbroadcastd(vmm_sum_scale, ptr[reg_ptr_sum_scale]);
+                        vfmadd231ps(vmm, vmm_prev_dst, vmm_sum_scale);
+                    }
+                }
             }
         };
 
@@ -581,16 +602,17 @@ private:
         auto k_mask = (tail == 0) ? k_full_mask : k_tail_mask;
 
         if (brg.alpha != 0 && brg.zp_type_a != brgemm_broadcast_t::none) {
-            auto vmm_zp_a_val = Vmm(30);
+            auto vmm_zp_a_val = vmm_tmp(1);
             mov(reg_zp_a_val, ptr[rsp + reg_zp_a_val_offs_]);
             vpbroadcastd(vmm_zp_a_val, reg_zp_a_val.cvt32());
 
             mov(aux_reg_zp_a_comp, ptr[rsp + aux_reg_zp_a_comp_offs_]);
             for (int n = 0; n < n_block; n++) {
-                auto vmm_zp_comp_a = Vmm(31);
+                auto vmm_zp_comp_a = vmm_tmp(0);
                 auto zp_comp_a_addr = EVEX_compress_addr(aux_reg_zp_a_comp,
                         sizeof(int32_t) * (n * brg.ld_block));
-                vmm_zp_comp_a = maybe_mask(vmm_zp_comp_a, true, false, k_mask);
+                vmm_zp_comp_a
+                        = maybe_mask(vmm_zp_comp_a, tail > 0, false, k_mask);
                 vmovups(vmm_zp_comp_a, zp_comp_a_addr);
                 vpmulld(vmm_zp_comp_a, vmm_zp_a_val, zp_comp_a_addr);
 
@@ -604,10 +626,10 @@ private:
         if (brg.alpha != 0 && brg.req_s8s8_compensation) {
             mov(aux_reg_s8s8_comp, ptr[rsp + aux_reg_s8s8_comp_offs_]);
             for (int n = 0; n < n_block; n++) {
-                auto vmm_comp = Vmm(31);
+                auto vmm_comp = vmm_tmp(0);
                 auto comp_addr = EVEX_compress_addr(aux_reg_s8s8_comp,
                         sizeof(int32_t) * (n * brg.ld_block));
-                vmm_comp = maybe_mask(vmm_comp, true, false, k_mask);
+                vmm_comp = maybe_mask(vmm_comp, tail > 0, false, k_mask);
                 vmovups(vmm_comp, comp_addr);
 
                 for (int m = 0; m < m_block; m++) {
@@ -651,12 +673,12 @@ private:
             if (brg.alpha == 0) {
                 if (sum_idx != -1 && brg.beta != 0) {
                     // if sum then have to init vmm each time
-                    vpxord(vector(m, n), vector(m, n), vector(m, n));
+                    uni_vpxor(vector(m, n), vector(m, n), vector(m, n));
                 }
             } else {
                 auto inp_addr = ptr[aux_reg_in
                         + inp_typesize_ * (m * brg.LDC + n * brg.ld_block)];
-                cvt2ps(inp_dt_, vector(m, n), inp_addr, true, false, k_mask,
+                cvt2ps(inp_dt_, vector(m, n), inp_addr, tail, false, k_mask,
                         req_comp);
             }
         }
@@ -666,11 +688,11 @@ private:
         if (brg.alpha != 0 && jcp.with_bias) {
             for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
-                auto vmm_bias = Vmm(31);
+                auto vmm_bias = vmm_tmp(0);
                 auto bias_addr = ptr[aux_reg_bias
                         + bia_typesize_ * (n * brg.ld_block)];
 
-                cvt2ps(bia_dt_, vmm_bias, bias_addr, true, false, k_mask);
+                cvt2ps(bia_dt_, vmm_bias, bias_addr, tail, false, k_mask);
                 vaddps(vector(m, n), vmm_bias);
             }
         }
@@ -678,11 +700,17 @@ private:
         if (brg.alpha != 0) {
             for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
-                const Vmm vmm = maybe_mask(vector(m, n), true, false, k_mask);
-                vmulps(vmm, vmm,
-                        ptr[aux_reg_scales
-                                + is_oc_scale_ * sizeof(float)
-                                        * (n * brg.ld_block)]);
+                const auto addr = ptr[aux_reg_scales
+                        + is_oc_scale_ * sizeof(float) * (n * brg.ld_block)];
+                auto vmm = vector(m, n);
+                if (IMPLICATION(tail > 0, isa_has_masks(isa))) {
+                    vmm = maybe_mask(vector(m, n), tail > 0, false, k_mask);
+                    vmulps(vmm, vmm, addr);
+                } else {
+                    auto vmm_scales = vmm_tmp(0);
+                    load_data(data_type::f32, vmm_scales, addr, tail);
+                    vmulps(vmm, vmm, vmm_scales);
+                }
             }
         }
 
@@ -690,7 +718,7 @@ private:
 
         if (brg.alpha != 0 && brg.zp_type_c != brgemm_broadcast_t::none) {
             mov(aux_reg_zp_c_values, ptr[rsp + aux_reg_zp_c_values_offs_]);
-            auto vmm_zp_c = Vmm(31);
+            auto vmm_zp_c = vmm_tmp(0);
             if (brg.zp_type_c == brgemm_broadcast_t::per_tensor) {
                 vcvtdq2ps(vmm_zp_c,
                         EVEX_compress_addr(aux_reg_zp_c_values, 0, true));
@@ -700,7 +728,7 @@ private:
                     int zp_c_off = zp_c_values_offset(n);
                     auto zp_c_addr
                             = EVEX_compress_addr(aux_reg_zp_c_values, zp_c_off);
-                    cvt2ps(data_type::s32, vmm_zp_c, zp_c_addr, true, false,
+                    cvt2ps(data_type::s32, vmm_zp_c, zp_c_addr, tail, false,
                             k_mask);
                 }
                 for (int m = 0; m < m_block; m++)
@@ -712,8 +740,8 @@ private:
                 brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
 
         const reg64_t reg_tmp_gpr = rax;
-        auto vmm_lbound = Vmm(31);
-        auto vmm_ubound = Vmm(30);
+        auto vmm_lbound = vmm_tmp(0);
+        auto vmm_ubound = vmm_tmp(1);
         if (dt_requires_saturation) {
             init_saturate_f32(vmm_lbound, vmm_ubound, reg_tmp_gpr,
                     data_type::f32, brg.dt_d);
@@ -723,9 +751,12 @@ private:
 
         for_(int m = 0; m < m_block; m++)
         for (int n = 0; n < n_block; n++) {
+            // incase of tail, stores are unconditionally masked, regardless
+            // of `n`, implying n_block must be equal to `1`.
+            assert(IMPLICATION(tail > 0, n_block == 1));
             auto vmm = vector(m, n);
-            auto addr = ptr[aux_reg_out
-                    + out_typesize_ * (m * LDD_ + n * brg.ld_block)];
+            const size_t offset = out_typesize_ * (m * LDD_ + n * brg.ld_block);
+            const auto addr = ptr[aux_reg_out + offset];
 
             if (utils::one_of(out_dt_, data_type::bf16, data_type::f16)) {
                 Vmm_lower_t vmm_low = Vmm_lower_t(vmm.getIdx());
@@ -737,21 +768,24 @@ private:
                     else
                         vcvtneps2bf16(vmm_low, vmm);
                 }
-                vmm_low = maybe_mask(vmm_low, true, true, k_mask);
+                vmm_low = maybe_mask(vmm_low, tail > 0, true, k_mask);
                 vmovdqu16(addr, vmm_low);
             } else {
                 if (brg.alpha != 0 || (sum_idx != -1 && brg.beta != 0)) {
                     saturate_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
                     if (out_dt_ != data_type::f32) vcvtps2dq(vmm, vmm);
                 }
-
-                vmm = maybe_mask(vmm, true, true, k_mask);
-                switch (out_dt_) {
-                    case data_type::f32:
-                    case data_type::s32: vmovups(addr, vmm); break;
-                    case data_type::s8: vpmovsdb(addr, vmm); break;
-                    case data_type::u8: vpmovusdb(addr, vmm); break;
-                    default: assert(!"unknown dst_dt");
+                if (IMPLICATION(tail > 0, isa_has_masks(isa))) {
+                    vmm = maybe_mask(vmm, tail > 0, true, k_mask);
+                    switch (out_dt_) {
+                        case data_type::f32:
+                        case data_type::s32: vmovups(addr, vmm); break;
+                        case data_type::s8: vpmovsdb(addr, vmm); break;
+                        case data_type::u8: vpmovusdb(addr, vmm); break;
+                        default: assert(!"unknown dst_dt");
+                    }
+                } else {
+                    store_data(out_dt_, vmm, aux_reg_out, offset, tail);
                 }
             }
         }
@@ -881,21 +915,23 @@ private:
         int nb2_tail = nb % n_block2_;
         int n_block = (nb2 == 0) ? nstl::max(1, nb2_tail) : n_block2_;
 
-        int m_max_regs = (brg.is_bf16_emu ? 24 : 28) / n_block;
+        int m_max_regs = (brg.is_bf16_emu ? 24 : max_vregs_ - 4) / n_block;
         int m_block = nstl::min(brg.bcast_dim, m_max_regs);
 
         int mb = brg.bcast_dim / m_block;
         int mb_tail = brg.bcast_dim % m_block;
 
-        const auto full_mask = size_t {0xffffffffffffffff};
-        const auto tail_mask = size_t((1 << nb_tail) - 1);
+        if (isa_has_masks(isa)) {
+            const auto full_mask = size_t {0xffffffffffffffff};
+            const auto tail_mask = size_t((1 << nb_tail) - 1);
 
-        reg64_t reg_mask = rax;
+            reg64_t reg_mask = rax;
 
-        mov(reg_mask, full_mask);
-        kmovq(k_full_mask, reg_mask);
-        mov(reg_mask, tail_mask);
-        kmovq(k_tail_mask, reg_mask);
+            mov(reg_mask, full_mask);
+            kmovq(k_full_mask, reg_mask);
+            mov(reg_mask, tail_mask);
+            kmovq(k_tail_mask, reg_mask);
+        }
 
         if (brg.alpha != 0) {
             mov(reg_in, ptr[param1 + GET_OFF(ptr_in)]);
@@ -929,7 +965,7 @@ private:
             for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
                 auto vmm = Vmm(m * n_block + n);
-                vpxord(vmm, vmm, vmm);
+                uni_vpxor(vmm, vmm, vmm);
             }
         }
 

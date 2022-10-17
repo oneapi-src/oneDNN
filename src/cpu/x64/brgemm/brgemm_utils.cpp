@@ -118,7 +118,8 @@ void set_isa_impl(brgemm_t *brg) {
                 // Allow avx512_core_fp16 isa in case of a f16 primitive that
                 // is implemented using pre-conversion of inputs to f32.
                 // This is needed to support f16 binary post-ops.
-                is_isa_ok(avx512_core_fp16), avx512_core_fp16);
+                is_isa_ok(avx512_core_fp16), avx512_core_fp16, is_isa_ok(avx2),
+                avx2);
     } else if (brg->is_bf16) {
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_amx),
                 avx512_core_amx, is_isa_ok(avx512_core_bf16), avx512_core_bf16,
@@ -188,6 +189,9 @@ status_t brgemm_blocking(brgemm_t *brg) {
                                                   : max_regs - 1));
         max_block -= req_compensation;
         max_block -= req_zp_a_comp_pads;
+        if (!is_superset(brg->isa_impl, avx512_core) && brg->ldb_tail > 0
+                && brg->beta != 0.f)
+            --max_block;
         if (req_zp_a_comp_pads) max_block = nstl::min(max_block, max_regs - 5);
         if (brg->is_bf16_emu)
             max_block

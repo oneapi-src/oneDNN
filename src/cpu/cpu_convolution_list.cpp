@@ -107,6 +107,9 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE_AARCH64_ACL(acl_indirect_gemm_convolution_fwd_t)
             CPU_INSTANCE_AARCH64_ACL(acl_gemm_convolution_fwd_t<f32>)
             CPU_INSTANCE(gemm_convolution_fwd_t)
+            // TODO: Move-up the brgemm<avx2> after performance study
+            CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx2>)
+            CPU_INSTANCE_AVX2(brgemm_convolution_fwd_t<avx2>)
             CPU_INSTANCE(ref_convolution_fwd_t)
             CPU_INSTANCE(ref_fused_convolution_fwd_t)
             nullptr,
