@@ -277,7 +277,7 @@
 #define REORDER8(_dst, _src, _a, _b, _x0, _y0) \
     do { \
         const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
-        const float8 _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x, _y); \
+        const float8 _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
         _dst = TO_DST8(_s); \
     } while (0)
 #elif WITH_SUM_AB
