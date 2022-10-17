@@ -723,9 +723,10 @@ public:
         return reduction_stmt;
     }
 
-    stmt_t create_store_stmt() const {
+    stmt_t create_store_stmt(bool use_atomic) const {
         auto r2g = make_access_builder(ir_ctx_, b_reduced_thr_view_,
-                b_reduced_mem_buf_, b_reduced_reg_buf_, send_op_t::atomic_fadd,
+                b_reduced_mem_buf_, b_reduced_reg_buf_,
+                use_atomic ? send_op_t::atomic_fadd : send_op_t::store,
                 send_address_t::a64);
         // TODO: Check that layouts match.
         auto ret = r2g.stmt();
@@ -2034,7 +2035,9 @@ public:
             auto &ctx = b_reduce_ctx_;
             b_reduced_zero_out_stmt_ = create_zero_out_stmt(
                     ir_ctx_, ctx.b_reduced_reg_buf(), ctx.b_reduced_size());
-            b_reduced_store_stmt_ = ctx.create_store_stmt();
+            b_reduced_store_stmt_ = ctx.create_store_stmt(
+                    gemm_schedule_.with_kernel_grid_k_slicing()
+                    || cfg_.slm().b());
             register_out_buffer(ctx.b_reduced_reg_buf(), ctx.b_reduced_size(),
                     alloc_kind_t::grf);
         }

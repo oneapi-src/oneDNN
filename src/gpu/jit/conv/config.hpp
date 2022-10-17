@@ -1160,6 +1160,9 @@ public:
         set_exec_cfg(tmp);
     }
 
+    bool can_skip_wei_zero_out() const;
+    bool can_skip_bia_zero_out() const;
+
 private:
     struct param_init_t {};
 
