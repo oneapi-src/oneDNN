@@ -140,6 +140,7 @@ status_t dispatch_t::vectorize_dim(const std::string &name, int vector_size) {
     for (int i = 0; i < ndims_; ++i) {
         if (dims_[i].name == name) {
             assert(dims_[i].size % vector_size == 0);
+            assert(dims_[i].size % (vector_size * dims_[i].block) == 0);
             dims_[i].vector_size = vector_size;
             return status::success;
         }
