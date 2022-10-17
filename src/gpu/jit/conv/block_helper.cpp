@@ -317,6 +317,16 @@ void block_helper_t::compute() {
     init_bmnk_blocks();
     init_prb_blocks();
 
+    // XXX: Fix up loop dims for when K grid slicing is disabled.
+    if (!allow_k_grid_slicing_) {
+        for (auto &kv : dims_) {
+            auto &d = kv.second;
+            if (d.bmnk() != 'K') continue;
+            d.set_loop_dim(1);
+            d.set_loop_dim(d.grid_dim());
+        }
+    }
+
 #ifdef GEN_CONV_DEBUG
     for (auto &kv : dims_) {
         auto &d = kv.second;
