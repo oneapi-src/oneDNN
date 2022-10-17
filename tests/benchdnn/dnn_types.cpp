@@ -406,7 +406,9 @@ pk_t attr_t::post_ops_t::str2kind(const std::string &str) {
             if (s == name) return e.kind;
         }
     }
-    assert(!"unknown attr_t::post_ops_t::kind_t kind");
+    BENCHDNN_PRINT(0, "%s\'%s\' %s\n", "Error: ", str.c_str(),
+            "kind of post operation entry was not recognized.");
+
     const auto table_size = sizeof(kind_table) / sizeof(*kind_table);
     return kind_table[table_size - 1].kind;
 }

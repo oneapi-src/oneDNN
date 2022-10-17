@@ -129,7 +129,8 @@ int fill_src(
 
     const auto &c = prb->get_dt_conf(SRC);
     const int range = c.f_max - c.f_min + 1;
-    const float sparsity = src_nelems < 100 ? 1.f : c.f_sparsity;
+    const float sparsity
+            = (!is_bench_mode(CORR) || src_nelems < 100) ? 1.f : c.f_sparsity;
 
     benchdnn_parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
@@ -197,6 +198,7 @@ int fill_wei(
 
     const auto &c = prb->get_dt_conf(WEI);
     const int range = c.f_max - c.f_min + 1;
+    const float sparsity = !is_bench_mode(CORR) ? 1.f : c.f_sparsity;
 
     benchdnn_parallel_nd(prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kd,
             prb->kh, prb->kw,
@@ -204,7 +206,7 @@ int fill_wei(
                     int64_t kw) {
                 const int64_t gen = 113 * g + 127 * kd + 131 * kh + 137 * kw
                         + 139 * oc + 149 * ic + 151;
-                const bool non_base = flip_coin(gen, c.f_sparsity);
+                const bool non_base = flip_coin(gen, sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
                                              : c.f_base;
                 ((float *)mem_00)[wei_off_f(prb, g, oc, ic, kd, kh, kw)]

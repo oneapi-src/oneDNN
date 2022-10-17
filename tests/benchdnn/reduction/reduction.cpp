@@ -154,6 +154,12 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     // TODO: consider change the filling with power-of-two values for better
     // answer precision.
     cmp.set_threshold(5 * epsilon_dt(prb->ddt));
+    if (is_amd_gpu()) {
+        // MIOpen implementation is less accurate for f16 data type therefore
+        // adjust the threshold.
+        if (prb->sdt == dnnl_f16 || prb->ddt == dnnl_f16)
+            cmp.set_threshold(1.5e-4 * 4);
+    }
 }
 
 int doit(const prb_t *prb, res_t *res) {

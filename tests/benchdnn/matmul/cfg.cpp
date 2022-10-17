@@ -21,7 +21,7 @@ namespace matmul {
 // Adjust density based on accumulation chain.
 float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
     float density = 1.f;
-    if (density_args.data_kind != SRC) return density;
+    if (!is_bench_mode(CORR) || density_args.data_kind != SRC) return density;
 
     // Find the number of accumulators safe to use with the following equations:
     // Integer value can be expressed exactly with floating-point is
