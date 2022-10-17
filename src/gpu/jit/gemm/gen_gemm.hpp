@@ -394,7 +394,10 @@ struct gen_gemm_t : public gpu_gemm_t {
         bool eff_transb() const {
             return !swap_ab() ? (desc()->transb() == dnnl_trans) : false;
         }
-        bool eff_trans_bias() const { return swap_ab() ^ desc()->trans_bias(); }
+        bool eff_trans_bias() const {
+            return swap_ab() ? (desc()->trans_bias() == dnnl_notrans)
+                             : (desc()->trans_bias() == dnnl_trans);
+        }
         dim_t eff_m() const { return !swap_ab() ? desc()->m() : desc()->n(); }
         dim_t eff_n() const { return !swap_ab() ? desc()->n() : desc()->m(); }
         dim_t eff_lda() const {
