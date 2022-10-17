@@ -404,7 +404,7 @@ public:
 private:
     void build();
     bool try_build(const layout_t &try_layout);
-    bool try_build_2d();
+    bool try_build_2d(send_hint_t &send_hint);
     bool fixup_send_2d_params(const type_t &send_type, bool vnni,
             bool transpose, bool use_xy, int &W, int &H, int &P, int &w, int &h,
             int &c, int &vnni_permute_factor);
@@ -423,7 +423,6 @@ private:
     send_op_t send_op_;
     send_address_t send_address_;
     send_cache_hint_t send_cache_hint_;
-    send_hint_t &send_hint_;
 
     type_t mem_type_;
 

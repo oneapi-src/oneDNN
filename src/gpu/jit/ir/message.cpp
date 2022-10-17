@@ -476,12 +476,11 @@ access_builder_t::access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
     , send_op_(send_op)
     , send_address_(send_address)
     , send_cache_hint_(send_cache_hint)
-    , send_hint_(send_hint)
     , mem_type_(mem_view.type())
     , mem_walker_(
               utils::make_unique<memory_walker_t>(ir_ctx.cset(), mem_view)) {
-    if (send_hint_.hint_2d.enable) {
-        if (try_build_2d()) return;
+    if (send_hint.hint_2d.enable) {
+        if (try_build_2d(send_hint)) return;
     }
     send_hint.hint_2d = send_2d_hint_t();
     build();
@@ -564,9 +563,9 @@ static stmt_t try_promote_to_lsc(const stmt_t &_call) {
     return lsc_send.call(new_args);
 }
 
-bool access_builder_t::try_build_2d() {
+bool access_builder_t::try_build_2d(send_hint_t &send_hint) {
     auto vlayout = mem_view_.create_pseudo_vlayout();
-    auto &hint = send_hint_.hint_2d;
+    auto &hint = send_hint.hint_2d;
     // The data may be loaded in a wider data type to get a proper GRF layout.
     if (!hint.type.is_undef()) vlayout = vlayout.reinterpret(hint.type);
 
@@ -705,7 +704,7 @@ bool access_builder_t::try_build_2d() {
     hint.transpose = transpose;
     hint.width = w;
     hint.height = h;
-    auto _send = send_t::make_2d(ir_ctx_->hw(), send_hint_.convert(send_op_),
+    auto _send = send_t::make_2d(ir_ctx_->hw(), send_hint.convert(send_op_),
             send_type, W, H, P, w, h, c, vnni, transpose, send_cache_hint_);
     auto &send = _send.as<send_t>();
 
