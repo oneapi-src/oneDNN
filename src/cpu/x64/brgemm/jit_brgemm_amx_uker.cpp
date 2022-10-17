@@ -270,9 +270,9 @@ private:
     // saved parameters for storing
     brgemm_iteration_t ils_bi_;
     // current storing coordinates
-    int ils_vec_ = 0, ils_bdb_ = 0, ils_ldb_ = 0, ils_bd_start_ = 0,
-        ils_bd_step_ = 0;
+    int ils_vec_ = 0, ils_bdb_ = 0, ils_ldb_ = 0, ils_bd_start_ = 0;
     int pfo_vec_ = 0, pfo_vecs_per_store_ = 0;
+    int ils_bd_step_ = 3; // heuristic value
 
     bool dt_requires_saturation_ = false;
 
@@ -280,30 +280,35 @@ private:
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
     Xbyak::Opmask bf32_col_mask = Xbyak::Opmask(4);
 
-    Xbyak::Zmm accm(int bd) {
-        assert(bd < 16);
-        return Xbyak::Zmm(31 - bd);
-    }
-
+    // Zmm map below
     const Xbyak::Zmm &zmm_tmp_1() const noexcept { return this->zmm0; }
     const Xbyak::Zmm &zmm_tmp_2() const noexcept { return this->zmm1; }
     const Xbyak::Zmm &zmm_tmp_3() const noexcept { return this->zmm2; }
 
+    const Xbyak::Zmm zmm_bf32_pemute = zmm6;
+    const Xbyak::Zmm zmm_zp_comp_a = zmm6;
+    const Xbyak::Zmm zmm_zp_c = zmm7;
+    const Xbyak::Zmm zmm_lbound = zmm8;
+    const Xbyak::Zmm zmm_ubound = zmm9;
+
+    // zmm_bias, zmm_bias and accm shouldn't be overlapped
+    Xbyak::Zmm accm(int bd) const {
+        assert(bd < 16);
+        return Xbyak::Zmm(31 - (bd % ils_bd_step_));
+    }
+
     Xbyak::Zmm zmm_bias(int ldb) {
-        assert(ldb < 3);
-        // zmm6, zmm7, zmm8
-        return Xbyak::Zmm(6 + ldb);
+        assert(ldb < 5);
+        // zmm10 - zmm14
+        return Xbyak::Zmm(10 + ldb);
     }
+
     Xbyak::Zmm zmm_scales(int ldb) {
-        assert(ldb < 3);
-        // zmm9, zmm10, zmm11
-        return Xbyak::Zmm(9 + ldb);
+        assert(ldb < 5);
+        assert(ils_bd_step_ < 10);
+        // zmm15 - zmm19
+        return Xbyak::Zmm(15 + ldb);
     }
-    const Xbyak::Zmm zmm_bf32_pemute = zmm12;
-    const Xbyak::Zmm zmm_zp_comp_a = zmm12;
-    const Xbyak::Zmm zmm_zp_c = zmm13;
-    const Xbyak::Zmm zmm_lbound = zmm14;
-    const Xbyak::Zmm zmm_ubound = zmm15;
 
     Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask) const;
@@ -809,8 +814,12 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_range(brgemm_iteration_t &bi,
                 primitive_kind::sum, sum_injector);
     }
 
+    // Using knowledge how "accm" assign zmm registers.
+    // TODO: make this code more clear
+    const auto finish_idx = accm(bd_start).getIdx() + 1;
+    const auto start_idx = accm(bd_finish - 1).getIdx();
     postops_injector_->compute_vector_range(
-            32 - bd_finish, 32 - bd_start, rhs_arg_params);
+            start_idx, finish_idx, rhs_arg_params);
 }
 
 void jit_brgemm_amx_uker_base_t::maybe_saturation(Xbyak::Zmm &zmm) {
@@ -1107,8 +1116,6 @@ void jit_brgemm_amx_uker_base_t::interleave_store(
     auto cur_bdb = ils_bdb_;
     auto cur_ldb = ils_ldb_;
 
-    ils_bd_step_ = 3; // heuristic value
-
     // if first block
     if (ils_vec_ == 0) {
         if (!prepare_post_ops_registers_once_) {
@@ -1194,16 +1201,22 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(brgemm_iteration_t &bi) {
 
                 prepare_post_ops_registers_ldb(bi, ldb);
 
-                process_output_range(bi, 0, bi.bdi.block, bd_inp_bdb, bdb, ldb);
+                for (int bd_step = 0; bd_step < bi.bdi.block;
+                        bd_step += ils_bd_step_) {
+                    auto bd_finish
+                            = nstl::min(bd_step + ils_bd_step_, bi.bdi.block);
+                    process_output_range(
+                            bi, bd_step, bd_finish, bd_inp_bdb, bdb, ldb);
 
-                for (int bd = 0; bd < bi.bdi.block; bd++) {
-                    const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
-                    if (bd_out_bd == -1) continue;
+                    for (int bd = bd_step; bd < bd_finish; bd++) {
+                        const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
+                        if (bd_out_bd == -1) continue;
 
-                    auto vreg_acc = bi.ldi.is_tail
-                            ? accm(bd) | ld_tail_mask | T_z
-                            : accm(bd);
-                    store_vector(bi, vreg_acc.getIdx(), bd_out_bd, ldb);
+                        auto vreg_acc = bi.ldi.is_tail
+                                ? accm(bd) | ld_tail_mask | T_z
+                                : accm(bd);
+                        store_vector(bi, vreg_acc.getIdx(), bd_out_bd, ldb);
+                    }
                 }
             } else {
                 const auto bd_out_bdb = get_out_bd(bd_inp_bdb, 0);
