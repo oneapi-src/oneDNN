@@ -91,6 +91,8 @@ bool type_filter_t::matches(const std::vector<data_type_t> &values) const {
         if (ptrn == "x8") {
             if (!utils::one_of(values[i], data_type::s8, data_type::u8))
                 return false;
+        } else if (ptrn == "f32") {
+            if (values[i] != data_type::f32) return false;
         } else {
             ir_error_not_expected() << ptrn;
         }
@@ -111,6 +113,7 @@ bool type_filter_t::try_parse(
 std::vector<std::string> &type_filter_t::all_patterns() {
     static std::vector<std::string> ret = {
             "x8",
+            "f32",
             "*",
     };
     return ret;
@@ -188,7 +191,6 @@ conv_config_lookup_table_t::conv_config_lookup_table_t() {
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic1024ih14oc2048oh7kh1sh2ph0", "T=oc8mb4osp1 s=x3.g2.v4 c=0");
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic256iw196oc1024ow196kw1pw0 post_ops=sum", "T=oc8mb1osp4 s=x3.g2.v2 c=0");
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic256iw3136oc64ow3136kw1pw0", "T=oc4mb1osp8 s=x1.g1.v0 c=0");
-
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic256ih14oc256oh14kh3ph1", "T=oc8mb4osp1 s=x3.g1.v4 c=0");
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic512iw49oc2048ow49kw1pw0 post_ops=sum", "T=oc8mb4osp1 s=x3.g1.v2 c=0");
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic64ih56oc64oh56kh3ph1", "T=oc2mb1osp8 s=x3.g1.v4 c=0");
@@ -205,6 +207,74 @@ conv_config_lookup_table_t::conv_config_lookup_table_t() {
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic1024iw196oc512ow196kw1pw0", "T=oc8mb1osp4 s=x3.g2.v4 c=0");
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic256iw3136oc128ow3136kw1pw0", "T=oc4mb1osp2 s=x3.g1.v4 c=0");
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic512iw784oc256ow784kw1pw0", "T=oc8mb1osp4 s=x3.g2.v3 c=0");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic1024ih14oc2048oh7kh1sh2ph0", "simd=32 p=x0 T=ic4oc8mb1 l=oc16 i=mb16ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic1024iw196oc256ow196kw1pw0", "simd=32 p=x0 T=ic2oc2iw2 l=oc8 i=mb16ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic1024iw196oc512ow196kw1pw0", "simd=32 p=x0 T=oc4iw2 l=oc8 i=mb16ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic128ih28oc128oh28kh3ph1", "simd=16 p=x0 T= i=mb16ic16oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic128ih56oc128oh28kh3sh2ph1", "simd=16 p=x0 T=ic2mb4 i=mb16ic16oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic128iw784oc512ow784kw1pw0", "simd=32 p=x0 T=oc4 l=oc8 i=mb8ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic2048iw49oc512ow49kw1pw0", "simd=32 p=x0 T=ic2oc4 l=oc8 i=mb16ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic256ih14oc256oh14kh3ph1", "simd=32 p=x0 T=oc2iw2 l=oc8kw3kh3 i=mb8ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic256ih28oc256oh14kh3sh2ph1", "simd=32 p=x0 T=ic2oc2iw2 l=oc8kw3kh3 i=mb16ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic256ih56oc512oh28kh1sh2ph0", "simd=32 p=x0 T=oc2iw2 l=oc16 i=mb16ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic256iw196oc1024ow196kw1pw0", "simd=32 p=x0 T=oc2 l=oc32 i=mb8ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic256iw3136oc128ow3136kw1pw0", "simd=16 p=x0 T=ic2 i=mb16ic16oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic256iw3136oc64ow3136kw1pw0", "simd=32 p=x0 T= i=mb16ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic512ih14oc512oh7kh3sh2ph1", "simd=32 p=x0 T=ic2oc4iw2 l=oc8kw3kh3 i=mb16ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic512ih28oc1024oh14kh1sh2ph0", "simd=32 p=x0 T=oc4iw8 l=oc16 i=mb16ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic512ih7oc512oh7kh3ph1", "simd=32 p=x0 T=oc2iw8 l=oc16kw3kh3 i=mb8ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic512iw49oc2048ow49kw1pw0", "simd=16 p=x1 T=ic2mb2 i=mb8ic16oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic512iw784oc128ow784kw1pw0", "simd=16 p=x0 T=ic2 i=mb16ic16oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic512iw784oc256ow784kw1pw0", "simd=32 p=x0 T=oc2 l=oc8 i=mb16ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic64ih56oc64oh56kh3ph1", "simd=32 p=x0 T=iw2 i=mb8ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic64iw3136oc256ow3136kw1pw0", "simd=32 p=x0 T=oc2 l=oc8 i=mb8ic32oc16");
+    add("hw=xehpc dir=bwd_d cfg=f32f32f32 mb=16+ desc=ic64iw3136oc64ow3136kw1pw0", "simd=16 p=x0 T=ic2 i=mb16ic16oc16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic1024ih14oc2048oh7kh1sh2ph0", "simd=16 p=x0 T=ic2oc4 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic1024iw196oc256ow196kw1pw0", "simd=16 p=x1 T=ic4oc2 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic1024iw196oc512ow196kw1pw0", "simd=16 p=x1 T=ic4oc4 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic128ih28oc128oh28kh3ph1", "simd=16 p=x0 T=ic4oc2 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic128ih56oc128oh28kh3sh2ph1", "simd=16 p=x0 T=ic4oc2 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic128iw784oc512ow784kw1pw0", "simd=16 p=x1 T=ic2oc8 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic2048iw49oc512ow49kw1pw0", "simd=16 p=x0 T=ic4oc2 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic256ih14oc256oh14kh3ph1", "simd=16 p=x0 T=ic4oc2 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic256ih28oc256oh14kh3sh2ph1", "simd=16 p=x0 T=ic4oc2 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic256ih56oc512oh28kh1sh2ph0", "simd=16 p=x1 T=ic8oc4 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic256iw196oc1024ow196kw1pw0", "simd=16 p=x1 T=ic2oc2 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic256iw3136oc128ow3136kw1pw0", "simd=16 p=x0 T=ic4oc4 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic256iw3136oc64ow3136kw1pw0", "simd=16 p=x1 T=ic2oc4 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic3ih224oc64oh112kh7sh2ph3", "simd=16 p=x0 l=ow28 T=oc2 i=kw8mb16oc16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic512ih14oc512oh7kh3sh2ph1", "simd=16 p=x0 T=ic2oc2 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic512ih28oc1024oh14kh1sh2ph0", "simd=16 p=x0 T=ic2oc4 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic512ih7oc512oh7kh3ph1", "simd=16 p=x0 T=ic4 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic512iw49oc2048ow49kw1pw0", "simd=16 p=x0 T=ic2oc4 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic512iw784oc128ow784kw1pw0", "simd=16 p=x1 T=ic2oc4 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic512iw784oc256ow784kw1pw0", "simd=16 p=x0 T=ic2oc4 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic64ih56oc64oh56kh3ph1", "simd=16 p=x0 T=ic4oc2 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic64iw3136oc256ow3136kw1pw0", "simd=16 p=x1 T=ic2oc8 i=ic16oc16mb16");
+    add("hw=xehpc dir=bwd_w cfg=f32f32f32 mb=16+ desc=ic64iw3136oc64ow3136kw1pw0", "simd=16 p=x1 T=ic4oc2 i=ic16oc16mb16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic1024ih14oc2048oh7kh1sh2ph0", "simd=32 p=x0 fsp=0 T=ic2oc4 l=ic32 i=mb16oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic1024iw196oc256ow196kw1pw0", "simd=32 p=x0 fsp=0 T=ic2 l=ic32 i=mb8oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic1024iw196oc512ow196kw1pw0", "simd=32 p=x0 fsp=0 T=ic4oc2ow2 l=ic16 i=mb16oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic128ih28oc128oh28kh3ph1", "simd=16 p=x0 fsp=0 T=ow4 i=mb16oc16ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic128ih56oc128oh28kh3sh2ph1", "simd=16 p=x0 fsp=0 T= i=mb16oc16ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic128iw784oc512ow784kw1pw0", "simd=32 p=x0 fsp=0 T= i=mb8oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic2048iw49oc512ow49kw1pw0", "simd=32 p=x0 fsp=0 T=ic2ow8 l=ic64 i=mb8oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic256ih14oc256oh14kh3ph1", "simd=32 p=x0 fsp=0 T=ic2mb2 l=ic8kw3kh3 i=mb8oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic256ih28oc256oh14kh3sh2ph1", "simd=32 p=x0 fsp=0 T=ic2ow2 l=ic8kw3kh3 i=mb8oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic256ih56oc512oh28kh1sh2ph0", "simd=32 p=x0 fsp=0 T=ic2 l=ic8 i=mb16oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic256iw196oc1024ow196kw1pw0", "simd=32 p=x0 fsp=0 T=ic2oc2ow2 l=ic8 i=mb16oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic256iw3136oc128ow3136kw1pw0", "simd=32 p=x0 fsp=0 T=ic2 l=ic8 i=mb8oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic256iw3136oc64ow3136kw1pw0", "simd=16 p=x1 fsp=0 T=ic2oc2 l=ic8 i=mb16oc16ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic3ih224oc64oh112kh7sh2ph3", "simd=32 p=x1 T= l=kh7 i=ow16oc32ic3kw7");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic512ih14oc512oh7kh3sh2ph1", "simd=32 p=x0 fsp=0 T=ic2ow8 l=ic16kw3kh3 i=mb8oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic512ih28oc1024oh14kh1sh2ph0", "simd=32 p=x0 fsp=0 T=ic4ow2 l=ic8 i=mb16oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic512ih7oc512oh7kh3ph1", "simd=32 p=x0 fsp=0 T=ic2ow8 l=ic16kw3kh3 i=mb8oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic512iw49oc2048ow49kw1pw0", "simd=32 p=x0 fsp=0 T=ic4oc2 l=ic8 i=mb16oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic512iw784oc128ow784kw1pw0", "simd=32 p=x0 fsp=0 T=ic4ow2 l=ic8 i=mb16oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic512iw784oc256ow784kw1pw0", "simd=32 p=x0 fsp=0 T=ic4 l=ic8 i=mb16oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic64ih56oc64oh56kh3ph1", "simd=32 p=x0 fsp=0 T=ow2 i=mb8oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic64iw3136oc256ow3136kw1pw0", "simd=32 p=x0 fsp=0 T= i=mb16oc32ic16");
+    add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic64iw3136oc64ow3136kw1pw0", "simd=16 p=x0 fsp=0 T=oc2 i=mb16oc16ic16");
     // clang-format on
 }
 
