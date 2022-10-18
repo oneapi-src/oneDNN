@@ -457,6 +457,7 @@ void conv_ir_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     gemm_schedule.bind(mb_tile.grid_idx(), cfg_.kernel_grid().idx(2));
     gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
     gemm_schedule.bind(mb_iw_tg_idx, cfg_.thread_group_grid().idx(1));
+    gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(2));
 
     gemm_schedule.tensorize(g_tile.iter_idx());
     gemm_schedule.tensorize(ic_tile.iter_idx());
