@@ -2151,7 +2151,14 @@ private:
 
             dim_t total_size = size_src_dst + size_stats_ss_tensors;
 
-            dim_t n_chunks = total_size / platform::get_per_core_cache_size(2);
+            // Try to create at least nthr_ chunks for realtime inference. Not
+            // enabled for throughput inference to avoid potential regressions
+            // for multi-socket runs with threadpool runtime.
+            // TODO: Enable for throughput inference.
+            const int n_chunks_min = nthr_ <= 4 ? nthr_ : 1;
+            const size_t l2_per_core = platform::get_per_core_cache_size(2);
+            dim_t n_chunks
+                    = nstl::max<dim_t>(n_chunks_min, total_size / l2_per_core);
 
             // we prioritize parallelization on N, then S, and finally C
             nthr.N = utils::saturate<dim_t>(1, N_, n_chunks);
