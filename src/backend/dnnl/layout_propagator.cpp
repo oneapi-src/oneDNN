@@ -502,9 +502,9 @@ impl::status_t layout_propagator_for_pool(op_ptr &op,
             && op->get_attr<bool>(op_attr::is_training)) {
         value_ptr workspace_val = op->get_output_value(2);
         const memory::desc &ws_md = pd.workspace_desc();
-        workspace_val->set_dims(ws_md.dims());
+        workspace_val->set_dims(ws_md.get_dims());
         workspace_val->set_data_type(
-                static_cast<impl::data_type_t>(ws_md.data.data_type));
+                static_cast<data_type_t>(ws_md.get_data_type()));
         status = fill_layout_info(workspace_val, ws_md);
     }
     return status;
@@ -891,7 +891,7 @@ impl::status_t layout_propagator_for_from_group(op_ptr &op,
         if (is_convtranspose) {
             auto permuted_dst = transpose(src_md, 1, 2);
             auto permuted_dst_no_groups = from_grouped(permuted_dst);
-            return (permuted_dst_no_groups.is_zero())
+            return !permuted_dst_no_groups
                     ? permuted_dst_no_groups
                     : transpose(permuted_dst_no_groups, 0, 1);
         } else {
@@ -903,11 +903,12 @@ impl::status_t layout_propagator_for_from_group(op_ptr &op,
         if (is_convtranspose) {
             // chain of (transpose -> from_grouped -> transpose) requires
             // such permuted strides, otherwise reshape will fail
-            auto strides = get_dense_strides(transpose(src_md, 0, 1).dims());
+            auto strides
+                    = get_dense_strides(transpose(src_md, 0, 1).get_dims());
             std::swap(strides[0], strides[1]);
             return strides;
         } else {
-            return get_dense_strides(src_md.dims());
+            return get_dense_strides(src_md.get_dims());
         }
     };
 
@@ -926,9 +927,9 @@ impl::status_t layout_propagator_for_from_group(op_ptr &op,
     // from_grouped uses the 'allow_empty' option when reshaping, so if
     // reshape will not succeed (e.g. padding exists inside dims we want
     // to join), infered_dst_md will be an empty memory descriptor.
-    if (infered_dst_md.is_zero()) {
-        dnnl::memory::desc strided_dst_md(src_md.dims(), src_md.data_type(),
-                get_strides(src_md, is_convtranspose));
+    if (!infered_dst_md) {
+        dnnl::memory::desc strided_dst_md(src_md.get_dims(),
+                src_md.get_data_type(), get_strides(src_md, is_convtranspose));
         insert_reorder_before(
                 op, 0, strided_dst_md, p_engine, mgr, pd_cache, rewriter);
         infered_dst_md = get_dst_md(strided_dst_md, is_convtranspose);
@@ -969,9 +970,9 @@ static impl::status_t layout_propagator_for_reshape_like_ops(op_ptr &op,
 
         // out_md will be empty if the in_md is not reshapable. We need to
         // reorder the in_md first and then reshape the reordered reshapable md.
-        if (out_md.is_zero()) {
-            dnnl::memory::desc reshapable_md(in_md.dims(), in_md.data_type(),
-                    get_ncx_format(in_md.data.ndims));
+        if (!out_md) {
+            dnnl::memory::desc reshapable_md(in_md.get_dims(),
+                    in_md.get_data_type(), get_ncx_format(in_md.get_ndims()));
             insert_reorder_before(
                     op, 0, reshapable_md, p_engine, mgr, pd_cache, rewriter);
             out_md = reshapable_md.reshape(target_dims);
@@ -983,8 +984,8 @@ static impl::status_t layout_propagator_for_reshape_like_ops(op_ptr &op,
         dnnl::memory::desc out_md = make_dnnl_memory_desc(out_lt);
         // check if the out_md is reshapable
         dnnl::memory::desc expected_in_md
-                = out_md.reshape(in_md.dims(), /* allow empty */ true);
-        if (!expected_in_md.is_zero()) {
+                = out_md.reshape(in_md.get_dims(), /* allow empty */ true);
+        if (expected_in_md) {
             // If the out_md is reshapable, the expected_in_md must be
             // reshapable too. Then we just need to check if the real in_md has
             // same layout as the expected_in_md, and insert only one possible
@@ -999,9 +1000,10 @@ static impl::status_t layout_propagator_for_reshape_like_ops(op_ptr &op,
             // Check if the in_md is reshapable.
             dnnl::memory::desc reshaped_in_md
                     = in_md.reshape(target_dims, /* allow empty */ true);
-            if (reshaped_in_md.is_zero()) {
-                dnnl::memory::desc reshapable_md(in_md.dims(),
-                        in_md.data_type(), get_ncx_format(in_md.data.ndims));
+            if (!reshaped_in_md) {
+                dnnl::memory::desc reshapable_md(in_md.get_dims(),
+                        in_md.get_data_type(),
+                        get_ncx_format(in_md.get_ndims()));
                 insert_reorder_before(op, 0, reshapable_md, p_engine, mgr,
                         pd_cache, rewriter);
                 reshaped_in_md = reshapable_md.reshape(target_dims);
@@ -1136,9 +1138,8 @@ impl::status_t layout_propagator_for_reorder(op_ptr &op,
                 "the dnnl_reorder op's input and output layout must be known "
                 "if it changes layout");
 
+        in_lt.data_type = ltw(out_lt).data_type();
         auto out_md = make_dnnl_memory_desc(in_lt);
-        out_md.data.data_type
-                = static_cast<dnnl_data_type_t>(ltw(out_lt).data_type());
         status = fill_layout_info(dst, out_md);
     } else if (!ltw(out_lt).is_any() && ltw(in_lt).is_any()) {
         assertm(!op->has_attr(op_attr::change_layout)
@@ -1146,9 +1147,8 @@ impl::status_t layout_propagator_for_reorder(op_ptr &op,
                 "the dnnl_reorder op's input and output layout must be known "
                 "if it changes layout");
 
+        out_lt.data_type = ltw(in_lt).data_type();
         auto in_md = make_dnnl_memory_desc(out_lt);
-        in_md.data.data_type
-                = static_cast<dnnl_data_type_t>(ltw(in_lt).data_type());
         status = fill_layout_info(src, in_md);
     }
     if (status != impl::status::success) return status;

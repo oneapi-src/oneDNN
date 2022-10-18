@@ -32,6 +32,7 @@
 #include "utils/compatible.hpp"
 
 #include "dnnl.hpp"
+#include "dnnl_debug.h"
 
 #define DNNL_GRAPH_ARG_POST_SRC (-1)
 
@@ -43,6 +44,7 @@ namespace dnnl_impl {
 using memory = dnnl::memory;
 using desc = memory::desc;
 using format_tag = memory::format_tag;
+using format_kind = memory::format_kind;
 using tag = memory::format_tag;
 using data_type = typename memory::data_type;
 using dims = typename memory::dims;
@@ -129,6 +131,10 @@ std::shared_ptr<impl::value_t> insert_empty_scratchpad(
 
 std::shared_ptr<impl::value_t> insert_empty_workspace(
         std::shared_ptr<impl::op_t> &op);
+
+std::string get_format_tag_str(const dnnl::memory::desc &md);
+
+dnnl::memory::format_tag get_format_tag(const dnnl::memory::desc &md);
 
 #ifndef NDEBUG
 #define BACKEND_DNNL_ENFORCE(condition, message) \

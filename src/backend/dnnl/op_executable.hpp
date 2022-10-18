@@ -299,14 +299,16 @@ struct conv_fwd_executable_t : public op_executable_t {
                 // psrc_mem and dst_mem may have different data type bug same
                 // buffer size(u8 and s8) for such case, need to reorder
                 // psrc_mem to dst_mem with original data type
-                if (psrc_mem.get_desc().data_type()
+                if (psrc_mem.get_desc().get_data_type()
                                 == dnnl::memory::data_type::s8
-                        && dst_mem.get_desc().data_type()
+                        && dst_mem.get_desc().get_data_type()
                                 == dnnl::memory::data_type::u8) {
                     dnnl::memory::desc to_desc = dst_mem.get_desc();
-                    to_desc.data.data_type = psrc_mem.get_desc().data.data_type;
+                    desc new_to_desc(to_desc.get_dims(),
+                            psrc_mem.get_desc().get_data_type(),
+                            to_desc.get_strides());
                     const memory to_mem
-                            = dnnl::memory(to_desc, psrc_mem.get_engine());
+                            = dnnl::memory(new_to_desc, psrc_mem.get_engine());
                     to_mem.set_data_handle(dst_mem.get_data_handle());
                     dnnl::reorder(psrc_mem, to_mem)
                             .execute(stream, const_cast<memory &>(psrc_mem),
@@ -334,14 +336,16 @@ struct conv_fwd_executable_t : public op_executable_t {
                 // psrc_mem and dst_mem may have different data type bug same
                 // buffer size(u8 and s8) for such case, need to reorder
                 // psrc_mem to dst_mem with original data type
-                if (psrc_mem.get_desc().data_type()
+                if (psrc_mem.get_desc().get_data_type()
                                 == dnnl::memory::data_type::s8
-                        && dst_mem.get_desc().data_type()
+                        && dst_mem.get_desc().get_data_type()
                                 == dnnl::memory::data_type::u8) {
                     dnnl::memory::desc to_desc = dst_mem.get_desc();
-                    to_desc.data.data_type = psrc_mem.get_desc().data.data_type;
+                    desc new_to_desc(to_desc.get_dims(),
+                            psrc_mem.get_desc().get_data_type(),
+                            to_desc.get_strides());
                     const memory to_mem
-                            = dnnl::memory(to_desc, psrc_mem.get_engine());
+                            = dnnl::memory(new_to_desc, psrc_mem.get_engine());
                     to_mem.set_data_handle(dst_mem.get_data_handle());
                     auto prim = dnnl::reorder(psrc_mem, to_mem);
                     auto e = dnnl::sycl_interop::execute(prim, stream,
@@ -780,14 +784,14 @@ private:
 };
 
 struct pool_executable_t : public op_executable_t {
-    DECLARE_DESC_CLASS_AND_CREATOR(dnnl::pooling_v2_forward::primitive_desc);
+    DECLARE_DESC_CLASS_AND_CREATOR(dnnl::pooling_forward::primitive_desc);
     DECLARE_ARG_INDICES_GETTER;
 
     pool_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
         auto desc = create_desc(op, p_engine, mgr, pd_cache);
-        prim_ = dnnl::pooling_v2_forward(desc);
+        prim_ = dnnl::pooling_forward(desc);
     }
 
     void execute(const stream &stream,
@@ -806,18 +810,18 @@ struct pool_executable_t : public op_executable_t {
 #endif
 
 private:
-    dnnl::pooling_v2_forward prim_;
+    dnnl::pooling_forward prim_;
 };
 
 struct pool_bwd_executable_t : public op_executable_t {
-    DECLARE_DESC_CLASS_AND_CREATOR(dnnl::pooling_v2_backward::primitive_desc);
+    DECLARE_DESC_CLASS_AND_CREATOR(dnnl::pooling_backward::primitive_desc);
     DECLARE_ARG_INDICES_GETTER;
 
     pool_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
         auto desc = create_desc(op, p_engine, mgr, pd_cache);
-        prim_ = dnnl::pooling_v2_backward(desc);
+        prim_ = dnnl::pooling_backward(desc);
     }
 
     void execute(const stream &stream,
@@ -836,7 +840,7 @@ struct pool_bwd_executable_t : public op_executable_t {
 #endif
 
 private:
-    dnnl::pooling_v2_backward prim_;
+    dnnl::pooling_backward prim_;
 };
 
 struct prelu_executable_t : public op_executable_t {
@@ -1057,7 +1061,7 @@ struct bn_folding_t : public op_executable_t {
         if (bias.get(true) == nullptr || bias.get_data_handle() == nullptr) {
             // initialize the bias with zero value
             std::vector<float> zero(
-                    impl::utils::prod(variance.get_desc().dims()), 0.0f);
+                    impl::utils::prod(variance.get_desc().get_dims()), 0.0f);
             if (mean.get_engine().get_kind() == engine::kind::cpu) {
                 std::memcpy(valid_bias.get_data_handle(), zero.data(),
                         valid_bias.get_desc().get_size());
@@ -1293,19 +1297,17 @@ struct batchnorm_executable_t : public op_executable_t {
         dnnl::engine p_engine = stream.get_engine();
         // new_running_mean = momentum * old_running_mean +
         //                                      (1 - momentum) * batch_mean
-        dnnl::sum(
-                {scales_, {old_running_mean.get_desc(), batch_mean.get_desc()},
-                        p_engine})
+        dnnl::sum({p_engine, scales_,
+                          {old_running_mean.get_desc(), batch_mean.get_desc()}})
                 .execute(stream,
                         {{DNNL_ARG_MULTIPLE_SRC, old_running_mean},
                                 {DNNL_ARG_MULTIPLE_SRC + 1, batch_mean},
                                 {DNNL_ARG_DST, new_running_mean}});
         // new_running_variance = momentum * old_running_variance +
         //                                  (1 - momentum) * batch_variance
-        dnnl::sum({scales_,
+        dnnl::sum({p_engine, scales_,
                           {old_running_variance.get_desc(),
-                                  batch_variance.get_desc()},
-                          p_engine})
+                                  batch_variance.get_desc()}})
                 .execute(stream,
                         {{DNNL_ARG_MULTIPLE_SRC, old_running_variance},
                                 {DNNL_ARG_MULTIPLE_SRC + 1, batch_variance},
@@ -1341,9 +1343,8 @@ struct batchnorm_executable_t : public op_executable_t {
         dnnl::engine p_engine = stream.get_engine();
         // new_running_mean = momentum * old_running_mean +
         //                                      (1 - momentum) * batch_mean
-        auto sum_prim_0 = dnnl::sum(
-                {scales_, {old_running_mean.get_desc(), batch_mean.get_desc()},
-                        p_engine});
+        auto sum_prim_0 = dnnl::sum({p_engine, scales_,
+                {old_running_mean.get_desc(), batch_mean.get_desc()}});
         auto e1 = dnnl::sycl_interop::execute(sum_prim_0, stream,
                 {{DNNL_ARG_MULTIPLE_SRC, old_running_mean},
                         {DNNL_ARG_MULTIPLE_SRC + 1, batch_mean},
@@ -1351,9 +1352,8 @@ struct batchnorm_executable_t : public op_executable_t {
                 {e0});
         // new_running_variance = momentum * old_running_variance +
         //                                  (1 - momentum) * batch_variance
-        auto sum_prim_1 = dnnl::sum({scales_,
-                {old_running_variance.get_desc(), batch_variance.get_desc()},
-                p_engine});
+        auto sum_prim_1 = dnnl::sum({p_engine, scales_,
+                {old_running_variance.get_desc(), batch_variance.get_desc()}});
         auto e2 = dnnl::sycl_interop::execute(sum_prim_1, stream,
                 {{DNNL_ARG_MULTIPLE_SRC, old_running_variance},
                         {DNNL_ARG_MULTIPLE_SRC + 1, batch_variance},
@@ -1579,14 +1579,14 @@ private:
 };
 
 struct softmax_executable_t : public op_executable_t {
-    DECLARE_DESC_CLASS_AND_CREATOR(dnnl::softmax_v2_forward::primitive_desc);
+    DECLARE_DESC_CLASS_AND_CREATOR(dnnl::softmax_forward::primitive_desc);
     DECLARE_ARG_INDICES_GETTER;
 
     softmax_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
         auto desc = create_desc(op, p_engine, mgr, pd_cache);
-        prim_ = dnnl::softmax_v2_forward(desc);
+        prim_ = dnnl::softmax_forward(desc);
     }
 
     void execute(const stream &stream,
@@ -1605,18 +1605,18 @@ struct softmax_executable_t : public op_executable_t {
 #endif
 
 private:
-    dnnl::softmax_v2_forward prim_;
+    dnnl::softmax_forward prim_;
 };
 
 struct softmax_bwd_executable_t : public op_executable_t {
-    DECLARE_DESC_CLASS_AND_CREATOR(dnnl::softmax_v2_backward::primitive_desc);
+    DECLARE_DESC_CLASS_AND_CREATOR(dnnl::softmax_backward::primitive_desc);
     DECLARE_ARG_INDICES_GETTER;
 
     softmax_bwd_executable_t(std::shared_ptr<impl::op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
         auto desc = create_desc(op, p_engine, mgr, pd_cache);
-        prim_ = dnnl::softmax_v2_backward(desc);
+        prim_ = dnnl::softmax_backward(desc);
     }
 
     void execute(const stream &stream,
@@ -1635,7 +1635,7 @@ struct softmax_bwd_executable_t : public op_executable_t {
 #endif
 
 private:
-    dnnl::softmax_v2_backward prim_;
+    dnnl::softmax_backward prim_;
 };
 
 struct reduction_executable_t : public op_executable_t {

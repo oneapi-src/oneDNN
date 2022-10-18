@@ -266,8 +266,8 @@ dnnl::memory make_dnnl_memory(
 
 // fill 1 in the front of adesc, to make its ndims to be same as tgt_ndims
 memory::desc expand(const memory::desc &adesc, int tgt_ndims) {
-    int64_t org_ndims = adesc.data.ndims;
-    dnnl::memory::dims expanded_dims = adesc.dims();
+    int64_t org_ndims = adesc.get_ndims();
+    dnnl::memory::dims expanded_dims = adesc.get_dims();
     expanded_dims.insert(expanded_dims.begin(), tgt_ndims - org_ndims, 1);
     return adesc.reshape(expanded_dims);
 }
@@ -325,7 +325,7 @@ std::vector<int64_t> get_permutation(int ndims, const std::string &from_format,
 }
 
 memory::desc transpose(const memory::desc &adesc, dim dim0, dim dim1) {
-    std::vector<int> axes(static_cast<std::size_t>(adesc.dims().size()));
+    std::vector<int> axes(static_cast<std::size_t>(adesc.get_ndims()));
     std::iota(axes.begin(), axes.end(), 0);
     axes[static_cast<std::size_t>(dim0)] = dim1;
     axes[static_cast<std::size_t>(dim1)] = dim0;
@@ -333,12 +333,12 @@ memory::desc transpose(const memory::desc &adesc, dim dim0, dim dim1) {
 }
 
 memory::desc to_grouped(const memory::desc &adesc, dim groups) {
-    auto grouped_shape = group_dims(adesc.dims(), groups);
+    auto grouped_shape = group_dims(adesc.get_dims(), groups);
     return adesc.reshape(grouped_shape);
 }
 
 memory::desc from_grouped(const memory::desc &adesc) {
-    auto new_dims = adesc.dims();
+    auto new_dims = adesc.get_dims();
     const dim groups = new_dims.front();
     new_dims.erase(new_dims.begin());
     new_dims[0] *= groups;
@@ -348,7 +348,7 @@ memory::desc from_grouped(const memory::desc &adesc) {
 
 memory::desc to_format_any(const memory::desc &adesc) {
     return memory::desc(
-            adesc.dims(), adesc.data_type(), memory::format_tag::any);
+            adesc.get_dims(), adesc.get_data_type(), memory::format_tag::any);
 }
 
 dims get_ncx_strides(const dims &shape) {
@@ -431,15 +431,14 @@ dims get_dense_strides(const dims &shape) {
 memory::desc to_nxc_format(const memory::desc &adesc) {
     if (is_format(adesc, "nxc")) return adesc;
 
-    const auto ndims = adesc.data.ndims;
-    const dims shape {adesc.data.dims, adesc.data.dims + ndims};
+    const auto ori_dims = adesc.get_dims();
 
-    dims strides = get_nxc_strides(shape);
-    return {adesc.dims(), adesc.data_type(), strides};
+    dims strides = get_nxc_strides(ori_dims);
+    return {ori_dims, adesc.get_data_type(), strides};
 }
 
 bool is_format(const memory::desc &adesc, memory::format_tag tag) {
-    return adesc == memory::desc(adesc.dims(), adesc.data_type(), tag);
+    return adesc == memory::desc(adesc.get_dims(), adesc.get_data_type(), tag);
 }
 
 // check if format is ncx or nxc
@@ -449,37 +448,33 @@ bool is_format(const memory::desc &adesc, const std::string &tag) {
         return false;
     }
 
-    if (adesc.data.format_kind != dnnl_blocked
-            || adesc.data.format_desc.blocking.inner_nblks != 0)
+    if (adesc.get_format_kind() != format_kind::blocked
+            || adesc.get_inner_nblks() != 0)
         return false;
 
-    auto ndims = adesc.dims().size();
-    const auto &strides = adesc.data.format_desc.blocking.strides;
-    const auto &shape = adesc.dims();
-    std::vector<dim> stride_v {strides, strides + ndims};
-    if ("ncx" == tag) { return stride_v == get_ncx_strides(shape); }
+    const auto &strides = adesc.get_strides();
+    const auto &shape = adesc.get_dims();
+    if ("ncx" == tag) { return strides == get_ncx_strides(shape); }
 
-    return stride_v == get_nxc_strides(shape);
+    return strides == get_nxc_strides(shape);
 }
 
 bool is_4c_blocked(const memory::desc &adesc) {
-    if (adesc.data.format_kind != dnnl_blocked) return false;
+    if (adesc.get_format_kind() != format_kind::blocked) return false;
 
-    const auto &blk = adesc.data.format_desc.blocking;
-    return blk.inner_nblks == 1 && blk.inner_idxs[0] == 1
-            && blk.inner_blks[0] == 4;
+    return adesc.get_inner_nblks() == 1 && adesc.get_inner_idxs()[0] == 1
+            && adesc.get_inner_blks()[0] == 4;
 }
 
 bool is_plain(const memory::desc &adesc) {
-    if (adesc.data.format_kind != dnnl_blocked) return false;
+    if (adesc.get_format_kind() != format_kind::blocked) return false;
 
-    const auto &blk = adesc.data.format_desc.blocking;
-    return blk.inner_nblks == 0;
+    return adesc.get_inner_nblks() == 0;
 }
 
 memory::desc to_ncx_format(const memory::desc &adesc) {
-    return memory::desc(
-            adesc.dims(), adesc.data_type(), get_ncx_format(adesc.data.ndims));
+    return memory::desc(adesc.get_dims(), adesc.get_data_type(),
+            get_ncx_format(adesc.get_ndims()));
 }
 
 void set_all_layout_to_any(std::vector<std::shared_ptr<impl::op_t>> &subgraph) {
@@ -499,7 +494,7 @@ impl::status_t fill_layout_info(
     const impl::logical_tensor_wrapper_t ltw(lt);
     if (ltw.is_any()) { // we only reset any format
         const int lt_ndims = ltw.ndims();
-        const int md_ndims = md.data.ndims;
+        const int md_ndims = md.get_ndims();
 
         if (md_ndims == 0) {
             if (lt_ndims < 0) {
@@ -515,20 +510,20 @@ impl::status_t fill_layout_info(
 
         if (lt_ndims < 0 && md_ndims > 0) { // some scratchpads mem
             lt->ndims = md_ndims;
-            const dnnl_dims_t &dims = md.data.dims;
-            std::copy(dims, dims + md_ndims, lt->dims);
-            lt->data_type = static_cast<impl::data_type_t>(md.data_type());
+            const auto &dims = md.get_dims();
+            std::copy(dims.data(), dims.data() + md_ndims, lt->dims);
+            lt->data_type = static_cast<data_type_t>(md.get_data_type());
         }
 
-        if (lt_ndims == 0 && impl::utils::prod(md.dims()) == 1) { // scalar
+        if (lt_ndims == 0 && impl::utils::prod(md.get_dims()) == 1) { // scalar
             lt->layout_type = impl::layout_type::strided;
         }
 
         // use shape and stride to describe plain layout
         if (lt->id != std::numeric_limits<size_t>::max() && is_plain(md)) {
             lt->layout_type = impl::layout_type::strided;
-            impl::utils::array_copy(lt->layout.strides,
-                    md.data.format_desc.blocking.strides, md.data.ndims);
+            impl::utils::array_copy(lt->layout.strides, md.get_strides().data(),
+                    md.get_ndims());
         } else {
             impl::utils::optional<size_t> layout_id
                     = dnnl_backend::get_singleton().set_mem_desc(md);
@@ -545,7 +540,7 @@ impl::status_t fill_layout_info(
     const impl::logical_tensor_wrapper_t ltw(lt);
     if (ltw.is_any()) { // we only reset any format
         const int lt_ndims = ltw.ndims();
-        const int md_ndims = md.data.ndims;
+        const int md_ndims = md.get_ndims();
 
         if (md_ndims == 0) {
             if (lt_ndims < 0) {
@@ -560,18 +555,17 @@ impl::status_t fill_layout_info(
         }
 
         if (lt_ndims < 0 && md_ndims > 0) { // some scratchpads mem
-            val->set_dims(md.dims());
-            val->set_data_type(static_cast<impl::data_type_t>(md.data_type()));
+            val->set_dims(md.get_dims());
+            val->set_data_type(static_cast<data_type_t>(md.get_data_type()));
         }
 
-        if (lt_ndims == 0 && impl::utils::prod(md.dims()) == 1) { // scalar
+        if (lt_ndims == 0 && impl::utils::prod(md.get_dims()) == 1) { // scalar
             val->set_strides({});
         }
 
-        // use shape and stride to descripe plain layout
+        // use shape and stride to describe plain layout
         if (ltw.id() != std::numeric_limits<size_t>::max() && is_plain(md)) {
-            const auto &strides = md.data.format_desc.blocking.strides;
-            val->set_strides({strides, strides + lt_ndims});
+            val->set_strides(md.get_strides());
         } else {
             val->set_layout_id(
                     dnnl_backend::get_singleton().set_mem_desc(md).value());
@@ -595,6 +589,67 @@ std::shared_ptr<impl::value_t> insert_empty_workspace(
     auto workspace_val = std::make_shared<value_t>(*op, op->num_outputs(), lt);
     op->add_output(workspace_val);
     return workspace_val;
+}
+
+// This function refers to the md2fmt_tag_str in src/common/verbose.cpp, which
+// is used to recover a format tag string from a memory descriptor
+std::string get_format_tag_str(const dnnl::memory::desc &md) {
+    assertm(md.get_format_kind() == format_kind::blocked,
+            "can get format tag only for blocked format kind");
+
+    int ndims = md.get_ndims();
+    const auto &inner_blks = md.get_inner_blks();
+    const auto &inner_idxs = md.get_inner_idxs();
+    const int inner_nblks = md.get_inner_nblks();
+
+    dnnl_dims_t blocks = {0};
+    std::fill(blocks, blocks + ndims, 1);
+    for (int iblk = 0; iblk < inner_nblks; ++iblk)
+        blocks[inner_idxs[iblk]] *= inner_blks[iblk];
+
+    char dim_chars[DNNL_MAX_NDIMS + 1] = {'\0'};
+
+    dims_t ou_blocks = {0};
+    const auto &padded_dims = md.get_padded_dims();
+    std::copy(padded_dims.begin(), padded_dims.end(), ou_blocks);
+
+    bool plain = true;
+    for (int d = 0; d < ndims; ++d) {
+        dim_chars[d] = static_cast<char>((blocks[d] == 1 ? 'a' : 'A') + d);
+        if (blocks[d] != 1) plain = false;
+        ou_blocks[d] /= blocks[d];
+    }
+
+    dnnl_dims_t strides = {0};
+    const auto &strs = md.get_strides();
+    std::copy(strs.begin(), strs.end(), strides);
+
+    utils::simultaneous_sort(strides, ou_blocks, dim_chars, ndims,
+            [](dim_t a, dim_t b) { return b - a; });
+
+    std::string blk_tag = std::string(dim_chars);
+
+    if (!plain) {
+        for (int iblk = 0; iblk < inner_nblks; ++iblk) {
+            blk_tag += std::to_string(inner_blks[iblk])
+                    + static_cast<char>('a' + inner_idxs[iblk]);
+        }
+    }
+
+    return blk_tag;
+}
+
+dnnl::memory::format_tag get_format_tag(const dnnl::memory::desc &md) {
+    std::string blk_tag = get_format_tag_str(md);
+
+    dnnl::memory::format_tag format_tag = dnnl::memory::format_tag::undef;
+    for (size_t tag = 0; tag < dnnl_format_tag_last; ++tag) {
+        if (dnnl_fmt_tag2str((dnnl_format_tag_t)tag) == blk_tag) {
+            format_tag = static_cast<dnnl::memory::format_tag>(tag);
+            break;
+        }
+    }
+    return format_tag;
 }
 
 } // namespace dnnl_impl

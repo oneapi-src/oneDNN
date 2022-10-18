@@ -145,18 +145,18 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             };
 
             const size_t wei_idx = extra_input_indices[0];
-            const auto wei_dt = get_dnn_dt(op->get_input_value(wei_idx));
+            auto wei_value = op->get_input_value(wei_idx);
+            const auto wei_dt = get_dnn_dt(wei_value);
             const auto dst_dt = get_dnn_dt(op->get_output_value(0));
             const auto bia_dt = dnnl::memory::data_type::undef;
+            const int64_t ks = wei_value->get_logical_tensor().dims[3];
+            const int64_t stride = fused_op->get_attr<std::vector<int64_t>>(
+                    op_attr::strides)[0];
+            const int64_t pad_l = fused_op->get_attr<std::vector<int64_t>>(
+                    op_attr::pads_begin)[0];
             const int mask = 0;
-            const bool is_k3s1p1 = fused_op->get_attr<std::vector<int64_t>>(
-                                           op_attr::strides)[0]
-                    == 1;
-            if (is_k3s1p1) {
-                dnnl_pops.append_dw_k3s1p1(wei_dt, bia_dt, dst_dt, mask, {});
-            } else {
-                dnnl_pops.append_dw_k3s2p1(wei_dt, bia_dt, dst_dt, mask, {});
-            }
+            dnnl_pops.append_dw(
+                    wei_dt, bia_dt, dst_dt, ks, stride, pad_l, mask, {});
         } else {
             // not reachable
         }

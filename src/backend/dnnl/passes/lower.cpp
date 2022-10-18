@@ -139,7 +139,7 @@ static impl::status_t softplus_handler(
         const std::shared_ptr<op_t> &op, subgraph_rewriter_t &rewriter) {
     op_ptr new_op;
     const auto beta = op->get_attr<int64_t>(op_attr::beta);
-    const auto algo = dnnl::algorithm::eltwise_soft_relu_v2;
+    const auto algo = dnnl::algorithm::eltwise_soft_relu;
     if (op->get_kind() == impl::op_kind::SoftPlus) {
         new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
     } else { // SoftPlusBackprop

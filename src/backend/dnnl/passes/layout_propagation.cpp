@@ -70,10 +70,8 @@ void force_partition_output_plain_layout(std::shared_ptr<subgraph_t> &sg) {
                 auto ori_mem_desc = make_dnnl_memory_desc(lt);
                 if (!is_plain(ori_mem_desc)) {
                     auto expect_mem_desc = to_nxc_format(ori_mem_desc);
-                    const auto strides
-                            = expect_mem_desc.data.format_desc.blocking.strides;
-                    out_vals[i]->set_strides(
-                            {strides, strides + expect_mem_desc.data.ndims});
+                    const auto strides = expect_mem_desc.get_strides();
+                    out_vals[i]->set_strides(strides);
                     insert_reorder_after(out_op_ptr, i, ori_mem_desc, p_engine,
                             mgr, pd_cache, rewriter);
                 }

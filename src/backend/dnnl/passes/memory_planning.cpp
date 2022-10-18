@@ -101,14 +101,14 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
         if (post_sum_input) {
             auto post_sum_input_lt = post_sum_input->get_logical_tensor();
             auto output_lt = op.get_output_value(0)->get_logical_tensor();
-            auto output_desc = make_dnnl_memory_desc(output_lt);
-            auto post_sum_input_desc = make_dnnl_memory_desc(post_sum_input_lt);
             // allow inplace for conv(u8)+sum(s8)
             if (op.get_kind() == op_kind::dnnl_convolution
                     && post_sum_input_lt.data_type == impl::data_type::s8
                     && output_lt.data_type == impl::data_type::u8) {
-                output_desc.data.data_type = post_sum_input_desc.data.data_type;
+                output_lt.data_type = post_sum_input_lt.data_type;
             }
+            auto post_sum_input_desc = make_dnnl_memory_desc(post_sum_input_lt);
+            auto output_desc = make_dnnl_memory_desc(output_lt);
             const bool can_inplace = output_desc == post_sum_input_desc;
             if (can_inplace) { pairs.emplace_back(index, 0); }
         }

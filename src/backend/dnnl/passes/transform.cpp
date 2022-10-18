@@ -2422,6 +2422,10 @@ impl::status_t binary_broadcast_swap(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
+extern "C" dnnl_status_t dnnl_memory_desc_create_with_string_tag(
+        dnnl_memory_desc_t *, int, const dnnl_dims_t, dnnl_data_type_t,
+        const char *);
+
 impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
     const static std::set<impl::op_kind_t> reorder_op_set
             = {op_kind::dnnl_reorder};
@@ -2469,14 +2473,23 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
                 return impl::status::success;
             }
 
-            // Skip fusion if reorder's output has extra info, because
-            // oneDNN doesn't have good supports for such fused cases.
-            // TODO(qun) improve the skip rule
+            // Skip fusion if reorder's output has extra info, because oneDNN
+            // doesn't have good supports for such fused cases. Note that since
+            // onednn didn't provide api to check extra flags, here we construct
+            // a temp md without extra flag, and then compare it with the origin
+            // md. If they are not equal, the origin md may has extra flags.
             auto fused_out_lt
                     = next_op.get_output_value(0)->get_logical_tensor();
             auto fused_out_md = make_dnnl_memory_desc(fused_out_lt);
-            if (fused_out_md.data.extra.flags != dnnl_memory_extra_flag_none) {
-                return impl::status::success;
+            auto format_tag = get_format_tag_str(fused_out_md);
+            const auto &dims = fused_out_md.get_dims();
+            const auto &dtype = fused_out_md.get_data_type();
+            dnnl_memory_desc_t temp_md;
+            dnnl_memory_desc_create_with_string_tag(&temp_md, dims.size(),
+                    dims.data(), static_cast<dnnl_data_type_t>(dtype),
+                    format_tag.data());
+            if (!dnnl_memory_desc_equal(fused_out_md.get(), temp_md)) {
+                return status::success;
             }
 
             // push fusible pair to fuse group for later fusion
@@ -3521,8 +3534,8 @@ impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
                 static_cast<dnnl::memory::data_type>(ltw(out_lt).data_type()),
                 expected_stride};
         dnnl::memory::desc expected_out_md = out_md.permute_axes(axes);
-        const auto &strides = expected_out_md.data.format_desc.blocking.strides;
-        in_val->set_strides({strides, strides + out_lt.ndims});
+        const auto &strides = expected_out_md.get_strides();
+        in_val->set_strides(strides);
         auto &matmul = transpose_op->get_input_value(0)->get_producer();
         matmul.set_attr(op_attr::keep_dst_layout, true);
     }

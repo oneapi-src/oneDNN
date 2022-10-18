@@ -142,6 +142,9 @@ void merge_common_eltwise_attrs(
     } else if (org_op->has_attr(op_attr::min)) {
         new_op->set_attr<float>(
                 op_attr::alpha, org_op->get_attr<float>(op_attr::min));
+    } else if (org_op->get_kind() == impl::op_kind::HardSwish
+            || org_op->get_kind() == impl::op_kind::HardSwishBackprop) {
+        new_op->set_attr<float>(op_attr::alpha, 1.f / 6.f);
     } else {
         new_op->set_attr<float>(op_attr::alpha, 0);
     }
@@ -152,6 +155,9 @@ void merge_common_eltwise_attrs(
     } else if (org_op->has_attr(op_attr::max)) {
         new_op->set_attr<float>(
                 op_attr::beta, org_op->get_attr<float>(op_attr::max));
+    } else if (org_op->get_kind() == impl::op_kind::HardSwish
+            || org_op->get_kind() == impl::op_kind::HardSwishBackprop) {
+        new_op->set_attr<float>(op_attr::beta, 1.f / 2.f);
     } else {
         new_op->set_attr<float>(op_attr::beta, 0);
     }

@@ -131,6 +131,21 @@ conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
         src = tmp_pd.src_desc();
     }
 
+    dnnl::convolution_forward::primitive_desc pd;
+    if (op->has_attr(op_attr::with_bias)
+            && op->get_attr<bool>(op_attr::with_bias)) {
+        auto bias = make_dnnl_memory_desc(
+                op->get_input_value(2)->get_logical_tensor());
+        bias = to_format_any(bias);
+        pd = dnnl::convolution_forward::primitive_desc(p_engine, pkind,
+                algorithm::convolution_direct, src, weight, bias, dst, strides,
+                dilates, pads_begin, pads_end, prm_attr);
+    } else {
+        pd = dnnl::convolution_forward::primitive_desc(p_engine, pkind,
+                algorithm::convolution_direct, src, weight, dst, strides,
+                dilates, pads_begin, pads_end, prm_attr);
+    }
+
     dnnl::convolution_forward::primitive_desc pd = create_pd(src, dst);
 
     pd_cache.insert({op.get(), pd});
@@ -182,17 +197,15 @@ deconv_fwd_executable_t::desc_t deconv_fwd_executable_t::create_desc(
         auto bias = make_dnnl_memory_desc(
                 op->get_input_value(2)->get_logical_tensor());
         bias = to_format_any(bias);
-        pd = dnnl::deconvolution_forward::primitive_desc(
-                {prop_kind::forward_inference, algorithm::deconvolution_direct,
-                        src, weight, bias, dst, strides, dilates, pads_begin,
-                        pads_end},
-                prm_attr, p_engine);
+        pd = dnnl::deconvolution_forward::primitive_desc(p_engine,
+                prop_kind::forward_inference, algorithm::deconvolution_direct,
+                src, weight, bias, dst, strides, dilates, pads_begin, pads_end,
+                prm_attr);
     } else {
-        pd = dnnl::deconvolution_forward::primitive_desc(
-                {prop_kind::forward_inference, algorithm::deconvolution_direct,
-                        src, weight, dst, strides, dilates, pads_begin,
-                        pads_end},
-                prm_attr, p_engine);
+        pd = dnnl::deconvolution_forward::primitive_desc(p_engine,
+                prop_kind::forward_inference, algorithm::deconvolution_direct,
+                src, weight, dst, strides, dilates, pads_begin, pads_end,
+                prm_attr);
     }
 
     pd_cache.insert({op.get(), pd});
@@ -238,16 +251,14 @@ deconv_bwd_data_executable_t::desc_t deconv_bwd_data_executable_t::create_desc(
             op->get_output_value(0)->get_logical_tensor());
     diff_src = to_format_any(diff_src);
 
-    auto fwd_hints = dnnl::deconvolution_forward::primitive_desc(
-            {prop_kind::forward_training, algorithm::deconvolution_direct,
-                    diff_src, weight, diff_dst, strides, dilates, pads_begin,
-                    pads_end},
-            prm_attr, p_engine);
+    auto fwd_hints = dnnl::deconvolution_forward::primitive_desc(p_engine,
+            prop_kind::forward_training, algorithm::deconvolution_direct,
+            diff_src, weight, diff_dst, strides, dilates, pads_begin, pads_end,
+            prm_attr);
 
-    dnnl::deconvolution_backward_data::primitive_desc pd(
-            {dnnl::algorithm::deconvolution_direct, diff_src, weight, diff_dst,
-                    strides, pads_begin, pads_end},
-            p_engine, fwd_hints);
+    dnnl::deconvolution_backward_data::primitive_desc pd(p_engine,
+            dnnl::algorithm::deconvolution_direct, diff_src, weight, diff_dst,
+            strides, pads_begin, pads_end, fwd_hints);
 
     pd_cache.insert({op.get(), pd});
 
@@ -291,16 +302,14 @@ deconv_bwd_weights_executable_t::create_desc(std::shared_ptr<impl::op_t> &op,
             op->get_output_value(0)->get_logical_tensor());
     diff_weight = to_format_any(diff_weight);
 
-    auto fwd_hints = dnnl::deconvolution_forward::primitive_desc(
-            {dnnl::prop_kind::forward_training,
-                    dnnl::algorithm::deconvolution_direct, src, diff_weight,
-                    diff_dst, strides, dilates, pads_begin, pads_end},
-            dnnl::primitive_attr(), p_engine);
+    auto fwd_hints = dnnl::deconvolution_forward::primitive_desc(p_engine,
+            dnnl::prop_kind::forward_training,
+            dnnl::algorithm::deconvolution_direct, src, diff_weight, diff_dst,
+            strides, dilates, pads_begin, pads_end);
 
-    dnnl::deconvolution_backward_weights::primitive_desc pd(
-            {dnnl::algorithm::deconvolution_direct, src, diff_weight, diff_dst,
-                    strides, dilates, pads_begin, pads_end},
-            p_engine, fwd_hints);
+    dnnl::deconvolution_backward_weights::primitive_desc pd(p_engine,
+            dnnl::algorithm::deconvolution_direct, src, diff_weight, diff_dst,
+            strides, dilates, pads_begin, pads_end, fwd_hints);
 
     pd_cache.insert({op.get(), pd});
 
@@ -344,9 +353,9 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
                       .is_constant()
             && is_constant_cache_enabled();
     const bool use_strided_src = !const_activation
-            && ((src.dims().size() == 4
+            && ((src.get_ndims() == 4
                         && is_format(src, dnnl::memory::format_tag::acbd))
-                    || ((src.dims().size() == 2 || src.dims().size() == 3)
+                    || ((src.get_ndims() == 2 || src.get_ndims() == 3)
                             && p_engine.get_kind() == dnnl::engine::kind::gpu));
     if (!use_strided_src) { src = to_format_any(src); }
     auto wei = make_dnnl_memory_desc(
@@ -359,7 +368,7 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
                                 .is_constant()
             && is_constant_cache_enabled();
     const bool use_strided_wei = !const_weight
-            && (wei.dims().size() == 4
+            && (wei.get_ndims() == 4
                     && (is_format(wei, dnnl::memory::format_tag::adbc)
                             || is_format(wei, dnnl::memory::format_tag::abdc)
                             || is_format(wei, dnnl::memory::format_tag::acbd)));
@@ -369,7 +378,7 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
     const bool keep_dst_layout = op->has_attr(op_attr::keep_dst_layout)
             && op->get_attr<bool>(op_attr::keep_dst_layout);
     const bool use_strided_dst
-            = ((src.dims().size() == 2 || src.dims().size() == 3)
+            = ((src.get_ndims() == 2 || src.get_ndims() == 3)
                       && p_engine.get_kind() == dnnl::engine::kind::gpu)
             || keep_dst_layout;
     if (!use_strided_dst) { dst = to_format_any(dst); }
@@ -381,9 +390,9 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
                 op->get_input_value(2)->get_logical_tensor());
         bias = to_format_any(bias);
         pd = dnnl::matmul::primitive_desc(
-                {src, wei, bias, dst}, prm_attr, p_engine);
+                p_engine, src, wei, bias, dst, prm_attr);
     } else {
-        pd = dnnl::matmul::primitive_desc({src, wei, dst}, prm_attr, p_engine);
+        pd = dnnl::matmul::primitive_desc(p_engine, src, wei, dst, prm_attr);
     }
 
     pd_cache.insert({op.get(), pd});
@@ -396,8 +405,7 @@ pool_executable_t::desc_t pool_executable_t::create_desc(
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        auto pd = impl::utils::any_cast<
-                dnnl::pooling_v2_forward::primitive_desc>(
+        auto pd = impl::utils::any_cast<dnnl::pooling_forward::primitive_desc>(
                 pd_cache.at(op.get()));
         return {pd, true};
     }
@@ -438,9 +446,9 @@ pool_executable_t::desc_t pool_executable_t::create_desc(
     // additional padding right to simulate the ceil mode by using floor mode,
     // and then exclude those additional paddings when doing average.
     if (rounding_type == "ceil") {
-        dims src_sp = src.dims();
+        dims src_sp = src.get_dims();
         src_sp.erase(src_sp.begin(), src_sp.begin() + 2);
-        dims output_sp = dst.dims();
+        dims output_sp = dst.get_dims();
         output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
         for (size_t i = 0; i < kernel.size(); ++i) {
             dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
@@ -457,14 +465,14 @@ pool_executable_t::desc_t pool_executable_t::create_desc(
     prop_kind prop = prop_kind::forward_inference;
     if (op->get_attr<std::string>(op_attr::kind) == "maxpool") {
         algo = algorithm::pooling_max;
-        dilations = get_compatible_dilates(dilations, src.dims().size());
+        dilations = get_compatible_dilates(dilations, src.get_ndims());
         if (op->num_outputs() == 3) {
             prop = prop_kind::forward_training;
             op->set_attr<bool>(op_attr::is_training, true);
         }
     } else if (op->get_attr<std::string>(op_attr::kind) == "avgpool") {
         const bool exclude_pad = op->get_attr<bool>(op_attr::exclude_pad);
-        dilations = dims(src.dims().size(), 0);
+        dilations = dims(src.get_ndims(), 0);
         algo = (exclude_pad || adj_pad)
                 ? algorithm::pooling_avg_exclude_padding
                 : algorithm::pooling_avg_include_padding;
@@ -473,10 +481,8 @@ pool_executable_t::desc_t pool_executable_t::create_desc(
                 0, "Currently only int8 MaxPool/AvgPool is supported.");
     }
 
-    dnnl::pooling_v2_forward::primitive_desc pd(
-            {prop, algo, src, dst, strides, kernel, dilations, pads_begin,
-                    new_pads_end},
-            prm_attr, p_engine);
+    dnnl::pooling_forward::primitive_desc pd(p_engine, prop, algo, src, dst,
+            strides, kernel, dilations, pads_begin, new_pads_end, prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -488,8 +494,7 @@ pool_bwd_executable_t::desc_t pool_bwd_executable_t::create_desc(
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        auto pd = impl::utils::any_cast<
-                dnnl::pooling_v2_backward::primitive_desc>(
+        auto pd = impl::utils::any_cast<dnnl::pooling_backward::primitive_desc>(
                 pd_cache.at(op.get()));
         return {pd, true};
     }
@@ -518,8 +523,8 @@ pool_bwd_executable_t::desc_t pool_bwd_executable_t::create_desc(
     auto src = op->get_attr<std::string>(op_attr::kind) == "maxpool"
             ? make_dnnl_memory_desc(
                     op->get_input_value(2)->get_logical_tensor())
-            : dnnl::memory::desc(diff_src.dims(), diff_src.data_type(),
-                    get_ncx_format(diff_src.dims()));
+            : dnnl::memory::desc(diff_src.get_dims(), diff_src.get_data_type(),
+                    get_ncx_format(diff_src.get_dims()));
 
     // infer dnnl explicit pad
     dims new_pads_end(pads_end);
@@ -529,9 +534,9 @@ pool_bwd_executable_t::desc_t pool_bwd_executable_t::create_desc(
         rounding_type = op->get_attr<std::string>(op_attr::rounding_type);
     }
     if (rounding_type == "ceil") {
-        dims src_sp = src.dims();
+        dims src_sp = src.get_dims();
         src_sp.erase(src_sp.begin(), src_sp.begin() + 2);
-        dims output_sp = diff_dst.dims();
+        dims output_sp = diff_dst.get_dims();
         output_sp.erase(output_sp.begin(), output_sp.begin() + 2);
         for (size_t i = 0; i < kernel.size(); ++i) {
             dim_t dilated = dilations[i] * (kernel[i] - 1) + 1;
@@ -547,7 +552,7 @@ pool_bwd_executable_t::desc_t pool_bwd_executable_t::create_desc(
     algorithm algo = algorithm::undef;
     if (op->get_attr<std::string>(op_attr::kind) == "maxpool") {
         algo = algorithm::pooling_max;
-        dilations = get_compatible_dilates(dilations, src.dims().size());
+        dilations = get_compatible_dilates(dilations, src.get_ndims());
     } else if (op->get_attr<std::string>(op_attr::kind) == "avgpool") {
         const bool exclude_pad = op->get_attr<bool>(op_attr::exclude_pad);
         algo = (exclude_pad || adj_pad)
@@ -563,16 +568,14 @@ pool_bwd_executable_t::desc_t pool_bwd_executable_t::create_desc(
         diff_dst = to_format_any(diff_dst);
     }
 
-    dnnl::pooling_v2_forward::primitive_desc forward_hints
-            = dnnl::pooling_v2_forward::primitive_desc(
-                    {prop_kind::forward_training, algo, src, diff_dst, strides,
-                            kernel, dilations, pads_begin, new_pads_end},
-                    p_engine);
+    dnnl::pooling_forward::primitive_desc forward_hints
+            = dnnl::pooling_forward::primitive_desc(p_engine,
+                    prop_kind::forward_training, algo, src, diff_dst, strides,
+                    kernel, dilations, pads_begin, new_pads_end);
 
-    dnnl::pooling_v2_backward::primitive_desc pd(
-            {algo, diff_src, diff_dst, strides, kernel, dilations, pads_begin,
-                    new_pads_end},
-            p_engine, forward_hints);
+    dnnl::pooling_backward::primitive_desc pd(p_engine, algo, diff_src,
+            diff_dst, strides, kernel, dilations, pads_begin, new_pads_end,
+            forward_hints);
 
     pd_cache.insert({op.get(), pd});
 
@@ -621,9 +624,12 @@ batchnorm_executable_t::desc_t batchnorm_executable_t::create_desc(
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
 
-    const auto &blk = src.data.format_desc.blocking;
-    if (blk.inner_nblks == 1 && blk.inner_idxs[0] == 1
-            && blk.inner_blks[0] == 4) {
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+    dst = to_format_any(dst);
+
+    if (src.get_inner_nblks() == 1 && src.get_inner_idxs()[0] == 1
+            && src.get_inner_blks()[0] == 4) {
         // to default format
         src = to_ncx_format(src);
     }
@@ -633,7 +639,7 @@ batchnorm_executable_t::desc_t batchnorm_executable_t::create_desc(
             : prop_kind::forward_inference;
 
     dnnl::batch_normalization_forward::primitive_desc pd(
-            {pkind, src, epsilon, flags}, prm_attr, p_engine);
+            p_engine, pkind, src, dst, epsilon, flags, prm_attr);
 
     pd_cache.insert({op.get(), pd});
     return {pd, false};
@@ -673,20 +679,18 @@ batchnorm_bwd_executable_t::desc_t batchnorm_bwd_executable_t::create_desc(
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
 
-    const auto &blk = src.data.format_desc.blocking;
-    if (blk.inner_nblks == 1 && blk.inner_idxs[0] == 1
-            && blk.inner_blks[0] == 4) {
+    if (src.get_inner_nblks() == 1 && src.get_inner_idxs()[0] == 1
+            && src.get_inner_blks()[0] == 4) {
         // to default format
         src = to_ncx_format(src);
     }
 
     auto forward_hints = dnnl::batch_normalization_forward::primitive_desc(
-            {prop_kind::forward_training, src, epsilon, flags}, p_engine);
+            p_engine, prop_kind::forward_training, src, src, epsilon, flags);
 
-    dnnl::batch_normalization_backward::primitive_desc pd(
-            {prop_kind::backward, forward_hints.dst_desc(), src, epsilon,
-                    flags},
-            p_engine, forward_hints);
+    dnnl::batch_normalization_backward::primitive_desc pd(p_engine,
+            prop_kind::backward, src, forward_hints.dst_desc(), src, epsilon,
+            flags, forward_hints);
 
     pd_cache.insert({op.get(), pd});
     return {pd, false};
@@ -735,18 +739,8 @@ layernorm_executable_t::desc_t layernorm_executable_t::create_desc(
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
 
-    // Create an empty memory descriptor for stat_d.
-    // This is an temporary way to create stat_d because
-    // the primitive implementation is not aligned with
-    // c api description for dnnl_layer_normalization_forward_desc_init().
-    // TODO(zhejiang): It can be replaced after fix this bug.
-    auto stad_dims = src.dims();
-    if (!stad_dims.empty()) stad_dims.pop_back();
-    memory::desc stat_d {
-            stad_dims, memory::data_type::f32, memory::format_tag::any};
-
     dnnl::layer_normalization_forward::primitive_desc pd(
-            {pkind, src, dst, stat_d, epsilon, flags}, prm_attr, p_engine);
+            p_engine, pkind, src, dst, epsilon, flags);
 
     pd_cache.insert({op.get(), pd});
     return {pd, false};
@@ -778,14 +772,18 @@ layernorm_bwd_executable_t::desc_t layernorm_bwd_executable_t::create_desc(
         flags |= dnnl::normalization_flags::use_shift;
     }
 
-    auto data = make_dnnl_memory_desc(
+    auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    dnnl::layer_normalization_forward::primitive_desc fwd_hints(
-            {prop_kind::forward_training, data, epsilon, flags}, p_engine);
+    auto diff_dst = make_dnnl_memory_desc(
+            op->get_input_value(1)->get_logical_tensor());
+    auto diff_src = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+    dnnl::layer_normalization_forward::primitive_desc fwd_hints(p_engine,
+            prop_kind::forward_training, src, diff_dst, epsilon, flags);
 
-    dnnl::layer_normalization_backward::primitive_desc pd(
-            {prop_kind::backward, fwd_hints.dst_desc(), data, epsilon, flags},
-            prm_attr, p_engine, fwd_hints);
+    dnnl::layer_normalization_backward::primitive_desc pd(p_engine,
+            prop_kind::backward, diff_src, diff_dst, src, epsilon, flags,
+            fwd_hints, prm_attr);
 
     pd_cache.insert({op.get(), pd});
     return {pd, false};
@@ -836,16 +834,14 @@ conv_bwd_data_executable_t::desc_t conv_bwd_data_executable_t::create_desc(
     else
         diff_src = to_format_any(diff_src);
 
-    auto fwd_hints = dnnl::convolution_forward::primitive_desc(
-            {dnnl::prop_kind::forward_training,
-                    dnnl::algorithm::convolution_direct, diff_src, weight,
-                    diff_dst, strides, dilates, pads_begin, pads_end},
-            dnnl::primitive_attr(), p_engine);
+    auto fwd_hints = dnnl::convolution_forward::primitive_desc(p_engine,
+            dnnl::prop_kind::forward_training,
+            dnnl::algorithm::convolution_direct, diff_src, weight, diff_dst,
+            strides, dilates, pads_begin, pads_end);
 
-    dnnl::convolution_backward_data::primitive_desc pd(
-            {dnnl::algorithm::convolution_direct, diff_src, weight, diff_dst,
-                    strides, dilates, pads_begin, pads_end},
-            p_engine, fwd_hints);
+    dnnl::convolution_backward_data::primitive_desc pd(p_engine,
+            dnnl::algorithm::convolution_direct, diff_src, weight, diff_dst,
+            strides, dilates, pads_begin, pads_end, fwd_hints);
 
     pd_cache.insert({op.get(), pd});
 
@@ -898,16 +894,14 @@ conv_bwd_weights_executable_t::create_desc(std::shared_ptr<impl::op_t> &op,
             op->get_output_value(0)->get_logical_tensor());
     diff_weight = to_format_any(diff_weight);
 
-    auto fwd_hints = dnnl::convolution_forward::primitive_desc(
-            {dnnl::prop_kind::forward_training,
-                    dnnl::algorithm::convolution_direct, src, diff_weight,
-                    diff_dst, strides, dilates, pads_begin, pads_end},
-            dnnl::primitive_attr(), p_engine);
+    auto fwd_hints = dnnl::convolution_forward::primitive_desc(p_engine,
+            dnnl::prop_kind::forward_training,
+            dnnl::algorithm::convolution_direct, src, diff_weight, diff_dst,
+            strides, dilates, pads_begin, pads_end);
 
-    dnnl::convolution_backward_weights::primitive_desc pd(
-            {dnnl::algorithm::convolution_direct, src, diff_weight, diff_dst,
-                    strides, dilates, pads_begin, pads_end},
-            p_engine, fwd_hints);
+    dnnl::convolution_backward_weights::primitive_desc pd(p_engine,
+            dnnl::algorithm::convolution_direct, src, diff_weight, diff_dst,
+            strides, dilates, pads_begin, pads_end, fwd_hints);
 
     pd_cache.insert({op.get(), pd});
 
@@ -942,6 +936,9 @@ eltwise_executable_t::desc_t eltwise_executable_t::create_desc(
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+    dst = to_format_any(dst);
 
     const algorithm algo = static_cast<dnnl::algorithm>(
             op->get_attr<int64_t>(op_attr::alg_kind));
@@ -950,8 +947,8 @@ eltwise_executable_t::desc_t eltwise_executable_t::create_desc(
     }
 
     dnnl::eltwise_forward::primitive_desc pd;
-    pd = dnnl::eltwise_forward::primitive_desc(
-            {prop_kind::forward, algo, src, alpha, beta}, prm_attr, p_engine);
+    pd = dnnl::eltwise_forward::primitive_desc(p_engine, prop_kind::forward,
+            algo, src, dst, alpha, beta, prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -988,15 +985,16 @@ eltwise_bwd_executable_t::desc_t eltwise_bwd_executable_t::create_desc(
 
     auto forward_data = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
-    dnnl::eltwise_forward::primitive_desc fwd_hints(
-            {prop_kind::forward_training, fwd_algo, forward_data, alpha, beta},
-            prm_attr, p_engine);
+    dnnl::eltwise_forward::primitive_desc fwd_hints(p_engine,
+            prop_kind::forward_training, fwd_algo, forward_data, forward_data,
+            alpha, beta, prm_attr);
 
+    auto diff_dst = make_dnnl_memory_desc(
+            op->get_input_value(1)->get_logical_tensor());
     auto diff_src = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
-    dnnl::eltwise_backward::primitive_desc pd(
-            {bwd_algo, diff_src, forward_data, alpha, beta}, prm_attr, p_engine,
-            fwd_hints);
+    dnnl::eltwise_backward::primitive_desc pd(p_engine, bwd_algo, diff_src,
+            diff_dst, forward_data, alpha, beta, fwd_hints, prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1025,7 +1023,7 @@ sum_executable_t::desc_t sum_executable_t::create_desc(
     // create default scales
     std::vector<float> scales(op->num_inputs(), 1.f);
 
-    dnnl::sum::primitive_desc pd(dst_desc, scales, src_descs, p_engine);
+    dnnl::sum::primitive_desc pd(p_engine, dst_desc, scales, src_descs);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1072,16 +1070,17 @@ concat_executable_t::desc_t concat_executable_t::create_desc(
     for (const auto &in_val : op->get_input_values()) {
         const auto tmp_desc
                 = make_dnnl_memory_desc(in_val->get_logical_tensor());
-        src_mds.emplace_back(memory::desc {tmp_desc.dims(),
-                tmp_desc.data_type(), get_forced_format_tag(tmp_desc.dims())});
+        src_mds.emplace_back(
+                memory::desc {tmp_desc.get_dims(), tmp_desc.get_data_type(),
+                        get_forced_format_tag(tmp_desc.get_dims())});
     }
     const auto tmp_desc = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
-    auto dst = memory::desc {tmp_desc.dims(), tmp_desc.data_type(),
-            get_forced_format_tag(tmp_desc.dims())};
+    auto dst = memory::desc {tmp_desc.get_dims(), tmp_desc.get_data_type(),
+            get_forced_format_tag(tmp_desc.get_dims())};
 
     dnnl::concat::primitive_desc pd(
-            dst, static_cast<int>(axis), src_mds, p_engine, prm_attr);
+            p_engine, dst, static_cast<int>(axis), src_mds, prm_attr);
     pd_cache.insert({op.get(), pd});
 
     return {pd, false};
@@ -1124,7 +1123,7 @@ resampling_executable_t::desc_t resampling_executable_t::create_desc(
 
     dnnl::resampling_forward::primitive_desc pd;
     pd = dnnl::resampling_forward::primitive_desc(
-            {prop_kind::forward_inference, algo, src, dst}, prm_attr, p_engine);
+            p_engine, prop_kind::forward_inference, algo, src, dst, prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1163,15 +1162,15 @@ resampling_bwd_executable_t::desc_t resampling_bwd_executable_t::create_desc(
             op->get_input_value(0)->get_logical_tensor());
     auto diff_dst = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
-    dnnl::resampling_forward::primitive_desc fwd_hints(
-            {prop_kind::forward_training, algo, src, to_format_any(diff_dst)},
-            prm_attr, p_engine);
+    dnnl::resampling_forward::primitive_desc fwd_hints(p_engine,
+            prop_kind::forward_training, algo, src, to_format_any(diff_dst),
+            prm_attr);
 
     auto diff_src = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
     diff_src = to_format_any(diff_src);
     dnnl::resampling_backward::primitive_desc pd(
-            {algo, diff_src, diff_dst}, prm_attr, p_engine, fwd_hints);
+            p_engine, algo, diff_src, diff_dst, fwd_hints, prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1209,7 +1208,7 @@ binary_executable_t::desc_t binary_executable_t::create_desc(
 
     dnnl::binary::primitive_desc pd;
     pd = dnnl::binary::primitive_desc(
-            {algo, src0, src1, dst}, prm_attr, p_engine);
+            p_engine, algo, src0, src1, dst, prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1239,9 +1238,12 @@ prelu_executable_t::desc_t prelu_executable_t::create_desc(
     auto wei = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
     wei = to_format_any(wei);
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+    dst = to_format_any(dst);
 
     dnnl::prelu_forward::primitive_desc pd(
-            {prop_kind::forward, src, wei}, prm_attr, p_engine);
+            p_engine, prop_kind::forward, src, wei, dst, prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1272,18 +1274,19 @@ prelu_bwd_executable_t::desc_t prelu_bwd_executable_t::create_desc(
             op->get_input_value(1)->get_logical_tensor());
     wei = to_format_any(wei);
 
-    auto diff_data = make_dnnl_memory_desc(
+    auto diff_dst = make_dnnl_memory_desc(
             op->get_input_value(2)->get_logical_tensor());
+    auto diff_src = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
     auto diff_wei = make_dnnl_memory_desc(
             op->get_output_value(1)->get_logical_tensor());
     diff_wei = to_format_any(diff_wei);
 
-    auto hint_fwd_pd = dnnl::prelu_forward::primitive_desc(
-            {prop_kind::forward, forward_data, wei}, prm_attr, p_engine);
+    auto hint_fwd_pd = dnnl::prelu_forward::primitive_desc(p_engine,
+            prop_kind::forward, forward_data, wei, diff_dst, prm_attr);
 
-    dnnl::prelu_backward::primitive_desc pd(
-            {forward_data, wei, diff_data, diff_wei}, prm_attr, p_engine,
-            hint_fwd_pd);
+    dnnl::prelu_backward::primitive_desc pd(p_engine, forward_data, wei,
+            diff_src, diff_wei, diff_dst, hint_fwd_pd, prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1295,8 +1298,7 @@ softmax_executable_t::desc_t softmax_executable_t::create_desc(
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        auto pd = impl::utils::any_cast<
-                dnnl::softmax_v2_forward::primitive_desc>(
+        auto pd = impl::utils::any_cast<dnnl::softmax_forward::primitive_desc>(
                 pd_cache.at(op.get()));
         return {pd, true};
     }
@@ -1315,18 +1317,17 @@ softmax_executable_t::desc_t softmax_executable_t::create_desc(
             op->get_output_value(0)->get_logical_tensor());
 
     int64_t axis = op->get_attr<int64_t>(op_attr::axis);
-    if (axis < 0) { axis += src.data.ndims; }
+    if (axis < 0) { axis += src.get_ndims(); }
 
     const dnnl::algorithm algo
             = op->get_kind() == dnnl_impl::op_kind::dnnl_logsoftmax
             ? dnnl::algorithm::softmax_log
             : dnnl::algorithm::softmax_accurate;
 
-    dnnl::softmax_v2_forward::primitive_desc pd;
-    pd = dnnl::softmax_v2_forward::primitive_desc(
-            {prop_kind::forward_inference, algo, src, dst,
-                    static_cast<int>(axis)},
-            prm_attr, p_engine);
+    dnnl::softmax_forward::primitive_desc pd;
+    pd = dnnl::softmax_forward::primitive_desc(p_engine,
+            prop_kind::forward_inference, algo, src, dst,
+            static_cast<int>(axis), prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1338,8 +1339,7 @@ softmax_bwd_executable_t::desc_t softmax_bwd_executable_t::create_desc(
         fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
     // first look up the cache
     if (pd_cache.find(op.get()) != pd_cache.end()) {
-        auto pd = impl::utils::any_cast<
-                dnnl::softmax_v2_backward::primitive_desc>(
+        auto pd = impl::utils::any_cast<dnnl::softmax_backward::primitive_desc>(
                 pd_cache.at(op.get()));
         return {pd, true};
     }
@@ -1351,11 +1351,8 @@ softmax_bwd_executable_t::desc_t softmax_bwd_executable_t::create_desc(
             op->get_input_value(0)->get_logical_tensor());
     diff_dst = to_format_any(diff_dst);
 
-    auto dst = make_dnnl_memory_desc(
-            op->get_input_value(1)->get_logical_tensor());
-
-    auto diff_src = make_dnnl_memory_desc(
-            op->get_output_value(0)->get_logical_tensor());
+    auto diff_src_lt = op->get_output_value(0)->get_logical_tensor();
+    auto diff_src = make_dnnl_memory_desc(diff_src_lt);
 
     const auto rank = op->get_output_value(0)->get_logical_tensor().ndims;
     const auto res = utils::try_reverse_axis(
@@ -1365,22 +1362,22 @@ softmax_bwd_executable_t::desc_t softmax_bwd_executable_t::create_desc(
 
     // construct src with layout information from dst and data type information
     // from diff_src.
-    dnnl::memory::desc src = dst;
-    src.data.data_type = diff_src.data.data_type;
+    auto dst_lt = op->get_input_value(1)->get_logical_tensor();
+    dst_lt.data_type = diff_src_lt.data_type;
+    auto dst = make_dnnl_memory_desc(dst_lt);
+    const dnnl::memory::desc &src = dst;
 
     const dnnl::algorithm algo
             = op->get_kind() == dnnl_impl::op_kind::dnnl_logsoftmax_bwd
             ? dnnl::algorithm::softmax_log
             : dnnl::algorithm::softmax_accurate;
 
-    auto hint_fwd_pd = dnnl::softmax_v2_forward::primitive_desc(
-            {prop_kind::forward_training, algo, src, dst,
-                    static_cast<int>(axis)},
-            prm_attr, p_engine);
+    auto hint_fwd_pd = dnnl::softmax_forward::primitive_desc(p_engine,
+            prop_kind::forward_training, algo, src, dst, static_cast<int>(axis),
+            prm_attr);
 
-    auto pd = dnnl::softmax_v2_backward::primitive_desc(
-            {algo, diff_src, diff_dst, dst, static_cast<int>(axis)}, prm_attr,
-            p_engine, hint_fwd_pd);
+    auto pd = dnnl::softmax_backward::primitive_desc(p_engine, algo, diff_src,
+            diff_dst, dst, static_cast<int>(axis), hint_fwd_pd, prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1407,12 +1404,14 @@ shuffle_executable_t::desc_t shuffle_executable_t::create_desc(
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
-    auto common = make_dnnl_memory_desc(
+    auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+    dst = to_format_any(dst);
 
-    dnnl::shuffle_forward::primitive_desc pd(
-            {prop_kind::forward_inference, common, axis, group}, p_engine,
-            prm_attr);
+    dnnl::shuffle_forward::primitive_desc pd(p_engine,
+            prop_kind::forward_inference, src, dst, axis, group, prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1453,7 +1452,7 @@ reduction_executable_t::desc_t reduction_executable_t::create_desc(
     dst = to_format_any(dst);
 
     dnnl::reduction::primitive_desc pd(
-            {alg, src, dst, p, eps}, prm_attr, p_engine);
+            p_engine, alg, src, dst, p, eps, prm_attr);
 
     pd_cache.insert({op.get(), pd});
 
@@ -1557,11 +1556,9 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<impl::op_t> &op,
     // 1. sqrt_variance = sqrt(variance + epsilon)
 
     // temp = variance + epsilon
-    memory::dims epsilon_dims(variance.data.ndims, 1);
+    memory::dims epsilon_dims(variance.get_ndims(), 1);
     desc.epsilon_desc_ = memory::desc(
             epsilon_dims, memory::data_type::f32, memory::format_tag::a);
-    dnnl::binary::desc add_d(
-            algorithm::binary_add, variance, desc.epsilon_desc_, variance);
 
     post_ops add_post_ops;
     // sqrt_variance = sqrt(temp)
@@ -1569,20 +1566,21 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<impl::op_t> &op,
 
     primitive_attr add_attr;
     add_attr.set_post_ops(add_post_ops);
-    desc.add_pd_ = dnnl::binary::primitive_desc(add_d, add_attr, p_engine);
+    desc.add_pd_ = dnnl::binary::primitive_desc(p_engine, algorithm::binary_add,
+            variance, desc.epsilon_desc_, variance, add_attr);
 
     // 2. updated_weight = weights * scale / sqrt_variance
 
     // expand 1D scale and variance to same ndims with weights
-    desc.new_scale_desc_ = expand(scale, weights.data.ndims);
-    desc.new_variance_desc_ = expand(variance, weights.data.ndims);
+    desc.new_scale_desc_ = expand(scale, weights.get_ndims());
+    desc.new_variance_desc_ = expand(variance, weights.get_ndims());
 
     // after expand, the c channel is on the last dimension, which
     // meet the requirement of NXC format. But for NCX format, we
     // need permute c channel to the second dimension
     if (desc.filter_format_ == "NCX") { // matmul case
-        auto perm = dnnl_impl::utils::cast_to_int32(
-                get_permutation(desc.new_scale_desc_.data.ndims, "NXC", "NCX"));
+        auto perm = dnnl_impl::utils::cast_to_int32(get_permutation(
+                desc.new_scale_desc_.get_ndims(), "NXC", "NCX"));
         desc.new_scale_desc_ = desc.new_scale_desc_.permute_axes(perm);
         desc.new_variance_desc_ = desc.new_variance_desc_.permute_axes(perm);
     }
@@ -1591,30 +1589,26 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<impl::op_t> &op,
     // meet the requirement of XIO format. But for OIX format, we
     // need permute c channel to the first dimension
     if (desc.filter_format_ == "OIX") { // conv case
-        auto perm = dnnl_impl::utils::cast_to_int32(
-                get_permutation(desc.new_scale_desc_.data.ndims, "XIO", "OIX"));
+        auto perm = dnnl_impl::utils::cast_to_int32(get_permutation(
+                desc.new_scale_desc_.get_ndsim(), "XIO", "OIX"));
         desc.new_scale_desc_ = desc.new_scale_desc_.permute_axes(perm);
         desc.new_variance_desc_ = desc.new_variance_desc_.permute_axes(perm);
     }
 
     // temp = weights * scale
-    dnnl::binary::desc mul_d(
-            algorithm::binary_mul, weights, desc.new_scale_desc_, weights);
-
     post_ops mul_post_ops;
     // updated_weight = temp / sqrt_variance
     mul_post_ops.append_binary(algorithm::binary_div, desc.new_variance_desc_);
 
     primitive_attr mul_attr;
     mul_attr.set_post_ops(mul_post_ops);
-    desc.mul_pd_ = dnnl::binary::primitive_desc(mul_d, mul_attr, p_engine);
+    desc.mul_pd_ = dnnl::binary::primitive_desc(p_engine, algorithm::binary_mul,
+            weights, desc.new_scale_desc_, weights, mul_attr);
 
     // 3. updated_bias = (bias - mean) * scale / sqrt_variance + shift
 
     // temp = bias - mean
     memory::desc valid_bias = bias.is_zero() ? mean : bias;
-    dnnl::binary::desc sub_d(
-            algorithm::binary_sub, valid_bias, mean, valid_bias);
 
     post_ops sub_post_ops;
     // temp = temp * scale
@@ -1626,15 +1620,16 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<impl::op_t> &op,
 
     primitive_attr sub_attr;
     sub_attr.set_post_ops(sub_post_ops);
-    desc.sub_pd_ = dnnl::binary::primitive_desc(sub_d, sub_attr, p_engine);
+    desc.sub_pd_ = dnnl::binary::primitive_desc(p_engine, algorithm::binary_sub,
+            valid_bias, mean, valid_bias, sub_attr);
 
-    memory::dims scratchpad_dims = variance.dims();
+    memory::dims scratchpad_dims = variance.get_dims();
     // sqrt_variance, zero_bias and others (like epslion),
     // or no need to alloc bias
     size_t factor = bias.is_zero() ? 3 : 2;
     scratchpad_dims[0] *= factor;
     desc.scratchpad_desc_ = memory::desc(
-            scratchpad_dims, variance.data_type(), memory::format_tag::a);
+            scratchpad_dims, variance.get_data_type(), memory::format_tag::a);
 
     return desc;
 }
@@ -1989,9 +1984,8 @@ arg_indices_t batchnorm_bwd_executable_t::get_arg_indices(
     arg_indices.insert({DNNL_ARG_VARIANCE, indice_t {input, indice++}});
 
     if (op->num_outputs() > 2) {
-        // DNNL_ARG_SCALE and DNNL_ARG_SHIFT use the same memory
-        arg_indices.insert({DNNL_ARG_SCALE, indice_t {input, indice}});
-        arg_indices.insert({DNNL_ARG_SHIFT, indice_t {input, indice++}});
+        // oneDNN only need the scales now
+        arg_indices.insert({DNNL_ARG_SCALE, indice_t {input, indice++}});
     }
 
     indice = 0;

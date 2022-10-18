@@ -310,20 +310,20 @@ impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
                 cur_op->get_input_value(0)->get_logical_tensor());
         auto out_md = make_dnnl_memory_desc(
                 cur_op->get_output_value(0)->get_logical_tensor());
-        if (in_md.data.ndims == out_md.data.ndims) {
+        if (in_md.get_ndims() == out_md.get_ndims()) {
             // no group
             return impl::status::success;
-        } else if (in_md.data.ndims == out_md.data.ndims + 1) {
+        } else if (in_md.get_ndims() == out_md.get_ndims() + 1) {
             // reorder's input has blocked format with group
             // while output has plain format, perhaps for
             // backward path. No such case for now, disable
             return impl::status::unimplemented;
-        } else if (in_md.data.ndims + 1 == out_md.data.ndims) {
+        } else if (in_md.get_ndims() + 1 == out_md.get_ndims()) {
             // reorder's input has plain format while output
             // has blocked format with group, typically for
             // weight prepacking
-            auto group = out_md.data.dims[0];
-            if (group * out_md.data.dims[1] != in_md.data.dims[0])
+            auto group = out_md.get_dims()[0];
+            if (group * out_md.get_dims()[1] != in_md.get_dims()[0])
                 return impl::status::invalid_shape;
 
             // insert to_group op

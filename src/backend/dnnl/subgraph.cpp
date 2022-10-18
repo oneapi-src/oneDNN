@@ -81,24 +81,27 @@ namespace {
 std::string layout2str(const dnnl::memory::desc &md) {
     std::string str;
 
-    if (md.dims().empty()) return "";
+    if (md.get_dims().empty()) return "";
 
     // format tag
-    if (md.data.format_kind == dnnl_blocked) {
+    if (md.get_format_kind() == format_kind::blocked) {
         std::string blk_tag;
 
-        int ndims = md.data.ndims;
-        auto &blk = md.data.format_desc.blocking;
+        int ndims = md.get_ndims();
+        const auto &inner_blks = md.get_inner_blks();
+        const auto &inner_idxs = md.get_inner_idxs();
+        const int inner_nblks = md.get_inner_nblks();
 
         dnnl_dims_t blocks = {0};
         std::fill(blocks, blocks + ndims, 1);
-        for (int iblk = 0; iblk < blk.inner_nblks; ++iblk)
-            blocks[blk.inner_idxs[iblk]] *= blk.inner_blks[iblk];
+        for (int iblk = 0; iblk < inner_nblks; ++iblk)
+            blocks[inner_idxs[iblk]] *= inner_blks[iblk];
 
         char dim_chars[DNNL_MAX_NDIMS + 1] = {'\0'};
 
         dims_t ou_blocks = {0};
-        std::copy(md.data.padded_dims, md.data.padded_dims + ndims, ou_blocks);
+        const auto &padded_dims = md.get_padded_dims();
+        std::copy(padded_dims.begin(), padded_dims.end(), ou_blocks);
 
         bool plain = true;
         for (int d = 0; d < ndims; ++d) {
@@ -108,7 +111,8 @@ std::string layout2str(const dnnl::memory::desc &md) {
         }
 
         dnnl_dims_t strides = {0};
-        std::copy(blk.strides, blk.strides + ndims, strides);
+        const auto &strs = md.get_strides();
+        std::copy(strs.begin(), strs.end(), strides);
 
         utils::simultaneous_sort(strides, ou_blocks, dim_chars, ndims,
                 [](dim_t a, dim_t b) { return b - a; });
@@ -116,16 +120,16 @@ std::string layout2str(const dnnl::memory::desc &md) {
         blk_tag = std::string(dim_chars);
 
         if (!plain) {
-            for (int iblk = 0; iblk < blk.inner_nblks; ++iblk) {
-                blk_tag += std::to_string(blk.inner_blks[iblk])
-                        + static_cast<char>('a' + blk.inner_idxs[iblk]);
+            for (int iblk = 0; iblk < inner_nblks; ++iblk) {
+                blk_tag += std::to_string(inner_blks[iblk])
+                        + static_cast<char>('a' + inner_idxs[iblk]);
             }
         }
 
         str += blk_tag;
-    } else if (md.data.format_kind == dnnl_format_kind_any) {
+    } else if (md.get_format_kind() == format_kind::any) {
         str += "any";
-    } else if (md.data.format_kind == dnnl_format_kind_undef) {
+    } else if (md.get_format_kind() == format_kind::undef) {
         str += "undef";
     }
 

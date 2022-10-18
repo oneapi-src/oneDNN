@@ -151,59 +151,32 @@ public:
                 layout_id = static_cast<size_t>(std::distance(
                                     mem_descs_.data_.begin(), pos))
                         + LAST_TAG;
-            } else if (md.data.format_kind != dnnl_blocked) {
+            } else if (md.get_format_kind() != format_kind::blocked) {
                 mem_descs_.data_.emplace_back(mem_desc);
                 layout_id = mem_descs_.data_.size() - 1 + LAST_TAG;
             }
         }
 
-        if (md.data.format_kind == dnnl_blocked) {
-            std::string blk_tag;
+        if (md.get_format_kind() == format_kind::blocked) {
+            size_t format_tag = static_cast<size_t>(get_format_tag(md));
 
-            int ndims = md.data.ndims;
-            auto &blk = md.data.format_desc.blocking;
-
-            dnnl_dims_t blocks = {0};
-            std::fill(blocks, blocks + ndims, 1);
-            for (int iblk = 0; iblk < blk.inner_nblks; ++iblk)
-                blocks[blk.inner_idxs[iblk]] *= blk.inner_blks[iblk];
-
-            char dim_chars[DNNL_MAX_NDIMS + 1] = {'\0'};
-
-            dims_t ou_blocks = {0};
-            std::copy(md.data.padded_dims, md.data.padded_dims + ndims,
-                    ou_blocks);
-
-            bool plain = true;
-            for (int d = 0; d < ndims; ++d) {
-                dim_chars[d]
-                        = static_cast<char>((blocks[d] == 1 ? 'a' : 'A') + d);
-                if (blocks[d] != 1) plain = false;
-                ou_blocks[d] /= blocks[d];
+            if (!(format_tag > 0 && format_tag < dnnl_format_tag_last)) {
+                size_t layout_id
+                        = layout_id_manager_t::set_mem_desc(mem_desc).value();
+                return layout_id + LAST_TAG;
             }
 
-            dnnl_dims_t strides = {0};
-            std::copy(blk.strides, blk.strides + ndims, strides);
-
-            utils::simultaneous_sort(strides, ou_blocks, dim_chars, ndims,
-                    [](dim_t a, dim_t b) { return b - a; });
-
-            blk_tag = std::string(dim_chars);
-
-            if (!plain) {
-                for (int iblk = 0; iblk < blk.inner_nblks; ++iblk) {
-                    blk_tag += std::to_string(blk.inner_blks[iblk])
-                            + static_cast<char>('a' + blk.inner_idxs[iblk]);
-                }
-            }
-            for (size_t tag = 0; tag < dnnl_format_tag_last; ++tag) {
-                if (dnnl_fmt_tag2str((dnnl_format_tag_t)tag) == blk_tag) {
-                    layout_id = tag;
-                    break;
-                }
-            }
-            if (!(layout_id > 0 && layout_id < dnnl_format_tag_last)
-                    || (md.data.extra.flags != dnnl_memory_extra_flag_none)) {
+            // Check if md has extra flags. Note that since onednn didn't
+            // provide api to check extra flags, here we construct a temp md
+            // without extra flag, and then compare it with the origin md. If
+            // they are not equal, the origin md may has extra flags. Only using
+            // shape, data type and format tag can't describe the md anymore, so
+            // we must cache it to layout id manager.
+            const auto &dims = md.get_dims();
+            const auto &dtype = md.get_data_type();
+            memory::desc temp_md(
+                    dims, dtype, static_cast<memory::format_tag>(layout_id));
+            if (md != temp_md) {
                 size_t layout_id
                         = layout_id_manager_t::set_mem_desc(mem_desc).value();
                 return layout_id + LAST_TAG;
