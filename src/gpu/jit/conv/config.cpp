@@ -1509,7 +1509,7 @@ const char **get_thread_group_grid_conv_dims(
     static const char *fwd_2[] = {"ic", nullptr};
     static const char *bwd_d_0[] = {"ic", nullptr};
     static const char *bwd_d_1[] = {"mb", "iw", nullptr};
-    static const char *bwd_d_2[] = {nullptr};
+    static const char *bwd_d_2[] = {"oc", nullptr};
     static const char *bwd_w_0[] = {"oc", nullptr};
     static const char *bwd_w_1[] = {"ic", nullptr};
     static const char *bwd_w_2[] = {nullptr};
