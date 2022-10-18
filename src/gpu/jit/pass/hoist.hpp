@@ -25,7 +25,7 @@ namespace gpu {
 namespace jit {
 
 // Moves invariant expressions out of loops.
-stmt_t hoist_exprs(const stmt_t &s, ir_context_t &ir_ctx);
+stmt_t hoist_exprs(const stmt_t &s, ir_context_t &ir_ctx, int reserved_regs);
 
 // Moves boolean mask computation from send calls to the top of the statement
 // group corresponding to `label`. This is done to reduce GRF consumption and

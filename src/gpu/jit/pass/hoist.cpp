@@ -16,6 +16,7 @@
 
 #include "gpu/jit/pass/hoist.hpp"
 
+#include "gpu/jit/codegen/register_allocator.hpp"
 #include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/utils/trace.hpp"
 
@@ -71,7 +72,9 @@ private:
 
 class hoist_exprs_mutator_t : public ir_mutator_t {
 public:
-    hoist_exprs_mutator_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {}
+    hoist_exprs_mutator_t(ir_context_t &ir_ctx,
+            int max_hoist_size = std::numeric_limits<int>::max())
+        : ir_ctx_(ir_ctx), max_hoist_size_(max_hoist_size) {}
 
     ~hoist_exprs_mutator_t() override { ir_assert(let_vars_.empty()); }
 
@@ -116,10 +119,10 @@ public:
         bool fully_hoisted = false;
         expr_t new_value;
         bool is_const_let = is_const(obj.value) || is_shuffle_const(obj.value);
-        if (is_const_let && loops_.size() > 0) {
+        if (is_const_let && loops_.size() > 0 && can_hoist(obj.var)) {
             fully_hoisted = true;
             register_let(obj.var, obj.value);
-            loops_[0].lets.push_back(let_t::make(obj.var, obj.value));
+            add_hoist_let(loops_[0], obj.var, obj.value);
         } else {
             new_value = hoist_expr(obj.value, obj.var, &fully_hoisted);
         }
@@ -140,6 +143,17 @@ private:
         std::vector<stmt_t> lets;
     };
 
+    bool can_hoist(const expr_t &expr) {
+        return expr.type().size() <= max_hoist_size_ - current_hoist_size_;
+    }
+
+    void add_hoist_let(
+            loop_info_t &loop, const expr_t &var, const expr_t &value) {
+        loop.lets.emplace_back(let_t::make(var, value));
+        current_hoist_size_ += utils::rnd_up(
+                var.type().size(), reg_allocator_t::granularity);
+    }
+
     expr_t hoist_expr(const expr_t &expr, const expr_t &expr_var = {},
             bool *fully_hoisted = nullptr) {
         if (expr.is_empty()) return expr;
@@ -147,6 +161,7 @@ private:
         if (expr.type().is_bool()) return expr;
         if (is_const(expr) || is_shuffle_const(expr) || is_var(expr))
             return expr;
+        if (!can_hoist(expr)) return expr;
 
         auto hoisted_expr = hoist_expr_with_add(expr, expr_var, fully_hoisted);
         if (!hoisted_expr.is_equal(expr)) return hoisted_expr;
@@ -208,9 +223,8 @@ private:
             } else {
                 inv_var = ir_ctx_.create_tmp_var(inv_expr.type());
             }
-            auto let = let_t::make(inv_var, inv_expr);
             register_let(inv_var, inv_expr);
-            loops_[i].lets.push_back(let);
+            add_hoist_let(loops_[i], inv_var, inv_expr);
 
             if (other_args.empty()) {
                 if (fully_hoisted) *fully_hoisted = true;
@@ -262,13 +276,35 @@ private:
 
     ir_context_t &ir_ctx_;
     std::vector<loop_info_t> loops_;
+    int max_hoist_size_;
+    int current_hoist_size_ = 0;
 
     object_map_t<expr_t, expr_t> let_vars_;
 };
+stmt_t hoist_exprs_impl(
+        const stmt_t &s, ir_context_t &ir_ctx, int reserved_regs) {
 
-stmt_t hoist_exprs(const stmt_t &s, ir_context_t &ir_ctx) {
+    int grf_size = ir_ctx.hw_cfg().grf_size();
+    int available_regs = ir_ctx.exec_cfg().regs() - reserved_regs;
+    int memory_usage_limit = available_regs * grf_size;
+
+    auto stmt = hoist_exprs_mutator_t(ir_ctx).mutate(s);
+
+    int memory_usage = get_peak_grf_usage(stmt, grf_size) * grf_size;
+    if (memory_usage >= memory_usage_limit) {
+        // Pessimistically hoist expressions. Does not identify and account for
+        // hoists which do not change memory usage.
+        int memory_usage_original = get_peak_grf_usage(s, grf_size) * grf_size;
+        stmt = hoist_exprs_mutator_t(
+                ir_ctx, memory_usage_limit - memory_usage_original)
+                       .mutate(s);
+    }
+    return stmt;
+}
+
+stmt_t hoist_exprs(const stmt_t &s, ir_context_t &ir_ctx, int reserved_regs) {
     trace_start();
-    auto ret = hoist_exprs_mutator_t(ir_ctx).mutate(s);
+    auto ret = hoist_exprs_impl(s, ir_ctx, reserved_regs);
     trace_pass("hoist_exprs", ret, ir_ctx);
     return ret;
 }
