@@ -142,12 +142,15 @@ void serialize_attr(
     } else if (!attr.scales_.has_default_values()) {
         // go through scales for all arguments
         for (const auto &p : attr.scales_.scales_) {
+            sstream.write(&p.first);
             sstream.write(&p.second.mask_);
         }
     }
     // zero_points
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
         if (!attr.zero_points_.has_default_values(arg)) {
+            // zero_points: arg
+            sstream.write(&arg);
             int mask = 0;
             attr.zero_points_.get(arg, &mask);
             // zero_points: mask
