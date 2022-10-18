@@ -49,12 +49,24 @@ TEST(LayoutId, OpaqueMdLayoutIdMapping) {
     ASSERT_EQ(id1.value(), static_cast<size_t>(format_tag::nChw16c));
     ASSERT_EQ(id2.value(), static_cast<size_t>(format_tag::nChw8c));
 
-    memory::desc md3({1, 2, 3, 4}, data_type::s8, format_tag::nChw16c);
-    auto id3 = mgr.set_mem_desc(md3);
-    ASSERT_EQ(id3.value(), static_cast<size_t>(format_tag::nChw16c));
+    dnnl::engine eng(dnnl::engine::kind::cpu, 0);
+    dnnl::memory::desc conv_src(
+            {1, 64, 224, 224}, data_type::u8, format_tag::any);
+    dnnl::memory::desc conv_wei({64, 64, 1, 1}, data_type::s8, format_tag::any);
+    dnnl::memory::desc conv_dst(
+            {1, 64, 224, 224}, data_type::u8, format_tag::any);
+    dnnl::primitive_attr conv_attr;
+    conv_attr.set_zero_points(DNNL_ARG_SRC, 0, {75});
+    conv_attr.set_zero_points(DNNL_ARG_DST, 0, {75});
+    conv_attr.set_output_scales(0, {0.1f});
+    conv_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    dnnl::convolution_forward::primitive_desc conv_pd(eng,
+            dnnl::prop_kind::forward, dnnl::algorithm::convolution_direct,
+            conv_src, conv_wei, conv_dst, dnnl::memory::dims {1, 1},
+            dnnl::memory::dims {0, 0}, dnnl::memory::dims {0, 0}, conv_attr);
+    // the weight desc for asymc conv will have extra flags
+    memory::desc md3 = conv_pd.weights_desc();
 
-    md3.data.extra.flags
-            = dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
     auto id3_asym = mgr.set_mem_desc(md3);
     auto recovered_md3_asym = mgr.get_mem_desc(id3_asym.value());
     ASSERT_TRUE(recovered_md3_asym.has_value());

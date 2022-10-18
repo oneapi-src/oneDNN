@@ -1766,11 +1766,9 @@ TEST(LayoutPropagation, Transpose) {
             = subgraph->get_ops()[0]->get_output_value(0)->get_logical_tensor();
     ASSERT_EQ(out_lt.layout_type, impl::layout_type::strided);
     auto out_md = dnnl_impl::make_dnnl_memory_desc(out_lt);
-    ASSERT_EQ(out_md.dims(), out_shape);
+    ASSERT_EQ(out_md.get_dims(), out_shape);
     std::vector<int64_t> out_stride {393216, 64, 1, 1024};
-    const auto md_stride
-            = std::vector<int64_t>(out_md.data.format_desc.blocking.strides,
-                    out_md.data.format_desc.blocking.strides + 4);
+    const auto md_stride = out_md.get_strides();
     ASSERT_EQ(md_stride, out_stride);
 }
 
