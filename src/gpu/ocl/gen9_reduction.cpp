@@ -121,10 +121,10 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     const bool is_nhwc = (src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
             != format_tag::undef);
 
-    // plain layouts: NHWC, src C must be multiples of 16, up to 16 * 8
+    // plain layouts: NHWC, src C must be divisible by 16.
     if (is_nhwc) {
         int c = src_dims[1];
-        if ((c % 16 != 0) || (c / 16) > 8) { return status::unimplemented; }
+        if (c % 16 != 0) { return status::unimplemented; }
     } else {
         // blocked layouts: src C must have blocks of 16 or 32
         if (!(is_c_blocked_by(src_mdw, 16) || is_c_blocked_by(src_mdw, 32)))
@@ -186,7 +186,8 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
 
     // number of C chunks in dim 1
-    conf.initial_c_chunks = conf.c_block_size / conf.sub_group_size;
+    conf.initial_c_chunks
+            = std::min(conf.c_block_size / conf.sub_group_size, 8);
 
     // Split N chunks/chunk size according to heuristic
     std::tie(conf.initial_n_chunk_size, conf.initial_n_chunks)
