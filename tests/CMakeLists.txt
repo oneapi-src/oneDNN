@@ -83,6 +83,6 @@ if(DNNL_GRAPH_WITH_SYCL AND DNNL_GRAPH_CPU_RUNTIME STREQUAL "NONE")
 endif()
 
 add_subdirectory(cpp)
-add_subdirectory(benchdnn)
-add_subdirectory(benchdnn_graph)
+# add_subdirectory(benchdnn)
+# add_subdirectory(benchdnn_graph)
 add_subdirectory(demo)
