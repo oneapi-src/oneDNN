@@ -473,13 +473,17 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_without_post_ops(
 template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa,
         Wmm>::maybe_transpose_interleaved_vnni_to_plain(int m_blocks,
-        int n_blocks) {
+        int n_blocks, bool has_n_tail) {
 
     if (vnni_substep() == 1) return;
 
+    // The tail block is always processed as plain.
+    // No need to transpose it here.
+    const int n_blocks_e = n_blocks - has_n_tail;
+
     auto ymm_aux0 = vmm_tmp(0);
     for_(int m_i = 0; m_i < m_blocks; m_i++)
-    for (int n_i = 0; n_i < n_blocks; n_i++) {
+    for (int n_i = 0; n_i < n_blocks_e; n_i++) {
         auto ymm_even = accm(m_blocks, n_blocks, m_i, n_i, 0);
         auto ymm_odd = accm(m_blocks, n_blocks, m_i, n_i, 1);
         // reusing ymm_odd as aux
@@ -496,7 +500,7 @@ template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators(
         int m_blocks, int n_blocks, bool has_n_tail) {
 
-    maybe_transpose_interleaved_vnni_to_plain(m_blocks, n_blocks);
+    maybe_transpose_interleaved_vnni_to_plain(m_blocks, n_blocks, has_n_tail);
 
     if (is_fast_vnni_int8() && brg.is_bf16_emu) {
         // load permute indices from data section
@@ -529,16 +533,21 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::load_a(
         Vmm vmma, int m_i, int n_i, int v_i, bool has_n_tail) {
     const int n_blocks
             = has_n_tail && n_block2_tail() > 0 ? n_block2_tail() : n_block2();
-    const bool mask_flag = has_n_tail && (n_i + 1 == n_blocks);
-    const auto addr_offset = A_offset(m_i, n_i);
-    const auto addr = ptr[reg_aux_A + addr_offset];
+    const int substep_simd = get_substep_simd(n_i, v_i, has_n_tail);
+    const bool is_tail_block = has_n_tail && n_i + 1 == n_blocks;
+    const bool mask_flag = substep_simd < simd_w_;
+    const auto addr = ptr[reg_aux_A + A_offset(m_i, n_i)
+            + is_tail_block * v_i * simd_w_ * brg.typesize_A];
     if (IMPLICATION(mask_flag, isa_has_masks(brg.isa_impl))) {
         vmma = maybe_mask(vmma, mask_flag, false);
         if (brg.is_f32) {
             vmovups(vmma, addr);
         } else if (brg.is_bf16) {
             if (brg.isa_impl == avx2_vnni_2) {
-                if (v_i == 0)
+                if (is_tail_block) {
+                    vpmovzxwd(vmma, addr);
+                    vpslld(vmma, vmma, 16);
+                } else if (v_i == 0)
                     vcvtneebf162ps(vmma, addr);
                 else
                     vcvtneobf162ps(vmma, addr);
@@ -548,55 +557,37 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::load_a(
             }
         } else if (brg.is_f16) {
             if (brg.isa_impl == avx2_vnni_2) {
-                if (v_i == 0)
+                if (is_tail_block)
+                    vcvtph2ps(vmma, addr);
+                else if (v_i == 0)
                     vcvtneeph2ps(vmma, addr);
                 else
                     vcvtneoph2ps(vmma, addr);
-            } else {
+            } else
                 vcvtph2ps(vmma, addr);
-            }
         } else if (brg.is_int8) {
             if (is_fast_vnni_int8()) {
                 assert(!mask_flag);
                 vbroadcasti32x4(vmma, addr);
-            } else {
+            } else
                 vpmovzxbd(vmma, addr);
-            }
         }
     } else {
         uni_vpxor(vmma, vmma, vmma);
-        const int load_tail_size = n_block1_tail();
-        load_bytes(vmma, addr, brg.typesize_A * load_tail_size);
-        if (brg.is_bf16) {
-            assert(brg.isa_impl == avx2_vnni_2);
-            if (v_i == 0) {
-                vpslld(vmma, vmma, 0x10);
-            } else if (load_tail_size > 1) {
-                vpsrld(vmma, vmma, 0x10);
-                vpslld(vmma, vmma, 0x10);
-            }
-        } else if (brg.is_f16) {
-            assert(brg.isa_impl == avx2_vnni_2);
-            if (v_i == 0) {
-                vpshuflw(vmma, vmma, 0x08);
-                vpshufhw(vmma, vmma, 0x08);
-                vpshufd(vmma, vmma, 0x08);
-                vpermq(vmma, vmma, 0x08);
-                vcvtph2ps(vmma, Xmm(vmma.getIdx()));
-            } else if (load_tail_size > 1) {
-                vpshuflw(vmma, vmma, 0x0d);
-                vpshufhw(vmma, vmma, 0x0d);
-                vpshufd(vmma, vmma, 0x08);
-                vpermq(vmma, vmma, 0x08);
-                vcvtph2ps(vmma, Xmm(vmma.getIdx()));
-            }
-        }
+        load_data(brg.dt_a, vmma, addr, substep_simd);
     }
 }
 
 template <cpu_isa_t isa, typename Wmm>
-void jit_brdgmm_kernel_base_t<isa, Wmm>::load_b(Vmm vmmb, int n_i, int v_i) {
-    const auto addr = ptr[reg_aux_B + B_offset(n_i)];
+void jit_brdgmm_kernel_base_t<isa, Wmm>::load_b(
+        Vmm vmmb, int n_i, int v_i, bool has_n_tail) {
+    // for B matrix we assume memory is padded and it is safe to load simd
+    // elements. is_tail only used during avx_ne_convert tail optimization.
+    const int n_blocks
+            = has_n_tail && n_block2_tail() > 0 ? n_block2_tail() : n_block2();
+    const bool is_tail_block = has_n_tail && (n_i + 1 == n_blocks);
+    const auto addr = ptr[reg_aux_B + B_offset(n_i)
+            + is_tail_block * v_i * simd_w_ * brg.typesize_B];
     if (brg.is_f32) {
         vmovups(vmmb, addr);
     } else if (brg.is_int8) {
@@ -609,21 +600,23 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::load_b(Vmm vmmb, int n_i, int v_i) {
         }
     } else if (brg.is_f16) {
         if (brg.isa_impl == avx2_vnni_2) {
-            if (v_i == 0) {
+            if (is_tail_block)
+                vcvtph2ps(vmmb, addr);
+            else if (v_i == 0)
                 vcvtneeph2ps(vmmb, addr);
-            } else {
+            else
                 vcvtneoph2ps(vmmb, addr);
-            }
-        } else {
+        } else
             vcvtph2ps(vmmb, addr);
-        }
     } else if (brg.is_bf16) {
         if (brg.isa_impl == avx2_vnni_2) {
-            if (v_i == 0) {
+            if (is_tail_block) {
+                vpmovzxwd(vmmb, addr);
+                vpslld(vmmb, vmmb, 16);
+            } else if (v_i == 0)
                 vcvtneebf162ps(vmmb, addr);
-            } else {
+            else
                 vcvtneobf162ps(vmmb, addr);
-            }
         } else {
             vpmovzxwd(vmmb, addr);
             if (brg.is_bf16_tmm) vpslld(vmmb, vmmb, 16);
@@ -673,11 +666,13 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
             const int n_e = nstl::min(nb_i + max_bvmms, n_blocks) - nb_i;
             for (int i = 0; i < n_e; ++i) {
                 const int n_i = nb_i + i;
-                load_b(vmm_b(i), n_i, v_i);
+                if (get_substep_simd(n_i, v_i, has_tail) <= 0) continue;
+                load_b(vmm_b(i), n_i, v_i, has_tail);
             }
             for_(int m_i = 0; m_i < m_blocks; ++m_i)
             for (int i = 0; i < n_e; ++i) {
                 const int n_i = nb_i + i;
+                if (get_substep_simd(n_i, v_i, has_tail) <= 0) continue;
                 if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i, v_i, has_tail);
                 dot_product(vmm_a(), vmm_b(i), m_i, n_i, v_i);
             }
@@ -690,7 +685,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
         for (int i = 0; i < n_preload_b_vmms; ++i) {
             const int n_i = i % n_blocks;
             const int v_i = i / n_blocks;
-            load_b(vmm_b(i), n_i, v_i);
+            if (get_substep_simd(n_i, v_i, has_tail) <= 0) continue;
+            load_b(vmm_b(i), n_i, v_i, has_tail);
         }
 
         Label done;
@@ -718,13 +714,14 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
 
             for_(int v_i = 0, p_b_i = 0; v_i < v_substep; ++v_i)
             for (int n_i = 0; n_i < n_blocks; ++n_i, ++p_b_i) {
+                if (get_substep_simd(n_i, v_i, has_tail) <= 0) continue;
                 if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i, v_i, has_tail);
                 if (p_b_i < n_preload_b_vmms) {
                     dot_product(vmm_a(), vmm_b(p_b_i), m_i, n_i, v_i);
                 } else {
                     // preloaded vmm_b not available
                     const int b_idx = max_bvmms - 1;
-                    load_b(vmm_b(b_idx), n_i, v_i);
+                    load_b(vmm_b(b_idx), n_i, v_i, has_tail);
                     dot_product(vmm_a(), vmm_b(b_idx), m_i, n_i, v_i);
                 }
             }

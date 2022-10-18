@@ -183,7 +183,7 @@ private:
     void set_A_B_matrices();
     void advance_A_B_matrices();
     void load_a(Vmm vmma, int m_i, int n_i, int v_i, bool has_n_tail);
-    void load_b(Vmm vmmb, int n_i, int v_i);
+    void load_b(Vmm vmmb, int n_i, int v_i, bool has_n_tail);
     void brdgmm_microkernel(int m_blocks, int n_blocks, bool has_top_padding,
             bool has_bottom_padding, bool has_tail = false);
     void compute_loop();
@@ -191,7 +191,8 @@ private:
     void cvt2ps(data_type_t type_in, const Vmm vmm_in, const Xbyak::Operand &op,
             bool mask_flag, bool store);
     void apply_post_ops(int m_blocks, int n_blocks, bool has_n_tail);
-    void maybe_transpose_interleaved_vnni_to_plain(int m_blocks, int n_blocks);
+    void maybe_transpose_interleaved_vnni_to_plain(
+            int m_blocks, int n_blocks, bool has_n_tail);
     void store_accumulators(int m_blocks, int n_blocks, bool has_n_tail);
     void store_accumulators_without_post_ops(
             int m_blocks, int n_blocks, bool has_n_tail);
