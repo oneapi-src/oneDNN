@@ -125,6 +125,8 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     if (is_nhwc) {
         int c = src_dims[1];
         if (c % 16 != 0) { return status::unimplemented; }
+        if (src_dims[0] != dst_dims[0]) { return status::unimplemented; }
+        if (src_dims[1] != dst_dims[1]) { return status::unimplemented; }
     } else {
         // blocked layouts: src C must have blocks of 16 or 32
         if (!(is_c_blocked_by(src_mdw, 16) || is_c_blocked_by(src_mdw, 32)))
