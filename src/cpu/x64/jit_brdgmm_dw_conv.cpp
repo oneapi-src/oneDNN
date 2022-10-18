@@ -79,9 +79,9 @@ cpu_isa_t get_supported_isa(
     } else if (is_int8) {
         isa_list = {avx512_core_vnni};
     } else if (is_bf16) {
-        isa_list = {avx512_core_bf16};
+        isa_list = {avx512_core_bf16, avx2_vnni_2};
     } else if (is_f16) {
-        isa_list = {avx512_core_fp16};
+        isa_list = {avx512_core_fp16, avx2_vnni_2};
     }
 
     for (auto isa : isa_list) {
@@ -167,7 +167,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
 
     const auto def_data_tag = format_tag::nhwc;
     const bool any_eligible = (cd.prop_kind == prop_kind::forward_inference
-            || is_int8 || is_f16);
+            || is_int8 || is_f16 || (isa == avx2_vnni_2 && is_bf16));
     CHECK(init_tag(src_md_, src_d, def_data_tag, any_eligible));
     CHECK(init_tag(dst_md_, dst_d, def_data_tag, any_eligible));
 

@@ -41,6 +41,7 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
         const brgemm_t &abrd)
     : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
     , brg(abrd)
+    , simd_w_(vreg_traits<Vmm>::vlen / brg.typesize_C)
     , max_vmms_(isa_num_vregs(isa)) {
 
     if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
@@ -49,6 +50,7 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
         static constexpr bool preserve_vmm = false;
         static constexpr bool use_exact_tail_scalar_bcast = false;
         const auto dst_md_wrapper = memory_desc_wrapper(brg.dst_md);
+        const size_t tail = tail_length();
 
         static const bcast_set_t enabled_bcast_strategy
                 = {broadcasting_strategy_t::scalar,
@@ -57,8 +59,7 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
         const binary_injector::rhs_arg_static_params_t rhs_sp {
                 static_cast<size_t>(vmm_b().getIdx()), r14, r15, preserve_gpr,
                 preserve_vmm, GET_OFF(post_ops_binary_rhs_arg_vec),
-                GET_OFF(data_C_ptr_), dst_md_wrapper,
-                static_cast<size_t>(n_block1_tail()), k_mask,
+                GET_OFF(data_C_ptr_), dst_md_wrapper, tail, k_mask,
                 use_exact_tail_scalar_bcast};
         const binary_injector::static_params_t bsp {
                 this->param1, enabled_bcast_strategy, rhs_sp};
@@ -126,9 +127,11 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::read_params() {
 template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::load_accumulators(
         int m_blocks, int n_blocks) {
+    const int v_substep = vnni_substep();
+    for_(int v = 0; v < v_substep; ++v)
     for_(int m = 0; m < m_blocks; ++m)
     for (int n = 0; n < n_blocks; ++n) {
-        auto vmm = accm(m_blocks, n_blocks, m, n);
+        auto vmm = accm(m_blocks, n_blocks, m, n, v);
         uni_vpxor(vmm, vmm, vmm);
     }
 }
@@ -182,7 +185,7 @@ template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::cvt2ps(data_type_t type_in,
         const Vmm vmm_in, const Xbyak::Operand &op, bool mask_flag,
         bool store) {
-    const int tail_size = n_block1_tail();
+    const int tail_size = tail_length();
     const bool is_load_tail = op.isMEM() && mask_flag && tail_size > 0
             && (tail_size
                     < static_cast<int>(vreg_traits<Vmm>::vlen / sizeof(float)));
@@ -212,21 +215,37 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::apply_post_ops(
         int m_blocks, int n_blocks, bool has_n_tail) {
 
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+    injector_utils::vmm_index_set_t vmm_idxs_param;
+    const int v_substep = vnni_substep();
+
+    // collect vmm_idx's to apply post ops.
+    // incase of avx2_vnni_2 tails, it is possible we do not need apply post-ops
+    // to last vnni_substep
+    for_(int v_i = 0; v_i < v_substep; ++v_i)
+    for_(int m_i = 0; m_i < m_blocks; ++m_i)
+    for (int n_i = 0; n_i < n_blocks; ++n_i) {
+        if (get_substep_simd(n_i, v_i, has_n_tail) <= 0) continue;
+        const auto vmm_idx = accm(m_blocks, n_blocks, m_i, n_i, v_i).getIdx();
+        vmm_idxs_param.insert(vmm_idx);
+    }
 
     if (brg.with_binary) {
         mov(reg_binary_params, ptr[rsp + abi_param1_offs_]);
 
         if (with_binary_non_scalar_bcast_) {
 
+            for_(int v_i = 0; v_i < v_substep; ++v_i)
             for_(int m_i = 0; m_i < m_blocks; m_i++)
             for (int n_i = 0; n_i < n_blocks; n_i++) {
+                const int substep_simd = get_substep_simd(n_i, v_i, has_n_tail);
+                if (substep_simd <= 0) continue;
                 const auto vmm_idx
-                        = accm(m_blocks, n_blocks, m_i, n_i).getIdx();
-
+                        = accm(m_blocks, n_blocks, m_i, n_i, v_i).getIdx();
                 rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, reg_aux_D);
                 rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
-                        vmm_idx, D_offset(m_i, n_i));
-                if (n_i + 1 == n_blocks && has_n_tail)
+                        vmm_idx, D_offset(m_i, n_i, v_i));
+
+                if (n_i + 1 == n_blocks && has_n_tail && substep_simd < simd_w_)
                     rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
             }
         }
@@ -255,12 +274,15 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::apply_post_ops(
         }
 
         for_(int m_i = 0; m_i < m_blocks; m_i++)
-        for (int n_i = 0; n_i < n_blocks; n_i++) {
-            const auto vmm = accm(m_blocks, n_blocks, m_i, n_i);
-            const auto addr = ptr[reg_aux_D + D_offset(m_i, n_i)];
+        for_(int n_i = 0; n_i < n_blocks; n_i++)
+        for (int v_i = 0; v_i < v_substep; v_i++) {
+            const int substep_simd = get_substep_simd(n_i, v_i, has_n_tail);
+            if (substep_simd <= 0) continue;
+            const auto vmm = accm(m_blocks, n_blocks, m_i, n_i, v_i);
+            const auto addr = ptr[reg_aux_D + D_offset(m_i, n_i, v_i)];
             const auto vmm_prev_dst = vmm_tmp(1);
-            const bool mask_flag = has_n_tail && (n_i + 1 == n_blocks);
-            cvt2ps(brg.sum_dt, vmm_prev_dst, addr, mask_flag, false);
+            cvt2ps(brg.sum_dt, vmm_prev_dst, addr, substep_simd != simd_w_,
+                    false);
             if (p_sum_zp_reg_set) vsubps(vmm_prev_dst, vmm_sum_zp);
             if (!p_sum_scale_reg_set)
                 vaddps(vmm, vmm_prev_dst);
@@ -281,8 +303,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::apply_post_ops(
                 primitive_kind::sum, sum_injector);
     }
 
-    postops_injector_->compute_vector_range(
-            max_vmms_ - m_blocks * n_blocks, max_vmms_, rhs_arg_params);
+    postops_injector_->compute_vector_range(vmm_idxs_param, rhs_arg_params);
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -295,15 +316,19 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
     }
 
     const bool dq2ps_required = brg.is_int8;
+    const int v_substep = vnni_substep();
+    for_(int v_i = 0; v_i < v_substep; ++v_i)
     for (int n = 0; n < n_blocks; n++) {
         auto vmm_bias = vmm_tmp(0);
+        const int substep_simd = get_substep_simd(n, v_i, has_n_tail);
+        if (substep_simd <= 0) continue;
         if (brg.with_bias) {
-            const bool mask_flag = has_n_tail && n + 1 == n_blocks;
-            auto ptr_bias = ptr[reg_aux_bias + bias_offset(n)];
-            cvt2ps(brg.dt_bias, vmm_bias, ptr_bias, mask_flag, false);
+            auto ptr_bias = ptr[reg_aux_bias + bias_offset(n, v_i)];
+            cvt2ps(brg.dt_bias, vmm_bias, ptr_bias, substep_simd != simd_w_,
+                    false);
         }
         for (int m = 0; m < m_blocks; m++) {
-            auto vmm = accm(m_blocks, n_blocks, m, n);
+            auto vmm = accm(m_blocks, n_blocks, m, n, v_i);
             if (dq2ps_required) vcvtdq2ps(vmm, vmm);
             if (brg.with_bias) { vaddps(vmm, vmm, vmm_bias); }
         }
@@ -316,25 +341,29 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
                     ptr[reg_aux_scales + reg_aux_N * sizeof(float)]);
         }
         for_(int m = 0; m < m_blocks; m++)
-        for (int n = 0; n < n_blocks; n++) {
-            const bool mask_flag = has_n_tail && n + 1 == n_blocks;
+        for_(int n = 0; n < n_blocks; n++)
+        for (int v_i = 0; v_i < v_substep; ++v_i) {
+            const int substep_simd = get_substep_simd(n, v_i, has_n_tail);
+            if (substep_simd <= 0) continue;
+            const bool mask_flag = substep_simd < simd_w_;
             const Vmm vmm = maybe_mask(
-                    accm(m_blocks, n_blocks, m, n), mask_flag, false);
+                    accm(m_blocks, n_blocks, m, n, v_i), mask_flag, false);
             if (IMPLICATION(mask_flag || !brg.is_oc_scale,
                         is_superset(brg.isa_impl, avx512_core))) {
                 if (brg.is_oc_scale) {
-                    vmulps(vmm, vmm, ptr[reg_aux_scales + scales_offset(n)]);
+                    vmulps(vmm, vmm,
+                            ptr[reg_aux_scales + scales_offset(n, v_i)]);
                 } else {
                     vmulps(vmm, vmm, ptr_b[reg_aux_scales]);
                 }
             } else {
                 auto vmm_scale = vmm_tmp(0);
-                const auto addr = ptr[reg_aux_scales + scales_offset(n)];
+                const auto addr = ptr[reg_aux_scales + scales_offset(n, v_i)];
                 if (brg.is_oc_scale) {
                     uni_vpxor(vmm_scale, vmm_scale, vmm_scale);
-                    load_data(data_type::f32, vmm_scale, addr, n_block1_tail());
+                    load_data(data_type::f32, vmm_scale, addr, substep_simd);
                 } else {
-                    vbroadcastss(vmm_scale, addr);
+                    vbroadcastss(vmm_scale, ptr[reg_aux_scales]);
                 }
                 vmulps(vmm, vmm, vmm_scale);
             }
@@ -356,17 +385,24 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
 
     for (int m = 0; m < m_blocks; m++) {
         if (dt_requires_saturation) {
-            for (int n = 0; n < n_blocks; n++) {
-                auto vmm = accm(m_blocks, n_blocks, m, n);
+            for_(int n = 0; n < n_blocks; n++)
+            for (int v_i = 0; v_i < v_substep; ++v_i) {
+                if (get_substep_simd(n, v_i, has_n_tail) <= 0) continue;
+                auto vmm = accm(m_blocks, n_blocks, m, n, v_i);
                 saturate_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
                 vcvtps2dq(vmm, vmm);
             }
         }
-        for (int n = 0; n < n_blocks; n++) {
-            auto addr = ptr[reg_aux_D + D_offset(m, n)];
-            auto vmm = accm(m_blocks, n_blocks, m, n);
+
+        for_(int n = 0; n < n_blocks; n++)
+        for (int v_i = 0; v_i < v_substep; ++v_i) {
+            const int substep_simd = get_substep_simd(n, v_i, has_n_tail);
+            if (substep_simd <= 0) continue;
+            const auto offset = D_offset(m, n, v_i);
+            auto addr = ptr[reg_aux_D + offset];
+            auto vmm = accm(m_blocks, n_blocks, m, n, v_i);
             auto vmm_low = Vmm_low_t(vmm.getIdx());
-            const bool mask_flag = n + 1 == n_blocks && has_n_tail;
+            const bool mask_flag = substep_simd < simd_w_;
             const Vmm r_vmm = maybe_mask(vmm, mask_flag, true);
             const Vmm_low_t r_vmm_low = maybe_mask(vmm_low, mask_flag, true);
             if (IMPLICATION(mask_flag, isa_has_masks(brg.isa_impl))) {
@@ -377,8 +413,14 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
                         if (brg.is_bf16_emu)
                             bf16_emu_->vcvtneps2bf16(vmm_low, vmm);
                         else
-                            vcvtneps2bf16(vmm_low, vmm);
-                        vmovdqu16(addr, r_vmm_low);
+                            vcvtneps2bf16(vmm_low, vmm,
+                                    brg.isa_impl == avx2_vnni_2
+                                            ? Xbyak::VexEncoding
+                                            : Xbyak::EvexEncoding);
+                        if (mask_flag)
+                            vmovdqu16(addr, r_vmm_low);
+                        else
+                            vmovups(addr, r_vmm_low);
                         break;
                     case data_type::f16:
                         vcvtps2ph(addr, r_vmm, _op_mxcsr);
@@ -388,8 +430,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
                     default: assert(!"unknown dst_dt");
                 }
             } else {
-                store_data(brg.dt_d, vmm, reg_aux_D, D_offset(m, n),
-                        n_block1_tail());
+                store_data(brg.dt_d, vmm, reg_aux_D, offset, substep_simd);
             }
         }
     }
@@ -409,26 +450,53 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_without_post_ops(
     }
 
     for_(int m = 0; m < m_blocks; m++)
-    for (int n = 0; n < n_blocks; n++) {
-        const bool mask_flag = has_n_tail && n + 1 == n_blocks;
-        auto vmm_acc = accm(m_blocks, n_blocks, m, n);
+    for_(int n = 0; n < n_blocks; n++)
+    for (int v_i = 0; v_i < vnni_substep(); ++v_i) {
+        const int substep_simd = get_substep_simd(n, v_i, has_n_tail);
+        if (substep_simd <= 0) continue;
+        const bool mask_flag = substep_simd < simd_w_;
+        auto vmm_acc = accm(m_blocks, n_blocks, m, n, v_i);
         if (dt_requires_saturation) {
             saturate_f32(vmm_acc, vmm_lbound, vmm_ubound, brg.dt_d);
             vcvtps2dq(vmm_acc, vmm_acc);
         }
+        const auto offset = C_offset(m, n, v_i);
         if (IMPLICATION(mask_flag, isa_has_masks(brg.isa_impl))) {
             auto vmm_acc_masked = maybe_mask(vmm_acc, mask_flag, true);
-            vmovups(ptr[reg_aux_C + C_offset(m, n)], vmm_acc_masked);
+            vmovups(ptr[reg_aux_C + offset], vmm_acc_masked);
         } else {
-            store_data(brg.dt_c, vmm_acc, reg_aux_C, C_offset(m, n),
-                    n_block1_tail());
+            store_data(brg.dt_c, vmm_acc, reg_aux_C, offset, substep_simd);
         }
+    }
+}
+
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa,
+        Wmm>::maybe_transpose_interleaved_vnni_to_plain(int m_blocks,
+        int n_blocks) {
+
+    if (vnni_substep() == 1) return;
+
+    auto ymm_aux0 = vmm_tmp(0);
+    for_(int m_i = 0; m_i < m_blocks; m_i++)
+    for (int n_i = 0; n_i < n_blocks; n_i++) {
+        auto ymm_even = accm(m_blocks, n_blocks, m_i, n_i, 0);
+        auto ymm_odd = accm(m_blocks, n_blocks, m_i, n_i, 1);
+        // reusing ymm_odd as aux
+        // TODO: Check for any latency due to register dependency
+        auto ymm_aux1 = ymm_odd;
+        vpunpckldq(ymm_aux0, ymm_even, ymm_odd);
+        vpunpckhdq(ymm_aux1, ymm_even, ymm_odd);
+        vperm2i128(ymm_even, ymm_aux0, ymm_aux1, 0x20);
+        vperm2i128(ymm_odd, ymm_aux0, ymm_aux1, 0x31);
     }
 }
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators(
         int m_blocks, int n_blocks, bool has_n_tail) {
+
+    maybe_transpose_interleaved_vnni_to_plain(m_blocks, n_blocks);
 
     if (is_fast_vnni_int8() && brg.is_bf16_emu) {
         // load permute indices from data section
@@ -439,7 +507,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators(
     if (is_fast_vnni_int8()) {
         for_(int m_i = 0; m_i < m_blocks; ++m_i)
         for (int n_i = 0; n_i < n_blocks; ++n_i) {
-            auto vmm_out = accm(m_blocks, n_blocks, m_i, n_i);
+            auto vmm_out = accm(m_blocks, n_blocks, m_i, n_i, 0);
             vpermd(vmm_out, vmm_permute(), vmm_out);
         }
     }
@@ -458,20 +526,35 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators(
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::load_a(
-        Vmm vmma, int m_i, int n_i, bool has_n_tail) {
+        Vmm vmma, int m_i, int n_i, int v_i, bool has_n_tail) {
     const int n_blocks
             = has_n_tail && n_block2_tail() > 0 ? n_block2_tail() : n_block2();
     const bool mask_flag = has_n_tail && (n_i + 1 == n_blocks);
-    const auto addr = ptr[reg_aux_A + A_offset(m_i, n_i)];
+    const auto addr_offset = A_offset(m_i, n_i);
+    const auto addr = ptr[reg_aux_A + addr_offset];
     if (IMPLICATION(mask_flag, isa_has_masks(brg.isa_impl))) {
         vmma = maybe_mask(vmma, mask_flag, false);
         if (brg.is_f32) {
             vmovups(vmma, addr);
         } else if (brg.is_bf16) {
-            vpmovzxwd(vmma, addr);
-            if (brg.is_bf16_tmm) vpslld(vmma, vmma, 16);
+            if (brg.isa_impl == avx2_vnni_2) {
+                if (v_i == 0)
+                    vcvtneebf162ps(vmma, addr);
+                else
+                    vcvtneobf162ps(vmma, addr);
+            } else {
+                vpmovzxwd(vmma, addr);
+                if (brg.is_bf16_tmm) vpslld(vmma, vmma, 16);
+            }
         } else if (brg.is_f16) {
-            vcvtph2ps(vmma, addr);
+            if (brg.isa_impl == avx2_vnni_2) {
+                if (v_i == 0)
+                    vcvtneeph2ps(vmma, addr);
+                else
+                    vcvtneoph2ps(vmma, addr);
+            } else {
+                vcvtph2ps(vmma, addr);
+            }
         } else if (brg.is_int8) {
             if (is_fast_vnni_int8()) {
                 assert(!mask_flag);
@@ -481,12 +564,38 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::load_a(
             }
         }
     } else {
-        load_bytes(vmma, addr, brg.typesize_A * n_block1_tail());
+        uni_vpxor(vmma, vmma, vmma);
+        const int load_tail_size = n_block1_tail();
+        load_bytes(vmma, addr, brg.typesize_A * load_tail_size);
+        if (brg.is_bf16) {
+            assert(brg.isa_impl == avx2_vnni_2);
+            if (v_i == 0) {
+                vpslld(vmma, vmma, 0x10);
+            } else if (load_tail_size > 1) {
+                vpsrld(vmma, vmma, 0x10);
+                vpslld(vmma, vmma, 0x10);
+            }
+        } else if (brg.is_f16) {
+            assert(brg.isa_impl == avx2_vnni_2);
+            if (v_i == 0) {
+                vpshuflw(vmma, vmma, 0x08);
+                vpshufhw(vmma, vmma, 0x08);
+                vpshufd(vmma, vmma, 0x08);
+                vpermq(vmma, vmma, 0x08);
+                vcvtph2ps(vmma, Xmm(vmma.getIdx()));
+            } else if (load_tail_size > 1) {
+                vpshuflw(vmma, vmma, 0x0d);
+                vpshufhw(vmma, vmma, 0x0d);
+                vpshufd(vmma, vmma, 0x08);
+                vpermq(vmma, vmma, 0x08);
+                vcvtph2ps(vmma, Xmm(vmma.getIdx()));
+            }
+        }
     }
 }
 
 template <cpu_isa_t isa, typename Wmm>
-void jit_brdgmm_kernel_base_t<isa, Wmm>::load_b(Vmm vmmb, int n_i) {
+void jit_brdgmm_kernel_base_t<isa, Wmm>::load_b(Vmm vmmb, int n_i, int v_i) {
     const auto addr = ptr[reg_aux_B + B_offset(n_i)];
     if (brg.is_f32) {
         vmovups(vmmb, addr);
@@ -499,10 +608,26 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::load_b(Vmm vmmb, int n_i) {
             vpmovsxbd(vmmb, addr);
         }
     } else if (brg.is_f16) {
-        vcvtph2ps(vmmb, addr);
+        if (brg.isa_impl == avx2_vnni_2) {
+            if (v_i == 0) {
+                vcvtneeph2ps(vmmb, addr);
+            } else {
+                vcvtneoph2ps(vmmb, addr);
+            }
+        } else {
+            vcvtph2ps(vmmb, addr);
+        }
     } else if (brg.is_bf16) {
-        vpmovzxwd(vmmb, addr);
-        if (brg.is_bf16_tmm) vpslld(vmmb, vmmb, 16);
+        if (brg.isa_impl == avx2_vnni_2) {
+            if (v_i == 0) {
+                vcvtneebf162ps(vmmb, addr);
+            } else {
+                vcvtneobf162ps(vmmb, addr);
+            }
+        } else {
+            vpmovzxwd(vmmb, addr);
+            if (brg.is_bf16_tmm) vpslld(vmmb, vmmb, 16);
+        }
     }
 }
 
@@ -513,10 +638,11 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
 
     const bool has_padding = has_top_padding || has_bottom_padding;
     const int max_bvmms
-            = accm(m_blocks, n_blocks, 0, 0).getIdx() - vmm_b(0).getIdx();
+            = accm(m_blocks, n_blocks, 0, 0, 0).getIdx() - vmm_b(0).getIdx();
+    const int v_substep = vnni_substep();
 
-    auto dot_product = [&](Vmm vmma, Vmm vmmb, int m_i, int n_i) {
-        auto vmm_acc = accm(m_blocks, n_blocks, m_i, n_i);
+    auto dot_product = [&](Vmm vmma, Vmm vmmb, int m_i, int n_i, int v_i) {
+        auto vmm_acc = accm(m_blocks, n_blocks, m_i, n_i, v_i);
         if (brg.is_f32) {
             if (is_fma_embd()) {
                 const bool mask_flag = has_tail && (n_i + 1 == n_blocks);
@@ -527,8 +653,9 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
                 vfmadd231ps(vmm_acc, vmma, vmmb);
             }
         } else if (brg.is_bf16) {
-            if (brg.is_bf16_tmm)
-                // dont use vdpbf16ps on cpus supporting amx due to poor perf.
+            if (brg.is_bf16_tmm /* dont use vdpbf16ps on cpus supporting amx due
+                                 to poor perf.*/
+                    || brg.isa_impl == avx2_vnni_2)
                 vfmadd231ps(vmm_acc, vmma, vmmb);
             else
                 vdpbf16ps(vmm_acc, vmma, vmmb);
@@ -541,26 +668,29 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
 
     if (!has_padding) {
         // preload vmm_b if possible.
+        for_(int v_i = 0; v_i < v_substep; ++v_i)
         for (int nb_i = 0; nb_i < n_blocks; nb_i += max_bvmms) {
             const int n_e = nstl::min(nb_i + max_bvmms, n_blocks) - nb_i;
             for (int i = 0; i < n_e; ++i) {
                 const int n_i = nb_i + i;
-                load_b(vmm_b(i), n_i);
+                load_b(vmm_b(i), n_i, v_i);
             }
             for_(int m_i = 0; m_i < m_blocks; ++m_i)
             for (int i = 0; i < n_e; ++i) {
                 const int n_i = nb_i + i;
-                if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i, has_tail);
-                dot_product(vmm_a(), vmm_b(i), m_i, n_i);
+                if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i, v_i, has_tail);
+                dot_product(vmm_a(), vmm_b(i), m_i, n_i, v_i);
             }
         }
     } else {
-        const int max_req_preload_vmms = n_blocks;
+        const int max_req_preload_vmms = n_blocks * vnni_substep();
         const int n_preload_b_vmms = max_bvmms >= max_req_preload_vmms
                 ? max_req_preload_vmms
                 : max_bvmms - 1 /*for ad-hoc load*/;
         for (int i = 0; i < n_preload_b_vmms; ++i) {
-            load_b(vmm_b(i), i);
+            const int n_i = i % n_blocks;
+            const int v_i = i / n_blocks;
+            load_b(vmm_b(i), n_i, v_i);
         }
 
         Label done;
@@ -586,15 +716,16 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
                 jge(done, T_NEAR);
             }
 
-            for (int n_i = 0; n_i < n_blocks; ++n_i) {
-                if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i, has_tail);
-                if (n_i < n_preload_b_vmms) {
-                    dot_product(vmm_a(), vmm_b(n_i), m_i, n_i);
+            for_(int v_i = 0, p_b_i = 0; v_i < v_substep; ++v_i)
+            for (int n_i = 0; n_i < n_blocks; ++n_i, ++p_b_i) {
+                if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i, v_i, has_tail);
+                if (p_b_i < n_preload_b_vmms) {
+                    dot_product(vmm_a(), vmm_b(p_b_i), m_i, n_i, v_i);
                 } else {
                     // preloaded vmm_b not available
                     const int b_idx = max_bvmms - 1;
-                    load_b(vmm_b(b_idx), n_i);
-                    dot_product(vmm_a(), vmm_b(b_idx), m_i, n_i);
+                    load_b(vmm_b(b_idx), n_i, v_i);
+                    dot_product(vmm_a(), vmm_b(b_idx), m_i, n_i, v_i);
                 }
             }
         }
@@ -774,8 +905,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_loop() {
                 const int n_loop_offset
                         = loop_n_update_aux_ptrs * loop_n * n_block2();
                 add(reg_a_offset, A_offset(m_blocks, -n_loop_offset));
-                add(reg_aux_C, C_offset(m_blocks, -n_loop_offset));
-                add(reg_aux_D, D_offset(m_blocks, -n_loop_offset));
+                add(reg_aux_C, C_offset(m_blocks, -n_loop_offset, 0));
+                add(reg_aux_D, D_offset(m_blocks, -n_loop_offset, 0));
             }
 
             if (do_loop_m) {
@@ -880,6 +1011,7 @@ template struct brdgmm_kernel_t<avx512_core_bf16, Xbyak::Zmm>;
 template struct brdgmm_kernel_t<avx512_core_vnni, Xbyak::Zmm>;
 template struct brdgmm_kernel_t<avx512_core, Xbyak::Zmm>;
 template struct brdgmm_kernel_t<avx2, Xbyak::Ymm>;
+template struct brdgmm_kernel_t<avx2_vnni_2, Xbyak::Ymm>;
 
 } // namespace x64
 } // namespace cpu

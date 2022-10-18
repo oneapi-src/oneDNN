@@ -53,8 +53,8 @@ private:
             typename utils::conditional<std::is_same<Wmm, Xbyak::Tmm>::value,
                     Xbyak::Zmm, Wmm>::type;
     using Vmm_low_t = typename vreg_traits<Vmm>::Vmm_lower_t;
-    static constexpr cpu_isa_t po_isa_t = utils::map(
-            isa, avx512_core, avx2, avx2, avx512_core_fp16, avx512_core_fp16);
+    static constexpr cpu_isa_t po_isa_t = utils::map(isa, avx512_core, avx2,
+            avx2, avx2_vnni_2, avx2_vnni_2, avx512_core_fp16, avx512_core_fp16);
     using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_t, Vmm>;
     std::unique_ptr<po_injector_t> postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
@@ -108,6 +108,7 @@ private:
     // note 2: zmm0 collides with vmm_permute, hence need to write this value
     // before every loop.
 
+    const int simd_w_;
     const int max_vmms_;
     constexpr static int reg_batch0_addr_offs_ = 0;
     constexpr static int reg_bias_offs_ = 8;
@@ -135,24 +136,40 @@ private:
     inline int nb_n_block2() { return brg.ldb2; }
     inline int n_block2_tail() { return brg.ldb2_tail; }
 
+    int tail_length() { return n_block1_tail() % simd_w_; }
     bool is_fma_embd() { return brg.is_f32 && is_superset(isa, avx512_core); }
     bool is_fast_vnni_int8() { return is_fast_vnni_int8(brg); }
+    int vnni_substep() {
+        return brg.isa_impl == avx2_vnni_2 && (brg.is_bf16 || brg.is_f16) ? 2
+                                                                          : 1;
+    }
+    int get_substep_simd(int n_i, int v_i, bool has_n_tail) {
+        const int last_n_block_sz
+                = n_block2_tail() > 0 ? n_block2_tail() : n_block2();
+        if (has_n_tail && n_i + 1 == last_n_block_sz) {
+            return nstl::min(simd_w_, n_block1_tail() - v_i * simd_w_);
+        } else {
+            return simd_w_;
+        }
+    }
     Vmm vmm_permute() { return Vmm(0); } // used in fast_vnni_int8
     Vmm vmm_a() { return Vmm(is_fast_vnni_int8()); }
     Vmm vmm_b(int bi = 0) {
         return Vmm(is_fast_vnni_int8() + !is_fma_embd() + bi);
     }
-    Vmm accm(int m_blocks, int n_blocks, int m, int n) {
+    Vmm accm(int m_blocks, int n_blocks, int m, int n, int vnni_idx) {
         assert(m_blocks <= m_block2() && m < m_blocks);
         assert(n_blocks <= n_block2() && n < n_blocks);
-        const int accm_start = max_vmms_ - m_blocks * n_blocks;
-        const int accm_rel_idx = n * m_blocks + m;
+        const int accm_start = max_vmms_ - m_blocks * n_blocks * vnni_substep();
+        const int accm_rel_idx
+                = m * n_blocks * vnni_substep() + n * vnni_substep() + vnni_idx;
         const int idx = accm_start + accm_rel_idx;
         assert(idx < max_vmms_ && idx > vmm_b(0).getIdx());
         return Vmm(idx);
     }
     Vmm vmm_tmp(int i) {
-        const int idx = max_vmms_ - m_block2() * n_block2() - 1 - i;
+        const int idx
+                = max_vmms_ - m_block2() * n_block2() * vnni_substep() - 1 - i;
         assert(idx > (is_fast_vnni_int8() - 1));
         return Vmm(idx);
     }
@@ -165,8 +182,8 @@ private:
     void restore_A_B_matrices();
     void set_A_B_matrices();
     void advance_A_B_matrices();
-    void load_a(Vmm vmma, int m_i, int n_i, bool has_n_tail);
-    void load_b(Vmm vmmb, int n_i);
+    void load_a(Vmm vmma, int m_i, int n_i, int v_i, bool has_n_tail);
+    void load_b(Vmm vmmb, int n_i, int v_i);
     void brdgmm_microkernel(int m_blocks, int n_blocks, bool has_top_padding,
             bool has_bottom_padding, bool has_tail = false);
     void compute_loop();
@@ -174,6 +191,7 @@ private:
     void cvt2ps(data_type_t type_in, const Vmm vmm_in, const Xbyak::Operand &op,
             bool mask_flag, bool store);
     void apply_post_ops(int m_blocks, int n_blocks, bool has_n_tail);
+    void maybe_transpose_interleaved_vnni_to_plain(int m_blocks, int n_blocks);
     void store_accumulators(int m_blocks, int n_blocks, bool has_n_tail);
     void store_accumulators_without_post_ops(
             int m_blocks, int n_blocks, bool has_n_tail);
@@ -190,15 +208,17 @@ private:
         return brg.typesize_A * (m * brg.LDA + n * n_block1());
     }
     int B_offset(int n) { return brg.typesize_B * n * n_block1(); }
-    int C_offset(int m, int n) {
-        return brg.typesize_C * (m * brg.LDC + n * n_block1());
+    int C_offset(int m, int n, int v) {
+        return brg.typesize_C * (m * brg.LDC + n * n_block1() + v * simd_w_);
     }
-    int D_offset(int m, int n) {
-        return brg.typesize_D * (m * brg.LDD + n * n_block1());
+    int D_offset(int m, int n, int v) {
+        return brg.typesize_D * (m * brg.LDD + n * n_block1() + v * simd_w_);
     }
-    int bias_offset(int n) { return brg.typesize_bias * n * n_block1(); }
-    int scales_offset(int n) {
-        return sizeof(float) * brg.is_oc_scale * n * n_block1();
+    int bias_offset(int n, int v) {
+        return brg.typesize_bias * (n * n_block1() + v * simd_w_);
+    }
+    int scales_offset(int n, int v) {
+        return sizeof(float) * brg.is_oc_scale * (n * n_block1() + v * simd_w_);
     }
 
     void generate() override;

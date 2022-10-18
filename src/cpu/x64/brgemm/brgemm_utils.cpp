@@ -420,6 +420,8 @@ status_t brdgmm_blocking(brgemm_t *brg) {
             = nstl::max(brg->is_bf16_emu * 4, 2) + requires_permute_dst_vmm;
     const int max_acc_vmms = max_vregs - aux_vregs;
     const int simd_w = isa_max_vlen(brg->isa_impl) / brg->typesize_C;
+    const bool is_avx2_vnni_2_xf16
+            = (brg->is_bf16 || brg->is_f16) && brg->isa_impl == avx2_vnni_2;
 
     auto &M = brg->bcast_dim;
     auto &N = brg->load_dim;
@@ -440,11 +442,15 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     auto &n_block2_tail = brg->ldb2_tail;
 
     // begin blocking
-    n_block1 = simd_w;
+    // for avx2_vnni_2_xf16, instead of processing a n_block1 at once, it is
+    // processed as even/odd pair.
+    const int n_block1_num_steps = is_avx2_vnni_2_xf16 ? 2 : 1;
+    n_block1 = n_block1_num_steps * simd_w;
     nb_n_block1 = div_up(N, n_block1);
     n_block1_tail = N % n_block1;
 
-    const int max_n_block2 = 4;
+    const int max_n_block2_vmms = 4;
+    const int max_n_block2 = max_n_block2_vmms / n_block1_num_steps;
     n_block2 = nstl::min(max_n_block2, nb_n_block1);
     nb_n_block2 = div_up(nb_n_block1, n_block2);
     n_block2_tail = nb_n_block1 % n_block2;
@@ -452,7 +458,8 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     m_block1 = 1;
     nb_m_block1 = M / m_block1;
     m_block1_tail = M % m_block1;
-    m_block2 = nstl::min(nb_m_block1, max_acc_vmms / n_block2);
+    m_block2 = nstl::min(
+            nb_m_block1, max_acc_vmms / (n_block2 * n_block1_num_steps));
     nb_m_block2 = div_up(nb_m_block1, m_block2);
     m_block2_tail = nb_m_block1 % m_block2;
 
@@ -555,11 +562,11 @@ void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core),
                 avx512_core, is_isa_ok(avx2), avx2);
     } else if (brg->is_bf16) {
-        brg->isa_impl = utils::map(
-                true, isa_undef, is_isa_ok(avx512_core_bf16), avx512_core_bf16);
+        brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_bf16),
+                avx512_core_bf16, is_isa_ok(avx2_vnni_2), avx2_vnni_2);
     } else if (brg->is_f16) {
-        brg->isa_impl = utils::map(
-                true, isa_undef, is_isa_ok(avx512_core_fp16), avx512_core_fp16);
+        brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_fp16),
+                avx512_core_fp16, is_isa_ok(avx2_vnni_2), avx2_vnni_2);
     } else if (brg->is_int8) {
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_vnni),
                 avx512_core_vnni, is_isa_ok(avx2_vnni), avx2_vnni);
