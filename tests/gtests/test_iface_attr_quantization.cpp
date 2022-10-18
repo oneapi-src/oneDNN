@@ -27,7 +27,7 @@ namespace dnnl {
 using data_type = memory::data_type;
 using tag = memory::format_tag;
 
-class runtime_attr_test_t : public ::testing::Test {
+class attr_quantization_test_t : public ::testing::Test {
 protected:
     engine eng = get_test_engine();
     void SetUp() override {}
@@ -59,7 +59,7 @@ protected:
 // TODO: replace primitive descriptor creation with iterator fetching
 //       to test all possible implementations
 
-TEST_F(runtime_attr_test_t, TestBNorm) {
+TEST_F(attr_quantization_test_t, TestBNorm) {
     for (auto dt : {data_type::f32, data_type::s8}) {
         // no s8 -> s8 batch norm on GPU yet
         if (get_test_engine_kind() == engine::kind::gpu && dt == data_type::s8)
@@ -82,7 +82,7 @@ TEST_F(runtime_attr_test_t, TestBNorm) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestBinary) {
+TEST_F(attr_quantization_test_t, TestBinary) {
     memory::desc md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
     CHECK_OK(binary::primitive_desc(eng, algorithm::binary_add, md, md, md));
     CHECK_UNIMPL(binary::primitive_desc(
@@ -94,7 +94,7 @@ TEST_F(runtime_attr_test_t, TestBinary) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestConcat) {
+TEST_F(attr_quantization_test_t, TestConcat) {
     memory::desc md {{1, 16, 3, 3}, data_type::s8, tag::abcd};
     CHECK_OK(concat::primitive_desc(eng, 1, {md, md}));
     CHECK_UNIMPL(
@@ -107,7 +107,7 @@ TEST_F(runtime_attr_test_t, TestConcat) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestConv) {
+TEST_F(attr_quantization_test_t, TestConv) {
     // Datatype u8 is not supported in the Nvidia backend
     SKIP_IF_CUDA(true, "Unsupported datatype for CUDA");
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
@@ -138,7 +138,7 @@ TEST_F(runtime_attr_test_t, TestConv) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestDeconv) {
+TEST_F(attr_quantization_test_t, TestDeconv) {
     memory::desc src_md {{1, 16, 7, 7}, data_type::f32, tag::any};
     memory::desc wei_md {{32, 16, 3, 3}, data_type::f32, tag::any};
     memory::desc dst_md {{1, 32, 7, 7}, data_type::f32, tag::any};
@@ -155,7 +155,7 @@ TEST_F(runtime_attr_test_t, TestDeconv) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestEltwise) {
+TEST_F(attr_quantization_test_t, TestEltwise) {
     for (auto dt : {data_type::f32, data_type::s8}) {
         memory::desc md {{1, 16, 3, 3}, dt, tag::abcd};
 
@@ -173,7 +173,7 @@ TEST_F(runtime_attr_test_t, TestEltwise) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestInnerProduct) {
+TEST_F(attr_quantization_test_t, TestInnerProduct) {
     // Datatype u8 is not supported in the Nvidia backend
     SKIP_IF_CUDA(true, "Unsupported datatype for CUDA");
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
@@ -192,7 +192,7 @@ TEST_F(runtime_attr_test_t, TestInnerProduct) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestLNorm) {
+TEST_F(attr_quantization_test_t, TestLNorm) {
     SKIP_IF_CUDA(true, "Layer normalization primitive not supported for CUDA");
     for (auto dt : {data_type::f32}) {
         memory::desc md {{1, 16, 16}, dt, tag::abc};
@@ -220,7 +220,7 @@ TEST_F(runtime_attr_test_t, TestLNorm) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestLRN) {
+TEST_F(attr_quantization_test_t, TestLRN) {
     for (auto dt : {data_type::f32}) {
         memory::desc md {{1, 16, 3, 3}, dt, tag::abcd};
         CHECK_OK(lrn_forward::primitive_desc(eng, prop_kind::forward_inference,
@@ -238,7 +238,7 @@ TEST_F(runtime_attr_test_t, TestLRN) {
     }
 }
 
-CPU_TEST_F(runtime_attr_test_t, TestMatmul) {
+CPU_TEST_F(attr_quantization_test_t, TestMatmul) {
     for (auto a_dt : {data_type::f32, data_type::u8}) {
         const data_type b_dt
                 = a_dt == data_type::f32 ? data_type::f32 : data_type::s8;
@@ -265,7 +265,7 @@ CPU_TEST_F(runtime_attr_test_t, TestMatmul) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestPool) {
+TEST_F(attr_quantization_test_t, TestPool) {
     memory::desc src_md {{1, 16, 8, 8}, data_type::s8, tag::abcd};
     memory::desc dst_md {{1, 16, 4, 4}, data_type::s8, tag::abcd};
 
@@ -285,7 +285,7 @@ TEST_F(runtime_attr_test_t, TestPool) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestPReLU) {
+TEST_F(attr_quantization_test_t, TestPReLU) {
     SKIP_IF_CUDA(true, "Unsupported primitive not supported for CUDA");
     memory::desc data_md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
     memory::desc weights_md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
@@ -302,7 +302,7 @@ TEST_F(runtime_attr_test_t, TestPReLU) {
     }
 }
 
-CPU_TEST_F(runtime_attr_test_t, TestReorder) {
+CPU_TEST_F(attr_quantization_test_t, TestReorder) {
     memory::desc src_md {{1, 16, 8, 8}, data_type::s8, tag::abcd};
     memory::desc dst_md {{1, 16, 8, 8}, data_type::s8, tag::acdb};
     CHECK_OK(reorder::primitive_desc(eng, src_md, eng, dst_md));
@@ -315,7 +315,7 @@ CPU_TEST_F(runtime_attr_test_t, TestReorder) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestRNN) {
+TEST_F(attr_quantization_test_t, TestRNN) {
     SKIP_IF_CUDA(true, "RNN primitive not supported for CUDA");
     // Int8 RNN relies on packed API solely which is available only for X64.
 #if !DNNL_X64
@@ -369,7 +369,7 @@ TEST_F(runtime_attr_test_t, TestRNN) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestShuffle) {
+TEST_F(attr_quantization_test_t, TestShuffle) {
     SKIP_IF_CUDA(true, "Shuffle primitive not supported for CUDA");
     memory::desc md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
 
@@ -384,7 +384,7 @@ TEST_F(runtime_attr_test_t, TestShuffle) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestSoftmax) {
+TEST_F(attr_quantization_test_t, TestSoftmax) {
     SKIP_IF_CUDA(true, "Unsupported datatype for CUDA");
     SKIP_IF_HIP(true, "Unsupported datatype for HIP");
 
@@ -401,7 +401,7 @@ TEST_F(runtime_attr_test_t, TestSoftmax) {
     }
 }
 
-TEST_F(runtime_attr_test_t, TestSum) {
+TEST_F(attr_quantization_test_t, TestSum) {
     memory::desc md {{1, 16, 3, 3}, data_type::s8, tag::abcd};
     CHECK_OK(sum::primitive_desc(eng, {1.f, 1.f}, {md, md}));
     CHECK_UNIMPL(sum::primitive_desc(
