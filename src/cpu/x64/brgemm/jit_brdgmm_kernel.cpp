@@ -39,7 +39,9 @@ using namespace Xbyak;
 template <cpu_isa_t isa, typename Wmm>
 jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
         const brgemm_t &abrd)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa), brg(abrd) {
+    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
+    , brg(abrd)
+    , max_vmms_(isa_num_vregs(isa)) {
 
     if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
 
@@ -56,7 +58,7 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
                 static_cast<size_t>(vmm_b().getIdx()), r14, r15, preserve_gpr,
                 preserve_vmm, GET_OFF(post_ops_binary_rhs_arg_vec),
                 GET_OFF(data_C_ptr_), dst_md_wrapper,
-                static_cast<size_t>(n_vlen_tail()), k_mask,
+                static_cast<size_t>(n_block1_tail()), k_mask,
                 use_exact_tail_scalar_bcast};
         const binary_injector::static_params_t bsp {
                 this->param1, enabled_bcast_strategy, rhs_sp};
@@ -75,19 +77,11 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
 }
 
 template <cpu_isa_t isa, typename Wmm>
-typename jit_brdgmm_kernel_base_t<isa, Wmm>::Vmm
-jit_brdgmm_kernel_base_t<isa, Wmm>::vmm_mask(
-        const Vmm vmm_in, bool mask_flag, bool store) {
-    return mask_flag ? (store ? vmm_in | k_mask : vmm_in | k_mask | T_z)
-                     : vmm_in;
-}
-
-template <cpu_isa_t isa, typename Wmm>
-typename jit_brdgmm_kernel_base_t<isa, Wmm>::Vmm_low_t
-jit_brdgmm_kernel_base_t<isa, Wmm>::vmm_low_mask(
-        const Vmm_low_t vmm_low_in, bool mask_flag, bool store) {
-    return mask_flag ? (store ? vmm_low_in | k_mask : vmm_low_in | k_mask | T_z)
-                     : vmm_low_in;
+template <typename U>
+U jit_brdgmm_kernel_base_t<isa, Wmm>::maybe_mask(
+        const U umm_in, bool mask_flag, bool store) {
+    return mask_flag ? (store ? umm_in | k_mask : umm_in | k_mask | T_z)
+                     : umm_in;
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -135,7 +129,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::load_accumulators(
     for_(int m = 0; m < m_blocks; ++m)
     for (int n = 0; n < n_blocks; ++n) {
         auto vmm = accm(m_blocks, n_blocks, m, n);
-        vxorps(vmm, vmm, vmm);
+        uni_vpxor(vmm, vmm, vmm);
     }
 }
 
@@ -188,18 +182,27 @@ template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::cvt2ps(data_type_t type_in,
         const Vmm vmm_in, const Xbyak::Operand &op, bool mask_flag,
         bool store) {
-    const Vmm vmm = vmm_mask(vmm_in, mask_flag, store);
-    switch (type_in) {
-        case data_type::f32:
-        case data_type::s32: vmovups(vmm, op); break;
-        case data_type::bf16:
-            vpmovzxwd(vmm, op);
-            vpslld(vmm, vmm, 16);
-            break;
-        case data_type::f16: vcvtph2ps(vmm, op); break;
-        case data_type::s8: vpmovsxbd(vmm, op); break;
-        case data_type::u8: vpmovzxbd(vmm, op); break;
-        default: assert(!"unsupported data type");
+    const int tail_size = n_block1_tail();
+    const bool is_load_tail = op.isMEM() && mask_flag && tail_size > 0
+            && (tail_size
+                    < static_cast<int>(vreg_traits<Vmm>::vlen) / sizeof(float));
+    if (IMPLICATION(is_load_tail, isa_has_masks(brg.isa_impl))) {
+        const Vmm vmm = maybe_mask(vmm_in, is_load_tail, store);
+        switch (type_in) {
+            case data_type::f32:
+            case data_type::s32: vmovups(vmm, op); break;
+            case data_type::bf16:
+                vpmovzxwd(vmm, op);
+                vpslld(vmm, vmm, 16);
+                break;
+            case data_type::f16: vcvtph2ps(vmm, op); break;
+            case data_type::s8: vpmovsxbd(vmm, op); break;
+            case data_type::u8: vpmovzxbd(vmm, op); break;
+            default: assert(!"unsupported data type");
+        }
+    } else {
+        uni_vpxor(vmm_in, vmm_in, vmm_in);
+        load_data(type_in, vmm_in, op.getAddress(), tail_size);
     }
     if (types::is_integral_dt(type_in)) vcvtdq2ps(vmm_in, vmm_in);
 }
@@ -261,8 +264,15 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::apply_post_ops(
             if (p_sum_zp_reg_set) vsubps(vmm_prev_dst, vmm_sum_zp);
             if (!p_sum_scale_reg_set)
                 vaddps(vmm, vmm_prev_dst);
-            else
-                vfmadd231ps(vmm, vmm_prev_dst, zword_b[reg_ptr_sum_scale]);
+            else {
+                if (is_superset(brg.isa_impl, avx512_core)) {
+                    vfmadd231ps(vmm, vmm_prev_dst, ptr_b[reg_ptr_sum_scale]);
+                } else {
+                    auto vmm_scale = vmm_tmp(2);
+                    uni_vpbroadcastd(vmm_scale, ptr[reg_ptr_sum_scale]);
+                    uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_scale);
+                }
+            }
         }
     };
 
@@ -272,7 +282,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::apply_post_ops(
     }
 
     postops_injector_->compute_vector_range(
-            32 - m_blocks * n_blocks, 32, rhs_arg_params);
+            max_vmms_ - m_blocks * n_blocks, max_vmms_, rhs_arg_params);
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -308,12 +318,25 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
         for_(int m = 0; m < m_blocks; m++)
         for (int n = 0; n < n_blocks; n++) {
             const bool mask_flag = has_n_tail && n + 1 == n_blocks;
-            const Vmm vmm = vmm_mask(
+            const Vmm vmm = maybe_mask(
                     accm(m_blocks, n_blocks, m, n), mask_flag, false);
-            if (brg.is_oc_scale) {
-                vmulps(vmm, vmm, ptr[reg_aux_scales + scales_offset(n)]);
+            if (IMPLICATION(mask_flag || !brg.is_oc_scale,
+                        is_superset(brg.isa_impl, avx512_core))) {
+                if (brg.is_oc_scale) {
+                    vmulps(vmm, vmm, ptr[reg_aux_scales + scales_offset(n)]);
+                } else {
+                    vmulps(vmm, vmm, ptr_b[reg_aux_scales]);
+                }
             } else {
-                vmulps(vmm, vmm, zword_b[reg_aux_scales]);
+                auto vmm_scale = vmm_tmp(0);
+                const auto addr = ptr[reg_aux_scales + scales_offset(n)];
+                if (brg.is_oc_scale) {
+                    uni_vpxor(vmm_scale, vmm_scale, vmm_scale);
+                    load_data(data_type::f32, vmm_scale, addr, n_block1_tail());
+                } else {
+                    vbroadcastss(vmm_scale, addr);
+                }
+                vmulps(vmm, vmm, vmm_scale);
             }
         }
     }
@@ -344,22 +367,29 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
             auto vmm = accm(m_blocks, n_blocks, m, n);
             auto vmm_low = Vmm_low_t(vmm.getIdx());
             const bool mask_flag = n + 1 == n_blocks && has_n_tail;
-            const Vmm r_vmm = vmm_mask(vmm, mask_flag, true);
-            const Vmm_low_t r_vmm_low = vmm_low_mask(vmm_low, mask_flag, true);
-            switch (brg.dt_d) {
-                case data_type::f32:
-                case data_type::s32: vmovups(addr, r_vmm); break;
-                case data_type::bf16:
-                    if (brg.is_bf16_emu)
-                        bf16_emu_->vcvtneps2bf16(vmm_low, vmm);
-                    else
-                        vcvtneps2bf16(vmm_low, vmm);
-                    vmovdqu16(addr, r_vmm_low);
-                    break;
-                case data_type::f16: vcvtps2ph(addr, r_vmm, _op_mxcsr); break;
-                case data_type::s8: vpmovsdb(addr, r_vmm); break;
-                case data_type::u8: vpmovusdb(addr, r_vmm); break;
-                default: assert(!"unknown dst_dt");
+            const Vmm r_vmm = maybe_mask(vmm, mask_flag, true);
+            const Vmm_low_t r_vmm_low = maybe_mask(vmm_low, mask_flag, true);
+            if (IMPLICATION(mask_flag, isa_has_masks(brg.isa_impl))) {
+                switch (brg.dt_d) {
+                    case data_type::f32:
+                    case data_type::s32: vmovups(addr, r_vmm); break;
+                    case data_type::bf16:
+                        if (brg.is_bf16_emu)
+                            bf16_emu_->vcvtneps2bf16(vmm_low, vmm);
+                        else
+                            vcvtneps2bf16(vmm_low, vmm);
+                        vmovdqu16(addr, r_vmm_low);
+                        break;
+                    case data_type::f16:
+                        vcvtps2ph(addr, r_vmm, _op_mxcsr);
+                        break;
+                    case data_type::s8: vpmovsdb(addr, r_vmm); break;
+                    case data_type::u8: vpmovusdb(addr, r_vmm); break;
+                    default: assert(!"unknown dst_dt");
+                }
+            } else {
+                store_data(brg.dt_d, vmm, reg_aux_D, D_offset(m, n),
+                        n_block1_tail());
             }
         }
     }
@@ -382,12 +412,17 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_without_post_ops(
     for (int n = 0; n < n_blocks; n++) {
         const bool mask_flag = has_n_tail && n + 1 == n_blocks;
         auto vmm_acc = accm(m_blocks, n_blocks, m, n);
-        auto vmm_acc_masked = vmm_mask(vmm_acc, mask_flag, true);
         if (dt_requires_saturation) {
             saturate_f32(vmm_acc, vmm_lbound, vmm_ubound, brg.dt_d);
             vcvtps2dq(vmm_acc, vmm_acc);
         }
-        vmovups(ptr[reg_aux_C + C_offset(m, n)], vmm_acc_masked);
+        if (IMPLICATION(mask_flag, isa_has_masks(brg.isa_impl))) {
+            auto vmm_acc_masked = maybe_mask(vmm_acc, mask_flag, true);
+            vmovups(ptr[reg_aux_C + C_offset(m, n)], vmm_acc_masked);
+        } else {
+            store_data(brg.dt_c, vmm_acc, reg_aux_C, C_offset(m, n),
+                    n_block1_tail());
+        }
     }
 }
 
@@ -423,24 +458,30 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators(
 
 template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::load_a(
-        Vmm vmma, int m_i, int n_i, int n_blocks, bool has_n_tail) {
+        Vmm vmma, int m_i, int n_i, bool has_n_tail) {
+    const int n_blocks
+            = has_n_tail && n_block2_tail() > 0 ? n_block2_tail() : n_block2();
     const bool mask_flag = has_n_tail && (n_i + 1 == n_blocks);
     const auto addr = ptr[reg_aux_A + A_offset(m_i, n_i)];
-    vmma = vmm_mask(vmma, mask_flag, false);
-    if (brg.is_f32) {
-        vmovups(vmma, addr);
-    } else if (brg.is_bf16) {
-        vpmovzxwd(vmma, addr);
-        if (brg.is_bf16_tmm) vpslld(vmma, vmma, 16);
-    } else if (brg.is_f16) {
-        vcvtph2ps(vmma, addr);
-    } else if (brg.is_int8) {
-        if (is_fast_vnni_int8()) {
-            assert(!mask_flag);
-            vbroadcasti32x4(vmma, addr);
-        } else {
-            vpmovzxbd(vmma, addr);
+    if (IMPLICATION(mask_flag, isa_has_masks(brg.isa_impl))) {
+        vmma = maybe_mask(vmma, mask_flag, false);
+        if (brg.is_f32) {
+            vmovups(vmma, addr);
+        } else if (brg.is_bf16) {
+            vpmovzxwd(vmma, addr);
+            if (brg.is_bf16_tmm) vpslld(vmma, vmma, 16);
+        } else if (brg.is_f16) {
+            vcvtph2ps(vmma, addr);
+        } else if (brg.is_int8) {
+            if (is_fast_vnni_int8()) {
+                assert(!mask_flag);
+                vbroadcasti32x4(vmma, addr);
+            } else {
+                vpmovzxbd(vmma, addr);
+            }
         }
+    } else {
+        load_bytes(vmma, addr, brg.typesize_A * n_block1_tail());
     }
 }
 
@@ -480,7 +521,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
             if (is_fma_embd()) {
                 const bool mask_flag = has_tail && (n_i + 1 == n_blocks);
                 const auto addr = ptr[reg_aux_A + A_offset(m_i, n_i)];
-                vmm_acc = vmm_mask(vmm_acc, mask_flag, false);
+                vmm_acc = maybe_mask(vmm_acc, mask_flag, false);
                 vfmadd231ps(vmm_acc, vmmb, addr);
             } else {
                 vfmadd231ps(vmm_acc, vmma, vmmb);
@@ -509,15 +550,16 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
             for_(int m_i = 0; m_i < m_blocks; ++m_i)
             for (int i = 0; i < n_e; ++i) {
                 const int n_i = nb_i + i;
-                if (!is_fma_embd())
-                    load_a(vmm_a(), m_i, n_i, n_blocks, has_tail);
+                if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i, has_tail);
                 dot_product(vmm_a(), vmm_b(i), m_i, n_i);
             }
         }
     } else {
-
-        const int n_e = max_bvmms >= n_blocks ? n_blocks : (max_bvmms - 1);
-        for (int i = 0; i < n_e; ++i) {
+        const int max_req_preload_vmms = n_blocks;
+        const int n_preload_b_vmms = max_bvmms >= max_req_preload_vmms
+                ? max_req_preload_vmms
+                : max_bvmms - 1 /*for ad-hoc load*/;
+        for (int i = 0; i < n_preload_b_vmms; ++i) {
             load_b(vmm_b(i), i);
         }
 
@@ -545,9 +587,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
             }
 
             for (int n_i = 0; n_i < n_blocks; ++n_i) {
-                if (!is_fma_embd())
-                    load_a(vmm_a(), m_i, n_i, n_blocks, has_tail);
-                if (n_i < n_e) {
+                if (!is_fma_embd()) load_a(vmm_a(), m_i, n_i, has_tail);
+                if (n_i < n_preload_b_vmms) {
                     dot_product(vmm_a(), vmm_b(n_i), m_i, n_i);
                 } else {
                     // preloaded vmm_b not available
@@ -656,22 +697,26 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::batch_loop(
 template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_loop() {
 
-    const bool has_m_blocking_tail = m_blocking_tail() > 0;
-    const int loop_m = (nb_m_blocking() - has_m_blocking_tail);
+    const bool has_m_block2_tail = m_block2_tail() > 0;
+    const int loop_m = (nb_m_block2() - has_m_block2_tail);
     const bool do_loop_m = loop_m > 1;
 
-    const bool has_n_blocking_tail = n_blocking_tail() > 0;
-    const int loop_n = nb_n_blocking() - has_n_blocking_tail;
+    const bool has_n_block2_tail = n_block2_tail() > 0;
+    const bool need_separate_n_block1_tail_block = n_block1_tail() != 0
+            && !has_n_block2_tail && nb_n_block2() > 1
+            && !isa_has_masks(brg.isa_impl);
+    const int loop_n = nb_n_block2() - has_n_block2_tail
+            - need_separate_n_block1_tail_block;
     const bool do_loop_n = loop_n > 1;
+    const bool loop_n_update_aux_ptrs = do_loop_n || (loop_n < nb_n_block2());
 
     auto n_loop = [&](int m_blocks) {
         Label n_loop_label;
-        const int n_blocks = n_blocking();
+        const int n_blocks = n_block2();
         const int n_loop_step = oc_logical_offset(n_blocks);
-        const int n_loop_work = (nb_n_blocking() - has_n_blocking_tail)
-                * n_blocks * n_vlen_blk();
-        const bool vlen_tail_in_loop
-                = n_vlen_tail() != 0 && !has_n_blocking_tail;
+        const int n_loop_work = loop_n * n_blocks * n_block1();
+        const bool vlen_tail_in_loop = n_block1_tail() != 0
+                && !need_separate_n_block1_tail_block && !has_n_block2_tail;
 
         xor_(reg_aux_N, reg_aux_N);
 
@@ -689,7 +734,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_loop() {
 
             batch_loop(m_blocks, n_blocks, vlen_tail_in_loop);
 
-            if (do_loop_n || has_n_blocking_tail) {
+            if (loop_n_update_aux_ptrs) {
                 add(reg_aux_N, n_loop_step);
                 add(reg_a_offset, n_loop_step * brg.typesize_A);
                 add(reg_aux_C, n_loop_step * brg.typesize_C);
@@ -702,16 +747,19 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_loop() {
             }
         }
 
-        if (has_n_blocking_tail) {
-            batch_loop(m_blocks, n_blocking_tail(), n_vlen_tail() != 0);
+        if (need_separate_n_block1_tail_block)
+            batch_loop(m_blocks, n_blocks, true);
+
+        if (has_n_block2_tail) {
+            batch_loop(m_blocks, n_block2_tail(), n_block1_tail() != 0);
         }
     };
 
     auto m_loop = [&]() {
         Label m_loop_label;
-        const int m_blocks = m_blocking();
-        const bool reset_mask
-                = n_vlen_tail() != 0 && do_loop_n && !has_n_blocking_tail;
+        const int m_blocks = m_block2();
+        const bool reset_mask = isa_has_masks(brg.isa_impl)
+                && n_block1_tail() != 0 && do_loop_n && !has_n_block2_tail;
 
         xor_(reg_aux_M, reg_aux_M);
         xor_(reg_a_offset, reg_a_offset);
@@ -721,52 +769,45 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::compute_loop() {
             if (reset_mask) kxnorq(k_mask, k_mask, k_mask);
             n_loop(m_blocks);
 
-            if (do_loop_m || has_m_blocking_tail) {
+            if (do_loop_m || has_m_block2_tail) {
                 add(reg_aux_M, m_blocks);
-                const int n_loop_offset = (do_loop_n || has_n_blocking_tail)
-                        * loop_n * n_blocking();
+                const int n_loop_offset
+                        = loop_n_update_aux_ptrs * loop_n * n_block2();
                 add(reg_a_offset, A_offset(m_blocks, -n_loop_offset));
                 add(reg_aux_C, C_offset(m_blocks, -n_loop_offset));
                 add(reg_aux_D, D_offset(m_blocks, -n_loop_offset));
             }
 
             if (do_loop_m) {
-                cmp(reg_aux_M, loop_m * m_blocking());
+                cmp(reg_aux_M, loop_m * m_block2());
                 jl(m_loop_label, T_NEAR);
             }
         }
 
-        if (m_blocking_tail() > 0) {
+        if (m_block2_tail() > 0) {
             if (reset_mask) { kxnorq(k_mask, k_mask, k_mask); }
-            n_loop(m_blocking_tail());
+            n_loop(m_block2_tail());
         }
     };
 
-    assert(m_vlen_tail() == 0);
+    assert(m_block1_tail() == 0);
     m_loop();
 }
 
 template <cpu_isa_t isa, typename Wmm>
-void jit_brdgmm_kernel_base_t<isa, Wmm>::generate() {
-
-    preamble();
-    sub(rsp, stack_space_needed_);
+void jit_brdgmm_kernel_base_t<isa, Wmm>::init_masks() {
+    if (!isa_has_masks(brg.isa_impl)) return;
 
     if (is_fast_vnni_int8()) {
         mov(reg_tmp, 0x8888444422221111);
         kmovq(kblend_mask, reg_tmp);
-        if (!brg.is_bf16_emu) {
-            // load permute indices from data section
-            mov(reg_tmp, permute_index_table);
-            vmovdqu32(vmm_permute(), ptr[reg_tmp]);
-        }
     }
 
-    if (n_vlen_tail() != 0) {
-        const auto tail_mask = size_t((1 << n_vlen_tail()) - 1);
-        const bool has_n_blocking_tail = n_blocking_tail() > 0;
+    if (n_block1_tail() != 0) {
+        const auto tail_mask = size_t((1 << n_block1_tail()) - 1);
+        const bool has_n_block2_tail = n_block2_tail() > 0;
         mov(reg_tmp, tail_mask);
-        if (has_n_blocking_tail || nb_n_blocking() <= 1) {
+        if (has_n_block2_tail || nb_n_block2() <= 1) {
             // The mask can be set only once.
             kmovq(k_mask, reg_tmp);
         } else {
@@ -778,6 +819,21 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::generate() {
         // the post-ops injector seems to use mask unconditionally
         // set a default mask.
         kxnorq(k_mask, k_mask, k_mask);
+    }
+}
+
+template <cpu_isa_t isa, typename Wmm>
+void jit_brdgmm_kernel_base_t<isa, Wmm>::generate() {
+
+    preamble();
+    sub(rsp, stack_space_needed_);
+
+    init_masks();
+
+    if (is_fast_vnni_int8() && !brg.is_bf16_emu) {
+        // load permute indices from data section
+        mov(reg_tmp, permute_index_table);
+        vmovdqu32(vmm_permute(), ptr[reg_tmp]);
     }
 
     read_params();
@@ -823,6 +879,7 @@ template struct brdgmm_kernel_t<avx512_core_fp16, Xbyak::Zmm>;
 template struct brdgmm_kernel_t<avx512_core_bf16, Xbyak::Zmm>;
 template struct brdgmm_kernel_t<avx512_core_vnni, Xbyak::Zmm>;
 template struct brdgmm_kernel_t<avx512_core, Xbyak::Zmm>;
+template struct brdgmm_kernel_t<avx2, Xbyak::Ymm>;
 
 } // namespace x64
 } // namespace cpu

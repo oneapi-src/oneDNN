@@ -409,19 +409,21 @@ status_t brgemm_kernel_create(
     *brg_kernel = nullptr;
 
     if (brg.is_dgmm) {
-        if (brg.isa_impl == avx512_core_fp16) {
-            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                    new brdgmm_kernel_t<avx512_core_fp16, Xbyak::Zmm>(brg)));
-        } else if (brg.isa_impl == avx512_core_bf16) {
-            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                    new brdgmm_kernel_t<avx512_core_bf16, Xbyak::Zmm>(brg)));
-        } else if (brg.isa_impl == avx512_core_vnni) {
-            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                    new brdgmm_kernel_t<avx512_core_vnni, Xbyak::Zmm>(brg)));
-        } else {
-            CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                    new brdgmm_kernel_t<avx512_core, Xbyak::Zmm>(brg)));
+#define CASE(isa) \
+    case isa: \
+        CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel, \
+                new brdgmm_kernel_t<isa, typename cpu_isa_traits<isa>::Vmm>( \
+                        brg))); \
+        break
+        switch (brg.isa_impl) {
+            CASE(avx512_core_fp16);
+            CASE(avx512_core_bf16);
+            CASE(avx512_core_vnni);
+            CASE(avx512_core);
+            CASE(avx2);
+            default: return status::unimplemented;
         }
+#undef CASE
     } else if (can_dispatch_uker(&brg)) {
         CHECK(safe_ptr_assign<brgemm_kernel_t>(
                 *brg_kernel, new brgemm_amx_uker_t(brg)));

@@ -415,44 +415,46 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     const int requires_permute_dst_vmm = brg->isa_impl == avx512_core_vnni
             && jit_brdgmm_kernel_base_t<avx512_core_vnni,
                     Xbyak::Zmm>::is_fast_vnni_int8(*brg);
-    const int max_vregs = 32;
+    const int max_vregs = isa_num_vregs(brg->isa_impl);
     const int aux_vregs
             = nstl::max(brg->is_bf16_emu * 4, 2) + requires_permute_dst_vmm;
     const int max_acc_vmms = max_vregs - aux_vregs;
-    const int simd_w = 16;
+    const int simd_w = isa_max_vlen(brg->isa_impl) / brg->typesize_C;
 
     auto &M = brg->bcast_dim;
     auto &N = brg->load_dim;
 
     // In current implementation of dgmm, there is no reduce dim.
-    auto &m_vlen_blk = brg->bd_block;
-    auto &nb_m_vlen_blk = brg->bdb;
-    auto &m_vlen_tail = brg->bdb_tail;
-    auto &m_blocking = brg->bd_block2;
-    auto &nb_m_blocking = brg->bdb2;
-    auto &m_blocking_tail = brg->bdb2_tail;
+    auto &m_block1 = brg->bd_block;
+    auto &nb_m_block1 = brg->bdb;
+    auto &m_block1_tail = brg->bdb_tail;
+    auto &m_block2 = brg->bd_block2;
+    auto &nb_m_block2 = brg->bdb2;
+    auto &m_block2_tail = brg->bdb2_tail;
 
-    auto &n_vlen_blk = brg->ld_block;
-    auto &nb_n_vlen_blk = brg->ldb;
-    auto &n_vlen_tail = brg->ldb_tail;
-    auto &n_blocking = brg->ld_block2;
-    auto &nb_n_blocking = brg->ldb2;
-    auto &n_blocking_tail = brg->ldb2_tail;
+    auto &n_block1 = brg->ld_block;
+    auto &nb_n_block1 = brg->ldb;
+    auto &n_block1_tail = brg->ldb_tail;
+    auto &n_block2 = brg->ld_block2;
+    auto &nb_n_block2 = brg->ldb2;
+    auto &n_block2_tail = brg->ldb2_tail;
 
     // begin blocking
-    n_vlen_blk = simd_w;
-    nb_n_vlen_blk = div_up(N, n_vlen_blk);
-    n_vlen_tail = N % n_vlen_blk;
-    n_blocking = nstl::min(4, nb_n_vlen_blk);
-    nb_n_blocking = div_up(nb_n_vlen_blk, n_blocking);
-    n_blocking_tail = nb_n_vlen_blk % n_blocking;
+    n_block1 = simd_w;
+    nb_n_block1 = div_up(N, n_block1);
+    n_block1_tail = N % n_block1;
 
-    m_vlen_blk = 1;
-    nb_m_vlen_blk = M / m_vlen_blk;
-    m_vlen_tail = M % m_vlen_blk;
-    m_blocking = nstl::min(nb_m_vlen_blk, max_acc_vmms / n_blocking);
-    nb_m_blocking = div_up(nb_m_vlen_blk, m_blocking);
-    m_blocking_tail = nb_m_vlen_blk % m_blocking;
+    const int max_n_block2 = 4;
+    n_block2 = nstl::min(max_n_block2, nb_n_block1);
+    nb_n_block2 = div_up(nb_n_block1, n_block2);
+    n_block2_tail = nb_n_block1 % n_block2;
+
+    m_block1 = 1;
+    nb_m_block1 = M / m_block1;
+    m_block1_tail = M % m_block1;
+    m_block2 = nstl::min(nb_m_block1, max_acc_vmms / n_block2);
+    nb_m_block2 = div_up(nb_m_block1, m_block2);
+    m_block2_tail = nb_m_block1 % m_block2;
 
     return status::success;
 }
@@ -550,8 +552,8 @@ void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     };
 
     if (brg->is_f32) {
-        brg->isa_impl = utils::map(
-                true, isa_undef, is_isa_ok(avx512_core), avx512_core);
+        brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core),
+                avx512_core, is_isa_ok(avx2), avx2);
     } else if (brg->is_bf16) {
         brg->isa_impl = utils::map(
                 true, isa_undef, is_isa_ok(avx512_core_bf16), avx512_core_bf16);
