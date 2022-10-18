@@ -2601,7 +2601,7 @@ void conv_ir_builder_t::build() {
     stmt_ = split_shuffle(stmt_, ir_ctx);
     stmt_ = eliminate_common_subexprs(
             stmt_, ir_ctx, cfg_.reserved_regs(), cfg_.slm().gmem_bufs());
-    stmt_ = hoist_exprs(stmt_, ir_ctx);
+    stmt_ = hoist_exprs(stmt_, ir_ctx, cfg_.reserved_regs());
     if (cfg_.pipeline().do_unroll())
         stmt_ = loop_strength_reduce(stmt_, ir_ctx);
     stmt_ = optimize_alloc_let(stmt_, ir_ctx);
