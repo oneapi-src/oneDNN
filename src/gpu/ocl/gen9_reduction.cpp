@@ -117,9 +117,21 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
                           && (blk.inner_blks[blk.inner_nblks - 1] == blockSize);
               };
 
-    // src C must have blocks of 16 or 32
-    if (!(is_c_blocked_by(src_mdw, 16) || is_c_blocked_by(src_mdw, 32)))
-        return status::unimplemented;
+    using namespace dnnl::impl::format_tag;
+    const bool is_nhwc = (src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
+            != format_tag::undef);
+
+    // plain layouts: NHWC, src C must be divisible by 16.
+    if (is_nhwc) {
+        int c = src_dims[1];
+        if (c % 16 != 0) { return status::unimplemented; }
+        if (src_dims[0] != dst_dims[0]) { return status::unimplemented; }
+        if (src_dims[1] != dst_dims[1]) { return status::unimplemented; }
+    } else {
+        // blocked layouts: src C must have blocks of 16 or 32
+        if (!(is_c_blocked_by(src_mdw, 16) || is_c_blocked_by(src_mdw, 32)))
+            return status::unimplemented;
+    }
 
     int src_n_block_size, src_c_block_size;
     int dst_n_block_size, dst_c_block_size;
@@ -135,6 +147,7 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
 
     conf.n_block_size = src_n_block_size;
     conf.c_block_size = src_c_block_size;
+    if (is_nhwc) { conf.c_block_size = src_dims[1]; }
 
     // Either 0th/1st dims blocked or just 1st dim blocked
     if ((conf.n_block_size == 1 && src_mdw.blocking_desc().inner_nblks > 1)
@@ -175,7 +188,8 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
 
     // number of C chunks in dim 1
-    conf.initial_c_chunks = conf.c_block_size / conf.sub_group_size;
+    conf.initial_c_chunks
+            = std::min(conf.c_block_size / conf.sub_group_size, 8);
 
     // Split N chunks/chunk size according to heuristic
     std::tie(conf.initial_n_chunk_size, conf.initial_n_chunks)
