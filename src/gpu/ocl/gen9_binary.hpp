@@ -65,9 +65,12 @@ struct gen9_binary_t : public gpu_primitive_t {
                                             f32, s8, u8)))
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(dst_md()->data_type, s8, u8)
-                                    && utils::one_of(
-                                            attr()->output_scales_.mask_, 0,
-                                            1 << 1))
+                                    && utils::everyone_is(
+                                            attr()->scales_.get(DNNL_ARG_SRC_0)
+                                                    .mask_,
+                                            attr()->scales_.get(DNNL_ARG_SRC_1)
+                                                    .mask_,
+                                            0))
                     && attr()->has_default_values(attr_skip_mask)
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
