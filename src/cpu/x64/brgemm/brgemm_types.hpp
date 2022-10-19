@@ -82,7 +82,8 @@ struct DNNL_API brgemm_attr_t {
     int max_bs;
     int max_top_vpad, max_bottom_vpad;
     dim_t hint_expected_A_size, hint_expected_B_size, hint_expected_C_size;
-    brgemm_kernel_innermost_loop_t hint_innermost_loop;
+    brgemm_kernel_innermost_loop_t hint_innermost_loop
+            = brgemm_ld_loop_innermost;
     brgemm_kernel_loop_order_t hint_loop_order;
     brgemm_kernel_prefetching_t hint_prefetching
             = brgemm_kernel_prefetching_t::brgemm_prf_default;
