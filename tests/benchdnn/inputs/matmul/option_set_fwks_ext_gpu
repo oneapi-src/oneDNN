@@ -1,6 +1,6 @@
 #bert.inf.bf16.pt.mb64_pvc
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --bia_dt=bf16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 24576x1024:1024x1024:24576x1024n"bert.inf.bf16.pt.mb64_pvc*96"
---reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --stag=abc --wtag=acb --dtag=abc --attr-oscale=common 1024x384x64:1024x64x384:1024x384x384n"bert.inf.bf16.pt.mb64_pvc*24"
+--reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --stag=abc --wtag=acb --dtag=abc --attr-oscale=common:0.25* 1024x384x64:1024x64x384:1024x384x384n"bert.inf.bf16.pt.mb64_pvc*24"
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --stag=abc --wtag=abc --dtag=abc 1024x384x384:1024x384x64:1024x384x64n"bert.inf.bf16.pt.mb64_pvc*24"
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --bia_dt=bf16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=gelu_tanh 24576x1024:1024x4096:24576x4096n"bert.inf.bf16.pt.mb64_pvc*24"
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --bia_dt=bf16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 24576x4096:4096x1024:24576x1024n"bert.inf.bf16.pt.mb64_pvc*24"
@@ -8,7 +8,7 @@
 #bert.inf.bf16.tf.mb64_pvc
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --stag=any --wtag=any --dtag=ab 24576x2:2x1024:24576x1024n"bert.inf.bf16.tf.mb64_pvc*1"
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --bia_dt=bf16 --bia_mask=2 --stag=any --wtag=any --dtag=ab 24576x1024:1024x1024:24576x1024n"bert.inf.bf16.tf.mb64_pvc*96"
---reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --stag=abc --wtag=acb --dtag=abc --attr-oscale=common 1024x384x64:1024x64x384:1024x384x384n"bert.inf.bf16.tf.mb64_pvc*24"
+--reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --stag=abc --wtag=acb --dtag=abc --attr-oscale=common:0.25* 1024x384x64:1024x64x384:1024x384x384n"bert.inf.bf16.tf.mb64_pvc*24"
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --stag=abc --wtag=abc --dtag=abc 1024x384x384:1024x384x64:1024x384x64n"bert.inf.bf16.tf.mb64_pvc*24"
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --bia_dt=bf16 --bia_mask=2 --stag=any --wtag=any --dtag=ab --attr-post-ops=gelu_tanh 24576x1024:1024x4096:24576x4096n"bert.inf.bf16.tf.mb64_pvc*24"
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --bia_dt=bf16 --bia_mask=2 --stag=any --wtag=any --dtag=ab --attr-post-ops=sum 24576x4096:4096x1024:24576x1024n"bert.inf.bf16.tf.mb64_pvc*24"
@@ -16,7 +16,7 @@
 #bert.inf.fp32.tf.mb64_pvc
 --reset --allow-enum-tags-only=0 --cfg=f32 --stag=ab --wtag=ab --dtag=ab 24576x2:2x1024:24576x1024n"bert.inf.fp32.tf.mb64_pvc*1"
 --reset --allow-enum-tags-only=0 --cfg=f32 --bia_dt=f32 --bia_mask=2 --stag=ab --wtag=ab --dtag=ab 24576x1024:1024x1024:24576x1024n"bert.inf.fp32.tf.mb64_pvc*96"
---reset --allow-enum-tags-only=0 --cfg=f32 --stag=abc --wtag=acb --dtag=abc --attr-oscale=common 1024x384x64:1024x64x384:1024x384x384n"bert.inf.fp32.tf.mb64_pvc*24"
+--reset --allow-enum-tags-only=0 --cfg=f32 --stag=abc --wtag=acb --dtag=abc --attr-oscale=common:0.25* 1024x384x64:1024x64x384:1024x384x384n"bert.inf.fp32.tf.mb64_pvc*24"
 --reset --allow-enum-tags-only=0 --cfg=f32 --stag=abc --wtag=abc --dtag=abc 1024x384x384:1024x384x64:1024x384x64n"bert.inf.fp32.tf.mb64_pvc*24"
 --reset --allow-enum-tags-only=0 --cfg=f32 --bia_dt=f32 --bia_mask=2 --stag=ab --wtag=ab --dtag=ab --attr-post-ops=gelu_tanh 24576x1024:1024x4096:24576x4096n"bert.inf.fp32.tf.mb64_pvc*24"
 --reset --allow-enum-tags-only=0 --cfg=f32 --bia_dt=f32 --bia_mask=2 --stag=ab --wtag=ab --dtag=ab --attr-post-ops=sum 24576x4096:4096x1024:24576x1024n"bert.inf.fp32.tf.mb64_pvc*24"
