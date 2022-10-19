@@ -650,10 +650,13 @@ public:
 
     void eand(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
             const ngen_operand_t &src0, const ngen_operand_t &src1) {
-        if (src1.is_reg_data()) {
+        if (src0.is_reg_data() && src1.is_reg_data()) {
             and_(mod, dst.reg_data(), src0.reg_data(), src1.reg_data());
         } else {
-            and_(mod, dst.reg_data(), src0.reg_data(), src1.immediate());
+            if (src0.is_reg_data())
+                and_(mod, dst.reg_data(), src0.reg_data(), src1.immediate());
+            else
+                and_(mod, dst.reg_data(), src1.reg_data(), src0.immediate());
         }
     }
 
