@@ -1863,6 +1863,8 @@ void jit_brgemm_amx_uker_base_t::generate() {
     mov(reg_stride_lda, lda());
     mov(reg_stride_ldb, ldb());
 
+    bool non_postops_generate
+            = !are_post_ops_applicable_ || !brg.brgattr.postops_only;
     brgemm_iteration_t bi;
 
     Label label_to_ret;
@@ -1873,12 +1875,15 @@ void jit_brgemm_amx_uker_base_t::generate() {
         jz(label_store_without_post_ops, T_NEAR);
         bi.apply_postops = true;
         top_loop(bi);
+        if (non_postops_generate) jmp(label_to_ret, T_NEAR);
         transform_buf_map_A_.clear();
         transform_buf_map_B_.clear();
         L(label_store_without_post_ops);
     }
-    bi.apply_postops = false;
-    top_loop(bi);
+    if (non_postops_generate) {
+        bi.apply_postops = false;
+        top_loop(bi);
+    }
     L(label_to_ret);
 
     add(rsp, stack_space_needed_);

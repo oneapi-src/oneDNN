@@ -57,6 +57,9 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
         bool with_sum;
         float sum_scale;
 
+        bool need_postwork;
+        int ic_chunks;
+
         jit_brgemm_conv_conf_t jcp_;
 
     protected:
@@ -144,8 +147,6 @@ private:
 
     int ID, IH, IW, OD, OH, OW, SD, SH, SW;
     size_t bia_dsz, acc_dsz, src_dsz, wei_dsz;
-    bool need_postwork;
-    int ic_chunks;
     // const variables used for address calculations
     dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz, wei_oc_sz,
             wei_ic_sz, wei_ocb_sz;

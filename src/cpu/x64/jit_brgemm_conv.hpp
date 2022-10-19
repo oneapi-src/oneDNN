@@ -84,6 +84,10 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         std::vector<std::shared_ptr<std::vector<char>>> bd_masks;
         bool with_sum;
         jit_brgemm_conv_conf_t jcp_;
+
+        int ic_chunks;
+        bool need_postwork;
+
         // batch sizes info for unrolled kernels
         int bs_c, first_bs;
         std::vector<int> batchsizes;
@@ -187,8 +191,7 @@ private:
             int last_owb) const;
 
     status_t add_po_kernel(brgemm_t *bcfg, int ker_idx, bool is_init);
-    void add_po_kernels(
-            int i_N, int init_bcast_dim, int po_bcast_dim, bool need_postwork);
+    void add_po_kernels(int i_N, int init_bcast_dim, int po_bcast_dim);
     status_t add_brg_kernel(int bs, int M, int i_N, int i_K, int i_init);
 
     status_t cal_compensation(const char *__restrict weights,
@@ -229,8 +232,6 @@ private:
     dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
     dim_t ker_vpad_sz, comp_ocb_sz, comp_ker_sz, comp_kw_sz;
 
-    int ic_chunks;
-    bool need_postwork;
     bool need_compensation;
     bool is_amx;
 };

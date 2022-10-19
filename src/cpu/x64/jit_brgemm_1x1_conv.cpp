@@ -82,10 +82,18 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     with_sum = (sum_idx != -1);
     sum_scale = with_sum ? p.entry_[sum_idx].sum.scale : 0.0;
 
-    for_(int i_init = 0; i_init < 2; i_init++)
+    ic_chunks = div_up(jcp_.nb_ic, jcp_.nb_ic_blocking);
+    need_postwork = jcp_.with_bias || jcp_.with_eltwise || jcp_.with_binary
+            || (one_of(src_type, u8, s8) && wei_type == s8) // oscales needed
+            || (jcp_.dst_dt != jcp_.acc_dt) || jcp_.with_sum;
+
+    int i_init_begin = (ic_chunks == 1) ? 1 : 0;
+    int i_init_end = 2;
+
     for_(int i_M = 0; i_M < 2; i_M++)
     for_(int i_N = 0; i_N < 2; i_N++)
-    for (int i_K = 0; i_K < 2; i_K++) {
+    for_(int i_K = 0; i_K < 2; i_K++)
+    for (int i_init = i_init_begin; i_init < i_init_end; i_init++) {
         auto vbeta = (i_init) ? 0 : beta;
         auto vM = (i_M) ? jcp_.M_tail : jcp_.M;
         auto vN = (i_N) ? jcp_.N_tail : jcp_.N;
@@ -120,6 +128,11 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         brgattr.use_interleave_stores = brgattr.use_uker;
         brgattr.hint_prefetching = jcp_.hint_prefetching;
         brgattr.fpmath_mode = attr()->fpmath_mode_;
+        // if post-ops are required and there are no intermediate calculations
+        // (like ic_chunks > 1) then we don't need code without post-ops in
+        // brgemm kernel
+        if (need_postwork && ic_chunks == 1) brgattr.postops_only = true;
+
         CHECK(brgemm_desc_set_attr(&brg, brgattr));
         auto LDD = jcp_.oc_without_padding;
         brg.with_sum = with_sum;
@@ -160,8 +173,6 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
     src_dsz = jcp.src_dsz;
     wei_dsz = jcp.wei_dsz;
 
-    ic_chunks = div_up(jcp.nb_ic, jcp.nb_ic_blocking);
-
     // const variables used for address calculations
     src_w_sz = (dim_t)IW * jcp.ngroups * jcp.ic_without_padding;
     src_h_sz = IH * src_w_sz;
@@ -171,7 +182,6 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
     dst_d_sz = OD * dst_h_sz;
 
     const auto src_type = pd()->src_md(0)->data_type;
-    const auto wei_type = pd()->weights_md(0)->data_type;
 
     const auto last_ic_block
             = src_type == f16 ? 1 : data_type_vnni_granularity(src_type);
@@ -183,10 +193,6 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
     wei_ocb_sz = jcp.wei_plain ? jcp.oc_block * last_ic_block
                                : jcp.nb_oc * wei_ic_sz;
 
-    need_postwork = jcp.with_bias || jcp.with_eltwise || jcp.with_binary
-            || (one_of(src_type, u8, s8) && wei_type == s8) // oscales needed
-            || (jcp.dst_dt != jcp.acc_dt) || jcp.with_sum;
-
     for (int i = 0; i < 16; i++)
         brg_kernels_[i] = nullptr;
 
@@ -196,12 +202,14 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
                         jit_avx512_core_brgemm_conv_rtus_kernel_t(jcp)));
         CHECK(rtus_kernel_->create_kernel());
     }
+    int i_init_begin = (pd()->ic_chunks == 1) ? 1 : 0;
+    int i_init_end = 2;
 
     const bool is_amx = brgemm_convolution_utils::is_amx(isa);
     for_(int i_M = 0; i_M < 2; i_M++)
     for_(int i_N = 0; i_N < 2; i_N++)
     for_(int i_K = 0; i_K < 2; i_K++)
-    for (int i_init = 0; i_init < 2; i_init++) {
+    for (int i_init = i_init_begin; i_init < i_init_end; i_init++) {
         auto brg_idx = get_brg_idx(i_init, i_M, i_N, i_K);
         auto &brg = pd()->brgs_[brg_idx];
         if (brg.bcast_dim > 0 && brg.load_dim > 0 && brg.reduce_dim > 0
@@ -353,8 +361,8 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
     const bool is_os_tail = jcp.is_os_blocking ? (jcp.os - os < jcp.os_block)
                                                : (OW - ow < jcp.ow_block);
     const bool is_oc_tail = (jcp.oc - oc < jcp.oc_block);
-    const bool is_ic_tail
-            = (icc == ic_chunks - 1 && ((jcp.ic - ic) % jcp.ic_block != 0));
+    const bool is_ic_tail = (icc == pd()->ic_chunks - 1
+            && ((jcp.ic - ic) % jcp.ic_block != 0));
 
     const auto src_offset = n * src_d_sz + id * src_h_sz + ih * src_w_sz
             + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
@@ -375,10 +383,11 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
             - (is_ic_tail ? 1 : 0);
 
     const auto comp_offset = (g * jcp.nb_oc + ocb) * jcp.oc_block;
-    int32_t *src_zp_comp_ptr = (jcp.src_zero_point && icc == ic_chunks - 1)
+    int32_t *src_zp_comp_ptr
+            = (jcp.src_zero_point && icc == pd()->ic_chunks - 1)
             ? &src_zp_comp[comp_offset]
             : nullptr;
-    int32_t *s8s8_comp_ptr = (jcp.s8s8_avx512 && icc == ic_chunks - 1)
+    int32_t *s8s8_comp_ptr = (jcp.s8s8_avx512 && icc == pd()->ic_chunks - 1)
             ? &s8s8_compensation[comp_offset]
             : nullptr;
 
@@ -429,8 +438,8 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
         }
     };
 
-    const auto do_post_work
-            = (need_postwork || jcp.use_buffer) && icc == ic_chunks - 1;
+    const auto do_post_work = (pd()->need_postwork || jcp.use_buffer)
+            && icc == pd()->ic_chunks - 1;
 
     if (nb_ic_b > 0) {
         const auto brg_idx
@@ -529,7 +538,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
                 char *inp_buffer_sp = (jcp.is_rtus) \
                         ? inp_buffer + src_dsz * os * jcp.LDA \
                         : nullptr; \
-                for (int icc = 0; icc < ic_chunks; icc++) { \
+                for (int icc = 0; icc < pd()->ic_chunks; icc++) { \
                     if (jcp.is_rtus) \
                         maybe_rtus(ithr, brgemm_ctx.src, inp_buffer_sp, \
                                 inp_buffer_mask, g, n, icc, od, oh, ow); \
@@ -573,7 +582,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
         int n {0}, g {0}, ocb {0}, od {0}, oh {0}, owb {0}; \
         nd_iterator_init(start, __VA_ARGS__); \
         for (auto work = start; work < end; work++) { \
-            for (int icc = 0; icc < ic_chunks; icc++) { \
+            for (int icc = 0; icc < pd()->ic_chunks; icc++) { \
                 const int ow = owb * jcp.ow_block; \
                 exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, nullptr, g, n, \
                         ocb, od, oh, ow, icc, &last_palette_idx, oscales, \

@@ -113,6 +113,7 @@ struct DNNL_API brgemm_attr_t {
     // If "true" then batchsize is allowed to change on each kernel call
     // and there is no unrolling by batchsize in kernel
     bool var_bs {false};
+    bool postops_only {false};
 };
 
 struct brgemm_batch_element_t {

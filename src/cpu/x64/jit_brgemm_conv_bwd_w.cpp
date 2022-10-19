@@ -83,11 +83,11 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
     const float beta = 1.0;
 
     int M_begin = 0;
-    int M_end = (jcp_.M_tail == jcp_.M) ? 1 : 2;
+    int M_end = (jcp_.M_tail == jcp_.M || jcp_.M_tail == 0) ? 1 : 2;
     int N_begin = 0;
-    int N_end = (jcp_.N_tail == jcp_.N) ? 1 : 2;
+    int N_end = (jcp_.N_tail == jcp_.N || jcp_.N_tail == 0) ? 1 : 2;
     int K_begin = 0;
-    int K_end = (jcp_.K_tail == jcp_.K) ? 1 : 2;
+    int K_end = (jcp_.K_tail == jcp_.K || jcp_.K_tail == 0) ? 1 : 2;
     int init_begin = 0;
     int init_end = 2;
 
@@ -265,11 +265,11 @@ status_t brgemm_convolution_bwd_weights_t::init(engine_t *engine) {
         brg_kernels_[i] = nullptr;
 
     int M_begin = 0;
-    int M_end = (jcp.M_tail == jcp.M) ? 1 : 2;
+    int M_end = (jcp.M_tail == jcp.M || jcp.M_tail == 0) ? 1 : 2;
     int N_begin = 0;
-    int N_end = (jcp.N_tail == jcp.N) ? 1 : 2;
+    int N_end = (jcp.N_tail == jcp.N || jcp.N_tail == 0) ? 1 : 2;
     int K_begin = 0;
-    int K_end = (jcp.K_tail == jcp.K) ? 1 : 2;
+    int K_end = (jcp.K_tail == jcp.K || jcp.K_tail == 0) ? 1 : 2;
     int init_begin = 0;
     int init_end = 2;
 

@@ -2741,22 +2741,30 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
         default: assert(!"Invalid harness"); jcp.nthr_mb_work = jcp.mb;
     }
 
-    jcp.max_batch = jcp.od * jcp.oh;
-    jcp.M = jcp.ic_block * jcp.nb_ic_blocking;
+    balance_bwd_w(jcp);
 
-    // assumption that jcp.nb_ic_blocking is always 2
-    jcp.M_tail = jcp.ic_block;
-    jcp.N = jcp.oc_block * jcp.nb_oc_blocking;
-    // assumption that jcp.nb_oc_blocking is always 2
-    jcp.N_tail = jcp.oc_block;
+    jcp.max_batch = jcp.od * jcp.oh;
 
     if (one_of(jcp.harness, harness_2d_reduction, harness_3d_reduction)) {
         jcp.K = jcp.tr_ow;
     }
-
     jcp.K_tail = 0;
 
-    balance_bwd_w(jcp);
+    jcp.M = jcp.ic_block * jcp.nb_ic_blocking;
+    // assumption that jcp.nb_ic_blocking is always 2
+    if (jcp.nb_ic % jcp.nthr_ic_b == 0
+            && (jcp.nb_ic / jcp.nthr_ic_b) % jcp.nb_ic_blocking == 0)
+        jcp.M_tail = 0;
+    else
+        jcp.M_tail = jcp.ic_block;
+
+    jcp.N = jcp.oc_block * jcp.nb_oc_blocking;
+    // assumption that jcp.nb_oc_blocking is always 2
+    if (jcp.nb_oc % jcp.nthr_oc_b == 0
+            && (jcp.nb_oc / jcp.nthr_oc_b) % jcp.nb_oc_blocking == 0)
+        jcp.N_tail = 0;
+    else
+        jcp.N_tail = jcp.oc_block;
 
     // for convolutions with big spatial: transpose only chunk
     // (oc_block * nb_oc_blocking) of diff_dst on each iteration by oc blocks

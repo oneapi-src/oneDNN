@@ -86,20 +86,25 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
 
     first_bs = 0;
     bs_c = 0;
-    if (jcp_.use_uker) {
-        const auto SD = jcp_.stride_d;
-        const auto FP = jcp_.f_pad;
-        const auto DD = jcp_.dilate_d + 1;
-        const auto KD = jcp_.kd;
-        const auto ID = jcp_.id;
 
-        const auto SH = jcp_.stride_h;
-        const auto TP = jcp_.t_pad;
-        const auto DH = jcp_.dilate_h + 1;
-        const auto KH = jcp_.kh;
-        const auto IH = jcp_.ih;
-        const auto KD_BLOCK = jcp_.kd_block;
-        const auto KH_BLOCK = jcp_.kh_block;
+    const auto SD = jcp_.stride_d;
+    const auto FP = jcp_.f_pad;
+    const auto DD = jcp_.dilate_d + 1;
+    const auto KD = jcp_.kd;
+    const auto ID = jcp_.id;
+
+    const auto SH = jcp_.stride_h;
+    const auto TP = jcp_.t_pad;
+    const auto DH = jcp_.dilate_h + 1;
+    const auto KH = jcp_.kh;
+    const auto KW = jcp_.kw;
+    const auto IH = jcp_.ih;
+
+    const auto KD_BLOCK = jcp_.kd_block;
+    const auto KH_BLOCK = jcp_.kh_block;
+    const auto KW_BLOCK = jcp_.kw_block;
+
+    if (jcp_.use_uker) {
 
         assert(KD % KD_BLOCK == 0);
         assert(KH % KH_BLOCK == 0);
@@ -183,7 +188,24 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
         brgattr.bd_mask = bd_mask;
     };
 
+    ic_chunks = div_up(jcp_.nb_ic, jcp_.nb_ic_blocking);
+    need_postwork = jcp_.with_bias || jcp_.with_eltwise || jcp_.with_binary
+            || (one_of(src_type, u8, s8) && wei_type == s8) // oscales needed
+            || (jcp_.dst_dt != jcp_.acc_dt) || jcp_.with_sum || jcp_.use_M_mask
+            || jcp_.src_zero_point || jcp_.dst_zero_point;
+
     const auto M_end = nstl::max(jcp_.M, jcp_.M_tail);
+
+    int K_begin = 0;
+    int K_end = (jcp_.K_tail == 0) ? 1 : 2;
+
+    int i_init_begin = (jcp_.K_tail == 0 && jcp_.exec_type == exec_trans
+                               && div_up(jcp_.nb_ic, jcp_.nb_ic_blocking) == 1
+                               && KD_BLOCK == KD && KH_BLOCK == KH)
+            ? 1
+            : 0;
+    int i_init_end = 2;
+
     for (int i = 0; i < M_end; i++) {
         auto vM = i + 1;
         // init only needed brgemm descriptors
@@ -192,9 +214,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             continue;
         for (int bs = 0; bs <= jcp_.max_batch; bs++) {
             if (batchsizes[bs] == -1) continue;
-            for_(int i_init = 0; i_init < 2; i_init++)
+            for_(int i_init = i_init_begin; i_init < i_init_end; i_init++)
             for_(int i_N = 0; i_N < 2; i_N++)
-            for (int i_K = 0; i_K < 2; i_K++) {
+            for (int i_K = K_begin; i_K < K_end; i_K++) {
                 auto vbeta = (i_init) ? 0 : beta;
                 auto vN = (i_N) ? jcp_.N_tail : jcp_.N;
                 auto vK = (i_K) ? jcp_.K_tail : jcp_.K;
@@ -256,6 +278,14 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                     brgattr.max_bottom_vpad = jcp_.max_vpad;
                 }
                 brgattr.fpmath_mode = attr()->fpmath_mode_;
+
+                // if need post_ops and there are no intermediate calculations
+                // (like ic_chunks > 1 or blocking by kernel) we don't need
+                // code without post-ops in brgemm kernel
+                if (need_postwork && ic_chunks == 1 && KD_BLOCK == KD
+                        && KH_BLOCK == KH && KW_BLOCK == KW)
+                    brgattr.postops_only = true;
+
                 CHECK(brgemm_desc_set_attr(brg, brgattr));
 
                 auto LDD = jcp_.oc_without_padding;
@@ -389,7 +419,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::add_po_kernel(
 
 template <cpu_isa_t isa, bool use_inversion>
 void brgemm_convolution_fwd_t<isa, use_inversion>::add_po_kernels(
-        int i_N, int init_bcast_dim, int po_bcast_dim, bool need_postwork) {
+        int i_N, int init_bcast_dim, int po_bcast_dim) {
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
     const auto &brgs = _pd->brgs_;
@@ -411,7 +441,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::add_po_kernels(
         }
     }
 
-    if ((need_postwork || jcp.use_buffer) && po_bcast_dim > 0) {
+    if ((_pd->need_postwork || jcp.use_buffer) && po_bcast_dim > 0) {
         auto brg_idx = _pd->get_brg_idx(
                 _pd->first_bs, po_bcast_dim - 1, 0, i_N, i_K);
         if (brgs[brg_idx]) {
@@ -510,8 +540,6 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     DH = ndims_pick(jcp.dilate_h, jcp.dilate_h, 0) + 1;
     DW = jcp.dilate_w + 1;
 
-    ic_chunks = div_up(jcp.nb_ic, jcp.nb_ic_blocking);
-
     // const variables used for address calculations
     src_w_sz = static_cast<dim_t>(IW) * jcp.ngroups * jcp.ic_without_padding;
     src_h_sz = IH * src_w_sz;
@@ -520,8 +548,6 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     dst_h_sz = OH * dst_w_sz;
     dst_d_sz = OD * dst_h_sz;
 
-    const auto src_type = pd()->src_md(0)->data_type;
-    const auto wei_type = pd()->weights_md(0)->data_type;
     wei_ic_sz = static_cast<dim_t>(jcp.icp) * jcp.oc_block;
     wei_kw_sz = KW * wei_ic_sz;
     wei_kh_sz = KH * wei_kw_sz;
@@ -534,10 +560,6 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
 
     need_compensation
             = (jcp.src_zero_point || jcp.s8s8_avx512) && !jcp.req_brg_comp_pad;
-    need_postwork = jcp.with_bias || jcp.with_eltwise || jcp.with_binary
-            || (one_of(src_type, u8, s8) && wei_type == s8) // oscales needed
-            || (jcp.dst_dt != jcp.acc_dt) || jcp.with_sum || jcp.use_M_mask
-            || jcp.src_zero_point || jcp.dst_zero_point;
 
     // ---- Initialize arrays ---------------------
     brg_kernels_.resize(_pd->brgs_sz_);
@@ -589,8 +611,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     int N_begin = 0;
     int N_end = (jcp.N_tail == jcp.N) ? 1 : 2;
     int K_begin = 0;
-    int K_end = (jcp.K_tail == jcp.K) ? 1 : 2;
-    int i_init_begin = (div_up(jcp.nb_ic, jcp.nb_ic_blocking) == 1
+    int K_end = (jcp.K_tail == 0) ? 1 : 2;
+    int i_init_begin = (jcp.K_tail == 0 && jcp.exec_type == exec_trans
+                               && div_up(jcp.nb_ic, jcp.nb_ic_blocking) == 1
                                && KD_BLOCK == KD && KH_BLOCK == KH)
             ? 1
             : 0;
@@ -617,7 +640,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
         if (IMPLICATION(jcp.exec_type == exec_trans,
                     jcp.od > jcp.id || jcp.oh > jcp.ih)) {
             auto M = (i_M) ? jcp.M_tail : jcp.M;
-            add_po_kernels(i_N, M, M, need_postwork);
+            add_po_kernels(i_N, M, M);
         }
     }
 
@@ -655,8 +678,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
                 get_ow_range(ow, kw_f - 1, ow_s, ow_f);
                 const auto po_bcast_dim
                         = (i_side == 0) ? (ow_s - ow) : (ow + M - ow_f);
-                add_po_kernels(
-                        i_N, init_bcast_dim, po_bcast_dim, need_postwork);
+                add_po_kernels(i_N, init_bcast_dim, po_bcast_dim);
             }
 
             if (kw_f == jcp.kw && kw_s == 0) break;
@@ -693,8 +715,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
                 get_ow_range(ow, kw_f - 1, ow_s, ow_f);
                 const auto po_bcast_dim
                         = (i_side == 0) ? (ow_s - ow) : (ow + M - ow_f);
-                add_po_kernels(
-                        i_N, init_bcast_dim, po_bcast_dim, need_postwork);
+                add_po_kernels(i_N, init_bcast_dim, po_bcast_dim);
             }
 
             if (kw_f == jcp.kw && kw_s == 0) break;
@@ -991,7 +1012,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
                     : nstl::min(OH, oh_begin + jcp.oh_block);
             for_(int od = od_begin; od < od_end; od++)
             for (int oh = oh_begin; oh < oh_end; oh++) {
-                for (int icc = 0; icc < ic_chunks; icc++) {
+                for (int icc = 0; icc < _pd->ic_chunks; icc++) {
                     btc.od = od;
                     btc.oh = oh;
                     btc.icc = icc;
@@ -1395,7 +1416,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(int ithr,
     const auto kh_f = ndims_pick(kh_f_, kh_f_, 1); \
     const auto kh_l = kh_f - kh_s; \
     const bool is_oc_tail = (jcp.oc - oc < jcp.oc_block); \
-    const bool is_ic_tail = (btc.icc == ic_chunks - 1 \
+    const bool is_ic_tail = (btc.icc == _pd->ic_chunks - 1 \
             && ((jcp.ic - ic) % jcp.ic_block != 0)); \
     const bool is_ow_tail = (OW - ow < jcp.ow_block); \
     const bool is_oh_tail = (OH - oh < jcp.oh_block); \
@@ -1482,10 +1503,12 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
 
         const auto do_init
                 = btc.icc == 0 && kd_b == kd_s && kh_b == kh_s && kw_b == kw_s;
-        const auto do_postwork = need_postwork && btc.icc == (ic_chunks - 1)
-                && kd_e == kd_f && kh_e == kh_f && kw_e == kw_f;
+        const auto do_postwork = _pd->need_postwork
+                && btc.icc == (_pd->ic_chunks - 1) && kd_e == kd_f
+                && kh_e == kh_f && kw_e == kw_f;
         const auto do_only_comp = need_compensation && kd_e == kd_f
-                && kh_e == kh_f && kw_e != kw_f && btc.icc == (ic_chunks - 1);
+                && kh_e == kh_f && kw_e != kw_f
+                && btc.icc == (_pd->ic_chunks - 1);
         if (ow_e - ow_b <= 0 && !do_init && !do_postwork) return;
 
         k_l = (kd_e - kd_b) * (kh_e - kh_b) * (kw_e - kw_b);
@@ -1591,7 +1614,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
         }
     } else {
         const auto do_init = btc.icc == 0;
-        const auto do_postwork = need_postwork && btc.icc == (ic_chunks - 1);
+        const auto do_postwork
+                = _pd->need_postwork && btc.icc == (_pd->ic_chunks - 1);
         perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
                 g_oc, is_oc_tail, ow, ow, kd_l, kh_l,
                 post_ops_binary_rhs_arg_vec.data(), btc.oscales,
@@ -1705,8 +1729,9 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
 
     const auto kdhw_loop = [&]() {
         const auto do_init = btc.icc == 0 && kd_b == kd_s && kh_b == kh_s;
-        const auto do_postwork = need_postwork && btc.icc == (ic_chunks - 1)
-                && kd_e == kd_f && kh_e == kh_f;
+        const auto do_postwork = _pd->need_postwork
+                && btc.icc == (_pd->ic_chunks - 1) && kd_e == kd_f
+                && kh_e == kh_f;
         if (ow_e - ow_b <= 0 && !do_init && !do_postwork) return;
 
         k_l = (kd_e - kd_b) * (jcp.kh_sets > 1 ? 1 : (kh_e - kh_b))
@@ -1745,7 +1770,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
         }
     } else {
         const auto do_init = btc.icc == 0;
-        const auto do_postwork = need_postwork && btc.icc == (ic_chunks - 1);
+        const auto do_postwork
+                = _pd->need_postwork && btc.icc == (_pd->ic_chunks - 1);
         perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
                 g_oc, is_oc_tail, ow, ow, kd_l, kh_l,
                 post_ops_binary_rhs_arg_vec.data(), btc.oscales,
@@ -1845,8 +1871,9 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
 
     const auto kdhw_loop = [&]() {
         const auto do_init = btc.icc == 0 && kd_b == kd_s && kh_b == kh_s;
-        const auto do_postwork = need_postwork && btc.icc == (ic_chunks - 1)
-                && kd_e == kd_f && kh_e == kh_f;
+        const auto do_postwork = _pd->need_postwork
+                && btc.icc == (_pd->ic_chunks - 1) && kd_e == kd_f
+                && kh_e == kh_f;
 
         if (ow_e - ow_b <= 0 && !do_init && !do_postwork) return;
 
@@ -1895,7 +1922,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
         }
     } else {
         const auto do_init = btc.icc == 0;
-        const auto do_postwork = need_postwork && btc.icc == (ic_chunks - 1);
+        const auto do_postwork
+                = _pd->need_postwork && btc.icc == (_pd->ic_chunks - 1);
         perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
                 g_oc, is_oc_tail, ow, ow, kd_l, kh_l,
                 post_ops_binary_rhs_arg_vec.data(), btc.oscales,
