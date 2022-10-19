@@ -60,6 +60,16 @@ private:
     std::vector<std::string> patterns_;
 };
 
+class fpmath_filter_t {
+public:
+    fpmath_filter_t() = default;
+
+    bool matches(fpmath_mode_t mode) const { return mode == filter_; }
+
+private:
+    fpmath_mode_t filter_ = fpmath_mode::strict;
+};
+
 class conv_problem_t;
 
 class conv_problem_filter_t {
@@ -81,6 +91,7 @@ private:
 
     std::string dir_;
     type_filter_t type_filter_;
+    fpmath_filter_t fpmath_filter_;
     int_filter_t mb_filter_;
     std::string desc_;
     std::string post_ops_;
