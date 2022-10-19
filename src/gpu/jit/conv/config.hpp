@@ -765,6 +765,10 @@ public:
                 default: ir_error_not_expected() << p;
             }
         }
+        if (bufs_ > 0) {
+            a_ = true;
+            b_ = true;
+        }
     }
 
     void set(int bufs, int gmem_bufs, bool a, bool b) {
