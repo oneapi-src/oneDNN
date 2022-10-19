@@ -2150,9 +2150,7 @@ expr_t simplify_propagate_shuffle(const expr_t &e) {
                 auto &op = elem.as<binary_op_t>();
                 a.push_back(op.a);
                 b.push_back(op.b);
-                continue;
-            }
-            if (is_const(elem)) {
+            } else if (is_const(elem)) {
                 expr_t op_a = a_common_const;
                 expr_t op_b = b_common_const;
                 if (!const_to_const_binary(
@@ -2162,10 +2160,15 @@ expr_t simplify_propagate_shuffle(const expr_t &e) {
                 }
                 a.push_back(op_a);
                 b.push_back(op_b);
-                continue;
+            } else if (op_kind == op_kind_t::_and) {
+                // Replace with expression true <op_kind> elem to allow matching
+                // this op against future binary operation.
+                a.push_back(bool_imm_t::make(true));
+                b.push_back(elem);
+            } else {
+                ok = false;
+                break;
             }
-            ok = false;
-            break;
         }
         if (ok) {
             auto _a = simplify_propagate_shuffle(shuffle_t::make(a));
