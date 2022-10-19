@@ -6,13 +6,13 @@
 # training
 --dir=FWD_D,BWD_DW
 --dt=f32,bf16
---flags=,G,S,R,GSR
+--flags=,G,CH,R,GCHR
 --batch=shapes_regressions
 
 # inference
 --dir=FWD_I
 
 --dt=f32,bf16
---flags=,GS
+--flags=,GCH
 --attr-post-ops=,relu
 --batch=shapes_regressions

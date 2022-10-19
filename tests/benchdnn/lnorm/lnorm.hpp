@@ -39,7 +39,6 @@ using check_alg_t = bnorm::check_alg_t;
 using flags_t = bnorm::flags_t;
 const flags_t NONE = bnorm::NONE;
 const flags_t GLOB_STATS = bnorm::GLOB_STATS;
-const flags_t USE_SCALESHIFT = bnorm::USE_SCALESHIFT;
 const flags_t USE_SCALE = bnorm::USE_SCALE;
 const flags_t USE_SHIFT = bnorm::USE_SHIFT;
 const auto flags2str = bnorm::flags2str;
@@ -119,7 +118,6 @@ struct prb_t : public prb_dims_t {
     int64_t n, c;
     float eps;
 
-    bool use_ss() const { return flags & USE_SCALESHIFT; }
     bool use_sc() const { return flags & USE_SCALE; }
     bool use_sh() const { return flags & USE_SHIFT; }
 

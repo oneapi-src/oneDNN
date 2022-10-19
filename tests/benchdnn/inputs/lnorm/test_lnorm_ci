@@ -6,7 +6,7 @@
 --inplace=true
 --dt=f32,bf16,f16
 --dir=FWD_D
---flags=,S,G,C,H,CH,GS
+--flags=,G,C,H,CH,GCH
 --batch=shapes_ci
 
 --dir=BWD_D
@@ -14,7 +14,7 @@
 --batch=shapes_ci
 
 --dir=BWD_DW
---flags=S,GS,C,H
+--flags=CH,GCH,C,H
 --batch=shapes_ci
 
 # Different data type combinations

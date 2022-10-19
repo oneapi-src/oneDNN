@@ -5,7 +5,7 @@
 --dt=f32
 
 --dir=FWD_D,FWD_I
---flags=,S,G,GS
+--flags=,CH,G,GCH
 --batch=option_set_all
 
 --dir=BWD_D
@@ -13,7 +13,7 @@
 --batch=option_set_all
 
 --dir=BWD_DW
---flags=S,GS
+--flags=CH,GCH
 --batch=option_set_all
 
 # bf16

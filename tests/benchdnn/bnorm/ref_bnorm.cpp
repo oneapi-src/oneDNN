@@ -25,8 +25,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &src_add = args.find(DNNL_ARG_SRC_1);
     const dnn_mem_t &mean = args.find(DNNL_ARG_MEAN);
     const dnn_mem_t &var = args.find(DNNL_ARG_VARIANCE);
-    const dnn_mem_t &ss
-            = args.find(prb->use_sc() ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    const dnn_mem_t &sc = args.find(DNNL_ARG_SCALE);
     const dnn_mem_t &sh = args.find(DNNL_ARG_SHIFT);
     const dnn_mem_t &ws = args.find(DNNL_ARG_WORKSPACE);
     const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
@@ -41,7 +40,6 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const int64_t D = prb->id;
     const int64_t H = prb->ih;
     const int64_t W = prb->iw;
-    const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
     const bool fuse_relu = prb->fuse_relu();
@@ -54,8 +52,8 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
         float svar = var.get_elem(c);
         float sqrt_var = sqrtf(svar + prb->eps);
         float rcp_denom = 1.f / sqrt_var;
-        float gamma = (use_ss || use_sc) ? ss.get_elem(c) : 1.f;
-        float beta = use_ss ? ss.get_elem(C + c) : use_sh ? sh.get_elem(c) : 0;
+        float gamma = use_sc ? sc.get_elem(c) : 1.f;
+        float beta = use_sh ? sh.get_elem(c) : 0.f;
 
         for_(int64_t mb = 0; mb < MB; ++mb)
         for_(int64_t d = 0; d < D; ++d)
@@ -78,18 +76,16 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &src_hat = args.find(DNNL_ARG_DST_1);
     const dnn_mem_t &var = args.find(DNNL_ARG_VARIANCE);
     const dnn_mem_t &d_dst = args.find(DNNL_ARG_DIFF_DST);
-    const dnn_mem_t &ss
-            = args.find(prb->use_sc() ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    const dnn_mem_t &sc = args.find(DNNL_ARG_SCALE);
     const dnn_mem_t &ws = args.find(DNNL_ARG_WORKSPACE);
     const dnn_mem_t &d_src = args.find(DNNL_ARG_DIFF_SRC);
     const dnn_mem_t &d_src_add = args.find(DNNL_ARG_DIFF_SRC_1);
-    const dnn_mem_t &d_ss = args.find(
-            prb->use_sc() ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
+    const dnn_mem_t &d_sc = args.find(DNNL_ARG_DIFF_SCALE);
     const dnn_mem_t &d_sh = args.find(DNNL_ARG_DIFF_SHIFT);
 
     float *d_src_ptr = (float *)d_src;
     float *d_src_add_ptr = (float *)d_src_add;
-    float *d_ss_ptr = (float *)d_ss;
+    float *d_sc_ptr = (float *)d_sc;
     float *d_sh_ptr = (float *)d_sh;
 
     const int64_t MB = prb->mb;
@@ -98,7 +94,6 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     const int64_t H = prb->ih;
     const int64_t W = prb->iw;
     const bool glob_stats = prb->flags & GLOB_STATS;
-    const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
     const bool fuse_relu = prb->fuse_relu();
@@ -108,7 +103,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
 
     benchdnn_parallel_nd(C, [&](int64_t c) {
         float rcp_denom = 1.f / sqrtf(var.get_elem(c) + prb->eps);
-        float gamma = (use_ss || use_sc) ? ss.get_elem(c) : 1.f;
+        float gamma = use_sc ? sc.get_elem(c) : 1.f;
 
         float d_gamma = 0;
         float d_beta = 0;
@@ -124,12 +119,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
             d_beta += dd;
         }
 
-        if (use_ss && (prb->dir & FLAG_WEI)) {
-            d_ss_ptr[c] = d_gamma;
-            d_ss_ptr[C + c] = d_beta;
-        }
-
-        if (use_sc && (prb->dir & FLAG_WEI)) d_ss_ptr[c] = d_gamma;
+        if (use_sc && (prb->dir & FLAG_WEI)) d_sc_ptr[c] = d_gamma;
         if (use_sh && (prb->dir & FLAG_WEI)) d_sh_ptr[c] = d_beta;
 
         for_(int64_t mb = 0; mb < MB; ++mb)

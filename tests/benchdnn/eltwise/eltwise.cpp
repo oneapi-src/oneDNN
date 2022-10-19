@@ -35,34 +35,42 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
 
-    dnnl_eltwise_desc_t ed;
-
-    auto data_d = dnn_mem_t::init_md(
+    auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->dt, prb->tag);
+    auto dst_d = dnn_mem_t::init_md(
+            prb->ndims, prb->dims.data(), prb->dt, tag::any);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
-
-    if (dir & FLAG_FWD) {
-        auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
-                                        : dnnl_forward_training;
-
-        DNN_SAFE_STATUS(dnnl_eltwise_forward_desc_init(
-                &ed, prop, alg, &data_d, prb->alpha, prb->beta));
-    } else {
-        auto diff_data_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->dt, tag::any);
-
-        DNN_SAFE_STATUS(dnnl_eltwise_backward_desc_init(
-                &ed, alg, &diff_data_d, &data_d, prb->alpha, prb->beta));
-    }
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_iterator_create(&init_pd_args.pd_it, &ed,
-            dnnl_attr, init_pd_args.engine, init_pd_args.hint);
+    if (dir & FLAG_FWD) {
+        auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
+                                        : dnnl_forward_training;
+
+        DNN_SAFE_STATUS(dnnl_eltwise_forward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, prop, alg, src_d, dst_d,
+                prb->alpha, prb->beta, dnnl_attr));
+    } else {
+        auto diff_src_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt, tag::any);
+        auto diff_dst_d = dnn_mem_t::init_md(
+                prb->ndims, prb->dims.data(), prb->dt, tag::any);
+        if (prb->use_dst()) // Need to create with proper tag
+            dst_d = dnn_mem_t::init_md(
+                    prb->ndims, prb->dims.data(), prb->dt, prb->tag);
+        auto &data_d = prb->use_dst() ? dst_d : src_d;
+
+        DNN_SAFE_STATUS(dnnl_eltwise_backward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, alg, diff_src_d,
+                diff_dst_d, data_d, prb->alpha, prb->beta, init_pd_args.hint,
+                dnnl_attr));
+    }
+
+    return dnnl_success;
 }
 
 bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
@@ -112,14 +120,6 @@ bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
             // is high and tanh(s) is close to 1.
             return (prb->dir & FLAG_BWD) && (1.f - s * s) <= comp_err;
         case alg_t::SRELU:
-            // when s is negative, expf(s) -> 0 rapidly
-            // which leads to log1pf(expf(s)) -> 0
-            // which leads to high relative error,
-            // while abs error is still low.
-            // (10.f is magic scale for bf16)
-            return (prb->dir & FLAG_FWD) && std::signbit(s)
-                    && log1pf(expf(s)) <= 10.f * comp_err;
-        case alg_t::SRELU_V2:
             // when `alpha * s` is negative, expf(alpha * s) -> 0 rapidly
             // which leads to log1pf(expf(alpha * s)) -> 0
             // which leads to high relative error,
@@ -127,12 +127,6 @@ bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
             // (10.f is magic scale for bf16)
             return (prb->dir & FLAG_FWD) && std::signbit(prb->alpha * s)
                     && log1pf(expf(prb->alpha * s)) <= 10.f * comp_err;
-        case alg_t::LOGSIGMOID:
-            // same situation like in SRELU
-            // in logsigmoid when s is positive
-            // results -> 0
-            return (prb->dir & FLAG_FWD) && !std::signbit(s)
-                    && log1pf(expf(-s)) <= 10.f * comp_err;
         case alg_t::MISH:
             // same situation like in SRELU
             return (prb->dir & FLAG_FWD) && std::signbit(s)
@@ -166,9 +160,7 @@ float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd) {
     // Tolerate bigger compute errors for complex algorithms.
     const bool alg_has_higher_tolerance = alg == alg_t::GELU_TANH
             || alg == alg_t::ELU || alg == alg_t::SWISH || alg == alg_t::TANH
-            || alg == alg_t::SRELU || alg == alg_t::SRELU_V2
-            || alg == alg_t::LOGSIGMOID || alg == alg_t::MISH
-            || alg == alg_t::LOG
+            || alg == alg_t::SRELU || alg == alg_t::MISH || alg == alg_t::LOG
             || ((alg == alg_t::ELU_DST || alg == alg_t::TANH_DST) && is_fwd);
     if (dt == dnnl_f32 && alg_has_higher_tolerance) trh = 4e-5;
     return trh;
@@ -179,9 +171,6 @@ float get_eltwise_zero_trust_percent(const prb_t *prb) {
     switch (prb->alg) {
         case alg_t::LINEAR:
             if (prb->alpha == 0) ztp = 100.f;
-            break;
-        case alg_t::BRELU:
-            if ((prb->alpha == 0) || (prb->dir & FLAG_BWD)) ztp = 100.f;
             break;
         case alg_t::CLIP:
         case alg_t::CLIP_V2:
@@ -285,7 +274,6 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         case alg_t::CLIP:
         case alg_t::CLIP_V2:
         case alg_t::CLIP_V2_DST: is_invalid = prb->beta < prb->alpha; break;
-        case alg_t::BRELU:
         case alg_t::ELU_DST:
         case alg_t::RELU_DST: is_invalid = prb->alpha < 0; break;
         case alg_t::ROUND:

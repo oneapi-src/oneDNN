@@ -85,8 +85,6 @@ fill_status_t append_graph_with_block(const ::eltwise::prb_t *prb) {
     int64_t softplus_beta = 0;
     if (dnnl_kind == dnnl_eltwise_soft_relu)
         softplus_beta = 1;
-    else if (dnnl_kind == dnnl_eltwise_logsigmoid)
-        softplus_beta = -1;
 
     dnnl::graph::op eltw_op(op_id, op_kind, graph.stringify_id(op_id));
 

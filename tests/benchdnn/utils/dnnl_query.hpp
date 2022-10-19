@@ -24,15 +24,15 @@
 
 dnnl_prop_kind_t query_prop_kind(const_dnnl_primitive_desc_t pd);
 dnnl_primitive_kind_t query_prim_kind(const_dnnl_primitive_desc_t pd);
-dnnl_alg_kind_t query_conv_alg_kind(const_dnnl_primitive_desc_t pd);
+dnnl_alg_kind_t query_alg_kind(const_dnnl_primitive_desc_t pd);
 
 std::string query_impl_info(const_dnnl_primitive_desc_t pd);
 
 // General interface of quering memory desc.
-const dnnl_memory_desc_t &query_md(
+const_dnnl_memory_desc_t query_md(
         const_dnnl_primitive_desc_t pd, dnnl_query_t what, int index = 0);
 // Particular interface of quering through execution argument and its index.
-const dnnl_memory_desc_t &query_md(
+const_dnnl_memory_desc_t query_md(
         const_dnnl_primitive_desc_t pd, int index = 0);
 
 dnnl_engine_t query_engine(const_dnnl_primitive_desc_t pd,
@@ -47,8 +47,21 @@ const_dnnl_post_ops_t query_post_ops(const_dnnl_primitive_attr_t attr);
 const_dnnl_post_ops_t query_post_ops(const_dnnl_primitive_desc_t pd);
 const_dnnl_primitive_attr_t query_attr(const_dnnl_primitive_desc_t pd);
 const_dnnl_primitive_desc_t query_pd(dnnl_primitive_t prim);
-const_dnnl_op_desc_t query_op_desc(const_dnnl_primitive_desc_t pd);
 
 dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine);
+
+int query_md_ndims(const_dnnl_memory_desc_t md);
+int query_md_inner_nblks(const_dnnl_memory_desc_t md);
+
+dnnl_dim_t query_md_submemory_offset(const_dnnl_memory_desc_t md);
+dnnl_data_type_t query_md_data_type(const_dnnl_memory_desc_t md);
+dnnl_format_kind_t query_md_format_kind(const_dnnl_memory_desc_t md);
+
+const dnnl_dims_t &query_md_dims(const_dnnl_memory_desc_t md);
+const dnnl_dims_t &query_md_padded_dims(const_dnnl_memory_desc_t md);
+const dnnl_dims_t &query_md_padded_offsets(const_dnnl_memory_desc_t md);
+const dnnl_dims_t &query_md_strides(const_dnnl_memory_desc_t md);
+const dnnl_dims_t &query_md_inner_blks(const_dnnl_memory_desc_t md);
+const dnnl_dims_t &query_md_inner_idxs(const_dnnl_memory_desc_t md);
 
 #endif

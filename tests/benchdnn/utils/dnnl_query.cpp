@@ -28,10 +28,10 @@ dnnl_primitive_kind_t query_prim_kind(const_dnnl_primitive_desc_t pd) {
     return prim_kind;
 }
 
-dnnl_alg_kind_t query_conv_alg_kind(const_dnnl_primitive_desc_t pd) {
-    dnnl_convolution_desc_t *conv_op_desc = {nullptr};
-    dnnl_primitive_desc_query(pd, dnnl_query_convolution_d, 0, &conv_op_desc);
-    return conv_op_desc ? conv_op_desc->alg_kind : dnnl_alg_kind_undef;
+dnnl_alg_kind_t query_alg_kind(const_dnnl_primitive_desc_t pd) {
+    dnnl_alg_kind_t alg_kind = dnnl_alg_kind_undef;
+    dnnl_primitive_desc_query(pd, dnnl_query_alg_kind, 0, &alg_kind);
+    return alg_kind;
 }
 
 std::string query_impl_info(const_dnnl_primitive_desc_t pd) {
@@ -41,12 +41,12 @@ std::string query_impl_info(const_dnnl_primitive_desc_t pd) {
     return s;
 }
 
-const dnnl_memory_desc_t &query_md(
+const_dnnl_memory_desc_t query_md(
         const_dnnl_primitive_desc_t pd, dnnl_query_t what, int index) {
-    return *dnnl_primitive_desc_query_md(pd, what, index);
+    return dnnl_primitive_desc_query_md(pd, what, index);
 }
 
-const dnnl_memory_desc_t &query_md(const_dnnl_primitive_desc_t pd, int index) {
+const_dnnl_memory_desc_t query_md(const_dnnl_primitive_desc_t pd, int index) {
     return query_md(pd, dnnl_query_exec_arg_md, index);
 }
 
@@ -95,14 +95,77 @@ const_dnnl_primitive_desc_t query_pd(dnnl_primitive_t prim) {
     return pd;
 }
 
-const_dnnl_op_desc_t query_op_desc(const_dnnl_primitive_desc_t pd) {
-    const_dnnl_op_desc_t op_desc {};
-    dnnl_primitive_desc_query(pd, dnnl_query_op_d, 0, &op_desc);
-    return op_desc;
-}
-
 dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine) {
     dnnl_engine_kind_t engine_kind = dnnl_any_engine;
     dnnl_engine_get_kind(engine, &engine_kind);
     return engine_kind;
+}
+
+int query_md_ndims(const_dnnl_memory_desc_t md) {
+    int ndims = 0;
+    if (!md) return ndims;
+    dnnl_memory_desc_query(md, dnnl_query_ndims_s32, &ndims);
+    return ndims;
+}
+
+int query_md_inner_nblks(const_dnnl_memory_desc_t md) {
+    int inner_nblks = 0;
+    if (!md) return inner_nblks;
+    dnnl_memory_desc_query(md, dnnl_query_inner_nblks_s32, &inner_nblks);
+    return inner_nblks;
+}
+
+dnnl_dim_t query_md_submemory_offset(const_dnnl_memory_desc_t md) {
+    dnnl_dim_t submemory_offset = 0;
+    if (!md) return submemory_offset;
+    dnnl_memory_desc_query(
+            md, dnnl_query_submemory_offset_s64, &submemory_offset);
+    return submemory_offset;
+}
+
+dnnl_data_type_t query_md_data_type(const_dnnl_memory_desc_t md) {
+    dnnl_data_type_t dt = dnnl_data_type_undef;
+    if (!md) return dt;
+    dnnl_memory_desc_query(md, dnnl_query_data_type, &dt);
+    return dt;
+}
+
+dnnl_format_kind_t query_md_format_kind(const_dnnl_memory_desc_t md) {
+    dnnl_format_kind_t format_kind = dnnl_format_kind_undef;
+    if (!md) return format_kind;
+    dnnl_memory_desc_query(md, dnnl_query_format_kind, &format_kind);
+    return format_kind;
+}
+
+static const dnnl_dims_t &query_md_array_member(
+        const_dnnl_memory_desc_t md, dnnl_query_t what) {
+    static const dnnl_dims_t dummy {};
+    if (!md) return dummy;
+    const dnnl_dims_t *res;
+    dnnl_memory_desc_query(md, what, &res);
+    return *res;
+}
+
+const dnnl_dims_t &query_md_dims(const_dnnl_memory_desc_t md) {
+    return query_md_array_member(md, dnnl_query_dims);
+}
+
+const dnnl_dims_t &query_md_padded_dims(const_dnnl_memory_desc_t md) {
+    return query_md_array_member(md, dnnl_query_padded_dims);
+}
+
+const dnnl_dims_t &query_md_padded_offsets(const_dnnl_memory_desc_t md) {
+    return query_md_array_member(md, dnnl_query_padded_offsets);
+}
+
+const dnnl_dims_t &query_md_strides(const_dnnl_memory_desc_t md) {
+    return query_md_array_member(md, dnnl_query_strides);
+}
+
+const dnnl_dims_t &query_md_inner_blks(const_dnnl_memory_desc_t md) {
+    return query_md_array_member(md, dnnl_query_inner_blks);
+}
+
+const dnnl_dims_t &query_md_inner_idxs(const_dnnl_memory_desc_t md) {
+    return query_md_array_member(md, dnnl_query_inner_idxs);
 }

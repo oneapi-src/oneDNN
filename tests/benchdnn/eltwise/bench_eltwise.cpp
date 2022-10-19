@@ -41,7 +41,13 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_inplace : s.inplace) {
         bool ok = i_alg > alg_t::ELTWISE_START && i_alg < alg_t::ELTWISE_END;
-        if (!ok) SAFE_V(FAIL);
+        if (!ok) {
+            std::stringstream ss;
+            ss << i_alg;
+            BENCHDNN_PRINT(0, "%s%s%s\n", "ERROR: unknown algorithm `",
+                    ss.str().c_str(), "`.");
+            SAFE_V(FAIL);
+        }
 
         // iterator over alpha and beta (alphabetic order!)
         switch (i_alg) {
@@ -54,13 +60,11 @@ void check_correctness(const settings_t &s) {
             case alg_t::LOG:
             case alg_t::LOGISTIC:
             case alg_t::LOGISTIC_DST:
-            case alg_t::LOGSIGMOID:
             case alg_t::MISH:
             case alg_t::ROUND:
             case alg_t::SQRT:
             case alg_t::SQRT_DST:
             case alg_t::SQUARE:
-            case alg_t::SRELU:
             case alg_t::TANH:
             case alg_t::TANH_DST:
                 if (i_alpha != 0)
@@ -72,12 +76,11 @@ void check_correctness(const settings_t &s) {
                             "WARNING: non-zero beta is ignored. "
                             "Consider adding --beta=0 to a command line.");
                 break;
-            case alg_t::BRELU:
             case alg_t::ELU:
             case alg_t::ELU_DST:
             case alg_t::RELU:
             case alg_t::RELU_DST:
-            case alg_t::SRELU_V2:
+            case alg_t::SRELU:
             case alg_t::SWISH:
                 if (i_beta != 0)
                     BENCHDNN_PRINT(2, "%s\n",

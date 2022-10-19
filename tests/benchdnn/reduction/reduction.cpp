@@ -32,23 +32,21 @@ namespace reduction {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    dnnl_reduction_desc_t rd;
-
     auto src_desc = dnn_mem_t::init_md(
             prb->ndims, prb->vdims[0].data(), prb->sdt, prb->stag);
     auto dst_desc = dnn_mem_t::init_md(
             prb->ndims, prb->vdims[1].data(), prb->ddt, prb->dtag);
-
-    DNN_SAFE_STATUS(dnnl_reduction_desc_init(&rd, alg2alg_kind(prb->alg),
-            &src_desc, &dst_desc, prb->p, prb->eps));
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->vdims[1].data());
     const auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_iterator_create(&init_pd_args.pd_it, &rd,
-            dnnl_attr, init_pd_args.engine, init_pd_args.hint);
+    DNN_SAFE_STATUS(dnnl_reduction_primitive_desc_create(&init_pd_args.pd,
+            init_pd_args.engine, alg2alg_kind(prb->alg), src_desc, dst_desc,
+            prb->p, prb->eps, dnnl_attr));
+
+    return dnnl_success;
 }
 
 bool is_norm_alg(const alg_t alg) {

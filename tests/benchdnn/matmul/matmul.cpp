@@ -65,7 +65,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dst_d = dnn_mem_t::init_md(prb->ndims, dst_rt_dims.data(),
             prb->dst_dt(), prb->dtag, prb->strides[STRIDES_DST]);
 
-    dnnl_memory_desc_t bia_d {};
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> bia_d {};
     if (prb->bia_dt != dnnl_data_type_undef) {
         dims_t bia_dims;
         prep_bia_dims(prb, bia_dims);
@@ -73,10 +73,6 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         bia_d = dnn_mem_t::init_md(prb->ndims, bia_dims.data(), prb->bia_dt,
                 prb->dst_runtime_dim_mask() != 0 ? tag::abx : tag::any);
     }
-
-    dnnl_matmul_desc_t op_d;
-    DNN_SAFE_STATUS(
-            dnnl_matmul_desc_init(&op_d, &src_d, &wei_d, &bia_d, &dst_d));
 
     // Overload PER_OC mask definition for batched case
     int mask = 0;
@@ -89,8 +85,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_iterator_create(&init_pd_args.pd_it, &op_d,
-            dnnl_attr, init_pd_args.engine, init_pd_args.hint);
+    DNN_SAFE_STATUS(dnnl_matmul_primitive_desc_create(&init_pd_args.pd,
+            init_pd_args.engine, src_d, wei_d, bia_d, dst_d, dnnl_attr));
+
+    return dnnl_success;
 }
 
 int init_prim_ref(
@@ -116,8 +114,7 @@ int init_prim_ref(
     init_pd(init_pd_args);
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_itw;
-    fetch_impl(pdw, pd_itw, init_pd_args, /* res = */ nullptr,
+    fetch_impl(pdw, init_pd_args, /* res = */ nullptr,
             /* is_service_prim = */ true);
 
     dnnl_primitive_t prim_ref_ {};
@@ -309,40 +306,41 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd = query_pd(prim);
 
-    dnnl_memory_desc_t src_md {}, wei_md {}, dst_md {}, bia_md {}, def_md {};
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> src_md {}, wei_md {}, dst_md {},
+            bia_md {}, def_md {};
     // query md if it was defined at pd creation time
     if (prb->src_runtime_dim_mask().none())
-        src_md = query_md(const_pd, DNNL_ARG_SRC);
+        src_md.reset(clone_md(query_md(const_pd, DNNL_ARG_SRC)));
     if (prb->weights_runtime_dim_mask().none())
-        wei_md = query_md(const_pd, DNNL_ARG_WEIGHTS);
+        wei_md.reset(clone_md(query_md(const_pd, DNNL_ARG_WEIGHTS)));
     if (prb->dst_runtime_dim_mask().none()) {
-        dst_md = query_md(const_pd, DNNL_ARG_DST);
+        dst_md.reset(clone_md(query_md(const_pd, DNNL_ARG_DST)));
         if (prb->bia_dt != dnnl_data_type_undef)
-            bia_md = query_md(const_pd, DNNL_ARG_BIAS);
+            bia_md.reset(clone_md(query_md(const_pd, DNNL_ARG_BIAS)));
     }
 
     // if md is same as default, it means we need to re-create it
     const auto &src_dims = prb->src_dims();
-    if (dnnl_memory_desc_equal(&src_md, &def_md)) {
+    if (dnnl_memory_desc_equal(src_md, def_md)) {
         assert(prb->stag != tag::any);
         src_md = dnn_mem_t::init_md(prb->ndims, src_dims.data(), prb->src_dt(),
                 prb->stag, prb->strides[STRIDES_SRC]);
     }
 
     const auto &weights_dims = prb->weights_dims();
-    if (dnnl_memory_desc_equal(&wei_md, &def_md)) {
+    if (dnnl_memory_desc_equal(wei_md, def_md)) {
         assert(prb->wtag != tag::any);
         wei_md = dnn_mem_t::init_md(prb->ndims, weights_dims.data(),
                 prb->wei_dt(), prb->wtag, prb->strides[STRIDES_WEI]);
     }
 
-    if (dnnl_memory_desc_equal(&dst_md, &def_md)) {
+    if (dnnl_memory_desc_equal(dst_md, def_md)) {
         assert(prb->dtag != tag::any);
         dst_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
                 prb->dst_dt(), prb->dtag, prb->strides[STRIDES_DST]);
     }
     if (prb->bia_dt != dnnl_data_type_undef
-            && dnnl_memory_desc_equal(&bia_md, &def_md)) {
+            && dnnl_memory_desc_equal(bia_md, def_md)) {
         dims_t bia_dims;
         prep_bia_dims(prb, bia_dims);
         bia_md = dnn_mem_t::init_md(

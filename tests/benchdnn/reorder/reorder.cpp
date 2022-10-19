@@ -21,6 +21,9 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+// TODO: refactor the driver to avoid using extra flags of a memory descriptor.
+#include "common/memory_desc.hpp"
+
 #include "utils/parallel.hpp"
 
 #include "dnn_types.hpp"
@@ -147,24 +150,25 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             = dnn_mem_t::init_md(prb->ndims, dims.data(), prb->ddt, prb->dtag);
 
     // Prepare and assign extra for dst_md.
-    auto &extra = dst_d.extra;
-    extra.flags = dnnl_memory_extra_flag_none;
+    auto &extra = static_cast<dnnl_memory_desc_t>(dst_d)->extra;
+    extra.flags = dnnl::impl::memory_extra_flags::none;
     if (prb->is_reorder_with_compensation(FLAG_ANY)) {
         for (const auto &i_oflag : prb->oflag) {
             if (i_oflag.first & FLAG_S8S8_COMP) {
-                extra.flags |= dnnl_memory_extra_flag_compensation_conv_s8s8;
+                extra.flags |= dnnl::impl::memory_extra_flags::
+                        compensation_conv_s8s8;
                 extra.compensation_mask = i_oflag.second;
 
                 const float s8_scale_factor = reorder_rescale_factor();
                 const bool need_rescale = s8_scale_factor != 1.f;
                 if (need_rescale) {
-                    extra.flags |= dnnl_memory_extra_flag_scale_adjust;
+                    extra.flags |= dnnl::impl::memory_extra_flags::scale_adjust;
                     extra.scale_adjust = s8_scale_factor;
                 }
             }
             if (i_oflag.first & FLAG_ZP_COMP) {
-                extra.flags
-                        |= dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
+                extra.flags |= dnnl::impl::memory_extra_flags::
+                        compensation_conv_asymmetric_src;
                 extra.asymm_compensation_mask = i_oflag.second;
             }
         }
@@ -186,8 +190,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_reorder_primitive_desc_create(&init_pd_args.pd, &src_d,
-            src_engine, &dst_d, dst_engine, dnnl_attr);
+    init_pd_args.is_iterator_supported = false;
+    return dnnl_reorder_primitive_desc_create(
+            &init_pd_args.pd, src_d, src_engine, dst_d, dst_engine, dnnl_attr);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
@@ -323,7 +328,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd = query_pd(prim);
 
-    dnnl_memory_desc_t src_md {}, dst_md {};
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> src_md {}, dst_md {};
     if (prb->runtime_dim_mask != 0) {
         // re-create memory descriptors with defined dims
         src_md = dnn_mem_t::init_md(
@@ -331,8 +336,8 @@ int doit(const prb_t *prb, res_t *res) {
         dst_md = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->ddt, prb->dtag);
     } else {
-        src_md = query_md(const_pd, DNNL_ARG_SRC);
-        dst_md = query_md(const_pd, DNNL_ARG_DST);
+        src_md = clone_md(query_md(const_pd, DNNL_ARG_SRC));
+        dst_md = clone_md(query_md(const_pd, DNNL_ARG_DST));
     }
     const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
 
@@ -340,13 +345,14 @@ int doit(const prb_t *prb, res_t *res) {
             = query_engine(const_pd, dnnl_query_reorder_src_engine);
     dnnl_engine_t dst_engine
             = query_engine(const_pd, dnnl_query_reorder_dst_engine);
+    const auto &ref_engine = get_cpu_engine();
 
-    dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, src_engine);
+    dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t src_dt(src_md, src_engine);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, src_engine);
 
-    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, dst_engine);
+    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t dst_dt(dst_md, dst_engine);
 
     SAFE(fill_memory(prb, SRC, src_dt, src_fp), WARN);
@@ -382,7 +388,7 @@ int doit(const prb_t *prb, res_t *res) {
                 int ndims = static_cast<int>(dims.size());
                 auto md = dnn_mem_t::init_md(
                         ndims, dims.data(), dnnl_s32, tag::abx);
-                m = dnn_mem_t(md, dst_engine);
+                m = dnn_mem_t(md, ref_engine);
             }
             return OK;
         };
@@ -398,15 +404,15 @@ int doit(const prb_t *prb, res_t *res) {
 
         // Remove extra desc so that reorders with compensation could have
         // proper reorder from blocked layout to plain for comparison.
-        dnnl_memory_extra_desc_t empty_extra {};
-        const auto orig_dst_extra = dst_dt.md_.extra;
-        dst_dt.md_.extra = empty_extra;
+        dnnl::impl::memory_extra_desc_t empty_extra {};
+        const auto orig_dst_extra = dst_dt.md_->extra;
+        dst_dt.md_->extra = empty_extra;
 
         // Validate main reorder part.
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
 
         // Restore extra for compensation comparison and performance mode.
-        dst_dt.md_.extra = orig_dst_extra;
+        dst_dt.md_->extra = orig_dst_extra;
 
         // Validate compensated reorder part.
         if (prb->is_reorder_with_compensation(FLAG_ANY)) {

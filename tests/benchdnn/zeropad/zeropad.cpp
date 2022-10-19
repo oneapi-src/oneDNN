@@ -117,6 +117,11 @@ static dnnl_status_t perf_func(
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type({prb->dt}, FWD_D, res);
+
+    if (is_nvidia_gpu() || is_amd_gpu()) {
+        res->state = SKIPPED;
+        res->reason = CASE_NOT_SUPPORTED;
+    }
 }
 
 int doit(const prb_t *prb, res_t *res) {
@@ -140,18 +145,17 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(0, test_mem);
     perf_function_t perf_func_ = &perf_func;
 
-    if (is_bench_mode(CORR)) {
-        execute_and_wait(perf_func_, test_engine, args, res);
-        SAFE(compare(test_mem, res), WARN);
-    }
+    execute_and_wait(perf_func_, test_engine, args, res);
+
+    if (is_bench_mode(CORR)) { SAFE(compare(test_mem, res), WARN); }
     if (is_bench_mode(PERF)) {
         // Get plain memory desc size to have a proper padded area size.
         auto plain_data_md = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt, tag::abx);
         // Fill output bytes for perf_report.
         res->ibytes = 0; // Since we don't read any data from padding.
-        res->obytes = dnnl_memory_desc_get_size(&data_md)
-                - dnnl_memory_desc_get_size(&plain_data_md);
+        res->obytes = dnnl_memory_desc_get_size(data_md)
+                - dnnl_memory_desc_get_size(plain_data_md);
     }
 
     measure_perf(default_thr_ctx, res, perf_func_, args);

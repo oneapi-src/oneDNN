@@ -8,13 +8,13 @@
 
 --dir=FWD_D,BWD_DW
 --inplace=true
---flags=GS,S
+--flags=GCH,CH
 --batch=option_set_all
 
 --dt=f16
 --dir=FWD_I
 --inplace=true,false
---flags=GS,S
+--flags=GCH,CH
 --batch=option_set_all
 
 # blocked cases
@@ -23,7 +23,7 @@
 --dt=f32,bf16
 --dir=FWD_D,BWD_DW
 --inplace=true
---flags=,GS,S,CH,C,H
+--flags=,GCH,CH,C,H
 --tag=AB48a16b,abx
 --stat_tag=abx
 30x300
@@ -43,7 +43,7 @@
 # regression
 --reset
 --dir=FWD_D,BWD_DW
---flags=,GS,S
+--flags=,GCH,CH
 --tag=ba,AB16b16a
 64x64
 

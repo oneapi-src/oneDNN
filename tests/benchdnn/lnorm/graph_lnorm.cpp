@@ -113,21 +113,12 @@ fill_status_t append_graph_with_block(const ::lnorm::prb_t *prb) {
     const auto common_dt = convert_dt(prb->dt[0]);
     dims_t base_dims = prb->dims;
     dims_t stat_dims = get_stat_dims(prb->dims);
-    dims_t ss_dims = {prb->c};
 
     graph.create_lt(src_id, common_dt, base_dims, graph_lt::strided);
     graph.create_lt(dst_id, common_dt, base_dims, graph_lt::strided);
     if (prb->dir == FWD_D || prb->dir & FLAG_BWD) {
         graph.create_lt(mean_id, graph_dt::f32, stat_dims, graph_lt::strided);
         graph.create_lt(var_id, graph_dt::f32, stat_dims, graph_lt::strided);
-    }
-    if (prb->use_ss()) {
-        graph.create_lt(sc_id, graph_dt::f32, ss_dims, graph_lt::strided);
-        graph.create_lt(sh_id, graph_dt::f32, ss_dims, graph_lt::strided);
-    }
-    if (prb->dir & FLAG_BWD && prb->use_ss()) {
-        graph.create_lt(d_sc_id, graph_dt::f32, ss_dims, graph_lt::strided);
-        graph.create_lt(d_sh_id, graph_dt::f32, ss_dims, graph_lt::strided);
     }
 
     std::vector<size_t> src_ids;
@@ -146,20 +137,16 @@ fill_status_t append_graph_with_block(const ::lnorm::prb_t *prb) {
         graph.create_lt(fwd_src_id, common_dt, base_dims, graph_lt::strided);
         src_ids = {fwd_src_id, dst_id, mean_id, var_id};
         dst_ids = {src_id};
-        if (prb->use_ss()) {
-            dst_ids.push_back(d_sc_id);
-            dst_ids.push_back(d_sh_id);
-        }
+        if (prb->use_sc()) dst_ids.push_back(d_sc_id);
+        if (prb->use_sh()) dst_ids.push_back(d_sh_id);
+
         lnorm_kind = dnnl::graph::op::kind::LayerNormBackprop;
     }
-    if (prb->use_ss()) {
-        src_ids.push_back(sc_id);
-        src_ids.push_back(sh_id);
-    }
+    if (prb->use_sc()) src_ids.push_back(sc_id);
+    if (prb->use_sh()) src_ids.push_back(sh_id);
 
     dnnl::graph::op lnorm_op(op_id, lnorm_kind, graph.stringify_id(op_id));
     lnorm_op.set_attr("begin_norm_axis", int64_t(-1))
-            .set_attr("use_affine", prb->use_ss())
             .set_attr("epsilon", float(1.f / 16));
     if (prb->dir & FLAG_FWD) lnorm_op.set_attr("keep_stats", prb->dir == FWD_D);
 
@@ -262,22 +249,23 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
 
     // scale and shift are combined in a single 2D tensor of shape 2xC
     // this logical_tensor is used to indicate the memory size for scale
-    dnnl::graph::logical_tensor lt_ss {3, dt::f32, {2, prb->c},
+    dnnl::graph::logical_tensor lt_sc {3, dt::f32, dims_t {prb->c},
             dnnl::graph::logical_tensor::layout_type::strided};
-    auto ss_fp = make_dnn_mem(lt_ss, dt::f32, tag::abx);
-    auto ss_dt = make_dnn_mem(lt_ss, dt::f32, tag::abx);
+    auto sc_fp = make_dnn_mem(lt_sc, dt::f32, tag::abx);
+    auto sc_dt = make_dnn_mem(lt_sc, dt::f32, tag::abx);
     // We use ss mem descriptor for both gamma and beta, so below sh is not used
     // and its declaration is needed only to pass it to native benchdnn
     // function, which fills the data.
     dnnl::graph::logical_tensor lt_sh {4, dt::f32, dims_t {prb->c},
             dnnl::graph::logical_tensor::layout_type::strided};
     auto sh_fp = make_dnn_mem(lt_sh, dt::f32, tag::x);
+    auto sh_dt = make_dnn_mem(lt_sh, dt::f32, tag::x);
 
     std::vector<dnnl::graph::tensor> tensors_in;
     std::vector<dnnl::graph::tensor> tensors_out;
 
     if (prb->dir & FLAG_FWD) {
-        if (::lnorm::prepare_fwd(prb, src_fp, mean_fp, var_fp, ss_fp, sh_fp)
+        if (::lnorm::prepare_fwd(prb, src_fp, mean_fp, var_fp, sc_fp, sh_fp)
                 != OK) {
             cleanup();
             return res->state = MISTRUSTED, OK;
@@ -292,9 +280,6 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
             SAFE(var_dt.reorder(var_fp), WARN);
         }
 
-        // oneDNN Graph supports either both scale and shift or neither of them
-        if (prb->use_ss()) SAFE(ss_dt.reorder(ss_fp), WARN);
-
         const dnnl::graph::engine &eng = get_test_engine();
 
         tensors_in.emplace_back(
@@ -303,16 +288,6 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
                 dnnl::graph::tensor(outs[0], eng, static_cast<void *>(dst_dt)));
         auto gamma_v = make_dnn_mem(lt_sh, dt::f32, tag::x);
         auto beta_v = make_dnn_mem(lt_sh, dt::f32, tag::x);
-        if (prb->use_ss()) {
-            for (int64_t i = 0; i < prb->c; i++) {
-                gamma_v.set_elem(i, ss_dt.get_elem(i));
-                beta_v.set_elem(i, ss_dt.get_elem(prb->c + i));
-            }
-            tensors_in.emplace_back(dnnl::graph::tensor(
-                    ins[1], eng, static_cast<void *>(gamma_v)));
-            tensors_in.emplace_back(dnnl::graph::tensor(
-                    ins[2], eng, static_cast<void *>(beta_v)));
-        }
 
         if (keep_stats) {
             tensors_out.emplace_back(dnnl::graph::tensor(
@@ -331,7 +306,8 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_MEAN, mean_fp);
             ref_args.set(DNNL_ARG_VARIANCE, var_fp);
-            ref_args.set(DNNL_ARG_SCALE_SHIFT, ss_fp);
+            ref_args.set(DNNL_ARG_SCALE, sc_fp);
+            ref_args.set(DNNL_ARG_SHIFT, sh_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
 
             std::vector<data_kind_t> kinds {DST};
@@ -346,8 +322,11 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
                     prb, kinds, args, ref_args, ::lnorm::setup_cmp, res);
         }
     } else {
-        auto d_ss_fp = make_dnn_mem(lt_ss, dt::f32, tag::abx);
-        auto d_ss_dt = make_dnn_mem(lt_ss, dt::f32, tag::abx);
+        auto d_sc_fp = make_dnn_mem(lt_sc, dt::f32, tag::abx);
+        auto d_sc_dt = make_dnn_mem(lt_sc, dt::f32, tag::abx);
+
+        auto d_sh_fp = make_dnn_mem(lt_sh, dt::f32, tag::abx);
+        auto d_sh_dt = make_dnn_mem(lt_sh, dt::f32, tag::abx);
 
         dnn_mem_t placeholder_d_src_dt;
         // backward pass
@@ -360,7 +339,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         }
         dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
 
-        if (prepare_bwd(prb, src_fp, d_dst_fp, mean_fp, var_fp, ss_fp) != OK) {
+        if (prepare_bwd(prb, src_fp, d_dst_fp, mean_fp, var_fp, sc_fp) != OK) {
             cleanup();
             return res->state = MISTRUSTED, OK;
         }
@@ -369,7 +348,8 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
-        if (prb->use_ss()) SAFE(ss_dt.reorder(ss_fp), WARN);
+        if (prb->use_sc()) { SAFE(sc_dt.reorder(sc_fp), WARN); }
+        if (prb->use_sh()) { SAFE(sh_dt.reorder(sh_fp), WARN); }
 
         const dnnl::graph::engine &eng = get_test_engine();
 
@@ -392,20 +372,6 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
         auto beta_v = make_dnn_mem(lt_sh, dt::f32, tag::x);
         auto d_gamma_v = make_dnn_mem(lt_sh, dt::f32, tag::x);
         auto d_beta_v = make_dnn_mem(lt_sh, dt::f32, tag::x);
-        if (prb->use_ss()) {
-            for (int64_t i = 0; i < prb->c; i++) {
-                gamma_v.set_elem(i, ss_dt.get_elem(i));
-                beta_v.set_elem(i, ss_dt.get_elem(prb->c + i));
-            }
-            gamma_tensor = dnnl::graph::tensor(
-                    ins[4], eng, static_cast<void *>(gamma_v));
-            beta_tensor = dnnl::graph::tensor(
-                    ins[5], eng, static_cast<void *>(beta_v));
-            d_gamma_tensor = dnnl::graph::tensor(
-                    outs[1], eng, static_cast<void *>(d_gamma_v));
-            d_beta_tensor = dnnl::graph::tensor(
-                    outs[2], eng, static_cast<void *>(d_beta_v));
-        }
 
         tensors_in.push_back(src_tensor);
         tensors_in.push_back(d_dst_tensor);
@@ -414,22 +380,7 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
 
         tensors_out.push_back(d_src_tensor);
 
-        if (prb->use_ss()) {
-            tensors_in.push_back(gamma_tensor);
-            tensors_in.push_back(beta_tensor);
-
-            tensors_out.push_back(d_gamma_tensor);
-            tensors_out.push_back(d_beta_tensor);
-        }
-
         SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
-
-        if (prb->use_ss()) {
-            for (int64_t i = 0; i < prb->c; i++) {
-                d_ss_dt.set_elem(i, d_gamma_v.get_elem(i));
-                d_ss_dt.set_elem(prb->c + i, d_beta_v.get_elem(i));
-            }
-        }
 
         if (is_bench_mode(CORR)) {
             args_t args, ref_args;
@@ -438,16 +389,16 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_MEAN, mean_fp);
             ref_args.set(DNNL_ARG_VARIANCE, var_fp);
-            ref_args.set(DNNL_ARG_SCALE_SHIFT, ss_fp);
+            ref_args.set(DNNL_ARG_SCALE, sc_fp);
+            ref_args.set(DNNL_ARG_SHIFT, sh_fp);
             ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
-            ref_args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_fp);
+            ref_args.set(DNNL_ARG_DIFF_SCALE, d_sc_fp);
+            ref_args.set(DNNL_ARG_DIFF_SHIFT, d_sh_fp);
 
             std::vector<data_kind_t> kinds {SRC};
-            if (prb->use_ss() && (prb->dir & FLAG_WEI)) {
-                args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
-                kinds.push_back(SS);
-            }
+            if (prb->use_sc() && (prb->dir & FLAG_WEI)) kinds.push_back(SC);
+            if (prb->use_sh() && (prb->dir & FLAG_WEI)) kinds.push_back(SH);
 
             check_correctness(
                     prb, kinds, args, ref_args, ::lnorm::setup_cmp, res);

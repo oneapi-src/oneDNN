@@ -181,7 +181,6 @@ dnnl::graph::op::kind convert_alg_kind(
             case dnnl_eltwise_hardswish: return graph_op::HardSwish;
             case dnnl_eltwise_log: return graph_op::Log;
             case dnnl_eltwise_logistic: return graph_op::Sigmoid;
-            case dnnl_eltwise_logsigmoid: return graph_op::SoftPlus;
             case dnnl_eltwise_mish: return graph_op::Mish;
             case dnnl_eltwise_pow: return graph_op::Pow;
             case dnnl_eltwise_relu: return graph_op::ReLU;
@@ -204,7 +203,6 @@ dnnl::graph::op::kind convert_alg_kind(
             case dnnl_reduction_mul: return graph_op::ReduceProd;
             case dnnl_reduction_sum: return graph_op::ReduceSum;
             // TODO (damianszw): find nicer way to tell about unsupported type
-            case dnnl_eltwise_bounded_relu:
             case dnnl_eltwise_clip:
             case dnnl_eltwise_clip_v2_use_dst_for_bwd:
             case dnnl_eltwise_elu_use_dst_for_bwd:
@@ -233,7 +231,6 @@ dnnl::graph::op::kind convert_alg_kind(
             case dnnl_eltwise_logistic:
             case dnnl_eltwise_logistic_use_dst_for_bwd:
                 return graph_op::SigmoidBackprop;
-            case dnnl_eltwise_logsigmoid: return graph_op::SoftPlusBackprop;
             case dnnl_eltwise_mish: return graph_op::MishBackprop;
             case dnnl_eltwise_relu:
             case dnnl_eltwise_relu_use_dst_for_bwd:
@@ -265,7 +262,6 @@ dnnl::graph::op::kind convert_alg_kind(
             case dnnl_reduction_mul:
             case dnnl_reduction_sum:
             // TODO (damianszw): find nicer way to tell about unsupported type
-            case dnnl_eltwise_bounded_relu:
             case dnnl_eltwise_clip:
             case dnnl_eltwise_exp_use_dst_for_bwd:
             case dnnl_eltwise_gelu_tanh:
@@ -391,14 +387,15 @@ dnnl_format_tag_t dnnl_fmt_str2tag(const std::string &fmt_str) {
 };
 
 dims_t calculate_strides(dims_t dims, dt dtype, const std::string &tag) {
-    dims_t strides(dims.size(), 0);
     dnnl_dims_t dnnl_dims = {0};
     std::copy(dims.begin(), dims.end(), dnnl_dims);
+
     auto md = dnn_mem_t::init_md(
             (int)dims.size(), dnnl_dims, convert_dt(dtype), tag);
-    std::copy(std::begin(md.format_desc.blocking.strides),
-            std::begin(md.format_desc.blocking.strides) + dims.size(),
-            std::begin(strides));
+
+    dims_t strides(query_md_ndims(md));
+    std::memcpy(strides.data(), query_md_strides(md),
+            strides.size() * sizeof(dnnl_dim_t));
     return strides;
 }
 
@@ -858,8 +855,6 @@ fill_status_t append_graph_with_eltwise(
     // special cases
     if (eltw_entry.kind == attr_t::post_ops_t::kind_t::SRELU)
         eltw_op.set_attr<int64_t>("beta", 1);
-    else if (eltw_entry.kind == attr_t::post_ops_t::kind_t::LOGSIGMOID)
-        eltw_op.set_attr<int64_t>("beta", -1);
 
     graph.append(op_id, eltw_op, {src_id}, {dst_id});
 

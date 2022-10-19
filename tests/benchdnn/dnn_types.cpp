@@ -112,7 +112,6 @@ const char *data_kind2str(data_kind_t kind) {
         case ACC: return "ACC";
         case MEAN: return "MEAN";
         case VAR: return "VAR";
-        case SS: return "SS";
         case SC: return "SC";
         case SH: return "SH";
         case DST_ITER: return "DST_ITER";
@@ -329,8 +328,6 @@ static po_table_entry_t kind_table[] = {
         // eltwise
         {pk_t::ELTWISE_START, {"eltwise_undef"}, dnnl_alg_kind_undef},
         {pk_t::ABS, {"abs", "eltwise_abs"}, dnnl_eltwise_abs},
-        {pk_t::BRELU, {"bounded_relu", "eltwise_bounded_relu", "brelu"},
-                dnnl_eltwise_bounded_relu},
         {pk_t::CLIP, {"clip", "eltwise_clip"}, dnnl_eltwise_clip},
         {pk_t::CLIP_V2, {"clip_v2", "eltwise_clip_v2"}, dnnl_eltwise_clip_v2},
         {pk_t::CLIP_V2_DST, {"clip_v2_dst", "eltwise_clip_v2_use_dst_for_bwd"},
@@ -356,8 +353,6 @@ static po_table_entry_t kind_table[] = {
         {pk_t::LOGISTIC_DST,
                 {"logistic_dst", "eltwise_logistic_use_dst_for_bwd"},
                 dnnl_eltwise_logistic_use_dst_for_bwd},
-        {pk_t::LOGSIGMOID, {"logsigmoid", "eltwise_logsigmoid"},
-                dnnl_eltwise_logsigmoid},
         {pk_t::MISH, {"mish", "eltwise_mish"}, dnnl_eltwise_mish},
         {pk_t::POW, {"pow", "eltwise_pow"}, dnnl_eltwise_pow},
         {pk_t::RELU, {"relu", "eltwise_relu"}, dnnl_eltwise_relu},
@@ -370,8 +365,6 @@ static po_table_entry_t kind_table[] = {
         {pk_t::SQUARE, {"square", "eltwise_square"}, dnnl_eltwise_square},
         {pk_t::SRELU, {"soft_relu", "eltwise_soft_relu", "srelu"},
                 dnnl_eltwise_soft_relu},
-        {pk_t::SRELU_V2, {"soft_relu_v2", "eltwise_soft_relu_v2", "srelu_v2"},
-                dnnl_eltwise_soft_relu_v2},
         {pk_t::SWISH, {"swish", "eltwise_swish"}, dnnl_eltwise_swish},
         {pk_t::TANH, {"tanh", "eltwise_tanh"}, dnnl_eltwise_tanh},
         {pk_t::TANH_DST, {"tanh_dst", "eltwise_tanh_use_dst_for_bwd"},
@@ -878,12 +871,11 @@ int attr_args_t::prepare_post_ops_mds(
             for (auto d = 0; d < ndims; ++d)
                 rhs_tensor_dims[d] = (!(mask & (1 << d))) ? 1 : dims[d];
 
-            dnnl_memory_desc_t rhs_tensor_desc;
-            rhs_tensor_desc = dnn_mem_t::init_md(ndims, rhs_tensor_dims,
+            auto rhs_tensor_desc = dnn_mem_t::init_md(ndims, rhs_tensor_dims,
                     po_rhs_tensor_entry.dt, po_rhs_tensor_entry.tag);
             mds.emplace((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
                                 | po_rhs_tensor_entry.arg_attr_mask),
-                    rhs_tensor_desc);
+                    std::move(rhs_tensor_desc));
         }
     }
 
@@ -963,7 +955,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
         for (int idx = 0; idx < po.len(); ++idx) {
             const auto &e = po.entry[idx];
             if (e.is_sum_kind()) {
-                DNN_SAFE_V(dnnl_post_ops_append_sum_v3(
+                DNN_SAFE_V(dnnl_post_ops_append_sum(
                         ops, e.sum.scale, e.sum.zero_point, e.sum.dt));
             } else if (e.is_convolution_kind()) {
                 const auto wei_dt = attr_args.get_dw_arg(DNNL_ARG_WEIGHTS);
@@ -987,9 +979,9 @@ dnnl_primitive_attr_t create_dnnl_attr(
             } else if (e.is_binary_kind()) {
                 const auto &src1_md = attr_args.get_md(
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
-                assert(src1_md.ndims != 0);
+                assert(query_md_ndims(src1_md) != 0);
                 DNN_SAFE_V(dnnl_post_ops_append_binary(
-                        ops, e.binary.alg, &src1_md));
+                        ops, e.binary.alg, src1_md));
             } else if (e.is_prelu_kind()) {
                 const auto &policy = e.prelu.policy;
                 const auto mask = attr_t::get_default_mask(policy);
@@ -1327,10 +1319,7 @@ float compute_eltwise_fwd(
         case pk_t::ABS: return scale * abs_fwd(src);
         case pk_t::SQRT: return scale * sqrt_fwd(src);
         case pk_t::LINEAR: return scale * linear_fwd(src, alpha, beta);
-        case pk_t::BRELU: return scale * bounded_relu_fwd(src, alpha);
-        case pk_t::SRELU: return scale * soft_relu_fwd(src);
-        case pk_t::SRELU_V2: return scale * soft_relu_v2_fwd(src, alpha);
-        case pk_t::LOGSIGMOID: return scale * logsigmoid_fwd(src);
+        case pk_t::SRELU: return scale * soft_relu_fwd(src, alpha);
         case pk_t::MISH: return scale * mish_fwd(src);
         case pk_t::LOGISTIC: return scale * logistic_fwd(src);
         case pk_t::EXP: return scale * exp_fwd(src);
@@ -1342,7 +1331,7 @@ float compute_eltwise_fwd(
         case pk_t::POW: return scale * pow_fwd(src, alpha, beta);
         case pk_t::GELU_ERF: return scale * gelu_erf_fwd(src);
         case pk_t::ROUND: return scale * round_fwd(src);
-        case pk_t::HARDSWISH: return scale * hardswish_fwd(src);
+        case pk_t::HARDSWISH: return scale * hardswish_fwd(src, alpha, beta);
         case pk_t::HARDSIGMOID:
             return scale * hardsigmoid_fwd(src, alpha, beta);
         case pk_t::RELU_DST: return scale * relu_fwd(src, alpha);
@@ -1370,10 +1359,7 @@ float compute_eltwise_bwd(
         case pk_t::ABS: return abs_bwd(d_dst, src);
         case pk_t::SQRT: return sqrt_bwd(d_dst, src);
         case pk_t::LINEAR: return linear_bwd(d_dst, src, alpha, beta);
-        case pk_t::BRELU: return bounded_relu_bwd(d_dst, src, alpha);
-        case pk_t::SRELU: return soft_relu_bwd(d_dst, src);
-        case pk_t::SRELU_V2: return soft_relu_v2_bwd(d_dst, src, alpha);
-        case pk_t::LOGSIGMOID: return logsigmoid_bwd(d_dst, src);
+        case pk_t::SRELU: return soft_relu_bwd(d_dst, src, alpha);
         case pk_t::MISH: return mish_bwd(d_dst, src);
         case pk_t::LOGISTIC: return logistic_bwd(d_dst, src);
         case pk_t::EXP: return exp_bwd(d_dst, src);
@@ -1384,7 +1370,7 @@ float compute_eltwise_bwd(
         case pk_t::CLIP_V2: return clip_v2_bwd(d_dst, src, alpha, beta);
         case pk_t::POW: return pow_bwd(d_dst, src, alpha, beta);
         case pk_t::GELU_ERF: return gelu_erf_bwd(d_dst, src);
-        case pk_t::HARDSWISH: return hardswish_bwd(d_dst, src);
+        case pk_t::HARDSWISH: return hardswish_bwd(d_dst, src, alpha, beta);
         case pk_t::HARDSIGMOID: return hardsigmoid_bwd(d_dst, src, alpha, beta);
 
         case pk_t::RELU_DST: return relu_bwd_use_dst(d_dst, src, alpha);

@@ -41,7 +41,6 @@ flags_t str2flags(const char *str) {
     flags_t flags = NONE;
     while (str && *str) {
         if (*str == 'G') flags |= GLOB_STATS;
-        if (*str == 'S') flags |= USE_SCALESHIFT;
         if (*str == 'C') flags |= USE_SCALE;
         if (*str == 'H') flags |= USE_SHIFT;
         if (*str == 'R') flags |= FUSE_NORM_RELU;
@@ -54,7 +53,6 @@ flags_t str2flags(const char *str) {
 std::string flags2str(flags_t flags) {
     std::string str;
     if (flags & GLOB_STATS) str += "G";
-    if (flags & USE_SCALESHIFT) str += "S";
     if (flags & USE_SCALE) str += "C";
     if (flags & USE_SHIFT) str += "H";
     if (flags & FUSE_NORM_RELU) str += "R";

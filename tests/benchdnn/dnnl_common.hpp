@@ -313,89 +313,12 @@ private:
     std::vector<std::pair<int, const dnn_mem_t *>> args_;
 };
 
-template <typename T>
-struct dnnl_api_traits;
-//{
-//    static void destroy(T t) {}
-//};
-
-template <>
-struct dnnl_api_traits<dnnl_primitive_t> {
-    static void destroy(dnnl_primitive_t t) {
-        DNN_SAFE_V(dnnl_primitive_destroy(t));
-    }
-};
-
-template <>
-struct dnnl_api_traits<dnnl_primitive_desc_t> {
-    static void destroy(dnnl_primitive_desc_t t) {
-        DNN_SAFE_V(dnnl_primitive_desc_destroy(t));
-    }
-};
-
-template <>
-struct dnnl_api_traits<dnnl_primitive_desc_iterator_t> {
-    static void destroy(dnnl_primitive_desc_iterator_t t) {
-        DNN_SAFE_V(dnnl_primitive_desc_iterator_destroy(t));
-    }
-};
-
-template <>
-struct dnnl_api_traits<dnnl_primitive_attr_t> {
-    static void destroy(dnnl_primitive_attr_t t) {
-        DNN_SAFE_V(dnnl_primitive_attr_destroy(t));
-    }
-};
-
-// Generic class providing RAII support for DNNL objects in benchdnn
-template <typename T>
-struct benchdnn_dnnl_wrapper_t {
-    benchdnn_dnnl_wrapper_t(T t = nullptr) : t_(t) {
-        static_assert(std::is_pointer<T>::value, "T is not a pointer type.");
-    }
-
-    benchdnn_dnnl_wrapper_t(benchdnn_dnnl_wrapper_t &&rhs) {
-        T t = rhs.release();
-        t_ = t;
-    }
-
-    ~benchdnn_dnnl_wrapper_t() { do_destroy(); }
-
-    T release() {
-        T tmp = t_;
-        t_ = nullptr;
-        return tmp;
-    }
-
-    void reset(T t) {
-        do_destroy();
-        t_ = t;
-    }
-
-    operator T() const { return t_; }
-
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(benchdnn_dnnl_wrapper_t);
-
-private:
-    T t_;
-
-    void do_destroy() {
-        if (t_) { dnnl_api_traits<T>::destroy(t_); }
-    }
-};
-
-// Constructs a wrapper object (providing RAII support)
-template <typename T>
-benchdnn_dnnl_wrapper_t<T> make_benchdnn_dnnl_wrapper(T t) {
-    return benchdnn_dnnl_wrapper_t<T>(t);
-}
-
 template <typename prb_t>
 struct init_pd_args_t {
     init_pd_args_t(res_t *res, dnnl_engine_t engine, const prb_t *prb,
             dir_t dir, const_dnnl_primitive_desc_t hint)
         : pd(nullptr)
-        , pd_it(nullptr)
+        , is_iterator_supported(true)
         , res(res)
         , engine(engine)
         , prb(prb)
@@ -404,7 +327,8 @@ struct init_pd_args_t {
 
     // Output members
     dnnl_primitive_desc_t pd;
-    dnnl_primitive_desc_iterator_t pd_it;
+
+    bool is_iterator_supported;
 
     // Input members
     res_t *res;
@@ -419,9 +343,7 @@ int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
 int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
         const_dnnl_primitive_desc_t pd, res_t *res);
-int check_pd_w_and_wo_attr(
-        const_dnnl_primitive_desc_t pd, const attr_t &attr, res_t *res);
-int check_mem_size(const dnnl_memory_desc_t &md, res_t *res);
+int check_mem_size(const_dnnl_memory_desc_t md, res_t *res);
 int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res);
 
 bool should_stop(const timer::timer_t &t);
@@ -435,7 +357,6 @@ int measure_prim_create(timer::timer_t &ct,
     dnnl_primitive_t prim_ {};
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pd;
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_it;
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
@@ -446,18 +367,12 @@ int measure_prim_create(timer::timer_t &ct,
     init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint);
     auto status = init_pd_func(init_pd_args);
 
-    if (!init_pd_args.pd && !init_pd_args.pd_it) {
-        status = dnnl_invalid_arguments;
-    } else if (init_pd_args.pd_it) {
-        init_pd_args.pd
-                = dnnl_primitive_desc_iterator_fetch(init_pd_args.pd_it);
-    }
+    if (!init_pd_args.pd) { status = dnnl_invalid_arguments; }
     SAFE((status == dnnl_success ? OK : FAIL), WARN);
     DNN_SAFE(dnnl_primitive_create(&prim_, init_pd_args.pd), WARN);
 
     pd.reset(init_pd_args.pd);
     prim.reset(prim_);
-    pd_it.reset(init_pd_args.pd_it);
 #endif
 
     ct.reset();
@@ -469,12 +384,7 @@ int measure_prim_create(timer::timer_t &ct,
                 res, get_test_engine(), prb, dir, hint);
         status = init_pd_func(init_pd_args);
 
-        if (!init_pd_args.pd && !init_pd_args.pd_it) {
-            status = dnnl_invalid_arguments;
-        } else if (init_pd_args.pd_it) {
-            init_pd_args.pd
-                    = dnnl_primitive_desc_iterator_fetch(init_pd_args.pd_it);
-        }
+        if (!init_pd_args.pd) { status = dnnl_invalid_arguments; }
         SAFE((status == dnnl_success ? OK : FAIL), WARN);
 
         // This primitive is expected to come from the cache.
@@ -484,7 +394,6 @@ int measure_prim_create(timer::timer_t &ct,
 
         pd.reset(init_pd_args.pd);
         prim.reset(prim_);
-        pd_it.reset(init_pd_args.pd_it);
 
         SAFE(check_pd_cache(pd), WARN);
         SAFE(check_primitive_cache(prim), WARN);
@@ -550,16 +459,12 @@ int check_dnnl_status(dnnl_status_t status, const prb_t *prb, res_t *res) {
 //     values.
 template <typename prb_t>
 int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
-        benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> &pd_itw,
         init_pd_args_t<prb_t> &init_pd_args, res_t *res, bool is_service_prim) {
-    if (!init_pd_args.pd && !init_pd_args.pd_it) return FAIL;
+    if (!init_pd_args.pd) return FAIL;
 
-    // Wrappers expected to come empty.
+    // Wrapper is expected to come empty.
     assert(!pdw);
-    assert(!pd_itw);
 
-    pd_itw.reset(init_pd_args.pd_it);
-    if (pd_itw) init_pd_args.pd = dnnl_primitive_desc_iterator_fetch(pd_itw);
     pdw.reset(init_pd_args.pd);
 
     // Service primitive is not supposed to utilize further logic.
@@ -573,21 +478,21 @@ int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
         BENCHDNN_PRINT(6, "Implementation skipped: %s\n", impl_name.c_str());
 
         // Iterator is not supported, further logic is not applicable.
-        if (!pd_itw) {
+        if (!init_pd_args.is_iterator_supported) {
             res->state = SKIPPED;
             res->reason = SKIP_IMPL_HIT;
             return OK;
         }
 
-        auto status = dnnl_primitive_desc_iterator_next(pd_itw);
-        if (status == dnnl_iterator_ends) {
+        auto status = dnnl_primitive_desc_next_impl(pdw);
+        if (status == dnnl_last_impl_reached) {
             BENCHDNN_PRINT(2, "%s\n", "All implementations were skipped!");
             res->state = SKIPPED;
             res->reason = SKIP_IMPL_HIT;
             pdw.reset(nullptr);
             return OK;
         } else if (status == dnnl_success) {
-            pdw.reset(dnnl_primitive_desc_iterator_fetch(pd_itw));
+            continue;
         } else {
             BENCHDNN_PRINT(0, "%s\n", "Unexpected status from pd iterator.");
             return FAIL;
@@ -608,8 +513,8 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
         bool is_service_prim) {
     dnnl_status_t status = dnnl_success;
     dnnl_primitive_t prim {};
+
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_itw;
 
     init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint);
     status = init_pd_func(init_pd_args);
@@ -618,12 +523,35 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
     if (res->state == SKIPPED) return OK;
 
     // Fetch also checks if user requested to skip certain implementations.
-    SAFE(fetch_impl(pdw, pd_itw, init_pd_args, res, is_service_prim), WARN);
+    SAFE(fetch_impl(pdw, init_pd_args, res, is_service_prim), WARN);
     if (res->state == SKIPPED) return OK;
 
     DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN);
     primw.reset(prim);
 
+    return OK;
+}
+
+template <typename func_t, typename prb_t>
+int check_pd_w_and_wo_attr(dnnl_engine_t engine, const func_t &init_pd_func,
+        const prb_t *prb, res_t *res, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
+
+    if (!attr_same_pd_check || prb->attr.is_def()) return OK;
+
+    if (prb->attr.post_ops.convolution_index() != -1) return OK;
+
+    // Check that adding attributes doesn't cause a fall back to another impl.
+    auto *prb_mutable = const_cast<prb_t *>(prb);
+    auto old_attr = prb_mutable->attr;
+    prb_mutable->attr = attr_t();
+    init_pd_args_t<prb_t> init_pd_args_without_attr(
+            res, engine, prb_mutable, dir, hint);
+    DNN_SAFE(init_pd_func(init_pd_args_without_attr), WARN);
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw(
+            init_pd_args_without_attr.pd);
+    prb_mutable->attr = old_attr;
+    SAFE(check_same_pd(pdw, res), WARN);
     return OK;
 }
 
@@ -640,29 +568,14 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     if (res->state == SKIPPED) return OK;
 #ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
-        // The first primitive creation using a temporary engine.
-#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     // The idea is to create the requested primitive twice using different
     // engines but the same device and context in the case of OpenCL and DPCPP.
     // Rationale: make sure that the primitive cache is robust in the case
     // where CPU and GPU engines are re-created because this is a commonly
     // used scenario in the frameworks.
     engine_t engine(get_test_engine());
-#else
-    // The idea is to create the requested primitive twice using
-    // different engines.
-    // Rationale:
-    // 1. Make sure that the primitive cache is robust for the cases when:
-    //   - CPU engine is re-created
-    //   - GPU engine is re-created for the same device but different context
-    // These 2 cases are commonly used or expected to be used in the frameworks.
-    // 2. (for GPU only) Identify context dependent parts in primitive
-    // implementations, e.g. if a primitive implementation contains
-    // a memory_storage_t (for scales, zero points or buffers), which depends
-    // on a particular engine then it should fail at execution time.
-    engine_t engine(engine_tgt_kind);
-#endif
 
+    // The first primitive creation using a temporary engine.
     SAFE(create_primitive(primw, engine, init_pd_func, prb, res, dir, hint,
                  is_service_prim),
             WARN);
@@ -689,7 +602,9 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     res->impl_name = query_impl_info(pd);
     BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
     // Check that adding attributes doesn't cause a fall back to another impl.
-    SAFE(check_pd_w_and_wo_attr(pd, prb->attr, res), WARN);
+    SAFE(check_pd_w_and_wo_attr(
+                 get_test_engine(), init_pd_func, prb, res, dir, hint),
+            WARN);
     // Check primitive descriptor is picked up from the cache, if applicable.
     SAFE(check_pd_cache(pd), WARN);
     // Check primitive is picked up from the cache, if applicable.
@@ -787,7 +702,6 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
             case BIA: arg = DNNL_ARG_DIFF_BIAS; break;
             case MEAN: arg = DNNL_ARG_MEAN; break;
             case VAR: arg = DNNL_ARG_VARIANCE; break;
-            case SS: arg = DNNL_ARG_DIFF_SCALE_SHIFT; break;
             case SC: arg = DNNL_ARG_DIFF_SCALE; break;
             case SH: arg = DNNL_ARG_DIFF_SHIFT; break;
             case DST_ITER: arg = DNNL_ARG_DST_ITER; break;
@@ -833,7 +747,7 @@ std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
         const size_t dst_off);
 
 bool check_md_consistency_with_tag(
-        const dnnl_memory_desc_t &md, const std::string &tag);
+        const_dnnl_memory_desc_t md, const std::string &tag);
 
 memory_kind_ext_t str2memory_kind(const char *str);
 

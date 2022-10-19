@@ -18,6 +18,9 @@
 #include <utility>
 #include "utils/compare.hpp"
 
+// TODO: refactor the driver to avoid using extra flags of a memory descriptor.
+#include "common/memory_desc.hpp"
+
 #include "reorder/graph_reorder.hpp"
 
 namespace benchdnnext {
@@ -476,15 +479,15 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
         // Validate main reorder part.
         // Remove extra desc so that reorders with compensation could have
         // proper reorder from blocked layout to plain for comparison.
-        dnnl_memory_extra_desc_t empty_extra {};
-        const auto orig_dst_extra = dst_dt.md_.extra;
-        dst_dt.md_.extra = empty_extra;
+        dnnl::impl::memory_extra_desc_t empty_extra {};
+        const auto orig_dst_extra = dst_dt.md_->extra;
+        dst_dt.md_->extra = empty_extra;
 
         check_correctness(
                 prb, {DST}, args, ref_args, ::reorder::setup_cmp, res);
 
         // Restore extra for compensation comparison and performance mode.
-        dst_dt.md_.extra = orig_dst_extra;
+        dst_dt.md_->extra = orig_dst_extra;
 
         // Validate compensated reorder part.
         if (prb->is_reorder_with_compensation(::reorder::FLAG_ANY)) {

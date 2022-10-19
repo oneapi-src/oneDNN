@@ -30,6 +30,7 @@
 
 #include "common.hpp"
 #include "oneapi/dnnl/dnnl_types.h"
+#include "utils/wrapper.hpp"
 
 namespace tag {
 extern const char *x;
@@ -82,7 +83,6 @@ enum data_kind_t {
     SRC_1,
     MEAN,
     VAR,
-    SS,
     SC,
     SH,
     // rnn
@@ -215,7 +215,6 @@ struct attr_t {
             // eltwise
             ELTWISE_START, // a guard to check kind is eltwise
             ABS,
-            BRELU,
             CLIP,
             CLIP_V2,
             CLIP_V2_DST,
@@ -231,7 +230,6 @@ struct attr_t {
             LOG,
             LOGISTIC,
             LOGISTIC_DST,
-            LOGSIGMOID,
             MISH,
             POW,
             RELU,
@@ -241,7 +239,6 @@ struct attr_t {
             SQRT_DST,
             SQUARE,
             SRELU,
-            SRELU_V2,
             SWISH,
             TANH,
             TANH_DST,
@@ -471,7 +468,7 @@ struct attr_args_t {
 
     dnnl_memory_desc_t get_md(int arg) const {
         const auto it = mds.find(arg);
-        return it == mds.end() ? dnnl_memory_desc_t() : it->second;
+        return it == mds.end() ? nullptr : (dnnl_memory_desc_t)it->second;
     }
 
     dnnl_data_type_t get_dw_arg(int arg) const {
@@ -493,7 +490,7 @@ private:
     }
 
     std::map<int, entry_t> entries;
-    std::map<int, dnnl_memory_desc_t> mds;
+    std::map<int, benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>> mds;
     dw_t dw_entry; // only single dw fusion is supported
 };
 

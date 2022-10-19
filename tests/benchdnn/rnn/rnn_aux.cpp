@@ -264,146 +264,154 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     return s;
 }
 
-dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
-        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_layer_d,
-        const dnnl_memory_desc_t *src_iter_d,
-        const dnnl_memory_desc_t *src_iter_c_d,
-        const dnnl_memory_desc_t *attention_d,
-        const dnnl_memory_desc_t *weights_layer_d,
-        const dnnl_memory_desc_t *weights_iter_d,
-        const dnnl_memory_desc_t *weights_peephole_d,
-        const dnnl_memory_desc_t *weights_projection_d,
-        const dnnl_memory_desc_t *bias_d, const dnnl_memory_desc_t *dst_layer_d,
-        const dnnl_memory_desc_t *dst_iter_d,
-        const dnnl_memory_desc_t *dst_iter_c_d) {
+dnnl_status_t init_rnn_fwd_pd(dnnl_primitive_desc_t *pd, dnnl_engine_t engine,
+        const prb_t &prb, dnnl_prop_kind_t prop_kind,
+        const_dnnl_memory_desc_t src_layer_d,
+        const_dnnl_memory_desc_t src_iter_d,
+        const_dnnl_memory_desc_t src_iter_c_d,
+        const_dnnl_memory_desc_t attention_d,
+        const_dnnl_memory_desc_t weights_layer_d,
+        const_dnnl_memory_desc_t weights_iter_d,
+        const_dnnl_memory_desc_t weights_peephole_d,
+        const_dnnl_memory_desc_t weights_projection_d,
+        const_dnnl_memory_desc_t bias_d, const_dnnl_memory_desc_t dst_layer_d,
+        const_dnnl_memory_desc_t dst_iter_d,
+        const_dnnl_memory_desc_t dst_iter_c_d, dnnl_primitive_attr_t attr) {
     dnnl_alg_kind_t kind = alg2kind(prb.alg);
     dnnl_alg_kind_t f = activation2kind(prb.activation);
 
-    dnnl_status_t init_status;
+    dnnl_status_t status;
     switch (kind) {
         case dnnl_vanilla_rnn:
-            init_status = dnnl_vanilla_rnn_forward_desc_init(rd, prop_kind, f,
-                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
-                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d, prb.flags,
-                    prb.alpha, prb.beta);
+            status = dnnl_vanilla_rnn_forward_primitive_desc_create(pd, engine,
+                    prop_kind, f, prb.direction, src_layer_d, src_iter_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, prb.flags, prb.alpha, prb.beta, attr);
             break;
         case dnnl_vanilla_lstm:
-            init_status = dnnl_lstm_forward_desc_init_v3(rd, prop_kind,
-                    prb.direction, src_layer_d, src_iter_d, src_iter_c_d,
-                    weights_layer_d, weights_iter_d, weights_peephole_d,
-                    weights_projection_d, bias_d, dst_layer_d, dst_iter_d,
-                    dst_iter_c_d, prb.flags);
+            status = dnnl_lstm_forward_primitive_desc_create(pd, engine,
+                    prop_kind, prb.direction, src_layer_d, src_iter_d,
+                    src_iter_c_d, weights_layer_d, weights_iter_d,
+                    weights_peephole_d, weights_projection_d, bias_d,
+                    dst_layer_d, dst_iter_d, dst_iter_c_d, prb.flags, attr);
             break;
         case dnnl_vanilla_gru:
-            init_status = dnnl_gru_forward_desc_init(rd, prop_kind,
-                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
-                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d, prb.flags);
+            status = dnnl_gru_forward_primitive_desc_create(pd, engine,
+                    prop_kind, prb.direction, src_layer_d, src_iter_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, prb.flags, attr);
             break;
         case dnnl_lbr_gru:
-            init_status = dnnl_lbr_gru_forward_desc_init(rd, prop_kind,
-                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
-                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d, prb.flags);
+            status = dnnl_lbr_gru_forward_primitive_desc_create(pd, engine,
+                    prop_kind, prb.direction, src_layer_d, src_iter_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, prb.flags, attr);
             break;
         case dnnl_vanilla_augru:
-            init_status = dnnl_augru_forward_desc_init(rd, prop_kind,
-                    prb.direction, src_layer_d, src_iter_d, attention_d,
-                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
-                    dst_iter_d, prb.flags);
+            status = dnnl_augru_forward_primitive_desc_create(pd, engine,
+                    prop_kind, prb.direction, src_layer_d, src_iter_d,
+                    attention_d, weights_layer_d, weights_iter_d, bias_d,
+                    dst_layer_d, dst_iter_d, prb.flags, attr);
             break;
         case dnnl_lbr_augru:
-            init_status = dnnl_lbr_augru_forward_desc_init(rd, prop_kind,
-                    prb.direction, src_layer_d, src_iter_d, attention_d,
-                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
-                    dst_iter_d, prb.flags);
+            status = dnnl_lbr_augru_forward_primitive_desc_create(pd, engine,
+                    prop_kind, prb.direction, src_layer_d, src_iter_d,
+                    attention_d, weights_layer_d, weights_iter_d, bias_d,
+                    dst_layer_d, dst_iter_d, prb.flags, attr);
             break;
-        default: init_status = dnnl_unimplemented;
+        default: status = dnnl_unimplemented;
     }
-    return init_status;
+    return status;
 }
 
-dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
-        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_layer_d,
-        const dnnl_memory_desc_t *src_iter_d,
-        const dnnl_memory_desc_t *src_iter_c_d,
-        const dnnl_memory_desc_t *attention_d,
-        const dnnl_memory_desc_t *weights_layer_d,
-        const dnnl_memory_desc_t *weights_iter_d,
-        const dnnl_memory_desc_t *weights_peephole_d,
-        const dnnl_memory_desc_t *weights_projection_d,
-        const dnnl_memory_desc_t *bias_d, const dnnl_memory_desc_t *dst_layer_d,
-        const dnnl_memory_desc_t *dst_iter_d,
-        const dnnl_memory_desc_t *dst_iter_c_d,
-        const dnnl_memory_desc_t *diff_src_layer_d,
-        const dnnl_memory_desc_t *diff_src_iter_d,
-        const dnnl_memory_desc_t *diff_src_iter_c_d,
-        const dnnl_memory_desc_t *diff_attention_d,
-        const dnnl_memory_desc_t *diff_weights_layer_d,
-        const dnnl_memory_desc_t *diff_weights_iter_d,
-        const dnnl_memory_desc_t *diff_weights_peephole_d,
-        const dnnl_memory_desc_t *diff_weights_projection_d,
-        const dnnl_memory_desc_t *diff_bias_d,
-        const dnnl_memory_desc_t *diff_dst_layer_d,
-        const dnnl_memory_desc_t *diff_dst_iter_d,
-        const dnnl_memory_desc_t *diff_dst_iter_c_d) {
+dnnl_status_t init_rnn_bwd_pd(dnnl_primitive_desc_t *pd, dnnl_engine_t engine,
+        const prb_t &prb, dnnl_prop_kind_t prop_kind,
+        const_dnnl_memory_desc_t src_layer_d,
+        const_dnnl_memory_desc_t src_iter_d,
+        const_dnnl_memory_desc_t src_iter_c_d,
+        const_dnnl_memory_desc_t attention_d,
+        const_dnnl_memory_desc_t weights_layer_d,
+        const_dnnl_memory_desc_t weights_iter_d,
+        const_dnnl_memory_desc_t weights_peephole_d,
+        const_dnnl_memory_desc_t weights_projection_d,
+        const_dnnl_memory_desc_t bias_d, const_dnnl_memory_desc_t dst_layer_d,
+        const_dnnl_memory_desc_t dst_iter_d,
+        const_dnnl_memory_desc_t dst_iter_c_d,
+        const_dnnl_memory_desc_t diff_src_layer_d,
+        const_dnnl_memory_desc_t diff_src_iter_d,
+        const_dnnl_memory_desc_t diff_src_iter_c_d,
+        const_dnnl_memory_desc_t diff_attention_d,
+        const_dnnl_memory_desc_t diff_weights_layer_d,
+        const_dnnl_memory_desc_t diff_weights_iter_d,
+        const_dnnl_memory_desc_t diff_weights_peephole_d,
+        const_dnnl_memory_desc_t diff_weights_projection_d,
+        const_dnnl_memory_desc_t diff_bias_d,
+        const_dnnl_memory_desc_t diff_dst_layer_d,
+        const_dnnl_memory_desc_t diff_dst_iter_d,
+        const_dnnl_memory_desc_t diff_dst_iter_c_d,
+        const_dnnl_primitive_desc_t hint, dnnl_primitive_attr_t attr) {
     dnnl_alg_kind_t kind = alg2kind(prb.alg);
     dnnl_alg_kind_t f = activation2kind(prb.activation);
 
-    dnnl_status_t init_status;
+    dnnl_status_t status;
     switch (kind) {
         case dnnl_vanilla_rnn:
-            init_status = dnnl_vanilla_rnn_backward_desc_init(rd, prop_kind, f,
-                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
-                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
-                    diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
-                    diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
-                    diff_dst_iter_d, prb.flags, prb.alpha, prb.beta);
+            status = dnnl_vanilla_rnn_backward_primitive_desc_create(pd, engine,
+                    prop_kind, f, prb.direction, src_layer_d, src_iter_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, diff_src_layer_d, diff_src_iter_d,
+                    diff_weights_layer_d, diff_weights_iter_d, diff_bias_d,
+                    diff_dst_layer_d, diff_dst_iter_d, prb.flags, prb.alpha,
+                    prb.beta, hint, attr);
             break;
         case dnnl_vanilla_lstm:
-            init_status = dnnl_lstm_backward_desc_init_v3(rd, prop_kind,
-                    prb.direction, src_layer_d, src_iter_d, src_iter_c_d,
-                    weights_layer_d, weights_iter_d, weights_peephole_d,
-                    weights_projection_d, bias_d, dst_layer_d, dst_iter_d,
-                    dst_iter_c_d, diff_src_layer_d, diff_src_iter_d,
-                    diff_src_iter_c_d, diff_weights_layer_d,
+            status = dnnl_lstm_backward_primitive_desc_create(pd, engine,
+                    prop_kind, prb.direction, src_layer_d, src_iter_d,
+                    src_iter_c_d, weights_layer_d, weights_iter_d,
+                    weights_peephole_d, weights_projection_d, bias_d,
+                    dst_layer_d, dst_iter_d, dst_iter_c_d, diff_src_layer_d,
+                    diff_src_iter_d, diff_src_iter_c_d, diff_weights_layer_d,
                     diff_weights_iter_d, diff_weights_peephole_d,
                     diff_weights_projection_d, diff_bias_d, diff_dst_layer_d,
-                    diff_dst_iter_d, diff_dst_iter_c_d, prb.flags);
+                    diff_dst_iter_d, diff_dst_iter_c_d, prb.flags, hint, attr);
             break;
         case dnnl_vanilla_gru:
-            init_status = dnnl_gru_backward_desc_init(rd, prop_kind,
-                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
-                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
-                    diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
-                    diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
-                    diff_dst_iter_d, prb.flags);
+            status = dnnl_gru_backward_primitive_desc_create(pd, engine,
+                    prop_kind, prb.direction, src_layer_d, src_iter_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, diff_src_layer_d, diff_src_iter_d,
+                    diff_weights_layer_d, diff_weights_iter_d, diff_bias_d,
+                    diff_dst_layer_d, diff_dst_iter_d, prb.flags, hint, attr);
             break;
         case dnnl_lbr_gru:
-            init_status = dnnl_lbr_gru_backward_desc_init(rd, prop_kind,
-                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
-                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
-                    diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
-                    diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
-                    diff_dst_iter_d, prb.flags);
+            status = dnnl_lbr_gru_backward_primitive_desc_create(pd, engine,
+                    prop_kind, prb.direction, src_layer_d, src_iter_d,
+                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
+                    dst_iter_d, diff_src_layer_d, diff_src_iter_d,
+                    diff_weights_layer_d, diff_weights_iter_d, diff_bias_d,
+                    diff_dst_layer_d, diff_dst_iter_d, prb.flags, hint, attr);
             break;
         case dnnl_vanilla_augru:
-            init_status = dnnl_augru_backward_desc_init(rd, prop_kind,
-                    prb.direction, src_layer_d, src_iter_d, attention_d,
-                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
-                    dst_iter_d, diff_src_layer_d, diff_src_iter_d,
+            status = dnnl_augru_backward_primitive_desc_create(pd, engine,
+                    prop_kind, prb.direction, src_layer_d, src_iter_d,
+                    attention_d, weights_layer_d, weights_iter_d, bias_d,
+                    dst_layer_d, dst_iter_d, diff_src_layer_d, diff_src_iter_d,
                     diff_attention_d, diff_weights_layer_d, diff_weights_iter_d,
-                    diff_bias_d, diff_dst_layer_d, diff_dst_iter_d, prb.flags);
+                    diff_bias_d, diff_dst_layer_d, diff_dst_iter_d, prb.flags,
+                    hint, attr);
             break;
         case dnnl_lbr_augru:
-            init_status = dnnl_lbr_augru_backward_desc_init(rd, prop_kind,
-                    prb.direction, src_layer_d, src_iter_d, attention_d,
-                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
-                    dst_iter_d, diff_src_layer_d, diff_src_iter_d,
+            status = dnnl_lbr_augru_backward_primitive_desc_create(pd, engine,
+                    prop_kind, prb.direction, src_layer_d, src_iter_d,
+                    attention_d, weights_layer_d, weights_iter_d, bias_d,
+                    dst_layer_d, dst_iter_d, diff_src_layer_d, diff_src_iter_d,
                     diff_attention_d, diff_weights_layer_d, diff_weights_iter_d,
-                    diff_bias_d, diff_dst_layer_d, diff_dst_iter_d, prb.flags);
+                    diff_bias_d, diff_dst_layer_d, diff_dst_iter_d, prb.flags,
+                    hint, attr);
             break;
-        default: init_status = dnnl_unimplemented;
+        default: status = dnnl_unimplemented;
     }
-    return init_status;
+    return status;
 }
 
 void init_buffer(float *buf, int64_t size, float value) {

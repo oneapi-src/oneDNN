@@ -156,32 +156,29 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
       - `exp_dst`
       - `gelu_erf`
       - `gelu_tanh`
-      - `hardswish`
       - `log`
       - `logistic`
       - `logistic_dst`
-      - `logsigmoid`
       - `mish`
       - `round`
       - `sqrt`
       - `sqrt_dst`
       - `square`
-      - `soft_relu`
       - `tanh`
       - `tanh_dst`
   - Eltwise operations that support only alpha:
-      - `bounded_relu`
       - `elu`
       - `elu_dst`
       - `relu`
       - `relu_dst`
-      - `soft_relu_v2`
+      - `soft_relu`
       - `swish`
   - Eltwise operations that support both alpha and beta:
       - `clip`
       - `clip_v2`
       - `clip_v2_dst`
       - `hardsigmoid`
+      - `hardswish`
       - `linear`
       - `pow`
 

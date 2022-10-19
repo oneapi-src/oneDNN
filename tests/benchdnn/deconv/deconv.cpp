@@ -57,7 +57,7 @@ double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
         int count = 0;
 
         // Check for all post-ops that convert negative to zero
-        std::vector<pk> non_neg_po {pk::ABS, pk::BRELU};
+        std::vector<pk> non_neg_po {pk::ABS};
         std::vector<pk> non_neg_alpha_0_po {
                 pk::CLIP, pk::CLIP_V2, pk::ELU, pk::RELU};
         for (int i = 0; i < po.len(); ++i) {
@@ -347,8 +347,6 @@ int fill_dst(
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    dnnl_deconvolution_desc_t cd;
-
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->src_dims().data(), prb->cfg[SRC].dt, prb->stag);
     auto wei_d = dnn_mem_t::init_md(prb->ndims + prb->has_groups,
@@ -361,39 +359,6 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     dnnl_alg_kind_t alg = dnnl_deconvolution_direct;
     if (prb->alg == WINO) alg = dnnl_deconvolution_winograd;
 
-    switch (prb->dir) {
-        case FWD_D:
-        case FWD_B:
-        case FWD_I:
-            DNN_SAFE_STATUS(dnnl_dilated_deconvolution_forward_desc_init(&cd,
-                    prb->dir == FWD_I ? dnnl_forward_inference
-                                      : dnnl_forward_training,
-                    alg, &src_d, &wei_d, prb->dir == FWD_B ? &bia_d : nullptr,
-                    &dst_d, prb->strides().data(), prb->dilations().data(),
-                    prb->padding().data(), prb->padding_r().data()));
-            break;
-        case BWD_D:
-            DNN_SAFE_STATUS(dnnl_dilated_deconvolution_backward_data_desc_init(
-                    &cd, alg, &src_d, &wei_d, &dst_d, prb->strides().data(),
-                    prb->dilations().data(), prb->padding().data(),
-                    prb->padding_r().data()));
-            break;
-        case BWD_W:
-        case BWD_WB:
-            DNN_SAFE_STATUS(
-                    dnnl_dilated_deconvolution_backward_weights_desc_init(&cd,
-                            alg, &src_d, &wei_d,
-                            prb->dir == BWD_W ? nullptr : &bia_d, &dst_d,
-                            prb->strides().data(), prb->dilations().data(),
-                            prb->padding().data(), prb->padding_r().data()));
-            break;
-        default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
-    }
-
-    DNN_SAFE_STATUS(cd.accum_data_type == prb->cfg[ACC].dt
-                    ? dnnl_success
-                    : dnnl_unimplemented);
-
     attr_args_t attr_args;
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
     attr_args.prepare_post_ops_mds(
@@ -401,8 +366,48 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_iterator_create(&init_pd_args.pd_it, &cd,
-            dnnl_attr, init_pd_args.engine, init_pd_args.hint);
+    switch (prb->dir) {
+        case FWD_D:
+        case FWD_B:
+        case FWD_I:
+            if (prb->dir != FWD_B) bia_d.reset(nullptr);
+            DNN_SAFE_STATUS(dnnl_deconvolution_forward_primitive_desc_create(
+                    &init_pd_args.pd, init_pd_args.engine,
+                    prb->dir == FWD_I ? dnnl_forward_inference
+                                      : dnnl_forward_training,
+                    alg, src_d, wei_d, bia_d, dst_d, prb->strides().data(),
+                    prb->dilations().data(), prb->padding().data(),
+                    prb->padding_r().data(), dnnl_attr));
+            break;
+        case BWD_D:
+            DNN_SAFE_STATUS(
+                    dnnl_deconvolution_backward_data_primitive_desc_create(
+                            &init_pd_args.pd, init_pd_args.engine, alg, src_d,
+                            wei_d, dst_d, prb->strides().data(),
+                            prb->dilations().data(), prb->padding().data(),
+                            prb->padding_r().data(), init_pd_args.hint,
+                            dnnl_attr));
+            break;
+        case BWD_W:
+        case BWD_WB:
+            if (prb->dir == BWD_W) bia_d.reset(nullptr);
+            DNN_SAFE_STATUS(
+                    dnnl_deconvolution_backward_weights_primitive_desc_create(
+                            &init_pd_args.pd, init_pd_args.engine, alg, src_d,
+                            wei_d, bia_d, dst_d, prb->strides().data(),
+                            prb->dilations().data(), prb->padding().data(),
+                            prb->padding_r().data(), init_pd_args.hint,
+                            dnnl_attr));
+            break;
+        default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
+    }
+
+    // TODO: enabled back when query is added to pd??
+    //DNN_SAFE_STATUS(cd.accum_data_type == prb->cfg[ACC].dt
+    //                ? dnnl_success
+    //                : dnnl_unimplemented);
+
+    return dnnl_success;
 }
 
 int init_prim_ref(
@@ -424,8 +429,7 @@ int init_prim_ref(
     init_pd(init_pd_args);
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_iterator_t> pd_itw;
-    fetch_impl(pdw, pd_itw, init_pd_args, /* res = */ nullptr,
+    fetch_impl(pdw, init_pd_args, /* res = */ nullptr,
             /* is_service_prim = */ true);
 
     dnnl_primitive_t prim_ref_ {};
@@ -499,10 +503,13 @@ int doit(const prb_t *prb, res_t *res) {
             ? query_md(const_pd, DNNL_ARG_DIFF_DST)
             : query_md(const_pd, DNNL_ARG_DST);
     const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-    auto wei_tr_md = wei_md;
+
+    dnnl_dims_t wei_tr_dims {};
+    dnnl_dim_t wei_ndims = query_md_ndims(wei_md);
+    std::copy(query_md_dims(wei_md), query_md_dims(wei_md) + wei_ndims,
+            wei_tr_dims);
 
     const bool with_groups = true;
-    auto &wei_tr_dims = wei_tr_md.dims;
     std::swap(wei_tr_dims[with_groups + 0], wei_tr_dims[with_groups + 1]);
 
     const auto fp = dnnl_f32;
@@ -535,7 +542,7 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t src_fp(src_md, fp, src_tag, ref_engine);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, ref_engine);
     dnn_mem_t dst_fp(dst_md, fp, src_tag, ref_engine);
-    dnn_mem_t wei_tr_fp(wei_tr_md, fp, wei_tag, ref_engine);
+    dnn_mem_t wei_tr_fp(wei_ndims, wei_tr_dims, fp, wei_tag, ref_engine);
     dnn_mem_t bia_fp(bia_md, fp, tag::x, ref_engine);
     dnn_mem_t scratchpad_fp;
 

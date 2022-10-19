@@ -88,8 +88,8 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    dnnl_binary_desc_t bd;
-    std::vector<dnnl_memory_desc_t> src_d(prb->n_inputs());
+    std::vector<benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>> src_d(
+            prb->n_inputs());
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
         const dims_t &i_vdims = prb->vdims[i_input];
@@ -102,16 +102,15 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
 
-    DNN_SAFE_STATUS(
-            dnnl_binary_desc_init(&bd, alg, &src_d[0], &src_d[1], &dst_d));
-
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    return dnnl_primitive_desc_iterator_create(&init_pd_args.pd_it, &bd,
-            dnnl_attr, init_pd_args.engine, init_pd_args.hint);
+    DNN_SAFE_STATUS(dnnl_binary_primitive_desc_create(&init_pd_args.pd,
+            init_pd_args.engine, alg, src_d[0], src_d[1], dst_d, dnnl_attr));
+
+    return dnnl_success;
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

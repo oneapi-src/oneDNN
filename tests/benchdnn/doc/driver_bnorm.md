@@ -13,10 +13,9 @@ where *bnorm-knobs* are:
             Refer to [data types](knobs_dt.md) for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
- - `--flags=[|G|S|C|H|R|A]` -- batch normalization flags, default `none`; where
+ - `--flags=[|G|C|H|R|A]` -- batch normalization flags, default `none`; where
             multiple simultaneous flags are supported.
             `G` is dnnl_use_global_stats;
-            `S` is dnnl_use_scaleshift;
             `C` is dnnl_use_scale;
             `H` is dnnl_use_shift;
             `R` is dnnl_fuse_norm_relu;
@@ -62,18 +61,18 @@ Run a named problem with single precision src/dst, skipping all problems that
 use the reference implementation, iterating by:
 1) blocked memory layouts, where channel blocking equals 8 and 16,
 2) forward training, backward by data and weights prop_kinds,
-3) all flag combinations:
+3) some flag combinations:
 ``` sh
     ./benchdnn --bnorm --dt=f32 --skip-impl=ref --tag=nChw8c,nChw16c \
-               --dir=FWD_D,BWD_D,BWD_DW --flags=SR,GS,S \
+               --dir=FWD_D,BWD_D,BWD_DW --flags=CHR,GCH,CH \
                mb96_ic192_ih71iw71_n"googlenet_v3:conv_4_4_batchnorm"
 ```
 
 Run a set of 3D spatial bnorms with s8 src/dst data_type, inference prop_kind,
-plain physical memory layout with dense channels, and all three flags specified:
+plain physical memory layout with dense channels, and some flags specified:
 ``` sh
     ./benchdnn --bnorm --dt=s8 --tag=ndhwc --dir=FWD_I \
-               --flags=GSR --batch=shapes_3d
+               --flags=GCHR --batch=shapes_3d
 ```
 
 More examples with different driver options can be found at

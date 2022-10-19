@@ -12,6 +12,12 @@
 --batch=shapes_2d_no_tail_f32
 --attr-fpmath=
 
+--dt=f16,f16:f32:f32,f32:f16:f32
+--bia_dt=undef,f32,f16
+--brgemm-attr=
+--attr-fpmath=
+--batch=shapes_2d_no_tail_f32
+
 --dt=bf16,bf16:bf16:f32
 --bia_dt=undef,f32,bf16
 --brgemm-attr=,use_uker:1
@@ -25,7 +31,7 @@
 
 --alpha=1
 --beta=0
---bia_dt=f32,bf16,s8
+--bia_dt=f32,bf16,f16,s8
 --batch=shapes_2d_no_tail_int8
 --bia_dt=undef
 

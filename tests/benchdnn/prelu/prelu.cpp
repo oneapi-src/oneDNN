@@ -95,14 +95,14 @@ int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         const auto kind = dnnl_post_ops_get_kind(const_attr_po, idx);
         if (kind != dnnl_prelu) continue;
 
-        const auto ndims = dst_md.ndims;
+        const auto ndims = query_md_ndims(dst_md);
         int mask = 0;
         dnnl_dims_t dims = {0};
         dnnl_post_ops_get_params_prelu(const_attr_po, idx, &mask);
 
         // Deduce prelu weights dims based on input policy.
         for (int d = 0; d < ndims; ++d) {
-            dims[d] = (mask & (1 << d)) ? dst_md.dims[d] : 1;
+            dims[d] = (mask & (1 << d)) ? query_md_dims(dst_md)[d] : 1;
         }
 
         // Following call can not be executed if po_md has runtime dimension due
@@ -119,36 +119,41 @@ int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    dnnl_prelu_desc_t pd;
-
     const auto &src_dims = prb->vdims[0];
     const auto &weight_dims = prb->vdims[1];
 
-    auto data_d = dnn_mem_t::init_md(
+    auto src_d = dnn_mem_t::init_md(
             prb->ndims, src_dims.data(), prb->sdt[0], prb->stag[0]);
     auto weights_d = dnn_mem_t::init_md(
             prb->ndims, weight_dims.data(), prb->sdt[1], prb->stag[1]);
 
-    if (prb->dir & FLAG_FWD) {
-        auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
-                                        : dnnl_forward_training;
-        DNN_SAFE_STATUS(
-                dnnl_prelu_forward_desc_init(&pd, prop, &data_d, &weights_d));
-    } else {
-        auto diff_data_d = dnn_mem_t::init_md(
-                prb->ndims, src_dims.data(), prb->sdt[0], prb->stag[0]);
-        auto diff_weights_d = dnn_mem_t::init_md(
-                prb->ndims, weight_dims.data(), prb->sdt[1], prb->stag[1]);
-
-        DNN_SAFE_STATUS(dnnl_prelu_backward_desc_init(
-                &pd, &data_d, &weights_d, &diff_data_d, &diff_weights_d));
-    }
-
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
-    return dnnl_primitive_desc_iterator_create(&init_pd_args.pd_it, &pd,
-            dnnl_attr, init_pd_args.engine, init_pd_args.hint);
+    if (prb->dir & FLAG_FWD) {
+        auto dst_d = dnn_mem_t::init_md(
+                prb->ndims, src_dims.data(), prb->sdt[0], tag::any);
+
+        auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
+                                        : dnnl_forward_training;
+        DNN_SAFE_STATUS(dnnl_prelu_forward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, prop, src_d, weights_d,
+                dst_d, dnnl_attr));
+    } else {
+        auto diff_src_d = dnn_mem_t::init_md(
+                prb->ndims, src_dims.data(), prb->sdt[0], tag::any);
+        auto diff_weights_d = dnn_mem_t::init_md(
+                prb->ndims, weight_dims.data(), prb->sdt[1], tag::any);
+        auto diff_dst_d = dnn_mem_t::init_md(
+                prb->ndims, src_dims.data(), prb->sdt[0], tag::any);
+
+        DNN_SAFE_STATUS(dnnl_prelu_backward_primitive_desc_create(
+                &init_pd_args.pd, init_pd_args.engine, src_d, weights_d,
+                diff_src_d, diff_weights_d, diff_dst_d, init_pd_args.hint,
+                dnnl_attr));
+    }
+
+    return dnnl_success;
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

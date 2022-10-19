@@ -24,14 +24,12 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
     const dnn_mem_t &mean = args.find(DNNL_ARG_MEAN);
     const dnn_mem_t &var = args.find(DNNL_ARG_VARIANCE);
-    const dnn_mem_t &ss
-            = args.find(prb->use_sc() ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    const dnn_mem_t &sc = args.find(DNNL_ARG_SCALE);
     const dnn_mem_t &sh = args.find(DNNL_ARG_SHIFT);
     const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
 
     float *dst_ptr = (float *)dst;
 
-    const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
@@ -41,9 +39,8 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
         float sqrt_var = sqrtf(svar + prb->eps);
 
         for (int64_t c = 0; c < prb->c; ++c) {
-            float gamma = (use_ss || use_sc ? ss.get_elem(c) : 1.0f) / sqrt_var;
-            float beta = use_ss ? ss.get_elem(prb->c + c)
-                                : use_sh ? sh.get_elem(c) : 0;
+            float gamma = (use_sc ? sc.get_elem(c) : 1.0f) / sqrt_var;
+            float beta = use_sh ? sh.get_elem(c) : 0;
             auto off = n * prb->c + c;
             float res = gamma * (src.get_elem(off) - smean) + beta;
             maybe_oscale(prb->attr, res, prb->scales, 0);
@@ -57,22 +54,19 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &mean = args.find(DNNL_ARG_MEAN);
     const dnn_mem_t &var = args.find(DNNL_ARG_VARIANCE);
     const dnn_mem_t &d_dst = args.find(DNNL_ARG_DIFF_DST);
-    const dnn_mem_t &ss
-            = args.find(prb->use_sc() ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
+    const dnn_mem_t &sc = args.find(DNNL_ARG_SCALE);
     const dnn_mem_t &d_src = args.find(DNNL_ARG_DIFF_SRC);
-    const dnn_mem_t &d_ss = args.find(
-            prb->use_sc() ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
+    const dnn_mem_t &d_sc = args.find(DNNL_ARG_DIFF_SCALE);
     const dnn_mem_t &d_sh = args.find(DNNL_ARG_DIFF_SHIFT);
 
     float *d_src_ptr = (float *)d_src;
-    float *d_ss_ptr = (float *)d_ss;
+    float *d_sc_ptr = (float *)d_sc;
     float *d_sh_ptr = (float *)d_sh;
 
-    const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
-    if ((use_ss || use_sc || use_sh) && (prb->dir & FLAG_WEI)) {
+    if ((use_sc || use_sh) && (prb->dir & FLAG_WEI)) {
         benchdnn_parallel_nd(prb->c, [&](int64_t c) {
             float d_gamma = 0;
             float d_beta = 0;
@@ -87,12 +81,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
                 d_beta += dd;
             }
 
-            if (use_ss) {
-                d_ss_ptr[c] = d_gamma;
-                d_ss_ptr[prb->c + c] = d_beta;
-            }
-
-            if (use_sc) d_ss_ptr[c] = d_gamma;
+            if (use_sc) d_sc_ptr[c] = d_gamma;
             if (use_sh) d_sh_ptr[c] = d_beta;
         });
     }
@@ -107,14 +96,14 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
                 auto off = n * prb->c + c;
                 float ds = d_dst.get_elem(off);
                 const float x = src.get_elem(off) - smean;
-                float gamma = use_ss || use_sc ? ss.get_elem(c) : 1;
+                float gamma = use_sc ? sc.get_elem(c) : 1;
                 dd_gamma += gamma * ds;
                 dd_gamma_x += gamma * ds * x;
             }
             dd_gamma_x *= rcp_denom;
         }
         for (int64_t c = 0; c < prb->c; ++c) {
-            float gamma = use_ss || use_sc ? ss.get_elem(c) : 1;
+            float gamma = use_sc ? sc.get_elem(c) : 1;
             auto off = n * prb->c + c;
             float ds = d_dst.get_elem(off) * gamma;
             if (!(prb->flags & GLOB_STATS)) {

@@ -66,10 +66,10 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        if (api_mode == GRAPH)
-            benchdnnext::lnorm::doit(&prb, &res);
-        else
-            doit(&prb, &res);
+        // if (api_mode == GRAPH)
+        //     benchdnnext::lnorm::doit(&prb, &res);
+        // else
+        doit(&prb, &res);
 
         parse_result(res, pstr);
 
@@ -82,8 +82,8 @@ void check_correctness(const settings_t &s) {
 
 static const std::string help_flags
         = "FLAGS    (Default: not specified)\n    Specifies normalization "
-          "flags. `FLAGS` values are:\n    * `G` for global_stats.\n    * `S` "
-          "for scaleshift.\n    * `C` for scale.\n    * `H` for shift.\n";
+          "flags. `FLAGS` values are:\n    * `G` for global_stats.\n    * `C` "
+          "for scale.\n    * `H` for shift.\n";
 
 int bench(int argc, char **argv) {
     driver_name = "lnorm";

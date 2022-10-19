@@ -185,7 +185,6 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     }
 
     const bool is_fwd = prb->dir & FLAG_FWD;
-    const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
@@ -216,17 +215,8 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     const dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
     dnn_mem_t scale_fp, scale_dt, d_shift_dt, d_scale_dt;
-    if (use_sc || use_sh) {
-        scale_fp = make_dnn_mem(is_fwd ? ins[3] : ins[4], dt::f32, tag::abx);
-        scale_dt = make_dnn_mem(is_fwd ? ins[3] : ins[4], dt::f32, tag::abx);
-    } else {
-        // scale and shift are combined in a single 2D tensor of shape 2xC
-        // this logical_tensor is used to indicate the memory size for scale
-        dnnl::graph::logical_tensor lt {0, dt::f32, {2, prb->ic},
-                dnnl::graph::logical_tensor::layout_type::strided};
-        scale_fp = make_dnn_mem(lt, dt::f32, tag::abx);
-        scale_dt = make_dnn_mem(lt, dt::f32, tag::abx);
-    }
+    scale_fp = make_dnn_mem(is_fwd ? ins[3] : ins[4], dt::f32, tag::abx);
+    scale_dt = make_dnn_mem(is_fwd ? ins[3] : ins[4], dt::f32, tag::abx);
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
     dnn_mem_t r_mean_dt, r_var_dt, b_mean_dt, b_var_dt;
@@ -237,14 +227,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
         cleanup();
         return res->state = MISTRUSTED, OK;
     }
-    /*  When dnnl_use_scaleshift is used, benchdnn populates data
-        to the same memory for scale and shift and dnnlgraph expects
-        the data in scale and shift. Hence this explicit copy. */
-    if (!(use_sc || use_sh)) {
-        for (int64_t i = 0; i < prb->ic; i++) {
-            shift_fp.set_elem(i, scale_fp.get_elem(prb->ic + i));
-        }
-    }
+
     SAFE(src_dt.reorder(src_fp), WARN);
     SAFE(src_add_dt.reorder(src_add_fp), WARN);
     SAFE(scale_dt.reorder(scale_fp), WARN);
@@ -288,8 +271,7 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_MEAN, mean_fp);
             ref_args.set(DNNL_ARG_VARIANCE, var_fp);
-            ref_args.set(
-                    use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, scale_fp);
+            ref_args.set(DNNL_ARG_SCALE, scale_fp);
             ref_args.set(DNNL_ARG_SHIFT, shift_fp);
             ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
@@ -328,13 +310,6 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
         if (use_sc || use_sh) {
             d_scale_fp = make_dnn_mem(outs[1], dt::f32, tag::abx);
             d_scale_dt = make_dnn_mem(outs[1], dt::f32, tag::abx);
-        } else {
-            // scale and shift are combined in a single 2D tensor of shape 2xC
-            // this logical_tensor is used to indicate the memory size for scale
-            dnnl::graph::logical_tensor lt {0, dt::f32, {2, prb->ic},
-                    dnnl::graph::logical_tensor::layout_type::strided};
-            d_scale_fp = make_dnn_mem(lt, dt::f32, tag::abx);
-            d_scale_dt = make_dnn_mem(lt, dt::f32, tag::abx);
         }
         auto d_shift_fp
                 = make_dnn_mem(outs[2], dt::f32, use_sh ? tag::x : tag::axb);
@@ -352,43 +327,31 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
         if (is_bench_mode(CORR)) {
             SAFE(execute_and_wait(cp, tensors_in, tensors_out, res), WARN);
 
-            if (use_ss) {
-                for (int64_t i = 0; i < prb->ic; i++) {
-                    d_scale_dt.set_elem(prb->ic + i, d_shift_dt.get_elem(i));
-                }
-            }
-
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_MEAN, mean_fp);
             ref_args.set(DNNL_ARG_VARIANCE, var_fp);
-            ref_args.set(
-                    use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, scale_fp);
+            ref_args.set(DNNL_ARG_SCALE, scale_fp);
             ref_args.set(DNNL_ARG_SHIFT, shift_fp);
             ref_args.set(DNNL_ARG_WORKSPACE, ws_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(DNNL_ARG_DST_1, src_hat_fp); // Reference aux arg.
             ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
-            ref_args.set(
-                    use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
-                    d_scale_fp);
+            ref_args.set(DNNL_ARG_DIFF_SCALE, d_scale_fp);
             ref_args.set(DNNL_ARG_DIFF_SHIFT, d_shift_fp);
 
             args.set(DNNL_ARG_SRC, src_dt);
             args.set(DNNL_ARG_MEAN, mean_dt);
             args.set(DNNL_ARG_VARIANCE, var_dt);
             args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
-            args.set(use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT, scale_dt);
+            args.set(DNNL_ARG_SCALE, scale_dt);
             args.set(DNNL_ARG_SHIFT, shift_dt);
             args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
-            args.set(use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT,
-                    d_scale_dt);
+            args.set(DNNL_ARG_DIFF_SCALE, d_scale_dt);
             args.set(DNNL_ARG_DIFF_SHIFT, d_shift_dt);
 
             std::vector<data_kind_t> kinds {SRC};
-            if ((use_ss || use_sc) && (prb->dir & FLAG_WEI)) {
-                kinds.push_back(use_sc ? SC : SS);
-            }
+            if (use_sc && (prb->dir & FLAG_WEI)) kinds.push_back(SC);
             if (use_sh && (prb->dir & FLAG_WEI)) kinds.push_back(SH);
             check_correctness(
                     prb, kinds, args, ref_args, ::bnorm::setup_cmp, res);

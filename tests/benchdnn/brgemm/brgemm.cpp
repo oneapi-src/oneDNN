@@ -23,6 +23,9 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+// TODO: refactor the driver to avoid using extra flags of a memory descriptor.
+#include "src/common/memory_desc.hpp"
+
 #include "tests/test_isa_common.hpp"
 
 #include "utils/parallel.hpp"
@@ -113,7 +116,8 @@ dnnl_status_t brgemm_attr_init(
     return dnnl_success;
 }
 
-std::string prepare_wei_format_string(dnnl_data_type_t dt, int64_t n) {
+std::string prepare_wei_format_string(
+        dnnl_data_type_t dt, int64_t n, bool is_vnni_layout) {
     // `dt` affects the choice of last inner block (for VNNI-friendliness).
     // `n` affects the choice of B block.
     std::string wtag("BA16a");
@@ -126,12 +130,16 @@ std::string prepare_wei_format_string(dnnl_data_type_t dt, int64_t n) {
             wtag += "16b";
             break;
     }
-    switch (dt) {
-        case dnnl_f32: break;
-        case dnnl_bf16: wtag += "2a"; break;
-        case dnnl_s8: wtag += "4a"; break;
-        default: assert(!"unsupported data type");
+    if (is_vnni_layout) {
+        switch (dt) {
+            case dnnl_f32: break;
+            case dnnl_f16:
+            case dnnl_bf16: wtag += "2a"; break;
+            case dnnl_s8: wtag += "4a"; break;
+            default: assert(!"unsupported data type");
+        }
     }
+
     return wtag;
 }
 
@@ -187,11 +195,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
         }
     });
 
-    const bool swap_dt
-            = kind == DST && cfg.get_orig_dt(kind) != cfg.get_dt(kind);
-    if (swap_dt) mem_dt.set_dt(cfg.get_dt(kind));
     SAFE(mem_dt.reorder(mem_fp), WARN);
-    if (swap_dt) mem_dt.set_dt(cfg.get_orig_dt(kind));
 
     return OK;
 }
@@ -276,57 +280,8 @@ int doit(const prb_t *prb, res_t *res) {
     dims_t dst_strides = {prb->get_ldd(), 1};
     dims_t acc_strides = use_dst_as_acc ? dst_strides : dims_t();
 
-    auto src_md = dnn_mem_t::init_md(
-            prb->ndims, src_dims, prb->src_dt(), prb->stag, src_strides);
-
-    // Create weights memory descriptor with VNNI-friendly format.
-    // Note: LDB is not passed here. This is because it's super difficult to
-    // incorporate stride on top of blocking - oneDNN API doesn't provide any
-    // calls to support both options together. Submemory descriptor, which is
-    // the only one who can create such memory desc, can't return the size of
-    // memory. Thus, it requires two memories and we need to pass a memory
-    // handle from bigger one (where LDB is an actual dim value) to smaller, but
-    // there's some reorder bug resulting in an error.
-    const auto wtag = prepare_wei_format_string(prb->wei_dt(), prb->n);
-    BENCHDNN_PRINT(6, "wtag: %s\n", wtag.c_str());
-    auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(), wtag);
-
-    const size_t wei_offset_s8s8 = dnnl_memory_desc_get_size(&wei_md);
-    // Prepare and assign extra for wei_md when s8s8 compensation, or source
-    // zero point reduction values are needed.
-    dnnl_memory_extra_desc_t wei_md_extra {};
-    wei_md_extra.flags = dnnl_memory_extra_flag_none;
-    if (prb->get_dt(SRC) == dnnl_s8 && prb->get_dt(WEI) == dnnl_s8) {
-        wei_md_extra.flags |= dnnl_memory_extra_flag_compensation_conv_s8s8;
-        wei_md_extra.compensation_mask = 2; // N dimension
-    }
-    wei_md.extra = wei_md_extra;
-
-    const size_t wei_offset_zp = wei_offset_s8s8
-            + (wei_md_extra.flags != dnnl_memory_extra_flag_none
-                            ? prb->get_ldb() * sizeof(int32_t)
-                            : 0);
-
-    const bool need_src_comp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
-    if (need_src_comp) {
-        wei_md_extra.flags
-                |= dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
-        wei_md_extra.asymm_compensation_mask = 2; // N dimension
-    }
-    wei_md.extra = wei_md_extra;
-
-    // Same as dst_md but with a pre-defined data type according to doc.
-    auto acc_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
-            prb->acc_dt(), tag::abx, acc_strides);
     auto dst_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
             prb->dst_dt(), prb->dtag, dst_strides);
-
-    dnnl_memory_desc_t bia_md {};
-    if (prb->bia_dt != dnnl_data_type_undef) {
-        const dnnl_dims_t bia_dims = {1, prb->n};
-        bia_md = dnn_mem_t::init_md(
-                prb->ndims, bia_dims, prb->bia_dt, tag::abx);
-    }
 
     using namespace dnnl::impl::cpu::x64;
 
@@ -336,15 +291,15 @@ int doit(const prb_t *prb, res_t *res) {
     brgemm_batch_kind_t batch_kind = brgemm_batch_kind_t::brgemm_addr;
     brgemm_layout_t layout = brgemm_layout_t::brgemm_row_major;
 
-    // Pass `isa_any` for now since internal work with it or rather isa bits
+    // Pass `isa_undef` for now since internal work with it or rather isa bits
     // than isa values directly which causes misalignment between public enum
     // and internal values.
     // TODO: re-consider enabling isa values.
-    const auto isa_any = cpu_isa_t::isa_any;
+    const auto isa_undef = cpu_isa_t::isa_undef;
 
     // Create BRGeMM descriptor, analogous to primitive descriptor creation
-    const auto status_init = brgemm_desc_init(&brgemm_desc, isa_any, batch_kind,
-            prb->src_dt(), prb->wei_dt(), false /* transA */,
+    const auto status_init = brgemm_desc_init(&brgemm_desc, isa_undef,
+            batch_kind, prb->src_dt(), prb->wei_dt(), false /* transA */,
             false /* transB */, layout, prb->alpha, prb->beta, prb->get_lda(),
             prb->get_ldb(), prb->get_ldc(use_dst_as_acc), prb->m, prb->n,
             prb->k, nullptr /* strides */);
@@ -361,7 +316,7 @@ int doit(const prb_t *prb, res_t *res) {
             create_dnnl_attr(prb->attr, attr_args));
 
     SAFE(check_dnnl_status(brgemm_desc_set_postops(&brgemm_desc, dnnl_attr,
-                                   &dst_md, prb->get_ldd(), prb->bia_dt),
+                                   dst_md, prb->get_ldd(), prb->bia_dt),
                  prb, res),
             WARN);
     if (res->state == SKIPPED) return OK;
@@ -389,6 +344,58 @@ int doit(const prb_t *prb, res_t *res) {
     const auto init_tile_status = brgemm_init_tiles(brgemm_desc, palette);
     if (init_tile_status == dnnl_success)
         DNN_SAFE(amx_tile_configure(palette), WARN);
+
+    auto src_md = dnn_mem_t::init_md(
+            prb->ndims, src_dims, prb->src_dt(), prb->stag, src_strides);
+
+    // Create weights memory descriptor with VNNI-friendly format.
+    // Note: LDB is not passed here. This is because it's super difficult to
+    // incorporate stride on top of blocking - oneDNN API doesn't provide any
+    // calls to support both options together. Submemory descriptor, which is
+    // the only one who can create such memory desc, can't return the size of
+    // memory. Thus, it requires two memories and we need to pass a memory
+    // handle from bigger one (where LDB is an actual dim value) to smaller, but
+    // there's some reorder bug resulting in an error.
+    const auto wtag = prepare_wei_format_string(
+            prb->wei_dt(), prb->n, brgemm_desc.is_b_data_layout_vnni());
+    BENCHDNN_PRINT(6, "wtag: %s\n", wtag.c_str());
+    auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(), wtag);
+
+    const size_t wei_offset_s8s8 = dnnl_memory_desc_get_size(wei_md);
+    // Prepare and assign extra for wei_md when s8s8 compensation, or source
+    // zero point reduction values are needed.
+    dnnl::impl::memory_extra_desc_t wei_md_extra {};
+    wei_md_extra.flags = dnnl::impl::memory_extra_flags::none;
+    if (prb->get_dt(SRC) == dnnl_s8 && prb->get_dt(WEI) == dnnl_s8) {
+        wei_md_extra.flags
+                |= dnnl::impl::memory_extra_flags::compensation_conv_s8s8;
+        wei_md_extra.compensation_mask = 2; // N dimension
+    }
+    static_cast<dnnl_memory_desc_t>(wei_md)->extra = wei_md_extra;
+
+    const size_t wei_offset_zp = wei_offset_s8s8
+            + (wei_md_extra.flags != dnnl::impl::memory_extra_flags::none
+                            ? prb->get_ldb() * sizeof(int32_t)
+                            : 0);
+
+    const bool need_src_comp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
+    if (need_src_comp) {
+        wei_md_extra.flags |= dnnl::impl::memory_extra_flags::
+                compensation_conv_asymmetric_src;
+        wei_md_extra.asymm_compensation_mask = 2; // N dimension
+    }
+    static_cast<dnnl_memory_desc_t>(wei_md)->extra = wei_md_extra;
+
+    // Same as dst_md but with a pre-defined data type according to doc.
+    auto acc_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
+            prb->acc_dt(), tag::abx, acc_strides);
+
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> bia_md {};
+    if (prb->bia_dt != dnnl_data_type_undef) {
+        const dnnl_dims_t bia_dims = {1, prb->n};
+        bia_md = dnn_mem_t::init_md(
+                prb->ndims, bia_dims, prb->bia_dt, tag::abx);
+    }
 
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
@@ -453,6 +460,7 @@ int doit(const prb_t *prb, res_t *res) {
     int block_size = 0;
     switch (prb->wei_dt()) {
         case dnnl_f32: block_size = 16; break;
+        case dnnl_f16: block_size = 16; break;
         case dnnl_bf16: block_size = 32; break;
         case dnnl_s8: block_size = 64; break;
         default: break;
