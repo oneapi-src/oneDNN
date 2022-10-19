@@ -1085,8 +1085,38 @@ void init_pipeline(conv_config_t &cfg) {
 }
 
 void init_send_2d_nhwc(conv_config_t &cfg) {
+    const auto &prb = cfg.prb();
+
     bool a_ok = can_use_a_2d_send(cfg);
     bool b_ok = can_use_b_2d_send(cfg);
+
+    int64_t est_threads = 1;
+    est_threads *= prb.g;
+    est_threads *= prb.ic;
+    est_threads *= prb.ksp;
+    est_threads *= prb.mb;
+    est_threads *= prb.oc;
+    est_threads *= prb.osp;
+
+    // Estimated max reduction size per thread for BWD_W.
+    const int bwd_w_max_k_per_thr = 1000;
+    // Estimated M x N elements per thread.
+    const int mn_per_thr = 16 * 16;
+    // Crosspoint to enable 2D send and blocking.
+    const int min_threads_to_enable_2d = 1024;
+
+    int k_fwd = prb.ic;
+    int k_bwd_d = prb.oc;
+    int k_bwd_w = std::min(bwd_w_max_k_per_thr, prb.mb * prb.osp);
+    int k = prb.pick_by_dir(k_fwd, k_bwd_d, k_bwd_w);
+    est_threads /= mn_per_thr;
+    est_threads /= k;
+
+    if (est_threads < min_threads_to_enable_2d) {
+        cfg.set_send_2d_nhwc(false);
+        return;
+    }
+
     cfg.set_send_2d_nhwc(a_ok && b_ok);
 }
 
