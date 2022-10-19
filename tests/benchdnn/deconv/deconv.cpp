@@ -595,6 +595,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(prelu_po_args, prelu_po_fp);
+            ref_args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
 
             check_correctness(
                     prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);

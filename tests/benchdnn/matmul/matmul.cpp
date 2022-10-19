@@ -421,6 +421,7 @@ int doit(const prb_t *prb, res_t *res) {
         ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
         ref_args.set(DNNL_ARG_BIAS, bia_fp);
         ref_args.set(DNNL_ARG_DST, dst_fp);
+        ref_args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
         ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
         ref_args.set(binary_po_args, binary_po_fp);
 
