@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ struct ref_sum_t : public gpu_primitive_t {
             reorder_pds_.resize(n_ + need_output_reorder());
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
-                r_attr.output_scales_.set(scales_[i]);
+                r_attr.output_scales_.set(0);
                 if (i != 0) r_attr.post_ops_.append_sum(1.0);
 
                 CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
@@ -61,11 +61,17 @@ struct ref_sum_t : public gpu_primitive_t {
                         reorder_pds_[n_], engine, dst_acc_md(), dst_md()));
             }
 
+            scale_md_.ndims = 1;
+            scale_md_.dims[0] = 1;
+            scale_md_.data_type = data_type::f32;
+            CHECK(memory_desc_init_by_tag(scale_md_, format_tag::x));
+
             init_scratchpad();
             return status::success;
         }
 
         std::vector<std::shared_ptr<primitive_desc_t>> reorder_pds_;
+        memory_desc_t scale_md_;
 
     private:
         void init_scratchpad() {
@@ -87,13 +93,38 @@ struct ref_sum_t : public gpu_primitive_t {
     status_t init(engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
+        scales_.resize(n);
         for (size_t i = 0; i < n; ++i) {
+            scales_[i] = std::make_shared<memory_t>(
+                    engine, &pd()->scale_md_, nullptr);
             CHECK(create_nested_primitive(
                     reorders_[i], pd()->reorder_pds_[i], engine));
         }
         return status::success;
     }
 
+    status_t init_res_storage(
+            engine_t *engine, gpu_resource_t *r) const override {
+        const dim_t count = pd()->n_inputs();
+        const float *s_data = pd()->scales();
+        for (dim_t i = 0; i < count; i++) {
+            // copy scales on gpu
+            const size_t size = sizeof(float);
+            std::unique_ptr<memory_storage_t> scales;
+            memory_storage_t *scale = nullptr;
+            auto s = engine->create_memory_storage(&scale, size);
+            if (s != status::success) return s;
+            float *mapped_mem_storage = nullptr;
+            s = scale->map_data((void **)&mapped_mem_storage, nullptr, size);
+            if (s != status::success) return s;
+            utils::array_copy(mapped_mem_storage, &s_data[i], count);
+            s = scale->unmap_data((void *)mapped_mem_storage, nullptr);
+            if (s != status::success) return s;
+            scales.reset(scale);
+            r->add_memory_storage(i, std::move(scales));
+        }
+        return status::success;
+    }
     status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
 
@@ -115,8 +146,10 @@ struct ref_sum_t : public gpu_primitive_t {
         memory_arg_t dst_acc = {p_temp_dst_acc.get(), false};
 
         for (int i = 0; i < n; ++i) {
+            scales_[i]->set_data_handle(CTX_GPU_RES_STORAGE(i).data_handle());
             r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
             r_args[DNNL_ARG_DST] = pd()->need_output_reorder() ? dst_acc : dst;
+            r_args[DNNL_ARG_ATTR_OUTPUT_SCALES] = {scales_[i].get(), true};
             exec_ctx_t r_ctx(ctx, std::move(r_args));
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + i, reorders_[i]);
@@ -144,6 +177,7 @@ struct ref_sum_t : public gpu_primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::vector<std::shared_ptr<primitive_t>> reorders_;
+    std::vector<std::shared_ptr<memory_t>> scales_;
 };
 
 } // namespace ocl
