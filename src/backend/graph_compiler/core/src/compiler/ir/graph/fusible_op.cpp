@@ -32,6 +32,7 @@
 #include <compiler/ir/transform/parallel_workload_dispatch.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/padding.hpp>
+#include <ops/fusible/ternary_elemwise.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
@@ -42,6 +43,12 @@ ir_module_ptr fusible_op_t::get_func(context_ptr ctx) {
     if (auto binary_node = this->dyn_cast<binary_elementwise_op_t>()) {
         // if bc side (smaller side) is the lhs, we need to set base_idx to 1
         if (!binary_node->get_broadcast_input()) { base_idx = 1; }
+    }
+    if (auto select_node = this->dyn_cast<select_op_t>()) {
+        // we need to set base_idx to the max input
+        if (select_node->get_max_input() != -1) {
+            base_idx = select_node->get_max_input();
+        }
     }
     outer_loop_generator_t gen(base_idx);
     return fusible_op_get_func(this, gen, ctx, true);
@@ -59,6 +66,12 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
     if (auto binary_node = this->dyn_cast<binary_elementwise_op_t>()) {
         // if bc side (smaller side) is the lhs, we need to set base_idx to 1
         if (!binary_node->get_broadcast_input()) { base_idx = 1; }
+    }
+    if (auto select_node = this->dyn_cast<select_op_t>()) {
+        // we need to set base_idx to the max input
+        if (select_node->get_max_input() != -1) {
+            base_idx = select_node->get_max_input();
+        }
     }
     bool use_output_mode = false;
     if (auto reo_op = this->dyn_cast<reorder_op_t>()) {
@@ -115,6 +128,12 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
             // if bc side (smaller side) is the lhs, we need to set base_idx to
             // 1
             if (!binary_node->get_broadcast_input()) { base_idx = 1; }
+        }
+        if (auto select_node = this->dyn_cast<select_op_t>()) {
+            // we need to set base_idx to the max input
+            if (select_node->get_max_input() != -1) {
+                base_idx = select_node->get_max_input();
+            }
         }
         auto base_gt = get_inputs()[base_idx];
         auto committed_anchor = parti->lookup_anchor_map(this);

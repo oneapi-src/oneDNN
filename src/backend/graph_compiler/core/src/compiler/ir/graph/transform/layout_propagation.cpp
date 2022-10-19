@@ -26,6 +26,7 @@
 #include "../tunable_op.hpp"
 #include "../visitor.hpp"
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/ternary_elemwise.hpp>
 namespace sc {
 
 SC_MODULE(graph.layout_propagation);
@@ -367,7 +368,8 @@ SC_INTERNAL_API void layout_propagation(
             size_t cur_layout_choice = cur_choice[node->logical_op_id_];
             if (node->isa<tunable_op_t>()
                     || node->isa<binary_elementwise_op_t>()
-                    || node->isa<tensor_view_op_t>()) {
+                    || node->isa<tensor_view_op_t>()
+                    || node->isa<select_op_t>()) {
                 std::vector<sc_data_format_t> old_formats;
                 std::vector<std::vector<sc_data_format_t>>
                         input_format_candidates;

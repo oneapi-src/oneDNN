@@ -19,6 +19,7 @@
 #include "../visitor.hpp"
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <ops/fusible/binary_elemwise.hpp>
+#include <ops/fusible/ternary_elemwise.hpp>
 
 namespace sc {
 
@@ -129,6 +130,40 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                             // insert tensor view
                             auto ret = graph.make("tensor_view",
                                     {binary_node->info_.inputs_[1]}, {},
+                                    {{"shape", shape}, {"format", format},
+                                            {"expand_dim", true}});
+                            node->replace_input(1, ret->get_outputs()[0]);
+                        }
+                    }
+                } else if (auto select_node = node->dyn_cast<select_op_t>()) {
+                    COMPILE_ASSERT(select_node->info_.inputs_.size() == 3,
+                            "Wrong number of inputs for select_op");
+                    const auto &cond = select_node->info_.inputs_[0]->details_;
+                    const auto &then = select_node->info_.inputs_[1]->details_;
+                    sc_dims shape;
+                    sc_data_format_t format;
+                    if (cond.get_plain_dims().size()
+                            < then.get_plain_dims().size()) {
+                        infer_aligned_shape(then, cond,
+                                select_node->get_plain_bc_axis(), shape,
+                                format);
+                        if (!shape.empty()) {
+                            // insert tensor view
+                            auto ret = graph.make("tensor_view",
+                                    {select_node->info_.inputs_[0]}, {},
+                                    {{"shape", shape}, {"format", format},
+                                            {"expand_dim", true}});
+                            node->replace_input(0, ret->get_outputs()[0]);
+                        }
+                    } else if (cond.get_plain_dims().size()
+                            > then.get_plain_dims().size()) {
+                        infer_aligned_shape(cond, then,
+                                select_node->get_plain_bc_axis(), shape,
+                                format);
+                        if (!shape.empty()) {
+                            // insert tensor view
+                            auto ret = graph.make("tensor_view",
+                                    {select_node->info_.inputs_[1]}, {},
                                     {{"shape", shape}, {"format", format},
                                             {"expand_dim", true}});
                             node->replace_input(1, ret->get_outputs()[0]);
