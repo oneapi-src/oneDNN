@@ -291,7 +291,7 @@ class LogParser:
             self.__raw_data.append(line.rstrip())
             l_raw = line.split(",")
             marker = l_raw[0]
-            if marker == "onednn_verbose":
+            if marker in ["onednn_verbose","dnnl_verbose"]:
                 if l_raw[1].split('.')[0].isdigit():
                     l_raw.pop(1)
                 event = l_raw[1].split(":")[0]
