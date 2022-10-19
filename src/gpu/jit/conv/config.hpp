@@ -134,6 +134,7 @@ public:
     data_type_t wei_data_type;
     data_type_t dst_data_type;
     data_type_t bia_data_type;
+    fpmath_mode_t fpmath_mode;
 
     bool is_fwd;
     bool is_bwd_d;

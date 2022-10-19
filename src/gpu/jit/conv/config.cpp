@@ -138,6 +138,7 @@ status_t conv_problem_t::init(
     wei_data_type = conv_pd->invariant_wei_md()->data_type;
     bia_data_type = conv_pd->invariant_bia_md()->data_type;
     dst_data_type = conv_pd->invariant_dst_md()->data_type;
+    fpmath_mode = attr->fpmath_mode_;
 
     ndims = conv_pd->ndims();
 

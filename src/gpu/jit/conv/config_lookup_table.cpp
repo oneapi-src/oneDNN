@@ -147,6 +147,7 @@ bool conv_problem_filter_t::matches(
     if (!type_filter_.matches(
                 {prb.src_data_type, prb.wei_data_type, prb.dst_data_type}))
         return false;
+    if (!fpmath_filter_.matches(prb.fpmath_mode)) return false;
     if (!mb_filter_.matches(prb.mb)) return false;
     if (!matches_desc(prb)) return false;
     if (!matches_post_ops(prb)) return false;
