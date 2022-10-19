@@ -30,7 +30,7 @@ namespace impl {
 bool try_cvt_float_to_float16(float16_t *out, const float *inp) {
 #if DNNL_X64
     using namespace cpu::x64;
-    if (mayiuse(avx512_core_fp16)) {
+    if (mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)) {
         cvt_xf16_support::jit_call_t p;
         p.inp = (void *)inp;
         p.out = (void *)out;
@@ -45,7 +45,7 @@ bool try_cvt_float_to_float16(float16_t *out, const float *inp) {
 void cvt_float_to_float16(float16_t *out, const float *inp, size_t nelems) {
 #if DNNL_X64
     using namespace cpu::x64;
-    if (mayiuse(avx512_core_fp16)) {
+    if (mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)) {
         cvt_xf16_support::jit_call_t p_;
         p_.inp = (void *)inp;
         p_.out = (void *)out;
@@ -64,7 +64,7 @@ void cvt_float_to_float16(float16_t *out, const float *inp, size_t nelems) {
 void cvt_float16_to_float(float *out, const float16_t *inp, size_t nelems) {
 #if DNNL_X64
     using namespace cpu::x64;
-    if (mayiuse(avx512_core_fp16)) {
+    if (mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)) {
         static const jit_cvt_xf16_to_ps_t kernel(data_type::f16, false);
         return kernel(out, inp, nelems);
     }
