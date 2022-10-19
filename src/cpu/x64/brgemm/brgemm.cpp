@@ -381,8 +381,18 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
 
     if (brgattr.fpmath_mode != fpmath_mode::strict) maybe_try_bf32(brg);
 
-    if (brgattr.bd_mask_level || brgattr.fpmath_mode != fpmath_mode::strict)
-        CHECK(brgemm_blocking(brg));
+    bool hint_blocking_set
+            = (brgattr.hint_bd_block != 0 || brgattr.hint_bd_block2 != 0
+                    || brgattr.hint_ld_block != 0 || brgattr.hint_ld_block2 != 0
+                    || brgattr.hint_load_nt_A != brgemm_hint_nt_undef
+                    || brgattr.hint_load_nt_B != brgemm_hint_nt_undef);
+    if (brg->is_bf16_tmm || hint_blocking_set || brgattr.bd_mask_level
+            || brgattr.fpmath_mode != fpmath_mode::strict) {
+        if (brg->is_dgmm)
+            CHECK(brdgmm_blocking(brg));
+        else
+            CHECK(brgemm_blocking(brg));
+    }
 
     brg->LDA2 = (brgattr.LDA2 != 0) ? brgattr.LDA2 : brg->LDA;
     brg->LDB2 = (brgattr.LDB2 != 0) ? brgattr.LDB2 : brg->LDB;
@@ -505,36 +515,46 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
 
     int Ac = typesize_A * rd_block;
 
-    int Bc = brg.ld_block * typesize_B * rd_step;
-    int Bc_t = brg.ldb_tail * typesize_B * rd_step;
-
-    int Cc = brg.ld_block * brg.typesize_C;
-    int Cc_t = brg.ldb_tail * brg.typesize_C;
-
     int Br = (brg.typesize_C != 0) ? Ac / brg.typesize_C : 0;
 
     if (brg.ldb_tail && (brg.ld_block2 > 1)) return status::unimplemented;
+    if (brg.get_num_A_tiles() + brg.get_num_B_tiles()
+                    + brg.get_bd_block2() * brg.get_ld_block2()
+            > brgemm_t::AMX_TILES_NUM)
+        return status::unimplemented;
 
-    for (int m = 0; m < brg.bd_block2; m++) {
-        int Ar = (brg.is_M_tail && m == brg.bd_block2 - 1) ? brg.bdb_tail
-                                                           : brg.bd_block;
-        tc_configure_tile(buff, brg.get_A_tensor(m), Ar, Ac);
+    // Due to interleaving tileload/tmul we don't support blocking 1x6 and 6x1
+    //TODO: update gemm_microkernel_amx to support such blocking
+    if (brg.get_bd_block2() >= 6 || brg.get_num_C_tiles() >= 6)
+        return status::unimplemented;
+
+    for (int m = 0; m < brg.get_num_A_tiles(); m++) {
+        bool is_bd_tail = (brg.bdb_tail && m == (brg.get_num_A_tiles() - 1));
+        auto A_tensor = brg.get_A_tensor(m, is_bd_tail);
+        int Ar = is_bd_tail ? brg.bdb_tail : brg.bd_block;
+        tc_configure_tile(buff, A_tensor, Ar, Ac);
     }
 
-    for (int n = 0; n < brg.ld_block2; n++)
-        tc_configure_tile(buff, brg.get_B_tensor(n), Br, Bc);
-    if (brg.ldb_tail)
-        tc_configure_tile(buff, brg.get_B_tensor(brg.ld_block2), Br, Bc_t);
-
-    for (int m = 0; m < brg.bd_block2; m++) {
-        int Cr = (brg.is_M_tail && m == brg.bd_block2 - 1) ? brg.bdb_tail
-                                                           : brg.bd_block;
-        for (int n = 0; n < brg.ld_block2; n++)
-            tc_configure_tile(buff, brg.get_C_tensor(m, n), Cr, Cc);
-        if (brg.ldb_tail)
-            tc_configure_tile(
-                    buff, brg.get_C_tensor(m, brg.ld_block2), Cr, Cc_t);
+    for (int n = 0; n < brg.get_num_B_tiles(); n++) {
+        bool is_ld_tail = (brg.ldb_tail && n == (brg.get_num_B_tiles() - 1));
+        auto B_tensor = brg.get_B_tensor(n, is_ld_tail);
+        int Bc = (is_ld_tail ? brg.ldb_tail : brg.ld_block) * typesize_B
+                * rd_step;
+        tc_configure_tile(buff, B_tensor, Br, Bc);
     }
+
+    for (int m = 0; m < brg.get_bd_block2(); m++) {
+        bool is_bd_tail = (brg.bdb_tail && m == (brg.get_bd_block2() - 1));
+        int Cr = is_bd_tail ? brg.bdb_tail : brg.bd_block;
+        for (int n = 0; n < brg.get_ld_block2(); n++) {
+            bool is_ld_tail = (brg.ldb_tail && n == (brg.get_ld_block2() - 1));
+            int Cc = (is_ld_tail ? brg.ldb_tail : brg.ld_block)
+                    * brg.typesize_C;
+            auto C_tensor = brg.get_C_tensor(m, n, is_bd_tail, is_ld_tail);
+            tc_configure_tile(buff, C_tensor, Cr, Cc);
+        }
+    }
+
     buff->palette_id = amx::get_target_palette();
 
     return status::success;

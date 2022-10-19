@@ -510,7 +510,7 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_B(
 
 int jit_brgemm_amx_uker_base_t::get_C_tensor(
         brgemm_iteration_t &bi, int m, int n) const noexcept {
-    return brg.get_C_tensor(m, n);
+    return brg.get_C_tensor(m, n, bi.bdi.is_tail, bi.ldi.is_tail);
 }
 
 void jit_brgemm_amx_uker_base_t::prepare_bd_mask() noexcept {
@@ -1265,22 +1265,12 @@ void jit_brgemm_amx_uker_base_t::set_A_B_matrices() {
 
 void jit_brgemm_amx_uker_base_t::maybe_tileloadd_nt(
         brgemm_iteration_t &bi, matrix_kind_t mk, int xdb, size_t offset) {
-    const bool try_load_nt_A
-            = (brg.brgattr.hint_innermost_loop == brgemm_bd_loop_innermost);
-    const bool try_load_nt_B
-            = (brg.brgattr.hint_innermost_loop == brgemm_ld_loop_innermost);
-    const bool is_A = mk == matrix_kind_t::matrix_A;
-    bool try_load_nt = is_A ? try_load_nt_A : try_load_nt_B;
-    try_load_nt = try_load_nt
-            && (static_cast<size_t>(brg.typesize_A)
-                               * brg.brgattr.hint_expected_A_size
-                       + static_cast<size_t>(brg.typesize_B)
-                               * brg.brgattr.hint_expected_B_size
-                       + static_cast<size_t>(brg.typesize_C)
-                               * brg.brgattr.hint_expected_C_size)
-                    >= platform::get_per_core_cache_size(1);
 
-    auto t1 = Tmm(is_A ? brg.get_A_tensor(xdb) : brg.get_B_tensor(xdb));
+    const bool is_A = mk == matrix_kind_t::matrix_A;
+    bool load_nt = is_A ? brg.load_nt_A : brg.load_nt_B;
+
+    auto t1 = Tmm(is_A ? brg.get_A_tensor(xdb, bi.bdi.is_tail)
+                       : brg.get_B_tensor(xdb, bi.ldi.is_tail));
     auto reg_base = is_A ? reg_aux_A : reg_aux_B;
     auto reg_stride = is_A ? reg_stride_lda : reg_stride_ldb;
 
@@ -1288,7 +1278,7 @@ void jit_brgemm_amx_uker_base_t::maybe_tileloadd_nt(
         // try_load_nt is not supported in maybe_pre_process_data as there is
         // no guarantee that the data is cacheline aligned.
         maybe_pre_process_data(bi, t1, reg_base, offset, reg_stride, mk);
-    else if (try_load_nt)
+    else if (load_nt)
         tileloaddt1(t1, ptr[reg_base + offset + reg_stride]);
     else
         tileloadd(t1, ptr[reg_base + offset + reg_stride]);

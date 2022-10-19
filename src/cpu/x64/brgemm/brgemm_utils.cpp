@@ -375,6 +375,69 @@ status_t brgemm_blocking(brgemm_t *brg) {
         }
         if (!is_decomposition_defined) try_2x2_decomposition();
 
+        const bool try_load_nt_A = (brg->brgattr.hint_innermost_loop
+                == brgemm_bd_loop_innermost);
+        const bool try_load_nt_B = (brg->brgattr.hint_innermost_loop
+                == brgemm_ld_loop_innermost);
+        const bool try_load_nt
+                = (static_cast<size_t>(brg->typesize_A)
+                                  * brg->brgattr.hint_expected_A_size
+                          + static_cast<size_t>(brg->typesize_B)
+                                  * brg->brgattr.hint_expected_B_size
+                          + static_cast<size_t>(brg->typesize_C)
+                                  * brg->brgattr.hint_expected_C_size)
+                >= platform::get_per_core_cache_size(1);
+        brg->load_nt_A = try_load_nt_A && try_load_nt;
+        brg->load_nt_B = try_load_nt_B && try_load_nt;
+
+        auto recalc_bd_block = [&](int new_bd_block) {
+            if (new_bd_block == 0) return;
+            brg->bd_block = new_bd_block;
+            brg->bdb = div_up(brg->bcast_dim, brg->bd_block);
+            brg->bdb_tail = brg->bcast_dim % brg->bd_block;
+            brg->is_M_tail = (brg->bdb_tail != 0);
+        };
+
+        auto recalc_bd_block2 = [&](int new_bd_block2) {
+            if (new_bd_block2 == 0) return;
+            brg->bd_block2 = new_bd_block2;
+            if (brg->bdb_tail && brg->bd_block2 > 1) brg->bd_block2--;
+            auto full_bd_blocks = brg->bdb - (brg->bdb_tail != 0 ? 1 : 0);
+            brg->bdb2 = full_bd_blocks / brg->bd_block2;
+            brg->bdb2_tail = full_bd_blocks % brg->bd_block2;
+        };
+
+        auto recalc_ld_block = [&](int new_ld_block) {
+            if (new_ld_block == 0) return;
+            brg->ld_block = new_ld_block;
+            brg->ldb = brg->load_dim / brg->ld_block;
+            brg->ldb_tail = brg->load_dim % brg->ld_block;
+        };
+
+        auto recalc_ld_block2 = [&](int new_ld_block2) {
+            if (new_ld_block2 == 0) return;
+            brg->ld_block2 = new_ld_block2;
+            if (brg->ldb_tail && brg->ld_block2 > 1) brg->ld_block2--;
+            brg->ldb2 = brg->ldb / brg->ld_block2;
+            brg->ldb2_tail = brg->ldb % brg->ld_block2;
+        };
+
+        recalc_bd_block2(brg->bd_block2);
+        recalc_ld_block2(brg->ld_block2);
+
+        // check hints for blocking parameters
+        recalc_bd_block(brg->brgattr.hint_bd_block);
+        recalc_bd_block2(brg->brgattr.hint_bd_block2);
+        recalc_ld_block(brg->brgattr.hint_ld_block);
+        recalc_ld_block2(brg->brgattr.hint_ld_block2);
+
+        if (brg->brgattr.hint_load_nt_A != brgemm_hint_nt_undef)
+            brg->load_nt_A
+                    = (brg->brgattr.hint_load_nt_A == brgemm_hint_nt_true);
+        if (brg->brgattr.hint_load_nt_B != brgemm_hint_nt_undef)
+            brg->load_nt_B
+                    = (brg->brgattr.hint_load_nt_B == brgemm_hint_nt_true);
+
         const auto max_rd_block
                 = (brg->is_bf16_tmm || brg->is_f16_tmm || brg->is_bf32) ? 32
                                                                         : 64;

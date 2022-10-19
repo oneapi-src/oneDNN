@@ -92,6 +92,10 @@ dnnl_status_t brgemm_attr_init(
         PROCESS_KEY_VAL(use_uker);
         PROCESS_KEY_VAL(use_interleave_stores);
         PROCESS_KEY_VAL(postops_only);
+        PROCESS_KEY_VAL(hint_bd_block);
+        PROCESS_KEY_VAL(hint_bd_block2);
+        PROCESS_KEY_VAL(hint_ld_block);
+        PROCESS_KEY_VAL(hint_ld_block2);
 
 #undef PROCESS_KEY_VAL
 
@@ -106,6 +110,12 @@ dnnl_status_t brgemm_attr_init(
             brgattr->hint_prefetching
                     = static_cast<brgemm_kernel_prefetching_t>(
                             std::stoi(value_str));
+        if (key_str.find(STRINGIFY(hint_load_nt_A)) != std::string::npos)
+            brgattr->hint_load_nt_A = static_cast<brgemm_kernel_hint_nt_t>(
+                    std::stoi(value_str));
+        if (key_str.find(STRINGIFY(hint_load_nt_B)) != std::string::npos)
+            brgattr->hint_load_nt_B = static_cast<brgemm_kernel_hint_nt_t>(
+                    std::stoi(value_str));
     }
 
     // `max_bs` is handled directly through the driver interface.

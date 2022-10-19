@@ -74,6 +74,12 @@ typedef enum {
     brgemm_ld_loop_innermost,
 } brgemm_kernel_innermost_loop_t;
 
+typedef enum {
+    brgemm_hint_nt_undef = -1,
+    brgemm_hint_nt_false = 0,
+    brgemm_hint_nt_true = 1,
+} brgemm_kernel_hint_nt_t;
+
 struct DNNL_API brgemm_attr_t {
     brgemm_attr_t();
     // if unrolled kernel is used (use_uker == true)
@@ -114,6 +120,14 @@ struct DNNL_API brgemm_attr_t {
     // and there is no unrolling by batchsize in kernel
     bool var_bs {false};
     bool postops_only {false};
+
+    int hint_bd_block {0};
+    int hint_ld_block {0};
+    int hint_bd_block2 {0};
+    int hint_ld_block2 {0};
+
+    brgemm_kernel_hint_nt_t hint_load_nt_A {brgemm_hint_nt_undef};
+    brgemm_kernel_hint_nt_t hint_load_nt_B {brgemm_hint_nt_undef};
 };
 
 struct brgemm_batch_element_t {
@@ -198,6 +212,8 @@ struct brgemm_t {
     brgemm_layout_t layout = brgemm_layout_undef;
     brgemm_batch_kind_t type;
 
+    bool load_nt_A = false;
+    bool load_nt_B = false;
     bool embd_bcst = false;
     bool is_dgmm = false; // set to true in brdgmm_desc_init
     bool with_bias = false;
@@ -221,6 +237,7 @@ struct brgemm_t {
 
     brgemm_attr_t brgattr;
     static constexpr int MAX_VPAD = 100;
+    static constexpr int AMX_TILES_NUM = 8;
 
     int is_M_tail;
 
@@ -230,19 +247,48 @@ struct brgemm_t {
     }
 
     // Tile register decomposition
+    int get_bd_block2() const noexcept {
+        return (bdb_tail) ? bd_block2 + 1 : bd_block2;
+    }
     int get_ld_block2() const noexcept {
         return (ldb_tail) ? ld_block2 + 1 : ld_block2;
     }
-    int get_num_C_tiles() const noexcept { return bd_block2 * get_ld_block2(); }
-    int get_num_A_tiles() const noexcept { return bd_block2; }
-    int get_num_B_tiles() const noexcept { return get_ld_block2(); }
-
-    int get_C_tensor(int m, int n) const noexcept {
-        return (m * get_ld_block2() + n);
+    int get_num_C_tiles() const noexcept {
+        return get_bd_block2() * get_ld_block2();
     }
-    int get_A_tensor(int m) const noexcept { return (get_num_C_tiles() + m); }
-    int get_B_tensor(int n) const noexcept {
-        return (get_num_C_tiles() + get_num_A_tiles() + n);
+    int get_C_tensor(int m, int n, bool m_tail = false,
+            bool n_tail = false) const noexcept {
+        auto M = m_tail ? get_bd_block2() - 1 : m;
+        auto N = n_tail ? get_ld_block2() - 1 : n;
+        return (M * get_ld_block2() + N);
+    }
+
+    int tiles_for_A() const noexcept {
+        return (AMX_TILES_NUM - get_num_C_tiles() - 1);
+    }
+
+    int get_A_tensor(int m, bool m_tail = false) const noexcept {
+        auto full_A_tiles = get_num_A_tiles() - (bdb_tail ? 1 : 0);
+        auto M = m_tail ? get_num_A_tiles() - 1 : m % full_A_tiles;
+        return (get_num_C_tiles() + M);
+    }
+
+    int get_num_A_tiles() const noexcept {
+        return nstl::min(get_bd_block2(), tiles_for_A());
+    }
+
+    int tiles_for_B() const noexcept {
+        return (AMX_TILES_NUM - get_num_C_tiles() - get_num_A_tiles());
+    }
+
+    int get_B_tensor(int n, bool n_tail = false) const noexcept {
+        auto full_B_tiles = get_num_B_tiles() - (ldb_tail ? 1 : 0);
+        auto N = n_tail ? get_num_B_tiles() - 1 : n % full_B_tiles;
+        return (get_num_C_tiles() + get_num_A_tiles() + N);
+    }
+
+    int get_num_B_tiles() const noexcept {
+        return nstl::min(get_ld_block2(), tiles_for_B());
     }
 
     int get_wsp_buffer_size() const noexcept {
