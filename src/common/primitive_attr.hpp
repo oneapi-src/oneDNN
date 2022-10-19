@@ -193,6 +193,11 @@ struct runtime_scales_t : public c_compatible {
 
     bool defined() const { return has_default_values(); }
 
+    void reset() {
+        mask_ = 0;
+        is_set_ = false;
+    }
+
     int mask_ = 0;
     bool is_set_ = false;
 };

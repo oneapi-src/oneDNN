@@ -119,7 +119,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
             = attr()->output_scales_.mask_ == 0 && !with_bias();
 
     if (params_.gemm_applies_output_scales_)
-        params_.pp_attr_.output_scales_.set(1.f);
+        params_.pp_attr_.output_scales_.reset();
 
     // check post-ops
     if (!check_attr_post_ops()) return status::unimplemented;
