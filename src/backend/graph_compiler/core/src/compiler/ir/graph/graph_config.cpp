@@ -37,14 +37,11 @@ namespace graph {
 
 void set_graph_config(sc_graph_t &g, const graph_config &tcfg) {
     size_t visited_num = 0;
-    op_visitor_t vis(op_visitor_t::dequeue_selector,
-            op_visitor_t::create_DAG_updater(g.ops_.size()));
-    vis.visit_graph(g, [&](const sc_op_ptr &op) {
-        // avoid out of range error due to some intunable graph op
+    for (auto &op : g.ops_) {
         if (auto tune_op = op->dyn_cast<op_traits::configurable_t>()) {
             tune_op->set_config(tcfg.op_cfgs_.at(visited_num++));
         }
-    });
+    }
 }
 
 graph_config get_graph_default_config(context_ptr ctx, const sc_graph_t &g) {
