@@ -217,6 +217,7 @@ private:
     void clip_compute_vector_fwd(const Vmm &vmm_src);
     void pow_compute_vector_fwd(const Vmm &vmm_src);
     void gelu_erf_compute_vector_fwd(const Vmm &vmm_src);
+    void gelu_erf_minimax_approx_compute_vector_fwd(const Vmm &vmm_src);
     void round_compute_vector_fwd(const Vmm &vmm_src);
     void hardswish_compute_vector_fwd(const Vmm &vmm_src);
     void hardsigmoid_compute_vector_fwd(const Vmm &vmm_src);
@@ -277,10 +278,18 @@ private:
         gelu_tanh_fitting_const, // 0.044715f
         gelu_tanh_fitting_const_times_three, // 0.134145f
         gelu_tanh_sqrt_two_over_pi, // sqrtf(2.f/pi) = 0.797884f
-        gelu_erf_approx_const, // 0.3275911f - implementation based for approx
-        gelu_erf_one_over_sqrt_two, // 1.f / sqrtf(2.f)
-        gelu_erf_one_over_sqrt_pi, // 1.f / sqrtf(pi) = 0.564190f
-        gelu_erf_pol, // see correspondent table for float values
+        // 0.3275911f - implementation based for approx
+        gelu_erf_Abramowitz_Stegun_approx_const,
+        gelu_erf_Abramowitz_Stegun_one_over_sqrt_two, // 1.f / sqrtf(2.f)
+        // 1.f / sqrtf(pi) = 0.564190f
+        gelu_erf_Abramowitz_Stegun_one_over_sqrt_pi,
+        // see correspondent table for float values
+        gelu_erf_Abramowitz_Stegun_pol,
+        gelu_erf_minimax_neg_saturation_ubound, // x <= arg => gelu_erf = 0.0f
+        // when |x| <= arg => gelu_erf = 0.5f * x
+        gelu_erf_minimax_linear_ubound,
+        gelu_erf_minimax_saturation_lbound, // x >= arg => gelu_erf = x
+        gelu_erf_minimax_pol, // see correspondent table for float values
         log_inf, // inf
         log_minus_inf, // -inf
         log_qnan, // qnan

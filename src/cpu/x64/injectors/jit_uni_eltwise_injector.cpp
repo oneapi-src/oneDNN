@@ -1138,8 +1138,60 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::pow_compute_vector_fwd(
 }
 
 template <cpu_isa_t isa, typename Wmm>
+void jit_uni_eltwise_injector_f32<isa,
+        Wmm>::gelu_erf_minimax_approx_compute_vector_fwd(const Vmm &vmm_src) {
+    using namespace Xbyak::util;
+
+    // TODO: consider enabling for lower ISA
+    if (!is_superset(isa, avx512_core)) return;
+
+    // register mapping
+    Vmm vmm_pol = vmm_aux1, vmm_src_square = vmm_aux2, vmm_src_half = vmm_aux3,
+        vmm_src_positive = vmm_aux4;
+
+    h->uni_vmulps(vmm_src_square, vmm_src, vmm_src);
+    h->uni_vmovups(vmm_src_positive, vmm_src);
+    h->uni_vandps(vmm_src_positive, vmm_src_positive, table_val(positive_mask));
+
+    h->uni_vmulps(vmm_src_half, vmm_src, table_val(half));
+    // compute P(x^2)
+    h->uni_vmovups(vmm_pol, table_val(gelu_erf_minimax_pol, 14));
+    // TODO: consider reducing latency by spitting into parital sums, for
+    // example by using x^4 polynomial
+    for (int deg = 13; deg >= 0; --deg) {
+        h->uni_vfmadd213ps(
+                vmm_pol, vmm_src_square, table_val(gelu_erf_minimax_pol, deg));
+    }
+
+    // 1.0f + erf(x * inv_sqrt2) = 1.0f + x * P(x^2)
+    h->uni_vfmadd213ps(vmm_pol, vmm_src, table_val(one));
+    // move instead first blend_with_mask?
+    h->uni_vmulps(vmm_pol, vmm_pol, vmm_src_half);
+    // Now we blend the results
+    // [saturation_ubound; +inf] : we return x
+    // [-inf; neg_saturation_ubound] : we return 0.0f
+    h->uni_vmovups(vmm_mask, table_val(gelu_erf_minimax_neg_saturation_ubound));
+    compute_cmp_mask(vmm_mask, vmm_src, _cmp_ge_os);
+    blend_with_mask(vmm_src, table_val(zero));
+    // [neg_saturation_ubound; -linear_ubound] or
+    // [linear_ubound; saturation_lbound] : we return P(x)
+    h->uni_vmovups(vmm_mask, table_val(gelu_erf_minimax_saturation_lbound));
+    compute_cmp_mask(vmm_mask, vmm_src_positive, _cmp_gt_os);
+    blend_with_mask(vmm_src, vmm_pol);
+    // [-linear_ubound; linear_ubound] : we return 0.5f * x
+    h->uni_vmovups(vmm_mask, table_val(gelu_erf_minimax_linear_ubound));
+    compute_cmp_mask(vmm_mask, vmm_src_positive, _cmp_gt_os);
+    blend_with_mask(vmm_src, vmm_src_half);
+}
+
+template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_fwd(
         const Vmm &vmm_src) {
+    if (is_superset(isa, avx512_core)) {
+        gelu_erf_minimax_approx_compute_vector_fwd(vmm_src);
+        return;
+    }
+
     // Here we approximate erf(x) using the expression by
     // Abramowitz and Stegun from ``Handbook of Mathematical
     // Functions''
@@ -1153,14 +1205,16 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_fwd(
     h->uni_vmovups(vmm_aux3, vmm_src);
 
     // x = s / sqrt(2)
-    h->uni_vmulps(vmm_src, vmm_src, table_val(gelu_erf_one_over_sqrt_two));
+    h->uni_vmulps(vmm_src, vmm_src,
+            table_val(gelu_erf_Abramowitz_Stegun_one_over_sqrt_two));
 
     // abs(x)
     h->uni_vmovups(vmm_aux4, vmm_src);
     abs_compute_vector_fwd(vmm_aux4);
 
     // t = 1 / (p*x + 1)
-    h->uni_vmovups(vmm_aux2, table_val(gelu_erf_approx_const));
+    h->uni_vmovups(
+            vmm_aux2, table_val(gelu_erf_Abramowitz_Stegun_approx_const));
     h->uni_vfmadd213ps(vmm_aux2, vmm_aux4, table_val(one));
     h->uni_vmovups(vmm_aux4, table_val(one));
     h->uni_vdivps(vmm_aux4, vmm_aux4, vmm_aux2);
@@ -1179,11 +1233,15 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_fwd(
     h->uni_vmulps(vmm_src, vmm_src, vmm_aux4);
 
     // compute polynomialial r
-    h->uni_vmovups(vmm_aux1, table_val(gelu_erf_pol, 4));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(gelu_erf_pol, 3));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(gelu_erf_pol, 2));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(gelu_erf_pol, 1));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(gelu_erf_pol, 0));
+    h->uni_vmovups(vmm_aux1, table_val(gelu_erf_Abramowitz_Stegun_pol, 4));
+    h->uni_vfmadd213ps(
+            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 3));
+    h->uni_vfmadd213ps(
+            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 2));
+    h->uni_vfmadd213ps(
+            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 1));
+    h->uni_vfmadd213ps(
+            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 0));
 
     // erf = sign * (1 - r * t * exp(-x*x))
     h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(one));
@@ -1473,7 +1531,8 @@ template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_bwd(
         const Vmm &vmm_src) {
     // R = s / sqrt(2)
-    h->uni_vmulps(vmm_src, vmm_src, table_val(gelu_erf_one_over_sqrt_two));
+    h->uni_vmulps(vmm_src, vmm_src,
+            table_val(gelu_erf_Abramowitz_Stegun_one_over_sqrt_two));
 
     // Save R on stack for later usage
     h->sub(h->rsp, vlen);
@@ -1486,7 +1545,8 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_bwd(
 
     // T = R / sqrt(pi) * Q
     h->uni_vmovups(vmm_aux2, h->ptr[h->rsp]);
-    h->uni_vmulps(vmm_aux2, vmm_aux2, table_val(gelu_erf_one_over_sqrt_pi));
+    h->uni_vmulps(vmm_aux2, vmm_aux2,
+            table_val(gelu_erf_Abramowitz_Stegun_one_over_sqrt_pi));
     h->uni_vmulps(vmm_aux2, vmm_aux2, vmm_src);
 
     // -Q
@@ -1502,7 +1562,8 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_bwd(
     abs_compute_vector_fwd(vmm_aux1);
 
     // W = 1 / (p * s + 1)
-    h->uni_vmovups(vmm_aux3, table_val(gelu_erf_approx_const));
+    h->uni_vmovups(
+            vmm_aux3, table_val(gelu_erf_Abramowitz_Stegun_approx_const));
     h->uni_vmovups(vmm_aux4, table_val(one));
     h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, vmm_aux4);
     h->uni_vdivps(vmm_aux4, vmm_aux4, vmm_aux3);
@@ -1511,11 +1572,15 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::gelu_erf_compute_vector_bwd(
     h->uni_vmulps(vmm_src, vmm_src, vmm_aux4);
 
     // compute polynomial r
-    h->uni_vmovups(vmm_aux1, table_val(gelu_erf_pol, 4));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(gelu_erf_pol, 3));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(gelu_erf_pol, 2));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(gelu_erf_pol, 1));
-    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(gelu_erf_pol, 0));
+    h->uni_vmovups(vmm_aux1, table_val(gelu_erf_Abramowitz_Stegun_pol, 4));
+    h->uni_vfmadd213ps(
+            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 3));
+    h->uni_vfmadd213ps(
+            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 2));
+    h->uni_vfmadd213ps(
+            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 1));
+    h->uni_vfmadd213ps(
+            vmm_aux1, vmm_aux4, table_val(gelu_erf_Abramowitz_Stegun_pol, 0));
 
     // erf = sign * (1 - r * t * exp(-x*x))
     h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(one));
@@ -2127,20 +2192,55 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::register_table_entries() {
             {gelu_tanh_sqrt_two_over_pi, {0x3f4c422a, true}},
     };
 
-    // gelu_erf(x) constants (formula defined)
-    static const table_t gelu_erf_consts {
-            {gelu_erf_approx_const, {0x3ea7ba05, true}},
-            {gelu_erf_one_over_sqrt_two, {0x3f3504f3, true}},
-            {gelu_erf_one_over_sqrt_pi, {0x3f106eba, true}},
+    // gelu_erf(x) constants for approximation based on Abramowitz and Stegun
+    // algorithm (formula defined)
+    static const table_t gelu_erf_Abramowitz_Stegun_consts {
+            {gelu_erf_Abramowitz_Stegun_approx_const, {0x3ea7ba05, true}},
+            {gelu_erf_Abramowitz_Stegun_one_over_sqrt_two, {0x3f3504f3, true}},
+            {gelu_erf_Abramowitz_Stegun_one_over_sqrt_pi, {0x3f106eba, true}},
     };
 
-    // gelu_erf(x) polynomial approximation
-    static const table_t gelu_erf_polynomial {
-            {gelu_erf_pol, {0x3e827906, true}}, // p1 = 0.254829592f
-            {gelu_erf_pol, {0xbe91a98e, true}}, // p2 = -0.284496736f
-            {gelu_erf_pol, {0x3fb5f0e3, true}}, // p3 = 1.421413741f
-            {gelu_erf_pol, {0xbfba00e3, true}}, // p4 = -1.453152027f
-            {gelu_erf_pol, {0x3f87dc22, true}}, // p5 = 1.061405429f
+    // gelu_erf(x) polynomial approximation based on Abramowitz and Stegun
+    // algorithm
+    static const table_t gelu_erf_Abramowitz_Stegun_polynomial {
+            // p1 = 0.254829592f
+            {gelu_erf_Abramowitz_Stegun_pol, {0x3e827906, true}},
+            // p2 = -0.284496736f
+            {gelu_erf_Abramowitz_Stegun_pol, {0xbe91a98e, true}},
+            // p3 = 1.421413741f
+            {gelu_erf_Abramowitz_Stegun_pol, {0x3fb5f0e3, true}},
+            // p4 = -1.453152027f
+            {gelu_erf_Abramowitz_Stegun_pol, {0xbfba00e3, true}},
+            // p5 = 1.061405429f
+            {gelu_erf_Abramowitz_Stegun_pol, {0x3f87dc22, true}},
+    };
+
+    // gelu_erf(x) constants for direct erf approximation (formula defined)
+    static const table_t gelu_erf_minimax_consts {
+            // x <= -0x1.4p+2 -> return 0.0f
+            {gelu_erf_minimax_neg_saturation_ubound, {0xc0a00000, true}},
+            // |x| <= 0x1.0p-24 -> return 0.5f * x
+            {gelu_erf_minimax_linear_ubound, {0x33800000, true}},
+            // x >= 0x1.4p+2 -> return x
+            {gelu_erf_minimax_saturation_lbound, {0x40a00000, true}}};
+
+    // gelu_erf(x) polynomial for direct erf approximation (formula defined)
+    static const table_t gelu_erf_minimax_polynomial {
+            {gelu_erf_minimax_pol, {0x3f4c4228, true}}, // p0 = 0x1.98845p-1
+            {gelu_erf_minimax_pol, {0xbe082bc7, true}}, // p1 = -0x1.10578ep-3
+            {gelu_erf_minimax_pol, {0x3ca3621f, true}}, // p2 = 0x1.46c43ep-6
+            {gelu_erf_minimax_pol, {0xbb1b7399, true}}, // p3 = -0x1.36e732p-9
+            {gelu_erf_minimax_pol, {0x3970b255, true}}, // p4 = 0x1.e164aap-13
+            {gelu_erf_minimax_pol, {0xb79b0914, true}}, // p5 = -0x1.361228p-16
+            {gelu_erf_minimax_pol, {0x35a776e9, true}}, // p6 = 0x1.4eedd2p-20
+            {gelu_erf_minimax_pol, {0xb3969b11, true}}, // p7 = -0x1.2d3622p-24
+            {gelu_erf_minimax_pol, {0x315d4a4f, true}}, // p8 = 0x1.ba949ep-29
+            {gelu_erf_minimax_pol, {0xaf013b2c, true}}, // p9 = -0x1.027658p-33
+            {gelu_erf_minimax_pol, {0x2c67ddb2, true}}, // p10 = 0x1.cfbb64p-39
+            {gelu_erf_minimax_pol, {0xa998c963, true}}, // p11 = -0x1.3192c6p-44
+            {gelu_erf_minimax_pol, {0x268a7927, true}}, // p12 = 0x1.14f24ep-50
+            {gelu_erf_minimax_pol, {0xa3198977, true}}, // p13 = -0x1.3312eep-57
+            {gelu_erf_minimax_pol, {0x1f1c83fd, true}}, // p14 = 0x1.3907fap-65
     };
 
     // log(x) constants
@@ -2329,8 +2429,13 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::register_table_entries() {
     if (need.soft_relu()) push_entries_of(soft_relu_consts);
     if (need.soft_relu()) push_entries_of(soft_relu_polynomial);
     if (need.gelu_tanh()) push_entries_of(gelu_tanh_consts);
-    if (need.gelu_erf()) push_entries_of(gelu_erf_consts);
-    if (need.gelu_erf()) push_entries_of(gelu_erf_polynomial);
+    if (need.gelu_erf()) push_entries_of(gelu_erf_Abramowitz_Stegun_consts);
+    if (need.gelu_erf()) push_entries_of(gelu_erf_Abramowitz_Stegun_polynomial);
+    if (need.gelu_erf() && is_superset(isa, avx512_core))
+        push_entries_of(gelu_erf_minimax_consts);
+    if (need.gelu_erf() && is_superset(isa, avx512_core))
+        push_entries_of(gelu_erf_minimax_polynomial);
+
     if (need.log()) push_entries_of(log_consts);
     if (need.log()) push_entries_of(log_polynomial);
     if (need.log()) push_entries_of(log_predefined_values);
