@@ -97,9 +97,9 @@ struct ref_sum_t : public primitive_t {
 
         scales_mem_.resize(n);
         for (size_t i = 0; i < n; ++i)
-            scales_mem_[i] = std::make_shared<memory_t>(engine, &scales_md,
-                    use_runtime_ptr, const_cast<float *>(&(scales[i])));
-
+            scales_mem_[i] = std::make_shared<memory_t>(get_service_engine(),
+                    &scales_md, use_runtime_ptr,
+                    const_cast<float *>(&(scales[i])));
         return status::success;
     }
 
