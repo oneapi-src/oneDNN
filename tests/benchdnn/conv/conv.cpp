@@ -532,9 +532,9 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_dt(dst_md, test_engine);
     dnn_mem_t bia_dt(bia_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
-    dnn_mem_t scales;
-    dnn_mem_t src_zero_points_m;
-    dnn_mem_t dst_zero_points_m;
+    dnn_mem_t scales_dt, scales_fp;
+    dnn_mem_t src_zp_dt, src_zp_fp;
+    dnn_mem_t dst_zp_dt, dst_zp_fp;
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
     SAFE(binary::setup_binary_po(
@@ -560,12 +560,12 @@ int doit(const prb_t *prb, res_t *res) {
     if (need_wei_init(prb)) SAFE(fill_wei(prb, wei_dt, wei_fp, res), WARN);
     if (need_bia_init(prb)) SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
 
-    maybe_prepare_runtime_scales(
-            scales, prb->attr.oscale, prb->oc, prb->scales);
-    maybe_prepare_runtime_zero_points(
-            src_zero_points_m, prb->attr, DNNL_ARG_SRC, prb->ic, prb->src_zp);
-    maybe_prepare_runtime_zero_points(
-            dst_zero_points_m, prb->attr, DNNL_ARG_DST, prb->oc, prb->dst_zp);
+    maybe_prepare_runtime_scales_v2(
+            scales_dt, scales_fp, prb->attr.oscale, prb->oc, prb->scales);
+    maybe_prepare_runtime_zero_points_v2(src_zp_dt, src_zp_fp, prb->attr,
+            DNNL_ARG_SRC, prb->ic, prb->src_zp);
+    maybe_prepare_runtime_zero_points_v2(dst_zp_dt, dst_zp_fp, prb->attr,
+            DNNL_ARG_DST, prb->oc, prb->dst_zp);
 
     args_t args, ref_args;
 
@@ -575,9 +575,9 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
-        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
-        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
+        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales_dt);
+        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zp_dt);
+        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zp_dt);
         args.set(binary_po_args, binary_po_dt);
         args.set(prelu_po_args, prelu_po_dt);
 
@@ -589,7 +589,9 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_BIAS, bia_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
-            ref_args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+            ref_args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales_fp);
+            ref_args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zp_fp);
+            ref_args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zp_fp);
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(prelu_po_args, prelu_po_fp);
 
