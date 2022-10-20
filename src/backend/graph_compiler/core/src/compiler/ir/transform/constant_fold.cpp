@@ -1237,6 +1237,9 @@ public:
     }
 
     stmt_c visit(for_loop_c v) override {
+        auto old_fast = fast_;
+        fast_ |= (v->attr_
+                && v->attr_->get_or_else("bypass_complex_const_fold", false));
         // don't fold range for the var
         auto var = dispatch(v->var_);
         auto begin = fold_range_dispatch(v->iter_begin_);
@@ -1312,6 +1315,7 @@ public:
         if (loop_len_hint >= 0) {
             ret->attr()["loop_len_hint"] = loop_len_hint;
         }
+        fast_ = old_fast;
         return ret;
     }
 

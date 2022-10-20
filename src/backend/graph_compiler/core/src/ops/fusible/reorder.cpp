@@ -952,6 +952,14 @@ static void cannot_convert_warning(const sc_data_format_t &input_format,
                    << " with plain dims:" << utils::print_vector(plain_dims);
 }
 
+// complex constant folding will suprisingly cause LLVM regression on
+// vectorization for reorder
+static void set_const_fold_bypass(const context_ptr &ctx, const stmt &v) {
+    if (ctx->flags_.jit_kind_ == jit_kind::llvm) {
+        v->attr()["bypass_complex_const_fold"] = true;
+    }
+}
+
 void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
         const sc_data_format_t &input_format,
@@ -1010,6 +1018,7 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         loops[0].checked_as<for_loop>()->fuse(loops[i].checked_as<for_loop>());
     }
     bld->emit(cur);
+    if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
 }
 
 void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
@@ -1106,6 +1115,7 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
     }
     cur->attr()[stmt_attr_key::merge_loop] = true;
     bld->emit(cur);
+    if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
 }
 
 void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
@@ -1206,6 +1216,7 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
         }
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);
+        if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
     } else {
         std::vector<expr> out_indexes;
         for (size_t i = 0; i < output_blocking_dims.size(); i++) {
@@ -1253,6 +1264,7 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
             loops.push_back(cur);
         }
         bld->emit(cur);
+        if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
     }
 }
 
@@ -1361,6 +1373,7 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
         }
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);
+        if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
     } else {
         std::vector<expr> out_indexes;
         for (size_t i = 0; i < output_blocking_dims.size(); i++) {
@@ -1410,6 +1423,7 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
                     loops[i].checked_as<for_loop>());
         }
         bld->emit(cur);
+        if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
     }
 }
 // currently only support f32 8x8 and bf16 32x8
