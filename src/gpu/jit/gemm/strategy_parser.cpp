@@ -109,6 +109,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
         GEMMStrategy &strategy) {
     std::stringstream s(str);
     bool overrideFusedLoop = false;
+    bool gotSR = false;
 
     char eat, asA, asB, asC, accessA, accessB, accessC;
     char accessAUnaligned = '\0', accessBUnaligned = '\0';
@@ -221,12 +222,17 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.GRFs = std::stoi(mod);
         } else if (mod == "sys")
             strategy.systolic = true;
+        else if (mod == "dw")
+            strategy.dpasw = true;
         else if (mod == "fs")
             strategy.fixedSystolic = strategy.systolic = true;
         else if (mod == "ar")
             strategy.altCRemainder = true;
-        else if (mod == "sr")
+        else if (mod == "sr") {
             strategy.altCRemainder = false;
+            gotSR = true;
+        } else if (mod == "br")
+            strategy.block2DCRemainder = true;
         else if (mod == "ac")
             strategy.cAccumulators = true;
         else if (mod == "el")
@@ -310,10 +316,9 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
         else if (mod == "wg") {
             char x;
             s >> strategy.wg[LoopM];
-            s >> std::ws >> x;
+            s >> x;
             s >> strategy.wg[LoopN];
             strategy.wg[LoopK] = 0;
-            s >> std::ws;
             if (s.peek() == 'x') s >> x >> strategy.wg[LoopK];
         } else if (mod == "nb") {
             char x;
@@ -417,6 +422,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
 
     if (strategy.ka_pfStride == 0) strategy.ka_pfStride = strategy.ka_prefetch;
     if (strategy.kb_pfStride == 0) strategy.kb_pfStride = strategy.kb_prefetch;
+
+    if (strategy.block2DCRemainder && !gotSR) strategy.altCRemainder = true;
 
     int bcount = problem.binaryPOCount();
     strategy.binary.resize(bcount);
