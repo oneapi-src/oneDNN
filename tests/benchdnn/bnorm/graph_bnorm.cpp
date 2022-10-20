@@ -307,10 +307,9 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
         SAFE(::bnorm::prepare_bwd(prb, d_dst_dt, d_dst_fp), WARN);
 
         dnn_mem_t d_scale_fp;
-        if (use_sc || use_sh) {
-            d_scale_fp = make_dnn_mem(outs[1], dt::f32, tag::abx);
-            d_scale_dt = make_dnn_mem(outs[1], dt::f32, tag::abx);
-        }
+        d_scale_fp = make_dnn_mem(outs[1], dt::f32, tag::abx);
+        d_scale_dt = make_dnn_mem(outs[1], dt::f32, tag::abx);
+
         auto d_shift_fp
                 = make_dnn_mem(outs[2], dt::f32, use_sh ? tag::x : tag::axb);
         d_shift_dt = make_dnn_mem(outs[2], use_sh ? tag::x : tag::axb);
