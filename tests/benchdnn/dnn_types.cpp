@@ -1446,9 +1446,6 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
 }
 
 void update_cpu_ref_attrs(attr_t &attr, dnnl_data_type_t new_dt) {
-    auto &os = attr.oscale;
-    os.runtime = true;
-
     auto &po = attr.post_ops;
     for (int idx = 0; idx < po.len(); ++idx) {
         auto &e = po.entry[idx];
