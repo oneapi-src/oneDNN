@@ -33,9 +33,14 @@ public:
         auto vv = ir_visitor_t::visit(std::move(v)).static_as<cast_c>();
         const auto src_dtype = vv->in_->dtype_;
         const auto dst_dtype = vv->dtype_;
-        if (dst_dtype.type_code_ == sc_data_etype::F32
-                && (src_dtype.type_code_ == sc_data_etype::U8
-                        || src_dtype.type_code_ == sc_data_etype::S8)) {
+        const auto is_f32_int8_cast = [](const sc_data_type_t &type_dst,
+                                              const sc_data_type_t &type_src) {
+            return (type_dst.type_code_ == sc_data_etype::U8
+                           || type_dst.type_code_ == sc_data_etype::S8)
+                    && type_src.type_code_ == sc_data_etype::F32;
+        };
+        if (is_f32_int8_cast(dst_dtype, src_dtype)
+                || is_f32_int8_cast(src_dtype, dst_dtype)) {
             // int8 to f32 must cast to s32 first
             return builder::make_cast(dst_dtype,
                     builder::make_cast(

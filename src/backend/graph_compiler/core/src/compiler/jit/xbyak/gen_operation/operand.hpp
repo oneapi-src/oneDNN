@@ -18,11 +18,29 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_GEN_OPERATION_OPERAND_HPP
 
 #include <iostream>
+#include <memory>
+#include <utility>
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
 #include <compiler/jit/xbyak/x86_64/native_types.hpp>
+#include <util/variant.hpp>
 
 namespace sc {
 namespace sc_xbyak {
+
+/**
+ * Operand content, contains imm, Xbyak reg or addr.
+ * xbyak content can be dynamic convert to its base classes.
+ **/
+using op_content_t = variant<int64_t, Xbyak::Address, Xbyak::Reg, Xbyak::Reg8,
+        Xbyak::Reg16, Xbyak::Reg32, Xbyak::Reg64, Xbyak::Xmm, Xbyak::Ymm,
+        Xbyak::Zmm, Xbyak::Tmm, Xbyak::Opmask>;
+
+using op_ptr_t = std::shared_ptr<op_content_t>;
+
+template <typename T>
+op_ptr_t wrap_op_ptr(T op) {
+    return std::make_shared<op_content_t>(std::move(op));
+}
 
 /**
  * The xbyak codegen operand, contains imm, reg or addr.
@@ -30,6 +48,8 @@ namespace sc_xbyak {
  **/
 class operand {
 public:
+    // constant
+    constexpr static bool T_z = true;
     // operand type
     enum type {
         none = 0,
@@ -40,23 +60,23 @@ public:
 
     // constructor
     operand();
-    operand(const uint64_t &imm);
-    operand(const Xbyak::Reg &reg);
-    operand(const Xbyak::Address &addr);
+    operand(operand::type tp, op_ptr_t ptr);
+    operand(operand::type tp, op_ptr_t ptr, int reg_kind, int reg_indx);
+
+    template <typename RegT>
+    explicit operand(RegT reg);
+    explicit operand(int64_t imm);
+    explicit operand(Xbyak::Address addr);
 
     // get operand type
     operand::type get_type() const;
 
-    // get operand
-    uint64_t get_imm() const;
-    Xbyak::Reg get_reg_base() const;
-    Xbyak::Reg get_reg() const;
-    Xbyak::Xmm get_xyz() const;
-    Xbyak::Opmask get_mask() const;
-    Xbyak::Tmm get_tmm() const;
-    Xbyak::Address get_addr() const;
+    // get imm operand
+    int64_t get_imm() const;
 
     // get reg/addr operand
+    const Xbyak::Reg &get_reg() const;
+    const Xbyak::Address &get_addr() const;
     const Xbyak::Operand &get_operand() const;
 
     // get reg[8/16/32/64] operand
@@ -66,17 +86,28 @@ public:
     Xbyak::Reg8 get_reg8() const;
 
     // get [xyz]mm operand
-    Xbyak::Xmm get_xmm() const;
-    Xbyak::Ymm get_ymm() const;
-    Xbyak::Zmm get_zmm() const;
+    const Xbyak::Xmm &get_xmm() const;
+    const Xbyak::Ymm &get_ymm() const;
+    const Xbyak::Zmm &get_zmm() const;
+
+    // get tmm operand
+    const Xbyak::Tmm &get_tmm() const;
+
+    // get opmask operand
+    const Xbyak::Opmask &get_mask() const;
 
     // check certain operand
     bool is_imm() const;
     bool is_reg() const;
     bool is_xyz() const;
-    bool is_mask() const;
     bool is_tmm() const;
+    bool is_mask() const;
     bool is_addr() const;
+    bool is_r_m() const;
+    bool is_x_m() const;
+
+    // Set evex for avx512 operands
+    operand set_evex(const operand &mask, bool zero = false) const;
 
     // check same operand
     bool operator==(const operand &b) const;
@@ -85,16 +116,9 @@ public:
     friend std::ostream &operator<<(std::ostream &os, const operand &op);
 
 private:
-    union defined_operand {
-        uint64_t imm_;
-        Xbyak::Reg reg_;
-        Xbyak::Address addr_;
-        defined_operand(uint64_t imm) { imm_ = imm; }
-        defined_operand(Xbyak::Reg reg) { reg_ = reg; }
-        defined_operand(Xbyak::Address addr) { addr_ = addr; }
-    } content_;
-
     operand::type type_ = operand::type::none;
+    op_ptr_t content_;
+
     // only used for mov compare
     int reg_kind_ = 0;
     int reg_indx_ = 0;

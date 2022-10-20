@@ -643,12 +643,12 @@ public:
                                     {extract_low, extract_hig}, intrin, isa));
                 }
             } else {
-                add_assignment(extract_hig,
-                        make_xbyak_intrin(extract_hig->dtype_,
+                add_assignment(extract_low,
+                        make_xbyak_intrin(extract_low->dtype_,
                                 {extract_low, extract_hig}, intrin, isa));
             }
             // src = hig
-            current_src = extract_hig;
+            current_src = extract_low;
         }
     }
 

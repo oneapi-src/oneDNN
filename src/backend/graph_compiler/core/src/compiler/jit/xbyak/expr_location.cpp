@@ -14,44 +14,14 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include <compiler/jit/xbyak/expr_location.hpp>
-
+#include <utility>
+#include <compiler/jit/xbyak/gen_operation/operand.hpp>
 #include <util/utils.hpp>
+
+#include "expr_location.hpp"
 
 namespace sc {
 namespace sc_xbyak {
-
-//============================================================================
-// Constructors
-//============================================================================
-
-// None
-expr_location::expr_location()
-    : content_(UINT64_C(0)), type_(expr_location::type::none) {}
-
-// Immediate
-expr_location::expr_location(uint64_t imm, x86_64::cpu_data_type data_type)
-    : content_(imm), type_(expr_location::type::imm), data_type_(data_type) {}
-
-// Register
-expr_location::expr_location(Xbyak::Reg reg, x86_64::cpu_data_type data_type)
-    : content_(reg), type_(expr_location::type::reg), data_type_(data_type) {}
-
-// SIMD Constant
-expr_location::expr_location(
-        Xbyak::Label *label, x86_64::cpu_data_type data_type)
-    : content_(label)
-    , type_(expr_location::type::simd_constant)
-    , data_type_(data_type) {}
-
-// Stack Var/Tensor
-expr_location::expr_location(Xbyak::RegExp reg_exp,
-        expr_location::type loc_type, x86_64::cpu_data_type data_type)
-    : content_(reg_exp), type_(loc_type), data_type_(data_type) {
-    COMPILE_ASSERT(loc_type == expr_location::type::stack_var
-                    || loc_type == expr_location::type::stack_tensor,
-            "Invalid expr_location type init by reg_exp");
-}
 
 //============================================================================
 //  get member
@@ -65,61 +35,91 @@ x86_64::cpu_data_type expr_location::get_data_type() const {
     return data_type_;
 }
 
-uint64_t expr_location::get_imm() const {
+op_ptr_t expr_location::get_op_ptr() const {
+    return content_;
+}
+
+int64_t expr_location::get_imm() const {
     COMPILE_ASSERT(type_ == type::imm, "Not a imm: " << (*this));
-    return content_.imm_;
+    return content_->as<int64_t>();
 }
 
-Xbyak::Reg expr_location::get_reg() const {
-    COMPILE_ASSERT(type_ == type::reg, "Not a reg: " << (*this));
-    return content_.reg_;
-}
-
-Xbyak::RegExp expr_location::get_stack_var() const {
+int64_t expr_location::get_stack_var() const {
     COMPILE_ASSERT(type_ == type::stack_var, "Not a stack_var: " << (*this));
-    return content_.reg_exp_;
+    return content_->as<int64_t>();
 }
 
-Xbyak::RegExp expr_location::get_stack_tensor() const {
+int64_t expr_location::get_stack_tensor() const {
     COMPILE_ASSERT(
             type_ == type::stack_tensor, "Not a stack_tensor: " << (*this));
-    return content_.reg_exp_;
+    return content_->as<int64_t>();
 }
 
-Xbyak::Label *expr_location::get_simd_constant() const {
+const Xbyak::Reg &expr_location::get_reg() const {
+    COMPILE_ASSERT(type_ == type::reg, "Not a reg: " << (*this));
+    return content_->as<Xbyak::Reg>();
+}
+
+const Xbyak::Address &expr_location::get_simd_constant() const {
     COMPILE_ASSERT(
             type_ == type::simd_constant, "Not a simd_constant: " << (*this));
-    return content_.label_;
+    return content_->as<Xbyak::Address>();
 }
 
 //============================================================================
 //  Factory methods
 //============================================================================
 
-expr_location expr_location::make_imm(
-        uint64_t imm, x86_64::cpu_data_type data_type) {
-    return expr_location(imm, data_type);
+template <typename RegT>
+expr_location expr_location::make_reg(
+        RegT reg, x86_64::cpu_data_type cpu_dtype) {
+    return expr_location(type::reg, cpu_dtype, std::move(reg));
 }
 
-expr_location expr_location::make_reg(
-        Xbyak::Reg reg, x86_64::cpu_data_type data_type) {
-    return expr_location(reg, data_type);
+expr_location expr_location::make_imm(
+        int64_t imm, x86_64::cpu_data_type cpu_dtype) {
+    return expr_location(type::imm, cpu_dtype, imm);
 }
 
 expr_location expr_location::make_stack_var(
-        Xbyak::RegExp reg_exp, x86_64::cpu_data_type data_type) {
-    return expr_location(reg_exp, expr_location::type::stack_var, data_type);
+        int64_t offset, x86_64::cpu_data_type cpu_dtype) {
+    return expr_location(type::stack_var, cpu_dtype, offset);
 }
 
-expr_location expr_location::make_stack_tensor(Xbyak::RegExp reg_exp) {
-    return expr_location(reg_exp, expr_location::type::stack_tensor,
-            x86_64::cpu_data_type::uint_64);
+expr_location expr_location::make_stack_tensor(int64_t offset) {
+    const auto cpu_dtype = x86_64::cpu_data_type::uint_64;
+    return expr_location(type::stack_tensor, cpu_dtype, offset);
 }
 
 expr_location expr_location::make_simd_constant(
-        Xbyak::Label *label, x86_64::cpu_data_type data_type) {
-    return expr_location(label, data_type);
+        Xbyak::Address addr, x86_64::cpu_data_type cpu_dtype) {
+    return expr_location(type::simd_constant, cpu_dtype, addr);
 }
+
+//============================================================================
+//  make_reg template methods
+//============================================================================
+
+template expr_location expr_location::make_reg<Xbyak::Reg>(
+        Xbyak::Reg reg, x86_64::cpu_data_type cpu_dtype);
+template expr_location expr_location::make_reg<Xbyak::Reg8>(
+        Xbyak::Reg8 reg, x86_64::cpu_data_type cpu_dtype);
+template expr_location expr_location::make_reg<Xbyak::Reg16>(
+        Xbyak::Reg16 reg, x86_64::cpu_data_type cpu_dtype);
+template expr_location expr_location::make_reg<Xbyak::Reg32>(
+        Xbyak::Reg32 reg, x86_64::cpu_data_type cpu_dtype);
+template expr_location expr_location::make_reg<Xbyak::Reg64>(
+        Xbyak::Reg64 reg, x86_64::cpu_data_type cpu_dtype);
+template expr_location expr_location::make_reg<Xbyak::Xmm>(
+        Xbyak::Xmm reg, x86_64::cpu_data_type cpu_dtype);
+template expr_location expr_location::make_reg<Xbyak::Ymm>(
+        Xbyak::Ymm reg, x86_64::cpu_data_type cpu_dtype);
+template expr_location expr_location::make_reg<Xbyak::Zmm>(
+        Xbyak::Zmm reg, x86_64::cpu_data_type cpu_dtype);
+template expr_location expr_location::make_reg<Xbyak::Tmm>(
+        Xbyak::Tmm reg, x86_64::cpu_data_type cpu_dtype);
+template expr_location expr_location::make_reg<Xbyak::Opmask>(
+        Xbyak::Opmask reg, x86_64::cpu_data_type cpu_dtype);
 
 //============================================================================
 //  MISC.
@@ -137,16 +137,16 @@ std::ostream &operator<<(std::ostream &os, const expr_location &v) {
             os << "[reg: " << v.get_reg().toString() << "]";
         } break;
         case expr_location::type::stack_var: {
-            os << "[stack_var: %rbp" << std::showpos
-               << (int64_t)v.get_stack_var().getDisp() << "]";
+            os << "[stack_var: %rbp" << std::showpos << v.get_stack_var()
+               << "]";
         } break;
         case expr_location::type::stack_tensor: {
-            os << "[stack_tensor: %rbp" << std::showpos
-               << (int64_t)v.get_stack_tensor().getDisp() << "]";
+            os << "[stack_tensor: %rbp" << std::showpos << v.get_stack_tensor()
+               << "]";
         } break;
         case expr_location::type::simd_constant: {
-            os << "[simd_constant: %rip+.L" << v.get_simd_constant()->getId()
-               << "]";
+            os << "[simd_constant: %rip+.L"
+               << v.get_simd_constant().getLabel()->getId() << "]";
         } break;
     }
     return os;

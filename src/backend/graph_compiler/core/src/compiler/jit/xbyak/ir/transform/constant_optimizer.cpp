@@ -172,7 +172,7 @@ public:
             return make_swap_cmp(
                     v->node_type_, v->l_, ir_visitor_t::dispatch(v->r_));
         } else {
-            return v;
+            return ir_visitor_t::visit(std::move(v));
         }
     }
 

@@ -203,7 +203,7 @@ private:
     bool is_local_scope_;
     abi_function_interface::ptr func_iface_;
 
-    void set_func_args_hint(std::vector<expr> params) {
+    void set_func_args_hint(const std::vector<expr> &params) {
         auto &slots_map = allocator_->slots_map();
         for (size_t i = 0; i < params.size(); ++i) {
             auto &param = params[i];
@@ -217,6 +217,10 @@ private:
                         "Unhandled register kind: " << src_reg.toString());
                 virt_reg.set_hint(virt_reg_hint::strong,
                         slots_map.get_reg_index(src_reg));
+                if (i < 2) {
+                    // arg is stream or modudle_data
+                    virt_reg.spill_weight_ = spill_weight_const::initial;
+                }
             }
         }
     }

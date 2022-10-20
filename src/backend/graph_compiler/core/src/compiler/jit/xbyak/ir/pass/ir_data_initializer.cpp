@@ -34,13 +34,14 @@ public:
     func_c dispatch(func_c v) override {
         for (auto &p : v->params_) {
             initialize_expr_data(p, nullptr);
+            if (p.isa<tensor>()) { update_spill_weight(p, 128); }
         }
         return xbyak_visitor_t::dispatch(std::move(v));
     }
 
     expr_c dispatch(expr_c v) override {
         initialize_expr_data(v, nullptr);
-        update_spill_weight(v);
+        update_spill_weight(v, 32 * loop_depth());
         return xbyak_visitor_t::dispatch(std::move(v));
     }
 
@@ -52,6 +53,7 @@ public:
     // visit override
     stmt_c visit(define_c v) override {
         initialize_expr_data(v->var_, current_scope());
+        if (v->var_.isa<tensor>()) { update_spill_weight(v->var_, 128); }
         return xbyak_visitor_t::visit(std::move(v));
     }
 
@@ -64,6 +66,18 @@ public:
         auto &cond_mask = v->modifier_.cond_mask_;
         if (cond_mask.defined()) { initialize_expr_data(cond_mask, nullptr); }
         return xbyak_visitor_t::visit(std::move(v));
+    }
+
+    expr_c visit(indexing_c v) override {
+        auto ret = xbyak_visitor_t::visit(std::move(v));
+        assert(ret.isa<indexing>());
+        // Add more spill weight to ptr and index
+        auto vv = ret.static_as<indexing_c>();
+        assert(!(vv->idx_.empty()) && vv->idx_.back().defined()
+                && vv->ptr_.defined());
+        update_spill_weight(vv->ptr_, 64 * loop_depth());
+        update_spill_weight(vv->idx_.back(), 64 * loop_depth());
+        return vv;
     }
 
 private:
@@ -80,8 +94,8 @@ private:
         }
     }
 
-    void update_spill_weight(const expr_c &v) {
-        GET_VIRTUAL_REG(v).add_weight(32 * loop_depth() + 1);
+    void update_spill_weight(const expr_c &v, const spill_weight_t weight) {
+        GET_VIRTUAL_REG(v).add_weight(weight + 1);
     }
 };
 

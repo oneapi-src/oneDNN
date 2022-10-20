@@ -26,108 +26,125 @@ using K = Xbyak::Operand::Kind;
 #define KIND_TMM (K::TMM)
 
 // constructor
-operand::operand() : content_(0), type_(operand::type::none) {}
+operand::operand() : type_(operand::type::none) {}
 
-operand::operand(const uint64_t &imm)
-    : content_(imm), type_(operand::type::imm) {}
+operand::operand(operand::type tp, op_ptr_t ptr, int reg_kind, int reg_indx)
+    : type_(tp) //
+    , content_(std::move(ptr))
+    , reg_kind_(reg_kind)
+    , reg_indx_(reg_indx) {}
 
-operand::operand(const Xbyak::Reg &reg)
-    : content_(reg), type_(operand::type::reg) {
-    reg_kind_ = reg.is(KIND_XYZ) ? KIND_XYZ : reg.getKind();
-    reg_indx_ = reg.getIdx();
+operand::operand(operand::type tp, op_ptr_t ptr)
+    : type_(tp) //
+    , content_(std::move(ptr)) {
+    if (type_ == operand::type::reg) {
+        const auto &reg = content_->as<Xbyak::Reg>();
+        reg_kind_ = reg.is(KIND_XYZ) ? KIND_XYZ : reg.getKind();
+        reg_indx_ = reg.getIdx();
+    }
 }
 
-operand::operand(const Xbyak::Address &addr)
-    : content_(addr), type_(operand::type::addr) {}
+operand::operand(int64_t imm)
+    : type_(operand::type::imm) //
+    , content_(wrap_op_ptr(imm)) {}
+
+operand::operand(Xbyak::Address addr)
+    : type_(operand::type::addr) //
+    , content_(wrap_op_ptr(addr)) {}
+
+template <typename RegT>
+operand::operand(RegT reg) : type_(operand::type::reg) {
+    reg_kind_ = reg.is(KIND_XYZ) ? KIND_XYZ : reg.getKind();
+    reg_indx_ = reg.getIdx();
+    content_ = wrap_op_ptr(std::move(reg));
+}
+
+// reg constructors
+template operand::operand(Xbyak::Reg reg);
+template operand::operand(Xbyak::Reg8 reg);
+template operand::operand(Xbyak::Reg16 reg);
+template operand::operand(Xbyak::Reg32 reg);
+template operand::operand(Xbyak::Reg64 reg);
+template operand::operand(Xbyak::Xmm reg);
+template operand::operand(Xbyak::Ymm reg);
+template operand::operand(Xbyak::Zmm reg);
+template operand::operand(Xbyak::Tmm reg);
+template operand::operand(Xbyak::Opmask reg);
 
 // get operand type
 operand::type operand::get_type() const {
     return type_;
 }
 
-// get operand
-uint64_t operand::get_imm() const {
+// get imm operand
+int64_t operand::get_imm() const {
     assert(type_ == operand::type::imm);
-    return content_.imm_;
-}
-
-Xbyak::Reg operand::get_reg_base() const {
-    assert(type_ == operand::type::reg);
-    return content_.reg_;
-}
-
-Xbyak::Reg operand::get_reg() const {
-    assert(is_reg());
-    return content_.reg_;
-}
-
-Xbyak::Xmm operand::get_xyz() const {
-    assert(is_xyz());
-    return Xbyak::Xmm(content_.reg_.getKind(), content_.reg_.getIdx());
-}
-
-Xbyak::Tmm operand::get_tmm() const {
-    assert(is_tmm());
-    return Xbyak::Tmm(content_.reg_.getIdx());
-}
-
-Xbyak::Opmask operand::get_mask() const {
-    assert(is_mask());
-    return Xbyak::Opmask(content_.reg_.getIdx());
-}
-
-Xbyak::Address operand::get_addr() const {
-    assert(type_ == operand::type::addr);
-    return content_.addr_;
+    return content_->as<int64_t>();
 }
 
 // get reg/addr operand
+const Xbyak::Reg &operand::get_reg() const {
+    assert(type_ == operand::type::reg);
+    return content_->as<Xbyak::Reg>();
+}
+
+const Xbyak::Address &operand::get_addr() const {
+    assert(type_ == operand::type::addr);
+    return content_->as<Xbyak::Address>();
+}
+
 const Xbyak::Operand &operand::get_operand() const {
-    if (type_ == operand::type::reg) {
-        return content_.reg_;
-    } else if (type_ == operand::type::addr) {
-        return content_.addr_;
-    } else {
-        assert(0 && "Operand must be reg or addr");
-    }
-    return content_.reg_; // unreachable
+    assert(type_ == operand::type::reg || type_ == operand::type::addr);
+    return content_->as<Xbyak::Operand>();
 }
 
 // get reg[8/16/32/64] operand
 Xbyak::Reg64 operand::get_reg64() const {
     assert(is_reg());
-    return Xbyak::Reg64(content_.reg_.getIdx());
+    return get_reg().cvt64();
 }
 
 Xbyak::Reg32 operand::get_reg32() const {
     assert(is_reg());
-    return Xbyak::Reg32(content_.reg_.getIdx());
+    return get_reg().cvt32();
 }
 
 Xbyak::Reg16 operand::get_reg16() const {
     assert(is_reg());
-    return Xbyak::Reg16(content_.reg_.getIdx());
+    return get_reg().cvt16();
 }
 
 Xbyak::Reg8 operand::get_reg8() const {
     assert(is_reg());
-    return Xbyak::Reg8(content_.reg_.getIdx());
+    return get_reg().cvt8();
 }
 
 // get [xyz]mm operand
-Xbyak::Xmm operand::get_xmm() const {
+const Xbyak::Xmm &operand::get_xmm() const {
     assert(is_xyz());
-    return Xbyak::Xmm(content_.reg_.getIdx());
+    return content_->as<Xbyak::Xmm>();
 }
 
-Xbyak::Ymm operand::get_ymm() const {
+const Xbyak::Ymm &operand::get_ymm() const {
     assert(is_xyz());
-    return Xbyak::Ymm(content_.reg_.getIdx());
+    return content_->as<Xbyak::Ymm>();
 }
 
-Xbyak::Zmm operand::get_zmm() const {
+const Xbyak::Zmm &operand::get_zmm() const {
     assert(is_xyz());
-    return Xbyak::Zmm(content_.reg_.getIdx());
+    return content_->as<Xbyak::Zmm>();
+}
+
+// get tmm operand
+const Xbyak::Tmm &operand::get_tmm() const {
+    assert(is_tmm());
+    return content_->as<Xbyak::Tmm>();
+}
+
+// get opmask operand
+const Xbyak::Opmask &operand::get_mask() const {
+    assert(is_mask());
+    return content_->as<Xbyak::Opmask>();
 }
 
 // check certain operand
@@ -136,27 +153,50 @@ bool operand::is_imm() const {
 }
 
 bool operand::is_reg() const {
-    if (type_ == operand::type::reg) { return content_.reg_.is(KIND_REG); }
-    return false;
+    return type_ == operand::type::reg && reg_kind_ == KIND_REG;
 }
 
 bool operand::is_xyz() const {
-    if (type_ == operand::type::reg) { return content_.reg_.is(KIND_XYZ); }
-    return false;
-}
-
-bool operand::is_mask() const {
-    if (type_ == operand::type::reg) { return content_.reg_.is(KIND_MSK); }
-    return false;
+    return type_ == operand::type::reg && reg_kind_ == KIND_XYZ;
 }
 
 bool operand::is_tmm() const {
-    if (type_ == operand::type::reg) { return content_.reg_.is(KIND_TMM); }
-    return false;
+    return type_ == operand::type::reg && reg_kind_ == KIND_TMM;
+}
+
+bool operand::is_mask() const {
+    return type_ == operand::type::reg && reg_kind_ == KIND_MSK;
 }
 
 bool operand::is_addr() const {
     return type_ == operand::type::addr;
+}
+
+bool operand::is_r_m() const {
+    return is_reg() || is_addr();
+}
+
+bool operand::is_x_m() const {
+    return is_xyz() || is_addr();
+}
+
+operand operand::set_evex(const operand &mask, bool zero) const {
+    assert(is_x_m());
+    // Copy current content and get Xbyak::Operand
+    auto new_content = op_content_t(*content_);
+    auto &op = new_content.as<Xbyak::Operand>();
+    // Set EVEX flags
+    if (mask.is_mask()) {
+        // EVEX mask
+        op.setOpmaskIdx(mask.get_mask().getIdx());
+    }
+    if (zero) {
+        // EVEX zero
+        op.setZero();
+    }
+    // new operand
+    return operand(type_, wrap_op_ptr(std::move(new_content)), //
+            reg_kind_, reg_indx_);
 }
 
 // check same operand
@@ -167,13 +207,13 @@ bool operand::operator==(const operand &b) const {
                 return true;
             }
             case operand::type::imm: {
-                return content_.imm_ == b.content_.imm_;
+                return get_imm() == b.get_imm();
             }
             case operand::type::reg: {
                 return reg_kind_ == b.reg_kind_ && reg_indx_ == b.reg_indx_;
             }
             case operand::type::addr: {
-                return content_.addr_ == b.content_.addr_;
+                return get_addr() == b.get_addr();
             }
         }
     }
@@ -190,7 +230,7 @@ std::ostream &operator<<(std::ostream &os, const operand &op) {
             os << "[" << op.get_imm() << "]";
         } break;
         case operand::type::reg: {
-            os << "[" << op.content_.reg_.toString() << "]";
+            os << "[" << op.get_reg().toString() << "]";
         } break;
         case operand::type::addr: {
             os << "[addr_operand]";

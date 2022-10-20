@@ -183,6 +183,7 @@ void xbyak_lowering_viewer::dump_code_comments(std::ostream &os) {
 //==============================================================================
 
 #define GET_OPERAND(ARG) (location_manager_->get_operand(ARG))
+#define GET_OPERAND_SIB(...) (location_manager_->get_operand_sib(__VA_ARGS__))
 #define XBYAK_GEN(INS, PATTERN, ...) \
     SC_EXPAND(PATTERN(*gen_, INS, ##__VA_ARGS__))
 // SC_EXPAND because of MSVC:
@@ -656,10 +657,10 @@ void xbyak_lowering_viewer::handle_avx_intrisic(const expr_c &dst,
             handle_avx_fmadd(op_dst, op_mul, op_add, cpu_dtype);
         } break;
         case xbyak_intrin_type::broadcast: {
-            const auto bcst_dtype = get_cpu_data_type(args[0]->dtype_);
+            const auto src_dtype = get_cpu_data_type(args[0]->dtype_);
             auto op_dst = GET_OPERAND(dst);
             auto op_src = GET_OPERAND(args[0]);
-            handle_avx_broadcast(op_dst, op_src, bcst_dtype);
+            handle_avx_broadcast(op_dst, op_src, cpu_dtype, src_dtype);
         } break;
         case xbyak_intrin_type::shuffle: {
             auto op_dst = GET_OPERAND(dst);
@@ -756,8 +757,8 @@ void xbyak_lowering_viewer::handle_assign(
         const expr_c &lhs, const expr_c &rhs) {
     auto cpu_dtype = get_cpu_data_type(rhs->dtype_);
 
-    auto rhs_op = location_manager_->get_operand(rhs);
-    auto lhs_op = location_manager_->get_operand(lhs);
+    auto rhs_op = GET_OPERAND(rhs);
+    auto lhs_op = GET_OPERAND(lhs);
 
     switch (cpu_dtype) {
         case cpu_data_type::uint_8:
@@ -813,7 +814,7 @@ void xbyak_lowering_viewer::handle_tensorptr(
             "Invalid assign_from_tensorptr lvalue node type: " << lhs);
 
     auto imm_exceed_s32 = [this](const expr &idx) {
-        auto op_idx = location_manager_->get_operand(idx);
+        auto op_idx = GET_OPERAND(idx);
         if (!op_idx.is_imm()) { return false; }
         uint64_t high = op_idx.get_imm() >> 31;
         if (high != 0 && high != 0x1FFFFFFFF) { return true; }
@@ -828,18 +829,18 @@ void xbyak_lowering_viewer::handle_tensorptr(
         const tensor_c tsr = ptr.dyn_as<tensor_c>();
         assert(tsr.defined());
 
-        auto op_lhs = location_manager_->get_operand(lhs);
-        auto op_tsr = location_manager_->get_operand(tsr);
-        auto op_idx = location_manager_->get_operand(idx);
+        auto op_lhs = GET_OPERAND(lhs);
+        auto op_tsr = GET_OPERAND(tsr);
+        auto op_idx = GET_OPERAND(idx);
 
         auto scale = location_manager_->get_data_type_size(
                 get_cpu_data_type(tsr->elem_dtype_));
 
-        handle_x86_mov(op_lhs, operand(scale * op_idx.get_imm()));
+        handle_x86_mov(op_lhs, operand((int64_t)scale * op_idx.get_imm()));
         XBYAK_GEN(add, X86_RM_RMI, op_lhs, op_tsr);
     } else {
-        auto op_lhs = location_manager_->get_operand(lhs);
-        auto op_rhs = location_manager_->get_operand(base);
+        auto op_lhs = GET_OPERAND(lhs);
+        auto op_rhs = GET_OPERAND(base);
 
         XBYAK_GEN(lea, X86_R64_M, op_lhs, op_rhs);
     }
@@ -855,7 +856,7 @@ void xbyak_lowering_viewer::handle_func_addr(
             "Invalid assign_from_func_addr lvalue node type: " << lhs);
 
     auto func_name = rhs->func_->name_;
-    auto op_lhs = location_manager_->get_operand(lhs);
+    auto op_lhs = GET_OPERAND(lhs);
 
     handle_func_resolve(
             func_name,
@@ -877,24 +878,25 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
     const sc_data_type_t in_dtype = v->in_->dtype_;
     const sc_data_type_t out_dtype = v->dtype_;
 
-    auto op_in = location_manager_->get_operand(v->in_);
-    auto op_out = location_manager_->get_operand(lhs);
-
-    if ((out_dtype.is_pointer() || out_dtype == datatypes::index
-                || out_dtype == datatypes::generic)
+    auto op_in = GET_OPERAND(v->in_);
+    auto op_out = GET_OPERAND(lhs);
+    if (location_manager_->is_stack_tensor(v->in_)) {
+        assert((out_dtype.is_pointer() || out_dtype == datatypes::index
+                || out_dtype == datatypes::generic));
+        XBYAK_GEN(lea, X86_R64_M, op_out, op_in);
+    } else if ((out_dtype.is_pointer() || out_dtype == datatypes::index
+                       || out_dtype == datatypes::generic)
             && (in_dtype.is_pointer() || in_dtype == datatypes::index
                     || in_dtype == datatypes::generic)) {
-        if (location_manager_->get_location_type(v->in_)
-                == expr_location::type::stack_tensor) {
-            XBYAK_GEN(lea, X86_R64_M, op_out, op_in);
-        } else {
-            // At the lowered asm level, u64 and all pointers are basically
-            // interchangable (assuming we're using 64-bit pointers).
-            handle_x86_mov(op_out, op_in);
-        }
+        // At the lowered asm level, u64 and all pointers are basically
+        // interchangable (assuming we're using 64-bit pointers).
+        handle_x86_mov(op_out, op_in);
     } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::s8)
-            && (in_dtype == datatypes::generic || in_dtype == datatypes::s32
+            && (in_dtype == datatypes::generic
                     || in_dtype == datatypes::index)) {
+        handle_x86_mov(op_out, op_in);
+    } else if ((out_dtype == datatypes::u8 || out_dtype == datatypes::s8)
+            && (in_dtype == datatypes::u32 || in_dtype == datatypes::s32)) {
         handle_x86_mov(op_out, op_in);
     } else if ((out_dtype == datatypes::u16 || out_dtype == datatypes::bf16)
             && (in_dtype == datatypes::u32 || in_dtype == datatypes::s32)) {
@@ -916,20 +918,23 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
     } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::u8) {
         XBYAK_GEN(movzx, X86_R_RM, op_out, op_in);
     } else if (out_dtype == datatypes::f32 && in_dtype == datatypes::generic) {
-        XBYAK_GEN(vmovd, AVX_XxR32M_XxR32M, op_out, op_in);
+        XBYAK_GEN(vmovd, AVX_XMR32_XMR32, op_out, op_in);
     } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::f32) {
-        XBYAK_GEN(cvtss2si, AVX_XxR32M_XxR32M, op_out, op_in);
+        XBYAK_GEN(cvttss2si, AVX_XMR32_XMR32, op_out, op_in);
     } else if (out_dtype == datatypes::f32 && in_dtype == datatypes::s32) {
-        XBYAK_GEN(cvtsi2ss, AVX_XxR32M_XxR32M, op_out, op_in);
+        XBYAK_GEN(cvtsi2ss, AVX_XMR32_XMR32, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::s32(16)
             && in_dtype == sc_data_type_t::f32(16)) {
         XBYAK_GEN(vcvttps2dq, AVX_X_XM, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::f32(16)
             && in_dtype == sc_data_type_t::s32(16)) {
         XBYAK_GEN(vcvtdq2ps, AVX_X_XM, op_out, op_in);
+    } else if (out_dtype == sc_data_type_t::u8(16)
+            && in_dtype == sc_data_type_t::s32(16)) {
+        XBYAK_GEN(vpmovdb, AVX_XM_X, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::s8(16)
             && in_dtype == sc_data_type_t::s32(16)) {
-        XBYAK_GEN(vpmovdb, AVX512_XM_X, op_out, op_in);
+        XBYAK_GEN(vpmovsdb, AVX_XM_X, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::s32(16)
             && in_dtype == sc_data_type_t::s8(16)) {
         XBYAK_GEN(vpmovsxbd, AVX_X_XM, op_out, op_in);
@@ -938,17 +943,17 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
         XBYAK_GEN(vpmovzxbd, AVX_X_XM, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::u16(16)
             && in_dtype == sc_data_type_t::u32(16)) {
-        XBYAK_GEN(vpmovdw, AVX512_XM_X, op_out, op_in);
+        XBYAK_GEN(vpmovdw, AVX_XM_X, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::u32(16)
             && in_dtype == sc_data_type_t::u16(16)) {
         XBYAK_GEN(vpmovzxwd, AVX_X_XM, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::boolean(16)
             && in_dtype == sc_data_type_t::u16(1)) {
-        XBYAK_GEN(kmovw, AVX512_KR32M_KR32M, op_out, op_in);
+        XBYAK_GEN(kmovw, AVX_KMR32_KMR32, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::boolean(32)
             && (in_dtype == sc_data_type_t::s32(1)
                     || in_dtype == sc_data_type_t::u32(1))) {
-        XBYAK_GEN(kmovd, AVX512_KR32M_KR32M, op_out, op_in);
+        XBYAK_GEN(kmovd, AVX_KMR32_KMR32, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::bf16(16)
             && in_dtype == sc_data_type_t::f32(16)) {
         COMPILE_ASSERT(profile_.target_machine_.cpu_flags_.fAVX512BF16,
@@ -966,15 +971,15 @@ void xbyak_lowering_viewer::handle_saturated_cast(
     const sc_data_type_t src_dtype = src->dtype_;
     const sc_data_type_t dst_dtype = dst->dtype_;
 
-    auto op_src = location_manager_->get_operand(src);
-    auto op_dst = location_manager_->get_operand(dst);
+    auto op_src = GET_OPERAND(src);
+    auto op_dst = GET_OPERAND(dst);
 
     if (dst_dtype == sc_data_type_t::s8(16)
             && src_dtype == sc_data_type_t::s32(16)) {
-        XBYAK_GEN(vpmovsdb, AVX512_XM_X, op_dst, op_src);
+        XBYAK_GEN(vpmovsdb, AVX_XM_X, op_dst, op_src);
     } else if (dst_dtype == sc_data_type_t::u8(16)
             && src_dtype == sc_data_type_t::s32(16)) {
-        XBYAK_GEN(vpmovusdb, AVX512_XM_X, op_dst, op_src);
+        XBYAK_GEN(vpmovusdb, AVX_XM_X, op_dst, op_src);
     } else {
         COMPILE_ASSERT(false,
                 FUNC_INFO << "Invalid type: " << dst_dtype << " <- "
@@ -987,8 +992,8 @@ void xbyak_lowering_viewer::handle_round_and_cast(
     const sc_data_type_t src_dtype = src->dtype_;
     const sc_data_type_t dst_dtype = dst->dtype_;
 
-    auto op_src = location_manager_->get_operand(src);
-    auto op_dst = location_manager_->get_operand(dst);
+    auto op_src = GET_OPERAND(src);
+    auto op_dst = GET_OPERAND(dst);
 
     if (dst_dtype == sc_data_type_t::s32(16)
             && src_dtype == sc_data_type_t::f32(16)) {
@@ -1008,8 +1013,8 @@ void xbyak_lowering_viewer::handle_reinterpret(
     const sc_data_type_t dtype_dst = lhs->dtype_;
     const sc_data_type_t dtype_src = rhs->dtype_;
 
-    auto op_dst = location_manager_->get_operand(lhs);
-    auto op_src = location_manager_->get_operand(rhs);
+    auto op_dst = GET_OPERAND(lhs);
+    auto op_src = GET_OPERAND(rhs);
 
     auto size_of_dst = utils::get_sizeof_type(dtype_dst);
     auto size_of_src = utils::get_sizeof_type(dtype_src);
@@ -1028,7 +1033,7 @@ void xbyak_lowering_viewer::handle_reinterpret(
         case 4: { // 32-bit
             if (dtype_dst == datatypes::f32 || dtype_src == datatypes::f32) {
                 // float <-> int
-                XBYAK_GEN(vmovd, AVX_XxR32M_XxR32M, op_dst, op_src);
+                XBYAK_GEN(vmovd, AVX_XMR32_XMR32, op_dst, op_src);
             } else {
                 // int <-> int
                 handle_x86_mov(op_dst, op_src);
@@ -1213,11 +1218,11 @@ void xbyak_lowering_viewer::handle_avx_movps(
     if (op_dst == op_src) {
         return;
     } else if (op_dst.is_xyz() && op_src.is_xyz()) {
-        gen_->vmovaps(op_dst.get_xyz(), op_src.get_xyz());
+        gen_->vmovaps(op_dst.get_xmm(), op_src.get_xmm());
     } else if (op_dst.is_xyz() && op_src.is_addr()) {
-        gen_->vmovups(op_dst.get_xyz(), op_src.get_addr());
+        gen_->vmovups(op_dst.get_xmm(), op_src.get_addr());
     } else if (op_dst.is_addr() && op_src.is_xyz()) {
-        gen_->vmovups(op_dst.get_addr(), op_src.get_xyz());
+        gen_->vmovups(op_dst.get_addr(), op_src.get_xmm());
     } else {
         COMPILE_ASSERT(false,
                 FUNC_INFO << "Invalid operand: " << op_dst << ", " << op_src);
@@ -1379,7 +1384,7 @@ void xbyak_lowering_viewer::handle_avx_shr(const operand &op_dst,
     switch (cpu_dtype) {
         case cpu_data_type::uint_32_x16:
         case cpu_data_type::sint_32_x16: {
-            XBYAK_GEN(vpsrld, AVX_X_X_XxI, op_dst, op_lhs, op_sft);
+            XBYAK_GEN(vpsrld, AVX_X_XM_XMI, op_dst, op_lhs, op_sft);
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
@@ -1392,7 +1397,7 @@ void xbyak_lowering_viewer::handle_avx_shl(const operand &op_dst,
     switch (cpu_dtype) {
         case cpu_data_type::uint_32_x16:
         case cpu_data_type::sint_32_x16: {
-            XBYAK_GEN(vpslld, AVX_X_X_XxI, op_dst, op_lhs, op_sft);
+            XBYAK_GEN(vpslld, AVX_X_XM_XMI, op_dst, op_lhs, op_sft);
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
@@ -1403,7 +1408,8 @@ void xbyak_lowering_viewer::handle_avx_ceil(const operand &op_dst,
         const operand &op_src, const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
         case cpu_data_type::float_32_x16: {
-            XBYAK_GEN(vrndscaleps, AVX512_X_XM_I, op_dst, op_src, operand(0x2));
+            XBYAK_GEN(vrndscaleps, AVX_X_XM_I, op_dst, op_src,
+                    operand(INT64_C(0x2)));
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
@@ -1415,10 +1421,11 @@ void xbyak_lowering_viewer::handle_avx_floor(const operand &op_dst,
     switch (cpu_dtype) {
         case cpu_data_type::float_32: {
             XBYAK_GEN(vrndscaless, AVX_X_X_XM_I, op_dst, op_src, op_src,
-                    operand(0x1));
+                    operand(INT64_C(0x1)));
         } break;
         case cpu_data_type::float_32_x16: {
-            XBYAK_GEN(vrndscaleps, AVX512_X_XM_I, op_dst, op_src, operand(0x1));
+            XBYAK_GEN(vrndscaleps, AVX_X_XM_I, op_dst, op_src,
+                    operand(INT64_C(0x1)));
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
@@ -1495,8 +1502,7 @@ void xbyak_lowering_viewer::handle_avx_permute(const operand &op_dst,
     switch (cpu_dtype) {
         case cpu_data_type::float_32_x8: {
             assert(op_imm.get_imm() == 32 || op_imm.get_imm() == 49);
-            XBYAK_GEN(
-                    vperm2f128, AVX_Xy_Xy_XM_I, op_dst, op_lhs, op_rhs, op_imm);
+            XBYAK_GEN(vperm2f128, AVX_Y_Y_XM_I, op_dst, op_lhs, op_rhs, op_imm);
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
@@ -1563,7 +1569,7 @@ void xbyak_lowering_viewer::handle_avx_extract_low(const operand &op_dst,
         const operand &op_src, const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
         case cpu_data_type::sint_32_x2: {
-            XBYAK_GEN(vmovd, AVX_XxR32M_XxR32M, op_dst, op_src);
+            XBYAK_GEN(vmovd, AVX_XMR32_XMR32, op_dst, op_src);
         } break;
         case cpu_data_type::sint_32_x4:
         case cpu_data_type::sint_32_x8:
@@ -1583,33 +1589,36 @@ void xbyak_lowering_viewer::handle_avx_extract_high(const operand &op_dst,
         const operand &op_src, const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
         case cpu_data_type::sint_32_x2: {
-            XBYAK_GEN(vpextrd, AVX_R32M_Xx_I, op_dst, op_src, operand(0x01));
+            XBYAK_GEN(vpextrd, AVX_RM_X_I, op_dst, op_src,
+                    operand(INT64_C(0x01)));
         } break;
         case cpu_data_type::sint_32_x4: {
-            XBYAK_GEN(vpshufd, AVX_X_X_I, op_dst, op_src, operand(0x4e));
+            XBYAK_GEN(vpshufd, AVX_X_X_I, op_dst, op_src, //
+                    operand(INT64_C(0x4e)));
         } break;
         case cpu_data_type::sint_32_x8: {
-            XBYAK_GEN(
-                    vextracti128, AVX_XxM_Xy_I, op_dst, op_src, operand(0x01));
+            XBYAK_GEN(vextracti128, AVX_XM_Y_I, op_dst, op_src,
+                    operand(INT64_C(0x01)));
         } break;
         case cpu_data_type::sint_32_x16: {
-            XBYAK_GEN(vextracti64x4, AVX512_XyM_Xz_I, op_dst, op_src,
-                    operand(0x01));
+            XBYAK_GEN(vextracti64x4, AVX_XM_Z_I, op_dst, op_src,
+                    operand(INT64_C(0x01)));
         } break;
         case cpu_data_type::float_32_x2: {
             XBYAK_GEN(vshufps, AVX_X_X_XM_I, op_dst, op_src, op_src,
-                    operand(0x55));
+                    operand(INT64_C(0x55)));
         } break;
         case cpu_data_type::float_32_x4: {
-            XBYAK_GEN(vpermilps, AVX_X_X_XI, op_dst, op_src, operand(0x4e));
+            XBYAK_GEN(vpermilps, AVX_X_X_XI, op_dst, op_src,
+                    operand(INT64_C(0x4e)));
         } break;
         case cpu_data_type::float_32_x8: {
-            XBYAK_GEN(
-                    vextractf128, AVX_XxM_Xy_I, op_dst, op_src, operand(0x01));
+            XBYAK_GEN(vextractf128, AVX_XM_Y_I, op_dst, op_src,
+                    operand(INT64_C(0x01)));
         } break;
         case cpu_data_type::float_32_x16: {
-            XBYAK_GEN(vextractf64x4, AVX512_XyM_Xz_I, op_dst, op_src,
-                    operand(0x01));
+            XBYAK_GEN(vextractf64x4, AVX_XM_Z_I, op_dst, op_src,
+                    operand(INT64_C(0x01)));
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
@@ -1621,10 +1630,10 @@ void xbyak_lowering_viewer::handle_avx_permutex2var(const operand &op_dst,
         const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
         case cpu_data_type::float_32_x4: {
-            XBYAK_GEN(vpermt2ps, AVX512_X_X_XM, op_dst, op_idx, op_src);
+            XBYAK_GEN(vpermt2ps, AVX_X_X_XM, op_dst, op_idx, op_src);
         } break;
         case cpu_data_type::uint_8_x16: {
-            XBYAK_GEN(vpermt2b, AVX512_X_X_XM, op_dst, op_idx, op_src);
+            XBYAK_GEN(vpermt2b, AVX_X_X_XM, op_dst, op_idx, op_src);
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
@@ -1632,46 +1641,62 @@ void xbyak_lowering_viewer::handle_avx_permutex2var(const operand &op_dst,
 }
 
 void xbyak_lowering_viewer::handle_avx_broadcast(const operand &op_dst,
-        const operand &op_src, const x86_64::cpu_data_type &cpu_dtype) {
-    switch (cpu_dtype) {
+        const operand &op_src, const x86_64::cpu_data_type &cpu_dtype,
+        const x86_64::cpu_data_type &src_dtype) {
+    switch (src_dtype) {
         case cpu_data_type::uint_8:
         case cpu_data_type::sint_8: {
             // TODO(XXX): add dedicated move reg to xmm in IR if needed
-            XBYAK_GEN(vpbroadcastb, AVX512_X_XxR8M, op_dst, op_src);
+            XBYAK_GEN(vpbroadcastb, AVX_X_XMR8, op_dst, op_src);
         } break;
         case cpu_data_type::uint_16: {
             // TODO(XXX): add dedicated move reg to xmm in IR if needed
-            XBYAK_GEN(vpbroadcastw, AVX512_X_XxR16M, op_dst, op_src);
+            XBYAK_GEN(vpbroadcastw, AVX_X_XMR16, op_dst, op_src);
         } break;
         case cpu_data_type::uint_32:
         case cpu_data_type::sint_32: {
             // TODO(XXX): add dedicated move reg to xmm in IR if needed
-            XBYAK_GEN(vpbroadcastd, AVX512_X_XxR32M, op_dst, op_src);
+            XBYAK_GEN(vpbroadcastd, AVX_X_XMR32, op_dst, op_src);
         } break;
         case cpu_data_type::float_32: {
             XBYAK_GEN(vbroadcastss, AVX_X_XM, op_dst, op_src);
         } break;
         case cpu_data_type::uint_16_x8: {
-            XBYAK_GEN(vshufi32x4, AVX512_Z_Z_O_I, op_dst, op_src, op_src,
-                    operand(0x0));
+            // TODO(XXX): 128-bit broadcast from memory
+            COMPILE_ASSERT(op_src.is_xyz(), "Broadcast 128-bit reg only.");
+            switch (cpu_dtype) {
+                case cpu_data_type::uint_16_x16: {
+                    auto op_src_y = operand(to_ymm(op_src.get_reg()));
+                    XBYAK_GEN(vshufi32x4, AVX_Y_Y_XM_I, op_dst, op_src_y,
+                            op_src_y, operand(INT64_C(0x0)));
+                } break;
+                case cpu_data_type::uint_16_x32: {
+                    auto op_src_z = operand(to_zmm(op_src.get_reg()));
+                    XBYAK_GEN(vshufi32x4, AVX_Y_Y_XM_I, op_dst, op_src_z,
+                            op_src_z, operand(INT64_C(0x0)));
+                } break;
+                default:
+                    COMPILE_ASSERT(false, "Invalid broadcast: " << cpu_dtype);
+            }
         } break;
         default:
-            COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
+            COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << src_dtype);
     }
 }
 
 void xbyak_lowering_viewer::handle_avx_blend(const operand &op_dst,
         const operand &op_lhs, const operand &op_rhs, const operand &op_cond,
         const x86_64::cpu_data_type &cpu_dtype) {
+    COMPILE_ASSERT(op_cond.is_mask(), "op_cond must be Opmask.");
     switch (cpu_dtype) {
         case cpu_data_type::uint_16_x16:
         case cpu_data_type::uint_16_x32: {
-            XBYAK_GEN(vpblendmw, AVX512_X_X_XM_Kw, op_dst, op_lhs, op_rhs,
-                    op_cond);
+            XBYAK_GEN(vpblendmw, AVX_X_X_XM, op_dst.set_evex(op_cond), op_lhs,
+                    op_rhs);
         } break;
         case cpu_data_type::float_32_x16: {
-            XBYAK_GEN(vblendmps, AVX512_X_X_XM_Kw, op_dst, op_lhs, op_rhs,
-                    op_cond);
+            XBYAK_GEN(vblendmps, AVX_X_X_XM, op_dst.set_evex(op_cond), op_lhs,
+                    op_rhs);
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
@@ -1681,13 +1706,16 @@ void xbyak_lowering_viewer::handle_avx_blend(const operand &op_dst,
 void xbyak_lowering_viewer::handle_avx_zero_mov(const operand &op_dst,
         const operand &op_src, const operand &op_cond,
         const x86_64::cpu_data_type &cpu_dtype) {
+    COMPILE_ASSERT(op_cond.is_mask(), "op_cond must be Opmask.");
     switch (cpu_dtype) {
         // may have other datatypes needs to support
         case cpu_data_type::uint_16_x16: {
-            XBYAK_GEN(vmovdqu16, AVX512_XM_XM_Kwz, op_dst, op_src, op_cond);
+            XBYAK_GEN(vmovdqu16, AVX_XM_XM,
+                    op_dst.set_evex(op_cond, operand::T_z), op_src);
         } break;
         case cpu_data_type::float_32_x16: {
-            XBYAK_GEN(vmovups, AVX512_XM_XM_Kwz, op_dst, op_src, op_cond);
+            XBYAK_GEN(vmovups, AVX_XM_XM,
+                    op_dst.set_evex(op_cond, operand::T_z), op_src);
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
@@ -1726,12 +1754,12 @@ void xbyak_lowering_viewer::handle_avx_cmp_set(const operand &op_dst,
     // cmp type code
     auto op_imm = [](const xbyak_condition &code) {
         switch (code) {
-            case xbyak_condition::eq: return operand(0x0);
-            case xbyak_condition::lt: return operand(0x1);
-            case xbyak_condition::le: return operand(0x2);
-            case xbyak_condition::ne: return operand(0x4);
-            case xbyak_condition::ge: return operand(0x5);
-            case xbyak_condition::gt: return operand(0x6);
+            case xbyak_condition::eq: return operand(INT64_C(0x0));
+            case xbyak_condition::lt: return operand(INT64_C(0x1));
+            case xbyak_condition::le: return operand(INT64_C(0x2));
+            case xbyak_condition::ne: return operand(INT64_C(0x4));
+            case xbyak_condition::ge: return operand(INT64_C(0x5));
+            case xbyak_condition::gt: return operand(INT64_C(0x6));
             default:
                 COMPILE_ASSERT(
                         false, FUNC_INFO << "Invalid condition: " << code);
@@ -1745,16 +1773,16 @@ void xbyak_lowering_viewer::handle_avx_cmp_set(const operand &op_dst,
             handle_x86_set(op_dst, code, cpu_dtype);
         } break;
         case cpu_data_type::uint_32_x16: {
-            XBYAK_GEN(vpcmpud, AVX512_K_X_XM_I, op_dst, op_lhs, op_rhs,
+            XBYAK_GEN(vpcmpud, AVX_K_X_XM_I, op_dst, op_lhs, op_rhs,
                     op_imm(code));
         } break;
         case cpu_data_type::sint_32_x16: {
-            XBYAK_GEN(vcmppd, AVX512_K_X_XM_I, op_dst, op_lhs, op_rhs,
-                    op_imm(code));
+            XBYAK_GEN(
+                    vcmppd, AVX_K_X_XM_I, op_dst, op_lhs, op_rhs, op_imm(code));
         } break;
         case cpu_data_type::float_32_x16: {
-            XBYAK_GEN(vcmpps, AVX512_K_X_XM_I, op_dst, op_lhs, op_rhs,
-                    op_imm(code));
+            XBYAK_GEN(
+                    vcmpps, AVX_K_X_XM_I, op_dst, op_lhs, op_rhs, op_imm(code));
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
@@ -1841,7 +1869,7 @@ void xbyak_lowering_viewer::handle_call(const expr_c &lhs, const call_c &v) {
         auto op_ret = GET_OPERAND(lhs);
 
         if (reg_ret.isXMM()) {
-            handle_avx_movss(op_ret, operand(reg_ret));
+            handle_avx_movss(op_ret, operand(to_xmm(reg_ret)));
         } else {
             handle_x86_mov(op_ret, operand(reg_ret));
         }
@@ -1905,7 +1933,7 @@ void xbyak_lowering_viewer::view(returns_c v) {
                 handle_x86_mov(operand(reg_ret), op_val);
             } break;
             case cpu_data_type::float_32: {
-                handle_avx_movss(operand(reg_ret), op_val);
+                handle_avx_movss(operand(to_xmm(reg_ret)), op_val);
             } break;
             default: COMPILE_ASSERT(false, "Unsupported type: " << cpu_dtype);
         }

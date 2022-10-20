@@ -81,7 +81,7 @@ int64_t location_manager::stack_push(const expr_location &location) {
 
 // stack_push imm
 int64_t location_manager::stack_push(
-        uint64_t imm, x86_64::cpu_data_type dtype) {
+        const uint64_t &imm, x86_64::cpu_data_type dtype) {
     const size_t slot_size = get_data_slot_size(dtype);
 
     switch (dtype) {
@@ -102,7 +102,7 @@ int64_t location_manager::stack_push(
 
 // stack_push reg
 int64_t location_manager::stack_push(
-        Xbyak::Reg reg, x86_64::cpu_data_type dtype) {
+        const Xbyak::Reg &reg, x86_64::cpu_data_type dtype) {
     const size_t slot_size = get_data_slot_size(dtype);
 
     switch (dtype) {
@@ -116,21 +116,18 @@ int64_t location_manager::stack_push(
         case cpu_data_type::sint_32:
         // integer 64-bit/ 8-byte
         case cpu_data_type::uint_64: {
-            auto reg_gp = to_reg64(reg);
-            gen_.push(reg_gp);
+            gen_.push(to_reg64(reg));
         } break;
         // simd 32-bit/ 4-byte
         case cpu_data_type::float_32: {
-            auto reg_xmm = to_xmm(reg);
             gen_.sub(gen_.rsp, slot_size);
-            gen_.vmovss(gen_.dword[gen_.rsp], reg_xmm);
+            gen_.vmovss(gen_.dword[gen_.rsp], to_xmm(reg));
         } break;
         // simd 64-bit/ 8-byte
         case cpu_data_type::sint_32_x2:
         case cpu_data_type::float_32_x2: {
-            auto reg_xmm = to_xmm(reg);
             gen_.sub(gen_.rsp, slot_size);
-            gen_.vmovups(gen_.qword[gen_.rsp], reg_xmm);
+            gen_.vmovups(gen_.qword[gen_.rsp], to_xmm(reg));
         } break;
         // simd 128-bit/ 16-byte
         case cpu_data_type::uint_8_x16:
@@ -139,9 +136,8 @@ int64_t location_manager::stack_push(
         case cpu_data_type::uint_32_x4:
         case cpu_data_type::sint_32_x4:
         case cpu_data_type::float_32_x4: {
-            auto reg_xmm = to_xmm(reg);
             gen_.sub(gen_.rsp, slot_size);
-            gen_.vmovups(gen_.xword[gen_.rsp], reg_xmm);
+            gen_.vmovups(gen_.xword[gen_.rsp], to_xmm(reg));
         } break;
         // simd 256-bit/ 32-byte
         case cpu_data_type::uint_8_x32:
@@ -149,9 +145,8 @@ int64_t location_manager::stack_push(
         case cpu_data_type::uint_16_x16:
         case cpu_data_type::sint_32_x8:
         case cpu_data_type::float_32_x8: {
-            auto reg_ymm = to_ymm(reg);
             gen_.sub(gen_.rsp, slot_size);
-            gen_.vmovups(gen_.yword[gen_.rsp], reg_ymm);
+            gen_.vmovups(gen_.yword[gen_.rsp], to_ymm(reg));
         } break;
         // simd 512-bit/ 64-byte
         case cpu_data_type::uint_8_x64:
@@ -160,9 +155,8 @@ int64_t location_manager::stack_push(
         case cpu_data_type::uint_32_x16:
         case cpu_data_type::sint_32_x16:
         case cpu_data_type::float_32_x16: {
-            auto reg_zmm = to_zmm(reg);
             gen_.sub(gen_.rsp, slot_size);
-            gen_.vmovups(gen_.zword[gen_.rsp], reg_zmm);
+            gen_.vmovups(gen_.zword[gen_.rsp], to_zmm(reg));
         } break;
         // not supported
         case cpu_data_type::mask_x16:
@@ -179,7 +173,7 @@ int64_t location_manager::stack_push(
 
 // stack_push addr
 int64_t location_manager::stack_push(
-        Xbyak::Address addr, x86_64::cpu_data_type dtype) {
+        const Xbyak::Address &addr, x86_64::cpu_data_type dtype) {
     const size_t slot_size = get_data_slot_size(dtype);
 
     switch (dtype) {
@@ -188,8 +182,9 @@ int64_t location_manager::stack_push(
         case x86_64::cpu_data_type::sint_32:
         case x86_64::cpu_data_type::uint_64:
         case x86_64::cpu_data_type::float_32: {
-            addr.setBit(64);
-            gen_.push(addr);
+            auto addr64 = addr;
+            addr64.setBit(64);
+            gen_.push(addr64);
         } break;
         default: COMPILE_ASSERT(false, "Invalid stack push addr: " << dtype);
     }
@@ -224,7 +219,7 @@ int64_t location_manager::stack_pop(const expr_location &location) {
 
 // stack_pop reg
 int64_t location_manager::stack_pop(
-        Xbyak::Reg reg, x86_64::cpu_data_type dtype) {
+        const Xbyak::Reg &reg, x86_64::cpu_data_type dtype) {
     const size_t slot_size = get_data_slot_size(dtype);
 
     switch (dtype) {
@@ -300,7 +295,7 @@ int64_t location_manager::stack_pop(
 
 // stack_pop addr
 int64_t location_manager::stack_pop(
-        Xbyak::Address addr, x86_64::cpu_data_type dtype) {
+        const Xbyak::Address &addr, x86_64::cpu_data_type dtype) {
     const size_t slot_size = get_data_slot_size(dtype);
 
     switch (dtype) {
@@ -309,8 +304,9 @@ int64_t location_manager::stack_pop(
         case x86_64::cpu_data_type::sint_32:
         case x86_64::cpu_data_type::uint_64:
         case x86_64::cpu_data_type::float_32: {
-            addr.setBit(64);
-            gen_.pop(addr);
+            auto addr64 = addr;
+            addr64.setBit(64);
+            gen_.pop(addr64);
         } break;
         default: COMPILE_ASSERT(false, "Invalid stack pop addr: " << dtype);
     }
@@ -463,10 +459,8 @@ void location_manager::handle_func_params(const std::vector<expr> &func_params,
                 if (GET_VIRTUAL_REG(ir_expr).spilled()) {
                     assert(r.local_value_stack_slot_size_ == 8);
                     int64_t rbp_offset = stack_push(src_reg, cpu_dtype);
-
-                    Xbyak::RegExp reg_exp = gen_.rbp + rbp_offset;
-                    expr_location_map_[ir_expr]
-                            = expr_location::make_stack_var(reg_exp, cpu_dtype);
+                    expr_location_map_[ir_expr] = expr_location::make_stack_var(
+                            rbp_offset, cpu_dtype);
                 } else if (GET_VIRTUAL_REG(ir_expr).allocated()) {
                     allocate_free_reg(ir_expr);
                 }
@@ -482,15 +476,14 @@ void location_manager::handle_func_params(const std::vector<expr> &func_params,
                         "caller-created parameter slot");
                 sf_model_.add_caller_param_slot(param_slot);
                 // Get location on stack
-                Xbyak::RegExp reg_exp = gen_.rbp + rbp_offset;
                 auto location
-                        = expr_location::make_stack_var(reg_exp, cpu_dtype);
+                        = expr_location::make_stack_var(rbp_offset, cpu_dtype);
                 // Load stack param to reg if allocated reg
                 // TODO(XXX): optimize when to load
                 if (GET_VIRTUAL_REG(ir_expr).spilled()) {
                     expr_location_map_[ir_expr] = location;
                 } else if (GET_VIRTUAL_REG(ir_expr).allocated()) {
-                    auto reg = allocate_free_reg(ir_expr);
+                    const auto &reg = allocate_free_reg(ir_expr).get_reg();
                     load_location_to_reg(reg, location);
                 }
             } break;
@@ -544,7 +537,7 @@ void location_manager::handle_call_arg(const expr_c &arg, const expr_c &v) {
     if (GET_VIRTUAL_REG(arg).spilled()) {
         stack_push(v);
     } else {
-        auto call_reg = convert_virtual_reg(arg);
+        const auto &call_reg = allocate_free_reg(arg).get_reg();
         load_location_to_reg(call_reg, get_location(v));
     }
 }
@@ -554,7 +547,7 @@ void location_manager::push_caller_saved(
     for (auto &v : caller_saved) {
         int64_t rbp_offset = stack_push(v);
         local_location_map_[v] = expr_location::make_stack_var(
-                gen_.rbp + rbp_offset, get_cpu_data_type(v->dtype_));
+                rbp_offset, get_cpu_data_type(v->dtype_));
         caller_saved_.push_back(v);
     }
 }
@@ -588,9 +581,9 @@ void location_manager::handle_spilled_definition(
             // v is a var
             slot_size += stack_var_define(
                     data_type, name, "allocate on stack: " + name);
-            Xbyak::RegExp reg_exp = gen_.rbp + get_stack_top_rbp_offset();
+            auto offset = get_stack_top_rbp_offset();
             expr_location_map_[v]
-                    = expr_location::make_stack_var(reg_exp, data_type);
+                    = expr_location::make_stack_var(offset, data_type);
         } else if (GET_VIRTUAL_REG(v).buffered()) {
             auto vv = v.static_as<tensor_c>();
             const auto name = get_node_name(vv.remove_const());
@@ -600,8 +593,8 @@ void location_manager::handle_spilled_definition(
             // v is a tensor
             slot_size += stack_tensor_define(
                     elem_dtype, num_elem, name, "allocate on stack: " + name);
-            Xbyak::RegExp reg_exp = gen_.rbp + get_stack_top_rbp_offset();
-            expr_location_map_[v] = expr_location::make_stack_tensor(reg_exp);
+            auto offset = get_stack_top_rbp_offset();
+            expr_location_map_[v] = expr_location::make_stack_tensor(offset);
         } else {
             COMPILE_ASSERT(false, "Invalid spilled define: " << v);
         }
@@ -618,7 +611,7 @@ void location_manager::prepare_local_scope(
         } else {
             int64_t rbp_offset = stack_push(v);
             local_location_map_[v] = expr_location::make_stack_var(
-                    gen_.rbp + rbp_offset, get_cpu_data_type(v->dtype_));
+                    rbp_offset, get_cpu_data_type(v->dtype_));
         }
     }
     handle_spilled_definition(local_defined);
@@ -659,7 +652,8 @@ void location_manager::emit_callee_prologue(
         for (auto i : target_callee_save) {
             if (register_usage.find(i) != register_usage.end()) {
                 auto reg = virtual_slots_map_->get_reg_physical(i);
-                auto loc = expr_location(reg, callee_save_cpu_type(reg_type));
+                auto loc = expr_location::make_reg(
+                        reg, callee_save_cpu_type(reg_type));
                 callee_saved_.push_back(loc);
                 stack_push(loc);
             }
@@ -700,7 +694,7 @@ void location_manager::emit_callee_epilogue() {
 
     // Pop all callee saved regs
     while (!callee_saved_.empty()) {
-        auto loc = callee_saved_.back();
+        const auto &loc = callee_saved_.back();
         stack_pop(loc);
         callee_saved_.pop_back();
     }
@@ -747,22 +741,23 @@ void location_manager::clear() {
 operand location_manager::get_operand(const expr_location &location) {
     switch (location.get_type()) {
         case expr_location::type::imm: {
-            return operand(location.get_imm());
+            return operand(operand::type::imm, location.get_op_ptr());
         } break;
         case expr_location::type::reg: {
-            return operand(location.get_reg());
+            return operand(operand::type::reg, location.get_op_ptr());
         } break;
         case expr_location::type::stack_var: {
-            auto xaf = get_address_frame(location.get_data_type());
-            return operand((*xaf)[location.get_stack_var()]);
+            auto addr = get_offset_address(
+                    location.get_stack_var(), location.get_data_type());
+            return operand(operand::type::addr, wrap_op_ptr(addr));
         } break;
         case expr_location::type::stack_tensor: {
-            auto xaf = get_address_frame(location.get_data_type());
-            return operand((*xaf)[location.get_stack_tensor()]);
+            auto addr = get_offset_address(
+                    location.get_stack_tensor(), location.get_data_type());
+            return operand(operand::type::addr, wrap_op_ptr(addr));
         } break;
         case expr_location::type::simd_constant: {
-            auto xaf = get_address_frame(location.get_data_type());
-            return operand((*xaf)[gen_.rip + *location.get_simd_constant()]);
+            return operand(operand::type::addr, location.get_op_ptr());
         } break;
         default: {
             COMPILE_ASSERT(false, "Invalid: get_operand: " << location);
@@ -809,7 +804,7 @@ operand location_manager::get_operand_indexing(const indexing_c &v) {
     Xbyak::RegExp addr_exp;
     if (ptr_loc_type == expr_location::type::stack_tensor) {
         // addr_exp = %rbp + o
-        addr_exp = ptr_location.get_stack_tensor();
+        addr_exp = get_rbp_offset(ptr_location.get_stack_tensor());
     } else {
         // addr_exp = REG(V)
         addr_exp = Xbyak::RegExp(ptr_location.get_reg());
@@ -825,16 +820,31 @@ operand location_manager::get_operand_indexing(const indexing_c &v) {
         addr_exp = addr_exp + to_reg64(idx_location.get_reg()) * scale;
     }
     // Get address frame
-    auto xaf = get_address_frame(get_cpu_data_type(v->dtype_));
-    return operand((*xaf)[addr_exp]);
+    return operand(get_address(addr_exp, get_cpu_data_type(v->dtype_)));
+}
+
+operand location_manager::get_operand_sib(
+        const expr_c &base, const expr_c &indx, const expr_c &disp) {
+    auto loc_base = get_location(base);
+    auto loc_indx = get_location(indx);
+    auto loc_disp = get_location(disp);
+
+    COMPILE_ASSERT(loc_base.get_type() == expr_location::type::reg
+                    && loc_indx.get_type() == expr_location::type::reg
+                    && loc_disp.get_type() == expr_location::type::imm,
+            "Invalid sib operand type: " << loc_base << ", " << loc_indx << ", "
+                                         << loc_disp);
+
+    return operand(gen_.ptr[loc_base.get_reg() + loc_indx.get_reg()
+            + loc_disp.get_imm()]);
 }
 
 //==============================================================================
 // MISC. interface
 //==============================================================================
 
-expr_location::type location_manager::get_location_type(const expr_c &v) {
-    return get_location(v).get_type();
+bool location_manager::is_stack_tensor(const expr_c &v) {
+    return get_location(v).get_type() == expr_location::type::stack_tensor;
 }
 
 size_t location_manager::get_data_type_size(x86_64::cpu_data_type data_type) {
@@ -929,8 +939,6 @@ const Xbyak::AddressFrame *location_manager::get_address_frame(
 
 const content_hash_map<expr_c, Xbyak::Label> &
 location_manager::encode_simd_constant() {
-    std::function<uint16_t(union_val)> select_bf16
-            = [](union_val u) -> uint16_t { return bf16_t(u.f32).storage_; };
     std::function<int8_t(union_val)> select_s8
             = [](union_val u) -> int8_t { return (int8_t)u.s64; };
     std::function<uint8_t(union_val)> select_u8
@@ -1037,8 +1045,7 @@ expr_location location_manager::get_location(const expr_c &v) {
     } else if (expr_location_map_.find(v) != expr_location_map_.end()) {
         return expr_location_map_[v];
     } else if (GET_VIRTUAL_REG(v).allocated()) {
-        return expr_location(
-                convert_virtual_reg(v), get_cpu_data_type(v->dtype_));
+        return allocate_free_reg(v);
     } else if (v.isa<constant>()) {
         return get_location(v.static_as<constant_c>());
     } else {
@@ -1057,42 +1064,42 @@ expr_location location_manager::get_location(const constant_c &v) {
                     std::make_pair<expr_c, Xbyak::Label>(v, Xbyak::Label()));
         }
         // Add to location map
+        auto addr = get_offset_address(simd_iter->second, data_type);
         auto loc_iter = expr_location_map_.find(v);
         assert(loc_iter == expr_location_map_.end());
         loc_iter = expr_location_map_.insert(loc_iter,
-                std::make_pair<expr_c, expr_location>(v,
-                        expr_location::make_simd_constant(
-                                &(simd_iter->second), data_type)));
+                std::make_pair<expr_c, expr_location>(
+                        v, expr_location::make_simd_constant(addr, data_type)));
         return loc_iter->second;
     } else {
         // Get immediate value
-        return expr_location(v->value_[0].u64, data_type);
+        return expr_location::make_imm(v->value_[0].s64, data_type);
     }
 }
 
 void location_manager::load_location_to_reg(
-        Xbyak::Reg reg, expr_location location) {
+        const Xbyak::Reg &reg, const expr_location &location) {
     auto data_type = location.get_data_type();
     auto op = get_operand(location);
     switch (location.get_type()) {
         case expr_location::type::imm: {
-            auto imm = op.get_imm();
+            const auto imm = op.get_imm();
             load_imm_value_to_reg(reg, imm, data_type);
         } break;
         case expr_location::type::reg: {
-            auto src = op.get_reg_base();
+            const auto &src = op.get_reg();
             load_reg_value_to_reg(reg, src, data_type);
         } break;
         case expr_location::type::simd_constant: {
-            auto addr = op.get_addr();
+            const auto &addr = op.get_addr();
             load_mem_value_to_reg(reg, addr, data_type);
         } break;
         case expr_location::type::stack_var: {
-            auto addr = op.get_addr();
+            const auto &addr = op.get_addr();
             load_mem_value_to_reg(reg, addr, data_type);
         } break;
         case expr_location::type::stack_tensor: {
-            auto addr = op.get_addr();
+            const auto &addr = op.get_addr();
             load_mem_addr_to_reg(reg, addr, data_type);
         } break;
         default: {
@@ -1101,8 +1108,8 @@ void location_manager::load_location_to_reg(
     }
 }
 
-void location_manager::load_imm_value_to_reg(
-        Xbyak::Reg reg, uint64_t imm, x86_64::cpu_data_type data_type) {
+void location_manager::load_imm_value_to_reg(const Xbyak::Reg &reg,
+        const uint64_t &imm, x86_64::cpu_data_type data_type) {
     switch (data_type) {
         case cpu_data_type::uint_8:
         case cpu_data_type::sint_8: {
@@ -1120,8 +1127,8 @@ void location_manager::load_imm_value_to_reg(
     }
 }
 
-void location_manager::load_reg_value_to_reg(
-        Xbyak::Reg reg, Xbyak::Reg src, x86_64::cpu_data_type data_type) {
+void location_manager::load_reg_value_to_reg(const Xbyak::Reg &reg,
+        const Xbyak::Reg &src, x86_64::cpu_data_type data_type) {
     if (operand(reg) == operand(src)) { return; }
     switch (data_type) {
         case cpu_data_type::uint_8:
@@ -1140,8 +1147,8 @@ void location_manager::load_reg_value_to_reg(
     }
 }
 
-void location_manager::load_mem_value_to_reg(
-        Xbyak::Reg reg, Xbyak::Address addr, x86_64::cpu_data_type data_type) {
+void location_manager::load_mem_value_to_reg(const Xbyak::Reg &reg,
+        const Xbyak::Address &addr, x86_64::cpu_data_type data_type) {
     switch (data_type) {
         case cpu_data_type::uint_8:
         case cpu_data_type::sint_8: {
@@ -1170,8 +1177,8 @@ void location_manager::load_mem_value_to_reg(
     }
 }
 
-void location_manager::load_mem_addr_to_reg(
-        Xbyak::Reg reg, Xbyak::Address addr, x86_64::cpu_data_type data_type) {
+void location_manager::load_mem_addr_to_reg(const Xbyak::Reg &reg,
+        const Xbyak::Address &addr, x86_64::cpu_data_type data_type) {
     switch (data_type) {
         case cpu_data_type::uint_64: {
             gen_.lea(to_reg64(reg), addr);
@@ -1182,73 +1189,122 @@ void location_manager::load_mem_addr_to_reg(
     }
 }
 
+Xbyak::RegExp location_manager::get_rbp_offset(const int64_t &offset) {
+    return gen_.rbp + offset;
+}
+
+Xbyak::RegRip location_manager::get_rip_offset(const Xbyak::Label &label) {
+    return gen_.rip + label;
+}
+
+Xbyak::Address location_manager::get_address(
+        const Xbyak::RegExp &exp, x86_64::cpu_data_type cpu_dtype) {
+    const auto xaf = get_address_frame(cpu_dtype);
+    return (*xaf)[exp];
+}
+
+Xbyak::Address location_manager::get_address(
+        const Xbyak::RegRip &rxp, x86_64::cpu_data_type cpu_dtype) {
+    const auto xaf = get_address_frame(cpu_dtype);
+    return (*xaf)[rxp];
+}
+
+Xbyak::Address location_manager::get_offset_address(
+        const int64_t &offset, x86_64::cpu_data_type cpu_dtype) {
+    return get_address(get_rbp_offset(offset), cpu_dtype);
+}
+
+Xbyak::Address location_manager::get_offset_address(
+        const Xbyak::Label &label, x86_64::cpu_data_type cpu_dtype) {
+    return get_address(get_rip_offset(label), cpu_dtype);
+}
+
 //==============================================================================
 // Register management
 //==============================================================================
 
-Xbyak::Reg location_manager::allocate_free_reg(const expr_c &v) {
-    const auto &index = GET_VIRTUAL_REG(v).index_;
-    COMPILE_ASSERT(
-            index != virt_reg_const::invalid, "allocate_free_reg failed");
-
-    Xbyak::Reg reg = convert_virtual_reg(v);
-    expr_location_map_[v]
-            = expr_location::make_reg(reg, get_cpu_data_type(v->dtype_));
-    return reg;
+expr_location location_manager::allocate_free_reg(const expr_c &v) {
+    auto reg_loc = convert_virtual_reg(v);
+    expr_location_map_[v] = reg_loc;
+    return reg_loc;
 }
 
-Xbyak::Reg location_manager::convert_virtual_reg(const expr_c &v) {
-    const auto &index = GET_VIRTUAL_REG(v).index_;
+expr_location location_manager::convert_virtual_reg(const expr_c &v) {
+    const auto cpu_dtype = get_cpu_data_type(v->dtype_);
+    const auto index = GET_VIRTUAL_REG(v).index_;
+    COMPILE_ASSERT(
+            index != virt_reg_const::invalid, "convert_virtual_reg failed");
     auto reg = virtual_slots_map_->get_reg_physical(index);
+
     if (v->dtype_.is_tile()) {
         // skip get_cpu_data_type for tmm
-        return to_tmm(reg);
+        return expr_location::make_reg(to_tmm(reg), cpu_dtype);
     }
-    switch (get_cpu_data_type(v->dtype_)) {
+    switch (cpu_dtype) {
         // integer 8-bit/ 1-byte
-        case cpu_data_type::uint_8: return to_reg8(reg);
-        case cpu_data_type::sint_8: return to_reg8(reg);
+        case cpu_data_type::uint_8:
+        case cpu_data_type::sint_8: {
+            return expr_location::make_reg(to_reg8(reg), cpu_dtype);
+        }
         // integer 16-bit/ 2-byte
-        case cpu_data_type::uint_16: return to_reg16(reg);
+        case cpu_data_type::uint_16: {
+            return expr_location::make_reg(to_reg16(reg), cpu_dtype);
+        }
         // integer 32-bit/ 4-byte
-        case cpu_data_type::uint_32: return to_reg32(reg);
-        case cpu_data_type::sint_32: return to_reg32(reg);
+        case cpu_data_type::uint_32:
+        case cpu_data_type::sint_32: {
+            return expr_location::make_reg(to_reg32(reg), cpu_dtype);
+        }
         // integer 64-bit/ 8-byte
-        case cpu_data_type::uint_64: return to_reg64(reg);
+        case cpu_data_type::uint_64: {
+            return expr_location::make_reg(to_reg64(reg), cpu_dtype);
+        }
         // simd 32-bit/ 4-byte
-        case cpu_data_type::float_32: return to_xmm(reg);
+        case cpu_data_type::float_32: {
+            return expr_location::make_reg(to_xmm(reg), cpu_dtype);
+        }
         // simd 64-bit/ 8-byte
-        case cpu_data_type::sint_32_x2: return to_xmm(reg);
-        case cpu_data_type::float_32_x2: return to_xmm(reg);
+        case cpu_data_type::sint_32_x2:
+        case cpu_data_type::float_32_x2: {
+            return expr_location::make_reg(to_xmm(reg), cpu_dtype);
+        }
         // simd 128-bit/ 16-byte
-        case cpu_data_type::uint_8_x16: return to_xmm(reg);
-        case cpu_data_type::sint_8_x16: return to_xmm(reg);
-        case cpu_data_type::uint_16_x8: return to_xmm(reg);
-        case cpu_data_type::uint_32_x4: return to_xmm(reg);
-        case cpu_data_type::sint_32_x4: return to_xmm(reg);
-        case cpu_data_type::float_32_x4: return to_xmm(reg);
+        case cpu_data_type::uint_8_x16:
+        case cpu_data_type::sint_8_x16:
+        case cpu_data_type::uint_16_x8:
+        case cpu_data_type::uint_32_x4:
+        case cpu_data_type::sint_32_x4:
+        case cpu_data_type::float_32_x4: {
+            return expr_location::make_reg(to_xmm(reg), cpu_dtype);
+        }
         // simd 256-bit/ 32-byte
-        case cpu_data_type::uint_8_x32: return to_ymm(reg);
-        case cpu_data_type::sint_8_x32: return to_ymm(reg);
-        case cpu_data_type::uint_16_x16: return to_ymm(reg);
-        case cpu_data_type::sint_32_x8: return to_ymm(reg);
-        case cpu_data_type::float_32_x8: return to_ymm(reg);
+        case cpu_data_type::uint_8_x32:
+        case cpu_data_type::sint_8_x32:
+        case cpu_data_type::uint_16_x16:
+        case cpu_data_type::sint_32_x8:
+        case cpu_data_type::float_32_x8: {
+            return expr_location::make_reg(to_ymm(reg), cpu_dtype);
+        }
         // simd 512-bit/ 64-byte
-        case cpu_data_type::uint_8_x64: return to_zmm(reg);
-        case cpu_data_type::sint_8_x64: return to_zmm(reg);
-        case cpu_data_type::uint_16_x32: return to_zmm(reg);
-        case cpu_data_type::uint_32_x16: return to_zmm(reg);
-        case cpu_data_type::sint_32_x16: return to_zmm(reg);
-        case cpu_data_type::float_32_x16: return to_zmm(reg);
+        case cpu_data_type::uint_8_x64:
+        case cpu_data_type::sint_8_x64:
+        case cpu_data_type::uint_16_x32:
+        case cpu_data_type::uint_32_x16:
+        case cpu_data_type::sint_32_x16:
+        case cpu_data_type::float_32_x16: {
+            return expr_location::make_reg(to_zmm(reg), cpu_dtype);
+        }
         // simd mask
-        case cpu_data_type::mask_x16: return to_mask(reg);
-        case cpu_data_type::mask_x32: return to_mask(reg);
+        case cpu_data_type::mask_x16:
+        case cpu_data_type::mask_x32: {
+            return expr_location::make_reg(to_mask(reg), cpu_dtype);
+        }
         // not supported
         case cpu_data_type::void_t: {
-            assert(false && "Unreachable");
+            COMPILE_ASSERT(false, "Invalid virtual_reg cpu dtype.");
         } break;
     }
-    return reg;
+    return expr_location();
 }
 
 } // namespace sc_xbyak

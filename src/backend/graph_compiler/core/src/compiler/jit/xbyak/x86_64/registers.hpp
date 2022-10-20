@@ -17,8 +17,8 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_X86_64_REGISTERS_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_X86_64_REGISTERS_HPP
 
-#include <vector>
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
+#include <util/utils.hpp>
 
 namespace sc {
 namespace sc_xbyak {
@@ -108,21 +108,51 @@ static const Xbyak::Tmm tmm7(7);
 } // namespace regs
 
 /// Convert gp reg to specific type
-Xbyak::Reg8 to_reg8(Xbyak::Reg r);
-Xbyak::Reg16 to_reg16(Xbyak::Reg r);
-Xbyak::Reg32 to_reg32(Xbyak::Reg r);
-Xbyak::Reg64 to_reg64(Xbyak::Reg r);
+inline Xbyak::Reg8 to_reg8(const Xbyak::Reg &r) {
+    COMPILE_ASSERT(r.isREG(), "Not a GP reg: " << r.toString());
+    return r.cvt8();
+}
+inline Xbyak::Reg16 to_reg16(const Xbyak::Reg &r) {
+    COMPILE_ASSERT(r.isREG(), "Not a GP reg: " << r.toString());
+    return r.cvt16();
+}
+inline Xbyak::Reg32 to_reg32(const Xbyak::Reg &r) {
+    COMPILE_ASSERT(r.isREG(), "Not a GP reg: " << r.toString());
+    return r.cvt32();
+}
+inline Xbyak::Reg64 to_reg64(const Xbyak::Reg &r) {
+    COMPILE_ASSERT(r.isREG(), "Not a GP reg: " << r.toString());
+    return r.cvt64();
+}
 
 /// Convert fp reg to specific type
-Xbyak::Xmm to_xmm(Xbyak::Reg r);
-Xbyak::Ymm to_ymm(Xbyak::Reg r);
-Xbyak::Zmm to_zmm(Xbyak::Reg r);
+inline Xbyak::Xmm to_xmm(const Xbyak::Reg &r) {
+    COMPILE_ASSERT(r.isXMM() || r.isYMM() || r.isZMM(),
+            "Not an [XYZ]MM reg: " << r.toString());
+    return Xbyak::Xmm(r.getIdx());
+}
+inline Xbyak::Ymm to_ymm(const Xbyak::Reg &r) {
+    COMPILE_ASSERT(r.isXMM() || r.isYMM() || r.isZMM(),
+            "Not an [XYZ]MM reg: " << r.toString());
+    return Xbyak::Ymm(r.getIdx());
+}
+inline Xbyak::Zmm to_zmm(const Xbyak::Reg &r) {
+    COMPILE_ASSERT(r.isXMM() || r.isYMM() || r.isZMM(),
+            "Not an [XYZ]MM reg: " << r.toString());
+    return Xbyak::Zmm(r.getIdx());
+}
 
 /// Convert mask reg to Opmask
-Xbyak::Opmask to_mask(Xbyak::Reg r);
+inline Xbyak::Opmask to_mask(const Xbyak::Reg &r) {
+    COMPILE_ASSERT(r.isOPMASK(), "Not an OPMASK reg: " << r.toString());
+    return Xbyak::Opmask(r.getIdx());
+}
 
 /// Convert tile reg to AMX tile
-Xbyak::Tmm to_tmm(Xbyak::Reg r);
+inline Xbyak::Tmm to_tmm(const Xbyak::Reg &r) {
+    COMPILE_ASSERT(r.isTMM(), "Not an AMX tile reg: " << r.toString());
+    return Xbyak::Tmm(r.getIdx());
+}
 
 } // namespace x86_64
 } // namespace sc_xbyak

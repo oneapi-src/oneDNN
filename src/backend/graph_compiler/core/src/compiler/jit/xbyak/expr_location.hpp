@@ -18,8 +18,10 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_EXPR_LOCATION_HPP
 
 #include <sstream>
+#include <utility>
 #include <compiler/ir/sc_expr.hpp>
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
+#include <compiler/jit/xbyak/gen_operation/operand.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_expr.hpp>
 #include <compiler/jit/xbyak/x86_64/native_types.hpp>
 
@@ -37,52 +39,49 @@ public:
         simd_constant,
     };
 
-    expr_location();
-    expr_location(uint64_t imm, x86_64::cpu_data_type data_type);
-    expr_location(Xbyak::Reg reg, x86_64::cpu_data_type data_type);
-    expr_location(Xbyak::Label *label, x86_64::cpu_data_type data_type);
-    expr_location(
-            Xbyak::RegExp reg_exp, type t, x86_64::cpu_data_type data_type);
+    expr_location()
+        : type_(expr_location::type::none)
+        , data_type_(x86_64::cpu_data_type::void_t) {};
 
     type get_type() const;
     x86_64::cpu_data_type get_data_type() const;
+    op_ptr_t get_op_ptr() const;
 
-    uint64_t get_imm() const;
-    Xbyak::Reg get_reg() const;
-    Xbyak::RegExp get_stack_var() const;
-    Xbyak::RegExp get_stack_tensor() const;
-    Xbyak::Label *get_simd_constant() const;
+    int64_t get_imm() const;
+    int64_t get_stack_var() const;
+    int64_t get_stack_tensor() const;
+    const Xbyak::Reg &get_reg() const;
+    const Xbyak::Address &get_simd_constant() const;
 
     // Factory methods, for convenience.
-    static expr_location make_imm(uint64_t imm,
-            x86_64::cpu_data_type data_type = x86_64::cpu_data_type::uint_64);
-    static expr_location make_reg(Xbyak::Reg reg,
-            x86_64::cpu_data_type data_type = x86_64::cpu_data_type::uint_64);
-    static expr_location make_stack_var(Xbyak::RegExp reg_exp,
-            x86_64::cpu_data_type data_type = x86_64::cpu_data_type::uint_64);
-    static expr_location make_stack_tensor(Xbyak::RegExp reg_exp);
-    static expr_location make_simd_constant(Xbyak::Label *label,
-            x86_64::cpu_data_type data_type = x86_64::cpu_data_type::uint_64);
+    template <typename RegT>
+    static expr_location make_reg( //
+            RegT reg, x86_64::cpu_data_type cpu_dtype);
+    static expr_location make_imm( //
+            int64_t imm, x86_64::cpu_data_type cpu_dtype);
+    static expr_location make_stack_var( //
+            int64_t offset, x86_64::cpu_data_type cpu_dtype);
+    static expr_location make_stack_tensor( //
+            int64_t offset);
+    static expr_location make_simd_constant( //
+            Xbyak::Address addr, x86_64::cpu_data_type cpu_dtype);
 
     friend std::ostream &operator<<(std::ostream &os, const expr_location &v);
 
 private:
-    union defined_location {
-        uint64_t imm_;
-        Xbyak::Reg reg_;
-        Xbyak::Label *label_;
-        Xbyak::RegExp reg_exp_;
-        defined_location(uint64_t imm) { imm_ = imm; }
-        defined_location(Xbyak::Reg reg) { reg_ = reg; }
-        defined_location(Xbyak::Label *label) { label_ = label; }
-        defined_location(Xbyak::RegExp reg_exp) { reg_exp_ = reg_exp; }
-    } content_;
+    // only allow factory methods
+    template <typename T>
+    expr_location(type t, x86_64::cpu_data_type dtype, T op)
+        : type_(t)
+        , data_type_(dtype)
+        , content_(wrap_op_ptr<T>(std::move(op))) {}
 
     type type_;
     x86_64::cpu_data_type data_type_;
+    op_ptr_t content_;
 };
 
-std::ostream &operator<<(std::ostream &os, expr_location &v);
+std::ostream &operator<<(std::ostream &os, const expr_location &v);
 
 } // namespace sc_xbyak
 } // namespace sc

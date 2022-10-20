@@ -52,14 +52,14 @@ public:
     //--------------------------------------------------------------------------
     int64_t stack_push(const expr_c &v);
     int64_t stack_push(const expr_location &location);
-    int64_t stack_push(uint64_t imm, x86_64::cpu_data_type dtype);
-    int64_t stack_push(Xbyak::Reg reg, x86_64::cpu_data_type dtype);
-    int64_t stack_push(Xbyak::Address addr, x86_64::cpu_data_type dtype);
+    int64_t stack_push(const uint64_t &imm, x86_64::cpu_data_type dtype);
+    int64_t stack_push(const Xbyak::Reg &reg, x86_64::cpu_data_type dtype);
+    int64_t stack_push(const Xbyak::Address &addr, x86_64::cpu_data_type dtype);
 
     int64_t stack_pop(const expr_c &v);
     int64_t stack_pop(const expr_location &location);
-    int64_t stack_pop(Xbyak::Reg reg, x86_64::cpu_data_type dtype);
-    int64_t stack_pop(Xbyak::Address addr, x86_64::cpu_data_type dtype);
+    int64_t stack_pop(const Xbyak::Reg &reg, x86_64::cpu_data_type dtype);
+    int64_t stack_pop(const Xbyak::Address &addr, x86_64::cpu_data_type dtype);
 
     void stack_padding(const size_t &padding_bytes_needed,
             const std::string &comment = "");
@@ -79,7 +79,7 @@ public:
     void restore_stack_size();
 
     //--------------------------------------------------------------------------
-    // Function argument interface
+    // Function call interface
     //--------------------------------------------------------------------------
     /// Prepare value of each callee argument to facilitate abi function call
     void handle_call_arg(const expr_c &arg, const expr_c &v);
@@ -120,11 +120,14 @@ public:
 
     // get operand addr of indexing expr ptr[idx]
     operand get_operand_indexing(const indexing_c &v);
+    // get operand addr of SIB structured for amx load/store
+    operand get_operand_sib(
+            const expr_c &base, const expr_c &indx, const expr_c &disp);
 
     //--------------------------------------------------------------------------
     // MISC. interface
     //--------------------------------------------------------------------------
-    expr_location::type get_location_type(const expr_c &v);
+    bool is_stack_tensor(const expr_c &v);
 
     size_t get_data_type_size(x86_64::cpu_data_type data_type);
     size_t get_data_slot_size(x86_64::cpu_data_type data_type);
@@ -153,21 +156,37 @@ private:
     expr_location get_location(const expr_c &v);
     expr_location get_location(const constant_c &v);
 
-    void load_location_to_reg(Xbyak::Reg reg, expr_location location);
-    void load_imm_value_to_reg(
-            Xbyak::Reg reg, uint64_t imm, x86_64::cpu_data_type data_type);
-    void load_reg_value_to_reg(
-            Xbyak::Reg reg, Xbyak::Reg src, x86_64::cpu_data_type data_type);
-    void load_mem_value_to_reg(Xbyak::Reg reg, Xbyak::Address addr,
-            x86_64::cpu_data_type data_type);
-    void load_mem_addr_to_reg(Xbyak::Reg reg, Xbyak::Address addr,
-            x86_64::cpu_data_type data_type);
+    void load_location_to_reg(const Xbyak::Reg &reg, //
+            const expr_location &location);
+    void load_imm_value_to_reg(const Xbyak::Reg &reg, //
+            const uint64_t &imm, x86_64::cpu_data_type data_type);
+    void load_reg_value_to_reg(const Xbyak::Reg &reg, //
+            const Xbyak::Reg &src, x86_64::cpu_data_type data_type);
+    void load_mem_value_to_reg(const Xbyak::Reg &reg, //
+            const Xbyak::Address &addr, x86_64::cpu_data_type data_type);
+    void load_mem_addr_to_reg(const Xbyak::Reg &reg, //
+            const Xbyak::Address &addr, x86_64::cpu_data_type data_type);
+
+    Xbyak::Address get_address(
+            const Xbyak::RegExp &exp, x86_64::cpu_data_type cpu_dtype);
+    Xbyak::Address get_address(
+            const Xbyak::RegRip &rxp, x86_64::cpu_data_type cpu_dtype);
+    // %rbp + offset
+    Xbyak::RegExp get_rbp_offset(const int64_t &offset);
+    // %rip + label
+    Xbyak::RegRip get_rip_offset(const Xbyak::Label &label);
+    // AddressFrame[%rbp + offset]
+    Xbyak::Address get_offset_address(
+            const int64_t &offset, x86_64::cpu_data_type cpu_dtype);
+    // AddressFrame[%rip + label]
+    Xbyak::Address get_offset_address(
+            const Xbyak::Label &label, x86_64::cpu_data_type cpu_dtype);
 
     //--------------------------------------------------------------------------
     // Register management
     //--------------------------------------------------------------------------
-    Xbyak::Reg allocate_free_reg(const expr_c &v);
-    Xbyak::Reg convert_virtual_reg(const expr_c &v);
+    expr_location allocate_free_reg(const expr_c &v);
+    expr_location convert_virtual_reg(const expr_c &v);
 
     //--------------------------------------------------------------------------
     // MISC.

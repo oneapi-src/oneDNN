@@ -241,7 +241,8 @@ private:
     void handle_avx_extract_high(const operand &op_dst, const operand &op_src,
             const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_broadcast(const operand &op_dst, const operand &op_src,
-            const x86_64::cpu_data_type &cpu_dtype);
+            const x86_64::cpu_data_type &cpu_dtype,
+            const x86_64::cpu_data_type &src_dtype);
     void handle_avx_blend(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const operand &op_cond,
             const x86_64::cpu_data_type &cpu_dtype);
