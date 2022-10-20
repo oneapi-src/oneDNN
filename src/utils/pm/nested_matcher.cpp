@@ -833,9 +833,9 @@ bool repetition_matcher_t::match_next_op(const binding_t &bind_arg) {
         }
 
     } else {
-        assertm(bind_arg.bind_node->get_outputs().size() <= 1,
-                "repetition is restricted to have only 1 output");
-        if (bind_arg.bind_node->get_outputs().size() == 1) {
+        assertm(bind_arg.bind_node->get_inputs().size() <= 1,
+                "repetition is restricted to have only 1 input");
+        if (bind_arg.bind_node->get_inputs().size() == 1) {
             op_t *current_op = rep_global_ctx_.in_port_map[pmap_.second].first;
             size_t current_port
                     = rep_global_ctx_.in_port_map[pmap_.second].second;
