@@ -486,6 +486,17 @@ impl::status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg) {
                 std::max(dq_src_scales.size(), dq_wei_scales.size()), 1.f);
         // src: per_tensor, weight: per_channel
         if (dq_src_scales.size() < dq_wei_scales.size()) {
+            const int64_t ndims
+                    = matmul_op->get_input_value(1)->get_logical_tensor().ndims;
+            const int64_t axis = in1->get_attr<int64_t>(op_attr::axis);
+            if (matmul_op->has_attr(op_attr::transpose_b)
+                    && matmul_op->get_attr<bool>(op_attr::transpose_b)) {
+                if (axis != -2 && axis != ndims - 2)
+                    return impl::status::invalid_graph;
+            } else {
+                if (axis != -1 && axis != ndims - 1)
+                    return impl::status::invalid_graph;
+            }
             for (size_t i = 0; i < dq_wei_scales.size(); ++i)
                 fused_scales[i] = dq_src_scales[0] * dq_wei_scales[i];
             // FIXME(wuxun): if quantization is per-channel, need to set axis

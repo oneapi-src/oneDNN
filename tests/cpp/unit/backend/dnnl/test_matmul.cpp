@@ -2913,7 +2913,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8bf16) {
     dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
     dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
     dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
-    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
@@ -3040,7 +3040,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddU8s8bf16) {
     dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
     dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
     dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
-    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqother_op(2, impl::op_kind::Dequantize, "dqother_op");
     dqother_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
@@ -3199,7 +3199,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddBF16U8s8bf16) {
     dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
     dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
     dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
-    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
@@ -3346,7 +3346,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddAddBF16U8s8bf16) {
     dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
     dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
     dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
-    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
@@ -3507,7 +3507,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8u8MixBf16) {
     dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
     dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
     dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
-    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
@@ -3519,10 +3519,10 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8u8MixBf16) {
     impl::op_t tcdst_op {5, impl::op_kind::TypeCast, "typecast_dst"};
 
     impl::op_t qout_op(6, impl::op_kind::Quantize, "qdout_op");
-    qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
     qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
     qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
-    qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -3652,13 +3652,13 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddU8s8u8MixBf16) {
     qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
     qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
     qweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
-    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
     dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
     dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
     dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
-    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
@@ -3676,10 +3676,10 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddU8s8u8MixBf16) {
     impl::op_t tcdst_op {7, impl::op_kind::TypeCast, "typecast_dst"};
 
     impl::op_t qout_op(8, impl::op_kind::Quantize, "qdout_op");
-    qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
     qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
     qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
-    qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -3824,7 +3824,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluU8s8u8MixBf16) {
     dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
     dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
     dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
-    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
@@ -3837,10 +3837,10 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluU8s8u8MixBf16) {
     impl::op_t tcgelu_op {6, impl::op_kind::TypeCast, "typecast_gelu"};
 
     impl::op_t qout_op(7, impl::op_kind::Quantize, "qdout_op");
-    qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
     qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
     qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
-    qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
@@ -3977,13 +3977,13 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddGeluU8s8u8MixBf16) {
     qweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
     qweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
     qweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
-    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    qweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
     dqweight_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
     dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zp_wei);
     dqweight_op.set_attr<std::vector<float>>(impl::op_attr::scales, scale_wei);
-    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
     impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
@@ -4002,10 +4002,10 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddGeluU8s8u8MixBf16) {
     impl::op_t tcgelu_op {8, impl::op_kind::TypeCast, "typecast_gelu"};
 
     impl::op_t qout_op(9, impl::op_kind::Quantize, "qdout_op");
-    qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
     qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
     qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
-    qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
 
     // prepare logical tensor
     impl::logical_tensor_t src_u8
