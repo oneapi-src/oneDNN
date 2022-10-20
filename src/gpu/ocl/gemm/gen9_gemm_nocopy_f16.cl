@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/gemm/ocl_gemm_attrs.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
@@ -122,12 +123,14 @@
     do { \
         if (irem > i) { \
             if (jrem > 0) { \
-                half val = alpha * c[i][0] + ((betaZero) ? 0 : beta * *C); \
+                half val \
+                        = ATTR_ALPHA * c[i][0] + ((betaZero) ? 0 : beta * *C); \
                 POST_OP(val); \
                 *C = val; \
             } \
             if (jrem > 16) { \
-                half val = alpha * c[i][1] + ((betaZero) ? 0 : beta * *C2); \
+                half val = ATTR_ALPHA * c[i][1] \
+                        + ((betaZero) ? 0 : beta * *C2); \
                 POST_OP(val); \
                 *C2 = val; \
             } \
