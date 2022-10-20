@@ -678,8 +678,15 @@ int measure_perf(
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
         const attr_t::scale_t &scale, int64_t scale_cnt, const float *scales);
 
+void maybe_prepare_runtime_scales_v2(dnn_mem_t &scales_dt, dnn_mem_t &scales_fp,
+        const attr_t::scale_t &scale, int64_t scale_cnt, const float *scales);
+
 void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
         const attr_t &attr, int arg, int64_t count, const int32_t *zero_points);
+
+void maybe_prepare_runtime_zero_points_v2(dnn_mem_t &zero_points_dt,
+        dnn_mem_t &zero_points_fp, const attr_t &attr, int arg, int64_t count,
+        const int32_t *zero_points);
 
 std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
         const std::vector<std::pair<int, int>> &v_po_masks,
