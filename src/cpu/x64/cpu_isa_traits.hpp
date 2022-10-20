@@ -32,8 +32,7 @@
 /* in order to make selinux happy memory that would be marked with X-bit should
  * be obtained with mmap */
 #define XBYAK_USE_MMAP_ALLOCATOR
-/* Use Xbyak's memfd-based allocation, if available */
-#define XBYAK_USE_MEMFD
+
 #define XBYAK_NO_EXCEPTION
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 /* turn off `size_t to other-type implicit casting` warning
