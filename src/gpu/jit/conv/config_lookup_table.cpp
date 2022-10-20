@@ -93,6 +93,8 @@ bool type_filter_t::matches(const std::vector<data_type_t> &values) const {
                 return false;
         } else if (ptrn == "f32") {
             if (values[i] != data_type::f32) return false;
+        } else if (ptrn == "bf16") {
+            if (values[i] != data_type::bf16) return false;
         } else {
             ir_error_not_expected() << ptrn;
         }
@@ -113,6 +115,7 @@ bool type_filter_t::try_parse(
 std::vector<std::string> &type_filter_t::all_patterns() {
     static std::vector<std::string> ret = {
             "x8",
+            "bf16",
             "f32",
             "*",
     };
@@ -275,6 +278,74 @@ conv_config_lookup_table_t::conv_config_lookup_table_t() {
     add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic64ih56oc64oh56kh3ph1", "simd=32 p=x0 fsp=0 T=ow2 i=mb8oc32ic16");
     add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic64iw3136oc256ow3136kw1pw0", "simd=32 p=x0 fsp=0 T= i=mb16oc32ic16");
     add("hw=xehpc dir=fwd cfg=f32f32f32 mb=16+ desc=ic64iw3136oc64ow3136kw1pw0", "simd=16 p=x0 fsp=0 T=oc2 i=mb16oc16ic16");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic1024ih14oc2048oh7kh1sh2ph0", "p=x3 c=0 P=u T=ic4iw4 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic1024iw196oc256ow196kw1pw0", "p=x3 c=0 P=u T=ic4iw4 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic1024iw196oc512ow196kw1pw0", "p=x3 c=0 P=u T=ic4iw8 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic128ih28oc128oh28kh3ph1", "p=x3 c=0 P=u T=ic2iw4 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic128ih56oc128oh28kh3sh2ph1", "p=x2 c=0 P=u T=ic2iw4 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic128iw784oc512ow784kw1pw0", "p=x3 c=0 P=u T=ic2iw2 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic2048iw49oc512ow49kw1pw0", "p=x3 c=0 P=u T=ic4iw8 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic256ih14oc256oh14kh3ph1", "p=x3 c=0 P=u T=ic4iw8 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic256ih28oc256oh14kh3sh2ph1", "p=x3 c=0 P=u T=ic4iw8 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic256ih56oc512oh28kh1sh2ph0", "p=x3 c=0 P=u T=ic4mb2 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic256iw196oc1024ow196kw1pw0", "p=x3 c=0 P=u T=ic4iw4 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic256iw3136oc128ow3136kw1pw0", "p=x2 c=0 P= T=ic4mb4 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic256iw3136oc64ow3136kw1pw0", "p=x0 c=0 P= T=ic2mb4 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic512ih14oc512oh7kh3sh2ph1", "p=x3 c=0 P=u T=ic4iw4 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic512ih28oc1024oh14kh1sh2ph0", "p=x3 c=0 P=u T=ic4iw4 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic512ih7oc512oh7kh3ph1", "p=x3 c=0 P=u T=ic4iw8 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic512iw49oc2048ow49kw1pw0", "p=x3 c=0 P=u T=ic4iw8 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic512iw784oc128ow784kw1pw0", "p=x3 c=0 P=u T=ic4iw2 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic512iw784oc256ow784kw1pw0", "p=x3 c=0 P=u T=ic8iw2 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic64ih56oc64oh56kh3ph1", "p=x2 c=0 P=u T=iw8 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic64iw3136oc256ow3136kw1pw0", "p=x3 c=0 P=u T=ic2mb4 r=0");
+    add("hw=xehpc dir=bwd_d cfg=bf16bf16bf16 mb=128+ desc=ic64iw3136oc64ow3136kw1pw0", "p=x0 c=0 P=u T=iw2 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic1024ih14oc2048oh7kh1sh2ph0", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic1024iw196oc256ow196kw1pw0", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic1024iw196oc512ow196kw1pw0", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic128ih28oc128oh28kh3ph1", "p=x3 c=0 P=u T=ic4oc2 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic128ih56oc128oh28kh3sh2ph1", "p=x3 c=0 P=u T=ic4oc2 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic128iw784oc512ow784kw1pw0", "p=x3 c=0 P=u T=ic4oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic2048iw49oc512ow49kw1pw0", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic256ih14oc256oh14kh3ph1", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic256ih28oc256oh14kh3sh2ph1", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic256ih56oc512oh28kh1sh2ph0", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic256iw196oc1024ow196kw1pw0", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic256iw3136oc128ow3136kw1pw0", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic256iw3136oc64ow3136kw1pw0", "p=x1 c=0 P=u T=ic8 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic3ih224oc64oh112kh7sh2ph3", "p=x1 c=0 P=u T= r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic512ih14oc512oh7kh3sh2ph1", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic512ih28oc1024oh14kh1sh2ph0", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic512ih7oc512oh7kh3ph1", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic512iw49oc2048ow49kw1pw0", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic512iw784oc128ow784kw1pw0", "p=x3 c=0 P=u T=ic8oc2 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic512iw784oc256ow784kw1pw0", "p=x3 c=0 P=u T=ic8oc4 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic64ih56oc64oh56kh3ph1", "p=x1 c=0 P=u T=ic2 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic64iw3136oc256ow3136kw1pw0", "p=x3 c=0 P= T=ic2oc2 r=0");
+    add("hw=xehpc dir=bwd_w cfg=bf16*bf16 mb=128+ desc=ic64iw3136oc64ow3136kw1pw0", "p=x1 c=0 P= T=ic2 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic1024ih14oc2048oh7kh1sh2ph0", "p=x3 fsp=0 c=0 P=u T=oc4ow8 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic1024iw196oc256ow196kw1pw0", "p=x3 fsp=0 c=0 P=u T=oc4ow4 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic1024iw196oc512ow196kw1pw0", "p=x3 fsp=0 c=0 P=u T=oc2ow8 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic128ih28oc128oh28kh3ph1", "p=x3 fsp=0 c=0 P=u T=oc2ow4 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic128ih56oc128oh28kh3sh2ph1", "p=x3 fsp=0 c=0 P=u T=oc2ow4 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic128iw784oc512ow784kw1pw0", "p=x3 fsp=0 c=0 P=u T=oc4ow2 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic2048iw49oc512ow49kw1pw0", "p=x3 fsp=0 c=0 P=u T=oc4ow8 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic256ih14oc256oh14kh3ph1", "p=x3 fsp=0 c=0 P=u T=oc4ow4 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic256ih28oc256oh14kh3sh2ph1", "p=x3 fsp=0 c=0 P=u T=oc4ow4 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic256ih56oc512oh28kh1sh2ph0", "p=x3 fsp=0 c=0 P=u T=oc8ow2 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic256iw196oc1024ow196kw1pw0", "p=x3 fsp=0 c=0 P=u T=oc4ow8 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic256iw3136oc128ow3136kw1pw0", "p=x3 fsp=0 c=0 P=u T=oc4mb2 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic256iw3136oc64ow3136kw1pw0", "p=x0 fsp=0 c=0 P=u T= r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic3ih224oc64oh112kh7sh2ph3", "p=x2 c=0 P=u T=ow4 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic512ih14oc512oh7kh3sh2ph1", "p=x3 fsp=0 c=0 P=u T=oc4ow8 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic512ih28oc1024oh14kh1sh2ph0", "p=x3 fsp=0 c=0 P=u T=oc4ow8 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic512ih7oc512oh7kh3ph1", "p=x3 fsp=0 c=0 P=u T=oc2ow8 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic512iw49oc2048ow49kw1pw0", "p=x3 fsp=0 c=0 P=u T=oc4ow8 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic512iw784oc128ow784kw1pw0", "p=x2 fsp=0 c=0 P=u T=oc2 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic512iw784oc256ow784kw1pw0", "p=x3 fsp=0 c=0 P=u T=oc4ow2 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic64ih56oc64oh56kh3ph1", "p=x3 fsp=0 c=0 P=u T=ow8 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic64iw3136oc256ow3136kw1pw0", "p=x2 fsp=0 c=0 P=u T=oc2mb4 r=0");
+    add("hw=xehpc dir=fwd cfg=bf16bf16bf16 mb=128+ desc=ic64iw3136oc64ow3136kw1pw0", "p=x0 fsp=0 c=0 P=u T=ow2 r=0");
     // clang-format on
 }
 
