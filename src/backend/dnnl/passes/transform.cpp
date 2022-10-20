@@ -2489,6 +2489,8 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
                     dims.data(), static_cast<dnnl_data_type_t>(dtype),
                     format_tag.data());
             if (!dnnl_memory_desc_equal(fused_out_md.get(), temp_md)) {
+                // destroy md before return
+                dnnl_memory_desc_destroy(temp_md);
                 return status::success;
             }
 
@@ -2496,6 +2498,8 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             fuse_groups.emplace_back(std::pair<op_t *, op_t *> {op, &next_op});
             visited.insert(op);
             visited.insert(&next_op);
+            // destroy md before return
+            dnnl_memory_desc_destroy(temp_md);
             return impl::status::success;
         });
 
