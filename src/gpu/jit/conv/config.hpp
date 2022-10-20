@@ -347,17 +347,18 @@ public:
         return key == short_name();
     }
 
-    virtual void set(const std::string &s) { ir_error_not_expected(); }
-    virtual void set(const std::string &key, const std::string &value) {
+    virtual void set_from_str(const std::string &s) { ir_error_not_expected(); }
+    virtual void set_from_str(
+            const std::string &key, const std::string &value) {
         if (key == short_name()) {
-            set(value);
+            set_from_str(value);
             return;
         }
         ir_error_not_expected();
     }
     void override_set(const std::string &key, const std::string &value) {
         is_overridden_[key] = true;
-        set(key, value);
+        set_from_str(key, value);
     }
 
     bool is_overridden() const {
@@ -396,23 +397,22 @@ protected:
 
 class bool_param_t : public value_param_t<bool> {
 public:
-    using value_param_t::set;
     using value_param_t::value_param_t;
 
-    void set(const std::string &s) override { value_ = ir_utils::to_bool(s); }
+    void set_from_str(const std::string &s) override {
+        value_ = ir_utils::to_bool(s);
+    }
 };
 
 class int_param_t : public value_param_t<int> {
 public:
-    using value_param_t::set;
     using value_param_t::value_param_t;
 
-    void set(const std::string &s) override { value_ = std::stoi(s); }
+    void set_from_str(const std::string &s) override { value_ = std::stoi(s); }
 };
 
 class grid_param_t : public value_param_t<grid_info_t> {
 public:
-    using value_param_t::set;
     using value_param_t::value_param_t;
 };
 
@@ -425,7 +425,9 @@ public:
         return compute_unnormalized_;
     }
 
-    void set(const std::string &s) override { ir_error_not_implemented(); }
+    void set_from_str(const std::string &s) override {
+        ir_error_not_implemented();
+    }
 
     void set_user(const layout_t &l) { user_ = l; }
     void set_compute(const layout_t &l) { compute_ = l; }
@@ -478,7 +480,7 @@ public:
 
     int operator()(const std::string &name) const { return get(name); }
 
-    void set(const std::string &s) override {
+    void set_from_str(const std::string &s) override {
         map_.clear();
         map_ = to_map(s);
     }
@@ -603,7 +605,6 @@ class exec_cfg_param_t : public value_param_t<exec_config_t> {
 public:
     using value_param_t::accept_key;
     using value_param_t::is_overridden;
-    using value_param_t::set;
     using value_param_t::value_param_t;
 
     std::string name() const override { return "exec-cfg"; }
@@ -617,7 +618,8 @@ public:
         return false;
     }
 
-    void set(const std::string &key, const std::string &value) override {
+    void set_from_str(
+            const std::string &key, const std::string &value) override {
         if (key == "simd") {
             value_.set_simd(std::stoi(value));
         } else {
@@ -628,13 +630,12 @@ public:
 
 class fma_kind_param_t : public value_param_t<fma_kind_t> {
 public:
-    using value_param_t::set;
     using value_param_t::value_param_t;
 
     std::string name() const override { return "fma"; }
     std::string desc() const override { return "FMA kind."; }
 
-    void set(const std::string &s) override {
+    void set_from_str(const std::string &s) override {
         value_ = fma_kind::from_string(s);
     }
 };
@@ -652,7 +653,6 @@ public:
 
 class hint_param_t : public value_param_t<conv_hint_t> {
 public:
-    using value_param_t::set;
     using value_param_t::value_param_t;
 
     std::string name() const override { return "hint"; }
@@ -731,7 +731,7 @@ public:
     bool do_unroll() const { return do_unroll_; }
     bool reuse_headers() const { return !do_unroll(); }
 
-    void set(const std::string &s) override {
+    void set_from_str(const std::string &s) override {
         do_unroll_ = false;
         for (auto c : s) {
             switch (c) {
@@ -749,7 +749,6 @@ private:
 
 class prb_param_t : public value_param_t<conv_problem_t> {
 public:
-    using value_param_t::set;
     using value_param_t::value_param_t;
 
     std::string name() const override { return "prb"; }
@@ -771,7 +770,7 @@ public:
 
     operator bool() const { return bufs_ > 0; }
 
-    void set(const std::string &s) override {
+    void set_from_str(const std::string &s) override {
         auto parts = ir_utils::split(s, ".");
         for (auto &p : parts) {
             ir_assert(p.size() >= 2) << p;
@@ -835,7 +834,7 @@ public:
 
     operator bool() const { return bufs() > 0; }
 
-    void set(const std::string &s) override {
+    void set_from_str(const std::string &s) override {
         auto parts = ir_utils::split(s, ".");
         for (auto &p : parts) {
             ir_assert(p.size() >= 2) << p;
@@ -912,7 +911,7 @@ public:
     int a() const { return a_; }
     int b() const { return b_; }
 
-    void set(const std::string &s) override {
+    void set_from_str(const std::string &s) override {
         a_ = 1;
         b_ = 1;
         for (auto &kv : to_map(s)) {
@@ -981,7 +980,10 @@ public:
     conv_config_t() = default;
 
 #define DECL_PARAM(name) \
-    const name##_param_t &name##_param() const { return name##_; } \
+    const name##_param_t &name##_param() const { \
+        (void)name##_init_; \
+        return name##_; \
+    } \
     name##_param_t &name##_param() { return name##_; } \
     const name##_param_t::value_t &name() const { return name##_.get(); } \
     void set_##name(const name##_param_t::value_t &value) { \
@@ -989,7 +991,10 @@ public:
     }
 
 #define DECL_PARAM2(name) \
-    const name##_param_t &name() const { return name##_; } \
+    const name##_param_t &name() const { \
+        (void)name##_init_; \
+        return name##_; \
+    } \
     name##_param_t &name() { return name##_; }
 
     DECL_PARAM(allow_a_grf_reorder)
