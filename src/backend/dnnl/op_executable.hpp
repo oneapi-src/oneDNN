@@ -1149,7 +1149,7 @@ struct bn_folding_t : public op_executable_t {
         if (bias.get(true) == nullptr || bias.get_data_handle() == nullptr) {
             // initialize the bias with zero value
             std::vector<float> zero(
-                    impl::utils::prod(variance.get_desc().dims()), 0.0f);
+                    impl::utils::prod(variance.get_desc().get_dims()), 0.0f);
             sycl_queue
                     .memcpy(valid_bias.get_data_handle(), zero.data(),
                             valid_bias.get_desc().get_size())
