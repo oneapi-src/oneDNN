@@ -335,6 +335,17 @@ dnnl::threadpool_interop::threadpool_iface *get_active_threadpool() {
     return active_threadpool;
 }
 
+int &get_threadlocal_max_concurrency() {
+    thread_local int max_concurrency
+            = (int)cpu::platform::get_max_threads_to_use();
+    assert(max_concurrency > 0);
+    return max_concurrency;
+}
+
+int DNNL_API get_max_concurrency() {
+    return get_threadlocal_max_concurrency();
+}
+
 } // namespace threadpool_utils
 } // namespace impl
 } // namespace dnnl
