@@ -18,32 +18,11 @@
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 
-#include <mutex>
-#include "dnnl_threadpool.h"
+#include "oneapi/dnnl/dnnl_threadpool.h"
 
 #include "c_types_map.hpp"
-#include "cpu/platform.hpp"
 #include "dnnl_thread.hpp"
 #include "utils.hpp"
-
-namespace dnnl {
-namespace impl {
-namespace threadpool_utils {
-
-int DNNL_API &get_threadlocal_max_concurrency() {
-    thread_local int max_concurrency
-            = (int)cpu::platform::get_max_threads_to_use();
-    assert(max_concurrency > 0);
-    return max_concurrency;
-}
-
-int DNNL_API get_max_concurrency() {
-    return get_threadlocal_max_concurrency();
-}
-
-} // namespace threadpool_utils
-} // namespace impl
-} // namespace dnnl
 
 dnnl_status_t dnnl_threadpool_interop_set_max_concurrency(int max_concurrency) {
     using namespace dnnl::impl;

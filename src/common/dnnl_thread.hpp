@@ -119,6 +119,8 @@ dnnl::threadpool_interop::threadpool_iface *get_active_threadpool();
 // returns the maximum concurrency available in the given global context
 int get_max_concurrency();
 
+int &get_threadlocal_max_concurrency();
+
 } // namespace threadpool_utils
 } // namespace impl
 } // namespace dnnl
