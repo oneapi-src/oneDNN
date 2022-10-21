@@ -178,6 +178,8 @@ public:
     };
 };
 
+engine_t *get_service_engine();
+
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

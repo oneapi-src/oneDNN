@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,6 +51,20 @@ status_t cpu_engine_t::create_stream(stream_t **stream,
             *stream, new cpu_stream_t(this, threadpool));
 }
 #endif
+
+engine_t *get_service_engine() {
+    static std::unique_ptr<engine_t, engine_deleter_t> cpu_engine;
+    static std::once_flag initialized;
+    std::call_once(initialized, [&]() {
+        engine_t *cpu_engine_ptr;
+        cpu::cpu_engine_factory_t f;
+        auto status = f.engine_create(&cpu_engine_ptr, 0);
+        assert(status == status::success);
+        MAYBE_UNUSED(status);
+        cpu_engine.reset(cpu_engine_ptr);
+    });
+    return cpu_engine.get();
+}
 
 } // namespace cpu
 } // namespace impl

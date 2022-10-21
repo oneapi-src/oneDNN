@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,22 +30,6 @@ namespace impl {
 
 namespace {
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-engine_t *get_cpu_engine() {
-    static std::unique_ptr<engine_t, engine_deleter_t> cpu_engine;
-    static std::once_flag initialized;
-    std::call_once(initialized, [&]() {
-        engine_t *cpu_engine_ptr;
-        cpu::cpu_engine_factory_t f;
-        auto status = f.engine_create(&cpu_engine_ptr, 0);
-        assert(status == status::success);
-        MAYBE_UNUSED(status);
-        cpu_engine.reset(cpu_engine_ptr);
-    });
-    return cpu_engine.get();
-}
-#endif
-
 memory_storage_t *create_scratchpad_memory_storage(
         engine_t *engine, size_t size) {
     // XXX: if engine is a non-native CPU engine (read: SYCL) then create
@@ -62,7 +46,7 @@ memory_storage_t *create_scratchpad_memory_storage(
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     mem_engine = (engine->kind() == engine_kind::cpu
                          && !is_native_runtime(engine->runtime_kind()))
-            ? get_cpu_engine()
+            ? cpu::get_service_engine()
             : engine;
 #else
     mem_engine = engine;
