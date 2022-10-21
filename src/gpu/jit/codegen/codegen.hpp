@@ -171,8 +171,7 @@ public:
     }
 
     void _visit(const if_t &obj) override {
-        ir_assert(obj.cond.is<shuffle_t>());
-        ir_assert(obj.cond.as<shuffle_t>().elems() == simd_size_);
+        ir_assert(obj.cond.type().elems() == simd_size_);
 
         bool has_else = !obj.else_body.is_empty();
         auto scope = register_scope();
