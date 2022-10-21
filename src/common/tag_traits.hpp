@@ -48,6 +48,11 @@ enum class inner_blk_t {
     _16a,
     _16b,
     _16c,
+    _24a,
+    _24b,
+    _24c,
+    _24d,
+    _24e,
     _32a,
     _32b,
     _32c,
@@ -732,6 +737,12 @@ DECL_TRAITS(AcdeB16b48a4b, _AB, _16b48a4b, 5);
 DECL_TRAITS(AcdeB16b64a2b, _AB, _16b64a2b, 5);
 DECL_TRAITS(AcdeB16b64a4b, _AB, _16b64a4b, 5);
 
+DECL_TRAITS(Acb24a, _A, _24a, 3);
+DECL_TRAITS(Acdb24a, _A, _24a, 4);
+DECL_TRAITS(Acdeb24a, _A, _24a, 5);
+DECL_TRAITS(aBdc24b, _B, _24b, 4);
+DECL_TRAITS(aBdec24b, _B, _24b, 5);
+DECL_TRAITS(aBdefc24b, _B, _24b, 6);
 } // namespace impl
 } // namespace dnnl
 

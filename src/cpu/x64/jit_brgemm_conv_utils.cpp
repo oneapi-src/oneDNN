@@ -327,6 +327,25 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                     default: return status::unimplemented;
                 }
             }
+        } else if (jcp.oc_block == 24) {
+            if (is_3d) {
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOdhwi24o : Odhwi24o; break;
+                    default: return status::unimplemented;
+                }
+            } else if (is_1d) {
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOwi24o : Owi24o; break;
+                    default: return status::unimplemented;
+                }
+            } else {
+                assert(is_2d);
+                UNUSED(is_2d);
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOhwi24o : Ohwi24o; break;
+                    default: return status::unimplemented;
+                }
+            }
         } else if (jcp.oc_block == 16) {
             if (is_3d) {
                 switch (vnni_granularity) {
@@ -388,10 +407,24 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
                 }
             }
         } else if (jcp.oc_block == 8) {
-            if (vnni_granularity == 1)
-                wei_tag = with_groups ? gOhwi8o : Ohwi8o;
-            else
-                return status::unimplemented;
+            if (is_3d) {
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOdhwi8o : Odhwi8o; break;
+                    default: return status::unimplemented;
+                }
+            } else if (is_1d) {
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOwi8o : Owi8o; break;
+                    default: return status::unimplemented;
+                }
+            } else {
+                assert(is_2d);
+                UNUSED(is_2d);
+                switch (vnni_granularity) {
+                    case 1: wei_tag = with_groups ? gOhwi8o : Ohwi8o; break;
+                    default: return status::unimplemented;
+                }
+            }
         } else {
             return status::unimplemented;
         }

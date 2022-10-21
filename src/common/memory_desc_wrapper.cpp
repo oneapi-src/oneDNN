@@ -800,6 +800,12 @@ status_t memory_desc_wrapper::compute_blocking(
         C(aCdeB64c2b, {0, 2, 3, 4, 1}, {64, 2}, {2, 1});
         C(aCdeB64c4b, {0, 2, 3, 4, 1}, {64, 4}, {2, 1});
 
+        C(Acb24a, {0, 2, 1}, {24}, {0});
+        C(Acdb24a, {0, 2, 3, 1}, {24}, {0});
+        C(Acdeb24a, {0, 2, 3, 4, 1}, {24}, {0});
+        C(aBdc24b, {0, 1, 3, 2}, {24}, {1});
+        C(aBdec24b, {0, 1, 3, 4, 2}, {24}, {1});
+        C(aBdefc24b, {0, 1, 3, 4, 5, 2}, {24}, {1});
         default: break;
     }
 
