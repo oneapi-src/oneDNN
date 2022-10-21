@@ -6,7 +6,7 @@
 --reset
 --cfg=s8s8s8
 --bia_dt=f32
---bia_mask=1,2
+--bia_mask=2
 --attr-post-ops=eltwise_relu
 --attr-oscale=per_oc
 128x512:512x256:128x256
