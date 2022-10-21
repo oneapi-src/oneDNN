@@ -14,10 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/gemm/ocl_gemm_attrs.h"
 #include "gpu/ocl/ocl_types.h"
 
-__kernel void gen9_gemm_beta(long m, long n, __global float *alpha,
+__kernel void gen9_gemm_beta(long m, long n, float alpha,
         __global DST_DATA_T *a, long offset, long lda) {
     int idy = get_group_id(1);
     long count = m;
@@ -26,7 +25,7 @@ __kernel void gen9_gemm_beta(long m, long n, __global float *alpha,
 
     if (idy < n) {
         while (count > 0) {
-            a[offset] = REF_TO_DST(DST_TO_REF(a[offset]) * ATTR_ALPHA);
+            a[offset] = REF_TO_DST(DST_TO_REF(a[offset]) * alpha);
             offset++;
             count--;
         }
