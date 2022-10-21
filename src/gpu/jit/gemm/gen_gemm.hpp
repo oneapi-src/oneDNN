@@ -119,11 +119,6 @@ struct gen_gemm_t : public gpu_gemm_t {
                 ok = ok
                         && IMPLICATION(
                                 utils::one_of(d->c_type(), f32, s8, u8, f16),
-                                (attr()->post_ops_.len() == 0)
-                                        && (d->k() >= 64));
-                ok = ok
-                        && IMPLICATION(
-                                utils::one_of(d->c_type(), f32, s8, u8, f16),
                                 arch_ >= arch_t::xe_hp);
             } else if (d->a_type() == bf16) {
                 ok = ok && d->b_type() == bf16
