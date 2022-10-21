@@ -65,6 +65,9 @@ endfunction()
 file(GLOB sources src/*.cpp)
 
 # Remove graph serialization tests
+if(NOT DNNL_GRAPH_BUILD_COMPILER_BACKEND)
+    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_int8_mlp_dynamic_pattern.cpp)
+endif()
 if(NOT DNNL_GRAPH_ENABLE_DUMP)
     list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_graph_serialization.cpp)
     list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_multithreading_graph_serialization.cpp)
