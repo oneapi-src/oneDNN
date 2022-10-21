@@ -205,7 +205,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (acc_type == data_type::bf16)
                 acc_type = data_type::f32;
-            else if (arch_ >= compute::gpu_arch_t::xe_hpc
+            else if (arch_ >= compute::gpu_arch_t::xe_hpg
                     && acc_type == data_type::f16)
                 acc_type = data_type::f32;
             else if (d->acc_type == data_type::f32)

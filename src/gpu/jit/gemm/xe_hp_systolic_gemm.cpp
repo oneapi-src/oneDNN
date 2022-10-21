@@ -152,22 +152,22 @@ struct nocopy_table_t {
 };
 
 const nocopy_table_t xe_hp_f16_nocopy_table[] = {
-        // NN    NT     TN   TT
-        {{{1280, 768}, {512, 384}}, {{512, 768}, {1024, 512}}}};
-
-const nocopy_table_t xe_hp_bf16_nocopy_table[] = {
-        // NN   NT     TN   TT
-        {{{512, 256}, {768, 512}}, {{512, 256}, {384, 384}}}};
+        // NN    NT     TN    TT
+        {{{2880, 512}, {4096, 1024}}, {{0, 0}, {0, 0}}}};
 
 const nocopy_table_t xe_hp_x8x8s32_nocopy_table[] = {
+        // NN    NT     TN    TT
+        {{{1344, 576}, {4800, 384}}, {{0, 0}, {0, 0}}}};
+
+const nocopy_table_t xe_hp_f16_nocopy_bad_ld_table[] = {
         // NN   NT     TN   TT
-        {{{384, 384}, {384, 384}}, {{384, 512}, {384, 256}}}};
+        {{{288, 320}, {288, 288}}, {{288, 320}, {288, 288}}}};
+
+const nocopy_table_t xe_hp_x8x8s32_nocopy_bad_ld_table[] = {
+        // NN   NT     TN   TT
+        {{{656, 528}, {352, 384}}, {{656, 528}, {352, 384}}}};
 
 const nocopy_table_t xe_hpc_f16_nocopy_table[] = {
-        // NN    NT      TN    TT
-        {{{8192, 8192}, {8192, 8192}}, {{0, 0}, {0, 0}}}};
-
-const nocopy_table_t xe_hpc_bf16_nocopy_table[] = {
         // NN    NT      TN    TT
         {{{8192, 8192}, {8192, 8192}}, {{0, 0}, {0, 0}}}};
 
@@ -176,10 +176,6 @@ const nocopy_table_t xe_hpc_x8x8s32_nocopy_table[] = {
         {{{1024, 1024}, {1024, 1024}}, {{0, 0}, {0, 0}}}};
 
 const nocopy_table_t xe_hpc_f16_nocopy_bad_ld_table[] = {
-        // NN    NT      TN    TT
-        {{{1024, 1024}, {1024, 1024}}, {{0, 0}, {0, 0}}}};
-
-const nocopy_table_t xe_hpc_bf16_nocopy_bad_ld_table[] = {
         // NN    NT      TN    TT
         {{{1024, 1024}, {1024, 1024}}, {{0, 0}, {0, 0}}}};
 
@@ -196,8 +192,8 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
 
     if (any_prepacked_ || (packed_a_ && packed_b_)) return false;
 
-    // Use no-copy for gemv cases.
-    if (d->m() <= 1 || d->n() <= 1) return true;
+    // Use no-copy for gemv/ger cases.
+    if (d->m() <= 1 || d->n() <= 1 || d->k() <= 1) return true;
 
     // Use no-copy implementation if one matrix is very small.
     if (d->m() < 32 && d->n() < 32) return true;
@@ -208,10 +204,10 @@ bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
     if (utils::one_of(d->a_type(), bf16, f16, s8, u8)) {
         // clang-format off
         const nocopy_table_t *all_tables[2][2][3] = {
-            {{xe_hp_f16_nocopy_table, xe_hp_bf16_nocopy_table, xe_hp_x8x8s32_nocopy_table},
-             {xe_hp_f16_nocopy_table, xe_hp_bf16_nocopy_table, xe_hp_x8x8s32_nocopy_table}},
-            {{xe_hpc_f16_nocopy_table, xe_hpc_bf16_nocopy_table, xe_hpc_x8x8s32_nocopy_table},
-             {xe_hpc_f16_nocopy_bad_ld_table, xe_hpc_bf16_nocopy_bad_ld_table, xe_hpc_x8x8s32_nocopy_bad_ld_table}}
+            {{xe_hp_f16_nocopy_table, xe_hp_f16_nocopy_table, xe_hp_x8x8s32_nocopy_table},
+             {xe_hp_f16_nocopy_bad_ld_table, xe_hp_f16_nocopy_bad_ld_table, xe_hp_x8x8s32_nocopy_bad_ld_table}},
+            {{xe_hpc_f16_nocopy_table, xe_hpc_f16_nocopy_table, xe_hpc_x8x8s32_nocopy_table},
+             {xe_hpc_f16_nocopy_bad_ld_table, xe_hpc_f16_nocopy_bad_ld_table, xe_hpc_x8x8s32_nocopy_bad_ld_table}}
         };
         // clang-format on
         int type_idx = (d->a_type() == f16) ? 0 : (d->a_type() == bf16) ? 1 : 2;
