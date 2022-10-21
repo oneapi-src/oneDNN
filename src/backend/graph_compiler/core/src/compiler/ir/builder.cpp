@@ -64,6 +64,30 @@ static std::vector<expr> vector_remove_const(const std::vector<expr_c> &v) {
     return ret;
 }
 
+// This function can find the parent node in IR, if the node has no parent
+// node, return itself.
+stmt get_parent_node(stmt node) {
+    if (!node->attr().has_key("builder.parent_node")) return node;
+    stmt parent {node->attr()["builder.parent_node"]
+                         .get<std::weak_ptr<stmt_base_t>>()
+                         .lock()};
+    COMPILE_ASSERT(parent.defined(), "parent node should not be null");
+    return parent;
+}
+
+tensor get_real_tensor(const expr &buffer) {
+    auto tsr = buffer;
+    while (!tsr.isa<tensor>()) {
+        COMPILE_ASSERT(
+                tsr.isa<tensorptr>(), "Only tensor or tensorptr is accepted")
+        auto base = tsr.static_as<tensorptr>()->base_;
+        COMPILE_ASSERT(base.isa<indexing>(),
+                "tensor_ptr base should be indexing, but got: " << base);
+        tsr = base.static_as<indexing>()->ptr_;
+    }
+    return tsr.static_as<tensor>();
+}
+
 namespace builder {
 
 static thread_local builder_impl_t *cur_builder = nullptr;
@@ -696,6 +720,5 @@ stmt builder_impl_t::list_brgemm(const expr_c &x, const expr_c &w,
     return push_evaluate(make_expr<intrin_call_node>(intrin_type::list_brgemm,
             args, any_map_t {{intrin_attr::brgemm_extras, extras}}));
 }
-
 } // namespace builder
 } // namespace sc

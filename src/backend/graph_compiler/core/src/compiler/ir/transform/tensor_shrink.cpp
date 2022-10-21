@@ -48,19 +48,6 @@ static bool is_reshaped_and_should_shrink(const expr &e) {
                     tensor_shrinker_attrs::should_shrink);
 }
 
-static tensor get_real_tensor(const expr &buffer) {
-    auto tsr = buffer;
-    while (!tsr.isa<tensor>()) {
-        COMPILE_ASSERT(
-                tsr.isa<tensorptr>(), "Only tensor or tensorptr is accepted")
-        auto base = tsr.static_as<tensorptr>()->base_;
-        COMPILE_ASSERT(base.isa<indexing>(),
-                "tensor_ptr base should be indexing, but got: " << base);
-        tsr = base.static_as<indexing>()->ptr_;
-    }
-    return tsr.static_as<tensor>();
-}
-
 static constexpr const char *temp_shrink_tag = "tensor_shrinker.def";
 
 /**

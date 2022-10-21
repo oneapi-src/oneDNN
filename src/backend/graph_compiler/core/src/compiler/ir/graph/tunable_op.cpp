@@ -171,10 +171,10 @@ void tunable_op_t::commit_into_anchor(mixed_parti_t *parti) {
         def_to_call_map[strd_outs[i]] = tptr_outs[i];
     }
 
-    parti->buf_alloc_.update_input_buffer_info(this, parti);
+    parti->buf_alloc_.update_input_buffer_info(this);
     auto func = get_func(parti, strd_ins, strd_outs);
     // update output buffer info after inner anchor created
-    parti->buf_alloc_.update_output_buffer_info(this, parti);
+    parti->buf_alloc_.update_output_buffer_info(this);
 
     mxp_replacer_t rep(def_to_call_map);
     // replace strided tensor with tensorptr

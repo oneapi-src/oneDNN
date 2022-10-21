@@ -84,9 +84,9 @@ struct mxp_buffer_allocator {
     // get allocated buffer
     std::tuple<std::vector<expr>, std::vector<expr>> get_buffer(sc_op *op);
     // update input buffer info
-    void update_input_buffer_info(sc_op *op, mixed_parti_t *parti);
+    void update_input_buffer_info(sc_op *op);
     // update output buffer info
-    void update_output_buffer_info(sc_op *op, mixed_parti_t *parti);
+    void update_output_buffer_info(sc_op *op);
     // set shrink info
     void declare_and_shrink_tensor();
     /** merge two buffer allocator
@@ -154,7 +154,8 @@ struct mixed_parti_t : fusion_partition_t {
      * `fanchors_`.
      * 6. call base class `merge` method to do disjoint-set merge.
      * */
-    void merge(const ptr &other, const op_dep_matrix_t &g) const;
+    void merge(
+            const ptr &other, const op_dep_matrix_t &g, bool check_connection);
 
     mixed_parti_t(const sc_op_ptr &op, const context_ptr &ctx);
 

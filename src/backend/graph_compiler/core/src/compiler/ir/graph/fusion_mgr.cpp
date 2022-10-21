@@ -772,17 +772,6 @@ void fusion_manager::do_allocate_tensor(fdata_map &fdmap,
     }
 }
 
-// This function can find the parent node in IR, if the node has no parent
-// node, return itself.
-static stmt get_parent_node(stmt node) {
-    if (!node->attr().has_key("builder.parent_node")) return node;
-    stmt parent {node->attr()["builder.parent_node"]
-                         .get<std::weak_ptr<stmt_base_t>>()
-                         .lock()};
-    COMPILE_ASSERT(parent.defined(), "parent node should not be null");
-    return parent;
-}
-
 /** This function will find the nearest parent 'for_loop' node body for tensor
  *  declaration. If no loop found, it will just push statements in outer-most
  *  stmt.

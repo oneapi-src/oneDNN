@@ -207,12 +207,13 @@ struct iter_fuse_anchor_t {
     bool defined() const { return anchor_position_.defined(); }
 };
 
-struct fuse_anchor_map_t {
+struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
     stmts anchor_position_;
     fslice_map fsmap_;
     // parent anchor
     std::shared_ptr<fuse_anchor_map_t> parent_;
-    // blocked graph tensor set
+    // blocked graph tensor set, the reason why not use empty gt for judgement
+    // is to distinguish non-visited gt and visited-but-failed gt
     std::unordered_set<graph_tensor_ptr> blocked_gt_set_;
     // borrowed fanchor map
     std::unordered_map<graph_tensor_ptr, std::shared_ptr<fuse_anchor_map_t>>
@@ -257,17 +258,14 @@ struct fuse_anchor_map_t {
         parent->append_anchor(root);
     }
 
-    bool is_parent_for(const fuse_anchor_map_t *cur) {
-        if (!cur) return false;
-        while (cur->parent_) {
-            cur = cur->parent_.get();
-            if (cur == this) return true;
+    fuse_anchor_map_t *get_root() const {
+        auto root = this;
+        while (root->parent_) {
+            COMPILE_ASSERT(root != root->parent_.get(),
+                    "Ring parent anchor relationship found");
+            root = root->parent_.get();
         }
-        return false;
-    }
-
-    bool is_parent_for(const std::shared_ptr<fuse_anchor_map_t> &cur) {
-        return is_parent_for(cur.get());
+        return const_cast<fuse_anchor_map_t *>(root);
     }
 
     void merge(const std::shared_ptr<fuse_anchor_map_t> &other) {
@@ -297,6 +295,101 @@ struct fuse_anchor_map_t {
     }
 
     virtual ~fuse_anchor_map_t() = default;
+
+    // This function will find the nearest parent 'for_loop' node for fusion
+    // anchor
+    stmt get_parent_loop() const {
+        stmt node = anchor_position_;
+        while (node->attr().has_key("builder.parent_node")) {
+            if (node.isa<for_loop>()) { return node; }
+            node = get_parent_node(node);
+        }
+        return node;
+    }
+    // This function will return parent body scope
+    stmts get_parent_scope() const {
+        auto loop = get_parent_loop();
+        return loop.isa<for_loop>()
+                ? loop.static_as<for_loop>()->body_.checked_as<stmts>()
+                : loop.checked_as<stmts>();
+    }
+
+    /**
+     * What is parent relationship between anchor A and B
+     * { // anchor A
+     *    for(){
+     *      //
+     *      { // anchor B
+     *      }
+     *    }
+     * }
+     * */
+    bool is_parent_for(const fuse_anchor_map_t *cur) const {
+        if (!cur) return false;
+        while (cur->parent_) {
+            cur = cur->parent_.get();
+            if (cur == this) return true;
+        }
+        return false;
+    }
+
+    bool is_parent_for(const std::shared_ptr<fuse_anchor_map_t> &cur) const {
+        return is_parent_for(cur.get());
+    }
+
+    /**
+     * What is sibling relationship between anchor A and B
+     * for(){
+     *    for(){
+     *      //
+     *      { // anchor A
+     *      }
+     *    }
+     *    { // anchor B
+     *    }
+     * }
+     * */
+    bool is_sibling_for(const fuse_anchor_map_t *other) const {
+        if (is_parent_for(other)) return false;
+        auto this_loop = get_parent_loop();
+        auto other_loop = other->get_parent_loop();
+
+        while (other_loop->attr().has_key("builder.parent_node")) {
+            other_loop = get_parent_node(other_loop);
+            if (this_loop.ptr_same(other_loop)) { return true; }
+        }
+        return false;
+    }
+
+    bool is_sibling_for(const std::shared_ptr<fuse_anchor_map_t> &other) const {
+        return is_sibling_for(other.get());
+    }
+
+    /**
+     * What is cousin relationship between anchor A and B
+     * for(){
+     *    for(){
+     *      //
+     *      { // anchor A
+     *      }
+     *    }
+     *    for(){
+     *      //
+     *      { // anchor B
+     *      }
+     *    }
+     * }
+     * */
+    bool is_cousin_for(const fuse_anchor_map_t *cur) const {
+        return !(this->is_parent_for(cur) || cur->is_parent_for(this)
+                       || this->is_sibling_for(cur)
+                       || cur->is_sibling_for(this))
+                && (cur->get_root() == this->get_root());
+    }
+
+    bool is_cousin_for(const std::shared_ptr<fuse_anchor_map_t> &cur) const {
+        return is_cousin_for(cur.get());
+    }
 };
 
 using fuse_anchor_map_ptr = std::shared_ptr<fuse_anchor_map_t>;

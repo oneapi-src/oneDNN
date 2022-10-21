@@ -1005,5 +1005,8 @@ expr copy_attr(const expr_base &ths, expr &&newexpr);
 stmt copy_attr(const stmt_base_t &ths, stmt &&newstmt);
 func_t copy_attr(const func_base &ths, func_t &&newfunc);
 
+stmt get_parent_node(stmt node);
+tensor get_real_tensor(const expr &buffer);
+
 } // namespace sc
 #endif

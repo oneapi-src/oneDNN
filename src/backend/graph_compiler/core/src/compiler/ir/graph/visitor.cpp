@@ -428,19 +428,26 @@ op_visitor_t::updater_func op_visitor_t::create_DAG_updater_speculate_tuneop(
                    op_visitor_t *v, const sc_op_ptr &cur) mutable {
         v->set_visited(cur->logical_op_id_);
         for (auto &lt : cur->get_outputs()) {
-            std::vector<int> non_tun_index, tun_index, visit_index;
+            std::vector<std::pair<int, int>> tunnum_index_list;
             // one of its use is tunable op
             for (size_t i = 0; i < lt->uses_.size(); i++) {
                 auto u = lt->uses_[i];
-                if (search_tuneop_linearly(u.second)) {
-                    tun_index.emplace_back(i);
-                } else {
-                    non_tun_index.emplace_back(i);
-                }
+                tunnum_index_list.emplace_back(
+                        std::make_pair(count_tuneop_linearly(u.second, 15), i));
             }
-            visit_index = tun_index;
-            visit_index.insert(visit_index.end(), non_tun_index.begin(),
-                    non_tun_index.end());
+
+            // sort tunnum_index_list by descend
+            std::sort(tunnum_index_list.begin(), tunnum_index_list.end(),
+                    [](const std::pair<int, int> &p1,
+                            const std::pair<int, int> &p2) {
+                        return p1.first > p2.first;
+                    });
+
+            std::vector<int> visit_index;
+            visit_index.reserve(tunnum_index_list.size());
+            for (auto &p : tunnum_index_list) {
+                visit_index.emplace_back(p.second);
+            }
 
             for (auto &idx : visit_index) {
                 auto user = lt->uses_[idx];
@@ -516,8 +523,8 @@ void op_visitor_t::post_visit_graph(
     visit(f);
 }
 
-sc_op_ptr search_tuneop_linearly(sc_op_ptr start_node, int max_step) {
-    sc_op_ptr next_node = std::move(start_node);
+sc_op_ptr search_tuneop_linearly(const sc_op_ptr &start_node, int max_step) {
+    auto next_node = start_node;
     if (next_node->isa<tunable_op_t>()) return next_node;
     int step = 1;
     while (next_node->is_single_output_single_use()) {
@@ -529,11 +536,23 @@ sc_op_ptr search_tuneop_linearly(sc_op_ptr start_node, int max_step) {
     return nullptr;
 }
 
+int count_tuneop_linearly(const sc_op_ptr &start_node, int step) {
+    int cnt = 0;
+    auto next_node = start_node;
+    if (next_node->isa<tunable_op_t>()) cnt++;
+    while (next_node->is_single_output_single_use() && step > 0) {
+        next_node = next_node->get_outputs()[0]->uses_[0].second;
+        if (next_node->isa<tunable_op_t>()) cnt++;
+        step--;
+    }
+    return cnt;
+}
+
 std::vector<sc_op_ptr> search_tuneop_bypass(const context_ptr &ctx,
-        const sc_op_ptr &tuneop, sc_op_ptr start_node,
+        const sc_op_ptr &tuneop, const sc_op_ptr &start_node,
         const op_dep_matrix_t &dep, int max_step) {
     if (!tuneop) return {};
-    sc_op_ptr next_node = std::move(start_node);
+    auto next_node = start_node;
     int step = 1;
     std::vector<sc_op_ptr> bypass_ops;
     bool found = false;

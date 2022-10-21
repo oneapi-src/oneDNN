@@ -119,7 +119,7 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
 
     if (!parti->empty()) {
         parti->buf_alloc_.allocate_buffer(this);
-        parti->buf_alloc_.update_input_buffer_info(this, parti);
+        parti->buf_alloc_.update_input_buffer_info(this);
     }
 
     if (!parti->empty() && !this->isa<movement_op_t>()) {
@@ -159,7 +159,7 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
         }
     }
     // update output buffer info after inner anchor created
-    parti->buf_alloc_.update_output_buffer_info(this, parti);
+    parti->buf_alloc_.update_output_buffer_info(this);
 
     if (!parti->empty() && attrs_.get_or_else("temp.inplace_padding", false)) {
         return;

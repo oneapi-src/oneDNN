@@ -210,7 +210,11 @@ public:
     static rule_func create_preop_fusion_rule();
 };
 
-sc_op_ptr search_tuneop_linearly(sc_op_ptr start_node, int max_step = 5);
+// count amount of tuneable op
+int count_tuneop_linearly(const sc_op_ptr &start_node, int step);
+
+// search first tunable op linearly
+sc_op_ptr search_tuneop_linearly(const sc_op_ptr &start_node, int max_step = 5);
 
 /**
  * What is bypass: it starts from the certain op which has more than one user
@@ -238,7 +242,7 @@ sc_op_ptr search_tuneop_linearly(sc_op_ptr start_node, int max_step = 5);
  * different rules.
  * */
 std::vector<sc_op_ptr> search_tuneop_bypass(const context_ptr &ctx,
-        const sc_op_ptr &tuneop, sc_op_ptr start_node,
+        const sc_op_ptr &tuneop, const sc_op_ptr &start_node,
         const op_dep_matrix_t &dep, int max_step = 10);
 } // namespace sc
 
