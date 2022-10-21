@@ -166,10 +166,10 @@ void constant_cache_t::evict(size_t n) const {
                             < right.second.timestamp_.load(
                                     std::memory_order::memory_order_relaxed);
                 });
+        evicted_size += it->second.value_.get()->size();
         auto res = constant_map_.erase(it->first);
         UNUSED(res);
         assert(res);
-        evicted_size += it->second.value_.get()->size();
     }
 }
 
