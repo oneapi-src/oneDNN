@@ -24,12 +24,6 @@
 #define SRC0_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC0, x0, x1, x2, x3, x4, x5)
 #define SRC1_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC1, x0, x1, x2, x3, x4, x5)
 
-#if NVECT == 1
-#define VECT_INT_TO_FLOAT convert_float
-#else
-#define VECT_INT_TO_FLOAT CONCAT2(convert_float, NVECT)
-#endif
-
 #if SRC0_DT_S8
 #define SRC0_BLOCK_READ(src) \
     as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
@@ -300,30 +294,18 @@ ELEM_DATA_T get_eltwise_op(ELEM_DATA_T src0, ELEM_DATA_T src1) {
     d = src0 / src1;
 #elif IS_SUB
     d = src0 - src1;
-#elif IS_GE && IS_PLAIN_LAYOUT
-    d = src0 >= src1;
 #elif IS_GE
-    d = VECT_INT_TO_FLOAT(src0 >= src1);
-#elif IS_GT && IS_PLAIN_LAYOUT
-    d = src0 > src1;
+    d = (src0 >= src1) ? 1.0f : 0.0f;
 #elif IS_GT
-    d = VECT_INT_TO_FLOAT(src0 > src1);
-#elif IS_LE && IS_PLAIN_LAYOUT
-    d = src0 <= src1;
+    d = (src0 > src1) ? 1.0f : 0.0f;
 #elif IS_LE
-    d = VECT_INT_TO_FLOAT(src0 <= src1);
-#elif IS_LT && IS_PLAIN_LAYOUT
-    d = src0 < src1;
+    d = (src0 <= src1) ? 1.0f : 0.0f;
 #elif IS_LT
-    d = VECT_INT_TO_FLOAT(src0 < src1);
-#elif IS_EQ && IS_PLAIN_LAYOUT
-    d = src0 == src1;
+    d = (src0 < src1) ? 1.0f : 0.0f;
 #elif IS_EQ
-    d = VECT_INT_TO_FLOAT(src0 == src1);
-#elif IS_NE && IS_PLAIN_LAYOUT
-    d = src0 != src1;
+    d = (src0 == src1) ? 1.0f : 0.0f;
 #elif IS_NE
-    d = VECT_INT_TO_FLOAT(src0 != src1);
+    d = (src0 != src1) ? 1.0f : 0.0f;
 #endif
     return d;
 }
