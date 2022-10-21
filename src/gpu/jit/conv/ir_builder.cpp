@@ -3170,6 +3170,8 @@ void conv_ir_builder_t::build() {
     stmt_ = lift_send_2d_header_store(stmt_, ir_ctx);
     stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::c_store(), false);
     stmt_ = split_shuffle(stmt_, ir_ctx);
+    stmt_ = fixup_if_conditions(stmt_, ir_ctx);
+    stmt_ = fix_int32_overflow(stmt_, ir_ctx);
     stmt_ = eliminate_common_subexprs(
             stmt_, ir_ctx, cfg_.reserved_regs(), cfg_.slm().gmem_bufs());
     stmt_ = hoist_exprs(stmt_, ir_ctx, cfg_.reserved_regs());
@@ -3180,19 +3182,13 @@ void conv_ir_builder_t::build() {
         stmt_ = update_loops_for_unrolling(stmt_, ir_ctx);
         stmt_ = inject_unrolling(stmt_, ir_ctx, cfg_, cb.ab_slm_size());
     }
-    if (cfg_.hoist_masks_from_compute_loop()) {
-        stmt_ = hoist_send_masks(
-                stmt_, ir_ctx, stmt_label_t::compute_loop(), true);
-    }
-    stmt_ = fixup_if_conditions(stmt_, ir_ctx);
+    stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::compute_loop(), true);
     stmt_ = unroll_loops(stmt_, ir_ctx);
     stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = maybe_strip_prefetches(stmt_, ir_ctx, cfg_.reserved_regs());
     stmt_ = optimize_alloc_let(stmt_, ir_ctx);
-    if (cfg_.hoist_masks_from_compute_loop()) {
-        stmt_ = remove_spurious_send_mask_cast(stmt_, ir_ctx);
-    }
-    stmt_ = fix_int32_overflow(stmt_, ir_ctx);
+    stmt_ = remove_spurious_send_mask_cast(stmt_, ir_ctx);
+
     stmt_ = optimize_peephole(stmt_, ir_ctx);
     stmt_ = optimize_barrier(stmt_, ir_ctx);
     if (cfg_.fma_kind() == fma_kind_t::dp4a) stmt_ = inject_dp4a(stmt_, ir_ctx);
