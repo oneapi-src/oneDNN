@@ -173,18 +173,18 @@ std::string strides2memory_tag(
 }
 
 void skip_unimplemented_data_type(
-        const std::vector<dnnl::graph::logical_tensor> &in_out_lts,
+        const std::vector<dnnl::graph::logical_tensor> &in_out_lts, dir_t dir,
         res_t *res) {
 #if DNNL_GRAPH_CPU_RUNTIME != DNNL_GRAPH_RUNTIME_NONE
     using namespace dnnl::impl::cpu::platform;
     // bf16 is supported on AVX512-CORE+
     const bool has_bf16_support
             = is_gpu() || (is_cpu() && has_data_type_support(dnnl_bf16));
-    const bool has_f16_support
-            = is_gpu() || (is_cpu() && has_data_type_support(dnnl_f16));
+    const bool has_f16_support = (is_gpu() && (dir & FLAG_FWD))
+            || (is_cpu() && has_data_type_support(dnnl_f16));
 #else
     const bool has_bf16_support = is_gpu();
-    const bool has_f16_support = is_gpu();
+    const bool has_f16_support = is_gpu() && (dir & FLAG_FWD);
 #endif
     for (const auto &in : in_out_lts) {
         bool need_skip = false;

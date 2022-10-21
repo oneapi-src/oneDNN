@@ -87,7 +87,20 @@ int doit(const prb_t *prb, res_t *res) {
                     = partitions[i].get_in_ports();
             std::vector<logical_tensor> outputs = partitions[i].get_out_ports();
             in_out_lts.insert(in_out_lts.end(), outputs.begin(), outputs.end());
-            skip_unimplemented_data_type(in_out_lts, res);
+            // Get partition direction from op's kind which used for skipping unsupported cases.
+            // For now, partition contains only one bwd op, so the direction can be inferred directly,
+            // need to update the logic if library support fwd+bwd pattern later.
+            dir_t dir = FLAG_FWD;
+            const auto &op_ids = partitions[i].get_ops();
+            for (const auto &aop : dg.ops_) {
+                if (std::count(op_ids.begin(), op_ids.end(), aop.id_) > 0) {
+                    if (aop.kind_.rfind("Backprop") != std::string::npos) {
+                        dir = FLAG_BWD;
+                        break;
+                    }
+                }
+            }
+            skip_unimplemented_data_type(in_out_lts, dir, res);
         }
     }
 
