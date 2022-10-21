@@ -1523,7 +1523,7 @@ public:
 expr_t simplify_with_nary(const expr_t &_e, const constraint_set_t &cset) {
     auto e = _e;
 
-    if (!e.type().is_scalar() || e.type().is_fp()) { return e; }
+    if (e.type().is_fp()) { return e; }
     e = nary_op_canonicalize(e);
 
     e = division_reducer_t().mutate(e);
@@ -1703,9 +1703,9 @@ expr_t simplify_expr(const expr_t &_e, const constraint_set_t &cset) {
     e = const_fold(e);
     e = simplify_rewrite(e);
 
+    e = simplify_with_nary(e, cset);
     e = simplify_comparison(e);
     e = range_simplifier_t(cset).mutate(e);
-    e = simplify_with_nary(e, cset);
 
     e = const_fold(e);
     e = simplify_rewrite(e);
