@@ -986,8 +986,6 @@ status_t custom_reorder_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(2, alpha);
     arg_list.set(3, beta);
 
-    const int default_zp = 0;
-
     if (conf.scale_quant) {
         auto &runtime_scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
         arg_list.set(4, runtime_scales);
@@ -999,14 +997,14 @@ status_t custom_reorder_t::execute(const exec_ctx_t &ctx) const {
         auto &zps = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
         arg_list.set(5, zps);
     } else {
-        arg_list.set(5, default_zp);
+        arg_list.set(5, memory_storage_t::empty_storage());
     }
 
     if (conf.with_dst_zp) {
         auto &zps = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
         arg_list.set(6, zps);
     } else {
-        arg_list.set(6, default_zp);
+        arg_list.set(6, memory_storage_t::empty_storage());
     }
 
     auto nd_range = conf.dispatch.nd_range();

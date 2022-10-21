@@ -231,26 +231,24 @@
 #define ZP_READ_PTR(x) x[0]
 #define ZP_ZERO(x) 0
 
+#define SRC_ZP_T __global int *
 #if WITH_SRC_ZPOINTS
 #define SRC_SHIFT ZP_SHIFT
 #define GET_SRC_ZP ZP_READ_PTR
-#define SRC_ZP_T __global int *
 #else
 #define SRC_SHIFT ZP_NO_SHIFT
 #define GET_SRC_ZP ZP_ZERO
-#define SRC_ZP_T int
 #endif
 
+#define DST_ZP_T __global int *
 #if WITH_DST_ZPOINTS
 #define DST_SHIFT ZP_SHIFT
 #define DST_UNSHIFT ZP_UNSHIFT
 #define GET_DST_ZP ZP_READ_PTR
-#define DST_ZP_T __global int *
 #else
 #define DST_SHIFT ZP_NO_SHIFT
 #define DST_UNSHIFT ZP_NO_SHIFT
 #define GET_DST_ZP ZP_ZERO
-#define DST_ZP_T int
 #endif
 
 #define AXPBY_OP(op, a, b, x, y, x0, y0) \

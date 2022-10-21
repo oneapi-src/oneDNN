@@ -985,7 +985,6 @@ status_t generic_reorder_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(2, alpha);
     arg_list.set(3, beta);
 
-    std::shared_ptr<memory_storage_t> scales;
     if (conf.scale_quant) {
         auto &runtime_scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
         arg_list.set(4, runtime_scales);
