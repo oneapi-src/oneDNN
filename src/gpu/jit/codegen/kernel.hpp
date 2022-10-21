@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -359,6 +359,9 @@ public:
                 emov(mod, dst.reg_data(), src0.immediate());
             } else if (dst.type() == ngen::DataType::uw) {
                 emov(mod, dst.reg_data(), src0.flag_register());
+                if (src0.is_negated()) {
+                    not_(mod, dst.reg_data(), dst.reg_data());
+                }
             } else {
                 emov(mod | src0.flag_register_mod(), dst.reg_data(), 1);
                 emov(mod | ~src0.flag_register_mod(), dst.reg_data(), 0);

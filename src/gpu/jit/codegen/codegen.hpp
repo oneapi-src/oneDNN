@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -761,10 +761,65 @@ public:
         switch (obj.op_kind) {
             case op_kind_t::_and: {
                 if (obj.type.is_bool()) {
-                    eval(obj.a, dst_op);
-                    eval(obj.b,
-                            ngen_operand_t(
-                                    dst_op, mod | dst_op.flag_register_mod()));
+                    auto has_and_only = [](const expr_t &bin_obj) {
+                        auto bin_ops = find_objects<binary_op_t>(bin_obj);
+                        for (auto &op : bin_ops) {
+                            auto &bin = op.as<binary_op_t>();
+                            if (is_cmp_op(bin.op_kind)
+                                    && bin.op_kind != op_kind_t::_and)
+                                return false;
+                        }
+                        return true;
+                    };
+
+                    auto a_is_var = has_and_only(obj.a);
+                    auto b_is_var = has_and_only(obj.b);
+                    auto a = b_is_var ? obj.b : obj.a;
+                    auto b = b_is_var ? obj.a : obj.b;
+                    if (a_is_var && b_is_var) {
+                        auto tmp0 = ngen_operand_t(scope_.alloc_reg_data(to_ir(
+                                                           ngen::DataType::uw)),
+                                1);
+                        auto tmp1 = ngen_operand_t(scope_.alloc_reg_data(to_ir(
+                                                           ngen::DataType::uw)),
+                                1);
+
+                        auto tmp_dst = ngen_operand_t(
+                                scope_.alloc_reg_data(
+                                        to_ir(ngen::DataType::uw)),
+                                1);
+                        auto src0_op = eval(obj.a, tmp0);
+
+                        auto src1_op = eval(obj.b, tmp1);
+
+                        host_->eand(1, tmp_dst, src0_op, src1_op);
+                        host_->emov(1, dst_op, tmp_dst);
+                    } else if (a_is_var || b_is_var) {
+
+                        auto tmp1 = ngen_operand_t(scope_.alloc_reg_data(to_ir(
+                                                           ngen::DataType::uw)),
+                                1);
+
+                        auto tmp0 = ngen_operand_t(scope_.alloc_reg_data(to_ir(
+                                                           ngen::DataType::uw)),
+                                1);
+                        auto tmp_dst = ngen_operand_t(
+                                scope_.alloc_reg_data(
+                                        to_ir(ngen::DataType::uw)),
+                                1);
+                        auto src0_op = eval(a, tmp0);
+                        eval(b, ngen_operand_t(dst_op, mod));
+
+                        host_->emov(1, tmp1, dst_op);
+                        host_->eand(1, tmp_dst, src0_op, tmp1);
+                        host_->emov(1, dst_op, tmp_dst);
+                    } else {
+                        eval(a, dst_op);
+                        eval(b,
+                                ngen_operand_t(dst_op,
+                                        mod | dst_op.flag_register_mod()));
+                    }
+
                     break;
                 }
                 // else fall through to the default label.
@@ -897,7 +952,9 @@ public:
         if (obj.type.is_bool() && is_shuffle_const(obj)) {
             auto dst_op = alloc_dst_op(obj);
             auto e_shuffle = expr_t(obj);
-            ir_assert(dst_op.is_flag_register()) << e_shuffle;
+            ir_assert(dst_op.is_flag_register()
+                    || dst_op.type() == ngen::DataType::uw)
+                    << e_shuffle;
             ir_assert(!dst_op.is_negated()) << e_shuffle;
             uint32_t flag_mask = 0;
             for (int i = elems - 1; i >= 0; i--) {
@@ -987,8 +1044,7 @@ public:
     void _visit(const unary_op_t &obj) override {
         ir_assert(obj.op_kind == op_kind_t::_minus);
         ngen_operand_t a_op;
-        a_op = try_process_negated_flags(obj);
-        if (a_op.is_invalid()) a_op = eval(obj.a);
+        a_op = eval(obj.a);
         bind(obj, -a_op);
     }
 
