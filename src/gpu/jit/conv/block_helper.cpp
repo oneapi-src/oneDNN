@@ -440,6 +440,18 @@ void block_helper_t::init_bmnk_blocks() {
             bn_inst_blk = 8;
             k_inst_blk = is_x8x8s32() ? 32 : 16;
             bn_blk = is_ge_hpc ? 64 : 32;
+            int est_bmn_threads = 1;
+            est_bmn_threads *= utils::div_up(m_dim().size(), m_blk);
+            est_bmn_threads *= utils::div_up(bn_dim.size(), bn_blk);
+            auto thread_factor
+                    = utils::div_up(hw_cfg_.eu_count(), est_bmn_threads);
+            if (thread_factor > (is_ge_hpc ? 6 : 2) && !allow_k_grid_slicing_) {
+                if (m_inst_blk % 2 == 0 && bn_blk != bn_dim.size()) {
+                    m_blk /= 2;
+                    if (m_blk % m_inst_blk != 0) m_inst_blk /= 2;
+                }
+            }
+
             k_blk = k_inst_blk;
             break;
         }
