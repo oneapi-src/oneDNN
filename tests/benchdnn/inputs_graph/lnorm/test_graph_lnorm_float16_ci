@@ -1,3 +1,3 @@
 # main op
 --reset
---dir=FWD_I,BWD_DW --dt=f16 --inplace=false,true --flags=,S --tag=abx 64x128x28x28
+--dir=FWD_I,BWD_DW --dt=f16 --inplace=false,true --flags=,CH --tag=abx 64x128x28x28
