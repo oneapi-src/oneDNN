@@ -74,29 +74,56 @@ TEST(Execute, MixUseMultipleBackends) {
     const int seq_len = 384;
     const int num_head = 16;
     const int head_dim = 1024;
-    utils::construct_f32_MHA(&g, bs, seq_len, num_head, head_dim);
+    int size_per_head = head_dim / num_head;
+    impl::dims RESHAPED_SHAPE = {bs, seq_len, num_head, size_per_head};
+    impl::dims TRANSPOSED_SHAPE = {bs, num_head, seq_len, size_per_head};
+    impl::dims TRANSPOSED_ORDER = {0, 2, 1, 3};
+    utils::construct_dnnl_f32_MHA(&g, bs, seq_len, num_head, head_dim);
 
     auto mha_in_egde = g.get_input_values()[0]->get_logical_tensor();
 
     impl::dims matmul_src_shape {bs, seq_len, 2};
     impl::dims matmul_weight_shape {bs, 2, head_dim};
+    impl::dims matmul_result_shape {bs, seq_len, head_dim};
 
     impl::logical_tensor_t matmul_src = utils::logical_tensor_init(100,
             matmul_src_shape, impl::data_type::f32, impl::layout_type::strided);
     impl::logical_tensor_t matmul_weight
             = utils::logical_tensor_init(101, matmul_weight_shape,
                     impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t matmul_result = utils::logical_tensor_init(
+            102, matmul_result_shape, impl::data_type::f32);
+    impl::logical_tensor_t reshape_out = utils::logical_tensor_init(
+            103, RESHAPED_SHAPE, impl::data_type::f32);
 
     // create op matmul
     impl::op_t matmul {100, impl::op_kind::MatMul, "matmul"};
+    // reshape + transpose for query + key
+    impl::op_t reshape_op {101, impl::op_kind::StaticReshape, "query_reshape"};
+    reshape_op.set_attr(impl::op_attr::special_zero, false);
+    reshape_op.set_attr<std::vector<int64_t>>(
+            impl::op_attr::shape, RESHAPED_SHAPE);
+
+    impl::op_t transpose_op {
+            102, impl::op_kind::StaticTranspose, "query_transpose"};
+    transpose_op.set_attr<std::vector<int64_t>>(
+            impl::op_attr::order, TRANSPOSED_ORDER);
+
     matmul.add_input(matmul_src);
     matmul.add_input(matmul_weight);
-    matmul.add_output(mha_in_egde);
+    matmul.add_output(matmul_result);
+
+    reshape_op.add_input(matmul_result);
+    reshape_op.add_output(reshape_out);
+
+    transpose_op.add_input(reshape_out);
+    transpose_op.add_output(mha_in_egde);
 
     ASSERT_EQ(g.add_op(&matmul), impl::status::success);
-
+    ASSERT_EQ(g.add_op(&reshape_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&transpose_op), impl::status::success);
     g.build_graph();
-    ASSERT_EQ(g.get_ops().size(), 14U);
+    ASSERT_EQ(g.get_ops().size(), 10U);
 
     /*----------- partitioning stage ----------------------*/
 #ifdef DNNL_GRAPH_ENABLE_COMPILER_BACKEND
@@ -108,7 +135,7 @@ TEST(Execute, MixUseMultipleBackends) {
     auto &compiler_backend_ptr
             = compiler_impl::compiler_backend_t::get_singleton();
     pass::pass_base_ptr compiler_bkd_pass
-            = get_pass(compiler_backend_ptr, "fp32_mha_pattern");
+            = get_pass(compiler_backend_ptr, "fp32_mha_pattern_alternative");
     compiler_bkd_pass->run(g);
 #endif
 
@@ -116,7 +143,8 @@ TEST(Execute, MixUseMultipleBackends) {
     pass::pass_base_ptr dnnl_bkd_pass
             = get_pass(dnnl_backend_ptr, "f32_MHA_fusion");
     dnnl_bkd_pass->run(g);
-    dnnl_bkd_pass = get_pass(dnnl_backend_ptr, "matmul_pass");
+    dnnl_bkd_pass = get_pass(
+            dnnl_backend_ptr, "matmul_transpose_optional_reshape_fusion");
     dnnl_bkd_pass->run(g);
 
     size_t num_partitions = g.get_num_partitions();
@@ -231,7 +259,7 @@ TEST(Execute, MixUseMultipleBackendsReverseOrder) {
     const int seq_len = 384;
     const int num_head = 16;
     const int head_dim = 1024;
-    utils::construct_f32_MHA(&g, bs, seq_len, num_head, head_dim);
+    utils::construct_dnnl_f32_MHA(&g, bs, seq_len, num_head, head_dim);
 
     auto mha_out_egde = g.get_output_values().back()->get_logical_tensor();
 
@@ -255,7 +283,7 @@ TEST(Execute, MixUseMultipleBackendsReverseOrder) {
     ASSERT_EQ(g.add_op(&matmul), impl::status::success);
 
     g.build_graph();
-    ASSERT_EQ(g.get_ops().size(), 14U);
+    ASSERT_EQ(g.get_ops().size(), 8U);
 
     /*----------- partitioning stage ----------------------*/
 #ifdef DNNL_GRAPH_ENABLE_COMPILER_BACKEND
@@ -267,7 +295,7 @@ TEST(Execute, MixUseMultipleBackendsReverseOrder) {
     auto &compiler_backend_ptr
             = compiler_impl::compiler_backend_t::get_singleton();
     pass::pass_base_ptr compiler_bkd_pass
-            = get_pass(compiler_backend_ptr, "fp32_mha_pattern");
+            = get_pass(compiler_backend_ptr, "fp32_mha_pattern_alternative");
     compiler_bkd_pass->run(g);
 #endif
 

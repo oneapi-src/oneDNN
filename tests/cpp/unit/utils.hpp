@@ -872,6 +872,117 @@ inline void construct_f32_MHA(dnnl::graph::impl::graph_t *agraph,
     agraph->add_op(&transpose_output);
 }
 
+inline void construct_dnnl_f32_MHA(dnnl::graph::impl::graph_t *agraph,
+        int batch_size = 1, int seq_len = 384, int num_head = 16,
+        int head_dim = 1024) {
+    using namespace dnnl::graph::impl;
+    using namespace dnnl::graph::tests;
+
+    int size_per_head = head_dim / num_head;
+    dims MIXED_LAYER_INPUT_SHAPE = {batch_size, seq_len, head_dim};
+    dims EXTENDED_ATTENTION_MASK_SHAPE = {batch_size, 1, 1, seq_len};
+    dims QKV_RESHAPED_SHAPE = {batch_size, seq_len, num_head, size_per_head};
+    dims QKV_TRANSPOSED_SHAPE = {batch_size, num_head, seq_len, size_per_head};
+    dims KEY_TRANSPOSED_SHAPE = {batch_size, num_head, size_per_head, seq_len};
+    dims MATMUL_QK_OUTPUT_SHAPE = {batch_size, num_head, seq_len, seq_len};
+    dims MATMUL_V_OUTPUT_SHAPE = {batch_size, num_head, seq_len, size_per_head};
+
+    dims CONST_SHAPE = {1};
+
+    dims QKV_TRANSPOSED_ORDER = {0, 2, 1, 3};
+    dims KEY_TRANSPOSED_ORDER = {0, 1, 3, 2};
+
+    size_t lt_id = 0;
+
+    auto attention_mask_flt = unit::utils::logical_tensor_init(
+            lt_id++, EXTENDED_ATTENTION_MASK_SHAPE, data_type::f32);
+
+    auto query_input = unit::utils::logical_tensor_init(
+            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
+
+    auto key_input = unit::utils::logical_tensor_init(
+            lt_id++, KEY_TRANSPOSED_SHAPE, data_type::f32);
+
+    auto matmul_qk_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+
+    auto fscore_scale = unit::utils::logical_tensor_init(
+            lt_id++, CONST_SHAPE, data_type::f32);
+    fscore_scale.property = property_type::constant;
+    auto fscore_div_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+
+    auto fscore_add_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+    auto softmax_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+
+    auto value_input = unit::utils::logical_tensor_init(
+            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
+
+    auto matmul_v_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_V_OUTPUT_SHAPE, data_type::f32);
+
+    auto context_transpose_out = unit::utils::logical_tensor_init(
+            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
+
+    auto context_reshape_out = unit::utils::logical_tensor_init(
+            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
+
+    op_t matmul_qk {0, op_kind::MatMul, "matmul_qk"};
+
+    op_t fscore_div {1, op_kind::Divide, "fscore_div"};
+    fscore_div.set_attr(op_attr::auto_broadcast, std::string("numpy"));
+    op_t fscore_add {2, op_kind::Add, "fscore_add"};
+    fscore_add.set_attr(op_attr::auto_broadcast, std::string("numpy"));
+    op_t softmax {3, op_kind::SoftMax, "softmax"};
+    softmax.set_attr(op_attr::axis, (int64_t)3);
+
+    op_t matmul_v {4, op_kind::MatMul, "matmul_v"};
+
+    // transpose + reshape before output
+    op_t transpose_output {5, op_kind::StaticTranspose, "transpose_output"};
+    transpose_output.set_attr<std::vector<int64_t>>(
+            op_attr::order, QKV_TRANSPOSED_ORDER);
+
+    op_t reshape_output {6, op_kind::StaticReshape, "reshape_output"};
+    reshape_output.set_attr(op_attr::special_zero, false);
+    reshape_output.set_attr<std::vector<int64_t>>(
+            op_attr::shape, QKV_RESHAPED_SHAPE);
+
+    matmul_qk.add_input(query_input);
+    matmul_qk.add_input(key_input);
+    matmul_qk.add_output(matmul_qk_out);
+
+    fscore_div.add_input(matmul_qk_out);
+    fscore_div.add_input(fscore_scale);
+    fscore_div.add_output(fscore_div_out);
+    fscore_add.add_input(fscore_div_out);
+    fscore_add.add_input(attention_mask_flt);
+    fscore_add.add_output(fscore_add_out);
+    softmax.add_input(fscore_add_out);
+    softmax.add_output(softmax_out);
+
+    matmul_v.add_input(softmax_out);
+    matmul_v.add_input(value_input);
+    matmul_v.add_output(matmul_v_out);
+
+    transpose_output.add_input(matmul_v_out);
+    transpose_output.add_output(context_transpose_out);
+
+    reshape_output.add_input(context_transpose_out);
+    reshape_output.add_output(context_reshape_out);
+
+    agraph->add_op(&matmul_qk);
+
+    agraph->add_op(&fscore_div);
+    agraph->add_op(&fscore_add);
+    agraph->add_op(&softmax);
+    agraph->add_op(&matmul_v);
+    agraph->add_op(&transpose_output);
+    agraph->add_op(&reshape_output);
+}
+
 inline void construct_int8_MHA(dnnl::graph::impl::graph_t *agraph,
         int batch_size = 1, int seq_len = 384, int num_head = 16,
         int head_dim = 1024) {
@@ -894,34 +1005,12 @@ inline void construct_int8_MHA(dnnl::graph::impl::graph_t *agraph,
 
     size_t lt_id = 0;
 
-    auto query_gemm = unit::utils::logical_tensor_init(
-            lt_id++, MIXED_LAYER_INPUT_SHAPE, data_type::f32);
-    auto qk_bmm = unit::utils::logical_tensor_init(
-            lt_id++, MIXED_LAYER_INPUT_SHAPE, data_type::f32);
-    auto value_bmm = unit::utils::logical_tensor_init(
-            lt_id++, MIXED_LAYER_INPUT_SHAPE, data_type::f32);
-    auto attention_mask_flt = unit::utils::logical_tensor_init(
-            lt_id++, EXTENDED_ATTENTION_MASK_SHAPE, data_type::f32);
-
-    auto query_reshape_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
-    auto query_transpose_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
-
-    auto key_reshape_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
-    auto key_transpose_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
-
-    auto key_transpose_out2 = unit::utils::logical_tensor_init(
-            lt_id++, KEY_TRANSPOSED_SHAPE, data_type::f32);
-
-    auto query_quantize = unit::utils::logical_tensor_init(
+    auto query_input = unit::utils::logical_tensor_init(
             lt_id++, QKV_TRANSPOSED_SHAPE, data_type::u8);
     auto query_dequantize = unit::utils::logical_tensor_init(
             lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
 
-    auto key_quantize = unit::utils::logical_tensor_init(
+    auto key_input = unit::utils::logical_tensor_init(
             lt_id++, KEY_TRANSPOSED_SHAPE, data_type::u8);
     auto key_dequantize = unit::utils::logical_tensor_init(
             lt_id++, KEY_TRANSPOSED_SHAPE, data_type::f32);
@@ -937,15 +1026,14 @@ inline void construct_int8_MHA(dnnl::graph::impl::graph_t *agraph,
 
     auto fscore_add_out = unit::utils::logical_tensor_init(
             lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+
+    auto attention_mask_flt = unit::utils::logical_tensor_init(
+            lt_id++, EXTENDED_ATTENTION_MASK_SHAPE, data_type::f32);
+
     auto softmax_out = unit::utils::logical_tensor_init(
             lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
 
-    auto value_reshape_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
-    auto value_transpose_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
-
-    auto value_quantize = unit::utils::logical_tensor_init(
+    auto value_input = unit::utils::logical_tensor_init(
             lt_id++, QKV_TRANSPOSED_SHAPE, data_type::u8);
     auto value_dequantize = unit::utils::logical_tensor_init(
             lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
@@ -961,65 +1049,35 @@ inline void construct_int8_MHA(dnnl::graph::impl::graph_t *agraph,
     auto context_transpose_out = unit::utils::logical_tensor_init(
             lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
 
-    // reshape + transpose for query + key
-    op_t query_reshape {0, op_kind::StaticReshape, "query_reshape"};
-    query_reshape.set_attr(op_attr::special_zero, false);
-    query_reshape.set_attr<std::vector<int64_t>>(
-            op_attr::shape, QKV_RESHAPED_SHAPE);
+    auto context_reorder_out = unit::utils::logical_tensor_init(
+            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
 
-    op_t query_transpose {1, op_kind::StaticTranspose, "query_transpose"};
-    query_transpose.set_attr<std::vector<int64_t>>(
-            op_attr::order, QKV_TRANSPOSED_ORDER);
-
-    op_t key_reshape {2, op_kind::StaticReshape, "key_reshape"};
-    key_reshape.set_attr(op_attr::special_zero, false);
-    key_reshape.set_attr<std::vector<int64_t>>(
-            op_attr::shape, QKV_RESHAPED_SHAPE);
-
-    op_t key_transpose {3, op_kind::StaticTranspose, "key_transpose"};
-    key_transpose.set_attr<std::vector<int64_t>>(
-            op_attr::order, QKV_TRANSPOSED_ORDER);
-
-    // alternative for transpose
-    op_t key_transpose2 {4, op_kind::StaticTranspose, "key_transpose2"};
-    key_transpose2.set_attr<std::vector<int64_t>>(
-            op_attr::order, KEY_TRANSPOSED_ORDER);
-
-    op_t quantize_query {5, op_kind::Quantize, "quantize_query"};
-    op_t quantize_key {6, op_kind::Quantize, "quantize_key"};
-    quantize_query.set_attr(op_attr::scales, std::vector<float>({0.12f}));
-    quantize_query.set_attr(op_attr::zps, std::vector<int64_t>({2}));
-    quantize_query.set_attr(op_attr::qtype, std::string("per_tensor"));
-    quantize_query.set_attr(op_attr::axis, (int64_t)0);
-    quantize_key.set_attr(op_attr::scales, std::vector<float>({0.12f}));
-    quantize_key.set_attr(op_attr::zps, std::vector<int64_t>({2}));
-    quantize_key.set_attr(op_attr::qtype, std::string("per_tensor"));
-    quantize_key.set_attr(op_attr::axis, (int64_t)0);
-
-    op_t dequantize_query {7, op_kind::Dequantize, "dequantize_query"};
+    auto context_out = unit::utils::logical_tensor_init(
+            lt_id++, QKV_RESHAPED_SHAPE, data_type::u8);
+    op_t dequantize_query {0, op_kind::Dequantize, "dequantize_query"};
     dequantize_query.set_attr(op_attr::scales, std::vector<float>({0.12f}));
     dequantize_query.set_attr(op_attr::zps, std::vector<int64_t>({2}));
     dequantize_query.set_attr(op_attr::qtype, std::string("per_tensor"));
     dequantize_query.set_attr(op_attr::axis, (int64_t)0);
-    op_t dequantize_key {8, op_kind::Dequantize, "dequantize_key"};
+    op_t dequantize_key {1, op_kind::Dequantize, "dequantize_key"};
     dequantize_key.set_attr(op_attr::scales, std::vector<float>({0.12f}));
     dequantize_key.set_attr(op_attr::zps, std::vector<int64_t>({2}));
     dequantize_key.set_attr(op_attr::qtype, std::string("per_tensor"));
     dequantize_key.set_attr(op_attr::axis, (int64_t)0);
 
-    op_t matmul_qk {9, op_kind::MatMul, "matmul_qk"};
+    op_t matmul_qk {2, op_kind::MatMul, "matmul_qk"};
 
-    op_t fscore_div {10, op_kind::Divide, "fscore_div"};
+    op_t fscore_div {3, op_kind::Divide, "fscore_div"};
     fscore_div.set_attr(op_attr::auto_broadcast, std::string("numpy"));
-    op_t fscore_add {11, op_kind::Add, "fscore_add"};
+    op_t fscore_add {4, op_kind::Add, "fscore_add"};
     fscore_add.set_attr(op_attr::auto_broadcast, std::string("numpy"));
-    op_t softmax {12, op_kind::SoftMax, "softmax"};
+    op_t softmax {5, op_kind::SoftMax, "softmax"};
     softmax.set_attr(op_attr::axis, (int64_t)3);
     // quantize-dequantize softmax's output
-    op_t quantize_softmax {13, op_kind::Quantize, "quantize_softmax"};
-    op_t dequantize_softmax {14, op_kind::Dequantize, "dequantize_softmax"};
+    op_t quantize_softmax {6, op_kind::Quantize, "quantize_softmax"};
+    op_t dequantize_softmax {7, op_kind::Dequantize, "dequantize_softmax"};
     quantize_softmax.set_attr(op_attr::scales, std::vector<float>({0.12f}));
-    quantize_softmax.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    quantize_softmax.set_attr(op_attr::zps, std::vector<int64_t>({0}));
     quantize_softmax.set_attr(op_attr::qtype, std::string("per_tensor"));
     quantize_softmax.set_attr(op_attr::axis, (int64_t)0);
     dequantize_softmax.set_attr(op_attr::scales, std::vector<float>({0.12f}));
@@ -1027,57 +1085,30 @@ inline void construct_int8_MHA(dnnl::graph::impl::graph_t *agraph,
     dequantize_softmax.set_attr(op_attr::qtype, std::string("per_tensor"));
     dequantize_softmax.set_attr(op_attr::axis, (int64_t)0);
 
-    // reshape + transpose for value
-    op_t value_reshape {15, op_kind::StaticReshape, "value_reshape"};
-    value_reshape.set_attr(op_attr::special_zero, false);
-    value_reshape.set_attr<std::vector<int64_t>>(
-            op_attr::shape, QKV_RESHAPED_SHAPE);
-
-    op_t value_transpose {16, op_kind::StaticTranspose, "value_transpose"};
-    value_transpose.set_attr<std::vector<int64_t>>(
-            op_attr::order, QKV_TRANSPOSED_ORDER);
-
-    op_t quantize_value {17, op_kind::Quantize, "quantize_value"};
-    op_t dequantize_value {18, op_kind::Dequantize, "dequantize_value"};
-    quantize_value.set_attr(op_attr::scales, std::vector<float>({0.12f}));
-    quantize_value.set_attr(op_attr::zps, std::vector<int64_t>({2}));
-    quantize_value.set_attr(op_attr::qtype, std::string("per_tensor"));
-    quantize_value.set_attr(op_attr::axis, (int64_t)0);
+    op_t dequantize_value {8, op_kind::Dequantize, "dequantize_value"};
     dequantize_value.set_attr(op_attr::scales, std::vector<float>({0.12f}));
     dequantize_value.set_attr(op_attr::zps, std::vector<int64_t>({2}));
     dequantize_value.set_attr(op_attr::qtype, std::string("per_tensor"));
     dequantize_value.set_attr(op_attr::axis, (int64_t)0);
 
-    op_t matmul_v {19, op_kind::MatMul, "matmul_v"};
+    op_t matmul_v {9, op_kind::MatMul, "matmul_v"};
 
     // transpose + reshape before output
-    op_t transpose_output {20, op_kind::StaticTranspose, "transpose_output"};
+    op_t transpose_output {10, op_kind::StaticTranspose, "transpose_output"};
     transpose_output.set_attr<std::vector<int64_t>>(
             op_attr::order, QKV_TRANSPOSED_ORDER);
 
-    op_t reshape_output {21, op_kind::StaticReshape, "reshape_output"};
-    reshape_output.set_attr(op_attr::special_zero, false);
-    reshape_output.set_attr<std::vector<int64_t>>(
-            op_attr::shape, QKV_RESHAPED_SHAPE);
+    op_t reorder_output {11, op_kind::Reorder, "reorder_output"};
 
-    query_reshape.add_input(query_gemm);
-    query_reshape.add_output(query_reshape_out);
-    query_transpose.add_input(query_reshape_out);
-    query_transpose.add_output(query_transpose_out);
-    key_reshape.add_input(qk_bmm);
-    key_reshape.add_output(key_reshape_out);
-    key_transpose.add_input(key_reshape_out);
-    key_transpose.add_output(key_transpose_out);
-    key_transpose2.add_input(key_transpose_out);
-    key_transpose2.add_output(key_transpose_out2);
+    op_t quantize_output {12, op_kind::Quantize, "quantize_value"};
+    quantize_output.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    quantize_output.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    quantize_output.set_attr(op_attr::qtype, std::string("per_tensor"));
+    quantize_output.set_attr(op_attr::axis, (int64_t)0);
 
-    quantize_query.add_input(query_transpose_out);
-    quantize_query.add_output(query_quantize);
-    dequantize_query.add_input(query_quantize);
+    dequantize_query.add_input(query_input);
     dequantize_query.add_output(query_dequantize);
-    quantize_key.add_input(key_transpose_out2);
-    quantize_key.add_output(key_quantize);
-    dequantize_key.add_input(key_quantize);
+    dequantize_key.add_input(key_input);
     dequantize_key.add_output(key_dequantize);
 
     matmul_qk.add_input(query_dequantize);
@@ -1094,16 +1125,11 @@ inline void construct_int8_MHA(dnnl::graph::impl::graph_t *agraph,
     softmax.add_output(softmax_out);
     quantize_softmax.add_input(softmax_out);
     quantize_softmax.add_output(softmax_out_q);
+
     dequantize_softmax.add_input(softmax_out_q);
     dequantize_softmax.add_output(softmax_out_deq);
 
-    value_reshape.add_input(value_bmm);
-    value_reshape.add_output(value_reshape_out);
-    value_transpose.add_input(value_reshape_out);
-    value_transpose.add_output(value_transpose_out);
-    quantize_value.add_input(value_transpose_out);
-    quantize_value.add_output(value_quantize);
-    dequantize_value.add_input(value_quantize);
+    dequantize_value.add_input(value_input);
     dequantize_value.add_output(value_dequantize);
     matmul_v.add_input(softmax_out_deq);
     matmul_v.add_input(value_dequantize);
@@ -1111,16 +1137,12 @@ inline void construct_int8_MHA(dnnl::graph::impl::graph_t *agraph,
 
     transpose_output.add_input(matmul_v_out);
     transpose_output.add_output(context_transpose_out);
-
-    agraph->add_op(&quantize_query);
+    reorder_output.add_input(context_transpose_out);
+    reorder_output.add_output(context_reorder_out);
+    quantize_output.add_input(context_reorder_out);
+    quantize_output.add_output(context_out);
     agraph->add_op(&dequantize_query);
-    agraph->add_op(&quantize_key);
     agraph->add_op(&dequantize_key);
-    agraph->add_op(&query_reshape);
-    agraph->add_op(&query_transpose);
-    agraph->add_op(&key_reshape);
-    agraph->add_op(&key_transpose);
-    agraph->add_op(&key_transpose2);
     agraph->add_op(&matmul_qk);
 
     agraph->add_op(&fscore_div);
@@ -1128,12 +1150,11 @@ inline void construct_int8_MHA(dnnl::graph::impl::graph_t *agraph,
     agraph->add_op(&softmax);
     agraph->add_op(&quantize_softmax);
     agraph->add_op(&dequantize_softmax);
-    agraph->add_op(&quantize_value);
     agraph->add_op(&dequantize_value);
-    agraph->add_op(&value_reshape);
-    agraph->add_op(&value_transpose);
     agraph->add_op(&matmul_v);
     agraph->add_op(&transpose_output);
+    agraph->add_op(&reorder_output);
+    agraph->add_op(&quantize_output);
 }
 
 inline void construct_int8_bf16_MHA(dnnl::graph::impl::graph_t *agraph,
@@ -1211,191 +1232,6 @@ inline void construct_int8_bf16_MHA(dnnl::graph::impl::graph_t *agraph,
             f32_to_bf16->add_input(new_val);
         }
     }
-}
-
-inline void construct_reshaped_softmax_f32_mha(
-        dnnl::graph::impl::graph_t *agraph, int batch_size = 1,
-        int seq_len = 384, int num_head = 16, int head_dim = 1024) {
-    using namespace dnnl::graph::impl;
-    using namespace dnnl::graph::tests;
-
-    int size_per_head = head_dim / num_head;
-    dims MIXED_LAYER_INPUT_SHAPE = {batch_size, seq_len, head_dim};
-    dims EXTENDED_ATTENTION_MASK_SHAPE = {batch_size, 1, 1, seq_len};
-    dims QKV_RESHAPED_SHAPE = {batch_size, seq_len, num_head, size_per_head};
-    dims QKV_TRANSPOSED_SHAPE = {batch_size, num_head, seq_len, size_per_head};
-    dims KEY_TRANSPOSED_SHAPE = {batch_size, num_head, size_per_head, seq_len};
-    dims MATMUL_QK_OUTPUT_SHAPE = {batch_size, num_head, seq_len, seq_len};
-    dims PRE_SOFTMAX_SHAPE = {batch_size * num_head * seq_len, seq_len};
-    dims MATMUL_V_OUTPUT_SHAPE = {batch_size, num_head, seq_len, size_per_head};
-
-    dims QKV_TRANSPOSED_ORDER = {0, 2, 1, 3};
-    dims KEY_TRANSPOSED_ORDER = {0, 2, 3, 1};
-
-    dims PRE_SOFTMAX_RESHAPE = {batch_size * num_head * seq_len, -1};
-    dims POST_SOFTMAX_RESHAPE = {batch_size, num_head, seq_len, seq_len};
-
-    size_t lt_id = 0;
-
-    auto query_gemm = unit::utils::logical_tensor_init(
-            lt_id++, MIXED_LAYER_INPUT_SHAPE, data_type::f32);
-    auto qk_bmm = unit::utils::logical_tensor_init(
-            lt_id++, MIXED_LAYER_INPUT_SHAPE, data_type::f32);
-    auto value_bmm = unit::utils::logical_tensor_init(
-            lt_id++, MIXED_LAYER_INPUT_SHAPE, data_type::f32);
-    auto attention_mask_flt = unit::utils::logical_tensor_init(
-            lt_id++, EXTENDED_ATTENTION_MASK_SHAPE, data_type::f32);
-
-    auto query_reshape_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
-    auto query_transpose_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
-
-    auto key_reshape_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
-    auto key_transpose_out = unit::utils::logical_tensor_init(
-            lt_id++, KEY_TRANSPOSED_SHAPE, data_type::f32);
-
-    auto matmul_qk_out = unit::utils::logical_tensor_init(
-            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
-
-    auto matmul_add_out = unit::utils::logical_tensor_init(
-            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
-
-    auto pre_softmax_out = unit::utils::logical_tensor_init(
-            lt_id++, PRE_SOFTMAX_SHAPE, data_type::f32);
-
-    auto softmax_out = unit::utils::logical_tensor_init(
-            lt_id++, PRE_SOFTMAX_SHAPE, data_type::f32);
-
-    auto post_softmax_out = unit::utils::logical_tensor_init(
-            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
-
-    auto value_reshape_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
-    auto value_transpose_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
-
-    auto matmul_v_out = unit::utils::logical_tensor_init(
-            lt_id++, MATMUL_V_OUTPUT_SHAPE, data_type::f32);
-
-    auto context_transpose_out = unit::utils::logical_tensor_init(
-            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
-
-    auto context_reshape_out = unit::utils::logical_tensor_init(
-            lt_id++, MIXED_LAYER_INPUT_SHAPE, data_type::f32);
-
-    // reshape + transpose for query + key
-    op_t query_reshape {0, op_kind::StaticReshape, "query_reshape"};
-    query_reshape.set_attr(op_attr::special_zero, false);
-    query_reshape.set_attr<std::vector<int64_t>>(
-            op_attr::shape, QKV_RESHAPED_SHAPE);
-
-    op_t query_transpose {1, op_kind::StaticTranspose, "query_transpose"};
-    query_transpose.set_attr<std::vector<int64_t>>(
-            op_attr::order, QKV_TRANSPOSED_ORDER);
-
-    op_t key_reshape {2, op_kind::StaticReshape, "key_reshape"};
-    key_reshape.set_attr(op_attr::special_zero, false);
-    key_reshape.set_attr<std::vector<int64_t>>(
-            op_attr::shape, QKV_RESHAPED_SHAPE);
-
-    op_t key_transpose {4, op_kind::StaticTranspose, "key_transpose"};
-    key_transpose.set_attr<std::vector<int64_t>>(
-            op_attr::order, KEY_TRANSPOSED_ORDER);
-
-    op_t matmul_qk {9, op_kind::MatMul, "matmul_qk"};
-
-    op_t matmul_add {10, op_kind::Add, "fscore_add"};
-    matmul_add.set_attr(op_attr::auto_broadcast, std::string("numpy"));
-
-    op_t pre_softmax_reshape {
-            11, op_kind::StaticReshape, "pre_softmax_reshape"};
-    pre_softmax_reshape.set_attr(op_attr::special_zero, false);
-    pre_softmax_reshape.set_attr<std::vector<int64_t>>(
-            op_attr::shape, PRE_SOFTMAX_RESHAPE);
-    op_t softmax {12, op_kind::SoftMax, "softmax"};
-    softmax.set_attr(op_attr::axis, (int64_t)1);
-    op_t post_softmax_reshape {
-            13, op_kind::StaticReshape, "post_softmax_reshape"};
-    post_softmax_reshape.set_attr(op_attr::special_zero, false);
-    post_softmax_reshape.set_attr<std::vector<int64_t>>(
-            op_attr::shape, POST_SOFTMAX_RESHAPE);
-
-    // reshape + transpose for value
-    op_t value_reshape {15, op_kind::StaticReshape, "value_reshape"};
-    value_reshape.set_attr(op_attr::special_zero, false);
-    value_reshape.set_attr<std::vector<int64_t>>(
-            op_attr::shape, QKV_RESHAPED_SHAPE);
-
-    op_t value_transpose {16, op_kind::StaticTranspose, "value_transpose"};
-    value_transpose.set_attr<std::vector<int64_t>>(
-            op_attr::order, QKV_TRANSPOSED_ORDER);
-
-    op_t matmul_v {19, op_kind::MatMul, "matmul_v"};
-
-    // transpose + reshape before output
-    op_t transpose_output {20, op_kind::StaticTranspose, "transpose_output"};
-    transpose_output.set_attr<std::vector<int64_t>>(
-            op_attr::order, QKV_TRANSPOSED_ORDER);
-
-    op_t reshape_output {21, op_kind::StaticReshape, "reshape_output"};
-    reshape_output.set_attr(op_attr::special_zero, false);
-    reshape_output.set_attr<std::vector<int64_t>>(
-            op_attr::shape, MIXED_LAYER_INPUT_SHAPE);
-
-    query_reshape.add_input(query_gemm);
-    query_reshape.add_output(query_reshape_out);
-    query_transpose.add_input(query_reshape_out);
-    query_transpose.add_output(query_transpose_out);
-    key_reshape.add_input(qk_bmm);
-    key_reshape.add_output(key_reshape_out);
-    key_transpose.add_input(key_reshape_out);
-    key_transpose.add_output(key_transpose_out);
-
-    matmul_qk.add_input(query_transpose_out);
-    matmul_qk.add_input(key_transpose_out);
-    matmul_qk.add_output(matmul_qk_out);
-
-    matmul_add.add_input(matmul_qk_out);
-    matmul_add.add_input(attention_mask_flt);
-    matmul_add.add_output(matmul_add_out);
-
-    pre_softmax_reshape.add_input(matmul_add_out);
-    pre_softmax_reshape.add_output(pre_softmax_out);
-    softmax.add_input(pre_softmax_out);
-    softmax.add_output(softmax_out);
-    post_softmax_reshape.add_input(softmax_out);
-    post_softmax_reshape.add_output(post_softmax_out);
-
-    value_reshape.add_input(value_bmm);
-    value_reshape.add_output(value_reshape_out);
-    value_transpose.add_input(value_reshape_out);
-    value_transpose.add_output(value_transpose_out);
-    matmul_v.add_input(post_softmax_out);
-    matmul_v.add_input(value_transpose_out);
-    matmul_v.add_output(matmul_v_out);
-
-    transpose_output.add_input(matmul_v_out);
-    transpose_output.add_output(context_transpose_out);
-    reshape_output.add_input(context_transpose_out);
-    reshape_output.add_output(context_reshape_out);
-
-    agraph->add_op(&query_reshape);
-    agraph->add_op(&query_transpose);
-    agraph->add_op(&key_reshape);
-    agraph->add_op(&key_transpose);
-    agraph->add_op(&matmul_qk);
-
-    agraph->add_op(&matmul_add);
-    agraph->add_op(&pre_softmax_reshape);
-    agraph->add_op(&softmax);
-    agraph->add_op(&post_softmax_reshape);
-    agraph->add_op(&value_reshape);
-    agraph->add_op(&value_transpose);
-    agraph->add_op(&matmul_v);
-    agraph->add_op(&transpose_output);
-    agraph->add_op(&reshape_output);
 }
 
 inline void construct_chained_relu(dnnl::graph::impl::graph_t *agraph) {

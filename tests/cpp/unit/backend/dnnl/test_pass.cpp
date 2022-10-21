@@ -13433,7 +13433,7 @@ TEST(Pass, Int8MhaFusion) {
     dnnl::graph::impl::graph_t agraph;
     dnnl::graph::tests::unit::utils::construct_int8_MHA(&agraph);
     agraph.build_graph();
-    ASSERT_EQ(agraph.get_ops().size(), 21U);
+    ASSERT_EQ(agraph.get_ops().size(), 13U);
 
     dnnl::graph::impl::pass::pass_base_ptr apass = get_pass("int8_MHA_fusion");
     apass->run(agraph);
@@ -13442,9 +13442,9 @@ TEST(Pass, Int8MhaFusion) {
 
 TEST(Pass, F32MhaFusion) {
     dnnl::graph::impl::graph_t agraph;
-    dnnl::graph::tests::unit::utils::construct_f32_MHA(&agraph);
+    dnnl::graph::tests::unit::utils::construct_dnnl_f32_MHA(&agraph);
     agraph.build_graph();
-    ASSERT_EQ(agraph.get_ops().size(), 13U);
+    ASSERT_EQ(agraph.get_ops().size(), 7U);
 
     dnnl::graph::impl::pass::pass_base_ptr apass = get_pass("f32_MHA_fusion");
     apass->run(agraph);
