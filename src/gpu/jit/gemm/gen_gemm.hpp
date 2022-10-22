@@ -194,17 +194,11 @@ struct gen_gemm_t : public gpu_gemm_t {
                                     : (utils::one_of(eff_a_type(), s8, u8)
                                                     ? s32
                                                     : d->c_type());
-            auto acc_type = utils::one_of(d->c_type(), s8, u8, f16, bf16, f32)
-                    ? (utils::one_of(eff_a_type(), s8, u8) ? s32 : d->c_type())
-                    : d->c_type();
 
-            if (acc_type == data_type::bf16)
-                acc_type = data_type::f32;
-            else if (arch_ >= compute::gpu_arch_t::xe_hpg
-                    && acc_type == data_type::f16)
-                acc_type = data_type::f32;
-            else if (d->acc_type == data_type::f32)
-                acc_type = data_type::f32;
+            auto acc_type = utils::one_of(eff_a_type(), s8, u8) ? s32 : f32;
+
+            if (d->c_type() == f16 && arch_ < compute::gpu_arch_t::xe_hpg)
+                acc_type = data_type::f16;
 
             if (with_binary && types::data_type_size(acc_type) < 4)
                 return status::unimplemented;
