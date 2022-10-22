@@ -126,7 +126,7 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
         }
 
         bool do_scale() const {
-            return !((desc()->k() > 0) && (with_alpha())
+            return !((desc()->k() > 0) && (!with_alpha())
                     && ((beta() == 0.0f) || (beta() == 1.0f)));
         }
 
