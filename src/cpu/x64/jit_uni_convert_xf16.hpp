@@ -64,12 +64,6 @@ struct jit_uni_cvt_ps_to_xf16_t : public jit_generator {
 
     void generate() override;
 
-    void operator()(cvt_xf16_support::jit_call_t *params) const {
-        jit_generator::operator()(params);
-        msan_unpoison(params->out,
-                (nelems_ ? nelems_ : params->nelems) * sizeof(float16_t));
-    }
-
 protected:
     const impl::data_type_t output_dt_; // bf16 or f16
     const size_t nelems_;
@@ -132,7 +126,8 @@ private:
 
 struct jit_cvt_ps_to_xf16_t {
 
-    jit_cvt_ps_to_xf16_t(impl::data_type_t data_type, size_t nelems = 0) {
+    jit_cvt_ps_to_xf16_t(impl::data_type_t data_type, size_t nelems = 0)
+        : nelems_(nelems) {
         if (data_type == data_type::f16 && mayiuse(avx512_core_fp16))
             kernel_ = utils::make_unique<
                     jit_uni_cvt_ps_to_xf16_t<avx512_core_fp16>>(
@@ -152,10 +147,13 @@ struct jit_cvt_ps_to_xf16_t {
 
     void operator()(cvt_xf16_support::jit_call_t *params) const {
         (*kernel_)(params);
+        msan_unpoison(params->out,
+                (nelems_ ? nelems_ : params->nelems) * sizeof(float16_t));
     }
 
 private:
     std::unique_ptr<jit_generator> kernel_;
+    const size_t nelems_;
 };
 
 template <cpu_isa_t isa>
@@ -173,13 +171,6 @@ struct jit_uni_cvt_xf16_to_ps_t : public jit_generator {
     }
 
     void generate() override;
-
-    void operator()(cvt_xf16_support::jit_cvt_xf16_to_ps_params_t *p)
-            const { // override?
-        printf("operator sub-class\n");
-        jit_generator::operator()(p);
-        msan_unpoison(p->out, p->nelems * sizeof(float));
-    }
 
 protected:
     constexpr static int elem_granularity = isa == avx2_vnni_2 ? 2 : 1;
@@ -262,6 +253,7 @@ struct jit_cvt_xf16_to_ps_t {
         p.nelems = nelems;
         p.rows = rows;
         (*kernel_)(&p);
+        msan_unpoison(out, nelems * sizeof(float));
     }
 
     void operator()(float *out, const float16_t *inp, size_t nelems,
