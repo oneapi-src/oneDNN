@@ -4,7 +4,7 @@
 --dir=FWD_D
 --dt=bf16
 --alpha=0 --beta=0
---alg=abs,exp,gelu_erf,hardswish,log,relu,soft_relu,sqrt,square,tanh,logistic,logsigmoid
+--alg=abs,exp,gelu_erf,log,relu,sqrt,square,tanh,logistic,logsigmoid
 64x512x28x28
 
 # main op - clamp, alpha andbeta
@@ -42,5 +42,5 @@
 --dt=bf16
 --tag=abx,axb
 --alpha= --beta=0
---alg=clip_v2,clip_v2_dst,elu_dst,hardswish,relu,relu_dst,soft_relu,sqrt_dst,tanh_dst,logistic_dst
+--alg=clip_v2,clip_v2_dst,elu_dst,relu,relu_dst,sqrt_dst,tanh_dst,logistic_dst
 64x512x28x28

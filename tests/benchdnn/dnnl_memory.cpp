@@ -779,7 +779,8 @@ int check_buffer_overwrite(const dnn_mem_t &mem, int arg, res_t *res) {
         if (mem_ptr[i] == dnnl_mem_default_value) continue;
 
         BENCHDNN_PRINT(0,
-                "@@@ [arg:%d] check_buffer_overwrite failed. Expected: %d at "
+                "@@@ [arg:%d] check_buffer_overwrite failed. Expected: %d "
+                "at "
                 "byte: %lld but found: %d\n",
                 arg, dnnl_mem_default_value, (long long)i, mem_ptr[i]);
         if (res) res->state = FAILED;

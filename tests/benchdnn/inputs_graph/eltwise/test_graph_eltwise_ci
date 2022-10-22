@@ -6,7 +6,7 @@
 --tag=abx,axb
 
 --alpha=0 --beta=0
---alg=abs,exp,gelu_erf,hardswish,log,mish,round,soft_relu,sqrt,square,tanh,logistic,logsigmoid
+--alg=abs,exp,gelu_erf,log,mish,round,sqrt,square,tanh,logistic,logsigmoid
 64x512x28x28
 
 --alpha= --beta=
@@ -23,7 +23,7 @@
 
 #eltwise binary fusion -TODO - add per_tensor POLICY case
 --alpha=0 --beta=0
---alg=abs,exp,gelu_erf,hardswish
+--alg=abs,exp,gelu_erf
 --attr-post-ops=add:f32,div:f32,sub:f32,mul:f32,min:f32
 64x512x28x28
 
@@ -34,7 +34,7 @@
 --dt=f32
 --tag=abx,axb
 --alpha=0 --beta=0
---alg=abs,gelu_erf,hardswish,mish,relu_dst,soft_relu,sqrt,sqrt_dst,tanh,tanh_dst,logistic,logistic_dst,logsigmoid
+--alg=abs,gelu_erf,mish,relu_dst,sqrt,sqrt_dst,tanh,tanh_dst,logistic,logistic_dst,logsigmoid
 64x512x28x28
 
 --alpha= --beta=
@@ -73,7 +73,7 @@
 --tag=abx,axb
 
 --alpha=0 --beta=0
---alg=abs,elu,exp,gelu_erf,hardswish,log,relu,round,sqrt,square,tanh
+--alg=abs,elu,exp,gelu_erf,log,relu,round,sqrt,square,tanh
 --attr-post-ops=add:f32,mul:f32,sub:f32,div:f32
 64x512x28x28
 
@@ -84,7 +84,7 @@
 --tag=abx,axb
 
 --alpha=0 --beta=0
---alg=abs,elu,exp,gelu_erf,hardswish,relu,round,square,tanh
+--alg=abs,elu,exp,gelu_erf,relu,round,square,tanh
 --attr-post-ops=max:f32,min:f32
 64x512x28x28
 
