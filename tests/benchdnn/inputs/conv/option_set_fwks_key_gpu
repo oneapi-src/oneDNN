@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 #resnet-50.inf.int8.pt.mb1024_pvc
 --reset --allow-enum-tags-only=0 --cfg=s8s8u8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=relu --attr-oscale=common:0.5* mb1024_ic3oc64_ih224oh112kh7sh2dh0ph3_iw224ow112kw7sw2dw0pw3n"resnet-50.inf.int8.pt.mb1024_pvc*1"
 --reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=relu --attr-oscale=common:0.5* mb1024_ic64oc64_ih56oh56kh1sh1dh0ph0_iw56ow56kw1sw1dw0pw0n"resnet-50.inf.int8.pt.mb1024_pvc*1"
