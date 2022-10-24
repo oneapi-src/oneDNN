@@ -2602,6 +2602,9 @@ public:
     }
 
     virtual status_t create_kernel() {
+        int err_code = Xbyak::GetError();
+        if (err_code == Xbyak::ERR_CANT_ALLOC) return status::out_of_memory;
+        if (err_code != Xbyak::ERR_NONE) return status::runtime_error;
         generate();
         jit_ker_ = getCode();
         return (jit_ker_) ? status::success : status::runtime_error;

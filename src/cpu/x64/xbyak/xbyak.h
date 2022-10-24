@@ -1530,7 +1530,6 @@ public:
 		clabelDefList_.clear();
 		clabelUndefList_.clear();
 		resetLabelPtrList();
-		ClearError();
 	}
 	void enterLocal()
 	{
@@ -2845,6 +2844,7 @@ public:
 		, isDefaultJmpNEAR_(false)
 		, defaultEncoding_(EvexEncoding)
 	{
+                ClearError();
 		labelMgr_.set(this);
 	}
 	void reset()
