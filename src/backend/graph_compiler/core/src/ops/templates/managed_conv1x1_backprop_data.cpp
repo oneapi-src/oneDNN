@@ -26,8 +26,6 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
-#include <compiler/ir/transform/auto_cast.hpp>
-#include <compiler/ir/transform/constant_fold.hpp>
 #include <runtime/config.hpp>
 #include <util/any_map.hpp>
 #include <util/math_utils.hpp>
@@ -51,29 +49,6 @@ SC_CLASS_END();
 // clang-format on
 
 namespace ops {
-
-static std::vector<int> get_splits(const int X) {
-  std::vector<int> splits;
-  for (auto i = 1; i <= X; ++i) {
-    if (X % i == 0) { splits.push_back(i); }
-  }
-  return splits;
-}
-
-static expr divide_and_ceil(const expr &v, const expr &d) {
-  return constant_folder_t()(auto_caster_t()((v + d - 1) / d)).remove_const();
-}
-
-static expr get_balance211_length(
-  const expr &n, const expr &team, const expr &idx, expr &n_start, expr &T1) {
-  assert(get_expr_as_int(team) >= 1);
-  expr n1 = divide_and_ceil(n, team);
-  expr n2 = n1 - 1;
-  T1 = n - n2 * team;
-  n_start
-    = builder::make_select(idx <= T1, idx * n1, T1 * n1 + (idx - T1) * n2);
-  return builder::make_select(idx < T1, n1, n2);
-}
 
 static void get_blocks_and_ib_blocks(const int X, const int X_split_num,
   const int ix_block, int &X_block_size, int &X_ib_block_size) {

@@ -33,7 +33,6 @@
 using namespace sc::builder;
 namespace sc {
 namespace ops {
-
 static int calculate_q_reduce(int Q, bool is_bf_16) {
   int Q_padded = Q % 2 == 0 ? Q : Q + 1;
   int Q_reduce = is_bf_16 ? Q_padded : Q;
@@ -275,6 +274,7 @@ bool gen_convNxN_backprop_weight::generate_reduce_N(const context_ptr &ctx,
                         + builder::make_cast(datatypes::s32, q_o) * tile_q;
                       // TODO(yifei): double check the condition here
                       // to deal with padding case more carefully
+                      trace_guard_t trg(ctx, "brgemm");
                       _if_(p_o * stride_h + r >= padding_h
                         && (p_o == 0 || (p_o - 1) * stride_h + r < padding_h)
                         // p_o == p_offset[r]  // cannot write like this
@@ -334,6 +334,7 @@ bool gen_convNxN_backprop_weight::generate_reduce_N(const context_ptr &ctx,
         lanes = vectorize_step(ctx, out_tensors_[0].dtype_.type_code_, 16);
       }
       // KC(D)RSkc
+      trace_guard_t trg(ctx, "final_reduce");
       _named_for_(rlko, l_k_o, 0, K_num_block, 1, for_type::PARALLEL) {
         _named_for_(rlco, l_c_o, 0, C_num_block, 1) {
           _named_for_(rlr, l_r, 0, R, 1) {

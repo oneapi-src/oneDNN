@@ -18,11 +18,17 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_UTILS_HPP
 
 #include <algorithm>
+#include <string>
 #include <utility>
 #include <vector>
 #include <compiler/config/context.hpp>
+#include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/sc_data_format.hpp>
 #include <compiler/ir/sc_data_type.hpp>
+#include <compiler/ir/transform/auto_cast.hpp>
+#include <compiler/ir/transform/constant_fold.hpp>
+#include <runtime/trace.hpp>
 #include <unordered_set>
 namespace sc {
 namespace ops {
@@ -114,6 +120,48 @@ inline std::vector<int> get_dynamic_block_candidates(bool has_48 = true) {
 inline uint16_t vectorize_step(
   const context_ptr &ctx, sc_data_etype detype, uint16_t minv) {
   return std::min(minv, ctx->get_max_vector_lanes(detype));
+}
+
+struct trace_guard_t {
+  int trace_id;
+  context_ptr ctx;
+  trace_guard_t(const context_ptr &ctx, const std::string &func_name)
+    : ctx(ctx) {
+    trace_id = register_traced_func(func_name);
+    if (ctx->flags_.trace_) {
+      builder::get_current_builder()->push_evaluate(
+        builtin::make_trace(trace_id, 0, 0));
+    }
+  }
+  ~trace_guard_t() {
+    if (ctx->flags_.trace_) {
+      builder::get_current_builder()->push_evaluate(
+        builtin::make_trace(trace_id, 1, 0));
+    }
+  }
+};
+
+inline expr divide_and_ceil(const expr &v, const expr &d) {
+  return constant_folder_t()(auto_caster_t()((v + d - 1) / d)).remove_const();
+}
+
+inline static std::vector<int> get_splits(const int X) {
+  std::vector<int> splits;
+  for (auto i = 1; i <= X; ++i) {
+    if (X % i == 0) { splits.push_back(i); }
+  }
+  return splits;
+}
+
+inline expr get_balance211_length(
+  const expr &n, const expr &team, const expr &idx, expr &n_start, expr &T1) {
+  assert(get_expr_as_int(team) >= 1);
+  expr n1 = ops::divide_and_ceil(n, team);
+  expr n2 = n1 - 1;
+  T1 = n - n2 * team;
+  n_start
+    = builder::make_select(idx <= T1, idx * n1, T1 * n1 + (idx - T1) * n2);
+  return builder::make_select(idx < T1, n1, n2);
 }
 
 } // namespace ops

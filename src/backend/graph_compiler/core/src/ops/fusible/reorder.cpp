@@ -2669,7 +2669,7 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
         compute_fast_transpose(graph, ctx, src, dst, input_format,
                 output_format, dtype, plain_dims, output_loop, attrs,
                 inp_a_axis, inp_b_axis, out_a_axis, out_b_axis, wkld);
-    } else if (!is_dynamic
+    } else if (!is_innermost_dim_strided && !is_dynamic
             && can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
                     out_b_axis, plain_dims, input_format, output_format, src,
                     dst, dtype, is_vnni_reorder)) {

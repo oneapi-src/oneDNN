@@ -28,31 +28,12 @@
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <runtime/config.hpp>
-#include <runtime/trace.hpp>
 #include <util/any_map.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 using namespace sc::builder;
 namespace sc {
 namespace ops {
-struct trace_guard_t {
-  int trace_id;
-  context_ptr ctx;
-  trace_guard_t(const context_ptr &ctx, const std::string &func_name)
-    : ctx(ctx) {
-    trace_id = register_traced_func(func_name);
-    if (ctx->flags_.trace_) {
-      builder::get_current_builder()->push_evaluate(
-        builtin::make_trace(trace_id, 0, 0));
-    }
-  }
-  ~trace_guard_t() {
-    if (ctx->flags_.trace_) {
-      builder::get_current_builder()->push_evaluate(
-        builtin::make_trace(trace_id, 1, 0));
-    }
-  }
-};
 
 config_ptr gen_conv1x1_backprop_weight_t::get_default_config(
   context_ptr ctx) const {

@@ -1259,7 +1259,8 @@ public:
                     var->temp_data() = constant_fold_analysis_result_t {
                             const_range_t {get_type_category(var->dtype_),
                                     begin_r->start,
-                                    begin_r->start.s64 + real_loop_len - 1}};
+                                    begin_r->start.s64
+                                            + (real_loop_len - 1) * stepc}};
                 }
             }
         }

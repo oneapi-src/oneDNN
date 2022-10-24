@@ -358,22 +358,22 @@ void gen_matmul_core_t::get_and_check_blocks(sc_graph_t &graph,
     "Unmatched config with input format");
   // divide and ceil(x, 1) to convert x to index datatype.
   M_num_blocks = blocking_axes_.A_m.size() == 1
-    ? divide_and_ceil(
+    ? ops::divide_and_ceil(
       A_dims[blocking_axes_.A_m.at(0)], graph.dim_to_expr(M_block))
     : A_dims[blocking_axes_.A_m.at(0)];
 
   K_num_blocks = blocking_axes_.A_k.size() == 1
-    ? divide_and_ceil(
+    ? ops::divide_and_ceil(
       A_dims[blocking_axes_.A_k.at(0)], graph.dim_to_expr(K_block))
     : A_dims[blocking_axes_.A_k.at(0)];
 
   B_K_num_blocks = blocking_axes_.B_k.size() == 1
-    ? divide_and_ceil(
+    ? ops::divide_and_ceil(
       B_dims[blocking_axes_.B_k.at(0)], graph.dim_to_expr(K_block))
     : B_dims[blocking_axes_.B_k.at(0)];
 
   N_num_blocks = blocking_axes_.B_n.size() == 1
-    ? divide_and_ceil(
+    ? ops::divide_and_ceil(
       B_dims[blocking_axes_.B_n.at(0)], graph.dim_to_expr(N_block))
     : B_dims[blocking_axes_.B_n.at(0)];
 
