@@ -52,13 +52,13 @@ struct eltwise_pd_t : public primitive_desc_t {
 
     /* common eltwise aux functions */
 
-    dim_t MB() const { return src_md()->dims[0]; }
-    dim_t C() const { return ndims() >= 2 ? src_md()->dims[1] : 1; }
-    dim_t D() const { return ndims() >= 5 ? src_md()->dims[ndims() - 3] : 1; }
-    dim_t H() const { return ndims() >= 4 ? src_md()->dims[ndims() - 2] : 1; }
-    dim_t W() const { return ndims() >= 3 ? src_md()->dims[ndims() - 1] : 1; }
+    dim_t MB() const { return data_md()->dims[0]; }
+    dim_t C() const { return ndims() >= 2 ? data_md()->dims[1] : 1; }
+    dim_t D() const { return ndims() >= 5 ? data_md()->dims[ndims() - 3] : 1; }
+    dim_t H() const { return ndims() >= 4 ? data_md()->dims[ndims() - 2] : 1; }
+    dim_t W() const { return ndims() >= 3 ? data_md()->dims[ndims() - 1] : 1; }
 
-    int ndims() const { return src_md()->ndims; }
+    int ndims() const { return data_md()->ndims; }
 
     bool is_fwd() const {
         return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
@@ -66,7 +66,7 @@ struct eltwise_pd_t : public primitive_desc_t {
     }
 
     bool has_zero_dim_memory() const {
-        return memory_desc_wrapper(src_md()).has_zero_dim();
+        return memory_desc_wrapper(data_md()).has_zero_dim();
     }
 
     bool use_dst() const {
@@ -95,6 +95,11 @@ protected:
         , hint_fwd_pd_(hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , dst_md_(desc_.dst_desc) {}
+
+private:
+    const memory_desc_t *data_md(int index = 0) const {
+        return use_dst() ? dst_md(index) : src_md(index);
+    }
 };
 
 struct eltwise_fwd_pd_t : public eltwise_pd_t {

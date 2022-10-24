@@ -99,7 +99,8 @@ struct acl_post_ops_t {
                 eltwise_desc.alg_kind = po.eltwise.alg;
                 eltwise_desc.alpha = po.eltwise.alpha;
                 eltwise_desc.beta = po.eltwise.beta;
-                eltwise_desc.data_desc = dst_md;
+                eltwise_desc.src_desc = dst_md;
+                eltwise_desc.dst_desc = dst_md;
                 eltwise_desc.prop_kind = prop_kind_t::dnnl_forward;
                 auto empty_attr = dnnl_primitive_attr();
                 typename acl_eltwise_fwd_t::pd_t acl_eltwise_pd(
