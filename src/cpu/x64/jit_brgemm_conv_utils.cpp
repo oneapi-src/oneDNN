@@ -2122,7 +2122,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         weights_md.extra.asymm_compensation_mask = with_groups ? 0x3 : 0x1;
     }
 
-    // disables the shape with small ic but large spatial for int8 conv
+    // disables the shape with small ic but large spatial
+    // or specific large spatial shapes for int8 conv
     const auto is_ok_large_spatial
             = IMPLICATION(!is_amx(jcp.isa) && jcp.ic <= 128,
                       jcp.od * jcp.oh < 100
@@ -2131,7 +2132,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                     jcp.ow < 2048
                             || div_up(jcp.ow_block, selected_ur) * jcp.kd
                                             * jcp.kh * jcp.kw
-                                    > 8192);
+                                    > 8192)
+            && !(!is_amx(jcp.isa) && jcp.oc == 1024
+                    && utils::everyone_is(1, jcp.od, jcp.oh, jcp.kd, jcp.kh)
+                    && jcp.ow >= 595 && jcp.kw <= 5);
     if (one_of(jcp.src_dt, u8, s8) && !is_ok_large_spatial)
         return status::unimplemented;
 
