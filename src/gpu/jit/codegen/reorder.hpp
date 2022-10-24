@@ -560,7 +560,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
     // Handle mov(src.uw(x)(1), dst.uw(y)(2)).
     if (src_type_size == 2 && dst_type_size == 2 && src_stride == 2
-            && dst_stride == 1) {
+            && dst_stride == 1 && width > 1) {
         int step = get_step();
         auto step_size = step * src_type_size * src_stride;
         auto nregs = utils::div_up(step_size, grf_size);
