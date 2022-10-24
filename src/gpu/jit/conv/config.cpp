@@ -1173,11 +1173,17 @@ void init_fuse_spatial(conv_config_t &cfg) {
     const auto &prb = cfg.prb();
     if (!prb.is_fwd || is_small_ic(prb)) return;
 
-    // Enable spatial fusion only for large batches (when N is blocked).
     // Spatial fusion may be suboptimal for small batch due to:
     // - Using smaller messages (load blocks are not fully dense anymore)
     // - Extra division arithmetic to work with fused indices
-    if (cfg.src_layout().compute().inner_block(0) == 1) return;
+    if (cfg.src_layout().compute().inner_block(0) == 1) {
+        if (!prb.is_fwd || cfg.is_ge_xe_hpc()) return;
+        // Enable fusion for cases without m block with overwhelming spatial dim.
+        if (prb.is_int8_dst() || (prb.osp < 4096)
+                || !(prb.oh == prb.ow && prb.ow == prb.od)) {
+            return;
+        }
+    }
 
     cfg.set_fuse_spatial(true);
 }
@@ -1323,6 +1329,13 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
 
     const auto &prb = cfg.prb();
     const char *osp_name = cfg.fuse_spatial() ? "osp" : "ow";
+
+    //set iter block for cases with no m block and large spatial
+    if (!cfg.is_ge_xe_hpc() && cfg.src_layout().compute().inner_block(0) == 1
+            && prb.mb > 1 && (prb.oh == prb.ow && prb.ow == prb.od)
+            && prb.osp >= 512) {
+        bh.set_base_iter_block(osp_name, 16);
+    }
 
     if (cfg.ow_kw_grf_cache()) {
         bh.set_base_iter_block("mb", 1);
