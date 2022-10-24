@@ -200,6 +200,8 @@ set(SC_LLVM_ABS_LIBPATH ${SC_LLVM_LIB_NAME})
 if(${CMAKE_VERSION} VERSION_GREATER "3.0.0")
     add_library(dnnl_graphcompiler_llvm_lib INTERFACE IMPORTED GLOBAL)
     set_property(TARGET dnnl_graphcompiler_llvm_lib PROPERTY INTERFACE_LINK_LIBRARIES ${SC_LLVM_LIB_NAME})
+    add_library(dnnl_graphcompiler_llvm_lib_exclude_string INTERFACE IMPORTED GLOBAL)
+    set_property(TARGET dnnl_graphcompiler_llvm_lib_exclude_string PROPERTY INTERFACE_LINK_LIBRARIES ${SC_LLVM_LIB_EXCLUDE})
 endif()
 
 target_link_libraries(${SC_LIB_NAME} PRIVATE ${SC_LLVM_ABS_LIBPATH})

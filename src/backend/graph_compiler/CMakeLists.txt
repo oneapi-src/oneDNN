@@ -28,6 +28,13 @@ include("core/cmake/find_llvm.cmake")
 
 set(SC_LLVM_CONFIG ${DNNL_GRAPH_LLVM_CONFIG})
 
+if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
+    add_definitions(-DSC_DLL)
+    set(SC_LIBRARY_TYPE "SHARED")
+else()
+    set(SC_LIBRARY_TYPE "STATIC")
+endif()
+
 find_llvm()
 
 if(${SC_LLVM_VERSION} STREQUAL OFF OR ${SC_LLVM_VERSION} LESS 8)
@@ -55,15 +62,10 @@ endif()
 message(STATUS "Graph compiler backend is enabled.")
 set(SC_CPU_RUNTIME ${DNNL_GRAPH_CPU_RUNTIME})
 
-if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED")
-    add_definitions(-DSC_DLL)
-    set(SC_LIBRARY_TYPE "SHARED")
-else()
-    set(SC_LIBRARY_TYPE "STATIC")
-endif()
-
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
     append(CMAKE_CCXX_NOWARN_FLAGS "/wd4200")
+    # allow usage of "deprecated" functions
+    append(CMAKE_CCXX_NOWARN_FLAGS "/wd4996")
     # inherits via dominance
     append(CMAKE_CCXX_NOWARN_FLAGS "/wd4250")
     # conversion from 'size_t' to 'uint16_t'

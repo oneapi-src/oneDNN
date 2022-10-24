@@ -116,7 +116,7 @@ macro(find_llvm)
 
         message(STATUS "Decided to link LLVM with ${__sc_llvm_link}")
 
-        exec_cmd_and_check(${SC_LLVM_CONFIG} "--system-libs" ""
+        exec_cmd_and_check(${SC_LLVM_CONFIG} "--system-libs" "${__sc_llvm_link}"
             _sc_llvm_system_libs)
         exec_cmd_and_check(${SC_LLVM_CONFIG} "--libfiles"  "${__sc_llvm_link}"
             _sc_llvm_libs)
@@ -124,7 +124,18 @@ macro(find_llvm)
         # libs to link
         string(STRIP ${_sc_llvm_libs} _sc_llvm_libs)
         string(STRIP ${_sc_llvm_system_libs} _sc_llvm_system_libs)
-        set(SC_LLVM_LIB_NAME "${_sc_llvm_libs} ${_sc_llvm_system_libs}")
+        separate_arguments(_sc_llvm_libs)
+        if(SC_LLVM_CONFIG_RETURN_STATIC)
+            set(SC_LLVM_LIB_NAME "")
+            foreach(__libname ${_sc_llvm_libs})
+                if(EXISTS ${__libname})
+                    list(APPEND SC_LLVM_LIB_NAME ${__libname})
+                endif()
+            endforeach()
+        else()
+            set(SC_LLVM_LIB_NAME ${_sc_llvm_libs})
+        endif()
+        set(SC_LLVM_LIB_NAME "${SC_LLVM_LIB_NAME} ${_sc_llvm_system_libs}")
         separate_arguments(SC_LLVM_LIB_NAME)
 
         # version
@@ -136,5 +147,13 @@ macro(find_llvm)
         
         # include directory
         exec_cmd_and_check(${SC_LLVM_CONFIG} "--includedir" "" SC_LLVM_INCLUDE_PATH)
+    endif()
+    if(SC_LLVM_CONFIG_RETURN_STATIC)
+        set(__sc_llvm_exclude "")
+        foreach(__sc_llvm_lib ${SC_LLVM_LIB_NAME})
+            get_filename_component(__sc_llvm_file ${__sc_llvm_lib} NAME)
+            list(APPEND __sc_llvm_exclude ${__sc_llvm_file})
+        endforeach()
+        string(REPLACE ";" ":" SC_LLVM_LIB_EXCLUDE "${__sc_llvm_exclude}")
     endif()
 endmacro()
