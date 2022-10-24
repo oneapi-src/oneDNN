@@ -132,8 +132,8 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
         for (int64_t mb = 0; mb < prb->mb; ++mb) {
             int64_t l_base = mb * prb->id * prb->ih * prb->iw
                     + c * 239 * 2; // l[0] must be even
-            float *s = (float *)src + data_off(prb, mb, c, 0, 0, 0);
-            float *s_add = (float *)src_add + data_off(prb, mb, c, 0, 0, 0);
+            int64_t off = data_off(prb, mb, c, 0, 0, 0);
+            float *s = (float *)src + off;
 
             for_(int64_t d = 0; d < prb->id; ++d)
             for_(int64_t h = 0; h < prb->ih; ++h)
@@ -165,6 +165,7 @@ static int prepare_fwd_no_stats(const prb_t *prb, dnn_mem_t &src,
                     const int64_t mod2_base = (mb + c + d + h + w) % 5;
                     const float mod2_val = 1.f / (2LL << mod2_base);
                     const int64_t sign_val = s[sp] < m ? -1 : 1;
+                    float *s_add = (float *)src_add + off;
                     s_add[sp] = round_to_nearest_representable(
                             prb->dt, mod2_val * sign_val);
                 }

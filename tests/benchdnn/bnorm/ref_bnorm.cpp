@@ -84,7 +84,6 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &d_sh = args.find(DNNL_ARG_DIFF_SHIFT);
 
     float *d_src_ptr = (float *)d_src;
-    float *d_src_add_ptr = (float *)d_src_add;
     float *d_sc_ptr = (float *)d_sc;
     float *d_sh_ptr = (float *)d_sh;
 
@@ -129,7 +128,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
             auto off = data_off(prb, mb, c, d, h, w);
             float dd = d_dst.get_elem(off);
             if (fuse_relu && ws.get_elem(off) == 0) dd = 0;
-            if (fuse_add_relu) d_src_add_ptr[off] = dd;
+            if (fuse_add_relu) d_src_add.set_elem(off, dd);
             float ds = dd;
 
             if (!glob_stats)
