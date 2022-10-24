@@ -50,6 +50,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_relu_fusion)
                             std::vector<impl::op_kind_t> {
                                     impl::op_kind::BatchNormInference,
                                     impl::op_kind::BatchNormForwardTraining});
+                    bn->append_decision_function(
+                            check_input_dtype_from_offset<impl::data_type::f32,
+                                    1>);
                     pgraph->append_op(impl::op_kind::ReLU, {in_edge(0, bn, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
@@ -72,6 +75,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bwd_relu_bwd_fusion)
                     auto bn_bwd = pgraph->append_op(
                             impl::op_kind::BatchNormTrainingBackprop,
                             {in_edge(0, relu_bwd, 0)});
+                    bn_bwd->append_decision_function(
+                            check_input_dtype_from_offset<impl::data_type::f32,
+                                    2>);
                     bn_bwd->BATCHNORM_OUTPUT_NUM_CHECK(1, 3);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {

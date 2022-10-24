@@ -406,9 +406,9 @@ TEST(ExecuteSubgraphInt8, LayernormTypecastQuant) {
     impl::logical_tensor_t src = utils::logical_tensor_init(
             0, layernorm_shape, impl::data_type::bf16);
     impl::logical_tensor_t scale_lt = utils::logical_tensor_init(
-            1, scale_lt_shape, impl::data_type::bf16);
+            1, scale_lt_shape, impl::data_type::f32);
     impl::logical_tensor_t shift_lt = utils::logical_tensor_init(
-            2, shift_lt_shape, impl::data_type::bf16);
+            2, shift_lt_shape, impl::data_type::f32);
 
     impl::logical_tensor_t layernorm_dst = utils::logical_tensor_init(
             3, layernorm_shape, impl::data_type::bf16);

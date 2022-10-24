@@ -4769,6 +4769,7 @@ struct dnnl_graph_test_single_op_pass_params {
     size_t output_num;
     impl::data_type_t data_type;
     size_t partition_num;
+    std::vector<impl::op_attr_t> float_attrs;
 };
 
 class SingleOpPass
@@ -4780,6 +4781,9 @@ public:
 
         graph_t agraph;
         op_t aop {0, params.op_kind, "aop"};
+        for (const auto &attr : params.float_attrs) {
+            aop.set_attr(attr, 0.1f);
+        }
 
         std::vector<logical_tensor_t> lts = create_logical_tensors(
                 params.input_num + params.output_num, params.data_type);
@@ -4813,7 +4817,35 @@ INSTANTIATE_TEST_SUITE_P(Pass, SingleOpPass,
                 dnnl_graph_test_single_op_pass_params {
                         impl::op_kind::Round, 1, 1, impl::data_type::bf16, 0},
                 dnnl_graph_test_single_op_pass_params {
-                        impl::op_kind::Round, 1, 1, impl::data_type::f16, 0}));
+                        impl::op_kind::Round, 1, 1, impl::data_type::f16, 0},
+                dnnl_graph_test_single_op_pass_params {
+                        impl::op_kind::BatchNormInference, 5, 1,
+                        impl::data_type::f32, 1, {impl::op_attr::epsilon}},
+                dnnl_graph_test_single_op_pass_params {
+                        impl::op_kind::BatchNormInference, 5, 1,
+                        impl::data_type::bf16, 0, {impl::op_attr::epsilon}},
+                dnnl_graph_test_single_op_pass_params {
+                        impl::op_kind::BatchNormForwardTraining, 5, 5,
+                        impl::data_type::f32, 1, {impl::op_attr::epsilon}},
+                dnnl_graph_test_single_op_pass_params {
+                        impl::op_kind::BatchNormForwardTraining, 5, 5,
+                        impl::data_type::bf16, 0, {impl::op_attr::epsilon}},
+                dnnl_graph_test_single_op_pass_params {
+                        impl::op_kind::BatchNormTrainingBackprop, 5, 3,
+                        impl::data_type::f32, 1, {impl::op_attr::epsilon}},
+                dnnl_graph_test_single_op_pass_params {
+                        impl::op_kind::BatchNormTrainingBackprop, 5, 3,
+                        impl::data_type::bf16, 0, {impl::op_attr::epsilon}},
+                dnnl_graph_test_single_op_pass_params {impl::op_kind::LayerNorm,
+                        3, 3, impl::data_type::f32, 1},
+                dnnl_graph_test_single_op_pass_params {impl::op_kind::LayerNorm,
+                        3, 3, impl::data_type::bf16, 0},
+                dnnl_graph_test_single_op_pass_params {
+                        impl::op_kind::LayerNormBackprop, 6, 3,
+                        impl::data_type::f32, 1},
+                dnnl_graph_test_single_op_pass_params {
+                        impl::op_kind::LayerNormBackprop, 6, 3,
+                        impl::data_type::bf16, 0}));
 
 TEST(Pass, ConvSingleOpReplacement) {
     graph_t agraph;
@@ -12366,8 +12398,8 @@ TEST(PassSystem, FuseLayernormTypecast) {
     op_t typecast {1, TypeCast, "typecast"};
 
     logical_tensor_t src = logical_tensor_init(0, data_type::bf16);
-    logical_tensor_t scale = logical_tensor_init(1, data_type::bf16);
-    logical_tensor_t shift = logical_tensor_init(2, data_type::bf16);
+    logical_tensor_t scale = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t shift = logical_tensor_init(2, data_type::f32);
     logical_tensor_t layernorm_dst = logical_tensor_init(3, data_type::bf16);
 
     layernorm.add_input(src);
@@ -12468,8 +12500,8 @@ TEST(PassSystem, FuseLayernormTypecastQuantize) {
     quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t src = logical_tensor_init(0, data_type::bf16);
-    logical_tensor_t scale_lt = logical_tensor_init(1, data_type::bf16);
-    logical_tensor_t shift_lt = logical_tensor_init(2, data_type::bf16);
+    logical_tensor_t scale_lt = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t shift_lt = logical_tensor_init(2, data_type::f32);
     logical_tensor_t layernorm_dst = logical_tensor_init(3, data_type::bf16);
     layernorm.add_input(src);
     layernorm.add_input(scale_lt);
