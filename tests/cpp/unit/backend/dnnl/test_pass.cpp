@@ -4775,6 +4775,12 @@ TEST(Pass, DnnlSingleOpReplacement) {
     for (auto akind : single_op_set_supported) {
         graph_t agraph;
         op_t *op = agraph.create_op(akind);
+        // specially handle AvgPool
+        // which requires certain combinations of attributes
+        if (akind == AvgPool) {
+            op->set_attr<bool>(op_attr::exclude_pad, false);
+            op->set_attr<std::string>(op_attr::rounding_type, "floor");
+        }
         ASSERT_EQ(op->get_kind(), akind);
         pm.run_passes(agraph, "no_config");
 
@@ -15440,4 +15446,34 @@ TEST(PassSystem, EltwiseFusionWithInternalInputs) {
         ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
         ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
     }
+}
+
+TEST(Pass, AvgPoolIncludePadCeilModeShouldFail) {
+    using dims = impl::dnnl_impl::dims;
+
+    impl::op_t avg_pool_op(0, impl::op_kind::AvgPool, "avgpool");
+    avg_pool_op.set_attr<dims>(op_attr::strides, {2, 2});
+    avg_pool_op.set_attr<dims>(impl::op_attr::kernel, {2, 2});
+    avg_pool_op.set_attr<dims>(impl::op_attr::pads_begin, {1, 1});
+    avg_pool_op.set_attr<dims>(impl::op_attr::pads_end, {1, 1});
+    avg_pool_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    avg_pool_op.set_attr<bool>(impl::op_attr::exclude_pad, false);
+    avg_pool_op.set_attr<std::string>(impl::op_attr::rounding_type, "ceil");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = logical_tensor_init(0, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = logical_tensor_init(1, impl::data_type::f32);
+
+    avg_pool_op.add_input(src_lt);
+    avg_pool_op.add_output(dst_lt);
+
+    graph_t agraph;
+    agraph.add_op(&avg_pool_op);
+    agraph.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("avg_pool_pass");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 0U);
 }
