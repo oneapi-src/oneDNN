@@ -51,6 +51,10 @@
 --stag=abc,acb --dtag=aCB16b16c,aCB16b32c,aCB16b48c,aCB16b64c 57x89x73
 --dtag=abc,acb --stag=aCB16b16c,aCB16b32c,aCB16b48c,aCB16b64c 57x89x73
 
+# brdgmm layouts
+--sdt=f32 --ddt=f32
+--stag=axb --dtag=decbA8a 2x71x16x16
+
 # simple nChw{8,16}c impl
 --sdt=f32 --ddt=f32
 --stag=aBx4b,aBx8b --dtag=aBx16b 2x71x16x16 2x72x16x16 2x73x16x16

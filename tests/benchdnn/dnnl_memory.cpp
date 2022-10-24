@@ -49,10 +49,12 @@ extern "C" dnnl_status_t dnnl_memory_desc_set_data_type(
 
 dnn_mem_t::dnn_mem_t(const_dnnl_memory_desc_t md, dnnl_engine_t engine,
         const handle_info_t &handle_info) {
-    auto status = dnnl_memory_desc_clone(&md_, md);
-    (void)status;
-    assert(status == dnnl_success);
-    if (ndims() > 0) active_ = (initialize(engine, handle_info) == OK);
+    if (query_md_ndims(md) > 0) {
+        auto status = dnnl_memory_desc_clone(&md_, md);
+        (void)status;
+        assert(status == dnnl_success);
+        active_ = (initialize(engine, handle_info) == OK);
+    }
 }
 
 dnn_mem_t::dnn_mem_t(const_dnnl_memory_desc_t md, dnnl_data_type_t dt,
