@@ -64,6 +64,11 @@ endfunction()
 
 file(GLOB sources src/*.cpp)
 
+# Remove graph compiler tests
+if(NOT DNNL_GRAPH_BUILD_COMPILER_BACKEND)
+    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_int8_MHA_pattern.cpp)
+    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_MHA_pattern.cpp)
+endif()
 # Remove graph serialization tests
 if(NOT DNNL_GRAPH_BUILD_COMPILER_BACKEND)
     list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_int8_mlp_dynamic_pattern.cpp)
