@@ -41,12 +41,14 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
             && utils::one_of(type_o, data_type::s8, data_type::bf16,
                     data_type::f16, data_type::f32);
     const bool is_f16 = utils::one_of(data_type::f16, type_i, type_o);
+    const bool is_s8s8 = type_i == data_type::s8 && type_o == data_type::s8;
     const bool has_adj_scale
             = od.extra().flags & memory_extra_flags::scale_adjust;
     const bool args_ok = true && dt_ok && id.is_dense()
             && utils::one_of(ndims, 2, 3)
             && IMPLICATION(is_f16, mayiuse(avx512_core_fp16))
-            && IMPLICATION(!is_f16, mayiuse(avx512_core)) && !has_adj_scale
+            && IMPLICATION(!is_f16, mayiuse(avx512_core))
+            && IMPLICATION(is_s8s8, mayiuse(avx512_core_vnni)) && !has_adj_scale
             && attr()->has_default_values() && od.is_blocking_desc()
             && !od.has_runtime_dims_or_strides() && !od.has_zero_dim();
     if (!args_ok) return invalid_arguments;
