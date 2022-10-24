@@ -141,7 +141,23 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(mish_bw_pass, MishBackprop, eltwise_bwd_t, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(div_pass, Divide, binary_t, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(sub_pass, Subtract, binary_t, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(pow_pass, Pow, float_eltwise_fwd, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(round_pass, Round, float_eltwise_fwd, 8.f)
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, round_pass)
+        .set_priority(8.f)
+        .set_kind(impl::partition_kind::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    impl::utils::pm::pb_op_t *p_round = pgraph->append_op(
+                            impl::op_kind::Round, "p-round");
+                    // the round algorithm in eltwise primitive does not
+                    // support other data types.
+                    p_round->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_eltwise_fwd>();
+        });
+
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(sigmoid_pass, Sigmoid, float_eltwise_fwd, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         sigmoid_bw_pass, SigmoidBackprop, eltwise_bwd_t, 8.f)

@@ -135,12 +135,13 @@ static inline std::vector<int64_t> compute_dense_strides(
 }
 
 static inline std::vector<dnnl::graph::impl::logical_tensor_t>
-create_logical_tensors(size_t num_lt) {
+create_logical_tensors(
+        size_t num_lt, impl::data_type_t dtype = impl::data_type::f32) {
     size_t count = 0;
     std::vector<dnnl::graph::impl::logical_tensor_t> lt_vec;
     lt_vec.reserve(num_lt);
     while (count < num_lt) {
-        lt_vec.emplace_back(logical_tensor_init(count, impl::data_type::f32));
+        lt_vec.emplace_back(logical_tensor_init(count, dtype));
         count++;
     }
     return lt_vec;
