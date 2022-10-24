@@ -2482,10 +2482,11 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
                     = next_op.get_output_value(0)->get_logical_tensor();
             auto fused_out_md = make_dnnl_memory_desc(fused_out_lt);
             auto format_tag = get_format_tag_str(fused_out_md);
+            const auto ndims = fused_out_md.get_ndims();
             const auto &dims = fused_out_md.get_dims();
             const auto &dtype = fused_out_md.get_data_type();
             dnnl_memory_desc_t temp_md;
-            dnnl_memory_desc_create_with_string_tag(&temp_md, dims.size(),
+            dnnl_memory_desc_create_with_string_tag(&temp_md, ndims,
                     dims.data(), static_cast<dnnl_data_type_t>(dtype),
                     format_tag.data());
             if (!dnnl_memory_desc_equal(fused_out_md.get(), temp_md)) {
