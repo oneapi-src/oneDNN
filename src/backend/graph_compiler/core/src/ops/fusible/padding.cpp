@@ -104,14 +104,24 @@ void padding_op_t::infer_slice_ranges(
     // search known ranges from any input of cur fusbile op
     slice_range_map known_ranges_map
             = search_known_slice_ranges(this, fsmap, stat_map);
-
     size_t slice_size = known_ranges_map[0].size();
+
+    auto required_axes = get_real_padding_axis();
+    auto input = get_inputs()[0];
+    auto &src_dim = input->details_.get_blocking_dims();
+    // check the slice range whether meet the demand of padding op
+    for (auto &src_range : fsmap.get(input)) {
+        if (!slice_full_on_axes(src_dim, src_range, required_axes)) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+    }
     slice_range_list ranges_list(slice_size);
     // update the input slice range offset with additional padding area, while
     // keep the size unchanged
     const size_t ndims = info_.inputs_[0]->details_.get_plain_dims().size();
     const auto &pads_begin = attrs_.get<sc_dims>("pads_begin");
-
+    const auto &pads_end = attrs_.get<sc_dims>("pads_end");
     // if format is channel_last, the spatial_dims_offset should set to 1
     size_t spatial_dims_offset
             = info_.outputs_[0]->details_.get_format().is_channel_last() ? 1
@@ -119,8 +129,8 @@ void padding_op_t::infer_slice_ranges(
     for (size_t i = 0; i < slice_size; i++) {
         ranges_list[i] = known_ranges_map[0][i];
         for (size_t j = 0; j < pads_begin.size(); ++j) {
-            auto &offset = ranges_list[i][j + spatial_dims_offset].first;
-            offset = offset + static_cast<int>(pads_begin[j]);
+            auto &len = ranges_list[i][j + spatial_dims_offset].second;
+            len = len + static_cast<int>(pads_begin[j] + pads_end[j]);
         }
     }
     fsmap.get(get_outputs()[0]) = std::move(ranges_list);
@@ -136,11 +146,21 @@ void padding_op_t::compute_block(context_ptr ctx,
     std::vector<expr> iter_vars;
     std::vector<expr> src_idx;
     std::vector<expr> dst_idx;
+    const auto &pads_begin = attrs_.get<sc_dims>("pads_begin");
+    const auto &pads_end = attrs_.get<sc_dims>("pads_end");
+    const auto padding_axis = get_real_padding_axis();
     for (size_t i = 0; i < ndims; ++i) {
         iter_vars.emplace_back(builder::make_var(datatypes::index,
                 std::string("_fuseiter") + fusion_create_idx()));
         src_idx.emplace_back(iter_vars.back());
         dst_idx.emplace_back(iter_vars.back());
+
+        auto itr = find(padding_axis.begin(), padding_axis.end(), i);
+        if (itr != padding_axis.end()) {
+            dst_idx.back() = dst_idx.back()
+                    + static_cast<int>(pads_begin[std::distance(
+                            padding_axis.begin(), itr)]);
+        }
     }
     auto bld = builder::get_current_builder();
 
@@ -209,13 +229,14 @@ stmt padding_op_t::get_zero_out_stmt(
                                  : tensor_slice(out, std::move(range));
 
     int N = get_expr_as_int(out_tsl.get_shape()[0]);
+
     auto real_padding_axis = get_real_padding_axis();
 
     auto is_channel_last
             = get_outputs()[0]->details_.get_format().is_channel_last();
 
     // All the format will be treated as NKHWc
-    const int K = is_channel_last ? 1 : get_expr_as_int(out->dims_[1]);
+    const int K = is_channel_last ? 1 : get_expr_as_int(out_tsl.get_shape()[1]);
 
     int c = 1;
     auto ndims = out->dims_.size();
@@ -242,52 +263,54 @@ stmt padding_op_t::get_zero_out_stmt(
     for_loop ln, lk;
     builder::ir_builder_t bld;
     bld.push_scope();
-    _named_for_(ln, n, 0, N, 1, for_type::PARALLEL) {
-        _named_for_(lk, k, 0, K) {
+    _named_for_(ln, pad_n, 0, N, 1, for_type::PARALLEL) {
+        _named_for_(lk, pad_k, 0, K) {
             auto ptr = is_4d_out
                     ? (is_channel_last ? builder::tensor_ptr(
-                               out_tptr, {n, 0, 0, 0})
+                               out_tptr, {pad_n, 0, 0, 0})
                                        : builder::tensor_ptr(
-                                               out_tptr, {n, k, 0, 0}))
-                    : builder::tensor_ptr(out_tptr, {n, k, 0, 0, 0});
+                                               out_tptr, {pad_n, pad_k, 0, 0}))
+                    : builder::tensor_ptr(out_tptr, {pad_n, pad_k, 0, 0, 0});
             sc::builtin::mem_zero(ptr, ph1_ * w * c, out_dtype);
 
             _for_(p1, 0, oh_) {
-                sc::builtin::mem_zero(is_4d_out
-                                ? (is_channel_last
-                                                ? builder::tensor_ptr(out_tptr,
-                                                        {n, p1 + ph1_, 0, 0})
-                                                : builder::tensor_ptr(out_tptr,
-                                                        {n, k, p1 + ph1_, 0}))
-                                : builder::tensor_ptr(
-                                        out_tptr, {n, k, p1 + ph1_, 0, 0}),
+                sc::builtin::mem_zero(
+                        is_4d_out ? (is_channel_last
+                                        ? builder::tensor_ptr(out_tptr,
+                                                {pad_n, p1 + ph1_, 0, 0})
+                                        : builder::tensor_ptr(out_tptr,
+                                                {pad_n, pad_k, p1 + ph1_, 0}))
+                                  : builder::tensor_ptr(out_tptr,
+                                          {pad_n, pad_k, p1 + ph1_, 0, 0}),
 
                         pw1_ * c, out_dtype);
 
                 sc::builtin::mem_zero(
-                        is_4d_out ? (is_channel_last
-                                        ? builder::tensor_ptr(out_tptr,
-                                                {n, p1 + ph1_, ow_ + pw1_, 0})
-                                        : builder::tensor_ptr(out_tptr,
-                                                {
-                                                        n,
-                                                        k,
-                                                        p1 + ph1_,
-                                                        ow_ + pw1_,
-                                                }))
+                        is_4d_out ? (
+                                is_channel_last ? builder::tensor_ptr(out_tptr,
+                                        {pad_n, p1 + ph1_, ow_ + pw1_, 0})
+                                                : builder::tensor_ptr(out_tptr,
+                                                        {
+                                                                pad_n,
+                                                                pad_k,
+                                                                p1 + ph1_,
+                                                                ow_ + pw1_,
+                                                        }))
                                   : builder::tensor_ptr(out_tptr,
-                                          {n, k, p1 + ph1_, ow_ + pw1_, 0}),
+                                          {pad_n, pad_k, p1 + ph1_, ow_ + pw1_,
+                                                  0}),
 
                         pw2_ * c, out_dtype);
             }
 
-            sc::builtin::mem_zero(is_4d_out
-                            ? (is_channel_last ? builder::tensor_ptr(
-                                       out_tptr, {n, ph1_ + oh_, 0, 0})
-                                               : builder::tensor_ptr(out_tptr,
-                                                       {n, k, ph1_ + oh_, 0}))
-                            : builder::tensor_ptr(
-                                    out_tptr, {n, k, ph1_ + oh_, 0, 0}),
+            sc::builtin::mem_zero(
+                    is_4d_out ? (is_channel_last
+                                    ? builder::tensor_ptr(
+                                            out_tptr, {pad_n, ph1_ + oh_, 0, 0})
+                                    : builder::tensor_ptr(out_tptr,
+                                            {pad_n, pad_k, ph1_ + oh_, 0}))
+                              : builder::tensor_ptr(out_tptr,
+                                      {pad_n, pad_k, ph1_ + oh_, 0, 0}),
                     ph2_ * w * c, out_dtype);
         }
     }

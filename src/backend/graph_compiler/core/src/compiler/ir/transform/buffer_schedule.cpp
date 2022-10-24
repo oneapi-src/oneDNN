@@ -472,6 +472,18 @@ public:
         }
     }
 
+    tensor_c get_tensor_of_arg(const expr &p) {
+        tensor_c tsr;
+        if (p.isa<tensor>()) {
+            return p.static_as<tensor_c>();
+        } else if (p.isa<tensorptr>()) {
+            return p.static_as<tensorptr_c>()
+                    ->base_->ptr_.checked_as<tensor_c>();
+        } else if (p.isa<cast>()) {
+            return get_tensor_of_arg(p.static_as<cast>()->in_);
+        }
+        return tensor_c();
+    }
     // if a tensor/tensorptr is passed in function args, set the r/w ticks
     expr_c visit(call_c v) override {
         using hint_t = std::vector<
@@ -495,13 +507,7 @@ public:
         for (unsigned i = 0; i < v->args_.size(); i++) {
             auto &p = v->args_[i];
             auto &funcp = prototype->params_[i];
-            tensor_c tsr;
-            if (p.isa<tensor>()) {
-                tsr = p.static_as<tensor_c>();
-            } else if (p.isa<tensorptr>()) {
-                tsr = p.static_as<tensorptr_c>()
-                              ->base_->ptr_.checked_as<tensor_c>();
-            }
+            tensor_c tsr = get_tensor_of_arg(p);
             if (tsr.defined()) {
                 bool has_read
                         = funcp->attr_ && funcp->attr_->has_key("read_buffer");
@@ -550,13 +556,7 @@ public:
             assert(v->args_.size() == brgemm_args::NUM_FULL_ARGS_STRIDE);
             for (int i = 0; i < brgemm_args::C + 1; i++) {
                 auto &p = v->args_[i];
-                tensor_c tsr;
-                if (p.isa<tensor>()) {
-                    tsr = p.static_as<tensor_c>();
-                } else if (p.isa<tensorptr>()) {
-                    tsr = p.static_as<tensorptr_c>()
-                                  ->base_->ptr_.checked_as<tensor_c>();
-                }
+                tensor_c tsr = get_tensor_of_arg(p);
                 if (tsr.defined()) {
                     switch (i) {
                         case brgemm_args::A: // fall through
