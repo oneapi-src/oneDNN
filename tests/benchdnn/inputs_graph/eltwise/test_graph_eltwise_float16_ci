@@ -4,7 +4,7 @@
 --dir=FWD_D
 --dt=f16
 --alpha=0 --beta=0
---alg=abs,exp,gelu_erf,log,relu,sqrt,square,tanh,logistic,logsigmoid
+--alg=abs,exp,gelu_erf,log,relu,sqrt,square,tanh,logistic
 32x256x14x14
 
 # main op - clamp, alpha andbeta

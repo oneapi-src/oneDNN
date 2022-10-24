@@ -6,7 +6,7 @@
 --tag=abx,axb
 
 --alpha=0 --beta=0
---alg=abs,exp,gelu_erf,log,mish,round,sqrt,square,tanh,logistic,logsigmoid
+--alg=abs,exp,gelu_erf,log,mish,round,sqrt,square,tanh,logistic
 64x512x28x28
 
 --alpha= --beta=
@@ -34,7 +34,7 @@
 --dt=f32
 --tag=abx,axb
 --alpha=0 --beta=0
---alg=abs,gelu_erf,mish,relu_dst,sqrt,sqrt_dst,tanh,tanh_dst,logistic,logistic_dst,logsigmoid
+--alg=abs,gelu_erf,mish,relu_dst,sqrt,sqrt_dst,tanh,tanh_dst,logistic,logistic_dst
 64x512x28x28
 
 --alpha= --beta=
@@ -95,6 +95,6 @@
 #--dt=f32 --tag=abx --dir=FWD_I --alpha= --beta=-1,0,0.5,1,1.5,2 --alg=pow 64x512x28x28
 
 #alg only supported ones are added. TODO- extend to others
-#--alg=clip_v2,exp_dst,hardswish,logistic_dst,logsigmoid,mish,round,sqrt_dst,
+#--alg=clip_v2,exp_dst,hardswish,logistic_dst,mish,round,sqrt_dst,
 #--alg=soft_relu,tanh_dst,bounded_relu,elu_dst,relu_dst,swish
 #clip_v2_dst,linear

@@ -23,7 +23,7 @@
 --dt=f32
 --tag=axb
 --alpha=0 --beta=0
---alg=gelu_erf,relu_dst,sqrt,sqrt_dst,tanh,tanh_dst,logistic,logistic_dst,logsigmoid
+--alg=gelu_erf,relu_dst,sqrt,sqrt_dst,tanh,tanh_dst,logistic,logistic_dst
 64x16x28x28
 
 --alpha=-2 --beta=2
@@ -38,7 +38,7 @@
 --reset
 --inplace=true
 --dir=FWD_D
---alg=logsigmoid
+--alg=logistic
 --alpha=0 --beta=0
 --attr-post-ops=add:f32:common,add:f32:per_oc
 64x16x28x28
@@ -70,7 +70,7 @@
 --dir=FWD_D
 --dt=f16
 --alpha=0 --beta=0
---alg=sqrt,square,tanh,logistic,logsigmoid
+--alg=sqrt,square,tanh,logistic
 64x16x28x28
 
 # main op - no alpha, no beta
@@ -80,7 +80,7 @@
 --dir=FWD_D
 --dt=bf16
 --alpha=0 --beta=0
---alg=sqrt,square,tanh,logistic,logsigmoid
+--alg=sqrt,square,tanh,logistic
 64x16x28x28
 
 # main op - elu, only alpha
