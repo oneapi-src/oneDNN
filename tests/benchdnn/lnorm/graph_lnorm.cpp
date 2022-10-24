@@ -121,11 +121,11 @@ fill_status_t append_graph_with_block(const ::lnorm::prb_t *prb) {
         graph.create_lt(mean_id, graph_dt::f32, stat_dims, graph_lt::strided);
         graph.create_lt(var_id, graph_dt::f32, stat_dims, graph_lt::strided);
     }
-    if (prb->use_sc() & prb->use_sh()) {
+    if (prb->use_sc() && prb->use_sh()) {
         graph.create_lt(sc_id, graph_dt::f32, ss_dims, graph_lt::strided);
         graph.create_lt(sh_id, graph_dt::f32, ss_dims, graph_lt::strided);
     }
-    if (prb->dir & FLAG_BWD && prb->use_sc() & prb->use_sh()) {
+    if (prb->dir & FLAG_BWD && prb->use_sc() && prb->use_sh()) {
         graph.create_lt(d_sc_id, graph_dt::f32, ss_dims, graph_lt::strided);
         graph.create_lt(d_sh_id, graph_dt::f32, ss_dims, graph_lt::strided);
     }
