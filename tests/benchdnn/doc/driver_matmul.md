@@ -38,6 +38,8 @@ where *matmul-knobs* are:
  - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
             operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
+ - `--attr-fpmath=STRING` -- fpmath mode primitive attribute. `strict` math mode
+            is set by default. Refer to [attributes](knobs_attr.md) for details.
  - `--bia_dt={undef [default], f32, s32, s8, u8}` -- bias data type.
             To run MatMul without bias, use `undef` data type (default).
             Refer to [data types](knobs_dt.md) for details.

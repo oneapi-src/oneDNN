@@ -42,6 +42,8 @@ where *rnn-knobs* are:
  - `--mb=INT` -- override `mb` (minibatch) value specified in the problem
             descriptor. When `INT` is set to `0` (the default), use `mb` value
             specified in the problem descriptor.
+ - `--attr-fpmath=STRING` -- fpmath mode primitive attribute. `strict` math mode
+            is set by default. Refer to [attributes](knobs_attr.md) for details.
 
 and *rnn-desc* is a problem descriptor. The canonical form is:
 ```
