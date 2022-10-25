@@ -116,7 +116,7 @@ The information about a particular operation tensors has the following format:
    #dnnl::memory::data_type, #dnnl::memory::format_kind and
    #dnnl::memory::format_tag respectively. Note, that certain markers may be
    missing in some cases, such as `format_tag` for the \weights tensor for
-   the int8 Winograd convolution.
+   the Winograd convolution.
 3. `extra_flags` is unspecified information that is intended for development
     purposes
 

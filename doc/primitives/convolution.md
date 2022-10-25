@@ -362,7 +362,7 @@ algorithms:
   Networks by A. Lavin and S. Gray](https://arxiv.org/abs/1509.09308). The
   Winograd algorithm often results in the best performance, but it is
   applicable only to particular shapes. Moreover, Winograd only supports
-  int8 and f32 data types.
+  f32 data type.
 
 - _Implicit GEMM_. The convolution operation is reinterpreted in terms of
   matrix-matrix multiplication by rearranging the source data into a
@@ -405,7 +405,7 @@ under the following conditions:
 - The weights shape is 3x3, there are no groups, dilation or strides
   (\f$KH = KW = 3\f$, \f$SH = SW = 1\f$, and \f$DH = DW = 0\f$).
 
-- The data type is either int8 or f32.
+- The data type is f32.
 
 The Winograd convolution algorithm implementation additionally chooses tile
 size based on the problem shape and
