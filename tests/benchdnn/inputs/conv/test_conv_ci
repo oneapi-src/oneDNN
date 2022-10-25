@@ -79,14 +79,6 @@
 --attr-post-ops=
 --attr-zero-points=,src:common:2*+dst:common:1*,src:per_dim_1:1*+dst:per_dim_1:1*
 --batch=shapes_basic
-## Wino
---alg=wino
---cfg=u8s8s32_wino
---stag=any
---dtag=any
---attr-post-ops=,sum:0.5,relu,sum:0.25:1+relu:0:0:0.75
---attr-zero-points=
---batch=shapes_basic
 # BF32
 --reset
 --dir=FWD_D,BWD_D
