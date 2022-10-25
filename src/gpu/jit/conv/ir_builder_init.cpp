@@ -631,8 +631,8 @@ void conv_ir_builder_t::init_bwd_w(gemm_schedule_t &gemm_schedule,
     gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
     gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(1));
 
-    gemm_schedule.reorder({od_tile.iter_idx(), oh_tile.iter_idx(),
-            ow_tile.iter_idx(), mb_tile.loop_idx()});
+    gemm_schedule.reorder({od_tile.loop_idx(), oh_tile.loop_idx(),
+            ow_tile.loop_idx(), mb_tile.loop_idx()});
 
     gemm_schedule.unroll(mb_tile.loop_idx(), cfg_.unroll("mb"));
     gemm_schedule.unroll(ow_tile.loop_idx(), cfg_.unroll("ow"));
