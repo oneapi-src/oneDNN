@@ -1491,8 +1491,19 @@ private:
                         b.emplace_back(is_mul);
                     }
                 }
+                auto maybe_broadcast = [&](const expr_t &a, const expr_t &b) {
+                    if (a.type().elems() < b.type().elems())
+                        return shuffle_t::make_broadcast(a, b.type().elems());
+                    if (is_cmp_op(k_raw)
+                            && a.type().elems() != (int)expr.size())
+                        return shuffle_t::make_broadcast(a, expr.size());
+                    return a;
+                };
                 auto a_new = vector2expr(a, vars);
                 auto b_new = vector2expr(b, vars);
+                a_new = maybe_broadcast(a_new, b_new);
+                b_new = maybe_broadcast(b_new, a_new);
+
                 if (auto *a_bin = a_new.as_ptr<binary_op_t>())
                     if ((a_bin->op_kind == op_kind_t::_add) && is_var(a_bin->b)
                             && is_cmp_op(k_raw) && is_shuffle_const(b_new))
@@ -1500,6 +1511,9 @@ private:
                             if (v.second.is_equal(a_bin->b)) {
                                 auto fold = const_fold_non_recursive(
                                         b_new - v.first);
+                                ir_assert(fold.type().elems()
+                                        == a_bin->a.type().elems())
+                                        << "Elems mismatch" << a_bin;
                                 return binary_op_t::make(negate_cmp_op(k_raw),
                                         fetch_var(fold), a_bin->a);
                             }
@@ -1512,7 +1526,7 @@ private:
             ir_assert((num_ints == 0) || (num_ints == expr.size()));
             if (num_ints == expr.size()) {
                 auto offs = shuffle_t::make(expr);
-                if (offs.as<shuffle_t>().is_broadcast()) return offs;
+                if (offs.as<shuffle_t>().is_broadcast()) return expr.front();
                 return fetch_var(offs);
             }
 
@@ -1525,7 +1539,7 @@ private:
             ir_assert(expr.front().is<var_t>());
             for (const expr_t &e : expr)
                 ir_assert(e.is_same(expr.front()));
-            return shuffle_t::make_broadcast(expr.front(), int(expr.size()));
+            return expr.front();
         }
 
         load_multiply_builder_t &lmb_;
