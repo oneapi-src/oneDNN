@@ -71,7 +71,8 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
             ret->attrs_.set("out_stride", out_format_stride.second);
             // map reorder's in/out
             if (is_graph_dynamic) {
-                auto &dynamic_formats = ret->get_dispatch_key_set()->set_;
+                auto &dynamic_formats
+                        = ret->get_dispatch_key_set()->get_inner_set();
                 if (dynamic_formats.find(dispatch_key)
                         == dynamic_formats.end()) {
                     ret->get_outputs()[0]->details_.add_format_candidate(
@@ -93,7 +94,7 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
                                         "reorder_not_to_fuse", false)}});
         // map reorder's in/out
         if (is_graph_dynamic) {
-            ret->get_dispatch_key_set()->set_.insert(dispatch_key);
+            ret->get_dispatch_key_set()->get_inner_set().insert(dispatch_key);
         }
         ret->get_outputs()[0]->details_.add_format_candidate(
                 out_format_stride.first);
@@ -233,7 +234,7 @@ static void combine_layout_and_impl_dispatch(sc_graph_t &graph) {
         if (!op->is_dynamic()) { continue; }
         auto impl_candidates = op->get_impl_dispatch_candidates();
         if (impl_candidates.empty() || !op->is_dynamic()) { continue; }
-        auto &key_set = op->get_dispatch_key_set()->set_;
+        auto &key_set = op->get_dispatch_key_set()->get_inner_set();
         dispatch_key_set_t::inner_set_t new_set(key_set);
         for (auto key : key_set) {
             for (auto &impl : impl_candidates) {
@@ -243,7 +244,7 @@ static void combine_layout_and_impl_dispatch(sc_graph_t &graph) {
                 }
             }
         }
-        op->get_dispatch_key_set()->set_ = new_set;
+        op->get_dispatch_key_set()->get_inner_set() = new_set;
     }
 }
 
@@ -497,8 +498,9 @@ SC_INTERNAL_API void layout_propagation(
                                     out_supported_pairs[0][0].first);
                             // update fusible_op's dispatch key in pass as it
                             // follows format of tunable op.
-                            node->get_dispatch_key_set()->set_.insert(
-                                    dispatch_format);
+                            node->get_dispatch_key_set()
+                                    ->get_inner_set()
+                                    .insert(dispatch_format);
                         }
                     } else {
                         COMPILE_ASSERT(0,
@@ -548,7 +550,7 @@ SC_INTERNAL_API void layout_propagation(
                                 out_supported_pairs, cur_layout_choice);
                         dispatch_format.push_back(
                                 out_supported_pairs[0][0].first);
-                        node->get_dispatch_key_set()->set_.insert(
+                        node->get_dispatch_key_set()->get_inner_set().insert(
                                 dispatch_format);
                     }
                     inputs[0]->details_.set_format(old_format);

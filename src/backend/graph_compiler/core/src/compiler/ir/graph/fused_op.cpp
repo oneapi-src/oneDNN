@@ -677,21 +677,41 @@ size_t fused_op_t::hash_contents() const {
 }
 
 const dispatch_set_ptr &fused_op_t::get_dispatch_key_set() const {
-    if (!main_dispatch_op_) {
-        assert(info_.dispatch_key_set_);
-        return info_.dispatch_key_set_;
-    }
-    return main_dispatch_op_->get_dispatch_key_set();
+    assert(info_.dispatch_key_set_);
+    return info_.dispatch_key_set_;
 }
 
 dispatch_set_ptr &fused_op_t::get_dispatch_key_set() {
-    if (!main_dispatch_op_) {
-        if (!info_.dispatch_key_set_) {
-            info_.dispatch_key_set_ = std::make_shared<dispatch_key_set_t>();
-        }
-        return info_.dispatch_key_set_;
+    if (!info_.dispatch_key_set_) {
+        int dummy_num;
+        info_.dispatch_key_set_ = std::make_shared<combined_dispatch_key_set_t>(
+                get_inner_dispatch_key_sets(&dummy_num));
     }
-    return main_dispatch_op_->get_dispatch_key_set();
+    return info_.dispatch_key_set_;
+}
+
+std::vector<dispatch_set_ptr> fused_op_t::get_inner_dispatch_key_sets(
+        int *total_key_num) {
+    std::vector<dispatch_set_ptr> ret;
+    if (total_key_num) { *total_key_num = 0; }
+    if (!main_op_.empty()) {
+        ret.emplace_back(main_op_.ops_[1]->get_dispatch_key_set());
+        if (total_key_num) {
+            *total_key_num
+                    += static_cast<int>(main_op_.ops_[1]->get_inputs().size()
+                            + main_op_.ops_[1]->get_outputs().size());
+        }
+    }
+    for (auto &op : mgr_->get_graph().ops_) {
+        if (op->isa<reorder_op_t>()) {
+            ret.emplace_back(op->get_dispatch_key_set());
+            if (total_key_num) {
+                *total_key_num += static_cast<int>(
+                        op->get_inputs().size() + op->get_outputs().size());
+            }
+        }
+    }
+    return ret;
 }
 
 ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
@@ -709,7 +729,6 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
     std::vector<expr> ins, outs, in_fmts, out_fmts, ori_ins, ori_in_fmts,
             out_sizes;
     expr main_table_var, kernel;
-    bool kernel_has_been_dispatched = false;
     size_t inp_idx = 0, out_idx = 0;
     auto func = graph::create_query_func_decl_for_op(this, ins, ori_ins, outs,
             in_fmts, ori_in_fmts, out_fmts, out_sizes, kernel);
@@ -718,12 +737,27 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
     // build query function body
     builder::ir_builder_t bld;
     bld.push_scope();
+    // create dummy tensor/var for inner query.
     expr dummy_kernel = builder::make_var(datatypes::pointer, "dummy_kernel");
     bld.push_var_tensor_def(dummy_kernel, linkage::local);
     expr dummy_size = builder::make_tensor("dummy_size", {1}, datatypes::index);
     bld.push_var_tensor_def(dummy_size, linkage::local);
-    main_table_var = builder::make_var(datatypes::pointer,
-            op_name_ + "__" + std::to_string(logical_op_id_) + "_ptr_table");
+
+    // construct combined tensors for final query.
+    int total_key_num = 0;
+    int dispatch_op_num = static_cast<int>(
+            get_inner_dispatch_key_sets(&total_key_num).size());
+    int cur_op_idx = 0, cur_key_idx = 0;
+    std::vector<int> each_op_num_keys(dispatch_op_num, 0);
+    auto main_table_name
+            = op_name_ + "__" + std::to_string(logical_op_id_) + "_ptr_table";
+    main_table_var = builder::make_var(datatypes::pointer, main_table_name);
+    expr combined_keys = builder::make_tensor(
+            "combined_keys", {total_key_num}, datatypes::pointer);
+    expr combined_algs = builder::make_tensor(
+            "combined_algs", {dispatch_op_num}, datatypes::s32);
+    bld.push_var_tensor_def(combined_keys);
+    bld.push_var_tensor_def(combined_algs);
     auto inp_op_in_mgr = mgr_->get_graph().get_input_ops();
     int inner_tsr_count = 0;
     auto &inputs = get_inputs();
@@ -803,7 +837,7 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
     auto need_inner_query = [&](const sc_op_ptr &node, int &main_idx) {
         auto &inputs = node->get_inputs();
         auto &outputs = node->get_outputs();
-        if (node->get_dispatch_key_set()->set_.size() <= 1) { return false; }
+        if (!can_op_be_dispatched(node)) { return false; }
         for (size_t i = 0; i < inputs.size(); i++) {
             auto &in = inputs[i];
             // original ltensor is legal and is constant
@@ -855,8 +889,10 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
             expr ori_in0 = ori_ins[0], ori_in1 = ori_ins[1];
             expr ori_in_fmt0 = ori_in_fmts[0], ori_in_fmt1 = ori_in_fmts[1];
             expr out_rtsr, out_fmt, out_size;
-            add_global_table_var(main_table_var.checked_as<var>()->name_,
-                    table_ptr, main_table_var);
+            auto table_name = op_name_ + "__" + std::to_string(logical_op_id_)
+                    + "_inner__0_table";
+            auto table_var = builder::make_var(datatypes::pointer, table_name);
+            add_global_table_var(table_name, table_ptr, table_var);
             assert(inp_op_in_mgr[0]->get_outputs().size() == 1);
             auto rhs = get_or_create_tsr_and_fmt(
                     inp_op_in_mgr[0]->get_outputs()[0]);
@@ -866,13 +902,23 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
             out_rtsr = rhs.tensor_;
             out_fmt = rhs.format_;
             out_size = rhs.size_;
-            bld.push_evaluate(builtin::call_matmul_core_query_format(
-                    main_table_var, out_rtsr, in0, in1, ori_in0, ori_in1,
-                    out_fmt, in_fmt0, in_fmt1, ori_in_fmt0, ori_in_fmt1,
-                    out_size, kernel));
-            main_table_var_ = main_table_var;
+            bld.push_evaluate(builtin::call_matmul_core_query_format(table_var,
+                    out_rtsr, in0, in1, ori_in0, ori_in1, out_fmt, in_fmt0,
+                    in_fmt1, ori_in_fmt0, ori_in_fmt1, out_size, dummy_kernel,
+                    builder::tensor_ptr(combined_algs, {cur_op_idx})));
             initialize_format_table_with_op(op, table_ptr);
-            kernel_has_been_dispatched = true;
+            // set combined tensor
+            bld.push_assign(
+                    builder::make_indexing(combined_keys, {cur_key_idx++}),
+                    in_fmt0);
+            bld.push_assign(
+                    builder::make_indexing(combined_keys, {cur_key_idx++}),
+                    in_fmt1);
+            bld.push_assign(
+                    builder::make_indexing(combined_keys, {cur_key_idx++}),
+                    out_fmt);
+            each_op_num_keys[cur_op_idx] = 3;
+            cur_op_idx++;
         } else {
             COMPILE_ASSERT(false, "Currently dynamic only support matmul op.");
         }
@@ -894,44 +940,33 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
                 || op->isa<constant_op_t>()) {
             continue;
         }
-        expr cur_kernel = dummy_kernel;
-        expr table_var;
-        std::string table_name;
-        if (!kernel_has_been_dispatched) {
-            table_var = main_table_var;
-            table_name = main_table_var.checked_as<var>()->name_;
-            main_table_var_ = table_var;
-            cur_kernel = kernel;
-        } else {
-            table_name = op_name_ + "__" + std::to_string(logical_op_id_)
-                    + "_inner__" + std::to_string(op->logical_op_id_)
-                    + "_table";
-            table_var = builder::make_var(datatypes::pointer, table_name);
-        }
+        auto table_name = op_name_ + "__" + std::to_string(logical_op_id_)
+                + "_inner__" + std::to_string(op->logical_op_id_) + "_table";
+        auto table_var = builder::make_var(datatypes::pointer, table_name);
         auto table_ptr = std::make_shared<op_dispatch_tables_t>();
 
         int main_idx = 0;
         if (op->isa<unary_elementwise_op_impl_t>()) {
-            if (!kernel_has_been_dispatched || need_inner_query(op, main_idx)) {
+            if (need_inner_query(op, main_idx)) {
                 add_global_table_var(table_name, table_ptr, table_var);
                 initialize_format_table_with_op(op, table_ptr);
                 bld.push_evaluate(builtin::call_unary_fusible_op_query_format(
                         table_var, op_outs[0].tensor_, op_ins[0].tensor_,
                         op_outs[0].format_, op_ins[0].format_, op_outs[0].size_,
-                        cur_kernel));
+                        dummy_kernel));
             } else {
                 auto &out = op->get_outputs()[0];
                 ltsr2rtsr[out] = op_ins[main_idx];
             }
         } else if (op->isa<binary_elementwise_op_impl_t>()) {
-            if (!kernel_has_been_dispatched || need_inner_query(op, main_idx)) {
+            if (need_inner_query(op, main_idx)) {
                 add_global_table_var(table_name, table_ptr, table_var);
                 initialize_format_table_with_op(op, table_ptr);
                 bld.push_evaluate(builtin::call_binary_fusible_op_query_format(
                         table_var, op_outs[0].tensor_, op_ins[0].tensor_,
                         op_ins[1].tensor_, op_outs[0].format_,
                         op_ins[0].format_, op_ins[1].format_, op_outs[0].size_,
-                        cur_kernel));
+                        dummy_kernel));
             } else {
                 auto &out = op->get_outputs()[0];
                 ltsr2rtsr[out] = op_ins[main_idx];
@@ -942,14 +977,24 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
             add_global_table_var(table_name, table_ptr, table_var);
             bld.push_evaluate(builtin::call_reorder_op_query_format(table_var,
                     op_outs[0].tensor_, op_ins[0].tensor_, op_outs[0].format_,
-                    op_ins[0].format_, op_outs[0].size_, cur_kernel));
+                    op_ins[0].format_, op_outs[0].size_, dummy_kernel,
+                    builder::tensor_ptr(combined_algs, {cur_op_idx})));
+            // set combined key tensor
+            bld.push_assign(
+                    builder::make_indexing(combined_keys, {cur_key_idx++}),
+                    op_ins[0].format_);
+            bld.push_assign(
+                    builder::make_indexing(combined_keys, {cur_key_idx++}),
+                    op_outs[0].format_);
+            each_op_num_keys[cur_op_idx] = 2;
+            cur_op_idx++;
         } else if (op->isa<reduce_op_t>()) {
             // always query
             add_global_table_var(table_name, table_ptr, table_var);
             initialize_format_table_with_op(op, table_ptr);
             bld.push_evaluate(builtin::call_reduce_op_query_format(table_var,
                     op_outs[0].tensor_, op_ins[0].tensor_, op_outs[0].format_,
-                    op_ins[0].format_, op_outs[0].size_, cur_kernel));
+                    op_ins[0].format_, op_outs[0].size_, dummy_kernel));
         } else if (op->isa<tensor_view_op_t>()) {
             // always query
             add_global_table_var(table_name, table_ptr, table_var);
@@ -957,14 +1002,27 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
             bld.push_evaluate(builtin::call_tensor_view_op_query_format(
                     table_var, op_outs[0].tensor_, op_ins[0].tensor_,
                     op_outs[0].format_, op_ins[0].format_, op_outs[0].size_,
-                    cur_kernel));
+                    dummy_kernel));
         } else {
             COMPILE_ASSERT(false,
                     "Currently dynamic fusbile op only support unary/binary.");
         }
         update_op_visited(op);
-        if (!kernel_has_been_dispatched) { kernel_has_been_dispatched = true; }
     }
+    // final query the fused op kernel.
+    assert(cur_key_idx == total_key_num && cur_op_idx == dispatch_op_num);
+    auto main_table_ptr = std::make_shared<op_dispatch_tables_t>();
+    add_global_table_var(main_table_name, main_table_ptr, main_table_var);
+    expr each_op_num_keys_tsr = builder::make_tensor("each_op_num_keys",
+            {dispatch_op_num}, datatypes::s32, address_space::automatic,
+            std::make_shared<static_data_t>(each_op_num_keys));
+    modu->add_global_var(builder::make_var_tensor_def_unattached(
+            each_op_num_keys_tsr, linkage::private_global)
+                                 .static_as<define>());
+    bld.push_evaluate(builtin::call_fused_op_query_combined(main_table_var,
+            combined_keys, combined_algs, each_op_num_keys_tsr, dispatch_op_num,
+            kernel));
+
     bld.push_returns(true);
     auto body = bld.pop_scope();
     func->body_ = std::move(body);
@@ -988,53 +1046,57 @@ std::vector<int> fused_op_t::get_impl_dispatch_candidates() const {
     return {};
 }
 
-void fused_op_t::update_internal_graph_format(const op_dispatch_key_t &key) {
+void fused_op_t::update_internal_graph_format(
+        const combined_op_dispatch_key_t &key) {
+    int key_idx = 0, inp_idx = 0;
+    auto &node_inputs = get_inputs();
     if (!main_op_.empty()) {
         auto &inp = main_op_.ops_[0];
         auto &inputs = inp->get_outputs();
-        auto &node_inputs = get_inputs();
-        assert(inputs.size() + 1 == key.in_out_formats_.size());
+        auto &cur_key = key[key_idx++];
+        assert(inputs.size() + 1 == cur_key.in_out_formats_.size());
+        // update format for both inner op and fused op
         for (size_t i = 0; i < inputs.size(); i++) {
-            inputs[i]->details_.set_format(key.in_out_formats_[i]);
-            node_inputs[i]->details_.set_format(key.in_out_formats_[i]);
+            inputs[i]->details_.set_format(cur_key.in_out_formats_[i]);
+            node_inputs[i]->details_.set_format(cur_key.in_out_formats_[i]);
         }
+        inp_idx = inputs.size();
         auto top = main_op_.ops_[1]->dyn_cast<tunable_op_t>();
         assert(top);
-        top->set_config_by_key(key);
-        top->info_.cur_impl_ = key.impl_;
+        top->set_config_by_key(cur_key);
+        top->info_.cur_impl_ = cur_key.impl_;
         // tunable op output
-        auto &out_format = key.in_out_formats_[inputs.size()];
+        auto &out_format = cur_key.in_out_formats_[inputs.size()];
         main_op_.ops_[1]->get_outputs()[0]->details_.set_format(out_format);
         mgr_->get_graph().ops_[0]->get_outputs()[0]->details_.set_format(
                 out_format);
-    } else {
-        auto num_set = key.in_out_formats_.size() - 1;
-        auto inputs = mgr_->get_graph().get_input_ops();
-        auto &node_inputs = get_inputs();
-        assert(inputs.size() >= num_set);
-        for (size_t i = 0; i < num_set; i++) {
-            inputs[i]->get_outputs()[0]->details_.set_format(
-                    key.in_out_formats_[i]);
-            node_inputs[i]->details_.set_format(key.in_out_formats_[i]);
+        // update impl alg
+        main_op_.ops_[1]->info_.cur_impl_ = cur_key.impl_;
+    }
+    for (auto &op : mgr_->get_graph().ops_) {
+        // currently we store dispatch key of tunable op and reorder only in
+        // fused op.
+        if (op->isa<reorder_op_t>()) {
+            auto &cur_key = key[key_idx++];
+            assert(cur_key.in_out_formats_.size() == 2);
+            // update format
+            op->get_inputs()[0]->details_.set_format(
+                    cur_key.in_out_formats_[0]);
+            node_inputs[inp_idx++]->details_.set_format(
+                    cur_key.in_out_formats_[0]);
+            // update impl alg
+            op->info_.cur_impl_ = cur_key.impl_;
         }
     }
+    assert(key_idx == static_cast<int>(key.size()));
     auto &inner_graph = mgr_->get_graph();
     inner_graph.attrs_.set("insert_reorder", false);
     inner_graph.attrs_.set("is_output_plain", false);
     layout_propagation(inner_graph);
-    // update impl_type
-    auto &ops = inner_graph.ops_;
-    for (auto &op : ops) {
-        if (op->isa<input_op>() || op->isa<output_op>()
-                || op->isa<constant_op_t>()) {
-            continue;
-        }
-        op->info_.cur_impl_ = key.impl_;
-    }
-    // sync node input/output format with inner graph
+
+    // sync fused op's input/output format with inner graph
     size_t node_input_offset = main_op_.empty() ? 0 : 2;
     size_t input_offset = main_op_.empty() ? 0 : 1;
-    auto &node_inputs = get_inputs();
     auto inputs = mgr_->get_graph().get_input_ops();
     assert(node_inputs.size() + input_offset
             == inputs.size() + node_input_offset);
@@ -1044,6 +1106,7 @@ void fused_op_t::update_internal_graph_format(const op_dispatch_key_t &key) {
                         ->get_outputs()[0]
                         ->details_.get_format());
     }
+    // update fused op output format
     auto &node_outputs = get_outputs();
     auto outputs = mgr_->get_graph().get_output_ops();
     assert(outputs.size() == node_outputs.size());

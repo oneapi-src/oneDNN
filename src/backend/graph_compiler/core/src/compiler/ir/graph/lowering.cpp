@@ -411,11 +411,7 @@ std::string get_tensor_name(graph_tensor *t, sc_op *linked_output) {
 } // namespace graph
 
 static bool need_query_next_first(const sc_op_ptr &node) {
-    return node->get_outputs()[0]
-                   ->uses_[0]
-                   .second->get_dispatch_key_set()
-                   ->set_.size()
-            > 1;
+    return can_op_be_dispatched(node->get_outputs()[0]->uses_[0].second.lock());
 }
 
 expr call_op_dynamic_query_function(
@@ -852,7 +848,6 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
             if (node->isa<fused_op_t>()) {
                 auto fused_node = node->stc_cast<fused_op_t>();
                 auto query_mod = fused_node->get_dynamic_query_func(ctx);
-                query_func_args[0] = fused_node->main_table_var_;
                 gp.ret_mod->merge(*query_mod);
                 assert(table_ptr);
                 query_call = builder::make_call(
@@ -884,27 +879,6 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
         }
     }
     return dyn_ker_ptr;
-}
-
-static void set_op_dispatch_key(
-        const sc_op_ptr &node, const op_dispatch_key_t &key) {
-    if (node->isa<fused_op_t>()) {
-        node->stc_cast<fused_op_t>()->update_internal_graph_format(key);
-    } else {
-        if (auto tunable_node = node->dyn_cast<tunable_op_t>()) {
-            tunable_node->set_config_by_key(key);
-        }
-        auto &inputs = node->get_inputs();
-        auto &outputs = node->get_outputs();
-        int idx = 0;
-        for (auto &in : inputs) {
-            in->details_.set_format(key.in_out_formats_[idx++]);
-        }
-        for (auto &out : outputs) {
-            out->details_.set_format(key.in_out_formats_[idx++]);
-        }
-    }
-    node->info_.cur_impl_ = key.impl_;
 }
 
 std::pair<expr, expr> get_reshape_tptr(general_lower_params_t &gp,
@@ -985,6 +959,28 @@ void create_op_tensors(general_lower_params_t &gp, std::vector<expr> &ins,
             }
         }
     }
+}
+
+static void create_dispatch_funcs_by_keys(const context_ptr &ctx,
+        ir_module_ptr &ret_mod, const std::string &table_name,
+        const sc_op_ptr &node, const op_dispatch_key_base_t *key,
+        std::vector<expr> &op_dispatch_kernel, int &dyn_idx) {
+    key->set_op_dispatch_key(node);
+    auto mod = node->get_func(ctx);
+    auto func = mod->get_entry_func();
+    func->attr().set(attr_keys::always_trans, true);
+    func->name_ += "_" + std::to_string(dyn_idx);
+    func->decl_->name_ = func->name_;
+    ret_mod->merge(*mod);
+    if (!dyn_idx) {
+        // mark the first function as prototype.
+        op_dispatch_kernel[node->logical_op_id_]->attr().set(
+                "prototype", mod->get_entry_func());
+    }
+    auto cur_table = ret_mod->get_op_table_map()[table_name];
+    assert(cur_table);
+    add_dispatch_symbol_to_kernel_table(cur_table, key, func->name_);
+    dyn_idx++;
 }
 
 static std::string get_dispatch_callee_name(const expr &kernel) {
@@ -1087,7 +1083,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         };
 
         // if the node is reorder, query its uses op first.
-        if (is_graph_dynamic && node->get_dispatch_key_set()->set_.size() > 1) {
+        if (is_graph_dynamic && can_op_be_dispatched(node)) {
             if (kind == kreorder
                     && node->attrs_.get_or_else(
                                "constant", const_kind::not_const)
@@ -1137,38 +1133,21 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 }
                 expr kernel_call;
                 std::string callee_name;
-                bool need_dispatch
-                        = node->get_dispatch_key_set()->set_.size() > 1;
+                bool need_dispatch = can_op_be_dispatched(node);
                 if (need_dispatch) {
                     assert(is_graph_dynamic);
                     assert(op_dispatch_kernel[node->logical_op_id_].defined());
                     callee_name = get_dispatch_callee_name(
                             op_dispatch_kernel[node->logical_op_id_]);
                     std::string table_name = callee_name + "_table";
-                    auto &key_set = node->get_dispatch_key_set()->set_;
                     int dyn_idx = 0;
-                    for (auto &key : key_set) {
-                        set_op_dispatch_key(node, key);
-                        // todo: add padding support
-                        auto mod = node->get_func(ctx);
-                        auto func = mod->get_entry_func();
-                        func->attr().set(attr_keys::always_trans, true);
-                        func->name_ += "_" + std::to_string(dyn_idx);
-                        func->decl_->name_ = func->name_;
-                        ret_mod->merge(*mod);
-                        if (!dyn_idx) {
-                            // mark the first function as prototype.
-                            op_dispatch_kernel[node->logical_op_id_]
-                                    ->attr()
-                                    .set("prototype", mod->get_entry_func());
-                        }
-                        auto cur_table
-                                = ret_mod->get_op_table_map()[table_name];
-                        assert(cur_table);
-                        add_dispatch_symbol_to_kernel_table(
-                                cur_table, key, func->name_);
-                        dyn_idx++;
-                    }
+
+                    node->get_dispatch_key_set()->for_each_key_process(
+                            std::bind(create_dispatch_funcs_by_keys, ctx,
+                                    std::ref(ret_mod), table_name, node,
+                                    std::placeholders::_1,
+                                    std::ref(op_dispatch_kernel),
+                                    std::ref(dyn_idx)));
                     kernel_call = make_expr<call_node>(
                             op_dispatch_kernel[node->logical_op_id_], exprargs);
                 } else {

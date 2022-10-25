@@ -59,8 +59,8 @@ using gt2buf_map = gt_map_t<expr>;
 using gt2anchor_map = gt_map_t<fuse_anchor_map_t *>;
 using format_stride_pair = std::pair<sc_data_format_t, sc_dims>;
 
-struct dispatch_key_set_t;
-using dispatch_set_ptr = std::shared_ptr<dispatch_key_set_t>;
+struct dispatch_key_set_base_t;
+using dispatch_set_ptr = std::shared_ptr<dispatch_key_set_base_t>;
 /** VConst struct record possible varible in constant value, e.g.
  *
  *   const int a = k * b;

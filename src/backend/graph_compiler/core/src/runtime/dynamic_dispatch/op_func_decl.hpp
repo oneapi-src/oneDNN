@@ -33,18 +33,21 @@ SC_API void infer_shape_tensor_view_op(void *out, void *in, int64_t *old_axis,
 
 SC_API void query_format_matmul_core_op(void *table, void *out, void *data,
         void *weight, uint64_t *out_fmt, uint64_t *data_fmt,
-        uint64_t *weight_fmt, uint64_t *out_size, void *kernel);
+        uint64_t *weight_fmt, uint64_t *out_size, void *kernel, int *impl_alg);
 SC_API void query_format_unary_fusible_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel);
 SC_API void query_format_binary_fusible_op(void *table, void *out, void *in0,
         void *in1, uint64_t *out_fmt, uint64_t *in0_fmt, uint64_t *in1_fmt,
         uint64_t *out_size, void *kernel);
 SC_API void query_format_reorder_op(void *table, void *out, void *in,
-        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel);
+        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel,
+        int *impl_alg);
 SC_API void query_format_reduce_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel);
 SC_API void query_format_tensor_view_op(void *table, void *out, void *in,
         uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel);
+SC_API void query_combined_fused_op(void *table, uint64_t **combined_keys,
+        int *combined_algs, int *each_op_num_key, int op_num, void *kernel);
 SC_API void calculate_shape_of_tensor_op(void *out, void *in, uint64_t *out_fmt,
         uint64_t *in_fmt, int *shape_idxs, int shape_size);
 };

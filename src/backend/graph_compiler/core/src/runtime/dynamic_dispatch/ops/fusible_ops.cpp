@@ -20,7 +20,32 @@
 #include <runtime/dynamic_dispatch/utils.hpp>
 #include <runtime/target_machine.hpp>
 namespace sc {
-static void check_and_set_fusible_impl(runtime::dynamic_tensor_t *in0,
+static bool is_block_larger_than_shape(
+        runtime::dynamic_tensor_t *in, runtime::dispatch_key *in_fmt_st) {
+    if (!in_fmt_st->is_plain()) {
+        int dim_count[runtime::dispatch_key::meta::MAX_DIMS] = {0};
+        bool first_block = true;
+        for (int i = 0; i < in_fmt_st->ndims(); i++) {
+            int ori_dim = in_fmt_st->get(i);
+            dim_count[ori_dim]++;
+            if (dim_count[ori_dim] == 2) {
+                if (first_block) {
+                    if (in->dims_[ori_dim] < in_fmt_st->get_block1()) {
+                        return true;
+                    }
+                    first_block = false;
+                } else {
+                    if (in->dims_[ori_dim] < in_fmt_st->get_block2()) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
+static int check_and_set_fusible_impl(runtime::dynamic_tensor_t *in0,
         runtime::dynamic_tensor_t *in1, runtime::dispatch_key *in0_fmt_st,
         runtime::dispatch_key *in1_fmt_st, runtime::dispatch_key *out_fmt_st) {
     int impl_alg = impl_kind_t::no_padding;
@@ -29,8 +54,10 @@ static void check_and_set_fusible_impl(runtime::dynamic_tensor_t *in0,
                                           .cpu_flags_.get_max_vector_lanes(
                                                   sc_data_etype(in0->dtype_))));
     int ndims = in0->ndims_;
-    if (in0->dims_[ndims - 2] < in0_fmt_st->get_block1()
-            || in1->dims_[ndims - 1] < in1_fmt_st->get_block2()) {
+    if (is_block_larger_than_shape(in0, in0_fmt_st)) {
+        impl_alg = impl_kind_t::normal;
+    }
+    if (in1 && in1_fmt_st && is_block_larger_than_shape(in1, in1_fmt_st)) {
         impl_alg = impl_kind_t::normal;
     }
     for (int i = 0; i < in0->ndims_; i++) {
@@ -50,6 +77,7 @@ static void check_and_set_fusible_impl(runtime::dynamic_tensor_t *in0,
     in0_fmt_st->set_impl_alg(impl_alg);
     out_fmt_st->set_impl_alg(impl_alg);
     if (in1_fmt_st) { in1_fmt_st->set_impl_alg(impl_alg); }
+    return impl_alg;
 }
 
 extern "C" void infer_shape_unary_fusible_op(void *out, void *in) {
@@ -147,7 +175,8 @@ extern "C" void query_format_binary_fusible_op(void *table, void *out,
 
 // actually reorder op does not need to query format, we only query kernel here.
 extern "C" void query_format_reorder_op(void *table, void *out, void *in,
-        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel) {
+        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel,
+        int *impl_alg) {
     // infer shape
     infer_shape_unary_fusible_op(out, in);
     runtime::dynamic_tensor_t *out_dyn_tsr
@@ -159,21 +188,21 @@ extern "C" void query_format_reorder_op(void *table, void *out, void *in,
     // query kernel
     auto &kernel_table = op_table->kernel_table_;
     // reset blocks for plain format
+    uint64_t cp_in_fmt = *in_fmt, cp_out_fmt = *out_fmt;
+    auto *in_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_in_fmt);
+    auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);
+    auto tmp_impl_alg = check_and_set_fusible_impl(
+            in_dyn_tsr, out_dyn_tsr, in_fmt_st, nullptr, out_fmt_st);
+    if (impl_alg) { *impl_alg = tmp_impl_alg; }
     if (kernel_table) {
-        uint64_t cp_in_fmt = *in_fmt, cp_out_fmt = *out_fmt;
-        auto *in_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_in_fmt);
-        auto *out_fmt_st
-                = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);
-        check_and_set_fusible_impl(
-                in_dyn_tsr, out_dyn_tsr, in_fmt_st, out_fmt_st, out_fmt_st);
         uint64_t keys[2] = {*in_fmt_st, *out_fmt_st};
         void *func
                 = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 2);
         assert(func);
         *reinterpret_cast<void **>(kernel) = func;
-        in_fmt_st->reset_blocks_and_impl();
-        out_fmt_st->reset_blocks_and_impl();
     }
+    in_fmt_st->reset_blocks_and_impl();
+    out_fmt_st->reset_blocks_and_impl();
     // query inplace
     if (*in_fmt == uint64_t(out_fmt)) {
         *out_size = 0;

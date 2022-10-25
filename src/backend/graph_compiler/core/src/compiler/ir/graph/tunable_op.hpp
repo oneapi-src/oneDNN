@@ -29,6 +29,7 @@
 #include <util/utils.hpp>
 
 namespace sc {
+struct op_dispatch_key_t;
 class SC_INTERNAL_API tunable_op_t
     : public sc_op,
       public op_traits::copyable_t,

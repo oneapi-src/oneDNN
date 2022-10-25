@@ -371,35 +371,6 @@ graph_tensor_ptr graph_tensor::copy() {
     return std::make_shared<graph_tensor>(producer_owner_, details_);
 }
 
-bool dispatch_key_cmper_t::operator()(
-        const op_dispatch_key_t &key0, const op_dispatch_key_t &key1) const {
-    if (key0.impl_ != key1.impl_) { return key0.impl_ < key1.impl_; }
-    assert(key0.in_out_formats_.size() == key1.in_out_formats_.size());
-    for (size_t i = 0; i < key0.in_out_formats_.size(); i++) {
-        if (key0.in_out_formats_[i].format_code_
-                != key1.in_out_formats_[i].format_code_) {
-            return key0.in_out_formats_[i].format_code_
-                    < key1.in_out_formats_[i].format_code_;
-        }
-        if (key0.in_out_formats_[i].blocks_
-                != key1.in_out_formats_[i].blocks_) {
-            return key0.in_out_formats_[i].blocks_
-                    < key1.in_out_formats_[i].blocks_;
-        }
-    }
-    assert(key0.var_block_.size() == key1.var_block_.size());
-    for (size_t i = 0; i < key0.var_block_.size(); i++) {
-        assert(key0.var_block_[i].size() == key1.var_block_[i].size());
-        for (size_t j = 0; j < key0.var_block_[i].size(); j++) {
-            if (key0.var_block_[i][j] != key1.var_block_[i][j]) {
-                return key0.var_block_[i][j] < key1.var_block_[i][j];
-            }
-        }
-    }
-    // equal
-    return false;
-}
-
 void sc_op::replace_input(size_t index, const graph_tensor_ptr &new_input) {
     assert(index < info_.inputs_.size());
     assert(new_input->details_.is_dynamic()

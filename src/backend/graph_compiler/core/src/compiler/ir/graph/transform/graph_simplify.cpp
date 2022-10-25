@@ -137,8 +137,8 @@ static bool is_single_use(const sc_op_ptr &node) {
 }
 
 static void merge_dispatch_key_sets(const sc_op_ptr &op0, sc_op_ptr &op1) {
-    auto &dispatch_key_set0 = op0->get_dispatch_key_set()->set_;
-    auto &dispatch_key_set1 = op1->get_dispatch_key_set()->set_;
+    auto &dispatch_key_set0 = op0->get_dispatch_key_set()->get_inner_set();
+    auto &dispatch_key_set1 = op1->get_dispatch_key_set()->get_inner_set();
     std::unordered_map<sc_data_format_t, sc_data_format_t> cached_map;
     for (auto &key1 : dispatch_key_set1) {
         auto &in_fmt1 = key1.in_out_formats_[0];
@@ -153,7 +153,8 @@ static void merge_dispatch_key_sets(const sc_op_ptr &op0, sc_op_ptr &op1) {
         key0.in_out_formats_[1] = it->second;
         dispatch_key_set_new0.insert(key0);
     }
-    op0->get_dispatch_key_set()->set_ = std::move(dispatch_key_set_new0);
+    op0->get_dispatch_key_set()->get_inner_set()
+            = std::move(dispatch_key_set_new0);
 }
 
 // eliminate excess tensor view, e.g. tensor_view->tensor_view->tensor_view

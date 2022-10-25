@@ -21,6 +21,7 @@
 #include <vector>
 #include "graph_op.hpp"
 #include "visitor.hpp"
+#include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -87,7 +88,6 @@ public:
     std::vector<bool> keep_outputs_ = {false};
     // for dispatch
     sc_op_ptr main_dispatch_op_;
-    expr main_table_var_;
     op_traits::post_fusion_acceptable_t *get_main_op() const;
     fused_op_t(const std::string &name, sc_graph_t &&main_op,
             std::shared_ptr<fusion_manager> fuse_mgr,
@@ -115,7 +115,13 @@ public:
     // dynamic related
     virtual const dispatch_set_ptr &get_dispatch_key_set() const override;
     virtual dispatch_set_ptr &get_dispatch_key_set() override;
-    void update_internal_graph_format(const op_dispatch_key_t &key);
+    // Return vector of dispatch key set of inner ops like tunable op/reorder
+    // op(dispatch alg). total_key_num is the pointer to number of input/output
+    // dispatch key inside(option). The return value is mainly used for combined
+    // dispatch key construction.
+    virtual std::vector<dispatch_set_ptr> get_inner_dispatch_key_sets(
+            int *total_key_num);
+    void update_internal_graph_format(const combined_op_dispatch_key_t &key);
     ir_module_ptr get_dynamic_query_func(const context_ptr &ctx);
     // return the impl alg candidates vector, element is int(not enum) because
     // different ops have different impl algs.

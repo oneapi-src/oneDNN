@@ -86,6 +86,7 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"query_format_reduce_op", (void *)query_format_reduce_op},
             {"query_format_tensor_view_op",
                     (void *)query_format_tensor_view_op},
+            {"query_combined_fused_op", (void *)query_combined_fused_op},
             {"calculate_shape_of_tensor_op",
                     (void *)calculate_shape_of_tensor_op},
     };

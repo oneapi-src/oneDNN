@@ -388,7 +388,8 @@ expr call_matmul_core_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &in1, const expr &ori_in0,
         const expr &ori_in1, const expr &out_format0, const expr &in_format0,
         const expr &in_format1, const expr &ori_in_format0,
-        const expr &ori_in_format1, const expr &out_size, const expr &kernel);
+        const expr &ori_in_format1, const expr &out_size, const expr &kernel,
+        const expr &impl = get_ir_null());
 expr call_unary_fusible_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &out_foramt0, const expr &in_format0,
         const expr &out_size, const expr &kernel);
@@ -396,15 +397,20 @@ expr call_binary_fusible_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &in1, const expr &out_format0,
         const expr &in_format0, const expr &in_format1, const expr &out_size,
         const expr &kernel);
+// reorder need to query its impl alg.
 expr call_reorder_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &out_foramt0, const expr &in_format0,
-        const expr &out_size, const expr &kernel);
+        const expr &out_size, const expr &kernel,
+        const expr &impl = get_ir_null());
 expr call_reduce_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &out_foramt0, const expr &in_format0,
         const expr &out_size, const expr &kernel);
 expr call_tensor_view_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &out_format0, const expr &in_format0,
         const expr &out_size, const expr &kernel);
+expr call_fused_op_query_combined(const expr &tb, const expr &combined_keys,
+        const expr &combined_algs, const expr &each_op_num_key,
+        const expr &op_num, const expr &kernel);
 expr call_cal_blocking_dims(const expr &placeholder, const expr &format);
 // runtime op shape of tensor
 func_t get_cal_shape_of_tensor_op_func();

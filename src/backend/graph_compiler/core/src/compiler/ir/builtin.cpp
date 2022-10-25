@@ -480,7 +480,8 @@ expr call_matmul_core_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &in1, const expr &ori_in0,
         const expr &ori_in1, const expr &out_format0, const expr &in_format0,
         const expr &in_format1, const expr &ori_in_format0,
-        const expr &ori_in_format1, const expr &out_size, const expr &kernel) {
+        const expr &ori_in_format1, const expr &out_size, const expr &kernel,
+        const expr &impl) {
     static func_t matmul_core_query_f = make_func("query_format_matmul_core_op",
             {make_var(datatypes::pointer, "op_table"),
                     make_var(datatypes::pointer, "out"),
@@ -494,11 +495,12 @@ expr call_matmul_core_query_format(const expr &tb, const expr &out0,
                     make_var(datatypes::pointer, "ori_inp_fmt0"),
                     make_var(datatypes::pointer, "ori_inp_fmt1"),
                     make_var(datatypes::pointer, "out_size"),
-                    make_var(datatypes::pointer, "kernel")},
+                    make_var(datatypes::pointer, "kernel"),
+                    make_var(datatypes::pointer, "impl")},
             stmt(), datatypes::void_t);
     return matmul_core_query_f(tb, out0, in0, in1, ori_in0, ori_in1,
             out_format0, in_format0, in_format1, ori_in_format0, ori_in_format1,
-            out_size, kernel);
+            out_size, kernel, impl);
 }
 
 expr call_unary_fusible_op_query_format(const expr &tb, const expr &out0,
@@ -538,7 +540,7 @@ expr call_binary_fusible_op_query_format(const expr &tb, const expr &out0,
 
 expr call_reorder_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &out_format0, const expr &in_format0,
-        const expr &out_size, const expr &kernel) {
+        const expr &out_size, const expr &kernel, const expr &impl) {
     static func_t reorder_query_f = make_func("query_format_reorder_op",
             {make_var(datatypes::pointer, "op_table"),
                     make_var(datatypes::pointer, "out"),
@@ -546,10 +548,11 @@ expr call_reorder_op_query_format(const expr &tb, const expr &out0,
                     make_var(datatypes::pointer, "out_fmt"),
                     make_var(datatypes::pointer, "inp_fmt"),
                     make_var(datatypes::pointer, "out_size"),
-                    make_var(datatypes::pointer, "kernel")},
+                    make_var(datatypes::pointer, "kernel"),
+                    make_var(datatypes::pointer, "impl")},
             stmt(), datatypes::void_t);
     return reorder_query_f(
-            tb, out0, in0, out_format0, in_format0, out_size, kernel);
+            tb, out0, in0, out_format0, in_format0, out_size, kernel, impl);
 }
 
 expr call_reduce_op_query_format(const expr &tb, const expr &out0,
@@ -583,6 +586,21 @@ expr call_tensor_view_op_query_format(const expr &tb, const expr &out0,
             stmt(), datatypes::void_t);
     return reorder_query_f(
             tb, out0, in0, out_format0, in_format0, out_size, kernel);
+}
+
+expr call_fused_op_query_combined(const expr &tb, const expr &combined_keys,
+        const expr &combined_algs, const expr &each_op_num_key,
+        const expr &op_num, const expr &kernel) {
+    static func_t fused_query_f = make_func("query_combined_fused_op",
+            {make_var(datatypes::pointer, "op_table"),
+                    make_var(datatypes::pointer, "combined_keys"),
+                    make_var(datatypes::pointer, "combined_algs"),
+                    make_var(datatypes::pointer, "each_op_num_key"),
+                    make_var(datatypes::s32, "op_num"),
+                    make_var(datatypes::pointer, "kernel")},
+            stmt(), datatypes::void_t);
+    return fused_query_f(
+            tb, combined_keys, combined_algs, each_op_num_key, op_num, kernel);
 }
 
 expr call_cal_blocking_dims(const expr &placeholder, const expr &format) {
