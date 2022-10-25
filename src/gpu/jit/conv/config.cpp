@@ -1639,6 +1639,8 @@ void init_bwd_d_optimize_strided(conv_config_t &cfg) {
 }
 
 void init_unroll(conv_config_t &cfg) {
+    if (cfg.unroll().is_overridden()) return;
+
     const auto &prb = cfg.prb();
 
     if (prb.is_bwd_w) {
@@ -1929,44 +1931,50 @@ bool try_reduce_grf_usage(conv_config_t &cfg) {
     bmnk_dim_helper_t h(cfg);
 
     // Try to use subtiles for B.
-    int n_iter_blk = h.iter_dim('n');
-    int max_b_subtiles
-            = std::min((cfg.slm().b() ? 4 : 2), n_iter_blk / cfg.simd());
-    // XXX: avoid layout mismatch for B loads
-    if (cfg.hw() >= ngen::HW::XeHPC && prb.is_bwd_w)
-        max_b_subtiles = std::min(2, max_b_subtiles);
-    while (cfg.subtiles().b() < max_b_subtiles) {
-        cfg.subtiles().set_b(cfg.subtiles().b() * 2);
-        int est_regs = estimate_register_count(cfg);
-        if (est_regs <= max_regs) return true;
+    if (!cfg.subtiles().is_overridden()) {
+        int n_iter_blk = h.iter_dim('n');
+        int max_b_subtiles
+                = std::min((cfg.slm().b() ? 4 : 2), n_iter_blk / cfg.simd());
+        // XXX: avoid layout mismatch for B loads
+        if (cfg.hw() >= ngen::HW::XeHPC && prb.is_bwd_w)
+            max_b_subtiles = std::min(2, max_b_subtiles);
+        while (cfg.subtiles().b() < max_b_subtiles) {
+            cfg.subtiles().set_b(cfg.subtiles().b() * 2);
+            int est_regs = estimate_register_count(cfg);
+            if (est_regs <= max_regs) return true;
+        }
+
+        // Try to use subtiles for A.
+        int m_iter_blk = h.iter_dim('m');
+        int max_a_subtiles = std::min((cfg.slm().a() ? 4 : 2), m_iter_blk / 8);
+        if (cfg.subtiles().b() > 1) max_a_subtiles = 1;
+        while (cfg.subtiles().a() < max_a_subtiles) {
+            cfg.subtiles().set_a(cfg.subtiles().a() * 2);
+            int est_regs = estimate_register_count(cfg);
+            if (est_regs <= max_regs) return true;
+        }
     }
 
-    // Try to use subtiles for A.
-    int m_iter_blk = h.iter_dim('m');
-    int max_a_subtiles = std::min((cfg.slm().a() ? 4 : 2), m_iter_blk / 8);
-    if (cfg.subtiles().b() > 1) max_a_subtiles = 1;
-    while (cfg.subtiles().a() < max_a_subtiles) {
-        cfg.subtiles().set_a(cfg.subtiles().a() * 2);
-        int est_regs = estimate_register_count(cfg);
-        if (est_regs <= max_regs) return true;
+    if (!cfg.slm().is_overridden()) {
+        // Try to use double SLM buffering.
+        if (cfg.slm().bufs() == 3) {
+            cfg.slm().set_bufs(2);
+            int est_regs = estimate_register_count(cfg);
+            if (est_regs <= max_regs) return true;
+        }
+
+        // Try to use single SLM buffering.
+        if (cfg.slm().bufs() == 2) {
+            cfg.slm().set_bufs(1);
+            int est_regs = estimate_register_count(cfg);
+            if (est_regs <= max_regs) return true;
+        }
     }
 
-    // Try to use double SLM buffering.
-    if (cfg.slm().bufs() == 3) {
-        cfg.slm().set_bufs(2);
-        int est_regs = estimate_register_count(cfg);
-        if (est_regs <= max_regs) return true;
+    if (!cfg.pipeline().is_overridden()) {
+        // Last resort settings to reduce GRF usage.
+        cfg.pipeline().set(false);
     }
-
-    // Try to use single SLM buffering.
-    if (cfg.slm().bufs() == 2) {
-        cfg.slm().set_bufs(1);
-        int est_regs = estimate_register_count(cfg);
-        if (est_regs <= max_regs) return true;
-    }
-
-    // Last resort settings to reduce GRF usage.
-    cfg.pipeline().set(false);
 
     return estimate_register_count(cfg) <= max_regs;
 }

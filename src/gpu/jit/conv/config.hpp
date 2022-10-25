@@ -809,6 +809,7 @@ class reduce_grf_usage_param_t : public bool_param_t {
 public:
     reduce_grf_usage_param_t() : bool_param_t(true) {}
     std::string name() const override { return "reduce-grf-usage"; }
+    std::string short_name() const override { return "r"; }
     std::string desc() const override {
         return "Whether to try to reduce GRF usage based on heuristics.";
     }
@@ -912,6 +913,7 @@ public:
 class subtiles_param_t : public param_t {
 public:
     std::string name() const override { return "subtiles"; }
+    std::string short_name() const override { return "S"; }
     std::string desc() const override { return "Sub-iteration blocking."; }
 
     int a() const { return a_; }
@@ -962,6 +964,7 @@ public:
 class unroll_param_t : public map_param_t {
 public:
     std::string name() const override { return "unroll"; }
+    std::string short_name() const override { return "u"; }
     std::string desc() const override {
         return "Per-dimension unroll factors.";
     }
