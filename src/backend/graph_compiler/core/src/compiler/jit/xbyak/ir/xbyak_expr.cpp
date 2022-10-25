@@ -138,12 +138,14 @@ static handler_table register_handlers() {
 
     REGISTER_INTRIN("AVX_MIN", avx, min, directed_end_mem, _3A_);
     REGISTER_INTRIN("AVX_MAX", avx, max, directed_end_mem, _3A_);
+    REGISTER_INTRIN("AVX_ABS", avx, abs, directed_end_mem, _2A_);
 
     REGISTER_INTRIN("AVX_MUL", avx, mul, directed_end_mem, _3A_);
     REGISTER_INTRIN("AVX_DIV", avx, div, directed_end_mem, _3A_);
 
     REGISTER_INTRIN("AVX_CEIL", avx, ceil, directed_end_mem, _2A_);
     REGISTER_INTRIN("AVX_FLOOR", avx, floor, directed_end_mem, _2A_);
+    REGISTER_INTRIN("AVX_ROUND", avx, round, directed_end_mem, _2A_);
 
     REGISTER_INTRIN("AVX_SQRT", avx, sqrt, directed_end_mem, _2A_);
     REGISTER_INTRIN("AVX_RSQRT", avx, rsqrt, directed_end_mem, _2A_);
@@ -222,6 +224,24 @@ std::ostream &operator<<(std::ostream &os, const xbyak_condition t) {
         case xbyak_condition::ge: os << "GE"; break;
     }
     return os;
+}
+
+//=========================================================================
+// xbyak_expr utils
+//=========================================================================
+
+/**
+ * If constant node scalar intger value exceeds 32bit
+ * */
+bool const_exceed_32bit(const expr_c &v) {
+    if (utils::is_one_of(v->dtype_, datatypes::index, datatypes::generic,
+                datatypes::pointer)
+            && v.isa<constant>()) {
+        const auto c = v.static_as<constant_c>();
+        const uint64_t x = c->value_[0].u64;
+        return !Xbyak::inner::IsInInt32(x);
+    }
+    return false;
 }
 
 //=========================================================================

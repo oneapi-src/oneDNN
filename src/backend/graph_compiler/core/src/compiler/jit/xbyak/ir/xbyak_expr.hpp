@@ -80,12 +80,14 @@ enum class xbyak_intrin_type {
     shr,
     min,
     max,
+    abs,
     bit_or,
     bit_and,
     bit_xor,
     cmp_set,
     ceil,
     floor,
+    round,
     sqrt,
     rsqrt,
     fmadd,
@@ -151,6 +153,11 @@ enum class xbyak_condition {
 xbyak_condition get_xbyak_condition(sc_expr_type t);
 // xbyak_condition to ostream
 std::ostream &operator<<(std::ostream &os, const xbyak_condition t);
+
+/**
+ * If constant node scalar intger value exceeds 32bit
+ * */
+SC_INTERNAL_API bool const_exceed_32bit(const expr_c &v);
 
 /**
  * Modifier for xbyak_intrin_node

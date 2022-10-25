@@ -304,14 +304,20 @@ public:
         auto ret = xbyak_visitor_t::visit(std::move(v))
                            .remove_const()
                            .static_as<assign>();
+        if (ret->value_.isa<call>()) { is_local_scope_ = false; }
         if (dst_is_mem_) {
             if (resolve_dst_ == resolve_dst::store) {
                 return insert_store(std::move(ret), cur_index_);
             } else if (resolve_dst_ == resolve_dst::load_store) {
                 return insert_load_store(std::move(ret), cur_index_);
             } else if (is_spilled(ret->value_)) {
-                ret->value_ = insert_load(std::move(ret->value_), cur_index_);
-                return ret;
+                if (ret->var_.isa<var>()) {
+                    return insert_store(std::move(ret), cur_index_);
+                } else {
+                    ret->value_
+                            = insert_load(std::move(ret->value_), cur_index_);
+                    return ret;
+                }
             }
         }
         return ret;
@@ -488,6 +494,9 @@ protected:
                 auto node = builder::make_cast(sc_data_type_t::generic(), arg);
                 v->args_ = {insert_load(std::move(node), cur_index_)};
                 return v;
+            } else if (dst_is_mem_ && const_exceed_32bit(arg)) {
+                v->args_ = {insert_load(std::move(arg), cur_index_)};
+                return v;
             }
         }
         return v;
@@ -616,6 +625,7 @@ private:
         // set xbyak_stmt_data_t
         new_assign->temp_data() = xbyak_stmt_data_t(loop_depth());
         GET_STMT_INDEX(new_assign) = index;
+        GET_STMT_INIT_INDEX(new_assign) = index;
         return new_assign;
     }
 

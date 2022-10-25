@@ -56,6 +56,13 @@ namespace sc_xbyak {
         (GEN).INS(OP_1.get_reg64(), OP_2.get_operand()); \
     }
 
+#define X86_R32_RM(GEN, INS, OP_1, OP_2) \
+    { \
+        COMPILE_ASSERT(OP_1.is_reg() && OP_2.is_r_m(), \
+                "Invalid x86_" #INS << ": " << OP_1 << ", " << OP_2); \
+        (GEN).INS(OP_1.get_reg32(), OP_2.get_operand()); \
+    }
+
 #define X86_R_RM(GEN, INS, OP_1, OP_2) \
     { \
         COMPILE_ASSERT(OP_1.is_reg() && OP_2.is_r_m(), \

@@ -30,12 +30,10 @@ SC_MODULE(microkernel.builtin)
 using namespace sc::builder;
 namespace sc {
 expr get_ir_null() {
-    static expr ret = make_expr<constant_node>(UINT64_C(0), datatypes::pointer);
-    return ret;
+    return make_expr<constant_node>(UINT64_C(0), datatypes::pointer);
 }
 expr get_ir_zero_index() {
-    static expr ret = make_expr<constant_node>(UINT64_C(0), datatypes::index);
-    return ret;
+    return make_expr<constant_node>(UINT64_C(0), datatypes::index);
 }
 
 namespace builtin {

@@ -61,7 +61,8 @@ public:
     // constructor
     operand();
     operand(operand::type tp, op_ptr_t ptr);
-    operand(operand::type tp, op_ptr_t ptr, int reg_kind, int reg_indx);
+    operand(operand::type tp, op_ptr_t ptr, //
+            int reg_kind, int reg_indx, int reg_bits);
 
     template <typename RegT>
     explicit operand(RegT reg);
@@ -106,6 +107,11 @@ public:
     bool is_r_m() const;
     bool is_x_m() const;
 
+    // check reg operand size
+    bool is_reg(int bit) const;
+    bool is_xyz(int bit) const;
+    bool is_bit(int bit) const;
+
     // Set evex for avx512 operands
     operand set_evex(const operand &mask, bool zero = false) const;
 
@@ -122,6 +128,7 @@ private:
     // only used for mov compare
     int reg_kind_ = 0;
     int reg_indx_ = 0;
+    int reg_bits_ = 0;
 };
 
 std::ostream &operator<<(std::ostream &os, const operand &op);

@@ -95,6 +95,7 @@ enum class cpu_data_type {
     uint_16_x32,
     uint_32,
     uint_32_x4,
+    uint_32_x8,
     uint_32_x16,
     sint_32,
     sint_32_x2,

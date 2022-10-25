@@ -204,6 +204,8 @@ private:
             const operand &op_sft, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_max(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
+    void handle_avx_abs(const operand &op_lhs, const operand &op_rhs,
+            const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_min(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_bit_or(const operand &op_dst, const operand &op_lhs,
@@ -215,6 +217,8 @@ private:
     void handle_avx_ceil(const operand &op_dst, const operand &op_src,
             const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_floor(const operand &op_dst, const operand &op_src,
+            const x86_64::cpu_data_type &cpu_dtype);
+    void handle_avx_round(const operand &op_lhs, const operand &op_rhs,
             const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_sqrt(const operand &op_dst, const operand &op_src,
             const x86_64::cpu_data_type &cpu_dtype);

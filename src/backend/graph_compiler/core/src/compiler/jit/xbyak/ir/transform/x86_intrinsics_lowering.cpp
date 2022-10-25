@@ -175,6 +175,12 @@ public:
                         transform_x86_min_max(xbyak_intrin_type::max),
                         transform_intrin(xbyak_intrin_type::max));
             } break;
+            case intrin_type::abs: {
+                transform(dst, {intrin->args_[0]},
+                        dst->dtype_, //
+                        transform_disabled("abs"),
+                        transform_intrin(xbyak_intrin_type::abs));
+            } break;
             case intrin_type::shl: {
                 transform(dst, {intrin->args_[0], intrin->args_[1]},
                         dst->dtype_, //
@@ -198,6 +204,12 @@ public:
                         dst->dtype_, //
                         transform_disabled("floor"),
                         transform_intrin(xbyak_intrin_type::floor));
+            } break;
+            case intrin_type::round: {
+                transform(dst, {intrin->args_[0]},
+                        dst->dtype_, //
+                        transform_disabled("round"),
+                        transform_intrin(xbyak_intrin_type::round));
             } break;
             case intrin_type::sqrt: {
                 transform(dst, {intrin->args_[0]},

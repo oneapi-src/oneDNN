@@ -143,6 +143,7 @@ int64_t location_manager::stack_push(
         case cpu_data_type::uint_8_x32:
         case cpu_data_type::sint_8_x32:
         case cpu_data_type::uint_16_x16:
+        case cpu_data_type::uint_32_x8:
         case cpu_data_type::sint_32_x8:
         case cpu_data_type::float_32_x8: {
             gen_.sub(gen_.rsp, slot_size);
@@ -264,6 +265,7 @@ int64_t location_manager::stack_pop(
         case cpu_data_type::uint_8_x32:
         case cpu_data_type::sint_8_x32:
         case cpu_data_type::uint_16_x16:
+        case cpu_data_type::uint_32_x8:
         case cpu_data_type::sint_32_x8:
         case cpu_data_type::float_32_x8: {
             auto reg_ymm = to_ymm(reg);
@@ -918,6 +920,7 @@ const Xbyak::AddressFrame *location_manager::get_address_frame(
         case cpu_data_type::uint_8_x32: return &(gen_.yword);
         case cpu_data_type::sint_8_x32: return &(gen_.yword);
         case cpu_data_type::uint_16_x16: return &(gen_.yword);
+        case cpu_data_type::uint_32_x8: return &(gen_.yword);
         case cpu_data_type::sint_32_x8: return &(gen_.yword);
         case cpu_data_type::float_32_x8: return &(gen_.yword);
         // simd 512-bit/ 64-byte
@@ -1049,7 +1052,8 @@ expr_location location_manager::get_location(const expr_c &v) {
     } else if (v.isa<constant>()) {
         return get_location(v.static_as<constant_c>());
     } else {
-        COMPILE_ASSERT(false, "expr not found, v=" << v);
+        COMPILE_ASSERT(false,
+                "expr not found, v=" << v << "={" << GET_VIRTUAL_REG(v) << "}");
     }
     return expr_location();
 }
@@ -1281,6 +1285,7 @@ expr_location location_manager::convert_virtual_reg(const expr_c &v) {
         case cpu_data_type::uint_8_x32:
         case cpu_data_type::sint_8_x32:
         case cpu_data_type::uint_16_x16:
+        case cpu_data_type::uint_32_x8:
         case cpu_data_type::sint_32_x8:
         case cpu_data_type::float_32_x8: {
             return expr_location::make_reg(to_ymm(reg), cpu_dtype);

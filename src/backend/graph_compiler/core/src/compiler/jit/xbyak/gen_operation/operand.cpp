@@ -28,11 +28,13 @@ using K = Xbyak::Operand::Kind;
 // constructor
 operand::operand() : type_(operand::type::none) {}
 
-operand::operand(operand::type tp, op_ptr_t ptr, int reg_kind, int reg_indx)
+operand::operand(operand::type tp, op_ptr_t ptr, //
+        int reg_kind, int reg_indx, int reg_bits)
     : type_(tp) //
     , content_(std::move(ptr))
     , reg_kind_(reg_kind)
-    , reg_indx_(reg_indx) {}
+    , reg_indx_(reg_indx)
+    , reg_bits_(reg_bits) {}
 
 operand::operand(operand::type tp, op_ptr_t ptr)
     : type_(tp) //
@@ -41,6 +43,7 @@ operand::operand(operand::type tp, op_ptr_t ptr)
         const auto &reg = content_->as<Xbyak::Reg>();
         reg_kind_ = reg.is(KIND_XYZ) ? KIND_XYZ : reg.getKind();
         reg_indx_ = reg.getIdx();
+        reg_bits_ = reg.getBit();
     }
 }
 
@@ -56,6 +59,7 @@ template <typename RegT>
 operand::operand(RegT reg) : type_(operand::type::reg) {
     reg_kind_ = reg.is(KIND_XYZ) ? KIND_XYZ : reg.getKind();
     reg_indx_ = reg.getIdx();
+    reg_bits_ = reg.getBit();
     content_ = wrap_op_ptr(std::move(reg));
 }
 
@@ -180,6 +184,20 @@ bool operand::is_x_m() const {
     return is_xyz() || is_addr();
 }
 
+// check reg operand size
+bool operand::is_reg(int bit) const {
+    return is_reg() && is_bit(bit);
+}
+
+bool operand::is_xyz(int bit) const {
+    return is_xyz() && is_bit(bit);
+}
+
+bool operand::is_bit(int bit) const {
+    assert(reg_bits_ != 0);
+    return (bit & reg_bits_) != 0;
+}
+
 operand operand::set_evex(const operand &mask, bool zero) const {
     assert(is_x_m());
     // Copy current content and get Xbyak::Operand
@@ -196,7 +214,7 @@ operand operand::set_evex(const operand &mask, bool zero) const {
     }
     // new operand
     return operand(type_, wrap_op_ptr(std::move(new_content)), //
-            reg_kind_, reg_indx_);
+            reg_kind_, reg_indx_, reg_bits_);
 }
 
 // check same operand

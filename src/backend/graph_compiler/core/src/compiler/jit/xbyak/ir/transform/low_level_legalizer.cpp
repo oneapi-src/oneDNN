@@ -60,6 +60,56 @@ public:
         }
         return vv;
     }
+
+    expr_c visit(intrin_call_c v) override {
+        auto vv = ir_visitor_t::visit(std::move(v)).static_as<intrin_call_c>();
+        auto dst_dtype = vv->dtype_;
+        switch (vv->type_) {
+            case intrin_type::abs: {
+                // float and bf16
+                if (dst_dtype.is_etype(sc_data_etype::F32)) {
+                    return transform_fabs(vv->args_[0], UINT64_C(0x7FFFFFFF));
+                } else if (dst_dtype.is_etype(sc_data_etype::BF16)) {
+                    return transform_fabs(vv->args_[0], UINT64_C(0x7FFF));
+                }
+            } break;
+            case intrin_type::rsqrt: {
+                if (dst_dtype == datatypes::f32) {
+                    return builder::make_constant(1.f)
+                            / builder::make_sqrt(vv->args_[0]);
+                }
+            } break;
+            case intrin_type::reduce_add: {
+                if (!dst_dtype.is_etype(sc_data_etype::F32)) {
+                    return transform_reduce(
+                            vv->args_[0], dst_dtype, &builder::make_reduce_add);
+                }
+            } break;
+            case intrin_type::reduce_mul: {
+                if (!dst_dtype.is_etype(sc_data_etype::F32)) {
+                    return transform_reduce(
+                            vv->args_[0], dst_dtype, &builder::make_reduce_mul);
+                }
+            } break;
+            default: break;
+        }
+        return vv;
+    }
+
+    using make_unary_f = expr (*)(const expr_c &);
+    using make_binary_f = expr (*)(const expr_c &, const expr_c &);
+
+    expr_c transform_fabs(const expr &src, const union_val &val) {
+        return builder::make_int_and(
+                src, builder::make_constant({val}, src->dtype_));
+    }
+
+    expr_c transform_reduce(const expr &src, sc_data_type_t dst_dtype,
+            make_unary_f make_reduce) {
+        auto type_to_f32 = sc_data_type_t::f32(src->dtype_.lanes_);
+        return builder::make_cast(dst_dtype, //
+                make_reduce(builder::make_cast(type_to_f32, src)));
+    }
 };
 
 func_c low_level_legalizer_t::operator()(func_c v) {
