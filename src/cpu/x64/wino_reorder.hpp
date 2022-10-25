@@ -65,7 +65,6 @@ struct wino_reorder_t : public primitive_t {
                     && od.data_type() == type_o
                     && od.format_kind() == format_kind::wino
                     && utils::one_of(od.wino_desc().wino_format,
-                            wino_memory_format_t::wino_wei_aaOIoi,
                             wino_memory_format_t::wino_wei_aaOio,
                             wino_memory_format_t::wino_wei_aaOBiOo,
                             wino_memory_format_t::wino_wei_OBaaIBOIio)
@@ -166,11 +165,6 @@ private:
             const float *__restrict oscales) const {
         const memory_desc_wrapper src_d(pd()->src_md());
 
-        const int smask = pd()->attr()->output_scales_.mask_;
-        const int ndims_mask = math::ilog2q(smask + 1);
-        const size_t D_mask = utils::array_product(src_d.dims(), ndims_mask);
-        assert(D_mask == 1 || D_mask == static_cast<size_t>(oc_));
-
         /* transform weights to winograd domain */
         const float G_2x2_3x3[4][3] = {{1.0, 0.0, 0.0}, {0.5, 0.5, 0.5},
                 {0.5, -0.5, 0.5}, {0.0, 0.0, 1.0}};
@@ -183,8 +177,7 @@ private:
                 {0.f, 0.f, 1.f}};
 
         float *__restrict g;
-        if (utils::one_of(wino_format_, wino_memory_format_t::wino_wei_aaOIoi,
-                    wino_memory_format_t::wino_wei_aaOio,
+        if (utils::one_of(wino_format_, wino_memory_format_t::wino_wei_aaOio,
                     wino_memory_format_t::wino_wei_aaOBiOo))
             g = (float *)G_2x2_3x3;
         else if (wino_format_ == wino_memory_format_t::wino_wei_OBaaIBOIio)
@@ -272,67 +265,10 @@ private:
                             res += g[i * r_ + k]
                                     * wspace_thr[(k * w_alpha_ + j) * oc_block_
                                             + ioc];
-                        if (type_o == data_type::s8) {
-                            const float scale = (D_mask == 1)
-                                    ? oscales[0]
-                                    : oscales[ob * oc_block_ + ioc];
-                            _out[(i * w_alpha_ + j) * Z + ioc]
-                                    = qz_b0<in_data_t, out_data_t>()(
-                                            static_cast<in_data_t>(res),
-                                            scale * adj_scale_);
-                        } else {
-                            _out[(i * w_alpha_ + j) * Z + ioc]
-                                    = static_cast<out_data_t>(res);
-                        }
+                        _out[(i * w_alpha_ + j) * Z + ioc]
+                                = static_cast<out_data_t>(res);
                     }
                 });
-    }
-
-    void reorder_to_aaOIoi(out_data_t *__restrict output,
-            const out_data_t *__restrict tmp_wei) const {
-        int32_t *__restrict dst_bias = nullptr;
-        if (type_o == data_type::s8) {
-            const auto bias_shift = sizeof(out_data_t) * size_wino_wei_;
-            const size_t bias_size = w_alpha_ * w_alpha_ * oc_;
-
-            dst_bias = reinterpret_cast<int32_t *>(output + bias_shift);
-            utils::array_set(dst_bias, 0, bias_size);
-        }
-        int index = 0;
-        for_(int u_h = 0; u_h < w_alpha_; u_h++)
-        for (int u_w = 0; u_w < w_alpha_; u_w++) {
-            for_nd(0, 1, nb_oc_, oc_block_, [&](dim_t ob, dim_t o) {
-                const int u_h_shift = u_h * w_alpha_ * ic_ * oc_;
-                const int u_w_shift = u_w * ic_ * oc_;
-                const int u_h_shift_b = u_h * w_alpha_ * oc_;
-                const int u_w_shift_b = u_w * oc_;
-                const int oc_block_shift = ob * oc_block_ * ic_ + o * ic_block_;
-                for_(int ib = 0; ib < nb_ic_; ib++)
-                for (int i = 0; i < ic_block_; i++) {
-                    const int _i = ib * ic_block_;
-                    const int _o = ob * oc_block_;
-                    const int ic_shift = (_i + i) * oc_;
-                    const int oc_shift = (_o + o);
-                    const int ic_block_shift = ib * oc_block_ * ic_block_ + i;
-                    const int src_offset
-                            = u_h_shift + u_w_shift + ic_shift + oc_shift;
-                    const int dst_offset = u_h_shift + u_w_shift
-                            + oc_block_shift + ic_block_shift;
-
-                    output[dst_offset] = tmp_wei[src_offset];
-                    if (type_o == data_type::s8) {
-                        const int bias_offset
-                                = u_h_shift_b + u_w_shift_b + oc_shift;
-                        if (index != unsign_val_in_wino_domain_)
-                            dst_bias[bias_offset] -= (128
-                                    * static_cast<int32_t>(output[dst_offset]));
-                        else
-                            dst_bias[bias_offset] = 0;
-                    }
-                }
-            });
-            index++;
-        }
     }
 
     void reorder_to_aaOio(out_data_t *__restrict output,
@@ -436,9 +372,6 @@ private:
 
         /* reorder to winograd domain */
         switch (wino_format_) {
-            case wino_memory_format_t::wino_wei_aaOIoi:
-                reorder_to_aaOIoi(output, tmp_wei);
-                break;
             case wino_memory_format_t::wino_wei_aaOio:
                 reorder_to_aaOio(output, tmp_wei);
                 break;

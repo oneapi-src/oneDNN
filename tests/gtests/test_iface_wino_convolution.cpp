@@ -57,7 +57,6 @@ protected:
                 = dnnl::is_superset(isa, cpu_isa::avx512_core);
         input_f32.wino_supported = is_gpu || (is_cpu && has_avx512_core);
         input_f16.wino_supported = is_gpu;
-        input_int8.wino_supported = is_cpu && has_avx512_core;
         input_f32.backward_supported = is_cpu && impl::dnnl_thr_syncable();
 #elif DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;

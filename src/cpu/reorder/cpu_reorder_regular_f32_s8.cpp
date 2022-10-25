@@ -26,8 +26,6 @@ const impl_list_map_t &regular_f32_s8_impl_list_map() {
     static const impl_list_map_t the_map = REG_REORDER_P({
         // f32 -> s8
         {{f32, s8, 0}, {
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::wino_reorder_t<f32, s8>))
-
             CPU_REORDER_INSTANCE(rnn_data_reorder_t<f32, s8>)
             CPU_REORDER_INSTANCE(rnn_weights_reorder_s8_t<f32>)
             CPU_REORDER_INSTANCE(rnn_brgemm_weights_reorder_s8_t<f32, s8>)

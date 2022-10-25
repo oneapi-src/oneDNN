@@ -30,8 +30,6 @@ enum class wino_memory_format_t {
     // Tensors of weights for 2x3 winograd convolutions.
     //
     // Internal weights format for 2x3 Winograd.
-    wino_wei_aaOIoi,
-    // Internal weights format for 2x3 Winograd.
     wino_wei_aaOio,
     // Internal weights format for 2x3 Winograd.
     wino_wei_aaOBiOo,
@@ -214,7 +212,7 @@ struct dnnl_memory_desc : public dnnl::impl::c_compatible {
         // Description of the data layout for memory formats that use
         // blocking.
         dnnl::impl::blocking_desc_t blocking;
-        // Tensor of weights for integer 8bit winograd convolution.
+        // Tensor of weights for winograd convolution.
         dnnl::impl::wino_desc_t wino_desc;
         // Tensor of packed weights for RNN.
         dnnl::impl::rnn_packed_desc_t rnn_packed_desc;
