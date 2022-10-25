@@ -861,91 +861,7 @@ TEST(Execute, MaxPoolWithOpaqueInput) {
     ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
 }
 
-TEST(Execute, MaxPoolBackwardWithIncides) {
-    using dims = dnnl::graph::impl::dnnl_impl::dims;
-    impl::engine_t &eng = get_engine();
-
-    test::vector<float> src {-2.0, -1.5, 2.0, 0.5, -0.5, -1.0, 1.0, 1.5, 2.0,
-            3.0, -1.0, 0.0, 1.0, -2.0, -1.0, 4.0};
-    test::vector<float> diff_src(src.size(), 0.0);
-    test::vector<float> ref_diff_src {0.0, 0.0, 16.0, 0.0, 4.0, 0.0, 0.0, 0.0,
-            0.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12.0};
-
-    test::vector<float> diff_dst {4.0, 16.0, 8.0, 12.0};
-
-    void *indices_data = nullptr;
-    test::vector<int32_t> s32_indices {2, 0, 1, 3};
-    test::vector<uint8_t> u8_indices {2, 0, 1, 3};
-    if (get_test_engine_kind() == impl::engine_kind::cpu) {
-        indices_data = u8_indices.data();
-    } else {
-        indices_data = s32_indices.data();
-    }
-
-    impl::op_t max_pool_bwd_op(impl::op_kind::MaxPoolBackprop);
-
-    max_pool_bwd_op.set_attr<dims>(impl::op_attr::strides, dims {2, 2});
-    max_pool_bwd_op.set_attr<dims>(impl::op_attr::kernel, dims {2, 2});
-    max_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
-    max_pool_bwd_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
-    max_pool_bwd_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
-    max_pool_bwd_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-
-    // prepare logical tensor
-    impl::logical_tensor_t src_lt
-            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
-    impl::logical_tensor_t diff_src_lt = utils::logical_tensor_init(
-            1, {1, 1, 4, 4}, impl::data_type::f32, impl::layout_type::any);
-    impl::logical_tensor_t diff_dst_lt
-            = utils::logical_tensor_init(3, {1, 1, 2, 2}, impl::data_type::f32);
-    impl::logical_tensor_t indices_lt;
-    if (get_test_engine_kind() == impl::engine_kind::cpu) {
-        indices_lt = utils::logical_tensor_init(
-                4, {1, 1, 2, 2}, impl::data_type::u8);
-    } else {
-        indices_lt = utils::logical_tensor_init(
-                4, {1, 1, 2, 2}, impl::data_type::s32);
-    }
-
-    max_pool_bwd_op.add_input(src_lt);
-    max_pool_bwd_op.add_input(diff_dst_lt);
-    max_pool_bwd_op.add_input(indices_lt);
-    max_pool_bwd_op.add_output(diff_src_lt);
-    impl::graph_t g(eng.kind());
-    ASSERT_EQ(g.add_op(&max_pool_bwd_op), impl::status::success);
-    g.build_graph();
-    impl::pass::pass_base_ptr apass = get_pass("max_pool_bw_pass");
-    apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1U);
-    auto part = g.get_partitions()[0];
-
-    // compile
-    impl::partition_t p;
-    p.init(part);
-    impl::compiled_partition_t cp(p);
-    std::vector<const impl::logical_tensor_t *> inputs {
-            &src_lt, &diff_dst_lt, &indices_lt};
-    std::vector<const impl::logical_tensor_t *> outputs {&diff_src_lt};
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
-    impl::logical_tensor_t lt;
-    cp.query_logical_tensor(diff_src_lt.id, &lt);
-    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
-
-    impl::tensor_t src_ts(src_lt, &eng, src.data());
-    impl::tensor_t diff_dst_ts(diff_dst_lt, &eng, diff_dst.data());
-    impl::tensor_t diff_src_ts(lt, &eng, diff_src.data());
-    impl::tensor_t indices_ts(indices_lt, &eng, indices_data);
-
-    impl::stream_t &strm = get_stream();
-    cp.execute(&strm, {src_ts, diff_dst_ts, indices_ts}, {diff_src_ts});
-    strm.wait();
-
-    for (size_t i = 0; i < diff_src.size(); ++i) {
-        ASSERT_FLOAT_EQ(diff_src[i], ref_diff_src[i]);
-    }
-}
-
-TEST(Execute, MaxPoolBackwardWithoutIncides) {
+TEST(Execute, MaxPoolBackward) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 
@@ -1009,7 +925,7 @@ TEST(Execute, MaxPoolBackwardWithoutIncides) {
     }
 }
 
-TEST(Execute, MaxPoolBackwardWithoutIncidesPlainGrad) {
+TEST(Execute, MaxPoolBackwardPlainGrad) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
     impl::engine_t &eng = get_engine();
 

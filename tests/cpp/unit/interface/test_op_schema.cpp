@@ -2817,17 +2817,15 @@ TEST(OpSchema, InferMaximumOutputShapeWihBroadcast) {
 TEST(OpSchema, MaxPoolBackprop) {
     const op_kind_t op_kind_ = op_kind::MaxPoolBackprop;
 
-    const std::set<size_t> expected_in_sizes = {2, 3};
+    const size_t expected_in_size = 2;
     const size_t expected_out_size = 1;
     const size_t expected_attr_size = 7;
     const std::map<op_attr_t, bool> attrs_data = {{op_attr::strides, true},
             {op_attr::pads_begin, true}, {op_attr::pads_end, true},
             {op_attr::kernel, true}, {op_attr::auto_pad, false},
             {op_attr::dilations, false}, {op_attr::data_format, false}};
-    for (auto expected_in_size : expected_in_sizes) {
-        verify_op_schema(op_kind_, expected_in_size, expected_out_size,
-                expected_attr_size, attrs_data);
-    }
+    verify_op_schema(op_kind_, expected_in_size, expected_out_size,
+            expected_attr_size, attrs_data);
 }
 
 TEST(OpSchema, InferMaxPoolBackpropAutoPadShape) {
