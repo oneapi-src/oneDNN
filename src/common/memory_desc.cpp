@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cctype>
+
 #include "oneapi/dnnl/dnnl.hpp"
 
 #include "common/c_types_map.hpp"
