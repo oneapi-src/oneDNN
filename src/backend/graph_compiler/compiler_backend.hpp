@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "interface/backend.hpp"
 #include "utils/pm/pass_manager.hpp"
@@ -51,6 +52,14 @@ public:
      */
     status_t get_partitions(
             graph_t &agraph, partition_policy_t policy) override;
+
+    /*! \brief Return the support status for a specific engine kine
+     */
+    bool support_engine_kind(engine_kind_t kind) const override {
+        static const std::unordered_set<engine_kind_t, utils::enum_hash_t>
+                supported_kind = {engine_kind::cpu};
+        return supported_kind.count(kind);
+    }
 
 private:
     compiler_backend_t(const std::string &backend_name, float priority)

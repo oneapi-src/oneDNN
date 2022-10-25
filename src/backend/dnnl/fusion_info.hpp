@@ -206,8 +206,10 @@ private:
 // info key to query it out from the manager.
 class fusion_info_mgr_t {
 public:
-    fusion_info_mgr_t(impl::fpmath_mode_t fpm_mode = impl::fpmath_mode::strict)
-        : fpmath_mode_(fpm_mode) {}
+    fusion_info_mgr_t(impl::fpmath_mode_t fpm_mode = impl::fpmath_mode::strict,
+            bool can_use_blocked_layout = false)
+        : fpmath_mode_(fpm_mode)
+        , can_use_blocked_layout_(can_use_blocked_layout) {}
 
     // Disable assignment and copy
     fusion_info_mgr_t(const fusion_info_mgr_t &) = delete;
@@ -236,11 +238,13 @@ public:
     }
 
     impl::fpmath_mode_t get_fpmath_mode() const { return fpmath_mode_; }
+    bool get_use_blocked_layout() const { return can_use_blocked_layout_; }
 
 private:
     std::vector<fusion_info_t> data_;
     // specified floating-point math mode for all fusions
     impl::fpmath_mode_t fpmath_mode_ {};
+    bool can_use_blocked_layout_;
 };
 
 // This function is used to make a dnnl::primitive_attr from the fusion info.

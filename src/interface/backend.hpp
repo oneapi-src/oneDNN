@@ -114,6 +114,9 @@ public:
     /// Register the pointer of created backend instance to oneDNN Graph
     static backend *register_backend(const backend *abackend);
 
+    /// Check if a backend supports a specific engine kind
+    virtual bool support_engine_kind(engine_kind_t kind) const = 0;
+
 private:
     static size_t get_counter() {
         static std::atomic<size_t> counter {RESERVED_BACKEND_ID + 1};

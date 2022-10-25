@@ -618,6 +618,26 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
     ret = pre_process(tmp_outputs, outputs, backend);
     if (status::success != ret) return ret;
 
+    // Count how many registered backends support the engine kind
+    const engine_kind_t kind = aengine->kind();
+    size_t effective_backends = 0;
+    for (const auto &bkd :
+            backend_registry_t::get_singleton().get_registered_backends()) {
+        const bool is_not_fake = bkd->get_priority() > 0;
+        if (is_not_fake && bkd->support_engine_kind(kind)) {
+            effective_backends++;
+        }
+    }
+
+    // If engine kind is GPU and only dnnl backend supports GPU, we can
+    // safely use blocked layout to improve performance. Otherwise, we must
+    // use plain layout, since: 1. plain layout usually give optimal layout
+    // on CPU. 2. we don't want to pass blocked layout cross backends.
+    const bool can_use_blocked_layout
+            = effective_backends == 1 && kind == engine_kind::gpu;
+    const_cast<partition_impl_t *>(pimpl_.get())
+            ->set_use_blocked_layout(can_use_blocked_layout);
+
 #ifdef DNNL_GRAPH_ENABLE_DUMP
     if (utils::getenv_int_user("DUMP", 0) > 1
             || utils::check_verbose_string_user("DUMP", "subgraph")) {

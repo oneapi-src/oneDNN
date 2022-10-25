@@ -66,10 +66,8 @@ private:
 
 public:
     subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
-            bool reset_layout = true);
-
-    subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
-            impl::fpmath_mode_t fpm_mode, bool reset_layout);
+            impl::fpmath_mode_t fpm_mode, bool can_use_blocked_layout,
+            bool reset_layout);
 
     subgraph_t(const std::vector<op_ptr> &ops, bool reset_layout = true);
 

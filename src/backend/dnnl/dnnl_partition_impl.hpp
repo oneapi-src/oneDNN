@@ -165,6 +165,7 @@ public:
         ret->outputs_ = outputs_;
         ret->kernel_creator_ = kernel_creator_;
         ret->id_ = id_;
+        ret->can_use_blocked_layout_ = can_use_blocked_layout_;
         return ret;
     }
 
@@ -228,7 +229,6 @@ public:
         UNUSED(outputs);
         return impl::status::success;
     }
-
 
 private:
     FCreateKernel kernel_creator_;

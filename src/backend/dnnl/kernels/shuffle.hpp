@@ -68,8 +68,9 @@ public:
         g_alloc_ = g_engine->get_allocator();
 
         const bool reset_layout = false;
-        subgraph_ = std::make_shared<subgraph_t>(
-                part->get_ops(), p_engine_, reset_layout);
+        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_,
+                part->get_fpmath_mode(), part->get_use_blocked_layout(),
+                reset_layout);
 
         BACKEND_DNNL_CHECK(
                 set_given_inputs_outputs(subgraph_, inputs, outputs));

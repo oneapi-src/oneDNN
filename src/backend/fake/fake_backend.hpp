@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,11 @@ public:
         impl::pass::pass_manager_t pm(get_pass_registry());
         pm.run_passes(agraph, "", policy);
         return status::success;
+    }
+
+    bool support_engine_kind(engine_kind_t kind) const override {
+        UNUSED(kind);
+        return true;
     }
 
 private:

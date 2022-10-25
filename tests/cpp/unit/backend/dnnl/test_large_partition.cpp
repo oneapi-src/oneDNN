@@ -165,26 +165,23 @@ TEST(Execute, ConvResBlockWithNhwcLayout) {
             conv2, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
 
     // prepare logical tensor
-    std::vector<impl::dim_t> src_shape = {8, 8, 32, 32};
+    std::vector<impl::dim_t> shape = {8, 8, 32, 32};
     // strides for nhwc
-    std::vector<impl::dim_t> src_strides_nhwc {
-            src_shape[2] * src_shape[3] * src_shape[1], 1,
-            src_shape[3] * src_shape[1], src_shape[1]};
+    std::vector<impl::dim_t> strides_nhwc {
+            shape[2] * shape[3] * shape[1], 1, shape[3] * shape[1], shape[1]};
     std::vector<impl::dim_t> wei_shape = {8, 8, 1, 1};
     impl::data_type_t dtype = impl::data_type::f32;
-    auto conv0_src
-            = utils::logical_tensor_init(0, src_shape, src_strides_nhwc, dtype);
+    auto conv0_src = utils::logical_tensor_init(0, shape, strides_nhwc, dtype);
     auto conv0_wei = utils::logical_tensor_init(1, wei_shape, dtype);
-    auto relu0_src = utils::logical_tensor_init(2, src_shape, dtype);
-    auto conv1_src = utils::logical_tensor_init(3, src_shape, dtype);
+    auto relu0_src = utils::logical_tensor_init(2, shape, dtype);
+    auto conv1_src = utils::logical_tensor_init(3, shape, dtype);
     auto conv1_wei = utils::logical_tensor_init(4, wei_shape, dtype);
-    auto relu1_src = utils::logical_tensor_init(5, src_shape, dtype);
-    auto conv2_src = utils::logical_tensor_init(6, src_shape, dtype);
+    auto relu1_src = utils::logical_tensor_init(5, shape, dtype);
+    auto conv2_src = utils::logical_tensor_init(6, shape, dtype);
     auto conv2_wei = utils::logical_tensor_init(7, wei_shape, dtype);
-    auto add_src0 = utils::logical_tensor_init(8, src_shape, dtype);
-    auto relu2_src = utils::logical_tensor_init(9, src_shape, dtype);
-    auto relu2_dst = utils::logical_tensor_init(
-            10, src_shape, dtype, impl::layout_type::any);
+    auto add_src0 = utils::logical_tensor_init(8, shape, dtype);
+    auto relu2_src = utils::logical_tensor_init(9, shape, dtype);
+    auto relu2_dst = utils::logical_tensor_init(10, shape, strides_nhwc, dtype);
 
     conv0.add_input(conv0_src);
     conv0.add_input(conv0_wei);
@@ -236,9 +233,6 @@ TEST(Execute, ConvResBlockWithNhwcLayout) {
 
     impl::logical_tensor_t queried_relu2_dst;
     cp.query_logical_tensor(relu2_dst.id, &queried_relu2_dst);
-    ASSERT_EQ(queried_relu2_dst.layout_type,
-            eng.kind() == impl::engine_kind::gpu ? impl::layout_type::opaque
-                                                 : impl::layout_type::strided);
 
     test::vector<float> conv0_src_data(8 * 8 * 32 * 32);
     test::vector<float> conv0_wei_data(8 * 8 * 1 * 1);
