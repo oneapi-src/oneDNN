@@ -113,12 +113,18 @@ status_t pooling_desc_init(pooling_desc_type *pool_desc, prop_kind_t prop_kind,
         if ((src - ker_range + pad_l + pad_r) / str + 1 != dst)
             return invalid_arguments;
 
+        // [fork] Initially this check was also commented and padding handling
+        // was also corrected for nchw_pooling.
+        // after rebase to onednn v2.7 the changes in nchw_pooling led to the
+        // test fails because of accuracy.
+        // With the commented check and without any updates in nchw_pooling no issues found
+
         // It's not allowed for pooling window to be totally placed outside
         // of real source domain for pooling_avg_exclude_padding algorithm
         // due to 0 / 0 ambiguity
-        if (alg_kind == pooling_avg_exclude_padding
-                && !(pad_l < ker_range && pad_r < ker_range && dil < src))
-            return invalid_arguments;
+        // if (alg_kind == pooling_avg_exclude_padding
+        //         && !(pad_l < ker_range && pad_r < ker_range && dil < src))
+        //     return invalid_arguments;
     }
 
     *pool_desc = pd;
