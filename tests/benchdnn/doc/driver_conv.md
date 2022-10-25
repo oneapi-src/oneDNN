@@ -72,10 +72,6 @@ documentation.
 | s8   | s8   | s8   | s32  | s8s8s8          |
 | s8   | s8   | u8   | s32  | s8s8u8          |
 | f32  | f32  | f32  | f32  | f32_wino        |
-| u8   | s8   | f32  | s32  | u8s8f32_wino    |
-| u8   | s8   | s32  | s32  | u8s8s32_wino    |
-| u8   | s8   | s8   | s32  | u8s8s8_wino     |
-| u8   | s8   | u8   | s32  | u8s8u8_wino     |
 | f16  | f16  | f16  | f32  | f16             |
 | f16  | f16  | s8   | f32  | f16f16s8        |
 | bf16 | bf16 | bf16 | f32  | bf16bf16bf16    |
