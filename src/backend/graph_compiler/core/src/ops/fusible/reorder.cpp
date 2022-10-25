@@ -1255,7 +1255,10 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                     expr(0),
-                    no_padding ? dst.get_shape()[i] : output_blocking_exprs[i],
+                    // if the offset of dst is given(commit op)
+                    (no_padding || !dst.get_offset()[i].isa<constant>())
+                            ? dst.get_shape()[i]
+                            : output_blocking_exprs[i],
                     i == static_cast<int>(output_blocking_dims.size()) - 1
                                     && can_vectorize
                             ? expr(static_cast<int>(step))
@@ -2200,35 +2203,8 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             iter_vars_2.emplace_back(builder::make_var(datatypes::index,
                     std::string("_fuseiter") + fusion_create_idx()));
             in_indexes_2.emplace_back(iter_vars_2[i] + src.get_offset()[i]);
-            if (!is_vnni_reorder) { // NK->NKkn2k
-                if (static_cast<int>(i) == inp_n_axis[0]) {
-                    in_indexes.emplace_back(
-                            (iter_vars[i] + src.get_offset()[i]) * 4);
-                    loop_indexes.emplace_back(iter_vars[i] * 4);
-                } else if (static_cast<int>(i) == inp_k_axis[0]) {
-                    in_indexes.emplace_back((iter_vars[i] + src.get_offset()[i])
-                            * (is_bf16 ? 8 : 16));
-                    loop_indexes.emplace_back(
-                            iter_vars[i] * (is_bf16 ? 8 : 16));
-                } else {
-                    in_indexes.emplace_back(iter_vars[i] + src.get_offset()[i]);
-                    loop_indexes.emplace_back(iter_vars[i]);
-                }
-            } else { // KN->NKkn2k
-                if (static_cast<int>(i) == inp_k_axis[0]) {
-                    in_indexes.emplace_back(
-                            (iter_vars[i] + src.get_offset()[i]) * 4);
-                    loop_indexes.emplace_back(iter_vars[i] * 4);
-                } else if (static_cast<int>(i) == inp_n_axis[0]) {
-                    in_indexes.emplace_back((iter_vars[i] + src.get_offset()[i])
-                            * (is_bf16 ? 8 : 16));
-                    loop_indexes.emplace_back(
-                            iter_vars[i] * (is_bf16 ? 8 : 16));
-                } else {
-                    in_indexes.emplace_back(iter_vars[i] + src.get_offset()[i]);
-                    loop_indexes.emplace_back(iter_vars[i]);
-                }
-            }
+            in_indexes.emplace_back((iter_vars[i] + src.get_offset()[i]));
+            loop_indexes.emplace_back(iter_vars[i]);
         }
         expr condition;
         std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(
@@ -2305,38 +2281,26 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         // we can only divide iter_end_ rather than multiply step_
         for (int i = static_cast<int>(input_blocking_dims.size()) - 1; i >= 0;
                 i--) {
+            iter_end = src.get_shape()[i];
+            expr cur_step = 1;
             if (!is_vnni_reorder) {
                 if (i == inp_n_axis[0]) {
-                    iter_end = constant_folder_t()(src.get_shape()[i]
-                            / make_expr<constant_node>(static_cast<uint64_t>(4),
-                                    src.get_shape()[i]->dtype_));
+                    cur_step = 4;
                 } else if (i == inp_k_axis[0]) {
-                    iter_end = constant_folder_t()(src.get_shape()[i]
-                            / make_expr<constant_node>(
-                                    static_cast<uint64_t>(is_bf16 ? 8 : 16),
-                                    src.get_shape()[i]->dtype_));
-                } else {
-                    iter_end = expr_c(src.get_shape()[i]);
+                    cur_step = is_bf16 ? 8 : 16;
                 }
             } else {
                 if (i == inp_k_axis[0]) {
-                    iter_end = constant_folder_t()(src.get_shape()[i]
-                            / make_expr<constant_node>(static_cast<uint64_t>(4),
-                                    src.get_shape()[i]->dtype_));
+                    cur_step = 4;
                 } else if (i == inp_n_axis[0]) {
-                    iter_end = constant_folder_t()(src.get_shape()[i]
-                            / make_expr<constant_node>(
-                                    static_cast<uint64_t>(is_bf16 ? 8 : 16),
-                                    src.get_shape()[i]->dtype_));
-                } else {
-                    iter_end = expr_c(src.get_shape()[i]);
+                    cur_step = is_bf16 ? 8 : 16;
                 }
             }
             body = cur.isa<stmts>() ? cur
                                     : make_stmt<stmts_node_t>(
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                    expr(0), iter_end.remove_const(), expr(1), std::move(body),
+                    expr(0), iter_end.remove_const(), cur_step, std::move(body),
                     true, for_type::NORMAL);
         }
         cur->attr()[stmt_attr_key::merge_loop] = true;
@@ -2347,46 +2311,7 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         for (size_t i = 0; i < output_blocking_dims.size(); i++) {
             iter_vars.emplace_back(builder::make_var(datatypes::index,
                     std::string("_fuseiter") + fusion_create_idx()));
-            if (!is_vnni_reorder) { // vnni reorder
-                if (static_cast<int>(i) == out_n_axis[1]
-                        || static_cast<int>(i) == out_k_axis[1]) {
-                    out_indexes.emplace_back(
-                            (iter_vars[i] + dst.get_offset()[i]) * (4));
-                } else if (static_cast<int>(i) == out_k_axis[2]) {
-                    out_indexes.emplace_back(
-                            (iter_vars[i] + dst.get_offset()[i])
-                            * (is_bf16 ? 2 : 4));
-                } else {
-                    out_indexes.emplace_back(
-                            iter_vars[i] + dst.get_offset()[i]);
-                }
-            } else if (is_bf16) { // vnni reorder + transpose bf16
-                if (static_cast<int>(i) == out_n_axis[1]) {
-                    out_indexes.emplace_back(
-                            (iter_vars[i] + dst.get_offset()[i]) * 8);
-                } else if (static_cast<int>(i) == out_k_axis[1]) {
-                    out_indexes.emplace_back(
-                            (iter_vars[i] + dst.get_offset()[i]) * 2);
-                } else if (static_cast<int>(i) == out_k_axis[2]) {
-                    out_indexes.emplace_back(
-                            (iter_vars[i] + dst.get_offset()[i]) * 2);
-                } else {
-                    out_indexes.emplace_back(
-                            iter_vars[i] + dst.get_offset()[i]);
-                }
-            } else { // vnni reorder + transpose
-                if (static_cast<int>(i) == out_n_axis[1]) {
-                    out_indexes.emplace_back(
-                            (iter_vars[i] + dst.get_offset()[i]) * (16));
-                } else if (static_cast<int>(i) == out_k_axis[2]) {
-                    out_indexes.emplace_back(
-                            (iter_vars[i] + dst.get_offset()[i])
-                            * (is_bf16 ? 2 : 4));
-                } else {
-                    out_indexes.emplace_back(
-                            iter_vars[i] + dst.get_offset()[i]);
-                }
-            }
+            out_indexes.emplace_back(iter_vars[i] + dst.get_offset()[i]);
         }
 
         // calculate the input index according to the output index
@@ -2473,35 +2398,18 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                 out_indexes_2.emplace_back(iter_vars[i] + dst.get_offset()[i]);
                 if (!is_vnni_reorder) { // vnni transpose
                     if (static_cast<int>(i) == out_n_axis[1]
-                            || static_cast<int>(i) == out_k_axis[1]) {
+                            || static_cast<int>(i) == out_k_axis[1]
+                            || static_cast<int>(i) == out_k_axis[2]) {
                         iter_vars_2.emplace_back(
                                 builder::make_var(datatypes::index,
                                         std::string("_fuseiter")
                                                 + fusion_create_idx()));
                         out_indexes_2.back()
-                                = (iter_vars[i] + dst.get_offset()[i]) * (4)
-                                + iter_vars_2.back();
-                    } else if (static_cast<int>(i) == out_k_axis[2]) {
-                        iter_vars_2.emplace_back(
-                                builder::make_var(datatypes::index,
-                                        std::string("_fuseiter")
-                                                + fusion_create_idx()));
-                        out_indexes_2.back()
-                                = (iter_vars[i] + dst.get_offset()[i])
-                                        * (is_bf16 ? 2 : 4)
-                                + iter_vars_2.back();
+                                = out_indexes_2.back() + iter_vars_2.back();
                     }
                 } else { // vnni reorder
-                    if (static_cast<int>(i) == out_n_axis[1]) {
-                        iter_vars_2.emplace_back(
-                                builder::make_var(datatypes::index,
-                                        std::string("_fuseiter")
-                                                + fusion_create_idx()));
-                        out_indexes_2.back()
-                                = (iter_vars[i] + dst.get_offset()[i])
-                                        * (is_bf16 ? 8 : 16)
-                                + iter_vars_2.back();
-                    } else if (static_cast<int>(i) == out_k_axis[2]
+                    if (static_cast<int>(i) == out_n_axis[1]
+                            || static_cast<int>(i) == out_k_axis[2]
                             || (static_cast<int>(i) == out_k_axis[1]
                                     && is_bf16)) {
                         iter_vars_2.emplace_back(
@@ -2509,9 +2417,7 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                                         std::string("_fuseiter")
                                                 + fusion_create_idx()));
                         out_indexes_2.back()
-                                = (iter_vars[i] + dst.get_offset()[i])
-                                        * (is_bf16 ? 2 : 4)
-                                + iter_vars_2.back();
+                                = out_indexes_2.back() + iter_vars_2.back();
                     }
                 }
             }
@@ -2526,7 +2432,6 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                                         output, out_indexes_2, 1),
                                 builder::make_constant({0UL},
                                         sc_data_type_t(dtype.type_code_, 1)))});
-                cond = true;
                 std::vector<expr> tmp_in_indexes_2
                         = get_reorder_block2plain_indexes(graph, out_indexes_2,
                                 output_format, plain_dims, cond);
@@ -2576,22 +2481,28 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             vnni_condition = true;
             for (int i = static_cast<int>(output_blocking_dims.size()) - 1;
                     i >= 0; i--) {
-                auto temp_cond = (iter_vars.at(i) < dst.get_shape()[i]);
+                auto temp_cond = (iter_vars.at(i) + dst.get_offset()[i]
+                        < dst.get_shape()[i]);
                 if (!is_vnni_reorder) { // vnni transpose
                     if (i == out_n_axis[1] || i == out_k_axis[1]) {
-                        temp_cond = (iter_vars.at(i) < dst.get_shape()[i] / 4);
+                        temp_cond = (iter_vars.at(i) + dst.get_offset()[i] + 4
+                                            - 1)
+                                < dst.get_shape()[i];
                     } else if (i == out_k_axis[2]) {
-                        temp_cond = (iter_vars.at(i)
-                                < dst.get_shape()[i] / (is_bf16 ? 2 : 4));
+                        temp_cond = (iter_vars.at(i) + dst.get_offset()[i]
+                                            + (is_bf16 ? 2 : 4) - 1)
+                                < dst.get_shape()[i];
                     }
                 } else { // vnni reorder
                     if (i == out_n_axis[1]) {
-                        temp_cond = (iter_vars.at(i)
-                                < dst.get_shape()[i] / (is_bf16 ? 8 : 16));
+                        temp_cond = (iter_vars.at(i) + dst.get_offset()[i]
+                                            + (is_bf16 ? 8 : 16) - 1)
+                                < dst.get_shape()[i];
                     } else if ((is_bf16 && i == out_k_axis[1])
                             || i == out_k_axis[2]) {
-                        temp_cond = (iter_vars.at(i)
-                                < dst.get_shape()[i] / (is_bf16 ? 2 : 4));
+                        temp_cond = (iter_vars.at(i) + dst.get_offset()[i]
+                                            + (is_bf16 ? 2 : 4) - 1)
+                                < dst.get_shape()[i];
                     }
                 }
                 vnni_condition = vnni_condition && temp_cond;
@@ -2606,34 +2517,25 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         // we can only divide iter_end_ rather than multiply step_
         for (int i = static_cast<int>(output_blocking_dims.size()) - 1; i >= 0;
                 i--) {
-            if (is_padding) {
-                iter_end = (uint64_t)output_blocking_dims[i];
-            } else {
+            // if the offset of dst is given(commit op)
+            if (!is_padding || !dst.get_offset()[i].isa<constant>()) {
                 iter_end = dst.get_shape()[i];
+            } else {
+                iter_end = (uint64_t)output_blocking_dims[i];
             }
+            expr cur_step = 1;
             if (!is_vnni_reorder) { // vnni transpose
                 if (i == out_n_axis[1] || i == out_k_axis[1]) {
-                    iter_end = divide_and_ceil(iter_end,
-                            make_expr<constant_node>(static_cast<uint64_t>(4),
-                                    dst.get_shape()[i]->dtype_));
+                    cur_step = 4;
                 } else if (i == out_k_axis[2]) {
-                    iter_end = divide_and_ceil(iter_end,
-                            make_expr<constant_node>(
-                                    static_cast<uint64_t>(is_bf16 ? 2 : 4),
-                                    dst.get_shape()[i]->dtype_));
+                    cur_step = is_bf16 ? 2 : 4;
                 }
             } else { // vnni reorder
                 if (i == out_n_axis[1]) {
-                    iter_end = divide_and_ceil(iter_end,
-                            make_expr<constant_node>(
-                                    static_cast<uint64_t>(is_bf16 ? 8 : 16),
-                                    dst.get_shape()[i]->dtype_));
+                    cur_step = is_bf16 ? 8 : 16;
                 } else if ((is_bf16 && i == out_k_axis[1])
                         || i == out_k_axis[2]) {
-                    iter_end = divide_and_ceil(iter_end,
-                            make_expr<constant_node>(
-                                    static_cast<uint64_t>(is_bf16 ? 2 : 4),
-                                    dst.get_shape()[i]->dtype_));
+                    cur_step = is_bf16 ? 2 : 4;
                 }
             }
 
@@ -2641,8 +2543,8 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                                     : make_stmt<stmts_node_t>(
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                    expr(0), iter_end.remove_const(), expr(static_cast<int>(1)),
-                    std::move(body), true, for_type::NORMAL);
+                    expr(0), iter_end.remove_const(), cur_step, std::move(body),
+                    true, for_type::NORMAL);
         }
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);

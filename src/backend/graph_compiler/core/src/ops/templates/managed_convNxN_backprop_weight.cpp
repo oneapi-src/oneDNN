@@ -242,10 +242,9 @@ void gen_nested_conv_bwd_weight_core_t::inner_loop_call(const context_ptr &ctx,
         oh_block, ow_block, im_bs_block_, im_oc_block_};
     // f32 --> vectorized; bf16 --> vnni_reorder
     std::vector<expr> shrink_offset = dtype_block > 1
-      ? std::vector<expr> {obs_offset / im_bs_block_ * 4,
-        oc_offset / im_oc_block_ * 8, oh_offset, ow_offset,
-        obs_offset % im_bs_block_ / 2 * 4, oc_offset % im_oc_block_ * 8,
-        obs_offset % im_bs_block_ % 2}
+      ? std::vector<expr> {obs_offset / im_bs_block_, oc_offset / im_oc_block_,
+        oh_offset, ow_offset, obs_offset % im_bs_block_ / 2,
+        oc_offset % im_oc_block_, obs_offset % im_bs_block_ % 2}
       : std::vector<expr> {obs_offset / im_bs_block_, oc_offset / im_oc_block_,
         oh_offset, ow_offset, obs_offset % im_bs_block_,
         oc_offset % im_oc_block_};

@@ -1338,6 +1338,7 @@ public:
             if (val) {
                 return v->then_case_;
             } else {
+                if (v->else_case_.defined()) { return v->else_case_; }
                 return make_stmt<stmts_node_t>(std::vector<stmt>());
             }
         }
