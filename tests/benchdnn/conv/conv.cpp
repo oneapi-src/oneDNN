@@ -157,8 +157,6 @@ int fill_src(
 
 int fill_wei(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const bool wino_s8
-            = prb->alg == WINO && prb->get_dt_conf(WEI).dt == dnnl_s8;
     const bool is_def_zp = prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
 
@@ -182,8 +180,8 @@ int fill_wei(
 
     const bool wei_x8x8 = prb->get_dt_conf(WEI).dt == dnnl_s8
             && prb->get_dt_conf(SRC).dt == dt_check;
-    const bool check_reorder = (is_bench_mode(CORR)) && diff_data_type
-            && !wino_s8 && !wei_x8x8 && is_def_zp;
+    const bool check_reorder
+            = (is_bench_mode(CORR)) && diff_data_type && !wei_x8x8 && is_def_zp;
 
     dnn_mem_t extra_mem;
     if (check_reorder) {
