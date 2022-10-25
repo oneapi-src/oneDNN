@@ -1013,17 +1013,13 @@ DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
 
 DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
         op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({2, 3}))
+                .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "input", "input tensor", "T1")
+                .set_input(0, "input", "input tensor", "T")
                 .set_input(1, "output_delta",
-                        "the gradient tensor with respect to output", "T1")
-                .set_input(2, "output_forward_indices",
-                        "(optional) indices of max values in output tensor",
-                        "T2")
+                        "the gradient tensor with respect to output", "T")
                 .set_output(0, "input_delta",
-                        "the gradient tensor with respect to input", "T1")
+                        "the gradient tensor with respect to input", "T")
                 .set_attr(op_attr::strides, "the distance to slide the filter",
                         true, attribute_kind::is)
                 .set_attr(op_attr::pads_begin, "top and left padding", true,
@@ -1044,8 +1040,7 @@ DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
                         "NCX and NXC",
                         false, attribute_kind::s, "NXC")
                 .set_type_constraints(
-                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
-                .set_type_constraints("T2", {data_type::u8, data_type::s32})
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_pool_bwd_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
