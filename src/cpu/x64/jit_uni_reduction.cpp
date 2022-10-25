@@ -171,9 +171,6 @@ status_t jit_uni_reduction_t::get_proper_kernel(
         const memory_desc_t *dst_md, const jit_reduction_conf_t &conf) {
     using namespace data_type;
 
-    if (conf.isa == avx512_core_fp16)
-        return safe_ptr_assign(kernel_,
-                new jit_uni_reduction_kernel_t<avx512_core_fp16>(conf, dst_md));
     if (conf.isa == avx512_core_bf16)
         return safe_ptr_assign(kernel_,
                 new jit_uni_reduction_kernel_t<avx512_core_bf16>(conf, dst_md));

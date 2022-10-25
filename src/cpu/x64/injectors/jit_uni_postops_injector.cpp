@@ -460,9 +460,6 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
     return true;
 }
 
-template class jit_uni_postops_injector_t<avx512_core_fp16>;
-template class jit_uni_postops_injector_t<avx512_core_fp16, Xbyak::Ymm>;
-template class jit_uni_postops_injector_t<avx512_core_fp16, Xbyak::Xmm>;
 template class jit_uni_postops_injector_t<avx512_core_bf16>;
 template class jit_uni_postops_injector_t<avx512_core>;
 template class jit_uni_postops_injector_t<avx512_core, Xbyak::Ymm>;

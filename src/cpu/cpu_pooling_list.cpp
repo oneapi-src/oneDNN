@@ -48,7 +48,6 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_POOLING_P({
         {{forward}, {
             /* fp */
-            CPU_INSTANCE_X64(jit_uni_pooling_fwd_t, avx512_core_fp16, f16)
             CPU_INSTANCE_X64(jit_uni_pooling_fwd_t, avx512_core, bf16)
             CPU_INSTANCE_X64(jit_uni_pooling_fwd_t, avx512_core, f32)
             CPU_INSTANCE_X64(jit_uni_pooling_fwd_t, avx2, f32)
@@ -57,11 +56,8 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE_AARCH64(jit_uni_pooling_fwd_t, sve_512, f32)
             CPU_INSTANCE(nchw_pooling_fwd_t, bf16)
             CPU_INSTANCE(nchw_pooling_fwd_t, f32)
-            CPU_INSTANCE(nchw_pooling_fwd_t, f16)
             CPU_INSTANCE(nhwc_pooling_fwd_t, bf16)
             CPU_INSTANCE(nhwc_pooling_fwd_t, f32)
-            CPU_INSTANCE(nhwc_pooling_fwd_t, f16)
-            CPU_INSTANCE(ref_pooling_fwd_t, f16, f32)
             CPU_INSTANCE(ref_pooling_fwd_t, f32, f32, f32)
             CPU_INSTANCE(ref_pooling_fwd_t, bf16, bf16, f32)
             /* int */
@@ -77,7 +73,6 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             nullptr,
         }},
         {{backward}, REG_BWD_PK({
-            CPU_INSTANCE_X64(jit_uni_pooling_bwd_t, avx512_core_fp16, f16)
             CPU_INSTANCE_X64(jit_uni_pooling_bwd_t, avx512_core, bf16)
             CPU_INSTANCE_X64(jit_uni_pooling_bwd_t, avx512_core, f32)
             CPU_INSTANCE_X64(jit_uni_pooling_bwd_t, avx2, f32)
@@ -86,13 +81,10 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE_AARCH64(jit_uni_pooling_bwd_t, sve_512, f32)
             CPU_INSTANCE(nchw_pooling_bwd_t, bf16)
             CPU_INSTANCE(nchw_pooling_bwd_t, f32)
-            CPU_INSTANCE(nchw_pooling_bwd_t, f16)
             CPU_INSTANCE(nhwc_pooling_bwd_t, bf16)
             CPU_INSTANCE(nhwc_pooling_bwd_t, f32)
-            CPU_INSTANCE(nhwc_pooling_bwd_t, f16)
             CPU_INSTANCE(ref_pooling_bwd_t, f32)
             CPU_INSTANCE(ref_pooling_bwd_t, bf16)
-            CPU_INSTANCE(ref_pooling_bwd_t, f16)
             nullptr,
         })},
     });

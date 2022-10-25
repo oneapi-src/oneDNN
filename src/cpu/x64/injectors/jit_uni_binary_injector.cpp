@@ -2478,9 +2478,6 @@ void jit_uni_binary_injector_t<isa, Vmm>::compute_vector(size_t idx,
     compute_vector_range({idx}, rhs_arg_idx, post_op, rhs_arg_params);
 }
 
-template class jit_uni_binary_injector_t<avx512_core_fp16>;
-template class jit_uni_binary_injector_t<avx512_core_fp16, Xbyak::Ymm>;
-template class jit_uni_binary_injector_t<avx512_core_fp16, Xbyak::Xmm>;
 template class jit_uni_binary_injector_t<avx512_core_bf16>;
 template class jit_uni_binary_injector_t<avx512_core>;
 template class jit_uni_binary_injector_t<avx512_core, Xbyak::Ymm>;

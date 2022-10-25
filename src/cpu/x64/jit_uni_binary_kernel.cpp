@@ -576,9 +576,6 @@ void jit_uni_binary_kernel_t<isa, Vmm>::generate() {
 
 #undef PARAM_OFF
 
-template struct jit_uni_binary_kernel_t<avx512_core_fp16, Zmm>;
-template struct jit_uni_binary_kernel_t<avx512_core_fp16, Ymm>;
-template struct jit_uni_binary_kernel_t<avx512_core_fp16, Xmm>;
 template struct jit_uni_binary_kernel_t<avx512_core_bf16, Zmm>;
 template struct jit_uni_binary_kernel_t<avx512_core_bf16, Ymm>;
 template struct jit_uni_binary_kernel_t<avx512_core_bf16, Xmm>;

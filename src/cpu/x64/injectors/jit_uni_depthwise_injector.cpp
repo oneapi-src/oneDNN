@@ -260,7 +260,6 @@ void jit_uni_depthwise_injector_f32<isa>::compute(int start_idx, int end_idx,
     }
 }
 
-template struct jit_uni_depthwise_injector_f32<avx512_core_fp16>;
 template struct jit_uni_depthwise_injector_f32<avx512_core_bf16>;
 template struct jit_uni_depthwise_injector_f32<avx512_core>;
 template struct jit_uni_depthwise_injector_f32<avx>;

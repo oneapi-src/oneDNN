@@ -282,9 +282,6 @@ void jit_uni_quantization_injector_f32<isa, Vmm>::compute_output_scale_shift(con
     compute_output_scale_shift_impl(vmmIdxs, offset, is_scalar, is_broadcast);
 }
 
-template struct jit_uni_quantization_injector_f32<avx512_core_fp16>;
-template struct jit_uni_quantization_injector_f32<avx512_core_fp16, Xbyak::Ymm>;
-template struct jit_uni_quantization_injector_f32<avx512_core_fp16, Xbyak::Xmm>;
 template struct jit_uni_quantization_injector_f32<avx512_core_bf16>;
 template struct jit_uni_quantization_injector_f32<avx512_core>;
 template struct jit_uni_quantization_injector_f32<avx512_core, Xbyak::Ymm>;
