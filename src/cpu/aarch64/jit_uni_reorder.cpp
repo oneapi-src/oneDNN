@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2018-2021 Intel Corporation
 * Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,6 +54,35 @@ namespace cpu {
 namespace aarch64 {
 
 namespace tr {
+
+static bool prb_has_small_strides(const prb_t &prb) {
+    constexpr ptrdiff_t max_stride = (1LL << 31) - 1;
+    for (int d = 0; d < prb.ndims; ++d) {
+        const ptrdiff_t cms = max_stride / prb.nodes[d].n;
+        const bool small_strides = true
+                && prb.nodes[d].is < cms / (int)data_type_size(prb.itype)
+                && prb.nodes[d].os < cms / (int)data_type_size(prb.otype);
+        if (!small_strides) return false;
+    }
+    return true;
+}
+
+static bool prb_tail_friendly(const prb_t &prb) {
+    /* find optimal ndims to makes it easier to
+     * identify the blk_chunk in the loop*/
+    int ndims = prb.full_ndims - prb.ndims;
+
+    int n = prb.nodes[0].is;
+    for (int d = 1; d < prb.ndims; ++d) {
+        if (d != prb.blk_chunk_idx) n *= prb.nodes[d].n;
+    }
+    if (prb.ip_tail > 0
+            && ((ndims == 0 && n != 1)
+                    || (ndims > 0 && prb.ndims > prb.blk_chunk_idx)))
+        return false;
+
+    return true;
+}
 
 /** Minimal reasonable/desirable kernel size.
  * The constant might be used to determine how a problem should be split
@@ -121,17 +151,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 && utils::one_of(p.otype, f32, s32, data_type::s8, u8)
                 && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
-                && simple_impl_desc_init(p, nullptr);
+                && simple_impl_desc_init(p, nullptr) && prb_has_small_strides(p)
+                && prb_tail_friendly(p);
         if (!ok) return false;
-
-        const ptrdiff_t max_stride = (1LL << 31) - 1;
-        for (int d = 0; d < p.ndims; ++d) {
-            const ptrdiff_t cms = max_stride / p.nodes[d].n;
-            bool strides_ok = true
-                    && p.nodes[d].is < cms / (int)data_type_size(p.itype)
-                    && p.nodes[d].os < cms / (int)data_type_size(p.otype);
-            if (!strides_ok) return false;
-        }
 
         return true;
     }
@@ -152,6 +174,13 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         assert(d < prb_.ndims);
         return (int)prb_.nodes[d].ss;
     }
+
+    int blk_cnt() {
+        assert(prb_.blk_chunk_idx < prb_.full_ndims);
+        return (int)prb_.nodes[prb_.blk_chunk_idx].n - 1;
+    }
+    int op_padding() { return prb_.op_tail ? prb_.iblock - prb_.op_tail : 0; }
+    int ip_padding() { return prb_.ip_tail ? prb_.oblock - prb_.ip_tail : 0; }
 
     void step(int off, int prev_i_off, int prev_o_off, int prev_s_off,
             int &i_off, int &o_off, int &s_off, int step_size = 1) {
@@ -385,6 +414,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                                 prb_.otype, u8, data_type::s8, s32, f32)))
                 && utils::everyone_is(8, n(0), n(1))
                 && utils::everyone_is(1, os(0), is(1))
+                && utils::everyone_is(0, prb_.ip_tail, prb_.op_tail)
                 && prb_.scale_type == scale_type_t::NONE && prb_.beta == 0.f;
     }
 
@@ -405,17 +435,14 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     bool process_direct_copy(int len) {
         using namespace data_type;
 
-        const int simd_w = cpu_isa_traits<isa>::vlen == 16
-                ? cpu_isa_traits<isa>::vlen / itype_sz /* use 128-bit VReg */
-                : cpu_isa_traits<isa>::vlen / itype_sz
-                        / 2; /* use lower half of 512-bit ZReg */
-
+        const int simd_w = cpu_isa_traits<isa>::vlen / itype_sz;
         bool can_do = true && mayiuse(isa)
                 && utils::everyone_is(1, os(0), is(0))
                 && (false || prb_.itype == prb_.otype
                         || (prb_.itype == s32 && prb_.otype == f32)
                         || (prb_.itype == f32 && prb_.otype == s32))
                 && len % simd_w == 0 && n(0) % len == 0
+                && prb_.ip_tail % simd_w == 0 && prb_.op_tail % simd_w == 0
                 && prb_.scale_type == scale_type_t::NONE && prb_.beta == 0.f;
         if (!can_do) return false;
 
@@ -511,7 +538,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     }
 
     void process_unroll_generic_step(int reg_unroll, const int *i_off,
-            const int *o_off, const int *s_off) {
+            const int *o_off, const int *s_off, const int *ip_padding,
+            const bool h_padded) {
         using namespace data_type;
 
         auto cvt2ps
@@ -571,6 +599,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         for (int ur = 1; ur < reg_unroll; ++ur)
             if (o_off[ur] != o_off[ur - 1] + 1) can_store_xmm = false;
         const int ur_step = can_store_xmm ? 4 : 1;
+        const int load_tail_step
+                = !can_load_xmm && can_store_xmm ? ur_step : load_step;
 
         const bool interim_f32 = false
                 || utils::one_of(f32, prb_.itype, prb_.otype)
@@ -579,55 +609,85 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         const bool need_saturation
                 = (utils::one_of(prb_.otype, u8, data_type::s8, s32)
                         && interim_f32);
-
-        if (!can_load_xmm && can_store_xmm) {
-            assert(ur_step == 4);
-            /* load with stride */
-            for (int ur = 0; ur < reg_unroll; ur += ur_step) {
-
+        if (h_padded) {
+            for (int ur = 0; ur < reg_unroll; ur += load_tail_step) {
+                if (itype_sz == 4)
+                    movi(VReg4S(ur), 0);
+                else if (itype_sz == 2)
+                    movi(VReg8H(ur), 0);
+                else
+                    movi(VReg16B(ur), 0);
                 /* x_tmp_vec = X_TMP_0 - X_TMP_4
                  Do not use X_TMP_? as the last arg. */
-                for (int r = 0; r < ur_step; ++r) {
-                    add_imm(x_tmp_vec[r], x_ptr_in_off,
-                            i_off[ur + r] * itype_sz, X_DEFAULT_ADDR);
+                for (int r = 0; r < load_tail_step; ++r) {
+                    if (ip_padding[ur + r] == 0) {
+                        add_imm(x_tmp_vec[r], x_ptr_in_off,
+                                i_off[ur + r] * itype_sz, X_DEFAULT_ADDR);
+                    }
                 }
 
-                for (int r = 0; r < ur_step; ++r) {
-                    if (itype_sz == 4)
-                        ld1(VReg4S(ur)[r], ptr(x_tmp_vec[r]));
-                    else if (itype_sz == 2)
-                        ld1(VReg8H(ur)[r], ptr(x_tmp_vec[r]));
-                    else
-                        ld1(VReg16B(ur)[r], ptr(x_tmp_vec[r]));
+                for (int r = 0; r < load_tail_step; ++r) {
+                    if (ip_padding[ur + r] == 0) {
+                        if (itype_sz == 4)
+                            ld1(VReg4S(ur)[r], ptr(x_tmp_vec[r]));
+                        else if (itype_sz == 2)
+                            ld1(VReg8H(ur)[r], ptr(x_tmp_vec[r]));
+                        else
+                            ld1(VReg16B(ur)[r], ptr(x_tmp_vec[r]));
+                    }
                 }
             }
         } else {
-            int ur = 0;
-            int tmp_ur = 0;
-            while (ur < reg_unroll) {
-                int count = 0;
+            if (!can_load_xmm && can_store_xmm) {
+                assert(ur_step == 4);
+                /* load with stride */
+                for (int ur = 0; ur < reg_unroll; ur += ur_step) {
 
-                do {
-                    add_imm(x_tmp_vec[count++], x_ptr_in_off,
-                            i_off[ur] * itype_sz, X_DEFAULT_ADDR);
-                    ur += load_step;
-                } while (ur < reg_unroll && count < x_tmp_vec_size);
-
-                for (int i = 0; i < count; i++) {
-
-                    switch (load_step * itype_sz) {
-                        case 16: ldr(QReg(tmp_ur), ptr(x_tmp_vec[i])); break;
-                        case 8: ldr(DReg(tmp_ur), ptr(x_tmp_vec[i])); break;
-                        case 4: ldr(SReg(tmp_ur), ptr(x_tmp_vec[i])); break;
-                        case 2: ldr(HReg(tmp_ur), ptr(x_tmp_vec[i])); break;
-                        case 1: ldr(BReg(tmp_ur), ptr(x_tmp_vec[i])); break;
-                        default: assert(!"unreachable");
+                    /* x_tmp_vec = X_TMP_0 - X_TMP_4
+                 Do not use X_TMP_? as the last arg. */
+                    for (int r = 0; r < ur_step; ++r) {
+                        add_imm(x_tmp_vec[r], x_ptr_in_off,
+                                i_off[ur + r] * itype_sz, X_DEFAULT_ADDR);
                     }
-                    tmp_ur += load_step;
+
+                    for (int r = 0; r < ur_step; ++r) {
+                        if (itype_sz == 4)
+                            ld1(VReg4S(ur)[r], ptr(x_tmp_vec[r]));
+                        else if (itype_sz == 2)
+                            ld1(VReg8H(ur)[r], ptr(x_tmp_vec[r]));
+                        else
+                            ld1(VReg16B(ur)[r], ptr(x_tmp_vec[r]));
+                    }
+                }
+            } else {
+                int ur = 0;
+                int tmp_ur = 0;
+                while (ur < reg_unroll) {
+                    int count = 0;
+
+                    do {
+                        add_imm(x_tmp_vec[count++], x_ptr_in_off,
+                                i_off[ur] * itype_sz, X_DEFAULT_ADDR);
+                        ur += load_step;
+                    } while (ur < reg_unroll && count < x_tmp_vec_size);
+
+                    for (int i = 0; i < count; i++) {
+
+                        switch (load_step * itype_sz) {
+                            case 16:
+                                ldr(QReg(tmp_ur), ptr(x_tmp_vec[i]));
+                                break;
+                            case 8: ldr(DReg(tmp_ur), ptr(x_tmp_vec[i])); break;
+                            case 4: ldr(SReg(tmp_ur), ptr(x_tmp_vec[i])); break;
+                            case 2: ldr(HReg(tmp_ur), ptr(x_tmp_vec[i])); break;
+                            case 1: ldr(BReg(tmp_ur), ptr(x_tmp_vec[i])); break;
+                            default: assert(!"unreachable");
+                        }
+                        tmp_ur += load_step;
+                    }
                 }
             }
         }
-
         /* xmm[:] <-- (f32)xmm[:] */
         if (interim_f32) {
             const int cvt_step = nstl::max(load_step, ur_step);
@@ -708,7 +768,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         if (s_off[r] != s_off[r - 1] + 0)
                             scale_load_type = scale_load_type_t::load;
 
-                    if (scale_load_type == scale_load_type_t::bcast) {
+                    if (scale_load_type == scale_load_type_t::bcast
+                            && !h_padded) {
                         VReg4S v(xmm_scale.getIdx());
                         VReg4S v_dst(ur);
                         add_imm(X_TMP_0, x_ptr_scale_off, s_off[ur] * stype_sz,
@@ -724,7 +785,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         if (s_off[r] != s_off[r - 1] + 1)
                             scale_load_type = scale_load_type_t::gather;
 
-                    if (scale_load_type == scale_load_type_t::load) {
+                    if (scale_load_type == scale_load_type_t::load
+                            && !h_padded) {
                         uint32_t idx = xmm_scale.getIdx();
                         VReg4S v_dst(ur);
                         add_imm(X_TMP_0, x_ptr_scale_off, s_off[ur] * stype_sz,
@@ -739,14 +801,18 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     // so gather the scale factors one by one
                     /*ur_step is 1 or 4. */
                     for (int r = ur; r < ur + ur_step; ++r) {
-                        /* x_tmp_vec = X_TMP_0 - X_TMP_4
+                        if (ip_padding[r] == 0 || !h_padded) {
+                            /* x_tmp_vec = X_TMP_0 - X_TMP_4
                          Do not use X_TMP_? as the last arg. */
-                        add_imm(x_tmp_vec[r - ur], x_ptr_scale_off,
-                                s_off[r] * stype_sz, X_DEFAULT_ADDR);
+                            add_imm(x_tmp_vec[r - ur], x_ptr_scale_off,
+                                    s_off[r] * stype_sz, X_DEFAULT_ADDR);
+                        }
                     }
                     for (int r = ur; r < ur + ur_step; ++r) {
-                        VReg4S v(xmm_scale.getIdx());
-                        ld1(v[r - ur], ptr(x_tmp_vec[r - ur]));
+                        if (ip_padding[r] == 0 || !h_padded) {
+                            VReg4S v(xmm_scale.getIdx());
+                            ld1(v[r - ur], ptr(x_tmp_vec[r - ur]));
+                        }
                     }
                     fmul(VReg4S(ur), VReg4S(ur), xmm_scale);
                 }
@@ -925,7 +991,15 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         }
     }
 
-    void process_unroll_generic(int len) {
+    void comp_padding_flag(int ndims, int off, int len, int &i_tail) {
+        const int ip_without_padding
+                = ndims == 0 ? len - ip_padding() : prb_.ip_tail;
+        if ((ndims == 0 && off >= ip_without_padding)
+                || (ndims > 0 && (off % prb_.oblock) >= ip_without_padding))
+            i_tail = 1;
+    }
+
+    void process_unroll_generic(const int ndims, int len, const bool h_padded) {
         const int blk = 8;
 
         int i_off[2 * blk] = {0};
@@ -936,20 +1010,35 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         for (int off = 0; off < len; off += blk) {
             const int reg_unroll = nstl::min(off + blk, len) - off;
+            int ip_padding[blk] = {0};
 
-            /* compute offsets */
+            /* compute offsets and tail*/
             for (int ur = off != 0 ? 0 : 1; ur < reg_unroll; ++ur) {
                 const int ur_c = curr * blk + ur;
                 const int ur_p = (ur_c - 1 + 2 * blk) % (2 * blk); // prev ur
                 step(off + ur, i_off[ur_p], o_off[ur_p], s_off[ur_p],
                         i_off[ur_c], o_off[ur_c], s_off[ur_c]);
+                if (h_padded)
+                    comp_padding_flag(ndims, off + ur, len, ip_padding[ur]);
             }
-
             process_unroll_generic_step(reg_unroll, i_off + curr * blk,
-                    o_off + curr * blk, s_off + curr * blk);
+                    o_off + curr * blk, s_off + curr * blk, ip_padding,
+                    h_padded);
 
             curr = 1 - curr;
         }
+    }
+
+    void compute_ker(
+            const int ndims, const int len_unroll, const bool h_padded) {
+        bool optimized = false;
+        optimized = optimized
+                || (process_direct_copy<sve_256>(len_unroll) && !h_padded);
+        optimized = optimized
+                || (process_direct_copy<asimd>(len_unroll) && !h_padded);
+        optimized
+                = optimized || (process_unroll_tr8x8(len_unroll) && !h_padded);
+        if (!optimized) process_unroll_generic(ndims, len_unroll, h_padded);
     }
 
     void loop_begin(Label &l, XReg reg_cnt, int len) {
@@ -985,6 +1074,28 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         }
     }
 
+    void compute_blk_ker(const int len_unroll) {
+        int omp_ndims = prb_.full_ndims - prb_.ndims;
+        Label no_last_blk, end_label;
+
+        if (prb_.ip_tail > 0 && prb_.op_tail == 0) {
+            if (omp_ndims == 0) {
+                cmp(reg_last_loop_cnt, 1);
+                bne(no_last_blk);
+                compute_ker(omp_ndims, len_unroll, true);
+            } else {
+                cmp(reg_blk_chunks, blk_cnt());
+                bne(no_last_blk);
+                compute_ker(omp_ndims, len_unroll, true);
+            }
+            b(end_label);
+        }
+
+        L(no_last_blk);
+        compute_ker(omp_ndims, len_unroll, false);
+        L(end_label);
+    }
+
     bool simple_impl() {
         simple_impl_desc_t d;
         if (!simple_impl_desc_init(prb_, &d)) return false;
@@ -1013,11 +1124,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         if (n_jit_loops > 0)
             loop_begin(l_loop[0], reg_cnt[0], n(nfu + 0) / ldu);
 
-        bool optimized = false;
-        optimized = optimized || process_direct_copy<sve_512>(d.len_unroll);
-        optimized = optimized || process_direct_copy<asimd>(d.len_unroll);
-        optimized = optimized || process_unroll_tr8x8(d.len_unroll);
-        if (!optimized) process_unroll_generic(d.len_unroll);
+        compute_blk_ker(d.len_unroll);
 
         if (n_jit_loops > 0)
             loop_end(l_loop[0], reg_cnt[0], n(nfu + 0) / ldu, is(nfu + 0) * ldu,
@@ -1236,9 +1343,13 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         }
         add_imm(X_TMP_0, abi_param1, PARAM(in), X_TMP_2);
         add_imm(X_TMP_1, abi_param1, PARAM(out), X_TMP_2);
+        add_imm(reg_blk, abi_param1, PARAM(blk_chunks), reg_blk);
         ldr(reg_ptr_in, ptr(X_TMP_0));
         ldr(reg_ptr_out, ptr(X_TMP_1));
+        ldr(reg_blk_chunks, ptr(reg_blk));
+
 #undef PARAM
+        mov_imm(reg_last_loop_cnt, 1);
 
         mov(x_ptr_in_off, XReg(reg_ptr_in.getIdx()));
         mov(x_ptr_out_off, XReg(reg_ptr_out.getIdx()));
@@ -1281,6 +1392,10 @@ private:
     XReg reg_off_in = x8;
     XReg reg_off_out = x9;
     XReg reg_off_scale = x10;
+
+    XReg reg_blk = x11;
+    XReg reg_blk_chunks = x12;
+    XReg reg_last_loop_cnt = x11;
 
     XReg reg_tmp = x0;
 
@@ -1416,10 +1531,16 @@ static void prb_thread_kernel_balance(
     for (int d = 0; d < prb.ndims; ++d)
         sz_total *= prb.nodes[d].n;
 
+    /* The general expression for sz_drv_thr can be written as
+     * sz_drv_min = C0 + FC * (nthr > 1 ? 1 : 0) + VC * (nthr - 1)
+     * where FC and VC are fixed and variable costs respectively.
+     * Though for now, the below heuristic seems to be good enough */
+    const size_t sz_drv_thr = (nthr > 1) ? 16 * nthr : 1;
+
     /* sz_drv_min is the minimal size for the parallel
      * driver required for good parallelization */
     const size_t sz_drv_min
-            = nstl::min<size_t>(16 * nthr, utils::div_up(sz_total, 1024));
+            = nstl::min<size_t>(sz_drv_thr, utils::div_up(sz_total, 1024));
 
     /* kdims -- # of dimensions processed by a kernel
      * sz_ker_cur -- product of the dimension processed by a kernel
@@ -1440,7 +1561,8 @@ static void prb_thread_kernel_balance(
      * (less than tr::ker_prb_size_min). In that case try to split the
      * innermost driver dimension into two, to increase sz_ker_cur. */
     bool want_borrow_ker_from_drv = true && kdims < prb.ndims
-            && sz_ker_cur < tr::ker_prb_size_min && sz_drv_cur > sz_drv_min;
+            && sz_ker_cur < tr::ker_prb_size_min && sz_drv_cur > sz_drv_min
+            && kdims != prb.blk_chunk_idx;
     if (want_borrow_ker_from_drv) {
         /* sz_want_borrow is the minimal sz, so that:
          *  o) sz_ker_cur * sz_want_borrow >= tr::ker_prb_size_min
@@ -1464,7 +1586,7 @@ static void prb_thread_kernel_balance(
      * try to split the outermost kernel dimension into two, to increase
      * sz_drv_cur. */
     bool want_borrow_drv_from_ker = true && sz_ker_cur > tr::ker_prb_size_min
-            && sz_drv_cur < sz_drv_min;
+            && sz_drv_cur < sz_drv_min && kdims != prb.blk_chunk_idx;
     if (want_borrow_drv_from_ker) {
         size_t sz_want_borrow = utils::div_up(sz_drv_min, sz_drv_cur);
         for (; prb.nodes[kdims - 1].n % sz_want_borrow; ++sz_want_borrow)
@@ -1518,6 +1640,8 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         prb_dump(prb);
     });
 
+    CHECK(prb_check_blk(prb, *dst_md));
+
     int ndims_ker_max;
     int nthr = dnnl_get_max_threads();
     prb_thread_kernel_balance(prb, ndims_ker_max, nthr);
@@ -1552,7 +1676,7 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
 
 void jit_uni_reorder_t::omp_driver_0d(
         int off, const char *in, char *out, const float *scale) const {
-    tr::call_param_t c {in, out, scale};
+    tr::call_param_t c {in, out, scale, 0};
     (*kernel_)(&c);
 }
 
@@ -1564,6 +1688,7 @@ void jit_uni_reorder_t::omp_driver_1d(int ithr, int nthr, int off,
         c.in = in + d0 * ns[0].is * data_type_size(pd()->prb_.itype);
         c.out = out + d0 * ns[0].os * data_type_size(pd()->prb_.otype);
         c.scale = scale + d0 * ns[0].ss;
+        c.blk_chunks = d0;
         (*kernel_)(&c);
     });
 }
@@ -1571,6 +1696,7 @@ void jit_uni_reorder_t::omp_driver_1d(int ithr, int nthr, int off,
 void jit_uni_reorder_t::omp_driver_2d(int ithr, int nthr, int off,
         const char *in, char *out, const float *scale) const {
     const tr::node_t *ns = pd()->prb_.nodes + off;
+    const int blk_idx_off = pd()->prb_.blk_chunk_idx - off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
             [&](ptrdiff_t d1, ptrdiff_t d0) {
                 auto c = tr::call_param_t();
@@ -1581,6 +1707,7 @@ void jit_uni_reorder_t::omp_driver_2d(int ithr, int nthr, int off,
                         + (d0 * ns[0].os + d1 * ns[1].os)
                                 * data_type_size(pd()->prb_.otype);
                 c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss;
+                c.blk_chunks = utils::pick(blk_idx_off, d0, d1);
                 (*kernel_)(&c);
             });
 }
@@ -1588,6 +1715,7 @@ void jit_uni_reorder_t::omp_driver_2d(int ithr, int nthr, int off,
 void jit_uni_reorder_t::omp_driver_3d(int ithr, int nthr, int off,
         const char *in, char *out, const float *scale) const {
     const tr::node_t *ns = pd()->prb_.nodes + off;
+    const int blk_idx_off = pd()->prb_.blk_chunk_idx - off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[2].n, (ptrdiff_t)ns[1].n,
             (ptrdiff_t)ns[0].n, [&](ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
                 auto c = tr::call_param_t();
@@ -1598,6 +1726,7 @@ void jit_uni_reorder_t::omp_driver_3d(int ithr, int nthr, int off,
                         + (d0 * ns[0].os + d1 * ns[1].os + d2 * ns[2].os)
                                 * data_type_size(pd()->prb_.otype);
                 c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss;
+                c.blk_chunks = utils::pick(blk_idx_off, d0, d1, d2);
                 (*kernel_)(&c);
             });
 }
@@ -1605,6 +1734,7 @@ void jit_uni_reorder_t::omp_driver_3d(int ithr, int nthr, int off,
 void jit_uni_reorder_t::omp_driver_4d(int ithr, int nthr, int off,
         const char *in, char *out, const float *scale) const {
     const tr::node_t *ns = pd()->prb_.nodes + off;
+    const int blk_idx_off = pd()->prb_.blk_chunk_idx - off;
     for_nd(ithr, nthr, (ptrdiff_t)ns[3].n, (ptrdiff_t)ns[2].n,
             (ptrdiff_t)ns[1].n, (ptrdiff_t)ns[0].n,
             [&](ptrdiff_t d3, ptrdiff_t d2, ptrdiff_t d1, ptrdiff_t d0) {
@@ -1619,6 +1749,7 @@ void jit_uni_reorder_t::omp_driver_4d(int ithr, int nthr, int off,
                                 * data_type_size(pd()->prb_.otype);
                 c.scale = scale + d0 * ns[0].ss + d1 * ns[1].ss + d2 * ns[2].ss
                         + d3 * ns[3].ss;
+                c.blk_chunks = utils::pick(blk_idx_off, d0, d1, d2, d3);
                 (*kernel_)(&c);
             });
 }
