@@ -17155,6 +17155,7 @@ bool gemm_kernel_generator_t<hw>::sysgemmAccumulateC(
             block.splitComplex = false;
             block.nr = block.ld = 8;
             block.nc = 4;
+            block.component = 0;
             block.offsetR = i0;
             block.offsetC = j0;
             block.crosspack = 1;
@@ -18586,6 +18587,7 @@ bool gemm_kernel_generator_t<hw>::sysgemm2AccumulateC(
             block.splitComplex = false;
             block.nr = block.ld = 8;
             block.nc = 4;
+            block.component = 0;
             block.offsetR = i0;
             block.offsetC = j0;
             block.crosspack = 1;
