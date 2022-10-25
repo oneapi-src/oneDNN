@@ -595,9 +595,9 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
                 const memory_desc_wrapper tmp_d
                         = memory_desc_wrapper(jpp.tmp_md);
                 // offset needs to be f32
-                const auto blk_off = d_type == data_type::bf16
-                        ? tmp_d.blk_off(n, c_off, oh) * 2
-                        : tmp_d.blk_off(n, c_off, oh);
+                const int dt_scale
+                        = sizeof(float) / types::data_type_size(d_type);
+                const auto blk_off = tmp_d.blk_off(n, c_off, oh) * dt_scale;
                 arg.dst_po_helper = static_cast<const void *>(&dst[blk_off]);
             }
         } else {
@@ -723,9 +723,9 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
                 const memory_desc_wrapper tmp_d
                         = memory_desc_wrapper(jpp.tmp_md);
                 // offset needs to be f32
-                const auto blk_off = d_type == data_type::bf16
-                        ? tmp_d.blk_off(n, c_off, od, oh) * 2
-                        : tmp_d.blk_off(n, c_off, od, oh);
+                const int dt_scale
+                        = sizeof(float) / types::data_type_size(d_type);
+                const auto blk_off = tmp_d.blk_off(n, c_off, od, oh) * dt_scale;
                 arg.dst_po_helper = static_cast<const void *>(&dst[blk_off]);
             }
         } else {
