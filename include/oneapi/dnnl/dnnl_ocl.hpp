@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,6 +65,74 @@ enum class memory_kind {
 /// @returns Corresponding C API memory allocation kind enum value.
 inline dnnl_ocl_interop_memory_kind_t convert_to_c(memory_kind akind) {
     return static_cast<dnnl_ocl_interop_memory_kind_t>(akind);
+}
+
+/// Returns the cache blob ID of the OpenCL device.
+///
+/// @warning
+///     This API is intended to be used with
+///     #dnnl::ocl_interop::get_engine_cache_blob() and
+///     #dnnl::ocl_interop::make_engine(cl_device_id, cl_context, const std::vector<uint8_t> &).
+///     The returned cache blob ID can only be used as an ID of the cache blob
+///     returned by #dnnl::ocl_interop::get_engine_cache_blob().
+///
+/// @note The cache blob ID can be empty (@p size will be 0 and
+///     @p cache_blob_id will be nullptr) if oneDNN doesn't have anything to
+///     put in the cache blob. (#dnnl_ocl_interop_engine_get_cache_blob will
+///     return an empty cache blob).
+///
+/// @param device An OpenCL device.
+/// @returns A vector containing the cache blob ID.
+inline std::vector<uint8_t> get_engine_cache_blob_id(cl_device_id device) {
+    size_t size = 0;
+    error::wrap_c_api(
+            dnnl_ocl_interop_engine_get_cache_blob_id(device, &size, nullptr),
+            "could not get an engine cache blob id size");
+
+    std::vector<uint8_t> cache_blob_id(size);
+    error::wrap_c_api(dnnl_ocl_interop_engine_get_cache_blob_id(
+                              device, &size, cache_blob_id.data()),
+            "could not get an engine cache blob id");
+    return cache_blob_id;
+}
+
+/// Returns a cache blob for the engine.
+///
+/// @note The cache blob vector can be empty if oneDNN doesn't have anything
+///     to put in the cache blob. It's the user's responsibility to check
+///     whether it's empty prior to passing it to
+///     #dnnl::ocl_interop::make_engine(cl_device_id, cl_context, const std::vector<uint8_t> &)
+///
+/// @param aengine Engine to query for the cache blob.
+/// @returns Vector containing the cache blob.
+inline std::vector<uint8_t> get_engine_cache_blob(const engine &aengine) {
+    size_t size = 0;
+    error::wrap_c_api(dnnl_ocl_interop_engine_get_cache_blob(
+                              aengine.get(), &size, nullptr),
+            "could not get an engine cache blob size");
+
+    std::vector<uint8_t> cache_blob(size);
+    error::wrap_c_api(dnnl_ocl_interop_engine_get_cache_blob(
+                              aengine.get(), &size, cache_blob.data()),
+            "could not get an engine cache blob");
+    return cache_blob;
+}
+
+/// Constructs an engine from the given cache blob.
+///
+/// @param device The OpenCL device that this engine will encapsulate.
+/// @param context The OpenCL context (containing the device) that this
+///     engine will use for all operations.
+/// @param cache_blob Cache blob.
+/// @returns An engine.
+inline engine make_engine(cl_device_id device, cl_context context,
+        const std::vector<uint8_t> &cache_blob) {
+    dnnl_engine_t c_engine;
+    error::wrap_c_api(
+            dnnl_ocl_interop_engine_create_from_cache_blob(&c_engine, device,
+                    context, cache_blob.size(), cache_blob.data()),
+            "could not create an engine from cache blob");
+    return engine(c_engine);
 }
 
 /// Constructs an engine from OpenCL device and context objects.

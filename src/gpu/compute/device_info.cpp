@@ -16,6 +16,7 @@
 
 #include <mutex>
 #include <thread>
+#include <type_traits>
 
 #include "gpu/compute/device_info.hpp"
 
@@ -196,6 +197,79 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     max_subgroup_size_ = max_subgroup_size(gpu_arch_);
 
     mayiuse_non_uniform_work_groups_ = ocl_backend;
+
+    return status::success;
+}
+
+status_t device_info_t::init_serialized_device_info(
+        const std::vector<uint8_t> &cache_blob) {
+    if (!cache_blob.empty()) {
+        serialized_device_info_.write(cache_blob.data(), cache_blob.size());
+        return status::success;
+    }
+
+    serialized_device_info_.write(&gpu_arch_);
+    serialized_device_info_.write(&stepping_id_);
+    serialized_device_info_.write(&runtime_version_.major);
+    serialized_device_info_.write(&runtime_version_.minor);
+    serialized_device_info_.write(&runtime_version_.build);
+    serialized_device_info_.write(hw_threads_, 2);
+    serialized_device_info_.write(&eu_count_);
+    serialized_device_info_.write(&max_eus_per_wg_);
+    serialized_device_info_.write(&max_subgroup_size_);
+    serialized_device_info_.write(&max_wg_size_);
+    serialized_device_info_.write(&llc_cache_size_);
+    serialized_device_info_.write(&extensions_);
+    serialized_device_info_.write(&mayiuse_ngen_kernels_);
+    serialized_device_info_.write(&checked_ngen_kernels_);
+    serialized_device_info_.write(&mayiuse_non_uniform_work_groups_);
+
+    const size_t name_size = name_.size();
+    serialized_device_info_.write(&name_size);
+    serialized_device_info_.write(name_.data(), name_size);
+
+    return status::success;
+}
+
+status_t device_info_t::init_from_cache_blob(
+        const std::vector<uint8_t> &cache_blob) {
+    if (cache_blob.empty()) return status::invalid_arguments;
+
+    size_t pos = 0;
+#define DESERIALIZE(val, expected_type) \
+    static_assert(std::is_same<std::remove_reference<decltype(val)>::type, \
+                          expected_type>::value, \
+            #val " has incorrect type"); \
+    val = *reinterpret_cast<const expected_type *>(cache_blob.data() + pos); \
+    pos += sizeof(expected_type);
+
+    DESERIALIZE(gpu_arch_, compute::gpu_arch_t);
+    DESERIALIZE(stepping_id_, int);
+    DESERIALIZE(runtime_version_.major, int);
+    DESERIALIZE(runtime_version_.minor, int);
+    DESERIALIZE(runtime_version_.build, int);
+    DESERIALIZE(hw_threads_[0], int32_t);
+    DESERIALIZE(hw_threads_[1], int32_t);
+    DESERIALIZE(eu_count_, int32_t);
+    DESERIALIZE(max_eus_per_wg_, int32_t);
+    DESERIALIZE(max_subgroup_size_, int32_t);
+    DESERIALIZE(max_wg_size_, size_t);
+    DESERIALIZE(llc_cache_size_, size_t);
+    DESERIALIZE(extensions_, uint64_t);
+    DESERIALIZE(mayiuse_ngen_kernels_, bool);
+    DESERIALIZE(checked_ngen_kernels_, bool);
+    DESERIALIZE(mayiuse_non_uniform_work_groups_, bool);
+#undef DESERIALIZE
+
+    // name_ is not trivially copyable type
+    const size_t name_size
+            = *reinterpret_cast<const size_t *>(cache_blob.data() + pos);
+    pos += sizeof(size_t);
+    name_ = std::string(
+            reinterpret_cast<const char *>(cache_blob.data() + pos), name_size);
+    pos += name_size;
+    assert(name_size == name_.size());
+    assert(pos == cache_blob.size());
 
     return status::success;
 }

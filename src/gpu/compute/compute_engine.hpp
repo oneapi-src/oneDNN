@@ -46,6 +46,7 @@ public:
         : engine_t(kind, runtime_kind, index) {}
 
     virtual status_t init();
+    status_t init(const std::vector<uint8_t> &cache_blob);
 
     const device_info_t *device_info() const { return device_info_.get(); }
 
@@ -173,6 +174,10 @@ public:
 
 protected:
     virtual status_t init_device_info() = 0;
+    virtual status_t init_device_info(const std::vector<uint8_t> &cache_blob) {
+        assert(!"unexpected");
+        return status::runtime_error;
+    }
 
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     ~compute_engine_t() override = default;

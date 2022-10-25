@@ -22,8 +22,10 @@
 #include <string.h>
 
 #include "common/c_types_map.hpp"
+#include "common/serialization_stream.hpp"
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
+
 #include "cpu/platform.hpp"
 #include "oneapi/dnnl/dnnl_config.h"
 
@@ -190,7 +192,13 @@ struct device_info_t {
 public:
     virtual ~device_info_t() = default;
 
-    status_t init(engine_t *engine) {
+    status_t init(
+            engine_t *engine, const std::vector<uint8_t> &cache_blob = {}) {
+        if (!cache_blob.empty()) {
+            CHECK(init_from_cache_blob(cache_blob));
+            return init_serialized_device_info(cache_blob);
+        }
+
         CHECK(init_device_name(engine));
         CHECK(init_arch(engine));
         CHECK(init_runtime_version(engine));
@@ -198,6 +206,11 @@ public:
         CHECK(init_attributes(engine));
 
         CHECK(init_attributes_common(engine));
+
+        if (dnnl_version()->gpu_runtime == DNNL_RUNTIME_OCL) {
+            CHECK(init_serialized_device_info());
+        }
+
         return status::success;
     }
 
@@ -234,6 +247,22 @@ public:
 
     bool mayiuse_sub_group(int size) const;
 
+    const std::vector<uint8_t> &get_cache_blob() const {
+        return serialized_device_info_.get_data();
+    }
+
+    status_t get_cache_blob_size(size_t *size) const {
+        (*size) = serialized_device_info_.get_data().size();
+        return status::success;
+    }
+
+    status_t get_cache_blob(size_t size, uint8_t *cache_blob) const {
+        const auto &cb = serialized_device_info_.get_data();
+        if (size != cb.size()) return status::invalid_arguments;
+        std::memcpy(cache_blob, cb.data(), size);
+        return status::success;
+    }
+
 protected:
     virtual status_t init_device_name(engine_t *engine) = 0;
     virtual status_t init_arch(engine_t *engine) = 0;
@@ -262,11 +291,16 @@ protected:
 
 private:
     status_t init_attributes_common(engine_t *engine);
+    status_t init_serialized_device_info(
+            const std::vector<uint8_t> &cache_blob = {});
+    status_t init_from_cache_blob(const std::vector<uint8_t> &cache_blob);
 
     bool mayiuse_ngen_kernels_ = false;
     bool checked_ngen_kernels_ = false;
 
     bool mayiuse_non_uniform_work_groups_ = false;
+
+    serialization_stream_t serialized_device_info_;
 };
 
 } // namespace compute

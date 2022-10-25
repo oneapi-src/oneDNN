@@ -66,10 +66,17 @@ void device_info_cache_set(
 }
 
 status_t compute_engine_t::init() {
+    return init({});
+}
+
+status_t compute_engine_t::init(const std::vector<uint8_t> &cache_blob) {
     if (device_info_cache_get(&device_info_, this)) return status::success;
-
-    CHECK(init_device_info());
-
+    // Since init_device_info that takes a cache blob is only defined for
+    // OpenCL we need to do manual dispatching here.
+    if (cache_blob.empty())
+        CHECK(init_device_info());
+    else
+        CHECK(init_device_info(cache_blob));
     device_info_cache_set(this, device_info_);
 
     return status::success;

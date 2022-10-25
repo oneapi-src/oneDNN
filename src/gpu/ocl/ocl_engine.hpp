@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,11 +65,12 @@ public:
     }
 
     status_t engine_create(engine_t **engine, cl_device_id device,
-            cl_context context, size_t index) {
+            cl_context context, size_t index,
+            const std::vector<uint8_t> &cache_blob = {}) {
         auto *ocl_engine = new ocl_gpu_engine_t(device, context, index);
         if (!ocl_engine) return status::out_of_memory;
 
-        status_t status = ocl_engine->init();
+        status_t status = ocl_engine->init(cache_blob);
         if (status != status::success) {
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
             ocl_engine->release();

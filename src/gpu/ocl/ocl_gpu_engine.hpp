@@ -46,6 +46,7 @@ public:
         , is_user_context_(acontext) {}
 
     status_t init() override;
+    status_t init(const std::vector<uint8_t> &cache_blob);
 
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
             size_t size, void *handle) override;
@@ -99,6 +100,14 @@ public:
 
     status_t serialize_device(serialization_stream_t &sstream) const override;
 
+    status_t get_cache_blob_size(size_t *size) const {
+        return device_info_->get_cache_blob_size(size);
+    }
+
+    status_t get_cache_blob(size_t size, uint8_t *cache_blob) const {
+        return device_info_->get_cache_blob(size, cache_blob);
+    }
+
 #ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
     engine_id_t engine_id() const override {
         return engine_id_t(new ocl_gpu_engine_id_impl_t(
@@ -115,6 +124,7 @@ protected:
 
 protected:
     status_t init_device_info() override;
+    status_t init_device_info(const std::vector<uint8_t> &cache_blob) override;
 
 private:
     cl_device_id device_;
