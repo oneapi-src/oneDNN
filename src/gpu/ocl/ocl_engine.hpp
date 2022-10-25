@@ -61,11 +61,12 @@ public:
     }
 
     status_t engine_create(engine_t **engine, cl_device_id device,
-            cl_context context, size_t index) {
+            cl_context context, size_t index,
+            const std::vector<uint8_t> &cache_blob = {}) {
         auto *ocl_engine = new ocl_gpu_engine_t(device, context, index);
         if (!ocl_engine) return status::out_of_memory;
 
-        status_t status = ocl_engine->init();
+        status_t status = ocl_engine->init(cache_blob);
         if (status != status::success) {
             ocl_engine->release();
             return status;

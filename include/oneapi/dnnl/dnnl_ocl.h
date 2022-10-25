@@ -106,6 +106,63 @@ dnnl_status_t DNNL_API dnnl_ocl_interop_memory_get_mem_object(
 dnnl_status_t DNNL_API dnnl_ocl_interop_memory_set_mem_object(
         dnnl_memory_t memory, cl_mem mem_object);
 
+/// Retrieves a cache blob ID for the OpenCL device.
+///
+/// @warning
+///     This API is intended to be used with
+///     #dnnl_ocl_interop_engine_get_cache_blob() and
+///     #dnnl_ocl_interop_engine_create_from_cache_blob(). The returned cache
+///     blob ID can only be used as an ID of the cache blob returned by
+///     #dnnl_ocl_interop_engine_get_cache_blob().
+///
+/// @note The cache blob ID can be empty (@p size will be 0 and
+///     @p cache_blob_id will be nullptr) if oneDNN doesn't have anything to
+///     put in the cache blob. (#dnnl_ocl_interop_engine_get_cache_blob will
+///     return an empty cache blob).
+///
+/// @param device An OpenCL device.
+/// @param size Size of the cache blob ID in bytes.
+/// @param cache_blob_id Cache blob id of size @p size. If
+///     the @p cache_blob_id is nullptr then the size of the cache blob ID is
+///     returned in @p size.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ocl_interop_engine_get_cache_blob_id(
+        cl_device_id device, size_t *size, uint8_t *cache_blob_id);
+
+/// Retrieves a cache blob associated with the given engine.
+///
+/// @note The cache blob can be empty (@p size will be 0 and @p cache_blob
+///     will be nullptr) if oneDNN doesn't have anything to put in the cache
+///     blob. It's the user's responsibility to check whether it's empty
+///     prior to passing it to
+///     #dnnl_ocl_interop_engine_create_from_cache_blob().
+///
+/// @param engine Engine to query for the cache blob.
+/// @param size Size of the cache blob in bytes.
+/// @param cache_blob Cache blob of size @p size. If the @p cache_blob is
+///     nullptr then the size of the cache blob is returned in @p size.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ocl_interop_engine_get_cache_blob(
+        dnnl_engine_t engine, size_t *size, uint8_t *cache_blob);
+
+/// Creates an engine from the given cache blob.
+///
+/// @param engine Output engine.
+/// @param device The OpenCL device that this engine will encapsulate.
+/// @param context The OpenCL context (containing the device) that this
+///     engine will use for all operations.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+/// @param size Size of the cache blob in bytes.
+/// @param cache_blob Cache blob of size @p size.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ocl_interop_engine_create_from_cache_blob(
+        dnnl_engine_t *engine, cl_device_id device, cl_context context,
+        size_t size, const uint8_t *cache_blob);
+
 /// Creates an engine associated with an OpenCL device and an OpenCL context.
 ///
 /// @param engine Output engine.
