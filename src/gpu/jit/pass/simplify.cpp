@@ -1562,10 +1562,8 @@ public:
     object_t _mutate(const if_t &obj) override {
         auto cond = simplify(obj.cond);
 
-        if (is_const(cond)) {
-            if (to_cpp<bool>(cond)) return mutate(obj.body);
-            return mutate(obj.else_body);
-        }
+        if (all_of(cond, expr_t(true))) return mutate(obj.body);
+        if (all_of(cond, expr_t(false))) return mutate(obj.else_body);
 
         auto body = obj.body;
         if (!body.is_empty()) {
