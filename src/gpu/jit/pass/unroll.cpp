@@ -95,21 +95,21 @@ public:
         // No unrolling.
         if (_for.unroll == 1) return new_obj;
 
-        ir_assert(is_const(obj.init))
-                << "Can't unroll loop with non-const bound: " << obj.init;
-        ir_assert(is_const(obj.bound))
-                << "Can't unroll loop with non-const bound: " << obj.bound;
+        ir_assert(is_const(_for.init))
+                << "Can't unroll loop with non-const bound: " << _for.init;
+        ir_assert(is_const(_for.bound))
+                << "Can't unroll loop with non-const bound: " << _for.bound;
 
-        auto init = to_cpp<int>(obj.init);
-        auto bound = to_cpp<int>(obj.bound);
+        auto init = to_cpp<int>(_for.init);
+        auto bound = to_cpp<int>(_for.bound);
 
         ir_assert(_for.unroll == (bound - init))
                 << "Only full loop unroll is supported.";
 
         stmt_t ret;
         for (int i = init; i < bound; i++) {
-            auto iter_stmt
-                    = substitute(obj.body, obj.var, to_expr(i, obj.var.type()));
+            auto iter_stmt = substitute(
+                    _for.body, _for.var, to_expr(i, _for.var.type()));
             iter_stmt = rename_let_alloc(iter_stmt, i - init);
             ret = ret.append(iter_stmt);
         }
