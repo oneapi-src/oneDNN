@@ -175,84 +175,85 @@ struct scoped_tp_deactivation_t {
 // context because of threadpool as it uses different mecanisms in
 // both (in execution, tp is passed in stream)
 
-#define ALIAS_TO_RUN_IN_THR_CTX(name) \
-    template <typename F, class... Args_t> \
-    auto name(const thr_ctx_t &ctx, F &&f, Args_t &... args) \
-            ->decltype(run_in_thr_ctx<F, Args_t...>(ctx, f, args...)) { \
-        return run_in_thr_ctx<F, Args_t...>(ctx, f, args...); \
-    }
-
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ \
         || DNNL_TBB_THREADING_WITHOUT_CONSTRAINTS
-template <typename F, class... Args_t>
-auto run_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
-        -> decltype(f(args...)) {
 
-    THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type
-                    && ctx.max_concurrency == default_thr_ctx.max_concurrency
-                    && ctx.nthr_per_core == default_thr_ctx.nthr_per_core,
-            "Threading knobs not supported for this runtime: %s\n",
-            DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
-                    ? "sequential runtime has no threading"
-                    : "TBB version is too old (>=2021.2 required)");
+#define RUN_IN_THR_CTX(name) \
+    template <typename F, typename... Args_t> \
+    auto name(const thr_ctx_t &ctx, F &&f, Args_t &... args) \
+            ->decltype(f(args...)) { \
+\
+        THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type \
+                        && ctx.max_concurrency \
+                                == default_thr_ctx.max_concurrency \
+                        && ctx.nthr_per_core == default_thr_ctx.nthr_per_core, \
+                "Threading knobs not supported for this runtime: %s\n", \
+                DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ \
+                        ? "sequential runtime has no threading" \
+                        : "TBB version is too old (>=2021.2 required)"); \
+\
+        return f(args...); \
+    }
 
-    return f(args...);
-}
-
-ALIAS_TO_RUN_IN_THR_CTX(create_in_thr_ctx)
-ALIAS_TO_RUN_IN_THR_CTX(execute_in_thr_ctx)
+RUN_IN_THR_CTX(create_in_thr_ctx)
+RUN_IN_THR_CTX(execute_in_thr_ctx)
+#undef RUN_IN_THR_CTX
 
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
-template <typename F, class... Args_t>
-auto run_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
-        -> decltype(f(args...)) {
+#define RUN_IN_THR_CTX(name) \
+    template <typename F, typename... Args_t> \
+    auto name(const thr_ctx_t &ctx, F &&f, Args_t &... args) \
+            ->decltype(f(args...)) { \
+\
+        THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type, \
+                "core type %d is not supported for OMP runtime\n", \
+                ctx.core_type); \
+\
+        auto max_nthr = omp_get_max_threads(); \
+        omp_set_num_threads(ctx.max_concurrency); \
+        auto st = f(args...); \
+        omp_set_num_threads(max_nthr); \
+        return st; \
+    }
 
-    THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type,
-            "core type %d is not supported for OMP runtime\n", ctx.core_type);
-
-    auto max_nthr = omp_get_max_threads();
-    omp_set_num_threads(ctx.max_concurrency);
-    auto st = f(args...);
-    omp_set_num_threads(max_nthr);
-    return st;
-}
-
-ALIAS_TO_RUN_IN_THR_CTX(create_in_thr_ctx)
-ALIAS_TO_RUN_IN_THR_CTX(execute_in_thr_ctx)
+RUN_IN_THR_CTX(create_in_thr_ctx)
+RUN_IN_THR_CTX(execute_in_thr_ctx)
+#undef RUN_IN_THR_CTX
 
 #elif DNNL_TBB_THREADING_WITH_CONSTRAINTS
 #include "oneapi/tbb/info.h"
+#define RUN_IN_THR_CTX(name) \
+    template <typename F, typename... Args_t> \
+    auto name(const thr_ctx_t &ctx, F &&f, Args_t &... args) \
+            ->decltype(f(args...)) { \
+        static auto core_types = tbb::info:: \
+                core_types(); /* sorted by the relative strength       */ \
+\
+        if ((ctx.core_type != default_thr_ctx.core_type) \
+                && (ctx.core_type >= core_types.size())) \
+            printf("WARNING: TBB smallest core has index %lu. Using this " \
+                   "instead of %d.\n", \
+                    core_types.size() - 1, ctx.core_type); \
+        size_t core_type_id = ctx.core_type < core_types.size() \
+                ? ctx.core_type \
+                : core_types.size() - 1; \
+        static auto core_type = ctx.core_type == tbb::task_arena::automatic \
+                ? tbb::task_arena::automatic \
+                : core_types[core_type_id]; \
+        static auto arena = tbb::task_arena { \
+                tbb::task_arena::constraints {} \
+                        .set_core_type(core_type) \
+                        .set_max_threads_per_core(ctx.nthr_per_core) \
+                        .set_max_concurrency(ctx.max_concurrency)}; \
+        return arena.execute([&] { return f(args...); }); \
+    }
 
-template <typename F, class... Args_t>
-auto run_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
-        -> decltype(f(args...)) {
-    static auto core_types
-            = tbb::info::core_types(); // sorted by the relative strength
-
-    if ((ctx.core_type != default_thr_ctx.core_type)
-            && (ctx.core_type >= core_types.size()))
-        printf("WARNING: TBB smallest core has index %lu. Using this "
-               "instead of %d.\n",
-                core_types.size() - 1, ctx.core_type);
-    size_t core_type_id = ctx.core_type < core_types.size()
-            ? ctx.core_type
-            : core_types.size() - 1;
-    static auto core_type = ctx.core_type == tbb::task_arena::automatic
-            ? tbb::task_arena::automatic
-            : core_types[core_type_id];
-    static auto arena = tbb::task_arena {
-            tbb::task_arena::constraints {}
-                    .set_core_type(core_type)
-                    .set_max_threads_per_core(ctx.nthr_per_core)
-                    .set_max_concurrency(ctx.max_concurrency)};
-    return arena.execute([&] { return f(args...); });
-}
-
-ALIAS_TO_RUN_IN_THR_CTX(create_in_thr_ctx)
-ALIAS_TO_RUN_IN_THR_CTX(execute_in_thr_ctx)
+RUN_IN_THR_CTX(create_in_thr_ctx)
+RUN_IN_THR_CTX(execute_in_thr_ctx)
+#undef RUN_IN_THR_CTX
 
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-template <typename F, class... Args_t>
+template <typename F, typename... Args_t>
 auto create_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
         -> decltype(f(args...)) {
     THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type,
@@ -264,7 +265,7 @@ auto create_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
 }
 
 // The function f shall take an interop obj as last argument
-template <typename F, class... Args_t>
+template <typename F, typename... Args_t>
 auto execute_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
         -> decltype(f(args...)) {
     THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type,
