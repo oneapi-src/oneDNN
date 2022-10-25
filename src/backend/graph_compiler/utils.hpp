@@ -18,7 +18,10 @@
 
 #include <functional>
 #include <memory>
+#include <numeric>
 #include <vector>
+
+#include <interface/c_types_map.hpp>
 
 namespace dnnl {
 namespace graph {

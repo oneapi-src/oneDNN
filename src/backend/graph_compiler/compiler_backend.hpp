@@ -23,6 +23,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "backend/graph_compiler/utils.hpp"
 #include "interface/backend.hpp"
 #include "utils/pm/pass_manager.hpp"
 
