@@ -1762,7 +1762,7 @@ void init_allow_grf_reorder(conv_config_t &cfg) {
     }
 
     if (prb.is_bwd_w && cfg.is_dp_fma()) {
-        if (!use_a_2d_send) cfg.set_allow_a_grf_reorder(true);
+        cfg.set_allow_a_grf_reorder(true);
         if (!use_b_2d_send) cfg.set_allow_b_grf_reorder(true);
     }
 }
