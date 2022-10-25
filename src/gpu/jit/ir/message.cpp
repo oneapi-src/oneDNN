@@ -72,7 +72,9 @@ stmt_t send_t::create_offset_store(const expr_t &header_buf,
 }
 
 bool send_t::is_supported() const {
-    if (access_size() > 256) return false;
+    int max_access_size
+            = (is_2d() && !is_store_2d()) ? 32 * grf_size() : 8 * grf_size();
+    if (access_size() > max_access_size) return false;
 
     // Block messages imply one slot.
     if (is_block() && slots != 1) return false;
@@ -81,7 +83,7 @@ bool send_t::is_supported() const {
         return false;
 
     // owordx8 is max supported unless accessing SLM.
-    if (is_block() && !is_slm() && type.elems() > 8) return false;
+    if (type.is_oword() && !is_slm() && type.elems() > 8) return false;
 
     // hword is not supported with SLM.
     if (is_slm() && type.is_hword()) return false;
