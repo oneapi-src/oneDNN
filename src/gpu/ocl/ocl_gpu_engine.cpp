@@ -36,6 +36,10 @@ namespace gpu {
 namespace ocl {
 
 status_t ocl_gpu_engine_t::init() {
+    return init({});
+}
+
+status_t ocl_gpu_engine_t::init(const std::vector<uint8_t> &cache_blob) {
     cl_int err = CL_SUCCESS;
     err = clGetDeviceInfo(device_, CL_DEVICE_PLATFORM, sizeof(platform_),
             &platform_, nullptr);
@@ -65,7 +69,7 @@ status_t ocl_gpu_engine_t::init() {
     OCL_CHECK(err);
 
     CHECK(check_device(engine_kind::gpu, device_, context_));
-    compute::compute_engine_t::init();
+    compute::compute_engine_t::init(cache_blob);
 
     return status::success;
 }
@@ -309,8 +313,13 @@ std::function<void(void *)> ocl_gpu_engine_t::get_program_list_deleter() const {
 }
 
 status_t ocl_gpu_engine_t::init_device_info() {
+    return init_device_info({});
+}
+
+status_t ocl_gpu_engine_t::init_device_info(
+        const std::vector<uint8_t> &cache_blob) {
     device_info_ = std::make_shared<ocl_gpu_device_info_t>();
-    CHECK(device_info_->init(this));
+    CHECK(device_info_->init(this, cache_blob));
     return status::success;
 }
 

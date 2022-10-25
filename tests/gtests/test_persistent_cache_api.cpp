@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,10 @@
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.hpp"
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "oneapi/dnnl/dnnl_ocl.hpp"
+#endif
 
 namespace dnnl {
 
@@ -59,5 +63,37 @@ HANDLE_EXCEPTIONS_FOR_TEST(
         ASSERT_EQ(cache_blob, p.get_cache_blob());
     }
 }
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+HANDLE_EXCEPTIONS_FOR_TEST(
+        persistent_cache_api_test_t, TestPersistentCacheAPIEngine) {
+    using namespace dnnl::ocl_interop;
+    engine test_engine = get_test_engine();
+
+    if (get_test_engine_kind() != engine::kind::gpu) {
+        ASSERT_ANY_THROW(get_engine_cache_blob(test_engine));
+        return;
+    }
+
+    std::vector<uint8_t> cache_blob;
+    std::vector<uint8_t> cache_blob_id;
+
+    ASSERT_NO_THROW(cache_blob = get_engine_cache_blob(test_engine));
+    ASSERT_NO_THROW(
+            cache_blob_id = get_engine_cache_blob_id(get_device(test_engine)));
+
+    ASSERT_EQ(get_engine_cache_blob(test_engine), cache_blob);
+    ASSERT_EQ(get_engine_cache_blob_id(get_device(test_engine)), cache_blob_id);
+
+    ASSERT_TRUE(!cache_blob.empty());
+    ASSERT_TRUE(!cache_blob_id.empty());
+
+    auto eng = make_engine(
+            get_device(test_engine), get_context(test_engine), cache_blob);
+
+    ASSERT_EQ(get_engine_cache_blob(eng), cache_blob);
+    ASSERT_EQ(get_engine_cache_blob_id(get_device(eng)), cache_blob_id);
+}
+#endif
 
 } // namespace dnnl
