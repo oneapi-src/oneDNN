@@ -21,6 +21,7 @@
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <compiler/ir/transform/constant_fold.hpp>
 
 namespace sc {
 
@@ -130,7 +131,8 @@ void padding_op_t::infer_slice_ranges(
         ranges_list[i] = known_ranges_map[0][i];
         for (size_t j = 0; j < pads_begin.size(); ++j) {
             auto &len = ranges_list[i][j + spatial_dims_offset].second;
-            len = len + static_cast<int>(pads_begin[j] + pads_end[j]);
+            len = do_cast_and_fold(
+                    len + static_cast<int>(pads_begin[j] + pads_end[j]));
         }
     }
     fsmap.get(get_outputs()[0]) = std::move(ranges_list);
