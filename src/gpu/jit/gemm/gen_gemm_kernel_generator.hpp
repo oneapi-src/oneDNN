@@ -108,11 +108,11 @@ public:
 
     template <typename U>
     constexpr friend int operator*(U a, Type t) {
-        return a << t.log2Size();
+        return int(a << t.log2Size());
     }
     template <typename U>
     constexpr friend int operator/(U a, Type t) {
-        return a >> t.log2Size();
+        return int(a >> t.log2Size());
     }
 
     ngen::DataType ngen() const {
