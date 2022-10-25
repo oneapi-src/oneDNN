@@ -275,57 +275,46 @@ static impl::status_t maxpool_bwd_handler(
     diff_dst_value->add_consumer(*maxpool_bwd, 0);
     maxpool_bwd->add_input(diff_dst_value);
 
-    if (cur_op->num_inputs() > 2) {
-        // with indices. we can use the indices directly instead of
-        // re-computing it
-        auto indices_value = cur_op->get_input_value(2);
-        indices_value->remove_consumer(*cur_op, 2);
-        indices_value->add_consumer(*maxpool_bwd, 1);
-        maxpool_bwd->add_input(indices_value);
-    } else {
-        // no indices. we need to insert a maxpool fwd to re-compute the
-        // indices from src
-        op_ptr maxpool_fwd = std::make_shared<op_t>(op_kind::dnnl_pool);
-        maxpool_fwd->merge_attributes(cur_op->get_attributes());
-        maxpool_fwd->set_attr<std::string>(op_attr::kind, "maxpool");
+    // no indices. we need to insert a maxpool fwd to re-compute the
+    // indices from src
+    op_ptr maxpool_fwd = std::make_shared<op_t>(op_kind::dnnl_pool);
+    maxpool_fwd->merge_attributes(cur_op->get_attributes());
+    maxpool_fwd->set_attr<std::string>(op_attr::kind, "maxpool");
 
-        // connect src value to fwd op
-        auto src_value = cur_op->get_input_value(0);
-        src_value->remove_consumer(*cur_op, 0);
-        src_value->add_consumer(*maxpool_fwd, 0);
-        maxpool_fwd->add_input(src_value);
+    // connect src value to fwd op
+    auto src_value = cur_op->get_input_value(0);
+    src_value->remove_consumer(*cur_op, 0);
+    src_value->add_consumer(*maxpool_fwd, 0);
+    maxpool_fwd->add_input(src_value);
 
-        // create dst value for fwd op
-        // this might be an extra end edge since no consumers
-        logical_tensor_t maxpool_fwd_dst
-                = impl::empty_logical_tensor_with_default_id();
-        maxpool_fwd_dst.data_type = src_value->get_logical_tensor().data_type;
-        value_ptr maxpool_fwd_dst_value
-                = std::make_shared<value_t>(*maxpool_fwd, 0, maxpool_fwd_dst);
-        maxpool_fwd->add_output(maxpool_fwd_dst_value);
+    // create dst value for fwd op
+    // this might be an extra end edge since no consumers
+    logical_tensor_t maxpool_fwd_dst
+            = impl::empty_logical_tensor_with_default_id();
+    maxpool_fwd_dst.data_type = src_value->get_logical_tensor().data_type;
+    value_ptr maxpool_fwd_dst_value
+            = std::make_shared<value_t>(*maxpool_fwd, 0, maxpool_fwd_dst);
+    maxpool_fwd->add_output(maxpool_fwd_dst_value);
 
-        // create scratchpad value for fwd op
-        insert_empty_scratchpad(maxpool_fwd);
+    // create scratchpad value for fwd op
+    insert_empty_scratchpad(maxpool_fwd);
 
-        // create ws value for fwd op
-        logical_tensor_t maxpool_fwd_ws
-                = impl::empty_logical_tensor_with_default_id();
-        value_ptr maxpool_fwd_ws_value
-                = std::make_shared<value_t>(*maxpool_fwd, 2, maxpool_fwd_ws);
-        maxpool_fwd->add_output(maxpool_fwd_ws_value);
+    // create ws value for fwd op
+    logical_tensor_t maxpool_fwd_ws
+            = impl::empty_logical_tensor_with_default_id();
+    value_ptr maxpool_fwd_ws_value
+            = std::make_shared<value_t>(*maxpool_fwd, 2, maxpool_fwd_ws);
+    maxpool_fwd->add_output(maxpool_fwd_ws_value);
 
-        // connect forward op's ws value to bwd op
-        maxpool_fwd_ws_value->add_consumer(*maxpool_bwd, 1);
-        maxpool_bwd->add_input(maxpool_fwd_ws_value);
+    // connect forward op's ws value to bwd op
+    maxpool_fwd_ws_value->add_consumer(*maxpool_bwd, 1);
+    maxpool_bwd->add_input(maxpool_fwd_ws_value);
 
-        rewriter.to_insert(maxpool_fwd);
-    }
+    rewriter.to_insert(maxpool_fwd);
 
     // connect the forward src as the dnnl_pool_bwd op's 3rd input (used
     // to store the logical tensor which will be converted to a md to
     // create the forward hint)
-    auto src_value = cur_op->get_input_value(0);
-    src_value->remove_consumer(*cur_op, 0);
     src_value->add_consumer(*maxpool_bwd, 2);
     maxpool_bwd->add_input(src_value);
 
