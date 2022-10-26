@@ -253,6 +253,13 @@ struct arg_scales_t : public c_compatible {
         return status::success;
     }
 
+    status_t reset(int arg) {
+        if (!check_arg(arg)) return status::invalid_arguments;
+        const auto it = scales_.find(arg);
+        if (it != scales_.end()) scales_.erase(it);
+        return status::success;
+    }
+
     bool defined() const { return has_default_values(); }
 
     status_t copy_from(const arg_scales_t &other) {
