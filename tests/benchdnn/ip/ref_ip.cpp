@@ -41,17 +41,21 @@ void compute_ref_fwd_ip(const prb_t *prb, const args_t &args) {
         float &dst = ((float *)dst_m)[dst_off];
 
         float d = ((float *)dst_tmp)[dst_off];
+
+        maybe_scale(prb->attr, d, prb->src_scales, 0, DNNL_ARG_SRC);
+        maybe_scale(prb->attr, d, prb->wei_scales, oc, DNNL_ARG_WEIGHTS);
+
         if (prb->dir & FLAG_BIA) {
             size_t bia_off = bia_off_f(prb, oc);
             d += ((float *)bia_m)[bia_off];
         }
-        maybe_oscale(prb->attr, d, prb->scales, oc);
 
         const auto v_po_vals
                 = prepare_po_vals(dst_m, args, v_po_masks, dst_off);
 
         maybe_post_ops(prb->attr, d, dst, v_po_vals);
 
+        maybe_scale(prb->attr, d, prb->dst_scales, oc, DNNL_ARG_DST, true);
         dst = d;
     });
 }

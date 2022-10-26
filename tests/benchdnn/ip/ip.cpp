@@ -46,7 +46,6 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             2, prb->dst_dims().data(), prb->cfg[DST].dt, prb->dtag);
 
     attr_args_t attr_args;
-    attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
     attr_args.prepare_post_ops_mds(prb->attr, 2, prb->dst_dims().data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
@@ -299,9 +298,24 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t bia_dt(bia_md, test_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
-    dnn_mem_t scales_dt, scales_fp;
-    maybe_prepare_runtime_scales_v2(
-            scales_dt, scales_fp, prb->attr.oscale, prb->oc, prb->scales);
+    dnn_mem_t src_scales_dt, src_scales_fp;
+    dnn_mem_t wei_scales_dt, wei_scales_fp;
+    dnn_mem_t dst_scales_dt, dst_scales_fp;
+    const int src_mask = attr_t::get_default_mask(
+            prb->attr.scales.get(DNNL_ARG_SRC).policy);
+    const int wei_mask = attr_t::get_default_mask(
+            prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy, DNNL_ARG_WEIGHTS);
+    const int dst_mask = attr_t::get_default_mask(
+            prb->attr.scales.get(DNNL_ARG_DST).policy);
+    maybe_prepare_runtime_scales_v2(src_scales_dt, src_scales_fp,
+            prb->attr.scales.get(DNNL_ARG_SRC),
+            prb->desc_nelems(DNNL_ARG_SRC, src_mask), prb->src_scales);
+    maybe_prepare_runtime_scales_v2(wei_scales_dt, wei_scales_fp,
+            prb->attr.scales.get(DNNL_ARG_WEIGHTS),
+            prb->desc_nelems(DNNL_ARG_WEIGHTS, wei_mask), prb->wei_scales);
+    maybe_prepare_runtime_scales_v2(dst_scales_dt, dst_scales_fp,
+            prb->attr.scales.get(DNNL_ARG_DST),
+            prb->desc_nelems(DNNL_ARG_DST, dst_mask), prb->dst_scales);
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
@@ -332,7 +346,9 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales_dt);
+        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_dt);
+        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_scales_dt);
+        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_dt);
         args.set(binary_po_args, binary_po_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
@@ -344,7 +360,10 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
-            ref_args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales_fp);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_dt);
+            ref_args.set(
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_scales_dt);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_dt);
 
             check_correctness(
                     prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);
