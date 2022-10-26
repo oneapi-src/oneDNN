@@ -1495,6 +1495,20 @@ void init_blocking(conv_config_t &cfg) {
         if (!thread_group_dims.is_overridden())
             thread_group_dims.set(name, d.tg_dim());
         if (!loop_dims.is_overridden()) loop_dims.set(name, d.loop_dim());
+        if (cfg.shrink_tg_dims()) {
+            int dim = cfg.dim(name);
+            int iter = cfg.iter_dim(name);
+            int tg = cfg.thread_group_dim(name);
+            int loop = cfg.loop_dim(name);
+            int pad_blk = cfg.pad_block(name);
+            while (tg > 1) {
+                int padded = utils::rnd_up(
+                        dim, math::lcm(iter * tg * loop, pad_blk));
+                if (dim * 2 > padded) break;
+                tg = std::max(1, tg / 2);
+            }
+            cfg.thread_group_dims().set(name, tg);
+        }
     }
 }
 

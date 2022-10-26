@@ -695,6 +695,16 @@ public:
     std::string desc() const override { return "Loop-level dimension blocks."; }
 };
 
+class shrink_tg_dims_param_t : public bool_param_t {
+public:
+    shrink_tg_dims_param_t() : bool_param_t(false) {}
+    std::string name() const override { return "shrink-tg-dims"; }
+    std::string short_name() const override { return "stg"; }
+    std::string desc() const override {
+        return "Whether to adjust tile sizes depending on batch size.";
+    }
+};
+
 class ow_kw_grf_cache_param_t : public bool_param_t {
 public:
     ow_kw_grf_cache_param_t() : bool_param_t(false) {}
@@ -1016,6 +1026,7 @@ public:
     DECL_PARAM(reduce_b)
     DECL_PARAM(reduce_grf_usage)
     DECL_PARAM(send_2d_nhwc)
+    DECL_PARAM(shrink_tg_dims)
     DECL_PARAM(thread_group_grid)
     DECL_PARAM2(bia_layout)
     DECL_PARAM2(dims)
@@ -1218,6 +1229,7 @@ private:
     INIT_PARAM(reduce_b)
     INIT_PARAM(reduce_grf_usage)
     INIT_PARAM(send_2d_nhwc)
+    INIT_PARAM(shrink_tg_dims)
     INIT_PARAM(slm)
     INIT_PARAM(src_layout)
     INIT_PARAM(subtiles)
