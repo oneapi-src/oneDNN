@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
+#include "common/primitive_attr.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -31,7 +32,7 @@ void book_precomputed_scales(memory_tracking::registrar_t &scratchpad,
 // If both src_scales and wei_scales are set, returns a scratchpad memory that
 // contains src_scale * wei_scale as a dequantization scale.
 const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
-        const float *src_scales, const float *wei_scales, size_t oc,
+        const float *src_scales, const float *wei_scales, dim_t oc,
         const primitive_attr_t *attr);
 
 } // namespace cpu

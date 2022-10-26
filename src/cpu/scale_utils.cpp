@@ -47,7 +47,7 @@ void book_precomputed_scales(memory_tracking::registrar_t &scratchpad,
 }
 
 const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
-        const float *src_scales, const float *wei_scales, size_t oc,
+        const float *src_scales, const float *wei_scales, dim_t oc,
         const primitive_attr_t *attr) {
     using namespace dnnl::impl::memory_tracking::names;
 
@@ -56,7 +56,7 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
     bool with_wei_scales
             = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
     int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-    size_t wei_scale_count = wei_scale_mask == 0 ? 1 : oc;
+    dim_t wei_scale_count = wei_scale_mask == 0 ? 1 : oc;
 
     const float *scales = nullptr;
     if (with_src_scales && with_wei_scales) {
@@ -67,7 +67,7 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
                     loc_scales, src_scales[0] * wei_scales[0], scales_simd_w);
         } else {
             PRAGMA_OMP_SIMD()
-            for (size_t c = 0; c < wei_scale_count; c++)
+            for (dim_t c = 0; c < wei_scale_count; c++)
                 loc_scales[c] = src_scales[0] * wei_scales[c];
         }
         scales = loc_scales;
