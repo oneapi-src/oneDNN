@@ -3985,6 +3985,13 @@ ITT_STUBV(ITTAPI, void, histogram_submit, (__itt_histogram* hist, size_t length,
 * @return collection state as a enum __itt_collection_state
 */
 __itt_collection_state __itt_get_collection_state(void);
+
+/**
+* @brief function releases resources allocated by ITT API static part
+* this API should be called from the library destructor
+* @return void
+*/
+void __itt_release_resources(void);
 /** @endcond */
 
 #ifdef __cplusplus

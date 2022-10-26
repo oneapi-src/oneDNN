@@ -29,13 +29,10 @@ static const char rcsid[] = "\n@(#) $Revision$\n";
 #endif /* NEW_DLL_ENVIRONMENT_VAR */
 
 #if ITT_PLATFORM==ITT_PLATFORM_WIN
-#define DEFAULT_DLLNAME                 "JitPI.dll"
 HINSTANCE m_libHandle = NULL;
 #elif ITT_PLATFORM==ITT_PLATFORM_MAC
-#define DEFAULT_DLLNAME                 "libJitPI.dylib"
 void* m_libHandle = NULL;
 #else
-#define DEFAULT_DLLNAME                 "libJitPI.so"
 void* m_libHandle = NULL;
 #endif /* ITT_PLATFORM==ITT_PLATFORM_WIN */
 
@@ -205,18 +202,6 @@ static int loadiJIT_Funcs()
         }
     }
 #endif /* ITT_PLATFORM==ITT_PLATFORM_WIN */
-
-    if (!m_libHandle)
-    {
-#if ITT_PLATFORM==ITT_PLATFORM_WIN
-        m_libHandle = LoadLibraryA(DEFAULT_DLLNAME);
-#else  /* ITT_PLATFORM==ITT_PLATFORM_WIN */
-        if (DL_SYMBOLS)
-        {
-            m_libHandle = dlopen(DEFAULT_DLLNAME, RTLD_LAZY);
-        }
-#endif /* ITT_PLATFORM==ITT_PLATFORM_WIN */
-    }
 
     /* if the dll wasn't loaded - exit. */
     if (!m_libHandle)
