@@ -316,7 +316,7 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   // Note: os blocking is only valid for non_1x1, no pad and non 3D conv with
   // amx-int8 only so far.
   bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
-  try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8;
+  try_os_blocking_ = (!is_1x1_conv_) && !has_pad && (!is_3d_) && is_int8;
 }
 
 float gen_conv_fwd_t::get_gflop() const {
@@ -363,7 +363,9 @@ void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
   assert(loops.size() == 4 && "expected to have 4 level loops!");
   for_loop &ln = loops.at(0), &lk = loops.at(1), &ld = loops.at(2),
            &lp = loops.at(3);
-  _named_for_(ln, n, 0, mb_, 1, for_type::PARALLEL) {
+  auto input_expr_dims = input.checked_as<tensor>()->dims_;
+  auto mb_expr_ = input_expr_dims[0];
+  _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
     _named_for_(lk, k, 0, K_num_block) {
       _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
         _named_for_(ld, d_o, 0, od_ / config.tile_d) {
@@ -507,6 +509,13 @@ void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
         }
       }
     }
+    if (fusion) {
+      fusion->create_output_fusion_anchor({tensor_slice(output,
+        blocking_output_
+          ? slice_range {{n, 1}, {0, K_num_block}, {0, oh_}, {0, ow_},
+            {0, config.K_block}}
+          : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, oc_}})});
+    }
   }
 }
 
@@ -516,12 +525,14 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
   for_loop &ln = loops.at(0), &lk = loops.at(1), &ld = loops.at(2),
            &lp = loops.at(3);
   tensor input1;
+  auto input_expr_dims = input.checked_as<tensor>()->dims_;
+  auto mb_expr_ = input_expr_dims[0];
   int lanes = get_lanes(ctx, config.C_block, get_input_dtype());
   if (config.pack_input == 1 && (sd_ > 1 || sh_ > 1 || sw_ > 1)) {
     if (blocking_input_) {
       _tensor_(input_tmp, get_input_dtype(),
         {mb_, C_num_block, oh_, ow_, config.C_block});
-      _named_for_(ln, n, 0, mb_, 1, for_type::PARALLEL) {
+      _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
         _named_for_(lk, c_o, 0, C_num_block) {
           _named_for_(lp, p, 0, oh_) {
             _for_(q, 0, ow_) {
@@ -540,7 +551,7 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
       input1 = input_tmp.static_as<tensor>();
     } else {
       _tensor_(input_tmp, get_input_dtype(), {mb_, oh_, ow_, ic_});
-      _named_for_(ln, n, 0, mb_, 1, for_type::PARALLEL) {
+      _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
         _named_for_(lp, p, 0, oh_) {
           _for_(q, 0, ow_) {
             _for_(c_i, 0, ic_, (int)lanes) {
@@ -556,7 +567,7 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
   } else {
     input1 = input.static_as<tensor>();
   }
-  _named_for_(ln, n, 0, mb_, 1, for_type::PARALLEL) {
+  _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
     _named_for_(lk, k, 0, K_num_block) {
       _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
         auto LDA = blocking_input_ ? config.C_block : ic_;
@@ -611,6 +622,13 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
                                 {k * config.K_block, config.K_block}})});
       }
     }
+    if (fusion) {
+      fusion->create_output_fusion_anchor({tensor_slice(output,
+        blocking_output_
+          ? slice_range {{n, 1}, {0, K_num_block}, {0, oh_}, {0, ow_},
+            {0, config.K_block}}
+          : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, oc_}})});
+    }
   }
 }
 
@@ -623,8 +641,9 @@ void gen_conv_fwd_t::compute_conv3d_no_padding(CONV_ARG_LIST) const {
 
   auto LDA = blocking_input_ ? sw_ * config.C_block : sw_ * ic_;
   auto LDC = blocking_output_ ? config.K_block : oc_;
-
-  _named_for_(ln, n, 0, mb_, 1, for_type::PARALLEL) {
+  auto input_expr_dims = input.checked_as<tensor>()->dims_;
+  auto mb_expr_ = input_expr_dims[0];
+  _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
     _named_for_(lk, k_o, 0, K_num_block) {
       _named_for_(ld, d_o, 0, od_ / config.tile_d) {
         _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
@@ -706,6 +725,13 @@ void gen_conv_fwd_t::compute_conv3d_no_padding(CONV_ARG_LIST) const {
         }
       }
     }
+    if (fusion) {
+      fusion->create_output_fusion_anchor({tensor_slice(output,
+        blocking_output_
+          ? slice_range {{n, 1}, {0, K_num_block}, {0, oh_}, {0, ow_},
+            {0, config.K_block}}
+          : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, oc_}})});
+    }
   }
 }
 
@@ -717,8 +743,9 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
            &lp = loops.at(3);
   auto LDA = blocking_input_ ? sw_ * config.C_block : sw_ * ic_;
   auto LDC = blocking_output_ ? config.K_block : oc_;
-
-  _named_for_(ln, n, 0, mb_, 1, for_type::PARALLEL) {
+  auto input_expr_dims = input.checked_as<tensor>()->dims_;
+  auto mb_expr_ = input_expr_dims[0];
+  _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
     _named_for_(lk, k_o, 0, K_num_block) {
       if (use_os_blocking) {
         _named_for_(lp, o_o, 0, os / config.tile_os) {
@@ -865,6 +892,13 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
         }
       }
     }
+    if (fusion) {
+      fusion->create_output_fusion_anchor({tensor_slice(output,
+        blocking_output_
+          ? slice_range {{n, 1}, {0, K_num_block}, {0, oh_}, {0, ow_},
+            {0, config.K_block}}
+          : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, oc_}})});
+    }
   }
 }
 
@@ -942,8 +976,9 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
       }
     }
   }
-
-  _named_for_(ln, n, 0, mb_, 1, for_type::PARALLEL) {
+  auto input_expr_dims = input.checked_as<tensor>()->dims_;
+  auto mb_expr_ = input_expr_dims[0];
+  _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
     _named_for_(lk, k_o, 0, K_num_block) {
       _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
         _tensor_(A_list, datatypes::pointer, {kh_});
@@ -1226,7 +1261,6 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   auto dtypeOutput = get_output_dtype();
 
   const int src_row_tile_size = (config.tile_q - 1) * sw_ + kw_;
-
   /** calculate the unpadded point of spatial space in output tensor
    *   +-----------------------+
    *   |p p p p ...    p p p p |

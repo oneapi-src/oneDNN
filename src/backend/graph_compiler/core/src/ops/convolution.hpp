@@ -55,14 +55,7 @@ public:
     void collect_shrinked_axes_map(
             int bw_size, gt2axes_map &bw_axes_map) override;
     void infer_slice_ranges(
-            fslice_map &fsmap, infer_status_map_t &stat_map) override {
-        /** TODO(XXX)
-         * Please override this function, if planned to support commiting
-         * convolution op like fusible op. Meanwhile, it is also required to
-         * refactor current template implementation to tensor-slice based.
-         * */
-        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
-    }
+            fslice_map &fsmap, infer_status_map_t &stat_map) override;
 
 private:
     int ndims_ = 0;

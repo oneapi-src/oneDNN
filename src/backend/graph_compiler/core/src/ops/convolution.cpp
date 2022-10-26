@@ -47,7 +47,66 @@ sc_data_type_t conv_fwd_core_op_t::infer_out_dtype(
         return datatypes::f32;
     }
 }
+void conv_fwd_core_op_t::infer_slice_ranges(
+        fslice_map &fsmap, infer_status_map_t &stat_map) {
+    slice_range_map known_ranges_map
+            = search_known_slice_ranges(this, fsmap, stat_map);
+    // assume input is known
+    if (known_ranges_map[0].empty() && known_ranges_map[1].empty()) {
+        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+        return;
+    }
+    auto inp_plain_size = get_inputs()[0]->details_.get_plain_dims().size(),
+         wei_plain_size = get_inputs()[1]->details_.get_plain_dims().size();
+    auto inp_dims = get_inputs()[0]->details_.get_blocking_dims(),
+         wei_dims = get_inputs()[1]->details_.get_blocking_dims(),
+         out_dims = get_outputs()[0]->details_.get_blocking_dims();
 
+    slice_range inp_slice, wei_slice, out_slice;
+    if (!known_ranges_map[0].empty()) {
+        slice_range inp_tmp;
+        inp_tmp = known_ranges_map[0][0];
+        std::vector<int> required_axes;
+        for (unsigned i = 1; i < inp_dims.size(); i++) {
+            required_axes.emplace_back(i);
+        }
+        if (!slice_full_on_axes(inp_dims, inp_tmp, required_axes)) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+        inp_slice.emplace_back(known_ranges_map[0][0][0]);
+        out_slice.emplace_back(known_ranges_map[0][0][0]);
+    } else {
+        inp_slice.emplace_back(
+                std::make_pair(expr(0), dim2unsigned(inp_dims[0])));
+    }
+    if (!known_ranges_map[1].empty()) {
+        auto wei_slice = known_ranges_map[1][0];
+        std::vector<int> required_axes;
+        for (unsigned i = 0; i < wei_dims.size(); i++) {
+            required_axes.emplace_back(i);
+        }
+        if (!slice_full_on_axes(wei_dims, wei_slice, required_axes)) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+    }
+    for (unsigned i = 1; i < inp_dims.size(); i++) {
+        inp_slice.emplace_back(
+                std::make_pair(expr(0), dim2unsigned(inp_dims[i])));
+    }
+    for (unsigned i = 0; i < wei_dims.size(); i++) {
+        wei_slice.emplace_back(
+                std::make_pair(expr(0), dim2unsigned(wei_dims[i])));
+    }
+    for (unsigned i = 1; i < out_dims.size(); i++) {
+        out_slice.emplace_back(
+                std::make_pair(expr(0), dim2unsigned(out_dims[i])));
+    }
+    fsmap.get(get_inputs()[0]) = slice_range_list {inp_slice};
+    fsmap.get(get_inputs()[1]) = slice_range_list {wei_slice};
+    fsmap.get(get_outputs()[0]) = slice_range_list {out_slice};
+}
 void conv_fwd_core_op_t::infer_out_tensor_details() {
     auto &cur_plain_dims = info_.outputs_[0]->details_.get_plain_dims();
     auto &indims = info_.inputs_[0]->details_.get_plain_dims();
