@@ -23,25 +23,34 @@ namespace self {
 static int check_bool_operator() {
     dnnl_dim_t dims {1};
     auto md = dnn_mem_t::init_md(1, &dims, dnnl_f32, tag::abx);
+    auto md0 = dnn_mem_t::init_md(0, &dims, dnnl_f32, tag::abx);
     {
         dnn_mem_t m;
-        if (m) return FAIL;
+        SELF_CHECK_EQ(bool(m), false);
     }
     {
         dnn_mem_t m(md, get_test_engine());
-        if (!m) return FAIL;
+        SELF_CHECK_EQ(bool(m), true);
+        dnn_mem_t n(md0, get_test_engine());
+        SELF_CHECK_EQ(bool(n), false);
     }
     {
         dnn_mem_t m(1, &dims, dnnl_f32, tag::abx, get_test_engine());
-        if (!m) return FAIL;
+        SELF_CHECK_EQ(bool(m), true);
+        dnn_mem_t n(0, &dims, dnnl_f32, tag::abx, get_test_engine());
+        SELF_CHECK_EQ(bool(n), false);
     }
     {
         dnn_mem_t m(1, &dims, dnnl_f32, &dims /* strides */, get_test_engine());
-        if (!m) return FAIL;
+        SELF_CHECK_EQ(bool(m), true);
+        dnn_mem_t n(0, &dims, dnnl_f32, &dims /* strides */, get_test_engine());
+        SELF_CHECK_EQ(bool(n), false);
     }
     {
         dnn_mem_t m(md, dnnl_f32, tag::abx, get_test_engine());
-        if (!m) return FAIL;
+        SELF_CHECK_EQ(bool(m), true);
+        dnn_mem_t n(md0, dnnl_f32, tag::abx, get_test_engine());
+        SELF_CHECK_EQ(bool(n), false);
     }
     return OK;
 }
