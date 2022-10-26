@@ -68,18 +68,21 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         float &dst = ((float *)dst_m)[dst_off];
 
         float tmp = ((float *)dst_tmp)[dst_off];
+        maybe_scale(prb->attr, tmp, prb->src_scales, 0, DNNL_ARG_SRC);
+        maybe_scale(prb->attr, tmp, prb->wei_scales, n, DNNL_ARG_WEIGHTS);
+
         if (prb->bia_dt != dnnl_data_type_undef) {
             int64_t bia_off = dst_m.get_scale_idx(dst_off, bias_broadcast_mask);
             float *bia_ptr = (float *)bia_m;
             tmp += bia_ptr[bia_off];
         }
-        maybe_oscale(prb->attr, tmp, prb->scales, n);
 
         const auto v_po_vals
                 = prepare_po_vals(dst_m, args, v_po_masks, dst_off);
 
         maybe_post_ops(prb->attr, tmp, dst, v_po_vals);
 
+        maybe_scale(prb->attr, tmp, prb->dst_scales, n, DNNL_ARG_DST, true);
         maybe_zero_point(prb->attr, tmp, prb->dst_zp, n, DNNL_ARG_DST, true);
         dst = tmp;
     });
