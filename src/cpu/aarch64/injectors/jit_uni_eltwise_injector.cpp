@@ -40,14 +40,14 @@ bool is_alg_supported(alg_kind_t alg) {
     using namespace alg_kind;
     return utils::one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-            /*eltwise_soft_relu,*/
-            eltwise_logistic, /*eltwise_mish,*/ eltwise_exp, eltwise_gelu_tanh,
-            /*eltwise_hardswish,*/ eltwise_swish, eltwise_log, eltwise_clip,
-            /*eltwise_clip_v2, eltwise_pow,*/ eltwise_gelu_erf, eltwise_round,
+            eltwise_soft_relu, eltwise_logistic, eltwise_mish, eltwise_exp,
+            eltwise_gelu_tanh, eltwise_hardsigmoid, eltwise_hardswish,
+            eltwise_swish, eltwise_log, eltwise_clip, eltwise_clip_v2,
+            /*eltwise_pow, */ eltwise_gelu_erf, eltwise_round,
             eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
             eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
-            eltwise_logistic_use_dst_for_bwd,
-            eltwise_exp_use_dst_for_bwd /*, eltwise_clip_v2_use_dst_for_bwd*/);
+            eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd,
+            eltwise_clip_v2_use_dst_for_bwd);
 }
 
 bool is_supported(cpu_isa_t isa, alg_kind_t alg) {
@@ -97,32 +97,19 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
     h->ptrue(p_all.b);
 
     if (save_state_) {
-        h->str(x_table, pre_ptr(h->X_SP, -8));
+        const int reg_size = h->x0.getBit() / 8;
+        if (preserve_p_table_) h->str(x_table, pre_ptr(h->X_SP, -reg_size));
+        for (size_t i = 0; i < preserved_gprs_count; ++i)
+            h->str(XReg(preserved_gpr_idxs[i]), pre_ptr(h->X_SP, -reg_size));
 
-        for (size_t i = 0; i < preserved_gprs_count; ++i) {
-            /* This route has not been tested */
-            h->str(XReg(preserved_gpr_idxs[i]), pre_ptr(h->X_SP, -8));
+        if (preserve_vmm_) {
+            if (preserved_vecs_count)
+                h->sub_imm(h->X_SP, h->X_SP, preserved_vecs_count * vlen,
+                        h->X_TMP_0);
+            for (size_t i = 0; i < preserved_vecs_count; ++i)
+                h->str(ZReg(preserved_vec_idxs[i]), ptr(h->X_SP, i, MUL_VL));
         }
 
-        if (preserved_vecs_count)
-            h->sub_imm(
-                    h->X_SP, h->X_SP, preserved_vecs_count * vlen, h->X_TMP_0);
-
-        size_t i = 0;
-
-        while (i < preserved_vecs_count) {
-            int count = 0;
-            int ii = i;
-            do {
-                h->add_imm(h->x_tmp_vec[count++], h->X_SP, i * vlen,
-                        h->X_DEFAULT_ADDR);
-                i++;
-            } while (i < preserved_vecs_count && count < h->x_tmp_vec_size);
-
-            for (int j = 0; j < count; j++)
-                h->st1w(ZRegS(preserved_vec_idxs[ii++]), p_all,
-                        ptr(h->x_tmp_vec[j]));
-        }
         load_table_addr();
     }
 
@@ -139,49 +126,21 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble_tail(
     const int idx_off = vecs_to_preserve - tail_vecs_to_preserve;
 
     if (save_state_) {
-        /* This route has not been tested */
         if (idx_off) h->add_imm(h->X_SP, h->X_SP, idx_off * vlen, h->X_TMP_0);
 
-        size_t i = 0;
-
-        while (i < tail_vecs_to_preserve) {
-            int count = 0;
-            int ii = i;
-            do {
-                h->add_imm(h->x_tmp_vec[count++], h->X_SP, i * vlen,
-                        h->X_DEFAULT_ADDR);
-                i++;
-            } while (i < tail_vecs_to_preserve && count < h->x_tmp_vec_size);
-
-            for (int j = 0; j < count; j++)
-                h->ld1w(ZRegS(preserved_vec_idxs[idx_off + ii++]), p_all / T_z,
-                        ptr(h->x_tmp_vec[j]));
-        }
+        for (size_t i = 0; i < tail_vecs_to_preserve; ++i)
+            h->ldr(ZReg(preserved_vec_idxs[idx_off + i]),
+                    ptr(h->X_SP, i, MUL_VL));
     }
 
     for (size_t i = 0; i < tail_vecs_to_preserve; ++i)
         preserved_vec_idxs[idx_off + i] += tail_vecs_to_preserve;
 
-    if (save_state_) {
-        size_t i = 0;
+    if (save_state_ && preserve_vmm_) {
+        for (size_t i = 0; i < tail_vecs_to_preserve; ++i)
+            h->str(ZReg(idx_off + i), ptr(h->X_SP, i, MUL_VL));
 
-        while (i < tail_vecs_to_preserve) {
-            int count = 0;
-            int ii = i;
-            do {
-                h->add_imm(h->x_tmp_vec[count++], h->X_SP, i * vlen,
-                        h->X_DEFAULT_ADDR);
-                i++;
-            } while (i < tail_vecs_to_preserve && count < h->x_tmp_vec_size);
-
-            for (int j = 0; j < count; j++)
-                h->st1w(ZRegS(preserved_vec_idxs[idx_off + ii++]), p_all / T_z,
-                        ptr(h->x_tmp_vec[j]));
-        }
-
-        if (idx_off) {
-            h->sub_imm(h->X_SP, h->X_SP, idx_off * vlen, h->X_TMP_0);
-        }
+        if (idx_off) h->sub_imm(h->X_SP, h->X_SP, idx_off * vlen, h->X_TMP_0);
     }
 
     assign_regs();
@@ -191,30 +150,21 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble_tail(
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::injector_postamble() {
     using namespace Xbyak_aarch64::util;
+    const int reg_size = h->x0.getBit() / 8;
     if (!save_state_) return;
 
-    size_t i = 0;
+    if (preserve_vmm_) {
+        for (size_t i = 0; i < preserved_vecs_count; ++i)
+            h->ldr(ZReg(preserved_vec_idxs[i]), ptr(h->X_SP, i, MUL_VL));
 
-    while (i < preserved_vecs_count) {
-        int count = 0;
-        int ii = i;
-        do {
-            h->add_imm(h->x_tmp_vec[count++], h->X_SP, i * vlen,
-                    h->X_DEFAULT_ADDR);
-            i++;
-        } while (i < preserved_vecs_count && count < h->x_tmp_vec_size);
-
-        for (int j = 0; j < count; j++)
-            h->ld1w(ZRegS(preserved_vec_idxs[ii++]), p_all / T_z,
-                    ptr(h->x_tmp_vec[j]));
+        if (preserved_vecs_count)
+            h->add_imm(
+                    h->X_SP, h->X_SP, preserved_vecs_count * vlen, h->X_TMP_0);
     }
 
-    if (preserved_vecs_count)
-        h->add_imm(h->X_SP, h->X_SP, preserved_vecs_count * vlen, h->X_TMP_0);
-
     for (int i = aux_gprs_count() - 1; i >= 0; --i)
-        h->ldr(XReg(preserved_gpr_idxs[i]), post_ptr(h->X_SP, 8));
-    h->ldr(x_table, post_ptr(h->X_SP, 8));
+        h->ldr(XReg(preserved_gpr_idxs[i]), post_ptr(h->X_SP, reg_size));
+    if (preserve_p_table_) h->ldr(x_table, post_ptr(h->X_SP, reg_size));
 }
 
 template <cpu_isa_t isa>
@@ -250,24 +200,25 @@ void jit_uni_eltwise_injector_f32<isa>::set_coef_to_regs() {
             case eltwise_square:
             case eltwise_abs:
             case eltwise_sqrt_use_dst_for_bwd:
-            case eltwise_sqrt:
-            case eltwise_swish: break;
+            case eltwise_sqrt: break;
             case eltwise_linear:
+            case eltwise_clip:
+            case eltwise_clip_v2_use_dst_for_bwd:
+            case eltwise_clip_v2:
+            case eltwise_hardswish:
+            case eltwise_hardsigmoid:
                 table_val(alpha, z_tmp);
                 table_val(beta, vmm_aux0);
                 break;
-            // case eltwise_soft_relu: // TODO: enable me.
+            case eltwise_soft_relu:
+            case eltwise_mish:
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic:
             case eltwise_exp_use_dst_for_bwd:
             case eltwise_exp:
             case eltwise_gelu_tanh:
-            case eltwise_log: break;
-            case eltwise_clip:
-                table_val(alpha, z_tmp);
-                table_val(beta, vmm_aux0);
-                break;
-            case eltwise_pow:
+            case eltwise_swish:
+            case eltwise_log:
             case eltwise_gelu_erf:
             case eltwise_round: break;
             default: assert(!"unsupported eltwise algorithm");
@@ -275,7 +226,8 @@ void jit_uni_eltwise_injector_f32<isa>::set_coef_to_regs() {
     } else {
         switch (alg_) {
             case eltwise_relu_use_dst_for_bwd:
-            case eltwise_relu: table_val(alpha, z_tmp); break;
+            case eltwise_relu:
+            case eltwise_soft_relu: table_val(alpha, z_tmp); break;
             case eltwise_elu_use_dst_for_bwd:
             case eltwise_elu:
             case eltwise_tanh_use_dst_for_bwd:
@@ -285,20 +237,23 @@ void jit_uni_eltwise_injector_f32<isa>::set_coef_to_regs() {
             case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt:
             case eltwise_linear:
-            // case eltwise_soft_relu:
+            case eltwise_mish:
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic:
             case eltwise_exp_use_dst_for_bwd:
             case eltwise_exp:
             case eltwise_gelu_tanh:
             case eltwise_swish:
-            case eltwise_log: break;
-            case eltwise_clip:
-                table_val(beta, z_tmp);
-                table_val(alpha, vmm_aux0);
-                break;
-            case eltwise_pow:
+            case eltwise_log:
             case eltwise_gelu_erf: break;
+            case eltwise_hardsigmoid:
+            case eltwise_hardswish: h->fmov(vmm_aux1, 1.);
+            case eltwise_clip:
+            case eltwise_clip_v2_use_dst_for_bwd:
+            case eltwise_clip_v2:
+                table_val(alpha, z_tmp);
+                table_val(beta, vmm_aux0);
+                break;
             default: assert(!"unsupported eltwise algorithm");
         }
     }
@@ -501,7 +456,7 @@ void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector_fwd(
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::relu_zero_ns_compute_vector_fwd(
         const TRegS &vmm_src) {
-    h->fmaxnm(vmm_src, p_all, 0.f);
+    h->fmaxnm(vmm_src, p_all, 0.);
 }
 
 template <cpu_isa_t isa>
@@ -514,11 +469,11 @@ void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector_fwd(
     exp_compute_vector_fwd(vmm_src);
 
     // alpha * (exp(x) - 1)
-    h->fsub(vmm_src, p_all / T_m, 1.f);
+    h->fsub(vmm_src, p_all / T_m, 1.);
     h->fmul(vmm_src, vmm_src, vmm_aux4);
 
     // combine with mask
-    h->fcmgt(p_mask.s, p_all / T_z, vmm_aux3, 0.f);
+    h->fcmgt(p_mask.s, p_all / T_z, vmm_aux3, 0.);
     h->mov(vmm_src, p_mask / T_m, vmm_aux3);
 }
 
@@ -579,6 +534,9 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_tanh_compute_vector_fwd(
     h->fmul(vmm_src, vmm_src, vmm_src);
     h->mov(ZRegD(IDX(vmm_aux1)),
             ZRegD(IDX(table_val(gelu_tanh_fitting_const, z_tmp))));
+    /* Do not use 1.f, which is a float constant,
+       but 1., which is a double constant. */
+    h->fmov(z_tmp, 1.);
     h->fmad(vmm_src, p_all / T_m, vmm_aux1, ZRegS(IDX(table_val(one, z_tmp))));
     h->fmul(vmm_src, vmm_src, vmm_aux0);
     h->fmul(vmm_src, vmm_src,
@@ -598,7 +556,7 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_tanh_compute_vector_fwd(
     h->add_imm(h->X_SP, h->X_SP, vlen, h->X_TMP_0);
 
     // compute 0.5 * x * (1 + tanh(G(x)))
-    h->fadd(vmm_src, p_all / T_m, 1.f);
+    h->fadd(vmm_src, p_all / T_m, 1.);
     h->fmul(vmm_src, p_all / T_m, 0.5f);
     h->fmul(vmm_src, vmm_src, vmm_aux0);
 }
@@ -636,8 +594,70 @@ void jit_uni_eltwise_injector_f32<isa>::clip_compute_vector_fwd(
 }
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::mish_compute_vector_fwd(
+        const TRegS &vmm_src) {
+    // An equation other than mish(x) = x*tanh(srelu(x)) was used
+    // to calculate mish, but it should be remembered that it is equivalent
+    // equation, it uses the following rule:
+    // tanh(x) = (e^x - e^-x) / (e^x + e^-x),
+    // hence the equation for mish can take the form:
+    // mish(x) = x * ((e^x + 1)^2 - 1)/((e^x + 1)^2 + 1).
+    // This option was chosen because computing tanh requires more registers
+    // than exp, and also requires more constants to be stored in memory,
+    // making the algorithm slower.
+
+    // IMPORTANT: we use vmm_aux3 to save src as exp does not use it.
+    h->mov(ZRegD(vmm_aux3.getIdx()), ZRegD(vmm_src.getIdx())); // vmm_aux3 = x
+    h->fminnm(vmm_src, p_all / T_m,
+            table_val(fwd_mish_max_x_for_equation_f, z_tmp));
+    exp_compute_vector_fwd(vmm_src);
+
+    // (e^x+1)^2
+    h->fadd(vmm_src, p_all / T_m, 1.);
+    h->fmul(vmm_src, vmm_src, vmm_src);
+
+    // save (e^x+1)^2 as it appears in both the denominator and the numerator
+    h->mov(ZRegD(vmm_aux1.getIdx()), ZRegD(vmm_src.getIdx()));
+
+    // x * ((e^x + 1)^2 - 1) / ((e^x + 1)^2 + 1)
+    h->fsub(vmm_src, p_all / T_m, 1.);
+    h->fadd(vmm_aux1, p_all / T_m, 1.);
+    h->fdiv(vmm_src, p_all / T_m, vmm_aux1);
+    h->fmul(vmm_src, vmm_src, vmm_aux3);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::hardswish_compute_vector_fwd(
+        const TRegS &vmm_src) {
+    // result = x * hardsigmoid(x)
+    h->mov(ZRegD(vmm_aux1.getIdx()), ZRegD(vmm_src.getIdx()));
+    hardsigmoid_compute_vector_fwd(vmm_src);
+    h->fmul(vmm_src, vmm_src, vmm_aux1);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::hardsigmoid_compute_vector_fwd(
+        const TRegS &vmm_src) {
+    // alpha:z_tmp, beta:vmm_aux0
+    // result = max(0, min(1, alpha * x + beta))
+    h->fmul(vmm_src, vmm_src, z_tmp);
+    h->fadd(vmm_src, vmm_src, vmm_aux0);
+    h->fminnm(vmm_src, p_all / T_m, 1.);
+    h->fmaxnm(vmm_src, p_all / T_m, 0.);
+}
+
+template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
         const TRegS &vmm_src) {
+    // alpha scaling
+    if (alpha_ == 1.f) {
+        // Nothing to do
+    }
+    if (alpha_ == 0.5 || alpha_ == 2.0)
+        h->fmul(vmm_src, p_all / T_m, alpha_);
+    else
+        h->fmul(vmm_src, vmm_src, table_val(alpha, z_tmp));
+
     // ln(1 + exp(x)) =
     // = ln(1 + exp(n * ln(2) + r)) // divide x by ln(2) and get quot and rem
     // = ln(1 + 2^n * exp(r)) // simplify the exp(n*ln(2)) expression
@@ -689,22 +709,21 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
 
     // compute 2^-(n-1)
     // vmm_src now represents n-1
-    h->fsub(vmm_src, p_all / T_m, 1.f);
+    h->fsub(vmm_src, p_all / T_m, 1.);
     h->fneg(vmm_aux1, p_all / T_m, vmm_src);
 
     h->frinti(vmm_aux1, p_all / T_m, vmm_aux1);
     h->fcvtzs(vmm_aux1, p_all / T_m, vmm_aux1);
     // restore vmm_src to n
-    h->fadd(vmm_src, p_all / T_m, 1.f);
+    h->fadd(vmm_src, p_all / T_m, 1.);
 
     h->add(vmm_aux1, vmm_aux1, ZRegS(IDX(table_val(exponent_bias, z_tmp))));
     h->lsl(vmm_aux1, vmm_aux1, n_mantissa_bits);
     // calculate ln(1 + y)
-    h->fmul(vmm_aux3, p_all / T_m, 2.f); // 2*exp(r)
+    h->fmul(vmm_aux3, p_all / T_m, 2.); // 2*exp(r)
     h->fadd(vmm_aux3, vmm_aux3,
             vmm_aux1); // 2^-(n-1) + 2*exp(r)
-    h->fmul(vmm_aux3, p_all / T_m,
-            ZRegS(IDX(table_val(half, z_tmp)))); // (2^-(n-1) + 2*exp(r))/2
+    h->fmul(vmm_aux3, p_all / T_m, 0.5); // (2^-(n-1) + 2*exp(r))/2
 
     // frexp()
     h->lsr(vmm_src, vmm_aux3, n_mantissa_bits);
@@ -720,7 +739,7 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
     h->orr(ZRegD(IDX(vmm_aux3)), ZRegD(IDX(vmm_aux3)),
             ZRegD(IDX(table_val(half, z_tmp))));
     // y  = y - 1
-    h->fsub(vmm_aux3, p_all / T_m, 1.f);
+    h->fsub(vmm_aux3, p_all / T_m, 1.);
 
     // compute log1p polynomial
     h->mov(ZRegD(IDX(vmm_aux1)),
@@ -750,6 +769,16 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
     // y = (x < max log f) ? soft_relu(x) : x
     compute_cmp_mask(vmm_aux2, table_val(exp_ln_flt_max_f, z_tmp), _cmp_gt_os);
     blend_with_mask(vmm_src, vmm_aux2);
+    if (alpha_ == 1.f) { // standard soft_relu case
+        // Skip an instruction.
+    } else if (alpha_ == -1) { // logsigmoid case
+        /* Do not use -1.f, which is a float constant,
+       but -1., which is a double constant. */
+        h->fmov(z_tmp, -1.);
+        h->fmul(vmm_src, vmm_src, z_tmp);
+    } else { // General case.
+        h->fdiv(vmm_src, p_all / T_m, table_val(alpha, z_tmp));
+    }
 }
 
 template <cpu_isa_t isa>
@@ -959,9 +988,11 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_fwd(
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector_bwd(
         const TRegS &vmm_src) {
-    h->fcmgt(p_mask.s, p_all / T_z, vmm_src, 0.f);
+    h->fcmgt(p_mask.s, p_all / T_z, vmm_src, 0.);
     h->mov(ZRegD(vmm_src.getIdx()), ZRegD(z_tmp.getIdx()));
-    h->fmov(vmm_src, p_mask / T_m, 1.f);
+    /* Do not use 1.f, which is a float constant,
+       but 1., which is a double constant. */
+    h->fmov(vmm_src, p_mask / T_m, 1.);
 }
 
 template <cpu_isa_t isa>
@@ -1044,7 +1075,7 @@ template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::square_compute_vector_bwd(
         const TRegS &vmm_src) {
     // res = 2 * s
-    h->fmul(vmm_src, p_all / T_m, 2.f);
+    h->fmul(vmm_src, p_all / T_m, 2.);
 }
 
 template <cpu_isa_t isa>
@@ -1077,7 +1108,58 @@ void jit_uni_eltwise_injector_f32<isa>::linear_compute_vector_bwd(
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_bwd(
         const TRegS &vmm_src) {
+    if (alpha_ == 1.f) {
+        // Skip an instruction.
+    } else if (alpha_ == 0.5f || alpha_ == 2.f)
+        h->fmul(vmm_src, p_all / T_m, alpha_);
+    else
+        h->fmul(vmm_src, vmm_src, z_tmp);
     logistic_compute_vector_fwd(vmm_src);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::mish_compute_vector_bwd(
+        const TRegS &vmm_src) {
+    // IMPORTANT: we use vmm_aux3 to save src as exp does not use it.
+    h->mov(ZRegD(vmm_aux3.getIdx()), ZRegD(vmm_src.getIdx())); // vmm_aux3 = x
+
+    h->fminnm(vmm_src, p_all / T_m,
+            table_val(bwd_mish_max_x_for_equation_f, z_tmp));
+    exp_compute_vector_fwd(vmm_src);
+    h->mov(ZRegD(vmm_aux2.getIdx()), ZRegD(vmm_src.getIdx())); // vmm_aux2 = e^x
+
+    // e^3x + 4*e^2x
+    h->fmul(vmm_src, vmm_src, vmm_src); // e^2x
+    h->mov(ZRegD(vmm_aux1.getIdx()), ZRegD(vmm_src.getIdx()));
+    h->fmul(vmm_aux1, p_all / T_m, 2.);
+    h->fmul(vmm_aux1, p_all / T_m, 2.); // 4*e^2x
+    h->fmad(vmm_src, p_all / T_m, vmm_aux2, vmm_aux1);
+
+    // e^3x + 4*e^2x + 4*e^x*(x+1.5)
+    h->fadd(vmm_aux3, p_all / T_m, 1.); // vmm_aux3 = x + 1
+    h->mov(ZRegD(vmm_aux1.getIdx()), ZRegD(vmm_aux3.getIdx()));
+    h->fadd(vmm_aux1, p_all / T_m, 0.5f);
+    h->fmul(vmm_aux1, p_all / T_m, 2.);
+    h->fmul(vmm_aux1, p_all / T_m, 2.);
+    h->fmla(vmm_src, p_all / T_m, vmm_aux1, vmm_aux2);
+
+    // omega = e^3x + 4*e^2x + 4*e^x*(x+1.5) + 4*(x+1)
+    h->fmul(vmm_aux3, p_all / T_m, 2.);
+    /* Do not use 2.f, which is a float constant,
+       but 2., which is a double constant. */
+    h->fmov(z_tmp, 2.);
+    h->fmla(vmm_src, p_all / T_m, vmm_aux3, z_tmp);
+
+    // delta = (e^x+1)^2 + 1
+    h->mov(ZRegD(vmm_aux1.getIdx()), ZRegD(vmm_aux2.getIdx()));
+    h->fadd(vmm_aux1, p_all / T_m, 1.);
+    h->fmul(vmm_aux1, vmm_aux1, vmm_aux1);
+    h->fadd(vmm_aux1, p_all / T_m, 1.);
+    h->fmul(vmm_aux1, vmm_aux1, vmm_aux1);
+
+    // e^x * omega / delta^2
+    h->fmul(vmm_src, vmm_src, vmm_aux2);
+    h->fdiv(vmm_src, p_all / T_m, vmm_aux1);
 }
 
 template <cpu_isa_t isa>
@@ -1085,11 +1167,10 @@ void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector_bwd(
         const TRegS &vmm_src) {
     // res = d * (1 - d) = d - d * d; d = logistic(s)
     if (!use_dst_) logistic_compute_vector_fwd(vmm_src);
-    // h->uni_vfnmadd231ps(vmm_src, vmm_src, vmm_src); // bless sse41
-    h->mov(ZRegD(IDX(vmm_aux0)), ZRegD(IDX(table_val(one, z_tmp))));
-
+    /* Do not use 1.f, which is a float constant,
+       but 1., which is a double constant. */
+    h->fmov(vmm_aux0, 1.);
     h->fsub(vmm_aux0, vmm_aux0, vmm_src);
-
     h->fmul(vmm_src, vmm_src, vmm_aux0);
 }
 
@@ -1141,19 +1222,19 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_bwd(
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::clip_compute_vector_bwd(
         const TRegS &vmm_src) {
-    // set result with 1.
-    /* Do not use 1.f, which is a float constant,
-       but 1., which is a double constant. */
-    h->fmov(vmm_aux1, 1.);
+    using namespace alg_kind;
+    // z_tmp:alpha, vmm_aux0:beta
 
     // get mask of values > beta and blend with 0.f
-    h->fcmgt(p_mask.s, p_all / T_z, vmm_src, z_tmp);
-    h->mov(vmm_aux1, p_mask / T_m, 0);
+    if (alg_ == eltwise_clip)
+        h->fcmle(p_mask.s, p_all / T_z, vmm_src, vmm_aux0);
+    else
+        h->fcmlt(p_mask.s, p_all / T_z, vmm_src, vmm_aux0);
     // get mask of values <= alpha and blend with 0.f
-    h->fcmle(p_tmp0.s, p_all / T_z, vmm_src, vmm_aux0);
-    h->mov(vmm_aux1, p_tmp0 / T_m, 0);
+    h->fcmgt(p_mask.s, p_mask / T_z, vmm_src, z_tmp);
 
-    h->mov(ZRegD(vmm_src.getIdx()), ZRegD(vmm_aux1.getIdx()));
+    h->mov(vmm_src, 0);
+    h->fmov(vmm_src, p_mask / T_m, 1.);
 }
 
 template <cpu_isa_t isa>
@@ -1231,6 +1312,41 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_bwd(
 }
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::hardswish_compute_vector_bwd(
+        const TRegS &vmm_src) {
+    // alpha:z_tmp, beta:vmm_aux0, 1.f:vmm_aux1
+    // Get mask for 0 < alpha * x + beta < 1
+    h->mov(ZRegD(vmm_aux2.getIdx()), ZRegD(vmm_src.getIdx()));
+    h->fmul(vmm_aux2, vmm_aux2, z_tmp);
+    h->fadd(vmm_aux2, vmm_aux2, vmm_aux0);
+    // Form a derivative value
+    h->fmul(vmm_src, vmm_src, z_tmp);
+    h->fadd(vmm_src, vmm_src, vmm_aux2);
+
+    h->fcmle(p_mask.s, p_all / T_z, vmm_aux2, 0.);
+    h->mov(vmm_src, p_mask / T_m, 0);
+    h->fcmge(p_mask.s, p_all / T_z, vmm_aux2, vmm_aux1);
+    h->fmov(vmm_src, p_mask / T_m, 1.);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::hardsigmoid_compute_vector_bwd(
+        const TRegS &vmm_src) {
+    // alpha:z_tmp, beta:vmm_aux0, 1:vmm_aux1
+    // Get mask for 0 < alpha * x + beta < 1
+    // Zero rest values.
+    h->fmul(vmm_src, vmm_src, z_tmp);
+    h->fadd(vmm_src, vmm_src, vmm_aux0);
+
+    h->fcmgt(p_mask.s, p_all / T_z, vmm_src, 0.);
+    h->fcmlt(p_mask.s, p_mask / T_z, vmm_src, vmm_aux1);
+
+    h->mov(vmm_src, 0);
+    h->fmov(vmm_src, p_mask / T_m, 1.);
+    h->fmul(vmm_src, vmm_src, z_tmp);
+}
+
+template <cpu_isa_t isa>
 size_t jit_uni_eltwise_injector_f32<isa>::aux_gprs_count() {
     using namespace alg_kind;
     switch (alg_) {
@@ -1265,7 +1381,8 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt: return 0;
             case eltwise_linear: return 2;
-            // case eltwise_soft_relu: return 5;
+            case eltwise_soft_relu: return 5;
+            case eltwise_mish: return 5; /* = exp + 1 */
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic: return 5; /* = exp + 1 */
             case eltwise_exp_use_dst_for_bwd:
@@ -1273,9 +1390,13 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_gelu_tanh: return 9; /* = tanh */
             case eltwise_swish: return 6; /* = logistic */
             case eltwise_log: return 6;
-            case eltwise_clip: return 2;
+            case eltwise_clip:
+            case eltwise_clip_v2_use_dst_for_bwd:
+            case eltwise_clip_v2: return 2;
             case eltwise_gelu_erf: return 6;
             case eltwise_round: return 0;
+            case eltwise_hardswish: return 3; /* = hardsigmoid + 1 */
+            case eltwise_hardsigmoid: return 2;
             default: assert(!"unsupported eltwise algorithm");
         }
     } else {
@@ -1291,7 +1412,8 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt: return 2;
             case eltwise_linear: return 1;
-            // case eltwise_soft_relu: return 5; /* = logistic */
+            case eltwise_soft_relu: return 5; /* = max(1, logistic) */
+            case eltwise_mish: return 5; /* = exp + 1 */
             case eltwise_logistic_use_dst_for_bwd: return 2;
             case eltwise_logistic: return 5; /* = logistic */
             case eltwise_exp_use_dst_for_bwd: return 0;
@@ -1299,8 +1421,12 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_gelu_tanh: return 9; /* = tanh */
             case eltwise_swish: return 6; /* = logistic */
             case eltwise_log: return 1;
-            case eltwise_clip: return 3;
+            case eltwise_clip:
+            case eltwise_clip_v2_use_dst_for_bwd:
+            case eltwise_clip_v2: return 2;
             case eltwise_gelu_erf: return 6;
+            case eltwise_hardswish: return 4;
+            case eltwise_hardsigmoid: return 3;
             default: assert(!"unsupported eltwise algorithm");
         }
     }
@@ -1337,9 +1463,10 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                 case eltwise_linear:
                     linear_compute_vector_fwd(TRegS(idx));
                     break;
-                // case eltwise_soft_relu:
-                //     soft_relu_compute_vector_fwd(TRegS(idx));
-                //     break;
+                case eltwise_soft_relu:
+                    soft_relu_compute_vector_fwd(TRegS(idx));
+                    break;
+                case eltwise_mish: mish_compute_vector_fwd(TRegS(idx)); break;
                 case eltwise_logistic_use_dst_for_bwd:
                 case eltwise_logistic:
                     logistic_compute_vector_fwd(TRegS(idx));
@@ -1350,11 +1477,21 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                     gelu_tanh_compute_vector_fwd(TRegS(idx));
                     break;
                 case eltwise_log: log_compute_vector_fwd(TRegS(idx)); break;
-                case eltwise_clip: clip_compute_vector_fwd(TRegS(idx)); break;
+                case eltwise_clip:
+                case eltwise_clip_v2_use_dst_for_bwd:
+                case eltwise_clip_v2:
+                    clip_compute_vector_fwd(TRegS(idx));
+                    break;
                 case eltwise_gelu_erf:
                     gelu_erf_compute_vector_fwd(TRegS(idx));
                     break;
                 case eltwise_round: round_compute_vector_fwd(TRegS(idx)); break;
+                case eltwise_hardswish:
+                    hardswish_compute_vector_fwd(TRegS(idx));
+                    break;
+                case eltwise_hardsigmoid:
+                    hardsigmoid_compute_vector_fwd(TRegS(idx));
+                    break;
                 default: assert(!"unsupported eltwise algorithm");
             }
         } else {
@@ -1374,9 +1511,10 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                 case eltwise_linear:
                     linear_compute_vector_bwd(TRegS(idx));
                     break;
-                // case eltwise_soft_relu:
-                //     soft_relu_compute_vector_bwd(TRegS(idx));
-                //     break;
+                case eltwise_soft_relu:
+                    soft_relu_compute_vector_bwd(TRegS(idx));
+                    break;
+                case eltwise_mish: mish_compute_vector_bwd(TRegS(idx)); break;
                 case eltwise_logistic_use_dst_for_bwd:
                 case eltwise_logistic:
                     logistic_compute_vector_bwd(TRegS(idx));
@@ -1388,9 +1526,19 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                     break;
                 case eltwise_swish: swish_compute_vector_bwd(TRegS(idx)); break;
                 case eltwise_log: log_compute_vector_bwd(TRegS(idx)); break;
-                case eltwise_clip: clip_compute_vector_bwd(TRegS(idx)); break;
+                case eltwise_clip:
+                case eltwise_clip_v2_use_dst_for_bwd:
+                case eltwise_clip_v2:
+                    clip_compute_vector_bwd(TRegS(idx));
+                    break;
                 case eltwise_gelu_erf:
                     gelu_erf_compute_vector_bwd(TRegS(idx));
+                    break;
+                case eltwise_hardswish:
+                    hardswish_compute_vector_bwd(TRegS(idx));
+                    break;
+                case eltwise_hardsigmoid:
+                    hardsigmoid_compute_vector_bwd(TRegS(idx));
                     break;
                 default: assert(!"unsupported eltwise algorithm");
             }
@@ -1507,6 +1655,11 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
             {exp_not_mask17, {~((1u << 17) - 1), true}},
     };
 
+    // mish(x) constants
+    static const table_t mish_consts {
+            {fwd_mish_max_x_for_equation_f, {0x42317217, true}},
+            {bwd_mish_max_x_for_equation_f, {0x41b17217, true}}};
+
     // tanh(x) constants for four interval approximation
     static const table_t tanh_consts {
             {tanh_range, {0x3d4ccccd, true}},
@@ -1574,6 +1727,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
                     break;
                 case eltwise_log: log_ = true; break;
                 case eltwise_soft_relu: soft_relu_ = true; break;
+                case eltwise_mish: mish_ = true; break;
                 case eltwise_tanh_use_dst_for_bwd:
                 case eltwise_tanh:
                     exp_ = true;
@@ -1584,13 +1738,15 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
         }
 
         bool exp_ = false;
+        bool mish_ = false;
         bool tanh_ = false;
         bool soft_relu_ = false;
         bool gelu_tanh_ = false;
         bool gelu_erf_ = false;
         bool log_ = false;
 
-        bool exp() const { return exp_ || soft_relu_ || gelu_erf_; }
+        bool exp() const { return exp_ || soft_relu_ || gelu_erf_ || mish_; }
+        bool mish() const { return mish_; }
         bool tanh() const { return tanh_ || gelu_tanh_; }
         bool soft_relu() const { return soft_relu_; }
         bool gelu_tanh() const { return gelu_tanh_; }
@@ -1621,6 +1777,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     if (need.exp()) push_entries_of(exp_consts);
     if (need.exp()) push_entries_of(exp_polynomial);
     if (need.exp()) push_entries_of(exp_consts2);
+    if (need.mish()) push_entries_of(mish_consts);
     if (need.tanh()) push_entries_of(tanh_consts);
     if (need.soft_relu()) push_entries_of(soft_relu_consts);
     if (need.soft_relu()) push_entries_of(soft_relu_polynomial);
