@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1336,6 +1336,20 @@ public:
             vandps(x1, x2, op);
         else
             vpandd(x1, x2, op);
+    }
+
+    void uni_vpandnd(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        if (is_valid_isa(avx512_core) || x1.getBit() == 512) {
+            assert(IMPLICATION(x1.getBit() == 512, is_valid_isa(avx512_core)));
+            vpandnd(x1, x2, op);
+        } else if (is_valid_isa(avx)) {
+            assert(IMPLICATION(x1.getBit() == 256, is_valid_isa(avx2)));
+            vpandn(x1, x2, op);
+        } else {
+            assert(x1.getIdx() == x2.getIdx());
+            pandn(x1, op);
+        }
     }
 
     void uni_vorps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
