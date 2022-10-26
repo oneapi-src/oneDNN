@@ -2420,7 +2420,7 @@ public:
                 Vmm, Xbyak::Ymm /*dummy*/>::type;
 
         if (!is_vmm_supported) {
-            assert("load_bytes() not supported");
+            assert("store_data() not supported");
             return;
         }
         helper_store_data(type_out, supported_vmm_t(vmm.getIdx()), reg, offset,
