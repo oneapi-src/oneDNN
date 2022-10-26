@@ -1488,8 +1488,7 @@ void schedule_loop_body(
             }
         } else {
             if (cur_loop->body_->attr().has_key("builder.parent_node")) {
-                std::weak_ptr<stmt_base_t> owner = outer_most_loop.impl;
-                cur_loop->body_->attr()["builder.parent_node"] = owner;
+                add_parent_node(cur_loop->body_, outer_most_loop);
             }
             break;
         }

@@ -56,12 +56,6 @@ static constexpr const char *mixed_attr_key_cut_buffer
 
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph);
 
-// add ret to parent node of s.
-static void set_parent_node(const stmt &s, const stmt &parent) {
-    std::weak_ptr<stmt_base_t> owner = parent.impl;
-    s->attr()["builder.parent_node"] = owner;
-}
-
 void mxp_replacer_t::replace_anchor(
         const std::vector<fuse_anchor_map_ptr> &fanchors) {
     auto replace_fsmap = [&](const fuse_anchor_map_ptr &cur) {
@@ -181,9 +175,8 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                     {}, true);
             std::unordered_map<expr, expr> buffer_map
                     = {{old_input, new_input}};
-            mxp_replacer_t rep(buffer_map);
             // IR replace
-            rep.replace_func(binded_mxp_->func_);
+            mxp_replacer_t(buffer_map).replace_func(binded_mxp_->func_);
             // Buffer replace
             replace_buffer(ins.get(), old_input, new_input);
         }
@@ -279,11 +272,9 @@ void mxp_buffer_allocator::update_input_buffer_info(sc_op *op) {
                     // set common parent anchor
                     tsr_anch_map_[tsr]
                             = real_anchor_map->get_root()->shared_from_this();
-                } else if ((real_anchor_map->is_parent_for(tsr_anch_map_[tsr])
-                                   || real_anchor_map->is_sibling_for(
-                                           tsr_anch_map_[tsr]))
-                        && (op->isa<reduce_op_t>()
-                                || op->isa<reduce_collect_op_t>())) {
+                } else if (real_anchor_map->is_parent_for(tsr_anch_map_[tsr])
+                        || real_anchor_map->is_sibling_for(
+                                tsr_anch_map_[tsr])) {
                     // usually occurs in op is reduce or reduce collect op
                     tsr_anch_map_[tsr] = real_anchor_map;
                 } else {
@@ -937,7 +928,7 @@ static bool try_merge_mixed_parti_parallel(
     // create common anchor if necessary
     if (!common_fanchor) {
         auto s = builder::make_stmts_unattached({}).checked_as<stmts>();
-        set_parent_node(s, outermost_loop_target);
+        add_parent_node(s, outermost_loop_target);
         outermost_loop_target->body_.checked_as<stmts>()->seq_.emplace_back(s);
         // dummy fsmap, the tensor belongs to this scope will not be shrinked
         fslice_map fsmap;
@@ -948,9 +939,6 @@ static bool try_merge_mixed_parti_parallel(
     }
 
     common_fanchor->commit_stmt(outermost_loop_append->body_);
-    // redirect parent node
-    set_parent_node(
-            outermost_loop_append->body_, common_fanchor->anchor_position_);
 
     /* * * * * * * * * * * * * * * * *
      * Step 2: Merge fanchor_
@@ -1125,7 +1113,7 @@ static bool try_merge_mixed_parti_horizontally(
     auto_caster_t ac;
     for (size_t i = 1; i < loops.size(); i++) {
         loops[0]->parallel_merge(body, loops[i]);
-        set_parent_node(loops[i]->body_, loops[0]);
+        add_parent_node(loops[i]->body_, loops[0]);
         loops[0]->iter_end_ = cf(ac(loops[0]->iter_end_)).remove_const();
     }
 
@@ -1432,9 +1420,6 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
     // insert be_merged_ss to the back of to_merged_ss
     if (max_to_merge_anchor_map) {
         max_to_merge_anchor_map->commit_stmt(max_be_merged_ss);
-        // redirect parent node
-        set_parent_node(
-                max_be_merged_ss, max_to_merge_anchor_map->anchor_position_);
     } else {
         return false;
     }
@@ -1834,8 +1819,7 @@ void mixed_parti_t::try_split_outermost_loop(int64_t block) {
     std::unordered_map<expr, expr> remap;
     // change IR and record replace map
     outermost_loop->split(outermost_loop_range / block, &remap);
-    mxp_replacer_t expr_reper(remap);
-    expr_reper.replace_anchor(fanchors_);
+    mxp_replacer_t(remap).replace_anchor(fanchors_);
 }
 
 void mixed_parti_t::buffer_schedule() {

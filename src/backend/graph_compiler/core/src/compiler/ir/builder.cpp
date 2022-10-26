@@ -64,6 +64,12 @@ static std::vector<expr> vector_remove_const(const std::vector<expr_c> &v) {
     return ret;
 }
 
+// add ret to parent node of s.
+void add_parent_node(const stmt &s, const stmt &ret) {
+    std::weak_ptr<stmt_base_t> owner = ret.impl;
+    s->attr()["builder.parent_node"] = owner;
+}
+
 // This function can find the parent node in IR, if the node has no parent
 // node, return itself.
 stmt get_parent_node(stmt node) {
@@ -571,12 +577,6 @@ void builder_impl_t::emit(const stmt &s) {
             "Emitting to empty scope stack. You need to call "
             "push_scope() first");
     get_current_scope().emit(s);
-}
-
-// add ret to parent node of s.
-static void add_parent_node(const stmt &s, const stmt &ret) {
-    std::weak_ptr<stmt_base_t> owner = ret.impl;
-    s->attr()["builder.parent_node"] = owner;
 }
 
 stmt builder_impl_t::pop_scope() {

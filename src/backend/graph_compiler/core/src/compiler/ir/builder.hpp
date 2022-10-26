@@ -1007,6 +1007,7 @@ func_t copy_attr(const func_base &ths, func_t &&newfunc);
 
 stmt get_parent_node(stmt node);
 tensor get_real_tensor(const expr &buffer);
+void add_parent_node(const stmt &s, const stmt &ret);
 
 } // namespace sc
 #endif

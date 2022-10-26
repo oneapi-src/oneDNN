@@ -231,11 +231,20 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
         if (parent) { parent_->append_anchor(this); }
     };
     bool defined() const { return anchor_position_.defined(); }
-    void commit_stmts(stmts &ss) {
-        anchor_position_->seq_.insert(
-                anchor_position_->seq_.end(), ss->seq_.begin(), ss->seq_.end());
+
+    // commit `stmt` to anchor and bind parent node to commited anchor
+    void commit_stmt(stmt &s) {
+        add_parent_node(s, anchor_position_);
+        anchor_position_->seq_.emplace_back(s);
     }
-    void commit_stmt(stmt &s) { anchor_position_->seq_.emplace_back(s); }
+
+    // commit `stmts` to anchor and bind parent node to commited anchor
+    void commit_stmts(stmts &ss) {
+        for (auto &s : ss->seq_) {
+            commit_stmt(s);
+        }
+    }
+
     void append_op(sc_op *op) {
         content_number_map_.insert(
                 std::make_pair(op, content_number_map_.size()));

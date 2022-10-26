@@ -126,8 +126,7 @@ for_loop make_const_for(var v, int64_t min, int64_t max, stmt &&body_) {
             make_expr<constant_node>(int64_t(1), v->dtype_), std::move(body_),
             true, for_type::NORMAL);
     // set parent node
-    std::weak_ptr<stmt_base_t> owner = ret.impl;
-    ret->body_->attr()["builder.parent_node"] = owner;
+    add_parent_node(ret->body_, ret);
     return ret;
 }
 
@@ -396,8 +395,7 @@ for_loop for_loop_node_t::fuse(
     step_ = make_expr<constant_node>(int64_t(1), var1->dtype_);
 
     // redirect parent node
-    std::weak_ptr<stmt_base_t> owner = shared_from_this();
-    newbody->attr()["builder.parent_node"] = owner;
+    add_parent_node(newbody, node_ptr_from_this());
 
     body_ = std::move(newbody);
 
@@ -473,8 +471,7 @@ void for_loop_node_t::reorder(stmt parent, std::vector<for_loop> &&ax) {
     }
 
     // redirect parent node
-    std::weak_ptr<stmt_base_t> owner = ax.back().impl;
-    inner_body->attr()["builder.parent_node"] = owner;
+    add_parent_node(inner_body, ax.back());
 
     ax.back()->body_ = std::move(inner_body);
     cur = ax.back();
