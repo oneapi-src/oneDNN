@@ -275,7 +275,13 @@ protected:
                 "time.");
 #endif
         SKIP_IF_CUDA(true, "Concurrent execution is not supported with CUDA.");
-        skipped = false;
+
+        // This test doesn't work properly under SDE.
+        const int len = 1024;
+        char value_str[len];
+        if (gtest_getenv("SDE_COMMAND_LINE", value_str, len) > 0)
+            SKIP_IF(true, "Skipping concurrency test since executed under SDE");
+
         for (int i = 0; i < ntasks; i++) {
             auto task = std::make_shared<conv_fwd_task_t>(i);
 
@@ -286,11 +292,33 @@ protected:
             task->create();
             tasks_.emplace_back(task);
         }
+
+        Test();
+    }
+
+    void Test() {
+        std::vector<std::thread> threads;
+        for (int i = 0; i < nthreads; i++) {
+            int step = (ntasks + nthreads - 1) / nthreads;
+            int beg = i * step;
+            int end = std::min(beg + step, ntasks);
+            threads.emplace_back([&, beg, end]() {
+                for (int j = beg; j < end; j++)
+                    tasks_[j]->execute();
+            });
+        }
+
+        for (auto &t : threads) {
+            t.join();
+        }
+
+        for (int i = 0; i < ntasks; i++) {
+            tasks_[i]->validate();
+        }
     }
 
     static const int ntasks;
     static const int nthreads;
-    bool skipped = true;
     std::vector<std::shared_ptr<task_t>> tasks_;
     engine eng;
     stream strm;
@@ -311,26 +339,6 @@ const int test_concurrency_t::nthreads = []() {
     return res;
 }();
 
-TEST_F(test_concurrency_t, Basic) {
-    if (skipped) return;
-    std::vector<std::thread> threads;
-    for (int i = 0; i < nthreads; i++) {
-        int step = (ntasks + nthreads - 1) / nthreads;
-        int beg = i * step;
-        int end = std::min(beg + step, ntasks);
-        threads.emplace_back([&, beg, end]() {
-            for (int j = beg; j < end; j++)
-                tasks_[j]->execute();
-        });
-    }
-
-    for (auto &t : threads) {
-        t.join();
-    }
-
-    for (int i = 0; i < ntasks; i++) {
-        tasks_[i]->validate();
-    }
-}
+TEST_F(test_concurrency_t, Basic) {}
 
 } // namespace dnnl

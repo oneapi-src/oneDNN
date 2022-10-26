@@ -17,6 +17,10 @@
 #ifndef DNNL_TEST_COMMON_HPP
 #define DNNL_TEST_COMMON_HPP
 
+#ifdef _WIN32
+#include <windows.h> // GetEnvironmentVariable
+#endif
+
 #include <cmath>
 #include <limits>
 #include <numeric>
@@ -1070,6 +1074,43 @@ inline int get_primitive_cache_size() {
     int result = 0;
     auto status = dnnl::impl::get_primitive_cache_size(&result);
     if (status != dnnl::impl::status::success) return -1;
+    return result;
+}
+
+// This is a local copy of dnnl::impl::getenv.
+// Copying to avoid exposure of internal symbol from the library.
+inline int gtest_getenv(const char *name, char *buffer, int buffer_size) {
+    if (name == nullptr || buffer_size < 0
+            || (buffer == nullptr && buffer_size > 0))
+        return INT_MIN;
+
+    int result = 0;
+    int term_zero_idx = 0;
+    size_t value_length = 0;
+
+#ifdef _WIN32
+    value_length = GetEnvironmentVariable(name, buffer, buffer_size);
+#else
+    const char *value = ::getenv(name);
+    value_length = value == nullptr ? 0 : strlen(value);
+#endif
+
+    if (value_length > INT_MAX)
+        result = INT_MIN;
+    else {
+        int int_value_length = (int)value_length;
+        if (int_value_length >= buffer_size) {
+            result = -int_value_length;
+        } else {
+            term_zero_idx = int_value_length;
+            result = int_value_length;
+#ifndef _WIN32
+            if (value) strncpy(buffer, value, buffer_size - 1);
+#endif
+        }
+    }
+
+    if (buffer != nullptr) buffer[term_zero_idx] = '\0';
     return result;
 }
 
