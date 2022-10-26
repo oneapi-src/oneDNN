@@ -199,7 +199,7 @@
 #define API_VERSION_BUILD    20180723
 
 #ifndef API_VERSION_NUM
-#define API_VERSION_NUM 3.22.5
+#define API_VERSION_NUM 3.23.0
 #endif /* API_VERSION_NUM */
 
 #define API_VERSION "ITT-API-Version " ITT_TO_STR(API_VERSION_NUM) \
@@ -243,6 +243,7 @@ typedef pthread_mutex_t   mutex_t;
 #define __itt_mutex_init(mutex)   InitializeCriticalSection(mutex)
 #define __itt_mutex_lock(mutex)   EnterCriticalSection(mutex)
 #define __itt_mutex_unlock(mutex) LeaveCriticalSection(mutex)
+#define __itt_mutex_destroy(mutex) DeleteCriticalSection(mutex)
 #define __itt_load_lib(name)      LoadLibraryA(name)
 #define __itt_unload_lib(handle)  FreeLibrary(handle)
 #define __itt_system_error()      (int)GetLastError()
@@ -257,6 +258,13 @@ __itt_interlocked_increment(volatile long* ptr) ITT_INLINE_ATTRIBUTE;
 ITT_INLINE long __itt_interlocked_increment(volatile long* ptr)
 {
     return InterlockedIncrement(ptr);
+}
+ITT_INLINE long
+__itt_interlocked_compare_exchange(volatile long* ptr, long exchange, long comperand) ITT_INLINE_ATTRIBUTE;
+ITT_INLINE long
+__itt_interlocked_compare_exchange(volatile long* ptr, long exchange, long comperand)
+{
+    return InterlockedCompareExchange(ptr, exchange, comperand);
 }
 #endif /* ITT_SIMPLE_INIT */
 
@@ -287,6 +295,7 @@ ITT_INLINE long __itt_interlocked_increment(volatile long* ptr)
 }
 #define __itt_mutex_lock(mutex)   pthread_mutex_lock(mutex)
 #define __itt_mutex_unlock(mutex) pthread_mutex_unlock(mutex)
+#define __itt_mutex_destroy(mutex) pthread_mutex_destroy(mutex)
 #define __itt_load_lib(name)      dlopen(name, RTLD_LAZY)
 #define __itt_unload_lib(handle)  dlclose(handle)
 #define __itt_system_error()      errno
@@ -342,6 +351,13 @@ __itt_interlocked_increment(volatile long* ptr) ITT_INLINE_ATTRIBUTE;
 ITT_INLINE long __itt_interlocked_increment(volatile long* ptr)
 {
     return __TBB_machine_fetchadd4(ptr, 1) + 1L;
+}
+ITT_INLINE long
+__itt_interlocked_compare_exchange(volatile long* ptr, long exchange, long comperand) ITT_INLINE_ATTRIBUTE;
+ITT_INLINE long
+__itt_interlocked_compare_exchange(volatile long* ptr, long exchange, long comperand)
+{
+    return __sync_val_compare_and_swap(ptr, exchange, comperand);
 }
 #endif /* ITT_SIMPLE_INIT */
 

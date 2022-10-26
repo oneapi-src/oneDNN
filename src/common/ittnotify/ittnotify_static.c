@@ -62,7 +62,7 @@ static const char api_version[] = API_VERSION "\0\n@(#) $Revision$\n";
 #define ITT_ATTRIBUTE_FALLTHROUGH [[gnu::fallthrough]]
 #elif HAS_CPP_ATTR(clang::fallthrough)
 #define ITT_ATTRIBUTE_FALLTHROUGH [[clang::fallthrough]]
-#elif HAS_GNU_ATTR(fallthrough) && !defined(__INTEL_COMPILER)
+#elif HAS_GNU_ATTR(fallthrough) && !__INTEL_COMPILER
 #define ITT_ATTRIBUTE_FALLTHROUGH __attribute__((fallthrough))
 #else
 #define ITT_ATTRIBUTE_FALLTHROUGH
@@ -127,7 +127,7 @@ static const char* ittnotify_lib_name = "libittnotify.dylib";
     {                                                                \
         if (!p.mutex_initialized)                                    \
         {                                                            \
-            if (__itt_interlocked_increment(&p.atomic_counter) == 1) \
+            if (__itt_interlocked_compare_exchange(&p.atomic_counter, 1, 0) == 0) \
             {                                                        \
                 __itt_mutex_init(&p.mutex);                          \
                 p.mutex_initialized = 1;                             \
@@ -137,6 +137,20 @@ static const char* ittnotify_lib_name = "libittnotify.dylib";
                     __itt_thread_yield();                            \
         }                                                            \
         __itt_mutex_lock(&p.mutex);                                  \
+    }                                                                \
+}
+
+#define ITT_MUTEX_DESTROY(p) {                                       \
+    if (PTHREAD_SYMBOLS)                                             \
+    {                                                                \
+        if (p.mutex_initialized)                                     \
+        {                                                            \
+            if (__itt_interlocked_compare_exchange(&p.atomic_counter, 0, 1) == 1) \
+            {                                                        \
+                __itt_mutex_destroy(&p.mutex);                       \
+                p.mutex_initialized = 0;                             \
+            }                                                        \
+        }                                                            \
     }                                                                \
 }
 
@@ -1255,21 +1269,17 @@ static void __itt_nullify_all_pointers(void)
 
 static int __itt_is_collector_available(void)
 {
+    int is_available;
+
     ITT_MUTEX_INIT_AND_LOCK(_N_(_ittapi_global));
-    if (_N_(_ittapi_global).api_initialized)
+    if (_N_(_ittapi_global).state == __itt_collection_uninitialized)
     {
-        __itt_mutex_unlock(&_N_(_ittapi_global).mutex);
-        return _N_(_ittapi_global).state == __itt_collection_init_successful;
+        _N_(_ittapi_global).state = (NULL == __itt_get_lib_name()) ? __itt_collection_collector_absent : __itt_collection_collector_exists;
     }
-    if (_N_(_ittapi_global).state != __itt_collection_collector_exists && NULL == __itt_get_lib_name())
-    {
-        _N_(_ittapi_global).state = __itt_collection_collector_absent;
-        __itt_mutex_unlock(&_N_(_ittapi_global).mutex);
-        return 0;
-    }
-    _N_(_ittapi_global).state = __itt_collection_collector_exists;
+    is_available = (_N_(_ittapi_global).state == __itt_collection_collector_exists ||
+        _N_(_ittapi_global).state == __itt_collection_init_successful);
     __itt_mutex_unlock(&_N_(_ittapi_global).mutex);
-    return 1;
+    return is_available;
 }
 
 #if ITT_PLATFORM==ITT_PLATFORM_WIN
@@ -1572,3 +1582,14 @@ ITT_EXTERN_C __itt_collection_state (_N_(get_collection_state))(void)
     return _N_(_ittapi_global).state;
 }
 
+/* !!! should be called from the library destructor !!!
+ * this function destroys the mutex and frees resources
+ * allocated by ITT API static part
+ */
+ITT_EXTERN_C void (_N_(release_resources))(void)
+{
+    ITT_MUTEX_INIT_AND_LOCK(_N_(_ittapi_global));
+    __itt_free_allocated_resources();
+    if (PTHREAD_SYMBOLS) __itt_mutex_unlock(&_N_(_ittapi_global).mutex);
+    ITT_MUTEX_DESTROY(_N_(_ittapi_global));
+}
