@@ -76,7 +76,8 @@ struct acl_eltwise_fwd_t : public primitive_t {
 
             bool ok = is_fwd() && one_of(src_d.data_type(), f32, s32, s8)
                     && !has_zero_dim_memory() && attr()->has_default_values()
-                    && src_d.is_dense();
+                    && set_default_formats_common() && src_d.is_dense()
+                    && src_d == memory_desc_wrapper(dst_md());
             if (!ok) return status::unimplemented;
 
             auto acl_data_t = acl_utils::get_acl_data_t(src_d.data_type());
