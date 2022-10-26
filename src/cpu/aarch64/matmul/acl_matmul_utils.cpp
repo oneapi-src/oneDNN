@@ -95,7 +95,7 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     // Set alpha (output scaling)
     // TODO: Add runtime scales support. Creation time scales will be remove
     // in 3.0.
-    // amp.alpha = attr.output_scales_.scales_[0];
+    amp.alpha = 1.0f; // default value
     if (!attr.output_scales_.has_default_values()) return status::unimplemented;
 
     // Validate ACL transpose

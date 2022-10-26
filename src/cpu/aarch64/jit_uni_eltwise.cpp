@@ -200,16 +200,8 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             // refer to a comment in jit_uni_kernel why this is needed
             && IMPLICATION(!src_d.is_dense(), is_zero_preserved())
             && attr()->has_default_values() && set_default_formats_common()
-            && src_d == memory_desc_wrapper(dst_md());
-
-    ok &= utils::one_of(desc_.alg_kind, eltwise_relu_use_dst_for_bwd,
-            eltwise_relu, eltwise_elu_use_dst_for_bwd, eltwise_elu,
-            eltwise_tanh_use_dst_for_bwd, eltwise_tanh, eltwise_square,
-            eltwise_abs, eltwise_sqrt_use_dst_for_bwd, eltwise_sqrt,
-            eltwise_linear, eltwise_soft_relu, eltwise_logistic_use_dst_for_bwd,
-            eltwise_logistic, eltwise_exp_use_dst_for_bwd, eltwise_exp,
-            eltwise_gelu_tanh, eltwise_swish, eltwise_log, eltwise_clip,
-            eltwise_gelu_erf, eltwise_round);
+            && src_d == memory_desc_wrapper(dst_md())
+            && eltwise_injector::is_alg_supported(desc_.alg_kind);
 
     return ok ? status::success : status::unimplemented;
 }
@@ -277,16 +269,8 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             && data_d == memory_desc_wrapper(diff_dst_md())
             && memory_desc_wrapper(diff_src_md())
                     == memory_desc_wrapper(diff_dst_md())
-            && attr()->has_default_values();
-
-    ok &= utils::one_of(desc_.alg_kind, eltwise_relu_use_dst_for_bwd,
-            eltwise_relu, eltwise_elu_use_dst_for_bwd, eltwise_elu,
-            eltwise_tanh_use_dst_for_bwd, eltwise_tanh, eltwise_square,
-            eltwise_abs, eltwise_sqrt_use_dst_for_bwd, eltwise_sqrt,
-            eltwise_linear, eltwise_soft_relu, eltwise_logistic_use_dst_for_bwd,
-            eltwise_logistic, eltwise_exp_use_dst_for_bwd, eltwise_exp,
-            eltwise_gelu_tanh, eltwise_swish, eltwise_log, eltwise_clip,
-            eltwise_gelu_erf);
+            && attr()->has_default_values()
+            && eltwise_injector::is_alg_supported(desc_.alg_kind);
 
     return ok ? status::success : status::unimplemented;
 }
