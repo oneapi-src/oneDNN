@@ -39,8 +39,9 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
     void operator()(void *void_dst, const acc_data_t *acc, const char *bias,
-            const float *scales, float sum_scale, float signed_scale, int g,
-            size_t start, size_t end, const zero_point_call_params_t &zp,
+            const float *scales, float dst_scale, float sum_scale,
+            float signed_scale, int g, size_t start, size_t end,
+            const zero_point_call_params_t &zp,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             const exec_ctx_t & /* ctx */, const memory_desc_t & /* dst_md */,
             const single_gemm_conv_chunk_desc_t &) const override;
@@ -71,6 +72,7 @@ private:
         const acc_data_t *acc;
         const char *bias;
         const float *scales;
+        float dst_scale;
         float sum_scale;
         float signed_scale;
         size_t len;
@@ -121,6 +123,7 @@ private:
 
     const Xbyak::Zmm vreg_zero_;
     const Xbyak::Zmm vreg_scale_;
+    const Xbyak::Zmm vreg_dst_scale_;
     const Xbyak::Zmm vreg_sum_scale_;
     const Xbyak::Zmm vreg_signed_scale_;
     const Xbyak::Zmm vreg_saturation_ubound_;
@@ -153,6 +156,7 @@ jit_pp_ker_t::jit_pp_ker_t(
     , vreg_zero_((jcp_.with_eltwise || saturation_needed_) ? reserve_zmm()
                                                            : Xbyak::Zmm(0))
     , vreg_scale_(reserve_zmm())
+    , vreg_dst_scale_(reserve_zmm())
     , vreg_sum_scale_(jcp_.with_sum ? reserve_zmm() : Xbyak::Zmm(0))
     , vreg_signed_scale_(jcp_.signed_input ? reserve_zmm() : Xbyak::Zmm(0))
     , vreg_saturation_ubound_(
@@ -202,7 +206,7 @@ jit_pp_ker_t::jit_pp_ker_t(
 }
 
 void jit_pp_ker_t::operator()(void *void_dst, const acc_data_t *acc,
-        const char *bias, const float *scales, float sum_scale,
+        const char *bias, const float *scales, float dst_scale, float sum_scale,
         float signed_scale, int g, size_t start, size_t end,
         const zero_point_call_params_t &zp,
         const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
@@ -230,6 +234,7 @@ void jit_pp_ker_t::operator()(void *void_dst, const acc_data_t *acc,
             = zp.src_comp ? zp.src_comp + g_oc_offset_prologue : nullptr;
     args.zp_dst = zp.dst;
     args.scales = scales + jcp_.scale_idx_mult * g_oc_offset_prologue;
+    args.dst_scale = dst_scale;
     args.sum_scale = sum_scale;
     args.signed_scale = signed_scale;
     args.len = end - start;
@@ -399,6 +404,7 @@ void jit_pp_ker_t::generate() {
         vcvtdq2ps(vreg_zp_dst_common_, ptr_b[reg_tmp_]);
     }
 
+    vbroadcastss(vreg_dst_scale_, ptr[reg_param_ + PARAM_OFF(dst_scale)]);
     if (jcp_.with_sum)
         vbroadcastss(vreg_sum_scale_, ptr[reg_param_ + PARAM_OFF(sum_scale)]);
     if (jcp_.signed_input)
@@ -456,6 +462,8 @@ void jit_pp_ker_t::generate() {
         if (jcp_.signed_input)
             vmulps(vreg_dst_masked, vreg_dst, vreg_signed_scale_);
 
+        vmulps(vreg_dst_masked, vreg_dst, vreg_scale_);
+
         if (jcp_.with_bias) {
             const auto bias_addr
                     = ptr[reg_bias_ + offset * bias_data_type_size_];
@@ -463,8 +471,6 @@ void jit_pp_ker_t::generate() {
             load_as_f32(vreg_bias, mask_reg, bias_addr, jcp_.bias_data_type);
             vaddps(vreg_dst_masked, vreg_dst, vreg_bias);
         }
-
-        vmulps(vreg_dst_masked, vreg_dst, vreg_scale_);
 
         const auto dst_addr = ptr[reg_dst_ + offset * dst_data_type_size_];
 
@@ -475,6 +481,10 @@ void jit_pp_ker_t::generate() {
         }
 
         apply_postops(reg_dst_, idx);
+
+        if (jcp_.with_dst_scale) {
+            vmulps(vreg_dst_masked, vreg_dst, vreg_dst_scale_);
+        }
 
         if (jcp_.zp.dst_exists) {
             vaddps(vreg_dst_masked, vreg_dst, vreg_zp_dst_common_);

@@ -19,6 +19,7 @@
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/scale_utils.hpp"
 
 #include "cpu/binary_injector_utils.hpp"
 #include "cpu/gemm/gemm.hpp"
@@ -58,7 +59,13 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
     const int8_t off_a = 0;
     const int32_t off_c = 0;
 
-    DEFINE_SCALES_BUFFER(scales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    auto scratchpad = ctx.get_scratchpad_grantor();
+    const float *scales = precompute_scales(
+            scratchpad, src_scales, wei_scales, OC, pd()->attr());
 
     int32_t *acc = pd()->dst_is_acc_
             ? (int32_t *)dst
@@ -93,8 +100,8 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
             balance211((size_t)(OC * MB), nthr, ithr, start, end);
             const size_t dst_logical_off = start;
             const size_t dim1_off = start % OC;
-            (*pp_kernel_)(dst, acc, bias, scales, start, dst_logical_off,
-                    dim1_off, end, 0, 0, nullptr,
+            (*pp_kernel_)(dst, acc, bias, scales, dst_scales[0], start,
+                    dst_logical_off, dim1_off, end, 0, 0, nullptr,
                     post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
                     *pd()->dst_md());
         });

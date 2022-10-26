@@ -46,8 +46,9 @@ struct jit_pp_kernel_t : public pp_kernel_t, public jit_generator {
             data_type_t acc_dt, const memory_desc_t *dst_md, bool skip_sum);
 
     void operator()(void *dst, const void *acc, const char *bias,
-            const float *scales, size_t start, size_t dst_logical_off,
-            size_t dim1_off, size_t end, size_t runtime_oc, dim_t dst_mb_stride,
+            const float *scales, float dst_scale, size_t start,
+            size_t dst_logical_off, size_t dim1_off, size_t end,
+            size_t runtime_oc, dim_t dst_mb_stride,
             const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             size_t first_mb_matrix_addr_off, const exec_ctx_t &ctx,
@@ -106,6 +107,7 @@ private:
         const char *acc = nullptr;
         const char *bias = nullptr;
         const float *scales = nullptr;
+        float dst_scale = 1.0f;
         const float *dst_zero_points = nullptr;
         float nslope = 0;
         size_t oc = 0;
@@ -157,8 +159,8 @@ private:
     const Xbyak::Reg64 reg_acc_mb_stride = r14;
 
     // Will be assigned in constructor
-    Vmm vreg_zero, vreg_saturation_ubound, vreg_scale, vreg_sum_scale,
-            vreg_sum_zp, vreg_dst_zero_points;
+    Vmm vreg_zero, vreg_saturation_ubound, vreg_scale, vreg_dst_scale,
+            vreg_sum_scale, vreg_sum_zp, vreg_dst_zero_points;
 
     const Xbyak::Reg64 eltwise_reserved_gpr_ = r11;
     const Xbyak::Opmask eltwise_reserved_opmask_ = k2;
@@ -286,6 +288,11 @@ jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
     }
 
     if (this->do_bias()) compute_vreg_bias_shift_ = compute_vregs_per_iter_++;
+
+    if (!attr->scales_.get(DNNL_ARG_DST).has_default_values()) {
+        this->do_dst_scale_ = true;
+        vreg_dst_scale = Vmm(idx_compute_vreg_start_++);
+    }
 
     if (!attr->zero_points_.has_default_values(DNNL_ARG_DST)) {
         this->do_dst_zero_points_ = true;
@@ -752,6 +759,8 @@ void jit_pp_kernel_t<isa>::compute_oc_channel_blk() {
         data_copy(vreg_dst_, arg_t::acc, offset * this->acc_data_type_size_,
                 data_op_t::load, tail, is_needed_runtime_tail_process);
 
+        if (this->do_scale_) uni_vmulps(vreg_dst_, vreg_dst_, vreg_scale);
+
         if (this->do_bias()) {
             auto vreg_bias_ = vreg_bias(idx);
             data_copy(vreg_bias_, arg_t::bias,
@@ -759,8 +768,6 @@ void jit_pp_kernel_t<isa>::compute_oc_channel_blk() {
                     is_needed_runtime_tail_process);
             uni_vaddps(vreg_dst_, vreg_dst_, vreg_bias_);
         }
-
-        if (this->do_scale_) uni_vmulps(vreg_dst_, vreg_dst_, vreg_scale);
 
         if (this->do_sum_) {
             auto vreg_prev_dst_ = vreg_prev_dst(idx);
@@ -777,6 +784,9 @@ void jit_pp_kernel_t<isa>::compute_oc_channel_blk() {
 
         apply_postops(!!tail, dst_idx, offset * this->dst_data_type_size_,
                 is_needed_runtime_tail_process);
+
+        if (this->do_dst_scale_)
+            uni_vmulps(vreg_dst_, vreg_dst_, vreg_dst_scale);
 
         if (this->do_dst_zero_points_)
             uni_vaddps(vreg_dst_, vreg_dst_, vreg_dst_zero_points);
@@ -1093,6 +1103,12 @@ void jit_pp_kernel_t<isa>::generate() {
     mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
     mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
     if (this->do_scale_) mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
+    if (this->do_dst_scale_) {
+        mov(reg_tmp, ptr[reg_param + PARAM_OFF(dst_scale)]);
+        auto xreg_dst_scale = Xmm(vreg_dst_scale.getIdx());
+        uni_vmovq(xreg_dst_scale, reg_tmp);
+        uni_vbroadcastss(vreg_dst_scale, xreg_dst_scale);
+    }
     if (this->do_dst_zero_points_) {
         // use reg_oc as a temporary one (alas, reg_tmp = reg_param on Windows)
         mov(reg_oc, ptr[reg_param + PARAM_OFF(dst_zero_points)]);
@@ -1162,7 +1178,8 @@ void jit_pp_kernel_t<isa>::generate() {
     bool dim_restrict = !this->runtime_oc() && !this->runtime_mb()
             && (this->OC_ <= vlen / 2) && (this->MB_ >= vlen);
     bool supported_postops = this->do_scale_ || this->do_eltwise_
-            || this->do_binary_ || this->do_sum_ || this->do_dst_zero_points_;
+            || this->do_binary_ || this->do_sum_ || this->do_dst_zero_points_
+            || this->do_dst_scale_;
     if (this->do_bias() && !supported_postops && dim_restrict
             && this->has_trivial_mb_stride()) {
         this->mb_blk_kernel_ = true;
@@ -1179,7 +1196,7 @@ void jit_pp_kernel_t<isa>::generate() {
 
 template <cpu_isa_t isa>
 void jit_pp_kernel_t<isa>::operator()(void *dst, const void *acc,
-        const char *bias, const float *scales, size_t start,
+        const char *bias, const float *scales, float dst_scale, size_t start,
         size_t dst_logical_off, size_t dim1_off, size_t end, size_t runtime_oc,
         dim_t dst_mb_stride, const float *dst_zero_points,
         const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
@@ -1206,6 +1223,7 @@ void jit_pp_kernel_t<isa>::operator()(void *dst, const void *acc,
     }
     args.bias = bias + oc_offset * this->bias_data_type_size_;
     args.scales = scales + this->scale_idx_mult_ * oc_offset;
+    args.dst_scale = dst_scale;
     args.dst_zero_points = dst_zero_points;
     args.oc = OC;
     args.len = end - start;

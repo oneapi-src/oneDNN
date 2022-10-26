@@ -54,8 +54,6 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
     // check if MB is the leading dimension
     bool src_tr = smd.format_desc.blocking.strides[0] == 1 && IC > 1;
 
-    DEFINE_SCALES_BUFFER(scales);
-
     float alpha = 1.;
     status_t st = extended_sgemm(wei_tr ? "T" : "N", src_tr ? "T" : "N", &OC,
             &MB, &IC, &alpha, weights, wei_tr ? &IC : &OC, src,
@@ -70,7 +68,7 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
             size_t start, end;
             balance211((size_t)(OC * MB), nthr, ithr, start, end);
             const size_t dim1_off = start % OC;
-            (*pp_kernel_)(dst, dst, (char *)bias, scales, start, start,
+            (*pp_kernel_)(dst, dst, (char *)bias, nullptr, 1.0f, start, start,
                     dim1_off, end, 0,
                     pd()->OC() * pd()->OD() * pd()->OH() * pd()->OW(), nullptr,
                     post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,

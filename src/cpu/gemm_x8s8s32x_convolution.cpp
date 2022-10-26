@@ -28,6 +28,7 @@
 #include "cpu/gemm_x8s8s32x_conv_zp_src_pad_comp.hpp"
 #include "cpu/gemm_x8s8s32x_convolution.hpp"
 #include "cpu/ref_io_helper.hpp"
+#include "cpu/scale_utils.hpp"
 #include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
@@ -130,9 +131,16 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward(
 
     std::atomic<status_t> st(status::success);
 
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    const float *scales = precompute_scales(scratchpad, src_scales, wei_scales,
+            jcp.ngroups * jcp.oc, pd()->attr());
+
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_forward_thr(ithr, nthr, src_base, wei_base,
-                bia_base, dst_base, zp, scratchpad,
+                bia_base, dst_base, scales, dst_scales, zp, scratchpad,
                 post_ops_binary_rhs_arg_vec.data(), ctx);
 
         if (st_thr != status::success) st = st_thr;
@@ -150,8 +158,8 @@ static const int32_t *get_wei_comp(
 
 status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
         const int nthr, const char *src_base, const int8_t *wei_base,
-        const char *bia_base, void *dst_base,
-        const zero_point_call_params_t &zp,
+        const char *bia_base, void *dst_base, const float *scales,
+        const float *dst_scales, const zero_point_call_params_t &zp,
         const memory_tracking::grantor_t &scratchpad,
         const void *post_ops_binary_rhs_arg_vec, const exec_ctx_t &ctx) const {
 
@@ -167,8 +175,6 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
     const auto dst_md = memory_desc_wrapper(pd()->dst_md());
     const size_t dst_mb_stride = dst_md.blk_off(1);
     const size_t dst_g_stride = dst_md.blk_off(0, 1) * jcp.oc;
-
-    DEFINE_SCALES_BUFFER(scales);
 
     const auto &post_ops = pd()->attr()->post_ops_;
     const bool do_sum = post_ops.contain(primitive_kind::sum, 0);
@@ -293,7 +299,7 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
                 dim_t _start {}, _end {};
                 balance211(N * jcp.oc, nthr, ithr, _start, _end);
 
-                (*pp_ker_)(dst, acc, bia_base, scales, sum_scale,
+                (*pp_ker_)(dst, acc, bia_base, scales, dst_scales[0], sum_scale,
                         1.f / wei_adj_scale, g, _start, _end, zp,
                         post_ops_binary_rhs_arg_vec, dst_base, ctx,
                         *pd()->dst_md(), chunk_desc);
@@ -350,9 +356,15 @@ status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
     const auto diff_src_dt_size
             = types::data_type_size(diff_src_md.data_type());
 
-    /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
-    const int scale_idx_mult = pd()->attr()->output_scales_.mask_ == (1 << 1);
-    DEFINE_SCALES_BUFFER(scales);
+    const int scale_idx_mult = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_
+            == (1 << pd()->with_groups());
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    const float *scales = precompute_scales(scratchpad, src_scales, wei_scales,
+            jcp.ngroups * jcp.oc, pd()->attr());
+
     const dim_t work_amount = jcp.ngroups * jcp.mb;
 
     int *__restrict col = scratchpad.get<int>(key_conv_gemm_col)
@@ -416,13 +428,14 @@ status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
                     = scales + g * jcp.ic * scale_idx_mult;
             for (int ic = 0; ic < jcp.ic; ic++) {
                 float d = static_cast<float>(acc_loc[ic]);
+                d *= scales_loc[ic * scale_idx_mult];
                 if (jcp.with_bias) {
                     const float b = io::load_float_value(
                             pd()->desc()->bias_desc.data_type, bia_base,
                             g * jcp.ic + ic);
                     d += b;
                 }
-                d *= scales_loc[ic * scale_idx_mult];
+                if (jcp.with_dst_scale) d *= dst_scales[0];
                 io::store_float_value(
                         diff_src_md.data_type(), d, diff_src_loc, ic);
             }

@@ -72,8 +72,6 @@ status_t gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
             &beta_, acc, &M);
     if (st != status::success) return st;
 
-    DEFINE_SCALES_BUFFER(scales);
-
     if (postops_in_ip_) {
         const bool force_sequential = pp_kernel_->sequential_kernel();
         parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
@@ -82,7 +80,7 @@ status_t gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
             balance211(work_size, nthr, ithr, start, end);
             const size_t dst_logical_off = start;
             const size_t dim1_off = start % M;
-            (*pp_kernel_)(dst, acc, bias, scales, start, dst_logical_off,
+            (*pp_kernel_)(dst, acc, bias, nullptr, 1.0f, start, dst_logical_off,
                     dim1_off, end, 0, 0, nullptr,
                     post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
                     *pd()->dst_md());

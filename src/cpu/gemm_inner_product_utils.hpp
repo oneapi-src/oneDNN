@@ -47,8 +47,9 @@ struct pp_kernel_t {
     bool sequential_kernel() const { return mb_blk_kernel_; }
 
     virtual void operator()(void *dst, const void *acc, const char *bias,
-            const float *scales, size_t start, size_t dst_logical_off,
-            size_t dim1_off, size_t end, size_t runtime_oc, dim_t dst_mb_stride,
+            const float *scales, float dst_scale, size_t start,
+            size_t dst_logical_off, size_t dim1_off, size_t end,
+            size_t runtime_oc, dim_t dst_mb_stride,
             const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             size_t first_mb_matrix_addr_off, const exec_ctx_t &ctx,
@@ -75,6 +76,7 @@ protected:
     bool do_eltwise_ = false;
     bool do_binary_ = false;
     bool do_sum_ = false;
+    bool do_dst_scale_ = false;
     bool do_dst_zero_points_ = false;
     float sum_scale_ = 0.f;
     int32_t sum_zp_ = 0;

@@ -63,13 +63,13 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                             utils::one_of(weights_md(1)->data_type, f32, bf16,
                                     s32, s8, u8))
                     && !has_zero_dim_memory()
-                    && attr()->has_default_values(skip_mask_t::oscale_runtime
+                    && attr()->has_default_values(skip_mask_t::scales_runtime
                                     | skip_mask_t::zero_points_runtime
                                     | skip_mask_t::post_ops
                                     | skip_mask_t::sum_dt,
                             dst_type)
                     && attr()->post_ops_.check_sum_consistent_dt(dst_type)
-                    && output_scales_mask_ok() && zero_points_valid(attr());
+                    && scales_mask_ok() && zero_points_valid(attr());
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -85,9 +85,18 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
         conv_gemm_conf_t jcp_;
 
     protected:
-        bool output_scales_mask_ok() const {
-            const auto &mask = attr()->output_scales_.mask_;
-            return mask == 0 || mask == 1 << 1;
+        bool scales_mask_ok() const {
+            using namespace data_type;
+            bool ok = true;
+            // TODO: Check that the rest argument scales are default
+            for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+                const auto &mask = attr()->scales_.get(arg).mask_;
+                if (arg == DNNL_ARG_WEIGHTS)
+                    ok = ok && (mask == 0 || mask == (1 << with_groups()));
+                else
+                    ok = ok && (mask == 0);
+            }
+            return ok;
         }
     };
 
@@ -107,7 +116,8 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     status_t execute_forward_thr(const int ithr, const int nthr,
             const char *src_base, const int8_t *wei_base, const char *bia_base,
-            void *dst_base, const zero_point_call_params_t &zp,
+            void *dst_base, const float *scales, const float *dst_scales,
+            const zero_point_call_params_t &zp,
             const memory_tracking::grantor_t &scratchpad,
             const void *post_ops_binary_rhs_arg_vec,
             const exec_ctx_t &ctx) const;
@@ -141,7 +151,7 @@ struct gemm_x8s8s32x_convolution_bwd_data_t : public primitive_t {
                                     s32, s8, u8))
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale_runtime)
+                            primitive_attr_t::skip_mask_t::scales_runtime)
                     && output_scales_mask_ok();
             if (!ok) return status::unimplemented;
 

@@ -33,6 +33,7 @@
 #include "cpu/binary_injector_utils.hpp"
 #include "cpu/matmul/gemm_bf16_matmul.hpp"
 #include "cpu/matmul/matmul_utils.hpp"
+#include "cpu/scale_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -55,7 +56,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
             && dst_md()->data_type == dst_type
             && platform::has_data_type_support(data_type::bf16) && check_bias()
             && attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::oscale_runtime
+                    primitive_attr_t::skip_mask_t::scales_runtime
                     | primitive_attr_t::skip_mask_t::post_ops)
             && set_default_formats()
             && attr_.set_default_formats(dst_md(0)) == status::success
@@ -66,6 +67,10 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
 
     nthr_ = dnnl_get_max_threads();
     gemm_based::book_acc_scratchpad(*this, params_, sizeof(acc_data_t), nthr_);
+    if (N() != DNNL_RUNTIME_DIM_VAL) {
+        auto scratchpad = scratchpad_registry().registrar();
+        book_precomputed_scales(scratchpad, attr()->scales_, N());
+    }
 
     return status::success;
 }
@@ -81,10 +86,25 @@ static bool should_gemm_execute_sum_po(const gemm_based::params_t &params,
 
 template <impl::data_type_t dst_type>
 status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
-    auto check_attr_oscale = [&]() -> bool {
-        const auto &oscale = attr()->output_scales_;
-        return oscale.mask_ == 0
-                || (oscale.mask_ == (1 << (dst_md()->ndims - 1)));
+    auto check_attr_scales = [&]() -> bool {
+        using namespace data_type;
+        bool ok = true;
+        // TODO: Check that the rest argument scales are default
+        for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+            const auto &mask = attr()->scales_.get(arg).mask_;
+            if (arg == DNNL_ARG_WEIGHTS)
+                ok = ok && (mask == 0 || mask == (1 << (dst_md()->ndims - 1)));
+            else
+                ok = ok && (mask == 0);
+        }
+
+        if (!attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
+                && !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()
+                && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ != 0) {
+            // This case requires scratchpad
+            if (N() == DNNL_RUNTIME_DIM_VAL) return false;
+        }
+        return ok;
     };
 
     auto check_attr_post_ops = [&]() -> bool {
@@ -111,15 +131,17 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
     };
 
     // check basic attributes
-    if (!check_attr_oscale()) return status::unimplemented;
+    if (!check_attr_scales()) return status::unimplemented;
 
     // set state
     CHECK(params_.pp_attr_.copy_from(*attr()));
     params_.gemm_applies_output_scales_
-            = attr()->output_scales_.mask_ == 0 && !with_bias();
+            = attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0 && !with_bias();
 
-    if (params_.gemm_applies_output_scales_)
-        params_.pp_attr_.output_scales_.reset();
+    if (params_.gemm_applies_output_scales_) {
+        params_.pp_attr_.scales_.reset(DNNL_ARG_SRC);
+        params_.pp_attr_.scales_.reset(DNNL_ARG_WEIGHTS);
+    }
 
     // check post-ops
     if (!check_attr_post_ops()) return status::unimplemented;
@@ -160,18 +182,25 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const auto &po = this->pd()->attr()->post_ops_;
     const auto post_ops_binary_rhs_arg_vec = prepare_binary_args(po, ctx);
 
-    DEFINE_SCALES_BUFFER(scales);
-
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
+
+    const int ndims = pd()->ndims();
+
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    auto scratchpad = ctx.get_scratchpad_grantor();
+    const float *scales = precompute_scales(scratchpad, src_scales, wei_scales,
+            dst_d.dims()[ndims - 1], pd()->attr());
 
     if (src_d.has_zero_dim() || weights_d.has_zero_dim()
             || dst_d.has_zero_dim())
         return status::success;
 
     matmul_helper_t helper(src_d, weights_d, dst_d);
-    const int ndims = pd()->ndims();
     const int batch_ndims = ndims - 2;
     dim_t M = helper.M();
     const dim_t N = helper.N();
@@ -213,7 +242,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const float beta = params.gemm_beta_;
     const dim_t acc_ldc = dst_is_acc ? ldc : N;
     const int scale_idx_mult
-            = this->pd()->attr()->output_scales_.mask_ == (1 << (ndims - 1));
+            = this->pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_
+            == (1 << (ndims - 1));
 
     std::atomic<status_t> st(status::success);
     // use parallel over batch when binary po with channel bcast
@@ -325,8 +355,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                     const ptrdiff_t oc_off = i_work % N;
                     (*pp_kernel_)(curr_dst, curr_acc,
                             bias + oc_off * bia_dt_size,
-                            pp_scales + oc_off * scale_idx_mult, 0,
-                            dst_logical_off, dim1_off, gemm_M * gemm_N,
+                            pp_scales + oc_off * scale_idx_mult, dst_scales[0],
+                            0, dst_logical_off, dim1_off, gemm_M * gemm_N,
                             static_cast<size_t>(N), ldc, nullptr,
                             post_ops_binary_rhs_arg_vec.data(), dst,
                             matrix_per_first_batch_off, ctx, *pd()->dst_md());
@@ -350,8 +380,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                 balance211((size_t)(M * N), nthr, ithr, start, end);
                 const size_t dst_logical_off = start;
                 const size_t dim1_off = start % N;
-                (*pp_kernel_)(dst, acc, bias, pp_scales, start, dst_logical_off,
-                        dim1_off, end, (size_t)N, ldc, nullptr,
+                (*pp_kernel_)(dst, acc, bias, pp_scales, dst_scales[0], start,
+                        dst_logical_off, dim1_off, end, (size_t)N, ldc, nullptr,
                         post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
                         *pd()->dst_md());
             });

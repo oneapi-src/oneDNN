@@ -31,6 +31,7 @@
 #include "cpu/gemm_inner_product_utils.hpp"
 
 #include "cpu/cpu_inner_product_pd.hpp"
+#include "cpu/scale_utils.hpp"
 #if DNNL_X64
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #endif
@@ -59,12 +60,12 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
                             utils::one_of(
                                     weights_md(1)->data_type, f32, s32, s8, u8))
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale_runtime
+                            primitive_attr_t::skip_mask_t::scales_runtime
                                     | primitive_attr_t::skip_mask_t::post_ops,
                             dst_md()->data_type)
                     && attr()->post_ops_.check_sum_consistent_dt(
                             dst_md()->data_type)
-                    && output_scales_mask_ok()
+                    && scales_mask_ok()
                     && set_default_params() == status::success
                     && dense_gemm_consitency_check(
                             src_md(), weights_md(), dst_md())
@@ -86,19 +87,30 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
         bool dst_is_acc_;
 
     protected:
-        bool output_scales_mask_ok() const {
-            const auto &mask = attr()->output_scales_.mask_;
-            return mask == 0 || mask == 1 << 1;
+        bool scales_mask_ok() const {
+            using namespace data_type;
+            bool ok = true;
+            // TODO: Check that the rest argument scales are default
+            for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+                const auto &mask = attr()->scales_.get(arg).mask_;
+                if (arg == DNNL_ARG_WEIGHTS)
+                    ok = ok && (mask == 0 || mask == (1 << 0));
+                else
+                    ok = ok && (mask == 0);
+            }
+            return ok;
         }
 
     private:
         void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
             if (!dst_is_acc_) {
-                auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.template book<int32_t>(
                         memory_tracking::names::key_iprod_int_dat_in_acc_dt,
                         MB() * OC());
             }
+
+            book_precomputed_scales(scratchpad, attr()->scales_, OC());
         }
     };
 

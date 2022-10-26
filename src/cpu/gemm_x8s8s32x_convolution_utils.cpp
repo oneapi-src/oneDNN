@@ -48,8 +48,9 @@ struct ref_pp_ker_t : pp_ker_t {
     using acc_data_t = pp_ker_t::acc_data_t;
 
     void operator()(void *dst, const acc_data_t *acc, const char *bias,
-            const float *scales, float sum_scale, float signed_scale, int g,
-            size_t start, size_t end, const zero_point_call_params_t &zp,
+            const float *scales, float dst_scale, float sum_scale,
+            float signed_scale, int g, size_t start, size_t end,
+            const zero_point_call_params_t &zp,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             const exec_ctx_t &ctx, const memory_desc_t &dst_md,
             const single_gemm_conv_chunk_desc_t &chunk_desc) const override;
@@ -60,7 +61,7 @@ private:
 
 template <typename dst_data_t>
 void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
-        const char *bias, const float *scales, float sum_scale,
+        const char *bias, const float *scales, float dst_scale, float sum_scale,
         float signed_scale, int g, size_t start, size_t end,
         const zero_point_call_params_t &zp,
         const void * /* post_ops_binary_rhs_arg_vec */,
@@ -102,13 +103,15 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
 
             if (jcp_.signed_input) data *= signed_scale;
 
+            // dequantize data
+            data *= scales[(g * jcp_.oc + oc) * jcp_.scale_idx_mult];
+
             if (jcp_.with_bias) {
                 const float b = io::load_float_value(
                         jcp_.bias_data_type, bias, g * jcp_.oc + oc);
                 data += b;
             }
 
-            data *= scales[(g * jcp_.oc + oc) * jcp_.scale_idx_mult];
             if (jcp_.with_sum)
                 data += sum_scale
                         * io::load_float_value(
@@ -118,6 +121,8 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
                 ref_post_ops_->execute(data, args);
             }
 
+            // quantize data
+            if (jcp_.with_dst_scale) data *= dst_scale;
             if (jcp_.zp.dst_exists) data += zp_dst_val;
 
             io::store_float_value(jcp_.dst_data_type, data, void_dst, dst_off);

@@ -47,8 +47,9 @@ struct ref_pp_kernel_t : public pp_kernel_t {
                           : nullptr) {}
 
     void operator()(void *dst, const void *acc, const char *bias,
-            const float *scales, size_t start, size_t dst_logical_offs,
-            size_t dim1_off, size_t end, size_t runtime_oc, dim_t dst_mb_stride,
+            const float *scales, float dst_scale, size_t start,
+            size_t dst_logical_offs, size_t dim1_off, size_t end,
+            size_t runtime_oc, dim_t dst_mb_stride,
             const float *dst_zero_points,
             const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
             size_t first_mb_matrix_addr_off, const exec_ctx_t &ctx,
@@ -59,9 +60,9 @@ private:
 };
 
 void ref_pp_kernel_t::operator()(void *dst, const void *acc, const char *bias,
-        const float *scales, size_t start, size_t dst_logical_off,
-        size_t dim1_off, size_t end, size_t runtime_oc, dim_t dst_mb_stride,
-        const float *dst_zero_points,
+        const float *scales, float dst_scale, size_t start,
+        size_t dst_logical_off, size_t dim1_off, size_t end, size_t runtime_oc,
+        dim_t dst_mb_stride, const float *dst_zero_points,
         const void * /* post_ops_binary_rhs_arg_vec */,
         const void * /* dst_orig */, size_t /* first_mb_matrix_addr_off */,
         const exec_ctx_t &ctx, const memory_desc_t &dst_md) const {
@@ -78,13 +79,13 @@ void ref_pp_kernel_t::operator()(void *dst, const void *acc, const char *bias,
             [&](const void *acc, void *dst, size_t off, size_t &oc_value,
                     const size_t dst_offset) {
                 float d = io::load_float_value(this->acc_data_type_, acc, off);
+                if (this->do_scale_)
+                    d *= scales[oc_value * this->scale_idx_mult_];
                 if (this->do_bias()) {
                     const float b = io::load_float_value(
                             this->bias_data_type_, bias, oc_value);
                     d += b;
                 }
-                if (this->do_scale_)
-                    d *= scales[oc_value * this->scale_idx_mult_];
                 if (apply_postops) {
                     if (this->do_sum_)
                         args.dst_val = io::load_float_value(
@@ -92,6 +93,7 @@ void ref_pp_kernel_t::operator()(void *dst, const void *acc, const char *bias,
                     args.l_offset = dst_offset;
                     ref_post_ops_->execute(d, args);
                 }
+                if (this->do_dst_scale_) d *= dst_scale;
                 if (this->do_dst_zero_points_) d += dst_zero_points[0];
                 io::store_float_value(this->dst_data_type_, d, dst, off);
                 oc_value = (oc_value == OC - 1) ? 0 : oc_value + 1;
@@ -147,11 +149,14 @@ pp_kernel_t::pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
     , acc_data_type_(acc_dt)
     , dst_data_type_(dst_md->data_type)
     , ndims_(dst_md->ndims) {
-    do_scale_ = !attr->output_scales_.has_default_values();
-    if (do_scale_)
-        // PER_OC mask definition for matmul batched case
-        // also valid for ip because dst_ndims == 2
-        scale_idx_mult_ = (attr->output_scales_.mask_ == (1 << (ndims_ - 1)));
+    do_scale_ = !attr->scales_.get(DNNL_ARG_SRC).has_default_values()
+            || !attr->scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
+    if (do_scale_) {
+        int wei_mask = attr->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+        // matmul: per_oc: 1 << (ndims_ - 1)
+        // ip: per_oc: 1 << 0
+        scale_idx_mult_ = wei_mask == (1 << (ndims_ - 1)) || wei_mask == 1 << 0;
+    }
 
     post_ops_ = attr->post_ops_;
     const int eltwise_ind = post_ops_.find(primitive_kind::eltwise);

@@ -22,6 +22,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "cpu/gemm_convolution_utils.hpp"
+#include "cpu/scale_utils.hpp"
 #if DNNL_X64
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #endif
@@ -2107,7 +2108,10 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     jcp.dst_os_stride = dst_d.is_blocking_desc()
             ? dst_d.blocking_desc().strides[ndims - 1]
             : 0;
-    jcp.scale_idx_mult = (attr.output_scales_.mask_ == (1 << 1));
+    jcp.scale_idx_mult
+            = (attr.scales_.get(DNNL_ARG_WEIGHTS).mask_ == (1 << with_groups));
+    jcp.with_dst_scale = !attr.scales_.get(DNNL_ARG_DST).has_default_values();
+    book_precomputed_scales(scratchpad, attr.scales_, jcp.ngroups * jcp.oc);
 
     if (jcp.zp.src_exists) {
         const auto size = zp_src_comp_size + zp_src_pad_comp_size;

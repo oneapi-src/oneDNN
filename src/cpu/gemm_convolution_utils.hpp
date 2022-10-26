@@ -68,6 +68,7 @@ struct conv_gemm_conf_t {
     data_type_t sum_data_type;
     size_t dst_os_stride;
     size_t scale_idx_mult;
+    bool with_dst_scale;
 };
 
 struct single_gemm_conv_chunk_desc_t {
