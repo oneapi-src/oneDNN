@@ -161,12 +161,8 @@ private:
     using TReg = typename cpu_isa_traits<isa>::TReg;
     using TRegS = typename cpu_isa_traits<isa>::TRegS;
 
-    int simd_w() {
-        int simd_w = cpu_isa_traits<isa>::vlen / dtype_size();
-        /* Return value is used for CMP (immediate). */
-        assert(simd_w < (1 << 12));
-        return simd_w;
-    }
+    int vlen() { return cpu_isa_traits<isa>::vlen; }
+    int simd_w() { return vlen() / dtype_size(); }
 
     XReg reg_src = x11;
     XReg reg_dst = x8;
@@ -198,14 +194,12 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     bool ok = mayiuse(isa) && is_fwd()
             && utils::everyone_is(
                     d_type, src_md()->data_type, dst_md()->data_type)
-            && !has_zero_dim_memory()
-            && src_d.is_dense(true)
+            && !has_zero_dim_memory() && src_d.is_dense(true)
+            && eltwise_injector::is_supported(isa, desc_.alg_kind)
             // refer to a comment in jit_uni_kernel why this is needed
             && IMPLICATION(!src_d.is_dense(), is_zero_preserved())
             && attr()->has_default_values() && set_default_formats_common()
-            && src_d == memory_desc_wrapper(dst_md())
-            && eltwise_injector::is_alg_supported(desc_.alg_kind);
-
+            && src_d == memory_desc_wrapper(dst_md());
     return ok ? status::success : status::unimplemented;
 }
 
@@ -225,10 +219,8 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::init(engine_t *engine) {
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_fwd_t<isa, d_type>::execute(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
-    CHECK(status);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const auto nelems = data_d.nelems(true);
@@ -267,14 +259,13 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
                     diff_src_md()->data_type, diff_dst_md()->data_type)
             && !has_zero_dim_memory() && set_default_formats_common()
             && data_d.is_dense(true)
+            && eltwise_injector::is_supported(isa, desc_.alg_kind)
             // refer to a comment in jit_uni_kernel why this is needed
             && IMPLICATION(!data_d.is_dense(), is_zero_preserved())
             && data_d == memory_desc_wrapper(diff_dst_md())
             && memory_desc_wrapper(diff_src_md())
                     == memory_desc_wrapper(diff_dst_md())
-            && attr()->has_default_values()
-            && eltwise_injector::is_alg_supported(desc_.alg_kind);
-
+            && attr()->has_default_values();
     return ok ? status::success : status::unimplemented;
 }
 
@@ -294,12 +285,10 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::init(engine_t *engine) {
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_bwd_t<isa, d_type>::execute(
         const exec_ctx_t &ctx) const {
-    status_t status = status::success;
     auto src = pd()->use_dst() ? CTX_IN_MEM(const data_t *, DNNL_ARG_DST)
                                : CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
-    CHECK(status);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper data_d(pd()->data_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
