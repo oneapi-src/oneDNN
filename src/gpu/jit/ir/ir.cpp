@@ -827,6 +827,7 @@ int64_t bound_finder_base_t::find_bound_impl(
         }
     }
 
+    if (e.type().is_bool()) return is_low ? 0 : 1;
     auto *cast = e.as_ptr<cast_t>();
     if (cast) {
         // Saturate if needed, otherwise assume the same bounds.
@@ -844,8 +845,6 @@ int64_t bound_finder_base_t::find_bound_impl(
         auto hi = find_high_bound(cast->expr);
         return std::min(type_hi, hi);
     }
-
-    if (e.type().is_bool()) return is_low ? 0 : 1;
 
     return def_bound;
 }
