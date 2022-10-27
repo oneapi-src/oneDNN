@@ -103,3 +103,7 @@
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
+
+# Test tf32 configuration
+--reset
+--batch=option_set_fwks_key_gpu_tf32
