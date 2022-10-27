@@ -22,6 +22,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/scale_utils.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
@@ -1501,13 +1502,14 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_int8(
 
     /* add bias and zero-point to zmm_accum */
     vcvtdq2ps(zmm_out, zmm_out);
-    if (jcp.with_bias) vaddps(zmm_out, zmm_out, zmm_bias);
     const Zmm zmm_out_msk = zmm_mask(zmm_out, mask_flag);
     vmulps(zmm_out_msk, zmm_out,
             EVEX_compress_addr(reg_ptr_scales, scale_offset));
+    if (jcp.with_bias) vaddps(zmm_out, zmm_out, zmm_bias);
 
     apply_postops(zmm_out, p_sum_scale, p_sum_zp, addr, off, mask_flag);
 
+    if (jcp.dst_scale) { vmulps(zmm_out_msk, zmm_out, zmm_dst_scale); }
     if (jcp.dst_zero_point) { vaddps(zmm_out, zmm_out, zmm_dst_zp); }
 
     // Properly saturate the accumulators for integer datatypes
@@ -1567,6 +1569,10 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output(int width, int tail,
         const int gen_kw = (jcp.kw - 1) * (jcp.dilate_w + 1) + 1;
         const int owp = gen_kw + jcp.ow - 1;
 
+        if (jcp.dst_scale) {
+            mov(reg_dst_scale, ptr[param1 + GET_OFF(dst_scale)]);
+            vmovups(zmm_dst_scale, EVEX_compress_addr(reg_dst_scale, 0));
+        }
         if (jcp.src_zero_point) {
             mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
             mov(reg_src_zero_point, ptr[param1 + GET_OFF(src_zero_point)]);
@@ -2603,8 +2609,18 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.wsp_buffer_size = (size_t)jcp.nb_oh_blocking * jcp.nb_oc_blocking
             * jcp.full_tile_width * jcp.oc_block;
 
-    const auto &oscales = attr.output_scales_;
-    jcp.is_oc_scale = oscales.mask_ == 1 << 1;
+    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+    const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
+    const int wei_mask_per_oc = 1 << with_groups;
+    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
+    jcp.dst_scale = !dst_scales.has_default_values();
+
+    // only common src & dst scales are supported
+    // only common and per-oc-channel weight scales are supported
+    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
+            && everyone_is(src_scales.mask_, dst_scales.mask_, 0);
+    if (!scales_ok) return status::unimplemented;
 
     // Note: currently unsupported, results in seg-fault
     const int l_pad_output = nstl::min(jcp.ow, div_up(jcp.l_pad, jcp.stride_w));
@@ -2693,6 +2709,8 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_scratchpad(
                     (size_t)jcp.nthr * oc_chunks * jcp.ngroups);
         }
     }
+
+    book_precomputed_scales(scratchpad, attr.scales_, jcp.ngroups * jcp.oc);
 
     // Keep scratchpad memory footprint under control
     const size_t L2_size_per_core = platform::get_per_core_cache_size(2);
@@ -3226,12 +3244,13 @@ void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_int8(
         auto bias_addr = EVEX_compress_addr(reg_bias, bias_offset);
         cvt2ps(jcp.bia_dt, zmm_bias, bias_addr, mask_flag);
     }
+
     /* add bias to zmm_accum */
     vcvtdq2ps(zmm_out, zmm_out);
-    if (jcp.with_bias) vaddps(zmm_out, zmm_out, zmm_bias);
     const Zmm zmm_out_msk = zmm_mask(zmm_out, mask_flag);
     vmulps(zmm_out_msk, zmm_out,
             EVEX_compress_addr(reg_ptr_scales, scale_offset));
+    if (jcp.with_bias) vaddps(zmm_out, zmm_out, zmm_bias);
 
     /* Do post-ops */
     if (maybe_eltwise(0)) eltwise_injector_->compute_vector(zmm_out.getIdx());
@@ -3247,6 +3266,8 @@ void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_int8(
             vfmadd231ps(zmm_out, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
     }
     if (maybe_eltwise(1)) eltwise_injector_->compute_vector(zmm_out.getIdx());
+
+    if (jcp.dst_scale) { vmulps(zmm_out_msk, zmm_out, zmm_dst_scale); }
 
     // Properly saturate the accumulators for integer datatypes
     if (one_of(jcp.dsrc_dt, u8, s8, s32)) {
@@ -3535,6 +3556,10 @@ void jit_avx512_core_amx_bwd_data_kernel_t::generate() {
 
     if (jcp.with_bias) mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
 
+    if (jcp.dst_scale) {
+        mov(reg_ptr_dst_scales, ptr[param1 + GET_OFF(dst_scale)]);
+        vmovups(zmm_dst_scale, EVEX_compress_addr(reg_ptr_dst_scales, 0));
+    }
     mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
 
     mov(reg_last_h, ptr[param1 + GET_OFF(last_h)]);
@@ -3883,8 +3908,18 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.wsp_buffer_size = (size_t)jcp.nb_ih_blocking * jcp.nb_ic_blocking
             * jcp.full_tile_width * jcp.ic_block;
 
-    const auto &oscales = attr.output_scales_;
-    jcp.is_ic_scale = oscales.mask_ == 1 << 1;
+    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+    const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
+    const int wei_mask_per_ic = 1 << with_groups;
+    jcp.is_ic_scale = wei_scales.mask_ == wei_mask_per_ic;
+    jcp.dst_scale = !dst_scales.has_default_values();
+
+    // only common src & dst scales are supported
+    // only common and per-oc-channel weight scales are supported
+    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_ic)
+            && everyone_is(src_scales.mask_, dst_scales.mask_, 0);
+    if (!scales_ok) return status::unimplemented;
 
     return status::success;
 }
@@ -3902,6 +3937,8 @@ void jit_avx512_core_amx_bwd_data_kernel_t::init_scratchpad(
         scratchpad.book(key_conv_padded_bias, jcp.ic, jcp.typesize_bia);
     }
     scratchpad.book(key_conv_amx_tilecfg, 1, 64); // 1 whole cacheline
+
+    book_precomputed_scales(scratchpad, attr.scales_, jcp.ngroups * jcp.oc);
 }
 
 const int jit_avx512_core_amx_bwd_weights_kernel_t::max_ur_w = 32;

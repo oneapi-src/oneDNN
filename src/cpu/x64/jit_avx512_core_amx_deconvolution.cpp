@@ -20,6 +20,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/scale_utils.hpp"
 
 #include "cpu/x64/jit_avx512_core_amx_conv_utils.hpp"
 #include "cpu/x64/jit_avx512_core_amx_deconvolution.hpp"
@@ -73,13 +74,19 @@ status_t jit_avx512_core_amx_deconvolution_fwd_t::execute_forward(
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
+            src_scales, wei_scales, dst_d.dims()[1], pd()->attr());
 
     // The body of bwd/d convolution harness is called with:
     //   1. src as input instead of diff_dst
     //   2. dst as output instead of diff_src
     amx_utils::execute_backward_convolution_body(ctx, pd()->jcp_, kernel_, src,
-            weights, bias, oscales, dst, src_d, weights_d, bias_d, dst_d);
+            weights, bias, oscales, dst_scales, dst, src_d, weights_d, bias_d,
+            dst_d);
 
     return status::success;
 }

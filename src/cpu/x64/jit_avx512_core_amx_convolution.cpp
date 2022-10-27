@@ -20,6 +20,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/scale_utils.hpp"
 
 #include "cpu/x64/jit_avx512_core_amx_conv_utils.hpp"
 #include "cpu/x64/jit_avx512_core_amx_convolution.hpp"
@@ -95,7 +96,12 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
     assert(jcp.is_relo);
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
+            src_scales, wei_scales, jcp.ngroups * jcp.oc, pd()->attr());
 
     auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_inp_buffer); // fix the template
@@ -368,6 +374,7 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
                         + wei_dt_size * (g * oc_chunks + occ) * wei_oc_shift;
                 p.bias = bias_w;
                 p.scales = &oscales[jcp.is_oc_scale * oc];
+                p.dst_scale = &dst_scales[0];
 
                 p.acc_s32 = wsp + ithr * jcp.wsp_buffer_size;
 
@@ -444,7 +451,12 @@ status_t jit_avx512_core_amx_convolution_fwd_t::execute_forward(
     const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
+            src_scales, wei_scales, jcp.ngroups * jcp.oc, pd()->attr());
 
     // TODO: use block offset instead of hand-calculated one
     //size_t wei_oc_shift = wht_blk_off(weights_d, 0, 1);
@@ -754,6 +766,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t::execute_forward(
                                 * wei_dt_size;
                 p.bias = bias_w;
                 p.scales = &oscales[jcp.is_oc_scale * oc];
+                p.dst_scale = &dst_scales[0];
 
                 p.acc_s32 = wsp + ithr * jcp.wsp_buffer_size;
                 if (req_zero_point_buffer
@@ -811,12 +824,18 @@ status_t jit_avx512_core_amx_convolution_bwd_data_t<diff_src_type, wei_type,
 
     // unused in kernel for bf16, but attributes have scales buffer by default
     // and using it here simplifies the shared `execute_backward_loop`.
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
+            src_scales, wei_scales, pd()->jcp_.ngroups * pd()->jcp_.oc,
+            pd()->attr());
 
     amx_utils::execute_backward_convolution_body(ctx, pd()->jcp_, kernel_,
-            diff_dst, weights, nullptr /* no bias */, oscales, diff_src,
-            diff_dst_d, weights_d, memory_desc_wrapper(nullptr) /* no bias */,
-            diff_src_d);
+            diff_dst, weights, nullptr /* no bias */, oscales, dst_scales,
+            diff_src, diff_dst_d, weights_d,
+            memory_desc_wrapper(nullptr) /* no bias */, diff_src_d);
     return status::success;
 }
 

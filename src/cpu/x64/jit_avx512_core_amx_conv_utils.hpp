@@ -128,7 +128,7 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
         const jit_conv_conf_t &jcp,
         const std::unique_ptr<jit_avx512_core_amx_bwd_data_kernel_t> &kernel,
         const char *diff_dst, const char *weights, const char *bias,
-        const float *oscales, char *diff_src,
+        const float *oscales, const float *dst_scales, char *diff_src,
         const memory_desc_wrapper &diff_dst_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &bias_d,
         const memory_desc_wrapper &diff_src_d) {
@@ -281,6 +281,7 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
                                         + d_lo * wht_d_stride);
                 p.bias = bias_w;
                 p.scales = &oscales[jcp.is_ic_scale * ic];
+                p.dst_scale = &dst_scales[0];
                 p.acc_s32 = wsp + ithr * jcp.wsp_buffer_size;
                 p.last_h = (ih + ih_step <= ih_e);
                 p.iwb = iwb;
