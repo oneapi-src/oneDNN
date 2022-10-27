@@ -1334,6 +1334,8 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulScaleAddPasses) {
     std::vector<op_kind_t> scale_kinds {Multiply, Divide};
     for (auto scale_kind : scale_kinds) {
         impl::engine_t &g_eng = get_engine();
+        // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
+        SKIP_IF(g_eng.kind() == impl::engine_kind::gpu, "skip on gpu");
         dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
         graph_t agraph;
         std::vector<int64_t> zps = {0};

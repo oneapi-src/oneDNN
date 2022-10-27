@@ -2884,6 +2884,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
+    // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
+
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -3007,6 +3010,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8bf16) {
 TEST(ExecuteSubgraphInt8, MatmulBiasAddU8s8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
+
+    // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
 
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
@@ -3166,6 +3172,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddU8s8bf16) {
 TEST(ExecuteSubgraphInt8, MatmulBiasAddBF16U8s8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
+
+    // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
 
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};

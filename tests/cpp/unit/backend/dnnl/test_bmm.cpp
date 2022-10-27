@@ -528,6 +528,9 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
+    // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
+
     std::vector<std::string> dtypes = {"uint8", "int8"};
 
     std::vector<int64_t> src_shape = {1, 4, 16, 8};
@@ -667,6 +670,9 @@ TEST(ExecuteSubgraphInt8, BmmX8x8bf16) {
 TEST(ExecuteSubgraphInt8, BmmDivX8x8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
+
+    // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
 
     std::vector<std::string> dtypes = {"uint8", "int8"};
 
@@ -985,6 +991,9 @@ TEST(ExecuteSubgraphInt8, BmmDivBlockedX8x8bf16) {
 TEST(ExecuteSubgraphInt8, BmmDivAddX8x8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
+
+    // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
 
     static auto isa = dnnl_get_effective_cpu_isa();
     SKIP_IF(isa < dnnl_cpu_isa_avx512_core

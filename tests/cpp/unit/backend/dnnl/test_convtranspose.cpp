@@ -959,6 +959,8 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
                 && src_qtype == "asymmetric")
             continue;
 
+        if (engine.kind() == impl::engine_kind::gpu && g == 4) continue;
+
         // prepare data
         int64_t in_channel = 8, out_channel = 8;
         int64_t kernel_size = 3;
