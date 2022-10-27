@@ -54,10 +54,10 @@
 --runtime_dims_masks=15:15
 --batch=shapes_2d_ci
 
-# Test bf32 data type configuration
+# Test bf32, tf32 data type configuration
 --reset
 --skip-impl=ref,x64:gemm
---cfg=f32 --attr-fpmath=bf16
+--cfg=f32 --attr-fpmath=bf16,tf32
 77x133:133x117
 15x24x16:15x16x32
 7x16x24x8:7x16x8x24
