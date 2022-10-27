@@ -36,6 +36,10 @@ status_t miopen_binary_t::execute(const exec_ctx_t &ctx) const {
         auto arg_src_0 = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC_0);
         auto arg_src_1 = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC_1);
         auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+        auto arg_scale0
+                = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0);
+        auto arg_scale1
+                = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(
@@ -46,7 +50,10 @@ status_t miopen_binary_t::execute(const exec_ctx_t &ctx) const {
             void *a = arg_src_0.get_native_pointer(ih);
             void *b = arg_src_1.get_native_pointer(ih);
             void *c = arg_dst.get_native_pointer(ih);
-            pd()->binary_impl_->execute(handle, a, b, c);
+            void *s0 = arg_scale0.get_native_pointer(ih);
+            void *s1 = arg_scale1.get_native_pointer(ih);
+
+            pd()->binary_impl_->execute(handle, a, b, c, s0, s1);
         });
     });
 }

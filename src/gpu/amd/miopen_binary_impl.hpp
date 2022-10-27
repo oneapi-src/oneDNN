@@ -32,8 +32,8 @@ struct miopen_binary_impl_base_t {
     int dims[NUM_IO][DNNL_MAX_NDIMS];
     miopenTensorDescriptor_t tensor_descs[NUM_IO] = {};
     miopenTensorOp_t alg_kind;
-    float alpha[2];
     float beta = 0.0f;
+    const float alpha = 1.0f;
 
     virtual ~miopen_binary_impl_base_t() {
         for (size_t i = 0; i < NUM_IO; i++) {
@@ -46,12 +46,13 @@ struct miopen_binary_impl_base_t {
 
     virtual status_t init(const binary_pd_t *pd) = 0;
 
-    void execute(miopenHandle_t handle, void *a, void *b, void *c) const {
-
-        MIOPEN_EXECUTE_FUNC(miopenOpTensor, handle, alg_kind, &alpha[0],
-                tensor_descs[src_0], a, &alpha[1], tensor_descs[src_1], b,
-                &beta, tensor_descs[dst_0], c);
+    void execute(miopenHandle_t handle, void *a, void *b, void *c,
+            const void *s0, const void *s1) const {
+        MIOPEN_EXECUTE_FUNC(miopenOpTensor, handle, alg_kind, s0 ? s0 : &alpha,
+                tensor_descs[src_0], a, s1 ? s1 : &alpha, tensor_descs[src_1],
+                b, &beta, tensor_descs[dst_0], c);
     }
+
     status_t convert_alg_kind(
             alg_kind_t alg_kind, miopenTensorOp_t *miopen_alg_kind) const {
 
@@ -101,9 +102,6 @@ struct miopen_binary_impl_t : public miopen_binary_impl_base_t {
         CHECK(convert_data_type(pd->src_md(0), &data_types[src_0]));
         CHECK(convert_data_type(pd->src_md(1), &data_types[src_1]));
         CHECK(convert_data_type(pd->dst_md(), &data_types[dst_0]));
-
-        alpha[0] = pd->attr()->scales_.get(1).scales_[0];
-        alpha[1] = pd->attr()->scales_.get(2).scales_[0];
 
         CHECK(create_and_set_tensor_descriptor(&tensor_descs[src_0],
                 data_types[src_0], ndims, dims[src_0], strides[src_0]));
