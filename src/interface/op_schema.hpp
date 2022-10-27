@@ -389,6 +389,31 @@ op_schema_t get_op_schema();
                     "the format of weight, the options are OIX, XIO", false, \
                     attribute_kind::s, "XIO")
 
+#define SET_CONVTRANSPOSE_COMMON_ATTRS \
+    set_attr(op_attr::strides, "the distance to slide the filter", true, \
+            attribute_kind::is) \
+            .set_attr(op_attr::pads_begin, "top and left padding", true, \
+                    attribute_kind::is) \
+            .set_attr(op_attr::pads_end, "bottom and right padding", true, \
+                    attribute_kind::is) \
+            .set_attr(op_attr::dilations, \
+                    "the distance in width and height between elements " \
+                    "in the filter", \
+                    true, attribute_kind::is) \
+            .set_attr(op_attr::auto_pad, "how the padding is calculated", \
+                    false, attribute_kind::s, "None") \
+            .set_attr(op_attr::groups, \
+                    "the number of groups input / output channels are " \
+                    "divided into", \
+                    false, attribute_kind::i, (int64_t)1) \
+            .set_attr(op_attr::data_format, \
+                    "the data format of input / output, the options are " \
+                    "NCX and NXC", \
+                    false, attribute_kind::s, "NXC") \
+            .set_attr(op_attr::filter_format, \
+                    "the format of weight, the options are IOX, XOI", false, \
+                    attribute_kind::s, "XOI")
+
 #define SET_REDUCE_COMMON_ATTRS \
     set_attr(op_attr::axes, \
             "specifies indices of input data, along which the reduction is " \

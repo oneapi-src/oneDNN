@@ -48,6 +48,20 @@ dims canonicalize(const dims &shape, const std::string &format) {
         for (size_t i = 2; i < ndims; ++i) {
             ret[i] = shape[i - 2];
         }
+    } else if ("XOI" == format) {
+        // XOI -> OIX
+        ret[0] = shape[ndims - 2]; // oc
+        ret[1] = shape[ndims - 1]; // ic
+        for (size_t i = 2; i < ndims; ++i) {
+            ret[i] = shape[i - 2];
+        }
+    } else if ("IOX" == format) {
+        // IOX -> OIX
+        ret[0] = shape[1]; // oc
+        ret[1] = shape[0]; // ic
+        for (size_t i = 2; i < ndims; ++i) {
+            ret[i] = shape[i];
+        }
     } else {
         assert(!"invalid format");
     }
@@ -508,9 +522,9 @@ status_t infer_conv_bprop_filters_output_shape_common(op_t *n,
     // spatial dims
     dims src_sp = in.get_src_spatial_dims(src_fmt);
     dims fil_sp = filter_shape;
-    if (fil_fmt == "OIX") {
+    if (fil_fmt == "OIX" || fil_fmt == "IOX") {
         fil_sp.erase(fil_sp.begin(), fil_sp.begin() + 2);
-    } else if (fil_fmt == "XIO") {
+    } else if (fil_fmt == "XIO" || fil_fmt == "XOI") {
         fil_sp.erase(fil_sp.end() - 2, fil_sp.end());
     } else {
         return status::unimplemented;
