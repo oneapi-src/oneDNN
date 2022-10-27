@@ -317,7 +317,7 @@ protected:
             SKIP_FOR_LOOP_HIP(
                     !impl::utils::one_of(alg, algorithm::eltwise_relu,
                             algorithm::eltwise_tanh, algorithm::eltwise_elu,
-                            algorithm::eltwise_logistici,
+                            algorithm::eltwise_logistic,
                             algorithm::eltwise_soft_relu,
                             algorithm::eltwise_abs),
                     "Unsupported algorithm type for HIP");
