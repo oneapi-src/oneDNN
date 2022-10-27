@@ -102,15 +102,13 @@ conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
             auto bias = make_dnnl_memory_desc(
                     op->get_input_value(2)->get_logical_tensor());
             bias = to_format_any(bias);
-            return dnnl::convolution_forward::primitive_desc(
-                    {pkind, algorithm::convolution_direct, src_md, weight, bias,
-                            dst_md, strides, dilates, pads_begin, pads_end},
-                    prm_attr, p_engine);
+            return dnnl::convolution_forward::primitive_desc(p_engine, pkind,
+                    algorithm::convolution_direct, src_md, weight, bias, dst_md,
+                    strides, dilates, pads_begin, pads_end, prm_attr);
         } else {
-            return dnnl::convolution_forward::primitive_desc(
-                    {pkind, algorithm::convolution_direct, src_md, weight,
-                            dst_md, strides, dilates, pads_begin, pads_end},
-                    prm_attr, p_engine);
+            return dnnl::convolution_forward::primitive_desc(p_engine, pkind,
+                    algorithm::convolution_direct, src_md, weight, dst_md,
+                    strides, dilates, pads_begin, pads_end, prm_attr);
         }
     };
 
@@ -145,8 +143,6 @@ conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
                 algorithm::convolution_direct, src, weight, dst, strides,
                 dilates, pads_begin, pads_end, prm_attr);
     }
-
-    dnnl::convolution_forward::primitive_desc pd = create_pd(src, dst);
 
     pd_cache.insert({op.get(), pd});
 
