@@ -73,35 +73,53 @@ static int check_known_skipped_case_graph(
     return OK;
 }
 
-static dims_t get_graph_compatible_wei_dims(const dims_t &wei_dims) {
+static dims_t get_graph_compatible_wei_dims(
+        const dims_t &wei_dims, bool has_groups) {
     dims_t new_dims = wei_dims;
-    const auto groups = new_dims[0];
-    new_dims.erase(new_dims.begin());
-    new_dims[1] *= groups;
+    if (has_groups) {
+        // from [g, O/g, I/g, X] to [O/g, I, X]
+        // g >= 1
+        const auto groups = new_dims[0];
+        new_dims.erase(new_dims.begin());
+        new_dims[1] *= groups;
+    }
+    // from [O, I, X] to [I, O, X]
+    std::swap(new_dims[0], new_dims[1]);
+
     return new_dims;
 }
 
-static dims_t get_acbdx_strides(const dims_t &wei_dims) {
-    // permute dims OIX => IOX
-    const dims_t wei_dims_permuted = [&wei_dims]() {
-        auto d = wei_dims;
-        std::swap(d[0], d[1]);
-        return d;
-    }();
-    // calculate the original strides
-    dims_t strides(wei_dims_permuted.size());
-    strides[strides.size() - 1] = 1;
-    for (int i = static_cast<int>(strides.size()) - 2; i >= 0; --i) {
-        strides[i] = wei_dims_permuted[i + 1] * strides[i + 1];
+static dims_t get_acbdx_strides(
+        const dims_t &wei_dims, const std::string &wei_tag) {
+    if (wei_tag.find("acbd") != std::string::npos) {
+        // dense strides
+        dims_t strides(wei_dims.size());
+        strides[strides.size() - 1] = 1;
+        for (int i = static_cast<int>(strides.size()) - 2; i >= 0; --i) {
+            strides[i] = wei_dims[i + 1] * strides[i + 1];
+        }
+        return strides;
+    } else {
+        // permute dims IOX => OIX
+        const dims_t wei_dims_permuted = [&wei_dims]() {
+            auto d = wei_dims;
+            std::swap(d[0], d[1]);
+            return d;
+        }();
+        // calculate the dense strides of OIX
+        dims_t strides(wei_dims_permuted.size());
+        strides[strides.size() - 1] = 1;
+        for (int i = static_cast<int>(strides.size()) - 2; i >= 0; --i) {
+            strides[i] = wei_dims_permuted[i + 1] * strides[i + 1];
+        }
+        // permute strides IOX => OIX
+        const dims_t strides_permuted = [&strides]() {
+            auto s = strides;
+            std::swap(s[0], s[1]);
+            return s;
+        }();
+        return strides_permuted;
     }
-    // permute strides IOX => OIX
-    const dims_t strides_permuted = [&strides]() {
-        auto s = strides;
-        std::swap(s[0], s[1]);
-        return s;
-    }();
-
-    return strides_permuted;
 }
 
 static quant_data_t get_qdata_for(int arg, const ::deconv::prb_t *prb) {
@@ -117,11 +135,12 @@ static quant_data_t get_qdata_for(int arg, const ::deconv::prb_t *prb) {
         const std::string q_type = prb->attr.oscale.policy == policy_t::COMMON
                 ? "per_tensor"
                 : "per_channel";
-        if (prb->has_groups && prb->g > 1)
-            return quant_data_t(q_dt, scales, zps, q_type, 0,
-                    get_acbdx_strides(
-                            get_graph_compatible_wei_dims(prb->wei_dims())));
-        return quant_data_t(q_dt, scales, zps, q_type, 0, prb->wtag);
+        dims_t wei_dims = get_graph_compatible_wei_dims(
+                prb->wei_dims(), prb->has_groups);
+        dims_t wei_strides = get_acbdx_strides(
+                wei_dims, normalize_tag(prb->wtag, prb->ndims));
+        return quant_data_t(
+                q_dt, scales, zps, q_type, /* axis */ 1, wei_strides);
     } else if (arg == DST) {
         const float scale_val = 1.f
                 * (1.f / get_post_eltwise_scale(prb->attr.post_ops.entry));
@@ -177,14 +196,10 @@ fill_status_t append_graph_with_block(const ::deconv::prb_t *prb) {
     const auto bia_id = graph.generate_id_for(op_id, lt_kind::BIA);
     const auto dst_id = graph.generate_id_for(op_id, dst_lt_kind);
 
-    dims_t wei_dims = prb->has_groups
-            ? get_graph_compatible_wei_dims(prb->wei_dims())
-            : prb->wei_dims();
-    dims_t wei_permuted_strides {};
-    const bool with_permuted_wei_str = prb->has_groups && prb->g > 1;
-    if (with_permuted_wei_str) {
-        wei_permuted_strides = get_acbdx_strides(wei_dims);
-    }
+    dims_t wei_dims
+            = get_graph_compatible_wei_dims(prb->wei_dims(), prb->has_groups);
+    dims_t wei_strides
+            = get_acbdx_strides(wei_dims, normalize_tag(prb->wtag, prb->ndims));
 
     dims_t dilations = prb->dilations();
     // oneDNN graph dilation = 1 is equivalent of oneDNN
@@ -210,10 +225,7 @@ fill_status_t append_graph_with_block(const ::deconv::prb_t *prb) {
 
     graph.create_lt(src_id, src_dt, prb->src_dims(), prb->stag);
     graph.create_lt(dst_id, dst_dt, prb->dst_dims(), prb->dtag);
-    if (with_permuted_wei_str)
-        graph.create_lt(wei_id, wei_dt, wei_dims, wei_permuted_strides);
-    else
-        graph.create_lt(wei_id, wei_dt, wei_dims, prb->wtag);
+    graph.create_lt(wei_id, wei_dt, wei_dims, wei_strides);
     if (prb->dir & FLAG_BIA)
         graph.create_lt(bia_id, bia_dt, prb->bia_dims(), lt::strided,
                 dnnl::graph::logical_tensor::property_type::constant);
@@ -247,7 +259,7 @@ fill_status_t append_graph_with_block(const ::deconv::prb_t *prb) {
             .set_attr("auto_pad", std::string("None"))
             .set_attr("groups", prb->g)
             .set_attr("data_format", std::string("NCX"))
-            .set_attr("filter_format", std::string("OIX"));
+            .set_attr("filter_format", std::string("IOX"));
     if (prb->dir == BWD_W) deconv_op.set_attr("filter_shape", wei_dims);
 
     graph.append(op_id, deconv_op, src_ids, dst_ids);
