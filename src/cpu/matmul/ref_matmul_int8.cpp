@@ -43,7 +43,10 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
     CHECK(status);
 
-    DEFINE_SCALES_BUFFER(scales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(weights_zero_point, DNNL_ARG_WEIGHTS);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -118,8 +121,16 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
         return io::load_float_value(bia_d.data_type(), bias, bias_off);
     };
 
-    // output scale section
-    const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
+    // arg scales section
+    const auto &attr_scales = pd()->attr()->scales_;
+    const bool with_src_scales
+            = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
+    const bool with_wei_scales
+            = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
+    const bool with_dst_scales
+            = !attr_scales.get(DNNL_ARG_DST).has_default_values();
+    const dim_t wei_scale_stride
+            = attr_scales.get(DNNL_ARG_WEIGHTS).mask_ == 0 ? 0 : 1;
 
     auto sum_dt = pd()->attr()->post_ops_.get_sum_dt(dst_d.data_type());
 
@@ -131,11 +142,12 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
         utils::l_dims_by_l_offset(dst_dims_idx, l_offset, dst_d.dims(), ndims);
         int acc = ker(dst_dims_idx, m, n);
         float d = static_cast<int>(acc);
+        if (with_src_scales) d *= src_scales[0];
+        if (with_wei_scales) d *= wei_scales[wei_scale_stride * n];
         if (bias) d += ker_bias(dst_dims_idx);
 
         const auto dst_off = dst_d.off_v(dst_dims_idx);
         if (non_default_attrs) {
-            d *= scales[scale_stride * n];
 
             ref_post_ops_t::args_t args;
             args.dst_val = io::load_float_value(sum_dt, dst, dst_off);
@@ -144,6 +156,7 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
             args.dst_md = pd()->dst_md();
             ref_post_ops->execute(d, args);
 
+            if (with_dst_scales) d *= dst_scales[0];
             if (dst_zero_point) {
                 const int dst_zp = io::load_int_value(
                         data_type::s32, dst_zero_point, dst_zp_idx_mult * n);
