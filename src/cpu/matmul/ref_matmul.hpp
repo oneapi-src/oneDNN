@@ -67,20 +67,30 @@ struct ref_matmul_t : public primitive_t {
                                     && IMPLICATION(src_type == bf16,
                                             utils::one_of(bia_type, f32, bf16)))
                     && platform::has_data_type_support(src_type)
-                    && attr()->has_default_values(smask_t::oscale_runtime
+                    && attr()->has_default_values(smask_t::scales_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_type)
                     && attr_.post_ops_.check_sum_consistent_dt(dst_type)
-                    && attr_oscale_ok() && set_default_formats()
+                    && attr_scales_ok() && set_default_formats()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
         }
 
     private:
-        // oscale for f32/bf16 is a way to support alpha multiplication.
-        bool attr_oscale_ok() const {
-            const auto &oscale = attr()->output_scales_;
-            return oscale.mask_ == 0 || oscale.mask_ == (1 << (batched() + 1));
+        // scales for f32/bf16 is a way to support alpha multiplication.
+        bool attr_scales_ok() {
+            bool ok = true;
+            // TODO: Check that the rest argument scales are default
+            for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+                const auto &mask = attr()->scales_.get(arg).mask_;
+                if (arg == DNNL_ARG_WEIGHTS)
+                    ok = ok
+                            && (mask == 0
+                                    || mask == (1 << (dst_md()->ndims - 1)));
+                else
+                    ok = ok && (mask == 0);
+            }
+            return ok;
         }
     };
 
