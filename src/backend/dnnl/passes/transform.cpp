@@ -461,7 +461,7 @@ impl::status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
                     op_attr::qtype, in0->get_attr<std::string>(op_attr::qtype));
         } else {
             // Currently for ConvTranspose, the output channel in weight tensor
-            // (OC/g, IC, H, W) is not equal to the one in output tensor
+            // (IC, OC/g, H, W) is not equal to the one in output tensor
             // (N, OC, H, W) if `groups` > 1, so the size of weight's
             // per-channel scale is not the same as the output channel in output
             // tensor, here we will broadcast scales from `OC/g` to `OC`.
@@ -1550,7 +1550,7 @@ impl::status_t conv_bwd_weights_canonicalization(
                 : false;
         bool need_permute_1 = cur_op->has_attr(op_attr::filter_format)
                 ? (cur_op->get_attr<std::string>(op_attr::filter_format)
-                        == "XIO")
+                        != "OIX")
                 : false;
 
         if (need_permute_0) {
@@ -1581,7 +1581,16 @@ impl::status_t conv_bwd_weights_canonicalization(
         if (need_permute_1) {
             auto out_ndims
                     = cur_op->get_output_value(0)->get_logical_tensor().ndims;
-            auto out_perm = get_oix2xio_permutation(out_ndims);
+            std::string filter_format
+                    = cur_op->get_attr<std::string>(op_attr::filter_format);
+            std::vector<int64_t> out_perm;
+            if (filter_format == "XIO") {
+                out_perm = get_oix2xio_permutation(out_ndims);
+            } else if (filter_format == "XOI") {
+                out_perm = get_oix2xoi_permutation(out_ndims);
+            } else if (filter_format == "IOX") {
+                out_perm = get_oix2iox_permutation(out_ndims);
+            }
 
             op_ptr out_perm_op
                     = std::make_shared<impl::op_t>(op_kind::dnnl_permute);
@@ -1593,7 +1602,7 @@ impl::status_t conv_bwd_weights_canonicalization(
                     = cur_op->get_attr<std::vector<int64_t>>(
                             op_attr::filter_shape);
             const auto filter_shape_as_oix
-                    = impl::canonicalize(filter_shape_attr, "XIO");
+                    = impl::canonicalize(filter_shape_attr, filter_format);
             cur_op->set_attr<impl::dims>(
                     op_attr::filter_shape, filter_shape_as_oix);
             cur_op->set_attr<std::string>(op_attr::filter_format, "OIX");

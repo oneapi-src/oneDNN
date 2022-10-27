@@ -51,7 +51,7 @@ impl::status_t insert_permute_for_conv_or_deconv(
         const bool need_permute_src = op->has_attr(op_attr::data_format)
                 && op->get_attr<std::string>(op_attr::data_format) == "NXC";
         const bool need_permute_wei = op->has_attr(op_attr::filter_format)
-                && op->get_attr<std::string>(op_attr::filter_format) == "XIO";
+                && op->get_attr<std::string>(op_attr::filter_format) != "OIX";
         // conv + depthwise case
         bool need_permute_post_dw_conv_wei = false;
         const impl::op_t *post_dw_conv = nullptr;
@@ -85,7 +85,15 @@ impl::status_t insert_permute_for_conv_or_deconv(
                 perm = get_nxc2ncx_permutation(ndims);
             } else if (i == 1 && need_permute_wei) {
                 // optionally permute weight
-                perm = get_xio2oix_permutation(ndims);
+                std::string filter_format
+                        = op->get_attr<std::string>(op_attr::filter_format);
+                if (filter_format == "XIO") {
+                    perm = get_xio2oix_permutation(ndims);
+                } else if (filter_format == "XOI") {
+                    perm = get_xoi2oix_permutation(ndims);
+                } else if (filter_format == "IOX") {
+                    perm = get_iox2oix_permutation(ndims);
+                }
             } else if (i == 2 && need_permute_post_dw_conv_wei) {
                 perm = get_xio2oix_permutation(ndims);
             } else if (i >= op->num_inputs() - num_post_binary_ops

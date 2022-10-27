@@ -362,6 +362,84 @@ std::vector<int64_t> get_oix2xio_permutation(int ndims) {
     return axes;
 }
 
+// used to permute the xoi format to oix format
+/// \note
+/// The logical axes will be permuted in the following manner:
+/// for (i = 0; i < ndims(); i++)
+///     new_desc.dims()[permutation[i]] = dims()[i];
+/// if we want to permute hwoi to oihw, we need:
+///     permutation[0] = 2
+///     permutation[1] = 3
+///     permutation[2] = 0
+///     permutation[3] = 1
+std::vector<int64_t> get_xoi2oix_permutation(int ndims) {
+    assert(ndims > 2);
+    std::vector<int64_t> axes(ndims);
+    std::iota(axes.begin(), axes.end(), 0);
+    axes.push_back(axes[0]);
+    axes.push_back(axes[1]);
+    axes.erase(axes.begin());
+    axes.erase(axes.begin());
+    return axes;
+}
+
+// used to permute the oix format to xoi format
+/// \note
+/// The logical axes will be permuted in the following manner:
+/// for (i = 0; i < ndims(); i++)
+///     new_desc.dims()[permutation[i]] = dims()[i];
+/// if we want to permute oihw to hwoi, we need:
+///     permutation[0] = 2
+///     permutation[1] = 3
+///     permutation[2] = 0
+///     permutation[3] = 1
+std::vector<int64_t> get_oix2xoi_permutation(int ndims) {
+    assert(ndims > 2);
+    std::vector<int64_t> axes(ndims);
+    std::iota(axes.begin(), axes.end(), 0);
+    axes.insert(axes.begin(), axes[axes.size() - 1]);
+    axes.insert(axes.begin(), axes[axes.size() - 2]);
+    axes.pop_back();
+    axes.pop_back();
+    return axes;
+}
+
+// used to permute the iox format to oix format
+/// \note
+/// The logical axes will be permuted in the following manner:
+/// for (i = 0; i < ndims(); i++)
+///     new_desc.dims()[permutation[i]] = dims()[i];
+/// if we want to permute iohw to oihw, we need:
+///     permutation[0] = 1
+///     permutation[1] = 0
+///     permutation[2] = 2
+///     permutation[3] = 3
+std::vector<int64_t> get_iox2oix_permutation(int ndims) {
+    assert(ndims > 2);
+    std::vector<int64_t> axes(ndims);
+    std::iota(axes.begin(), axes.end(), 0);
+    std::swap(axes[0], axes[1]);
+    return axes;
+}
+
+// used to permute the oix format to iox format
+/// \note
+/// The logical axes will be permuted in the following manner:
+/// for (i = 0; i < ndims(); i++)
+///     new_desc.dims()[permutation[i]] = dims()[i];
+/// if we want to permute oihw to iohw, we need:
+///     permutation[0] = 1
+///     permutation[1] = 0
+///     permutation[2] = 2
+///     permutation[3] = 3
+std::vector<int64_t> get_oix2iox_permutation(int ndims) {
+    assert(ndims > 2);
+    std::vector<int64_t> axes(ndims);
+    std::iota(axes.begin(), axes.end(), 0);
+    std::swap(axes[0], axes[1]);
+    return axes;
+}
+
 memory::desc transpose(const memory::desc &adesc, dim dim0, dim dim1) {
     std::vector<int> axes(static_cast<std::size_t>(adesc.dims().size()));
     std::iota(axes.begin(), axes.end(), 0);

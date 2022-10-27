@@ -93,6 +93,14 @@ std::vector<int64_t> get_xio2oix_permutation(int ndims);
 
 std::vector<int64_t> get_oix2xio_permutation(int ndims);
 
+std::vector<int64_t> get_xoi2oix_permutation(int ndims);
+
+std::vector<int64_t> get_oix2xoi_permutation(int ndims);
+
+std::vector<int64_t> get_iox2oix_permutation(int ndims);
+
+std::vector<int64_t> get_oix2iox_permutation(int ndims);
+
 std::vector<int64_t> get_last_two_dims_permutation(int ndims);
 
 memory::desc transpose(const memory::desc &adesc, dim dim0, dim dim1);

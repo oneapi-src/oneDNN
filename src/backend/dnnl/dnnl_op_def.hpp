@@ -345,7 +345,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose, 1,
                         "spatial axis in the output tensor",
                         false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
-                .SET_CONV_COMMON_ATTRS
+                .SET_CONVTRANSPOSE_COMMON_ATTRS
                 // New added attributes
                 .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
@@ -380,7 +380,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_data, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from ConvTransposeBackpropData.
-                .SET_CONV_COMMON_ATTRS
+                .SET_CONVTRANSPOSE_COMMON_ATTRS
                 // New added attributes
                 .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
@@ -416,7 +416,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_weights, 1,
                 .set_attr(op_attr::filter_shape, "describing filter shape",
                         false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
-                .SET_CONV_COMMON_ATTRS
+                .SET_CONVTRANSPOSE_COMMON_ATTRS
                 // New added attributes
                 .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
