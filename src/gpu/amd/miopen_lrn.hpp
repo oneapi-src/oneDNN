@@ -103,6 +103,7 @@ struct miopen_lrn_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_lrn_bwd_t);
 
         status_t init(engine_t *) {
+            using namespace data_type;
             bool ok = !is_fwd()
                     // MIOpen LRN implementation within channel supports only 2D spatial.
                     && IMPLICATION(
