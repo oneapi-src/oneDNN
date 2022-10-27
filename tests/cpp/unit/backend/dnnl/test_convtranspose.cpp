@@ -386,7 +386,7 @@ public:
         convtranspose_op.set_attr<std::string>(
                 impl::op_attr::data_format, "NXC");
         convtranspose_op.set_attr<std::string>(
-                impl::op_attr::filter_format, "OIX");
+                impl::op_attr::filter_format, "IOX");
         impl::op_t add_op(1, impl::op_kind::Add, "Add");
 
         // prepare logical tensor
@@ -485,13 +485,13 @@ TEST(Compile, ConvtransposeFp32) {
     convtranspose_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
     convtranspose_op.set_attr<int64_t>(impl::op_attr::groups, 1);
     convtranspose_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    convtranspose_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    convtranspose_op.set_attr<std::string>(impl::op_attr::filter_format, "IOX");
 
     // prepare logical tensor
     impl::logical_tensor_t src = utils::logical_tensor_init(
             0, {8, 3, 222, 222}, impl::data_type::f32);
     impl::logical_tensor_t weight = utils::logical_tensor_init(
-            1, {16, 3, 3, 3}, impl::data_type::f32);
+            1, {3, 16, 3, 3}, impl::data_type::f32);
     impl::logical_tensor_t dst = utils::logical_tensor_init(
             2, {8, 16, 224, 224}, impl::data_type::f32, impl::layout_type::any);
 
@@ -529,31 +529,38 @@ TEST_P(Convtranspose4D5D, TestConvtranspose) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Execute, Convtranspose4D5D,
-        ::testing::Values(dnnl_graph_test_convtranspose_params {"NXC", "OIX",
+        ::testing::Values(dnnl_graph_test_convtranspose_params {"NXC", "IOX",
                                   {1, 2, 2, 1}, {1, 1, 3, 3}, false, {1},
                                   {1, 4, 4, 1}, {1, 1}, {1, 1}, {0, 0}, {0, 0}},
-                dnnl_graph_test_convtranspose_params {"NCX", "OIX",
+                dnnl_graph_test_convtranspose_params {"NCX", "IOX",
                         {1, 1, 2, 2}, {1, 1, 3, 3}, true, {1}, {1, 1, 4, 4},
                         {1, 1}, {1, 1}, {0, 0}, {0, 0}},
-                dnnl_graph_test_convtranspose_params {"NXC", "XIO",
+                dnnl_graph_test_convtranspose_params {"NXC", "XOI",
                         {1, 2, 2, 1}, {3, 3, 1, 1}, false, {1}, {1, 4, 4, 1},
                         {1, 1}, {1, 1}, {0, 0}, {0, 0}},
-                dnnl_graph_test_convtranspose_params {"NCX", "XIO",
+                dnnl_graph_test_convtranspose_params {"NCX", "XOI",
                         {1, 1, 2, 2}, {3, 3, 1, 1}, true, {1}, {1, 1, 4, 4},
                         {1, 1}, {1, 1}, {0, 0}, {0, 0}},
-                dnnl_graph_test_convtranspose_params {"NXC", "OIX",
+                dnnl_graph_test_convtranspose_params {"NCX", "XOI",
+                        {1, 1, 2, 2}, {3, 3, 2, 1}, true, {2}, {1, 2, 4, 4},
+                        {1, 1}, {1, 1}, {0, 0}, {0, 0}},
+                dnnl_graph_test_convtranspose_params {"NXC", "IOX",
                         {1, 1, 2, 2, 1}, {1, 1, 1, 3, 3}, false, {1},
                         {1, 1, 4, 4, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
                         {0, 0, 0}},
-                dnnl_graph_test_convtranspose_params {"NCX", "OIX",
+                dnnl_graph_test_convtranspose_params {"NCX", "IOX",
+                        {1, 1, 1, 2, 2}, {1, 2, 1, 3, 3}, true, {2},
+                        {1, 2, 1, 4, 4}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}},
+                dnnl_graph_test_convtranspose_params {"NCX", "IOX",
                         {1, 1, 1, 2, 2}, {1, 1, 1, 3, 3}, false, {1},
                         {1, 1, 1, 4, 4}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
                         {0, 0, 0}},
-                dnnl_graph_test_convtranspose_params {"NXC", "XIO",
+                dnnl_graph_test_convtranspose_params {"NXC", "XOI",
                         {1, 1, 2, 2, 1}, {1, 3, 3, 1, 1}, false, {1},
                         {1, 1, 4, 4, 1}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
                         {0, 0, 0}},
-                dnnl_graph_test_convtranspose_params {"NCX", "XIO",
+                dnnl_graph_test_convtranspose_params {"NCX", "XOI",
                         {1, 1, 1, 2, 2}, {1, 3, 3, 1, 1}, true, {1},
                         {1, 1, 1, 4, 4}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0},
                         {0, 0, 0}}));
@@ -564,38 +571,54 @@ TEST_P(ConvTransposeBackpropData, TestConvTransposeBackpropData) {
 
 INSTANTIATE_TEST_SUITE_P(Execute, ConvTransposeBackpropData,
         ::testing::Values(
-                // NCX, OIX
+                // NCX, IOX
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
                         {1, 1, 3, 3}, {1, 1, 4, 4}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NCX", "OIX"},
+                        {1, 1}, "NCX", "IOX"},
+                // NCX, IOX
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
+                        {1, 6, 3, 3}, {1, 6, 4, 4}, {1, 1}, {0, 0}, {0, 0},
+                        {1, 1}, "NCX", "IOX"},
                 // 3d, NCX, IOX
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
                         {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NCX", "OIX"},
-                // NCX, XIO
+                        {0, 0, 0}, {1, 1, 1}, "NCX", "IOX"},
+                // NCX, XOI
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
                         {3, 3, 1, 1}, {1, 1, 4, 4}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NCX", "XIO"},
-                // 3d, NCX, XIO
+                        {1, 1}, "NCX", "XOI"},
+                // 3d, NCX, XOI
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
                         {1, 3, 3, 1, 1}, {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NCX", "XIO"},
-                // NXC, XIO
+                        {0, 0, 0}, {1, 1, 1}, "NCX", "XOI"},
+                // 3d, NCX, XOI
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
+                        {1, 3, 3, 2, 1}, {1, 2, 1, 4, 4}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {1, 1, 1}, "NCX", "XOI"},
+                // NXC, XOI
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 1},
                         {3, 4, 1, 1}, {1, 3, 4, 1}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NXC", "XIO"},
-                // 3d, NXC, XIO
+                        {1, 1}, "NXC", "XOI"},
+                // NXC, XOI
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 1},
+                        {3, 4, 2, 1}, {1, 3, 4, 2}, {1, 1}, {0, 0}, {0, 0},
+                        {1, 1}, "NXC", "XOI"},
+                // 3d, NXC, XOI
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 1, 1},
                         {1, 3, 4, 1, 1}, {1, 1, 3, 4, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NXC", "XIO"},
-                // NXC, OIX
+                        {0, 0, 0}, {1, 1, 1}, "NXC", "XOI"},
+                // NXC, IOX
                 dnnl_graph_test_convtranspose_bwd_params {{1, 2, 2, 1},
                         {1, 1, 3, 3}, {1, 4, 4, 1}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NXC", "OIX"},
-                // 3d, NXC, OIX
+                        {1, 1}, "NXC", "IOX"},
+                // NXC, IOX
+                dnnl_graph_test_convtranspose_bwd_params {{1, 2, 2, 1},
+                        {1, 2, 3, 3}, {1, 4, 4, 2}, {1, 1}, {0, 0}, {0, 0},
+                        {1, 1}, "NXC", "IOX"},
+                // 3d, NXC, IOX
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2, 1},
                         {1, 1, 1, 3, 3}, {1, 1, 4, 4, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NXC", "OIX"}));
+                        {0, 0, 0}, {1, 1, 1}, "NXC", "IOX"}));
 
 TEST_P(ConvTransposeBackpropFilters, TestConvTransposeBackpropFilters) {
     TestConvTransposeBackpropFilters();
@@ -605,23 +628,29 @@ INSTANTIATE_TEST_SUITE_P(Execute, ConvTransposeBackpropFilters,
         ::testing::Values(
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
                         {1, 1, 3, 3}, {1, 1, 4, 4}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NCX", "OIX"},
+                        {1, 1}, "NCX", "IOX"},
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2},
+                        {1, 2, 3, 3}, {1, 2, 4, 4}, {1, 1}, {0, 0}, {0, 0},
+                        {1, 1}, "NCX", "IOX"},
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 1, 2, 2},
                         {1, 1, 1, 3, 3}, {1, 1, 1, 4, 4}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NCX", "OIX"},
+                        {0, 0, 0}, {1, 1, 1}, "NCX", "IOX"},
                 dnnl_graph_test_convtranspose_bwd_params {{1, 2, 2, 1},
                         {3, 3, 1, 1}, {1, 4, 4, 1}, {1, 1}, {0, 0}, {0, 0},
-                        {1, 1}, "NXC", "XIO"},
+                        {1, 1}, "NXC", "XOI"},
                 dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2, 1},
                         {1, 3, 3, 1, 1}, {1, 1, 4, 4, 1}, {1, 1, 1}, {0, 0, 0},
-                        {0, 0, 0}, {1, 1, 1}, "NXC", "XIO"}));
+                        {0, 0, 0}, {1, 1, 1}, "NXC", "XOI"},
+                dnnl_graph_test_convtranspose_bwd_params {{1, 1, 2, 2, 1},
+                        {1, 3, 3, 2, 1}, {1, 1, 4, 4, 2}, {1, 1, 1}, {0, 0, 0},
+                        {0, 0, 0}, {1, 1, 1}, "NXC", "XOI"}));
 
 TEST(Compile, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
     using dims = impl::dnnl_impl::dims;
 
     const dims src_dims {2, 4, 2};
     const dims diff_dst_dims {2, 4, 2};
-    const dims diff_wei_dims {2, 4, 3};
+    const dims diff_wei_dims {4, 2, 3};
 
     const dims strides {1};
     const dims pads_begin {1};
@@ -630,7 +659,7 @@ TEST(Compile, ConvTransposeBackpropFiltersWithGroupsAndFiltersAnyLayout) {
     const int64_t groups {2};
     const std::string auto_pad {"None"};
     const std::string data_format {"NCX"};
-    const std::string filter_format {"OIX"};
+    const std::string filter_format {"IOX"};
 
     impl::op_t deconv_op(impl::op_kind::ConvTransposeBackpropFilters);
     deconv_op.set_attr(impl::op_attr::strides, strides)
@@ -741,7 +770,7 @@ TEST(operator_kernel, convtranspose_relu) {
         convtranspose_op.set_attr<std::string>(
                 impl::op_attr::data_format, "NXC");
         convtranspose_op.set_attr<std::string>(
-                impl::op_attr::filter_format, "XIO");
+                impl::op_attr::filter_format, "XOI");
         impl::op_t relu_op(1, impl::op_kind::ReLU, "ReLU");
 
         // prepare logical tensor
@@ -833,7 +862,7 @@ TEST(operator_kernel, convtranspose_swish) {
         convtranspose_op.set_attr<std::string>(
                 impl::op_attr::data_format, "NXC");
         convtranspose_op.set_attr<std::string>(
-                impl::op_attr::filter_format, "XIO");
+                impl::op_attr::filter_format, "XOI");
         impl::op_t sigmoid_op(1, impl::op_kind::Sigmoid, "Sigmoid");
         impl::op_t multiply_op(2, impl::op_kind::Multiply, "Multiply");
 
@@ -938,11 +967,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
                 : nd == 2 ? std::vector<int64_t> {1, in_channel, 12, 12}
                           : std::vector<int64_t> {1, in_channel, 12, 12, 12};
         std::vector<int64_t> weight_shape = nd == 1
-                ? std::vector<int64_t> {out_channel / g, in_channel,
+                ? std::vector<int64_t> {in_channel, out_channel / g,
                         kernel_size}
-                : nd == 2 ? std::vector<int64_t> {out_channel / g, in_channel,
+                : nd == 2 ? std::vector<int64_t> {in_channel, out_channel / g,
                           kernel_size, kernel_size}
-                          : std::vector<int64_t> {out_channel / g, in_channel,
+                          : std::vector<int64_t> {in_channel, out_channel / g,
                                   kernel_size, kernel_size, kernel_size};
         std::vector<int64_t> bias_shape {out_channel};
         std::vector<int64_t> dst_shape = nd == 1
@@ -997,11 +1026,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
         impl::op_t dqweight_node(3, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 1)
 
         impl::op_t convtranspose_node(
                 4, impl::op_kind::ConvTranspose, "convtranspose_node");
-        SET_CONV_ATTR(convtranspose_node, nd)
+        SET_CONVTRANSPOSE_ATTR(convtranspose_node, nd)
 
         impl::op_t qout_node(5, impl::op_kind::Quantize, "qout_node");
         SET_Q_DQ_OUT_ATTR(qout_node)
@@ -1144,11 +1173,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
                 : nd == 2 ? std::vector<int64_t> {1, in_channel, 12, 12}
                           : std::vector<int64_t> {1, in_channel, 12, 12, 12};
         std::vector<int64_t> weight_shape = nd == 1
-                ? std::vector<int64_t> {out_channel / g, in_channel,
+                ? std::vector<int64_t> {in_channel, out_channel / g,
                         kernel_size}
-                : nd == 2 ? std::vector<int64_t> {out_channel / g, in_channel,
+                : nd == 2 ? std::vector<int64_t> {in_channel, out_channel / g,
                           kernel_size, kernel_size}
-                          : std::vector<int64_t> {out_channel / g, in_channel,
+                          : std::vector<int64_t> {in_channel, out_channel / g,
                                   kernel_size, kernel_size, kernel_size};
         std::vector<int64_t> bias_shape {out_channel};
         std::vector<int64_t> dst_shape = nd == 1
@@ -1203,11 +1232,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
         impl::op_t dqweight_node(1, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 1)
 
         impl::op_t convtranspose_node(
                 2, impl::op_kind::ConvTranspose, "convtranspose_node");
-        SET_CONV_ATTR(convtranspose_node, nd)
+        SET_CONVTRANSPOSE_ATTR(convtranspose_node, nd)
 
         impl::op_t eltwise_node(3, eltwise_kind, "eltwise_node");
 
@@ -1363,11 +1392,11 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
                 : nd == 2 ? std::vector<int64_t> {1, in_channel, 12, 12}
                           : std::vector<int64_t> {1, in_channel, 12, 12, 12};
         std::vector<int64_t> weight_shape = nd == 1
-                ? std::vector<int64_t> {out_channel / g, in_channel,
+                ? std::vector<int64_t> {in_channel, out_channel / g,
                         kernel_size}
-                : nd == 2 ? std::vector<int64_t> {out_channel / g, in_channel,
+                : nd == 2 ? std::vector<int64_t> {in_channel, out_channel / g,
                           kernel_size, kernel_size}
-                          : std::vector<int64_t> {out_channel / g, in_channel,
+                          : std::vector<int64_t> {in_channel, out_channel / g,
                                   kernel_size, kernel_size, kernel_size};
         std::vector<int64_t> bias_shape {out_channel};
         std::vector<int64_t> dst_shape = nd == 1
@@ -1411,11 +1440,11 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
         impl::op_t dqweight_node(1, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 1)
 
         impl::op_t convtranspose_node(
                 2, impl::op_kind::ConvTranspose, "convtranspose_node");
-        SET_CONV_ATTR(convtranspose_node, nd)
+        SET_CONVTRANSPOSE_ATTR(convtranspose_node, nd)
 
         impl::op_t eltwise_node(3, eltwise_kind, "eltwise_node");
 
@@ -1547,7 +1576,7 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
         std::vector<int64_t> src_shape
                 = std::vector<int64_t> {1, in_channel, 12, 12};
         std::vector<int64_t> weight_shape = std::vector<int64_t> {
-                out_channel, in_channel, kernel_size, kernel_size};
+                in_channel, out_channel, kernel_size, kernel_size};
         std::vector<int64_t> bias_shape {out_channel};
         std::vector<int64_t> dst_shape
                 = std::vector<int64_t> {1, out_channel, 14, 14};
@@ -1582,11 +1611,11 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
         impl::op_t dqweight_node(1, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 1)
 
         impl::op_t convtranspose_node(
                 2, impl::op_kind::ConvTranspose, "convtranspose_node");
-        SET_CONV_ATTR(convtranspose_node, 2)
+        SET_CONVTRANSPOSE_ATTR(convtranspose_node, 2)
 
         impl::op_t sigmoid_node(3, impl::op_kind::Sigmoid, "sigmoid_node");
         impl::op_t multiply_node {4, impl::op_kind::Multiply, "multiply_node"};
@@ -1716,11 +1745,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
                 : nd == 2 ? std::vector<int64_t> {1, in_channel, 12, 12}
                           : std::vector<int64_t> {1, in_channel, 12, 12, 12};
         std::vector<int64_t> weight_shape = nd == 1
-                ? std::vector<int64_t> {out_channel / g, in_channel,
+                ? std::vector<int64_t> {in_channel, out_channel / g,
                         kernel_size}
-                : nd == 2 ? std::vector<int64_t> {out_channel / g, in_channel,
+                : nd == 2 ? std::vector<int64_t> {in_channel, out_channel / g,
                           kernel_size, kernel_size}
-                          : std::vector<int64_t> {out_channel / g, in_channel,
+                          : std::vector<int64_t> {in_channel, out_channel / g,
                                   kernel_size, kernel_size, kernel_size};
         std::vector<int64_t> bias_shape {out_channel};
         std::vector<int64_t> dst_shape = nd == 1
@@ -1789,11 +1818,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
         impl::op_t dqweight_node(1, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 1)
 
         impl::op_t convtranspose_node(
                 2, impl::op_kind::ConvTranspose, "convtranspose_node");
-        SET_CONV_ATTR(convtranspose_node, nd)
+        SET_CONVTRANSPOSE_ATTR(convtranspose_node, nd)
 
         impl::op_t dqother_node(3, impl::op_kind::Dequantize, "dqother_node");
         dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
@@ -1960,11 +1989,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dBinary) {
                 : nd == 2 ? std::vector<int64_t> {1, in_channel, 12, 12}
                           : std::vector<int64_t> {1, in_channel, 12, 12, 12};
         std::vector<int64_t> weight_shape = nd == 1
-                ? std::vector<int64_t> {out_channel / g, in_channel,
+                ? std::vector<int64_t> {in_channel, out_channel / g,
                         kernel_size}
-                : nd == 2 ? std::vector<int64_t> {out_channel / g, in_channel,
+                : nd == 2 ? std::vector<int64_t> {in_channel, out_channel / g,
                           kernel_size, kernel_size}
-                          : std::vector<int64_t> {out_channel / g, in_channel,
+                          : std::vector<int64_t> {in_channel, out_channel / g,
                                   kernel_size, kernel_size, kernel_size};
         std::vector<int64_t> bias_shape {out_channel};
         std::vector<int64_t> dst_shape = nd == 1
@@ -2020,11 +2049,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dBinary) {
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
         impl::op_t dqweight_node(1, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 1)
 
         impl::op_t convtranspose_node(
                 2, impl::op_kind::ConvTranspose, "convtranspose_node");
-        SET_CONV_ATTR(convtranspose_node, nd)
+        SET_CONVTRANSPOSE_ATTR(convtranspose_node, nd)
 
         impl::op_t binary_node(3, binary_kind, "binary_node");
 
@@ -2157,11 +2186,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
                 : nd == 2 ? std::vector<int64_t> {1, in_channel, 12, 12}
                           : std::vector<int64_t> {1, in_channel, 12, 12, 12};
         std::vector<int64_t> weight_shape = nd == 1
-                ? std::vector<int64_t> {out_channel / g, in_channel,
+                ? std::vector<int64_t> {in_channel, out_channel / g,
                         kernel_size}
-                : nd == 2 ? std::vector<int64_t> {out_channel / g, in_channel,
+                : nd == 2 ? std::vector<int64_t> {in_channel, out_channel / g,
                           kernel_size, kernel_size}
-                          : std::vector<int64_t> {out_channel / g, in_channel,
+                          : std::vector<int64_t> {in_channel, out_channel / g,
                                   kernel_size, kernel_size, kernel_size};
         std::vector<int64_t> bias_shape {out_channel};
         std::vector<int64_t> dst_shape = nd == 1
@@ -2218,11 +2247,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
         impl::op_t dqweight_node(1, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 1)
 
         impl::op_t convtranspose_node(
                 2, impl::op_kind::ConvTranspose, "convtranspose_node");
-        SET_CONV_ATTR(convtranspose_node, nd)
+        SET_CONVTRANSPOSE_ATTR(convtranspose_node, nd)
 
         impl::op_t dqother_node(3, impl::op_kind::Dequantize, "dqother_node");
         dqother_node.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
@@ -2242,11 +2271,11 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dAddGetInplacePair) {
 
         impl::op_t dqweight_node2(
                 7, impl::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node2)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node2, 1)
 
         impl::op_t convtranspose_node2(
                 8, impl::op_kind::ConvTranspose, "convtranspose_node");
-        SET_CONV_ATTR(convtranspose_node2, nd)
+        SET_CONVTRANSPOSE_ATTR(convtranspose_node2, nd)
 
         impl::op_t qout_node2(9, impl::op_kind::Quantize, "qout_node");
         SET_Q_DQ_OUT_ATTR(qout_node2)
@@ -2401,11 +2430,11 @@ TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
                 : nd == 2 ? std::vector<int64_t> {1, in_channel, 12, 12}
                           : std::vector<int64_t> {1, in_channel, 12, 12, 12};
         std::vector<int64_t> weight_shape = nd == 1
-                ? std::vector<int64_t> {out_channel / g, in_channel,
+                ? std::vector<int64_t> {in_channel, out_channel / g,
                         kernel_size}
-                : nd == 2 ? std::vector<int64_t> {out_channel / g, in_channel,
+                : nd == 2 ? std::vector<int64_t> {in_channel, out_channel / g,
                           kernel_size, kernel_size}
-                          : std::vector<int64_t> {out_channel / g, in_channel,
+                          : std::vector<int64_t> {in_channel, out_channel / g,
                                   kernel_size, kernel_size, kernel_size};
         std::vector<int64_t> bias_shape {out_channel};
         std::vector<int64_t> dst_shape = nd == 1
@@ -2442,7 +2471,7 @@ TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
 
         impl::op_t convtranspose_node(
                 0, impl::op_kind::ConvTranspose, "convtranspose_node");
-        SET_CONV_ATTR(convtranspose_node, nd)
+        SET_CONVTRANSPOSE_ATTR(convtranspose_node, nd)
         lt_vec.emplace_back(
                 utils::logical_tensor_init(0, src_shape, impl::data_type::f32));
         convtranspose_node.add_input(lt_vec.back());

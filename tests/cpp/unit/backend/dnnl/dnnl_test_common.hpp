@@ -251,14 +251,14 @@ static inline size_t product(std::vector<int64_t> &in) {
             dnnl::graph::impl::op_attr::scales, {scale_src}); \
     q_dq_data.set_attr<int64_t>(dnnl::graph::impl::op_attr::axis, 0);
 
-#define SET_Q_DQ_WEIGHT_ATTR(q_dq_weight) \
+#define SET_Q_DQ_WEIGHT_ATTR(q_dq_weight, pc_axis) \
     q_dq_weight.set_attr<std::string>( \
             dnnl::graph::impl::op_attr::qtype, wei_qtype); \
     q_dq_weight.set_attr<std::vector<int64_t>>( \
             dnnl::graph::impl::op_attr::zps, zp_wei); \
     q_dq_weight.set_attr<std::vector<float>>( \
             dnnl::graph::impl::op_attr::scales, scale_wei); \
-    q_dq_weight.set_attr<int64_t>(dnnl::graph::impl::op_attr::axis, 0);
+    q_dq_weight.set_attr<int64_t>(dnnl::graph::impl::op_attr::axis, pc_axis);
 
 #define SET_CONV_ATTR(conv, nd) \
     conv.set_attr<dims>(dnnl::graph::impl::op_attr::strides, dims(nd, 1)); \
@@ -270,6 +270,21 @@ static inline size_t product(std::vector<int64_t> &in) {
             dnnl::graph::impl::op_attr::data_format, "NCX"); \
     conv.set_attr<std::string>( \
             dnnl::graph::impl::op_attr::filter_format, "OIX");
+
+#define SET_CONVTRANSPOSE_ATTR(convtranspose, nd) \
+    convtranspose.set_attr<dims>( \
+            dnnl::graph::impl::op_attr::strides, dims(nd, 1)); \
+    convtranspose.set_attr<dims>( \
+            dnnl::graph::impl::op_attr::dilations, dims(nd, 1)); \
+    convtranspose.set_attr<dims>( \
+            dnnl::graph::impl::op_attr::pads_begin, dims(nd, 0)); \
+    convtranspose.set_attr<dims>( \
+            dnnl::graph::impl::op_attr::pads_end, dims(nd, 0)); \
+    convtranspose.set_attr<int64_t>(dnnl::graph::impl::op_attr::groups, g); \
+    convtranspose.set_attr<std::string>( \
+            dnnl::graph::impl::op_attr::data_format, "NCX"); \
+    convtranspose.set_attr<std::string>( \
+            dnnl::graph::impl::op_attr::filter_format, "IOX");
 
 #define SET_Q_DQ_OUT_ATTR(q_dq_out) \
     q_dq_out.set_attr<std::string>( \
