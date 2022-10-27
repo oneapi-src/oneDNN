@@ -51,7 +51,10 @@ struct jit_uni_eltwise_kernel : public jit_generator {
 protected:
     const eltwise_pd_t *pd_;
 
-    data_type_t data_type() const { return pd_->src_md()->data_type; }
+    data_type_t data_type() const {
+        return pd_->use_dst() ? pd_->dst_md()->data_type
+                              : pd_->src_md()->data_type;
+    }
     bool is_bf16() const { return data_type() == data_type::bf16; }
     int dtype_size() const { return types::data_type_size(data_type()); }
 };
@@ -257,7 +260,7 @@ template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
 
-    const memory_desc_wrapper data_d(src_md());
+    const memory_desc_wrapper data_d(data_md());
 
     bool ok = mayiuse(isa) && !is_fwd()
             && utils::everyone_is(d_type, data_md()->data_type,
@@ -298,7 +301,7 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::execute(
     auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);
     CHECK(status);
 
-    const memory_desc_wrapper data_d(pd()->src_md());
+    const memory_desc_wrapper data_d(pd()->data_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
     const auto nelems = data_d.nelems(true);
     const int simd_w = 64 / data_d.data_type_size();
