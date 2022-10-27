@@ -342,6 +342,22 @@ for_loop get_inner_for_loop(const for_loop_node_t *f) {
     return for_loop();
 }
 
+for_loop get_last_loop_in_body(const stmt &body) {
+    if (body.isa<stmts>()) {
+        auto stmtlist = body.static_as<stmts>();
+        if (!stmtlist->seq_.empty()) {
+            if (stmtlist->seq_.back().isa<for_loop>()) {
+                return stmtlist->seq_.back().static_as<for_loop>();
+            } else {
+                return get_last_loop_in_body(stmtlist->seq_.back());
+            }
+        }
+    } else if (body.isa<for_loop>()) {
+        return body.static_as<for_loop>();
+    }
+    return for_loop();
+}
+
 for_loop for_loop_node_t::fuse(
         const for_loop &ax, std::unordered_map<expr, expr> *expr_remap) {
     COMPILE_ASSERT(ax->isvalid(), "Transforming an invalid for-loop: ax");

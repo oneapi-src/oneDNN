@@ -157,8 +157,8 @@ public:
             const std::vector<tensor_slice> &dst = {});
 
     std::vector<iter_fuse_anchor_t> iter_anchor_list_;
-    void create_iterated_fusion_anchor(
-            expr iter, expr tsr, slice_range_list slice_list);
+    void create_iterated_fusion_anchor(expr iter, expr tsr,
+            slice_range_list slice_list, stmt dispatch_helper = stmt());
 
     // clear anchor and reset their status.
     void clear_anchor();

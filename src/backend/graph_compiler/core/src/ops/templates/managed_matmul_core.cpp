@@ -409,55 +409,65 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
               }
             }
           }
-          _var_init_(anchor_iter, datatypes::index, UINT64_C(0));
-          // TODO(xxx): reduce the if-else node in IR
-          _if_(m_s < M_anchor_info[0]) {
-            // 0-8
-            _if_(n_s < N_anchor_info[0]) {
-              // 0-4
-              _if_(m_b < m_b_bigger_num) {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(0); }
-                _else_ { anchor_iter = UINT64_C(1); }
+          auto gen_iter_anchor = [&]() {
+            builder::ir_builder_t bd_helper;
+            bd_helper.push_scope();
+            _var_init_(anchor_iter, datatypes::index, UINT64_C(0));
+            // TODO(xxx): reduce the if-else node in IR
+            _if_(m_s < M_anchor_info[0]) {
+              // 0-8
+              _if_(n_s < N_anchor_info[0]) {
+                // 0-4
+                _if_(m_b < m_b_bigger_num) {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(0); }
+                  _else_ { anchor_iter = UINT64_C(1); }
+                }
+                _else_ {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(2); }
+                  _else_ { anchor_iter = UINT64_C(3); }
+                }
               }
               _else_ {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(2); }
-                _else_ { anchor_iter = UINT64_C(3); }
+                _if_(m_b < m_b_bigger_num) {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(4); }
+                  _else_ { anchor_iter = UINT64_C(5); }
+                }
+                _else_ {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(6); }
+                  _else_ { anchor_iter = UINT64_C(7); }
+                }
               }
             }
             _else_ {
-              _if_(m_b < m_b_bigger_num) {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(4); }
-                _else_ { anchor_iter = UINT64_C(5); }
+              _if_(n_s < N_anchor_info[0]) {
+                _if_(m_b < m_b_bigger_num) {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(8); }
+                  _else_ { anchor_iter = UINT64_C(9); }
+                }
+                _else_ {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(10); }
+                  _else_ { anchor_iter = UINT64_C(11); }
+                }
               }
               _else_ {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(6); }
-                _else_ { anchor_iter = UINT64_C(7); }
+                _if_(m_b < m_b_bigger_num) {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(12); }
+                  _else_ { anchor_iter = UINT64_C(13); }
+                }
+                _else_ {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(14); }
+                  _else_ { anchor_iter = UINT64_C(15); }
+                }
               }
             }
-          }
-          _else_ {
-            _if_(n_s < N_anchor_info[0]) {
-              _if_(m_b < m_b_bigger_num) {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(8); }
-                _else_ { anchor_iter = UINT64_C(9); }
-              }
-              _else_ {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(10); }
-                _else_ { anchor_iter = UINT64_C(11); }
-              }
-            }
-            _else_ {
-              _if_(m_b < m_b_bigger_num) {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(12); }
-                _else_ { anchor_iter = UINT64_C(13); }
-              }
-              _else_ {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(14); }
-                _else_ { anchor_iter = UINT64_C(15); }
-              }
-            }
-          }
-          fusion->create_iterated_fusion_anchor(anchor_iter, C, mm_multi_slice);
+            auto scope_helper = bd_helper.pop_scope();
+            return std::make_pair(anchor_iter, scope_helper);
+          };
+          expr anchor_iter;
+          stmt scope_helper;
+          std::tie(anchor_iter, scope_helper) = gen_iter_anchor();
+          fusion->create_iterated_fusion_anchor(
+            anchor_iter, C, mm_multi_slice, scope_helper);
         }
       }
     }
@@ -601,7 +611,6 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               }
             }
           }
-          _var_init_(middle_anchor_iter, datatypes::index, UINT64_C(0));
           if (M_block_size == M_ib_block_size
             && N_block_size == N_ib_block_size) {
             _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
@@ -617,39 +626,69 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             }
           } else if (M_block_size == M_ib_block_size) {
             // differnt length on N
-            mm_multi_slice.pop_back();
-            mm_multi_slice.pop_back();
-            assert(mm_multi_slice.size() == 2);
-            _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(0); }
-            _else_ { middle_anchor_iter = UINT64_C(1); }
             _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+              mm_multi_slice.pop_back();
+              mm_multi_slice.pop_back();
+              assert(mm_multi_slice.size() == 2);
+              auto gen_iter_anchor = [&]() {
+                builder::ir_builder_t bd_helper;
+                bd_helper.push_scope();
+                _var_init_(middle_anchor_iter, datatypes::index, UINT64_C(0));
+                _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(0); }
+                _else_ { middle_anchor_iter = UINT64_C(1); }
+                auto scope_helper = bd_helper.pop_scope();
+                return std::make_pair(middle_anchor_iter, scope_helper);
+              };
+              expr middle_anchor_iter;
+              stmt scope_helper;
+              std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
               fusion->create_iterated_fusion_anchor(
-                middle_anchor_iter, C, mm_multi_slice);
+                middle_anchor_iter, C, mm_multi_slice, scope_helper);
             }
           } else if (N_block_size == N_ib_block_size) {
             // different length on M
-            mm_multi_slice.pop_back();
-            mm_multi_slice.erase(mm_multi_slice.begin() + 1);
-            assert(mm_multi_slice.size() == 2);
-            _if_(m_s < M_blk_num) { middle_anchor_iter = UINT64_C(0); }
-            _else_ { middle_anchor_iter = UINT64_C(1); }
             _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+              mm_multi_slice.pop_back();
+              mm_multi_slice.erase(mm_multi_slice.begin() + 1);
+              assert(mm_multi_slice.size() == 2);
+              auto gen_iter_anchor = [&]() {
+                builder::ir_builder_t bd_helper;
+                bd_helper.push_scope();
+                _var_init_(middle_anchor_iter, datatypes::index, UINT64_C(0));
+                _if_(m_s < M_blk_num) { middle_anchor_iter = UINT64_C(0); }
+                _else_ { middle_anchor_iter = UINT64_C(1); }
+                auto scope_helper = bd_helper.pop_scope();
+                return std::make_pair(middle_anchor_iter, scope_helper);
+              };
+              expr middle_anchor_iter;
+              stmt scope_helper;
+              std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
               fusion->create_iterated_fusion_anchor(
-                middle_anchor_iter, C, mm_multi_slice);
+                middle_anchor_iter, C, mm_multi_slice, scope_helper);
             }
           } else {
             // different length on both M and N
-            _if_(m_s < M_blk_num) {
-              _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(0); }
-              _else_ { middle_anchor_iter = UINT64_C(1); }
-            }
-            _else_ {
-              _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(2); }
-              _else_ { middle_anchor_iter = UINT64_C(3); }
-            }
             _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+              auto gen_iter_anchor = [&]() {
+                builder::ir_builder_t bd_helper;
+                bd_helper.push_scope();
+                _var_init_(middle_anchor_iter, datatypes::index, UINT64_C(0));
+                _if_(m_s < M_blk_num) {
+                  _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(0); }
+                  _else_ { middle_anchor_iter = UINT64_C(1); }
+                }
+                _else_ {
+                  _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(2); }
+                  _else_ { middle_anchor_iter = UINT64_C(3); }
+                }
+                auto scope_helper = bd_helper.pop_scope();
+                return std::make_pair(middle_anchor_iter, scope_helper);
+              };
+              expr middle_anchor_iter;
+              stmt scope_helper;
+              std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
               fusion->create_iterated_fusion_anchor(
-                middle_anchor_iter, C, mm_multi_slice);
+                middle_anchor_iter, C, mm_multi_slice, scope_helper);
             }
           }
         }
@@ -680,11 +719,20 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             mm_multi_slice = {{{m_idx, M_block_size}, {0, N}},
               {{m_idx, M_ib_block_size}, {0, N}}};
           }
-          _var_init_(outer_anchor_iter, datatypes::index, UINT64_C(0));
-          _if_(m_s < M_blk_num) { outer_anchor_iter = UINT64_C(0); }
-          _else_ { outer_anchor_iter = UINT64_C(1); }
+          auto gen_iter_anchor = [&]() {
+            builder::ir_builder_t bd_helper;
+            bd_helper.push_scope();
+            _var_init_(outer_anchor_iter, datatypes::index, UINT64_C(0));
+            _if_(m_s < M_blk_num) { outer_anchor_iter = UINT64_C(0); }
+            _else_ { outer_anchor_iter = UINT64_C(1); }
+            auto scope_helper = bd_helper.pop_scope();
+            return std::make_pair(outer_anchor_iter, scope_helper);
+          };
+          expr outer_anchor_iter;
+          stmt scope_helper;
+          std::tie(outer_anchor_iter, scope_helper) = gen_iter_anchor();
           fusion->create_iterated_fusion_anchor(
-            outer_anchor_iter, C, mm_multi_slice);
+            outer_anchor_iter, C, mm_multi_slice, scope_helper);
         }
       }
     }
@@ -807,7 +855,6 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                 }
               }
             }
-            _var_init_(inner_anchor_iter, datatypes::index, UINT64_C(0));
             if (M_block_size == M_ib_block_size
               && N_block_size == N_ib_block_size) {
               _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
@@ -823,39 +870,69 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               }
             } else if (M_block_size == M_ib_block_size) {
               // differnt length on N
-              mm_multi_slice.pop_back();
-              mm_multi_slice.pop_back();
-              assert(mm_multi_slice.size() == 2);
-              _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(0); }
-              _else_ { inner_anchor_iter = UINT64_C(1); }
               _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+                mm_multi_slice.pop_back();
+                mm_multi_slice.pop_back();
+                assert(mm_multi_slice.size() == 2);
+                auto gen_iter_anchor = [&]() {
+                  builder::ir_builder_t bd_helper;
+                  bd_helper.push_scope();
+                  _var_init_(inner_anchor_iter, datatypes::index, UINT64_C(0));
+                  _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(0); }
+                  _else_ { inner_anchor_iter = UINT64_C(1); }
+                  auto scope_helper = bd_helper.pop_scope();
+                  return std::make_pair(inner_anchor_iter, scope_helper);
+                };
+                expr inner_anchor_iter;
+                stmt scope_helper;
+                std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
                 fusion->create_iterated_fusion_anchor(
-                  inner_anchor_iter, C, mm_multi_slice);
+                  inner_anchor_iter, C, mm_multi_slice, scope_helper);
               }
             } else if (N_block_size == N_ib_block_size) {
               // different length on M
-              mm_multi_slice.pop_back();
-              mm_multi_slice.erase(mm_multi_slice.begin() + 1);
-              assert(mm_multi_slice.size() == 2);
-              _if_(m_s < M_blk_num) { inner_anchor_iter = UINT64_C(0); }
-              _else_ { inner_anchor_iter = UINT64_C(1); }
               _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+                mm_multi_slice.pop_back();
+                mm_multi_slice.erase(mm_multi_slice.begin() + 1);
+                assert(mm_multi_slice.size() == 2);
+                auto gen_iter_anchor = [&]() {
+                  builder::ir_builder_t bd_helper;
+                  bd_helper.push_scope();
+                  _var_init_(inner_anchor_iter, datatypes::index, UINT64_C(0));
+                  _if_(m_s < M_blk_num) { inner_anchor_iter = UINT64_C(0); }
+                  _else_ { inner_anchor_iter = UINT64_C(1); }
+                  auto scope_helper = bd_helper.pop_scope();
+                  return std::make_pair(inner_anchor_iter, scope_helper);
+                };
+                expr inner_anchor_iter;
+                stmt scope_helper;
+                std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
                 fusion->create_iterated_fusion_anchor(
-                  inner_anchor_iter, C, mm_multi_slice);
+                  inner_anchor_iter, C, mm_multi_slice, scope_helper);
               }
             } else {
               // different length on both M and N
-              _if_(m_s < M_blk_num) {
-                _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(0); }
-                _else_ { inner_anchor_iter = UINT64_C(1); }
-              }
-              _else_ {
-                _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(2); }
-                _else_ { inner_anchor_iter = UINT64_C(3); }
-              }
               _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+                auto gen_iter_anchor = [&]() {
+                  builder::ir_builder_t bd_helper;
+                  bd_helper.push_scope();
+                  _var_init_(inner_anchor_iter, datatypes::index, UINT64_C(0));
+                  _if_(m_s < M_blk_num) {
+                    _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(0); }
+                    _else_ { inner_anchor_iter = UINT64_C(1); }
+                  }
+                  _else_ {
+                    _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(2); }
+                    _else_ { inner_anchor_iter = UINT64_C(3); }
+                  }
+                  auto scope_helper = bd_helper.pop_scope();
+                  return std::make_pair(inner_anchor_iter, scope_helper);
+                };
+                expr inner_anchor_iter;
+                stmt scope_helper;
+                std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
                 fusion->create_iterated_fusion_anchor(
-                  inner_anchor_iter, C, mm_multi_slice);
+                  inner_anchor_iter, C, mm_multi_slice, scope_helper);
               }
             }
           }
@@ -887,11 +964,20 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             mm_multi_slice = {{{m_idx, M_block_size}, {0, N}},
               {{m_idx, M_ib_block_size}, {0, N}}};
           }
-          _var_init_(outer_anchor_iter, datatypes::index, UINT64_C(0));
-          _if_(m_s < M_blk_num) { outer_anchor_iter = UINT64_C(0); }
-          _else_ { outer_anchor_iter = UINT64_C(1); }
+          auto gen_iter_anchor = [&]() {
+            builder::ir_builder_t bd_helper;
+            bd_helper.push_scope();
+            _var_init_(outer_anchor_iter, datatypes::index, UINT64_C(0));
+            _if_(m_s < M_blk_num) { outer_anchor_iter = UINT64_C(0); }
+            _else_ { outer_anchor_iter = UINT64_C(1); }
+            auto scope_helper = bd_helper.pop_scope();
+            return std::make_pair(outer_anchor_iter, scope_helper);
+          };
+          expr outer_anchor_iter;
+          stmt scope_helper;
+          std::tie(outer_anchor_iter, scope_helper) = gen_iter_anchor();
           fusion->create_iterated_fusion_anchor(
-            outer_anchor_iter, C, mm_multi_slice);
+            outer_anchor_iter, C, mm_multi_slice, scope_helper);
         }
       }
     }

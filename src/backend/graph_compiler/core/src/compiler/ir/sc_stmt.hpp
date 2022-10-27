@@ -66,6 +66,10 @@ constexpr const char *parallel_merge_loop = "parallel_merge_loop";
 // int. Indicate the partition granularity (default =1)
 constexpr const char *parallel_merge_loop_granularity
         = "parallel_merge_loop_granularity";
+
+// Boolean. If true, there is no need to insert one pre barrier, please ensure
+// data dependency first when enable this flag.
+constexpr const char *no_post_barrier = "no_post_barrier";
 }; // namespace stmt_attr_key
 
 std::ostream &operator<<(std::ostream &os, sc_stmt_type val);

@@ -197,13 +197,15 @@ struct iter_fuse_anchor_t {
     expr iter_;
     expr tsr_;
     slice_range_list slice_list_;
+    stmt dispatch_helper_;
     iter_fuse_anchor_t() = default;
-    iter_fuse_anchor_t(
-            stmts pos, expr iter, expr tsr, slice_range_list slice_list)
+    iter_fuse_anchor_t(stmts pos, expr iter, expr tsr,
+            slice_range_list slice_list, stmt dispatch_helper)
         : anchor_position_(pos)
         , iter_(iter)
         , tsr_(tsr)
-        , slice_list_(slice_list) {}
+        , slice_list_(slice_list)
+        , dispatch_helper_(dispatch_helper) {}
     bool defined() const { return anchor_position_.defined(); }
 };
 
@@ -233,13 +235,13 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
     bool defined() const { return anchor_position_.defined(); }
 
     // commit `stmt` to anchor and bind parent node to commited anchor
-    void commit_stmt(stmt &s) {
+    virtual void commit_stmt(stmt &s) {
         add_parent_node(s, anchor_position_);
         anchor_position_->seq_.emplace_back(s);
     }
 
     // commit `stmts` to anchor and bind parent node to commited anchor
-    void commit_stmts(stmts &ss) {
+    virtual void commit_stmts(stmts &ss) {
         for (auto &s : ss->seq_) {
             commit_stmt(s);
         }
@@ -411,11 +413,62 @@ using fuse_anchor_map_ptr = std::shared_ptr<fuse_anchor_map_t>;
 struct fuse_iter_anchor_map_t : fuse_anchor_map_t {
     // iterated var
     expr iter_;
+    size_t iter_size_;
     std::vector<stmts> cached_iter_anchor_;
+    stmt dispatch_helper_;
+    size_t iter_cnt_;
 
     fuse_iter_anchor_map_t(expr iter_var, stmts pos, const fslice_map &fsmap,
+            size_t iter_size, stmt dispatch_helper = stmt(),
             const fuse_anchor_map_ptr &parent = nullptr)
-        : fuse_anchor_map_t(pos, fsmap, parent), iter_(std::move(iter_var)) {}
+        : fuse_anchor_map_t(pos, fsmap, parent)
+        , iter_(std::move(iter_var))
+        , iter_size_(iter_size)
+        , dispatch_helper_(std::move(dispatch_helper)) {
+        iter_cnt_ = 0;
+        cached_iter_anchor_.reserve(iter_size_);
+    }
+
+    // iter anchor special inner-build `commit_`
+    void commit_(stmt s) {
+        if (cached_iter_anchor_.empty()) {
+            if (dispatch_helper_.isa<stmts>()) {
+                anchor_position_->seq_.insert(anchor_position_->seq_.end(),
+                        dispatch_helper_.static_as<stmts>()->seq_.begin(),
+                        dispatch_helper_.static_as<stmts>()->seq_.end());
+            } else {
+                anchor_position_->seq_.emplace_back(dispatch_helper_);
+            }
+        }
+        // create cached_iter_anchor_ if necessary
+        if (cached_iter_anchor_.size() < iter_size_) {
+            stmts ss = s.isa<stmts>()
+                    ? s.static_as<stmts>()
+                    : builder::make_stmts_unattached({s}).checked_as<stmts>();
+            anchor_position_->seq_.emplace_back(
+                    make_stmt<if_else_node_t>(iter_ == iter_cnt_, ss, stmt()));
+            cached_iter_anchor_.emplace_back(ss);
+        }
+        // commit into cached_iter_anchor_
+        else {
+            auto cached_anchor = cached_iter_anchor_.at(iter_cnt_);
+            if (s.isa<stmts>()) {
+                cached_anchor->seq_.insert(cached_anchor->seq_.end(),
+                        s.static_as<stmts>()->seq_.begin(),
+                        s.static_as<stmts>()->seq_.end());
+            } else {
+                cached_anchor->seq_.emplace_back(s);
+            }
+        }
+        iter_cnt_++;
+        if (iter_cnt_ == iter_size_) iter_cnt_ = 0;
+    }
+
+    // override commit `stmt` to anchor
+    void commit_stmt(stmt &s) override { commit_(s); }
+
+    // override commit `stmts` to anchor
+    void commit_stmts(stmts &ss) override { commit_(ss); }
 };
 
 } // namespace sc

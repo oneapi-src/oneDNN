@@ -98,11 +98,23 @@ bool slice_full_on_axes(
     for (auto &ax : axes) {
         auto first = do_cast_and_fold(ranges[ax].first);
         auto second = do_cast_and_fold(ranges[ax].second);
-        if (!first.isa<constant>()) { return false; }
-        if (get_const_as_int(first.checked_as<constant>()) != 0
-                || (second.isa<constant>()
-                        && get_const_as_int(second.checked_as<constant>())
-                                != dim[ax])) {
+        // slice range length should equal to dims
+        if (second.isa<constant>()
+                && get_const_as_int(second.checked_as<constant>()) != dim[ax]) {
+            return false;
+        }
+        if (!first.isa<constant>()) {
+            if (first->node_type_ == sc_expr_type::mul) {
+                auto rv = constant_folding::get_operand_from_binary(first)
+                                  .second;
+                // {i * block, block} case where `block_size==dims[i]`
+                if (rv.isa<constant>()
+                        && get_const_as_int(rv.static_as<constant>())
+                                == dim[ax])
+                    continue;
+            }
+            return false;
+        } else if (get_const_as_int(first.static_as<constant>()) != 0) {
             return false;
         }
     }

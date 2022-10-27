@@ -464,7 +464,12 @@ void work() {
                 auto body_lv1 = make_stmt<stmts_node_t>(std::vector<stmt> {});
                 transform_loop(v, parent_info.threads_per_group_,
                         body_lv1->seq_, parent_info.thread_id_,
-                        need_pre_barrier_, need_post_barrier_);
+                        need_pre_barrier_,
+                        need_post_barrier_
+                                && !(v->attr_
+                                        && v->attr_->get_or_else(
+                                                stmt_attr_key::no_post_barrier,
+                                                false)));
                 return body_lv1;
             }
         } else {

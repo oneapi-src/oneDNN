@@ -1342,12 +1342,12 @@ void fusion_manager::create_output_fusion_anchor(
     fanchor_list_.emplace_back(std::move(fanchor));
 }
 
-void fusion_manager::create_iterated_fusion_anchor(
-        expr iter, expr tsr, slice_range_list slice_list) {
+void fusion_manager::create_iterated_fusion_anchor(expr iter, expr tsr,
+        slice_range_list slice_list, stmt dispatch_helper) {
     auto bld = builder::get_current_builder();
     auto s = bld->push_anchor();
-    iter_anchor_list_.emplace_back(iter_fuse_anchor_t(
-            s, std::move(iter), std::move(tsr), std::move(slice_list)));
+    iter_anchor_list_.emplace_back(iter_fuse_anchor_t(s, std::move(iter),
+            std::move(tsr), std::move(slice_list), std::move(dispatch_helper)));
 }
 
 std::vector<std::pair<stmts, std::unordered_map<expr, slice_range_list>>>

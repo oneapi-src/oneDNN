@@ -59,6 +59,9 @@ std::vector<for_loop> collect_nested_loops(stmt body);
 // get inner for_loop
 for_loop get_inner_for_loop(const for_loop_node_t *f);
 
+// get last for_loop in body
+for_loop get_last_loop_in_body(const stmt &body);
+
 } // namespace sc
 
 #endif

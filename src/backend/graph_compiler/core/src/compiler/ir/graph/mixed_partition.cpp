@@ -39,6 +39,7 @@
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/padding.hpp>
 #include <ops/fusible/reduce.hpp>
+#include <ops/managed_matmul_core.hpp>
 #include <runtime/config.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -88,8 +89,9 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                         == in->details_.get_blocking_dims())
                 && (out->details_.dtype_ == in->details_.dtype_)
                 && (out->details_.get_format() == in->details_.get_format())
-                && (!binded_mxp_->is_parti_inp(
-                        in)) // inputs of partition should not be inplaced
+                && (binded_mxp_->contains(
+                        in->producer_owner_)) // inputs of partition should not
+                // be inplaced
                 && (!in->producer_owner_->isa<tunable_op_t>())
                 && (!(g2b_map_.get(in).isa<tensor>()
                         && g2b_map_.get(in)
@@ -117,7 +119,7 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                 && (inp->details_.get_blocking_dims()
                         == tv_op->get_outputs()[0]
                                    ->details_.get_blocking_dims())
-                && (!binded_mxp_->is_parti_inp(inp))
+                && (binded_mxp_->contains(inp->producer_owner_))
                 && (!(g2b_map_.get(inp).isa<tensor>()
                         && g2b_map_.get(inp)
                                    .static_as<tensor>()
@@ -494,7 +496,9 @@ void extract_anchor_from_fmgr_to_parti(fusion_manager *fmgr,
                     parti->fanchors_.emplace_back(
                             std::make_shared<fuse_iter_anchor_map_t>(
                                     iter_anchor.iter_,
-                                    iter_anchor.anchor_position_, fsmap));
+                                    iter_anchor.anchor_position_, fsmap,
+                                    iter_anchor.slice_list_.size(),
+                                    iter_anchor.dispatch_helper_));
                 }
             }
         }
@@ -697,6 +701,22 @@ void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti) {
             }
         }
         if (stat_map.is_ok()) {
+            // check for iter fuse anchor
+            if (fanchor->isa<fuse_iter_anchor_map_t>()) {
+                auto expected_slice_size
+                        = fanchor->dyn_cast<fuse_iter_anchor_map_t>()
+                                  ->iter_size_;
+                if (std::any_of(op->get_outputs().begin(),
+                            op->get_outputs().end(),
+                            [&fanchor, &expected_slice_size](
+                                    const graph_tensor_ptr &out) {
+                                return fanchor->fsmap_.get(out).size()
+                                        != expected_slice_size;
+                            })) {
+                    erase_and_block_gt(op, known_gt, fanchor);
+                    continue;
+                }
+            }
             if (!check_inp_anchor(op, fanchor, known_gt)) {
                 erase_and_block_gt(op, known_gt, fanchor);
                 continue;
@@ -818,22 +838,14 @@ static bool check_parti_ring_risk(
          target_parti = (dep == parti_dep::l_dep_r) ? B : A;
     auto append_ops = append_parti->ops;
     for (auto &op_a : append_ops) {
-        // check cut op of append parti whether has ring risk for target parti
-        if (std::any_of(op_a->get_inputs().begin(), op_a->get_inputs().end(),
-                    [&append_parti, &target_parti, &g](
-                            const graph_tensor_ptr &inp) {
-                        return append_parti->is_parti_inp(inp)
-                                && std::any_of(target_parti->ops.begin(),
-                                        target_parti->ops.end(),
-                                        [&inp, &g](const sc_op_ptr &op) {
-                                            return g.lookup(op.get(),
-                                                           inp->producer_owner_)
-                                                    == 1;
-                                        });
-                    })) {
-            if (!target_parti->fusion_partition_t::is_ok_to_add(
-                        op_a.get(), g)) {
-                return true;
+        for (auto &inp : op_a->get_inputs()) {
+            if (append_parti->is_parti_inp(inp)
+                    && !target_parti->contains(inp->producer_owner_)) {
+                for (auto &op_in_set : target_parti->ops) {
+                    auto result = g.lookup(op_in_set->logical_op_id_,
+                            inp->producer_owner_->logical_op_id_);
+                    if (result == 1) { return true; }
+                }
             }
         }
     }
@@ -907,10 +919,6 @@ static bool try_merge_mixed_parti_parallel(
         return false;
     }
 
-    // evaluate two partition by cost model
-    float score_target = target_parti->evaluate_perf(),
-          score_append = append_parti->evaluate_perf();
-
     SC_MODULE_INFO << "parallel merging two partition:";
     SC_MODULE_INFO << target_parti->func_;
     SC_MODULE_INFO << append_parti->func_;
@@ -939,6 +947,15 @@ static bool try_merge_mixed_parti_parallel(
     }
 
     common_fanchor->commit_stmt(outermost_loop_append->body_);
+
+    // set barrier related attr if necessary
+    if (dep == parti_dep::no_dep
+            && get_last_loop_in_body(outermost_loop_target->body_)
+                       .isa<for_loop>()) {
+        get_last_loop_in_body(outermost_loop_target->body_)
+                ->attr()[stmt_attr_key::no_post_barrier]
+                = true;
+    }
 
     /* * * * * * * * * * * * * * * * *
      * Step 2: Merge fanchor_
@@ -987,13 +1004,6 @@ static bool try_merge_mixed_parti_parallel(
 
     // clear merged parti
     append_parti->clear();
-
-    float score_C = target_parti->evaluate_perf();
-
-    if (score_C < std::max(score_target, score_append)) {
-        SC_MODULE_WARN << "Merging these two partition may cause performance "
-                          "drop, no fall-back strategy found";
-    }
 
     return true;
 }
@@ -1587,6 +1597,10 @@ bool mixed_parti_t::is_ok_to_add(sc_op *op, const op_dep_matrix_t &g) {
                           "dependency ring risk";
         return false;
     }
+    // currently, disable tunable op commit into parallel for_loop.
+    if (op->isa<tunable_op_t>()
+            && contain_op_with_type<ops::managed_matmul_core_op_t>())
+        return false;
     if (auto reo = op->dyn_cast<reorder_op_t>()) {
         if (reo->get_inputs()[0]->uses_.size() > 1) return false;
     }
@@ -1681,19 +1695,28 @@ std::vector<fuse_anchor_map_ptr> mixed_parti_t::lookup_sub_anchor_map(
 }
 
 void mixed_parti_t::clear_fanchor(fuse_anchor_map_ptr &fanchor) {
-    auto anchor = fanchor->anchor_position_;
-    COMPILE_ASSERT(anchor->seq_.empty(),
+    stmt anchor = fanchor->anchor_position_;
+    COMPILE_ASSERT(anchor.checked_as<stmts>()->seq_.empty(),
             "Could not remove this fanchor, due to it is not empty")
     stmt parent = get_parent_node(anchor);
-    auto &ss_parent = parent.checked_as<stmts>()->seq_;
+    auto ss_parent = parent.checked_as<stmts>();
+    // clear empty if_node outside iter anchor if necessary
+    if (fanchor->isa<fuse_iter_anchor_map_t>() && ss_parent->seq_.size() == 1
+            && get_parent_node(parent).isa<if_else>()) {
+        auto if_node = get_parent_node(parent);
+        // redirect
+        parent = get_parent_node(if_node);
+        ss_parent = parent.checked_as<stmts>();
+        anchor = if_node;
+    }
     // find anchor iter
     std::vector<sc::stmt>::iterator anchor_iter
-            = std::find_if(ss_parent.begin(), ss_parent.end(),
+            = std::find_if(ss_parent->seq_.begin(), ss_parent->seq_.end(),
                     [anchor](stmt &s) { return s.ptr_same(anchor); });
-    COMPILE_ASSERT(anchor_iter != ss_parent.end(),
+    COMPILE_ASSERT(anchor_iter != ss_parent->seq_.end(),
             "Could not found anchor in current parent stmts");
     // remove anchor
-    ss_parent.erase(anchor_iter);
+    ss_parent->seq_.erase(anchor_iter);
     // reset fanchor
     fanchor->anchor_position_ = stmts();
     fanchor->fsmap_.clear();
@@ -1833,7 +1856,12 @@ void mixed_parti_t::buffer_schedule() {
 
 bool mixed_parti_t::is_parti_inp(const graph_tensor *gt) {
     if (merged_to) { return get_root()->is_parti_inp(gt); }
-    return !contains(gt->producer_owner_);
+    auto ths = this;
+    return std::any_of(gt->uses_.begin(), gt->uses_.end(),
+                   [&ths](const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
+                       return ths->contains(user.second.get());
+                   })
+            && !contains(gt->producer_owner_);
 }
 
 bool mixed_parti_t::is_parti_inp(const graph_tensor_ptr &gt) {
@@ -1842,10 +1870,12 @@ bool mixed_parti_t::is_parti_inp(const graph_tensor_ptr &gt) {
 
 bool mixed_parti_t::is_parti_out(const graph_tensor *gt) {
     if (merged_to) { return get_root()->is_parti_out(gt); }
-    for (auto &use : gt->uses_) {
-        if (!contains(use.second.get())) { return true; }
-    }
-    return false;
+    auto ths = this;
+    return contains(gt->producer_owner_)
+            && std::any_of(gt->uses_.begin(), gt->uses_.end(),
+                    [&ths](const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
+                        return !ths->contains(user.second.get());
+                    });
 }
 
 bool mixed_parti_t::is_parti_out(const graph_tensor_ptr &gt) {
