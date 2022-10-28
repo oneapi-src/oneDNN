@@ -25,6 +25,14 @@
 //    cases only.
 // 2) Specially optimized for NHWC kernels (under NHWC_OPTIMIZED).
 //    Not supported IC tail processing.
+//
+// For both algorithms, two types of reduction are implemented:
+// 1) Reduction over scratchpad (reduce_temp) with SLM use, implemented by
+//    gen9_reduce_xxxxx kernels.
+// 2) Atomics-based reduction with SLM use, implemented as part of calc kernels
+//    (gem9_calc_xxxxx_fused_reduction() functions). It also requires
+//    zeroing and finalization steps, see gen9_fused_reduce_xxxxx kernels.
+//    Under FUSED_ATOMICS_REDUCTION definition.
 
 #define IS_IC_EQ_8 (IC == 8)
 #define HAS_IC_TAIL (IC != IC16)
@@ -128,6 +136,38 @@
 #define IC_BLOCK_STRIDE 16
 #endif
 
+#if NHWC_OPTIMIZED
+#define REDUCE_NUM_SGROUPS IC_BLOCK_SGROUPS
+#else
+#define REDUCE_NUM_SGROUPS 1
+#endif
+
+#define CALC_SLM_LINE_SIZE (REDUCE_NUM_SGROUPS * GWS_LWS0_CALC)
+#define CALC_SLM_SIZE (CALC_SLM_LINE_SIZE * GWS_LWS1_CALC * GWS_LWS2_CALC)
+
+NAMED_KERNEL_ATTR(AUX)
+__kernel void gen9_fused_reduce_init(
+#if IS_FWD
+        __global float *mean, __global float *variance
+#else
+        __global float *diff_scale, __global float *diff_shift
+#endif
+) {
+    const int c = GWS_GET_IC_AUX();
+#if IS_FWD
+    mean[c] = 0.0f;
+    variance[c] = 0.0f;
+#else
+    diff_scale[c] = 0.0f;
+#if DIFF_SHIFT == 1
+    diff_shift[c] = 0.0f;
+#else
+    diff_shift[IC + IC * REDUCE_STAT_NBLOCKS + c] = 0.0f;
+#endif
+#endif
+    return;
+}
+
 #if IS_FWD
 
 #define LOAD_DATA_Nx16_USING_LOOP_IDX(n, dest, src, idx) \
@@ -142,6 +182,111 @@
             dest[k] = LOAD_DATA_1x16(&src[(k + idx) * IC]); \
         } \
     }
+
+#if USE_STATS_ONE_PASS
+
+#define ACCUM_DATA_T float
+#define ACCUM_DATA8_T float8
+#define ACCUM_DATA2_T float2
+#define SUM_DATA_T ACCUM_DATA2_T
+
+// Kahan summation algorithm. It's much more precise than simple sum and works
+// just as fast, since kernel is still memory-bound.
+SUM_DATA_T summation(ACCUM_DATA_T input, SUM_DATA_T state) {
+    ACCUM_DATA2_T ret;
+    ACCUM_DATA_T y = input - state.s1;
+    ACCUM_DATA_T t = state.s0 + y;
+    ret.s1 = (t - state.s0) - y;
+    ret.s0 = t;
+    return ret;
+}
+
+#if FUSED_ATOMICS_REDUCTION
+void gen9_mean_var_calc_fused_reduction(volatile __global atomic_float *mean,
+        volatile __global atomic_float *variance, int dst_offset,
+        SUM_DATA_T *sum, SUM_DATA_T *sum_sq, __local SUM_DATA_T *local_sum,
+        __local SUM_DATA_T *local_sum_sq) {
+
+    const int simd_id = get_sub_group_local_id();
+
+    const int group_size = GWS_LWS1_CALC * GWS_LWS2_CALC;
+    const int sg_group_id = get_local_id(0) / 16;
+    const int local_id = get_local_id(1);
+
+    if (local_id > 0) {
+        for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
+            const int slm_offset = CALC_SLM_LINE_SIZE * local_id
+                    + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16 + simd_id;
+            local_sum[slm_offset] = sum[sg];
+            local_sum_sq[slm_offset] = sum_sq[sg];
+        }
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (local_id == 0) {
+        for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
+            for (int gr_id = 1; gr_id < group_size; ++gr_id) {
+                const int off_local = CALC_SLM_LINE_SIZE * gr_id
+                        + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16
+                        + simd_id;
+                SUM_DATA_T tmp = local_sum[off_local];
+                SUM_DATA_T tmp_sq = local_sum_sq[off_local];
+                sum[sg] = summation(tmp.s1, sum[sg]);
+                sum_sq[sg] = summation(tmp_sq.s1, sum_sq[sg]);
+                sum[sg] = summation(tmp.s0, sum[sg]);
+                sum_sq[sg] = summation(tmp_sq.s0, sum_sq[sg]);
+            }
+            const int offset = dst_offset + sg * 16 + simd_id;
+#if HAS_IC_TAIL
+            if (offset < IC) {
+#endif
+                atomic_add_global(&mean[offset], sum[sg].s0);
+                atomic_add_global(&variance[offset], sum_sq[sg].s0);
+#if HAS_IC_TAIL
+            }
+#endif
+        }
+    }
+}
+#endif // FUSED_ATOMICS_REDUCTION
+#endif // USE_STATS_ONE_PASS
+
+#if FUSED_ATOMICS_REDUCTION
+void gen9_calc_fused_reduction(volatile __global atomic_float *dst,
+        int dst_offset, float *sum, __local float *local_sum) {
+    const int simd_id = get_sub_group_local_id();
+
+    const int group_size = GWS_LWS1_CALC * GWS_LWS2_CALC;
+    const int sg_group_id = get_local_id(0) / 16;
+    const int local_id = get_local_id(1);
+
+    if (local_id > 0) {
+        for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
+            const int slm_offset = CALC_SLM_LINE_SIZE * local_id
+                    + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16 + simd_id;
+            local_sum[slm_offset] = sum[sg];
+        }
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (local_id == 0) {
+        for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
+            for (int gr_id = 1; gr_id < group_size; ++gr_id) {
+                const int off_local = CALC_SLM_LINE_SIZE * gr_id
+                        + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16
+                        + simd_id;
+                sum[sg] += local_sum[off_local];
+            }
+            const int offset = dst_offset + sg * 16 + simd_id;
+#if HAS_IC_TAIL
+            if (offset < IC)
+#endif
+                atomic_add_global(&dst[offset], sum[sg]);
+        }
+    }
+    return;
+}
+#endif // FUSED_ATOMICS_REDUCTION
 
 void gen9_reduce_common(__global float *reduce_temp, __local float *local_sum,
         __global float *dst) {
@@ -162,6 +307,7 @@ void gen9_reduce_common(__global float *reduce_temp, __local float *local_sum,
 
     if (ic_sub_group > 0) { local_sum[ic_sub_group * 16 + simd_id] = sum; }
     barrier(CLK_LOCAL_MEM_FENCE);
+
     if (ic_sub_group == 0) {
         for (int i = 1; i < REDUCE_IC_SUB_GROUPS; i++) {
             sum += local_sum[i * 16 + simd_id];
@@ -176,29 +322,15 @@ void gen9_reduce_common(__global float *reduce_temp, __local float *local_sum,
 #if USE_STATS_ONE_PASS
 
 // IC tail processing is not implemented for one pass algorithm
-
-#define ACCUM_DATA_T float
-#define ACCUM_DATA8_T float8
-#define ACCUM_DATA2_T float2
-#define SUM_DATA_T ACCUM_DATA2_T
-
-// Kahan summation algorithm. It's much more precise than simple sum and works
-// just as fast, since kernel is still memory-bound.
-SUM_DATA_T summation(ACCUM_DATA_T input, SUM_DATA_T state) {
-    ACCUM_DATA2_T ret;
-    ACCUM_DATA_T y = input - state.s1;
-    ACCUM_DATA_T t = state.s0 + y;
-    ret.s1 = (t - state.s0) - y;
-    ret.s0 = t;
-    return ret;
-}
-
 // Calculates partial sums of values and squares-of-values per channel
+
 #if NHWC_OPTIMIZED
 
 NAMED_KERNEL_ATTR(CALC)
-__kernel void gen9_calc_mean_var(
-        __global DATA_T *src, __global ACCUM_DATA_T *reduce_temp) {
+__kernel void gen9_calc_mean_var(__global DATA_T *src,
+        __global ACCUM_DATA_T *reduce_temp,
+        volatile __global atomic_float *mean,
+        volatile __global atomic_float *variance) {
 
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
@@ -246,19 +378,27 @@ __kernel void gen9_calc_mean_var(
         src += IC;
     }
 
+#if FUSED_ATOMICS_REDUCTION
+    __local SUM_DATA_T local_sum[CALC_SLM_SIZE];
+    __local SUM_DATA_T local_sum_sq[CALC_SLM_SIZE];
+    gen9_mean_var_calc_fused_reduction(mean, variance, ic_block_offset, sum,
+            sum_sq, local_sum, local_sum_sq);
+#else
     for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
         const int reduce_off = group_c_offset + sg * 16 * REDUCE_STAT_NBLOCKS;
         STORE_FLOAT_1x16(&reduce_temp[reduce_off], sum[sg].s0);
         STORE_FLOAT_1x16(&reduce_temp[ver_offs + reduce_off], sum_sq[sg].s0);
     }
+#endif
 }
 
 #else // NHWC_OPTIMIZED
 
 NAMED_KERNEL_ATTR(CALC)
-__kernel void gen9_calc_mean_var(
-        __global DATA_T *src, __global ACCUM_DATA_T *reduce_temp) {
-
+__kernel void gen9_calc_mean_var(__global DATA_T *src,
+        __global ACCUM_DATA_T *reduce_temp,
+        volatile __global atomic_float *mean,
+        volatile __global atomic_float *variance) {
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
@@ -336,9 +476,16 @@ __kernel void gen9_calc_mean_var(
         }
     }
 
+#if FUSED_ATOMICS_REDUCTION
+    __local SUM_DATA_T local_sum[CALC_SLM_SIZE];
+    __local SUM_DATA_T local_sum_sq[CALC_SLM_SIZE];
+    gen9_mean_var_calc_fused_reduction(
+            mean, variance, c, &sum, &sum_sq, local_sum, local_sum_sq);
+#else
     STORE_FLOAT_1x16(&reduce_temp[group_c_offset + mb_sp_idx * 16], sum.s0);
     STORE_FLOAT_1x16(&reduce_temp[ver_offs + group_c_offset + mb_sp_idx * 16],
             sum_sq.s0);
+#endif
 }
 
 #endif // NHWC_OPTIMIZED
@@ -381,6 +528,7 @@ __kernel void gen9_reduce_mean_var(__global ACCUM_DATA_T *reduce_temp,
         local_sum_sq[ic_sub_group * 16 + simd_id] = sum_sq;
     }
     barrier(CLK_LOCAL_MEM_FENCE);
+
     if (ic_sub_group == 0) {
         for (int i = 1; i < REDUCE_IC_SUB_GROUPS; i++) {
             SUM_DATA_T tmp = local_sum[i * 16 + simd_id];
@@ -399,11 +547,31 @@ __kernel void gen9_reduce_mean_var(__global ACCUM_DATA_T *reduce_temp,
 }
 #endif // USE_STATS_ONE_PASS
 
+NAMED_KERNEL_ATTR(AUX)
+__kernel void gen9_fused_reduce_final(
+#if USE_STATS_ONE_PASS
+        __global float *mean, __global float *variance
+#else
+        __global float *data_reduce
+#endif
+) {
+    const int c = GWS_GET_IC_AUX();
+#if USE_STATS_ONE_PASS
+    mean[c] = mean[c] / (MB * ID * IH * IW);
+    float tmp_var = max(
+            0.0f, (variance[c] / (MB * ID * IH * IW)) - (mean[c] * mean[c]));
+    variance[c] = tmp_var;
+#else
+    data_reduce[c] = data_reduce[c] / (MB * ID * IH * IW);
+#endif
+    return;
+}
+
 #if NHWC_OPTIMIZED
 
 NAMED_KERNEL_ATTR(CALC)
-__kernel void gen9_calc_mean(
-        __global DATA_T *src, __global float *reduce_temp) {
+__kernel void gen9_calc_mean(__global DATA_T *src, __global float *reduce_temp,
+        volatile __global atomic_float *mean) {
 
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
@@ -440,18 +608,23 @@ __kernel void gen9_calc_mean(
 #endif // HAS_IC_VECT_TAIL
         src += IC;
     }
+
+#if FUSED_ATOMICS_REDUCTION
+    __local float local_sum[CALC_SLM_SIZE];
+    gen9_calc_fused_reduction(mean, ic_block_offset, v_mean, local_sum);
+#else
     for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
         const int reduce_off = group_c_offset + sg * 16 * REDUCE_STAT_NBLOCKS;
         STORE_FLOAT_1x16(&reduce_temp[reduce_off], v_mean[sg]);
     }
+#endif
 }
 
 #else // NHWC_OPTIMIZED
 
 NAMED_KERNEL_ATTR(CALC)
-__kernel void gen9_calc_mean(
-        __global DATA_T *src, __global float *reduce_temp) {
-
+__kernel void gen9_calc_mean(__global DATA_T *src, __global float *reduce_temp,
+        __global float *mean) {
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
@@ -575,8 +748,13 @@ __kernel void gen9_calc_mean(
         v_mean += res0[i] + res1[i];
     }
 
+#if FUSED_ATOMICS_REDUCTION
+    __local float local_sum[CALC_SLM_SIZE];
+    gen9_calc_fused_reduction(mean, c, &v_mean, local_sum);
+#else
     // reduce_temp is padded to IC16, no OOB writes
     STORE_FLOAT_1x16(&reduce_temp[group_c_offset + mb_sp_idx * 16], v_mean);
+#endif
 }
 
 #endif // NHWC_OPTIMIZED
@@ -592,7 +770,7 @@ __kernel void gen9_reduce_mean(
 
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
-        __global float *reduce_temp) {
+        __global float *reduce_temp, volatile __global atomic_float *variance) {
 
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
@@ -641,17 +819,23 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
         src += IC;
     }
 
+#if FUSED_ATOMICS_REDUCTION
+    __local float local_sum[CALC_SLM_SIZE];
+    gen9_calc_fused_reduction(variance, ic_block_offset, v_var, local_sum);
+#else
     for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
         const int reduce_off = group_c_offset + sg * 16 * REDUCE_STAT_NBLOCKS;
         STORE_FLOAT_1x16(&reduce_temp[reduce_off], v_var[sg]);
     }
+#endif
 }
 
 #else // NHWC_OPTIMIZED
 
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
-        __global float *reduce_temp) {
+        __global float *reduce_temp, __global float *variance) {
+
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
     const int sp_block_idx = GWS_GET_STAT_SP();
@@ -786,8 +970,14 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
     for (int i = 0; i < 8; i++) {
         v_var += res0[i] + res1[i];
     }
+
+#if FUSED_ATOMICS_REDUCTION
+    __local float local_sum[CALC_SLM_SIZE];
+    gen9_calc_fused_reduction(variance, c, &v_var, local_sum);
+#else
     // reduce_temp is padded to IC16, no OOB writes
     STORE_FLOAT_1x16(&reduce_temp[group_c_offset + mb_sp_idx * 16], v_var);
+#endif
 }
 
 #endif // NHWC_OPTIMIZED
@@ -1163,12 +1353,89 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         } \
     }
 
+#if FUSED_ATOMICS_REDUCTION
+
+#if NHWC_OPTIMIZED
+#if VECT_SIZE > 1
+#define GET_SCALAR_VAL(v, idx) v[idx / VECT_SIZE][idx % VECT_SIZE]
+#else
+#define GET_SCALAR_VAL(v, idx) v[idx]
+#endif
+#else
+#define GET_SCALAR_VAL(v, idx) v[idx]
+#endif
+
+void gen9_calc_fused_reduction(volatile __global atomic_float *diff_scale,
+        volatile __global atomic_float *diff_shift, int dst_offset,
+#if NHWC_OPTIMIZED
+        VECT_FLOAT_T *diff_gamma, VECT_FLOAT_T *diff_beta,
+#else
+        float *diff_gamma, float *diff_beta,
+#endif
+        float *diff_gamma_tail, float *diff_beta_tail,
+        __local float *local_gamma, __local float *local_beta) {
+
+    const int simd_id = get_sub_group_local_id();
+    const int group_size = GWS_LWS1_CALC * GWS_LWS2_CALC;
+    const int sg_group_id = get_local_id(0) / 16;
+    const int local_id = get_local_id(1);
+
+    for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
+        const int slm_offset = CALC_SLM_LINE_SIZE * local_id
+                + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16 + simd_id;
+#if HAS_IC_VECT_TAIL && NHWC_OPTIMIZED
+        if (sg >= IC_VECT_SGROUPS) {
+            local_gamma[slm_offset] = diff_gamma_tail[sg - IC_VECT_SGROUPS];
+            local_beta[slm_offset] = diff_beta_tail[sg - IC_VECT_SGROUPS];
+        } else
+#endif
+        {
+            local_gamma[slm_offset] = GET_SCALAR_VAL(diff_gamma, sg);
+            local_beta[slm_offset] = GET_SCALAR_VAL(diff_beta, sg);
+        }
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (local_id == 0) {
+        for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
+            float d_gamma = 0.f;
+            float d_beta = 0.f;
+
+            for (int gr_id = 0; gr_id < group_size; ++gr_id) {
+                const int off_local = CALC_SLM_LINE_SIZE * gr_id
+                        + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16
+                        + simd_id;
+                d_gamma += local_gamma[off_local];
+                d_beta += local_beta[off_local];
+            }
+            const int offset = dst_offset + sg * 16 + simd_id;
+#if HAS_IC_TAIL
+            if (offset < IC)
+#endif
+            {
+                atomic_add_global(&diff_scale[offset], d_gamma);
+#if DIFF_SHIFT == 1
+                atomic_add_global(&diff_shift[offset], d_beta);
+#else
+                atomic_add_global(
+                        &diff_shift[IC + IC * REDUCE_STAT_NBLOCKS + offset],
+                        d_beta);
+#endif
+            }
+        }
+    }
+    return;
+}
+#endif // FUSED_ATOMICS_REDUCTION
+
 #if NHWC_OPTIMIZED
 
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
         __global DATA_T *diff_dst, __global char *ws,
-        __global float *temp_reduce) {
+        __global float *temp_reduce, volatile __global atomic_float *diff_scale,
+        volatile __global atomic_float *diff_shift) {
 
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
@@ -1192,6 +1459,9 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
 #if HAS_IC_VECT_TAIL
     float diff_gamma_tail[IC_TAIL_SGROUPS] = {0.0f};
     float diff_beta_tail[IC_TAIL_SGROUPS] = {0.0f};
+#else
+    float *diff_gamma_tail = NULL;
+    float *diff_beta_tail = NULL;
 #endif
 
     for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
@@ -1245,8 +1515,13 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
 #endif
     }
 
-    // any reduction is not needed due to we run only 1 raw  ???
-
+#if FUSED_ATOMICS_REDUCTION
+    __local float local_gamma[CALC_SLM_SIZE];
+    __local float local_beta[CALC_SLM_SIZE];
+    gen9_calc_fused_reduction(diff_scale, diff_shift, ic_block_offset,
+            diff_gamma, diff_beta, diff_gamma_tail, diff_beta_tail, local_gamma,
+            local_beta);
+#else
     // scratchpad layout:
     // IC16 - diff_gamma reduction, wrote by gen9_reduce_stats kernel
     // REDUCE_STAT_NBLOCKS * IC16 - diff_gamma stats calculated by this kernel
@@ -1282,6 +1557,7 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
 #endif
         }
     }
+#endif // FUSED_ATOMICS_REDUCTION
 }
 
 #else // NHWC_OPTIMIZED
@@ -1289,7 +1565,8 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
         __global DATA_T *diff_dst, __global char *ws,
-        __global float *temp_reduce) {
+        __global float *temp_reduce, volatile __global atomic_float *diff_scale,
+        volatile __global atomic_float *diff_shift) {
 
     const int mb = GWS_GET_STAT_MB();
     const int c = GWS_GET_STAT_IC();
@@ -1432,6 +1709,12 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
         diff_beta[0] += diff_beta[i];
     }
 
+#if FUSED_ATOMICS_REDUCTION
+    __local float local_gamma[CALC_SLM_SIZE];
+    __local float local_beta[CALC_SLM_SIZE];
+    gen9_calc_fused_reduction(diff_scale, diff_shift, c, &diff_gamma,
+            &diff_beta, NULL, NULL, local_gamma, local_beta);
+#else
     // scratchpad layout:
     // IC16 - diff_gamma reduction, wrote by gen9_reduce_stats kernel
     // REDUCE_STAT_NBLOCKS * IC16 - diff_gamma stats calculated by this kernel
@@ -1441,6 +1724,7 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
     STORE_FLOAT_1x16(&temp_reduce[2 * IC16 + REDUCE_STAT_NBLOCKS * IC16
                              + mb_sp_idx * 16],
             diff_beta[0]);
+#endif // FUSED_ATOMICS_REDUCTION
 }
 
 #endif // NHWC_OPTIMIZED
@@ -1496,6 +1780,14 @@ __kernel void gen9_reduce_stats(__global float *temp_reduce,
 #endif // #if DIFF_SHIFT == 1
         }
     }
+}
+
+NAMED_KERNEL_ATTR(AUX)
+__kernel void gen9_fused_reduce_final(
+        __global float *diff_scale, __global float *variance, float eps) {
+    const int c = GWS_GET_IC_AUX();
+    diff_scale[c] *= 1.0f / sqrt(variance[c] + eps);
+    return;
 }
 
 #if NHWC_OPTIMIZED
