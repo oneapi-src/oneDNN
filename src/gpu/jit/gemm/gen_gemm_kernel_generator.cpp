@@ -12654,13 +12654,9 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     if (strategy.prefetchC < 0) gemmPrefetchC(problem, strategy, state);
 
     // Generate k loop.
-    switch (type) {
-        default:
-            if (lateKLoopCheck) state.raVFlag.unlock(state.flagAP);
-            syncall(); /* Avoid unnecessary SWSB dependencies entering loop. */
-            ls.materialize();
-            break;
-    }
+    if (lateKLoopCheck) state.raVFlag.unlock(state.flagAP);
+    syncall(); /* Avoid unnecessary SWSB dependencies entering loop. */
+    ls.materialize();
 
     // Release barrier header from short k loop.
     state.ra.safeRelease(barrierHeader);
