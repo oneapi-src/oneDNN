@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,8 +50,25 @@
     data = as_float4(intel_sub_group_block_read4((__global uint *)&bias[idx]));
 
 #define BLOCK_READ_SCALES(data, idx) \
-    data = as_float4(intel_sub_group_block_read4( \
-            (__global uint *)&scales_per_oc[idx]));
+    if (OC >= idx + (SUB_GROUP_SIZE * 4)) { \
+        data = as_float4(intel_sub_group_block_read4( \
+                (__global uint *)&runtime_scales[idx])); \
+    } else { \
+        float local_dat[4] = {}; \
+        for (int i = 0; i < 4; ++i) \
+            if (idx + ((i + 1) * SUB_GROUP_SIZE) <= OC) { \
+                local_dat[i] = as_float(intel_sub_group_block_read( \
+                        (__global uint *)&runtime_scales[idx \
+                                + (SUB_GROUP_SIZE * i)])); \
+            } else if (idx + (i * SUB_GROUP_SIZE) + sub_local_id < OC) { \
+                local_dat[i] = runtime_scales[idx + (SUB_GROUP_SIZE * i) \
+                        + sub_local_id]; \
+            } \
+        data.s0 = local_dat[0]; \
+        data.s1 = local_dat[1]; \
+        data.s2 = local_dat[2]; \
+        data.s3 = local_dat[3]; \
+    }
 
 #if SCALES_PER_OC
 #define SCALE_VEC4 scales.s01230123

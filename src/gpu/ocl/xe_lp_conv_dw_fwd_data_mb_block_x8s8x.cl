@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -237,8 +237,14 @@ conv_dw_fwd_mb_block_x8s8x(const __global uchar *src, const __global char *wei,
     float8 tmp01 = convert_float8(S01);
 
 #if SCALES_PER_OC
-    float2 scales = as_float2(intel_sub_group_block_read2(
-            (const __global uint *)&scales_per_oc[g]));
+    float2 scales = 1;
+    if (g < G - 2) {
+        scales = as_float2(intel_sub_group_block_read2(
+                (const __global uint *)&runtime_scales[g]));
+    } else {
+        scales.s1 = as_float(intel_sub_group_block_read(
+                (const __global uint *)&runtime_scales[g]));
+    }
 #endif
 
 #if WITH_BIAS
