@@ -20,6 +20,7 @@ where `DRIVER` is one of:
 * [conv](doc/driver_conv.md)
 * [deconv](doc/driver_conv.md)
 * [eltwise](doc/driver_eltwise.md)
+* [graph](doc/driver_graph.md)
 * [ip](doc/driver_ip.md)
 * [lnorm](doc/driver_lnorm.md)
 * [lrn](doc/driver_lrn.md)

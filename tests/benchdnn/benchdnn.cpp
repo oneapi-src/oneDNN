@@ -50,6 +50,10 @@
 #include "sum/sum.hpp"
 #include "zeropad/zeropad.hpp"
 
+#ifdef BUILD_GRAPH
+#include "graph/graph.hpp"
+#endif
+
 int verbose {0};
 bool canonical {false};
 bool mem_check {true};
@@ -130,6 +134,10 @@ int main(int argc, char **argv) {
         zeropad::bench(--argc, ++argv);
     } else if (!strcmp("--brgemm", argv[0])) {
         brgemm::bench(--argc, ++argv);
+#ifdef BUILD_GRAPH
+    } else if (!strcmp("--graph", argv[0])) {
+        graph::bench(--argc, ++argv);
+#endif
     } else {
         fprintf(stderr, "err: unknown driver\n");
     }

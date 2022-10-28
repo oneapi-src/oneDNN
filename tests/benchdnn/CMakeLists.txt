@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2021 Intel Corporation
+# Copyright 2017-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,12 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 list(APPEND SOURCES ${TEST_THREAD})
+if(ONEDNN_BUILD_GRAPH)
+    add_definitions_with_host_compiler(-DBUILD_GRAPH)
+else()
+    file(GLOB_RECURSE GRAPH_SRC ${CMAKE_CURRENT_SOURCE_DIR}/graph/*.cpp)
+    list(REMOVE_ITEM SOURCES ${GRAPH_SRC})
+endif()
 include_directories_with_host_compiler(
     ${CMAKE_CURRENT_SOURCE_DIR}
     )
@@ -122,6 +128,11 @@ endif()
 
 # Very sad CMake older then 3.2 does not support continue() command.
 file(GLOB all_drivers RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs inputs/*)
+
+if(NOT ONEDNN_BUILD_GRAPH)
+    list(REMOVE_ITEM all_drivers "graph")
+endif()
+
 foreach(driver ${all_drivers})
     set(driver_dir ${CMAKE_CURRENT_SOURCE_DIR}/inputs/${driver})
     # Collect input files in groups

@@ -340,10 +340,10 @@ int readlink(const char *path, char *buf, size_t buf_max) {
 #include <unistd.h>
 #endif /* _WIN32 */
 
-std::string locate_batch_file(const std::string &fname) {
+std::string locate_file(const std::string &fname) {
     SAFE_V(fname.length() < PATH_MAX ? OK : FAIL);
 
-    const int max_paths = 4;
+    const int max_paths = 30;
 
     static int n_paths = 0;
     static std::string search_paths[max_paths];
@@ -363,7 +363,10 @@ std::string locate_batch_file(const std::string &fname) {
             break;
         }
     if (!dir_found) {
-        SAFE_V(n_paths < max_paths ? OK : FAIL);
+        if (n_paths >= max_paths) {
+            BENCHDNN_PRINT(0, "%s%d\n",
+                    "Warning: Number of searched paths exceeded ", max_paths);
+        }
         search_paths[n_paths++] = std::move(fdir);
     }
 
@@ -374,7 +377,7 @@ std::string locate_batch_file(const std::string &fname) {
         std::string fullname = search_paths[n] + "/" + fname;
         ifs.open(fullname);
         if (ifs.is_open()) {
-            BENCHDNN_PRINT(50, "batch file used: %s\n", fullname.c_str());
+            BENCHDNN_PRINT(50, "file used: %s\n", fullname.c_str());
             ifs.close();
             return fullname;
         }
@@ -393,13 +396,12 @@ std::string locate_batch_file(const std::string &fname) {
             fdir.append(i_try == 1 ? "/../inputs/" : "/inputs/");
             assert(!driver_name.empty());
             fdir.append(driver_name);
-
             std::string fullname = fdir + "/";
             fullname += fname;
             ifs.open(fullname);
             if (ifs.is_open()) {
                 search_paths[n_paths++] = std::move(fdir);
-                BENCHDNN_PRINT(50, "batch file used: %s\n", fullname.c_str());
+                BENCHDNN_PRINT(50, "file used: %s\n", fullname.c_str());
                 ifs.close();
                 return fullname;
             }
@@ -412,7 +414,7 @@ std::string locate_batch_file(const std::string &fname) {
 }
 
 int batch(const char *fname, bench_f bench) {
-    std::ifstream ifs(locate_batch_file(std::string(fname)));
+    std::ifstream ifs(locate_file(std::string(fname)));
     SAFE(ifs.is_open() ? OK : FAIL, CRIT);
 
     std::vector<std::string> opts;
