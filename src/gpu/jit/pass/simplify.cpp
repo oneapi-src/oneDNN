@@ -2116,14 +2116,15 @@ expr_t simplify_propagate_shuffle(const expr_t &e) {
         bool found_binary = false;
         for (int i : shuffle->idx) {
             if (is_binary_op(shuffle->vec[i])) {
-                found_binary = true;
                 auto &op = shuffle->vec[i].as<binary_op_t>();
+                if (found_binary && op.op_kind != op_kind_t::_and) continue;
+                found_binary = true;
                 a_type = op.a.type();
                 b_type = op.b.type();
                 op_kind = op.op_kind;
                 if (is_const(op.a)) a_common_const = op.a;
                 if (is_const(op.b)) b_common_const = op.b;
-                break;
+                if (op_kind == op_kind_t::_and) break;
             }
         }
         if (!found_binary) return e;
