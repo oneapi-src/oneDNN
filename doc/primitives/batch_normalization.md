@@ -132,9 +132,9 @@ argument index as specified by the following table.
 ### General Notes
 
 1. The different flavors of the primitive are partially controlled by the @p
-   flags parameter that is passed to the operation descriptor initialization
-   function (e.g., dnnl::batch_normalization_forward::desc::desc()). Multiple
-   flags can be set using the bitwise OR operator (`|`).
+   flags parameter that is passed to the primitive descriptor creation
+   function (e.g., dnnl::batch_normalization_forward::primitive_desc()).
+   Multiple flags can be set using the bitwise OR operator (`|`).
 
 2. For forward propagation, the mean and variance might be either computed at
    runtime (in which case they are outputs of the primitive) or provided by

@@ -294,17 +294,6 @@ dnnl::memory::desc wei_conv_s8_any_md(
 
 dnnl::memory::desc dst_conv_s8_any_md(...);  // ditto
 
-// Create a convolution operation descriptor
-dnnl::convolution_forward::desc conv_d(
-        dnnl::prop_kind::forward_inference,
-        dnnl::algorithm::convolution_direct,
-        src_conv_s8_any_md,                     // what's important is that
-        wei_conv_s8_any_md,                     // we specified that we want
-        dst_conv_s8_any_md,                     // computations in s8
-        strides, padding_l, padding_r,
-        dnnl::padding_kind::zero
-        );
-
 // prepare the attributes for the convolution
 dnnl::primitive_attr attr;
 const int mask = 0
@@ -317,11 +306,16 @@ for (int g_oc = 0; G * OC/G; ++g_oc)
 attr.set_output_scales(mask, conv_output_scales);
 
 // create a convolution primitive descriptor with the scaling factors
-auto conv_pd = dnnl::convolution_forward::primitive_desc(
-        conv_d, // general (non-customized) operation descriptor
-        attr,   // the attributes contain the output scaling
-        engine);
-
+dnnl::convolution_forward::primitive_desc conv_pd(
+        engine,
+        dnnl::prop_kind::forward_inference,
+        dnnl::algorithm::convolution_direct,
+        src_conv_s8_any_md,                     // what's important is that
+        wei_conv_s8_any_md,                     // we specified that we want
+        dst_conv_s8_any_md,                     // computations in s8
+        strides, padding_l, padding_r,
+        attr // the attributes contain the output scaling
+        );
 // ...
 ~~~
 

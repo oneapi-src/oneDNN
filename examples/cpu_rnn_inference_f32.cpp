@@ -375,7 +375,7 @@ void simple_net() {
                     memory::data_type::f32, memory::format_tag::any);
 
     // TODO: add support for residual connections
-    // should it be a set residual in op_desc or a field to set manually?
+    // should it be a set residual in pd or a field to set manually?
     // should be an integer to specify at which layer to start
     ///
     /// Encoder : Create unidirection RNN for first cell
@@ -470,7 +470,7 @@ void simple_net() {
             memory::data_type::f32, memory::format_tag::any);
 
     // TODO: add support for residual connections
-    // should it be a set residual in op_desc or a field to set manually?
+    // should it be a set residual in pd or a field to set manually?
     // should be an integer to specify at which layer to start
     ///
     /// Encoder : Create unidirection RNN cell
@@ -626,7 +626,7 @@ void simple_net() {
     //[create noctx mem]
 
     // TODO: add support for residual connections
-    // should it be a set residual in op_desc or a field to set manually?
+    // should it be a set residual in pd or a field to set manually?
     // should be an integer to specify at which layer to start
     ///
     /// Decoder : Create RNN decoder cell

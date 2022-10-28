@@ -157,7 +157,7 @@ void conv_relu_naive(const memory &user_src, const memory &user_wei,
     /// First it sets the dimensions and format for convolution memory
     /// descriptors (`_md`) to match `user_` values--one `md` each for source,
     /// destination, and weight data. Then it uses those `md` to create the
-    /// convolution descriptor `conv_d`, which tells oneDNN to use
+    /// convolution primitive descriptor `conv_pd`, which tells oneDNN to use
     /// plain format (NCHW) for the convolution.
     /// @page performance_profiling_cpp
     /// @snippet performance_profiling.cpp Create mem_desc
@@ -238,8 +238,8 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     ///
     /// First it creates the md as in **naive implementation**. Next it changes
     /// the dnnl::memory::format_tag for each md to `ANY`. Then it uses those
-    /// md to create the convolution descriptor conv_d, which tells oneDNN
-    /// to use whatever format it recommends for the convolution.
+    /// md to create the convolution primitive  descriptor conv_pd, which tells
+    /// oneDNN to use whatever format it recommends for the convolution.
     /// oneDNN will choose a friendly blocked format.
     /// @page performance_profiling_cpp
     /// @snippet performance_profiling.cpp Create mem_desc with tag=any
@@ -368,8 +368,8 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
     /// `conv_relu_fused()`.
     /// @page performance_profiling_cpp
     ///
-    /// First the memory descriptors and convolution descriptor are created as
-    /// in *naive implementation*.
+    /// First the memory descriptors and convolution primitive descriptor are
+    /// created as in *naive implementation*.
     // copy the dimensions data type from user's memory and set format tag
     // to any to allow convolution to pick the best implementation
     auto conv_src_md = memory::desc(user_src.get_desc().get_dims(),

@@ -2,13 +2,11 @@ Primitive Attributes {#dev_guide_attributes}
 ============================================
 
 A quick recap of the primitive creation step, which consists of the following:
-1. Initializing an operation descriptor, which contains some basic information
-   about the operation.
-2. Creating a primitive descriptor based on the operation descriptor, engine,
+1. Creating a primitive descriptor based on the engine, operation parameters,
    and **attributes**. During creation of a primitive for backward propagation,
    the primitive descriptor from the forward propagation might be required as
    well (see [Training-Specific Aspects](@ref dev_guide_inference_and_training_aspects_training)).
-3. Creating a primitive, solely based on a primitive descriptor.
+2. Creating a primitive, solely based on a primitive descriptor.
 
 Details on why all these steps are required can be found in
 @ref dev_guide_basic_concepts. The fact that is important for us now is that
@@ -17,8 +15,8 @@ corresponding primitive will execute. Once the primitive descriptor is created,
 it cannot be changed.
 
 The parameters passed to create a primitive descriptor specify the problem. An
-engine specifies where the primitive will be executed. An operation descriptor
-specifies the basics: the operation kind; the propagation kind; the source,
+engine specifies where the primitive will be executed. Primitive parameters
+specify the basics: the operation kind; the propagation kind; the source,
 destination, and other tensors; the strides (if applicable); and so on.
 
 **Attributes** specify some extra properties of the primitive. The attributes
@@ -41,17 +39,11 @@ handling is omitted to simplify reading.
 ~~~cpp
 // ### C API ###
 
-dnnl_op_desc_t op_d; // some operation descriptor, e.g. dnnl_eltwise_desc_t
-...
-// init op_d
-
 dnnl_primitive_attr_t attr; // opaque attributes
 dnnl_primitive_attr_create(&attr);
 dnnl_primitive_attr_set_SOMETHING(attr, params); // setting attributes params
 dnnl_primitive_attr_set_SOMETHING_ELSE(attr, other_params);
-
-dnnl_primitive_desc_t op_pd; // operation primitive descriptor
-dnnl_primitive_desc_create(&op_pd, &op_d, attr, engine, hint_fwd_pd);
+dnnl_eltwise_backward_primitive_desc_create(&op_pd, engine, ..., hint_fwd_pd, attr);
 
 // changing attr object here does not have any effect on op_pd
 

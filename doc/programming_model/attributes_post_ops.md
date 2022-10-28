@@ -38,7 +38,7 @@ attr.set_post_ops(po); // attach the post-ops to the attr
 
 // further po changes would not affect attr
 
-primitive::primitive_desc op_pd(params, attr); // create a pd with the attr
+primitive::primitive_desc op_pd(engine, params, attr); // create a pd with the attr
 ~~~
 
 @note

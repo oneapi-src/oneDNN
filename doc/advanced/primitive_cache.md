@@ -7,7 +7,7 @@ code for some CPU and GPU implementations, which introduces overhead.
 
 To mitigate primitive creation overhead, oneDNN provides the primitive cache
 which automatically caches created primitives to avoid repeating JIT compilation
-for the primitives with identical operation descriptors, attributes, underlying
+for the primitives with identical primitive parameters, attributes, underlying
 primitive implementations, etc. It can significantly reduce primitive creation
 overhead, especially when an application or a framework creates primitives
 for every instance of inference or iteration of training process.

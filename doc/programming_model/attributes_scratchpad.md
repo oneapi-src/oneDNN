@@ -107,7 +107,7 @@ user can query the amount of memory consumed by a primitive due to a scratchpad.
 
 ~~~cpp
 // Use default attr, hence the library allocates scratchpad
-dnnl::primitive::primitive_desc op_pd(params, ...);
+dnnl::primitive::primitive_desc op_pd(engine, params, ...);
 
 // Print how much memory would be hold by a primitive due to scratchpad
 std::cout << "primitive will use "
@@ -133,7 +133,7 @@ assert(attr.get_scratchpad_mode() == dnnl::scratchpad_mode::library);
 attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
 // Create a primitive descriptor with custom attributes
-dnnl::primitive::primitive_desc op_pd(op_d, attr, engine);
+dnnl::primitive::primitive_desc op_pd(engine, ..., attr);
 
 // Query the scratchpad memory descriptor
 dnnl::memory::desc scratchpad_md = op_pd.scratchpad_desc();

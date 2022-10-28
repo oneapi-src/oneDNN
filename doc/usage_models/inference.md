@@ -23,9 +23,9 @@ version of each primitive, that avoids storing information required for a
 backward pass (as in training).
 
 Use the #dnnl::prop_kind::forward_inference argument at creation of the
-**operation descriptor**, as in this convolution example:
+**primitive descriptor**, as in this convolution example:
 ~~~cpp
-auto conv_descr = convolution_forward::desc(prop_kind::forward_inference, ...);
+auto conv_prim_descr = convolution_forward::primitive_desc(engine, prop_kind::forward_inference, ...);
 ~~~
 
 **Layout Propagation**
@@ -47,9 +47,8 @@ follow these steps:
 A. On compute-intensive operations:
 * Pass the `format_tag=any` when creating oneDNN **memory descriptor**
   for source, destination, and weights memory
-* Use these three *memory descriptors* with 'format _tag=any` to create
-  **operation descriptor**
-* Use *operation descriptor* to create engine-aware **primitive descriptor**
+* Use these three *memory descriptors* with `format_tag=any` to create
+  **primitive descriptor**
 * Query the *primitive descriptor* with `.src_desc()` method to get recommended
   format
 * Write conditional reorder to execute only if user source data or weights
@@ -61,7 +60,7 @@ B. On non-intensive operations:
 * Query output **primitive descriptor** with `.dst_desc()` from previous
   operation to find current layout
 * Pass current layout with `format_tag=.dst_desc()` when creating non-intensive
-  **operation descriptor**
+  **primitive descriptor**
 * Create **primitive** and add it to stream
   with `operation.execute(stream, args)`
 
@@ -76,16 +75,11 @@ dest_mem_descr = memory::desc(args*, memory::format_tag::any);
 weights_mem_descr = memory::desc(args*, memory::format_tag::any);
 ~~~
 
-Use these three *memory descriptors* with 'format _tag=any`
-to create **operation descriptor**
+Use these three *memory descriptors* with 'format_tag=any`
+to create **primitive descriptor**
 ~~~cpp
-auto conv_descr = convolution_forward::desc(...,
+auto conv_prim_descr = convolution_forward::primitive_desc(...,
             source_mem_descr, weights_mem_descr, dest_mem_descr);
-~~~
-
-Use *operation descriptor* to create engine-aware **primitive descriptor**
-~~~cpp
-auto conv_prim_descr = convolution_forward::primitive_desc(conv_descr, engine);
 ~~~
 
 Query the *primitive descriptor* with `.src_desc()` method to get recommended
@@ -140,7 +134,6 @@ as a demonstration below. The steps are
 
 * Create a `post_op` for fused ReLU
 * Create **primitive attribute** and add the `post_op`
-* Create a convolution **descriptor**
 * Create a convolution **primitive descriptor**, passing `post_op as` an arg
 
 Create a `post_op` for fused ReLU
@@ -155,15 +148,10 @@ primitive_attr attr;
 attr.set_post_ops(ops);
 ~~~
 
-Create a convolution **descriptor**
-~~~cpp
-auto conv_descr = convolution_forward::desc(...);
-~~~
-
 Create a convolution **primitive descriptor**, passing the post-op infused
 `attrs` as an arg
 ~~~cpp
-auto conv_prim_descr = convolution_forward::primitive_desc(conv_descr, attrs, engine);
+auto conv_prim_descr = convolution_forward::primitive_desc(..., attrs, engine);
 ~~~
 
 ## int8 Inference

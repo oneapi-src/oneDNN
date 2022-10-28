@@ -50,9 +50,9 @@ The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
    is not set), they become outputs for the propagation kind
    #dnnl_forward_training (because they would be required during the backward
    propagation). Data layout for mean and variance must be specified during
-   initialization of the layer normalization descriptor by passing the memory
-   descriptor for statistics (e.g., by passing stat_desc in
-   dnnl::layer_normalization_forward::desc::desc()). Mean and variance are
+   creation of the layer normalization primitive descriptor by passing the
+   memory descriptor for statistics (e.g., by passing stat_desc in
+   dnnl::layer_normalization_forward::primitive_desc()). Mean and variance are
    not exposed for the propagation kind #dnnl_forward_inference.
 
 ### Backward
@@ -106,9 +106,9 @@ argument index as specified by the following table.
 ### General Notes
 
 1. The different flavors of the primitive are partially controlled by the @p
-   flags parameter that is passed to the operation descriptor initialization
-   function (e.g., dnnl::layer_normalization_forward::desc::desc()). Multiple
-   flags can be set using the bitwise OR operator (`|`).
+   flags parameter that is passed to the primitive descriptor creation
+   function (e.g., dnnl::layer_normalization_forward::primitive_desc()).
+   Multiple flags can be set using the bitwise OR operator (`|`).
 
 2. For forward propagation, the mean and variance might be either computed at
    runtime (in which case they are outputs of the primitive) or provided by
@@ -158,10 +158,10 @@ number of dimensions equal to (\f$data\_ndims - 1\f$) and size
 The corresponding memory object can have an arbitrary memory format. Unless mean
 and variance are computed at runtime and not exposed (i.e., propagation kind is
 #dnnl_forward_inference and #dnnl_use_global_stats is not set), the user should
-provide a memory descriptor for statistics when initializing the layer
-normalization descriptor. For best performance, it is advised to use the memory
-format that follows the data memory format; i.e., if the data format is
-#dnnl_tnc, the best performance can be expected for statistics with the
+provide a memory descriptor for statistics when creating the layer
+normalization primitive descriptor. For best performance, it is advised to use
+the memory format that follows the data memory format; i.e., if the data format
+is #dnnl_tnc, the best performance can be expected for statistics with the
 #dnnl_tn format and suboptimal for statistics with the #dnnl_nt format.
 
 #### Scale and Shift

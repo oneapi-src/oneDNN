@@ -431,12 +431,12 @@ performance boost achieved from using the Winograd algorithm:
 - _Accuracy_. In some cases Winograd convolution produce results that are
   significantly less accurate than results from the direct convolution.
 
-Create a Winograd convolution by simply creating a convolution descriptor
-(step 6 in [simple network example](@ref cnn_inference_f32_cpp) specifying
-the Winograd algorithm. The rest of the steps are exactly the same.
+Create a Winograd convolution by simply creating a convolution primitive
+descriptor (step 6 in [simple network example](@ref cnn_inference_f32_cpp)
+specifying the Winograd algorithm. The rest of the steps are exactly the same.
 
 ~~~cpp
-auto conv1_desc = convolution_forward::desc(
+auto conv1_pd = convolution_forward::primitive_desc(engine,
     prop_kind::forward_inference, algorithm::convolution_winograd,
     conv1_src_md, conv1_weights_md, conv1_bias_md, conv1_dst_md,
     conv1_strides, conv1_padding_l, conv1_padding_r);

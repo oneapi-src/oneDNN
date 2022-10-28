@@ -338,7 +338,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_scratchpad_mode(
 ///     dnnl_primitive_attr_set_output_scales_mask(attr, 1 << oc_dim);
 ///
 ///     dnnl_primitive_desc_t conv_pd;
-///     dnnl_primitive_desc_create(&conv_pd, &conv_d, attr, engine, NULL);
+///     dnnl_convolution_forward_primitive_desc_create(&conv_pd, engine, ..., attr);
 /// @endcode
 ///
 /// @param attr Primitive attributes.
@@ -412,7 +412,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_post_ops(
 /// @note
 ///     There is no way to check whether the post-ops would be supported by
 ///     the target primitive. Any error will be reported by the
-///     dnnl_primitive_desc_create() function call.
+///     dnnl_<primitive name>_[propagation kind]_primitive_desc_create() function call.
 ///
 /// @param attr Primitive attributes.
 /// @param post_ops Post-ops to set.

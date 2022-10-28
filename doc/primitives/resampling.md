@@ -101,7 +101,7 @@ argument index as specified by the following table.
    same. Resampling primitive supports `dst` and `diff_src` memory tag
    #dnnl::memory::format_tag::any and can define destination format based on
    source format.
-2. Resampling descriptor can be created by specifying the source and
+2. Resampling primitive descriptor can be created by specifying the source and
    destination memory descriptors, only the source descriptor and floating
    point factors, or the source and destination memory descriptors and factors.
    In case when user does not provide the destination descriptor, the

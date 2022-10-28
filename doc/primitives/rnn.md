@@ -167,7 +167,7 @@ where \f$P_*\f$ are stored in `weights_peephole`, and the other parameters are
 the same as in vanilla LSTM.
 
 @note
-If the `weights_peephole_desc` passed to the operation descriptor constructor
+If the `weights_peephole_desc` passed to the primitive descriptor constructor
 is a zero memory desciptor, the primitive will behave the same as in LSTM
 primitive without peephole.
 
@@ -208,7 +208,7 @@ where \f$R\f$ is stored in `weights_projection`, and the other parameters are
 the same as in vanilla LSTM.
 
 @note
-If the `weights_projection_desc` passed to the operation descriptor constructor
+If the `weights_projection_desc` passed to the primitive descriptor constructor
 is a zero memory desciptor, the primitive will behave the same as in LSTM
 primitive without projection.
 
@@ -457,7 +457,7 @@ details on how to use and set these quantization parameters.
    support.
 
 2. Bias must always be present (that is, the corresponding memory descriptor
-   argument cannot be zero memory descriptor when the RNN operation descriptor
+   argument cannot be zero memory descriptor when the RNN primitive descriptor
    is initialized).
 
 2. **CPU**

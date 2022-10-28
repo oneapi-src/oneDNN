@@ -61,38 +61,31 @@ passed to primitives during execution.
 
 ## Levels of Abstraction
 
-oneDNN has multiple levels of abstractions for primitives and memory objects
-in order to expose maximum flexibility to its users.
+Conceptually, oneDNN has multiple levels of abstractions for primitives and
+memory objects in order to expose maximum flexibility to its users.
 
-On the *logical* level, the library provides the following abstractions:
+* Memory descriptors (@ref dnnl_memory_desc_t, @ref dnnl::memory::desc)
+  define a tensor’s logical dimensions, data type, and the format in which the
+  data is laid out in memory. The special format any
+  (@ref dnnl::memory::format_tag::any) indicates that the actual format will be
+  defined later (see @ref memory_format_propagation_cpp).
 
-* *Memory descriptors* (@ref dnnl::memory::desc) define a tensor's logical
-  dimensions, data type, and the format in which the data is laid out in
-  memory. The special format _any_ (@ref dnnl::memory::format_tag::any)
-  indicates that the actual format will be defined later (see @ref
-  memory_format_propagation_cpp).
+* Primitives descriptors fully define an operations's computation
+  using the memory descriptors (@ref dnnl_memory_desc_t, @ref dnnl::memory::desc)
+  passed at construction, as well as the attributes. They also dispatch specific
+  implementation based on the engine. Primitive descriptors can be
+  used to query various primitive implementation details and, for
+  example, to implement @ref memory_format_propagation_cpp by inspecting
+  expected memory formats via queries without having to fully instantiate
+  a primitive. oneDNN may contain multiple implementations for the same
+  primitive that can be used to perform the same particular computation.
+  Primitive descriptors allow one-way iteration which allows inspecting multiple
+  implementations. The library is expected to order the implementations from
+  the most to least preferred, so it should always be safe to use the one that
+  is chosen by default.
 
-* *Operation descriptors* (one for each supported primitive) describe an
-  operation's most basic properties without specifying, for example, which
-  engine will be used to compute them. For example, convolution descriptor
-  describes shapes of source, destination, and weights tensors, propagation
-  kind (forward, backward with respect to data or weights), and other
-  implementation-independent parameters.
-
-* *Primitive descriptors* (@ref dnnl_primitive_desc_t; in the C++ API there
-  are multiple types for each supported primitive) are at an abstraction level
-  in between operation descriptors and primitives and can be used to inspect
-  details of a specific primitive implementation like expected memory formats
-  via queries to implement memory format propagation (see @ref
-  memory_format_propagation_cpp) without having to fully instantiate a
-  primitive.
-
-
-| Abstraction level        | Memory object     | Primitive objects    |
-|--------------------------|-------------------|----------------------|
-| Logical description      | Memory descriptor | Operation descriptor |
-| Intermediate description | N/A               | Primitive descriptor |
-| Implementation           | Memory object     | Primitive            |
+* Primitives, which are the most concrete, and embody the actual
+  executable code that will be run to perform the primitive computation.
 
 ## Creating Memory Objects and Primitives
 
@@ -127,6 +120,3 @@ The sequence of actions to create a primitive is:
    memory formats if the primitive supports it.
 
 2. Create a primitive based on the primitive descriptor obtained in step 1.
-
-@note The above sequence does not relate to all primitives in its entirety. For
-instance, the reorder primitive does not have an operation descriptor.

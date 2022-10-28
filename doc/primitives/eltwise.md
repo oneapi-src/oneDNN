@@ -90,10 +90,9 @@ argument index as specified by the following table.
 
 ### General Notes
 
-1. All eltwise primitives have a common initialization function (e.g.,
-   dnnl::eltwise_forward::desc::desc()) which takes both parameters
-   \f$\alpha\f$, and \f$\beta\f$. These parameters are ignored if they are
-   unused.
+1. All eltwise primitives have 3 primitive descriptor creation functions (e.g.,
+   dnnl::eltwise_forward::primitive_desc()) which may take both \f$\alpha\f$ and \f$\beta\f$,
+   just \f$\alpha\f$, or none of them.
 
 2. The memory format and data type for \src and \dst are assumed to be the
    same, and in the API are typically referred as `data` (e.g., see `data_desc`
