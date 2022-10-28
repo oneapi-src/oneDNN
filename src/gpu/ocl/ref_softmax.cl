@@ -89,7 +89,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 
 __kernel void
 ref_softmax_fwd_generic(__global SRC_DATA_T *src, __global DATA_T *dst,
-        __global float *scales) {
+        __global float *src_scale, __global float *dst_scale) {
 
     const int dim[] = {
             (get_global_id(0) / GROUP_SIZE) % BLOCK_0,
@@ -101,8 +101,11 @@ ref_softmax_fwd_generic(__global SRC_DATA_T *src, __global DATA_T *dst,
     };
 
     float scale = 1.0f;
-#if WITH_SCALES
-    scale = scales[0];
+#if WITH_SRC_SCALES
+    scale *= src_scale[0];
+#endif
+#if WITH_DST_SCALES
+    scale /= dst_scale[0];
 #endif
 
 #if SUB_GROUP_SIZE == 16

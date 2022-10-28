@@ -49,8 +49,8 @@ struct ref_softmax_fwd_t : public primitive_t {
                             dst_md()->data_type, f32, bf16, f16, s8, u8)
                     && platform::has_data_type_support(src_md()->data_type)
                     && platform::has_data_type_support(dst_md()->data_type)
-                    && attr()->has_default_values(skip_mask_t::oscale_runtime)
-                    && attr_oscale_ok()
+                    && attr()->has_default_values(skip_mask_t::scales_runtime)
+                    && attr_scales_ok()
                     && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;
 

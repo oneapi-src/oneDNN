@@ -45,7 +45,8 @@ struct jit_softmax_base_t : public jit_generator {
         // keep all sizes at 8 bytes -- jit code expects this
         const void *src, *dst, *diff_dst; // src dubs as diff_src
         const void *interim; // scratch memory for intermediate storage
-        const void *oscale; // oscale defined for all data type cases
+        const void *src_scales; // src_scales defined for all data type cases
+        const void *dst_scales; // dst_scales defined for all data type cases
         size_t process_n_elems;
     };
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_softmax_t)
@@ -78,7 +79,8 @@ struct jit_softmax_base_t : public jit_generator {
     XReg reg_diff_dst_spat_offt = reg_log_injector_table;
     XReg reg_interim = reg_diff_dst;
     XReg reg_interim_spat_offt = abi_not_param1;
-    XReg reg_output_scale = x6;
+    XReg reg_src_scales = x6;
+    XReg reg_dst_scales = x7;
 
     const PReg p_shuff0 = p11;
     const PReg p_shuff1 = p5;
@@ -158,7 +160,8 @@ struct jit_softmax_base_t : public jit_generator {
             PARAM_LOAD(reg_diff_dst, diff_dst);
         }
         if (need_scratchpad_) { PARAM_LOAD(reg_interim, interim); }
-        PARAM_LOAD(reg_output_scale, oscale);
+        PARAM_LOAD(reg_src_scales, src_scales);
+        PARAM_LOAD(reg_dst_scales, dst_scales);
 #undef PARAM_OFF
 #undef PARAM_LOAD
     }
@@ -597,7 +600,10 @@ struct jit_softmax_t<sve_512> : public jit_softmax_base_t<sve_512> {
                 }
 
                 TReg vscale = vmax;
-                ldr(vscale, ptr(reg_output_scale));
+                ldr(vscale, ptr(reg_src_scales));
+                fmul(vreg_tmp_src.s, vreg_tmp_src.s, vscale.s);
+                // Reserved spot for post-ops injector.
+                ldr(vscale, ptr(reg_dst_scales));
                 fmul(vreg_tmp_src.s, vreg_tmp_src.s, vscale.s);
                 store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
                         dst_d_.data_type(), tail);
@@ -682,7 +688,9 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
     auto scratchpad_ptr = ctx.get_scratchpad_grantor().template get<char>(
             memory_tracking::names::key_softmax_interim_store);
-    DEFINE_SCALES_BUFFER(oscales);
+
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -706,11 +714,11 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
                 dim_t offset = (ou * outer_stride + in * inner_stride);
                 const char *src_ptr = src + offset * src_data_type_size;
                 char *dst_ptr = dst + offset * dst_data_type_size;
-                char *interim_ptr = scratchpad_ptr
-                        + ithr * axis_size_padded * sizeof(float);
-                const auto *oscale_ptr = oscales;
-                softmax_driver_->exec(src_ptr, dst_ptr, interim_ptr, oscale_ptr,
-                        process_n_elems);
+                char *interim_ptr = scratchpad_ptr ? scratchpad_ptr
+                                + ithr * axis_size_padded * sizeof(float)
+                                                   : nullptr;
+                softmax_driver_->exec(src_ptr, dst_ptr, interim_ptr, src_scales,
+                        dst_scales, process_n_elems);
             });
 
     return status::success;
@@ -772,14 +780,15 @@ struct driver_t : public c_compatible {
 
     driver_t(const softmax_pd_t *pd) : pd_(pd), ker_(pd_) {}
 
-    void exec(const void *src, void *dst, void *interim, const void *oscale,
-            const dim_t process_n_elems) {
+    void exec(const void *src, void *dst, void *interim, const void *src_scales,
+            const void *dst_scales, const dim_t process_n_elems) {
         typename jit_softmax_t<isa>::call_params_t p;
         p.process_n_elems = process_n_elems;
         p.src = src;
         p.dst = dst;
         p.interim = interim;
-        p.oscale = oscale;
+        p.src_scales = src_scales;
+        p.dst_scales = dst_scales;
         ker_(&p);
     }
 

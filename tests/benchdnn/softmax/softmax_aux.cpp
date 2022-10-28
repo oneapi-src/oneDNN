@@ -40,19 +40,6 @@ const char *alg2str(alg_t alg) {
     return "UNDEF";
 }
 
-void prb_t::generate_oscales() {
-    if (attr.oscale.is_def()) return;
-
-    assert(attr.oscale.policy == policy_t::COMMON);
-
-    if (attr.oscale.policy == policy_t::COMMON) {
-        scales = (float *)zmalloc(sizeof(float), 4);
-        SAFE_V(scales != nullptr ? OK : FAIL);
-        scales[0] = attr.oscale.scale;
-        return;
-    }
-}
-
 std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;

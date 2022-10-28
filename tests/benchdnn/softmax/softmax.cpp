@@ -41,10 +41,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     dnnl_alg_kind_t alg_kind = dnnl_softmax_accurate;
     if (prb->alg == LOGSOFTMAX) alg_kind = dnnl_softmax_log;
 
-    attr_args_t attr_args;
-    attr_args.prepare_output_scales(prb->attr, prb->scales, 1);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args));
+            create_dnnl_attr(prb->attr, attr_args_t()));
 
     if (prb->dir & FLAG_FWD) {
         auto src_d = dnn_mem_t::init_md(
@@ -179,6 +177,44 @@ int fill_data_bwd(
     return OK;
 }
 
+int fill_scales(
+        const attr_t &attr, int arg, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    assert(mem_dt.nelems() == mem_fp.nelems());
+
+    const auto &scales = attr.scales.get(arg);
+
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand int_seed(idx_start + 1);
+        int_seed.discard(1);
+
+        std::uniform_int_distribution<> gen(-5, 5);
+
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            int pow2 = gen(int_seed);
+            const float gen_val = pow2 < 0 ? (1.f / (1 << pow2)) : (1 << pow2);
+            const float fixed_val = scales.scale;
+            const float val = nelems == 1 ? fixed_val : gen_val;
+            mem_fp.set_elem(idx, val);
+        }
+    });
+
+    SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type({prb->sdt, prb->ddt}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res);
@@ -246,6 +282,11 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
     dnn_mem_t &d_src_dt = prb->inplace ? d_dst_dt : placeholder_d_src_dt;
 
+    const dnnl_dims_t scale_dims = {1};
+    auto scales_md = dnn_mem_t::init_md(1, scale_dims, dnnl_f32, tag::abx);
+    dnn_mem_t src_scales_dt(scales_md, test_engine);
+    dnn_mem_t dst_scales_dt(scales_md, test_engine);
+
     args_t args, ref_args;
 
     if (prb->dir & FLAG_FWD) {
@@ -259,21 +300,26 @@ int doit(const prb_t *prb, res_t *res) {
 
         dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, ref_engine);
         dnn_mem_t &dst_fp = src_fp; // in-place reference
-
         SAFE(fill_data_fwd(prb, src_dt, src_fp), WARN);
-        dnn_mem_t scales;
-        maybe_prepare_runtime_scales(scales, prb->attr.oscale, 1, prb->scales);
+
+        dnn_mem_t src_scales_fp(scales_md, ref_engine);
+        dnn_mem_t dst_scales_fp(scales_md, ref_engine);
+        fill_scales(prb->attr, DNNL_ARG_SRC, src_scales_dt, src_scales_fp);
+        fill_scales(prb->attr, DNNL_ARG_DST, dst_scales_dt, dst_scales_fp);
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_dt);
+        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_fp);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_fp);
 
             check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
         }

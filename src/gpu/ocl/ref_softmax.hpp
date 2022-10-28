@@ -58,8 +58,8 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
                                     compute::device_ext_t::khr_fp16))
                     && compute_engine->mayiuse_sub_group(subgroup_size)
                     && !memory_desc_ndims_ok(src_md(), dst_md())
-                    && attr()->has_default_values(skip_mask_t::oscale_runtime)
-                    && attr_oscale_ok()
+                    && attr()->has_default_values(skip_mask_t::scales_runtime)
+                    && attr_scales_ok()
                     && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;
 
@@ -128,8 +128,10 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("IS_FWD", 1);
         kernel_ctx.add_option("-cl-std=CL2.0");
         kernel_ctx.define_int("LOGSOFTMAX", pd()->is_logsoftmax());
-        kernel_ctx.define_int("WITH_SCALES",
-                !pd()->attr()->output_scales_.has_default_values());
+        kernel_ctx.define_int("WITH_SRC_SCALES",
+                !pd()->attr()->scales_.get(DNNL_ARG_SRC).has_default_values());
+        kernel_ctx.define_int("WITH_DST_SCALES",
+                !pd()->attr()->scales_.get(DNNL_ARG_DST).has_default_values());
 
         const memory_desc_wrapper dst_mdw(pd()->dst_md());
         const memory_desc_wrapper src_mdw(pd()->src_md());

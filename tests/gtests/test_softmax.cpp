@@ -145,9 +145,8 @@ protected:
         prop_kind pk = !is_fwd(p.aprop_kind) ? prop_kind::forward_training
                                              : p.aprop_kind;
 
-        auto aa = (is_nvidia_gpu(eng) || is_amd_gpu(eng))
-                ? allows_attr_t {false}
-                : allows_attr_t {true};
+        allows_attr_t aa {false};
+        if (!(is_nvidia_gpu(eng) || is_amd_gpu(eng))) { aa.scales = true; }
 
         // To validate backward on valid tag::any settings reuse dst tag.
         const bool src_bwd_any = !is_fwd(p.aprop_kind) && p.src_tag == tag::any;

@@ -26,13 +26,14 @@ status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &src_scale = CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    auto &dst_scale = CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, dst);
-
-    const auto &scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
-    arg_list.set(2, scales);
+    arg_list.set(2, src_scale);
+    arg_list.set(3, dst_scale);
 
     if (pd()->group_size > 1) {
         auto nd_range = compute::nd_range_t(pd()->gws, pd()->lws);

@@ -52,7 +52,8 @@ struct jit_softmax_base_t : public jit_generator {
         // keep all sizes at 8 bytes -- jit code expects this
         const void *src, *dst, *diff_dst; // src dubs as diff_src
         const void *interim; // scratch memory for intermediate storage
-        const void *oscale; // oscale defined for all data type cases
+        const void *src_scales; // src_scales defined for all data type cases
+        const void *dst_scales; // dst_scales defined for all data type cases
         size_t process_n_elems;
     };
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_softmax_t)
@@ -86,7 +87,8 @@ struct jit_softmax_base_t : public jit_generator {
     Reg64 reg_diff_dst_spat_offt = reg_log_injector_table;
     Reg64 reg_interim = reg_diff_dst;
     Reg64 reg_interim_spat_offt = abi_not_param1;
-    Reg64 reg_output_scale = rsi;
+    Reg64 reg_src_scales = rsi;
+    Reg64 reg_dst_scales = rdx;
 
     Opmask injector_mask = Opmask(1);
 
@@ -166,7 +168,8 @@ struct jit_softmax_base_t : public jit_generator {
         if (need_scratchpad_) {
             mov(reg_interim, ptr[reg_param + PARAM_OFF(interim)]);
         }
-        mov(reg_output_scale, ptr[reg_param + PARAM_OFF(oscale)]);
+        mov(reg_src_scales, ptr[reg_param + PARAM_OFF(src_scales)]);
+        mov(reg_dst_scales, ptr[reg_param + PARAM_OFF(dst_scales)]);
 #undef PARAM_OFF
     }
 
@@ -516,7 +519,10 @@ struct jit_softmax_t<avx512_core> : public jit_softmax_base_t<avx512_core> {
                 }
 
                 Vmm vscale = vmax;
-                uni_vmovups(vscale, ptr[reg_output_scale]);
+                uni_vmovups(vscale, ptr[reg_src_scales]);
+                uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
+                // Reserved spot for post-ops injector.
+                uni_vmovups(vscale, ptr[reg_dst_scales]);
                 uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
                 store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
                         dst_d_.data_type(), tail);
@@ -864,7 +870,8 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     auto scratchpad_ptr = ctx.get_scratchpad_grantor().template get<char>(
             memory_tracking::names::key_softmax_interim_store);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -891,9 +898,8 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
                 char *interim_ptr = scratchpad_ptr ? scratchpad_ptr
                                 + ithr * axis_size_padded * sizeof(float)
                                                    : nullptr;
-                const auto *oscale_ptr = oscales;
-                softmax_driver_->exec(src_ptr, dst_ptr, interim_ptr, oscale_ptr,
-                        process_n_elems);
+                softmax_driver_->exec(src_ptr, dst_ptr, interim_ptr, src_scales,
+                        dst_scales, process_n_elems);
             });
 
     return status::success;
@@ -955,14 +961,15 @@ struct driver_t : public c_compatible {
 
     driver_t(const softmax_pd_t *pd) : pd_(pd), ker_(pd_) {}
 
-    void exec(const void *src, void *dst, void *interim, const void *oscale,
-            const dim_t process_n_elems) {
+    void exec(const void *src, void *dst, void *interim, const void *src_scales,
+            const void *dst_scales, const dim_t process_n_elems) {
         typename jit_softmax_t<isa>::call_params_t p;
         p.process_n_elems = process_n_elems;
         p.src = src;
         p.dst = dst;
         p.interim = interim;
-        p.oscale = oscale;
+        p.src_scales = src_scales;
+        p.dst_scales = dst_scales;
         ker_(&p);
     }
 

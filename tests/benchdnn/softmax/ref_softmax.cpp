@@ -23,12 +23,17 @@ namespace softmax {
 void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &src = args.find(DNNL_ARG_SRC);
     const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+    const dnn_mem_t &src_scale = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    const dnn_mem_t &dst_scale = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
     float *dst_ptr = (float *)dst;
 
     const auto alg = prb->alg;
     int64_t outer_size {0}, inner_size {0}, axis_size {0};
     get_sizes(prb, outer_size, inner_size, axis_size);
+
+    assert(src_scale.nelems() == 1 && dst_scale.nelems() == 1);
+    const float output_scale = src_scale.get_elem(0) / dst_scale.get_elem(0);
 
     benchdnn_parallel_nd(outer_size, inner_size, [&](int64_t ou, int64_t in) {
         float space_denom = 0.;
@@ -65,7 +70,8 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
             } else if (alg == LOGSOFTMAX) {
                 dst_ptr[idx] -= space_denom;
             }
-            maybe_oscale(prb->attr, dst_ptr[idx], prb->scales, 0);
+
+            dst_ptr[idx] *= output_scale;
         }
     });
 }

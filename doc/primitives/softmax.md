@@ -74,12 +74,14 @@ The backward propagation computes \f$\diffsrc(ou, c, in)\f$, based on
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive input/output | Execution argument index |
-| ---                    | ---                      |
-| \src                   | DNNL_ARG_SRC             |
-| \dst                   | DNNL_ARG_DST             |
-| \diffsrc               | DNNL_ARG_DIFF_SRC        |
-| \diffdst               | DNNL_ARG_DIFF_DST        |
+| Primitive input/output | Execution argument index               |
+| ---                    | ---                                    |
+| \src                   | DNNL_ARG_SRC                           |
+| \dst                   | DNNL_ARG_DST                           |
+| \diffsrc               | DNNL_ARG_DIFF_SRC                      |
+| \diffdst               | DNNL_ARG_DIFF_DST                      |
+| \f$src scale\f$        | DNNL_ARG_ATTR_SCALES \| DNNL_ARG_SRC_0 |
+| \f$dst scale\f$        | DNNL_ARG_ATTR_SCALES \| DNNL_ARG_SRC_1 |
 
 ## Implementation Details
 
@@ -97,9 +99,10 @@ argument index as specified by the following table.
 Attributes enable you to modify the behavior of the softmax primitive.
 The following attributes are supported by the softmax primitive:
 
-| Propagation | Type      | Operation                                                    | Description                                        | Restrictions                      |
-| :--         | :--       | :--                                                          | :--                                                | :--                               |
-| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of softmax by given scale factor | int8 softmax only, zero mask only |
+| Propagation | Type      | Operation                                            | Description                                                   | Restrictions                                                           |
+| :--         | :--       | :--                                                  | :--                                                           | :--                                                                    |
+| forward     | attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask) | Scales the corresponding tensor by the given scale factor(s). | Supported only for int8 softmax and one scale per tensor is supported. |
+
 
 ### Data Type Support
 

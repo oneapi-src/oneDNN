@@ -26,7 +26,7 @@
 --sdt=f16
 --ddt=s8,u8
 --stag=axb
---attr-oscale=,common:128*
+--attr-scales=,src:common:128*,dst:common:0.125*,src:common:64*+dst:common:0.5*
 --axis=0,1
 --batch=set_0d
 --batch=shapes_2d

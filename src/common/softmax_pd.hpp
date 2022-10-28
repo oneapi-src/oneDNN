@@ -162,11 +162,13 @@ protected:
                 dst_md_, src_md_.format_desc.blocking);
     }
 
-    bool attr_oscale_ok() const {
-        const auto &oscale = attr()->output_scales_;
-        const bool ok = IMPLICATION(desc()->primitive_kind != base_pkind,
-                attr()->output_scales_.has_default_values());
-        return ok && oscale.mask_ == 0;
+    bool attr_scales_ok() const {
+        const auto &scales = attr()->scales_;
+        bool ok = true;
+        for (const auto &e : scales.scales_) {
+            ok = ok && e.second.mask_ == 0;
+        }
+        return ok;
     }
 };
 

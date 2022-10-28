@@ -32,9 +32,18 @@ protected:
     engine eng = get_test_engine();
     void SetUp() override {}
 
+    // TODO: remove me since oscale is replaced with scales.
     static primitive_attr gen_attr_with_oscale() {
         primitive_attr attr;
         attr.set_output_scales_mask(0);
+        return attr;
+    }
+
+    static primitive_attr gen_attr_with_scales() {
+        primitive_attr attr;
+        attr.set_scales_mask(DNNL_ARG_SRC, 0);
+        attr.set_scales_mask(DNNL_ARG_WEIGHTS, 0);
+        attr.set_scales_mask(DNNL_ARG_DST, 0);
         return attr;
     }
 
@@ -393,7 +402,7 @@ TEST_F(attr_quantization_test_t, TestSoftmax) {
     CHECK_OK(softmax_forward::primitive_desc(
             eng, prop_kind::forward, algorithm::softmax_accurate, md, md, 1));
     CHECK_OK(softmax_forward::primitive_desc(eng, prop_kind::forward,
-            algorithm::softmax_accurate, md, md, 1, gen_attr_with_oscale()));
+            algorithm::softmax_accurate, md, md, 1, gen_attr_with_scales()));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_UNIMPL(softmax_forward::primitive_desc(eng, prop_kind::forward,
