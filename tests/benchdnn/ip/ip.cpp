@@ -299,9 +299,9 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t bia_dt(bia_md, test_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
-    dnn_mem_t scales;
-    maybe_prepare_runtime_scales(
-            scales, prb->attr.oscale, prb->oc, prb->scales);
+    dnn_mem_t scales_dt, scales_fp;
+    maybe_prepare_runtime_scales_v2(
+            scales_dt, scales_fp, prb->attr.oscale, prb->oc, prb->scales);
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
@@ -332,7 +332,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales_dt);
         args.set(binary_po_args, binary_po_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
@@ -344,6 +344,7 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
+            ref_args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales_fp);
 
             check_correctness(
                     prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);

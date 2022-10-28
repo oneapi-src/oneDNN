@@ -477,6 +477,16 @@ void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
         ((float *)scales_m)[c] = scales[c];
 }
 
+void maybe_prepare_runtime_scales_v2(dnn_mem_t &scales_dt, dnn_mem_t &scales_fp,
+        const attr_t::scale_t &scale, int64_t scale_cnt, const float *scales) {
+    if (!scale.runtime) return;
+    maybe_prepare_runtime_scales(scales_dt, scale, scale_cnt, scales);
+    const int64_t count = scale.policy == policy_t::COMMON ? 1 : scale_cnt;
+    scales_fp = dnn_mem_t(1, &count, dnnl_f32, tag::x, get_cpu_engine());
+    for (int64_t c = 0; c < count; ++c)
+        ((float *)scales_fp)[c] = ((float *)scales_dt)[c];
+}
+
 void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
         const attr_t &attr, int arg, int64_t count,
         const int32_t *zero_points) {
@@ -488,6 +498,19 @@ void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
     zero_points_m = dnn_mem_t(1, &cnt, dnnl_s32, tag::x, get_test_engine());
     for (int64_t c = 0; c < cnt; ++c)
         ((int32_t *)zero_points_m)[c] = zero_points[c];
+}
+
+void maybe_prepare_runtime_zero_points_v2(dnn_mem_t &zero_points_dt,
+        dnn_mem_t &zero_points_fp, const attr_t &attr, int arg, int64_t count,
+        const int32_t *zero_points) {
+    if (!attr.zero_points.runtime(arg)) return;
+    maybe_prepare_runtime_zero_points(
+            zero_points_dt, attr, arg, count, zero_points);
+    const auto e = attr.zero_points.get(arg);
+    const int64_t cnt = e.policy == policy_t::COMMON ? 1 : count;
+    zero_points_fp = dnn_mem_t(1, &cnt, dnnl_s32, tag::x, get_cpu_engine());
+    for (int64_t c = 0; c < cnt; ++c)
+        ((int32_t *)zero_points_fp)[c] = ((int32_t *)zero_points_dt)[c];
 }
 
 std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,

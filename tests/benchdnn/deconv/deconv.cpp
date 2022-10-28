@@ -550,9 +550,9 @@ int doit(const prb_t *prb, res_t *res) {
         scratchpad_fp = dnn_mem_t(
                 query_md(query_pd(prim_ref), DNNL_ARG_SCRATCHPAD), ref_engine);
 
-    dnn_mem_t src_zero_points_m;
-    dnn_mem_t dst_zero_points_m;
-    dnn_mem_t scales;
+    dnn_mem_t src_zp_fp, src_zp_dt;
+    dnn_mem_t dst_zp_fp, dst_zp_dt;
+    dnn_mem_t scales_fp, scales_dt;
 
     /* fill memory + reorders <-> */
     if (need_dst_init(prb)) SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
@@ -566,12 +566,12 @@ int doit(const prb_t *prb, res_t *res) {
     args_t args, ref_args;
 
     if (prb->dir & FLAG_FWD) {
-        maybe_prepare_runtime_zero_points(src_zero_points_m, prb->attr,
+        maybe_prepare_runtime_zero_points_v2(src_zp_dt, src_zp_fp, prb->attr,
                 DNNL_ARG_SRC, prb->ic, prb->src_zp);
-        maybe_prepare_runtime_zero_points(dst_zero_points_m, prb->attr,
+        maybe_prepare_runtime_zero_points_v2(dst_zp_dt, dst_zp_fp, prb->attr,
                 DNNL_ARG_DST, prb->oc, prb->dst_zp);
-        maybe_prepare_runtime_scales(
-                scales, prb->attr.oscale, prb->oc, prb->scales);
+        maybe_prepare_runtime_scales_v2(
+                scales_dt, scales_fp, prb->attr.oscale, prb->oc, prb->scales);
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
@@ -580,9 +580,9 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
         args.set(binary_po_args, binary_po_dt);
         args.set(prelu_po_args, prelu_po_dt);
-        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
-        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
-        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zp_dt);
+        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zp_dt);
+        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
@@ -595,6 +595,9 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(prelu_po_args, prelu_po_fp);
+            ref_args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zp_fp);
+            ref_args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zp_fp);
+            ref_args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales_fp);
 
             check_correctness(
                     prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);

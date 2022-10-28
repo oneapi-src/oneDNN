@@ -903,15 +903,11 @@ dnnl_primitive_attr_t create_dnnl_attr(
     DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
 
     if (!attr.oscale.is_def()) {
+        SAFE_V(attr.oscale.runtime ? OK : FAIL);
         const auto &os_args = attr_args.get(DNNL_ARG_ATTR_OUTPUT_SCALES);
         const auto &policy = attr.oscale.policy;
-
-        const auto count = os_args.get_count(policy);
         const auto mask = os_args.get_mask(policy);
-        const auto scales = os_args.get_float_ptr();
-
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(
-                dnnl_attr, count, mask, scales));
+        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales_mask(dnnl_attr, mask));
     } else if (!attr.scales.is_def()) {
         const auto &as = attr.scales;
         for (const auto &arg : as.scales) {
@@ -919,13 +915,13 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (as.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
+            // Only RT scales are supported.
+            SAFE_V(e.runtime ? OK : FAIL);
             // Only common policy is supported in the library at this point
-            int64_t count = 1;
             int mask = attr_t::get_default_mask(e.policy);
-            const float *scales = e.runtime ? &DNNL_RUNTIME_F32_VAL : &e.scale;
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_scales(
-                    dnnl_attr, arg_name, count, mask, scales));
+            DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
+                    dnnl_attr, arg_name, mask));
         }
     }
 
@@ -936,14 +932,14 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (zp.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
+            // Only RT scales are supported.
+            SAFE_V(e.runtime ? OK : FAIL);
             // Only common policy/single RT value are supported in the library
             // at this point
-            int64_t count = 1;
             int mask = attr_t::get_default_mask(e.policy);
-            const auto values = e.runtime ? &DNNL_RUNTIME_S32_VAL : &e.value;
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(
-                    dnnl_attr, arg_name, count, mask, values));
+            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points_mask(
+                    dnnl_attr, arg_name, mask));
         }
     }
 
@@ -1450,9 +1446,6 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
 }
 
 void update_cpu_ref_attrs(attr_t &attr, dnnl_data_type_t new_dt) {
-    auto &os = attr.oscale;
-    os.runtime = false;
-
     auto &po = attr.post_ops;
     for (int idx = 0; idx < po.len(); ++idx) {
         auto &e = po.entry[idx];
