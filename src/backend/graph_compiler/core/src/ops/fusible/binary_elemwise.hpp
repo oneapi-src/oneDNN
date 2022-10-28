@@ -190,7 +190,7 @@ public:
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
         : binary_elementwise_op_impl_t(ins, outs, attrs) {
         set_elt_operator(elt_operator::SQD_DIFF);
-        op_name_ = "sqd_diff";
+        op_name_ = "squared_diff";
     }
 };
 

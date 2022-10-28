@@ -71,6 +71,25 @@ public:
     };
 };
 
+class leaky_relu_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+    leaky_relu_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("leaky_relu", ins, outs, attrs) {
+        COMPILE_ASSERT(attrs.has_key("alpha"), "Cannot find attr `alpha`");
+        alpha_ = attrs.get<float>("alpha");
+    }
+    leaky_relu_op_t(
+            const std::vector<graph_tensor_ptr> &ins, const any_map_t &attrs);
+    leaky_relu_op_t(graph_tensor_ptr v, float alpha)
+        : unary_elementwise_op_impl_t(std::move(v), "leaky_relu")
+        , alpha_(alpha) {};
+
+private: // coefficient of leakage
+    float alpha_;
+};
+
 class select_one_op_t : public unary_elementwise_op_impl_t {
 public:
     DECLARE_COMPUTE_ELEMENT();

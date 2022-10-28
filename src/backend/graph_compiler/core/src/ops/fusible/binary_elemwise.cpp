@@ -234,7 +234,7 @@ binary_elementwise_op_impl_t::binary_elementwise_op_impl_t(graph_tensor_ptr lhs,
         case elt_operator::DIV: op_name_ = "div"; break;
         case elt_operator::MIN: op_name_ = "min"; break;
         case elt_operator::MAX: op_name_ = "max"; break;
-        case elt_operator::SQD_DIFF: op_name_ = "sqd_diff"; break;
+        case elt_operator::SQD_DIFF: op_name_ = "squared_diff"; break;
         default: break;
     }
 }

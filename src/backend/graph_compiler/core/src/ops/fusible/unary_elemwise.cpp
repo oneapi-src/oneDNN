@@ -146,6 +146,17 @@ expr relu_op_t::compute_element(expr in) {
             in, make_expr<constant_node>((int64_t)0, in->dtype_));
 }
 
+expr leaky_relu_op_t::compute_element(expr in) {
+    expr alpha = make_expr<constant_node>((float)alpha_, in->dtype_);
+    if (in->dtype_.type_code_ == sc_data_etype::BF16) {
+        alpha = builder::make_cast(
+                sc_data_type_t(sc_data_etype::BF16, in->dtype_.lanes_), alpha);
+    }
+    return builder::make_select(
+            in > make_expr<constant_node>((int64_t)0, in->dtype_), in,
+            alpha * in);
+}
+
 expr select_one_op_t::compute_element(expr in) {
     return builder::make_select(
             in > make_expr<constant_node>((float)0.0f, in->dtype_),
@@ -372,6 +383,7 @@ OP_REGISTER(exp_op_t, exp)
 OP_REGISTER(erf_op_t, erf)
 OP_REGISTER(tanh_op_t, tanh)
 OP_REGISTER(relu_op_t, relu)
+OP_REGISTER(leaky_relu_op_t, leaky_relu)
 OP_REGISTER(select_one_op_t, select_one)
 OP_REGISTER(round_op_t, round)
 OP_REGISTER(squared_root_op_t, squared_root)
