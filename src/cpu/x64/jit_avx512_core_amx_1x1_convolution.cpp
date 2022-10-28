@@ -20,6 +20,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/scale_utils.hpp"
 
 #include "cpu/x64/jit_avx512_core_amx_1x1_convolution.hpp"
 
@@ -69,7 +70,13 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t::execute_forward(
     const auto post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
+            src_scales, wei_scales, pd()->jcp_.ngroups * pd()->jcp_.oc,
+            pd()->attr());
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -152,6 +159,7 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t::execute_forward(
             p.filt = weights + wei_dt_size * _ocb * wei_oc_shift;
             p.bias = bias_w;
             p.scales = &oscales[jcp.is_oc_scale * oc];
+            p.dst_scale = &dst_scales[0];
             p.oc_blocks = ocb;
 
             p.zp_compensation

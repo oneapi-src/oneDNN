@@ -21,6 +21,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/scale_utils.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_amx_1x1_conv_kernel.hpp"
 
@@ -305,6 +306,16 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vectors_int8(
         vcvtdq2ps(zmm_r, zmm_r);
     }
 
+    mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
+    for (int j = 0; j < jcp.tile_width; j++) {
+        const int scale_offset
+                = jcp.is_oc_scale * (sizeof(float) * ocb * jcp.oc_block);
+        const Zmm zmm_r = zmm_out(j);
+        const Zmm zmm_r_msk = zmm_mask(zmm_r, mask_flag);
+        vmulps(zmm_r_msk, zmm_r,
+                EVEX_compress_addr(reg_ptr_scales, scale_offset));
+    }
+
     if (jcp.with_bias) {
         mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
         int bias_offset = jcp.typesize_bia * ocb * jcp.oc_block;
@@ -314,16 +325,6 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vectors_int8(
             const Zmm zmm_r = zmm_out(j);
             vaddps(zmm_r, zmm_r, zmm_bias);
         }
-    }
-
-    mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
-    for (int j = 0; j < jcp.tile_width; j++) {
-        const int scale_offset
-                = jcp.is_oc_scale * (sizeof(float) * ocb * jcp.oc_block);
-        const Zmm zmm_r = zmm_out(j);
-        const Zmm zmm_r_msk = zmm_mask(zmm_r, mask_flag);
-        vmulps(zmm_r_msk, zmm_r,
-                EVEX_compress_addr(reg_ptr_scales, scale_offset));
     }
 
     if (p_sum_zp && *p_sum_zp != 0)
@@ -352,6 +353,15 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vectors_int8(
         for (int j = 0; j < jcp.tile_width; j++) {
             const Zmm zmm_r = zmm_out(j);
             vmaxps(zmm_r, zmm_r, zmm_zero);
+        }
+    }
+
+    if (jcp.dst_scale) {
+        mov(reg_ptr_dst_scale, ptr[param1 + GET_OFF(dst_scale)]);
+        for (int j = 0; j < jcp.tile_width; j++) {
+            const Zmm zmm_r = zmm_out(j);
+            const Zmm zmm_r_msk = zmm_mask(zmm_r, mask_flag);
+            vmulps(zmm_r_msk, zmm_r, EVEX_compress_addr(reg_ptr_dst_scale, 0));
         }
     }
 
@@ -437,13 +447,18 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_int8(
     /* add to zmm_accum: compensation, bias and permute */
     vcvtdq2ps(zmm_out, zmm_out);
 
-    if (jcp.with_bias) vaddps(zmm_out, zmm_out, zmm_bias);
     const Zmm zmm_out_msk = zmm_mask(zmm_out, mask_flag);
     vmulps(zmm_out_msk, zmm_out,
             EVEX_compress_addr(reg_ptr_scales, scale_offset));
 
+    if (jcp.with_bias) vaddps(zmm_out_msk, zmm_out, zmm_bias);
+
     apply_postops(zmm_out, p_sum_scale, p_sum_zp, addr, off, mask_flag);
 
+    if (jcp.dst_scale) {
+        mov(reg_ptr_dst_scale, ptr[param1 + GET_OFF(dst_scale)]);
+        vdivps(zmm_out, zmm_out, EVEX_compress_addr(reg_ptr_dst_scale, 0));
+    }
     if (jcp.dst_zero_point) { vaddps(zmm_out, zmm_out, zmm_dst_zp); }
 
     // Properly saturate the accumulators for integer datatypes
@@ -1202,8 +1217,19 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.per_one_pstore
             = (avaliable_ops) ? ops_tile_store / avaliable_ops + 1 : 0;
     if (jcp.per_one_pstore > 12) jcp.per_one_pstore = 0;
-    const auto &oscales = attr.output_scales_;
-    jcp.is_oc_scale = oscales.mask_ == 1 << 1;
+
+    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+    const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
+    const int wei_mask_per_oc = 1 << with_groups;
+    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
+    jcp.dst_scale = !dst_scales.has_default_values();
+
+    // only common src & dst scales are supported
+    // only common and per-oc-channel weight scales are supported
+    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
+            && everyone_is(src_scales.mask_, dst_scales.mask_, 0);
+    if (!scales_ok) return status::unimplemented;
 
     return status::success;
 }
@@ -1221,6 +1247,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::init_scratchpad(
         scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_bia);
     }
     scratchpad.book(key_conv_amx_tilecfg, 2, 64); // 2 whole cachelines
+    book_precomputed_scales(scratchpad, attr.scales_, jcp.ngroups * jcp.oc);
 }
 
 } // namespace x64

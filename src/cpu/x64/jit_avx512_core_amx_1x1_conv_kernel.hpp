@@ -95,6 +95,9 @@ private:
     const Xbyak::Reg64 reg_src_zero_point = reg_oc_blocks;
     const Xbyak::Reg64 reg_dst_zero_point = rax;
 
+    /* scale */
+    const Xbyak::Reg64 reg_ptr_dst_scale = reg_ptr_scales;
+
     const Xbyak::Zmm zmm_bias = zmm31;
     const Xbyak::Zmm zmm_saturation = zmm_bias;
     const Xbyak::Zmm zmm_zero = zmm30;
