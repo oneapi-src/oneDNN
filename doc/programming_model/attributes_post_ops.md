@@ -164,11 +164,6 @@ convolution.
 The @ref dnnl::primitive::kind of this post-op
 is #dnnl::primitive::kind::convolution.
 
-Three variants of depthwise post-op are supported:
-* `dw_k3s1p1` for the case of stride 1, kernel size 3, and left padding of 1.
-* `dw_k3s2p1` for the case of stride 2, kernel size 3, and left padding of 1.
-* `dw` for a general case.
-
 API:
 - C: @ref dnnl_post_ops_append_dw
 - C++: @ref dnnl::post_ops::append_dw
@@ -215,6 +210,10 @@ Supported data types
 | f16                              | f16, f32                           | f16                                 | f32, f16
 
 @note
+  * Though it is called a post-operation type, it does not follow the
+    post-operation convention which implies an application of operation in
+    f32 data type.
+
   * Currently only supported for 2D 1x1 convolution.
 
   * Sum or another depthwise post-ops cannot be a part of post-op chain.
@@ -229,9 +228,9 @@ Supported data types
     intermediate object is utilized in other places in user application, its
     lifetime has to be handled by user separately since the library does not
     provide a mechanism to query an intermediate output of base convolution.
-  
+
   * Currently, f16 support for depthwise fusion is only through reference fusion
-    implementation. Thus, performance gain is not expected for this data type. 
+    implementation. Thus, performance gain is not expected for this data type.
 
 @anchor dev_guide_attributes_post_ops_binary
 ### Binary Post-op
