@@ -76,6 +76,7 @@ public:
 
     void generate_override(
             const size_t *grange, const size_t *lrange = nullptr);
+    void set_lws(const size_t *lrange);
 
 private:
     // Dimension information necessary for mapping to global work IDs.
