@@ -154,7 +154,7 @@ void dispatch_t::def_kernel_macros(kernel_ctx_t &kernel_ctx) const {
 
     // Find a unique prefix (in case there are many kernels in a file).
     std::string gws_prefix;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         if (!kernel_ctx.has_macro(utils::format("GWS%d_DEF", i))) {
             gws_prefix = "GWS" + std::to_string(i);
             break;
