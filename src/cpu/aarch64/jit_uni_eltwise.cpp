@@ -190,7 +190,7 @@ template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
 
-    const memory_desc_wrapper src_d(src_md());
+    const memory_desc_wrapper src_d(data_md());
 
     bool ok = mayiuse(isa) && is_fwd()
             && utils::everyone_is(
