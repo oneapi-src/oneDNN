@@ -213,17 +213,14 @@ A user can initialize a memory descriptor with strides:
 oneDNN supports strides via blocking structure. The pseudo-code for
 the function above is:
 ~~~cpp
-    memory_desc_t md; // memory descriptor object
+    dnnl_memory_desc_t md; // memory descriptor object
 
     // logical description, layout independent
-    md.ndims = 4;           // # dimensions
-    md.dims = {N, C, H, W}; // dimensions themselves
+    int ndims = 4;                   // # dimensions
+    dnnl_dims_t dims = {N, C, H, W}; // dimensions themselves
+    dnnl_dims_t strides = {stride_n, stride_c, stride_h, stride_w};
 
-    // physical description
-    md.format_kind = dnnl_blocked; // generic blocked format
-    md.format_desc.blocking.strides = {
-        stride_n, stride_c, stride_h, stride_w
-    };
+    dnnl_memory_desc_create_with_strides(&md, ndims, dims, dnnl_f32, strides);
 ~~~
 In particular, whenever a user creates memory with the #dnnl_nchw format,
 oneDNN computes the strides and fills the structure on behalf of the
@@ -270,30 +267,41 @@ The reason behind the format choice can be found in
 oneDNN describes this type of memory via blocking structure as well. The
 pseudo-code is:
 ~~~cpp
-    memory_desc_t md;
-    // logical description, layout independent
-    md.ndims = 4;           // # dimensions
-    md.dims = {N, C, H, W}; // dimensions themselves
+    dnnl_memory_desc_t md; // memory descriptor object
 
-    // physical description
-    md.memory_format = dnnl_blocked; // blocked layout
+    // logical description, layout independent
+    int ndims = 4;                   // # dimensions
+    dnnl_dims_t dims = {N, C, H, W}; // dimensions themselves
+
+    dnnl_memory_desc_create_with_tag(&md, ndims, dims, dnnl_f32, dnnl_nChw8c);
 
     ptrdiff_t stride_n = C*H*W;
     ptrdiff_t stride_C = H*W*8;
     ptrdiff_t stride_h =   W*8;
     ptrdiff_t stride_w =     8;
 
-    md.format_desc.blocking.strides = { // strides between blocks
-        stride_n, stride_C, stride_h, stride_w
-    };
+    dnnl_dims_t strides = {stride_n, stride_C, stride_h, stride_w }; // strides between blocks
+    int inner_nblks = 1; // number of blocked dimensions;
+                         // 1, since only channels are blocked
 
-    md.format_desc.inner_nblks = 1; // number of blocked dimensions;
-                                    // 1, since only channels are blocked
+    dnnl_dims_t inner_idxs = {1}; // Only the 1st (c) dimension is blocked
+                                  // n -- 0st dim, w -- 3rd dim
 
-    md.format_desc.inner_idxs[0] = 1; // Only the 1st (c) dimension is blocked
-                                      // n -- 0st dim, w -- 3rd dim
+    dnnl_dims_t inner_blks = {8}; // This 1st dimensions is blocked by 8
 
-    md.format_desc.inner_blks[0] = 8; // This 1st dimensions is blocked by 8
+    dnnl_dims_t *q_strides = nullptr;
+    int *q_inner_nblks = nullptr;
+    dnnl_dims_t *q_inner_idxs = nullptr;
+    dnnl_dims_t *q_inner_blks = nullptr;
+    dnnl_memory_desc_query(md, dnnl_query_strides, &q_strides);
+    dnnl_memory_desc_query(md, dnnl_query_inner_nblks, &q_inner_nblks);
+    dnnl_memory_desc_query(md, dnnl_query_inner_idxs, &q_inner_idxs);
+    dnnl_memory_desc_query(md, dnnl_query_inner_blks, &q_inner_blks);
+
+    assert(memcmp(*q_strides, strides, DNNL_MAX_NDIMS) == 0);
+    assert(*q_inner_nblks == inner_nblks);
+    assert(memcmp(*q_inner_idxs, inner_idxs, DNNL_MAX_NDIMS) == 0);
+    assert(memcmp(*q_inner_blks, inner_blks, DNNL_MAX_NDIMS) == 0);
 ~~~
 
 ### What if Channels Are not Multiples of 8 (or 16)?
@@ -349,47 +357,41 @@ Some pitfalls of the given approach:
 
 Relevant oneDNN code:
 ~~~cpp
+    const int block_size = 8;
     const int C = 17;
-    const int C_padded = div_up(17, 8) * 8; // 24
+    const int C_padded = div_up(17, block_size) * block_size;
 
-    // logical description, layout independent
-    const int ndims    = 4;            // # of dimensions
-    dnnl_dims_t dims = {N, C, H, W}; // dimensions themselves
+    const int ndims = 4;
+    memory::dims dims = {N, C, H, W};
 
-    memory_desc_t md;
-    // initialize memory descriptor
-    dnnl_memory_desc_init(&md, ndims,
-                                 dims,
-                                 dnnl_f32,   // single precision data type
-                                 dnnl_nChw8c // blocked layout
-                                 );
+    memory::desc(dims, memory::data_type::f32, memory::format_tag::nChw8c);
 
-    ptrdiff_t expect_stride_n = C_padded*H*W;   // note C_padded here, not C
-    ptrdiff_t expect_stride_C =          H*W*8;
-    ptrdiff_t expect_stride_h =            W*8;
-    ptrdiff_t expect_stride_w =              8;
-    ptrdiff_t expect_stride_8c =             1;
+    memory::dim expect_stride_n =  C_padded * H * W;
+    memory::dim expect_stride_C =  H * W * block_size;
+    memory::dim expect_stride_h =  W * block_size;
+    memory::dim expect_stride_w =  block_size;
+    memory::dim expect_stride_8c = 1;
 
-    bool expect_true = true
+    const bool expect_true = true
         && true // logical dims stay as is
-        && md.dims[0] == N
-        && md.dims[1] == C
-        && md.dims[2] == H
-        && md.dims[3] == W
+        && md.get_dims()[0] == N
+        && md.get_dims()[1] == C
+        && md.get_dims()[2] == H
+        && md.get_dims()[3] == W
         && true // padded dims are rounded accordingly
-        && md.padded_dims[0] == N
-        && md.padded_dims[1] == C_padded
-        && md.padded_dims[2] == H
-        && md.padded_dims[3] == W
+        && md.get_padded_dims()[0] == N
+        && md.get_padded_dims()[1] == C_padded
+        && md.get_padded_dims()[2] == H
+        && md.get_padded_dims()[3] == W
         && true // strides between blocks correspond to the physical layout
-        && md.format_desc.blocking.strides[0] == expect_stride_n
-        && md.format_desc.blocking.strides[1] == expect_stride_C
-        && md.format_desc.blocking.strides[2] == expect_stride_h
-        && md.format_desc.blocking.strides[3] == expect_stride_w
+        && md.get_strides()[0] == expect_stride_n
+        && md.get_strides()[1] == expect_stride_C
+        && md.get_strides()[2] == expect_stride_h
+        && md.get_strides()[3] == expect_stride_w
         && true // inner-most blocking
-        && md.format_desc.blocking.inner_nblks == 1 // only 1 dim is blocked (c)
-        && md.format_desc.blocking.inner_idxs[0] == 1  // 1st (c) dim is blocked
-        && md.format_desc.blocking.inner_dims[0] == 8; // the block size is 8
+        && md.get_inner_nblks() == 1 // only 1 dim is blocked (c)
+        && md.get_inner_idxs()[0] == 1 // 1st (c) dim is blocked
+        && md.get_inner_blks()[0] == 8; // the block size is 8
 
     assert(expect_true);
 ~~~
