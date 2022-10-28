@@ -60,7 +60,7 @@ public:
         gpu_arch_t gpu_arch = device_info->gpu_arch();
         stepping_id_ = device_info->stepping_id();
         eu_count_ = device_info->eu_count();
-        max_wg_size_ = device_info->max_wg_size();
+        max_wg_size_ = static_cast<int>(device_info->max_wg_size());
         large_grf_support_ = compute_engine->mayiuse_large_grf_mode();
 
 #ifdef GEN_CONV_DEBUG
@@ -95,7 +95,7 @@ private:
     ngen::HW hw_ = ngen::HW::Unknown;
     int stepping_id_;
     int eu_count_;
-    size_t max_wg_size_;
+    int max_wg_size_;
     bool large_grf_support_;
 };
 

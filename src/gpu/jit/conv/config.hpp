@@ -113,16 +113,12 @@ public:
 
     template <typename T>
     T &&pick_c(T &&src, T &&wei, T &&dst) const {
-        return is_fwd
-                ? std::forward<T>(dst)
-                : (is_bwd_d ? std::forward<T>(src) : std::forward<T>(wei));
+        return std::forward<T>(is_fwd ? dst : is_bwd_d ? src : wei);
     }
 
     template <typename T>
     T &&pick_by_dir(T &&fwd, T &&bwd_d, T &&bwd_w) const {
-        return is_fwd
-                ? std::forward<T>(fwd)
-                : (is_bwd_d ? std::forward<T>(bwd_d) : std::forward<T>(bwd_w));
+        return std::forward<T>(is_fwd ? fwd : is_bwd_d ? bwd_d : bwd_w);
     }
 
     std::string desc_str(bool print_mb = true) const;
