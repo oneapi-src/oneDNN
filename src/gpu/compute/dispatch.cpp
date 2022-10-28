@@ -333,6 +333,13 @@ void dispatch_t::generate_override(const size_t *grange, const size_t *lrange) {
     generate_called = true;
 }
 
+// Allows manual setting of local work sizes.
+void dispatch_t::set_lws(const size_t *lrange) {
+    assert(generate_called);
+    auto *grange = nd_range_.global_range();
+    nd_range_ = nd_range_t(grange, lrange);
+}
+
 void dispatch_t::define_dim_with_md_hint(
         const std::string &name, int md_hint_index, dim_t size, dim_t block) {
     int nesting_level = min_nesting_level;
