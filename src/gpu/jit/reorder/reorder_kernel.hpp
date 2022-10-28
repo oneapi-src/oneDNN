@@ -83,124 +83,13 @@ public:
         add(1, global_id_, global_id_, getLocalID(0));
 
         int elems_per_thr;
-        if (is_f32_to_bf16(src_layout, dst_layout)) {
-            emit_f32_to_bf16();
-        } else if (is_2d_reorder(src_layout, dst_layout, elems_per_thr)) {
+        if (is_2d_reorder(src_layout, dst_layout, elems_per_thr)) {
             emit_2d_reorder(src_layout, dst_layout, elems_per_thr);
         } else {
             ir_error_not_expected();
         }
 
         generate_epilogue();
-    }
-
-    void emit_f32_to_bf16() {
-        int elems_per_thr = f32_to_bf16_elems_per_thr();
-        int simd_size = getSIMD();
-
-        bool use_a64 = false;
-        // XXX: Stateful messages don't work on XeHPC.
-        use_a64 = (hw == ngen::HW::XeHPC);
-
-        int grf_size = ngen::GRF::bytes(hw);
-        int ud_size = sizeof(uint32_t);
-        int uq_size = sizeof(uint64_t);
-        int f_size = sizeof(float);
-        int bf_size = sizeof(uint16_t);
-
-        auto elem_vec = ra_.alloc_range(elems_per_thr * ud_size / grf_size);
-        auto elem_vec_q_strided
-                = ra_.alloc_range(elems_per_thr * uq_size / grf_size);
-        auto src_ptr_vec = ra_.alloc_range(elems_per_thr * uq_size / grf_size);
-
-        auto get_elem = [&](int i) {
-            return get_subregister(hw, ngen::DataType::ud, elem_vec, i);
-        };
-
-        auto get_elem_q_strided = [&](int i) {
-            return get_subregister(
-                    hw, ngen::DataType::ud, elem_vec_q_strided, i * 2);
-        };
-
-        auto S = ra_.alloc_range(elems_per_thr * f_size / grf_size);
-        // D is for bf16 but allocated as dword-strided to use with
-        // scattered_byte(2) messages.
-        auto D = ra_.alloc_range(elems_per_thr * f_size / grf_size);
-
-        auto get_src_reg = [&](int i) {
-            return get_subregister(hw, ngen::DataType::f, S, i);
-        };
-
-        auto get_dst_reg = [&](int i) {
-            return get_subregister(hw, ngen::DataType::bf, D, i);
-        };
-
-        auto idx_vec = ra_.alloc().uw();
-        mov(8, idx_vec, ngen::Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
-        for (int i = 0; i < elems_per_thr; i += 8)
-            shl(8, get_elem(i), global_id_,
-                    math::ilog2q(elems_per_thr / simd_size));
-        for (int i = 0; i < elems_per_thr; i += 8) {
-            add3(8, get_elem(i), get_elem(i), idx_vec, i);
-            if (use_a64) {
-                auto src_ptr_sub_vec = get_subregister(
-                        hw, ngen::DataType::uq, src_ptr_vec, i)(1);
-                emov(8, get_elem_q_strided(i)(2), get_elem(i)(1));
-                eshl(8, src_ptr_sub_vec, get_elem_q_strided(i)(2),
-                        math::ilog2q(f_size));
-                eadd(8, src_ptr_sub_vec, src_ptr_sub_vec, src_ptr_);
-            }
-        }
-
-        int elems_per_load = 16;
-        for (int i = 0; i < elems_per_thr; i += elems_per_load) {
-            cmp(16 | lt | f0[0], get_elem(i)(1), elems_);
-            if (use_a64) {
-                auto h_a64 = get_subregister(
-                        hw, ngen::DataType::uq, src_ptr_vec, i);
-                load(16 | f0[0], get_src_reg(i), ngen::scattered_dword(), A64,
-                        h_a64);
-            } else {
-                auto h_bts = get_elem(i);
-                load(16 | f0[0], get_src_reg(i), ngen::scattered_dword(),
-                        src_surf_, h_bts);
-            }
-        }
-
-        int mov_step = (grf_size == 32 ? 8 : 16);
-        for (int i = 0; i < elems_per_thr; i += mov_step) {
-            // dst is dword-strided.
-            mov(mov_step, get_dst_reg(i * 2)(2), get_src_reg(i)(1));
-        }
-
-        auto dst_header = ra_.alloc_range(
-                elems_per_load * (use_a64 ? uq_size : ud_size) / grf_size);
-        for (int i = 0; i < elems_per_thr; i += elems_per_load) {
-            for (int j = 0; j < elems_per_load; j += 8) {
-                ngen::RegData h;
-                if (use_a64) {
-                    int off = j * uq_size;
-                    h = dst_header[off / grf_size].uq(
-                            (off % grf_size) / uq_size)(1);
-                } else {
-                    int off = j * ud_size;
-                    h = dst_header[off / grf_size].ud(
-                            (off % grf_size) / ud_size)(1);
-                }
-                emov(8, get_elem_q_strided(i + j)(2), get_elem(i + j)(1));
-                eshl(8, h, get_elem_q_strided(i + j)(2), math::ilog2q(bf_size));
-                if (use_a64) eadd(8, h, h, dst_ptr_);
-            }
-
-            cmp(16 | lt | f0[0], get_elem(i)(1), elems_);
-            if (use_a64) {
-                store(16 | f0[0], ngen::scattered_byte(2), A64, dst_header[0],
-                        get_dst_reg(i * 2));
-            } else {
-                store(16 | f0[0], ngen::scattered_byte(2), dst_surf_,
-                        dst_header[0], get_dst_reg(i * 2));
-            }
-        }
     }
 
     void emit_2d_reorder(
@@ -279,21 +168,12 @@ public:
     static bool is_ir_based_reorder(const layout_t &src, const layout_t &dst) {
         int dummy;
         if (is_2d_reorder(src, dst, dummy)) return false;
-        if (is_f32_to_bf16(src, dst)) return false;
         return true;
     }
 
     static compute::nd_range_t nd_range(const exec_config_t &exec_cfg,
             const layout_t &src, const layout_t &dst) {
         const int simd = exec_cfg.simd();
-
-        if (is_f32_to_bf16(src, dst)) {
-            ir_assert(src.elems() == dst.elems());
-            int elems_per_thr = f32_to_bf16_elems_per_thr();
-            return compute::nd_range_t(
-                    {(int)utils::div_up(src.elems(), elems_per_thr) * simd, 1,
-                            1});
-        }
 
         int elems_per_thr;
         if (is_2d_reorder(src, dst, elems_per_thr)) {
@@ -310,15 +190,6 @@ public:
     }
 
 private:
-    static bool is_f32_to_bf16(const layout_t &src, const layout_t &dst) {
-        if (src.type() != type_t::f32()) return false;
-        if (dst.type() != type_t::bf16()) return false;
-        if (src.retype(type_t::u8()) != dst.retype(type_t::u8())) return false;
-        return true;
-    }
-
-    static int f32_to_bf16_elems_per_thr() { return 32; }
-
     static bool is_2d_reorder(
             const layout_t &src, const layout_t &dst, int &elems_per_thr) {
         if (!src.type().is_bitwise_compatible(dst.type())) return false;
