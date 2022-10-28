@@ -94,13 +94,7 @@ argument index as specified by the following table.
    dnnl::eltwise_forward::primitive_desc()) which may take both \f$\alpha\f$ and \f$\beta\f$,
    just \f$\alpha\f$, or none of them.
 
-2. The memory format and data type for \src and \dst are assumed to be the
-   same, and in the API are typically referred as `data` (e.g., see `data_desc`
-   in dnnl::eltwise_forward::desc::desc()). The same holds for
-   \diffsrc and \diffdst. The corresponding memory descriptors are referred
-   to as `diff_data_desc`.
-
-3. Both forward and backward propagation support in-place operations, meaning
+2. Both forward and backward propagation support in-place operations, meaning
    that \src can be used as input and output for forward propagation, and
    \diffdst can be used as input and output for backward propagation. In case of
    an in-place operation, the original data will be overwritten. Note, however,
@@ -109,11 +103,11 @@ argument index as specified by the following table.
    those algorithms. Algorithms that use \dst for backward propagation can be
    safely done in-place.
 
-4. For some operations it might be beneficial to compute backward
+3. For some operations it might be beneficial to compute backward
    propagation based on \f$\dst(\overline{s})\f$, rather than on
    \f$\src(\overline{s})\f$, for improved performance.
 
-5. For logsigmoid original formula \f$ d = \log_{e}(\frac{1}{1+e^{-s}})\f$ was
+4. For logsigmoid original formula \f$ d = \log_{e}(\frac{1}{1+e^{-s}})\f$ was
    replaced by \f$ d = -soft\_relu(-s)\f$ for numerical stability.
 
 @note For operations supporting destination memory as input, \dst can be

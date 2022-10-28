@@ -142,30 +142,24 @@ argument index as specified by the following table.
    the #dnnl_use_global_stats flag. For the backward propagation, the mean and
    variance are always input parameters.
 
-3. The memory format and data type for `src` and `dst` are assumed to be the
-   same, and in the API they are typically referred to as `data` (e.g., see
-   `data_desc` in dnnl::batch_normalization_forward::desc::desc()). The same is
-   true for `diff_src` and `diff_dst`. The corresponding memory descriptors are
-   referred to as `diff_data_desc`.
-
-4. Both forward and backward propagation support in-place operations, meaning
+3. Both forward and backward propagation support in-place operations, meaning
    that \src can be used as input and output for forward propagation, and
    \diffdst can be used as input and output for backward propagation. In case of
    an in-place operation, the original data will be overwritten. Note, however,
    that backward propagation requires original \src, hence the corresponding
    forward propagation should not be performed in-place.
 
-5. As mentioned above, the batch normalization primitive can be fused with
+4. As mentioned above, the batch normalization primitive can be fused with
    binary addition and ReLU activation (#dnnl_fuse_norm_add_relu).
    In this case:
    - on the forward propagation the primitive has one additional input,
-     `src_1`, that should have memory descriptor equal to primitive `data_desc`
+     `src_1`, that should have memory descriptor equal to primitive `dst_desc`
      memory descriptor.
    - on the backward propagation the primitive has one additional output,
      `diffsrc_1`, that should have memory descriptor equal to primitive
-     `diff_data_desc` memory descriptor.
+     `diff_dst_desc` memory descriptor.
 
-6. As mentioned above, the batch normalization primitive can be fused with
+5. As mentioned above, the batch normalization primitive can be fused with
    ReLU activation (#dnnl_fuse_norm_relu) or binary addition and ReLU activation
    (#dnnl_fuse_norm_add_relu) even in the training mode. In this case, on the forward
    propagation the primitive has one additional output, `workspace`, that
