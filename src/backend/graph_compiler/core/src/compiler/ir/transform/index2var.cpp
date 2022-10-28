@@ -397,6 +397,10 @@ class indexing2var_impl_t : public ir_visitor_t {
             // optimize
             return ret;
         }
+        if (tsr->attr_
+                && tsr->attr_->get_or_else(attr_keys::no_index2var, false)) {
+            return ret;
+        }
         if (!is_read) {
             // if it is not read, need to evict all other tensors in the alias
             // group. no need to invalidate tsr itself

@@ -278,8 +278,6 @@ void ir_printer_t::view(for_loop_c v) {
     const char *type;
     if (v->kind_ == for_type::PARALLEL) {
         type = "parallel ";
-    } else if (v->kind_ == for_type::GROUPED_PARALLEL) {
-        type = "grouped_parallel ";
     } else {
         type = "";
     }

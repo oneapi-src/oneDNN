@@ -22,6 +22,7 @@
 #include <compiler/config/context.hpp>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/transform/index2var.hpp>
 #include <unordered_map>
 #include <util/utils.hpp>
 
@@ -135,15 +136,20 @@ expr call_value_check(expr tsr, expr name, expr size) {
     return value_check_f(std::move(tsr), std::move(name), std::move(size));
 }
 
-void dnnl_brgemm_init(
-        expr C, expr M, expr N, expr LDC, sc_data_type_t dtypeC, expr value) {
+func_t get_brgemm_init_func() {
     static func_t brgemm_func = _decl_func("dnnl_brgemm_init", datatypes::s32,
             {_arg_("C", datatypes::pointer), _arg_("M", datatypes::s32),
                     _arg_("N", datatypes::s32), _arg_("LDC", datatypes::s32),
                     _arg_("dtypeC", datatypes::s32),
                     _arg_("value", datatypes::f32)});
-    _evaluate_call_(brgemm_func, std::move(C), std::move(M), std::move(N),
-            std::move(LDC), dtypeC.as_etype_int(), std::move(value));
+    return brgemm_func;
+}
+
+void dnnl_brgemm_init(
+        expr C, expr M, expr N, expr LDC, sc_data_type_t dtypeC, expr value) {
+    _evaluate_call_(get_brgemm_init_func(), std::move(C), std::move(M),
+            std::move(N), std::move(LDC), dtypeC.as_etype_int(),
+            std::move(value));
 }
 
 static const char *brgemm_names[] = {
@@ -393,6 +399,10 @@ void brgemm_list_update(const expr &A, const expr &B, const expr &C,
         const int &bd_mask_set_num,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
+    A->attr()[attr_keys::no_index2var] = true;
+    A->attr()["list_brgemm_arg"] = true;
+    B->attr()[attr_keys::no_index2var] = true;
+    B->attr()["list_brgemm_arg"] = true;
     builder::get_current_builder()->list_brgemm(A, B, C, num, M, N, K, LDA, LDB,
             LDC, stride_a, stride_b, len, postops_data, c_buf, bd_mask_idx,
             brgemm_args::extra_args_t(brgemm_args::cpu_t {false}, dtypeA,
@@ -409,6 +419,10 @@ void brgemm_init_list_update(const expr &A, const expr &B, const expr &C,
         const int &bd_mask_set_num,
         const sc_brgemm_postops_setting_t &postops_set,
         const std::vector<expr> &postops_data, const expr &c_buf) {
+    A->attr()[attr_keys::no_index2var] = true;
+    A->attr()["list_brgemm_arg"] = true;
+    B->attr()[attr_keys::no_index2var] = true;
+    B->attr()["list_brgemm_arg"] = true;
     builder::get_current_builder()->list_brgemm(A, B, C, num, M, N, K, LDA, LDB,
             LDC, stride_a, stride_b, len, postops_data, c_buf, bd_mask_idx,
             brgemm_args::extra_args_t(brgemm_args::cpu_t {true}, dtypeA, dtypeB,

@@ -41,6 +41,9 @@ constexpr int BUF_SCHED_NONE = 0;
 constexpr int BUF_SCHED_WHOLE = 1;
 constexpr int BUF_SCHED_SIZE = 2;
 constexpr int BUF_SCHED_HOT = 3;
+// applied on for-loops. If a for-loop is attached with this attr = true, buffer
+// scheduler will treat it as a parallel-for and as a independent scope
+constexpr const char *buf_sched_top_scope = "pass.buf_sched_top_level_scope";
 } // namespace attr_keys
 
 namespace special_ticks {

@@ -427,6 +427,8 @@ func_t get_barrier_arrive_func();
 // gets the IR func for sc::runtime::init_barrier
 func_t get_init_barrier_func();
 
+func_t get_brgemm_init_func();
+
 } // namespace builtin
 } // namespace sc
 

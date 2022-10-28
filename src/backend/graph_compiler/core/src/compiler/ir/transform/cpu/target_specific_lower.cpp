@@ -448,8 +448,6 @@ public:
 
     expr_c visit(intrin_call_c v) override {
         auto ret = ir_visitor_t::visit(v);
-        auto new_args
-                = visit_need_def_args(ret.checked_as<intrin_call_c>()->args_);
         intrin_func_creator lower_func = nullptr;
         intrin_func_namer namer_func = nullptr;
         switch (v->type_) {
@@ -487,6 +485,8 @@ public:
             default: break;
         }
         if (lower_func) {
+            auto new_args = visit_need_def_args(
+                    ret.checked_as<intrin_call_c>()->args_);
             func_t f = mod_->get_func(namer_func(v));
             if (f) {
                 // if the function is found, check the signature

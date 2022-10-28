@@ -281,8 +281,6 @@ using define_c = node_ptr<const define_node_t, stmt_base_t>;
 enum class for_type {
     NORMAL = 1, // normal sequential for
     PARALLEL = 2, // run the for-loop in parallel (like omp-parallel-for)
-    GROUPED_PARALLEL = 3, // run the for-loop in parallel thread group
-    VECTORIZED = 3, // vectorize the for-loop
 };
 
 std::ostream &operator<<(std::ostream &os, for_type val);

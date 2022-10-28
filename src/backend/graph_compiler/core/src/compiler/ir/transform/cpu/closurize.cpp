@@ -20,6 +20,7 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
+#include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/closurize_impl.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <runtime/config.hpp>
@@ -175,13 +176,16 @@ public:
             if (ret.get() != v.get()) {
                 // the for loop is remade, just change it
                 ret->kind_ = for_type::NORMAL;
+                ret->attr()[attr_keys::buf_sched_top_scope] = true;
             } else {
                 // remake a new IR node
-                return copy_attr(*v,
+                auto retnode = copy_attr(*v,
                         builder::make_for_loop_unattached(ret->var_,
                                 ret->iter_begin_, ret->iter_end_, ret->step_,
                                 ret->body_, ret->incremental_,
                                 for_type::NORMAL));
+                retnode->attr()[attr_keys::buf_sched_top_scope] = true;
+                return retnode;
             }
         }
         return ret;

@@ -88,8 +88,7 @@ stmt_c closurize_impl_t::visit(assign_c v) {
 }
 
 stmt_c closurize_impl_t::visit(for_loop_c v) {
-    if (v->kind_ == for_type::PARALLEL
-            || v->kind_ == for_type::GROUPED_PARALLEL) {
+    if (v->kind_ == for_type::PARALLEL) {
         COMPILE_ASSERT(!in_parallel_for,
                 "Cannot have parallel for in parallel for: " << v);
         in_parallel_for = true;
@@ -100,20 +99,6 @@ stmt_c closurize_impl_t::visit(for_loop_c v) {
             attr.emplace_back(v->iter_begin_, v->iter_end_, v->step_);
             body = dispatch(v->body_);
             assert(!captures_.empty());
-        } else {
-            for_loop_c cur = v;
-            for (int i = 0;; i++) {
-                COMPILE_ASSERT(cur.defined(),
-                        "Expecting 4 nested loops for GROUPED_PARALLEL: " << v);
-                dispatch(cur->var_);
-                // todo: add checking to throw an error if iter_begin_,
-                // iter_end_ and step_ is using outer loop itervars
-                attr.emplace_back(cur->iter_begin_, cur->iter_end_, cur->step_);
-                if (i == 3) { break; }
-                cur = get_inner_for_loop(cur.get());
-            }
-            body = dispatch(cur->body_);
-            assert(captures_.size() >= 4);
         }
         std::vector<expr_c> params;
         for (size_t i = 0; i < captures_.size(); i++) {
@@ -137,6 +122,6 @@ stmt_c closurize_impl_t::visit(for_loop_c v) {
     }
     if (in_parallel_for) { defined_set_.insert(v->var_); }
     return ir_visitor_t::visit(std::move(v));
-}
+} // namespace sc
 
 } // namespace sc

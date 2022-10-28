@@ -40,7 +40,6 @@ std::ostream &operator<<(std::ostream &os, for_type val) {
     case sc::for_type::X: os << "for_type::" #X; break;
         HANDLE_CASE(NORMAL)
         HANDLE_CASE(PARALLEL)
-        HANDLE_CASE(VECTORIZED)
 #undef HANDLE_CASE
         default: os << "(unrecognized for_type value)"; break;
     }

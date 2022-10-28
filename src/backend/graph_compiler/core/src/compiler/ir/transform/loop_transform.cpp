@@ -248,10 +248,7 @@ void for_loop_node_t::unroll(uint64_t factor, const stmt &parent) {
                     : (newloop_len * (step_ * factor) + iter_begin_);
             auto remainder = builder::make_for_loop_unattached(oldvar, begins,
                     iter_end_, step_, body_, incremental_,
-                    (kind_ != for_type::PARALLEL
-                            && kind_ != for_type::GROUPED_PARALLEL)
-                            ? kind_
-                            : for_type::NORMAL);
+                    kind_ != for_type::PARALLEL ? kind_ : for_type::NORMAL);
             // put the remainder loop and the unrolled body into the if-else
             stmts seq_remainder = make_stmt<stmts_node_t>(std::vector<stmt>());
             seq_remainder->seq_.emplace_back(std::move(remainder));

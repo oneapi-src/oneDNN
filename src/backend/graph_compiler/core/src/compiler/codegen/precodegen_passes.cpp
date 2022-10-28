@@ -95,8 +95,6 @@ sequential_module_pass_t get_default_precodegen_passes(
     ret.emplace_back(module_function_pass_t::make<loop_unroller_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(true));
 
-    ret.emplace_back(utils::make_unique<kernel_lowering_cpu_t>(
-            ctx->flags_.kernel_optim_));
     if (ctx->flags_.dead_write_elimination_) {
         ret.emplace_back(
                 module_function_pass_t::make<dead_write_eliminator_t>());
@@ -108,6 +106,8 @@ sequential_module_pass_t get_default_precodegen_passes(
         ret.emplace_back(
                 module_function_pass_t::make<buffer_scheduler_t>(ctx, true));
     }
+    ret.emplace_back(utils::make_unique<kernel_lowering_cpu_t>(
+            ctx->flags_.kernel_optim_));
     if (ctx->flags_.boundary_check_) {
         ret.emplace_back(module_function_pass_t::make<dyn_boundary_check_t>());
     }

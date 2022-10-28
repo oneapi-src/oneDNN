@@ -129,7 +129,10 @@ struct tensor_tick_info_t {
     // back-propagate the inplace result to the function to be called, to inform
     // it that some of the args has pointer alias
     std::shared_ptr<call_site_info_t> inplace_call_site_;
-
+    // Only valid when this tensor is an argument to list_brgemm calls. The set
+    // is used to record the A and B data tensors that the address list tensor
+    // of list_brgemm points to.
+    std::unique_ptr<std::unordered_set<expr_c>> list_brgemm_tensors_;
     int64_t get_last_access() const {
         int64_t last_access = last_read_;
         if (!writes_.empty()) {
@@ -141,10 +144,16 @@ struct tensor_tick_info_t {
 };
 
 static bool is_parallel_for(const stmt_c &v) {
-    return (v.isa<for_loop>()
-            && (v.static_as<for_loop>()->kind_ == for_type::PARALLEL
-                    || v.static_as<for_loop>()->kind_
-                            == for_type::GROUPED_PARALLEL));
+    if (v.isa<for_loop_c>()) {
+        auto loop = v.static_as<for_loop_c>();
+        if (loop->kind_ == for_type::PARALLEL) { return true; }
+        if (v->attr_
+                && v->attr_->get_or_else(
+                        attr_keys::buf_sched_top_scope, false)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 class reference_tick_finder_t : public tick_visitor_t {
@@ -355,7 +364,8 @@ public:
             for_start_ticks_.emplace_back(tick_);
             ticks_in_scope_.emplace_back();
             assert(for_start_ticks_.size() <= 2);
-            assert(ticks_in_scope_.size() <= 2);
+            COMPILE_ASSERT(ticks_in_scope_.size() <= 2UL,
+                    "Buffer scheduling currently only supports 2 level scopes");
         }
     }
 
@@ -381,6 +391,28 @@ public:
     }
 
     stmt_c visit(assign_c v) override {
+        // we allow getting tensor address for "A_list[...]=&A", when A_list is
+        // a list_brgemm_arg
+        if (v->var_.isa<indexing>()) {
+            auto tsr = v->var_.static_as<indexing>()->ptr_;
+            if (tsr->attr_
+                    && tsr->attr_->get_or_else("list_brgemm_arg", false)) {
+                // make accesses on the real buffer not "complicated"
+                good_tensor_ = true;
+                auto itr = out_.find(tsr);
+                if (itr != out_.end()) {
+                    if (!itr->second.list_brgemm_tensors_) {
+                        itr->second.list_brgemm_tensors_ = utils::make_unique<
+                                std::unordered_set<expr_c>>();
+                    }
+                    auto list_brg_real_tsr = get_tensor_of_arg(v->value_);
+                    if (list_brg_real_tsr.defined()) {
+                        itr->second.list_brgemm_tensors_->insert(
+                                list_brg_real_tsr);
+                    }
+                }
+            }
+        }
         // read first, then write
         dispatch(v->value_);
         if (v->var_.isa<indexing>()) indexing_parent_ = WRITE;
@@ -462,10 +494,11 @@ public:
     }
 
     void dispatch_args(const std::vector<expr> &args) {
+        bool old_good = good_tensor_;
         // first calculate the tick after evaluating the args
         for (unsigned i = 0; i < args.size(); i++) {
             auto &p = args[i];
-            if (p.isa<tensor>() || p.isa<tensorptr>()) {
+            if (old_good || p.isa<tensor>() || p.isa<tensorptr>()) {
                 good_tensor_ = true; // good to use tensorptr in args
             }
             dispatch(p);
@@ -484,6 +517,7 @@ public:
         }
         return tensor_c();
     }
+
     // if a tensor/tensorptr is passed in function args, set the r/w ticks
     expr_c visit(call_c v) override {
         using hint_t = std::vector<
@@ -492,7 +526,10 @@ public:
                 ? (v->func_->attr_->get_or_null<hint_t>(
                         function_attrs::inplace_hint))
                 : nullptr;
-        if (v->func_ == builtin::get_mem_set_func()) { good_tensor_ = true; }
+        if (v->func_ == builtin::get_mem_set_func()
+                || v->func_ == builtin::get_brgemm_init_func()) {
+            good_tensor_ = true;
+        }
         dispatch_args(v->args_);
         if (auto ex = std::dynamic_pointer_cast<expr_base>(v->func_)) {
             dispatch(expr_c(ex));
@@ -549,18 +586,38 @@ public:
 
     // if a tensor/tensorptr is passed in function args, set the r/w ticks
     expr_c visit(intrin_call_c v) override {
-        if (v->type_ == intrin_type::brgemm) {
+        if (v->type_ == intrin_type::brgemm
+                || v->type_ == intrin_type::list_brgemm) {
+            good_tensor_ = true;
             dispatch_args(v->args_);
             // now tick_ is the tick when the last parameter is calculated. set
             // the tick for referenced tensors
-            assert(v->args_.size() == brgemm_args::NUM_FULL_ARGS_STRIDE);
+            assert((v->type_ == intrin_type::brgemm
+                           && v->args_.size()
+                                   == brgemm_args::NUM_FULL_ARGS_STRIDE)
+                    || (v->type_ == intrin_type::list_brgemm
+                            && v->args_.size()
+                                    == brgemm_args::NUM_FULL_ARGS_LIST));
             for (int i = 0; i < brgemm_args::C + 1; i++) {
                 auto &p = v->args_[i];
                 tensor_c tsr = get_tensor_of_arg(p);
                 if (tsr.defined()) {
                     switch (i) {
                         case brgemm_args::A: // fall through
-                        case brgemm_args::B: set_read_tick(tsr, tick_); break;
+                        case brgemm_args::B:
+                            set_read_tick(tsr, tick_);
+                            // set the ticks of the real tensors
+                            if (v->type_ == intrin_type::list_brgemm) {
+                                auto itr = out_.find(tsr);
+                                if (itr != out_.end()
+                                        && itr->second.list_brgemm_tensors_) {
+                                    for (auto &linked_tsr :
+                                            *itr->second.list_brgemm_tensors_) {
+                                        set_read_tick(linked_tsr, tick_);
+                                    }
+                                }
+                            }
+                            break;
                         case brgemm_args::C: set_write_tick(tsr, tick_); break;
                         default: break;
                     }
@@ -576,11 +633,10 @@ public:
         for (auto &p : v->params_) {
             if (p.isa<tensor>() && p->attr_
                     && p->attr_->has_key("out_buffer")) {
-                tensor_tick_info_t info;
+                auto &info = (out_[p] = {});
                 info.create_ = 0;
                 info.delete_ = std::numeric_limits<int64_t>::max();
                 info.is_arg_ = true;
-                out_[p] = info;
             }
         }
         dispatch(v->body_);
@@ -730,7 +786,7 @@ static void schedule_tensors(
     for (auto &tsr : defined_tensors) {
         auto itr = ticks.find(tsr);
         assert(itr != ticks.end());
-        auto cur_info = itr->second;
+        const auto &cur_info = itr->second;
         // SC_MODULE_INFO << "Tsr " << tsr << " LRT= " << cur_info.last_read_;
         int64_t my_last_read = cur_info.last_read_;
         tensor_c cur_tensor = tsr.static_as<tensor_c>();
