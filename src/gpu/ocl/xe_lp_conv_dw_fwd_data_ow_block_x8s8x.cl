@@ -66,9 +66,11 @@ conv_dw_fwd_ow_block_x8s8x(const __global uchar *src, const __global char *wei,
 #if SCALES_PER_OC
     // TODO: use block read after fix from compiler
     // float2 scales = as_float2(intel_sub_group_block_read_ul((const __global ulong *)&runtime_scales[g]));
-    float2 scales;
-    scales.s0 = runtime_scales[g + 2 * get_sub_group_local_id()];
-    scales.s1 = runtime_scales[g + 2 * get_sub_group_local_id() + 1];
+    float2 scales = 1;
+    if (g + 2 * get_sub_group_local_id() < G)
+        scales.s0 = runtime_scales[g + 2 * get_sub_group_local_id()];
+    if (g + 2 * get_sub_group_local_id() + 1 < G)
+        scales.s1 = runtime_scales[g + 2 * get_sub_group_local_id() + 1];
 #endif
 
     for (int kd = 0; kd < KD; kd++) {
