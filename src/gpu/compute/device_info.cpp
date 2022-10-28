@@ -240,7 +240,7 @@ status_t device_info_t::init_from_cache_blob(
     static_assert(std::is_same<std::remove_reference<decltype(val)>::type, \
                           expected_type>::value, \
             #val " has incorrect type"); \
-    val = *reinterpret_cast<const expected_type *>(cache_blob.data() + pos); \
+    (val) = *reinterpret_cast<const expected_type *>(cache_blob.data() + pos); \
     pos += sizeof(expected_type);
 
     DESERIALIZE(gpu_arch_, compute::gpu_arch_t);
