@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
-* Copyright 2020 FUJITSU LIMITED
+* Copyright 2017-2022 Intel Corporation
+* Copyright 2020-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,8 +25,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/aarch64/cpu_isa_traits.hpp"
 #include "cpu/cpu_batch_normalization_pd.hpp"
+
+#include "cpu/aarch64/cpu_isa_traits.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -50,6 +51,7 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
                 jit_uni_batch_normalization_fwd_t);
 
         status_t init(engine_t *engine);
+        int nthr_; // To not exceed the limit in execute used for set up.
     };
 
     jit_uni_batch_normalization_fwd_t(const pd_t *apd);
@@ -77,6 +79,7 @@ struct jit_uni_batch_normalization_bwd_t : public primitive_t {
                 jit_uni_batch_normalization_bwd_t);
 
         status_t init(engine_t *engine);
+        int nthr_; // To not exceed the limit in execute used for set up.
     };
 
     jit_uni_batch_normalization_bwd_t(const pd_t *apd);

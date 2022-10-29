@@ -348,12 +348,39 @@ public:
     }
 
     template <typename T>
+    void uni_fmad(const T &dst, const T &src, const T &src2) {
+        fmad(dst, P_ALL_ONE / Xbyak_aarch64::T_m, src, src2);
+    }
+
+    void uni_fmad(const Xbyak_aarch64::VReg4S &dst,
+            const Xbyak_aarch64::VReg4S &src,
+            const Xbyak_aarch64::VReg4S &src2) {
+        fmul(dst, dst, src);
+        fadd(dst, dst, src2);
+    }
+
+    template <typename T>
     void uni_fmax(const T &dst, const T &src, const T &src2) {
         uint32_t dstIdx = dst.getIdx();
         uint32_t srcIdx = src.getIdx();
         if (dstIdx != srcIdx)
             mov(Xbyak_aarch64::ZRegD(dstIdx), Xbyak_aarch64::ZRegD(srcIdx));
         fmax(dst, P_ALL_ONE / Xbyak_aarch64::T_m, src2);
+    }
+
+    template <typename T>
+    void uni_fmaxnm(const T &dst, const T &src, const T &src2) {
+        uint32_t dstIdx = dst.getIdx();
+        uint32_t srcIdx = src.getIdx();
+        if (dstIdx != srcIdx)
+            mov(Xbyak_aarch64::ZRegD(dstIdx), Xbyak_aarch64::ZRegD(srcIdx));
+        fmaxnm(dst, P_ALL_ONE / Xbyak_aarch64::T_m, src2);
+    }
+
+    void uni_fmaxnm(const Xbyak_aarch64::VReg4S &dst,
+            const Xbyak_aarch64::VReg4S &src,
+            const Xbyak_aarch64::VReg4S &src2) {
+        fmaxnm(dst, src, src2);
     }
 
     template <typename T>
@@ -378,6 +405,16 @@ public:
     void uni_frinti(
             const Xbyak_aarch64::ZRegS &d, const Xbyak_aarch64::ZRegS &s) {
         frinti(d, P_ALL_ONE / Xbyak_aarch64::T_m, s);
+    }
+
+    template <typename T>
+    void uni_fsqrt(const T &dst, const T &src) {
+        fsqrt(dst, P_ALL_ONE / Xbyak_aarch64::T_m, src);
+    }
+
+    void uni_fsqrt(const Xbyak_aarch64::VReg4S &dst,
+            const Xbyak_aarch64::VReg4S &src) {
+        fsqrt(dst, src);
     }
 
     void uni_fsub(const Xbyak_aarch64::VReg4S &v1,
