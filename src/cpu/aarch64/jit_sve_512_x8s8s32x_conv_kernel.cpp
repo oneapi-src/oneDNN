@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,8 +76,11 @@ void jit_sve_512_x8s8s32x_fwd_kernel::cvt2ps(data_type_t type_in,
         case data_type::s32:
             if (mask_flag)
                 ld1w(vmm.s, ktail_mask / T_z, ptr(reg_addr));
-            else
-                ld1w(vmm.s, mask_all_one, ptr(reg_addr));
+            else {
+                // Because reg_addr maybe disaligned,
+                // `ldr(vmm, ptr(reg_addr))` can't be used.
+                ld1w(vmm.s, mask_all_one / T_z, ptr(reg_addr));
+            }
             break;
         case data_type::s8:
             sub(reg_stack, reg_stack, 64);
@@ -137,6 +140,7 @@ void jit_sve_512_x8s8s32x_fwd_kernel::store_output(
     for (int k = 0; k < nb_oc_block; k++) {
         const bool mask_flag
                 = last_oc_block_flag && k == nb_oc_block - 1 && mask_gflag;
+        PReg mask = mask_flag ? ktail_mask : mask_all_one;
         int scale_offset = jcp.is_oc_scale * (sizeof(float) * k * oc_block);
         if (jcp.with_bias) {
             int bias_offset = jcp.typesize_bia * k * oc_block;
@@ -152,7 +156,7 @@ void jit_sve_512_x8s8s32x_fwd_kernel::store_output(
         /* optimization under specific conditions: preload scale_offset data */
         if (!jcp.is_fast_depthwise && jcp.signed_input) {
             auto reg_addr = get_comp_addr_reg(reg_ptr_scales, scale_offset);
-            ld1w(vmm_pre_load.s, mask_all_one, ptr(reg_addr));
+            ld1w(vmm_pre_load.s, mask / T_z, ptr(reg_addr));
         }
         /* add to accum: compensation, bias and permute */
         for (int j = 0; j < ur_w; j++) {
@@ -190,22 +194,12 @@ void jit_sve_512_x8s8s32x_fwd_kernel::store_output(
             if (!jcp.is_fast_depthwise && jcp.signed_input) {
                 /* optimization under specific conditions: optimize using preloaded scale_offset data */
                 fmul(vmm.s, vmm.s, vmm_pre_load.s);
-                if (mask_flag) {
-                    not_(mask_tmp.b, mask_all_one.b, ktail_mask.b);
-                    mov(vmm.s, mask_tmp / T_m, 0);
-                }
             } else {
                 auto reg_addr = get_comp_addr_reg(reg_ptr_scales, scale_offset);
-                sub(reg_stack, reg_stack, 64);
-                str(vmm_tmp, ptr(reg_stack));
-                ld1w(vmm_tmp.s, mask_all_one, ptr(reg_addr));
+                st1w(vmm_tmp.s, mask_all_one / T_z, ptr(reg_stack, -1, MUL_VL));
+                ld1w(vmm_tmp.s, mask / T_z, ptr(reg_addr));
                 fmul(vmm.s, vmm.s, vmm_tmp.s);
-                ldr(vmm_tmp, ptr(reg_stack));
-                add(reg_stack, reg_stack, 64);
-                if (mask_flag) {
-                    not_(mask_tmp.b, mask_all_one.b, ktail_mask.b);
-                    mov(vmm.s, mask_tmp / T_m, 0);
-                }
+                ld1w(vmm_tmp.s, mask_all_one / T_z, ptr(reg_stack, -1, MUL_VL));
             }
         }
     }
