@@ -50,7 +50,7 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
 
     void operator()(const void *src, void *dst, const float *scale,
             const float *shift, float *mean, float *var,
-            const float *output_scales,
+            const float *src_scales, const float *dst_scales,
             const size_t block_size) const override {
         ker_args_t args;
         args.src = src;
@@ -59,7 +59,8 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
         args.shift = shift;
         args.mean = mean;
         args.var = var;
-        args.output_scales = output_scales;
+        args.src_scales = src_scales;
+        args.dst_scales = dst_scales;
         args.block_size
                 = block_size * C_ * types::data_type_size(src_d_.data_type());
         args.eps = eps_;
@@ -113,7 +114,8 @@ protected:
         const float *shift;
         const float *mean;
         const float *var;
-        const float *output_scales;
+        const float *src_scales;
+        const float *dst_scales;
         size_t block_size;
         float eps;
     };
@@ -140,13 +142,14 @@ protected:
     const Reg64 reg_tmp = r11;
     const Reg64 reg_shift = r12;
     const Reg64 reg_var = r13;
-    const Reg64 reg_output_scales = r14;
+    const Reg64 reg_src_scales = r14;
+    const Reg64 reg_dst_scales = r15;
 
     const Vmm vmm_tail_mask = Vmm(0);
     const Vmm vmm_zero = Vmm(4); // In unroll range, safe for dst compute.
     const Vmm vmm_saturation_ubound
             = Vmm(5); // In unroll range, safe for dst compute.
-    const Vmm vmm_output_scales
+    const Vmm vmm_combined_scales
             = Vmm(6); // In unroll range, safe for dst compute.
     const Vmm vmm_scale = Vmm(7); // In unroll range, safe for dst compute.
     const Vmm vmm_shift = Vmm(8); // In unroll range, safe for dst compute.
@@ -268,7 +271,7 @@ protected:
             if (use_scale_) uni_vmulps(vmm_dst, vmm_dst, vmm_scale);
             if (use_shift_) uni_vaddps(vmm_dst, vmm_dst, vmm_shift);
         }
-        uni_vmulps(vmm_dst, vmm_dst, vmm_output_scales);
+        uni_vmulps(vmm_dst, vmm_dst, vmm_combined_scales);
         io_[dst_d_.data_type()]->store(vmm_dst, dst_ptr(offt_elems), tail);
     }
 
@@ -291,7 +294,8 @@ protected:
         mov(reg_shift, ptr[reg_param + PARAM_OFF(shift)]);
         mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
         mov(reg_var, ptr[reg_param + PARAM_OFF(var)]);
-        mov(reg_output_scales, ptr[reg_param + PARAM_OFF(output_scales)]);
+        mov(reg_src_scales, ptr[reg_param + PARAM_OFF(src_scales)]);
+        mov(reg_dst_scales, ptr[reg_param + PARAM_OFF(dst_scales)]);
         mov(reg_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
         mov(reg_eps, ptr[reg_param + PARAM_OFF(eps)]);
 #undef PARAM_OFF
@@ -331,9 +335,12 @@ protected:
             uni_vsqrtps(vmm_inv_sqrtvar, vmm_inv_sqrtvar);
             uni_vdivps(vmm_inv_sqrtvar, vmm_ones, vmm_inv_sqrtvar, vmm_tmp);
 
-            // broadcast output scales (in case of runtime)
-            uni_vmovss(xmm_tmp, dword[reg_output_scales]);
-            uni_vbroadcastss(vmm_output_scales, xmm_tmp);
+            // precompute and broadcast scales (in case of runtime)
+            uni_vmovss(xmm_tmp, dword[reg_src_scales]);
+            uni_vbroadcastss(vmm_combined_scales, xmm_tmp);
+            uni_vmovss(xmm_tmp, dword[reg_dst_scales]);
+            uni_vbroadcastss(vmm_tmp, xmm_tmp);
+            uni_vmulps(vmm_combined_scales, vmm_combined_scales, vmm_tmp);
             io_.init_saturate_f32({dst_d_.data_type()});
 
             // calculate dst
@@ -973,7 +980,8 @@ status_t jit_uni_layer_normalization_fwd_t::execute_forward(
                 : CTX_OUT_MEM(float *, DNNL_ARG_VARIANCE);
     }
 
-    DEFINE_SCALES_BUFFER(output_scales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -991,7 +999,7 @@ status_t jit_uni_layer_normalization_fwd_t::execute_forward(
                 + N_start * C_padded * dst_d.data_type_size();
         const int block_size = N_end - N_start;
         (*stat_and_data_kernel_)(src_ptr, dst_ptr, scale, shift, &mean[N_start],
-                &variance[N_start], output_scales, block_size);
+                &variance[N_start], src_scales, dst_scales, block_size);
     });
     return status::success;
 }

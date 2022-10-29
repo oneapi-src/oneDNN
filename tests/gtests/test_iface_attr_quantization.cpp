@@ -203,29 +203,30 @@ TEST_F(attr_quantization_test_t, TestInnerProduct) {
 
 TEST_F(attr_quantization_test_t, TestLNorm) {
     SKIP_IF_CUDA(true, "Layer normalization primitive not supported for CUDA");
-    for (auto dt : {data_type::f32}) {
-        memory::desc md {{1, 16, 16}, dt, tag::abc};
-        memory::desc stat_md {{1, 16}, data_type::f32, tag::ab};
-        normalization_flags flags = normalization_flags::use_global_stats;
 
+    memory::desc md {{1, 16, 16}, data_type::s8, tag::abc};
+    memory::desc stat_md {{1, 16}, data_type::f32, tag::ab};
+    normalization_flags flags = normalization_flags::use_global_stats;
+
+    if (get_test_engine_kind() == engine::kind::gpu) {
+        CHECK_UNIMPL(layer_normalization_forward::primitive_desc(eng,
+                prop_kind::forward_inference, md, md, stat_md, 0.1f, flags));
+        CHECK_UNIMPL(layer_normalization_forward::primitive_desc(eng,
+                prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
+                gen_attr_with_scales()));
+    } else {
         CHECK_OK(layer_normalization_forward::primitive_desc(eng,
                 prop_kind::forward_inference, md, md, stat_md, 0.1f, flags));
-        if (get_test_engine_kind() == engine::kind::gpu) {
-            CHECK_UNIMPL(layer_normalization_forward::primitive_desc(eng,
-                    prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
-                    gen_attr_with_oscale()));
-        } else {
-            CHECK_OK(layer_normalization_forward::primitive_desc(eng,
-                    prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
-                    gen_attr_with_oscale()));
-        }
+        CHECK_OK(layer_normalization_forward::primitive_desc(eng,
+                prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
+                gen_attr_with_scales()));
+    }
 
-        for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE,
-                     DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
-            CHECK_UNIMPL(layer_normalization_forward::primitive_desc(eng,
-                    prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
-                    gen_attr_with_zp(arg)));
-        }
+    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE,
+                 DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
+        CHECK_UNIMPL(layer_normalization_forward::primitive_desc(eng,
+                prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
+                gen_attr_with_zp(arg)));
     }
 }
 

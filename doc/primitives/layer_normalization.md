@@ -85,18 +85,20 @@ requires different inputs and outputs. For clarity, a summary is shown below.
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive input/output  | Execution argument index  |
-| ---                     | ---                       |
-| \src                    | DNNL_ARG_SRC              |
-| \f$\gamma\f$            | DNNL_ARG_SCALE            |
-| \f$\beta\f$             | DNNL_ARG_SHIFT            |
-| mean (\f$\mu\f$)        | DNNL_ARG_MEAN             |
-| variance (\f$\sigma\f$) | DNNL_ARG_VARIANCE         |
-| \dst                    | DNNL_ARG_DST              |
-| \diffdst                | DNNL_ARG_DIFF_DST         |
-| \diffsrc                | DNNL_ARG_DIFF_SRC         |
-| \diffgamma              | DNNL_ARG_DIFF_SCALE       |
-| \diffbeta               | DNNL_ARG_DIFF_SHIFT       |
+| Primitive input/output  | Execution argument index             |
+| ---                     | ---                                  |
+| \src                    | DNNL_ARG_SRC                         |
+| \f$\gamma\f$            | DNNL_ARG_SCALE                       |
+| \f$\beta\f$             | DNNL_ARG_SHIFT                       |
+| mean (\f$\mu\f$)        | DNNL_ARG_MEAN                        |
+| variance (\f$\sigma\f$) | DNNL_ARG_VARIANCE                    |
+| \dst                    | DNNL_ARG_DST                         |
+| \diffdst                | DNNL_ARG_DIFF_DST                    |
+| \diffsrc                | DNNL_ARG_DIFF_SRC                    |
+| \diffgamma              | DNNL_ARG_DIFF_SCALE                  |
+| \diffbeta               | DNNL_ARG_DIFF_SHIFT                  |
+| \f$src scale\f$         | DNNL_ARG_ATTR_SCALES \| DNNL_ARG_SRC |
+| \f$dst scale\f$         | DNNL_ARG_ATTR_SCALES \| DNNL_ARG_DST |
 
 
 ## Implementation Details
@@ -129,9 +131,9 @@ Attributes enable you to modify the behavior of the layer normalization
 primitive. The following attributes are supported by the layer normalization
 primitive:
 
-| Propagation | Type      | Operation                                                    | Description                                                    | Restrictions                                  |
-| :--         | :--       | :--                                                          | :--                                                            | :--                                           |
-| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of layer normalization by given scale factor | int8 layer normalization only, zero mask only |
+| Propagation | Type      | Operation                                            | Description                                                   | Restrictions                                                                       |
+| :--         | :--       | :--                                                  | :--                                                           | :--                                                                                |
+| forward     | attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask) | Scales the corresponding tensor by the given scale factor(s). | Supported only for int8 layer normalization and one scale per tensor is supported. |
 
 ### Data Type Support
 

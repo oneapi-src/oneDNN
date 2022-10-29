@@ -45,8 +45,8 @@ status_t simple_layer_normalization_fwd_t::pd_t::init(engine_t *engine) {
             && platform::has_data_type_support(src_md()->data_type)
             && platform::has_data_type_support(dst_md()->data_type)
             && stat_md()->data_type == f32 && check_scale_shift_data_type()
-            && attr()->has_default_values(skip_mask_t::oscale_runtime)
-            && attr_oscale_ok() && set_default_formats_common()
+            && attr()->has_default_values(skip_mask_t::scales_runtime)
+            && attr_scales_ok() && set_default_formats_common()
             && src_d.is_blocking_desc()
             // plain format, last logical dim is last physical
             && src_d.blocking_desc().strides[ndims() - 1] == 1;
@@ -90,7 +90,8 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                 : CTX_OUT_MEM(float *, DNNL_ARG_VARIANCE);
     }
 
-    DEFINE_SCALES_BUFFER(output_scales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -151,7 +152,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     const size_t off = c + C * offset;
                     float s = io::load_float_value(src_dt, src_ptr, off);
                     float d = sm * (s - v_mean) + sv;
-                    d *= output_scales[0];
+                    d *= src_scales[0] * dst_scales[0];
                     io::store_float_value(dst_dt, d, dst_ptr, off);
                 }
             } else if (use_scale) {
@@ -161,7 +162,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     const size_t off = c + C * offset;
                     float s = io::load_float_value(src_dt, src_ptr, off);
                     float d = sm * (s - v_mean);
-                    d *= output_scales[0];
+                    d *= src_scales[0] * dst_scales[0];
                     io::store_float_value(dst_dt, d, dst_ptr, off);
                 }
             } else if (use_shift) {
@@ -172,7 +173,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     const size_t off = c + C * offset;
                     float s = io::load_float_value(src_dt, src_ptr, off);
                     float d = sm * (s - v_mean) + sv;
-                    d *= output_scales[0];
+                    d *= src_scales[0] * dst_scales[0];
                     io::store_float_value(dst_dt, d, dst_ptr, off);
                 }
             } else {
@@ -182,7 +183,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     const size_t off = c + C * offset;
                     float s = io::load_float_value(src_dt, src_ptr, off);
                     float d = sm * (s - v_mean);
-                    d *= output_scales[0];
+                    d *= src_scales[0] * dst_scales[0];
                     io::store_float_value(dst_dt, d, dst_ptr, off);
                 }
             }

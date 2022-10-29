@@ -26,12 +26,12 @@
 
 --dt=f32:s8,f32:u8,bf16:s8,bf16:u8
 --dir=FWD_I
---attr-oscale=common:64*
+--attr-scales=,src:common:64*+dst:common:0.5*
 --flags=,CH
 --batch=shapes_ci
 
 --dt=s8:f32,u8:f32,s8:bf16,u8:bf16
 --dir=FWD_I
---attr-oscale=common:64*
+--attr-scales=,src:common:64*+dst:common:0.5*
 --flags=,CH
 --batch=shapes_ci

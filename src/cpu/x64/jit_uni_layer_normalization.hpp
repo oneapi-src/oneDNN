@@ -42,7 +42,8 @@ struct stat_and_data_kernel_t {
 
     virtual void operator()(const void *src, void *dst, const float *scale,
             const float *shift, float *mean, float *var,
-            const float *output_scales, const size_t block_size) const {};
+            const float *src_scales, const float *dst_scales,
+            const size_t block_size) const {};
 
     virtual status_t create_kernel() { return status::success; }
 
@@ -110,8 +111,8 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
                             mayiuse(avx512_core_fp16))
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type()
-                    && attr()->has_default_values(skip_mask_t::oscale_runtime)
-                    && attr_oscale_ok() && set_default_formats_common()
+                    && attr()->has_default_values(skip_mask_t::scales_runtime)
+                    && attr_scales_ok() && set_default_formats_common()
                     && src_d.is_blocking_desc()
                     // plain format, last logical dim is last physical
                     && src_d.blocking_desc().strides[ndims() - 1] == 1;

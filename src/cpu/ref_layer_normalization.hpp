@@ -52,8 +52,8 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
                     && platform::has_data_type_support(dst_md()->data_type)
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type()
-                    && attr()->has_default_values(skip_mask_t::oscale_runtime)
-                    && attr_oscale_ok() && set_default_formats_common();
+                    && attr()->has_default_values(skip_mask_t::scales_runtime)
+                    && attr_scales_ok() && set_default_formats_common();
             if (!ok) return status::unimplemented;
 
             return status::success;

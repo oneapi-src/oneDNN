@@ -85,8 +85,7 @@ struct prb_t : public prb_dims_t {
         , inplace(inplace)
         , attr(attr)
         , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe)
-        , scales(NULL) {
+        , ctx_exe(ctx_exe) {
         n = 1;
         for (int d = 0; d < ndims - 1; d++)
             n *= dims[d];
@@ -99,11 +98,6 @@ struct prb_t : public prb_dims_t {
             this->dt.assign(2, val);
         }
         if (tag.size() == 1) { this->tag.push_back(tag::any); }
-
-        generate_oscales();
-    }
-    ~prb_t() {
-        if (scales) zfree(scales);
     }
 
     check_alg_t check_alg;
@@ -120,9 +114,6 @@ struct prb_t : public prb_dims_t {
 
     bool use_sc() const { return flags & USE_SCALE; }
     bool use_sh() const { return flags & USE_SHIFT; }
-
-    float *scales;
-    void generate_oscales();
 };
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
