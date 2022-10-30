@@ -23,6 +23,7 @@
 #include "cpu/x64/jit_avx512_core_amx_deconvolution.hpp"
 #include "cpu/x64/jit_avx512_core_x8s8s32x_1x1_deconvolution.hpp"
 #include "cpu/x64/jit_avx512_core_x8s8s32x_deconvolution.hpp"
+#include "cpu/x64/jit_brgemm_deconv.hpp"
 #include "cpu/x64/jit_uni_x8s8s32x_1x1_deconvolution.hpp"
 #include "cpu/x64/jit_uni_x8s8s32x_deconvolution.hpp"
 using namespace dnnl::impl::cpu::x64;
@@ -43,6 +44,7 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_DECONV_P({
         {{forward}, {
+            CPU_INSTANCE_AMX(brgemm_deconvolution_fwd_t<avx512_core_amx>)
             CPU_INSTANCE_AMX(jit_avx512_core_amx_deconvolution_fwd_t)
             CPU_INSTANCE_AVX512(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t)
             CPU_INSTANCE_AVX512(jit_avx512_core_x8s8s32x_deconvolution_fwd_t)
