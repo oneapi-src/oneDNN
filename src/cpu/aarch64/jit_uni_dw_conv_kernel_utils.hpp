@@ -179,27 +179,6 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
 
-    jcp.typesize_out = types::data_type_size(dst_d.data_type());
-    jcp.typesize_in = types::data_type_size(src_d.data_type());
-
-    jcp.loop_order = loop_ngcw;
-
-    jcp.ur_w = isa == sve_512 ? 6 : isa == sve_256 ? 4 : 3;
-    jcp.ur_w = nstl::min(jcp.ur_w, jcp.ow);
-
-    if (is_data_layout_nxc) {
-        jcp.loop_order = loop_nhwcg;
-        bool cache_aliasing
-                = (jcp.ngroups * jcp.iw * jcp.typesize_in) % 1024 == 0;
-        if (cache_aliasing) {
-            // currently only tuned for mobilenet-v1 shapes
-            const int limit = jcp.ow > 7 ? 7 : 4;
-            jcp.ur_w = nstl::min(jcp.ur_w, limit);
-        }
-    }
-
-    jcp.ur_w_tail = jcp.ow % jcp.ur_w;
-
     int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
     int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
     jcp.r_pad = calculate_end_padding(
@@ -210,6 +189,55 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
             || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad
             || ext_kh <= jcp.b_pad;
     if (kernel_outside_src) return status::unimplemented;
+
+    jcp.typesize_out = types::data_type_size(dst_d.data_type());
+    jcp.typesize_in = types::data_type_size(src_d.data_type());
+
+    jcp.loop_order = loop_ngcw;
+
+    jcp.ur_w = isa == sve_512 ? 6 : isa == sve_256 ? 4 : 3;
+    jcp.ur_w = nstl::min(jcp.ur_w, jcp.ow);
+
+    jcp.ch_block = simd_w;
+    jcp.nb_ch = jcp.oc / jcp.ch_block;
+    jcp.nb_ch_blocking = isa == sve_512 ? 4 : isa == sve_256 ? 3 : 2;
+    if (jcp.nb_ch < jcp.nb_ch_blocking) jcp.nb_ch_blocking = jcp.nb_ch;
+
+    if (is_data_layout_nxc) {
+        jcp.loop_order = loop_nhwcg;
+        bool cache_aliasing
+                = (jcp.ngroups * jcp.iw * jcp.typesize_in) % 1024 == 0;
+        if (cache_aliasing) {
+            // currently only tuned for mobilenet-v1 shapes
+            const int limit = jcp.ow > 7 ? 7 : 4;
+            jcp.ur_w = nstl::min(jcp.ur_w, limit);
+        }
+    } else {
+        const size_t max_ch_off
+                = static_cast<size_t>(jcp.nb_ch_blocking - 1) * jcp.ch_block;
+        constexpr size_t max_ex_off = 0;
+
+        // check that input offsets fit into s32
+        const size_t max_ic_off = max_ch_off * jcp.ih * jcp.iw;
+        const size_t max_iw_idx
+                = static_cast<size_t>(jcp.ur_w - 1) * jcp.stride_w
+                + (ext_kw - 1);
+        const size_t max_iw_off = max_iw_idx * jcp.ch_block;
+        const size_t max_input_offset
+                = (max_ic_off + max_iw_off + max_ex_off) * jcp.typesize_in;
+        if (max_input_offset > INT_MAX) return status::unimplemented;
+
+        // check that output offsets fit into s32
+        const size_t max_oc_off = max_ch_off * jcp.oh * jcp.ow;
+        const size_t max_ow_off
+                = static_cast<size_t>(jcp.ur_w - 1) * jcp.ch_block;
+        const size_t max_output_offset
+                = (max_oc_off + max_ow_off + max_ex_off) * jcp.typesize_out;
+        if (max_output_offset > INT_MAX) return status::unimplemented;
+    }
+
+    jcp.ur_w_tail = jcp.ow % jcp.ur_w;
+
     int r_pad_no_tail = nstl::max(0,
             calculate_end_padding(jcp.l_pad, jcp.ow - jcp.ur_w_tail, jcp.iw,
                     jcp.stride_w, ext_kw));
@@ -243,11 +271,6 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
             && jcp.oc <= dst_d.padded_dims()[1]
             && jcp.ngroups <= weights_d.padded_dims()[0];
     if (!args_ok) return status::unimplemented;
-
-    jcp.ch_block = simd_w;
-    jcp.nb_ch = jcp.oc / jcp.ch_block;
-    jcp.nb_ch_blocking = isa == sve_512 ? 4 : isa == sve_256 ? 3 : 2;
-    if (jcp.nb_ch < jcp.nb_ch_blocking) jcp.nb_ch_blocking = jcp.nb_ch;
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
 
