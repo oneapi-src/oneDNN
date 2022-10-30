@@ -69,6 +69,22 @@ bool is_amx(cpu_isa_t isa) {
     return is_superset(isa, avx512_core_amx);
 }
 
+bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
+        const memory_desc_wrapper &dst_d, bool enable_postops) {
+    using namespace injector;
+
+    const auto &post_ops = attr.post_ops_;
+
+    if (post_ops.len() > 0 && !enable_postops) return false;
+
+    return injector::post_ops_ok(post_ops_ok_args_t(jcp.isa,
+            {sum, eltwise, binary}, post_ops, &dst_d,
+            false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
+            false /*sum_requires_zp_zero*/,
+            {broadcasting_strategy_t::per_oc, broadcasting_strategy_t::scalar,
+                    broadcasting_strategy_t::no_broadcast}));
+}
+
 bool is_groups_ok(jit_brgemm_conv_conf_t &jcp) {
     // Enable grouped convs for the shapes not supported in direct convs
     // direct approach only supports int8/bf16 grouped conv
@@ -521,6 +537,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
             is_bf32);
     CHECK(brgemm_utils::brgemm_blocking(&brg));
     ur = brg.bd_block * (is_amx(isa) ? brg.bd_block2 : 1);
+    if (ur == 0) return status::invalid_arguments;
     ur_block = brg.bd_block;
     if (is_1x1 && is_amx(isa) && M > 0 && M_tail > 0) {
         brgemm_t brg_sp_tail;
@@ -1251,7 +1268,8 @@ brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
 status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &diff_dst_md,
         memory_desc_t &weights_md, memory_desc_t &diff_src_md,
-        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads,
+        bool enable_postops) {
     using namespace prop_kind;
 
     brg_blocking_t::L1 = platform::get_per_core_cache_size(1);
@@ -1381,8 +1399,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.acc_dsz = types::data_type_size(jcp.acc_dt);
     jcp.bia_dsz = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
 
-    const auto has_post_ops = attr.post_ops_.len() > 0;
-    if (has_post_ops) return status::unimplemented;
+    if (!post_ops_ok(jcp, attr, diff_src_d, enable_postops))
+        return status::unimplemented;
 
     jcp.simd_w = cpu_isa_traits<avx512_core>::vlen / jcp.src_dsz;
     jcp.amx_h = 16;
@@ -1392,6 +1410,14 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         if (bias_d.format_kind() == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
     }
+
+    const auto &p = attr.post_ops_;
+    jcp.with_sum = p.find(primitive_kind::sum) != -1;
+    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    jcp.with_eltwise = eltwise_ind != -1;
+
+    const int binary_ind = p.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
 
     jcp.src_zero_point
             = get_zp_type(attr, DNNL_ARG_DIFF_DST) != brgemm_broadcast_t::none;
@@ -1428,14 +1454,15 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &diff_dst_md,
         memory_desc_t &weights_md, memory_desc_t &diff_src_md,
-        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads,
+        bool enable_postops) {
 
     using namespace prop_kind;
 
     if (!mayiuse(isa)) return status::unimplemented;
 
     CHECK(init_jcp(jcp, isa, cd, diff_dst_md, weights_md, diff_src_md, bias_md,
-            attr, nthreads));
+            attr, nthreads, enable_postops));
 
     const memory_desc_wrapper diff_dst_d(&diff_dst_md);
     const memory_desc_wrapper weights_d(&weights_md);

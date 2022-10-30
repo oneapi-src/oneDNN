@@ -53,13 +53,20 @@ static bool impl_supports_datatype(data_type_t data_type) {
     }
 }
 
-template <cpu_isa_t isa>
-status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::init(engine_t *engine) {
+template <cpu_isa_t isa, bool enable_postops>
+status_t brgemm_convolution_bwd_strided_t<isa, enable_postops>::pd_t::init(
+        engine_t *engine) {
     using namespace data_type;
 
     const auto diff_src_type = diff_src_md(0)->data_type;
     const auto wei_type = weights_md(0)->data_type;
     const auto diff_dst_type = diff_dst_md(0)->data_type;
+
+    using skip_mask_t = primitive_attr_t::skip_mask_t;
+    auto skip_mask = enable_postops
+            ? (skip_mask_t::post_ops | skip_mask_t::sum_dt
+                    | skip_mask_t::zero_points_runtime)
+            : skip_mask_t::none;
 
     const bool ok = is_bwd_d()
             && set_default_alg_kind(alg_kind::convolution_direct)
@@ -74,7 +81,10 @@ status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::init(engine_t *engine) {
                             && one_of(bias_md_.data_type, f32, bf16))
                             || everyone_is(
                                     f32, diff_dst_type, bias_md_.data_type))
-            && attr()->has_default_values() && !has_zero_dim_memory();
+            && attr()->has_default_values(skip_mask, diff_src_type)
+            && IMPLICATION(enable_postops,
+                    attr()->post_ops_.check_sum_consistent_dt(diff_src_type))
+            && !has_zero_dim_memory();
 
     if (!ok) return status::unimplemented;
 
@@ -82,7 +92,7 @@ status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::init(engine_t *engine) {
 
     CHECK(brgemm_convolution_bwd_utils::init_conf(jcp_, isa, desc_,
             diff_dst_md_, weights_md_, diff_src_md_, bias_md_, attr_,
-            dnnl_get_max_threads()));
+            dnnl_get_max_threads(), enable_postops));
 
     const auto adj_M = nstl::max(jcp_.M, jcp_.M_tail);
 
@@ -213,8 +223,8 @@ status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::init(engine_t *engine) {
     return status::success;
 }
 
-template <cpu_isa_t isa>
-status_t brgemm_convolution_bwd_strided_t<isa>::add_brg_kernel(
+template <cpu_isa_t isa, bool enable_postops>
+status_t brgemm_convolution_bwd_strided_t<isa, enable_postops>::add_brg_kernel(
         int bs, int M, int i_N, int i_K, int i_init) {
     if (M <= 0) return status::success;
     const auto _pd = pd();
@@ -238,8 +248,9 @@ status_t brgemm_convolution_bwd_strided_t<isa>::add_brg_kernel(
     return status::success;
 }
 
-template <cpu_isa_t isa>
-status_t brgemm_convolution_bwd_strided_t<isa>::init(engine_t *engine) {
+template <cpu_isa_t isa, bool enable_postops>
+status_t brgemm_convolution_bwd_strided_t<isa, enable_postops>::init(
+        engine_t *engine) {
 
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
@@ -357,8 +368,8 @@ status_t brgemm_convolution_bwd_strided_t<isa>::init(engine_t *engine) {
     return status::success;
 }
 
-template <cpu_isa_t isa>
-status_t brgemm_convolution_bwd_strided_t<isa>::execute(
+template <cpu_isa_t isa, bool enable_postops>
+status_t brgemm_convolution_bwd_strided_t<isa, enable_postops>::execute(
         const exec_ctx_t &ctx) const {
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
@@ -481,8 +492,8 @@ status_t brgemm_convolution_bwd_strided_t<isa>::execute(
     return status::success;
 }
 
-template <cpu_isa_t isa>
-void brgemm_convolution_bwd_strided_t<isa>::call_brgemm_kernel(
+template <cpu_isa_t isa, bool enable_postops>
+void brgemm_convolution_bwd_strided_t<isa, enable_postops>::call_brgemm_kernel(
         brgemm_bwd_thread_ctx_t &btc, int brg_idx, int batch_size, char *ptr_C,
         char *ptr_D, const char *bias_w, int g_ic, bool do_postops,
         const void *binary_post_ops_rhs, int32_t src_zp_vals,
@@ -535,9 +546,9 @@ void brgemm_convolution_bwd_strided_t<isa>::call_brgemm_kernel(
                 static_cast<void *>(btc.wsp_tile));
 }
 
-template <cpu_isa_t isa>
-void brgemm_convolution_bwd_strided_t<isa>::maybe_trans_inp(int ithr,
-        const char *__restrict src, char *__restrict inp_buffer,
+template <cpu_isa_t isa, bool enable_postops>
+void brgemm_convolution_bwd_strided_t<isa, enable_postops>::maybe_trans_inp(
+        int ithr, const char *__restrict src, char *__restrict inp_buffer,
         uint8_t *__restrict inp_buffer_mask, int g, int n, int occ, int idb,
         int ihb, int iwb, int last_g, int last_n, int last_occ, int last_idb,
         int last_ihb, int last_iwb) const {
@@ -605,8 +616,8 @@ void brgemm_convolution_bwd_strided_t<isa>::maybe_trans_inp(int ithr,
     }
 }
 
-template <cpu_isa_t isa>
-void brgemm_convolution_bwd_strided_t<isa>::ker_trans(
+template <cpu_isa_t isa, bool enable_postops>
+void brgemm_convolution_bwd_strided_t<isa, enable_postops>::ker_trans(
         brgemm_bwd_thread_ctx_t &btc, char *inp_buffer) const {
 
     const auto _pd = pd();
@@ -795,6 +806,7 @@ void brgemm_convolution_bwd_strided_t<isa>::ker_trans(
 }
 
 template struct brgemm_convolution_bwd_strided_t<avx512_core_amx>;
+template struct brgemm_convolution_bwd_strided_t<avx512_core_amx, true>;
 
 } // namespace x64
 

@@ -42,7 +42,8 @@ bool is_amx(cpu_isa_t isa);
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads);
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads,
+        bool enable_postops);
 
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_conv_conf_t &jcp);
