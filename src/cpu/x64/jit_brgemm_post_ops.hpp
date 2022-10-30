@@ -371,8 +371,10 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
                     bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
                     bf16_emu_scratch, bf16_emu_reserv_4, bf16_emu_reserv_4);
 
-        const auto &oscales = attr.output_scales_;
-        is_oc_scale_ = oscales.mask_ == 1 << 1;
+        const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+        // per_oc: conv: 1 << 0, 1 << 1 (with groups)
+        // per_oc: ip: 1 << 0
+        is_oc_scale_ = utils::one_of(wei_scales.mask_, 1 << 0, 1 << 1);
 
         LDD_ = brg.LDD;
         inp_dt_ = brg.dt_c;
@@ -475,16 +477,16 @@ private:
 
         return 0;
     }
-    int zp_comp_a_vpad_offset(int n, int m, bool is_tail = false) const
-            noexcept {
+    int zp_comp_a_vpad_offset(
+            int n, int m, bool is_tail = false) const noexcept {
         return (is_tail) ? sizeof(int32_t) * (brg.ldb_tail + m * brg.LDB)
                          : sizeof(int32_t) * (n * brg.ld_block + m * brg.LDB);
     }
     int mb_zp_comp_a_offset(int m_block) const noexcept {
         return sizeof(int32_t) * m_block * brg.LDB;
     }
-    int compensation_vpad_offset(int n, int m, bool is_tail = false) const
-            noexcept {
+    int compensation_vpad_offset(
+            int n, int m, bool is_tail = false) const noexcept {
         return (is_tail) ? sizeof(int32_t) * (brg.ldb_tail + m * brg.LDB)
                          : sizeof(int32_t) * (n * brg.ld_block + m * brg.LDB);
     }

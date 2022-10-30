@@ -309,9 +309,11 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     const auto eltwise_ind = post_ops.find(primitive_kind::eltwise);
     brg->with_eltwise = eltwise_ind != -1;
 
-    brg->with_scales = !attr->output_scales_.has_default_values();
+    const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr->scales_.get(DNNL_ARG_WEIGHTS);
+    brg->with_scales = !src_scales.has_default_values()
+            || !wei_scales.has_default_values();
     if (brg->with_scales) {
-        const auto &oscales = brg->attr->output_scales_;
         // Note. the current version supports only two different output scale
         // types:
         //     1) common (mask_ = 0)
@@ -320,11 +322,15 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         //        to "per_oc" mask_ = 1 << 1; for matmul - to
         //        mask_ = (1 << (ndims - 1))), where ndims is number of
         //        dimensions for original matmul problem
-        // So if oscales.mask_ != 0 (not common) it's assumed here that scale
+        // So if wei_scales.mask_ != 0 (not common) it's assumed here that scale
         // type is per_n_dim_scale and driver which calls brgemm kernel checked
         // that mask has correct value for this case
-        brg->is_oc_scale = oscales.mask_ != 0;
+        brg->is_oc_scale = wei_scales.mask_ != 0;
     }
+    const bool scales_ok = src_scales.mask_ == 0
+            && attr->scales_.has_default_values(
+                    {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS});
+    if (!scales_ok) return status::unimplemented;
 
     auto init_zp_type
             = [&](brgemm_broadcast_t &zp_type, int mem_arg) -> status_t {

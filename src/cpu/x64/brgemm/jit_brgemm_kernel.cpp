@@ -1106,26 +1106,13 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
     const bool dq2ps_required = brg.is_int8
             && IMPLICATION(alpha_or_beta_applicable, beta_uses_vadd);
 
-    if (brg.with_bias) { mov(reg_aux_bias, ptr[rsp + reg_aux_bias_offs_]); }
-    for_(int bd = 0; bd < bd_block; bd++)
-    for (int ld = 0; ld < ld_block2; ld++) {
-        auto vmm = accm(ld_block2, bd, ld);
-        if (dq2ps_required) uni_vcvtdq2ps(vmm, vmm);
-        if (brg.with_bias) {
-            auto vmm_bias = vmm_tmp_1();
-            auto ptr_bias = ptr[reg_aux_bias + bias_offset(ld)];
-            cvt2ps(brg.dt_bias, vmm_bias, ptr_bias, true, false, k_mask,
-                    ld_size);
-            uni_vaddps(vmm, vmm, vmm_bias);
-        }
-    }
-
     if (brg.with_scales) {
         mov(reg_aux_scales, ptr[rsp + reg_aux_scales_offs_]);
         for (int bd = 0; bd < bd_block; bd++) {
             for (int ld = 0; ld < ld_block2; ld++) {
                 const auto addr = ptr[reg_aux_scales + scales_offset(ld)];
                 auto vmm = accm(ld_block2, bd, ld);
+                if (dq2ps_required) uni_vcvtdq2ps(vmm, vmm);
                 if (is_superset(brg.isa_impl, avx512_core)) {
                     const Vmm vmm_masked = vmm_mask(vmm, true, false, k_mask);
                     uni_vmulps(vmm_masked, vmm, addr);
@@ -1135,6 +1122,20 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
                     uni_vmulps(vmm, vmm, vmm_scales);
                 }
             }
+        }
+    }
+
+    if (brg.with_bias) { mov(reg_aux_bias, ptr[rsp + reg_aux_bias_offs_]); }
+    for_(int bd = 0; bd < bd_block; bd++)
+    for (int ld = 0; ld < ld_block2; ld++) {
+        auto vmm = accm(ld_block2, bd, ld);
+        if (dq2ps_required && !brg.with_scales) uni_vcvtdq2ps(vmm, vmm);
+        if (brg.with_bias) {
+            auto vmm_bias = vmm_tmp_1();
+            auto ptr_bias = ptr[reg_aux_bias + bias_offset(ld)];
+            cvt2ps(brg.dt_bias, vmm_bias, ptr_bias, true, false, k_mask,
+                    ld_size);
+            uni_vaddps(vmm, vmm, vmm_bias);
         }
     }
 

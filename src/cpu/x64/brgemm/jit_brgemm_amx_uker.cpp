@@ -857,6 +857,15 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers(
     if (!bi.apply_postops) return;
     dim_iteration_t &ldi = bi.ldi;
     auto k_mask = (!ldi.is_tail) ? ld_full_mask : ld_tail_mask;
+    if (brg.with_scales) {
+        mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
+        for (int ldb = 0; ldb < ldi.block2; ldb++) {
+            auto scales_ptr = EVEX_compress_addr(
+                    reg_scales, scales_offset(ldi.pos + ldb));
+            vmovups(zmm_scales(ldb) | k_mask | T_z, scales_ptr);
+        }
+    }
+
     if (brg.with_bias) {
         mov(reg_bias, ptr[param1 + GET_OFF(ptr_bias)]);
 
@@ -867,14 +876,6 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers(
         }
     }
 
-    if (brg.with_scales) {
-        mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
-        for (int ldb = 0; ldb < ldi.block2; ldb++) {
-            auto scales_ptr = EVEX_compress_addr(
-                    reg_scales, scales_offset(ldi.pos + ldb));
-            vmovups(zmm_scales(ldb) | k_mask | T_z, scales_ptr);
-        }
-    }
 }
 
 void jit_brgemm_amx_uker_base_t::uni_prefetch(
@@ -1094,16 +1095,6 @@ void jit_brgemm_amx_uker_base_t::process_output_range(brgemm_iteration_t &bi,
 
     if (!bi.apply_postops || !some_bd_mask) return;
 
-    if (brg.with_bias) {
-        for (int bd = bd_start; bd < bd_finish; bd++) {
-            const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
-            if (bd_out_bd == -1) continue;
-
-            auto zmm = accm(bd);
-            vaddps(zmm, zmm, zmm_bias(ldb));
-        }
-    }
-
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
         for (int bd = bd_start; bd < bd_finish; bd++) {
             const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
@@ -1140,6 +1131,16 @@ void jit_brgemm_amx_uker_base_t::process_output_range(brgemm_iteration_t &bi,
             auto zmm = accm(bd);
             const Xbyak::Zmm scaled_zmm = zmm_mask(zmm, true, false, k_mask);
             vmulps(scaled_zmm, scaled_zmm, zmm_scales(ldb));
+        }
+    }
+
+    if (brg.with_bias) {
+        for (int bd = bd_start; bd < bd_finish; bd++) {
+            const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
+            if (bd_out_bd == -1) continue;
+
+            auto zmm = accm(bd);
+            vaddps(zmm, zmm, zmm_bias(ldb));
         }
     }
 

@@ -338,6 +338,11 @@ struct brgemm_kernel_params_t {
     const void *ptr_bias;
     void *ptr_D;
 
+    /* kernel takes single pointer scales, but configuration relies on a
+     * combination of arg scales. This helps to reuse attributes from
+     * primitives, but requires them to pre-compute
+     * scales = src_scale * wei_scale[:]
+     */
     const void *ptr_scales;
     void *ptr_buf;
 
