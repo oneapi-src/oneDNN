@@ -303,12 +303,12 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     jbgp.with_binary = binary_ind != -1;
     if (!post_ops_ok(jbgp, attr, dst_d)) return status::unimplemented;
     if (jbgp.with_scales) {
-        const auto &oscales = attr.output_scales_;
-        jbgp.is_oc_scale = oscales.mask_ == 1 << 1;
+        const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+        jbgp.is_oc_scale = wei_scales.mask_ == 1 << 0;
 
         // only common and per-oc-channel scales are supported
-        const bool oscales_ok = one_of(oscales.mask_, 0, 1 << 1);
-        if (!oscales_ok) return status::unimplemented;
+        const bool wei_scales_ok = one_of(wei_scales.mask_, 0, 1 << 0);
+        if (!wei_scales_ok) return status::unimplemented;
     }
     const int min_ic_divisor = is_amx_int8 ? 4 : is_amx_xf16 ? 2 : 1;
 

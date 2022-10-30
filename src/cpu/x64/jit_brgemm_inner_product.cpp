@@ -20,6 +20,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/scale_utils.hpp"
 
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
@@ -73,9 +74,14 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    DEFINE_SCALES_BUFFER(oscales);
-
     const auto &jbgp = pd()->jbgp_;
+
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+
+    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
+            src_scales, wei_scales, jbgp.oc, pd()->attr());
+
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 
     const size_t src_dt_size = types::data_type_size(jbgp.src_dt);

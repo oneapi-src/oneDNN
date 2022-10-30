@@ -60,7 +60,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             auto skip_mask = skip_mask_t::post_ops;
-            if (is_int8) skip_mask |= skip_mask_t::oscale;
+            if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
 
             bool ok = is_fwd() && mayiuse(isa)
                     && expect_data_types(src_dt, wei_dt, data_type::undef,
@@ -71,7 +71,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                             one_of(bias_md_.data_type, f32, src_dt))
                     && attr()->has_default_values(skip_mask, dst_dt)
                     && attr()->post_ops_.check_sum_consistent_dt(dst_dt)
-                    && !has_zero_dim_memory();
+                    && !has_zero_dim_memory() && arg_scales_ok();
             if (!ok) return status::unimplemented;
 
             CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),
@@ -135,8 +135,25 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
 
             auto scratchpad = scratchpad_registry().registrar();
             brgemm_inner_product_utils::init_scratchpad(scratchpad, jbgp_);
+            if (jbgp_.with_scales)
+                book_precomputed_scales(
+                        scratchpad, attr()->scales_, jbgp_.ngroups * jbgp_.oc);
 
             return status::success;
+        }
+
+        bool arg_scales_ok() const {
+            std::vector<int> supported_args = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS};
+            bool ok = true;
+            ok = ok && attr()->scales_.has_default_values(supported_args);
+            for (int arg : supported_args) {
+                const auto &mask = attr()->scales_.get(arg).mask_;
+                if (arg == DNNL_ARG_WEIGHTS)
+                    ok = ok && (mask == 0 || mask == (1 << 0));
+                else
+                    ok = ok && (mask == 0);
+            }
+            return ok;
         }
 
         int get_brg_kernel_idx(bool is_bs_tail, bool do_initialization,
