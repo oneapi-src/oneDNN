@@ -885,6 +885,7 @@ struct jit_brgemm_conv_conf_t {
     dim_t comp_a_buffer_size;
     dim_t s8s8_comp_buffer_size;
 
+    bool with_scales;
     int is_ic_scale, is_oc_scale;
 
     int LDA, LDB, LDC, LDD;

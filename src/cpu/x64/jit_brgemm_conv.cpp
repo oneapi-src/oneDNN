@@ -19,8 +19,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "cpu/cpu_primitive.hpp"
-#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
+#include "cpu/scale_utils.hpp"
 
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/jit_brgemm_conv.hpp"
 
 namespace dnnl {
@@ -55,7 +56,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     using skip_mask_t = primitive_attr_t::skip_mask_t;
     auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt
             | skip_mask_t::zero_points_runtime;
-    if (is_int8) skip_mask |= skip_mask_t::oscale_runtime;
+    if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
             && IMPLICATION(is_int8,
@@ -65,7 +66,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                     one_of(bias_md_.data_type, data_type::undef, f32, src_type))
             && attr()->has_default_values(skip_mask, dst_type)
             && attr()->post_ops_.check_sum_consistent_dt(dst_type)
-            && !has_zero_dim_memory() && zero_points_ok();
+            && !has_zero_dim_memory() && zero_points_ok() && arg_scales_ok();
     if (!ok) return status::unimplemented;
     const auto is_amx = brgemm_convolution_utils::is_amx(isa);
 
@@ -302,6 +303,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     brgemm_convolution_utils::set_amx_wsp_per_thread(jcp_);
     auto scratchpad = scratchpad_registry().registrar();
     brgemm_convolution_utils::init_scratchpad(scratchpad, jcp_);
+    if (jcp_.with_scales)
+        book_precomputed_scales(
+                scratchpad, attr()->scales_, jcp_.ngroups * jcp_.oc);
 
     return status::success;
 }
@@ -870,7 +874,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+
+    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
+            src_scales, wei_scales, jcp.ngroups * jcp.oc, _pd->attr());
 
     brgemm_exec_ctx_t brgemm_ctx(ctx, _pd);
 

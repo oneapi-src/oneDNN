@@ -63,6 +63,19 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
         jit_brgemm_conv_conf_t jcp_;
 
     protected:
+        bool arg_scales_ok() const {
+            std::vector<int> supported_args = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS};
+            bool ok = true;
+            ok = ok && attr()->scales_.has_default_values(supported_args);
+            for (int arg : supported_args) {
+                const auto &mask = attr()->scales_.get(arg).mask_;
+                if (arg == DNNL_ARG_WEIGHTS)
+                    ok = ok && (mask == 0 || mask == (1 << (with_groups())));
+                else
+                    ok = ok && (mask == 0);
+            }
+            return ok;
+        }
         bool zero_points_ok() const {
             // Only common zero points are supported -> mask should only be 0
             int mask_src = 0, mask_dst = 0;

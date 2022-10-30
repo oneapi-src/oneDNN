@@ -21,6 +21,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/scale_utils.hpp"
 
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
@@ -54,7 +55,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     using skip_mask_t = primitive_attr_t::skip_mask_t;
     auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt
             | skip_mask_t::zero_points_runtime;
-    if (one_of(src_type, u8, s8)) skip_mask |= skip_mask_t::oscale_runtime;
+    if (one_of(src_type, u8, s8)) skip_mask |= skip_mask_t::scales_runtime;
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
             && expect_data_types(src_type, wei_type, data_type::undef, dst_type,
@@ -66,7 +67,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                     one_of(bias_md_.data_type, data_type::undef, f32, src_type))
             && attr()->has_default_values(skip_mask, dst_type)
             && attr()->post_ops_.check_sum_consistent_dt(dst_type)
-            && !has_zero_dim_memory() && zero_points_ok();
+            && !has_zero_dim_memory() && zero_points_ok() && arg_scales_ok();
     if (!ok) return status::unimplemented;
 
     CHECK(brgemm_convolution_utils::init_1x1_conf(jcp_, isa, *desc(), src_md_,
@@ -145,6 +146,9 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     brgemm_convolution_utils::set_amx_wsp_per_thread(jcp_);
     auto scratchpad = scratchpad_registry().registrar();
     brgemm_convolution_utils::init_scratchpad(scratchpad, jcp_);
+    if (jcp_.with_scales)
+        book_precomputed_scales(
+                scratchpad, attr()->scales_, jcp_.ngroups * jcp_.oc);
 
     return status::success;
 }
@@ -467,7 +471,11 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
     const bool is_amx = brgemm_convolution_utils::is_amx(isa);
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+
+    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
+            src_scales, wei_scales, jcp.ngroups * jcp.oc, pd()->attr());
 
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
