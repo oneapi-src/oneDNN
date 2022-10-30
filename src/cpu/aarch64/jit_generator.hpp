@@ -176,19 +176,8 @@ public:
 
     void postamble() {
         using namespace Xbyak_aarch64::util;
-        uint64_t sveLen = get_sve_length();
 
         mov(x9, sp);
-
-        if (sveLen) /* SVE is available. */
-            eor(P_ALL_ONE.b, P_ALL_ONE / Xbyak_aarch64::T_z, P_ALL_ONE.b,
-                    P_ALL_ONE.b);
-        if (sveLen >= SVE_256)
-            eor(P_NOT_128.b, P_NOT_128 / Xbyak_aarch64::T_z, P_NOT_128.b,
-                    P_NOT_128.b);
-        if (sveLen >= SVE_512)
-            eor(P_NOT_256.b, P_NOT_256 / Xbyak_aarch64::T_z, P_NOT_256.b,
-                    P_NOT_256.b);
 
         if (vreg_to_preserve) {
             ld4((v8.d - v11.d)[0], post_ptr(x9, vreg_len_preserve * 4));
