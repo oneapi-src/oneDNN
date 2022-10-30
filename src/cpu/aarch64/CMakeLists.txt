@@ -22,6 +22,7 @@ file(GLOB_RECURSE SOURCES
 
 file(GLOB XBYAK_AARCH64_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/xbyak_aarch64/src/xbyak_aarch64_impl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/xbyak_aarch64/src/util_impl.cpp
     )
 
 list(REMOVE_ITEM SOURCES ${XBYAK_AARCH64_FILES})
