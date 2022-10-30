@@ -485,7 +485,7 @@ uint32_t CodeGenerator::CondBrImmEnc(uint32_t cond, int64_t labelOffset) {
 }
 
 void CodeGenerator::CondBrImm(Cond cond, const Label &label) {
-  auto encFunc = [=](int64_t labelOffset) { return CondBrImmEnc(cond, labelOffset); };
+  auto encFunc = [&, cond](int64_t labelOffset) { return CondBrImmEnc(cond, labelOffset); };
   JmpLabel jmpL = JmpLabel(encFunc, size_);
   uint32_t code = CondBrImmEnc(cond, genLabelOffset(label, jmpL));
   dd(code);
@@ -617,7 +617,7 @@ uint32_t CodeGenerator::UncondBrImmEnc(uint32_t op, int64_t labelOffset) {
 }
 
 void CodeGenerator::UncondBrImm(uint32_t op, const Label &label) {
-  auto encFunc = [=](int64_t labelOffset) { return UncondBrImmEnc(op, labelOffset); };
+  auto encFunc = [&, op](int64_t labelOffset) { return UncondBrImmEnc(op, labelOffset); };
   JmpLabel jmpL = JmpLabel(encFunc, size_);
   uint32_t code = UncondBrImmEnc(op, genLabelOffset(label, jmpL));
   dd(code);
@@ -638,7 +638,7 @@ uint32_t CodeGenerator::CompareBrEnc(uint32_t op, const RReg &rt, int64_t labelO
 }
 
 void CodeGenerator::CompareBr(uint32_t op, const RReg &rt, const Label &label) {
-  auto encFunc = [=](int64_t labelOffset) { return CompareBrEnc(op, rt, labelOffset); };
+  auto encFunc = [=, &op](int64_t labelOffset) { return CompareBrEnc(op, rt, labelOffset); };
   JmpLabel jmpL = JmpLabel(encFunc, size_);
   uint32_t code = CompareBrEnc(op, rt, genLabelOffset(label, jmpL));
   dd(code);
@@ -665,7 +665,7 @@ uint32_t CodeGenerator::TestBrEnc(uint32_t op, const RReg &rt, uint32_t imm, int
 }
 
 void CodeGenerator::TestBr(uint32_t op, const RReg &rt, uint32_t imm, const Label &label) {
-  auto encFunc = [=](int64_t labelOffset) { return TestBrEnc(op, rt, imm, labelOffset); };
+  auto encFunc = [&, op, rt, imm](int64_t labelOffset) { return TestBrEnc(op, rt, imm, labelOffset); };
   JmpLabel jmpL = JmpLabel(encFunc, size_);
   uint32_t code = TestBrEnc(op, rt, imm, genLabelOffset(label, jmpL));
   dd(code);
