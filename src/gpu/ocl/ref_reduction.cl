@@ -107,12 +107,12 @@
 
 __kernel void ref_reduce(
         __global SRC_DATA_T *src, __global DST_DATA_T *dst POST_OP_ARGS) {
-    const int d0 = GWS_GET_D0();
-    const int d1 = GWS_GET_D1();
-    const int d2 = GWS_GET_D2();
-    const int d3 = GWS_GET_D3();
-    const int d4 = GWS_GET_D4();
-    const int d5 = GWS_GET_D5();
+    int d0 = GWS_GET_D0();
+    int d1 = GWS_GET_D1();
+    int d2 = GWS_GET_D2();
+    int d3 = GWS_GET_D3();
+    int d4 = GWS_GET_D4();
+    int d5 = GWS_GET_D5();
 
     DEF_ACC_DATA_T acc = INIT_ACC;
     for_(int d0_off = 0; d0_off < REDUCTION_D0; d0_off++)
@@ -137,8 +137,32 @@ __kernel void ref_reduce(
 #if WITH_SUM
     dst_val = DST_TO_REF(dst[dst_off]);
 #endif
+#if NDIMS == 4
+#if REDUCTION_D1 != 1
+    d1 = 0;
+    d2 = d4;
+    d3 = d5;
+#elif REDUCTION_D4 != 1
+    d2 = 0;
+    d3 = d5;
+#elif REDUCTION_D5 != 1
+    d2 = d4;
+    d3 = 0;
+#endif
+    APPLY_POST_OPS_SERIAL(
+            res, float, dst_val, float, d0, 1, d1, 1, d2, 1, d3, 1, 0, 1, 0, 1);
+#elif NDIMS == 5
+#if REDUCTION_D1 != 1
+    d1 = 0;
+#elif REDUCTION_D5 != 1
+    d5 = 0;
+#endif
+    APPLY_POST_OPS_SERIAL(res, float, dst_val, float, d0, 1, d1, 1, d3, 1, d4,
+            1, d5, 1, 0, 1);
+#else
     APPLY_POST_OPS_SERIAL(res, float, dst_val, float, d0, 1, d1, 1, d2, 1, d3,
             1, d4, 1, d5, 1);
+#endif
 
     if (dst_off_pd != dst_off) res = 0.f;
     dst[dst_off_pd] = TO_DST(res);
