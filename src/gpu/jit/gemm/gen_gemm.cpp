@@ -141,6 +141,8 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     if (nocopy_info()->fusedEUs() && (lws[0] > 1))
         gws[0] = utils::rnd_up(gws[0], 2);
 
+    lws[2] = nstl::min(lws[2], gws[2]);
+
     int last_non_1 = 2;
     for (; last_non_1 >= 0 && (gws[last_non_1] == 1 || lws[last_non_1] == 1);
             last_non_1--)
