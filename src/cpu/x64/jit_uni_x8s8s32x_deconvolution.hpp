@@ -80,6 +80,7 @@ private:
     const reg64_t reg_bias_ = rdx;
     const reg64_t reg_icb_ = reg_bias_;
     const reg64_t reg_ptr_scales_ = rax;
+    const reg64_t reg_ptr_dst_scales_ = abi_not_param1;
     const reg64_t reg_ptr_saturation_ubound_ = rax;
     const reg64_t reg_oc_blocks_ = rsi;
 
@@ -93,7 +94,6 @@ private:
     const reg64_t reg_scratch_ = r14;
     const reg64_t reg_ptr_sum_scale_ = r11;
     const reg64_t reg_ptr_sum_zp_ = r15;
-    const reg64_t reg_bias_alpha_ = abi_not_param1;
     const reg64_t reg_overflow_ = rax;
     const reg64_t reg_comp_strides_ = reg_overflow_;
     const reg64_t reg_ker_long_offt_ = r15;
@@ -111,6 +111,7 @@ private:
     const Vmm vmm_saturation_ = vmm_zero_;
     const Vmm vmm_wei_ = vmm_zero_;
     const Vmm vmm_scale_ = vmm_zero_;
+    const Vmm vmm_dst_scale_ = vmm_zero_;
     /* signed input */
     const Vmm vmm_shift_ = Vmm(1);
     const Vmm vmm_comp_ = Vmm(1);
@@ -120,8 +121,6 @@ private:
 
     Vmm vmm_out(int i_ur, int i_oc) const;
     Vmm vmm_inp(int i_ic, int nb_x_blocking) const;
-    Vmm vmm_bias_alpha() const;
-    Xmm xmm_bias_alpha() const;
 
     int get_ow_start(int ki, int l_overflow) const noexcept;
     int get_ow_end(int ur_w, int ki, int r_overflow) const noexcept;
@@ -135,8 +134,8 @@ private:
     void compute_ker(int ur_w, int l_overflow, int r_overflow,
             ker_block_t last_ic_block_flag, bool h_padded = false);
     void compute(const Vmm vreg_acc, const Vmm vreg_wei, const Vmm vreg_src);
-    std::function<Vmm()> prepare_round_robin_vmm_inp_generator(int ur_w) const
-            noexcept;
+    std::function<Vmm()> prepare_round_robin_vmm_inp_generator(
+            int ur_w) const noexcept;
     void apply_zp_src_pad_str_comp(
             int ur_w, int l_overflow, int r_overflow, bool h_padded);
     void append_zp_src_pad_str_comp(int ur_w, int l_overflow, int r_overflow,
@@ -206,7 +205,7 @@ private:
     status_t execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     const float *adjust_oscales(const memory_tracking::grantor_t &scratchpad,
-            const float *oscales) const;
+            const float *src_scales, const float *wei_scales) const;
     std::unique_ptr<jit_uni_x8s8s32x_deconv_fwd_kernel<isa>> kernel_;
     std::unique_ptr<zp::jit_uni_deconv_zp_pad_str_kernel_base_t>
             zp_src_pad_comp_kernel_;

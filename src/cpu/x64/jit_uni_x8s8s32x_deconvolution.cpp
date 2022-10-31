@@ -250,14 +250,19 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
     const int sum_ind = p.find(primitive_kind::sum);
     jcp.with_sum = sum_ind != -1;
 
-    const auto &oscales = attr.output_scales_;
-    jcp.is_oc_scale = oscales.mask_ == 1 << 1;
+    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+    const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
+    const int wei_scales_per_oc = 1 << with_groups;
+    jcp.is_oc_scale = wei_scales.mask_ == wei_scales_per_oc;
+    jcp.dst_scale = !dst_scales.has_default_values();
 
     jcp.post_ops = p;
 
     // only common and per-oc-channel scales are supported
-    const bool oscales_ok = one_of(oscales.mask_, 0, 1 << 1);
-    if (!oscales_ok) return status::unimplemented;
+    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_scales_per_oc)
+            && utils::everyone_is(src_scales.mask_, dst_scales.mask_, 0);
+    if (!scales_ok) return status::unimplemented;
 
     jcp.dst_dt = dst_d.data_type();
     jcp.bia_dt = jcp.with_bias ? bias_d.data_type() : data_type::undef;
@@ -366,12 +371,10 @@ template <cpu_isa_t isa>
 void jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
-    if (jcp.signed_input && (!jcp.has_vnni)) {
-        const int mask = attr.output_scales_.mask_;
-        const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
-        dim_t count = nstl::max<dim_t>(scales_count, 8);
-        scratchpad.book<float>(key_conv_adjusted_scales, count);
-    }
+    const int mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+    dim_t count = nstl::max<dim_t>(scales_count, 8);
+    scratchpad.book<float>(key_conv_adjusted_scales, count);
 
     if (zp::should_calculate_deconv_zp_src_pad_str_comp(jcp)) {
         const auto zp_pad_comp_size
@@ -445,16 +448,6 @@ Vmm _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::vmm_inp(
 }
 
 template <cpu_isa_t isa, typename Vmm>
-Vmm _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::vmm_bias_alpha() const {
-    return Vmm(15 - jcp_.nb_oc_blocking * jcp_.ur_w);
-}
-
-template <cpu_isa_t isa, typename Vmm>
-Xmm _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::xmm_bias_alpha() const {
-    return Xmm(vmm_bias_alpha().getIdx());
-}
-
-template <cpu_isa_t isa, typename Vmm>
 int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_ow_start(
         int ki, int l_overflow) const noexcept {
     int res = (jcp_.ow - 1 + jcp_.r_pad) % jcp_.stride_w
@@ -478,14 +471,14 @@ int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_ow_end(
 }
 
 template <cpu_isa_t isa, typename Vmm>
-int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_blocking_size() const
-        noexcept {
+int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_blocking_size()
+        const noexcept {
     return jcp_.is_depthwise ? jcp_.ch_block : jcp_.oc_block;
 }
 
 template <cpu_isa_t isa, typename Vmm>
-int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_tail_size() const
-        noexcept {
+int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_tail_size()
+        const noexcept {
     return jcp_.is_depthwise ? jcp_.ngroups % jcp_.ch_block
                              : jcp_.oc_without_padding % jcp_.oc_block;
 }
@@ -1072,12 +1065,6 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
     const int32_t *p_sum_zp
             = (sum_idx != -1) ? &p.entry_[sum_idx].sum.zero_point : nullptr;
 
-    if (jcp_.with_bias && jcp_.signed_input && (!jcp_.has_vnni)) {
-        mov(reg_bias_alpha_, float2int(jcp_.wei_adj_scale));
-        uni_vmovq(xmm_bias_alpha(), reg_bias_alpha_);
-        uni_vbroadcastss(vmm_bias_alpha(), xmm_bias_alpha());
-    }
-
     if (jcp_.src_zero_point) {
         const auto &vmm_src_zp = vmm_tmp_;
         const auto &vmm_zp_comp = vmm_scale_;
@@ -1110,8 +1097,6 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
             int bias_offset = jcp_.typesize_bia * ocb * jcp_.oc_block;
             cvt2ps(jcp_.bia_dt, vmm_bias_, reg_bias_, bias_offset,
                     mask_flag ? get_tail_size() : get_blocking_size());
-            if (jcp_.signed_input && (!jcp_.has_vnni))
-                uni_vmulps(vmm_bias_, vmm_bias_, vmm_bias_alpha());
         }
         if (jcp_.signed_input) {
             const int comp_offset = sizeof(int32_t) * ocb * jcp_.oc_block;
@@ -1130,8 +1115,8 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
             const Vmm vmm = vmm_out(ur, ocb);
             uni_vcvtdq2ps(vmm, vmm);
             if (jcp_.signed_input) uni_vaddps(vmm, vmm, vmm_comp_);
-            if (jcp_.with_bias) uni_vaddps(vmm, vmm, vmm_bias_);
             uni_vmulps(vmm, vmm, vmm_scale_);
+            if (jcp_.with_bias) uni_vaddps(vmm, vmm, vmm_bias_);
         }
     }
 
@@ -1142,6 +1127,16 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::store_output(
     }
     if (jcp_.with_eltwise || jcp_.with_binary || jcp_.with_sum)
         apply_postops(ur_w, last_oc_block, p_sum_scale, p_sum_zp);
+    if (jcp_.dst_scale) {
+        mov(reg_ptr_dst_scales_, ptr[param1_ + GET_OFF(dst_scale)]);
+        uni_vmovups(vmm_dst_scale_, ptr[reg_ptr_dst_scales_]);
+
+        for_(int ocb = 0; ocb < jcp_.nb_oc_blocking; ocb++)
+        for (int ur = 0; ur < ur_w; ur++) {
+            const auto vmm = vmm_out(ur, ocb);
+            uni_vmulps(vmm, vmm, vmm_dst_scale_);
+        }
+    }
     if (jcp_.dst_zero_point) {
         mov(reg_zp_dst_, ptr[param1_ + GET_OFF(dst_zero_point)]);
         const auto &vmm_zp_dst = vmm_tmp_;
@@ -1390,7 +1385,7 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::pd_t::init(
                     utils::one_of(weights_md(1)->data_type, f32, s32, s8, u8))
             && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
             && desc()->accum_data_type == s32
-            && attr()->has_default_values(skip_mask_t::oscale_runtime
+            && attr()->has_default_values(skip_mask_t::scales_runtime
                     | skip_mask_t::post_ops | skip_mask_t::zero_points_runtime);
     if (!ok) return status::unimplemented;
 
@@ -1423,16 +1418,18 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::init(engine_t *engine) {
 
 template <cpu_isa_t isa>
 const float *jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::adjust_oscales(
-        const memory_tracking::grantor_t &scratchpad,
-        const float *oscales) const {
+        const memory_tracking::grantor_t &scratchpad, const float *src_scales,
+        const float *wei_scales) const {
     auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
-    const int mask = pd()->attr()->output_scales_.mask_;
-    const float factor = 1.f / pd()->jcp_.wei_adj_scale;
-    if (mask == 0) {
-        utils::array_set(loc_scales, oscales[0] * factor, 8);
+    int wei_mask = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    float factor = (pd()->jcp_.signed_input && (!pd()->jcp_.has_vnni))
+            ? 1.f / pd()->jcp_.wei_adj_scale
+            : 1.0f;
+    if (wei_mask == 0) {
+        utils::array_set(loc_scales, src_scales[0] * wei_scales[0] * factor, 8);
     } else {
         for (dim_t c = 0; c < pd()->OC(); c++)
-            loc_scales[c] = oscales[c] * factor;
+            loc_scales[c] = src_scales[0] * wei_scales[c] * factor;
     }
     return loc_scales;
 }
@@ -1485,10 +1482,12 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_1d(
     const int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     const int nb_groups = jcp.nb_ch;
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    if (jcp.signed_input && (!jcp.has_vnni))
-        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+    const float *oscales = adjust_oscales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales);
 
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
@@ -1529,6 +1528,7 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_1d(
                     : nullptr;
             p.compensation = (jcp.signed_input) ? compensation + g_oc : nullptr;
             p.scales = &oscales[jcp.is_oc_scale * g_oc];
+            p.dst_scale = dst_scales;
             p.t_overflow = 0;
             p.b_overflow = 0;
             p.kh_padding = jcp.kh;
@@ -1594,10 +1594,12 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_2d(
     const size_t dst_h_stride = dst_d.blk_off(0, 0, 1);
     const size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    if (jcp.signed_input && (!jcp.has_vnni))
-        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+    const float *oscales = adjust_oscales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales);
 
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
@@ -1700,6 +1702,7 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_2d(
                 p.b_overflow = kh_lo;
                 p.kh_padding = kh_len;
                 p.scales = scales;
+                p.dst_scale = dst_scales;
                 p.oc_blocks = jcp.is_depthwise ? g : ocb;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
@@ -1767,10 +1770,12 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_3d(
     const size_t wht_kd_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
     const size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 0, 1);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    if (jcp.signed_input && (!jcp.has_vnni))
-        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+    const float *oscales = adjust_oscales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales);
 
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
@@ -1925,6 +1930,7 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::execute_forward_3d(
                 p.kh_padding = kh_len;
                 p.kd_padding = kd_len;
                 p.scales = scales;
+                p.dst_scale = dst_scales;
                 p.oc_blocks = jcp.is_depthwise ? g : ocb;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();

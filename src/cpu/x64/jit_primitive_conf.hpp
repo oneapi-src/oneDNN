@@ -486,6 +486,7 @@ struct jit_deconv_call_s {
     const void *filt; /* hack, non-const for backward_weights */
     const void *bias; /* hack, non-const for backward_bias */
     const void *scales;
+    const void *dst_scale;
     const void *compensation;
     const int32_t *zp_src_pad_str_compensation;
     const int32_t *zp_compensation;
