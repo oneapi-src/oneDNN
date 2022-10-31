@@ -1655,6 +1655,7 @@ protected:
     void pause(const CommonStrategy &strategy);
 
     void duplicateScalar(SubregisterPair &val, CommonState &state);
+    void deduplicateScalar(SubregisterPair &val, CommonState &state);
     template <typename T>
     void duplicateScalar(Scalar<T> &val, CommonState &state);
     MultishiftSubregister multishift(const ngen::Subregister &reg,
@@ -1825,7 +1826,8 @@ protected:
 
     bool assignMasks(std::vector<RegisterBlock> &layout, LoopType rloop,
             LoopType cloop, std::vector<MaskAssignment> &assignments,
-            CommonState &state);
+            const CommonStrategy &strategy, CommonState &state,
+            bool retryVirtual = false);
     void loadMask(MaskAssignment assignment, ngen::Subregister index,
             const CommonStrategy &strategy, CommonState &state, int offset = 0);
     void loadMasks(const std::vector<MaskAssignment> &assignments,
