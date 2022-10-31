@@ -155,17 +155,16 @@ select_op_t::select_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     op_name_ = "select";
     assert(ins.size() == 3);
-    COMPILE_ASSERT(ins[2]->details_.get_plain_dims() == sc_dims {1},
-            "shape of else tensor should be 1 now");
+    COMPILE_ASSERT(ins[1]->details_.get_plain_dims() == sc_dims {1},
+            "shape of then tensor should be 1 for now");
     info_.inputs_ = ins;
+    int maxtensor_idx = get_max_input() < 0 ? 1 : get_max_input();
     if (outs.empty()) {
-        int maxtensor_idx = get_max_input() < 0 ? 1 : get_max_input();
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
                 this, ins[maxtensor_idx]->details_));
     } else {
         info_.outputs_ = outs;
     }
-    int maxtensor_idx = get_max_input() < 0 ? 1 : get_max_input();
     COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
                     == info_.inputs_[maxtensor_idx]->details_.get_plain_dims(),
             "output doesn't have the correct shape");
@@ -176,9 +175,9 @@ select_op_t::select_op_t(const std::vector<graph_tensor_ptr> &ins,
     // TODO(shihao): improve the logic of plain_bc_axis to better satisfy
     // ternary cases
     plain_bc_axis_ = attrs.get_or_else("bc_axis", std::vector<int> {});
-    if (plain_bc_axis_.empty()) { plain_bc_axis_ = infer_broadcast_axis(0, 1); }
+    if (plain_bc_axis_.empty()) { plain_bc_axis_ = infer_broadcast_axis(0, 2); }
 
-    inplace_ = attrs.get_or_else("inplace", 1);
+    inplace_ = attrs.get_or_else("inplace", 2);
     // TODO(shihao): improve the logic of legelize inplace to better satisfy
     // ternary cases
     if (inplace_ == 1 && maxtensor_idx != 1) {
@@ -281,32 +280,36 @@ void select_op_t::query_format(context_ptr ctx,
     auto in0_format = info_.inputs_[0]->details_.get_format();
     auto in1_format = info_.inputs_[1]->details_.get_format();
     auto in2_format = info_.inputs_[2]->details_.get_format();
+    COMPILE_ASSERT(info_.inputs_[1]->details_.get_plain_dims().size() == 1
+                    && in1_format == sc_data_format_t(format_kinds::A),
+            "The shape length and format of then lt shall confirm with the "
+            "shape constraint ({1}).");
 
-    int bc_input_idx = get_broadcast_input(0, 1);
+    int bc_input_idx = get_broadcast_input(0, 2);
 
     if (info_.inputs_[0]->details_.get_plain_dims().size()
-            != info_.inputs_[1]->details_.get_plain_dims().size()) {
+            != info_.inputs_[2]->details_.get_plain_dims().size()) {
         COMPILE_ASSERT(in0_format == sc_data_format_t(format_kinds::A)
-                        || in1_format == sc_data_format_t(format_kinds::A),
+                        || in2_format == sc_data_format_t(format_kinds::A),
                 "Unsupported format encountered in select query format.");
         in_formats.push_back({in0_format});
         in_formats.push_back({in1_format});
         in_formats.push_back({in2_format});
-        out_formats.push_back({!bc_input_idx ? in1_format : in0_format});
+        out_formats.push_back({!bc_input_idx ? in2_format : in0_format});
     } else {
         if (!bc_input_idx) {
             auto target_format = infer_broadcast_format(
-                    info_.inputs_[1]->details_, info_.inputs_[0]->details_);
+                    info_.inputs_[2]->details_, info_.inputs_[0]->details_);
             in_formats.push_back({target_format});
             in_formats.push_back({in1_format});
             in_formats.push_back({in2_format});
-            out_formats.push_back({in1_format});
+            out_formats.push_back({in2_format});
         } else {
             auto target_format = infer_broadcast_format(
-                    info_.inputs_[0]->details_, info_.inputs_[1]->details_);
+                    info_.inputs_[0]->details_, info_.inputs_[2]->details_);
             in_formats.push_back({in0_format});
+            in_formats.push_back({in1_format});
             in_formats.push_back({target_format});
-            in_formats.push_back({in2_format});
             out_formats.push_back({in0_format});
         }
     }
@@ -354,21 +357,23 @@ void select_op_t::infer_slice_ranges(
                     }
                 }
             } else {
-                COMPILE_ASSERT(known_idx[1 - maxtensor_idx] == 1,
-                        "input0 and input1 can't both be unknown");
-                COMPILE_ASSERT(maxtensor_idx != 2,
-                        "maxtensor_idx shouldn't be input2");
-                auto bc_axis = get_bc_axis(1 - maxtensor_idx, maxtensor_idx);
+                COMPILE_ASSERT(known_idx[0] || known_idx[2],
+                        "input0 and input2 can't both be unknown");
+                COMPILE_ASSERT(maxtensor_idx != 1,
+                        "maxtensor_idx shouldn't be input1");
+                // call get_bc_axis for input[0] && input[2]
+                auto bc_axis = get_bc_axis(2 - maxtensor_idx, maxtensor_idx);
                 slice_range_list bc_range_list = infer_broadcast_slice(
-                        known_ranges_map[1 - maxtensor_idx], bc_axis,
+                        known_ranges_map[2 - maxtensor_idx], bc_axis,
                         get_inputs()[maxtensor_idx]
                                 ->details_.get_blocking_dims());
                 known_ranges_map[maxtensor_idx] = bc_range_list;
-                bc_axis = get_bc_axis(1 - maxtensor_idx, 2);
+                // deal with input[1]
+                bc_axis = get_bc_axis(2 - maxtensor_idx, 1);
                 bc_range_list = infer_broadcast_slice(
-                        known_ranges_map[1 - maxtensor_idx], bc_axis,
-                        get_inputs()[2]->details_.get_blocking_dims());
-                known_ranges_map[2] = bc_range_list;
+                        known_ranges_map[2 - maxtensor_idx], bc_axis,
+                        get_inputs()[1]->details_.get_blocking_dims());
+                known_ranges_map[1] = bc_range_list;
             }
             // set the other unknown slice range by achieved
             // known_ranges_list
@@ -377,13 +382,15 @@ void select_op_t::infer_slice_ranges(
             outslice = known_ranges_map[maxtensor_idx];
             return;
         } else {
-            int known_tensor;
+            int known_tensor = -1;
             for (int i = 0; i < 3; i++) {
                 if (known_idx[i] == 1) {
                     known_tensor = i;
                     break;
                 }
             }
+            COMPILE_ASSERT(
+                    known_tensor >= 0, "At least one slice shall be known.");
             for (int i = 0; i < 3; i++) {
                 if (i != known_tensor) {
                     known_ranges_map[i] = known_ranges_map[known_tensor];
@@ -431,9 +438,8 @@ void compute_block_broadcast(const std::vector<const tensor_slice *> &src,
     // the indices for the output tensor
     std::vector<expr> dst_idx;
 
-    COMPILE_ASSERT(
-            maxtensor_idx == 0 || maxtensor_idx == 1 || maxtensor_idx == 2,
-            "bc_input_idx is expected to be 0 or 1 or 2")
+    COMPILE_ASSERT(maxtensor_idx >= 0 && maxtensor_idx != 1,
+            "maxtensor_idx is expected to be 0 or 2")
 
     std::vector<int> bc;
     for (int i = 0; i < 3; i++) {
@@ -696,7 +702,7 @@ void select_op_t::compute_block(context_ptr ctx,
                             ins[1], ins[2]));
             // Here we use "ins[0] >
             // make_expr<constant_node>(static_cast<uint64_t>(0),
-            // ins[0]->dtype_)" insead of "ins[0]", because _mm_cmp_epi8_mask
+            // ins[0]->dtype_)" instead of "ins[0]", because _mm_cmp_epi8_mask
             // intrinsic is the optimal instruction to cast bool tensor to
             // bitmap
         };
@@ -704,13 +710,16 @@ void select_op_t::compute_block(context_ptr ctx,
         for (int i = 0; i < 3; i++) {
             if (i != maxtensor_idx) { bc.emplace_back(i); }
         }
-        COMPILE_ASSERT(maxtensor_idx != 2, "maxtensor_idx can't be input2");
+        COMPILE_ASSERT(maxtensor_idx != 1, "maxtensor_idx can't be input1");
         std::vector<int> bc_axis_1 = get_bc_axis(maxtensor_idx, bc[0]);
         std::vector<int> bc_axis_2 = get_bc_axis(maxtensor_idx, bc[1]);
         // reuse broadcast op
         compute_block_broadcast(inputs, *dst[0], info_, maxtensor_idx,
                 bc_axis_1, bc_axis_2, vx_info_, mask_compute_func_t(func),
                 info_.outputs_[0]->details_.dtype_, wkld);
+    } else {
+        COMPILE_ASSERT(
+                0, "Select op does not support non-broadcast cases for now.");
     }
 }
 

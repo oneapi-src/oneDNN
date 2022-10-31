@@ -139,12 +139,12 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                     COMPILE_ASSERT(select_node->info_.inputs_.size() == 3,
                             "Wrong number of inputs for select_op");
                     const auto &cond = select_node->info_.inputs_[0]->details_;
-                    const auto &then = select_node->info_.inputs_[1]->details_;
+                    const auto &els = select_node->info_.inputs_[2]->details_;
                     sc_dims shape;
                     sc_data_format_t format;
                     if (cond.get_plain_dims().size()
-                            < then.get_plain_dims().size()) {
-                        infer_aligned_shape(then, cond,
+                            < els.get_plain_dims().size()) {
+                        infer_aligned_shape(els, cond,
                                 select_node->get_plain_bc_axis(), shape,
                                 format);
                         if (!shape.empty()) {
@@ -156,17 +156,17 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                             node->replace_input(0, ret->get_outputs()[0]);
                         }
                     } else if (cond.get_plain_dims().size()
-                            > then.get_plain_dims().size()) {
-                        infer_aligned_shape(cond, then,
+                            > els.get_plain_dims().size()) {
+                        infer_aligned_shape(cond, els,
                                 select_node->get_plain_bc_axis(), shape,
                                 format);
                         if (!shape.empty()) {
                             // insert tensor view
                             auto ret = graph.make("tensor_view",
-                                    {select_node->info_.inputs_[1]}, {},
+                                    {select_node->info_.inputs_[2]}, {},
                                     {{"shape", shape}, {"format", format},
                                             {"expand_dim", true}});
-                            node->replace_input(1, ret->get_outputs()[0]);
+                            node->replace_input(2, ret->get_outputs()[0]);
                         }
                     }
                 }
