@@ -666,6 +666,23 @@ enum reorder_kernel_t {
     xb_to_xab_xba
 };
 
+// Resampling
+struct resampling_conf_t {
+    dim_t ndims;
+    offsets_t off;
+    dim_t MB, C;
+    dim_t ID, IH, IW;
+    dim_t OD, OH, OW;
+    float FD, FH, FW;
+    dim_t vect_size;
+    dims_t padded_strides;
+    size_t lws[3], gws[3];
+    int sub_group_size;
+    dim_t padded_c;
+    attr_info_t attr_info;
+    compute::dispatch_t dispatch;
+};
+
 struct block_desc_t {
     int dim_idx;
     int blk_size;
