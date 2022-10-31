@@ -183,7 +183,7 @@ struct ip_convolution_fwd_t : public primitive_t {
             const bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && attr()->has_default_values(
-                            smask_t::oscale_runtime | smask_t::post_ops);
+                            smask_t::scales_runtime | smask_t::post_ops);
             if (!ok) return status::unimplemented;
 
             CHECK(check_conv_ip(this));
