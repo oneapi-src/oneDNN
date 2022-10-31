@@ -523,7 +523,7 @@ bool conv_bwd_data_core_op_t::use_managed_generator() {
     if (is_1x1) {
         // managed generator constraints for 1x1 case
         // ToDo(zhangyan): improve following constraints
-        if (num_threads % 7 != 0) { return false; }
+        if (num_threads != 56) { return false; }
         if (ndims_ != 4) { return false; }
         auto tmp_kernel
                 = utils::make_unique<gen_managed_conv1x1_backprop_data_t>(this,
@@ -534,13 +534,13 @@ bool conv_bwd_data_core_op_t::use_managed_generator() {
         int im_ic_block = tmp_kernel->im_ic_block_;
         int im_ow_block = tmp_kernel->im_ow_block_;
         int IC = weight_shape[1], OC = weight_shape[0],
-            OS = input_shape[2] * input_shape[3];
-        if (IC % im_ic_block || OC % im_oc_block || OS % im_ow_block) {
+            OS = input_shape[2] * input_shape[3], BS = input_shape[0];
+        if (BS != 512 || IC % im_ic_block || OC % im_oc_block
+                || OS % im_ow_block) {
             return false;
         }
         // we need to check whether we can fully utilize all threads
-        int possible_parallel_space
-                = (IC / im_ic_block) * (OC / im_oc_block) * (OS / im_ow_block);
+        int possible_parallel_space = BS * (OS / im_ow_block);
         if (possible_parallel_space < num_threads) { return false; }
         return true;
     }
