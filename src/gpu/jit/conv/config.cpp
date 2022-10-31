@@ -1002,8 +1002,9 @@ status_t init_vec_size(conv_config_t &cfg) {
     const auto &prb = cfg.prb();
     int vec_size = cfg.simd();
     if (cfg.fma_kind() == fma_kind_t::mad) {
+        int grf_elems = cfg.grf_size() / prb.acc_data_type_size;
         int vec_dim = (prb.is_fwd || prb.is_bwd_w) ? prb.oc : prb.ic;
-        if (vec_dim <= 8) vec_size = std::min(8, vec_size);
+        if (vec_size > grf_elems && vec_dim <= 8) vec_size = grf_elems;
     }
     cfg.set_vec_size(vec_size);
     return status::success;
