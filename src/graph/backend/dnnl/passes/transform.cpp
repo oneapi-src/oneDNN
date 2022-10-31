@@ -114,6 +114,54 @@ status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg) {
     return status::success;
 }
 
+status_t fuse_dst_scales(std::shared_ptr<subgraph_t> &sg) {
+    auto &mgr = sg->fusion_info_mgr_;
+    subgraph_rewriter_t rewriter(sg);
+
+    std::vector<std::pair<op_t *, op_t *>> fuse_groups;
+
+    std::set<op_t *> visited;
+    for (auto &cur_op : sg->get_ops()) {
+        if ((cur_op->get_kind() != op_kind::dnnl_softmax
+                    && cur_op->get_kind() != op_kind::dnnl_layernorm)
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        auto out_val = cur_op->get_output_values()[0];
+        auto consumers = out_val->get_consumers();
+        if (consumers.size() != 1) continue;
+
+        auto &next_op = consumers[0].get_op();
+        if (next_op.get_kind() != op_kind::dnnl_mul_scales) continue;
+
+        fuse_groups.emplace_back(
+                std::pair<op_t *, op_t *> {cur_op.get(), &next_op});
+        visited.insert(cur_op.get());
+        visited.insert(&next_op);
+    }
+
+    for (auto &fuse_group : fuse_groups) {
+        auto base_op = fuse_group.first;
+        auto scale_op = fuse_group.second;
+
+        int64_t key = -1;
+        if (base_op->has_attr(op_attr::fusion_info_key)
+                && base_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+            key = base_op->get_attr<int64_t>(op_attr::fusion_info_key);
+        } else {
+            key = mgr.init_info();
+            base_op->set_attr<int64_t>(op_attr::fusion_info_key, key);
+        }
+
+        fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+        fusion_info.set_dst_scales(scale_op->shared_from_this());
+        rewriter.fuse_op_to_predecessor(scale_op->shared_from_this());
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
 status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
     auto &mgr = sg->fusion_info_mgr_;
     subgraph_rewriter_t rewriter(sg);
@@ -122,9 +170,7 @@ status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
 
     std::set<op_t *> visited;
     for (auto &cur_op : sg->get_ops()) {
-        if ((!has_int8_support(cur_op->get_kind())
-                    && cur_op->get_kind() != op_kind::dnnl_softmax
-                    && cur_op->get_kind() != op_kind::dnnl_layernorm)
+        if ((!has_int8_support(cur_op->get_kind()))
                 || visited.count(cur_op.get()) != 0)
             continue;
 
@@ -300,8 +346,13 @@ status_t convert_to_runtime_scales(std::shared_ptr<subgraph_t> &sg) {
         visited.insert(cur_op.get());
         // make scales as a constant input
         op_ptr const_data_op;
-        const auto scales
-                = cur_op->get_attr<std::vector<float>>(op_attr::scales);
+        auto scales = cur_op->get_attr<std::vector<float>>(op_attr::scales);
+        // TODO(Xinyu): do not inv scales in qdata once oscales removed.
+        if (impl::utils::one_of(cur_op->get_input_op(0)->get_kind(),
+                    op_kind::dnnl_softmax, op_kind::dnnl_layernorm)) {
+            scales = dnnl_impl::utils::fmap(
+                    scales, [](float s) { return 1.f / s; });
+        }
         const_data_op = std::make_shared<op_t>(op_kind::dnnl_constant_scales);
         const_data_op->set_attr(op_attr::scales, scales);
         std::vector<int64_t> dst_shape(1, scales.size());

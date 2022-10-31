@@ -107,6 +107,10 @@ public:
         output_scales_ = std::make_shared<meta_op_t>(op);
     }
 
+    void set_dst_scales(const op_ptr &op) {
+        dst_scales_ = std::make_shared<meta_op_t>(op);
+    }
+
     // used to modify the fused output scales, like modifying it's axis after
     // inserting reshape op
     op_t *get_mutable_output_scales() {
@@ -193,6 +197,16 @@ public:
         return *pos;
     }
 
+    bool with_runtime_dst_scales() const {
+        if (!dst_scales_) return false;
+        const op_t *scale_op = const_cast<op_t *>(dst_scales_->get_op());
+        if (scale_op->has_attr(op_attr::with_runtime_scales)) {
+            return scale_op->get_attr<bool>(op_attr::with_runtime_scales);
+        } else {
+            return false;
+        }
+    }
+
     bool with_runtime_output_scales() const {
         if (!output_scales_) return false;
         const op_t *scale_op = const_cast<op_t *>(output_scales_->get_op());
@@ -226,6 +240,7 @@ public:
 
 private:
     std::shared_ptr<meta_op_t> output_scales_;
+    std::shared_ptr<meta_op_t> dst_scales_;
     std::unordered_map<size_t, std::shared_ptr<meta_op_t>> input_zps_;
     std::shared_ptr<meta_op_t> output_zps_;
     std::vector<std::shared_ptr<meta_op_t>> post_ops_;

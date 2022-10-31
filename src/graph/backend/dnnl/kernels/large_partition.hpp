@@ -125,6 +125,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_zero_points);
         // tricky here.
         BACKEND_DNNL_ADD_PASS(pipeline, insert_runtime_u8_to_s8_for_matmul);

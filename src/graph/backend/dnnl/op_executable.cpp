@@ -1748,6 +1748,11 @@ static arg_indices_t get_arg_indices_for_siso_op(
                 {DNNL_ARG_ATTR_OUTPUT_SCALES, indices_t {input, index++}});
     }
 
+    if (fusion_info.with_runtime_dst_scales()) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
+                indices_t {input, index++}});
+    }
+
     get_arg_indices_for_post_ops(op, mgr, arg_indices, index);
 
     // add output args
@@ -2004,9 +2009,9 @@ arg_indices_t layernorm_executable_t::get_arg_indices(
             ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
 
-    if (fusion_info.with_runtime_output_scales()) {
-        arg_indices.insert(
-                {DNNL_ARG_ATTR_OUTPUT_SCALES, indices_t {input, in_index++}});
+    if (fusion_info.with_runtime_dst_scales()) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
+                indices_t {input, in_index++}});
     }
 
     size_t out_index = 0;

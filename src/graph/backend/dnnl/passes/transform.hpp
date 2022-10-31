@@ -51,6 +51,8 @@ status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg);
 
 status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg);
 
+status_t fuse_dst_scales(std::shared_ptr<subgraph_t> &sg);
+
 status_t replace_quant_data_with_binary_post_op(
         std::shared_ptr<subgraph_t> &sg);
 

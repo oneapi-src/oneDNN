@@ -61,6 +61,21 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
         attr.set_output_scales_mask(mask);
     }
 
+    if (fusion_info.dst_scales_) {
+        const op_t *dst_scales_op = fusion_info.dst_scales_->get_op();
+        assertm(fusion_info.with_runtime_dst_scales(),
+                "only support runtime dst scales.\n");
+        int mask = 0;
+        if (dst_scales_op->has_attr(op_attr::axis)
+                && dst_scales_op->has_attr(op_attr::qtype)) {
+            int64_t axis = dst_scales_op->get_attr<int64_t>(op_attr::axis);
+            std::string qtype
+                    = dst_scales_op->get_attr<std::string>(op_attr::qtype);
+            mask = qtype == "per_tensor" ? 0 : 1 << axis;
+        }
+        attr.set_scales_mask(DNNL_ARG_DST, mask);
+    }
+
     // convert input zps
     if (!fusion_info.input_zps_.empty()) {
         for (const auto &in_zps : fusion_info.input_zps_) {
