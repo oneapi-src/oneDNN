@@ -14,6 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 #include "nested_parallel_flatten.hpp"
+#include <cstring>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -386,9 +388,6 @@ void work() {
         if (elem_dtype.lanes_ > 1) { return ir_visitor_t::visit(v); }
 
         addspace = tsr->address_space_;
-        COMPILE_ASSERT(!tsr->init_value_,
-                "Tensor defined in parallel should not have initial "
-                "values.");
         auto accu_idx = info_.back().num_groups_;
         offset_idx = info_.back().group_id_;
         for (auto it = info_.rbegin() + 1; it != info_.rend(); it++) {
@@ -397,9 +396,25 @@ void work() {
         }
         offset_idx = do_cast_and_fold(
                 builder::make_mul(offset_idx, tsr->dims_[0]));
+
+        std::shared_ptr<static_data_t> new_data_init(nullptr);
+        if (tsr->init_value_) {
+            auto size = tsr->init_value_->size_;
+            if (size == 0) {
+                new_data_init = tensor_node::get_zero_tensor_initializer();
+            } else {
+                std::shared_ptr<char> ddata(new char[size * num_of_copies]);
+                for (int i = 0; i < num_of_copies; i++) {
+                    memcpy(ddata.get() + i * size, tsr->init_value_->data_,
+                            size);
+                }
+                new_data_init = std::make_shared<static_data_t>(
+                        ddata.get(), size * num_of_copies);
+            }
+        }
         auto new_tsr
                 = builder::make_tensor(std::string("outof_parallel_") + *name,
-                        {shape}, elem_dtype, addspace, nullptr);
+                        {shape}, elem_dtype, addspace, new_data_init);
         auto new_def = builder::make_var_tensor_def_unattached(new_tsr);
 
         outof_parallel_map_.insert(

@@ -120,6 +120,9 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                      trans1 = ins->get_outputs()[1];
     // don't change attrs_ directly
     auto attrs = attrs_;
+    // used for mmm_core
+    bool transposed_a = attrs.get_or_else("transpose_a", false);
+    bool transposed_b = attrs.get_or_else("transpose_b", false);
     transed_matmul(graph, attrs, ins->get_outputs()[0], ins->get_outputs()[1],
             trans0, trans1);
 
@@ -178,8 +181,9 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         matmul = graph->make("matmul_core", {trans0, trans1}, {}, {});
     } else {
         if (use_mmm) {
-            matmul = graph->make(
-                    "managed_matmul_core", {trans0, trans1}, {}, {});
+            matmul = graph->make("managed_matmul_core", {trans0, trans1}, {},
+                    {{"transposed_a", transposed_a},
+                            {"transposed_b", transposed_b}});
         } else {
             matmul = graph->make("matmul_core", {trans0, trans1}, {}, {});
         }

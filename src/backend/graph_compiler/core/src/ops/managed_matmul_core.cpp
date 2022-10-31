@@ -103,9 +103,6 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
     std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
-    if (!config_data_) {
-        config_data_ = create_generator()->get_default_config(ctx);
-    }
     const sc_dims &A_dims = info_.inputs_[0]->details_.get_plain_dims();
     const sc_dims &A_blocking_dims
             = info_.inputs_[0]->details_.get_blocking_dims();
@@ -117,12 +114,8 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     const sc_dim K = A_dims.back();
     const sc_dim N = B_dims.back();
 
-    const managed_matmul_core_config_t &tcfg
-            = *config_data_.get_as<managed_matmul_core_config_t>();
-    int M_split_num = tcfg.M_split_num, N_split_num = tcfg.N_split_num;
-    int num_threads = runtime_config_t::get().get_num_threads();
-    int K_split_num = num_threads / M_split_num / N_split_num;
     in_formats.reserve(2);
+    sc_data_type_t A_dtype = info_.inputs_[0]->details_.dtype_;
     sc_data_type_t B_dtype = info_.inputs_[1]->details_.dtype_;
     sc_data_format_t A_format = info_.inputs_[0]->details_.get_format();
     sc_data_format_t B_format = info_.inputs_[1]->details_.get_format();
@@ -131,6 +124,13 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     int iim_block = gen->iim_block_;
     int iin_block = gen->iin_block_;
     int iik_block = gen->iik_block_;
+    if (!config_data_) {
+        if (attrs_.get_or_else("transposed_a", false)) {
+            config_data_ = gen->get_default_transposed_a_config(ctx);
+        } else {
+            config_data_ = create_generator()->get_default_config(ctx);
+        }
+    }
 
     // constant check
     bool constant_A = false, constant_B = false;
@@ -169,12 +169,16 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
     }
 
     if (A_dims.size() == 2) {
-        if (constant_A || A_format.is_blocking() || M % iim_block
-                || K % iik_block) {
-            in_formats.push_back(
-                    {sc_data_format_t::MKmk(iim_block, iik_block)});
+        if (A_dtype == datatypes::bf16 && A_format == sc_data_format_t::NK()) {
+            in_formats.push_back({sc_data_format_t::NK()});
         } else {
-            in_formats.push_back({sc_data_format_t::MK()});
+            if (constant_A || A_format.is_blocking() || M % iim_block
+                    || K % iik_block) {
+                in_formats.push_back(
+                        {sc_data_format_t::MKmk(iim_block, iik_block)});
+            } else {
+                in_formats.push_back({sc_data_format_t::MK()});
+            }
         }
     } else {
         COMPILE_ASSERT(0, "managed_matmul_core only supports 2d yet");
@@ -184,8 +188,15 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
             in_formats.push_back(
                     {sc_data_format_t::NKkn4k(iik_block, iin_block)});
         } else if (B_dtype == datatypes::bf16) {
-            in_formats.push_back(
-                    {sc_data_format_t::NKkn2k(iik_block, iin_block)});
+            // do vnni reorder in template for transposed matmul
+            if (B_format == sc_data_format_t::MK()
+                    && (attrs_.get_or_else("transposed_a", false)
+                            || attrs_.get_or_else("transposed_b", false))) {
+                in_formats.push_back({B_format});
+            } else {
+                in_formats.push_back(
+                        {sc_data_format_t::NKkn2k(iik_block, iin_block)});
+            }
         } else {
             if (constant_B || B_format.is_blocking() || K % iik_block
                     || N % iin_block) {
@@ -204,13 +215,20 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                                           C_dims.size(), false),
                         {iim_block, iin_block})});
     } else {
-        out_formats.push_back(
-                {sc_data_format_t(sc_data_format_kind_t::get_2dblocking_by_dims(
-                                          C_dims.size(), false),
-                         {iim_block, iin_block}),
-                        sc_data_format_t::get_plain_by_dims(C_dims.size())});
-        in_formats[0].push_back(in_formats[0][0]);
-        in_formats[1].push_back(in_formats[1][0]);
+        if (attrs_.get_or_else("transposed_b", false)) {
+            out_formats.push_back(
+                    {sc_data_format_t::get_plain_by_dims(C_dims.size())});
+        } else {
+            out_formats.push_back(
+                    {sc_data_format_t(
+                             sc_data_format_kind_t::get_2dblocking_by_dims(
+                                     C_dims.size(), false),
+                             {iim_block, iin_block}),
+                            sc_data_format_t::get_plain_by_dims(
+                                    C_dims.size())});
+            in_formats[0].push_back(in_formats[0][0]);
+            in_formats[1].push_back(in_formats[1][0]);
+        }
     }
 
     // To calculate padded K of input A

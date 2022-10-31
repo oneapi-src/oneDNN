@@ -368,7 +368,12 @@ fuse_anchor_map_ptr mxp_buffer_allocator::get_real_anchor_for_buffer(
             "Could ont find " << tsr << " in tsr2anchor map")
     auto anch = tsr_anch_map_.find(tsr)->second;
     auto parent_loop = anch->get_parent_loop();
-    if (parent_loop.isa<for_loop>()
+    // use outer anchor for cases that calculation is partially done. (e.g.
+    // calculating part of K for matmul)
+    if ((b2g_map_.find(buffer) == b2g_map_.end()
+                || b2g_map_.find(buffer)
+                           ->second->producer_owner_->isa<tunable_op_t>())
+            && parent_loop.isa<for_loop>()
             && parent_loop->attr().has_key(stmt_attr_key::reduce_root_loop)) {
         auto raw = parent_loop->attr()
                            .get<std::weak_ptr<stmt_base_t>>(
