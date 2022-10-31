@@ -216,7 +216,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             ok &= IMPLICATION(k_parallel_global,
                     !with_bias() && !with_eltwise && !with_binary
-                            && d->c_type() == f32);
+                            && utils::one_of(d->c_type(), f32, s32));
 
             if (!ok) return status::unimplemented;
 
