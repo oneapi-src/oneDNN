@@ -40,6 +40,10 @@ double evaluateW(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     static constexpr double maxPriority = 10000.;
     double priority = e.model.params[kcatalog::ParamWPriority];
 
+    if (e.driverInfo.kParallelLocal)
+        aux.k0 = alignUp(divUp(dp.sizes.k, e.driverInfo.wg[LoopK]),
+                e.driverInfo.unroll[LoopK]);
+
     if (priority > maxPriority) /* no op */
         ; // Don't adjust very high values -- these are last resort kernels (lowest priority)
     else if (e.driverInfo.kParallel) {
@@ -265,13 +269,17 @@ double evaluate(const kcatalog::Entry &e, const EvaluateParams &p,
 
 double evaluate(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         EvaluateAuxOutput &aux) {
-    if (alwaysAccept(e, dp)) return -std::numeric_limits<double>::infinity();
+    double score = 0.;
 
     switch (e.model.id) {
-        case 'S': return evaluateS(e, dp, aux);
-        case 'W': return evaluateW(e, dp, aux);
-        default: return std::numeric_limits<double>::quiet_NaN();
+        case 'S': score = evaluateS(e, dp, aux); break;
+        case 'W': score = evaluateW(e, dp, aux); break;
+        default: score = std::numeric_limits<double>::quiet_NaN(); break;
     }
+
+    if (alwaysAccept(e, dp)) score = -std::numeric_limits<double>::infinity();
+
+    return score;
 }
 
 } // namespace jit

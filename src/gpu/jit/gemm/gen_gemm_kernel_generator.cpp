@@ -1079,6 +1079,16 @@ void gemm_kernel_generator_t<hw>::duplicateScalar(
     val = SubregisterPair(reg0, reg1);
 }
 
+template <HW hw>
+void gemm_kernel_generator_t<hw>::deduplicateScalar(
+        SubregisterPair &val, CommonState &state) {
+    auto reg0 = val.getReg(0), reg1 = val.getReg(1);
+    if (reg0 != reg1) {
+        state.ra.release(reg1);
+        val = SubregisterPair(reg0);
+    }
+}
+
 // Create a copy of a scalar subregister in the other bank.
 template <HW hw>
 template <typename T>
@@ -1719,7 +1729,7 @@ static inline int addrGRFCount(const MatrixAddressing &atype,
             return (bytesPerAddr * baseSIMD + (1 << log2Bytes) - 1)
                     >> log2Bytes;
         }
-        case AccessType::Block: return 1;
+        case AccessType::Block:
         case AccessType::Block2D:
         case AccessType::Block2DTranspose:
         case AccessType::Block2DVNNI: return 1;
@@ -2500,11 +2510,11 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             auto maxYBlock = memCM ? maxCBlock : maxRBlock;
 
             if (hw != HW::XeHPC || !astrategy.newDP) hw_unsupported();
-            if (atype.alignment % 16) hw_unsupported();
 
             // Choose underlying type.
             auto Tblock = T;
             if (transpose) {
+                if (atype.alignment % 4) hw_unsupported();
                 if (Tblock.size() > 8) hw_unsupported();
                 if (Tblock.size() > 4) {
                     if (hw == HW::XeHPC && getStepping() < SteppingPVCXTB0)
@@ -2517,10 +2527,12 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                     maxXBlock = std::min(maxXBlock, (8 * Tblock) / T);
                 }
             } else if (vnni) {
+                if (atype.alignment % 8) hw_unsupported();
                 if (Tblock.size() >= 4) hw_unsupported();
                 if ((Y * Tblock) % 4) hw_unsupported();
                 maxXBlock = std::min(maxXBlock, 16);
             } else {
+                if (atype.alignment % 8) hw_unsupported();
                 if (Tblock.size() > 8) Tblock = Type::u64;
                 block.crosspack = atype.crosspack;
             }
@@ -4565,62 +4577,75 @@ static inline void safeReleaseMaskAssignments(
 template <HW hw>
 bool gemm_kernel_generator_t<hw>::assignMasks(
         std::vector<RegisterBlock> &layout, LoopType rloop, LoopType cloop,
-        vector<MaskAssignment> &assignments, CommonState &state) {
-    auto nassignOriginal = int(assignments.size());
-    bool outOfRegs = false;
-
+        vector<MaskAssignment> &assignments, const CommonStrategy &strategy,
+        CommonState &state, bool retryVirtual) {
     // Loop through layout, collecting masks.
     //  - For each unique mask+loop+offset, allocate an index (flag reg)
     //  - Store new assignment if unique and update flag reg in layout.
     //  - For now, simultaneous row and column masks are not supported.
-    for (RegisterBlock &l : layout) {
-        MaskAssignment thisAssignment;
+    bool retry = false;
+    do {
+        auto nassignOriginal = int(assignments.size());
+        bool outOfRegs = retry = false;
 
-        if (l.rowMask) {
-            if (l.colMask) stub();
+        for (RegisterBlock &l : layout) {
+            MaskAssignment thisAssignment;
 
-            thisAssignment.mask = l.rowMask;
-            thisAssignment.offset = l.offsetR;
-            thisAssignment.var = rloop;
-        } else if (l.colMask) {
-            thisAssignment.mask = l.colMask;
-            thisAssignment.offset = l.offsetC;
-            thisAssignment.var = cloop;
-        } else {
-            l.clearFlag();
-            continue;
-        }
+            if (l.rowMask) {
+                if (l.colMask) stub();
 
-        // Look for compatible mask.
-        bool gotMask = false;
-        for (auto &a : assignments) {
-            if (a.compatible(thisAssignment)) {
-                l.flag = a.flag;
-                gotMask = true;
-                break;
+                thisAssignment.mask = l.rowMask;
+                thisAssignment.offset = l.offsetR;
+                thisAssignment.var = rloop;
+            } else if (l.colMask) {
+                thisAssignment.mask = l.colMask;
+                thisAssignment.offset = l.offsetC;
+                thisAssignment.var = cloop;
+            } else {
+                l.clearFlag();
+                continue;
+            }
+
+            // Look for compatible mask.
+            bool gotMask = false;
+            for (auto &a : assignments) {
+                if (a.compatible(thisAssignment)) {
+                    l.flag = a.flag;
+                    gotMask = true;
+                    break;
+                }
+            }
+
+            if (!gotMask) {
+                // No compatible mask, so make a new assignment.
+                thisAssignment.flag
+                        = state.raVFlag.allocVirtual((l.simdSize + 0xF) >> 4);
+                assignments.push_back(thisAssignment);
+                if (state.raVFlag.isVirtual(thisAssignment.flag)
+                        && state.vflagStorage.isInvalid()) {
+                    outOfRegs = true;
+                    break;
+                }
+                l.flag = thisAssignment.flag;
             }
         }
 
-        if (!gotMask) {
-            // No compatible mask, so make a new assignment.
-            thisAssignment.flag
-                    = state.raVFlag.allocVirtual((l.simdSize + 0xF) >> 4);
-            assignments.push_back(thisAssignment);
-            if (state.raVFlag.isVirtual(thisAssignment.flag)
-                    && state.vflagStorage.isInvalid()) {
-                outOfRegs = true;
-                break;
+        if (outOfRegs) {
+            // Not enough (virtual) flag registers! Free any masks we added to the list.
+            safeReleaseMaskAssignments(assignments, state, nassignOriginal);
+            if (retryVirtual && state.vflagStorage.isInvalid()) {
+                status << "Not enough flag registers available. Retrying with "
+                          "virtual flags."
+                       << status_stream::endl;
+                allocVFlagStorage(strategy, state);
+                retry = true;
+            } else {
+                status << "Not enough flag registers available."
+                       << status_stream::endl;
+                return false;
             }
-            l.flag = thisAssignment.flag;
         }
-    }
-
-    if (outOfRegs) {
-        // Not enough (virtual) flag registers! Free any masks we added to the list.
-        safeReleaseMaskAssignments(assignments, state, nassignOriginal);
-        status << "Not enough flag registers available." << status_stream::endl;
-        return false;
-    }
+    } while (retry);
 
     return true;
 }
@@ -5086,31 +5111,59 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
         case AccessType::Block2DTranspose:
         case AccessType::Block2DVNNI:
             if (astrategy.base.getModel() != ModelA64) hw_unsupported();
-            int bw, bh, multiX;
+
+            // Assemble some information.
             bool memCM = isColMajor(atype.layout);
+            int bw, bh, multiX;
+            getBlock2DWH(bw, bh, atype, block, &multiX);
+
             auto iremR = params.remR, iremC = params.remC;
             if (!block.remainderR) iremR.invalidate();
             if (!block.remainderC) iremC.invalidate();
+
             auto remW = memCM ? iremR : iremC;
             auto remH = memCM ? iremC : iremR;
-            getBlock2DWH(bw, bh, atype, block, &multiX);
+            auto &nx = memCM ? params.rows : params.cols;
+            auto &ny = memCM ? params.cols : params.rows;
+            auto fixedX = memCM ? params.fixedRows : params.fixedCols;
+            auto fixedY = memCM ? params.fixedCols : params.fixedRows;
+            auto &offX = memCM ? params.offR : params.offC;
+            auto &offY = memCM ? params.offC : params.offR;
+            auto boffX = memCM ? block.offsetR : block.offsetC;
+            auto boffY = memCM ? block.offsetC : block.offsetR;
+
+            boffX *= uint8_t(sizeofT);
+            if (boffX % block.ebytes) stub();
+            boffX /= block.ebytes;
+
+            // If the base address may not be 64b-aligned (128b pre-B4),
+            //  we need to emit code to align it down and offset x/width appropriately.
+            int baseAlign = (getStepping() >= SteppingPVCXTB4 ? 64 : 128);
+            bool doBaseAdjust = (atype.alignment & (baseAlign - 1)) != 0;
+            if (doBaseAdjust && !astrategy.address2D) stub();
+            Subregister baStorage, baseAdjust, baseAdjustElems;
+
             if (!astrategy.address2D) mov(4, addr[0].ud(4)(1), 0u);
-            emov(1, addr[0].uq(0), ptr, strategy, state);
+
+            if (doBaseAdjust) {
+                baStorage = state.ra.alloc_sub<uint32_t>();
+                baseAdjust = baStorage.uw(0);
+                baseAdjustElems = baStorage.uw(1);
+                if (!offX.isValid()) baseAdjustElems = addr[0].ud(5);
+
+                and_(1, baseAdjust, ptr.ud(0), baseAlign - 1);
+                and_(1, addr[0].ud(0), ptr.ud(0), -uint32_t(baseAlign));
+                mov(1, addr[0].ud(1), ptr.ud(1));
+                if (block.ebytes > 1)
+                    shr(1, baseAdjustElems, baseAdjust, log2(block.ebytes));
+                else
+                    baseAdjustElems = baseAdjust;
+            } else
+                emov(1, addr[0].uq(0), ptr, strategy, state);
+
             if (astrategy.address2D) {
                 if (params.rows.isInvalid() && params.fixedRows == 0)
                     throw std::runtime_error("Unknown matrix size.");
-                auto &nx = memCM ? params.rows : params.cols;
-                auto &ny = memCM ? params.cols : params.rows;
-                auto fixedX = memCM ? params.fixedRows : params.fixedCols;
-                auto fixedY = memCM ? params.fixedCols : params.fixedRows;
-                auto &offX = memCM ? params.offR : params.offC;
-                auto &offY = memCM ? params.offC : params.offR;
-                auto boffX = memCM ? block.offsetR : block.offsetC;
-                auto boffY = memCM ? block.offsetC : block.offsetR;
-
-                boffX *= uint8_t(sizeofT);
-                if (boffX % block.ebytes) stub();
-                boffX /= block.ebytes;
 
                 nx.isValid() ? mad(1, addr[0].ud(2), -1, nx, sizeofT)
                              : mov(1, addr[0].ud(2), fixedX * sizeofT - 1);
@@ -5118,9 +5171,16 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
                              : mov(1, addr[0].ud(3), fixedY - 1);
                 offX.isValid() ? addScaled(1, addr[0].ud(5), boffX, offX,
                         int(sizeofT), block.ebytes, state)
-                               : mov(1, addr[0].ud(5), boffX);
+                               : doBaseAdjust
+                                ? add(1, addr[0].ud(5), baseAdjustElems, boffX)
+                                : mov(1, addr[0].ud(5), boffX);
                 offY.isValid() ? add(1, addr[0].ud(6), offY, boffY)
                                : mov(1, addr[0].ud(6), boffY);
+                if (doBaseAdjust) {
+                    add(1, addr[0].ud(2), addr[0].ud(2), baseAdjust);
+                    if (offX.isValid())
+                        add(1, addr[0].ud(5), addr[0].ud(5), baseAdjustElems);
+                }
                 if (sizeofT < 4)
                     or_(1, addr[0].ud(2), addr[0].ud(2),
                             3); // Width must be 4-byte-aligned.
@@ -5139,14 +5199,18 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
                 if (remW.isValid() && sizeofT < 4)
                     or_(1, addr[0].ud(2), addr[0].ud(2), 3);
             }
+
             if (isPacked(atype.layout)) {
                 auto pitch = bw * block.count * block.ebytes;
                 if (pitch < 64 || pitch & 0xF) hw_unsupported();
                 mov(1, addr[0].ud(4), pitch - 1);
             } else
                 add(1, addr[0].ud(4), bld, -1);
+
             mov(1, addr[0].ud(7),
                     (bw - 1) | ((bh - 1) << 8) | ((block.count - 1) << 16));
+
+            state.ra.safeRelease(baStorage);
             break;
     }
 }
@@ -7014,7 +7078,8 @@ bool gemm_kernel_generator_t<hw>::doStdCRemainder(
         if (remType == StdCRemType::Mask) {
             if (!full) {
                 // Assign and load any extra masks needed.
-                if (!assignMasks(sublayoutExt, LoopM, LoopN, masks, state))
+                if (!assignMasks(
+                            sublayoutExt, LoopM, LoopN, masks, strategy, state))
                     return false;
                 loadMasks(masks, state.remainders, strategy, state,
                         nMasksOriginal);
@@ -9353,11 +9418,8 @@ bool gemm_kernel_generator_t<hw>::gemmBinaryOpC(BinaryOp op, bool row,
     setupAddr(Tco, CO_addrs, base, CO_layout, ld, CO, CO_strategy, strategy,
             state);
 
-    if (!assignMasks(CO_layout, LoopM, LoopN, masks, state)) {
-        status << "Retrying with virtual flags." << status_stream::endl;
-        allocVFlagStorage(strategy, state);
-        if (!assignMasks(CO_layout, LoopM, LoopN, masks, state)) return false;
-    }
+    if (!assignMasks(CO_layout, LoopM, LoopN, masks, strategy, state, true))
+        return false;
 
     loadMasks(masks, state.remainders, strategy, state);
 
@@ -9819,11 +9881,8 @@ void gemm_kernel_generator_t<hw>::gemmUpdateSums(const GEMMProblem &problem,
     setupAddr(Tco, CO_addrs, state.effCO, CO_layout, Subregister(), CO,
             CO_strategy, strategy, state);
 
-    if (!assignMasks(CO_layout, LoopM, LoopN, masks, state)) {
-        status << "Retrying with virtual flags." << status_stream::endl;
-        allocVFlagStorage(strategy, state);
-        if (!assignMasks(CO_layout, LoopM, LoopN, masks, state)) stub();
-    }
+    if (!assignMasks(CO_layout, LoopM, LoopN, masks, strategy, state, true))
+        stub();
 
     loadMasks(masks, state.remainders, strategy, state);
 
@@ -11560,8 +11619,8 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
             addMasking(Ta_ext, state.Ai_layoutRem, state.Ai_addrsRem,
                     state.inputs.lda, false, true, state.Ai, state.Ai_strategy,
                     strategy, state, state.Ai_regCount);
-            if (!assignMasks(
-                        state.Ai_layoutRem, LoopM, LoopK, kMasksSLM, state))
+            if (!assignMasks(state.Ai_layoutRem, LoopM, LoopK, kMasksSLM,
+                        strategy, state, true))
                 stub();
             if (state.aioShare && state.Ao_regsRem.empty()
                     && state.Ai_layoutRem[0].crosspack
@@ -11577,8 +11636,8 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
             addMasking(Tb_ext, state.Bi_layoutRem, state.Bi_addrsRem,
                     state.inputs.ldb, true, false, state.Bi, state.Bi_strategy,
                     strategy, state, state.Bi_regCount);
-            if (!assignMasks(
-                        state.Bi_layoutRem, LoopK, LoopN, kMasksSLM, state))
+            if (!assignMasks(state.Bi_layoutRem, LoopK, LoopN, kMasksSLM,
+                        strategy, state, true))
                 stub();
             if (state.bioShare && state.Bo_regsRem.empty()
                     && state.Bi_layoutRem[0].crosspack
@@ -11593,6 +11652,12 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
             for (auto &mask : kMasksSLM)
                 mask.reverse(unrollKSLM);
 
+        if (!state.vflagStorage.isValid()) {
+            bool needVFlags = false;
+            for (const auto &mask : kMasksSLM)
+                needVFlags |= state.raVFlag.isVirtual(mask.flag);
+            if (needVFlags) allocVFlagStorage(strategy, state);
+        }
         loadMasks(kMasksSLM, rems, offsets, strategy, state);
 
         bool mayAccessAllK = (minOPCount > 1) || problem.sumA || problem.sumB;
@@ -13360,16 +13425,19 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
     auto &masks = state.AB_masks;
 
     auto assignAllMasks = [&]() {
-        return assignMasks(state.A_layout, LoopM, LoopK, masks, state)
-                && assignMasks(state.Ap_layout, LoopM, LoopK, masks, state)
-                && assignMasks(state.B_layout, LoopK, LoopN, masks, state)
-                && assignMasks(state.Bp_layout, LoopK, LoopN, masks, state)
+        return assignMasks(state.A_layout, LoopM, LoopK, masks, strategy, state)
+                && assignMasks(
+                        state.Ap_layout, LoopM, LoopK, masks, strategy, state)
+                && assignMasks(
+                        state.B_layout, LoopK, LoopN, masks, strategy, state)
+                && assignMasks(
+                        state.Bp_layout, LoopK, LoopN, masks, strategy, state)
                 && ((state.effCoopA != CoopSplit::K)
-                        || assignMasks(
-                                state.Ai_layout, LoopM, LoopK, masks, state))
+                        || assignMasks(state.Ai_layout, LoopM, LoopK, masks,
+                                strategy, state))
                 && ((state.effCoopB != CoopSplit::K)
-                        || assignMasks(
-                                state.Bi_layout, LoopK, LoopN, masks, state));
+                        || assignMasks(state.Bi_layout, LoopK, LoopN, masks,
+                                strategy, state));
     };
 
     state.lateKLoopCheck = false;
@@ -14069,7 +14137,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccessC(COperation op,
 
         // Try to load C masks. If that fails, fragment the masked dimension down to the size of current blocks.
         vector<MaskAssignment> masks;
-        if (!assignMasks(C_layoutExt, LoopM, LoopN, masks, state)) {
+        if (!assignMasks(C_layoutExt, LoopM, LoopN, masks, strategy, state)) {
             for (int rc = 0; rc < 2; rc++) {
                 if (remMasks[rc]) {
                     fragments[rc] = true;
@@ -14142,23 +14210,32 @@ bool gemm_kernel_generator_t<hw>::gemmAccessC(COperation op,
     if (block2DCRemainder) {
         mark(labelBlock2DCRemainder);
 
+        // Check for transposition.
+        bool memCM = isColMajor(problem.C.layout);
+        bool regCM = isLayoutColMajor(state.C_layout);
+        bool doTranspose = (memCM != regCM);
+
         // Check if alignment requirements are met.
         auto Tc = problem.Tc;
-        uint16_t baseAlign = (getStepping() >= SteppingPVCXTB4 ? 64 : 128);
+        uint16_t align = doTranspose ? 4 : 8;
         for (int q = 0; q < state.C_count; q++) {
+            bool checkAlign = (problem.C.alignment % align) != 0;
             bool checkWidth
                     = (q == 0 && Tc.size() < 4 && op != COperation::Load);
             auto &labelNonBlock2DRem
                     = altCRemainder ? labelAltCRemainder : labelStdCRemainder;
 
-            and_(1 | nz | f0[0], null.uw(), state.effC[q].uw(), baseAlign - 1);
-            and_(1 | nz | f1[0], null.uw(), state.inputs.ldc[q].uw(), 0xF);
+            if (checkAlign) {
+                and_(1 | nz | f0[0], null.uw(), state.effC[q].uw(), align - 1);
+                and_(1 | nz | f1[0], null.uw(), state.inputs.ldc[q].uw(),
+                        align - 1);
+            }
             if (checkWidth)
                 and_(1 | nz | f0[1], null.uw(),
                         state.remainders[isColMajor(problem.C.layout) ? LoopM
                                                                       : LoopN],
                         (4 / Tc) - 1);
-            ejmpi(1 | f0[0] | anyv, labelNonBlock2DRem);
+            if (checkAlign) ejmpi(1 | f0[0] | anyv, labelNonBlock2DRem);
             if (checkWidth) jmpi(1 | f0[1], labelNonBlock2DRem);
         }
 
@@ -14169,16 +14246,12 @@ bool gemm_kernel_generator_t<hw>::gemmAccessC(COperation op,
         auto modStrategy = strategy;
         auto modState = state;
 
-        bool memCM = isColMajor(problem.C.layout);
-        bool regCM = isLayoutColMajor(state.C_layout);
-
-        modProblem.C.setAlignment(128);
+        modProblem.C.setAlignment(align);
         modStrategy.C = state.Cext_strategy;
         modStrategy.C.newDP = true;
         modStrategy.C.address2D = true;
-        modStrategy.C.accessType = (memCM == regCM)
-                ? AccessType::Block2D
-                : AccessType::Block2DTranspose;
+        modStrategy.C.accessType = doTranspose ? AccessType::Block2DTranspose
+                                               : AccessType::Block2D;
 
         auto &C_layout = modState.C_layout;
         auto &C_layoutExt = modState.C_layoutExt;
@@ -16966,24 +17039,19 @@ void gemm_kernel_generator_t<hw>::gemmSubkernel(
         success = gemmMEdge(problem, strategy, state);
     else {
         // Check alignment of effA, effB, lda, and ldb.
-        // Special handling for alignment 128, which is used to represent block 2D requirements.
-        bool pvcXTB4 = (hw == HW::XeHPC) && (getStepping() >= SteppingPVCXTB4);
         Label labelUnaligned;
         uint16_t mask = (strategy.optAlignAB - 1);
-        uint16_t maskBase
-                = (strategy.optAlignAB == 128 && pvcXTB4) ? 0x3F : mask;
-        uint16_t maskLD = (strategy.optAlignAB == 128) ? 0xF : mask;
         bool check_lda = !isPacked(problem.A.layout);
         bool check_ldb = !isPacked(problem.B.layout);
         if (problem.A.alignment & mask) {
-            and_(1 | nz | f0[0], null.uw(), state.effA.uw(), maskBase);
+            and_(1 | nz | f0[0], null.uw(), state.effA.uw(), mask);
             if (check_lda)
-                and_(1 | nz | f1[0], null.uw(), state.inputs.lda.uw(), maskLD);
+                and_(1 | nz | f1[0], null.uw(), state.inputs.lda.uw(), mask);
         }
         if (problem.B.alignment & mask) {
-            and_(1 | nz | f0[1], null.uw(), state.effB.uw(), maskBase);
+            and_(1 | nz | f0[1], null.uw(), state.effB.uw(), mask);
             if (check_ldb)
-                and_(1 | nz | f1[1], null.uw(), state.inputs.ldb.uw(), maskLD);
+                and_(1 | nz | f1[1], null.uw(), state.inputs.ldb.uw(), mask);
         }
         if (problem.A.alignment & mask) {
             InstructionModifier amod = check_lda ? 1 | f0[0] | anyv : 1 | f0[0];
@@ -21080,14 +21148,18 @@ bool gemm_kernel_generator_t<hw>::copyBodyInternal(
 
         // Find and load any needed mask registers.
         success = success
-                && assignMasks(state.S_layout, LoopM, LoopN, masks, state)
-                && assignMasks(state.D_layout, LoopM, LoopN, masks, state);
+                && assignMasks(
+                        state.S_layout, LoopM, LoopN, masks, strategy, state)
+                && assignMasks(
+                        state.D_layout, LoopM, LoopN, masks, strategy, state);
 
         if (!success && state.vflagStorage.isInvalid()) {
             status << "Retrying with virtual flags." << status_stream::endl;
             allocVFlagStorage(strategy, state);
-            success = assignMasks(state.S_layout, LoopM, LoopN, masks, state)
-                    && assignMasks(state.D_layout, LoopM, LoopN, masks, state);
+            success = assignMasks(state.S_layout, LoopM, LoopN, masks, strategy,
+                              state)
+                    && assignMasks(state.D_layout, LoopM, LoopN, masks,
+                            strategy, state);
         }
 
         if (!success) return false;
