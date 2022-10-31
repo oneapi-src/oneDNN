@@ -53,6 +53,41 @@ public:
         auto c = add_tensor(/*is_input=*/false, /*is_output=*/false, cp_view_,
                 expr_t(), var_t::make(type_t::f32(), "c"));
 
+        // Prepare src/weights/dst scale expressions.
+        std::vector<expr_t> scales(3, expr_t(1.0f));
+        auto &src_scales = scales[0];
+        auto &wei_scales = scales[1];
+        auto &dst_scales = scales[2];
+        if ((prb_->is_fwd || prb_->is_bwd_d)
+                && !attr->scales_.has_default_values()) {
+            const char *names[] = {"src_scales", "wei_scales", "dst_scales"};
+            expr_t c_scaled = c;
+            for (int i = 0; i < 3; i++) {
+                auto buf = kernel_info.find_arg(names[i], /*allow_empty=*/true);
+                if (buf.is_empty()) continue;
+                int key = kernel_info.key(names[i]) & ~DNNL_ARG_ATTR_SCALES;
+                int mask = attr->scales_.get(key).mask_;
+                if (i == 1) {
+                    // Convert o/i weights mask to src/dst.
+                    // XXX: per_oc for BWD_D is treated as per_ic assuming it's called from
+                    // deconvolution.
+                    int c_idx = prb_->with_groups;
+                    ir_assert(utils::one_of(mask, 0, 1 << c_idx));
+                    if (mask != 0) mask = (1 << 1);
+                } else {
+                    ir_assert(mask == 0);
+                }
+                auto view = create_view(type_t::f32(), normalize_mask(mask));
+                scales[i] = add_input_tensor(view, buf);
+            }
+        }
+
+        // Handle input and weights scales.
+        if (!is_one(src_scales) || !is_one(wei_scales)) {
+            auto c_scaled = c * src_scales * wei_scales;
+            post_ops_.emplace_back(c, c_scaled);
+        }
+
         // Handle bias.
         if ((pd->is_fwd() || pd->is_bwd_d()) && pd->with_bias()) {
             uint32_t mask = normalize_mask(1 << 1); // Per-channel mask.
@@ -60,16 +95,6 @@ public:
             auto buf = kernel_info.find_arg("bia");
             auto bia = add_input_tensor(view, buf);
             post_ops_.emplace_back(c, c + bia);
-        }
-
-        // Handle output scales.
-        bool with_oscales = !attr->output_scales_.has_default_values();
-        if (with_oscales) {
-            uint32_t mask = normalize_mask(attr->output_scales_.mask_);
-            auto view = create_view(type_t::f32(), mask);
-            auto buf = kernel_info.find_arg("oscales");
-            auto oscales = add_input_tensor(view, buf);
-            post_ops_.emplace_back(c, c * oscales);
         }
 
         // Handle post-ops.
@@ -112,6 +137,12 @@ public:
             } else {
                 ir_error_not_expected();
             }
+        }
+
+        // Handle dst scale.
+        if (!is_one(dst_scales)) {
+            auto c_scaled = c / dst_scales;
+            post_ops_.emplace_back(c, c_scaled);
         }
 
         // Handle dst zero points.

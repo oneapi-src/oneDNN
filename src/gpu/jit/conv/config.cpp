@@ -918,6 +918,12 @@ bool zero_points_ok(const conv_problem_t &prb) {
             && (mask_dst == 0 || mask_dst == 1 << 1);
 }
 
+std::vector<int> get_scale_args(const conv_problem_t &prb) {
+    conv_arg_helper_t h(prb);
+    std::vector<int> ret = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+    return ret;
+}
+
 bool post_ops_ok(const conv_problem_t &prb) {
     auto *attr = prb.attr;
 
@@ -926,19 +932,27 @@ bool post_ops_ok(const conv_problem_t &prb) {
 
     if (prb.is_fwd || prb.is_bwd_d) {
         using sm = primitive_attr_t::skip_mask_t;
-        auto attr_skip_mask = sm::post_ops | sm::oscale_runtime | sm::sum_dt
-                | sm::zero_points_runtime;
+        auto attr_skip_mask = sm::post_ops | sm::sum_dt
+                | sm::zero_points_runtime | sm::scales_runtime;
         if (!attr->has_default_values(attr_skip_mask)) return false;
     } else {
         if (!attr->has_default_values()) return false;
     }
 
-    if (!attr->output_scales_.has_default_values()) {
-        if (!prb.is_s32_accumulator()) return false;
-        // Only common and per_oc output scales were tested.
-        if (!utils::one_of(attr->output_scales_.mask_, 0, (1 << 1)))
-            return false;
+    auto scale_args = get_scale_args(prb);
+    if (!attr->scales_.has_default_values(scale_args)) return false;
+    for (int arg : scale_args) {
+        int mask = attr->scales_.get(arg).mask_;
+        // XXX: per_oc for BWD_D is treated as per_ic assuming it's called from
+        // deconvolution.
+        int c_idx = prb.with_groups;
+        if (arg == DNNL_ARG_WEIGHTS) {
+            if (!utils::one_of(mask, 0, 1 << c_idx)) return false;
+        } else {
+            if (mask != 0) return false;
+        }
     }
+
     for (int i = 0; i < attr->post_ops_.len(); i++) {
         auto &po = attr->post_ops_.entry_[i];
         if (po.is_eltwise()) {
@@ -2253,15 +2267,20 @@ void init_extra_tensors(const conv_config_t &cfg, tensor_config_t &tensor_cfg) {
         tensor_cfg.add_tensor("dst_zero_points", arg_key,
                 /*is_input=*/true, /*is_output=*/false, zp_layout);
     }
-    bool with_oscales = !attr->output_scales_.has_default_values();
-    if (with_oscales) {
-        int mask = attr->output_scales_.mask_;
-        int os_dim = mask == 0 ? 1 : prb.oc;
-        std::vector<dim_t> dims = {os_dim};
-        layout_t oscales_layout(type_t::f32(), 0, dims);
-        int arg_key = DNNL_ARG_ATTR_OUTPUT_SCALES;
-        tensor_cfg.add_tensor("oscales", arg_key, /*is_input=*/true,
-                /*is_output=*/false, oscales_layout);
+    auto scale_args = get_scale_args(prb);
+    const char *scale_names[] = {"src_scales", "wei_scales", "dst_scales"};
+    const int scale_names_len = sizeof(scale_names) / sizeof(scale_names[0]);
+    ir_assert((int)scale_args.size() == scale_names_len);
+    for (int i = 0; i < (int)scale_args.size(); i++) {
+        int arg = scale_args[i];
+        auto &s = attr->scales_.get(arg);
+        if (s.has_default_values()) continue;
+        int dim = s.mask_ == 0 ? 1 : (prb.is_fwd ? prb.oc : prb.ic);
+        std::vector<dim_t> dims = {dim};
+        layout_t layout(type_t::f32(), 0, dims);
+        int arg_key = DNNL_ARG_ATTR_SCALES | arg;
+        tensor_cfg.add_tensor(scale_names[i], arg_key, /*is_input=*/true,
+                /*is_output=*/false, layout);
     }
     for (int i = 0; i < attr->post_ops_.len(); i++) {
         auto &po = attr->post_ops_.entry_[i];

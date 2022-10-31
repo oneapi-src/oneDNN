@@ -142,17 +142,26 @@ public:
 
     const type_t &arg_type(int idx) const { return arg_var(idx).type(); }
 
-    expr_t find_arg(const std::string &name) const {
+    expr_t find_arg(const std::string &name, bool allow_empty = false) const {
         for (int i = 0; i < nargs(); i++) {
             if (arg_name(i) == name) return args_[i].var;
         }
-        ir_error_not_expected() << "Argument not found: " << name;
+        if (!allow_empty)
+            ir_error_not_expected() << "Argument not found: " << name;
         return expr_t();
     }
 
     int key(int idx) const {
         ir_assert(idx >= 0 && idx < nargs());
         return args_[idx].key;
+    }
+
+    int key(const std::string &name) const {
+        for (int i = 0; i < nargs(); i++) {
+            if (arg_name(i) == name) return key(i);
+        }
+        ir_error_not_expected() << "Argument not found: " << name;
+        return -1;
     }
 
     int nargs() const { return int(args_.size()); }
