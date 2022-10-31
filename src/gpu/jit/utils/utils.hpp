@@ -465,7 +465,7 @@ inline std::string getenv_str(const char *s, const std::string &def) {
 
 // Input is a comma separate list containing gpu_arch and optionally eu_count.
 inline compute::gpu_arch_t getenv_gpu(const char *s, compute::gpu_arch_t arch,
-        int *eu_count = nullptr, size_t *max_wg_size = nullptr) {
+        int *eu_count = nullptr, int *max_wg_size = nullptr) {
     char buf[1024];
     int ret = getenv(s, buf, sizeof(buf));
     if (ret > 0) {
@@ -482,10 +482,10 @@ inline compute::gpu_arch_t getenv_gpu(const char *s, compute::gpu_arch_t arch,
         if (max_wg_size) {
             // Assume maximum wg size is basically the number of threads
             // available in a subslice with simd_size 16
-            const size_t max_eus_per_wg
+            const int max_eus_per_wg
                     = compute::device_info_t::max_eus_per_wg(arch);
-            const size_t simd_size = 16;
-            const size_t thr_per_eu = utils::rnd_down_pow2(
+            const int simd_size = 16;
+            const int thr_per_eu = utils::rnd_down_pow2(
                     compute::device_info_t::threads_per_eu(arch));
             *max_wg_size = simd_size * max_eus_per_wg * thr_per_eu;
         }
