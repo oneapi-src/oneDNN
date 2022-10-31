@@ -32,6 +32,21 @@
 
 namespace sc {
 
+std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
+binary_elementwise_op_impl_t::get_inplace_map() {
+    std::vector<tensor_inplace_info_t> ret;
+    auto &inp = get_inputs();
+    auto &out_dim = get_outputs()[0]->details_.get_plain_dims();
+    for (size_t i = 0; i < inp.size(); i++) {
+        if (inp[i]->details_.get_plain_dims() == out_dim) {
+            ret.emplace_back(tensor_inplace_info_t {
+                    static_cast<int>(i), inplace_kind::ZERO_OFFSET});
+        }
+    }
+    if (ret.empty()) { return {}; }
+    return {{0, std::move(ret)}};
+}
+
 std::vector<int> binary_elementwise_op_impl_t::infer_broadcast_axis() const {
     int bc_input_idx = get_broadcast_input();
     if (bc_input_idx == -1) return {};

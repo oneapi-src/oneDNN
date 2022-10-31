@@ -28,6 +28,8 @@ namespace sc {
 
 class unary_elementwise_op_impl_t : public unary_elementwise_op_t {
 public:
+    std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
+    get_inplace_map() override;
     void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
     void pre_slice_ranges(

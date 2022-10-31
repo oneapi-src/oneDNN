@@ -50,6 +50,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+SC_MODULE(graph.fused_op)
+
 namespace sc {
 
 fusion_partition_t *fusion_partition_t::get_root() const {
@@ -1512,6 +1514,141 @@ void mixed_fuse_op_t::schedule_loops(const stmt &body) {
 
 void mixed_fuse_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     throw std::runtime_error("mixed_fuse_op_t::get_graph Not implemented");
+}
+
+struct inplace_recursion_context_t {
+    int depth_ = 0;
+    // UNDEF means a tensor is not directly or indirectly connected to an input
+    enum kind_t { UNDEF = 0, NO_INPLACE, ZERO_OFFSET_INPLACE, FREE_INPLACE };
+
+    // the graph input tensor -> its index in std::vector<kind_t>
+    const std::unordered_map<graph_tensor_ptr, int> &tsr_2_in_index_;
+    // the map of all graph tensors -> a vector of graph inputs. Each element of
+    // the vector represents the in-place status of a graph input
+    std::unordered_map<graph_tensor_ptr, std::vector<kind_t>> result_;
+
+    inplace_recursion_context_t(
+            const std::unordered_map<graph_tensor_ptr, int> &tsr_2_in_index)
+        : tsr_2_in_index_(tsr_2_in_index) {}
+
+    // merges the in-place results. Used when an Op depends on multiple graph
+    // inputs and we need to merge the status of the same input
+    static kind_t merge_result(kind_t a, kind_t b, bool good_op) {
+        if (good_op) {
+            if (a == NO_INPLACE || b == NO_INPLACE) { return NO_INPLACE; }
+            if (a == UNDEF) { return b; }
+            if (b == UNDEF) { return a; }
+            if (a == ZERO_OFFSET_INPLACE || b == ZERO_OFFSET_INPLACE) {
+                return ZERO_OFFSET_INPLACE;
+            }
+            return FREE_INPLACE;
+        } else {
+            // if the current op is not a "good" op, we need to mark all inputs
+            // it depends on with NO_INPLACE
+            if (a != UNDEF || b != UNDEF) { return NO_INPLACE; }
+            return UNDEF;
+        }
+    }
+
+    // the main recursion function to recursively find the in-place status
+    const std::vector<kind_t> *call(const graph_tensor_ptr &tsr) {
+        depth_++;
+        if (depth_ > 500) { return nullptr; }
+        auto itr = result_.find(tsr);
+        if (itr != result_.end()) { return &itr->second; }
+        auto &ret
+                = (result_[tsr] = std::vector<kind_t>(tsr_2_in_index_.size()));
+        // if the tensor is used more than once, we simply skip it for the sake
+        // of correctness. We can obviously do better than this.
+        auto producer = tsr->producer_owner_;
+        if (producer->isa<input_op>()) {
+            // we define that input tensor can in-place reuse itself.
+            ret.at(tsr_2_in_index_.find(tsr)->second) = FREE_INPLACE;
+            depth_--;
+            return &ret;
+        }
+        bool good_op = tsr->uses_.size() <= 1UL;
+        bool is_binary = producer->isa<binary_elementwise_op_t>();
+        // if it is an broadcast op, we cannot in-place reuse the broadcast
+        // input
+        int bcast_idx = -1;
+        if (is_binary) {
+            bcast_idx = producer->stc_cast<binary_elementwise_op_t>()
+                                ->get_broadcast_input();
+        }
+        bool must_zero_offset = producer->isa<cast_op_t>() || is_binary
+                || producer->isa<unary_elementwise_op_t>();
+        bool can_be_free = producer->isa<tensor_view_op_t>();
+        good_op = good_op && (must_zero_offset || can_be_free);
+        auto &inputs = producer->get_inputs();
+        for (size_t input_idx = 0; input_idx < inputs.size(); input_idx++) {
+            auto &intsr = inputs[input_idx];
+            auto *sub_result = call(intsr);
+            if (!sub_result) { return nullptr; }
+            for (size_t i = 0; i < ret.size(); i++) {
+                auto result = (*sub_result)[i];
+                // if the op's input is broadcast, all the graph input tensors
+                // it depends on should be NO_INPLACE
+                if ((int64_t)bcast_idx == (int64_t)input_idx
+                        && result != UNDEF) {
+                    result = NO_INPLACE;
+                }
+                ret[i] = merge_result(ret[i], result, good_op);
+                if (must_zero_offset && ret[i] == FREE_INPLACE) {
+                    ret[i] = ZERO_OFFSET_INPLACE;
+                }
+            }
+        }
+        depth_--;
+        return &ret;
+    }
+};
+
+std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
+mixed_fuse_op_t::get_inplace_map() {
+    std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>> ret;
+    auto in_ops = sub_graph_.get_input_ops();
+    // create a map from input tensors to its index
+    std::unordered_map<graph_tensor_ptr, int> tsr_2_index;
+    for (auto &in : in_ops) {
+        for (auto &tsr : in->get_outputs()) {
+            auto idx = tsr_2_index.size();
+            tsr_2_index[tsr] = idx;
+        }
+    }
+    inplace_recursion_context_t ctx {tsr_2_index};
+
+    // for each output tensors...
+    auto out_ops = sub_graph_.get_output_ops();
+    size_t out_idx = 0;
+    for (auto &out : out_ops) {
+        for (auto &outtsr : out->get_inputs()) {
+            std::vector<tensor_inplace_info_t> can_inplace;
+            auto *rec_ret = ctx.call(outtsr);
+            if (!rec_ret) {
+                SC_MODULE_WARN << "Max recursion count reached for tensor "
+                                  "inplace optimization "
+                                  "for fused op";
+                return {};
+            }
+            for (size_t i = 0; i < rec_ret->size(); i++) {
+                if ((*rec_ret)[i]
+                        == inplace_recursion_context_t::ZERO_OFFSET_INPLACE) {
+                    can_inplace.emplace_back(tensor_inplace_info_t {
+                            static_cast<int>(i), inplace_kind::ZERO_OFFSET});
+                } else if ((*rec_ret)[i]
+                        == inplace_recursion_context_t::FREE_INPLACE) {
+                    can_inplace.emplace_back(tensor_inplace_info_t {
+                            static_cast<int>(i), inplace_kind::FREE});
+                }
+            }
+            if (!can_inplace.empty()) {
+                ret.emplace_back(out_idx, std::move(can_inplace));
+            }
+            out_idx++;
+        }
+    }
+    return ret;
 }
 
 ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {

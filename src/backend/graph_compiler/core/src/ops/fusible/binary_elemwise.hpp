@@ -37,7 +37,8 @@ enum class elt_operator {
 class binary_elementwise_op_impl_t : public binary_elementwise_op_t {
 public:
     DECLARE_QUERY_AND_COMPUTE();
-
+    std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
+    get_inplace_map() override;
     binary_elementwise_op_impl_t(graph_tensor_ptr lhs, graph_tensor_ptr rhs,
             elt_operator elt_op, int inplace = 0);
     binary_elementwise_op_impl_t(const std::vector<graph_tensor_ptr> &ins,

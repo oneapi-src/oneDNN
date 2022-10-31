@@ -43,6 +43,10 @@ constexpr const char *no_alias = "noalias";
 constexpr const char *no_parallel = "no_parallel";
 // bool, if the function cannot be traced. default = false
 constexpr const char *skip_trace = "skip_trace";
+// bool, if the function is a top-level function. The main entry function should
+// be a top-level function. If other functions needs the same optimization as
+// the main entry function, they should be top-level functions
+constexpr const char *top_level = "top_level";
 // std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>, the tensor
 // inplace optimization hint. It is a vector of pair<int,
 // std::vector<tensor_inplace_info_t>>. For each pair, the int is an index of

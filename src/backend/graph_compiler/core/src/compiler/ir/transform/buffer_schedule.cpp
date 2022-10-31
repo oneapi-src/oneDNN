@@ -201,6 +201,9 @@ public:
     std::vector<std::vector<expr_c>> tensor_in_scope_;
     // the list of all defined tensors, by tensor creation order
     std::vector<expr_c> &defined_tensors_;
+    // the map of tensor identity to the tensor
+    std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
+            identity_to_tensor_;
     reference_tick_finder_t(std::unordered_map<expr_c, tensor_tick_info_t> &out,
             std::vector<expr_c> &defined_tensors)
         : out_(out), defined_tensors_(defined_tensors) {}
@@ -456,6 +459,17 @@ public:
                 if (in_parallel_for_) {
                     assert(scope_id_ >= 1);
                     out_[v->var_].scope_ = scope_id_;
+                }
+                if (auto identity = alias_info::get_alias_info(*v->var_)) {
+                    auto itr = identity_to_tensor_.find(identity);
+                    if (itr != identity_to_tensor_.end()) {
+                        SC_MODULE_WARN << "Multiple tensors uses the same "
+                                          "tensor identity: "
+                                       << v->var_;
+                        itr->second = expr_c();
+                    } else {
+                        identity_to_tensor_[identity] = v->var_;
+                    }
                 }
                 defined_tensors_.emplace_back(v->var_);
                 tensor_in_scope_.back().emplace_back(v->var_);
@@ -958,6 +972,8 @@ static void schedule_tensors(
 
 static std::vector<size_t> schedule_tensor_memory_planner(
         std::unordered_map<expr_c, tensor_tick_info_t> &ticks,
+        const std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
+                &identity_to_tensor,
         std::vector<expr_c> &defined_tensors,
         // the old_tensor -> (scope id, start offset)
         std::unordered_map<expr_c, std::pair<uint64_t, size_t>> &replace_map,
@@ -1012,17 +1028,40 @@ static std::vector<size_t> schedule_tensor_memory_planner(
         traces[itr.second.scope_].insert(std::make_pair(last_access * 2 + 1,
                 memory_optim::memory_alloc_trace_t {(uintptr_t)tsr.get(), 0}));
         if (inplace) {
-            std::vector<std::pair<uintptr_t, inplace_kind>> inplace_tsrs;
+            std::unordered_map<uintptr_t, inplace_kind> inplace_tsrs;
             for (auto &inp_tsr : itr.second.inplace_reuse_) {
                 // check if the tensor in the inplace hint is the last use
                 if (ticks[inp_tsr.first].get_last_access()
                         == itr.second.first_access_) {
-                    inplace_tsrs.emplace_back(
-                            (uintptr_t)inp_tsr.first.get(), inp_tsr.second);
+                    inplace_tsrs.insert(std::make_pair(
+                            (uintptr_t)inp_tsr.first.get(), inp_tsr.second));
+                }
+            }
+            if (tsr->attr_) {
+                if (auto inplace_hints
+                        = tsr->attr_->get_or_null<
+                                std::vector<temp_tensor_inplace_info_t>>(
+                                attr_keys::tensor_inplace_hint)) {
+                    for (auto &hint : *inplace_hints) {
+                        auto hint_itr
+                                = identity_to_tensor.find(hint.to_reuse_.get());
+                        if (hint_itr == identity_to_tensor.end()) {
+                            SC_WARN << "Bad temp tensor in-place identity:"
+                                    << tsr;
+                        } else {
+                            auto &victim = hint_itr->second;
+                            auto lastuse = ticks[victim].get_last_access();
+
+                            inplace_tsrs.insert(std::make_pair(
+                                    (uintptr_t)victim.get(), hint.kind_));
+                        }
+                    }
                 }
             }
             if (!inplace_tsrs.empty()) {
-                inplace_map[(uintptr_t)tsr.get()] = std::move(inplace_tsrs);
+                inplace_map[(uintptr_t)tsr.get()]
+                        = std::vector<std::pair<uintptr_t, inplace_kind>>(
+                                inplace_tsrs.begin(), inplace_tsrs.end());
             }
         }
     }
@@ -1254,9 +1293,10 @@ static T1 run(const context_ptr &ctx, T1 f, bool remove_dead, bool inplace) {
     }
     if (aggresive) {
         std::unordered_map<expr_c, std::pair<uint64_t, size_t>> replacer_list;
-        auto total_list = schedule_tensor_memory_planner(tick_out, defined,
-                replacer_list, type == attr_keys::BUF_SCHED_HOT,
-                finder.scope_id_ + 1, inplace);
+        auto total_list = schedule_tensor_memory_planner(tick_out,
+                finder.identity_to_tensor_, defined, replacer_list,
+                type == attr_keys::BUF_SCHED_HOT, finder.scope_id_ + 1,
+                inplace);
         if (replacer_list.size() <= 1) { return f; }
         buffer_replacer_memory_planner_t rep {
                 replacer_list, finder.stmts_to_scope_id_, total_list};

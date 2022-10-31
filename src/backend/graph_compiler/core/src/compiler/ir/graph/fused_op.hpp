@@ -18,10 +18,12 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include "graph_op.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
+#include <compiler/ir/graph/trait/may_inplace.hpp>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -154,7 +156,7 @@ public:
     void schedule_loops(const stmt &body);
 };
 
-class mixed_fuse_op_t : public graph_op_t {
+class mixed_fuse_op_t : public graph_op_t, public op_traits::may_inplace_t {
 public:
     mixed_fuse_op_t(const std::string &name,
             const std::shared_ptr<mixed_parti_t> &parti,
@@ -165,6 +167,8 @@ public:
     ir_module_ptr get_func(context_ptr ctx) override;
     void get_graph_impl(std::shared_ptr<sc_graph_t> &) override;
     void schedule_loops(const stmt &body);
+    std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
+    get_inplace_map() override;
 };
 
 void schedule_loop_body(

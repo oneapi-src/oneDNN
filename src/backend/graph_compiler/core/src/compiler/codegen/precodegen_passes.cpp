@@ -74,7 +74,7 @@ sequential_module_pass_t get_default_precodegen_passes(
     }
     ret.emplace_back(utils::make_unique<constant_folder_t>());
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(true));
-    if (ctx->flags_.buffer_schedule_ > 0) {
+    if (ctx->flags_.buffer_schedule_ > 0 && ctx->flags_.tensor_inplace_) {
         ret.emplace_back(utils::make_unique<tensor_inplace_t>(ctx));
     }
     ret.emplace_back(

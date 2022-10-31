@@ -22,7 +22,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "graph.hpp"
+#include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/transform/parallel_workload_attr.hpp>
 #include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
 namespace sc {

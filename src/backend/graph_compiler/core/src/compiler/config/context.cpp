@@ -117,6 +117,7 @@ context_ptr get_default_context() {
             flags.dead_write_elimination_ = false;
             flags.kernel_optim_ = 0;
             flags.index2var_ = false;
+            flags.tensor_inplace_ = false;
         }
 
         auto buf_sched_str
@@ -136,6 +137,7 @@ context_ptr get_default_context() {
                            << ", set to default = dnnl";
         }
 
+        parse_value(env_names[SC_TENSOR_INPLACE], flags.tensor_inplace_);
         parse_value(env_names[SC_DEAD_WRITE_ELIMINATION],
                 flags.dead_write_elimination_);
         parse_value(env_names[SC_DEBUG_INFO], flags.debug_info_);

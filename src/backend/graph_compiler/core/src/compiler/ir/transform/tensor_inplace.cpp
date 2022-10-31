@@ -47,58 +47,65 @@ public:
 };
 
 const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
-    auto entry_f = f->get_entry_func();
-    if (!entry_f) { return f; }
-    // find all calls to func decl, and sync the inplace_hint with decl and
-    // definition
-    func_finder_t finder;
-    finder.dispatch(entry_f);
-    for (auto &funct : finder.funcs_) {
-        if (!funct->body_.defined()) {
-            // if the func is decl
-            auto func_def = f->get_func(funct->name_);
-            if (func_def && func_def->attr_) {
-                if (auto hint
-                        = func_def->attr_->get_or_null<std::vector<std::pair<
-                                  int, std::vector<tensor_inplace_info_t>>>>(
-                                function_attrs::inplace_hint)) {
-                    funct->attr()[function_attrs::inplace_hint] = *hint;
-                }
-            }
+    auto ret = std::make_shared<ir_module_t>(*f);
+    auto main_entry = f->get_entry_func();
+    for (auto &entry_f : ret->get_contents()) {
+        // skip functions that 1) are not main_entry function and 2) are not top
+        // level functions
+        if (entry_f != main_entry
+                && (!entry_f->attr_
+                        || !entry_f->attr_->get_or_else(
+                                function_attrs::top_level, false))) {
+            continue;
         }
-    }
-    buffer_scheduler_t scheduler {ctx_, true, true};
-    auto new_func = scheduler(entry_f);
-    // if no changes, return
-    if (new_func == entry_f) { return f; }
-    // sync back alias group info to callee functions
-    for (auto &funct : finder.funcs_) {
-        if (!funct->body_.defined()) {
-            // if the callee func is decl
-            auto func_def = f->get_func(funct->name_);
-            if (func_def) {
-                for (size_t arg_id = 0; arg_id < funct->params_.size();
-                        arg_id++) {
-                    auto &arg_in_decl = funct->params_[arg_id];
-                    auto &arg_in_def = func_def->params_.at(arg_id);
-                    if (arg_in_decl->attr_
-                            && arg_in_decl->attr_->has_key(
-                                    attr_keys::pointer_alias)) {
-                        arg_in_def->attr()[attr_keys::pointer_alias]
-                                = arg_in_decl->attr_->get_any(
-                                        attr_keys::pointer_alias);
+        // find all calls to func decl, and sync the inplace_hint with decl and
+        // definition
+        func_finder_t finder;
+        finder.dispatch(entry_f);
+        for (auto &funct : finder.funcs_) {
+            if (!funct->body_.defined()) {
+                // if the func is decl
+                auto func_def = f->get_func(funct->name_);
+                if (func_def && func_def->attr_) {
+                    if (auto hint
+                            = func_def->attr_
+                                      ->get_or_null<std::vector<std::pair<int,
+                                              std::vector<
+                                                      tensor_inplace_info_t>>>>(
+                                              function_attrs::inplace_hint)) {
+                        funct->attr()[function_attrs::inplace_hint] = *hint;
                     }
                 }
             }
         }
-    }
-    auto ret = std::make_shared<ir_module_t>(*f);
-    for (auto &func : ret->get_contents()) {
-        if (func == entry_f) {
-            func = std::const_pointer_cast<func_base>(new_func);
-            break;
+        buffer_scheduler_t scheduler {ctx_, true, true};
+        auto new_func = scheduler(entry_f);
+        // if no changes, continue
+        if (new_func == entry_f) { continue; }
+        // sync back alias group info to callee functions
+        for (auto &funct : finder.funcs_) {
+            if (!funct->body_.defined()) {
+                // if the callee func is decl
+                auto func_def = f->get_func(funct->name_);
+                if (func_def) {
+                    for (size_t arg_id = 0; arg_id < funct->params_.size();
+                            arg_id++) {
+                        auto &arg_in_decl = funct->params_[arg_id];
+                        auto &arg_in_def = func_def->params_.at(arg_id);
+                        if (arg_in_decl->attr_
+                                && arg_in_decl->attr_->has_key(
+                                        attr_keys::pointer_alias)) {
+                            arg_in_def->attr()[attr_keys::pointer_alias]
+                                    = arg_in_decl->attr_->get_any(
+                                            attr_keys::pointer_alias);
+                        }
+                    }
+                }
+            }
         }
+        entry_f = std::const_pointer_cast<func_base>(new_func);
     }
+
     return ret;
 }
 

@@ -54,6 +54,11 @@ unary_elementwise_op_impl_t::unary_elementwise_op_impl_t(
     attrs_ = attrs;
 }
 
+std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
+unary_elementwise_op_impl_t::get_inplace_map() {
+    return {{0, {{0, inplace_kind::ZERO_OFFSET}}}};
+}
+
 void unary_elementwise_op_impl_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs) {

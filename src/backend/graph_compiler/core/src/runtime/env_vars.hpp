@@ -57,6 +57,7 @@ enum key {
     SC_XBYAK_JIT_LOG_STACK_FRAME_MODEL,
     SC_XBYAK_JIT_PAUSE_AFTER_CODEGEN,
     SC_MANAGED_THREAD_POOL,
+    SC_TENSOR_INPLACE,
     NUM_KEYS
 };
 } // namespace env_key

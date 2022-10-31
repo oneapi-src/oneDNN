@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 #include <compiler/ir/graph/graph.hpp>
+#include <compiler/ir/graph/trait/may_inplace.hpp>
 #include <compiler/ir/graph/traits.hpp>
 namespace sc {
 
@@ -248,6 +249,7 @@ struct vectorized_info_t {
 };
 
 class binary_elementwise_op_t : public fusible_op_t,
+                                public op_traits::may_inplace_t,
                                 public op_traits::may_broadcast_t,
                                 public op_traits::batchwise_shrinkable_t,
                                 public op_traits::brgemm_fusion_acceptable_t,
@@ -256,6 +258,7 @@ class binary_elementwise_op_t : public fusible_op_t,
 };
 
 class unary_elementwise_op_t : public fusible_op_t,
+                               public op_traits::may_inplace_t,
                                public op_traits::brgemm_fusion_acceptable_t,
                                public op_traits::batchwise_shrinkable_t,
                                public op_traits::auto_copyable_with_trait_t<

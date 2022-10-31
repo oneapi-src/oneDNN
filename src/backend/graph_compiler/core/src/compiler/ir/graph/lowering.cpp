@@ -39,6 +39,7 @@
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/index2var.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
+#include <compiler/ir/transform/tensor_inplace_info.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/matmul_core.hpp>
@@ -1153,6 +1154,32 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 } else {
                     // no dispatch
                     auto mod = node->get_func(ctx);
+                    auto inp_node = node->dyn_cast<op_traits::may_inplace_t>();
+                    if (inp_node && ctx->flags_.tensor_inplace_) {
+                        auto inp_hint = inp_node->get_inplace_map();
+                        if (!inp_hint.empty()) {
+                            auto func = mod->get_entry_func();
+                            std::vector<std::pair<int,
+                                    std::vector<tensor_inplace_info_t>>>
+                                    out_hint;
+                            for (auto &kv : inp_hint) {
+                                int output_id = kv.first;
+                                out_hint.emplace_back(output_id,
+                                        std::vector<tensor_inplace_info_t> {});
+                                for (auto &info : kv.second) {
+                                    auto input_id = info.used_arg_idx_;
+                                    // convert input id to argument index
+                                    int new_idx = input_id
+                                            + node->get_outputs().size();
+                                    out_hint.back().second.emplace_back(
+                                            tensor_inplace_info_t {
+                                                    new_idx, info.kind_});
+                                }
+                            }
+                            func->attr()[function_attrs::inplace_hint]
+                                    = std::move(out_hint);
+                        }
+                    }
                     ret_mod->merge(*mod);
                     auto callee = mod->get_entry_func();
                     if (!callee) {
@@ -1236,6 +1263,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     func->params_ = std::move(params);
     func->decl_->params_ = func->params_;
     func->body_ = std::move(func_body);
+    func->attr()[function_attrs::top_level] = true;
     if (utils::compiler_configs_t::get().print_pass_result_) {
         SC_MODULE_INFO << ret_mod;
     }

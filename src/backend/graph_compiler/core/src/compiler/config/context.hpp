@@ -36,6 +36,7 @@ struct scflags_t {
 
     jit_kind jit_kind_ = jit_kind::cfake;
     int backend_opt_level = 3;
+    bool tensor_inplace_ = true;
     bool bf16_fast_trunc_ = false;
     bool boundary_check_ = false;
     bool trace_ = false;

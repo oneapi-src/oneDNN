@@ -422,6 +422,8 @@ struct memory_state {
                 if (vic_buffer_id) {
                     out_inplace_selection_[bufferid].emplace_back(
                             vic_buffer_id);
+                    SC_MODULE_INFO << "Buffer " << bufferid
+                                   << " inplace reuses " << vic_buffer_id;
                 }
             }
         }
