@@ -164,15 +164,15 @@ const nocopy_table_t xe_hpc_f16_nocopy_table[] = {
 
 const nocopy_table_t xe_hpc_x8x8s32_nocopy_table[] = {
         // NN    NT      TN    TT
-        {{{1024, 1024}, {1024, 1024}}, {{0, 0}, {0, 0}}}};
+        {{{2049, 3000}, {1088, 1024}}, {{0, 0}, {0, 0}}}};
 
 const nocopy_table_t xe_hpc_f16_nocopy_bad_ld_table[] = {
         // NN    NT      TN    TT
         {{{1024, 1024}, {1024, 1024}}, {{0, 0}, {0, 0}}}};
 
 const nocopy_table_t xe_hpc_x8x8s32_nocopy_bad_ld_table[] = {
-        // NN    NT      TN    TT
-        {{{1024, 1024}, {1024, 1024}}, {{0, 0}, {0, 0}}}};
+        // NN    NT    TN   TT
+        {{{624, 624}, {480, 624}}, {{0, 0}, {0, 0}}}};
 } // namespace
 
 bool xe_hp_systolic_gemm_t::pd_t::use_nocopy() {
