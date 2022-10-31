@@ -467,7 +467,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
         pop(reg_output);
         pop(reg_input);
         pop(reg_kernel);
-        base_post_ops_data_offset -= reg64_size;
+        base_post_ops_data_offset -= 3 * reg64_size;
 
     } else {
         compute(ur_ch_blocks, masked_ch_block_tail);
