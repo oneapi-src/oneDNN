@@ -34,7 +34,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_wtag : s.wtag)
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_alg : s.alg)
-    for_(const auto &i_oscale : s.oscale)
+    for_(const auto &i_scales : s.scales)
     for_(const auto &i_zero_points : s.zero_points)
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
@@ -42,7 +42,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for_(const auto &i_fpmath_mode : s.fpmath_mode)
     for (const auto &i_mb : s.mb) {
-        auto attr = settings_t::get_attr(i_oscale, i_zero_points, i_post_ops,
+        auto attr = settings_t::get_attr(i_scales, i_zero_points, i_post_ops,
                 i_scratchpad_mode, i_fpmath_mode);
 
         const prb_t prb(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg,
@@ -82,7 +82,7 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
                 || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_mb(s.mb, def.mb, argv[0])
-                || parse_attr_oscale(s.oscale, argv[0])
+                || parse_attr_scales(s.scales, argv[0])
                 || parse_attr_zero_points(s.zero_points, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_attr_scratchpad_mode(

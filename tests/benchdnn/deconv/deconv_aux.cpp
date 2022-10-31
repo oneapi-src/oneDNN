@@ -328,36 +328,42 @@ void prb_t::count_ops() {
     ops = 2 * this->mb * this->oc * this->ic / this->g * sp_ops;
 }
 
-float *generate_oscales(const attr_t::scale_t &oscale, int N) {
-    if (oscale.is_def()) return nullptr;
+float *prb_t::generate_scales(int arg) {
+    const auto &scales = attr.scales;
+    if (scales.is_def()) return nullptr;
 
-    if (oscale.policy == policy_t::COMMON) {
-        float *scales = (float *)zmalloc(sizeof(float), 4);
-        SAFE_V(scales != nullptr ? OK : FAIL);
-        scales[0] = oscale.scale;
-        return scales;
+    const auto &e = scales.get(arg);
+    if (e.policy == policy_t::COMMON) {
+        float *s = (float *)zmalloc(sizeof(float), 4);
+        SAFE_V(s != nullptr ? OK : FAIL);
+        s[0] = e.scale;
+        return s;
     }
 
-    assert(oscale.policy == policy_t::PER_OC);
+    assert(e.policy == policy_t::PER_OC);
+    const auto mask = attr_t::get_default_mask(e.policy, arg);
+    int64_t s_nelems = desc_nelems(arg, mask);
 
-    float *scales = (float *)zmalloc(sizeof(float) * N, 64);
-    SAFE_V(scales != nullptr ? OK : FAIL);
+    float *s = (float *)zmalloc(sizeof(float) * s_nelems, 64);
+    SAFE_V(s != nullptr ? OK : FAIL);
 
     const float K = 32;
-    /* scale in [1/K .. K], with starting point at oscale.scale */
-    float s[2] = {oscale.scale, oscale.scale / 2};
-    for (int64_t i = 0; i < N; ++i) {
+    /* scale in [1/K .. K], with starting point at e.scale */
+    float s_val[2] = {e.scale, e.scale / 2};
+    for (int64_t i = 0; i < s_nelems; ++i) {
         int64_t si = i % 2; // 0 -> left, 1 -> right
-        scales[i] = s[si];
+        s[i] = s_val[si];
         if (si == 0) {
-            s[si] /= 2.;
-            if (s[si] < 1. / K) s[si] *= K * K; // turn around to become ~K
+            s_val[si] /= 2.;
+            // turn around to become ~K
+            if (s_val[si] < 1. / K) s_val[si] *= K * K;
         } else {
-            s[si] *= 2.;
-            if (s[si] > K) s[si] /= K * K; // turn around to become ~K
+            s_val[si] *= 2.;
+            // turn around to become ~K
+            if (s_val[si] > K) s_val[si] /= K * K;
         }
     }
-    return scales;
+    return s;
 }
 
 int32_t *prb_t::generate_zero_points(int arg) {
