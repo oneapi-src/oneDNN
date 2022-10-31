@@ -54,6 +54,10 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
+            auto arch = compute_engine->device_info()->gpu_arch();
+
+            if (arch >= compute::gpu_arch_t::xe_hpc)
+                return status::unimplemented;
 
             const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops
                     | smask_t::zero_points_runtime;
