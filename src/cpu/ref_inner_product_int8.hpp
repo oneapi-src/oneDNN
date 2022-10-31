@@ -56,18 +56,28 @@ struct ref_inner_product_int8_fwd_t : public primitive_t {
                             platform::has_data_type_support(bia_type))
                     && platform::has_data_type_support(dst_type)
                     && set_default_params(allow_all_tags) == status::success
-                    && attr()->has_default_values(smask_t::oscale_runtime
+                    && attr()->has_default_values(smask_t::scales_runtime
                             | smask_t::post_ops | smask_t::sum_dt)
                     && attr()->post_ops_.check_sum_consistent_dt(dst_type)
-                    && output_scales_mask_ok()
+                    && arg_scales_mask_ok()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
         }
 
     private:
-        bool output_scales_mask_ok() const {
-            const auto &mask = attr()->output_scales_.mask_;
-            return mask == 0 || mask == (1 << 1);
+        bool arg_scales_mask_ok() const {
+            const std::vector<int> supported_args
+                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+            bool ok = attr()->scales_.has_default_values(supported_args);
+
+            for (auto arg : supported_args) {
+                int mask = attr()->scales_.get(arg).mask_;
+                if (arg == DNNL_ARG_WEIGHTS)
+                    ok = ok && (mask == 0 || mask == (1 << 0));
+                else
+                    ok = ok && (mask == 0);
+            }
+            return ok;
         }
     };
 

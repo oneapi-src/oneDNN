@@ -71,26 +71,33 @@ status_t ref_inner_product_int8_fwd_t::execute_forward(
         return d;
     };
 
-    DEFINE_SCALES_BUFFER(scales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    const auto &attr_scales = pd()->attr()->scales_;
+    const bool with_dst_scales
+            = !attr_scales.get(DNNL_ARG_DST).has_default_values();
+
     auto maybe_oscale = [=](float &d, dim_t oc) {
         // scale_idx_mult = 1 for per_oc scales and 0, otherwise
         const int scale_idx_mult
-                = pd()->attr()->output_scales_.mask_ == (1 << 1);
-        d *= scales[oc * scale_idx_mult];
+                = attr_scales.get(DNNL_ARG_WEIGHTS).mask_ == (1 << 0);
+        d *= src_scales[0] * wei_scales[oc * scale_idx_mult];
     };
 
     parallel_nd(MB, OC, [&](dim_t mb, dim_t oc) {
         int acc = ker(mb, oc);
 
         float d = acc;
+        maybe_oscale(d, oc);
+
         if (bias) {
             const auto bias_off = bias_d.off(oc);
             const float b
                     = io::load_float_value(bias_d.data_type(), bias, bias_off);
             d += b;
         }
-
-        maybe_oscale(d, oc);
 
         dim_t dst_off = dst_d.off(mb, oc);
         dim_t dst_l_off = (mb * OC + oc);
@@ -102,6 +109,7 @@ status_t ref_inner_product_int8_fwd_t::execute_forward(
         args.dst_md = pd()->dst_md();
         ref_post_ops->execute(d, args);
 
+        if (with_dst_scales) d *= dst_scales[0];
         io::store_float_value(dst_d.data_type(), d, dst, dst_off);
     });
 
