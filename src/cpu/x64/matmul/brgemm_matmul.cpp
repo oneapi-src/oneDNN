@@ -22,6 +22,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/scale_utils.hpp"
 
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
@@ -65,10 +66,25 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         return IMPLICATION(with_bias(), is_bia_dt_correct && is_bias_1xN());
     };
 
-    auto check_attr_oscale = [&]() -> bool {
-        const auto &oscale = attr()->output_scales_;
-        return IMPLICATION(
-                oscale.mask_ != 0, oscale.mask_ == (1 << (dst_md_.ndims - 1)));
+    auto check_attr_scales = [&]() -> bool {
+        using namespace data_type;
+        const std::vector<int> supported_args
+                = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS};
+        bool ok = attr()->scales_.has_default_values(supported_args);
+        for (int arg : supported_args) {
+            const auto &mask = attr()->scales_.get(arg).mask_;
+            if (arg == DNNL_ARG_WEIGHTS)
+                ok = ok && (mask == 0 || mask == 1 << (dst_md()->ndims - 1));
+            else
+                ok = ok && (mask == 0);
+        }
+        if (!attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
+                && !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()
+                && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ != 0) {
+            // This case requires scratchpad
+            if (N() == DNNL_RUNTIME_DIM_VAL) return false;
+        }
+        return ok;
     };
 
     auto check_attr_zero_points
@@ -78,13 +94,13 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     bool ok = mayiuse(isa) && problem_dt_correct && !has_zero_dim_memory()
             && !has_runtime_dims_or_strides()
             && attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::oscale_runtime
+                    primitive_attr_t::skip_mask_t::scales_runtime
                             | primitive_attr_t::skip_mask_t::zero_points_runtime
                             | primitive_attr_t::skip_mask_t::post_ops
                             | primitive_attr_t::skip_mask_t::sum_dt,
                     dst_dt)
             && attr()->post_ops_.check_sum_consistent_dt(dst_dt)
-            && check_attr_oscale() && check_attr_zero_points() && check_bias();
+            && check_attr_scales() && check_attr_zero_points() && check_bias();
     if (!ok) return status::unimplemented;
 
     CHECK(init_brgemm_matmul_conf(isa, bgmmc_, *desc(), src_md_, weights_md_,
@@ -147,6 +163,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
     auto scratchpad = scratchpad_registry().registrar();
     init_scratchpad(scratchpad, bgmmc_);
+    book_precomputed_scales(scratchpad, attr()->scales_, N());
 
     return status::success;
 }
@@ -194,7 +211,12 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(wei_zero_point, DNNL_ARG_WEIGHTS);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+
+    auto &scratchpad = ctx.get_scratchpad_grantor();
+    const float *oscales = precompute_scales(
+            scratchpad, src_scales, wei_scales, pd()->N(), pd()->attr());
 
     brg_matmul_exec_ctx_t brgmm_ctx(
             ctx, pd(), oscales, src_zero_point, wei_zero_point, dst_zero_point);

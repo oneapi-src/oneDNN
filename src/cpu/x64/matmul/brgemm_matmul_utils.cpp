@@ -854,13 +854,15 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.acc_dt_sz = types::data_type_size(bgmmc.acc_dt);
     if (bgmmc.with_bias) bgmmc.bias_dt_sz = types::data_type_size(bgmmc.bia_dt);
 
-    bgmmc.with_scales = !attr.output_scales_.has_default_values();
+    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+    bgmmc.with_scales = !src_scales.has_default_values()
+            || !wei_scales.has_default_values();
     if (bgmmc.with_scales) {
-        const auto &oscales = attr.output_scales_;
-        bgmmc.is_oscale_per_n = oscales.mask_ == 1 << (bgmmc.ndims - 1);
+        bgmmc.is_oscale_per_n = wei_scales.mask_ == 1 << (bgmmc.ndims - 1);
 
         // only common and per-oc-channel scales are supported
-        const bool oscales_ok = oscales.mask_ == 0 || bgmmc.is_oscale_per_n;
+        const bool oscales_ok = wei_scales.mask_ == 0 || bgmmc.is_oscale_per_n;
         if (!oscales_ok) return status::unimplemented;
     }
 
