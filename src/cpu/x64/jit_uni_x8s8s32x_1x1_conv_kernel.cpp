@@ -54,7 +54,7 @@ _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::_jit_uni_x8s8s32x_1x1_conv_kernel(
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = true;
-        rhs_arg_static_params_t rhs_arg_static_params {15, r13, r14,
+        rhs_arg_static_params_t rhs_arg_static_params {15, r13, r14, r15,
                 preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md)};

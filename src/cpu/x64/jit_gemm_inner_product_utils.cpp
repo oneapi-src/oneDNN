@@ -324,7 +324,7 @@ jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
         // for the OC
         tail_size = !!tail_size ? tail_size : 1;
         const binary_injector::rhs_arg_static_params_t rhs_arg_static_params {
-                helper_vmm_idx, eltwise_reserved_gpr_, r14, preserve_gpr,
+                helper_vmm_idx, eltwise_reserved_gpr_, r14, r15, preserve_gpr,
                 preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
                 PARAM_OFF(dst_orig), dst_md_wrapper, tail_size, opmask_binary,
                 reg_tmp, use_exact_tail_scalar_bcast};

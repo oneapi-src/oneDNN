@@ -107,6 +107,7 @@ private:
 
     const Xbyak::Reg64 bin_injector_helper_reg_1 = r14;
     const Xbyak::Reg64 bin_injector_helper_reg_2 = r15;
+    const Xbyak::Reg64 bin_injector_helper_reg_3 = r11;
 
     const Xbyak::Opmask ktail_mask = k2;
 

@@ -156,9 +156,9 @@ void jit_uni_reduction_kernel_t<isa, Vmm>::init_post_ops_injector(
     const binary_injector::rhs_arg_static_params_t rhs_arg_bsp {
             static_cast<size_t>(rhs_dt_helper_vmm_.getIdx()),
             reg_po_injector_helper_1_, reg_po_injector_helper_2_,
-            true /*preserve gpr*/, true /*preserve vmm*/,
-            GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig), dst_d,
-            store_tail_size_, k_tail_store_mask_,
+            reg_po_injector_helper_3_, true /*preserve gpr*/,
+            true /*preserve vmm*/, GET_OFF(post_ops_binary_rhs_arg_vec),
+            GET_OFF(dst_orig), dst_d, store_tail_size_, k_tail_store_mask_,
             false /*use_exact_tail_scalar_bcast*/};
     const binary_injector::static_params_t bsp(
             reg_param_, get_supported_postops_bcast_strategies(), rhs_arg_bsp);

@@ -114,7 +114,7 @@ _jit_avx512_core_bf16_fwd_kernel<Vmm>::_jit_avx512_core_bf16_fwd_kernel(
         static constexpr bool use_exact_tail_scalar_bcast = true;
 
         const rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx,
-                r14, r15, preserve_gpr, preserve_vmm,
+                r14, r15, r12, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size, postops_mask,
                 use_exact_tail_scalar_bcast};

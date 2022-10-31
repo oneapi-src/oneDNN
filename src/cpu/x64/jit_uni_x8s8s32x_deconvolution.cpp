@@ -411,7 +411,7 @@ _jit_uni_x8s8s32x_deconv_fwd_kernel<isa,
         static constexpr size_t vmm_helper_idx = 15;
 
         const binary_injector::rhs_arg_static_params_t rhs_sp {vmm_helper_idx,
-                this->r14, this->r15, preserve_gpr, preserve_vmm,
+                this->r14, this->r15, this->r13, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig), dst_d,
                 tail_size, Xbyak::Opmask(2), use_exact_tail_scalar_bcast};
         const binary_injector::static_params_t bsp {this->param1_, rhs_sp};

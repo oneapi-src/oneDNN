@@ -255,7 +255,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
             static constexpr std::size_t tmp_vmm_injector = 0u;
 
             const binary_injector::rhs_arg_static_params_t rhs_sp {
-                    tmp_vmm_injector, r14, r15, preserve_gpr, preserve_vmm,
+                    tmp_vmm_injector, r14, r15, r13, preserve_gpr, preserve_vmm,
                     GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                     memory_desc_wrapper(*dst_md), c_tail_elems,
                     mask(post_op_tail_opmask_idx_),

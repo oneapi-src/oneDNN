@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ jit_avx512_dw_conv_fwd_kernel_bf16::jit_avx512_dw_conv_fwd_kernel_bf16(
                 % (cpu_isa_traits<avx512_core>::vlen / sizeof(float));
 
         const rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx,
-                r14, r15, preserve_gpr, preserve_vmm,
+                r14, r15, r12, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size, k_oc_tail_mask,
                 use_exact_tail_scalar_bcast};

@@ -48,7 +48,7 @@ jit_uni_dw_conv_fwd_kernel_f32<isa>::jit_uni_dw_conv_fwd_kernel_f32(
         const size_t tail_size = jcp.oc_without_padding
                 % (cpu_isa_traits<isa>::vlen / sizeof(float));
         rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx, r14, r15,
-                preserve_gpr, preserve_vmm,
+                r12, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size, k_oc_tail_mask,
                 use_exact_tail_scalar_bcast};

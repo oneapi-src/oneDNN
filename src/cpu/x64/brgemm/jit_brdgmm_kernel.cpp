@@ -57,10 +57,10 @@ jit_brdgmm_kernel_base_t<isa, Wmm>::jit_brdgmm_kernel_base_t(
                         broadcasting_strategy_t::per_oc,
                         broadcasting_strategy_t::no_broadcast};
         const binary_injector::rhs_arg_static_params_t rhs_sp {
-                static_cast<size_t>(vmm_b().getIdx()), r14, r15, preserve_gpr,
-                preserve_vmm, GET_OFF(post_ops_binary_rhs_arg_vec),
-                GET_OFF(data_C_ptr_), dst_md_wrapper, tail, k_mask,
-                use_exact_tail_scalar_bcast};
+                static_cast<size_t>(vmm_b().getIdx()), r14, r15, r13,
+                preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(data_C_ptr_),
+                dst_md_wrapper, tail, k_mask, use_exact_tail_scalar_bcast};
         const binary_injector::static_params_t bsp {
                 this->param1, enabled_bcast_strategy, rhs_sp};
 

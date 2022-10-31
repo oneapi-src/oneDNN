@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
         static constexpr size_t tail_size = 1;
         static constexpr bool use_exact_tail_scalar_bcast = false;
         const binary_injector::rhs_arg_static_params_t rhs_arg_static_params {
-                helper_vmm_idx, reserved_eltwise_gpr, r14, preserve_gpr,
+                helper_vmm_idx, reserved_eltwise_gpr, r14, r15, preserve_gpr,
                 preserve_vmm, PARAM_OFF(post_ops_binary_rhs_arg_vec),
                 PARAM_OFF(dst_orig), memory_desc_wrapper(pd->dst_md()),
                 tail_size, kreg_rem_mask, use_exact_tail_scalar_bcast};
