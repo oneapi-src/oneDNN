@@ -266,6 +266,7 @@ struct jit_conv_conf_t {
 
     int dw_conv_oh, dw_conv_ow;
     data_type_t dw_conv_dst_dt;
+    bool is_int8_deconvolution;
 };
 
 // calculates filter size taking into account dilation
