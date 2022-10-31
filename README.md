@@ -268,7 +268,7 @@ See the README included in the corresponding binary package.
 # Applications Enabled with oneDNN
 
 * [Apache\* MXNet](https://mxnet.apache.org)
-* [Apache\* SINGA](https://singa.apache.org)
+* [Apache SINGA](https://singa.apache.org)
 * [DeepLearning4J\*](https://deeplearning4j.konduit.ai)
 * [Flashlight\*](https://github.com/flashlight/flashlight)
 * [Korali](https://github.com/cselab/korali)
@@ -276,8 +276,8 @@ See the README included in the corresponding binary package.
 * [ONNX Runtime](https://onnxruntime.ai)
 * [OpenVINO(TM) toolkit](https://github.com/openvinotoolkit/openvino)
 * [PaddlePaddle\*](http://www.paddlepaddle.org)
-* [PyTorch\*](https://pytorch.org)
-* [Tensorflow\*](https://www.tensorflow.org)
+* [PyTorch\*](https://pytorch.org). Intel GPU support and additional optimizations are available with [Intel Extension for PyTorch](https://github.com/intel/intel-extension-for-pytorch).
+* [Tensorflow\*](https://www.tensorflow.org). Intel GPU support and additional optimizations are available with [Intel Extension for Tensorflow](https://github.com/intel/intel-extension-for-tensorflow).
 
 # Support
 
