@@ -349,6 +349,12 @@ void InterfaceHandler::generateDummyCL(std::ostream &stream) const
             stream << "    __asm__ volatile(\"\" :: \"rw.u\"(" << assignment.name << "));\n";
     }
 
+    for (const auto &assignment : assignments) {
+        // Force IGC to assume surface accesses could occur if necessary.
+        if (assignment.exttype == ExternalArgumentType::GlobalPtr && assignment.globalSurfaceAccess())
+            stream << "    { volatile uchar __load = ((global uchar *) " << assignment.name << ")[get_local_id(0)];}\n";
+    }
+
     stream << "}\n";
 }
 
