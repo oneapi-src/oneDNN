@@ -166,6 +166,18 @@ struct attr_info_t {
         attr_info.with_src1_scale = !src1_scales.has_default_values();
         assert(src1_scales.mask_ == 0);
 
+        const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
+        attr_info.with_src_scales = !src_scales.has_default_values();
+        assert(src_scales.mask_ == 0);
+
+        const auto &wei_scales = attr->scales_.get(DNNL_ARG_WEIGHTS);
+        attr_info.with_wei_scales = !wei_scales.has_default_values();
+        attr_info.wei_scales_mask = wei_scales.mask_;
+
+        const auto &dst_scales = attr->scales_.get(DNNL_ARG_DST);
+        attr_info.with_dst_scales = !dst_scales.has_default_values();
+        assert(dst_scales.mask_ == 0);
+
         // zero points
         const auto &zp = attr->zero_points_;
         attr_info.with_src_zpoints = !zp.has_default_values(DNNL_ARG_SRC);
@@ -205,6 +217,10 @@ struct attr_info_t {
 
     bool with_src0_scale;
     bool with_src1_scale;
+    bool with_src_scales;
+    bool with_wei_scales;
+    bool with_dst_scales;
+    bool wei_scales_mask;
 
     bool with_src_zpoints;
     bool with_wei_zpoints;
@@ -1370,6 +1386,11 @@ inline void def_attr_info(compute::kernel_ctx_t &kernel_ctx,
             "WITH_RUNTIME_SCALES", attr_info.with_runtime_oscales);
     kernel_ctx.define_int("SCALES_PER_OC", attr_info.with_per_oc_oscales);
     kernel_ctx.define_int("SCALES_COMMON", attr_info.with_common_oscales);
+
+    kernel_ctx.define_int("WITH_SRC_SCALES", attr_info.with_src_scales);
+    kernel_ctx.define_int("WITH_WEI_SCALES", attr_info.with_wei_scales);
+    kernel_ctx.define_int("WITH_DST_SCALES", attr_info.with_dst_scales);
+    kernel_ctx.define_int("WEI_SCALES_MASK", attr_info.wei_scales_mask);
 
     kernel_ctx.define_int("WITH_SRC_ZPOINTS", attr_info.with_src_zpoints);
     kernel_ctx.define_int("WITH_WEI_ZPOINTS", attr_info.with_wei_zpoints);

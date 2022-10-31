@@ -115,7 +115,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
             using sm = primitive_attr_t::skip_mask_t;
 
             const auto attr_skip_mask = sm::post_ops | sm::zero_points_runtime
-                    | sm::oscale_runtime;
+                    | sm::scales_runtime;
 
             bool ok = is_fwd()
                     && desc()->alg_kind == alg_kind::deconvolution_direct
@@ -209,8 +209,11 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         const auto z_dst = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST;
         if (args.find(z_src) != args.end()) conv_args[z_src] = args.at(z_src);
         if (args.find(z_dst) != args.end()) conv_args[z_dst] = args.at(z_dst);
-        const auto osc = DNNL_ARG_ATTR_OUTPUT_SCALES;
-        if (args.find(osc) != args.end()) conv_args[osc] = args.at(osc);
+
+        for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+            int key = DNNL_ARG_ATTR_SCALES | arg;
+            if (args.find(key) != args.end()) conv_args[key] = args.at(key);
+        }
 
         exec_ctx_t conv_ctx(ctx, std::move(conv_args));
 

@@ -46,7 +46,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
             const auto attr_skip_mask
-                    = primitive_attr_t::skip_mask_t::oscale_runtime
+                    = primitive_attr_t::skip_mask_t::scales_runtime
                     | primitive_attr_t::skip_mask_t::zero_points_runtime
                     | primitive_attr_t::skip_mask_t::post_ops
                     | primitive_attr_t::skip_mask_t::sum_dt;
@@ -76,12 +76,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                     && attr_.set_default_formats(dst_md(0)) == status::success
                     && post_ops_with_binary_ok(
                             attr(), dst_md()->data_type, 5, 0xffff)
-                    && zero_points_ok(attr())
-                    && IMPLICATION(!attr()->output_scales_.has_default_values(),
-                            utils::one_of(src_md_.data_type, s8, u8)
-                                    && utils::one_of(
-                                            attr()->output_scales_.mask_, 0,
-                                            1 << 1));
+                    && zero_points_ok(attr()) && arg_scales_ok();
             if (!ok) return status::unimplemented;
 
             return init_conf(engine);
@@ -134,7 +129,7 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm::post_ops | sm::oscale_runtime
+            const auto attr_skip_mask = sm::post_ops | sm::scales_runtime
                     | sm::zero_points_runtime;
             using namespace data_type;
             const auto *compute_engine
@@ -146,12 +141,7 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
                     && this->set_default_formats()
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type)
-                    && zero_points_ok(attr())
-                    && IMPLICATION(!attr()->output_scales_.has_default_values(),
-                            utils::one_of(diff_dst_md()->data_type, u8, s8)
-                                    && utils::one_of(
-                                            attr()->output_scales_.mask_, 0,
-                                            1 << 1))
+                    && zero_points_ok(attr()) && arg_scales_ok()
                     && IMPLICATION(utils::one_of(f64, diff_src_md()->data_type,
                                            dst_md()->data_type),
                             compute_engine->mayiuse(
