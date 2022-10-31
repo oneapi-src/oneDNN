@@ -20,6 +20,7 @@
 #include "pointer_alias_info.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/ir_comparer.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/viewer.hpp>
 #include <unordered_map>
@@ -29,6 +30,12 @@
 SC_MODULE(pass.index2var)
 
 namespace sc {
+
+SC_DECL_PASS_INFO(index2var,
+        SC_PASS_DEPENDS_ON(
+                constant_folder, ir_simplifier, validator, index_flattener),
+        SC_PASS_REQUIRE_STATE(FUNC_INLINED), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE(IR_SIMPLIFIED));
 
 // the visitor to find the mutable dependencies in the indices of indexing
 // nodes. e.g., for A[i+j], it will find i and j as dependencies. Note that if

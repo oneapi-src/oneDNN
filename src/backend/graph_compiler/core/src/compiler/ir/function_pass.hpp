@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,13 @@
 
 #include <memory>
 #include <vector>
+#include "pass_info_macros.hpp"
 #include "sc_function.hpp"
 #include <util/utils.hpp>
 
 namespace sc {
+struct tir_pass_dependency_t;
+
 /**
  * The base abstruct class of all function passes
  * */
@@ -30,6 +33,10 @@ class function_pass_t {
 public:
     virtual func_c operator()(func_c f) = 0;
     virtual ~function_pass_t() = default;
+    virtual const char *get_name() const { return nullptr; }
+#ifndef NDEBUG
+    virtual void get_dependency_info(tir_pass_dependency_t &out) const;
+#endif
 };
 
 using function_pass_ptr = std::unique_ptr<function_pass_t>;

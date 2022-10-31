@@ -36,6 +36,7 @@ class ssa_transform_t : public function_pass_t {
 public:
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f);
+    SC_DECL_PASS_INFO_FUNC();
 };
 
 } // namespace sc

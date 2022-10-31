@@ -14,24 +14,24 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_LOOP_UNROLL_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_LOOP_UNROLL_HPP
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_PASS_MANAGER_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_PASS_MANAGER_HPP
 
-#include "../function_pass.hpp"
-#include "../sc_function.hpp"
+#include <memory>
+#include <stdint.h>
+#include <vector>
+#include <compiler/config/context.hpp>
 
 namespace sc {
-
-/**
- * Unroll loops with attr[stmt_attr_key::unroll_loop]=true
- * */
-class loop_unroller_t : public function_pass_t {
-public:
-    func_c operator()(func_c f) override;
-    stmt_c operator()(stmt_c f);
-    SC_DECL_PASS_INFO_FUNC();
-};
-
+class module_pass_t;
+#ifndef NDEBUG
+void validate_pass_order(const context_ptr &ctx,
+        const std::vector<std::unique_ptr<module_pass_t>> &passes,
+        bool gen_wrapper);
+#else
+#define validate_pass_order(ctx, passes, gen_wrapper)
+#endif
+const char *get_pass_name(module_pass_t *pass);
 } // namespace sc
 
 #endif

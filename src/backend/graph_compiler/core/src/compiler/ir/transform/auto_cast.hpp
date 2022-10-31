@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ public:
     stmt_c operator()(stmt_c s);
     expr_c operator()(expr_c s);
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;
+    SC_DECL_PASS_INFO_FUNC();
 };
 
 /**

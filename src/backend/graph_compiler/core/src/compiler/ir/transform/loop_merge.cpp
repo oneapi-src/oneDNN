@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,15 @@
 #include <vector>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/pass/ir_copy.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(loop_merger, SC_PASS_DEPENDS_ON(constant_folder),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 // if v is not stmts or v->seq_.size() > 1, return v
 // if v is a stmts node with only one stmt, return the stmt

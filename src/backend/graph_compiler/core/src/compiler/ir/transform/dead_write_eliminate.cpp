@@ -18,6 +18,7 @@
 #include "../visitor.hpp"
 #include "buffer_schedule.hpp"
 #include <compiler/ir/pass/dependency_analyzer.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <util/any_map.hpp>
@@ -26,6 +27,13 @@
 SC_MODULE(pass.dead_write_elim)
 
 namespace sc {
+
+SC_DECL_PASS_INFO(dead_write_eliminator,
+        SC_PASS_DEPENDS_ON(validator, index2var), // need to remove redundant
+        // memory store for index2var
+        SC_PASS_REQUIRE_STATE(CONST_FOLDED, IR_SIMPLIFIED),
+        SC_PASS_REQUIRE_NOT_STATE(), SC_PASS_SET_STATE(),
+        SC_PASS_UNSET_STATE(IR_SIMPLIFIED));
 
 // dead write elimination implementation
 class dwe_impl_t : public ir_visitor_t {

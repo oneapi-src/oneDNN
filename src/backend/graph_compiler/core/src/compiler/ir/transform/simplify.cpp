@@ -20,11 +20,16 @@
 #include "../visitor.hpp"
 #include "constant_fold.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <util/any_map.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(ir_simplifier, SC_PASS_DEPENDS_ON(validator, constant_folder),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(IR_SIMPLIFIED), SC_PASS_UNSET_STATE());
 
 /** dead write elimination implementation
  *  this impl is fast and may be called many times.

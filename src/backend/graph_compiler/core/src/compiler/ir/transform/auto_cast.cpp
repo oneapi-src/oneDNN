@@ -22,9 +22,14 @@
 #include "../util_module_passes.hpp"
 #include "../visitor.hpp"
 #include "auto_cast.hpp"
+#include <compiler/ir/pass_dep_util.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(auto_caster, SC_PASS_DEPENDS_ON(index_flattener),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE(CONST_FOLDED));
 
 static std::unordered_map<sc_data_type_t, int> promotion_priority = {
         {datatypes::f32, 100},

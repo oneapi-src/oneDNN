@@ -16,11 +16,18 @@
 #include "local_tensor_lower.hpp"
 #include <vector>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(local_tensor_lowering_cpu,
+        SC_PASS_DEPENDS_ON(constant_folder, buffer_scheduler, tensor_init,
+                module_globals_resolver),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 static func_t set_noalias_function(func_t f) {
     f->attr()[function_attrs::no_alias] = true;

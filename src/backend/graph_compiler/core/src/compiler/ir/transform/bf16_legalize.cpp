@@ -16,9 +16,19 @@
 #include "bf16_legalize.hpp"
 #include <vector>
 #include "../builder.hpp"
+#include <compiler/ir/pass_dep_util.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(bf16_legalizer, SC_PASS_DEPENDS_ON(auto_caster),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
+
+SC_DECL_PASS_INFO(bf16_eliminator,
+        SC_PASS_DEPENDS_ON(constant_folder, bf16_legalizer, index2var),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 static bool check_ref_more_than_one(
         std::unordered_map<expr_c, int> &m, const expr &a) {

@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/cpu/closurize.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <runtime/config.hpp>
@@ -29,6 +30,11 @@
 
 SC_MODULE(pass.module_globals_resolve);
 namespace sc {
+
+SC_DECL_PASS_INFO(module_globals_resolver,
+        SC_PASS_DEPENDS_ON(closurizer_cpu, kernel_lowering_cpu),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 static bool is_expr_nullptr(const expr &e) {
     if (e->dtype_.is_pointer() && e.isa<constant>()) {

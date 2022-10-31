@@ -28,6 +28,7 @@
 #include "kernel_lower.hpp"
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <util/hash_utils.hpp>
 
 SC_MODULE(pass.kernel_lowering_cpu)
@@ -56,6 +57,12 @@ struct hash<std::pair<sc::sc_brgemm_bd_mask_t, int>> {
 };
 } // namespace std
 namespace sc {
+
+SC_DECL_PASS_INFO(kernel_lowering_cpu,
+        SC_PASS_DEPENDS_ON(constant_folder, buffer_scheduler),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
+
 using namespace builtin;
 using namespace brgemm;
 

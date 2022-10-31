@@ -21,6 +21,7 @@
 #include <vector>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/visitor.hpp>
@@ -29,6 +30,11 @@
 #include <unordered_map>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(nested_parallel_flattener, SC_PASS_DEPENDS_ON(validator),
+        SC_PASS_REQUIRE_STATE(CONST_FOLDED, IR_SIMPLIFIED),
+        SC_PASS_REQUIRE_NOT_STATE(), SC_PASS_SET_STATE(),
+        SC_PASS_UNSET_STATE(CONST_FOLDED, IR_SIMPLIFIED));
 
 class nested_parallel_flatten_impl_t : public ir_visitor_t {
     struct parallel_info_t {

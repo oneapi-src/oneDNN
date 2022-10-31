@@ -19,6 +19,7 @@
 
 #include "precodegen_passes.hpp"
 #include <compiler/ir/pass/validator.hpp>
+#include <compiler/ir/pass_manager.hpp>
 #include <compiler/ir/sequential_function_pass.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/bf16_legalize.hpp>
@@ -125,6 +126,7 @@ sequential_module_pass_t get_default_precodegen_passes(
                 module_function_pass_t::make<loop_invariant_code_motion_t>());
         ret.emplace_back(module_function_pass_t::make<dessa_transform_t>());
     }
+    validate_pass_order(ctx, ret, gen_wrapper);
     return sequential_module_pass_t(std::move(ret));
 }
 

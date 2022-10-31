@@ -20,12 +20,19 @@
 #include "buffer_schedule.hpp"
 #include "pointer_alias_info.hpp"
 #include "tensor_inplace.hpp"
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/tensor_inplace.hpp>
 #include <compiler/ir/viewer.hpp>
 #include <unordered_set>
 #include <util/any_map.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(tensor_inplace,
+        SC_PASS_DEPENDS_ON(
+                constant_folder, index_flattener, validator, auto_caster),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 class func_finder_t : public ir_viewer_t {
 public:

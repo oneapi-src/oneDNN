@@ -39,6 +39,7 @@ public:
         : record_workload_(record_workload) {}
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f);
+    SC_DECL_PASS_INFO_FUNC();
 };
 } // namespace sc
 

@@ -29,6 +29,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/intrinsics.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -37,6 +38,14 @@
 SC_MODULE(pass.buffer_schedule);
 
 namespace sc {
+
+SC_DECL_PASS_INFO(buffer_scheduler,
+        SC_PASS_DEPENDS_ON(tensor_shrinker, tensor_inplace, tensor2var,
+                tensor_init, index_flattener, dead_write_eliminator,
+                nested_parallel_flattener),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
+
 using namespace special_ticks;
 
 // a visitor which has "instruction counter". Every visit on any expr will

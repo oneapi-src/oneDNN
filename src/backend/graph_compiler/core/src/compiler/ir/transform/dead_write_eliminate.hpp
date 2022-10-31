@@ -30,6 +30,7 @@ constexpr const char *no_dead_write = "pass.no_dead_write";
 class dead_write_eliminator_t : public function_pass_t {
 public:
     func_c operator()(func_c f) override;
+    SC_DECL_PASS_INFO_FUNC();
 };
 
 } // namespace sc

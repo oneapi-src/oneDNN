@@ -22,10 +22,15 @@
 #include "constant_fold.hpp"
 #include <compiler/dimensions.hpp>
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(tensor_shrinker, SC_PASS_DEPENDS_ON(interface_generalizer),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 // check tensor node attr
 static bool is_tensor_and_should_shrink(const expr &e) {

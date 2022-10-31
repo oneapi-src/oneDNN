@@ -21,8 +21,16 @@
 #include "../util_module_passes.hpp"
 #include "../visitor.hpp"
 #include "index_flatten.hpp"
+#include <compiler/ir/pass_dep_util.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(index_flattener,
+        SC_PASS_DEPENDS_ON(
+                dyn_tensor_transformer, interface_generalizer, tensor_shrinker),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE(CONST_FOLDED));
+
 static bool process_indexing(ir_visitor_t *ths,
         const std::vector<expr> &old_dims, const std::vector<expr> &old_strides,
         const std::vector<expr> &idx, std::vector<expr_c> &newidx) {

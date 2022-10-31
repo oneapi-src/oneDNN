@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <vector>
 #include "../function_pass.hpp"
 #include "../sc_function.hpp"
+#include <compiler/ir/pass_dep_util.hpp>
 
 namespace sc {
 
@@ -41,6 +42,7 @@ public:
      * */
     expr_c inline_at(call_c c, std::vector<stmt> &seq, size_t insert_idx,
             const std::vector<define> &module_vars = std::vector<define>());
+    SC_DECL_PASS_INFO_FUNC();
 };
 
 } // namespace sc

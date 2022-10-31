@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,11 @@
 
 #include <memory>
 #include "ir_module.hpp"
+#include "pass_info_macros.hpp"
 
 namespace sc {
+struct tir_pass_dependency_t;
+
 /**
  * The base abstruct class of all module passes. The pass should not change the
  * input module and the IR in it. However, it is allowed to set the attibutes
@@ -31,6 +34,10 @@ namespace sc {
  * */
 class SC_INTERNAL_API module_pass_t {
 public:
+    virtual const char *get_name() const { return nullptr; }
+#ifndef NDEBUG
+    virtual void get_dependency_info(tir_pass_dependency_t &out) const;
+#endif
     virtual const_ir_module_ptr operator()(const_ir_module_ptr f) = 0;
     virtual ~module_pass_t() = default;
 };

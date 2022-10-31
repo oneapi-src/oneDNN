@@ -34,6 +34,7 @@ namespace sc {
 class loop_invariant_code_motion_t : public function_pass_t {
 public:
     func_c operator()(func_c f) override;
+    SC_DECL_PASS_INFO_FUNC();
 };
 
 } // namespace sc

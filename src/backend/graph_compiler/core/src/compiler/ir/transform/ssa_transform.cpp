@@ -19,11 +19,19 @@
 #include <vector>
 #include "module_globals_resolve.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/ssa_data.hpp>
 #include <compiler/ir/ssa_visitor.hpp>
 #include <util/any_map.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(ssa_transform,
+        SC_PASS_DEPENDS_ON(module_globals_resolver, local_tensor_lowering_cpu,
+                closurizer_cpu, buffer_scheduler),
+        SC_PASS_REQUIRE_STATE(CONST_FOLDED, IR_SIMPLIFIED, FUNC_INLINED),
+        SC_PASS_REQUIRE_NOT_STATE(), SC_PASS_SET_STATE(SSA_STAGE),
+        SC_PASS_UNSET_STATE());
 
 struct ssa_var_status_t {
     expr current_value;

@@ -23,6 +23,7 @@
 #include "dyn_tsr_transform.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/util_module_passes.hpp>
@@ -30,6 +31,10 @@
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(dyn_tensor_transformer, SC_PASS_DEPENDS_ON(),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 static expr create_dyn_tsr_from_tensor(
         const expr &in, std::vector<stmt> &def_stmts) {

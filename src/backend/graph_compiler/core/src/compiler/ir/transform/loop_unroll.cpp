@@ -17,11 +17,16 @@
 #include <utility>
 #include <vector>
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <util/any_map.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(loop_unroller, SC_PASS_DEPENDS_ON(tensor_init),
+        SC_PASS_REQUIRE_STATE(CONST_FOLDED), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE(IR_SIMPLIFIED));
 
 class loop_unroller_impl_t : public ir_visitor_t {
 public:

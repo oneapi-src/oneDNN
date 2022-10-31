@@ -23,6 +23,7 @@
 #include "auto_cast.hpp"
 #include "constant_fold.hpp"
 #include <compiler/ir/ir_comparer.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/viewer.hpp>
 #include <unordered_map>
 #include <util/any_map.hpp>
@@ -30,6 +31,10 @@
 #include <util/variant.hpp>
 
 namespace sc {
+SC_DECL_PASS_INFO(constant_folder, SC_PASS_DEPENDS_ON(validator, auto_caster),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(CONST_FOLDED), SC_PASS_UNSET_STATE());
+
 namespace constant_folding {
 
 // the range from start to end (including end)

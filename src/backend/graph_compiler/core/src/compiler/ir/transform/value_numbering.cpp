@@ -18,6 +18,7 @@
 #include <vector>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/ir_comparer.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/passlet/ssa_simplify.hpp>
 #include <compiler/ir/passlet/ssa_value_hash.hpp>
 #include <compiler/ir/passlet/structural_analysis.hpp>
@@ -28,6 +29,11 @@
 #include <unordered_set>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(value_numbering, SC_PASS_DEPENDS_ON(ssa_transform),
+        SC_PASS_REQUIRE_STATE(SSA_STAGE), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
+
 using namespace passlet;
 struct vn_result_t {
     structural_result_t parent_info_;

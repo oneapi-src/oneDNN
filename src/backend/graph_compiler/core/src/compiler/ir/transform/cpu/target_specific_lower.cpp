@@ -23,6 +23,7 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/intrinsics.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
@@ -33,6 +34,12 @@
 #include <util/any_map.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(target_specific_lowering_cpu,
+        SC_PASS_DEPENDS_ON(bf16_legalizer, bf16_eliminator, func_inliner,
+                dyn_tensor_transformer),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE(FUNC_INLINED));
 
 static expr gen_vec_const(uint32_t lanes, float f) {
     return make_expr<constant_node>(f, sc_data_type_t::f32(lanes));

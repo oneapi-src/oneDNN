@@ -19,6 +19,7 @@
 #include "tensor_init.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/parallel_workload_attr.hpp>
@@ -27,6 +28,11 @@
 #include <util/any_map.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(tensor_init,
+        SC_PASS_DEPENDS_ON(tensor_shrinker, constant_folder),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 class tensor_init_impl_t : public ir_visitor_t {
 public:

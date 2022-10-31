@@ -20,10 +20,18 @@
 #include "pointer_alias_info.hpp"
 #include "tensor2var.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <util/any_map.hpp>
 
 SC_MODULE(pass.tensor2var)
 namespace sc {
+
+// index2var will bypass must_tensor2var. So let index2var run before tensor2var
+SC_DECL_PASS_INFO(tensor2var,
+        SC_PASS_DEPENDS_ON(dead_write_eliminator, index_flattener, index2var,
+                loop_unroller, tensor_shrinker),
+        SC_PASS_REQUIRE_STATE(CONST_FOLDED), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 struct tensor2var_result_t {
     uint32_t simd_len_ = 0;

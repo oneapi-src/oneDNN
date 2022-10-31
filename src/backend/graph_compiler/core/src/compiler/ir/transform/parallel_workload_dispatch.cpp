@@ -20,11 +20,19 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/pass/ir_copy.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <runtime/config.hpp>
 #include <unordered_map>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(parallel_workload_dispatcher,
+        SC_PASS_DEPENDS_ON(
+                tensor_init, constant_folder, nested_parallel_flattener),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
+
 // the workload allocated to a thread can not exceed
 // threshold_per_thread * coefficient
 static float threshold_coefficient = 1.f;

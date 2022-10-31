@@ -21,12 +21,15 @@
 #include <vector>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <runtime/config.hpp>
 #include <runtime/trace.hpp>
 
 namespace sc {
-
+SC_DECL_PASS_INFO(trace_inserter, SC_PASS_DEPENDS_ON(validator),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 class trace_inserter_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;

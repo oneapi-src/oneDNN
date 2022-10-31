@@ -106,6 +106,7 @@ public:
         , do_inplace_opt_(do_inplace_opt) {}
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f) const;
+    SC_DECL_PASS_INFO_FUNC();
 };
 // todo: if the buffer ("candidate") is larger than the "cur" tensor, we can
 // split "candidate" tensor into two and reuse the remaining of it for other

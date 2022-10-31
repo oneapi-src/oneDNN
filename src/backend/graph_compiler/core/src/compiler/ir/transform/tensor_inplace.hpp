@@ -34,6 +34,7 @@ public:
     context_ptr ctx_;
     tensor_inplace_t(const context_ptr &ctx) : ctx_(std::move(ctx)) {}
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;
+    SC_DECL_PASS_INFO_FUNC();
 };
 
 } // namespace sc

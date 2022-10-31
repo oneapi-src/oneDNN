@@ -21,11 +21,16 @@
 #include "auto_cast.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(dyn_boundary_check, SC_PASS_DEPENDS_ON(validator),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 // boundary_check_maker is a callback which has args: 1. the value of an arg
 // in `args` 2. the max boundary that this kernel may access

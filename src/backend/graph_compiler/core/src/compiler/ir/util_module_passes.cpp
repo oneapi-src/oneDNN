@@ -20,8 +20,11 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "pass_manager.hpp"
+#include "visitor.hpp"
 #include <util/scoped_timer.hpp>
 #include <util/utils.hpp>
+
 namespace sc {
 sequential_module_pass_t::sequential_module_pass_t(
         std::vector<module_pass_ptr> &&passes)
@@ -30,15 +33,6 @@ sequential_module_pass_t::sequential_module_pass_t(
 sequential_module_pass_t::sequential_module_pass_t(
         sequential_module_pass_t &&other)
     : passes_(std::move(other.passes_)) {}
-
-static const char *get_pass_name(module_pass_t *pass) {
-    auto &tyid = typeid(*pass);
-    if (tyid == typeid(module_function_pass_t)) {
-        auto &ptr = *static_cast<module_function_pass_t *>(pass)->impl_;
-        return typeid(ptr).name();
-    }
-    return tyid.name();
-}
 
 const_ir_module_ptr sequential_module_pass_t::operator()(
         const_ir_module_ptr f) {
@@ -64,6 +58,17 @@ const_ir_module_ptr sequential_module_pass_t::operator()(
     }
     return f;
 }
+
+const char *module_function_pass_t::get_name() const {
+    return impl_->get_name();
+}
+
+#ifndef NDEBUG
+void module_function_pass_t::get_dependency_info(
+        tir_pass_dependency_t &out) const {
+    impl_->get_dependency_info(out);
+}
+#endif
 
 module_function_pass_t::module_function_pass_t(function_pass_ptr impl)
     : impl_(std::move(impl)) {}

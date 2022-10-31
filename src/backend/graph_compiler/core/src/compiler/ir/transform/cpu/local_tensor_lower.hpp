@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ public:
     func_c operator()(func_c m) override;
     local_tensor_lowering_cpu_t(size_t size_threshold)
         : size_threshold_(size_threshold) {}
+    SC_DECL_PASS_INFO_FUNC();
 };
 
 func_t get_cpu_temp_malloc_func(bool is_thread_local);

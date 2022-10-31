@@ -18,11 +18,18 @@
 #include <vector>
 #include "../intrinsics.hpp"
 #include "../viewer.hpp"
+#include <compiler/ir/pass_dep_util.hpp>
 #include <unordered_set>
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(validator,
+        SC_PASS_DEPENDS_ON(dyn_tensor_transformer, interface_generalizer,
+                tensor_shrinker, index_flattener, auto_caster),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 class validate_impl_t : public ir_viewer_t {
 public:

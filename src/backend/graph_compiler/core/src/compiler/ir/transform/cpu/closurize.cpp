@@ -19,6 +19,7 @@
 #include <vector>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/closurize_impl.hpp>
@@ -29,6 +30,13 @@
 #include <util/utils.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(closurizer_cpu,
+        SC_PASS_DEPENDS_ON(nested_parallel_flattener,
+                parallel_workload_dispatcher, validator, trace_inserter,
+                tensor_init),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
 func_t get_parallel_call_func() {
     static func_t f

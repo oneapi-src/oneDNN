@@ -88,6 +88,7 @@ public:
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f);
     expr_c operator()(expr_c f);
+    SC_DECL_PASS_INFO_FUNC();
 
 private:
     context_ptr ctx_;
@@ -109,6 +110,7 @@ public:
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f);
     expr_c operator()(expr_c f);
+    SC_DECL_PASS_INFO_FUNC();
 
 private:
     context_ptr ctx_;

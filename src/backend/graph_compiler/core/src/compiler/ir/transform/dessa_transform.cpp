@@ -18,11 +18,16 @@
 #include <vector>
 #include "dessa_transform.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/ssa_data.hpp>
 #include <compiler/ir/ssa_visitor.hpp>
 #include <util/any_map.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(dessa_transform, SC_PASS_DEPENDS_ON(ssa_transform),
+        SC_PASS_REQUIRE_STATE(SSA_STAGE), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE(SSA_STAGE));
 
 struct dessa_analysis_data_t {
     std::vector<const stmt_base_t *> uses_;

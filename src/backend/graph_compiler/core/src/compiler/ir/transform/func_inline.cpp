@@ -25,6 +25,10 @@
 
 namespace sc {
 
+SC_DECL_PASS_INFO(func_inliner, SC_PASS_DEPENDS_ON(validator, trace_inserter),
+        SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
+        SC_PASS_SET_STATE(FUNC_INLINED), SC_PASS_UNSET_STATE());
+
 // if v is a stmts_node_t, return v
 // else, return a stmts_node_t containing v
 static stmts_c promote_stmt_to_stmts(stmt_c v) {

@@ -34,6 +34,7 @@ public:
     ir_simplifier_t(bool skip_rename) : skip_rename_(skip_rename) {}
     func_c operator()(func_c f) override;
     stmt_c operator()(stmt_c f) const;
+    SC_DECL_PASS_INFO_FUNC();
 };
 
 } // namespace sc

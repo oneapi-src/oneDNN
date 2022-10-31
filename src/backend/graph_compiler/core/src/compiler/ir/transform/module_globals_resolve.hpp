@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ constexpr const char *module_global_offset = "module_global_offset";
 class module_globals_resolver_t : public module_pass_t {
 public:
     const_ir_module_ptr operator()(const_ir_module_ptr m) override;
+    SC_DECL_PASS_INFO_FUNC();
 };
 } // namespace sc
 

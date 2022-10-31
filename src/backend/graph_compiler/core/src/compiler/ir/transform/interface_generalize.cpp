@@ -21,8 +21,14 @@
 #include "../easy_build.hpp"
 #include "interface_generalize.hpp"
 #include <compiler/ir/builtin.hpp>
+#include <compiler/ir/pass_dep_util.hpp>
 
 namespace sc {
+
+SC_DECL_PASS_INFO(interface_generalizer,
+        SC_PASS_DEPENDS_ON(dyn_tensor_transformer), SC_PASS_REQUIRE_STATE(),
+        SC_PASS_REQUIRE_NOT_STATE(), SC_PASS_SET_STATE(),
+        SC_PASS_UNSET_STATE());
 
 const_ir_module_ptr interface_generalizer_t::operator()(
         const_ir_module_ptr in) {

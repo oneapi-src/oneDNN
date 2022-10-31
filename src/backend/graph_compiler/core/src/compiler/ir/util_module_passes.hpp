@@ -21,7 +21,6 @@
 #include <vector>
 #include "function_pass.hpp"
 #include "module_pass.hpp"
-#include "visitor.hpp"
 
 namespace sc {
 
@@ -32,6 +31,7 @@ public:
     function_pass_ptr impl_;
     module_function_pass_t(function_pass_ptr impl);
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;
+    SC_DECL_PASS_INFO_FUNC();
     // makes a module_function_pass_t from a function_pass_t
     // T should be a function_pass_t class
     template <typename T, typename... Args>
@@ -55,6 +55,7 @@ public:
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;
 };
 
+class ir_visitor_t;
 // dispatch the global variables and functions in the module on the visitor,
 // returns a new module with updated members
 const_ir_module_ptr dispatch_module_on_visitor(

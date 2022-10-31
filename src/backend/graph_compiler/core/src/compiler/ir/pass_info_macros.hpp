@@ -14,24 +14,18 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_LOOP_UNROLL_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_LOOP_UNROLL_HPP
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_PASS_INFO_MACROS_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_PASS_INFO_MACROS_HPP
 
-#include "../function_pass.hpp"
-#include "../sc_function.hpp"
+#ifndef NDEBUG
+#define SC_DECL_PASS_DEPDENCYINFO() \
+    void get_dependency_info(tir_pass_dependency_t &out) const override;
+#else
+#define SC_DECL_PASS_DEPDENCYINFO()
+#endif
 
-namespace sc {
-
-/**
- * Unroll loops with attr[stmt_attr_key::unroll_loop]=true
- * */
-class loop_unroller_t : public function_pass_t {
-public:
-    func_c operator()(func_c f) override;
-    stmt_c operator()(stmt_c f);
-    SC_DECL_PASS_INFO_FUNC();
-};
-
-} // namespace sc
+#define SC_DECL_PASS_INFO_FUNC() \
+    const char *get_name() const override; \
+    SC_DECL_PASS_DEPDENCYINFO();
 
 #endif
