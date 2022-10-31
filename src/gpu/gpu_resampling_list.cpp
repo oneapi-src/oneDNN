@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include "gpu/gpu_impl_list.hpp"
 
 #include "gpu/ocl/ref_resampling.hpp"
+#include "gpu/ocl/vectorized_resampling.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,6 +34,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
+        INSTANCE(ocl::vectorized_resampling_bwd_t)
         INSTANCE(ocl::ref_resampling_bwd_t)
         nullptr,
     })},

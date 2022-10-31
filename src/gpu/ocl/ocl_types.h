@@ -400,6 +400,8 @@
 #define DATA8_T int8
 #define DATA16_T int16
 #define DATA_TO_REF convert_float
+#define TO_DATA_T(v) convert_int_sat_rte
+#define TO_DATA8_T(v) convert_int8_sat_rte
 #define CONVERT_DATA_T convert_int_sat_rte
 #define CONVERT_DATA2_T convert_int2_sat_rte
 #define CONVERT_DATA4_T convert_int4_sat_rte

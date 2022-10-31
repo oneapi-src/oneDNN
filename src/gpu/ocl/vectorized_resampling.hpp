@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_REF_RESAMPLING_HPP
-#define GPU_OCL_REF_RESAMPLING_HPP
+#ifndef GPU_OCL_VECTORIZED_RESAMPLING_HPP
+#define GPU_OCL_VECTORIZED_RESAMPLING_HPP
 
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resampling_pd.hpp"
@@ -26,61 +26,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_resampling_fwd_t : public gpu_primitive_t {
-    using gpu_primitive_t::gpu_primitive_t;
-    struct pd_t : public gpu_resampling_fwd_pd_t {
-        pd_t(const resampling_desc_t *adesc, const primitive_attr_t *attr,
-                const resampling_fwd_pd_t *hint_fwd_pd)
-            : gpu_resampling_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
-        virtual ~pd_t() {}
-
-        DECLARE_COMMON_PD_T("ref:any", ref_resampling_fwd_t);
-
-        status_t init(engine_t *engine) {
-            using namespace data_type;
-            assert(engine->kind() == engine_kind::gpu);
-            using sm = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm::post_ops;
-
-            bool ok = is_fwd() && set_default_params() == status::success
-                    && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
-
-            return init_conf(engine);
-        }
-        compute::dispatch_t dispatch;
-        resampling_conf_t conf;
-
-        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
-        status_t init_conf(engine_t *engine);
-    };
-
-    status_t init(engine_t *engine) override {
-        using namespace alg_kind;
-
-        compute::kernel_ctx_t kernel_ctx;
-        status_t status = pd()->init_kernel_ctx(kernel_ctx);
-        CHECK(status);
-
-        create_kernel(engine, &kernel_, "ref_resampling_fwd", kernel_ctx);
-        if (!kernel_) return status::runtime_error;
-
-        return status::success;
-    }
-
-    status_t execute(const exec_ctx_t &ctx) const override {
-        return execute_forward(ctx);
-    }
-
-private:
-    status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
-};
-
-struct ref_resampling_bwd_t : public gpu_primitive_t {
+struct vectorized_resampling_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_resampling_bwd_pd_t {
         pd_t(const resampling_desc_t *adesc, const primitive_attr_t *attr,
@@ -88,7 +34,7 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
             : gpu_resampling_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
         virtual ~pd_t() {}
 
-        DECLARE_COMMON_PD_T("ref:any", ref_resampling_bwd_t);
+        DECLARE_COMMON_PD_T("ocl:vectorized", vectorized_resampling_bwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -112,7 +58,8 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        create_kernel(engine, &kernel_, "ref_resampling_bwd", kernel_ctx);
+        create_kernel(
+                engine, &kernel_, "vectorized_resampling_bwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
