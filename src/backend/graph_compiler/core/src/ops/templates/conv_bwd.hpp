@@ -44,6 +44,20 @@ struct conv_bwd_weight_config_t {
   int loop_sched;
 };
 
+struct managed_conv_bwd_weight_config_t {
+  int oc_threads;
+  int ic_threads;
+  int bs_threads;
+  int oh_threads;
+  int od_threads;
+  int oc_num_blocks;
+  int ic_num_blocks;
+  int bs_num_blocks;
+  int oh_num_blocks;
+  int od_num_blocks;
+  int ow_num_blocks;
+};
+
 class gen_conv_bwd_t : public body_generator_t<conv_bwd_data_config_t> {
 public:
   sc_dims stride_;

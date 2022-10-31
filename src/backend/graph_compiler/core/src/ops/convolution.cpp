@@ -24,6 +24,7 @@
 #include "templates/conv_bwd.hpp"
 #include "templates/conv_fwd.hpp"
 #include "templates/managed_conv1x1_backprop_data.hpp"
+#include "templates/managed_conv1x1_backprop_weight.hpp"
 #include "templates/managed_convNxN_backprop_weight.hpp"
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
@@ -507,6 +508,45 @@ conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(
     }
 }
 
+bool conv_bwd_data_core_op_t::use_managed_generator() {
+    bool use_managed = attrs_.get_or_else("use_managed", true);
+    if (!use_managed) { return false; }
+    const sc_dims &stride = attrs_.get<sc_dims>("strides");
+    const sc_dims &pads_begin = attrs_.has_key("pads_begin")
+            ? attrs_.get<sc_dims>("pads_begin")
+            : attrs_.get<sc_dims>("paddings");
+    int num_threads = runtime_config_t::get().get_num_threads();
+    const sc_dims &input_shape = info_.inputs_[0]->details_.get_plain_dims();
+    const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
+    bool is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
+            [](int x) { return x == 1; });
+    if (is_1x1) {
+        // managed generator constraints for 1x1 case
+        // ToDo(zhangyan): improve following constraints
+        if (num_threads % 7 != 0) { return false; }
+        if (ndims_ != 4) { return false; }
+        auto tmp_kernel
+                = utils::make_unique<gen_managed_conv1x1_backprop_data_t>(this,
+                        stride, pads_begin,
+                        graph::extract_detail_from_tensors(get_inputs()),
+                        graph::extract_detail_from_tensors(get_outputs()));
+        int im_oc_block = tmp_kernel->im_oc_block_;
+        int im_ic_block = tmp_kernel->im_ic_block_;
+        int im_ow_block = tmp_kernel->im_ow_block_;
+        int IC = weight_shape[1], OC = weight_shape[0],
+            OS = input_shape[2] * input_shape[3];
+        if (IC % im_ic_block || OC % im_oc_block || OS % im_ow_block) {
+            return false;
+        }
+        // we need to check whether we can fully utilize all threads
+        int possible_parallel_space
+                = (IC / im_ic_block) * (OC / im_oc_block) * (OS / im_ow_block);
+        if (possible_parallel_space < num_threads) { return false; }
+        return true;
+    }
+    return false;
+}
+
 body_generator_ptr conv_bwd_data_core_op_t::create_generator() {
     auto &stride = attrs_.get<sc_dims>("strides");
     const auto &pads_begin = attrs_.has_key("pads_begin")
@@ -519,10 +559,18 @@ body_generator_ptr conv_bwd_data_core_op_t::create_generator() {
     int S = is_3d ? info_.inputs_[1]->details_.get_plain_dims()[4]
                   : info_.inputs_[1]->details_.get_plain_dims()[3];
     if (D == 1 && R == 1 && S == 1) {
-        auto ret = utils::make_unique<gen_conv1x1_backprop_data_t>(this, stride,
-                pads_begin, graph::extract_detail_from_tensors(get_inputs()),
-                graph::extract_detail_from_tensors(get_outputs()));
-        return std::move(ret);
+        if (use_managed_generator()) {
+            return utils::make_unique<gen_managed_conv1x1_backprop_data_t>(this,
+                    stride, pads_begin,
+                    graph::extract_detail_from_tensors(get_inputs()),
+                    graph::extract_detail_from_tensors(get_outputs()));
+        } else {
+            SC_WARN << "Fall-back to non-managed conv1x1 backprop data.";
+            return utils::make_unique<gen_conv1x1_backprop_data_t>(this, stride,
+                    pads_begin,
+                    graph::extract_detail_from_tensors(get_inputs()),
+                    graph::extract_detail_from_tensors(get_outputs()));
+        }
     } else {
         auto ret = utils::make_unique<gen_convNxN_backprop_data>(this, stride,
                 pads_begin, graph::extract_detail_from_tensors(get_inputs()),
@@ -542,11 +590,22 @@ void conv_bwd_data_core_op_t::query_format(context_ptr ctx,
     if (!config_data_) {
         config_data_ = create_generator()->get_default_config(ctx);
     }
-    const conv_bwd_data_config_t &tcfg
-            = *config_data_.get_as<conv_bwd_data_config_t>();
+    int oc_block, ic_block;
+    if (use_managed_generator()) {
+        auto temp_generator = create_generator();
+        ic_block = dynamic_cast<gen_managed_conv1x1_backprop_data_t *>(
+                temp_generator.get())
+                           ->im_ic_block_;
+        oc_block = dynamic_cast<gen_managed_conv1x1_backprop_data_t *>(
+                temp_generator.get())
+                           ->im_oc_block_;
+    } else {
+        const conv_bwd_data_config_t &tcfg
+                = *config_data_.get_as<conv_bwd_data_config_t>();
+        ic_block = tcfg.C_block, oc_block = tcfg.K_block;
+    }
     const bool is_3d = ndims_ == 5;
     in_formats.reserve(get_inputs().size());
-    auto weight_shape = this->info_.inputs_[1]->details_.get_plain_dims();
     bool is_bf16 = info_.inputs_[0]->details_.dtype_ == datatypes::bf16;
     // plain input format
     in_formats.push_back(
@@ -558,123 +617,13 @@ void conv_bwd_data_core_op_t::query_format(context_ptr ctx,
                 "format");
         // CKRSkc2k or CKDRSkc2k
         in_formats.push_back(
-                {is_3d ? sc_data_format_t::CKDRSkc2k(tcfg.K_block, tcfg.C_block)
-                       : sc_data_format_t::CKRSkc2k(
-                               tcfg.K_block, tcfg.C_block)});
+                {is_3d ? sc_data_format_t::CKDRSkc2k(oc_block, ic_block)
+                       : sc_data_format_t::CKRSkc2k(oc_block, ic_block)});
     } else {
         // CKRSkc or CKDRSkc
         in_formats.push_back(
-                {is_3d ? sc_data_format_t::CKDRSkc(tcfg.K_block, tcfg.C_block)
-                       : sc_data_format_t::CKRSkc(tcfg.K_block, tcfg.C_block)});
-    }
-    // plain output format
-    out_formats.push_back(
-            {is_3d ? sc_data_format_t::NDHWC() : sc_data_format_t::NHWC()});
-    format_to_dense_format_stride_pair(
-            in_formats, out_formats, supported_ins, supported_outs);
-}
-
-managed_conv_bwd_data_core_op_t::managed_conv_bwd_data_core_op_t(
-        const std::vector<graph_tensor_ptr> &ins,
-        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-    : tunable_op_t("managed_conv_bwd_data_core", ins, outs, attrs) {
-    COMPILE_ASSERT(info_.inputs_.size() == 2 || info_.inputs_.size() == 3,
-            "managed_conv_bwd_data expects 2 or 3 inputs");
-    auto output_shape = attrs_.get<sc_dims>("output_shape");
-    ndims_ = info_.inputs_[0]->details_.get_plain_dims().size();
-    auto &weightdims = info_.inputs_[1]->details_.get_plain_dims();
-
-    auto strides = attrs_.get<sc_dims>("strides");
-    if (attrs_.has_key("auto_pad")) {
-        auto pad_type = attrs_.get<std::string>("auto_pad");
-        if (pad_type == "VALID") {
-            attrs_.set<sc_dims>("pads_begin", sc_dims(ndims_ - 2, 0));
-            attrs_.set<sc_dims>("pads_end", sc_dims(ndims_ - 2, 0));
-        } else if (pad_type == "SAME_UPPER" || pad_type == "SAME_LOWER") {
-            // output spatial dims are equal to input spatial dims
-            infer_auto_pad(get_owner_graph(), output_shape, weightdims, strides,
-                    attrs_, pad_type == "SAME_UPPER");
-        }
-        attrs_.set<std::string>("auto_pad", "none");
-    }
-    if (info_.outputs_.empty()) {
-        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
-                this, sc_data_format_t(), output_shape, datatypes::f32));
-    } else {
-        COMPILE_ASSERT(info_.outputs_.size() == 1,
-                "managed_conv_bwd_data_core expects 1 output");
-        COMPILE_ASSERT(
-                info_.outputs_[0]->details_.get_plain_dims() == output_shape,
-                "managed_conv_bwd_data_core's out dims not correct");
-    }
-}
-
-body_generator_ptr managed_conv_bwd_data_core_op_t::create_generator() {
-    auto &stride = attrs_.get<sc_dims>("strides");
-    const auto &pads_begin = attrs_.has_key("pads_begin")
-            ? attrs_.get<sc_dims>("pads_begin")
-            : attrs_.get<sc_dims>("paddings");
-    const bool is_3d = ndims_ == 5;
-    int D = is_3d ? info_.inputs_[1]->details_.get_plain_dims()[2] : 1;
-    int R = is_3d ? info_.inputs_[1]->details_.get_plain_dims()[3]
-                  : info_.inputs_[1]->details_.get_plain_dims()[2];
-    int S = is_3d ? info_.inputs_[1]->details_.get_plain_dims()[4]
-                  : info_.inputs_[1]->details_.get_plain_dims()[3];
-    if (D == 1 && R == 1 && S == 1) {
-        auto ret = utils::make_unique<gen_managed_conv1x1_backprop_data_t>(this,
-                stride, pads_begin,
-                graph::extract_detail_from_tensors(get_inputs()),
-                graph::extract_detail_from_tensors(get_outputs()));
-        return std::move(ret);
-    } else {
-        auto ret = utils::make_unique<gen_convNxN_backprop_data>(this, stride,
-                pads_begin, graph::extract_detail_from_tensors(get_inputs()),
-                graph::extract_detail_from_tensors(get_outputs()));
-        return std::move(ret);
-    }
-}
-
-float managed_conv_bwd_data_core_op_t::get_gflop() {
-    return create_generator()->get_gflop();
-}
-
-void managed_conv_bwd_data_core_op_t::query_format(context_ptr ctx,
-        std::vector<std::vector<format_stride_pair>> &supported_ins,
-        std::vector<std::vector<format_stride_pair>> &supported_outs) {
-    std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
-    if (!config_data_) {
-        config_data_ = create_generator()->get_default_config(ctx);
-    }
-    auto temp_generator = create_generator();
-    int im_ic_block = dynamic_cast<gen_managed_conv1x1_backprop_data_t *>(
-            temp_generator.get())
-                              ->im_ic_block_;
-    int im_oc_block = dynamic_cast<gen_managed_conv1x1_backprop_data_t *>(
-            temp_generator.get())
-                              ->im_oc_block_;
-    const managed_conv1x1_bwd_data_config_t &tcfg
-            = *config_data_.get_as<managed_conv1x1_bwd_data_config_t>();
-    const bool is_3d = ndims_ == 5;
-    in_formats.reserve(get_inputs().size());
-    auto weight_shape = this->info_.inputs_[1]->details_.get_plain_dims();
-    bool is_bf16 = info_.inputs_[0]->details_.dtype_ == datatypes::bf16;
-    // plain input format
-    in_formats.push_back(
-            {is_3d ? sc_data_format_t::NDHWC() : sc_data_format_t::NHWC()});
-    if (is_bf16) {
-        COMPILE_ASSERT(info_.inputs_[1]->details_.dtype_ == datatypes::bf16,
-                "The two inputs of conv_bwd_data_op_t should have the same "
-                "data "
-                "format");
-        // CKRSkc2k or CKDRSkc2k
-        in_formats.push_back(
-                {is_3d ? sc_data_format_t::CKDRSkc2k(im_oc_block, im_ic_block)
-                       : sc_data_format_t::CKRSkc2k(im_oc_block, im_ic_block)});
-    } else {
-        // CKRSkc or CKDRSkc
-        in_formats.push_back(
-                {is_3d ? sc_data_format_t::CKDRSkc(im_oc_block, im_ic_block)
-                       : sc_data_format_t::CKRSkc(im_oc_block, im_ic_block)});
+                {is_3d ? sc_data_format_t::CKDRSkc(oc_block, ic_block)
+                       : sc_data_format_t::CKRSkc(oc_block, ic_block)});
     }
     // plain output format
     out_formats.push_back(
@@ -741,7 +690,7 @@ bool conv_bwd_weight_core_op_t::use_managed_generator() {
             [](int x) { return x == 1; });
     if (!is_1x1) {
         // managed generator constraints for NxN case
-        if (num_threads > 1 && num_threads % 7 != 0) { return false; }
+        if (num_threads % 7 != 0) { return false; }
         if (ndims_ != 4) { return false; }
         int R = weight_shape[ndims_ - 2];
         int S = weight_shape[ndims_ - 1];
@@ -752,6 +701,29 @@ bool conv_bwd_weight_core_op_t::use_managed_generator() {
                 this, stride, pads_begin,
                 graph::extract_detail_from_tensors(get_inputs()),
                 graph::extract_detail_from_tensors(get_outputs()));
+        int im_oc_block = tmp_kernel->im_oc_block_;
+        int im_ic_block = tmp_kernel->im_ic_block_;
+        int im_bs_block = tmp_kernel->im_bs_block_;
+        int BS = input_shape[0], IC = input_shape[1], OC = delta_shape[1],
+            OH = delta_shape[2];
+        if (BS % im_bs_block || IC % im_ic_block || OC % im_oc_block
+                || OH % 7) {
+            return false;
+        }
+        // we need to check whether we can fully utilize all threads
+        int possible_parallel_space = (BS / im_bs_block) * (IC / im_ic_block)
+                * (OC / im_oc_block) * (OH / 7);
+        if (possible_parallel_space < num_threads) { return false; }
+        return true;
+    } else {
+        // managed generator constraints for 1x1 case
+        if (num_threads % 7 != 0) { return false; }
+        if (ndims_ != 4) { return false; }
+        auto tmp_kernel
+                = utils::make_unique<gen_managed_conv1x1_backprop_weight_t>(
+                        this, stride, pads_begin,
+                        graph::extract_detail_from_tensors(get_inputs()),
+                        graph::extract_detail_from_tensors(get_outputs()));
         int im_oc_block = tmp_kernel->im_oc_block_;
         int im_ic_block = tmp_kernel->im_ic_block_;
         int im_bs_block = tmp_kernel->im_bs_block_;
@@ -780,23 +752,32 @@ body_generator_ptr conv_bwd_weight_core_op_t::create_generator() {
     bool is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
             [](int x) { return x == 1; });
     if (is_1x1) {
-        // tested for reduce on ALL
-        int block_size = 64;
-        if (weight_shape[0] * weight_shape[1] * input_dims[0]
-                        / (block_size * block_size * block_size)
-                < runtime_config_t::get().get_num_threads()) {
-            return utils::make_unique<gen_conv1x1_backprop_weight_t>(this,
-                    stride, pads_begin,
+        if (use_managed_generator()) {
+            return utils::make_unique<gen_managed_conv1x1_backprop_weight_t>(
+                    this, stride, pads_begin,
                     graph::extract_detail_from_tensors(get_inputs()),
-                    graph::extract_detail_from_tensors(get_outputs()),
-                    gen_conv1x1_backprop_weight_t::generator_type_t::
-                            REDUCE_ALL2);
+                    graph::extract_detail_from_tensors(get_outputs()));
         } else {
-            return utils::make_unique<gen_conv1x1_backprop_weight_t>(this,
-                    stride, pads_begin,
-                    graph::extract_detail_from_tensors(get_inputs()),
-                    graph::extract_detail_from_tensors(get_outputs()),
-                    gen_conv1x1_backprop_weight_t::generator_type_t::REDUCE_N);
+            SC_WARN << "Fall-back to non-managed conv1x1 backprop weight.";
+            // tested for reduce on ALL
+            int block_size = 64;
+            if (weight_shape[0] * weight_shape[1] * input_dims[0]
+                            / (block_size * block_size * block_size)
+                    < runtime_config_t::get().get_num_threads()) {
+                return utils::make_unique<gen_conv1x1_backprop_weight_t>(this,
+                        stride, pads_begin,
+                        graph::extract_detail_from_tensors(get_inputs()),
+                        graph::extract_detail_from_tensors(get_outputs()),
+                        gen_conv1x1_backprop_weight_t::generator_type_t::
+                                REDUCE_ALL2);
+            } else {
+                return utils::make_unique<gen_conv1x1_backprop_weight_t>(this,
+                        stride, pads_begin,
+                        graph::extract_detail_from_tensors(get_inputs()),
+                        graph::extract_detail_from_tensors(get_outputs()),
+                        gen_conv1x1_backprop_weight_t::generator_type_t::
+                                REDUCE_N);
+            }
         }
     } else {
         if (use_managed_generator()) {
@@ -826,17 +807,30 @@ void conv_bwd_weight_core_op_t::query_format(context_ptr ctx,
     }
     if (use_managed_generator()) {
         auto temp_generator = create_generator();
-        int im_bs_block = dynamic_cast<gen_nested_conv_bwd_weight_core_t *>(
-                temp_generator.get())
-                                  ->im_bs_block_;
-        int im_ic_block = dynamic_cast<gen_nested_conv_bwd_weight_core_t *>(
-                temp_generator.get())
-                                  ->im_ic_block_;
-        int im_oc_block = dynamic_cast<gen_nested_conv_bwd_weight_core_t *>(
-                temp_generator.get())
-                                  ->im_oc_block_;
-        const nested_conv_bwd_weight_core_config_t &tcfg
-                = *config_data_.get_as<nested_conv_bwd_weight_core_config_t>();
+        auto weight_shape = this->info_.outputs_[0]->details_.get_plain_dims();
+        bool is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
+                [](int x) { return x == 1; });
+        int im_bs_block = is_1x1
+                ? dynamic_cast<gen_managed_conv1x1_backprop_weight_t *>(
+                        temp_generator.get())
+                          ->im_bs_block_
+                : dynamic_cast<gen_nested_conv_bwd_weight_core_t *>(
+                        temp_generator.get())
+                          ->im_bs_block_;
+        int im_ic_block = is_1x1
+                ? dynamic_cast<gen_managed_conv1x1_backprop_weight_t *>(
+                        temp_generator.get())
+                          ->im_ic_block_
+                : dynamic_cast<gen_nested_conv_bwd_weight_core_t *>(
+                        temp_generator.get())
+                          ->im_ic_block_;
+        int im_oc_block = is_1x1
+                ? dynamic_cast<gen_managed_conv1x1_backprop_weight_t *>(
+                        temp_generator.get())
+                          ->im_oc_block_
+                : dynamic_cast<gen_nested_conv_bwd_weight_core_t *>(
+                        temp_generator.get())
+                          ->im_oc_block_;
         const bool is_3d = ndims_ == 5;
         in_formats.reserve(get_inputs().size());
         in_formats.push_back({is_3d ? sc_data_format_t::NDHWCn(im_bs_block)
@@ -897,8 +891,6 @@ void conv_bwd_weight_core_op_t::query_format(context_ptr ctx,
 } // namespace ops
 OP_REGISTER(::sc::ops::conv_fwd_core_op_t, conv_fwd_core)
 OP_REGISTER(::sc::ops::conv_bwd_data_core_op_t, conv_bwd_data_core)
-OP_REGISTER(
-        ::sc::ops::managed_conv_bwd_data_core_op_t, managed_conv_bwd_data_core)
 OP_REGISTER(::sc::ops::conv_bwd_weight_core_op_t, conv_bwd_weight_core)
 
 } // namespace sc

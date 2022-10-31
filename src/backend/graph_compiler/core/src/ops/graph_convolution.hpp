@@ -57,18 +57,6 @@ public:
             override;
 };
 
-class managed_conv_bwd_data_op_t : public configurable_graph_op_t,
-                                   public op_traits::auto_copyable_t {
-public:
-    managed_conv_bwd_data_op_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-    void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
-    void query_format(context_ptr ctx,
-            std::vector<std::vector<format_stride_pair>> &supported_ins,
-            std::vector<std::vector<format_stride_pair>> &supported_outs)
-            override;
-};
-
 class conv_bwd_weight_op_t : public configurable_graph_op_t,
                              public op_traits::auto_copyable_t {
 public:
