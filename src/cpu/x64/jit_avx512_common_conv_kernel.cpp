@@ -104,7 +104,7 @@ _jit_avx512_common_conv_fwd_kernel<Vmm>::_jit_avx512_common_conv_fwd_kernel(
         static constexpr bool use_exact_tail_scalar_bcast = false;
 
         const binary_injector::rhs_arg_static_params_t rhs_args_static_params {
-                helper_vmm_idx, reg_tmp, r15, preserve_gpr, preserve_vmm,
+                helper_vmm_idx, reg_tmp, r15, r14, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size, postops_mask,
                 use_exact_tail_scalar_bcast};

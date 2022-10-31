@@ -62,7 +62,7 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
                             broadcasting_strategy_t::no_broadcast};
             const binary_injector::rhs_arg_static_params_t rhs_sp {
                     static_cast<size_t>(Xbyak::Zmm(1).getIdx()), this->r14,
-                    this->r15, preserve_gpr, preserve_vmm,
+                    this->r15, this->r13, preserve_gpr, preserve_vmm,
                     GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(data_C_ptr_),
                     dst_md_wrapper, static_cast<size_t>(brg.ldb_tail),
                     ld_tail_mask, use_exact_tail_scalar_bcast};

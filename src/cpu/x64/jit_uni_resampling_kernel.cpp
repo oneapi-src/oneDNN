@@ -57,7 +57,7 @@ jit_uni_resampling_kernel_t<isa, Vmm>::jit_uni_resampling_kernel_t(
 
         const binary_injector::rhs_arg_static_params_t rhs_sp {
                 static_cast<size_t>(vmm_post_op_helper_.getIdx()), r14, r15,
-                preserve_gpr, preserve_vmm,
+                r13, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig), dst_d,
                 tail_size_, k_tail_mask_, use_exact_tail_scalar_bcast};
 

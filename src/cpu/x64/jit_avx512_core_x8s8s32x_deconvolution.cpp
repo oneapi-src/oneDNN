@@ -59,7 +59,7 @@ jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::
 
         const binary_injector::rhs_arg_static_params_t rhs_sp {
                 static_cast<size_t>(Xbyak::Xmm(31).getIdx()), this->r14,
-                this->r15, preserve_gpr, preserve_vmm,
+                this->r15, this->r13, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size, ktail_mask,
                 use_exact_tail_scalar_bcast};

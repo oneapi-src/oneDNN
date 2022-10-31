@@ -299,7 +299,7 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
 
             const binary_injector::rhs_arg_static_params_t rhs_sp {
                     static_cast<size_t>(Xbyak::Zmm(28).getIdx()), this->r14,
-                    this->r15, preserve_gpr, preserve_vmm,
+                    this->r15, this->r13, preserve_gpr, preserve_vmm,
                     GET_OFF(ptr_binary_post_ops_rhs), GET_OFF(dst_orig),
                     memory_desc_wrapper(brg.dst_md),
                     static_cast<size_t>(brg.load_dim % brg.ld_block),

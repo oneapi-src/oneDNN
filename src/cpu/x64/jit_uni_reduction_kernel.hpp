@@ -135,6 +135,7 @@ private:
     const Xbyak::Opmask elt_inj_opmask_ = k1;
     const Xbyak::Reg64 reg_po_injector_helper_1_ = r14;
     const Xbyak::Reg64 reg_po_injector_helper_2_ = r15;
+    const Xbyak::Reg64 reg_po_injector_helper_3_ = r12;
 
     // post-ops injector does not use avx512_core_bf16 instructions
     static constexpr cpu_isa_t inject_isa_

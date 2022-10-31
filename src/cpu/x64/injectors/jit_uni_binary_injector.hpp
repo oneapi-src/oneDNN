@@ -81,6 +81,8 @@ bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
  * stored inside rhs_addr_reg.
  * @param rhs_helper_reg - gpr register used as helper for calculations during data
  * loading phase.
+ * @param rhs_addr_cache_reg - gpr register used for caching part of calculated
+ * offset.
  * @param preserve_gpr_helpers - determines whether gpr registers specified above
  * should be preserved (pushed to stack and poped back afterwords) between
  * compute_vector_range calls.
@@ -105,40 +107,46 @@ bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
 struct rhs_arg_static_params_t {
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak::Reg64 &rhs_addr_reg,
-            const Xbyak::Reg64 &rhs_helper_reg, bool preserve_gpr_helpers,
+            const Xbyak::Reg64 &rhs_helper_reg,
+            const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
             bool preserve_vmm_helper, std::size_t abi_param_offset,
             const memory_desc_wrapper &dst_d, std::size_t tail_size = 0u,
             bool use_exact_tail_scalar_bcast = false);
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak::Reg64 &rhs_addr_reg,
-            const Xbyak::Reg64 &rhs_helper_reg, bool preserve_gpr_helpers,
+            const Xbyak::Reg64 &rhs_helper_reg,
+            const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
             bool preserve_vmm_helper, std::size_t abi_param_offset,
             std::size_t dst_orig_offset, const memory_desc_wrapper &dst_d,
             std::size_t tail_size = 0u,
             bool use_exact_tail_scalar_bcast = false);
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak::Reg64 &rhs_addr_reg,
-            const Xbyak::Reg64 &rhs_helper_reg, bool preserve_gpr_helpers,
+            const Xbyak::Reg64 &rhs_helper_reg,
+            const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
             bool preserve_vmm_helper, std::size_t abi_param_offset,
             const memory_desc_wrapper &dst_d, std::size_t tail_size,
             const Xbyak::Opmask &tail_opmask, bool use_exact_tail_scalar_bcast);
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak::Reg64 &rhs_addr_reg,
-            const Xbyak::Reg64 &rhs_helper_reg, bool preserve_gpr_helpers,
+            const Xbyak::Reg64 &rhs_helper_reg,
+            const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
             bool preserve_vmm_helper, std::size_t abi_param_offset,
             std::size_t dst_orig_offset, const memory_desc_wrapper &dst_d,
             std::size_t tail_size, const Xbyak::Opmask &tail_opmask,
             bool use_exact_tail_scalar_bcast);
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak::Reg64 &rhs_addr_reg,
-            const Xbyak::Reg64 &rhs_helper_reg, bool preserve_gpr_helpers,
+            const Xbyak::Reg64 &rhs_helper_reg,
+            const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
             bool preserve_vmm_helper, std::size_t abi_param_offset,
             const memory_desc_wrapper &dst_d, std::size_t tail_size,
             const Xbyak::Opmask &tail_opmask, const Xbyak::Reg64 &reg_tail_size,
             bool use_exact_tail_scalar_bcast);
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak::Reg64 &rhs_addr_reg,
-            const Xbyak::Reg64 &rhs_helper_reg, bool preserve_gpr_helpers,
+            const Xbyak::Reg64 &rhs_helper_reg,
+            const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
             bool preserve_vmm_helper, std::size_t abi_param_offset,
             std::size_t dst_orig_offset, const memory_desc_wrapper &dst_d,
             std::size_t tail_size, const Xbyak::Opmask &tail_opmask,
@@ -151,6 +159,7 @@ struct rhs_arg_static_params_t {
     mutable std::size_t rhs_dt_helper_vmm_idx;
     Xbyak::Reg64 rhs_addr_reg;
     Xbyak::Reg64 rhs_helper_reg;
+    Xbyak::Reg64 rhs_addr_cache_reg;
     bool preserve_gpr_helpers;
     bool preserve_vmm_helper;
     std::size_t abi_param_offset;
@@ -165,7 +174,8 @@ struct rhs_arg_static_params_t {
 private:
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak::Reg64 &rhs_addr_reg,
-            const Xbyak::Reg64 &rhs_helper_reg, bool preserve_gpr_helpers,
+            const Xbyak::Reg64 &rhs_helper_reg,
+            const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
             bool preserve_vmm_helper, std::size_t abi_param_offset,
             std::size_t dst_orig_offset, const memory_desc_wrapper &dst_d,
             std::size_t tail_size, const Xbyak::Opmask &tail_opmask,
@@ -373,7 +383,8 @@ private:
     Xbyak::Address prepare_rhs_arg_addr(std::size_t vmm_idx,
             std::size_t rhs_arg_idx, const dnnl_post_ops::entry_t &post_op,
             const rhs_arg_dynamic_params_t &rhs_arg_params,
-            const broadcasting_strategy_t rhs_broadcasting_strategy) const;
+            const broadcasting_strategy_t rhs_broadcasting_strategy,
+            bool is_first) const;
     /*
      * Loads data and applies particular binary operation.
      */
@@ -401,69 +412,124 @@ private:
             const std::map<int, Xbyak::Reg64> &vmm_idx_to_out_reg,
             const std::map<int, size_t> &vmm_idx_to_out_elem_off_val,
             int vmm_idx, const Xbyak::Reg64 &addr_reg,
-            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes) const;
-    void calculate_no_broadcast(Xbyak::Address addr, std::size_t offset,
-            const Xbyak::Reg64 &out_reg) const;
+            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes,
+            bool is_first) const;
+    void calculate_no_broadcast_base(
+            Xbyak::Address addr, const Xbyak::Reg64 &out_reg) const;
+    void calculate_no_broadcast_partial(const std::size_t offset,
+            const Xbyak::Reg64 &out_reg, std::size_t elem_size_bytes) const;
 
     void append_oc_offset(
             const std::map<int, Xbyak::Address> &vmm_idx_to_out_addr,
             const std::map<int, Xbyak::Reg64> &vmm_idx_to_out_reg,
             const std::map<int, size_t> &vmm_idx_to_out_elem_off_val,
             int vmm_idx, const Xbyak::Reg64 &addr_reg,
-            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes) const;
-    void calculate_oc_ncsp(
+            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes,
+            bool is_first) const;
+    void calculate_oc_ncsp_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_oc_blocked(
+    void calculate_oc_ncsp_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_oc_blocked_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_oc_nspc(
+    void calculate_oc_blocked_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_oc_nspc_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_oc_cspn(
+    void calculate_oc_nspc_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_oc_cspn_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_oc_cspn_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
 
     void append_mb_sp_offset(
             const std::map<int, Xbyak::Address> &vmm_idx_to_out_addr,
             const std::map<int, Xbyak::Reg64> &vmm_idx_to_out_reg,
             const std::map<int, size_t> &vmm_idx_to_out_elem_off_val,
             int vmm_idx, const Xbyak::Reg64 &addr_reg,
-            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes) const;
-    void calculate_mb_sp_ncsp(
+            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes,
+            bool is_first) const;
+    void calculate_mb_sp_ncsp_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_mb_sp_blocked(
+    void calculate_mb_sp_ncsp_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_mb_sp_blocked_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_mb_sp_nspc(
+    void calculate_mb_sp_blocked_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_mb_sp_nspc_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_mb_sp_cspn(
+    void calculate_mb_sp_nspc_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_mb_sp_cspn_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_mb_sp_cspn_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
 
     void append_mb_w_offset(
             const std::map<int, Xbyak::Address> &vmm_idx_to_out_addr,
             const std::map<int, Xbyak::Reg64> &vmm_idx_to_out_reg,
             const std::map<int, size_t> &vmm_idx_to_out_elem_off_val,
             int vmm_idx, const Xbyak::Reg64 &addr_reg,
-            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes) const;
-    void calculate_mb_w_ncsp(
+            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes,
+            bool is_first) const;
+    void calculate_mb_w_ncsp_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_mb_w_blocked(
+    void calculate_mb_w_ncsp_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_mb_w_blocked_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_mb_w_nspc(
+    void calculate_mb_w_blocked_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_mb_w_nspc_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_mb_w_cspn(
+    void calculate_mb_w_nspc_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_mb_w_cspn_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_mb_w_cspn_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
 
     void append_w_offset(
             const std::map<int, Xbyak::Address> &vmm_idx_to_out_addr,
             const std::map<int, Xbyak::Reg64> &vmm_idx_to_out_reg,
             const std::map<int, size_t> &vmm_idx_to_out_elem_off_val,
             int vmm_idx, const Xbyak::Reg64 &addr_reg,
-            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes) const;
-    void calculate_w_ncsp(
+            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes,
+            bool is_first) const;
+    void calculate_w_ncsp_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_w_blocked(
+    void calculate_w_ncsp_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_w_blocked_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_w_nspc(
+    void calculate_w_blocked_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_w_nspc_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
-    void calculate_w_cspn(
+    void calculate_w_nspc_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_w_cspn_base(
             const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_w_cspn_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
 
     template <typename T>
     typename std::enable_if<std::is_same<T, Xbyak::Zmm>::value

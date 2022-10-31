@@ -187,7 +187,7 @@ jit_pp_ker_t::jit_pp_ker_t(
 
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
         const rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx,
-                r13, r14, preserve_gpr, preserve_vmm,
+                r13, r14, r15, preserve_gpr, preserve_vmm,
                 PARAM_OFF(post_ops_binary_rhs_arg_vec), PARAM_OFF(dst_orig),
                 memory_desc_wrapper(pd->dst_md()), tail_size, opmask_binary,
                 use_exact_tail_scalar_bcast};

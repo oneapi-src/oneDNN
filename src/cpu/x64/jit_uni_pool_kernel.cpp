@@ -63,7 +63,7 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
 
         const binary_injector::rhs_arg_static_params_t rhs_sp {
                 static_cast<std::size_t>(this->xmm4.getIdx()), this->r14,
-                this->r15, preserve_gpr, preserve_vmm,
+                this->r15, this->r13, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(jpp.tag_kind == jit_memory_tag_kind_t::ncsp
                                 ? *(jpp.tmp_md)

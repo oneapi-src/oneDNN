@@ -1057,13 +1057,15 @@ jit_avx512_core_amx_fwd_kernel_t::jit_avx512_core_amx_fwd_kernel_t(
         using namespace binary_injector;
         const auto &rhs_addr_reg = bin_injector_helper_reg_1;
         const auto &rhs_helper_reg = bin_injector_helper_reg_2;
+        const auto &rhs_addr_cache_reg = bin_injector_helper_reg_3;
         static constexpr bool preserve_gpr = false;
         static constexpr bool preserve_vmm = false;
         const size_t tail_size = jcp.oc_without_padding % isa_simd_width_;
         static constexpr bool use_exact_tail_scalar_bcast = true;
 
         const binary_injector::rhs_arg_static_params_t rhs_arg_static_params {
-                31, rhs_addr_reg, rhs_helper_reg, preserve_gpr, preserve_vmm,
+                31, rhs_addr_reg, rhs_helper_reg, rhs_addr_cache_reg,
+                preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(dst_orig),
                 memory_desc_wrapper(dst_md), tail_size, ktail_mask,
                 use_exact_tail_scalar_bcast};
@@ -1588,7 +1590,8 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output(int width, int tail,
             const injector_utils::conditional_register_preserve_guard_t
                     cond_register_guard(jcp.with_binary, this,
                             {bin_injector_helper_reg_1,
-                                    bin_injector_helper_reg_2});
+                                    bin_injector_helper_reg_2,
+                                    bin_injector_helper_reg_3});
 
             for (int tw = 0; tw < width && do_store; tw++) {
                 // height
