@@ -21,9 +21,10 @@
 #include <unordered_map>
 namespace sc {
 struct dynamic_lower_info_t {
+    static constexpr sc_dim init_placeholder = dimensions::dynamic_any - 1;
     // decreasing placeholder to represent dynamic dim in graph.
     // range is [-2, min of int64_t]
-    sc_dim cur_dynamic_placeholder_ = dimensions::dynamic_any - 1;
+    sc_dim cur_dynamic_placeholder_ = init_placeholder;
     // dynamic sc_dim => expr(uint64_t) map, we maitain one map for one graph.
     std::unordered_map<sc_dim, expr> dim2expr_map_;
 

@@ -18,6 +18,7 @@
 #include <memory>
 #include <numeric>
 #include <utility>
+#include "matmul_core.hpp"
 #include "templates/managed_matmul_core.hpp"
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/graph.hpp>
@@ -474,6 +475,13 @@ sc_op_ptr managed_matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
                             data_zero_points[0] * weight_zero_points[0]},
                     {"temp.var", attrs_["temp.padded_A_K"]}});
     return constant_node;
+}
+
+shape_rl_vec managed_matmul_core_op_t::get_dynamic_shape_relations() const {
+    return matmul_core_op_t::get_shape_relations_impl(
+            get_inputs()[0]->details_.get_plain_dims(),
+            get_inputs()[1]->details_.get_plain_dims(),
+            get_outputs()[0]->details_.get_plain_dims());
 }
 
 sc_dims managed_matmul_core_op_t::get_bwise_fuse_shrink_dims() {

@@ -45,6 +45,7 @@ public:
     std::vector<sc_op_ptr> get_s8s8_and_weight_compensation(
             sc_graph_t &mgr, bool s8s8_compensation);
     sc_op_ptr get_constant_compensation(sc_graph_t &mgr);
+    shape_rl_vec get_dynamic_shape_relations() const override;
 
     sc_dims get_bwise_fuse_shrink_dims() override;
 

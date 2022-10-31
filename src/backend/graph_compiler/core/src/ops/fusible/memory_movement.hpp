@@ -47,6 +47,8 @@ public:
     size_t compute_workload(const std::vector<shape_dtype_pair> &,
             const std::vector<shape_dtype_pair> &) override;
 
+    shape_rl_vec get_dynamic_shape_relations() const override;
+
 private:
     std::vector<int> order_;
 };
@@ -80,6 +82,7 @@ public:
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     sc_dims get_shapes() const;
     bool try_penetrate(sc_data_format_t &new_output_format) const;
+    shape_rl_vec get_dynamic_shape_relations() const override;
     sc_dims get_bwise_fuse_shrink_dims() override;
     sc_op_ptr bw_shrinked_copy(
             gt2gt_map &bw_lt_map, sc_graph_t &shrinked_graph) override;

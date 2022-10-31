@@ -86,6 +86,7 @@ public:
     // split into reduce_compute + reduce_collect
     graph_tensor_ptr split_op(const context_ptr &ctx, sc_graph_t &graph,
             int num_threads) override;
+    shape_rl_vec get_dynamic_shape_relations() const override;
 
 private:
     // the axis which need reduction

@@ -63,6 +63,9 @@ public:
 
     void set_config_by_key(const op_dispatch_key_t &key) override;
     std::vector<int> get_impl_dispatch_candidates() const override;
+    shape_rl_vec get_dynamic_shape_relations() const override;
+    static shape_rl_vec get_shape_relations_impl(const sc_dims &data_plain_dims,
+            const sc_dims &weight_plain_dims, const sc_dims &out_plain_dims);
 };
 
 blocking_axes_t get_mm_blocking_axes(const logical_tensor_t &inp,

@@ -70,6 +70,19 @@ transpose_op_t::transpose_op_t(graph_tensor_ptr v, std::vector<int> &order)
     op_name_ = "transpose";
 }
 
+shape_rl_vec transpose_op_t::get_dynamic_shape_relations() const {
+    shape_rl_vec ret;
+    auto &in_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto &out_dims = get_outputs()[0]->details_.get_plain_dims();
+    for (size_t i = 0; i < in_dims.size(); i++) {
+        if (is_dynamic_dim(in_dims[order_[i]])) {
+            assert(is_dynamic_dim(out_dims[i]));
+            ret.emplace_back(in_dims[order_[i]], out_dims[i]);
+        }
+    }
+    return ret;
+}
+
 void transpose_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
@@ -170,7 +183,7 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
     info_.inputs_ = ins;
     auto cache_input_format = ins[0]->details_.get_format();
     attrs_ = attrs;
-    auto &shapes = attrs_.get<sc_dims>("shape");
+    auto shapes = attrs_.get<sc_dims>("shape");
     auto format = attrs.get_or_else("format", sc_data_format_t());
     int total_shape1 = 1, total_shape2 = 1;
     for (auto &dim : sc_data_format_t::get_padded_plain_shapes(
@@ -339,6 +352,18 @@ bool tensor_view_op_t::try_penetrate(
     }
     new_output_format = info_.outputs_[0]->details_.get_format();
     return false;
+}
+
+shape_rl_vec tensor_view_op_t::get_dynamic_shape_relations() const {
+    auto rl_axis_pair = attrs_.get_or_else(
+            "temp.rl_axis_pair", std::vector<std::pair<int, int>>());
+    auto in_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto out_dims = get_outputs()[0]->details_.get_plain_dims();
+    shape_rl_vec ret;
+    for (auto &it : rl_axis_pair) {
+        ret.emplace_back(in_dims[it.first], out_dims[it.second]);
+    }
+    return ret;
 }
 
 void tensor_view_op_t::query_format(context_ptr ctx,

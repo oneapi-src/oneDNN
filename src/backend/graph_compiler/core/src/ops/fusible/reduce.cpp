@@ -424,6 +424,19 @@ void reduce_op_t::pre_slice_ranges(
     }
 }
 
+shape_rl_vec reduce_op_t::get_dynamic_shape_relations() const {
+    shape_rl_vec ret;
+    auto &in_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto &out_dims = get_outputs()[0]->details_.get_plain_dims();
+    auto rd_axis = get_rd_axis();
+    for (size_t i = 0; i < out_dims.size(); i++) {
+        if (is_dynamic_dim(out_dims[i])) {
+            ret.emplace_back(in_dims[i], out_dims[i]);
+        }
+    }
+    return ret;
+}
+
 // reduce all tensor_slice into sum, NOTE here src is a common
 // tensor_slice but dst maybe whole temp_buffer because output shape of
 // reduction is not equal to src, so it will allocate a new buffer

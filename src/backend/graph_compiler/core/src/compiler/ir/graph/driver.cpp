@@ -70,13 +70,15 @@ create_default_graph_flow(const context_ptr &ctx) {
             elemwise_bcast_swap, {}, pass_type::pre_tune, true));
     pre_tune_passes.push_back(create_graph_pass("permute_propagation",
             permute_propagation, {}, pass_type::pre_tune, true));
+    pre_tune_passes.push_back(create_graph_pass("quantize_op_compensation",
+            quantize::calculate_op_compensation, {}, pass_type::pre_tune,
+            true));
+    pre_tune_passes.push_back(create_graph_pass("elemwise_dimension_alignment",
+            elemwise_dimension_alignment, {}, pass_type::pre_tune, true));
+    pre_tune_passes.push_back(create_graph_pass("shape_relationship_binding",
+            shape_relationship_binding, {}, pass_type::pre_tune, true));
 
     // ------------------ post_tune -------------------------------------------
-    post_tune_passes.push_back(create_graph_pass("quantize_op_compensation",
-            quantize::calculate_op_compensation, {}, pass_type::post_tune,
-            true));
-    post_tune_passes.push_back(create_graph_pass("elemwise_dimension_alignment",
-            elemwise_dimension_alignment, {}, pass_type::post_tune, true));
     post_tune_passes.push_back(create_graph_pass("const_folding",
             graph_constant_input_folding, {}, pass_type::post_tune, true));
     if (ctx->flags_.mixed_fusion_) {

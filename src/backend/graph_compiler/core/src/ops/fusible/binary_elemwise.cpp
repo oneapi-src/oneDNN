@@ -83,7 +83,8 @@ std::vector<int> binary_elementwise_op_impl_t::infer_broadcast_axis() const {
             if (elt_dims.at(i) != bc_dims.at(i)) {
                 if (bc_dims.at(i) == 1) {
                     double_check_broadcast = true;
-                } else {
+                } else if (!is_dynamic_dim(elt_dims.at(i))
+                        && !is_dynamic_dim(bc_dims.at(i))) {
                     COMPILE_ASSERT(0,
                             "illegal elementwise operand found: "
                                     << utils::print_vector(elt_dims) << " , "
@@ -446,6 +447,36 @@ bool binary_elementwise_op_impl_t::register_brgemm_fusion(
     return brg_reg.register_op_infos(shared_from_this(),
             outputs[0]->get_tensor_ptr(), inputs[1]->get_tensor_ptr(),
             inputs[1]->get_shape());
+}
+
+shape_rl_vec binary_elementwise_op_impl_t::get_dynamic_shape_relations() const {
+    shape_rl_vec ret;
+    auto &in0_plain_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto &in1_plain_dims = get_inputs()[1]->details_.get_plain_dims();
+    auto &out_plain_dims = get_outputs()[0]->details_.get_plain_dims();
+    assert(in0_plain_dims.size() == in1_plain_dims.size()
+            || in0_plain_dims.size() == 1 || in1_plain_dims.size() == 1);
+    if (in0_plain_dims.size() == in1_plain_dims.size()) {
+        for (size_t i = 0; i < in0_plain_dims.size(); i++) {
+            // maybe broadcast
+            if ((is_dynamic_dim(in0_plain_dims[i])
+                        || is_dynamic_dim(in1_plain_dims[i]))
+                    && in0_plain_dims[i] != 1 && in1_plain_dims[i] != 1) {
+                ret.emplace_back(in0_plain_dims[i], in1_plain_dims[i]);
+            }
+        }
+    }
+    for (size_t i = 0; i < out_plain_dims.size(); i++) {
+        if (is_dynamic_dim(out_plain_dims[i])) {
+            if (i < in0_plain_dims.size() && in0_plain_dims[i] != 1) {
+                ret.emplace_back(in0_plain_dims[i], out_plain_dims[i]);
+            }
+            if (i < in1_plain_dims.size() && in1_plain_dims[i] != 1) {
+                ret.emplace_back(in1_plain_dims[i], out_plain_dims[i]);
+            }
+        }
+    }
+    return ret;
 }
 
 sc_dims binary_elementwise_op_impl_t::get_bwise_fuse_shrink_dims() {

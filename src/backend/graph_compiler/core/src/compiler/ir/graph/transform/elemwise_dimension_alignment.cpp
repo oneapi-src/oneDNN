@@ -171,5 +171,6 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                     }
                 }
             });
+    graph.reset_op_ids();
 }
 } // namespace sc

@@ -58,6 +58,7 @@ public:
             const std::vector<tensor_slice *> &outputs,
             const std::vector<const tensor_slice *> &inputs,
             brgemm_fusion_register &brg_reg) override;
+    shape_rl_vec get_dynamic_shape_relations() const override;
     // get real broadcast axis, generaly, you should set bc_axis on plain format
     // semantics if necessary.
     std::vector<int> get_bc_axis() const;

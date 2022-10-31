@@ -778,6 +778,51 @@ sc_op_ptr matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
     return ret_node;
 }
 
+shape_rl_vec matmul_core_op_t::get_dynamic_shape_relations() const {
+    return get_shape_relations_impl(get_inputs()[0]->details_.get_plain_dims(),
+            get_inputs()[1]->details_.get_plain_dims(),
+            get_outputs()[0]->details_.get_plain_dims());
+}
+
+shape_rl_vec matmul_core_op_t::get_shape_relations_impl(
+        const std::vector<sc_dim> &data_plain_dims,
+        const std::vector<sc_dim> &weight_plain_dims,
+        const std::vector<sc_dim> &out_plain_dims) {
+    assert(data_plain_dims.size() == weight_plain_dims.size()
+            || data_plain_dims.size() == 2 || weight_plain_dims.size() == 2);
+    shape_rl_vec ret;
+    auto data_M = data_plain_dims[data_plain_dims.size() - 2];
+    auto data_K = data_plain_dims[data_plain_dims.size() - 1];
+    auto weight_K = weight_plain_dims[weight_plain_dims.size() - 2];
+    auto weight_N = weight_plain_dims[weight_plain_dims.size() - 1];
+    auto out_M = out_plain_dims[out_plain_dims.size() - 2];
+    auto out_N = out_plain_dims[out_plain_dims.size() - 1];
+    if (is_dynamic_dim(data_K) || is_dynamic_dim(weight_K)) {
+        ret.emplace_back(data_K, weight_K);
+    }
+    if (is_dynamic_dim(data_M) || is_dynamic_dim(out_M)) {
+        ret.emplace_back(data_M, out_M);
+    }
+    if (is_dynamic_dim(weight_N) || is_dynamic_dim(out_N)) {
+        ret.emplace_back(weight_N, out_N);
+    }
+    if (data_plain_dims.size() == weight_plain_dims.size()
+            && data_plain_dims.size() > 2) {
+        for (size_t i = 0; i < data_plain_dims.size() - 2; i++) {
+            if (is_dynamic_dim(data_plain_dims[i])
+                    || is_dynamic_dim(weight_plain_dims[i])) {
+                ret.emplace_back(data_plain_dims[i], weight_plain_dims[i]);
+                if (is_dynamic_dim(data_plain_dims[i])) {
+                    ret.emplace_back(data_plain_dims[i], out_plain_dims[i]);
+                } else {
+                    ret.emplace_back(weight_plain_dims[i], out_plain_dims[i]);
+                }
+            }
+        }
+    }
+    return ret;
+}
+
 sc_dims matmul_core_op_t::get_bwise_fuse_shrink_dims() {
     // Currently fordbid N-axis fuse, skip check weight
     auto out_fmt = info_.outputs_[0]->details_.get_format(),

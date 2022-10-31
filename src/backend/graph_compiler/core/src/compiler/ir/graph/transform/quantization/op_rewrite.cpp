@@ -30,16 +30,17 @@ void calculate_op_compensation(sc_graph_t &mgr, const context_ptr &ctx) {
     vis.visit_graph(mgr, [&](const sc_op_ptr &node) {
         if (auto qnode = node->dyn_cast<op_traits::may_quantize_t>()) {
             if (qnode->is_quantized_ && qnode->need_compensation_) {
-                auto copyable = node->dyn_cast<op_traits::copyable_t>();
-                COMPILE_ASSERT(copyable,
-                        "The Op to quantize is not copyable:"
-                                << node->op_name_);
-                sc_op_ptr copy_qnode = copyable->copy(node->get_inputs(),
-                        {node->get_outputs()[0]->copy()}, mgr);
+                std::vector<std::pair<int, sc_op_weak_ptr_t>> uses;
+                for (auto &out : node->get_outputs()) {
+                    uses.insert(
+                            uses.end(), out->uses_.begin(), out->uses_.end());
+                }
                 sc_op_ptr compensation_qnode
-                        = copy_qnode->dyn_cast<op_traits::may_quantize_t>()
-                                  ->do_compensations(mgr, ctx);
-                node->replace_uses_with_and_remove(compensation_qnode);
+                        = qnode->do_compensations(mgr, ctx);
+                auto new_out = compensation_qnode->get_outputs()[0];
+                for (auto &use : uses) {
+                    use.second->replace_input(use.first, new_out);
+                }
                 vis.update_state_for_visited(compensation_qnode);
             }
         }

@@ -125,6 +125,18 @@ void unary_elementwise_op_impl_t::pre_slice_ranges(
     pre_unary_slice_ranges(this, fsmap, stat_map);
 }
 
+shape_rl_vec unary_elementwise_op_impl_t::get_dynamic_shape_relations() const {
+    shape_rl_vec ret;
+    auto &in_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto &out_dims = get_outputs()[0]->details_.get_plain_dims();
+    for (size_t i = 0; i < in_dims.size(); i++) {
+        if (is_dynamic_dim(in_dims[i])) {
+            ret.emplace_back(in_dims[i], out_dims[i]);
+        }
+    }
+    return ret;
+}
+
 bool unary_elementwise_op_impl_t::register_brgemm_fusion(const context_ptr &ctx,
         const std::vector<tensor_slice *> &outputs,
         const std::vector<const tensor_slice *> &inputs,

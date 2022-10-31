@@ -58,6 +58,7 @@ using gt2axes_map = gt_map_t<std::vector<int>>;
 using gt2buf_map = gt_map_t<expr>;
 using gt2anchor_map = gt_map_t<fuse_anchor_map_t *>;
 using format_stride_pair = std::pair<sc_data_format_t, sc_dims>;
+using shape_rl_vec = std::vector<std::pair<sc_dim, sc_dim>>;
 
 struct dispatch_key_set_base_t;
 using dispatch_set_ptr = std::shared_ptr<dispatch_key_set_base_t>;
@@ -249,6 +250,13 @@ public:
     // the op contains dynamic shape calculation, we didn't store a boolean
     // value cache for op/graph, because they are dynamic themselves.
     bool is_dynamic() const;
+
+    // Get relationship of shapes from input/output plain shapes. Return
+    // a vector of a pair of parent shape placeholder and child shape
+    // placeholder. If one of the shapes corresponding to parent and child is
+    // static, the other is also inferred as static, e.g. binary elemwise op
+    // input shapes [-1, 64] and [16, 64], -1 will be inferred as 16.
+    virtual shape_rl_vec get_dynamic_shape_relations() const { return {}; }
 
     // the op share given graph tensor with opT(except itself)
     template <typename opT>
