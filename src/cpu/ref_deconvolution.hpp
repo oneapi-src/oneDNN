@@ -166,10 +166,9 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::deconvolution_direct,
                             alg_kind::deconvolution_winograd)
-                    && attr()->has_default_values(smask_t::oscale_runtime
+                    && attr()->has_default_values(smask_t::scales_runtime
                             | smask_t::post_ops | smask_t::zero_points_runtime)
-                    && output_scales_mask_ok() && post_ops_ok()
-                    && zero_points_ok();
+                    && scales_mask_ok() && post_ops_ok() && zero_points_ok();
             if (!ok) return status::unimplemented;
 
             CHECK(init_convolution(engine));
@@ -231,12 +230,18 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             }
         }
 
-        bool output_scales_mask_ok() const {
+        bool scales_mask_ok() const {
             using namespace data_type;
-            const auto &mask = attr()->output_scales_.mask_;
-            return IMPLICATION(!utils::one_of(src_md()->data_type, s8, u8),
-                           attr()->output_scales_.has_default_values())
-                    && (mask == 0 || mask == 1 << 1);
+            bool ok = true;
+            // TODO: Check that the rest argument scales are default
+            for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+                const auto &mask = attr()->scales_.get(arg).mask_;
+                if (arg == DNNL_ARG_WEIGHTS)
+                    ok = ok && (mask == 0 || mask == (1 << with_groups()));
+                else
+                    ok = ok && (mask == 0);
+            }
+            return ok;
         }
 
         bool post_ops_ok() const {
@@ -283,6 +288,8 @@ private:
     template <dim_t blk_size>
     void compute_fwd_bias_nCdhwXc(const exec_ctx_t &ctx, void *dst,
             const float *conv_output, bool non_default_attr) const;
+
+    status_t compute_oscale(const exec_ctx_t &ctx, float *dst) const;
 
     void compute_fwd_bias(const exec_ctx_t &ctx, void *dst,
             const float *conv_output, bool non_default_attr) const;
