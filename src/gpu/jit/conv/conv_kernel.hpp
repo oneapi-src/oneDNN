@@ -2979,11 +2979,18 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     ngen::DataType dst_type = dst.type();
     // Replace (float -> float) by (int -> int) as word/dword moves have less
     // restrictions.
-    if (src_type == dst_type && ngen_is_xf(src_type)) {
-        src_type = to_ngen(type_t::u(ngen::getBytes(src_type) * 8));
-        dst_type = src_type;
-        src = src.reinterpret(src_type);
-        dst = dst.reinterpret(dst_type);
+    if (src_type == dst_type
+            && utils::one_of(src_type, ngen::DataType::bf, ngen::DataType::hf,
+                    ngen::DataType::f, ngen::DataType::df)) {
+        int factor = (src_type == ngen::DataType::df ? 2 : 1);
+        if (factor == 1 || (src_stride == 1 && dst_stride == 1)) {
+            src_type
+                    = to_ngen(type_t::u(ngen::getBytes(src_type) / factor * 8));
+            dst_type = src_type;
+            width *= factor;
+            src = src.reinterpret(src_type);
+            dst = dst.reinterpret(dst_type);
+        }
     }
 
     int grf_size = ngen::GRF::bytes(hw);
