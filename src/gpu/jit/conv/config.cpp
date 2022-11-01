@@ -1676,7 +1676,8 @@ void init_slm(conv_config_t &cfg) {
         //Check that SLM can be stored with oword messages.
         int tg_size = tg.elems();
         int bytes_per_tg = (m_tg_blk * k_iter_blk * prb.a_data_type_size);
-        bool can_split_a = bytes_per_tg % 16 == 0
+        int align = prb.is_bwd_w ? 32 : 16;
+        bool can_split_a = bytes_per_tg % align == 0
                 && bytes_per_tg / tg_size >= k_iter_blk && k_iter_blk % 2 == 0;
         enable_a = (tg.dim(0) > 1) && can_split_a;
     }
