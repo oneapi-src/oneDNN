@@ -435,6 +435,26 @@ public:
                 Xbyak_aarch64::ZRegD(z3.getIdx()));
     }
 
+    void uni_ld1rw(const Xbyak_aarch64::VReg4S &dst,
+            const Xbyak_aarch64::XReg &base, const int64_t off) {
+        if (off == 0) {
+            ld1r(dst, ptr(base));
+        } else {
+            add_imm(X_DEFAULT_ADDR, base, off, X_TMP_0);
+            ld1r(dst, ptr(X_DEFAULT_ADDR));
+        }
+    }
+
+    void uni_ld1rw(const Xbyak_aarch64::ZRegS &dst,
+            const Xbyak_aarch64::XReg &base, const int64_t off) {
+        if (-32 <= off && off < 32) {
+            ld1rw(dst, P_ALL_ONE / Xbyak_aarch64::T_z, ptr(base, (int)off));
+        } else {
+            add_imm(X_DEFAULT_ADDR, base, off, X_TMP_0);
+            ld1rw(dst, P_ALL_ONE / Xbyak_aarch64::T_z, ptr(X_DEFAULT_ADDR));
+        }
+    }
+
     void uni_ldr(
             const Xbyak_aarch64::VReg &dst, const Xbyak_aarch64::XReg &addr) {
         ldr(Xbyak_aarch64::QReg(dst.getIdx()), ptr(addr));
