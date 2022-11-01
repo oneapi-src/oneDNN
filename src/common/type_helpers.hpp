@@ -330,6 +330,19 @@ inline void cvt_to_float<float16_t>(
     cvt_float16_to_float(out, inp, nelems);
 }
 
+inline void cvt_from_float(
+        data_type_t dt, void *out, const float *inp, size_t nelems) {
+    switch (dt) {
+        case data_type::bf16:
+            cvt_from_float((bfloat16_t *)out, inp, nelems);
+            break;
+        case data_type::f16:
+            cvt_from_float((float16_t *)out, inp, nelems);
+            break;
+        default: assert(!"unimplemented");
+    }
+}
+
 } // namespace types
 
 inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
