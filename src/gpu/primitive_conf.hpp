@@ -536,10 +536,12 @@ struct bnorm_conf_t {
     bool use_stats_one_pass;
     bool nhwc_optimized;
     int calc_stat_ic;
+    bool use_fused_atomics_reduction;
 
     compute::dispatch_t dispatch_calc_stat;
     compute::dispatch_t dispatch_reduce_stat;
     compute::dispatch_t dispatch;
+    compute::dispatch_t dispatch_reduce_aux;
 };
 
 // Layer Normalization

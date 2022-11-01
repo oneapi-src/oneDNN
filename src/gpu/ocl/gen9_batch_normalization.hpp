@@ -94,17 +94,21 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        std::vector<const char *> kernel_names
-                = {"gen9_bnorm_fwd", nullptr, nullptr, nullptr, nullptr};
+        std::vector<const char *> kernel_names = {"gen9_bnorm_fwd", nullptr,
+                nullptr, nullptr, nullptr, nullptr, nullptr};
         if (pd()->conf.calculate_stats) {
             if (pd()->conf.use_stats_one_pass) {
                 kernel_names[1] = "gen9_calc_mean_var";
                 kernel_names[2] = "gen9_reduce_mean_var";
+                kernel_names[3] = "gen9_fused_reduce_init";
+                kernel_names[4] = "gen9_fused_reduce_final";
             } else {
                 kernel_names[1] = "gen9_calc_mean";
                 kernel_names[2] = "gen9_calc_variance";
                 kernel_names[3] = "gen9_reduce_mean";
                 kernel_names[4] = "gen9_reduce_variance";
+                kernel_names[5] = "gen9_fused_reduce_init";
+                kernel_names[6] = "gen9_fused_reduce_final";
             }
         }
 
@@ -116,11 +120,15 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         if (pd()->conf.use_stats_one_pass) {
             calculate_mean_var_kernel_ = kernels[1];
             reduce_mean_var_kernel_ = kernels[2];
+            reduce_init_kernel_ = kernels[3];
+            reduce_final_kernel_ = kernels[4];
         } else {
             calculate_mean_kernel_ = kernels[1];
             calculate_variance_kernel_ = kernels[2];
             reduce_mean_kernel_ = kernels[3];
             reduce_variance_kernel_ = kernels[4];
+            reduce_init_kernel_ = kernels[5];
+            reduce_final_kernel_ = kernels[6];
         }
 
         return status::success;
@@ -140,6 +148,8 @@ private:
     compute::kernel_t reduce_variance_kernel_;
     compute::kernel_t calculate_mean_var_kernel_;
     compute::kernel_t reduce_mean_var_kernel_;
+    compute::kernel_t reduce_init_kernel_;
+    compute::kernel_t reduce_final_kernel_;
 };
 
 struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
@@ -197,8 +207,9 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        std::vector<const char *> kernel_names = {
-                "gen9_bnorm_bwd", "gen9_calculate_stats", "gen9_reduce_stats"};
+        std::vector<const char *> kernel_names = {"gen9_bnorm_bwd",
+                "gen9_calculate_stats", "gen9_reduce_stats",
+                "gen9_fused_reduce_init", "gen9_fused_reduce_final"};
 
         std::vector<compute::kernel_t> kernels;
         status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
@@ -207,6 +218,8 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
         bwd_kernel_ = kernels[0];
         calculate_stats_kernel_ = kernels[1];
         reduce_stats_kernel_ = kernels[2];
+        reduce_init_kernel_ = kernels[3];
+        reduce_final_kernel_ = kernels[4];
 
         return status::success;
     }
@@ -221,6 +234,8 @@ private:
     compute::kernel_t bwd_kernel_;
     compute::kernel_t calculate_stats_kernel_;
     compute::kernel_t reduce_stats_kernel_;
+    compute::kernel_t reduce_init_kernel_;
+    compute::kernel_t reduce_final_kernel_;
 };
 
 } // namespace ocl
