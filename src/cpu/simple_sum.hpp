@@ -62,12 +62,12 @@ struct simple_sum_t : public primitive_t {
                         && i_d.is_dense();
                 if (!ok) return status::unimplemented;
             }
-
+            nthr_ = dnnl_get_max_threads();
             compute_blocking();
             init_scratchpad();
             return status::success;
         }
-
+        int nthr_ = 1;
         sum_xf16_params_t xf16_params_;
         dim_t block_size_ = 0, nelems_ = 0, blocks_number_ = 0, tail_ = 0;
 
@@ -104,8 +104,8 @@ struct simple_sum_t : public primitive_t {
                 xf16_params_.ws_elements_per_thread_
                         = xf16_params_.ws_cvt_elements_per_thread_
                         + xf16_params_.ws_acc_elements_per_thread_;
-                const dim_t cvt_buf_sz = xf16_params_.ws_elements_per_thread_
-                        * dnnl_get_max_threads();
+                const dim_t cvt_buf_sz
+                        = xf16_params_.ws_elements_per_thread_ * nthr_;
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.template book<acc_data_t>(
                         memory_tracking::names::key_sum_srcs_cvt, cvt_buf_sz);

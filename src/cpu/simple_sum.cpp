@@ -89,7 +89,8 @@ status_t simple_sum_t<src_data_type, dst_data_type>::execute(
         }
     };
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    const int max_nthr = pd()->nthr_;
+    parallel(max_nthr, [&](const int ithr, const int nthr) {
         dim_t start {0}, end {0};
         balance211(blocks_number, nthr, ithr, start, end);
 
