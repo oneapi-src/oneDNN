@@ -127,6 +127,8 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, combine_binary_post_op_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, folding_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
+            BACKEND_DNNL_ADD_PASS(pipeline, fold_sub_zps_add_zps);
+            BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
             BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
             BACKEND_DNNL_ADD_PASS(
                     pipeline, replace_quant_data_with_binary_post_op);
