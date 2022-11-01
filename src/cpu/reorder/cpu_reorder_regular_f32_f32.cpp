@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2022 Intel Corporation
+* Copyright 2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +33,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
+            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_blk_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
             REG_SR(f32, any, f32, any, fmt_order::any, spec::reference)
 
@@ -44,6 +46,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
+            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_blk_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, nCw16c))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, nCw8c))
@@ -75,6 +78,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
+            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_blk_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, nChw16c))
@@ -123,6 +127,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
+            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_blk_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, nCdhw16c))
@@ -171,6 +176,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
+            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_blk_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
 
 
