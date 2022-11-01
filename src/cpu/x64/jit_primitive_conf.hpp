@@ -794,6 +794,7 @@ struct jit_brdgmm_conv_conf_t {
 
     bool with_bias;
     bool with_post_ops;
+    bool with_scale;
     bool is_oc_scale;
 
     data_type_t src_dt;

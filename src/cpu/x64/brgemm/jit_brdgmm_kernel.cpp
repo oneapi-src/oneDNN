@@ -310,30 +310,8 @@ template <cpu_isa_t isa, typename Wmm>
 void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
         int m_blocks, int n_blocks, bool has_n_tail) {
 
-    if (brg.with_bias) {
-        mov(reg_aux_bias, ptr[rsp + reg_bias_offs_]);
-        lea(reg_aux_bias, ptr[reg_aux_bias + reg_aux_N * brg.typesize_bias]);
-    }
-
     const bool dq2ps_required = brg.is_int8;
     const int v_substep = vnni_substep();
-    for_(int v_i = 0; v_i < v_substep; ++v_i)
-    for (int n = 0; n < n_blocks; n++) {
-        auto vmm_bias = vmm_tmp(0);
-        const int substep_simd = get_substep_simd(n, v_i, has_n_tail);
-        if (substep_simd <= 0) continue;
-        if (brg.with_bias) {
-            auto ptr_bias = ptr[reg_aux_bias + bias_offset(n, v_i)];
-            cvt2ps(brg.dt_bias, vmm_bias, ptr_bias, substep_simd != simd_w_,
-                    false);
-        }
-        for (int m = 0; m < m_blocks; m++) {
-            auto vmm = accm(m_blocks, n_blocks, m, n, v_i);
-            if (dq2ps_required) vcvtdq2ps(vmm, vmm);
-            if (brg.with_bias) { vaddps(vmm, vmm, vmm_bias); }
-        }
-    }
-
     if (brg.with_scales) {
         mov(reg_aux_scales, ptr[rsp + reg_scales_offs_]);
         if (brg.is_oc_scale) {
@@ -348,6 +326,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
             const bool mask_flag = substep_simd < simd_w_;
             const Vmm vmm = maybe_mask(
                     accm(m_blocks, n_blocks, m, n, v_i), mask_flag, false);
+            if (dq2ps_required) vcvtdq2ps(vmm, vmm);
             if (IMPLICATION(mask_flag || !brg.is_oc_scale,
                         is_superset(brg.isa_impl, avx512_core))) {
                 if (brg.is_oc_scale) {
@@ -367,6 +346,28 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
                 }
                 vmulps(vmm, vmm, vmm_scale);
             }
+        }
+    }
+
+    if (brg.with_bias) {
+        mov(reg_aux_bias, ptr[rsp + reg_bias_offs_]);
+        lea(reg_aux_bias, ptr[reg_aux_bias + reg_aux_N * brg.typesize_bias]);
+    }
+
+    for_(int v_i = 0; v_i < v_substep; ++v_i)
+    for (int n = 0; n < n_blocks; n++) {
+        auto vmm_bias = vmm_tmp(0);
+        const int substep_simd = get_substep_simd(n, v_i, has_n_tail);
+        if (substep_simd <= 0) continue;
+        if (brg.with_bias) {
+            auto ptr_bias = ptr[reg_aux_bias + bias_offset(n, v_i)];
+            cvt2ps(brg.dt_bias, vmm_bias, ptr_bias, substep_simd != simd_w_,
+                    false);
+        }
+        for (int m = 0; m < m_blocks; m++) {
+            auto vmm = accm(m_blocks, n_blocks, m, n, v_i);
+            if (dq2ps_required && !brg.with_scales) vcvtdq2ps(vmm, vmm);
+            if (brg.with_bias) { vaddps(vmm, vmm, vmm_bias); }
         }
     }
 

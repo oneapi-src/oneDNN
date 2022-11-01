@@ -19,6 +19,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/scale_utils.hpp"
 
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_brdgmm_dw_conv.hpp"
@@ -111,7 +112,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     const cpu_isa_t isa = get_supported_isa(is_f32, is_int8, is_bf16, is_f16);
 
     auto skip_mask = skip_mask_t::post_ops;
-    if (is_int8) skip_mask |= skip_mask_t::oscale_runtime;
+    if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
             && one_of(true, is_f32, is_int8, is_bf16, is_f16)
@@ -188,8 +189,18 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
             = jcp.with_bias ? types::data_type_size(cd.bias_desc.data_type) : 0;
     jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
 
-    const auto &oscales = attr()->output_scales_;
-    jcp.is_oc_scale = oscales.mask_ == 1 << 1;
+    const auto &src_scales = attr_.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr_.scales_.get(DNNL_ARG_WEIGHTS);
+    const auto &dst_scales = attr_.scales_.get(DNNL_ARG_DST);
+    jcp.with_scale = !src_scales.has_default_values()
+            || !wei_scales.has_default_values();
+    const int wei_mask_per_oc = 1 << with_groups;
+    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
+
+    // only common and per-oc-channel scales are supported
+    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
+            && src_scales.mask_ == 0 && dst_scales.has_default_values();
+    if (!scales_ok) return status::unimplemented;
 
     // strd is only feasible for 1D (i.e., height dim is one)
     // and if there are no tails (for calculating matrix_B strides).
@@ -208,6 +219,12 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
             = div_up(rnd_up(jcp.kh * jcp.kw * sc_size, 4096), sc_size);
     CHECK(init_brdgmm_conf());
     CHECK(init_scratchpad());
+    if (jcp.with_scale) {
+        auto scratchpad = scratchpad_registry().registrar();
+        book_precomputed_scales(
+                scratchpad, attr_.scales_, jcp.ngroups * jcp.oc);
+    }
+
     return status::success;
 }
 
@@ -372,9 +389,14 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
             = binary_injector::prepare_binary_args(
                     pd()->attr()->post_ops_, ctx);
 
-    DEFINE_SCALES_BUFFER(oscales);
-
     const auto &jcp = pd()->jcp_;
+
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+
+    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
+            src_scales, wei_scales, jcp.ngroups * jcp.oc, pd()->attr());
+
     const int chb_step = jcp.nb_ch_blocking;
     const int chb_work = div_up(jcp.ngroups, chb_step);
     const int ow_step = jcp.ow_block;
