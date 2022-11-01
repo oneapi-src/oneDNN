@@ -131,6 +131,7 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     int dst_type_size = ngen::getBytes(dst_type);
     auto large_type = (src_type_size > dst_type_size) ? src_type : dst_type;
     auto small_type = (src_type_size < dst_type_size) ? src_type : dst_type;
+    ngen_register_scope_t lex_scope {scope.register_allocator()};
 
     if (!utils::one_of(large_type, ngen::DataType::f, ngen::DataType::d))
         return false;
@@ -147,7 +148,7 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
     const int grf_size = ngen::GRF::bytes(hw);
     op_plan_t plan = grf_size;
-    auto tmp = scope.alloc_reg_buf_data(
+    auto tmp = lex_scope.alloc_reg_buf_data(
             utils::div_up(int(batch * sizeof(uint32_t)), grf_size));
     using inst_mod_t = ngen::InstructionModifier;
     using reg_data_t = ngen::RegData;
@@ -234,6 +235,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     bool src_xf = src_bf || src_f || src_hf || src_df;
     bool f_to_xf = (src_f && (dst_bf || dst_hf));
     op_plan_t plan = grf_size;
+    ngen_register_scope_t lex_scope {scope.register_allocator()};
 
     auto get_step = [&]() {
         int step = (width < 16 ? 8 : 16);
@@ -280,7 +282,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     // - Use d -> f -> bf/hf conversion with temporary
     if (src_d && (dst_bf || dst_hf)) {
         const int nregs = utils::div_up(width * (int)sizeof(float), grf_size);
-        auto tmp = scope.alloc_reg_buf_data(nregs).format(0, ngen::DataType::f);
+        auto tmp = lex_scope.alloc_reg_buf_data(nregs).format(
+                0, ngen::DataType::f);
         emit_reorder_1d_tile(hw, host, scope, width, src, src_stride, tmp, 1);
         emit_reorder_1d_tile(hw, host, scope, width, tmp, 1, dst, dst_stride);
         return;
@@ -297,8 +300,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         const int align_boundary = grf_size / 2;
         const int step_size = step * (int)sizeof(uint32_t);
         const int nregs = utils::div_up(step_size, grf_size);
-        auto tmp1 = scope.alloc_reg_buf_data(nregs);
-        auto tmp2 = scope.alloc_reg_buf_data(nregs);
+        auto tmp1 = lex_scope.alloc_reg_buf_data(nregs);
+        auto tmp2 = lex_scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -329,8 +332,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         const int tmp_stride_bytes = tmp_stride * dst_type_size;
         const int step_size = step * tmp_stride_bytes;
         const int nregs = 1 + utils::div_up(step_size, grf_size);
-        auto tmp1 = scope.alloc_reg_buf_data(nregs);
-        auto tmp2 = scope.alloc_reg_buf_data(nregs);
+        auto tmp1 = lex_scope.alloc_reg_buf_data(nregs);
+        auto tmp2 = lex_scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -368,7 +371,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         const int tmp_stride_bytes = tmp_stride * src_type_size;
         const int reg_size = dst.byte_offset() + width * tmp_stride_bytes;
         const int nregs = utils::div_up(reg_size, grf_size);
-        auto tmp = scope.alloc_reg_buf_data(nregs);
+        auto tmp = lex_scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -393,7 +396,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         const int tmp_stride_bytes = tmp_stride * src_type_size;
         const int reg_size = dst.byte_offset() + width * tmp_stride_bytes;
         const int nregs = utils::div_up(reg_size, grf_size);
-        auto tmp = scope.alloc_reg_buf_data(nregs);
+        auto tmp = lex_scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -417,7 +420,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         const int tmp_stride = 2;
         const int reg_size = step * tmp_stride * dst_type_size;
         const int nregs = utils::div_up(reg_size, grf_size);
-        auto tmp = scope.alloc_reg_buf_data(nregs);
+        auto tmp = lex_scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -447,7 +450,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         const int tmp_stride = 2;
         const int reg_size = step * tmp_stride * src_type_size;
         const int nregs = utils::div_up(reg_size, grf_size);
-        auto tmp = scope.alloc_reg_buf_data(nregs);
+        auto tmp = lex_scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -485,7 +488,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         int step = get_step();
         const int step_size = step * (int)sizeof(uint32_t);
         const int nregs = 1 + utils::div_up(step_size, grf_size);
-        auto tmp = scope.alloc_reg_buf_data(nregs);
+        auto tmp = lex_scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -528,8 +531,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     if (src_type_size == 2 && dst_type_size == 2 && src_stride == 2
             && dst_stride == 1) {
         int step = get_step();
-        auto tmp = scope.alloc_reg_buf_data(
-                utils::div_up(step * src_type_size * src_stride, grf_size));
+        auto step_size = step * src_type_size * src_stride;
+        auto nregs = utils::div_up(step_size, grf_size);
+        auto tmp = lex_scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -581,7 +585,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 }
             }
             if (do_d0_align) {
-                d = scope.alloc_reg_data(to_ir(dst_type).with_elems(esize));
+                d = lex_scope.alloc_reg_data(to_ir(dst_type).with_elems(esize));
             }
 
             bool do_align = false;
@@ -630,7 +634,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
         int step = get_step();
         const int nregs = 1 + utils::div_up(step * tmp_stride_bytes, grf_size);
-        auto tmp = scope.alloc_reg_buf_data(nregs);
+        auto tmp = lex_scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
