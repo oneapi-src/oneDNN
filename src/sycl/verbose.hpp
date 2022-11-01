@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,9 +41,10 @@ void print_verbose_header(engine_kind_t kind) {
         auto s_ver = dev_info ? dev_info->runtime_version().str() : "unknown";
 
         printf("onednn_verbose,info,%s,engine,%d,backend:%s,name:%s,driver_"
-               "version:%s\n",
+               "version:%s,binary_kernels:%s\n",
                 s_engine_kind, (int)i, s_backend.c_str(), s_name.c_str(),
-                s_ver.c_str());
+                s_ver.c_str(),
+                dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
     }
 }
 

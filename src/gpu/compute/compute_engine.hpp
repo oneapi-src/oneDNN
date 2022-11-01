@@ -119,8 +119,8 @@ public:
     bool is_xe_hpc() const {
         return device_info_->gpu_arch() == gpu_arch_t::xe_hpc;
     }
-    bool mayiuse_ngen_kernels() {
-        return device_info_->mayiuse_ngen_kernels(this);
+    bool mayiuse_ngen_kernels() const {
+        return device_info_->mayiuse_ngen_kernels();
     }
     bool mayiuse_non_uniform_work_groups() const {
         return device_info_->mayiuse_non_uniform_work_groups();
