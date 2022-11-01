@@ -118,6 +118,11 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
             ACL_CHECK_SUPPORT(!attr()->has_default_values(smask_t::post_ops),
                     "attr must have default values");
 
+            ACL_CHECK_SUPPORT(!set_default_formats_common(),
+                    "Failed to set default formats");
+            ACL_CHECK_SUPPORT(src_d != memory_desc_wrapper(dst_md()),
+                    "Source and destination must have the same layout");
+
             // Stats must already have been calculated
             ACL_CHECK_SUPPORT(!use_global_stats(),
                     "stats must already have been computed (use global stats)");
