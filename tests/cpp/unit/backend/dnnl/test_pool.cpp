@@ -1121,6 +1121,120 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
     }
 }
 
+TEST(ExecuteSubgraphInt8, MaxpoolAsymmetric) {
+    // compare results between:
+    // case 1: [quantize] - [dequantize] - [fp32_maxpool] - [quantize]
+    // case 2: [quantize] - [int8_maxpool]
+    using dims = impl::dnnl_impl::dims;
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    // prepare fp32 data
+    std::vector<int64_t> src_shape = {3, 3, 4, 4};
+    std::vector<int64_t> dst_shape = {3, 3, 2, 2};
+
+    test::vector<uint8_t> src_u8_data(product(src_shape));
+    test::vector<int8_t> case1_out_data(product(dst_shape));
+    test::vector<int8_t> case2_out_data(product(dst_shape));
+
+    // random generate src, weight and bias data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+    std::generate(src_u8_data.begin(), src_u8_data.end(),
+            [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
+
+    float scale_src = 1 / 127.f;
+    float scale_out = 1 / 127.f;
+    int64_t zp_src = 38;
+    int64_t zp_out = 38;
+
+    impl::op_t dqdata_op(1, impl::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    impl::op_t maxpool_op(2, impl::op_kind::MaxPool, "maxpool_op");
+    size_t spatial_size = src_shape.size() - 2;
+    maxpool_op.set_attr<dims>(impl::op_attr::strides, dims(spatial_size, 2));
+    maxpool_op.set_attr<dims>(impl::op_attr::kernel, dims(spatial_size, 2));
+    maxpool_op.set_attr<dims>(impl::op_attr::pads_begin, dims(spatial_size, 0));
+    maxpool_op.set_attr<dims>(impl::op_attr::pads_end, dims(spatial_size, 0));
+    maxpool_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    maxpool_op.set_attr<dims>(impl::op_attr::dilations, dims(spatial_size, 1));
+
+    impl::op_t qout_op(3, impl::op_kind::Quantize, "qout_op");
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_out});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_u8
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::u8);
+    impl::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(2, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t dst_f32
+            = utils::logical_tensor_init(3, dst_shape, impl::data_type::f32);
+    impl::logical_tensor_t dst_u8
+            = utils::logical_tensor_init(4, dst_shape, impl::data_type::u8);
+
+    dqdata_op.add_input(src_u8);
+    dqdata_op.add_output(src_f32_dq);
+
+    maxpool_op.add_input(src_f32_dq);
+    maxpool_op.add_output(dst_f32);
+
+    qout_op.add_input(dst_f32);
+    qout_op.add_output(dst_u8);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&dqdata_op);
+    g.add_op(&maxpool_op);
+    g.add_op(&qout_op);
+    g.build_graph();
+
+    impl::tensor_t src_u8_ts(src_u8, &engine, src_u8_data.data());
+    impl::tensor_t dst_u8_ts(dst_u8, &engine, case1_out_data.data());
+    impl::tensor_t dst_u8_case2_ts(dst_u8, &engine, case2_out_data.data());
+
+    // -------------------------case 1----------------------------------
+    ASSERT_EQ(run_graph(g, {src_u8_ts}, {dst_u8_ts}, engine, strm),
+            impl::status::success);
+
+    // -------------------------case 2----------------------------------
+    impl::pass::pass_base_ptr apass
+            = get_pass(engine.kind() == impl::engine_kind::gpu
+                            ? "int8_pool_binary_fusion_gpu"
+                            : "int8_pool_binary_fusion_cpu");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {&src_u8};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_u8};
+
+    p.compile(&cp, lt_ins, lt_outs, &engine);
+
+    cp.execute(&strm, {src_u8_ts}, {dst_u8_case2_ts});
+    strm.wait();
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+    if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                /*atol*/ 1.f));
+    else
+        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                /*atol*/ 1.f));
+}
+
 struct dnnl_graph_test_pool_binary_params {
     impl::op_kind_t pool_kind;
     impl::op_kind_t binary_kind;

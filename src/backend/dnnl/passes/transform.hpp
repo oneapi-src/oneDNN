@@ -209,6 +209,10 @@ impl::status_t lift_up_typecast(std::shared_ptr<subgraph_t> &sg);
 // the operator after transpose need a dense layout
 impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg);
 
+// This pass will fold add_zps into the previous sub_zps with new_zps = sub_zps
+// - add_zps
+impl::status_t fold_sub_zps_add_zps(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

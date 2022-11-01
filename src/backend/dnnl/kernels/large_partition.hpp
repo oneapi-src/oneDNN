@@ -132,6 +132,9 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, defer_src_zps_for_pool);
         BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
+        BACKEND_DNNL_ADD_PASS(pipeline, fold_sub_zps_add_zps);
+        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
+
         BACKEND_DNNL_ADD_PASS(pipeline, replace_quant_data_with_binary_post_op);
 
         // fuse those new post-binaries converted from add_zps and mul_scales
