@@ -201,7 +201,8 @@ TEST(ExecuteSubgraphInt8, PoolAdd) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_dst_s8_data, case2_dst_s8_data,
                     /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
@@ -716,7 +717,8 @@ TEST(ExecuteSubgraphInt8, Avgpool) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -1112,7 +1114,8 @@ TEST(ExecuteSubgraphInt8, Maxpool) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -1227,7 +1230,8 @@ TEST(ExecuteSubgraphInt8, MaxpoolAsymmetric) {
     strm.wait();
 
     static auto isa = dnnl_get_effective_cpu_isa();
-    if (isa < dnnl_cpu_isa_avx512_core_vnni)
+    if (engine.kind() == impl::engine_kind::cpu
+            && isa < dnnl_cpu_isa_avx512_core_vnni)
         ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                 /*atol*/ 1.f));
     else
@@ -1535,7 +1539,8 @@ TEST(ExecuteSubgraphInt8, DequantizePoolReshapeQunatize) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_dst_s8_data, dst_data,
                     /*rtol*/ 0.1f,
                     /*atol*/ 1.f));

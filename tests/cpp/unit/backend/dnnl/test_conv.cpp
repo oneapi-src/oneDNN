@@ -2426,7 +2426,9 @@ TEST(Execute, ConvBiasAddEltwise) {
             // we noticed mish test has slightly accuracy issue on GPU or
             // AArch64 CPU.
             if (eng.kind() == impl::engine_kind::gpu
-                    || dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx) {
+                    || (eng.kind() == impl::engine_kind::cpu
+                            && dnnl_get_effective_cpu_isa()
+                                    < dnnl_cpu_isa_avx)) {
                 ASSERT_NEAR(dst[i], param.ref_dst[i], 1e-6);
             } else {
                 ASSERT_FLOAT_EQ(dst[i], param.ref_dst[i]);
@@ -2823,7 +2825,8 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
         strm.wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -3000,7 +3003,8 @@ static inline void quantized_conv2d_eltwise(
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
         strm.wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -3243,7 +3247,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
                     {dst_s8_case2_ts});
         strm.wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -3462,7 +3467,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
                     {dst_s8_case2_ts});
         strm.wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -3635,7 +3641,8 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
         strm.wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -3800,7 +3807,8 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
             cp.execute(&strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
         strm.wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -4007,7 +4015,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
                     {dst_f32_case2_ts});
         strm.wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -4218,7 +4227,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
                     {dst_f32_case2_ts});
         strm.wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -4435,7 +4445,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
                     {dst_f32_case2_ts});
         strm.wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -5958,7 +5969,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
             strm.wait();
 
             static auto isa = dnnl_get_effective_cpu_isa();
-            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            if (engine.kind() == impl::engine_kind::cpu
+                    && isa < dnnl_cpu_isa_avx512_core_vnni)
                 ASSERT_TRUE(
                         allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                                 /*atol*/ 1.f));

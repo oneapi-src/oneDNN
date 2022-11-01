@@ -886,7 +886,8 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2d) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -1040,7 +1041,8 @@ TEST(ExecuteSubgraphInt8, MatmulNdx1d) {
             strm.wait();
 
             static auto isa = dnnl_get_effective_cpu_isa();
-            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            if (engine.kind() == impl::engine_kind::cpu
+                    && isa < dnnl_cpu_isa_avx512_core_vnni)
                 ASSERT_TRUE(
                         allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                                 /*atol*/ 1.f));
@@ -1209,7 +1211,8 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dWithTranspose) {
             strm.wait();
 
             static auto isa = dnnl_get_effective_cpu_isa();
-            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            if (engine.kind() == impl::engine_kind::cpu
+                    && isa < dnnl_cpu_isa_avx512_core_vnni)
                 ASSERT_TRUE(
                         allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                                 /*atol*/ 1.f));
@@ -1416,7 +1419,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2d) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -1599,7 +1603,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasBinary) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -1827,7 +1832,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasAddMul) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -2003,7 +2009,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasSumNdx2dX8s8f32) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -2143,7 +2150,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasNdx2dX8s8f32) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -2273,7 +2281,8 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2dX8s8f32) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -2421,7 +2430,8 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluNdx2dX8s8f32) {
         strm.wait();
 
         static auto isa = dnnl_get_effective_cpu_isa();
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine.kind() == impl::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -4395,7 +4405,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasSumNdx2d) {
             strm.wait();
 
             static auto isa = dnnl_get_effective_cpu_isa();
-            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            if (engine.kind() == impl::engine_kind::cpu
+                    && isa < dnnl_cpu_isa_avx512_core_vnni)
                 ASSERT_TRUE(
                         allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                                 /*atol*/ 1.f));
@@ -4582,7 +4593,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasNdx2dWithTranspose) {
             strm.wait();
 
             static auto isa = dnnl_get_effective_cpu_isa();
-            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            if (engine.kind() == impl::engine_kind::cpu
+                    && isa < dnnl_cpu_isa_avx512_core_vnni)
                 ASSERT_TRUE(
                         allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                                 /*atol*/ 1.f));
@@ -4773,7 +4785,8 @@ TEST(ExecuteSubgraphInt8, QuantWeiMatmulBiasReluNdx2d) {
             strm.wait();
 
             static auto isa = dnnl_get_effective_cpu_isa();
-            if (isa < dnnl_cpu_isa_avx512_core_vnni)
+            if (engine.kind() == impl::engine_kind::cpu
+                    && isa < dnnl_cpu_isa_avx512_core_vnni)
                 ASSERT_TRUE(
                         allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                                 /*atol*/ 1.f));
@@ -6025,7 +6038,8 @@ TEST(ExecuteSubgraphInt8, MatmulReluFusion) {
     strm.wait();
 
     static auto isa = dnnl_get_effective_cpu_isa();
-    if (isa < dnnl_cpu_isa_avx512_core_vnni)
+    if (engine.kind() == impl::engine_kind::cpu
+            && isa < dnnl_cpu_isa_avx512_core_vnni)
         ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                 /*atol*/ 1.f));
     else

@@ -134,7 +134,8 @@ TEST(ExecuteSubgraphInt8, BmmU8u8f32) {
     strm.wait();
 
     static auto isa = dnnl_get_effective_cpu_isa();
-    if (isa >= dnnl_cpu_isa_avx512_core_vnni) {
+    if (engine.kind() == impl::engine_kind::cpu
+            && isa >= dnnl_cpu_isa_avx512_core_vnni) {
         ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
                 /*atol*/ 1.f));
     }
