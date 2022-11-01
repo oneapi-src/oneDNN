@@ -1303,8 +1303,9 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
   sc::builtin::mem_zero(pbuffer, src_row_tile_size * LDA, dtypeInput);
 
   uint32_t lanes = get_lanes(ctx, config.C_block, dtypeInput);
-
-  _named_for_(ln, n, 0, mb_, 1, for_type::PARALLEL) {
+  auto input_expr_dims = input.checked_as<tensor>()->dims_;
+  auto mb_expr_ = input_expr_dims[0];
+  _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
     _named_for_(lk, k_o, 0, K_num_block) {
       _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
         _tensor_(A_list, datatypes::pointer, {kh_ * kw_});
@@ -1604,6 +1605,13 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
                            : slice_range {{n, 1}, {0, oh_}, {0, ow_},
                              {k_o * config.K_block, config.K_block}})});
       }
+    }
+    if (fusion) {
+      fusion->create_output_fusion_anchor({tensor_slice(output,
+        blocking_output_
+          ? slice_range {{n, 1}, {0, K_num_block}, {0, oh_}, {0, ow_},
+            {0, config.K_block}}
+          : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, config.K_block}})});
     }
   }
 }

@@ -50,6 +50,16 @@ sc_data_type_t conv_fwd_core_op_t::infer_out_dtype(
 }
 void conv_fwd_core_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
+    bool is_weight_constant
+            = info_.inputs_[1]->producer_owner_->isa<constant_op_t>()
+            || info_.inputs_[1]->producer_owner_->attrs_.get_or_else(
+                    "constant", const_kind::not_const)
+            || info_.inputs_[1]->attrs_.get_or_else(
+                    "constant", const_kind::not_const);
+    if (attrs_.has_key("inverse_filter") || !is_weight_constant) {
+        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+        return;
+    }
     slice_range_map known_ranges_map
             = search_known_slice_ranges(this, fsmap, stat_map);
     // assume input is known
