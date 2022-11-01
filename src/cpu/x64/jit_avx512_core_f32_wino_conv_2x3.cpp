@@ -172,7 +172,6 @@ struct jit_avx512_core_f32_wino_conv_2x3_dst_trans_t : public jit_generator {
         const void *v_x_masks;
 
         const void *bias;
-        const void *scales;
     };
 
     jit_avx512_core_f32_wino_conv_2x3_dst_trans_t(
@@ -225,7 +224,6 @@ struct jit_avx512_core_f32_wino_conv_2x3_dst_trans_t : public jit_generator {
     Reg64 reg_oc_block = r8;
 
     Reg64 reg_ptr_bias = rbx;
-    Reg64 reg_ptr_scales = abi_not_param1;
     Reg64 reg_ptr_sum_scale = rdx;
 };
 
@@ -297,7 +295,6 @@ void jit_avx512_core_f32_wino_conv_2x3_dst_trans_t::generate() {
 
                 Zmm zmm = vreg_out(i);
                 if (jcp.with_bias) vaddps(zmm, zmm, vreg_bias);
-                vmulps(zmm, zmm, ptr[reg_ptr_scales]);
 
                 if (maybe_relu(0)) {
                     vxorps(vreg_zero, vreg_zero, vreg_zero);
@@ -331,7 +328,6 @@ void jit_avx512_core_f32_wino_conv_2x3_dst_trans_t::generate() {
     READ_PARAM(reg_ptr_v_y_masks, v_y_masks);
     READ_PARAM(reg_ptr_v_x_masks, v_x_masks);
     READ_PARAM(reg_ptr_bias, bias);
-    READ_PARAM(reg_ptr_scales, scales);
 #undef READ_PARAM
 
     for (int i = 0; i < jcp.alpha * jcp.alpha; i++)
@@ -349,14 +345,12 @@ void jit_avx512_core_f32_wino_conv_2x3_dst_trans_t::generate() {
         add(reg_aux_ptr_src, sizeof(float) * load_block);
         add(reg_aux_ptr_dst, sizeof(float) * jcp.oh * jcp.ow * load_block);
 
-        add(reg_ptr_scales, jcp.is_oc_scale * sizeof(float) * load_block);
         add(reg_ptr_bias, jcp.typesize_bia * load_block);
     }
     dec(reg_oc_block);
     cmp(reg_oc_block, 0);
     jg(oc_block_label, T_NEAR);
 
-    sub(reg_ptr_scales, jcp.is_oc_scale * sizeof(float) * load_block);
     sub(reg_ptr_bias, oc_blocks * jcp.typesize_bia * load_block);
 
     postamble();
@@ -780,10 +774,6 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
     jcp.k2_block = jcp.ic_block;
     jcp.k_chunks = jcp.K / jcp.k2_block;
 
-    const auto &oscales = attr.output_scales_;
-    jcp.is_oc_scale = oscales.mask_ == 1 << 1;
-    assert(IMPLICATION(!jcp.is_oc_scale, oscales.mask_ == 0));
-
     /* re-create weights primitive descriptor
                                     and set weights wino_blocking */
     expect_wei_md.format_kind = format_kind::wino;
@@ -840,7 +830,6 @@ jit_avx512_core_f32_wino_conv_2x3_fwd_t::
 
 void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
         const float *src, const float *wei, const float *bia, float *dst,
-        const float *oscales,
         const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
 
@@ -958,8 +947,6 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
                         dst_trans_p.wino_dst = local_w;
                         dst_trans_p.v_y_masks = v_y_masks;
                         dst_trans_p.v_x_masks = v_x_masks;
-
-                        dst_trans_p.scales = oscales;
                         dst_trans_p.bias = bia;
 
                         (*dst_trans_)(&dst_trans_p);
@@ -970,7 +957,6 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
 
 void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
         const float *src, const float *wei, const float *bia, float *dst,
-        const float *oscales,
         const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
 
@@ -1078,7 +1064,6 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
                     dst_trans_p.v_y_masks = v_y_masks;
                     dst_trans_p.v_x_masks = v_x_masks;
 
-                    dst_trans_p.scales = oscales;
                     dst_trans_p.bias = bia;
 
                     (*dst_trans_)(&dst_trans_p);
