@@ -15,6 +15,8 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_gpu_hw_info.hpp"
+
+#include "gpu/jit/binary_format.hpp"
 #include "gpu/jit/jit_generator.hpp"
 #include "gpu/jit/ngen_type_bridge.hpp"
 
@@ -23,8 +25,9 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-void init_gpu_hw_info(cl_device_id device, cl_context context,
-        compute::gpu_arch_t &gpu_arch, int &stepping_id) {
+void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
+        compute::gpu_arch_t &gpu_arch, int &stepping_id,
+        bool &mayiuse_ngen_kernels) {
     using namespace ngen;
 
     HW hw = HW::Unknown;
@@ -32,6 +35,10 @@ void init_gpu_hw_info(cl_device_id device, cl_context context,
             context, device, hw, stepping_id);
 
     gpu_arch = jit::convert_ngen_arch_to_dnnl(hw);
+
+    auto status
+            = jit::gpu_supports_binary_format(&mayiuse_ngen_kernels, engine);
+    if (status != status::success) mayiuse_ngen_kernels = false;
 }
 
 } // namespace ocl

@@ -20,9 +20,6 @@
 
 #include "gpu/compute/device_info.hpp"
 
-#include "common/verbose.hpp"
-#include "gpu/jit/binary_format.hpp"
-
 #ifdef DNNL_WITH_SYCL
 #include "sycl/sycl_engine_base.hpp"
 #endif
@@ -57,25 +54,6 @@ uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
         case gpu_arch_t::unknown: break;
     }
     return extensions;
-}
-
-bool device_info_t::mayiuse_ngen_kernels(engine_t *engine) {
-    static std::mutex m;
-    std::lock_guard<std::mutex> guard(m);
-
-    if (checked_ngen_kernels_) return mayiuse_ngen_kernels_;
-
-    auto status
-            = jit::gpu_supports_binary_format(&mayiuse_ngen_kernels_, engine);
-    if (status != status::success) mayiuse_ngen_kernels_ = false;
-
-    if (get_verbose())
-        printf("onednn_verbose,info,gpu,binary_kernels:%s\n",
-                mayiuse_ngen_kernels_ ? "enabled" : "disabled");
-
-    checked_ngen_kernels_ = true;
-
-    return mayiuse_ngen_kernels_;
 }
 
 bool device_info_t::mayiuse_sub_group(int size) const {
@@ -221,7 +199,6 @@ status_t device_info_t::init_serialized_device_info(
     serialized_device_info_.write(&llc_cache_size_);
     serialized_device_info_.write(&extensions_);
     serialized_device_info_.write(&mayiuse_ngen_kernels_);
-    serialized_device_info_.write(&checked_ngen_kernels_);
     serialized_device_info_.write(&mayiuse_non_uniform_work_groups_);
 
     const size_t name_size = name_.size();
@@ -257,7 +234,6 @@ status_t device_info_t::init_from_cache_blob(
     DESERIALIZE(llc_cache_size_, size_t);
     DESERIALIZE(extensions_, uint64_t);
     DESERIALIZE(mayiuse_ngen_kernels_, bool);
-    DESERIALIZE(checked_ngen_kernels_, bool);
     DESERIALIZE(mayiuse_non_uniform_work_groups_, bool);
 #undef DESERIALIZE
 

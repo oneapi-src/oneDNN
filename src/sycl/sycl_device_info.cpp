@@ -50,8 +50,8 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
                 clCreateContext(nullptr, 1, &ocl_dev, nullptr, nullptr, &err));
         OCL_CHECK(err);
 
-        gpu::ocl::init_gpu_hw_info(
-                ocl_dev_wrapper, ocl_ctx_wrapper, gpu_arch_, stepping_id_);
+        gpu::ocl::init_gpu_hw_info(engine, ocl_dev_wrapper, ocl_ctx_wrapper,
+                gpu_arch_, stepping_id_, mayiuse_ngen_kernels_);
     } else if (be == backend_t::level0) {
         // TODO: add support for L0 binary ngen check
         // XXX: query from ocl_engine for now
@@ -68,6 +68,7 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
         auto *dev_info = compute_engine->device_info();
         gpu_arch_ = dev_info->gpu_arch();
         stepping_id_ = dev_info->stepping_id();
+        mayiuse_ngen_kernels_ = dev_info->mayiuse_ngen_kernels();
     } else {
         assert(!"not_expected");
     }
