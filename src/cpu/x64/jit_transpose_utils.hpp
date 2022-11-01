@@ -120,10 +120,11 @@ private:
 struct jit_diff_wei_trans_to_vnni_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_diff_wei_trans_to_vnni_t)
 
-    jit_diff_wei_trans_to_vnni_t(const int &kd, const int &kh, const int &kw,
-            const int &ic_block, const int &oc_block)
-        : jit_generator(
-                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_bf16)
+    jit_diff_wei_trans_to_vnni_t(const data_type_t dt, const int &kd,
+            const int &kh, const int &kw, const int &ic_block,
+            const int &oc_block)
+        : jit_generator(jit_name())
+        , out_dt_(dt)
         , kd_(kd)
         , kh_(kh)
         , kw_(kw)
@@ -134,6 +135,7 @@ struct jit_diff_wei_trans_to_vnni_t : public jit_generator {
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
+    const data_type_t out_dt_;
     const int kd_, kh_, kw_;
     const int ic_block_, oc_block_;
 

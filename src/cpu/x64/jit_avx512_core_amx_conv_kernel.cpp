@@ -5512,8 +5512,31 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::balance(const jit_conv_conf_t &j,
 void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias_row(int ocb) {
 
     auto compute_step = [&]() {
-        vmovups(vreg_bias_ddst, ptr[reg_ddst]);
-        vdpbf16ps(vreg_bias_acc, vreg_bias_ddst, vreg_bias_unit);
+        if (jcp.ddst_dt == data_type::bf16) {
+            vmovups(vreg_bias_ddst, ptr[reg_ddst]);
+            vdpbf16ps(vreg_bias_acc, vreg_bias_ddst, vreg_bias_unit);
+        } else if (jcp.ddst_dt == data_type::f16) {
+            // The ddst_dt is in vnni format, (S16c2s) which needs to be
+            // reduced along S dimension. Since, we do not have f16_vnni
+            // instruction, we try to emulate it.
+            // ddst_data: [a,a, b,b ... p,p] in f16
+            // req_output = [a+a, b+b, ... p+p] in f32 i.e., [A, B, ... P]
+
+            // [d,d, c,c, b,b, a,a] in f32 from now on
+            vcvtph2psx(yreg_bias_ddst0, ptr[reg_ddst]);
+            // [h,h, g,g, f,f, e,e] in f32 from now on
+            vcvtph2psx(yreg_bias_ddst1, ptr[reg_ddst + 16]);
+            // [h+h, g+g, d+d, c+c, f+f, e+e, b+b, a+a] i.e., [H, G, D, C, F, E, B, A]
+            vhaddps(yreg_bias_ddst0, yreg_bias_ddst0, yreg_bias_ddst1);
+            // accumulate with previous data
+            vaddps(yreg_bias_acc0, yreg_bias_acc0, yreg_bias_ddst0);
+
+            vcvtph2psx(yreg_bias_ddst0, ptr[reg_ddst + 32]);
+            vcvtph2psx(yreg_bias_ddst1, ptr[reg_ddst + 48]);
+            // [p+p, o+o, l+l, k+k, n+n, m+m, j+j, i+i] i.e., [P, O, L, K, N, M, J, I]
+            vhaddps(yreg_bias_ddst0, yreg_bias_ddst0, yreg_bias_ddst1);
+            vaddps(yreg_bias_acc1, yreg_bias_acc1, yreg_bias_ddst0);
+        }
     };
 
     Label ow_loop;
@@ -5545,12 +5568,25 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias(
         mov(reg_oj, reg_nrows);
 
         // accumulator initialization
-        vpxord(vreg_bias_acc, vreg_bias_acc, vreg_bias_acc);
+        if (jcp.ddst_dt == data_type::f16) {
+            vpxord(yreg_bias_acc0, yreg_bias_acc0, yreg_bias_acc0);
+            vpxord(yreg_bias_acc1, yreg_bias_acc1, yreg_bias_acc1);
+        } else {
+            vpxord(vreg_bias_acc, vreg_bias_acc, vreg_bias_acc);
+        }
         cmp(reg_initial, 0);
         jnz(bias_loop, T_NEAR);
-        vmovups(vreg_bias_acc,
-                ptr[reg_bias + sizeof(float) * ocb * jcp.oc_block]);
-
+        const size_t offset = sizeof(float) * ocb * jcp.oc_block;
+        if (jcp.ddst_dt == data_type::f16) {
+            // the data is in plain format, transform while loading.
+            // i.e.,[H, G, F, E, D, C, B, A] -> [H, G, D, C, F, E, B, A]
+            // and [P, O, N, M, L, K, J, I] -> [P, O, L, K, N, M, J, I]
+            vpermq(yreg_bias_acc0, ptr[reg_bias + offset], 0xd8);
+            vpermq(yreg_bias_acc1,
+                    ptr[reg_bias + offset + vreg_traits<Ymm>::vlen], 0xd8);
+        } else {
+            vmovups(vreg_bias_acc, ptr[reg_bias + offset]);
+        }
         // loop by rows
         L(bias_loop);
         {
@@ -5562,8 +5598,18 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias(
         }
 
         // store accumulator
-        vmovups(ptr[reg_bias + sizeof(float) * ocb * jcp.oc_block],
-                vreg_bias_acc);
+        if (jcp.ddst_dt == data_type::bf16) {
+            vmovups(ptr[reg_bias + offset], vreg_bias_acc);
+        } else if (jcp.ddst_dt == data_type::f16) {
+            // transform to plain before storing.
+            // i.e., [H, G, D, C, F, E, B, A] -> [H, G, F, E, D, C, B, A]
+            // and [P, O, L, K, N, M, J, I] -> [P, O, N, M, L, K, J, I]
+            vpermq(yreg_bias_acc0, yreg_bias_acc0, 0xd8);
+            vpermq(yreg_bias_acc1, yreg_bias_acc1, 0xd8);
+            vmovups(ptr[reg_bias + offset], yreg_bias_acc0);
+            vmovups(ptr[reg_bias + offset + vreg_traits<Ymm>::vlen],
+                    yreg_bias_acc1);
+        }
     }
 }
 
@@ -5577,10 +5623,11 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::generate() {
     cmp(reg_nrows, 0);
     jle(end_label, T_NEAR); // nothing to do
 
-    auto reg_unit_val = reg_tmp.cvt16();
-    mov(reg_unit_val, 0x3f80); // bf16 value of 1.
-    vpbroadcastw(vreg_bias_unit, reg_unit_val);
-
+    if (jcp.ddst_dt == data_type::bf16) {
+        auto reg_unit_val = reg_tmp.cvt16();
+        mov(reg_unit_val, 0x3f80); // bf16 value of 1.
+        vpbroadcastw(vreg_bias_unit, reg_unit_val);
+    }
     mov(reg_bias, ptr[param + GET_OFF(bias)]);
     mov(reg_initial, ptr[param + GET_OFF(channel)]);
 

@@ -1022,7 +1022,7 @@ void jit_diff_wei_trans_to_vnni_t::generate() {
                         for (int ic = 0; ic < ic_block_ / 2; ic++) {
                             auto zmm_src_0 = get_zmm_src_0(ic);
                             auto zmm_src_1 = get_zmm_src_1(ic);
-                            auto zmm_bf16 = get_zmm_bf16(ic);
+                            auto zmm_out = get_zmm_bf16(ic);
 
                             vmovups(zmm_src_0,
                                     ptr[reg_input
@@ -1034,15 +1034,23 @@ void jit_diff_wei_trans_to_vnni_t::generate() {
                                             + typesize_acc
                                                     * ((2 * ic + 1) * oc_block_
                                                             + ocb)]);
-
-                            vcvtne2ps2bf16(zmm_bf16, zmm_src_1, zmm_src_0);
-                            vpermw(zmm_bf16, zmm_idx, zmm_bf16);
+                            if (out_dt_ == data_type::bf16) {
+                                vcvtne2ps2bf16(zmm_out, zmm_src_1, zmm_src_0);
+                            } else if (out_dt_ == data_type::f16) {
+                                vcvtps2phx(Ymm(zmm_src_0.getIdx()), zmm_src_0);
+                                vcvtps2phx(Ymm(zmm_src_1.getIdx()), zmm_src_1);
+                                vinsertf32x8(zmm_out, zmm_src_0,
+                                        Ymm(zmm_src_1.getIdx()), 1);
+                            } else {
+                                assert(!"unsupported data type");
+                            }
+                            vpermw(zmm_out, zmm_idx, zmm_out);
 
                             vmovups(ptr[reg_output + out_offset
                                             + typesize_out
                                                     * (ic_count * oc_block_ * 2
                                                             + ocb * 2)],
-                                    zmm_bf16);
+                                    zmm_out);
                             ic_count++;
                         }
                     }

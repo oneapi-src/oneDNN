@@ -2560,8 +2560,10 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     const memory_desc_wrapper diff_dst_d(&diff_dst_md);
     const memory_desc_wrapper diff_bias_d(&diff_bias_md);
 
-    if (!mayiuse(avx512_core_amx)) return status::unimplemented;
-    jcp.isa = avx512_core_amx;
+    const bool is_f16 = src_d.data_type() == data_type::f16;
+
+    jcp.isa = is_f16 ? avx512_core_amx_fp16 : avx512_core_amx;
+    if (!mayiuse(jcp.isa)) return status::unimplemented;
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
     int ndims = src_d.ndims();
@@ -2608,14 +2610,7 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
             && IMPLICATION(jcp.dilate_h != 0, jcp.ext_kh <= jcp.ih);
     if (!ok) return status::unimplemented;
 
-    ok = true && one_of(ndims, 3, 4, 5)
-            && everyone_is(
-                    data_type::bf16, src_d.data_type(), diff_dst_d.data_type())
-            && one_of(diff_weights_d.data_type(), data_type::f32,
-                    data_type::bf16);
-    if (!ok) return status::unimplemented;
-
-    jcp.transform_to_vnni = diff_weights_d.data_type() == data_type::bf16;
+    jcp.transform_to_vnni = diff_weights_d.data_type() != data_type::f32;
 
     /* XXX: no support for padding when dilation_d > 0 */
     if (!IMPLICATION(jcp.dilate_d > 0, everyone_is(0, jcp.back_pad, jcp.f_pad)))
@@ -2709,7 +2704,7 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
                         tr_round)
             * jcp.stride_w;
 
-    // TODO: bf16 training is supported only
+    // TODO: xf16 training is supported only
     const auto rnd_val = data_type_vnni_granularity(bf16);
     jcp.tr_src_num_guard_elems = tr_pad; // upper bound
     jcp.tr_ow = rnd_up(jcp.ow, rnd_val);
@@ -2865,18 +2860,17 @@ status_t init_scratchpad_bwd_w(memory_tracking::registrar_t &scratchpad,
     }
 
     if (IMPLICATION(jcp.nthr_mb == 1,
-                (jcp.with_bias && jcp.bia_dt == data_type::bf16)
-                        || jcp.wei_dt == data_type::bf16)) {
+                (jcp.with_bias && jcp.bia_dt != data_type::f32)
+                        || jcp.wei_dt != data_type::f32)) {
         const size_t wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block
                 * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
         const size_t bia_size
                 = jcp.with_bias * jcp.ngroups * jcp.nb_oc * jcp.oc_block;
 
         const int num_wei_buffers
-                = jcp.wei_dt == data_type::bf16 ? jcp.nthr_mb : jcp.nthr_mb - 1;
+                = jcp.wei_dt != data_type::f32 ? jcp.nthr_mb : jcp.nthr_mb - 1;
         const int num_bia_buffers = jcp.with_bias
-                ? (jcp.bia_dt == data_type::bf16 ? jcp.nthr_mb
-                                                 : jcp.nthr_mb - 1)
+                ? (jcp.bia_dt != data_type::f32 ? jcp.nthr_mb : jcp.nthr_mb - 1)
                 : 0;
 
         const size_t wei_bia_reduction_size

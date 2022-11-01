@@ -40,16 +40,15 @@ using namespace data_type;
                          : (d).blk_off(__VA_ARGS__))
 
 status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
+    const auto src_type = src_md(0)->data_type;
+    const auto diff_wei_type = diff_weights_md(0)->data_type;
+    const auto diff_bia_type = diff_weights_md(1)->data_type;
+    const auto diff_dst_type = diff_dst_md(0)->data_type;
     bool ok = true && is_bwd_w()
             && set_default_alg_kind(alg_kind::convolution_direct)
-            && (expect_data_types(data_type::bf16, data_type::bf16,
-                        data_type::undef, data_type::bf16, data_type::undef)
-                    || expect_data_types(data_type::bf16, data_type::f32,
-                            data_type::undef, data_type::bf16,
-                            data_type::undef))
-            && IMPLICATION(with_bias(),
-                    utils::one_of(diff_bias_md_.data_type, data_type::f32,
-                            data_type::bf16))
+            && utils::one_of(src_type, bf16, f16) && diff_dst_type == src_type
+            && utils::one_of(diff_wei_type, f32, src_type)
+            && utils::one_of(diff_bia_type, data_type::undef, f32, src_type)
             && attr()->has_default_values() && !has_zero_dim_memory();
     if (!ok) return status::unimplemented;
 
@@ -90,8 +89,7 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
     int init_begin = 0;
     int init_end = 2;
 
-    const auto src_type = data_type::bf16;
-    const auto wei_type = data_type::bf16;
+    const auto wei_type = src_type;
 
     for (int i = M_begin; i < M_end; i++) {
         auto M = (i) ? jcp_.M_tail : jcp_.M;
@@ -111,7 +109,7 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
                 if (brgs_[brg_idx] != nullptr) continue;
                 brgs_[brg_idx] = std::make_shared<brgemm_t>();
                 brgemm_t *brg = brgs_[brg_idx].get();
-                CHECK(brgemm_desc_init(brg, isa, jcp_.brg_type, src_type,
+                CHECK(brgemm_desc_init(brg, jcp_.isa, jcp_.brg_type, src_type,
                         wei_type, false, false, brgemm_row_major, alpha, vbeta,
                         jcp_.LDA, jcp_.LDB, jcp_.LDC, M, vN, vK, nullptr));
 
@@ -205,6 +203,7 @@ void brgemm_convolution_bwd_weights_t::pd_t::copy2jit_jcp() {
     jit_jcp_.tr_diff_dst_buf_size = jcp_.tr_diff_dst_buf_size;
     jit_jcp_.typesize_in = jcp_.typesize_in;
     jit_jcp_.typesize_out = jcp_.typesize_out;
+    jit_jcp_.ddst_dt = jcp_.dst_dt;
 }
 
 status_t brgemm_convolution_bwd_weights_t::add_brg_kernel(
@@ -252,8 +251,8 @@ status_t brgemm_convolution_bwd_weights_t::init(engine_t *engine) {
     }
     if (jcp.transform_to_vnni) {
         CHECK(safe_ptr_assign(diff_wei_trans_kernel_,
-                new jit_diff_wei_trans_to_vnni_t(
-                        jcp.kd, jcp.kh, jcp.kw, jcp.ic_block, jcp.oc_block)));
+                new jit_diff_wei_trans_to_vnni_t(jcp.wei_dt, jcp.kd, jcp.kh,
+                        jcp.kw, jcp.ic_block, jcp.oc_block)));
         CHECK(diff_wei_trans_kernel_->create_kernel());
     }
 
@@ -364,7 +363,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
         if (jcp.with_bias) {
             const size_t wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block
                     * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
-            const int num_wei_buffers = jcp.wei_dt == data_type::bf16
+            const int num_wei_buffers = jcp.wei_dt != data_type::f32
                     ? jcp.nthr_mb
                     : jcp.nthr_mb - 1;
             bia_reduction = wei_bia_reduction + wei_size * num_wei_buffers;
@@ -803,7 +802,7 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
     const int optimal_spblock = jcp.spatial_blk_size;
 
     float *diff_wei;
-    if (diff_weights_d.data_type() == data_type::bf16)
+    if (diff_weights_d.data_type() != data_type::f32)
         diff_wei = ti->wei_bia_reduction + (ti->ithr_mb) * wei_size;
     else
         diff_wei = ti->ithr_mb == 0
@@ -812,7 +811,7 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_2d(
 
     float *diff_bias = nullptr;
     if (jcp.with_bias) {
-        if (jcp.bia_dt == data_type::bf16)
+        if (jcp.bia_dt != data_type::f32)
             diff_bias = ti->bia_reduction + (ti->ithr_mb) * bias_buf_size;
         else
             diff_bias = ti->ithr_mb == 0
@@ -976,7 +975,7 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
     const int optimal_spblock = jcp.spatial_blk_size;
 
     float *diff_wei;
-    if (diff_weights_d.data_type() == data_type::bf16)
+    if (diff_weights_d.data_type() != data_type::f32)
         diff_wei = ti->wei_bia_reduction + (ti->ithr_mb) * wei_size;
     else
         diff_wei = ti->ithr_mb == 0
@@ -985,7 +984,7 @@ void brgemm_convolution_bwd_weights_t::compute_diff_weights_3d(
 
     float *diff_bias = nullptr;
     if (jcp.with_bias) {
-        if (jcp.bia_dt == data_type::bf16)
+        if (jcp.bia_dt != data_type::f32)
             diff_bias = ti->bia_reduction + (ti->ithr_mb) * bias_buf_size;
         else
             diff_bias = ti->ithr_mb == 0
@@ -1207,11 +1206,13 @@ void brgemm_convolution_bwd_weights_t::reduce_and_convert_diff_weights_and_bias(
     const int wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block * jcp.nb_ic
             * jcp.ic_block * jcp.kh * jcp.kw * ((jcp.ndims == 5) ? jcp.kd : 1);
 
-    const bool is_bf16_out = diff_weights_d.data_type() == data_type::bf16;
-    const bool is_bf16_bias = jcp.with_bias && jcp.bia_dt == data_type::bf16;
+    const auto wei_dt = diff_weights_d.data_type();
+    const auto bia_dt = jcp.bia_dt;
+    const bool is_f32_out = wei_dt == data_type::f32;
+    const bool is_f32_bias = bia_dt == data_type::f32;
 
     if (jcp.nthr_mb == 1) {
-        if (is_bf16_out) {
+        if (!is_f32_out) {
             // reduction is not required, only conversion
             if (jcp.transform_to_vnni) {
                 store_in_vnni_format(ti);
@@ -1223,13 +1224,15 @@ void brgemm_convolution_bwd_weights_t::reduce_and_convert_diff_weights_and_bias(
                             * jcp.ic_block * jcp.oc_block;
                     const size_t off = wht_blk_off(
                             diff_weights_d, g, oc_b, ti->ic_b_start);
-                    cvt_float_to_bfloat16(
-                            (bfloat16_t *)(ti->diff_weights) + off,
+                    types::cvt_from_float(wei_dt,
+                            (void *)((char *)ti->diff_weights
+                                    + off * types::data_type_size(wei_dt)),
                             (ti->wei_bia_reduction + off), acc_size);
                 }
             }
         }
-        if (is_bf16_bias && ti->ithr_ic_b == 0 && ti->ic_b_work > 0) {
+        if (pd()->with_bias() && !is_f32_bias && ti->ithr_ic_b == 0
+                && ti->ic_b_work > 0) {
             for (int g = ti->g_start; g < ti->g_end; g++) {
                 int result_start_idx
                         = g * jcp.oc + ti->oc_b_start * jcp.oc_block;
@@ -1238,10 +1241,11 @@ void brgemm_convolution_bwd_weights_t::reduce_and_convert_diff_weights_and_bias(
                 const size_t acc_size
                         = nstl::min(jcp.oc, ti->oc_b_end * jcp.oc_block)
                         - ti->oc_b_start * jcp.oc_block;
-                bfloat16_t *diff_bias
-                        = (bfloat16_t *)ti->diff_bias + result_start_idx;
+                void *diff_bias = (char *)ti->diff_bias
+                        + result_start_idx * types::data_type_size(bia_dt);
                 float *buffer = ti->bia_reduction + buffer_start_idx;
-                cvt_float_to_bfloat16(diff_bias, buffer, acc_size);
+                types::cvt_from_float(
+                        bia_dt, diff_bias, (const float *)buffer, acc_size);
             }
         }
         return;
@@ -1291,22 +1295,27 @@ void brgemm_convolution_bwd_weights_t::reduce_and_convert_diff_weights_and_bias(
                     ? wei_offset_int(g, oc_b, ic_b, kX)
                     : off_ext;
 
-            float *wei_reduced = is_bf16_out
-                    ? ti->wei_bia_reduction + off_int
-                    : (float *)(ti->diff_weights) + off_ext;
+            float *wei_reduced = is_f32_out
+                    ? (float *)(ti->diff_weights) + off_ext
+                    : ti->wei_bia_reduction + off_int;
 
-            int thr_mb_buffer_idx = is_bf16_out ? thr_mb : thr_mb - 1;
+            int thr_mb_buffer_idx = is_f32_out ? thr_mb - 1 : thr_mb;
             float *wei_to_reduce = ti->wei_bia_reduction
                     + thr_mb_buffer_idx * wei_size + off_int;
 
-            if (!jcp.transform_to_vnni && is_bf16_out
-                    && thr_mb == jcp.nthr_mb - 1)
+            if (!jcp.transform_to_vnni && !is_f32_out
+                    && thr_mb == jcp.nthr_mb - 1) {
                 // the last iteration for bfloat16 requires conversion and
                 // store to diff_weights array
-                add_floats_and_cvt_to_bfloat16(
-                        (bfloat16_t *)(ti->diff_weights) + off_ext, wei_reduced,
-                        wei_to_reduce, acc_size);
-            else
+                if (wei_dt == bf16)
+                    add_floats_and_cvt_to_bfloat16(
+                            (bfloat16_t *)(ti->diff_weights) + off_ext,
+                            wei_reduced, wei_to_reduce, acc_size);
+                else if (wei_dt == f16)
+                    add_floats_and_cvt_to_float16(
+                            (float16_t *)(ti->diff_weights) + off_ext,
+                            wei_reduced, wei_to_reduce, acc_size);
+            } else
                 acc_ker_->accumulate(wei_reduced, wei_to_reduce, acc_size);
 
             nd_iterator_jump(w, end, sub_g_start, ti->g_work, sub_oc_b_start,
@@ -1315,9 +1324,9 @@ void brgemm_convolution_bwd_weights_t::reduce_and_convert_diff_weights_and_bias(
         if (jcp.with_bias && ti->ithr_ic_b == 0 && ti->ic_b_work > 0
                 && ti->ithr_mb == 0 && ti->img_work > 0) {
             for (int g = ti->g_start; g < ti->g_end; g++) {
-                float *bias_reduced = is_bf16_bias ? ti->bia_reduction
-                                                   : (float *)(ti->diff_bias);
-                int thr_mb_buffer_idx = is_bf16_bias ? thr_mb : thr_mb - 1;
+                float *bias_reduced = is_f32_bias ? (float *)(ti->diff_bias)
+                                                  : ti->bia_reduction;
+                int thr_mb_buffer_idx = is_f32_bias ? thr_mb - 1 : thr_mb;
                 int bias_buf_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
                 float *bias_to_reduce
                         = ti->bia_reduction + thr_mb_buffer_idx * bias_buf_size;
@@ -1326,14 +1335,21 @@ void brgemm_convolution_bwd_weights_t::reduce_and_convert_diff_weights_and_bias(
                         - ti->oc_b_start * jcp.oc_block;
                 int idx = g * rnd_up(jcp.oc, jcp.oc_block)
                         + ti->oc_b_start * jcp.oc_block;
-                if (is_bf16_bias && thr_mb == jcp.nthr_mb - 1) {
+                if (!is_f32_bias && thr_mb == jcp.nthr_mb - 1) {
                     // the last iteration for bfloat16 requires conversion and
                     // store to diff_weights array
                     int diff_bias_idx
                             = g * jcp.oc + ti->oc_b_start * jcp.oc_block;
-                    add_floats_and_cvt_to_bfloat16(
-                            (bfloat16_t *)(ti->diff_bias) + diff_bias_idx,
-                            &bias_reduced[idx], &bias_to_reduce[idx], acc_size);
+                    if (bia_dt == bf16)
+                        add_floats_and_cvt_to_bfloat16(
+                                (bfloat16_t *)(ti->diff_bias) + diff_bias_idx,
+                                &bias_reduced[idx], &bias_to_reduce[idx],
+                                acc_size);
+                    else if (bia_dt == f16)
+                        add_floats_and_cvt_to_float16(
+                                (float16_t *)(ti->diff_bias) + diff_bias_idx,
+                                &bias_reduced[idx], &bias_to_reduce[idx],
+                                acc_size);
                 } else {
                     acc_ker_->accumulate(
                             &bias_reduced[idx], &bias_to_reduce[idx], acc_size);
@@ -1385,9 +1401,9 @@ void brgemm_convolution_bwd_weights_t::prepare_scratchpad_data(
     }
 
     if (jcp.nthr_mb > 1
-            || pd()->diff_weights_md(0)->data_type == data_type::bf16) {
+            || pd()->diff_weights_md(0)->data_type != data_type::f32) {
         // TODO: don't use barrier for case
-        // diff_weights_type == data_type::bf16 && nthr_mb_ == 1
+        // diff_weights_type != data_type::f32 && nthr_mb_ == 1
         simple_barrier::ctx_init(scratchpad.template get<simple_barrier::ctx_t>(
                 key_conv_wei_bia_reduction_bctx));
     }
@@ -1438,7 +1454,7 @@ void brgemm_convolution_bwd_weights_t::execute_backward_weights(
     }
 
     if (pd()->with_bias() && (jcp.oc % jcp.oc_block != 0)
-            && jcp.bia_dt != data_type::bf16) {
+            && jcp.bia_dt == data_type::f32) {
         auto diff_bias = ctx.get_scratchpad_grantor().template get<const float>(
                 key_conv_padded_bias);
         auto diff_bias_in = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);

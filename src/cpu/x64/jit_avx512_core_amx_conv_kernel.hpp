@@ -773,6 +773,10 @@ private:
     Xbyak::Zmm vreg_bias_acc = Xbyak::Zmm(0);
     Xbyak::Zmm vreg_bias_unit = Xbyak::Zmm(1);
     Xbyak::Zmm vreg_bias_ddst = Xbyak::Zmm(2);
+    Xbyak::Ymm yreg_bias_acc0 = Xbyak::Ymm(0);
+    Xbyak::Ymm yreg_bias_acc1 = Xbyak::Ymm(3);
+    Xbyak::Ymm yreg_bias_ddst0 = Xbyak::Ymm(2);
+    Xbyak::Ymm yreg_bias_ddst1 = Xbyak::Ymm(4);
 
     void compute_diff_bias_row(int ocb);
     void compute_diff_bias(int nb_oc_blocking);

@@ -283,11 +283,13 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
         })},
         {{backward_weights, f16, f32, f16}, REG_BWD_PK({
             CPU_INSTANCE_X64(ip_convolution_bwd_weights_t)
+            CPU_INSTANCE_AMX(brgemm_convolution_bwd_weights_t)
             CPU_INSTANCE(ref_convolution_bwd_weights_t)
             nullptr,
         })},
         {{backward_weights, f16, f16, f16}, REG_BWD_PK({
             CPU_INSTANCE_X64(ip_convolution_bwd_weights_t)
+            CPU_INSTANCE_AMX(brgemm_convolution_bwd_weights_t)
             CPU_INSTANCE(ref_convolution_bwd_weights_t)
             nullptr,
         })},
