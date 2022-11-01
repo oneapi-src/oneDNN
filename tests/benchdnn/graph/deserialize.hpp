@@ -281,7 +281,8 @@ struct deserialized_graph {
             for (auto lt : aop.out_lts_) {
                 out_lt_2_op[lt.id_] = aop;
                 // collect graph internal and output tensors memory layout
-                std::string mtag = strides2memory_tag(lt.stride_, false);
+                std::string mtag = strides2memory_tag(
+                        lt.shape_.size(), lt.stride_, false);
                 lt_2_mtag[lt.id_] = mtag;
             }
         }
@@ -325,8 +326,8 @@ struct deserialized_graph {
                     if (lt.id_ == in_lt.first) {
                         graph_inputs.emplace(in_lt.first, lt.shape_);
                         // collect graph input tensors memory layout
-                        std::string mtag
-                                = strides2memory_tag(lt.stride_, false);
+                        std::string mtag = strides2memory_tag(
+                                lt.shape_.size(), lt.stride_, false);
                         lt_2_mtag[lt.id_] = mtag;
                     }
                 }

@@ -131,26 +131,35 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
     }
 }
 
-std::string strides2memory_tag(
+std::string strides2memory_tag(const size_t ndims,
         const dnnl::graph::logical_tensor::dims_t &strides, bool use_x_tag) {
     std::string template_tag = "abcdefghijk";
     std::vector<std::pair<dnnl_graph_dim_t, char>> vp;
+    bool valid_strides = ndims == strides.size();
+    std::string memory_tag;
 
     // Inserting element in pair vector
     // to keep track of indexes
     for (size_t i = 0; i < strides.size(); ++i) {
-        vp.push_back(std::make_pair(strides[i], template_tag.at(i)));
+        if (strides[i] > 0) {
+            vp.push_back(std::make_pair(strides[i], template_tag.at(i)));
+        } else {
+            valid_strides = false;
+        }
     }
-    // Sort the strides to descending order
-    std::sort(vp.begin(), vp.end(),
-            [](const std::pair<dnnl_graph_dim_t, char> &x,
-                    const std::pair<dnnl_graph_dim_t, char> &y) {
-                return x.first > y.first;
-            });
 
-    std::string memory_tag;
-    for (size_t i = 0; i < strides.size(); ++i) {
-        memory_tag += vp[i].second;
+    if (valid_strides) {
+        // Sort the strides to descending order
+        std::sort(vp.begin(), vp.end(),
+                [](const std::pair<dnnl_graph_dim_t, char> &x,
+                        const std::pair<dnnl_graph_dim_t, char> &y) {
+                    return x.first > y.first;
+                });
+        for (size_t i = 0; i < strides.size(); ++i) {
+            memory_tag += vp[i].second;
+        }
+    } else {
+        memory_tag = template_tag.substr(0, ndims);
     }
 
     // translate a, ab, abc, abcd, etc. to abx
