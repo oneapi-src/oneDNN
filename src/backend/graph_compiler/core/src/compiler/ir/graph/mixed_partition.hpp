@@ -34,6 +34,19 @@ namespace sc {
 
 struct mixed_parti_t;
 
+namespace mixed_partition_hint {
+// pointer: partition owner
+constexpr const char *parti = "partition";
+// Boolean: is cut buffer hint
+constexpr const char *cut_buffer = "cut_buffer";
+// the pointer: sub graph address
+constexpr const char *sub_graph_ptr = "sub_graph_ptr";
+// Boolean: dont inplace hint
+constexpr const char *no_inplace = "no_inplace";
+// Boolean: is retried graph
+constexpr const char *retried_graph = "retried_graph";
+} // namespace mixed_partition_hint
+
 class mxp_replacer_t : public ir_inplace_visitor_t {
 private:
     std::unordered_map<expr, expr> expr_map_;
@@ -90,7 +103,7 @@ struct mxp_buffer_allocator {
     // set shrink info
     void declare_and_shrink_tensor();
     /** merge two buffer allocator
-     * @param: common_anchor_pair: the common anchor overlapped when two
+     * @param common_anchor_pair: the common anchor overlapped when two
      * partition merged. `first` comes from this partition, and `second` comes
      * from other one.
      * */
@@ -114,11 +127,56 @@ struct mxp_buffer_allocator {
     slice_range get_shrinked_info(const expr &buffer) const;
 };
 
+struct outerloop_axis_binder {
+    bound_axis_map bd_ax_map_;
+    graph_tensor_ptr base_gt_;
+    bound_axis init_axis_;
+
+    // init ax_binder
+    void init(const graph_tensor_ptr &base_gt, const bound_axis &axis) {
+        base_gt_ = base_gt;
+        init_axis_ = axis;
+    }
+
+    // clear
+    void clear() {
+        bd_ax_map_.clear();
+        base_gt_ = nullptr;
+        init_axis_.clear();
+    }
+
+    // only clear bd_ax_map
+    void reset() { bd_ax_map_.clear(); }
+
+    // auto infer axis binding information for the whole graph
+    void run(int real_axis_size);
+
+    /** algin with another axis binder according the given checking range.
+     * @param other: another axis binder, alignment object
+     * @param check_axis_size: checking range for outer loop, from left to right
+     * @return int: the aligned loop size
+     **/
+    int align_with(outerloop_axis_binder &other, int check_axis_size);
+
+    // split init axis, usually called when outer loops are split
+    void split_init_axis(size_t loop_idx) {
+        COMPILE_ASSERT(loop_idx < init_axis_.size(),
+                "loop idx: " << loop_idx << " is larger than init axis size: "
+                             << init_axis_.size())
+        // copy original axis from the loop_idx init_axis
+        auto orig_axis = init_axis_[loop_idx];
+        // insert to init_axis
+        init_axis_.emplace(init_axis_.begin() + loop_idx + 1, orig_axis);
+    }
+};
+
 struct mixed_parti_t : fusion_partition_t {
     /* related to Graph */
     // different from ops_ in base class, it records the sequence of committed
     // ops in current partition
     std::vector<sc_op_ptr> committed_ops_;
+    // binding axis information from GIR with outer loops in TIR
+    outerloop_axis_binder ax_binder_;
 
     /* related to IR */
     context_ptr ctx_;
@@ -264,5 +322,8 @@ void extract_anchor_from_fmgr_to_parti(fusion_manager *fmgr,
         const fuse_anchor_map_ptr &parent_fanchor = nullptr);
 
 void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti);
+
+void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph);
+
 } // namespace sc
 #endif

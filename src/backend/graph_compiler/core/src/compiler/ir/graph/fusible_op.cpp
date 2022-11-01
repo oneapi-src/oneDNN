@@ -81,11 +81,13 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
         }
     }
     outer_loop_generator_t gen(base_idx, use_output_mode);
-    if (attrs_.has_key("temp.mixed_partition_hint.sub_graph_ptr")) {
-        fmgr.bind_graph(attrs_.get<sc_graph_t *>(
-                "temp.mixed_partition_hint.sub_graph_ptr"));
+    if (attrs_.has_key(mixed_partition_hint::sub_graph_ptr)) {
+        fmgr.bind_graph(
+                attrs_.get<sc_graph_t *>(mixed_partition_hint::sub_graph_ptr));
+        attrs_.remove(mixed_partition_hint::sub_graph_ptr);
     }
     bool status = gen.generate(parti->ctx_, nullptr, &fmgr, ins, outs, loops);
+
     COMPILE_ASSERT(status, "generate outer loops failed, please check");
     auto body = bld.pop_scope();
     parti->func_ = builder::make_func(std::string(""), std::vector<expr> {},
@@ -109,6 +111,16 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
     } else {
         parti->clear_fanchor(parti->fanchors_.back());
         parti->fanchors_.pop_back();
+    }
+
+    // bind outer_loop with axis
+    if (!loops.empty() && loops[0]->attr().has_key("loop_axis_hint")) {
+        auto bd_axis = loops[0]->attr().get<bound_axis>("loop_axis_hint");
+        loops[0]->attr().remove("loop_axis_hint");
+        // init axis binder
+        parti->ax_binder_.init(use_output_mode ? get_outputs()[base_idx]
+                                               : get_inputs()[base_idx],
+                bd_axis);
     }
 }
 
@@ -144,7 +156,9 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
             bld.push_scope();
             anchor_loop_generator_t gen(base_gt, committed_anchor);
             // create_inner_anchor
-            auto inner_anchor_num = gen.create_inner_anchor(parti->fanchors_);
+            auto inner_anchor = gen.create_inner_anchor();
+            parti->fanchors_.insert(parti->fanchors_.end(),
+                    inner_anchor.begin(), inner_anchor.end());
             auto inner_ss = bld.pop_scope().checked_as<stmts>();
             // search inner anchor again
             search_anchor(parti);
@@ -153,7 +167,7 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
             } else {
                 // erase unused inner anchor
                 parti->fanchors_.erase(
-                        parti->fanchors_.end() - inner_anchor_num,
+                        parti->fanchors_.end() - inner_anchor.size(),
                         parti->fanchors_.end());
             }
         }

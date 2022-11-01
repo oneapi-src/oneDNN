@@ -94,11 +94,11 @@ bool check_brgemm_LDX(
             return true;
         }
         if (args[LD_arg_idx]->attr_->get_or_else("stride_w", 1) > 1) {
-            auto N_axes = args[LD_arg_idx]->attr_->get_or_else(
-                    "N_axes", std::vector<size_t> {});
+            auto N_axis = args[LD_arg_idx]->attr_->get_or_else(
+                    "N_axis", std::vector<size_t> {});
             // plain
-            if (N_axes.size() == 1) {
-                COMPILE_ASSERT(N_axes[0] == tsr->dims_.size() - 1,
+            if (N_axis.size() == 1) {
+                COMPILE_ASSERT(N_axis[0] == tsr->dims_.size() - 1,
                         "currently only supports N is the last axis in plain "
                         "brgemm");
                 acc_shrink = args[LD_arg_idx]->attr_->get<int>("stride_w")

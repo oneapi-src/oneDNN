@@ -63,8 +63,8 @@ struct tensor_slice {
     // Gets the real tensor of tensor slice, not the tensor_ptr
     tensor get_real_tensor() const;
 
-    // check whether slice is full on specific axes
-    bool full_on_axes(const std::vector<int> &axes) const;
+    // check whether slice is full on specific axis
+    bool full_on_axis(const std::vector<int> &axis) const;
 
     // is_full
     bool is_full() const;

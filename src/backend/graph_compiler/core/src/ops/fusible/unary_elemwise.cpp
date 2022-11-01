@@ -91,7 +91,7 @@ void unary_elementwise_op_impl_t::prepare_fusion_data(fdata_map &fdmap) {
     in_detail0.use_count_++;
 }
 
-void infer_unary_slice_ranges(
+static void infer_unary_slice_ranges(
         fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
     COMPILE_ASSERT(cur->get_inputs().size() == 1, "unary op is expected");
     // search known ranges from any input of cur fusbile op
@@ -107,7 +107,7 @@ void unary_elementwise_op_impl_t::infer_slice_ranges(
     infer_unary_slice_ranges(this, fsmap, stat_map);
 }
 
-inline void pre_unary_slice_ranges(
+static void pre_unary_slice_ranges(
         fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
     auto &input = cur->get_inputs()[0];
     auto &out_ranges = fsmap.get(cur->get_outputs()[0]);
@@ -128,6 +128,37 @@ inline void pre_unary_slice_ranges(
 void unary_elementwise_op_impl_t::pre_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     pre_unary_slice_ranges(this, fsmap, stat_map);
+}
+
+void identical_infer_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map) {
+    auto known_axis_map = search_known_bound_axis(cur, bdax_map);
+    if (!bdax_map.get(cur->get_outputs()[0]).empty()) return;
+    bdax_map.get(cur->get_outputs()[0]) = known_axis_map[0];
+    set_unknown_axis_binding(cur, known_axis_map, bdax_map);
+}
+
+void unary_elementwise_op_impl_t::infer_binding_axis(bound_axis_map &bdax_map) {
+    identical_infer_binding_axis(this, bdax_map);
+}
+
+void identical_pre_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map) {
+    auto &outaxis = bdax_map.get(cur->get_outputs()[0]);
+    COMPILE_ASSERT(!outaxis.empty(),
+            "Unknown output axis found, could not pre bind axis")
+    auto &input = cur->get_inputs()[0];
+    auto &inpaxis = bdax_map.get(input);
+    if (inpaxis.empty()) {
+        inpaxis = outaxis;
+        if (auto bd_op
+                = input->producer_owner_
+                          ->dyn_cast<op_traits::mixed_partition_acceptable>()) {
+            bd_op->pre_binding_axis(bdax_map);
+        }
+    }
+}
+
+void unary_elementwise_op_impl_t::pre_binding_axis(bound_axis_map &bdax_map) {
+    identical_pre_binding_axis(this, bdax_map);
 }
 
 shape_rl_vec unary_elementwise_op_impl_t::get_dynamic_shape_relations() const {

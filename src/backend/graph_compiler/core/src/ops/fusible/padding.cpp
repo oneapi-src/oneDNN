@@ -107,12 +107,12 @@ void padding_op_t::infer_slice_ranges(
             = search_known_slice_ranges(this, fsmap, stat_map);
     size_t slice_size = known_ranges_map[0].size();
 
-    auto required_axes = get_real_padding_axis();
+    auto required_axis = get_real_padding_axis();
     auto input = get_inputs()[0];
     auto &src_dim = input->details_.get_blocking_dims();
     // check the slice range whether meet the demand of padding op
     for (auto &src_range : fsmap.get(input)) {
-        if (!slice_full_on_axes(src_dim, src_range, required_axes)) {
+        if (!slice_full_on_axis(src_dim, src_range, required_axis)) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }

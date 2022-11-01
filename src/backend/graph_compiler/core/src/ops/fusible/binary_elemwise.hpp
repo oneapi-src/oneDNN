@@ -69,8 +69,12 @@ public:
 
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
 
-    void collect_shrinked_axes_map(
-            int bw_size, gt2axes_map &bw_axes_map) override;
+    void collect_shrinked_axis_map(
+            int bw_size, gt2axis_map &bw_axis_map) override;
+
+    void infer_binding_axis(bound_axis_map &bdax_map) override;
+
+    void pre_binding_axis(bound_axis_map &bdax_map) override;
 
 private:
     elt_operator elt_op_;

@@ -16,6 +16,7 @@
 
 #include <assert.h>
 
+#include <algorithm>
 #include <memory>
 #include <numeric>
 #include <string>
@@ -69,14 +70,14 @@ std::vector<int> binary_elementwise_op_impl_t::infer_broadcast_axis() const {
     std::vector<int> bc_axis;
     // broad-cast conditions 1: the shape of lhs and rhs not match
     if (elt_dims.size() != bc_dims.size()) {
-        std::vector<int> common_axes(elt_dims.size(), 0);
+        std::vector<int> common_axis(elt_dims.size(), 0);
         // from right to left
         int64_t i = elt_dims.size();
         for (int64_t j = bc_dims.size() - 1; j >= 0; j--) {
             while (i >= 1) {
                 i--;
                 if (elt_dims.at(i) == bc_dims.at(j)) {
-                    common_axes.at(i) = 1;
+                    common_axis.at(i) = 1;
                     break;
                 }
             }
@@ -87,8 +88,8 @@ std::vector<int> binary_elementwise_op_impl_t::infer_broadcast_axis() const {
                                 << utils::print_vector(bc_dims));
             }
         }
-        for (size_t j = 0; j < common_axes.size(); ++j)
-            if (common_axes.at(j) == 1) bc_axis.emplace_back(j);
+        for (size_t j = 0; j < common_axis.size(); ++j)
+            if (common_axis.at(j) == 1) bc_axis.emplace_back(j);
     }
     // broad-cast conditions 2: the shape of lhs and rhs match,
     // but length=1 in dims
@@ -141,8 +142,8 @@ void infer_binary_slice_ranges(
 }
 
 static slice_range_list infer_broadcast_arg_slice(
-        slice_range_list known_range_list, std::vector<int> bc_axis,
-        bool keep_dims) {
+        const slice_range_list &known_range_list,
+        const std::vector<int> &bc_axis, bool keep_dims) {
     slice_range_list bc_arg_range_list(known_range_list.size());
     for (size_t i = 0; i < bc_arg_range_list.size(); i++) {
         auto &known_range = known_range_list[i];
@@ -162,7 +163,8 @@ static slice_range_list infer_broadcast_arg_slice(
     return bc_arg_range_list;
 }
 
-static slice_range_list infer_broadcast_slice(slice_range_list known_range_list,
+static slice_range_list infer_broadcast_slice(
+        const slice_range_list &known_range_list,
         const std::vector<int> &bc_axis, const std::vector<expr> &bc_dim) {
     slice_range_list bc_range_list(known_range_list.size());
     for (size_t i = 0; i < bc_range_list.size(); i++) {
@@ -292,9 +294,9 @@ static sc_data_format_t infer_broadcast_format(
         if (bc_plain_dim[target_batch_dim + i] == 1
                 && target_plain_dim[target_batch_dim + i] != 1) {
             // if bc_plain_dim is 1 and this axis is with broadcast semantics
-            auto axes = target_lt_format_code.collect_blocking_index(i);
-            for (auto axis : axes) {
-                blocks[axis] = 1;
+            auto axis = target_lt_format_code.collect_blocking_index(i);
+            for (auto ax : axis) {
+                blocks[ax] = 1;
             }
         }
     }
@@ -356,8 +358,6 @@ void binary_elementwise_op_impl_t::prepare_fusion_data(fdata_map &fdmap) {
     in_detail1.use_count_++;
 }
 
-// The logic below might be suitable for most fusible op, which has same
-// slice ranges on inputs and outputs
 void binary_elementwise_op_impl_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     COMPILE_ASSERT(get_inputs().size() == 2, "binary op is expected");
@@ -392,8 +392,7 @@ void binary_elementwise_op_impl_t::infer_slice_ranges(
                         known_ranges_map[1 - unknown_idx], bc_axis, keep_dims);
                 known_ranges_map[unknown_idx] = bc_arg_range_list;
             }
-            // set the other unknown slice range by achieved
-            // known_ranges_list
+            // set the other unknown slice range by achieved known_ranges_list
             set_unknown_slice_ranges(this, known_ranges_map, fsmap, stat_map);
             // set outputs slice range
             outslice = known_ranges_map[1 - bc_input_idx];
@@ -438,6 +437,121 @@ void binary_elementwise_op_impl_t::pre_slice_ranges(
             if (stat_map.is_recursive_mode()) {
                 input->producer_owner_->dyn_cast<fusible_op_t>()
                         ->pre_slice_ranges(fsmap, stat_map);
+            }
+        }
+    }
+}
+
+void binary_elementwise_op_impl_t::infer_binding_axis(
+        bound_axis_map &bdax_map) {
+    // search known axis from any input of cur fusbile op
+    auto known_axis_map = search_known_bound_axis(this, bdax_map);
+    if (!bdax_map.get(get_outputs()[0]).empty()) return;
+
+    if (known_axis_map.size() < get_inputs().size()) {
+        int unknown_idx
+                = known_axis_map.find(0) != known_axis_map.end() ? 1 : 0;
+        // check broadcast
+        int bc_input_idx = get_broadcast_input();
+        if (bc_input_idx >= 0) {
+            bool keep_dims = get_inputs()[bc_input_idx]
+                                     ->details_.get_blocking_dims()
+                                     .size()
+                    == get_inputs()[1 - bc_input_idx]
+                               ->details_.get_blocking_dims()
+                               .size();
+            if (keep_dims) {
+                known_axis_map[unknown_idx] = known_axis_map[1 - unknown_idx];
+            } else {
+                auto bc_axis = plain_bc_axis_;
+                bound_axis known_axis = known_axis_map[1 - unknown_idx],
+                           unknown_axis(known_axis.size());
+                if (unknown_idx != bc_input_idx) {
+                    std::transform(known_axis.begin(), known_axis.end(),
+                            unknown_axis.begin(),
+                            [&bc_axis](const std::vector<int> &bd_ax) {
+                                std::vector<int> ret(bd_ax.size());
+                                std::transform(bd_ax.begin(), bd_ax.end(),
+                                        ret.begin(), [&bc_axis](const int &ax) {
+                                            if (ax == -1) return ax;
+                                            COMPILE_ASSERT(
+                                                    ax < static_cast<int64_t>(
+                                                            bc_axis.size()),
+                                                    "Unexpected ax found: "
+                                                            << ax)
+                                            return bc_axis[ax];
+                                        });
+                                return ret;
+                            });
+                } else {
+                    for (auto &bd_ax : known_axis) {
+                        std::vector<int> ret;
+                        for (auto &ax : bd_ax) {
+                            auto iter = std::find(
+                                    bc_axis.begin(), bc_axis.end(), ax);
+                            ret.emplace_back(iter != bc_axis.end()
+                                            ? iter - bc_axis.begin()
+                                            : -1);
+                        }
+                        unknown_axis.emplace_back(ret);
+                    }
+                }
+                known_axis_map[unknown_idx] = unknown_axis;
+            }
+        } else {
+            known_axis_map[unknown_idx] = known_axis_map[1 - unknown_idx];
+        }
+    }
+    // set outputs slice range
+    int bc_idx = get_broadcast_input();
+    bdax_map.get(get_outputs()[0])
+            = known_axis_map[bc_idx > -1 ? (1 - bc_idx)
+                                         : (inplace_ > -1 ? inplace_ : 0)];
+
+    // set the other unknown slice range by achieved known_ranges_list
+    set_unknown_axis_binding(this, known_axis_map, bdax_map);
+}
+
+void binary_elementwise_op_impl_t::pre_binding_axis(bound_axis_map &bdax_map) {
+    auto &outaxis = bdax_map.get(get_outputs()[0]);
+    COMPILE_ASSERT(!outaxis.empty(),
+            "Unknown output axis found, could not pre bind axis")
+
+    // check broadcast
+    int bc_input_idx = get_broadcast_input();
+    for (size_t i = 0; i < get_inputs().size(); i++) {
+        auto &input = get_inputs()[i];
+        auto &inpaxis = bdax_map.get(input);
+        if (inpaxis.empty()) {
+            if (bc_input_idx == static_cast<int>(i)) {
+                bool keep_dims = get_inputs()[bc_input_idx]
+                                         ->details_.get_blocking_dims()
+                                         .size()
+                        == get_inputs()[1 - bc_input_idx]
+                                   ->details_.get_blocking_dims()
+                                   .size();
+                if (keep_dims) {
+                    inpaxis = outaxis;
+                } else {
+                    auto bc_axis = plain_bc_axis_;
+                    for (auto &bd_ax : outaxis) {
+                        std::vector<int> ret;
+                        for (auto &ax : bd_ax) {
+                            auto iter = std::find(
+                                    bc_axis.begin(), bc_axis.end(), ax);
+                            ret.emplace_back(iter != bc_axis.end()
+                                            ? iter - bc_axis.begin()
+                                            : -1);
+                        }
+                        inpaxis.emplace_back(ret);
+                    }
+                }
+            } else {
+                inpaxis = outaxis;
+            }
+            if (auto bd_op = input->producer_owner_->dyn_cast<
+                             op_traits::mixed_partition_acceptable>()) {
+                bd_op->pre_binding_axis(bdax_map);
             }
         }
     }
@@ -531,35 +645,35 @@ void binary_elementwise_op_impl_t::collect_shrinked_lt_map(
     }
 }
 
-void binary_elementwise_op_impl_t::collect_shrinked_axes_map(
-        int bw_size, gt2axes_map &bw_axes_map) {
+void binary_elementwise_op_impl_t::collect_shrinked_axis_map(
+        int bw_size, gt2axis_map &bw_axis_map) {
     int bc_idx = get_broadcast_input();
     if (bc_idx == -1)
-        op_traits::batchwise_shrinkable_t::collect_shrinked_axes_map(
-                bw_size, bw_axes_map);
+        op_traits::batchwise_shrinkable_t::collect_shrinked_axis_map(
+                bw_size, bw_axis_map);
     std::vector<graph_tensor_ptr> new_ins;
-    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-            bw_axes_map, get_outputs()[0], bw_size);
+    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+            bw_axis_map, get_outputs()[0], bw_size);
     auto old_ins = get_inputs();
     bool keep_dims = get_inputs()[0]->details_.get_blocking_dims().size()
             == get_inputs()[1]->details_.get_blocking_dims().size();
     auto bc_axis = get_bc_axis();
-    std::vector<int> bw_axes;
+    std::vector<int> bw_axis;
     for (int i = 0; i < bw_size; i++) {
         auto iter = std::find(bc_axis.begin(), bc_axis.end(), i);
         if (iter != bc_axis.end()) {
-            bw_axes.emplace_back(iter - bc_axis.begin());
+            bw_axis.emplace_back(iter - bc_axis.begin());
         } else {
-            bw_axes.emplace_back(-1);
+            bw_axis.emplace_back(-1);
         }
     }
     for (size_t i = 0; i < get_inputs().size(); i++) {
         if (static_cast<int>(i) == bc_idx && !keep_dims) {
-            op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-                    bw_axes_map, get_inputs()[i], bw_axes);
+            op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+                    bw_axis_map, get_inputs()[i], bw_axis);
         } else {
-            op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-                    bw_axes_map, get_inputs()[i], bw_size);
+            op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+                    bw_axis_map, get_inputs()[i], bw_size);
         }
     }
 }

@@ -41,9 +41,9 @@
 
 namespace sc {
 namespace ops {
-blocking_axes_t get_mm_blocking_axes(const logical_tensor_t &inp,
+blocking_axis_t get_mm_blocking_axis(const logical_tensor_t &inp,
         const logical_tensor_t &wei, const logical_tensor_t &out) {
-    auto generate_axes_by_num = [](int num) {
+    auto generate_axis_by_num = [](int num) {
         std::vector<int> ret;
         ret.reserve(num);
         for (int i = 0; i < num; i++)
@@ -54,28 +54,28 @@ blocking_axes_t get_mm_blocking_axes(const logical_tensor_t &inp,
         B_dim_size = wei.get_plain_dims().size(),
         C_dim_size = out.get_plain_dims().size();
 
-    blocking_axes_t blocking_axes;
+    blocking_axis_t blocking_axis;
     // add init function here
-    blocking_axes.A_bs = transform_axis_plain2blocking(
-            inp, generate_axes_by_num(A_dim_size - 2));
-    blocking_axes.A_m = transform_axis_plain2blocking(
+    blocking_axis.A_bs = transform_axis_plain2blocking(
+            inp, generate_axis_by_num(A_dim_size - 2));
+    blocking_axis.A_m = transform_axis_plain2blocking(
             inp, std::vector<int> {A_dim_size - 2});
-    blocking_axes.A_k = transform_axis_plain2blocking(
+    blocking_axis.A_k = transform_axis_plain2blocking(
             inp, std::vector<int> {A_dim_size - 1});
-    blocking_axes.B_bs = transform_axis_plain2blocking(
-            wei, generate_axes_by_num(B_dim_size - 2));
-    blocking_axes.B_k = transform_axis_plain2blocking(
+    blocking_axis.B_bs = transform_axis_plain2blocking(
+            wei, generate_axis_by_num(B_dim_size - 2));
+    blocking_axis.B_k = transform_axis_plain2blocking(
             wei, std::vector<int> {B_dim_size - 2});
-    blocking_axes.B_n = transform_axis_plain2blocking(
+    blocking_axis.B_n = transform_axis_plain2blocking(
             wei, std::vector<int> {B_dim_size - 1});
-    blocking_axes.C_bs = transform_axis_plain2blocking(
-            out, generate_axes_by_num(C_dim_size - 2));
-    blocking_axes.C_m = transform_axis_plain2blocking(
+    blocking_axis.C_bs = transform_axis_plain2blocking(
+            out, generate_axis_by_num(C_dim_size - 2));
+    blocking_axis.C_m = transform_axis_plain2blocking(
             out, std::vector<int> {C_dim_size - 2});
-    blocking_axes.C_n = transform_axis_plain2blocking(
+    blocking_axis.C_n = transform_axis_plain2blocking(
             out, std::vector<int> {C_dim_size - 1});
 
-    return blocking_axes;
+    return blocking_axis;
 }
 
 matmul_core_op_t::matmul_core_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -882,8 +882,8 @@ void matmul_core_op_t::collect_shrinked_lt_map(
             bw_lt_map, get_inputs()[1], wei_plain_dims);
 }
 
-void matmul_core_op_t::collect_shrinked_axes_map(
-        int bw_size, gt2axes_map &bw_axes_map) {
+void matmul_core_op_t::collect_shrinked_axis_map(
+        int bw_size, gt2axis_map &bw_axis_map) {
     auto ins = get_inputs()[0], wei = get_inputs()[1], out = get_outputs()[0];
     int bs_inp = get_inputs()[0]->details_.get_plain_dims().size() - 2;
     int bs_wei = get_inputs()[1]->details_.get_plain_dims().size() - 2;
@@ -939,12 +939,12 @@ void matmul_core_op_t::collect_shrinked_axes_map(
         }
     }
 
-    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-            bw_axes_map, ins, BMK_idx);
-    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-            bw_axes_map, wei, BKN_idx);
-    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-            bw_axes_map, out, bw_size);
+    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+            bw_axis_map, ins, BMK_idx);
+    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+            bw_axis_map, wei, BKN_idx);
+    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+            bw_axis_map, out, bw_size);
 }
 
 void matmul_core_op_t::infer_slice_ranges(
@@ -967,8 +967,8 @@ void matmul_core_op_t::infer_slice_ranges(
     auto batch_dims_size = get_batch_dims().size();
 
     slice_range inp_slice, wei_slice, out_slice;
-    blocking_axes_t blocking_axes
-            = get_mm_blocking_axes(get_inputs()[0]->details_,
+    blocking_axis_t blocking_axis
+            = get_mm_blocking_axis(get_inputs()[0]->details_,
                     get_inputs()[1]->details_, get_outputs()[0]->details_);
     if (!known_ranges_map[0].empty()) {
         if (known_ranges_map[0].size() > 1) {
@@ -979,15 +979,15 @@ void matmul_core_op_t::infer_slice_ranges(
         // check whether do M-axis fusion
         bool M_axis_fuse = false;
         if (get_inputs()[0]->details_.get_format().is_blocking()
-                && (blocking_axes.A_m.size() == blocking_axes.C_m.size())) {
+                && (blocking_axis.A_m.size() == blocking_axis.C_m.size())) {
             auto ctx = stat_map.get_context();
             if (ctx && ctx->flags_.use_cost_model_
                     && get_batch_dims().empty()) {
                 const int run_threads
                         = runtime_config_t::get().get_num_threads();
                 int prod = 1;
-                for (int i = 0; i < std::min(blocking_axes.A_k.front(),
-                                        (*(blocking_axes.A_m.begin() + 1)));
+                for (int i = 0; i < std::min(blocking_axis.A_k.front(),
+                                        (*(blocking_axis.A_m.begin() + 1)));
                         i++) {
                     prod *= inp_dims[i];
                 }
@@ -999,14 +999,14 @@ void matmul_core_op_t::infer_slice_ranges(
             } else
                 M_axis_fuse = true;
         }
-        std::vector<int> required_axes = M_axis_fuse
-                ? std::vector<int> {blocking_axes.A_m.begin() + 1,
-                        blocking_axes.A_m.end()}
-                : blocking_axes.A_m;
-        required_axes.insert(required_axes.end(), blocking_axes.A_k.begin(),
-                blocking_axes.A_k.end());
+        std::vector<int> required_axis = M_axis_fuse
+                ? std::vector<int> {blocking_axis.A_m.begin() + 1,
+                        blocking_axis.A_m.end()}
+                : blocking_axis.A_m;
+        required_axis.insert(required_axis.end(), blocking_axis.A_k.begin(),
+                blocking_axis.A_k.end());
         // Currently, support fuse batch dims and outer-most m_o
-        if (!slice_full_on_axes(inp_dims, inp_slice, required_axes)) {
+        if (!slice_full_on_axis(inp_dims, inp_slice, required_axis)) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
@@ -1017,11 +1017,11 @@ void matmul_core_op_t::infer_slice_ranges(
             return;
         }
         wei_slice = known_ranges_map[1][0];
-        auto required_axes = blocking_axes.B_k;
-        required_axes.insert(required_axes.end(), blocking_axes.B_n.begin(),
-                blocking_axes.B_n.end());
+        auto required_axis = blocking_axis.B_k;
+        required_axis.insert(required_axis.end(), blocking_axis.B_n.begin(),
+                blocking_axis.B_n.end());
         // Currently, only fuse batch dims
-        if (!slice_full_on_axes(wei_dims, wei_slice, required_axes)) {
+        if (!slice_full_on_axis(wei_dims, wei_slice, required_axis)) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
@@ -1037,10 +1037,10 @@ void matmul_core_op_t::infer_slice_ranges(
         int bs_cnt = 0;
         for (int64_t i = static_cast<int64_t>(wei_size) - 1; i >= 0; i--) {
             if (std::find(
-                        blocking_axes.B_bs.begin(), blocking_axes.B_bs.end(), i)
-                    != blocking_axes.B_bs.end()) {
+                        blocking_axis.B_bs.begin(), blocking_axis.B_bs.end(), i)
+                    != blocking_axis.B_bs.end()) {
                 wei_slice[i]
-                        = inp_slice[blocking_axes.A_bs[blocking_axes.A_bs.size()
+                        = inp_slice[blocking_axis.A_bs[blocking_axis.A_bs.size()
                                 - 1 - bs_cnt]];
                 bs_cnt++;
             } else {
@@ -1059,10 +1059,10 @@ void matmul_core_op_t::infer_slice_ranges(
         int bs_cnt = 0;
         for (int64_t i = static_cast<int64_t>(inp_size) - 1; i >= 0; i--) {
             if (std::find(
-                        blocking_axes.A_bs.begin(), blocking_axes.A_bs.end(), i)
-                    != blocking_axes.A_bs.end()) {
+                        blocking_axis.A_bs.begin(), blocking_axis.A_bs.end(), i)
+                    != blocking_axis.A_bs.end()) {
                 inp_slice[i]
-                        = wei_slice[blocking_axes.B_bs[blocking_axes.B_bs.size()
+                        = wei_slice[blocking_axis.B_bs[blocking_axis.B_bs.size()
                                 - 1 - bs_cnt]];
                 bs_cnt++;
             } else {
@@ -1074,22 +1074,22 @@ void matmul_core_op_t::infer_slice_ranges(
 
     // set output slice
     auto ref_slice = (inp_plain_size >= wei_plain_size) ? inp_slice : wei_slice;
-    auto ref_bs_axes = (inp_plain_size >= wei_plain_size) ? blocking_axes.A_bs
-                                                          : blocking_axes.B_bs;
+    auto ref_bs_axis = (inp_plain_size >= wei_plain_size) ? blocking_axis.A_bs
+                                                          : blocking_axis.B_bs;
     auto out_size = out_dims.size();
     out_slice.resize(out_size);
     int bs_cnt = 0;
     int m_cnt = 0;
     for (size_t i = 0; i < out_size; i++) {
-        if (std::find(blocking_axes.C_bs.begin(), blocking_axes.C_bs.end(), i)
-                != blocking_axes.C_bs.end()) {
-            out_slice[i] = ref_slice[ref_bs_axes[bs_cnt]];
+        if (std::find(blocking_axis.C_bs.begin(), blocking_axis.C_bs.end(), i)
+                != blocking_axis.C_bs.end()) {
+            out_slice[i] = ref_slice[ref_bs_axis[bs_cnt]];
             bs_cnt++;
-        } else if (std::find(blocking_axes.C_m.begin(), blocking_axes.C_m.end(),
+        } else if (std::find(blocking_axis.C_m.begin(), blocking_axis.C_m.end(),
                            i)
-                != blocking_axes.C_m.end()) {
-            if (blocking_axes.A_m.size() == blocking_axes.C_m.size()) {
-                out_slice[i] = inp_slice[blocking_axes.A_m[m_cnt]];
+                != blocking_axis.C_m.end()) {
+            if (blocking_axis.A_m.size() == blocking_axis.C_m.size()) {
+                out_slice[i] = inp_slice[blocking_axis.A_m[m_cnt]];
                 m_cnt++;
             } else {
                 out_slice[i]
@@ -1103,6 +1103,164 @@ void matmul_core_op_t::infer_slice_ranges(
     fsmap.get(get_inputs()[0]) = slice_range_list {inp_slice};
     fsmap.get(get_inputs()[1]) = slice_range_list {wei_slice};
     fsmap.get(get_outputs()[0]) = slice_range_list {out_slice};
+}
+
+void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
+    // search known axis from any input of cur fusbile op
+    auto known_axis_map = search_known_bound_axis(cur, bdax_map);
+
+    bound_axis &inp_axis = known_axis_map[0], &wei_axis = known_axis_map[1],
+               &out_axis = bdax_map.get(cur->get_outputs()[0]);
+    if (!out_axis.empty()) return;
+    auto inp_plain_dims = cur->get_inputs()[0]->details_.get_plain_dims(),
+         wei_plain_dims = cur->get_inputs()[1]->details_.get_plain_dims(),
+         out_plain_dims = cur->get_outputs()[0]->details_.get_plain_dims();
+    // if input is known
+    if (!inp_axis.empty()) {
+        for (auto &bd_axis : inp_axis) {
+            std::vector<int> ret_w, ret_o;
+            for (auto &ax : bd_axis) {
+                if (ax == -1) {
+                    ret_w.emplace_back(ax);
+                    ret_o.emplace_back(ax);
+                    continue;
+                }
+                COMPILE_ASSERT(ax < static_cast<int64_t>(inp_plain_dims.size()),
+                        "matmul core input binded axis could not exceed "
+                        "plain dims size: "
+                                << inp_plain_dims.size() << ", but got " << ax)
+                int distance_from_right
+                        = static_cast<int64_t>(inp_plain_dims.size()) - 1 - ax;
+                // bind weight axis
+                if (distance_from_right == 0) {
+                    ret_w.emplace_back(wei_plain_dims.size() - 2);
+                } else if (distance_from_right > 1
+                        && distance_from_right
+                                < static_cast<int64_t>(wei_plain_dims.size())) {
+                    ret_w.emplace_back(
+                            wei_plain_dims.size() - 1 - distance_from_right);
+                } else {
+                    ret_w.emplace_back(-1);
+                }
+                // bind output axis
+                if (distance_from_right == 1) {
+                    ret_o.emplace_back(out_plain_dims.size() - 2);
+                } else if (distance_from_right > 1) {
+                    ret_o.emplace_back(
+                            out_plain_dims.size() - 1 - distance_from_right);
+                } else {
+                    ret_o.emplace_back(-1);
+                }
+            }
+            if (wei_axis.empty()) wei_axis.emplace_back(ret_w);
+            out_axis.emplace_back(ret_o);
+        }
+    }
+    // if weight is known, input is unknown
+    else {
+        for (auto &bd_axis : wei_axis) {
+            std::vector<int> ret_i, ret_o;
+            for (auto &ax : bd_axis) {
+                if (ax == -1) {
+                    ret_i.emplace_back(ax);
+                    ret_o.emplace_back(ax);
+                    continue;
+                }
+                COMPILE_ASSERT(ax < static_cast<int64_t>(wei_plain_dims.size()),
+                        "matmul core weight binded axis could not exceed "
+                        "plain dims size: "
+                                << wei_plain_dims.size() << ", but got " << ax)
+                int distance_from_right
+                        = static_cast<int64_t>(wei_plain_dims.size()) - 1 - ax;
+                // bind input axis
+                if (distance_from_right == 1) {
+                    ret_i.emplace_back(inp_plain_dims.size() - 1);
+                } else if (distance_from_right > 1
+                        && distance_from_right
+                                < static_cast<int64_t>(inp_plain_dims.size())) {
+                    ret_i.emplace_back(
+                            inp_plain_dims.size() - 1 - distance_from_right);
+                } else {
+                    ret_i.emplace_back(-1);
+                }
+                // bind output axis
+                if (distance_from_right == 0) {
+                    ret_o.emplace_back(out_plain_dims.size() - 1);
+                } else if (distance_from_right > 1) {
+                    ret_o.emplace_back(
+                            out_plain_dims.size() - 1 - distance_from_right);
+                } else {
+                    ret_o.emplace_back(-1);
+                }
+            }
+            inp_axis.emplace_back(ret_i);
+            out_axis.emplace_back(ret_o);
+        }
+    }
+    set_unknown_axis_binding(cur, known_axis_map, bdax_map);
+}
+
+void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
+    auto &outaxis = bdax_map.get(cur->get_outputs()[0]);
+    COMPILE_ASSERT(!outaxis.empty(),
+            "Unknown output axis found, could not pre bind axis")
+
+    auto inp_plain_dims = cur->get_inputs()[0]->details_.get_plain_dims(),
+         wei_plain_dims = cur->get_inputs()[1]->details_.get_plain_dims(),
+         out_plain_dims = cur->get_outputs()[0]->details_.get_plain_dims();
+
+    for (size_t i = 0; i < cur->get_inputs().size(); i++) {
+        auto &input = cur->get_inputs()[i];
+        auto &inpaxis = bdax_map.get(input);
+        auto in_plain_dims = (i == 0) ? inp_plain_dims : wei_plain_dims;
+        if (inpaxis.empty()) {
+            bound_axis in_axis;
+            for (auto &bd_axis : outaxis) {
+                std::vector<int> ret;
+                for (auto &ax : bd_axis) {
+                    if (ax == -1) {
+                        ret.emplace_back(ax);
+                        continue;
+                    }
+                    COMPILE_ASSERT(
+                            ax < static_cast<int64_t>(out_plain_dims.size()),
+                            "matmul core output binded axis could not exceed "
+                            "plain dims size: "
+                                    << out_plain_dims.size() << ", but got "
+                                    << ax)
+                    int distance_from_right
+                            = static_cast<int64_t>(out_plain_dims.size()) - 1
+                            - ax;
+                    // bind input/weight axis
+                    if (distance_from_right == (1 - static_cast<int64_t>(i))) {
+                        ret.emplace_back(
+                                in_plain_dims.size() - 1 - distance_from_right);
+                    } else if (distance_from_right > 1
+                            && distance_from_right < static_cast<int64_t>(
+                                       in_plain_dims.size())) {
+                        ret.emplace_back(
+                                in_plain_dims.size() - 1 - distance_from_right);
+                    } else {
+                        ret.emplace_back(-1);
+                    }
+                }
+                in_axis.emplace_back(ret);
+            }
+            inpaxis = outaxis;
+            if (auto bd_op = input->producer_owner_->dyn_cast<
+                             op_traits::mixed_partition_acceptable>()) {
+                bd_op->pre_binding_axis(bdax_map);
+            }
+        }
+    }
+}
+
+void matmul_core_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
+    infer_matmul_binding_axis(this, bdax_map);
+}
+
+void matmul_core_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
+    pre_matmul_binding_axis(this, bdax_map);
 }
 
 } // namespace ops

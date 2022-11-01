@@ -543,8 +543,8 @@ void managed_matmul_core_op_t::collect_shrinked_lt_map(
             bw_lt_map, get_inputs()[1], wei_plain_dims);
 }
 
-void managed_matmul_core_op_t::collect_shrinked_axes_map(
-        int bw_size, gt2axes_map &bw_axes_map) {
+void managed_matmul_core_op_t::collect_shrinked_axis_map(
+        int bw_size, gt2axis_map &bw_axis_map) {
     auto ins = get_inputs()[0], wei = get_inputs()[1], out = get_outputs()[0];
     int bs_inp = get_inputs()[0]->details_.get_plain_dims().size() - 2;
     int bs_wei = get_inputs()[1]->details_.get_plain_dims().size() - 2;
@@ -600,12 +600,19 @@ void managed_matmul_core_op_t::collect_shrinked_axes_map(
         }
     }
 
-    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-            bw_axes_map, ins, BMK_idx);
-    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-            bw_axes_map, wei, BKN_idx);
-    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-            bw_axes_map, out, bw_size);
+    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+            bw_axis_map, ins, BMK_idx);
+    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+            bw_axis_map, wei, BKN_idx);
+    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+            bw_axis_map, out, bw_size);
+}
+
+void managed_matmul_core_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
+    infer_matmul_binding_axis(this, bdax_map);
+}
+void managed_matmul_core_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
+    pre_matmul_binding_axis(this, bdax_map);
 }
 
 } // namespace ops

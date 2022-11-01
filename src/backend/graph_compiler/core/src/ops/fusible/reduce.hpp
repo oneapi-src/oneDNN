@@ -77,8 +77,8 @@ public:
 
     sc_dims get_bwise_fuse_shrink_dims() override;
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
-    void collect_shrinked_axes_map(
-            int bw_size, gt2axes_map &bw_axes_map) override;
+    void collect_shrinked_axis_map(
+            int bw_size, gt2axis_map &bw_axis_map) override;
 
     // returns true if the reduce_op can be splitted into reduce_compute +
     // reduce_collect
@@ -87,6 +87,9 @@ public:
     graph_tensor_ptr split_op(const context_ptr &ctx, sc_graph_t &graph,
             int num_threads) override;
     shape_rl_vec get_dynamic_shape_relations() const override;
+
+    void infer_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_binding_axis(bound_axis_map &bdax_map) override;
 
 private:
     // the axis which need reduction
@@ -156,6 +159,9 @@ public:
     const std::vector<int> &get_rd_axis() const;
     // get type of reduction
     const reduce_operator get_rd_op() const { return rd_op_; }
+
+    void infer_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_binding_axis(bound_axis_map &bdax_map) override;
 
 protected:
     // the axis which need reduction

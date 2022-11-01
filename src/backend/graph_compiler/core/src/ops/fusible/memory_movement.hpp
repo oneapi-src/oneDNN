@@ -30,7 +30,7 @@ namespace sc {
  * Outputs:
  *  - The transposed tensor
  * Attrs:
- *  - order: vector<int> - order of the input axes w.r.t output axes
+ *  - order: vector<int> - order of the input axis w.r.t output axis
  * */
 class transpose_op_t : public movement_op_t, public op_traits::auto_copyable_t {
 public:
@@ -86,6 +86,9 @@ public:
     sc_dims get_bwise_fuse_shrink_dims() override;
     sc_op_ptr bw_shrinked_copy(
             gt2gt_map &bw_lt_map, sc_graph_t &shrinked_graph) override;
+
+    void infer_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_binding_axis(bound_axis_map &bdax_map) override;
 
 private:
     sc_dims shapes_;
@@ -168,8 +171,10 @@ public:
     bool support_optmized_kernel(const context_ptr &ctx) const;
     sc_dims get_bwise_fuse_shrink_dims() override;
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
-    void collect_shrinked_axes_map(
-            int bw_size, gt2axes_map &bw_axes_map) override;
+    void collect_shrinked_axis_map(
+            int bw_size, gt2axis_map &bw_axis_map) override;
+    void infer_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_binding_axis(bound_axis_map &bdax_map) override;
 
 private:
     sc_dims plain_dims_;

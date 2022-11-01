@@ -331,6 +331,14 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
             }
         }
     }
+
+    if (!loops.empty()) {
+        bound_axis bd_axis(loop_axis.size());
+        std::transform(loop_axis.begin(), loop_axis.end(), bd_axis.begin(),
+                [](const int &ax) { return std::vector<int> {ax}; });
+        loops[0]->attr()["loop_axis_hint"] = bd_axis;
+    }
+
     cur_tsr_slice[loop_axis[0]]
             = std::make_pair(0, base_tsr->dims_[loop_axis[0]]);
     fusion->create_output_fusion_anchor(
@@ -344,9 +352,9 @@ anchor_loop_generator_t::anchor_loop_generator_t(
     , gt_(gt)
     , parent_fanchor_(parent_fanchor) {}
 
-size_t anchor_loop_generator_t::create_inner_anchor(
-        std::vector<fuse_anchor_map_ptr> &fanchor_map) {
-    if (parent_fanchor_->fsmap_.get(gt_).size() != 1) return 0;
+std::vector<fuse_anchor_map_ptr>
+anchor_loop_generator_t::create_inner_anchor() {
+    if (parent_fanchor_->fsmap_.get(gt_).size() != 1) return {};
     auto bld = builder::get_current_builder();
     std::vector<expr> loop_vars;
     std::vector<int> inner_anchor_axis;
@@ -379,7 +387,8 @@ size_t anchor_loop_generator_t::create_inner_anchor(
     inner_slice.emplace_back(range.back());
 
     auto inner_anchor_num = inner_anchor_axis.size();
-    if (!inner_anchor_num) return 0;
+    if (!inner_anchor_num) return {};
+    std::vector<fuse_anchor_map_ptr> fanchor_map;
     // generate anchors from inner to outer
     for (int64_t i = static_cast<int64_t>(inner_anchor_num) - 1; i >= 0; i--) {
         auto loop_num = inner_anchor_axis[i];
@@ -393,7 +402,7 @@ size_t anchor_loop_generator_t::create_inner_anchor(
                 true, for_type::NORMAL);
         inner_slice[loop_num] = range[loop_num];
     }
-    return inner_anchor_num;
+    return fanchor_map;
 }
 
 static void schedule_outer_anchor_loops(

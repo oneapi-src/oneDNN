@@ -512,8 +512,6 @@ slice_range_map search_known_slice_ranges(
         sc_op *cur, fslice_map &fsmap, infer_status_map_t &stat_map) {
     slice_range_map known_ranges_map;
     auto input_size = cur->get_inputs().size();
-    COMPILE_ASSERT(input_size > 0,
-            "We could not infer slice ranges for op without input.");
     for (size_t i = 0; i < input_size; i++) {
         auto &input = cur->get_inputs()[i];
         if (!fsmap.get(input).empty()) {
@@ -551,33 +549,101 @@ void set_unknown_slice_ranges(fusible_op_t *cur,
     }
 }
 
+std::unordered_map<int, bound_axis> search_known_bound_axis(
+        sc_op *cur, bound_axis_map &bdax_map) {
+    std::unordered_map<int, bound_axis> known_axis_map;
+    auto input_size = cur->get_inputs().size();
+    for (size_t i = 0; i < input_size; i++) {
+        auto &input = cur->get_inputs()[i];
+        if (!bdax_map.get(input).empty()) {
+            known_axis_map[i] = bdax_map.get(input);
+        }
+    }
+    COMPILE_ASSERT(!known_axis_map.empty(),
+            "No binded input axis found for " << cur->op_name_)
+    return known_axis_map;
+}
+
+void set_unknown_axis_binding(sc_op *cur,
+        const std::unordered_map<int, bound_axis> &known_axis_map,
+        bound_axis_map &bdax_map) {
+    // set other unknown axis.
+    auto input_size = cur->get_inputs().size();
+    for (size_t i = 0; i < input_size; i++) {
+        auto input = cur->get_inputs()[i];
+        auto &inp_axis = bdax_map.get(input);
+        if (inp_axis.empty()) {
+            inp_axis = known_axis_map.find(i)->second;
+            if (auto inp_op = input->producer_owner_->dyn_cast<
+                              op_traits::mixed_partition_acceptable>()) {
+                inp_op->pre_binding_axis(bdax_map);
+            }
+        }
+    }
+    // call output
+    for (auto &out : cur->get_outputs()) {
+        for (auto &user : out->uses_) {
+            if (auto bd_op = user.second->dyn_cast<
+                             op_traits::mixed_partition_acceptable>()) {
+                bd_op->infer_binding_axis(bdax_map);
+            }
+        }
+    }
+}
+
 std::vector<int> transform_axis_plain2blocking(
-        const logical_tensor_t &lt, const std::vector<int> &plain_axes) {
+        const logical_tensor_t &lt, const std::vector<int> &plain_axis) {
     auto fmt = lt.get_format();
-    int bs_ndim = 0;
     // If format is any, just return.
-    if (fmt.is_any()) { return plain_axes; }
+    if (fmt.is_any()) { return plain_axis; }
     std::vector<int> real_axis;
     auto p2bmp = fmt.format_code_.collect_p2b_mapping();
-    for (auto &i : plain_axes) {
-        if (i < bs_ndim) {
-            real_axis.emplace_back(i);
-        } else {
-            std::vector<int> res;
-            res.resize(p2bmp[i - bs_ndim].size());
-            std::transform(p2bmp[i - bs_ndim].begin(), p2bmp[i - bs_ndim].end(),
-                    res.begin(),
-                    [&bs_ndim](const int &v) { return v + bs_ndim; });
-            real_axis.insert(real_axis.end(), res.begin(), res.end());
+    for (auto &i : plain_axis) {
+        if (i == -1) {
+            real_axis.emplace_back(-1);
+            continue;
         }
+        std::vector<int> res;
+        res.resize(p2bmp[i].size());
+        std::transform(p2bmp[i].begin(), p2bmp[i].end(), res.begin(),
+                [](const int &v) { return v; });
+        real_axis.insert(real_axis.end(), res.begin(), res.end());
     }
     std::sort(real_axis.begin(), real_axis.end());
     return real_axis;
 }
 
 std::vector<int> transform_axis_plain2blocking(
-        const graph_tensor_ptr &gt, const std::vector<int> &plain_axes) {
-    return transform_axis_plain2blocking(gt->details_, plain_axes);
+        const graph_tensor_ptr &gt, const std::vector<int> &plain_axis) {
+    return transform_axis_plain2blocking(gt->details_, plain_axis);
+}
+
+std::vector<int> transform_axis_blocking2plain(
+        const logical_tensor_t &lt, const std::vector<int> &blocking_axis) {
+    auto fmt = lt.get_format();
+    // If format is any, just return.
+    if (fmt.is_any()) { return blocking_axis; }
+    std::vector<int> plain_axis;
+    auto p2bmp = fmt.format_code_.collect_p2b_mapping();
+    for (auto &ax : blocking_axis) {
+        if (ax == -1) {
+            plain_axis.emplace_back(-1);
+            continue;
+        }
+        for (size_t i = 0; i < p2bmp.size(); i++) {
+            auto blk_axis_i = p2bmp[i];
+            if (blk_axis_i.end()
+                    != std::find(blk_axis_i.begin(), blk_axis_i.end(), ax)) {
+                plain_axis.emplace_back(i);
+                break;
+            }
+        }
+    }
+    // remove duplicated axis.
+    std::sort(plain_axis.begin(), plain_axis.end());
+    plain_axis.erase(std::unique(plain_axis.begin(), plain_axis.end()),
+            plain_axis.end());
+    return plain_axis;
 }
 
 /**

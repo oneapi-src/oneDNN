@@ -343,10 +343,17 @@ for_loop get_last_loop_in_body(const stmt &body) {
     if (body.isa<stmts>()) {
         auto stmtlist = body.static_as<stmts>();
         if (!stmtlist->seq_.empty()) {
-            if (stmtlist->seq_.back().isa<for_loop>()) {
-                return stmtlist->seq_.back().static_as<for_loop>();
+            stmt last_stmt;
+            for (int64_t i = stmtlist->seq_.size() - 1; i >= 0; --i) {
+                last_stmt = stmtlist->seq_[i];
+                if (!stmtlist->seq_[i].isa<stmts>()
+                        || !stmtlist->seq_[i].static_as<stmts>()->seq_.empty())
+                    break;
+            }
+            if (last_stmt.isa<for_loop>()) {
+                return last_stmt.static_as<for_loop>();
             } else {
-                return get_last_loop_in_body(stmtlist->seq_.back());
+                return get_last_loop_in_body(last_stmt);
             }
         }
     } else if (body.isa<for_loop>()) {

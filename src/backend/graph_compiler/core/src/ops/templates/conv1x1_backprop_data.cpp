@@ -268,7 +268,7 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                                   q_o * tile_q * stride_w + C_shift_w, 0};
                 } else {
                   LDC = C * stride_w;
-                  LDC->attr().set("N_axes",
+                  LDC->attr().set("N_axis",
                     is_3d ? std::vector<size_t> {4} : std::vector<size_t> {3});
                   c_idx = is_3d
                     ? std::vector<expr> {n, d_o * tile_d * stride_d + C_shift_d,
@@ -441,7 +441,7 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                       p_o * tile_p * stride_h, q_o * tile_q * stride_w, 0};
                   } else {
                     LDC = C * stride_w;
-                    LDC->attr().set("N_axes", std::vector<size_t> {4});
+                    LDC->attr().set("N_axis", std::vector<size_t> {4});
                     c_idx
                       = {n, d_o * tile_d * stride_d, p_o * tile_p * stride_h,
                         q_o * tile_q * stride_w, c_o * C_block};
@@ -563,7 +563,7 @@ bool gen_conv1x1_backprop_data_t::generate(context_ptr ctx,
                       q_o * tile_q * stride_w, 0};
                   } else {
                     LDC = C * stride_w;
-                    LDC->attr().set("N_axes", std::vector<size_t> {3});
+                    LDC->attr().set("N_axis", std::vector<size_t> {3});
                     c_idx = {n, p_o * tile_p * stride_h,
                       q_o * tile_q * stride_w, c_o * C_block};
                   }

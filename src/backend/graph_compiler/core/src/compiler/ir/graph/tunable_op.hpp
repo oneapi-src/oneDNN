@@ -82,6 +82,9 @@ public:
             fslice_map &fsmap, infer_status_map_t &stat_map)
             = 0;
 
+    void infer_binding_axis(bound_axis_map &bdax_map) override {}
+    void pre_binding_axis(bound_axis_map &bdax_map) override {}
+
 protected:
     config_ptr config_data_;
 };

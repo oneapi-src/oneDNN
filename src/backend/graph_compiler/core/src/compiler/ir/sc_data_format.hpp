@@ -337,7 +337,7 @@ struct SC_API sc_data_format_t {
     }
 
     sc_data_format_kind_t format_code_;
-    // The blocking numbers. It stores the blocking of the blocking axes in
+    // The blocking numbers. It stores the blocking of the blocking axis in
     // the format_code_ from left to right. At most 4 blocking numbers can be
     // stored. Unused slots should be 0. For example, for format NK16k8n4k, the
     // blocks_ should be {16,8,4,0}. std::vector is unnecessary for block info.

@@ -141,6 +141,17 @@ public:
     int lookup(const sc_op_ptr &op_i, const sc_op_ptr &op_j) const {
         return lookup(op_i.get(), op_j.get());
     }
+
+    // look up all op id which depend on given op id
+    std::vector<int> lookup_ops_depend_on(int depend_i) const {
+        COMPILE_ASSERT(depend_i >= 0 && depend_i < op_size_,
+                "illegal lookup index for depenency matrix.");
+        std::vector<int> ret;
+        for (int j = 0; j < op_size_; j++) {
+            if (matrix_[depend_i][j] == 1) { ret.emplace_back(j); }
+        }
+        return ret;
+    }
 };
 
 /**

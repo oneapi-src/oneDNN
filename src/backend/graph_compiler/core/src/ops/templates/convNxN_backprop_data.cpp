@@ -155,7 +155,7 @@ bool gen_convNxN_backprop_data::generate(context_ptr ctx,
                       del_input_index = {n, (p_o * tile_p + p_i) * stride_h + r,
                         (q_o * tile_q) * stride_w + s, c_o * C_block};
                       LDC = C * stride_w;
-                      LDC->attr().set("N_axes", std::vector<size_t> {3});
+                      LDC->attr().set("N_axis", std::vector<size_t> {3});
                     } else {
                       del_output_index
                         = {n, 0, p_o * tile_p + p_i, q_o * tile_q, 0};
@@ -218,7 +218,7 @@ bool gen_convNxN_backprop_data::generate(context_ptr ctx,
                         LDA = K;
                         stride_a = K_block;
                         LDC = C * stride_w;
-                        LDC->attr().set("N_axes", std::vector<size_t> {3});
+                        LDC->attr().set("N_axis", std::vector<size_t> {3});
                       } else {
                         LDA = K_block;
                         stride_a = P * Q * K_block;

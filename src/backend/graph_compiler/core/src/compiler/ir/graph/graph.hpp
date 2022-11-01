@@ -54,9 +54,12 @@ template <typename valT>
 struct gt_map_t;
 using fdata_map = gt_map_t<fusion_data_t>;
 using gt2gt_map = gt_map_t<graph_tensor_ptr>;
-using gt2axes_map = gt_map_t<std::vector<int>>;
+using gt2axis_map = gt_map_t<std::vector<int>>;
 using gt2buf_map = gt_map_t<expr>;
-using gt2anchor_map = gt_map_t<fuse_anchor_map_t *>;
+
+using bound_axis = std::vector<std::vector<int>>;
+using bound_axis_map = gt_map_t<bound_axis>;
+
 using format_stride_pair = std::pair<sc_data_format_t, sc_dims>;
 using shape_rl_vec = std::vector<std::pair<sc_dim, sc_dim>>;
 

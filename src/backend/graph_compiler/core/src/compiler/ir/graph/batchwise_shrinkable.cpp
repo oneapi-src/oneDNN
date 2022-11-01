@@ -211,8 +211,8 @@ void op_traits::batchwise_shrinkable_t::record_shrinked_gt(gt2gt_map &bw_lt_map,
             nullptr, new_fmt, plain_dims, gt->details_.dtype_);
 }
 
-void op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-        gt2axes_map &bw_axes_map, const graph_tensor_ptr &gt, int bw_size) {
+void op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+        gt2axis_map &bw_axis_map, const graph_tensor_ptr &gt, int bw_size) {
     auto generate_vector_by_num = [](int num) {
         std::vector<int> ret;
         ret.reserve(num);
@@ -220,35 +220,35 @@ void op_traits::batchwise_shrinkable_t::record_shrinked_axes(
             ret.emplace_back(i);
         return ret;
     };
-    if (bw_axes_map.haskey(gt)) return;
+    if (bw_axis_map.haskey(gt)) return;
     bool scaler = gt->producer_owner_->isa<constant_op_t>()
             || (gt->details_.get_blocking_dims().size() == 1
                     && gt->details_.get_blocking_dims()[0] == 1);
-    bw_axes_map.get(gt) = scaler ? std::vector<int>(bw_size, -1)
+    bw_axis_map.get(gt) = scaler ? std::vector<int>(bw_size, -1)
                                  : generate_vector_by_num(bw_size);
 }
 
-void op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-        gt2axes_map &bw_axes_map, const graph_tensor_ptr &gt,
-        const std::vector<int> &axes) {
-    if (bw_axes_map.haskey(gt)) return;
+void op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+        gt2axis_map &bw_axis_map, const graph_tensor_ptr &gt,
+        const std::vector<int> &axis) {
+    if (bw_axis_map.haskey(gt)) return;
     bool scaler = gt->producer_owner_->isa<constant_op_t>()
             || (gt->details_.get_blocking_dims().size() == 1
                     && gt->details_.get_blocking_dims()[0] == 1);
-    bw_axes_map.get(gt) = scaler ? std::vector<int>(axes.size(), -1) : axes;
+    bw_axis_map.get(gt) = scaler ? std::vector<int>(axis.size(), -1) : axis;
 }
 
-void op_traits::batchwise_shrinkable_t::collect_shrinked_axes_map(
-        int bw_size, gt2axes_map &bw_axes_map) {
+void op_traits::batchwise_shrinkable_t::collect_shrinked_axis_map(
+        int bw_size, gt2axis_map &bw_axis_map) {
     auto ths = dynamic_cast<sc_op *>(this);
     COMPILE_ASSERT(!dynamic_cast<fused_op_t *>(ths),
             "fused op " << ths->op_name_ << " must override this function")
 
     for (auto &ins : ths->get_inputs()) {
-        record_shrinked_axes(bw_axes_map, ins, bw_size);
+        record_shrinked_axis(bw_axis_map, ins, bw_size);
     }
     for (auto &out : ths->get_outputs()) {
-        record_shrinked_axes(bw_axes_map, out, bw_size);
+        record_shrinked_axis(bw_axis_map, out, bw_size);
     }
 }
 

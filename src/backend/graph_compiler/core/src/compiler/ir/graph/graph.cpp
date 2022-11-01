@@ -67,6 +67,7 @@ template struct gt_map_t<graph_tensor_ptr>;
 template struct gt_map_t<std::vector<int>>;
 template struct gt_map_t<expr>;
 template struct gt_map_t<fuse_anchor_map_t *>;
+template struct gt_map_t<bound_axis>;
 
 sc_op_ptr op_traits::auto_copyable_t::copy(
         const std::vector<graph_tensor_ptr> &ins,
@@ -134,11 +135,11 @@ slice_range tensor_slice::get_ranges() const {
     return ranges;
 }
 
-bool tensor_slice::full_on_axes(const std::vector<int> &axes) const {
+bool tensor_slice::full_on_axis(const std::vector<int> &axis) const {
     auto &dims = get_base_dims();
     auto &idx = tptr_->base_->idx_;
     auto &shape = get_shape();
-    for (auto &ax : axes) {
+    for (auto &ax : axis) {
         if (!idx[ax].isa<constant>() || !shape[ax].isa<constant>()) {
             return false;
         }
@@ -153,12 +154,12 @@ bool tensor_slice::full_on_axes(const std::vector<int> &axes) const {
 
 bool tensor_slice::is_full() const {
     auto &dims = get_base_dims();
-    std::vector<int> total_axes;
-    total_axes.reserve(static_cast<int>(dims.size()));
+    std::vector<int> total_axis;
+    total_axis.reserve(static_cast<int>(dims.size()));
     for (int i = 0; i < static_cast<int>(dims.size()); i++) {
-        total_axes.emplace_back(i);
+        total_axis.emplace_back(i);
     }
-    return full_on_axes(total_axes);
+    return full_on_axis(total_axis);
 }
 
 tensor_slice::tensor_slice(const expr &tsr) {

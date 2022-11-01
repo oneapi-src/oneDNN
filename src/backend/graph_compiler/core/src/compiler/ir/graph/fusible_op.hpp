@@ -108,6 +108,10 @@ public:
 
     void commit_into_anchor(mixed_parti_t *parti) override;
 
+    void infer_binding_axis(bound_axis_map &bdax_map) override {}
+
+    void pre_binding_axis(bound_axis_map &bdax_map) override {}
+
     ~fusible_op_t() override = default;
 
     int anchor_id_ = -1;

@@ -42,13 +42,23 @@ void set_unknown_slice_ranges(fusible_op_t *cur,
         infer_status_map_t &stat_map);
 void infer_binary_slice_ranges(
         fusible_op_t *cur, fslice_map &fsmap, infer_status_map_t &stat_map);
+
+std::unordered_map<int, bound_axis> search_known_bound_axis(
+        sc_op *cur, bound_axis_map &bdax_map);
+void set_unknown_axis_binding(sc_op *cur,
+        const std::unordered_map<int, bound_axis> &known_axis_map,
+        bound_axis_map &bdax_map);
+
+void identical_infer_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);
+void identical_pre_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);
+
 sc_dims get_expr_to_dims(const std::vector<expr> &dims);
 size_t get_dims_product(const sc_dims &dims);
 // the dim can be squeezed is 1
 int get_number_of_squeeze_dims(const sc_dims &dims);
 
-bool slice_full_on_axes(
-        const sc_dims &dim, slice_range ranges, const std::vector<int> &axes);
+bool slice_full_on_axis(
+        const sc_dims &dim, slice_range ranges, const std::vector<int> &axis);
 
 inline uint16_t vectorize_step(const context_ptr &ctx, sc_data_etype detype) {
     return std::min(uint16_t(16), ctx->get_max_vector_lanes(detype));
@@ -95,10 +105,13 @@ void compute_block_elemwise(const std::vector<const tensor_slice *> &src,
         fusion_compute_func_t compute);
 
 std::vector<int> transform_axis_plain2blocking(
-        const logical_tensor_t &lt, const std::vector<int> &plain_axes);
+        const logical_tensor_t &lt, const std::vector<int> &plain_axis);
 
 std::vector<int> transform_axis_plain2blocking(
-        const graph_tensor_ptr &gt, const std::vector<int> &plain_axes);
+        const graph_tensor_ptr &gt, const std::vector<int> &plain_axis);
+
+std::vector<int> transform_axis_blocking2plain(
+        const logical_tensor_t &lt, const std::vector<int> &blocking_axis);
 
 std::string fusion_create_var_idx();
 std::string fusion_create_idx();

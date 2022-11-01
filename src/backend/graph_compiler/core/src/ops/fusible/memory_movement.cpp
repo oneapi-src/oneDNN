@@ -131,7 +131,7 @@ void transpose_op_t::pre_slice_ranges(
 }
 
 void compute_block_transpose(const std::vector<const tensor_slice *> &src,
-        const tensor_slice &dst, const std::vector<int> &axes, size_t wkld) {
+        const tensor_slice &dst, const std::vector<int> &axis, size_t wkld) {
     std::vector<expr> iters(src[0]->nslice_dims());
     std::vector<expr> src_idx(src[0]->nslice_dims());
     std::vector<expr> dst_idx(src[0]->nslice_dims());
@@ -142,7 +142,7 @@ void compute_block_transpose(const std::vector<const tensor_slice *> &src,
         src_idx[i] = iters[i];
     }
     dst_idx = src_idx;
-    std::swap(dst_idx[axes[0]], dst_idx[axes[1]]);
+    std::swap(dst_idx[axis[0]], dst_idx[axis[1]]);
     auto bld = builder::get_current_builder();
     COMPILE_ASSERT(bld, "No active builder is set");
 
@@ -373,7 +373,7 @@ void tensor_view_op_t::query_format(context_ptr ctx,
     sc_data_format_t output_format;
     // temp workaround
     assert(!attrs_.get<sc_data_format_t>("format").is_any());
-    if (attrs_.get_or_else<bool>("expand_dim", false)
+    if (attrs_.has_key("expand_dim")
             && info_.inputs_[0]->details_.get_format()
                     == attrs_.get<sc_data_format_t>("cache_input_format")) {
         out_formats.push_back({attrs_.get<sc_data_format_t>("format")});
@@ -545,6 +545,123 @@ void tensor_view_op_t::pre_slice_ranges(
         info_.inputs_[0]
                 ->producer_owner_->dyn_cast<fusible_op_t>()
                 ->pre_slice_ranges(fsmap, stat_map);
+    }
+}
+
+bound_axis infer_tensor_view_binding_axis(const bound_axis &src_axis,
+        const sc_dims &src_dims, const sc_dims &dst_dims,
+        const std::vector<int> &expand_dims = {}) {
+    bound_axis dst_axis, tv_axis_map;
+
+    sc_dims acc_src_dims(src_dims.size()), acc_dst_dims(dst_dims.size());
+    sc_dim tmp_acc = 1;
+    std::transform(src_dims.begin(), src_dims.end(), acc_src_dims.begin(),
+            [&tmp_acc](const sc_dim &d) {
+                tmp_acc *= d;
+                return tmp_acc;
+            });
+    tmp_acc = 1;
+    std::transform(dst_dims.begin(), dst_dims.end(), acc_dst_dims.begin(),
+            [&tmp_acc](const sc_dim &d) {
+                tmp_acc *= d;
+                return tmp_acc;
+            });
+    // compare src and dst
+    int j = 0;
+    for (size_t i = 0; i < acc_src_dims.size(); i++) {
+        std::vector<int> axis;
+        while (true) {
+            axis.emplace_back(j);
+            if (acc_src_dims[i] <= acc_dst_dims[j]) {
+                if (acc_src_dims[i] == acc_dst_dims[j]) { j++; }
+                break;
+            }
+            j++;
+        }
+        tv_axis_map.emplace_back(axis);
+    }
+
+    for (auto &bd_ax : src_axis) {
+        std::vector<int> ret;
+        for (auto &ax : bd_ax) {
+            if (ax == -1
+                    || expand_dims.end()
+                            != std::find(expand_dims.begin(), expand_dims.end(),
+                                    ax)) {
+                ret.emplace_back(-1);
+            } else {
+                ret.insert(ret.end(), tv_axis_map[ax].begin(),
+                        tv_axis_map[ax].end());
+            }
+        }
+        // remove duplicated axis.
+        std::sort(ret.begin(), ret.end());
+        ret.erase(std::unique(ret.begin(), ret.end()), ret.end());
+        dst_axis.emplace_back(ret);
+    }
+    return dst_axis;
+}
+
+void tensor_view_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
+    auto known_axis_map = search_known_bound_axis(this, bdax_map);
+    if (!bdax_map.get(get_outputs()[0]).empty()) return;
+    // src
+    auto src_dims = info_.inputs_[0]->details_.get_blocking_dims();
+    // dst
+    auto shapes = get_shapes();
+    auto ths = this;
+    bound_axis known_block_axis(known_axis_map[0].size());
+    std::transform(known_axis_map[0].begin(), known_axis_map[0].end(),
+            known_block_axis.begin(), [&ths](const std::vector<int> &bd_ax) {
+                return transform_axis_plain2blocking(
+                        ths->get_inputs()[0]->details_, bd_ax);
+            });
+    auto blocking_bd_axis = infer_tensor_view_binding_axis(
+            known_block_axis, src_dims, shapes);
+    bound_axis plain_bd_axis(blocking_bd_axis.size());
+    std::transform(blocking_bd_axis.begin(), blocking_bd_axis.end(),
+            plain_bd_axis.begin(), [&ths](const std::vector<int> &bd_ax) {
+                return transform_axis_blocking2plain(
+                        ths->get_outputs()[0]->details_, bd_ax);
+            });
+    bdax_map.get(get_outputs()[0]) = plain_bd_axis;
+    set_unknown_axis_binding(this, known_axis_map, bdax_map);
+}
+
+void tensor_view_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
+    auto &outaxis = bdax_map.get(get_outputs()[0]);
+    COMPILE_ASSERT(!outaxis.empty(),
+            "Unknown output axis found, could not pre bind axis")
+    auto &input = get_inputs()[0];
+    auto &inpaxis = bdax_map.get(input);
+
+    if (inpaxis.empty()) {
+        // src
+        auto src_dims = input->details_.get_blocking_dims();
+        // dst
+        auto shapes = get_shapes();
+        auto ths = this;
+        bound_axis known_block_axis(outaxis.size());
+        std::transform(outaxis.begin(), outaxis.end(), known_block_axis.begin(),
+                [&ths](const std::vector<int> &bd_ax) {
+                    return transform_axis_plain2blocking(
+                            ths->get_outputs()[0]->details_, bd_ax);
+                });
+        auto blocking_bd_axis
+                = infer_tensor_view_binding_axis(outaxis, shapes, src_dims,
+                        attrs_.get_or_else("expand_dim", std::vector<int> {}));
+        bound_axis plain_bd_axis(blocking_bd_axis.size());
+        std::transform(blocking_bd_axis.begin(), blocking_bd_axis.end(),
+                plain_bd_axis.begin(), [&ths](const std::vector<int> &bd_ax) {
+                    return transform_axis_blocking2plain(
+                            ths->get_inputs()[0]->details_, bd_ax);
+                });
+        inpaxis = plain_bd_axis;
+        if (auto bd_op
+                = input->producer_owner_
+                          ->dyn_cast<op_traits::mixed_partition_acceptable>()) {
+            bd_op->pre_binding_axis(bdax_map);
+        }
     }
 }
 

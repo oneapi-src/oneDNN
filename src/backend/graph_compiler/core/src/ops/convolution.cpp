@@ -67,11 +67,11 @@ void conv_fwd_core_op_t::infer_slice_ranges(
     if (!known_ranges_map[0].empty()) {
         slice_range inp_tmp;
         inp_tmp = known_ranges_map[0][0];
-        std::vector<int> required_axes;
+        std::vector<int> required_axis;
         for (unsigned i = 1; i < inp_dims.size(); i++) {
-            required_axes.emplace_back(i);
+            required_axis.emplace_back(i);
         }
-        if (!slice_full_on_axes(inp_dims, inp_tmp, required_axes)) {
+        if (!slice_full_on_axis(inp_dims, inp_tmp, required_axis)) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
@@ -83,11 +83,11 @@ void conv_fwd_core_op_t::infer_slice_ranges(
     }
     if (!known_ranges_map[1].empty()) {
         auto wei_slice = known_ranges_map[1][0];
-        std::vector<int> required_axes;
+        std::vector<int> required_axis;
         for (unsigned i = 0; i < wei_dims.size(); i++) {
-            required_axes.emplace_back(i);
+            required_axis.emplace_back(i);
         }
-        if (!slice_full_on_axes(wei_dims, wei_slice, required_axes)) {
+        if (!slice_full_on_axis(wei_dims, wei_slice, required_axis)) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
@@ -433,16 +433,16 @@ void conv_fwd_core_op_t::collect_shrinked_lt_map(
             bw_lt_map, get_inputs()[1], weight_plain_dims);
 }
 
-void conv_fwd_core_op_t::collect_shrinked_axes_map(
-        int bw_size, gt2axes_map &bw_axes_map) {
+void conv_fwd_core_op_t::collect_shrinked_axis_map(
+        int bw_size, gt2axis_map &bw_axis_map) {
     auto data = get_inputs()[0], weight = get_inputs()[1],
          out = get_outputs()[0];
-    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-            bw_axes_map, data, std::vector<int> {0});
-    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-            bw_axes_map, weight, std::vector<int> {-1});
-    op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-            bw_axes_map, out, std::vector<int> {0});
+    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+            bw_axis_map, data, std::vector<int> {0});
+    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+            bw_axis_map, weight, std::vector<int> {-1});
+    op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+            bw_axis_map, out, std::vector<int> {0});
 }
 
 sc_dims conv_fwd_core_op_t::get_bwise_fuse_shrink_dims() {

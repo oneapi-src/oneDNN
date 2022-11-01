@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -157,6 +157,27 @@ std::string print_pair_vector(const std::vector<std::pair<T, T>> &pvec) {
         cnt++;
     }
     os << ']';
+    return os.str();
+}
+
+template <typename T>
+std::string print_nested_vector(const std::vector<std::vector<T>> &nested_vec) {
+    std::stringstream os;
+    int outer_cnt = 0;
+    os << '{';
+    for (auto &inner_vec : nested_vec) {
+        if (outer_cnt != 0) { os << ", "; }
+        int inner_cnt = 0;
+        os << '{';
+        for (auto &v : inner_vec) {
+            if (inner_cnt != 0) { os << ", "; }
+            os << v;
+            inner_cnt++;
+        }
+        os << '}';
+        outer_cnt++;
+    }
+    os << '}';
     return os.str();
 }
 

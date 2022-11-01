@@ -83,8 +83,7 @@ public:
         return false;
     };
 
-    size_t create_inner_anchor(
-            std::vector<std::shared_ptr<fuse_anchor_map_t>> &);
+    std::vector<fuse_anchor_map_ptr> create_inner_anchor();
 
     void schedule_loops(context_ptr ctx, const void *config, stmt body,
             std::vector<for_loop> &fors) const override {};

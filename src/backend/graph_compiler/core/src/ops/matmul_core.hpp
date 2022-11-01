@@ -24,7 +24,7 @@
 namespace sc {
 namespace ops {
 
-struct blocking_axes_t;
+struct blocking_axis_t;
 
 class SC_INTERNAL_API matmul_core_op_t
     : public tunable_op_t,
@@ -55,11 +55,14 @@ public:
 
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
 
-    void collect_shrinked_axes_map(
-            int bw_size, gt2axes_map &bw_axes_map) override;
+    void collect_shrinked_axis_map(
+            int bw_size, gt2axis_map &bw_axis_map) override;
 
     void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
+
+    void infer_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_binding_axis(bound_axis_map &bdax_map) override;
 
     void set_config_by_key(const op_dispatch_key_t &key) override;
     std::vector<int> get_impl_dispatch_candidates() const override;
@@ -68,8 +71,11 @@ public:
             const sc_dims &weight_plain_dims, const sc_dims &out_plain_dims);
 };
 
-blocking_axes_t get_mm_blocking_axes(const logical_tensor_t &inp,
+blocking_axis_t get_mm_blocking_axis(const logical_tensor_t &inp,
         const logical_tensor_t &wei, const logical_tensor_t &out);
+
+void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map);
+void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map);
 
 } // namespace ops
 } // namespace sc

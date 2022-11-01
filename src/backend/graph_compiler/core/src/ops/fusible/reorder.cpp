@@ -215,12 +215,12 @@ void reorder_op_t::collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) {
             bw_lt_map, use_out_loop ? ins : out, plain_dims);
 }
 
-void reorder_op_t::collect_shrinked_axes_map(
-        int bw_size, gt2axes_map &bw_axes_map) {
+void reorder_op_t::collect_shrinked_axis_map(
+        int bw_size, gt2axis_map &bw_axis_map) {
     bool use_out_loop = use_output_loop();
     // depends on loop mode
     auto gt = use_out_loop ? get_outputs()[0] : get_inputs()[0];
-    record_shrinked_axes(bw_axes_map, gt, bw_size);
+    record_shrinked_axis(bw_axis_map, gt, bw_size);
     auto another_gt = use_out_loop ? get_inputs()[0] : get_outputs()[0];
     auto fmt = gt->details_.get_format();
     auto p2b_map = another_gt->details_.get_format()
@@ -232,7 +232,7 @@ void reorder_op_t::collect_shrinked_axes_map(
         else
             bw_axis.emplace_back(p2b_map[fmt.format_code_.get(i)].front());
     }
-    record_shrinked_axes(bw_axes_map, another_gt, bw_axis);
+    record_shrinked_axis(bw_axis_map, another_gt, bw_axis);
 }
 
 // This function will try to merge multi slice range
@@ -743,13 +743,13 @@ void reorder_op_t::infer_slice_ranges(
                                         const slice_range_list &range_list,
                                         int required_axis_from_end) {
         auto gt_dims = gt->details_.get_blocking_dims();
-        std::vector<int> required_axes;
+        std::vector<int> required_axis;
         for (size_t i = gt_dims.size() - required_axis_from_end;
                 i < gt_dims.size(); i++) {
-            required_axes.emplace_back(i);
+            required_axis.emplace_back(i);
         }
         if (range_list.size() == 1
-                && !slice_full_on_axes(gt_dims, range_list[0], required_axes)) {
+                && !slice_full_on_axis(gt_dims, range_list[0], required_axis)) {
             stat_map.append_ops_by_status(ths, infer_status_code::RETRY);
             return false;
         }
@@ -810,6 +810,14 @@ void reorder_op_t::pre_slice_ranges(
                 ->producer_owner_->dyn_cast<fusible_op_t>()
                 ->pre_slice_ranges(fsmap, stat_map);
     }
+}
+
+void reorder_op_t::infer_binding_axis(bound_axis_map &bdax_map) {
+    identical_infer_binding_axis(this, bdax_map);
+}
+
+void reorder_op_t::pre_binding_axis(bound_axis_map &bdax_map) {
+    identical_pre_binding_axis(this, bdax_map);
 }
 
 static std::vector<expr> get_reorder_stride2stride_indexes(

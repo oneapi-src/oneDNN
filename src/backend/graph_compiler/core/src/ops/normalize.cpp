@@ -21,7 +21,7 @@
 namespace sc {
 namespace ops {
 
-// compute the output data format after reduction given the plain reduction axes
+// compute the output data format after reduction given the plain reduction axis
 static sc_data_format_t get_reduced_format(
         const sc_data_format_t &in_fmt, const std::vector<int> &rd_axis) {
     auto base_fmt = in_fmt;
@@ -35,7 +35,7 @@ static sc_data_format_t get_reduced_format(
     return base_fmt;
 }
 
-// compute the output data shape after reduction given the plain reduction axes
+// compute the output data shape after reduction given the plain reduction axis
 static sc_dims get_reduced_shape(
         const sc_dims &in_shape, const std::vector<int> &rd_axis) {
     sc_dims reduced_shape = in_shape;
@@ -119,14 +119,14 @@ void normalize_common_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     bool use_affine = attrs_.get<bool>("use_affine");
     bool keep_stats = attrs_.get_or_else("keep_stats", true);
 
-    std::vector<int> non_normalized_bc_axes;
+    std::vector<int> non_normalized_bc_axis;
     for (size_t i = 0; i < info_.inputs_[0]->details_.get_plain_dims().size();
             i++) {
         if (std::find(rd_axis.begin(), rd_axis.end(), static_cast<int>(i))
                 != rd_axis.end()) {
             continue;
         } else {
-            non_normalized_bc_axes.emplace_back(i);
+            non_normalized_bc_axis.emplace_back(i);
         }
     }
 
@@ -174,7 +174,7 @@ void normalize_common_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             {fmean->get_outputs()[0], fmean->get_outputs()[0]}, {}, {}); // 4
     // x-x_mean
     auto fdiff = graph->make("sub", {inputs0, fmean->get_outputs()[0]}, {},
-            {{"bc_axis", non_normalized_bc_axes}}); // 5
+            {{"bc_axis", non_normalized_bc_axis}}); // 5
 
     // var(x)
     auto fvar = graph->make("sub",
@@ -187,7 +187,7 @@ void normalize_common_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
             {}, {{"reciprocal", true}}); // 7
     auto foutput = graph->make("mul",
             {fdiff->get_outputs()[0], frsqd_root->get_outputs()[0]}, {},
-            {{"bc_axis", non_normalized_bc_axes}}); // 8
+            {{"bc_axis", non_normalized_bc_axis}}); // 8
 
     if (use_affine) {
         foutput = graph->make("mul", {foutput->get_outputs()[0], inputs1}, {},

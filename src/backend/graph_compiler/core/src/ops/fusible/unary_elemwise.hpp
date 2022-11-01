@@ -34,6 +34,10 @@ public:
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
     void pre_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
+
+    void infer_binding_axis(bound_axis_map &bdax_map) override;
+    void pre_binding_axis(bound_axis_map &bdax_map) override;
+
     void prepare_fusion_data(fdata_map &fdmap) override;
 
     void compute_block(context_ptr ctx, const std::vector<tensor_slice *> &dst,

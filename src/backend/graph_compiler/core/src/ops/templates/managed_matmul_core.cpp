@@ -952,7 +952,7 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
 
 /**
  * For each single thread we may deal with different size of matmuls
- * For either axes, we have following candidates:
+ * For either axis, we have following candidates:
  * 1) X_block_size
  * 2) X_ib_block_size (imbalance)
       X_block_size and X_ib_block_size are calculated by balance211 algrithm.
@@ -1659,6 +1659,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
       }
     }
   }
+
   if ((in_tensors_[1].get_format() == sc_data_format_t::MK())
     && B_dtype == datatypes::bf16) {
     // avoid merging bwd_weight in mlp
@@ -1667,7 +1668,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
     mloop->attr()[stmt_attr_key::parallel_merge_loop] = true;
   }
   mloop->attr()[stmt_attr_key::parallel_merge_loop_granularity] = iim_block_;
-  loops = {};
+
+  mloop->attr()["loop_axis_hint"]
+    = (K_split_num == 1) ? bound_axis {{0}, {1}, {-1}} : bound_axis {{0}, {1}};
+  loops = {mloop};
   return true;
 }
 } // namespace ops

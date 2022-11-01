@@ -185,8 +185,8 @@ struct batchwise_shrinkable_t : public virtual op_base_trait_t {
     // dims.
     virtual void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map);
 
-    virtual void collect_shrinked_axes_map(
-            int bw_size, gt2axes_map &bw_axes_map);
+    virtual void collect_shrinked_axis_map(
+            int bw_size, gt2axis_map &bw_axis_map);
 
     static graph_tensor_ptr shrink_gt(
             const graph_tensor_ptr &orig_gt, int shrink_offset);
@@ -200,11 +200,11 @@ struct batchwise_shrinkable_t : public virtual op_base_trait_t {
     static void record_shrinked_gt(gt2gt_map &bw_lt_map,
             const graph_tensor_ptr &gt, const sc_dims &plain_dims);
 
-    static void record_shrinked_axes(
-            gt2axes_map &bw_axes_map, const graph_tensor_ptr &gt, int bw_size);
+    static void record_shrinked_axis(
+            gt2axis_map &bw_axis_map, const graph_tensor_ptr &gt, int bw_size);
 
-    static void record_shrinked_axes(gt2axes_map &bw_axes_map,
-            const graph_tensor_ptr &gt, const std::vector<int> &axes);
+    static void record_shrinked_axis(gt2axis_map &bw_axis_map,
+            const graph_tensor_ptr &gt, const std::vector<int> &axis);
 
     /** this function return shrinkable offset, it should satisfy two
      * conditions:
@@ -216,13 +216,23 @@ struct batchwise_shrinkable_t : public virtual op_base_trait_t {
 };
 
 struct mixed_partition_acceptable : public virtual op_base_trait_t {
+    // create a new partition for current op
     virtual void create_mixed_partition(mixed_parti_t *parti) = 0;
 
+    // append current op to the existed partition
     virtual void append_mixed_partition(mixed_parti_t *parti) = 0;
 
+    // search fusion anchor for current op in given partition
     virtual void search_anchor(mixed_parti_t *parti) = 0;
 
+    // commit current op into given partition
     virtual void commit_into_anchor(mixed_parti_t *parti) = 0;
+
+    // infer binding axis from inputs to outputs
+    virtual void infer_binding_axis(bound_axis_map &bdax_map) = 0;
+
+    // infer binding axis from outputs to inputs
+    virtual void pre_binding_axis(bound_axis_map &bdax_map) = 0;
 };
 
 struct data_compensation_t : public virtual op_base_trait_t {};

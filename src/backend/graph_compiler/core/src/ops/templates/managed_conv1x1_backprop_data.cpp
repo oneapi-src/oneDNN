@@ -381,7 +381,7 @@ void gen_managed_conv1x1_backprop_data_t::
                 if (!tc.get_format().is_blocking())
                   LDC->attr().set("stride_w", stride_w);
                 LDC->attr().set(
-                  "N_axes", std::vector<size_t> {3}); // only consider 2D case
+                  "N_axis", std::vector<size_t> {3}); // only consider 2D case
                 auto stride_a = im_oc_block_;
                 auto stride_b = !tb.get_format().is_blocking()
                   ? im_oc_block_ * ori_IC

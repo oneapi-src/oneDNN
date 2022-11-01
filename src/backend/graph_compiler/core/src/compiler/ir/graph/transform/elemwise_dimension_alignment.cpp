@@ -25,11 +25,13 @@ namespace sc {
 
 static void infer_aligned_shape(const logical_tensor_t &a,
         const logical_tensor_t &b, const std::vector<int> &plain_bc_axis,
-        sc_dims &aligned_shape, sc_data_format_t &new_format) {
+        sc_dims &aligned_shape, std::vector<int> &aligned_axis,
+        sc_data_format_t &new_format) {
     assert(a.get_plain_dims().size() > b.get_plain_dims().size());
     if (plain_bc_axis.size() != b.get_plain_dims().size()
             || plain_bc_axis == std::vector<int> {-1}) {
         aligned_shape = sc_dims {};
+        aligned_axis = {};
         new_format = sc_data_format_t();
         return;
     }
@@ -45,6 +47,12 @@ static void infer_aligned_shape(const logical_tensor_t &a,
     // start infer extended shape
     for (size_t i = 0; i < plain_bc_axis.size(); ++i) {
         aligned_shape[plain_bc_axis[i]] = b.get_plain_dims()[i];
+    }
+    for (size_t i = 0; i < a.get_plain_dims().size(); ++i) {
+        if (std::find(plain_bc_axis.begin(), plain_bc_axis.end(), (int)i)
+                == plain_bc_axis.end()) {
+            aligned_axis.push_back(i);
+        }
     }
     // start infer extended format
     // the logic below wish to let blocking shape having extended dims
@@ -107,31 +115,32 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                     const auto &lhs = binary_node->info_.inputs_[0]->details_;
                     const auto &rhs = binary_node->info_.inputs_[1]->details_;
                     sc_dims shape;
+                    std::vector<int> aligned_axis;
                     sc_data_format_t format;
                     if (lhs.get_plain_dims().size()
                             < rhs.get_plain_dims().size()) {
                         infer_aligned_shape(rhs, lhs,
                                 binary_node->get_plain_bc_axis(), shape,
-                                format);
+                                aligned_axis, format);
                         if (!shape.empty()) {
                             // insert tensor view
                             auto ret = graph.make("tensor_view",
                                     {binary_node->info_.inputs_[0]}, {},
                                     {{"shape", shape}, {"format", format},
-                                            {"expand_dim", true}});
+                                            {"expand_dim", aligned_axis}});
                             node->replace_input(0, ret->get_outputs()[0]);
                         }
                     } else if (lhs.get_plain_dims().size()
                             > rhs.get_plain_dims().size()) {
                         infer_aligned_shape(lhs, rhs,
                                 binary_node->get_plain_bc_axis(), shape,
-                                format);
+                                aligned_axis, format);
                         if (!shape.empty()) {
                             // insert tensor view
                             auto ret = graph.make("tensor_view",
                                     {binary_node->info_.inputs_[1]}, {},
                                     {{"shape", shape}, {"format", format},
-                                            {"expand_dim", true}});
+                                            {"expand_dim", aligned_axis}});
                             node->replace_input(1, ret->get_outputs()[0]);
                         }
                     }
@@ -141,12 +150,13 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                     const auto &cond = select_node->info_.inputs_[0]->details_;
                     const auto &els = select_node->info_.inputs_[2]->details_;
                     sc_dims shape;
+                    std::vector<int> aligned_axis;
                     sc_data_format_t format;
                     if (cond.get_plain_dims().size()
                             < els.get_plain_dims().size()) {
                         infer_aligned_shape(els, cond,
                                 select_node->get_plain_bc_axis(), shape,
-                                format);
+                                aligned_axis, format);
                         if (!shape.empty()) {
                             // insert tensor view
                             auto ret = graph.make("tensor_view",
@@ -159,7 +169,7 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                             > els.get_plain_dims().size()) {
                         infer_aligned_shape(cond, els,
                                 select_node->get_plain_bc_axis(), shape,
-                                format);
+                                aligned_axis, format);
                         if (!shape.empty()) {
                             // insert tensor view
                             auto ret = graph.make("tensor_view",

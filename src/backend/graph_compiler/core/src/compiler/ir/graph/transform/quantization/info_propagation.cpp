@@ -154,14 +154,14 @@ static void propagate_quantize_info(const sc_op_ptr &quantize_node,
                 && quantize_node->attrs_.has_key(attr_keys::channel_axis)) {
             int channel_axis
                     = quantize_node->attrs_.get<int>(attr_keys::channel_axis);
-            std::unordered_map<int, int> axes_map;
+            std::unordered_map<int, int> axis_map;
             auto order
                     = aware_node.second->attrs_.get<std::vector<int>>("order");
             for (size_t i = 0; i < order.size(); ++i) {
-                axes_map[order[i]] = i;
+                axis_map[order[i]] = i;
             }
             aware_node.second->attrs_.set(
-                    attr_keys::channel_axis, axes_map[channel_axis]);
+                    attr_keys::channel_axis, axis_map[channel_axis]);
         }
         has_key_and_set<bool>(quantize_node->attrs_, attr_keys::mixed_dtype,
                 aware_node.second);

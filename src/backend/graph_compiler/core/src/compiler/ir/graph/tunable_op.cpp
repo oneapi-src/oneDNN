@@ -87,6 +87,7 @@ func_t tunable_op_t::get_func(mixed_parti_t *parti,
     bool status = gen_ptr->generate(
             parti->ctx_, config_data_.data_.get(), &fmgr, ins, outs, loops);
     assert(status);
+
     auto body = bld.pop_scope();
 
     auto func = builder::make_func(std::string(""), std::vector<expr> {},
@@ -95,6 +96,14 @@ func_t tunable_op_t::get_func(mixed_parti_t *parti,
     extract_anchor_from_fmgr_to_parti(&fmgr, parti, outs, get_outputs(),
             parti->ready_for_op(this) ? parti->lookup_anchor_map(this)
                                       : nullptr);
+    // bind outer_loop with axis
+    if (!loops.empty() && loops[0]->attr().has_key("loop_axis_hint")) {
+        auto bd_axis = loops[0]->attr().get<bound_axis>("loop_axis_hint");
+        loops[0]->attr().remove("loop_axis_hint");
+        // init axis binder
+        parti->ax_binder_.init(get_outputs()[0], bd_axis);
+    }
+
     return func;
 }
 

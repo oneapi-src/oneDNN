@@ -219,8 +219,8 @@ void collect_shrinked_graph_lt_map(
     });
 }
 
-void collect_shrinked_graph_axes_map(
-        const sc_graph_t &graph, gt2axes_map &axes_map, int shrink_size) {
+void collect_shrinked_graph_axis_map(
+        const sc_graph_t &graph, gt2axis_map &axis_map, int shrink_size) {
     op_visitor_t pre_vis = op_visitor_t::bfs();
     pre_vis.visit_graph(graph, [&](const sc_op_ptr &op) {
         if (op->isa<input_op>() || op->isa<output_op>()
@@ -228,7 +228,7 @@ void collect_shrinked_graph_axes_map(
             return;
         } else if (auto bw_op
                 = op->dyn_cast<op_traits::batchwise_shrinkable_t>()) {
-            bw_op->collect_shrinked_axes_map(shrink_size, axes_map);
+            bw_op->collect_shrinked_axis_map(shrink_size, axis_map);
         } else {
             COMPILE_ASSERT(0, "Unexpected op kind found: " << op->op_name_)
         }
@@ -602,8 +602,8 @@ void fused_op_t::collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) {
     }
 }
 
-void fused_op_t::collect_shrinked_axes_map(
-        int bw_size, gt2axes_map &bw_axes_map) {
+void fused_op_t::collect_shrinked_axis_map(
+        int bw_size, gt2axis_map &bw_axis_map) {
     std::vector<graph_tensor_ptr> fused_ins = get_inputs(),
                                   fused_out = get_outputs();
     size_t base_op_out_size = 0;
@@ -614,20 +614,20 @@ void fused_op_t::collect_shrinked_axes_map(
                                         << " is the batchwise shrinkable op")
         if (auto bw_op
                 = base_op->dyn_cast<op_traits::batchwise_shrinkable_t>()) {
-            bw_op->collect_shrinked_axes_map(bw_size, bw_axes_map);
+            bw_op->collect_shrinked_axis_map(bw_size, bw_axis_map);
         }
         auto base_ins = base_op->get_inputs();
         auto base_out = base_op->get_outputs();
         base_op_out_size += base_out.size();
         for (size_t i = 0; i < base_ins.size(); i++) {
             COMPILE_ASSERT(
-                    bw_axes_map.haskey(base_ins[i]), "Unexpected cases found");
-            op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-                    bw_axes_map, fused_ins[i], bw_axes_map.get(base_ins[i]));
+                    bw_axis_map.haskey(base_ins[i]), "Unexpected cases found");
+            op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+                    bw_axis_map, fused_ins[i], bw_axis_map.get(base_ins[i]));
         }
     }
     // collect fusion graph
-    collect_shrinked_graph_axes_map(mgr_->get_graph(), bw_axes_map, bw_size);
+    collect_shrinked_graph_axis_map(mgr_->get_graph(), bw_axis_map, bw_size);
 
     // collect fused_op self
     auto fmgr_inop = mgr_->get_graph().get_input_ops();
@@ -640,15 +640,15 @@ void fused_op_t::collect_shrinked_axes_map(
             [&](const sc_op_ptr &op) { return op->get_inputs()[0]; });
     for (size_t i = 0; i < fmgr_ins.size(); i++) {
         COMPILE_ASSERT(
-                bw_axes_map.haskey(fmgr_ins[i]), "Unexpected cases found");
-        op_traits::batchwise_shrinkable_t::record_shrinked_axes(bw_axes_map,
-                fused_ins[i + base_op_out_size], bw_axes_map.get(fmgr_ins[i]));
+                bw_axis_map.haskey(fmgr_ins[i]), "Unexpected cases found");
+        op_traits::batchwise_shrinkable_t::record_shrinked_axis(bw_axis_map,
+                fused_ins[i + base_op_out_size], bw_axis_map.get(fmgr_ins[i]));
     }
     for (size_t i = 0; i < fmgr_out.size(); i++) {
         COMPILE_ASSERT(
-                bw_axes_map.haskey(fmgr_out[i]), "Unexpected cases found");
-        op_traits::batchwise_shrinkable_t::record_shrinked_axes(
-                bw_axes_map, fused_out[i], bw_axes_map.get(fmgr_out[i]));
+                bw_axis_map.haskey(fmgr_out[i]), "Unexpected cases found");
+        op_traits::batchwise_shrinkable_t::record_shrinked_axis(
+                bw_axis_map, fused_out[i], bw_axis_map.get(fmgr_out[i]));
     }
 }
 
@@ -1653,9 +1653,9 @@ mixed_fuse_op_t::get_inplace_map() {
 
 ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
     gt2gt_map lt_map;
-    gt2axes_map axes_map;
+    gt2axis_map axis_map;
     collect_shrinked_graph_lt_map(bw_graph_, lt_map, bw_dims_.size());
-    collect_shrinked_graph_axes_map(bw_graph_, axes_map, bw_dims_.size());
+    collect_shrinked_graph_axis_map(bw_graph_, axis_map, bw_dims_.size());
     auto sub_graph = shrink_graph(bw_graph_, lt_map);
     // print_graph(sub_graph, std::cout, 1);
 
@@ -1697,25 +1697,25 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
     auto transform_new_args = [&](const expr &tsr, const sc_op_ptr &op,
                                       bool is_output) {
         auto dims = get_expr_to_dims(tsr.checked_as<tensor>()->dims_);
-        auto bw_axes = axes_map.get(
+        auto bw_axis = axis_map.get(
                 is_output ? op->get_inputs()[0] : op->get_outputs()[0]);
-        COMPILE_ASSERT(bw_axes.size() == bw_dims_.size(),
-                "batchwise axes size should be equal to bw dims")
+        COMPILE_ASSERT(bw_axis.size() == bw_dims_.size(),
+                "batchwise axis size should be equal to bw dims")
         std::vector<expr> offset(dims.size(), 0);
         constant_folder_t f;
         bool strided = false;
         sc_dims shrink_dims = dims;
         for (size_t i = 0; i < bw_dims_.size(); i++) {
-            if (bw_axes[i] == -1) continue;
-            if (shrink_dims[bw_axes[i]] == 1) {
-                offset[bw_axes[i]] = 0;
+            if (bw_axis[i] == -1) continue;
+            if (shrink_dims[bw_axis[i]] == 1) {
+                offset[bw_axis[i]] = 0;
             } else {
-                shrink_dims[bw_axes[i]] /= bw_dims_[i];
-                offset[bw_axes[i]]
-                        = dim2unsigned(shrink_dims[bw_axes[i]]) * loop_vars[i];
+                shrink_dims[bw_axis[i]] /= bw_dims_[i];
+                offset[bw_axis[i]]
+                        = dim2unsigned(shrink_dims[bw_axis[i]]) * loop_vars[i];
             }
-            if ((i > 0 && shrink_dims[bw_axes[i]] != 1)
-                    || bw_axes[i] != static_cast<int>(i))
+            if ((i > 0 && shrink_dims[bw_axis[i]] != 1)
+                    || bw_axis[i] != static_cast<int>(i))
                 strided = true;
         }
         if (strided) {
@@ -1728,7 +1728,7 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
                             + std::to_string(tsr_map.size()),
                     sub_graph.dims_to_expr(shrink_dims),
                     tsr.checked_as<tensor>()->elem_dtype_);
-            shrinked_tsr->attr().set("temp.bw_axes", bw_axes);
+            shrinked_tsr->attr().set("temp.bw_axis", bw_axis);
             tsr_map[tsr] = shrinked_tsr;
             return shrinked_tsr;
         } else {
@@ -1767,11 +1767,11 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
             std::vector<expr> loop_idx, shrinked_idx, orig_idx;
             auto orig_dims = get_expr_to_dims(orig_tsr->dims_);
             auto shriked_dims = get_expr_to_dims(shrinked_tsr->dims_);
-            COMPILE_ASSERT(shrinked_tsr->attr().has_key("temp.bw_axes"),
-                    "bw axes could not be found");
-            auto bw_axes = shrinked_tsr->attr().get<std::vector<int>>(
-                    "temp.bw_axes");
-            shrinked_tsr->attr().remove("temp.bw_axes");
+            COMPILE_ASSERT(shrinked_tsr->attr().has_key("temp.bw_axis"),
+                    "bw axis could not be found");
+            auto bw_axis = shrinked_tsr->attr().get<std::vector<int>>(
+                    "temp.bw_axis");
+            shrinked_tsr->attr().remove("temp.bw_axis");
             int step = static_cast<int>(ctx->get_max_vector_lanes(
                     shrinked_tsr->elem_dtype_.type_code_));
             bool vectorized = ((shriked_dims.back() % step == 0)
@@ -1783,9 +1783,9 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
                         std::string("_strided_cpy_iter") + std::to_string(i)));
                 shrinked_idx.emplace_back(loop_idx.back());
                 auto iter = std::find(
-                        bw_axes.begin(), bw_axes.end(), static_cast<int>(i));
-                if (iter != bw_axes.end())
-                    orig_idx.emplace_back(lpvars[iter - bw_axes.begin()]
+                        bw_axis.begin(), bw_axis.end(), static_cast<int>(i));
+                if (iter != bw_axis.end())
+                    orig_idx.emplace_back(lpvars[iter - bw_axis.begin()]
                                     * dim2unsigned(shriked_dims[i])
                             + loop_idx.back());
                 else

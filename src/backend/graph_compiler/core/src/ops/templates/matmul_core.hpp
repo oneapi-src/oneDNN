@@ -30,7 +30,7 @@ struct matmul_core_config_t {
   int K_block;
 };
 
-struct blocking_axes_t {
+struct blocking_axis_t {
   std::vector<int> A_bs;
   std::vector<int> A_m;
   std::vector<int> A_k;
@@ -107,10 +107,10 @@ public:
 
   void schedule_loops(context_ptr ctx, const matmul_core_config_t &config,
     stmt body, std::vector<for_loop> &fors) const override;
-  void init_axes();
+  void init_axis();
 
 private:
-  blocking_axes_t blocking_axes_;
+  blocking_axis_t blocking_axis_;
 };
 } // namespace ops
 } // namespace sc

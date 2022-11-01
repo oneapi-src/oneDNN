@@ -59,14 +59,14 @@ std::vector<int> select_op_t::infer_broadcast_axis(
     std::vector<int> bc_axis;
     // broad-cast conditions 1: the shape of lhs and rhs not match
     if (elt_dims.size() != bc_dims.size()) {
-        std::vector<int> common_axes(elt_dims.size(), 0);
+        std::vector<int> common_axis(elt_dims.size(), 0);
         // from right to left
         int64_t i = elt_dims.size();
         for (int64_t j = bc_dims.size() - 1; j >= 0; j--) {
             while (i >= 1) {
                 i--;
                 if (elt_dims.at(i) == bc_dims.at(j)) {
-                    common_axes.at(i) = 1;
+                    common_axis.at(i) = 1;
                     break;
                 }
             }
@@ -77,8 +77,8 @@ std::vector<int> select_op_t::infer_broadcast_axis(
                                 << utils::print_vector(bc_dims));
             }
         }
-        for (size_t j = 0; j < common_axes.size(); ++j)
-            if (common_axes.at(j) == 1) bc_axis.emplace_back(j);
+        for (size_t j = 0; j < common_axis.size(); ++j)
+            if (common_axis.at(j) == 1) bc_axis.emplace_back(j);
     }
     // broad-cast conditions 2: the shape of lhs and rhs match,
     // but length=1 in dims
@@ -258,9 +258,9 @@ static sc_data_format_t infer_broadcast_format(
         if (bc_plain_dim[target_batch_dim + i] == 1
                 && target_plain_dim[target_batch_dim + i] != 1) {
             // if bc_plain_dim is 1 and this axis is with broadcast semantics
-            auto axes = target_lt_format_code.collect_blocking_index(i);
-            for (auto axis : axes) {
-                blocks[axis] = 1;
+            auto axis = target_lt_format_code.collect_blocking_index(i);
+            for (auto ax : axis) {
+                blocks[ax] = 1;
             }
         }
     }
