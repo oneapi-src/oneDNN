@@ -2916,6 +2916,10 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             out_val->set_producer(*fused_op);
 
             auto scratchpad_val = insert_empty_scratchpad(fused_op);
+            // remove pd in pd_cache since fused_op share the same id
+            if (pd_cache.find(fused_op.get()) != pd_cache.end()) {
+                pd_cache.erase(fused_op.get());
+            }
             const auto &pd
                     = create_reorder_pd(fused_op, *p_engine, mgr, pd_cache)
                               .first;
