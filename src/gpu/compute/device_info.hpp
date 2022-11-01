@@ -239,7 +239,7 @@ public:
     }
     const std::string &name() const { return name_; }
 
-    bool mayiuse_ngen_kernels(engine_t *engine);
+    bool mayiuse_ngen_kernels() const { return mayiuse_ngen_kernels_; }
 
     bool mayiuse_non_uniform_work_groups() const {
         return mayiuse_non_uniform_work_groups_;
@@ -272,6 +272,7 @@ protected:
 
     compute::gpu_arch_t gpu_arch_ = compute::gpu_arch_t::unknown;
     int stepping_id_ = 0;
+    bool mayiuse_ngen_kernels_ = false;
 
     std::string name_;
     runtime_version_t runtime_version_;
@@ -294,9 +295,6 @@ private:
     status_t init_serialized_device_info(
             const std::vector<uint8_t> &cache_blob = {});
     status_t init_from_cache_blob(const std::vector<uint8_t> &cache_blob);
-
-    bool mayiuse_ngen_kernels_ = false;
-    bool checked_ngen_kernels_ = false;
 
     bool mayiuse_non_uniform_work_groups_ = false;
 

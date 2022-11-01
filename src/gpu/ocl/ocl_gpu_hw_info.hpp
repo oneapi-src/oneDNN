@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include <CL/cl.h>
 
+#include "common/c_types_map.hpp"
 #include "gpu/compute/device_info.hpp"
 
 namespace dnnl {
@@ -26,8 +27,9 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-void init_gpu_hw_info(cl_device_id device, cl_context context,
-        compute::gpu_arch_t &gpu_arch, int &stepping_id);
+void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
+        compute::gpu_arch_t &gpu_arch, int &stepping_id,
+        bool &mayiuse_ngen_kernels);
 
 } // namespace ocl
 } // namespace gpu
