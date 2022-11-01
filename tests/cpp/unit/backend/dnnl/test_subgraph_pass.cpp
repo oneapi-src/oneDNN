@@ -1915,3 +1915,91 @@ TEST(SubgraphPass, CheckUndefinedOpAttribute) {
     dnnl_impl::subgraph_validator_t validator;
     ASSERT_EQ(validator.run(subgraph), status::invalid_op);
 }
+
+TEST(SubgraphPass, FuseAdjacentReorders) {
+    dnnl_impl::dnnl_backend::get_singleton();
+    size_t id = 0;
+    impl::engine_t &eng = get_engine();
+    dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
+    {
+        graph_t agraph {eng.kind()};
+        impl::op_t op1 {id++, impl::op_kind::TypeCast, "op1"};
+        impl::op_t op2 {id++, impl::op_kind::TypeCast, "op2"};
+        auto lt1 = logical_tensor_init(
+                id++, {1, 2}, impl::data_type::f32, impl::layout_type::strided);
+        auto lt2 = logical_tensor_init(
+                id++, {1, 2}, impl::data_type::f16, impl::layout_type::strided);
+        auto lt3 = logical_tensor_init(
+                id++, {1, 2}, impl::data_type::f32, impl::layout_type::strided);
+        op1.add_input(lt1);
+        op1.add_output(lt2);
+        op2.add_input(lt2);
+        op2.add_output(lt3);
+        agraph.add_op(&op1);
+        agraph.add_op(&op2);
+        ASSERT_EQ(agraph.build_graph(), impl::status::success);
+        auto subgraph
+                = std::make_shared<dnnl_impl::subgraph_t>(agraph.get_ops(),
+                        p_engine, impl::fpmath_mode::any, false, false);
+        ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
+        ASSERT_EQ(dnnl_impl::fuse_adjacent_reorders(subgraph),
+                impl::status::success);
+        ASSERT_EQ(subgraph->num_ops(), 1U);
+    }
+    {
+#define type_list \
+    std::vector<float>, std::vector<float>, std::vector<int64_t>, \
+            std::vector<int64_t>
+        std::vector<std::tuple<type_list>> vec {
+                std::make_tuple<type_list>(std::vector<float> {0.7},
+                        std::vector<float> {0.6}, std::vector<int64_t> {10},
+                        std::vector<int64_t> {20}),
+        };
+#undef type_list
+        for (auto &item : vec) {
+            const auto &scales1 = std::get<0>(item);
+            const auto &scales2 = std::get<1>(item);
+            const auto &zps1 = std::get<2>(item);
+            const auto &zps2 = std::get<3>(item);
+
+            graph_t agraph {eng.kind()};
+            impl::op_t op1 {id++, impl::op_kind::Dequantize, "op1"};
+
+            op1.set_attr<int64_t>(impl::op_attr::axis, 1);
+            op1.set_attr<std::vector<float>>(impl::op_attr::scales, scales1);
+            op1.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zps1);
+            op1.set_attr<std::string>(impl::op_attr::qtype, "per_channel");
+
+            impl::op_t op2 {id++, impl::op_kind::Quantize, "op2"};
+            op2.set_attr<int64_t>(impl::op_attr::axis, 1);
+            op2.set_attr<std::vector<float>>(impl::op_attr::scales, scales2);
+            op2.set_attr<std::vector<int64_t>>(impl::op_attr::zps, zps2);
+            op2.set_attr<std::string>(impl::op_attr::qtype, "per_channel");
+
+            auto lt1 = logical_tensor_init(id++, {1, 2}, impl::data_type::u8,
+                    impl::layout_type::strided);
+            auto lt2 = logical_tensor_init(id++, {1, 2}, impl::data_type::f32,
+                    impl::layout_type::strided);
+            auto lt3 = logical_tensor_init(id++, {1, 2}, impl::data_type::u8,
+                    impl::layout_type::strided);
+            op1.add_input(lt1);
+            op1.add_output(lt2);
+            op2.add_input(lt2);
+            op2.add_output(lt3);
+            agraph.add_op(&op1);
+            agraph.add_op(&op2);
+            ASSERT_EQ(agraph.build_graph(), impl::status::success);
+            auto subgraph
+                    = std::make_shared<dnnl_impl::subgraph_t>(agraph.get_ops(),
+                            p_engine, impl::fpmath_mode::any, false, false);
+            ASSERT_EQ(dnnl_impl::lower_down(subgraph), impl::status::success);
+            ASSERT_EQ(dnnl_impl::fuse_static_mul_scales_add_zps(subgraph),
+                    impl::status::success);
+            ASSERT_EQ(dnnl_impl::fuse_static_sub_zps_mul_scales(subgraph),
+                    impl::status::success);
+            ASSERT_EQ(dnnl_impl::fuse_adjacent_reorders(subgraph),
+                    impl::status::success);
+            ASSERT_EQ(subgraph->num_ops(), 1U);
+        }
+    }
+}

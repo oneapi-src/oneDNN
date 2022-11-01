@@ -2442,6 +2442,8 @@ impl::status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             // create fused op
             op_ptr fused_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
             fused_op->set_attr<bool>(op_attr::change_layout, change_layout);
+            fused_op->set_attr<std::string>(
+                    op_attr::qtype, max_num > 1 ? "per_channel" : "per_tensor");
             if (axis != -1) fused_op->set_attr<int64_t>(op_attr::axis, axis);
 
             if (!std::all_of(fused_scales.begin(), fused_scales.end(),
