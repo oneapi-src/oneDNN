@@ -55,3 +55,14 @@
 --p=1,2 --eps=0.5
 --alg=norm_lp_sum
 --batch=shapes_gpu_small_set
+
+--reset
+--sdt=f32
+--ddt=f32
+--p=0 --eps=0.5
+--alg=min
+--attr-post-ops=add:f32:per_tensor:abcd
+
+3x3x4x3:3x3x1x3
+3x3x4x3:3x1x4x3
+7x6x9x2:7x6x9x1
