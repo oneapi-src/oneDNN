@@ -32,13 +32,17 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_eltwise.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_fusion_info.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_insert_ops.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_internal_attrs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_interpolate.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_large_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_layer_norm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_layout_id.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_layout_propagator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_matmul.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_memory_planning.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_op_executable.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pass.cpp

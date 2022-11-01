@@ -18,6 +18,9 @@
 
 #include "interface/value.hpp"
 
+#include "cpp/unit/unit_test_common.hpp"
+#include "cpp/unit/utils.hpp"
+
 #include "utils/utils.hpp"
 
 #include "cpp/unit/unit_test_common.hpp"

@@ -1571,6 +1571,47 @@ TEST(SubgraphPass, MemoryPlanningAllowReuseOutputBuffer) {
     ASSERT_EQ(ext_out_mem_offkeys.size(), 2U);
 }
 
+TEST(SubgraphPass, CommonReorderElimination) {
+    impl::engine_t &g_eng = get_engine();
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
+    size_t id = 0;
+    auto lt1 = logical_tensor_init(id++, {1, 3, 5, 5}, impl::data_type::f32);
+    auto lt2 = logical_tensor_init(id++, {1, 3, 5, 5}, impl::data_type::f32);
+
+    auto lt3 = logical_tensor_init(id++, {1, 3, 5, 5}, impl::data_type::f32);
+    auto lt4 = logical_tensor_init(id++, {1, 3, 5, 5}, impl::data_type::f32);
+    auto lt5 = logical_tensor_init(id++, {1, 3, 5, 5}, impl::data_type::f32);
+
+    impl::op_t op0 {0, impl::op_kind::Wildcard, "wild_card"};
+    op0.add_input(lt1);
+    op0.add_output(lt2);
+
+    impl::op_t reorder_op1 {1, impl::op_kind::Reorder, "reorder_op1"};
+    reorder_op1.add_input(lt2);
+    reorder_op1.add_output(lt3);
+
+    impl::op_t reorder_op2 {2, impl::op_kind::Reorder, "reorder2"};
+    reorder_op2.add_input(lt2);
+    reorder_op2.add_output(lt4);
+
+    impl::op_t op1 {id++, impl::op_kind::Wildcard, "op2"};
+    op1.add_input(lt3);
+    op1.add_input(lt4);
+    op1.add_output(lt5);
+
+    impl::graph_t g;
+    g.add_op(&op0);
+    g.add_op(&reorder_op1);
+    g.add_op(&reorder_op2);
+    g.add_op(&op1);
+    g.build_graph();
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(g.get_ops(), p_eng,
+            impl::fpmath_mode::any, /* reset_layout */ false, false);
+    ASSERT_EQ(dnnl_impl::common_reorder_elimination(subgraph),
+            impl::status::success);
+    ASSERT_EQ(subgraph->get_ops().size(), 3U);
+}
+
 TEST(LayoutPropagation, ReshapeWithSpecifiedOutputLayout) {
     impl::engine_t &g_eng = get_engine();
     dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
