@@ -652,55 +652,65 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
               }
             }
           }
-          _var_init_(anchor_iter, datatypes::index, UINT64_C(0));
-          // TODO(xxx): reduce the if-else node in IR
-          _if_(m_s < M_anchor_info[0]) {
-            // 0-8
-            _if_(n_s < N_anchor_info[0]) {
-              // 0-4
-              _if_(m_b < m_b_bigger_num) {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(0); }
-                _else_ { anchor_iter = UINT64_C(1); }
+          auto gen_iter_anchor = [&]() {
+            builder::ir_builder_t bd_helper;
+            bd_helper.push_scope();
+            _var_init_(anchor_iter, datatypes::index, UINT64_C(0));
+            // TODO(xxx): reduce the if-else node in IR
+            _if_(m_s < M_anchor_info[0]) {
+              // 0-8
+              _if_(n_s < N_anchor_info[0]) {
+                // 0-4
+                _if_(m_b < m_b_bigger_num) {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(0); }
+                  _else_ { anchor_iter = UINT64_C(1); }
+                }
+                _else_ {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(2); }
+                  _else_ { anchor_iter = UINT64_C(3); }
+                }
               }
               _else_ {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(2); }
-                _else_ { anchor_iter = UINT64_C(3); }
+                _if_(m_b < m_b_bigger_num) {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(4); }
+                  _else_ { anchor_iter = UINT64_C(5); }
+                }
+                _else_ {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(6); }
+                  _else_ { anchor_iter = UINT64_C(7); }
+                }
               }
             }
             _else_ {
-              _if_(m_b < m_b_bigger_num) {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(4); }
-                _else_ { anchor_iter = UINT64_C(5); }
+              _if_(n_s < N_anchor_info[0]) {
+                _if_(m_b < m_b_bigger_num) {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(8); }
+                  _else_ { anchor_iter = UINT64_C(9); }
+                }
+                _else_ {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(10); }
+                  _else_ { anchor_iter = UINT64_C(11); }
+                }
               }
               _else_ {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(6); }
-                _else_ { anchor_iter = UINT64_C(7); }
+                _if_(m_b < m_b_bigger_num) {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(12); }
+                  _else_ { anchor_iter = UINT64_C(13); }
+                }
+                _else_ {
+                  _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(14); }
+                  _else_ { anchor_iter = UINT64_C(15); }
+                }
               }
             }
-          }
-          _else_ {
-            _if_(n_s < N_anchor_info[0]) {
-              _if_(m_b < m_b_bigger_num) {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(8); }
-                _else_ { anchor_iter = UINT64_C(9); }
-              }
-              _else_ {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(10); }
-                _else_ { anchor_iter = UINT64_C(11); }
-              }
-            }
-            _else_ {
-              _if_(m_b < m_b_bigger_num) {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(12); }
-                _else_ { anchor_iter = UINT64_C(13); }
-              }
-              _else_ {
-                _if_(n_b < n_b_bigger_num) { anchor_iter = UINT64_C(14); }
-                _else_ { anchor_iter = UINT64_C(15); }
-              }
-            }
-          }
-          fusion->create_iterated_fusion_anchor(anchor_iter, C, mm_multi_slice);
+            auto scope_helper = bd_helper.pop_scope();
+            return std::make_pair(anchor_iter, scope_helper);
+          };
+          expr anchor_iter;
+          stmt scope_helper;
+          std::tie(anchor_iter, scope_helper) = gen_iter_anchor();
+          fusion->create_iterated_fusion_anchor(
+            anchor_iter, C, mm_multi_slice, scope_helper);
         }
       }
     }

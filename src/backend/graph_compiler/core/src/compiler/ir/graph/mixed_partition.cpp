@@ -1061,7 +1061,8 @@ static bool try_merge_mixed_parti_parallel(
         common_fanchor->merge(common_other_fanchor);
     }
 
-    common_fanchor->commit_stmt(outermost_loop_append->body_);
+    common_fanchor->fuse_anchor_map_t::commit_stmt(
+            outermost_loop_append->body_);
 
     /* * * * * * * * * * * * * * * * *
      * Step 2: Merge fanchor_
@@ -1532,7 +1533,8 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
     auto max_to_merge_ss = outer_loops_to_merge[merged_loop_size - 1]->body_;
     // insert be_merged_ss to the back of to_merged_ss
     if (max_to_merge_anchor_map) {
-        max_to_merge_anchor_map->commit_stmt(max_be_merged_ss);
+        max_to_merge_anchor_map->fuse_anchor_map_t::commit_stmt(
+                max_be_merged_ss);
     } else {
         return false;
     }

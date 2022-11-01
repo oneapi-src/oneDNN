@@ -222,11 +222,8 @@ void fusible_op_t::commit_into_anchor(mixed_parti_t *parti) {
     auto in_slice_size = inputs[0].size();
     COMPILE_ASSERT(in_slice_size, "No input slice found for " << op_name_);
 
-    // generate IR
-    stmts ss = builder::make_stmts_unattached({}).checked_as<stmts>();
-    // unwrapper tensor slice, for compute_block, it just accpet single
-    // tensor_slice
-    bool commit_cached_anchor = false;
+    // generate IR: unwrapper tensor slice, for compute_block, it just accpet
+    // single tensor_slice
     for (size_t i = 0; i < in_slice_size; i++) {
         std::vector<const tensor_slice *> new_inputs_ptr(inputs.size());
         std::vector<tensor_slice *> new_outputs_ptr(outputs.size());
