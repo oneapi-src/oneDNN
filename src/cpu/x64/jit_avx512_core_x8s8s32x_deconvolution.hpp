@@ -99,6 +99,7 @@ private:
     const Xbyak::Reg64 reg_bias = rdx;
     const Xbyak::Reg64 reg_icb = reg_bias;
     const Xbyak::Reg64 reg_ptr_scales = rax;
+    const Xbyak::Reg64 reg_ptr_dst_scales = rax;
     const Xbyak::Reg64 reg_ptr_saturation_ubound = rax;
     const Xbyak::Reg64 reg_oc_blocks = rsi;
 
@@ -111,7 +112,6 @@ private:
     const Xbyak::Reg64 reg_compensation = r14;
     const Xbyak::Reg64 reg_scratch = r14;
     const Xbyak::Reg64 reg_ptr_sum_scale = r11;
-    const Xbyak::Reg64 reg_bias_alpha = abi_not_param1;
     const Xbyak::Reg64 reg_overflow = rax;
     const Xbyak::Reg64 reg_comp_strides = reg_overflow;
     const Xbyak::Reg64 reg_ker_long_offt = r15;
@@ -134,6 +134,7 @@ private:
     const Vmm vmm_shift = Vmm(30);
     const Vmm vmm_comp = Vmm(30);
     const Vmm vmm_bias = Vmm(31);
+    const Vmm vmm_dst_scale = Vmm(31);
     const Vmm vmm_prev_dst = Vmm(31);
 
     Vmm vmm_out(int i_ur, int i_oc) {
@@ -145,10 +146,6 @@ private:
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
         assert(idx < 31);
         return Vmm(idx);
-    }
-    Vmm vmm_bias_alpha() { return Vmm(jcp.nb_oc_blocking * jcp.ur_w); }
-    Xbyak::Xmm xmm_bias_alpha() {
-        return Xbyak::Xmm(jcp.nb_oc_blocking * jcp.ur_w);
     }
 
     int get_ow_start(int ki, int l_overflow) {
@@ -175,8 +172,8 @@ private:
     void prepare_output(int ur_w);
     void store_output(int ur_w, bool last_oc_block);
     void compute(const Vmm &vreg_acc, const Vmm &vreg_wei, const Vmm &vreg_src);
-    std::function<Vmm()> prepare_round_robin_vmm_inp_generator(int ur_w) const
-            noexcept;
+    std::function<Vmm()> prepare_round_robin_vmm_inp_generator(
+            int ur_w) const noexcept;
     void apply_zp_src_pad_str_comp(
             int ur_w, int l_overflow, int r_overflow, bool h_padded);
     void append_zp_src_pad_str_comp(int ur_w, int l_overflow, int r_overflow,
@@ -260,7 +257,7 @@ struct jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
                                     weights_md(1)->data_type, f32, s32, s8, u8))
                     && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
                     && desc()->accum_data_type == s32
-                    && attr()->has_default_values(skip_mask_t::oscale_runtime
+                    && attr()->has_default_values(skip_mask_t::scales_runtime
                             | skip_mask_t::post_ops
                             | skip_mask_t::zero_points_runtime);
             if (!ok) return status::unimplemented;
@@ -319,7 +316,7 @@ private:
     std::unique_ptr<zp::jit_uni_deconv_zp_pad_str_kernel_base_t>
             zp_src_pad_comp_kernel_;
     const float *adjust_oscales(const memory_tracking::grantor_t &scratchpad,
-            const float *oscales) const;
+            const float *src_scales, const float *wei_scales) const;
 };
 
 } // namespace x64

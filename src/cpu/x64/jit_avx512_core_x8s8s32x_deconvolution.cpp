@@ -278,12 +278,18 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     jcp.post_ops = p;
 
     jcp.has_vnni = mayiuse(avx512_core_vnni);
-    const auto &oscales = attr.output_scales_;
-    jcp.is_oc_scale = oscales.mask_ == 1 << 1;
+
+    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+    const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
+    const int wei_scales_per_oc = 1 << with_groups;
+    jcp.is_oc_scale = wei_scales.mask_ == wei_scales_per_oc;
+    jcp.dst_scale = !dst_scales.has_default_values();
 
     // only common and per-oc-channel scales are supported
-    const bool oscales_ok = one_of(oscales.mask_, 0, 1 << 1);
-    if (!oscales_ok) return status::unimplemented;
+    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_scales_per_oc)
+            && utils::everyone_is(src_scales.mask_, dst_scales.mask_, 0);
+    if (!scales_ok) return status::unimplemented;
 
     jcp.dst_dt = dst_d.data_type();
     jcp.bia_dt = jcp.with_bias ? bias_d.data_type() : data_type::undef;
@@ -373,12 +379,10 @@ bool _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::post_ops_ok(
 void _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
-    if (jcp.signed_input && (!jcp.has_vnni)) {
-        const int mask = attr.output_scales_.mask_;
-        const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
-        const dim_t count = nstl::max<dim_t>(scales_count, 16);
-        scratchpad.book<float>(key_conv_adjusted_scales, count);
-    }
+    const int mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const dim_t scales_count = mask == 0 ? 1 : jcp.oc * jcp.ngroups;
+    const dim_t count = nstl::max<dim_t>(scales_count, 16);
+    scratchpad.book<float>(key_conv_adjusted_scales, count);
 
     if (zp::should_calculate_deconv_zp_src_pad_str_comp(jcp)) {
         const dim_t zp_pad_comp_size
@@ -864,15 +868,15 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::kh_loop(int ur_w,
     }
 }
 template <typename Vmm>
-int jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::get_tail_size() const
-        noexcept {
+int jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::get_tail_size()
+        const noexcept {
     return jcp.is_depthwise ? jcp.ngroups % jcp.ch_block
                             : jcp.oc_without_padding % jcp.oc_block;
 }
 
 template <typename Vmm>
-int jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::get_blocking_size() const
-        noexcept {
+int jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::get_blocking_size()
+        const noexcept {
     return jcp.is_depthwise ? jcp.ch_block : jcp.oc_block;
 }
 
@@ -920,12 +924,6 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::store_output(
         mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
     }
 
-    if (jcp.with_bias && jcp.signed_input && (!jcp.has_vnni)) {
-        mov(reg_bias_alpha, float2int(jcp.wei_adj_scale));
-        vmovq(xmm_bias_alpha(), reg_bias_alpha);
-        vbroadcastss(vmm_bias_alpha(), xmm_bias_alpha());
-    }
-
     if (jcp.src_zero_point) {
         const auto &vmm_src_zp = vmm_tmp;
         const auto &vmm_zp_comp = vmm_wei;
@@ -960,8 +958,6 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::store_output(
             int bias_offset = jcp.typesize_bia * ocb * jcp.oc_block;
             auto bias_addr = EVEX_compress_addr(reg_bias, bias_offset);
             cvt2ps(jcp.bia_dt, vmm_bias, bias_addr, mask_flag);
-            if (jcp.signed_input && (!jcp.has_vnni))
-                vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
         }
         if (jcp.signed_input) {
             int comp_offset = sizeof(int32_t) * ocb * jcp.oc_block;
@@ -973,10 +969,10 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::store_output(
             const Vmm vmm = vmm_out(ur, ocb);
             vcvtdq2ps(vmm, vmm);
             if (jcp.signed_input) vaddps(vmm, vmm, vmm_comp);
-            if (jcp.with_bias) vaddps(vmm, vmm, vmm_bias);
             const Vmm mask_vmm = mask_flag ? vmm | ktail_mask | T_z : vmm;
             vmulps(mask_vmm, vmm,
                     EVEX_compress_addr(reg_ptr_scales, scale_offset));
+            if (jcp.with_bias) vaddps(vmm, vmm, vmm_bias);
         }
     }
     /* Do post-ops */
@@ -1042,6 +1038,20 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::store_output(
                 0, nb_oc_block * ur_w, rhs_arg_params);
     }
 
+    if (jcp.dst_scale) {
+        mov(reg_ptr_dst_scales, ptr[param1 + GET_OFF(dst_scale)]);
+        uni_vmovups(vmm_dst_scale, ptr[reg_ptr_dst_scales]);
+
+        for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
+            const bool mask_flag
+                    = last_oc_block && ocb == jcp.nb_oc_blocking - 1;
+            for (int ur = 0; ur < ur_w; ur++) {
+                const auto vmm = vmm_out(ur, ocb);
+                const Vmm mask_vmm = mask_flag ? vmm | ktail_mask | T_z : vmm;
+                uni_vmulps(mask_vmm, vmm, vmm_dst_scale);
+            }
+        }
+    }
     if (jcp.dst_zero_point) {
         mov(reg_zp_dst_, ptr[param1 + GET_OFF(dst_zero_point)]);
         const auto &vmm_zp_dst = vmm_tmp;
@@ -1369,16 +1379,19 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::generate() {
 }
 
 const float *jit_avx512_core_x8s8s32x_deconvolution_fwd_t::adjust_oscales(
-        const memory_tracking::grantor_t &scratchpad,
-        const float *oscales) const {
+        const memory_tracking::grantor_t &scratchpad, const float *src_scales,
+        const float *wei_scales) const {
     auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
-    const int mask = pd()->attr()->output_scales_.mask_;
-    const float factor = 1.f / pd()->jcp_.wei_adj_scale;
-    if (mask == 0) {
-        utils::array_set(loc_scales, oscales[0] * factor, 16);
+    int wei_mask = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    float factor = (pd()->jcp_.signed_input && (!pd()->jcp_.has_vnni))
+            ? 1.f / pd()->jcp_.wei_adj_scale
+            : 1.0f;
+    if (wei_mask == 0) {
+        utils::array_set(
+                loc_scales, src_scales[0] * wei_scales[0] * factor, 16);
     } else {
         for (dim_t c = 0; c < pd()->OC(); c++)
-            loc_scales[c] = oscales[c] * factor;
+            loc_scales[c] = src_scales[0] * wei_scales[c] * factor;
     }
     return loc_scales;
 }
@@ -1414,10 +1427,12 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_1d(
     const int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     const int nb_groups = jcp.nb_ch;
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    if (jcp.signed_input && (!jcp.has_vnni))
-        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+    const float *oscales = adjust_oscales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales);
 
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
@@ -1457,6 +1472,7 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_1d(
                     : nullptr;
             p.compensation = (jcp.signed_input) ? compensation + g_oc : nullptr;
             p.scales = &oscales[jcp.is_oc_scale * g_oc];
+            p.dst_scale = dst_scales;
             p.t_overflow = 0;
             p.b_overflow = 0;
             p.kh_padding = jcp.kh;
@@ -1519,10 +1535,12 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_2d(
     size_t dst_h_stride = dst_d.blk_off(0, 0, 1);
     size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    if (jcp.signed_input && (!jcp.has_vnni))
-        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+    const float *oscales = adjust_oscales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales);
 
     const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
@@ -1622,6 +1640,7 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_2d(
                 p.b_overflow = kh_lo;
                 p.kh_padding = kh_len;
                 p.scales = scales;
+                p.dst_scale = dst_scales;
                 p.oc_blocks = jcp.is_depthwise ? g : ocb;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
@@ -1688,10 +1707,12 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_3d(
     size_t wht_kd_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
     size_t wht_kh_stride = wht_blk_off(weights_d, 0, 0, 0, 0, 1);
 
-    DEFINE_SCALES_BUFFER(oscales);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    if (jcp.signed_input && (!jcp.has_vnni))
-        oscales = adjust_oscales(ctx.get_scratchpad_grantor(), oscales);
+    const float *oscales = adjust_oscales(
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales);
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<int8_t *>(weights);
@@ -1843,6 +1864,7 @@ status_t jit_avx512_core_x8s8s32x_deconvolution_fwd_t::execute_forward_3d(
                 p.kh_padding = kh_len;
                 p.kd_padding = kd_len;
                 p.scales = scales;
+                p.dst_scale = dst_scales;
                 p.oc_blocks = jcp.is_depthwise ? g : ocb;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
