@@ -1582,7 +1582,7 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<impl::op_t> &op,
     // need permute c channel to the second dimension
     if (desc.filter_format_ == "NCX") { // matmul case
         auto perm = dnnl_impl::utils::cast_to_int32(
-                get_nxc2ncx_permutation(desc.new_scale_desc_.data.ndims));
+                get_permutation(desc.new_scale_desc_.data.ndims, "NXC", "NCX"));
         desc.new_scale_desc_ = desc.new_scale_desc_.permute_axes(perm);
         desc.new_variance_desc_ = desc.new_variance_desc_.permute_axes(perm);
     }
@@ -1592,7 +1592,7 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<impl::op_t> &op,
     // need permute c channel to the first dimension
     if (desc.filter_format_ == "OIX") { // conv case
         auto perm = dnnl_impl::utils::cast_to_int32(
-                get_xio2oix_permutation(desc.new_scale_desc_.data.ndims));
+                get_permutation(desc.new_scale_desc_.data.ndims, "XIO", "OIX"));
         desc.new_scale_desc_ = desc.new_scale_desc_.permute_axes(perm);
         desc.new_variance_desc_ = desc.new_variance_desc_.permute_axes(perm);
     }

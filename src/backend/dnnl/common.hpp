@@ -85,21 +85,8 @@ dnnl::memory make_dnnl_memory(const dnnl::memory::desc &md,
 
 memory::desc expand(const memory::desc &adesc, int tgt_ndims);
 
-std::vector<int64_t> get_nxc2ncx_permutation(int ndims);
-
-std::vector<int64_t> get_ncx2nxc_permutation(int ndims);
-
-std::vector<int64_t> get_xio2oix_permutation(int ndims);
-
-std::vector<int64_t> get_oix2xio_permutation(int ndims);
-
-std::vector<int64_t> get_xoi2oix_permutation(int ndims);
-
-std::vector<int64_t> get_oix2xoi_permutation(int ndims);
-
-std::vector<int64_t> get_iox2oix_permutation(int ndims);
-
-std::vector<int64_t> get_oix2iox_permutation(int ndims);
+std::vector<int64_t> get_permutation(int ndims, const std::string &from_format,
+        const std::string &to_format);
 
 std::vector<int64_t> get_last_two_dims_permutation(int ndims);
 
