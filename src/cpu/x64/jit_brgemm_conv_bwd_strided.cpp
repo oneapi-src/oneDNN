@@ -369,7 +369,8 @@ status_t brgemm_convolution_bwd_strided_t<isa, enable_postops>::execute(
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
 
-    DEFINE_SCALES_BUFFER(oscales);
+    // XXX: brgemm requires scales to be passed, so passing default wei scales
+    DEFINE_ARG_SCALES_BUFFER(oscales, DNNL_ARG_WEIGHTS);
 
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
     brgemm_batch_element_t *const __restrict brg_batch_global

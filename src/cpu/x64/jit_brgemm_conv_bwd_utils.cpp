@@ -1560,12 +1560,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     CHECK(pick_tags(jcp, diff_dst_md, weights_md, diff_src_md, bias_md));
     CHECK(attr.set_default_formats(&diff_src_md));
 
-    const auto &oscales = attr.output_scales_;
-    constexpr int mask_channel_bit = 1;
-    jcp.is_ic_scale = oscales.mask_ == 1 << mask_channel_bit;
-    const bool oscales_ok = one_of(oscales.mask_, 0, 1 << mask_channel_bit);
-    if (!oscales_ok) return status::unimplemented;
-
     jcp.buffer_size = jcp.LDC * (jcp.M > 0 ? jcp.M : jcp.M_tail);
 
     jcp.nb_id = div_up(jcp.id, jcp.id_block);
