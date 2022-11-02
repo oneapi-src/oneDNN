@@ -27,7 +27,8 @@ namespace pattern {
 #define DNNL_BACKEND_REGISTER_PATTERN_DECLARE(pattern_class_) \
     void register_##pattern_class_(impl::pass::pass_registry_t &registry);
 
-DNNL_BACKEND_REGISTER_PATTERN_DECLARE(conv_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DECLARE(conv_block_fusion)
+DNNL_BACKEND_REGISTER_PATTERN_DECLARE(conv_post_ops_fusion)
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(matmul_fusion)
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(binary_fusion)
 DNNL_BACKEND_REGISTER_PATTERN_DECLARE(bn_fusion)
