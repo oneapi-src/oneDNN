@@ -110,13 +110,6 @@ struct rhs_arg_static_params_t {
             const Xbyak::Reg64 &rhs_helper_reg,
             const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
             bool preserve_vmm_helper, std::size_t abi_param_offset,
-            const memory_desc_wrapper &dst_d, std::size_t tail_size = 0u,
-            bool use_exact_tail_scalar_bcast = false);
-    rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
-            const Xbyak::Reg64 &rhs_addr_reg,
-            const Xbyak::Reg64 &rhs_helper_reg,
-            const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
-            bool preserve_vmm_helper, std::size_t abi_param_offset,
             std::size_t dst_orig_offset, const memory_desc_wrapper &dst_d,
             std::size_t tail_size = 0u,
             bool use_exact_tail_scalar_bcast = false);
@@ -125,23 +118,8 @@ struct rhs_arg_static_params_t {
             const Xbyak::Reg64 &rhs_helper_reg,
             const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
             bool preserve_vmm_helper, std::size_t abi_param_offset,
-            const memory_desc_wrapper &dst_d, std::size_t tail_size,
-            const Xbyak::Opmask &tail_opmask, bool use_exact_tail_scalar_bcast);
-    rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
-            const Xbyak::Reg64 &rhs_addr_reg,
-            const Xbyak::Reg64 &rhs_helper_reg,
-            const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
-            bool preserve_vmm_helper, std::size_t abi_param_offset,
             std::size_t dst_orig_offset, const memory_desc_wrapper &dst_d,
             std::size_t tail_size, const Xbyak::Opmask &tail_opmask,
-            bool use_exact_tail_scalar_bcast);
-    rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
-            const Xbyak::Reg64 &rhs_addr_reg,
-            const Xbyak::Reg64 &rhs_helper_reg,
-            const Xbyak::Reg64 &rhs_addr_cache_reg, bool preserve_gpr_helpers,
-            bool preserve_vmm_helper, std::size_t abi_param_offset,
-            const memory_desc_wrapper &dst_d, std::size_t tail_size,
-            const Xbyak::Opmask &tail_opmask, const Xbyak::Reg64 &reg_tail_size,
             bool use_exact_tail_scalar_bcast);
     rhs_arg_static_params_t(std::size_t rhs_dt_helper_vmm_idx,
             const Xbyak::Reg64 &rhs_addr_reg,
@@ -154,7 +132,6 @@ struct rhs_arg_static_params_t {
             bool use_exact_tail_scalar_bcast);
 
     bool is_opmask_set() const noexcept { return is_opmask_set_; }
-    bool is_dst_orig_set() const noexcept { return is_dst_orig_set_; }
 
     mutable std::size_t rhs_dt_helper_vmm_idx;
     Xbyak::Reg64 rhs_addr_reg;
@@ -180,10 +157,9 @@ private:
             std::size_t dst_orig_offset, const memory_desc_wrapper &dst_d,
             std::size_t tail_size, const Xbyak::Opmask &tail_opmask,
             bool use_exact_tail_scalar_bcast, const Xbyak::Reg64 &reg_tail_size,
-            bool is_opmask_set, bool is_dst_orig_set);
+            bool is_opmask_set);
 
     bool is_opmask_set_;
-    bool is_dst_orig_set_;
 };
 
 /*
@@ -235,41 +211,9 @@ enum class tail_lode_mode_t { STATIC, DYNAMIC, DEFAULT };
  * @param vmm_idx_to_out_reg - vmm mapped to register containing address of destination
  * with offset, used to calculate offset in no_broadcast strategy, but also in other
  * strategies whose calculations are based on no_broadcast strategy.
- * @param vmm_idx_to_out_elem_off_addr - vmm mapped to offset in elements stored under
- * memory address intended to use in no_broadcast strategy.
- * @param vmm_idx_to_out_elem_off_addr - vmm mapped to offset in elements stored under
- * memory address intended to use in no_broadcast strategy.
  * @param vmm_idx_to_out_elem_off_val - vmm mapped to offset in elements passed as raw
- * value intended to use in no_broadcast strategy
- * @param vmm_idx_to_out_off_oprnd - vmm mapped to offset in elements inside operand
- * intended to use in no_broadcast strategy
- * @param vmm_idx_to_oc_elem_off_addr - vmm mapped to output channel offset in elements
- * stored under memory address intended to use in per_oc broadcast strategies.
- * @param vmm_idx_to_oc_elem_off_val - vmm mapped to  output channel offset in elements
- * passed as raw value intended to use in per_oc broadcast strategies.
- * @param vmm_idx_to_oc_off_oprnd - vmm mapped to output channel offset in elements inside
- * operand intended to use in per_oc broadcast strategies.
- * @param vmm_idx_to_sp_elem_off_addr - vmm mapped to proper output spatial offset in
- * elements stored under memory address intended to use in per_mb_spatial strategies.
- * @param vmm_idx_to_sp_elem_off_val - vmm mapped to proper output spatial offset in
- * elements passed as raw value intended to use in per_mb_spatial strategies.
- * @param vmm_idx_to_sp_off_oprnd - vmm mapped to proper output spatial offset in 
- * elements inside operand intended to use in per_mb_spatial strategies.
- * @param vmm_idx_to_mb_w_elem_off_addr - vmm mapped to proper output last dim
- * per first dim offset in elements stored under memory address intended to use
- * in per_mb_w strategies.
- * @param vmm_idx_to_mb_w_elem_off_val - vmm mapped to proper output last dim
- * per first dim offset in elements passed as raw value intended to use in
- * per_mb_w strategies.
- * @param vmm_idx_to_mb_w_off_oprnd - vmm mapped to proper output last dim
- * per first dim offset in elements inside operand intended to use in per_mb_w
- * strategies.
- * @param vmm_idx_to_w_elem_off_addr - vmm mapped to proper output last dim
- * offset in elements stored under memory address intended to use in per_w strategy.
- * @param vmm_idx_to_w_elem_off_val - vmm mapped to proper output last dim
- * offset in elements passed as raw value intended to use in per_w strategy.
- * @param vmm_idx_to_w_off_oprnd - vmm mapped to proper output last dim offset
- * in elements inside operand intended to use in per_w strategy.
+ * value intended to use in no_broadcast strategy, but also in other
+ * strategies whose calculations are based on no_broadcast strategy.
  * @param vmm_tail_idx - vmm indices that contains data don't fill the whole vector (tail).
  * @param is_dynamic_tail_load - determines whether to load with tail in
  * runtime (based on the value from reg_tail_size or opmask) or based on given
@@ -279,26 +223,7 @@ enum class tail_lode_mode_t { STATIC, DYNAMIC, DEFAULT };
 struct rhs_arg_dynamic_params_t {
     std::map<int, Xbyak::Address> vmm_idx_to_out_addr;
     std::map<int, Xbyak::Reg64> vmm_idx_to_out_reg;
-
-    std::map<int, Xbyak::Address> vmm_idx_to_out_elem_off_addr;
     std::map<int, size_t> vmm_idx_to_out_elem_off_val;
-    std::map<int, Xbyak::Operand> vmm_idx_to_out_off_oprnd;
-
-    std::map<int, Xbyak::Address> vmm_idx_to_oc_elem_off_addr;
-    std::map<int, size_t> vmm_idx_to_oc_elem_off_val;
-    std::map<int, Xbyak::Operand> vmm_idx_to_oc_off_oprnd;
-
-    std::map<int, Xbyak::Address> vmm_idx_to_sp_elem_off_addr;
-    std::map<int, size_t> vmm_idx_to_sp_elem_off_val;
-    std::map<int, Xbyak::Operand> vmm_idx_to_sp_off_oprnd;
-
-    std::map<int, Xbyak::Address> vmm_idx_to_mb_w_elem_off_addr;
-    std::map<int, size_t> vmm_idx_to_mb_w_elem_off_val;
-    std::map<int, Xbyak::Operand> vmm_idx_to_mb_w_off_oprnd;
-
-    std::map<int, Xbyak::Address> vmm_idx_to_w_elem_off_addr;
-    std::map<int, size_t> vmm_idx_to_w_elem_off_val;
-    std::map<int, Xbyak::Operand> vmm_idx_to_w_off_oprnd;
 
     std::unordered_set<int> vmm_tail_idx_;
     tail_lode_mode_t tail_load_mode = tail_lode_mode_t::DEFAULT;
@@ -395,18 +320,6 @@ private:
     /*
      * Helper functions responsible for preparing rhs tensor slice address.
      */
-    void append_offset_from_operand(
-            const std::map<int, Xbyak::Operand> &vmm_idx_to_elem_addr_off,
-            int vmm_idx, const Xbyak::Reg64 &addr_reg,
-            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes) const;
-    void append_offset_under_mem_addr(
-            const std::map<int, Xbyak::Address> &vmm_idx_to_elem_addr_off,
-            int vmm_idx, const Xbyak::Reg64 &addr_reg,
-            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes) const;
-    void append_value_offset(
-            const std::map<int, size_t> &vmm_idx_to_elem_val_off, int vmm_idx,
-            const Xbyak::Reg64 &addr_reg, std::size_t elem_size_bytes) const;
-
     void append_no_broadcast_offset(
             const std::map<int, Xbyak::Address> &vmm_idx_to_out_addr,
             const std::map<int, Xbyak::Reg64> &vmm_idx_to_out_reg,
