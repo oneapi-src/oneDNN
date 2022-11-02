@@ -61,10 +61,9 @@ void simple_net_int8(engine::kind engine_kind) {
     /// calculated from a set of precomputed values as previously mentioned.
     /// @snippet cnn_inference_int8.cpp Choose scaling factors
     //[Choose scaling factors]
-    // Choose scaling factors for input, weight, output and bias quantization
+    // Choose scaling factors for input, weight and output
     std::vector<float> src_scales = {1.8f};
     std::vector<float> weight_scales = {2.0f};
-    std::vector<float> bias_scales = {1.0f};
     std::vector<float> dst_scales = {0.55f};
 
     // Choose channel-wise scaling factors for convolution
@@ -82,9 +81,7 @@ void simple_net_int8(engine::kind engine_kind) {
     //[Set scaling mask]
     const int src_mask = 0;
     const int weight_mask = 0;
-    const int bias_mask = 0;
     const int dst_mask = 0;
-    const int conv_mask = 2; // 1 << output_channel_dim
     //[Set scaling mask]
 
     // Allocate input and output buffers for user data
@@ -132,10 +129,14 @@ void simple_net_int8(engine::kind engine_kind) {
     /// @snippet cnn_inference_int8.cpp Configure scaling
     //[Configure scaling]
     primitive_attr conv_attr;
-    conv_attr.set_output_scales_mask(conv_mask);
-    auto oscale_md = memory::desc({384}, dt::f32, tag::x);
-    auto oscale_memory = memory(oscale_md, eng);
-    write_to_dnnl_memory(conv_scales.data(), oscale_memory);
+    conv_attr.set_scales_mask(DNNL_ARG_SRC, src_mask);
+    conv_attr.set_scales_mask(DNNL_ARG_WEIGHTS, weight_mask);
+    conv_attr.set_scales_mask(DNNL_ARG_DST, dst_mask);
+
+    // Prepare dst scales
+    auto dst_scale_md = memory::desc({1}, dt::f32, tag::x);
+    auto dst_scale_memory = memory(dst_scale_md, eng);
+    write_to_dnnl_memory(dst_scales.data(), dst_scale_memory);
     //[Configure scaling]
 
     /// The ReLU layer from Alexnet is executed through the PostOps feature. Create
@@ -198,24 +199,24 @@ void simple_net_int8(engine::kind engine_kind) {
     //[Quantize data and weights]
     auto conv_src_memory = memory(conv_prim_desc.src_desc(), eng);
     primitive_attr src_attr;
-    src_attr.set_output_scales_mask(src_mask);
-    auto src_oscale_md = memory::desc({1}, dt::f32, tag::x);
-    auto src_oscale_memory = memory(src_oscale_md, eng);
-    write_to_dnnl_memory(src_scales.data(), src_oscale_memory);
+    src_attr.set_scales_mask(DNNL_ARG_DST, src_mask);
+    auto src_scale_md = memory::desc({1}, dt::f32, tag::x);
+    auto src_scale_memory = memory(src_scale_md, eng);
+    write_to_dnnl_memory(src_scales.data(), src_scale_memory);
     auto src_reorder_pd
             = reorder::primitive_desc(eng, user_src_memory.get_desc(), eng,
                     conv_src_memory.get_desc(), src_attr);
     auto src_reorder = reorder(src_reorder_pd);
     src_reorder.execute(s,
             {{DNNL_ARG_FROM, user_src_memory}, {DNNL_ARG_TO, conv_src_memory},
-                    {DNNL_ARG_ATTR_OUTPUT_SCALES, src_oscale_memory}});
+                    {DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, src_scale_memory}});
 
     auto conv_weights_memory = memory(conv_prim_desc.weights_desc(), eng);
     primitive_attr weight_attr;
-    weight_attr.set_output_scales_mask(weight_mask);
-    auto wei_oscale_md = memory::desc({1}, dt::f32, tag::x);
-    auto wei_oscale_memory = memory(wei_oscale_md, eng);
-    write_to_dnnl_memory(weight_scales.data(), wei_oscale_memory);
+    weight_attr.set_scales_mask(DNNL_ARG_DST, weight_mask);
+    auto wei_scale_md = memory::desc({1}, dt::f32, tag::x);
+    auto wei_scale_memory = memory(wei_scale_md, eng);
+    write_to_dnnl_memory(weight_scales.data(), wei_scale_memory);
     auto weight_reorder_pd
             = reorder::primitive_desc(eng, user_weights_memory.get_desc(), eng,
                     conv_weights_memory.get_desc(), weight_attr);
@@ -223,21 +224,10 @@ void simple_net_int8(engine::kind engine_kind) {
     weight_reorder.execute(s,
             {{DNNL_ARG_FROM, user_weights_memory},
                     {DNNL_ARG_TO, conv_weights_memory},
-                    {DNNL_ARG_ATTR_OUTPUT_SCALES, wei_oscale_memory}});
+                    {DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, wei_scale_memory}});
 
     auto conv_bias_memory = memory(conv_prim_desc.bias_desc(), eng);
-    primitive_attr bias_attr;
-    bias_attr.set_output_scales_mask(bias_mask);
-    auto bias_oscale_md = memory::desc({1}, dt::f32, tag::x);
-    auto bias_oscale_memory = memory(bias_oscale_md, eng);
-    write_to_dnnl_memory(bias_scales.data(), bias_oscale_memory);
-    auto bias_reorder_pd
-            = reorder::primitive_desc(eng, user_bias_memory.get_desc(), eng,
-                    conv_bias_memory.get_desc(), bias_attr);
-    auto bias_reorder = reorder(bias_reorder_pd);
-    bias_reorder.execute(s,
-            {{DNNL_ARG_FROM, user_bias_memory}, {DNNL_ARG_TO, conv_bias_memory},
-                    {DNNL_ARG_ATTR_OUTPUT_SCALES, bias_oscale_memory}});
+    write_to_dnnl_memory(conv_bias.data(), conv_bias_memory);
     //[Quantize data and weights]
 
     auto conv_dst_memory = memory(conv_prim_desc.dst_desc(), eng);
@@ -255,7 +245,9 @@ void simple_net_int8(engine::kind engine_kind) {
                     {DNNL_ARG_WEIGHTS, conv_weights_memory},
                     {DNNL_ARG_BIAS, conv_bias_memory},
                     {DNNL_ARG_DST, conv_dst_memory},
-                    {DNNL_ARG_ATTR_OUTPUT_SCALES, oscale_memory}});
+                    {DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scale_memory},
+                    {DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_scale_memory},
+                    {DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scale_memory}});
     //[Create convolution primitive]
 
     /// @page cnn_inference_int8_cpp
@@ -268,17 +260,14 @@ void simple_net_int8(engine::kind engine_kind) {
     auto user_dst_memory = memory({{conv_dst_tz}, dt::f32, tag::nchw}, eng);
     write_to_dnnl_memory(user_dst.data(), user_dst_memory);
     primitive_attr dst_attr;
-    dst_attr.set_output_scales_mask(dst_mask);
-    auto dst_oscale_md = memory::desc({1}, dt::f32, tag::x);
-    auto dst_oscale_memory = memory(dst_oscale_md, eng);
-    write_to_dnnl_memory(dst_scales.data(), dst_oscale_memory);
+    dst_attr.set_scales_mask(DNNL_ARG_SRC, dst_mask);
     auto dst_reorder_pd
             = reorder::primitive_desc(eng, conv_dst_memory.get_desc(), eng,
                     user_dst_memory.get_desc(), dst_attr);
     auto dst_reorder = reorder(dst_reorder_pd);
     dst_reorder.execute(s,
             {{DNNL_ARG_FROM, conv_dst_memory}, {DNNL_ARG_TO, user_dst_memory},
-                    {DNNL_ARG_ATTR_OUTPUT_SCALES, dst_oscale_memory}});
+                    {DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, dst_scale_memory}});
     //[Dequantize the result]
 
     s.wait();
