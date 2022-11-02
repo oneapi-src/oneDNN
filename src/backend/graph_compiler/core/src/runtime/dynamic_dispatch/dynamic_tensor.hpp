@@ -32,7 +32,7 @@ namespace runtime {
  * @param dyn_mask, pointer to a boolean list who match with pdims and indicate
  * which dimension is dynamic.
  * */
-struct alignas(64) dynamic_tensor_t {
+struct dynamic_tensor_t {
     dynamic_tensor_t() = default;
     dynamic_tensor_t(void *data, sc_dim *dims, int ndims, uint32_t dtype,
             uint8_t dyn_mask)
