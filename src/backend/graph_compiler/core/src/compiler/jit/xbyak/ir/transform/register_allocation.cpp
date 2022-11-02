@@ -39,6 +39,8 @@ using namespace sc::sc_xbyak::x86_64;
 namespace sc {
 namespace sc_xbyak {
 
+SC_MODULE(xbyakjit.register_allocation)
+
 void prepare_virtual_reg(reg_allocator_t *allocator, virtual_reg_t *virt_reg,
         const Xbyak::Reg &phy_reg, sc_data_type_t dtype) {
     if (phy_reg.isNone()) {
@@ -503,9 +505,13 @@ protected:
     }
 
 private:
+    // index for load/store insert
+    stmt_index_t get_index_load(stmt_index_t index) { return index - 1; }
+    stmt_index_t get_index_store(stmt_index_t index) { return index + 1; }
+
     stmt loop_var_load(expr &old_expr, stmt_index_t index) {
         assert(old_expr.isa<var>());
-        auto index_load = index - 1;
+        auto index_load = get_index_load(index);
         auto old_var = old_expr.static_as<var>();
         auto new_var = new_temp_var(
                 old_var, "load_" + old_var->name_, index_load, index);
@@ -516,39 +522,46 @@ private:
     }
 
     expr insert_load(expr old_expr, stmt_index_t index) {
+        auto index_load = get_index_load(index);
         auto get_new_expr = [&]() {
             if (old_expr.isa<tensor>()) {
                 auto old_ptr = old_expr.static_as<tensor>();
                 auto new_ptr = new_temp_tensor(
-                        old_ptr, "load_tensor_", index - 1, index);
+                        old_ptr, "load_tensor_", index_load, index);
                 return new_ptr;
             } else {
                 auto old_var = old_expr.static_as<var>();
                 auto new_var
-                        = new_temp_var(old_var, "load_var_", index - 1, index);
+                        = new_temp_var(old_var, "load_var_", index_load, index);
                 return new_var;
             }
         };
         auto new_expr = get_new_expr();
         auto new_load
-                = new_temp_assign(new_expr, std::move(old_expr), index - 1);
+                = new_temp_assign(new_expr, std::move(old_expr), index_load);
         insert_before_.emplace_back(new_load);
         return new_expr;
     }
 
     stmt insert_store(assign vv, stmt_index_t index) {
+        auto index_store = get_index_store(index);
+        auto &var_range = GET_LIVE_RANGE(vv->var_);
+        if (var_range.end_ < index_store) {
+            SC_MODULE_WARN << "POTENTIAL ERROR, dead store to var: " << vv;
+            var_range.update(index_store);
+        }
         if (vv->var_.isa<tensor>()) {
             auto old_ptr = vv->var_.static_as<tensor>();
             auto new_ptr = new_temp_tensor(
-                    old_ptr, "store_tensor_", index, index + 1);
-            auto new_store = new_temp_assign(old_ptr, new_ptr, index + 1);
+                    old_ptr, "store_tensor_", index, index_store);
+            auto new_store = new_temp_assign(old_ptr, new_ptr, index_store);
             insert_after_.emplace_back(new_store);
             vv->var_ = new_ptr;
         } else {
             auto old_var = vv->var_.static_as<var>();
             auto new_var
-                    = new_temp_var(old_var, "store_var_", index, index + 1);
-            auto new_store = new_temp_assign(old_var, new_var, index + 1);
+                    = new_temp_var(old_var, "store_var_", index, index_store);
+            auto new_store = new_temp_assign(old_var, new_var, index_store);
             insert_after_.emplace_back(new_store);
             vv->var_ = new_var;
         }
@@ -556,22 +569,29 @@ private:
     }
 
     stmt insert_load_store(assign vv, stmt_index_t index) {
+        auto index_load = get_index_load(index);
+        auto index_store = get_index_store(index);
+        auto &var_range = GET_LIVE_RANGE(vv->var_);
+        if (var_range.end_ < index_store) {
+            SC_MODULE_WARN << "POTENTIAL ERROR, dead store to var: " << vv;
+            var_range.update(index_store);
+        }
         if (vv->var_.isa<tensor>()) {
             auto old_ptr = vv->var_.static_as<tensor>();
             auto new_ptr = new_temp_tensor(
-                    old_ptr, "store_tensor_", index - 1, index + 1);
-            auto new_load = new_temp_assign(new_ptr, old_ptr, index - 1);
+                    old_ptr, "store_tensor_", index_load, index_store);
+            auto new_load = new_temp_assign(new_ptr, old_ptr, index_load);
             insert_before_.emplace_back(new_load);
-            auto new_store = new_temp_assign(old_ptr, new_ptr, index + 1);
+            auto new_store = new_temp_assign(old_ptr, new_ptr, index_store);
             insert_after_.emplace_back(new_store);
             vv->var_ = new_ptr;
         } else {
             auto old_var = vv->var_.static_as<var>();
-            auto new_var
-                    = new_temp_var(old_var, "store_var_", index - 1, index + 1);
-            auto new_load = new_temp_assign(new_var, old_var, index - 1);
+            auto new_var = new_temp_var(
+                    old_var, "store_var_", index_load, index_store);
+            auto new_load = new_temp_assign(new_var, old_var, index_load);
             insert_before_.emplace_back(new_load);
-            auto new_store = new_temp_assign(old_var, new_var, index + 1);
+            auto new_store = new_temp_assign(old_var, new_var, index_store);
             insert_after_.emplace_back(new_store);
             vv->var_ = new_var;
         }

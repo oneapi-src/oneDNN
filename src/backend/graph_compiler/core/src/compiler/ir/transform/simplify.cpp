@@ -116,6 +116,46 @@ public:
         return v;
     }
 
+    // Rename for_loop var if same
+    // Will case potential error especially in nested loops
+    stmt_c visit(for_loop_c v) override {
+        if (skip_rename_) { return ir_visitor_t::visit(v); }
+        bool changed = false;
+        auto new_var = v->var_;
+        auto &name = v->var_.static_as<var>()->name_;
+        // in stmts
+        if (!cur.empty()) {
+            // Create new var if exist same name
+            if (defs.find(name) == defs.end()) {
+                defs.insert(name);
+            } else {
+                new_var = v->var_->remake();
+                new_var.static_as<var>()->name_
+                        = name + "_" + std::to_string(var_index++);
+                rmap[v->var_] = new_var;
+                changed = true;
+            }
+            // traverse for_loop
+            auto begin = dispatch(v->iter_begin_);
+            auto end = dispatch(v->iter_end_);
+            auto step = dispatch(v->step_);
+            auto body = dispatch(v->body_);
+            changed |= !begin.ptr_same(v->iter_begin_);
+            changed |= !end.ptr_same(v->iter_end_);
+            changed |= !step.ptr_same(v->step_);
+            changed |= !body.ptr_same(v->body_);
+            // make new for_loop if changed
+            if (changed) {
+                return copy_attr(*v,
+                        builder::make_for_loop_unattached(new_var, begin, end,
+                                step, body, v->incremental_, v->kind_,
+                                v->num_threads_));
+            }
+            return v;
+        }
+        return ir_visitor_t::visit(v);
+    }
+
     stmt_c visit(stmts_c v) override {
         bool parent_is_stmts
                 = (cur.size() > 1 && cur[cur.size() - 2].isa<stmts>());

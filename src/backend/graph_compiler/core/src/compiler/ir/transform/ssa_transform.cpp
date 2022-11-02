@@ -48,10 +48,14 @@ struct var_cmper_t {
                     < static_cast<int>(r->node_type_);
         }
         if (l->node_type_ == sc_expr_type::var) {
-            return l.static_as<var>()->name_ < r.static_as<var>()->name_;
+            const auto &l_name = l.static_as<var>()->name_;
+            const auto &r_name = r.static_as<var>()->name_;
+            return (l_name == r_name) ? l.get() < r.get() : l_name < r_name;
         } else {
             assert(l->node_type_ == sc_expr_type::tensor);
-            return l.static_as<tensor>()->name_ < r.static_as<tensor>()->name_;
+            const auto &l_name = l.static_as<tensor>()->name_;
+            const auto &r_name = r.static_as<tensor>()->name_;
+            return (l_name == r_name) ? l.get() < r.get() : l_name < r_name;
         }
     }
 };
