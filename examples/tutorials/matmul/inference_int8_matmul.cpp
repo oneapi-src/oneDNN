@@ -23,8 +23,8 @@
 ///
 /// Concepts:
 /// - Asymmetric quantization
-///   - Run-time output scales: dnnl::primitive_attr::set_output_scales_mask()
-///   - Run-time zero points: dnnl::primitive_attr::set_zero_points_mask()
+///   - Scales: dnnl::primitive_attr::set_scales_mask()
+///   - Zero points: dnnl::primitive_attr::set_zero_points_mask()
 /// - [Operation fusion](@ref dev_guide_attributes_post_ops)
 /// - Create primitive once, use multiple times
 ///   - Run-time tensor shapes: #DNNL_RUNTIME_DIM_VAL
@@ -87,7 +87,7 @@ void init_vector(std::vector<uint8_t> &v) {
 int number_of_runs = 1;
 
 // Create a MatMul primitive descriptor for the following op:
-// C_u8 = ReLU(scale[:] * (A_u8 - zp_A) * B_s8) + zp_C
+// C_u8 = ReLU(sc_A * sc_B[:] * (A_u8 - zp_A) * B_s8) / sc_C + zp_C
 //
 // Here:
 // - Matrices A and C are known to be non-transposed but their M dimension is
@@ -111,7 +111,9 @@ matmul::primitive_desc matmul_pd_create(
     // Create attributes and indicate that the alpha and zero points are
     // runtime parameters
     primitive_attr attr;
-    attr.set_output_scales_mask(/* mask */ 1 << 1);
+    attr.set_scales_mask(DNNL_ARG_SRC, /* mask */ 0);
+    attr.set_scales_mask(DNNL_ARG_WEIGHTS, /* mask */ 1 << 1);
+    attr.set_scales_mask(DNNL_ARG_DST, /* mask */ 0);
     attr.set_zero_points_mask(DNNL_ARG_SRC, /* mask */ 0);
     attr.set_zero_points_mask(DNNL_ARG_DST, /* mask */ 0);
     post_ops po;
@@ -166,12 +168,14 @@ void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K,
     memory A_u8_mem({{M, K}, memory::data_type::u8, {K, 1}}, eng);
     memory zp_A_mem({{1}, memory::data_type::s32, {1}}, eng);
     memory zp_C_mem({{1}, memory::data_type::s32, {1}}, eng);
-    memory scale_f32_mem({{N}, memory::data_type::f32, {1}}, eng);
+    memory sc_A_mem({{N}, memory::data_type::f32, {1}}, eng);
+    memory sc_B_mem({{N}, memory::data_type::f32, {1}}, eng);
+    memory sc_C_mem({{N}, memory::data_type::f32, {1}}, eng);
 
     // the function below fills dnnl::memory with some values
     // these memories, typically, come from the previous layers / operations
     // with meaningful data inside
-    prepare_input(A_u8_mem, scale_f32_mem, zp_A_mem, zp_C_mem);
+    prepare_input(A_u8_mem, sc_A_mem, zp_A_mem, zp_C_mem);
 
     // output - no initialization required
     memory C_u8_mem({{M, N}, memory::data_type::u8, {N, 1}}, eng);
@@ -181,7 +185,9 @@ void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K,
         matmul_p.execute(s,
                 {{DNNL_ARG_SRC, A_u8_mem}, {DNNL_ARG_WEIGHTS, B_s8_mem},
                         {DNNL_ARG_DST, C_u8_mem},
-                        {DNNL_ARG_ATTR_OUTPUT_SCALES, scale_f32_mem},
+                        {DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, sc_A_mem},
+                        {DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, sc_B_mem},
+                        {DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, sc_C_mem},
                         {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, zp_A_mem},
                         {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, zp_C_mem}});
     s.wait();

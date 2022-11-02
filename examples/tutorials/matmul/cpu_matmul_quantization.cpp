@@ -25,10 +25,8 @@
 /// Concepts:
 /// - **Static** and **dynamic** quantization
 /// - Asymmetric quantization
-///   - Run-time output scales: dnnl::primitive_attr::set_output_scales_mask() and
-///     #DNNL_RUNTIME_F32_VAL
-///   - Run-time zero points: dnnl::primitive_attr::set_zero_points_mask() and
-///     #DNNL_RUNTIME_S32_VAL
+///   - Scales: dnnl::primitive_attr::set_scales_mask()
+///   - Zero points: dnnl::primitive_attr::set_zero_points_mask()
 ///
 /// @page cpu_matmul_quantization_cpp MatMul Tutorial: Quantization
 /// @copydetails cpu_matmul_quantization_cpp_short
@@ -220,10 +218,6 @@ void quantize(const std::vector<float> &X_f32, float scale_X, int32_t zp_X,
         memory &X_int_m) {
     using dt = memory::data_type;
 
-    // Depending on `q10n_scheme` pretend the values come at run-time (dynamic)
-    // or were known at creation time (static).
-    float inv_scale_X = 1.f / scale_X;
-
     stream s(eng);
 
     memory::desc x_int_md = X_int_m.get_desc();
@@ -233,15 +227,15 @@ void quantize(const std::vector<float> &X_f32, float scale_X, int32_t zp_X,
     memory X_f32_m(x_f32_md, eng, (void *)X_f32.data());
 
     primitive_attr q10n_attr;
-    q10n_attr.set_output_scales_mask(/* mask */ 0);
+    q10n_attr.set_scales_mask(DNNL_ARG_DST, /* mask */ 0);
     q10n_attr.set_zero_points_mask(DNNL_ARG_DST, /* mask */ 0);
 
     reorder::primitive_desc q10n_pd(eng, x_f32_md, eng, x_int_md, q10n_attr);
-    memory scale_X_m({{1}, dt::f32, {1}}, eng, &inv_scale_X);
+    memory dst_scale_X_m({{1}, dt::f32, {1}}, eng, &scale_X);
     memory zp_X_m({{1}, dt::s32, {1}}, eng, &zp_X);
     reorder(q10n_pd).execute(s,
             {{DNNL_ARG_SRC, X_f32_m}, {DNNL_ARG_DST, X_int_m},
-                    {DNNL_ARG_ATTR_OUTPUT_SCALES, scale_X_m},
+                    {DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scale_X_m},
                     {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, zp_X_m}});
 
     s.wait();
@@ -330,24 +324,23 @@ void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
     // Create and compute a reduced precision MatMul primitive
     {
         primitive_attr matmul_attr;
-        matmul_attr.set_output_scales_mask(/* mask */ 0);
+        matmul_attr.set_scales_mask(DNNL_ARG_SRC, /* mask */ 0);
+        matmul_attr.set_scales_mask(DNNL_ARG_WEIGHTS, /* mask */ 0);
         matmul_attr.set_zero_points_mask(DNNL_ARG_SRC, /* mask */ 0);
 
         matmul::primitive_desc matmul_pd(
                 eng, a_u8_md, b_s8_md, c_f32_md, matmul_attr);
         matmul matmul_p(matmul_pd);
 
-        // Pretend the values come at run-time
-        float output_scale = scale_A * scale_B;
-
-        memory output_scales_m(
-                {{1}, memory::data_type::f32, {1}}, eng, &output_scale);
+        memory scales_A_m({{1}, memory::data_type::f32, {1}}, eng, &scale_A);
+        memory scales_B_m({{1}, memory::data_type::f32, {1}}, eng, &scale_B);
         memory zp_A_m({{1}, memory::data_type::s32, {1}}, eng, &zp_A);
 
         matmul_p.execute(s,
                 {{DNNL_ARG_SRC, A_u8_m}, {DNNL_ARG_WEIGHTS, B_s8_m},
                         {DNNL_ARG_DST, C_f32_m},
-                        {DNNL_ARG_ATTR_OUTPUT_SCALES, output_scales_m},
+                        {DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, scales_A_m},
+                        {DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, scales_B_m},
                         {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, zp_A_m}});
     }
 

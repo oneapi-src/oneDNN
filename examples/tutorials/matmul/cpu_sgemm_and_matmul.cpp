@@ -24,8 +24,7 @@
 /// Concepts:
 /// - Create primitive once, use multiple times
 ///   - Run-time tensor shapes: #DNNL_RUNTIME_DIM_VAL
-///   - Run-time output scales: dnnl::primitive_attr::set_output_scales_mask() and
-///     #DNNL_RUNTIME_F32_VAL
+///   - Scales: dnnl::primitive_attr::set_scales_mask()
 ///
 /// @page cpu_sgemm_and_matmul_cpp MatMul Tutorial: Comparison with SGEMM
 /// @copydetails cpu_sgemm_and_matmul_cpp_short
@@ -136,7 +135,7 @@ matmul dynamic_matmul_create() {
 
     // Create attributes (to handle alpha dynamically and beta if necessary)
     primitive_attr attr;
-    attr.set_output_scales_mask(/* mask */ 0);
+    attr.set_scales_mask(DNNL_ARG_WEIGHTS, /* mask */ 0);
     if (beta != 0.f) {
         post_ops po;
         po.append_sum(beta);
@@ -176,7 +175,7 @@ void dynamic_matmul_execute(matmul &matmul_p, char transA, char transB,
     stream s(eng);
     matmul_p.execute(s,
             {{DNNL_ARG_SRC, A_m}, {DNNL_ARG_WEIGHTS, B_m}, {DNNL_ARG_DST, C_m},
-                    {DNNL_ARG_ATTR_OUTPUT_SCALES, alpha_m}});
+                    {DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, alpha_m}});
     s.wait();
 }
 
