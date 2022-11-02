@@ -381,8 +381,8 @@ __kernel void gen9_calc_mean_var(__global DATA_T *src,
     }
 
 #if FUSED_ATOMICS_REDUCTION
-    __local SUM_DATA_T local_sum[CALC_SLM_SIZE];
-    __local SUM_DATA_T local_sum_sq[CALC_SLM_SIZE];
+    __local SUM_DATA_T local_sum[2 * CALC_SLM_SIZE];
+    __local SUM_DATA_T *local_sum_sq = local_sum + CALC_SLM_SIZE;
     gen9_mean_var_calc_fused_reduction(mean, variance, ic_block_offset, sum,
             sum_sq, local_sum, local_sum_sq);
 #else
@@ -479,8 +479,8 @@ __kernel void gen9_calc_mean_var(__global DATA_T *src,
     }
 
 #if FUSED_ATOMICS_REDUCTION
-    __local SUM_DATA_T local_sum[CALC_SLM_SIZE];
-    __local SUM_DATA_T local_sum_sq[CALC_SLM_SIZE];
+    __local SUM_DATA_T local_sum[2 * CALC_SLM_SIZE];
+    __local SUM_DATA_T *local_sum_sq = local_sum + CALC_SLM_SIZE;
     gen9_mean_var_calc_fused_reduction(
             mean, variance, c, &sum, &sum_sq, local_sum, local_sum_sq);
 #else
@@ -1536,8 +1536,8 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
     }
 
 #if FUSED_ATOMICS_REDUCTION
-    __local float local_gamma[CALC_SLM_SIZE];
-    __local float local_beta[CALC_SLM_SIZE];
+    __local float local_gamma[2 * CALC_SLM_SIZE];
+    __local float *local_beta = local_gamma + CALC_SLM_SIZE;
     gen9_calc_fused_reduction(diff_scaleshift, diff_shift, ic_block_offset,
             diff_gamma, diff_beta, diff_gamma_tail, diff_beta_tail, local_gamma,
             local_beta);
@@ -1731,8 +1731,8 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
     }
 
 #if FUSED_ATOMICS_REDUCTION
-    __local float local_gamma[CALC_SLM_SIZE];
-    __local float local_beta[CALC_SLM_SIZE];
+    __local float local_gamma[2 * CALC_SLM_SIZE];
+    __local float *local_beta = local_gamma + CALC_SLM_SIZE;
     gen9_calc_fused_reduction(diff_scaleshift, diff_shift, c, &diff_gamma,
             &diff_beta, NULL, NULL, local_gamma, local_beta);
 #else
