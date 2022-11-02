@@ -392,8 +392,9 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t wei_scales_dt1, wei_scales_fp1;
     dnn_mem_t dst_scales_dt1, dst_scales_fp1;
 
-    const int dw_wei_mask = attr_t::get_default_mask(
+    int dw_wei_mask = attr_t::get_default_mask(
             p1->attr.scales.get(DNNL_ARG_WEIGHTS).policy, DNNL_ARG_WEIGHTS);
+    if (p1->has_groups) dw_wei_mask = (1 << dw_wei_mask) + 1;
     const int dw_dst_mask = attr_t::get_default_mask(
             p1->attr.scales.get(DNNL_ARG_DST).policy);
     maybe_prepare_runtime_scales_v2(wei_scales_dt1, wei_scales_fp1,

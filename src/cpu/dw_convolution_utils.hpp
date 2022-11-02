@@ -42,9 +42,18 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
     // Create new attributes with scales from depthwise post-op and copy
     // post-ops after depthwise post-op.
     auto &dw_po = attr_1x1.post_ops_.entry_[dw_po_index].depthwise_conv;
-    if (dw_po.wei_dt == data_type::s8 && dw_po.count) {
-        CHECK(attr_dw.output_scales_.set(dw_po.mask));
-    }
+
+    const auto &dw_src_scales = attr_1x1.scales_.get(DNNL_ARG_DST);
+    const auto &dw_wei_scales
+            = attr_1x1.scales_.get(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+    const auto &dw_dst_scales
+            = attr_1x1.scales_.get(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST);
+    if (!dw_src_scales.has_default_values())
+        attr_dw.scales_.set(DNNL_ARG_SRC, dw_src_scales.mask_);
+    if (!dw_wei_scales.has_default_values())
+        attr_dw.scales_.set(DNNL_ARG_WEIGHTS, dw_wei_scales.mask_);
+    if (!dw_dst_scales.has_default_values())
+        attr_dw.scales_.set(DNNL_ARG_DST, dw_dst_scales.mask_);
 
     auto dw_po_len = attr_1x1.post_ops_.len() - (dw_po_index + 1);
     attr_dw.post_ops_.entry_.resize(dw_po_len);
