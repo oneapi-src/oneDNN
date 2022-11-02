@@ -68,6 +68,10 @@ namespace graph {
             using type_key = int32_t; \
             __VA_ARGS__ \
         } break; \
+        case dnnl::graph::logical_tensor::data_type::boolean: { \
+            using type_key = bool; \
+            __VA_ARGS__ \
+        } break; \
         default: \
             throw std::runtime_error( \
                     "Not supported data type in current graph driver."); \
