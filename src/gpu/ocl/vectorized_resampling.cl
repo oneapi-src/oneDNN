@@ -22,8 +22,8 @@ inline float linear(int x, int fo, int fi) {
     return ((x + .5f) * fo / fi) - .5f;
 }
 
-inline uint ceil_pos(float x) {
-    return max((uint)ceil(x), (uint)0);
+inline int ceil_pos(float x) {
+    return max((int)ceil(x), (int)0);
 }
 
 #define DST_MB_STRIDE(x) (x % DST_B0) * DST_SB0 + (x / DST_B0) * DST_S0
@@ -61,12 +61,12 @@ __kernel void vectorized_resampling_bwd(
 #if RESAMPLING_ALG_NEAREST
     if (mb >= MB || c >= C) return;
 
-    uint od_start = ceil_pos(id * FD - .5f);
-    uint oh_start = ceil_pos(ih * FH - .5f);
-    uint ow_start = ceil_pos(iw * FW - .5f);
-    uint od_end = ceil_pos((id + 1.f) * FD - .5f);
-    uint oh_end = ceil_pos((ih + 1.f) * FH - .5f);
-    uint ow_end = ceil_pos((iw + 1.f) * FW - .5f);
+    int od_start = ceil_pos(id * FD - .5f);
+    int oh_start = ceil_pos(ih * FH - .5f);
+    int ow_start = ceil_pos(iw * FW - .5f);
+    int od_end = ceil_pos((id + 1.f) * FD - .5f);
+    int oh_end = ceil_pos((ih + 1.f) * FH - .5f);
+    int ow_end = ceil_pos((iw + 1.f) * FW - .5f);
     for_(int i = od_start; i < od_end; i++)
     for_(int j = oh_start; j < oh_end; j++)
     for (int k = ow_start; k < ow_end; k++) {
@@ -81,7 +81,7 @@ __kernel void vectorized_resampling_bwd(
 #endif
     }
 #else
-    uint my_idx;
+    int my_idx;
     {
         int ix, OX, IX;
         if (sglid < 4) {
@@ -111,10 +111,10 @@ __kernel void vectorized_resampling_bwd(
         if (sglid % 2 == 0) {
             my_idx = ceil_pos(idx_intermediate);
         } else {
-            my_idx = (idx_intermediate < 0) ? 0 : (uint)idx_intermediate + 1;
+            my_idx = (idx_intermediate < 0) ? 0 : (int)idx_intermediate + 1;
         }
 
-        if (sglid % 4 >= 2) { my_idx = min(my_idx, (uint)OX); }
+        if (sglid % 4 >= 2) { my_idx = min(my_idx, OX); }
 
         // If left start ix==0 or right end ix==IX-1, include edges
         if (sglid % 4 == 0 && ix == 0) { my_idx = 0; }
@@ -123,31 +123,31 @@ __kernel void vectorized_resampling_bwd(
 
     // Package into useful arrays
     // TODO: error when SGS < 16
-    uint od_start[2]
+    int od_start[2]
             = {sub_group_shuffle(my_idx, 0), sub_group_shuffle(my_idx, 1)};
-    uint od_end[2]
+    int od_end[2]
             = {sub_group_shuffle(my_idx, 2), sub_group_shuffle(my_idx, 3)};
-    uint oh_start[2]
+    int oh_start[2]
             = {sub_group_shuffle(my_idx, 4), sub_group_shuffle(my_idx, 5)};
-    uint oh_end[2]
+    int oh_end[2]
             = {sub_group_shuffle(my_idx, 6), sub_group_shuffle(my_idx, 7)};
-    uint ow_start[2]
+    int ow_start[2]
             = {sub_group_shuffle(my_idx, 8), sub_group_shuffle(my_idx, 9)};
-    uint ow_end[2]
+    int ow_end[2]
             = {sub_group_shuffle(my_idx, 10), sub_group_shuffle(my_idx, 11)};
 
-    const uint num_od_left = od_end[0] - od_start[0];
-    const uint num_od_right = od_end[1] - od_start[1];
-    const uint num_oh_left = oh_end[0] - oh_start[0];
-    const uint num_oh_right = oh_end[1] - oh_start[1];
-    const uint num_ow_left = ow_end[0] - ow_start[0];
-    const uint num_ow_right = ow_end[1] - ow_start[1];
+    const int num_od_left = od_end[0] - od_start[0];
+    const int num_od_right = od_end[1] - od_start[1];
+    const int num_oh_left = oh_end[0] - oh_start[0];
+    const int num_oh_right = oh_end[1] - oh_start[1];
+    const int num_ow_left = ow_end[0] - ow_start[0];
+    const int num_ow_right = ow_end[1] - ow_start[1];
 
     // Distribute linear calculations across SIMD channels
     float myres;
     {
-        uint ox, IX, OX;
-        uint offset = sglid;
+        int ox, IX, OX;
+        int offset = sglid;
         if (0 <= offset && offset < num_od_left) {
             OX = OD;
             IX = ID;
@@ -196,7 +196,7 @@ __kernel void vectorized_resampling_bwd(
     for (int d = 0; d < num_od_left; d++) {
         d_list[0][d] = 1.0f - sub_group_shuffle(myres, d);
     }
-    uint offset = num_od_left;
+    int offset = num_od_left;
     for (int d = 0; d < num_od_right; d++) {
         d_list[1][d] = sub_group_shuffle(myres, d + offset);
     }
