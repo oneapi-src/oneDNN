@@ -159,6 +159,16 @@ status_t vectorized_resampling_bwd_t::pd_t::init_conf(engine_t *engine) {
     conf.FH = FH();
     conf.FW = FW();
 
+    // Highly-upsampled cases are not supported
+    // TODO: Implement multiple linear calculations per work item
+    // to eliminate this requirement
+    const int max_num_linear_calcs = 2
+            * (std::ceil(conf.FD) + std::ceil(conf.FH) + std::ceil(conf.FW)
+                    + 6);
+    if (max_num_linear_calcs > conf.sub_group_size) {
+        return status::unimplemented;
+    }
+
     // Compute strides after vect_size is taken into account.
     const blocking_desc_t &blocks = diff_src_md()->format_desc.blocking;
     const dim_t c_dim = diff_src_d.padded_dims()[1];
