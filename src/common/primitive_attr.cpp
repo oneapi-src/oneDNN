@@ -169,38 +169,11 @@ status_t post_ops_t::append_eltwise(
     return success;
 }
 
-dnnl::impl::status_t post_ops_t::entry_t::set_depthwise_scales(
-        const float *scales) {
-
-    auto &d = this->depthwise_conv;
-
-    const dim_t scales_buf_size = 16; // derived from scales_t::scales_buf_size
-    const dim_t buf_size = nstl::max(scales_buf_size, d.count);
-
-    d.scales = nullptr;
-
-    if (d.count > 0) {
-        d.scales = (float *)dnnl::impl::malloc(buf_size * sizeof(*scales), 64);
-        if (d.scales == nullptr) return status::out_of_memory;
-    } else
-        return dnnl::impl::status::success;
-
-    if (is_runtime_value(*scales)) {
-        d.scales[0] = *scales;
-    } else if (d.count == 1) {
-        utils::array_set(d.scales, scales[0], buf_size);
-    } else {
-        utils::array_copy(d.scales, scales, d.count);
-    }
-    return dnnl::impl::status::success;
-}
-
 status_t post_ops_t::append_dw(data_type_t wei_dt, data_type_t bias_dt,
         data_type_t dst_dt, dim_t kernel_size, dim_t stride_size,
-        dim_t padding_l_size, dim_t count, int mask, const float *scales) {
+        dim_t padding_l_size) {
     if (len() == post_ops_limit) return out_of_memory;
-    bool ok = wei_dt != data_type::undef && dst_dt != data_type::undef
-            && IMPLICATION(count > 0, scales) && mask >= 0;
+    bool ok = wei_dt != data_type::undef && dst_dt != data_type::undef;
     if (!ok) return invalid_arguments;
 
     ok = ok && kernel_size > 0 && stride_size > 0;
@@ -220,11 +193,8 @@ status_t post_ops_t::append_dw(data_type_t wei_dt, data_type_t bias_dt,
     d.wei_dt = wei_dt;
     d.bias_dt = bias_dt;
     d.dst_dt = dst_dt;
-    d.count = count;
-    d.mask = mask;
-    d.scales = nullptr;
 
-    return e.set_depthwise_scales(scales);
+    return success;
 }
 
 status_t post_ops_t::append_binary(
@@ -272,11 +242,9 @@ bool post_ops_t::defined() const {
             if (is_runtime_value(e.scale) || is_runtime_value(e.alpha)
                     || is_runtime_value(e.beta))
                 return false;
-        } else if (kind == primitive_kind::convolution) {
-            const auto &c = entry_[idx].depthwise_conv;
-            if (c.scales && is_runtime_value(*(c.scales))) return false;
         } else if (utils::one_of(kind, primitive_kind::binary,
-                           primitive_kind::prelu)) {
+                           primitive_kind::prelu,
+                           primitive_kind::convolution)) {
             // binary is always defined
         } else {
             assert(!"unreachable");
@@ -534,18 +502,16 @@ status_t dnnl_post_ops_get_params_eltwise(const post_ops_t *post_ops, int index,
 
 status_t dnnl_post_ops_append_dw(post_ops_t *post_ops, data_type_t wei_dt,
         data_type_t bias_dt, data_type_t dst_dt, dim_t kernel_size,
-        dim_t stride_size, dim_t padding_l_size, dim_t count, int mask,
-        const float *scales) {
+        dim_t stride_size, dim_t padding_l_size) {
     if (post_ops == nullptr) return invalid_arguments;
 
-    return post_ops->append_dw(wei_dt, bias_dt, dst_dt, kernel_size,
-            stride_size, padding_l_size, count, mask, scales);
+    return post_ops->append_dw(
+            wei_dt, bias_dt, dst_dt, kernel_size, stride_size, padding_l_size);
 }
 
 status_t dnnl_post_ops_get_params_dw(const post_ops_t *post_ops, int index,
         data_type_t *wei_dt, data_type_t *bias_dt, data_type_t *dst_dt,
-        dim_t *kernel, dim_t *stride, dim_t *padding, dim_t *count, int *mask,
-        const float **scales) {
+        dim_t *kernel, dim_t *stride, dim_t *padding) {
 
     if (!simple_get_params_check(post_ops, index, primitive_kind::convolution))
         return invalid_arguments;
@@ -557,9 +523,6 @@ status_t dnnl_post_ops_get_params_dw(const post_ops_t *post_ops, int index,
     if (kernel) *kernel = d.kernel;
     if (stride) *stride = d.stride;
     if (padding) *padding = d.padding;
-    if (count) *count = d.count;
-    if (mask) *mask = d.mask;
-    if (scales) *scales = d.scales;
 
     return success;
 }

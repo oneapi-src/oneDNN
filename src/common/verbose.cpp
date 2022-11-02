@@ -386,6 +386,12 @@ std::string get_arg(int arg) {
         case DNNL_ARG_SRC_1: s = "src"; break;
         case DNNL_ARG_DST: s = "dst"; break;
         case DNNL_ARG_WEIGHTS: s = "wei"; break;
+        case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST:
+            s = "attr_post_op_dw_dst";
+            break;
+        case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS:
+            s = "attr_post_op_dw_wei";
+            break;
         default: assert(!"unsupported arg"); s = "unsupported arg";
     }
     return s;
@@ -473,10 +479,6 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                        << c.padding;
                     if (c.wei_dt == s8 || c.dst_dt != f32)
                         ss << ":" << c.dst_dt;
-                    if (c.count > 0 && c.wei_dt == s8) {
-                        ss << ":" << c.mask;
-                        if (c.mask == 0) ss << ":" << c.scales[0];
-                    }
                 } break;
                 case primitive_kind::eltwise: {
                     const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;

@@ -52,7 +52,14 @@ status_t cvt_primitive_args(const primitive_desc_t *pd, int nargs,
                         // 1x1 + dw conv fusion
                         || (arg
                                 == (DNNL_ARG_ATTR_POST_OP_DW
-                                        | DNNL_ARG_ATTR_OUTPUT_SCALES));
+                                        | DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC))
+                        || (arg
+                                == (DNNL_ARG_ATTR_POST_OP_DW
+                                        | DNNL_ARG_ATTR_SCALES
+                                        | DNNL_ARG_WEIGHTS))
+                        || (arg
+                                == (DNNL_ARG_ATTR_POST_OP_DW
+                                        | DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST));
                 break;
             case primitive_desc_t::arg_usage_t::output:
                 if (args.count(arg) != 0) return invalid_arguments;

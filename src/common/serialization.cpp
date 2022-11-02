@@ -178,12 +178,6 @@ void serialize_attr(
                 sstream.write(&entry.depthwise_conv.wei_dt);
                 sstream.write(&entry.depthwise_conv.bias_dt);
                 sstream.write(&entry.depthwise_conv.dst_dt);
-                if (entry.depthwise_conv.scales) {
-                    sstream.write(&entry.depthwise_conv.mask);
-                    sstream.write(&entry.depthwise_conv.count);
-                    sstream.write(entry.depthwise_conv.scales,
-                            entry.depthwise_conv.count);
-                }
                 break;
             case primitive_kind::binary:
                 sstream.write(&entry.binary.alg);

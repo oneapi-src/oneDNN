@@ -291,6 +291,10 @@ private:
         for (const auto &sa : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
             if (arg == sa) return true;
         }
+        // depth-wise convolution post op
+        for (const auto &sa : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+            if (arg == (DNNL_ARG_ATTR_POST_OP_DW | sa)) return true;
+        }
         return false;
     }
 };
@@ -374,7 +378,6 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         entry_t(const entry_t &other) { copy_from(other); }
 
         dnnl::impl::status_t copy_from(const entry_t &other) {
-            clear();
             return set(other);
         }
 
@@ -383,7 +386,6 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         // extract a status.
         entry_t &operator=(const entry_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            clear();
             set(other);
             return *this;
         }
@@ -400,9 +402,6 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             dnnl::impl::data_type_t wei_dt;
             dnnl::impl::data_type_t bias_dt;
             dnnl::impl::data_type_t dst_dt;
-            dnnl::impl::dim_t count;
-            int mask;
-            float *scales;
         };
 
         struct binary_t {
@@ -500,18 +499,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                             && depthwise_conv.bias_dt
                                     == rhs.depthwise_conv.bias_dt
                             && depthwise_conv.dst_dt
-                                    == rhs.depthwise_conv.dst_dt
-                            && depthwise_conv.count == rhs.depthwise_conv.count
-                            && depthwise_conv.mask == rhs.depthwise_conv.mask;
-                    if (!ret) break;
-
-                    // only call memcmp with valid pointers
-                    if (depthwise_conv.count == 0) break;
-                    ret = !utils::any_null(depthwise_conv.scales,
-                                  rhs.depthwise_conv.scales)
-                            && !std::memcmp(depthwise_conv.scales,
-                                    rhs.depthwise_conv.scales,
-                                    sizeof(float) * depthwise_conv.count);
+                                    == rhs.depthwise_conv.dst_dt;
                     break;
                 case primitive_kind::binary:
                     ret = binary.alg == rhs.binary.alg
@@ -530,26 +518,12 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             return !this->operator==(rhs);
         }
 
-        ~entry_t() { clear(); }
-
     private:
-        void clear() {
-            if (is_convolution() && depthwise_conv.count
-                    && depthwise_conv.scales)
-                dnnl::impl::free(depthwise_conv.scales);
-            depthwise_conv.scales = nullptr;
-            return;
-        }
-
         dnnl::impl::status_t set(const entry_t &other) {
-
             // Copying by if (is_convolution()) {} else if(is_sum()) {}
             // else if(is_relu()) {} seems to be unreliable. memcpying for now.
             dnnl::impl::utils::array_copy(
                     (char *)this, (char *)&other, sizeof(*this));
-            if (other.is_convolution()) {
-                return set_depthwise_scales(other.depthwise_conv.scales);
-            }
             return dnnl::impl::status::success;
         }
     };
@@ -568,8 +542,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
     dnnl::impl::status_t append_dw(dnnl::impl::data_type_t wei_dt,
             dnnl::impl::data_type_t bias_dt, dnnl::impl::data_type_t dst_dt,
             dnnl::impl::dim_t kernel_size, dnnl::impl::dim_t stride_size,
-            dnnl::impl::dim_t padding_l_size, dnnl::impl::dim_t count, int mask,
-            const float *scales);
+            dnnl::impl::dim_t padding_l_size);
     dnnl::impl::status_t append_binary(dnnl::impl::alg_kind_t alg,
             const dnnl::impl::memory_desc_t *user_src1_desc);
     dnnl::impl::status_t append_prelu(int mask);

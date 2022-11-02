@@ -163,8 +163,6 @@ struct prb_t : public desc_t {
         , src_scales(NULL)
         , wei_scales(NULL)
         , dst_scales(NULL)
-        , scales_dw(NULL)
-        , scales(NULL)
         , src_zp(NULL)
         , dst_zp(NULL)
         , ctx_init(ctx_init)
@@ -174,21 +172,13 @@ struct prb_t : public desc_t {
         src_scales = generate_scales(DNNL_ARG_SRC);
         wei_scales = generate_scales(DNNL_ARG_WEIGHTS);
         dst_scales = generate_scales(DNNL_ARG_DST);
-        scales = generate_scales(DNNL_ARG_DST);
         src_zp = generate_zero_points(DNNL_ARG_SRC);
         dst_zp = generate_zero_points(DNNL_ARG_DST);
-
-        const int dw_idx = this->attr.post_ops.convolution_index();
-        if (dw_idx != -1) {
-            scales_dw = generate_scales(DNNL_ARG_ATTR_MULTIPLE_POST_OP(dw_idx));
-        }
     }
     ~prb_t() {
         if (src_scales) zfree(src_scales);
         if (wei_scales) zfree(wei_scales);
         if (dst_scales) zfree(dst_scales);
-        if (scales) zfree(scales);
-        if (scales_dw) zfree(scales_dw);
         if (src_zp) zfree(src_zp);
         if (dst_zp) zfree(dst_zp);
     }
@@ -201,7 +191,7 @@ struct prb_t : public desc_t {
     int64_t user_mb;
 
     double ops;
-    float *src_scales, *wei_scales, *dst_scales, *scales_dw, *scales;
+    float *src_scales, *wei_scales, *dst_scales;
     int32_t *src_zp, *dst_zp;
     thr_ctx_t ctx_init, ctx_exe;
 

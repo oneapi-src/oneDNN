@@ -571,20 +571,12 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_eltwise(
 /// @param kernel_size Size of kernel of depthwise post-op
 /// @param stride_size Size of stride of depthwise post-op
 /// @param padding_l_size Size of left and top paddings of depthwise post-op
-/// @param count Output length of the array of scaling factors @p scales.
-/// @param mask Output scaling factors correspondence mask that defines the
-///     correspondence between the output tensor dimensions and the @p
-///     scales array. The set i-th bit indicates that a dedicated output scaling
-///     factor is used for each index along that dimension. The mask value of 0
-///     implies a common scaling factor for the whole output tensor.
-/// @param scales Output pointer to a constant array of float scaling factors.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise
 dnnl_status_t DNNL_API dnnl_post_ops_append_dw(dnnl_post_ops_t post_ops,
         dnnl_data_type_t weights_data_type, dnnl_data_type_t bias_data_type,
         dnnl_data_type_t dst_data_type, dnnl_dim_t kernel_size,
-        dnnl_dim_t stride_size, dnnl_dim_t padding_l_size, dnnl_dim_t count,
-        int mask, const float *scales);
+        dnnl_dim_t stride_size, dnnl_dim_t padding_l_size);
 
 /// Returns the parameters of an depthwise post-op.
 ///
@@ -596,21 +588,13 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_dw(dnnl_post_ops_t post_ops,
 /// @param kernel_size Size of kernel of depthwise post-op
 /// @param stride_size Size of stride of depthwise post-op
 /// @param padding_l_size Size of left and top paddings of depthwise post-op
-/// @param count Output length of the array of scaling factors @p scales.
-/// @param mask Output scaling factors correspondence mask that defines the
-///     correspondence between the output tensor dimensions and the @p
-///     scales array. The set i-th bit indicates that a dedicated output scaling
-///     factor is used for each index along that dimension. The mask value of 0
-///     implies a common scaling factor for the whole output tensor.
-/// @param scales Output pointer to a constant array of float scaling factors.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise
 dnnl_status_t DNNL_API dnnl_post_ops_get_params_dw(
         const_dnnl_post_ops_t post_ops, int index,
         dnnl_data_type_t *weights_data_type, dnnl_data_type_t *bias_data_type,
         dnnl_data_type_t *dst_data_type, dnnl_dim_t *kernel_size,
-        dnnl_dim_t *stride_size, dnnl_dim_t *padding_l_size, dnnl_dim_t *count,
-        int *mask, const float **scales);
+        dnnl_dim_t *stride_size, dnnl_dim_t *padding_l_size);
 
 /// Appends a binary post-op.
 ///

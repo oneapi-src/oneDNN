@@ -350,8 +350,6 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
 
-    int scales_mask = INT_MAX;
-    std::vector<float> scales_in, scales_out;
     data_type wei_dt = data_type::undef;
     data_type bias_dt = data_type::undef;
     data_type dst_dt = data_type::undef;
@@ -362,34 +360,30 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
     ASSERT_EQ(ops.len(), 0);
     ASSERT_EQ(attr.get_post_ops().len(), 0);
 
-    scales_in = {3};
     ops.append_dw(memory::data_type::s8, memory::data_type::f32,
-            memory::data_type::u8, 3, 1, 1, 0, scales_in);
+            memory::data_type::u8, 3, 1, 1);
     attr.set_post_ops(ops);
 
     ASSERT_EQ(attr.get_post_ops().kind(0), primitive::kind::convolution);
     attr.get_post_ops().get_params_dw(0, wei_dt, bias_dt, dst_dt, kernel,
-            stride, padding, scales_mask, scales_out);
+            stride, padding);
     ASSERT_EQ(wei_dt, memory::data_type::s8);
     ASSERT_EQ(bias_dt, memory::data_type::f32);
     ASSERT_EQ(dst_dt, memory::data_type::u8);
     ASSERT_EQ(kernel, 3);
     ASSERT_EQ(stride, 1);
     ASSERT_EQ(padding, 1);
-    ASSERT_EQ(scales_mask, 0);
-    ASSERT_EQ(scales_in, scales_out);
 
     kernel = stride = padding = -1;
-    scales_in = {1., 2., 3.};
     ops.append_dw(memory::data_type::u8, memory::data_type::s32,
-            memory::data_type::f32, 3, 2, 1, 1 << 1, scales_in);
+            memory::data_type::f32, 3, 2, 1);
     attr.set_post_ops(ops);
 
     ASSERT_EQ(attr.get_post_ops().kind(0), primitive::kind::convolution);
     ASSERT_EQ(attr.get_post_ops().kind(1), primitive::kind::convolution);
 
     attr.get_post_ops().get_params_dw(1, wei_dt, bias_dt, dst_dt, kernel,
-            stride, padding, scales_mask, scales_out);
+            stride, padding);
 
     ASSERT_EQ(wei_dt, memory::data_type::u8);
     ASSERT_EQ(bias_dt, memory::data_type::s32);
@@ -397,13 +391,10 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
     ASSERT_EQ(kernel, 3);
     ASSERT_EQ(stride, 2);
     ASSERT_EQ(padding, 1);
-    ASSERT_EQ(scales_mask, 1 << 1);
-    ASSERT_EQ(scales_in, scales_out);
 
     kernel = stride = padding = -1;
-    scales_in = {};
     ops.append_dw(memory::data_type::f32, memory::data_type::f32,
-            memory::data_type::f32, 7, 3, 2, 0, scales_in);
+            memory::data_type::f32, 7, 3, 2);
     attr.set_post_ops(ops);
 
     ASSERT_EQ(attr.get_post_ops().kind(0), primitive::kind::convolution);
@@ -411,7 +402,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
     ASSERT_EQ(attr.get_post_ops().kind(2), primitive::kind::convolution);
 
     attr.get_post_ops().get_params_dw(2, wei_dt, bias_dt, dst_dt, kernel,
-            stride, padding, scales_mask, scales_out);
+            stride, padding);
 
     ASSERT_EQ(wei_dt, memory::data_type::f32);
     ASSERT_EQ(bias_dt, memory::data_type::f32);
@@ -419,19 +410,16 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
     ASSERT_EQ(kernel, 7);
     ASSERT_EQ(stride, 3);
     ASSERT_EQ(padding, 2);
-    ASSERT_EQ(scales_mask, 0);
-    ASSERT_EQ(scales_in, scales_out);
 
     kernel = stride = padding = -1;
-    scales_in = {};
     ops.append_dw(memory::data_type::s8, memory::data_type::f32,
-            memory::data_type::u8, 5, 2, 1, 0, scales_in);
+            memory::data_type::u8, 5, 2, 1);
     attr.set_post_ops(ops);
 
     ASSERT_EQ(attr.get_post_ops().kind(3), primitive::kind::convolution);
 
     attr.get_post_ops().get_params_dw(3, wei_dt, bias_dt, dst_dt, kernel,
-            stride, padding, scales_mask, scales_out);
+            stride, padding);
 
     ASSERT_EQ(wei_dt, memory::data_type::s8);
     ASSERT_EQ(bias_dt, memory::data_type::f32);
@@ -439,8 +427,6 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
     ASSERT_EQ(kernel, 5);
     ASSERT_EQ(stride, 2);
     ASSERT_EQ(padding, 1);
-    ASSERT_EQ(scales_mask, 0);
-    ASSERT_EQ(scales_in, scales_out);
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusion) {
@@ -454,7 +440,6 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusion) {
 
     engine e {engine_kind, 0};
 
-    std::vector<float> scales {3};
     std::vector<memory::data_type> test_dts {
             memory::data_type::f32, memory::data_type::s8};
 
@@ -482,7 +467,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusion) {
 
         dnnl::primitive_attr attr;
         dnnl::post_ops ops;
-        ops.append_dw(dt, dt, dt, 3, 1, 1, 1 << 1, scales);
+        ops.append_dw(dt, dt, dt, 3, 1, 1);
         attr.set_post_ops(ops);
 
         std::string impl_info_fused;
@@ -548,10 +533,10 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetAttr) {
     auto dt = memory::data_type::s8;
     dnnl::primitive_attr attr_s, attr_os, attr_dw;
     dnnl::post_ops ops;
-    std::vector<float> scales(512);
-    ops.append_dw(dt, dt, dt, 3, 1, 1, 1 << 1, scales);
+    ops.append_dw(dt, dt, dt, 3, 1, 1);
     attr_s.set_scales_mask(DNNL_ARG_SRC_0, 0);
     attr_os.set_scales_mask(DNNL_ARG_DST, 0);
+    attr_dw.set_scales_mask(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, 1 << 1);
     attr_dw.set_post_ops(ops);
 
     memory::desc dat_md {{512, 512, 3, 3}, dt, memory::format_tag::nchw};

@@ -273,7 +273,9 @@ struct attr_t {
                 } else if (is_eltwise_kind()) {
                     eltwise.alg = kind2dnnl_kind(kind);
                 } else if (is_convolution_kind()) {
-                    convolution.oscale = scale_t();
+                    convolution.src_scale = scale_t();
+                    convolution.wei_scale = scale_t();
+                    convolution.dst_scale = scale_t();
                     if (kind != DW) {
                         convolution.kernel = 3;
                         convolution.stride = kind == DW_K3S1P1 ? 1 : 2;
@@ -301,7 +303,9 @@ struct attr_t {
                 int stride = 0;
                 int padding = 0;
                 dnnl_data_type_t dst_dt = dnnl_f32;
-                scale_t oscale;
+                scale_t src_scale;
+                scale_t wei_scale;
+                scale_t dst_scale;
             } convolution;
             struct {
                 dnnl_alg_kind_t alg = dnnl_alg_kind_undef;
@@ -465,8 +469,7 @@ struct attr_args_t {
             const attr_t &attr, int ndims, const dnnl_dims_t dims);
 
     void prepare_dw_post_op(const attr_t &attr, dnnl_data_type_t wei_dt,
-            dnnl_data_type_t bia_dt, const void *vals, int64_t count,
-            int mask = -1);
+            dnnl_data_type_t bia_dt);
 
     entry_t get(int arg) const {
         const auto it = entries.find(arg);

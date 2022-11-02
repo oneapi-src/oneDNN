@@ -164,13 +164,14 @@ static int check_attr() {
         const auto &ce = e.convolution;
         SELF_CHECK_EQ(ce.stride, 1);
         SELF_CHECK_EQ(ce.dst_dt, dnnl_f32);
-        SELF_CHECK_OSCALE(ce.oscale, COMMON, 1.f, false);
+        SELF_CHECK_OSCALE(ce.wei_scale, COMMON, 1.f, false);
+        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 1.f, false);
     }
 
     {
         std::vector<attr_t::post_ops_t> po;
         auto st = parse_attr_post_ops(po,
-                "--attr-post-ops=relu:0.5+dw_k3s2p1:s8:per_oc:2+linear:2:1:3");
+                "--attr-post-ops=relu:0.5+dw_k3s2p1:s8:per_oc:2*+linear:2:1:3");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(po[0].len(), 3);
         auto &e = po[0].entry[0];
@@ -186,7 +187,8 @@ static int check_attr() {
         const auto &ce = e.convolution;
         SELF_CHECK_EQ(ce.stride, 2);
         SELF_CHECK_EQ(ce.dst_dt, dnnl_s8);
-        SELF_CHECK_OSCALE(ce.oscale, PER_OC, 2.f, false);
+        SELF_CHECK_OSCALE(ce.wei_scale, PER_OC, 2.f, true);
+        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 1.f, false);
 
         e = po[0].entry[2];
         SELF_CHECK_EQ(e.kind, pk_t::LINEAR);
@@ -195,6 +197,21 @@ static int check_attr() {
         SELF_CHECK_EQ(ee.alpha, 2.f);
         SELF_CHECK_EQ(ee.beta, 1.f);
         SELF_CHECK_EQ(ee.scale, 3.f);
+    }
+
+    {
+        std::vector<attr_t::post_ops_t> po;
+        auto st = parse_attr_post_ops(
+                po, "--attr-post-ops=dw_k3s1p1:s8:per_oc:2*:common:4*");
+        SELF_CHECK_EQ(st, true);
+        SELF_CHECK_EQ(po[0].len(), 1);
+        const auto &e = po[0].entry[0];
+        SELF_CHECK_EQ(e.kind, pk_t::DW_K3S1P1);
+        const auto &ce = e.convolution;
+        SELF_CHECK_EQ(ce.stride, 1);
+        SELF_CHECK_EQ(ce.dst_dt, dnnl_s8);
+        SELF_CHECK_OSCALE(ce.wei_scale, PER_OC, 2.f, true);
+        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 4.f, true);
     }
 
 #undef SELF_CHECK_OSCALE
@@ -219,7 +236,7 @@ void append_convolution(attr_t::post_ops_t &po, pk_t akind,
     attr_t::post_ops_t::entry_t e(akind);
     e.convolution.stride = e.kind == pk_t::DW_K3S1P1 ? 1 : 2;
     e.convolution.dst_dt = adst_dt;
-    e.convolution.oscale = attr_t::scale_t(apolicy, ascale);
+    e.convolution.wei_scale = attr_t::scale_t(apolicy, ascale);
     po.entry.push_back(e);
 }
 
