@@ -194,8 +194,7 @@ status_t xe_lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     auto &c = GEMM_CTX_ARG_STORAGE(c);
 
     auto &empty_storage = memory_storage_t::empty_storage();
-    auto &scale = pd()->with_alpha() ? GEMM_CTX_ARG_STORAGE(output_scales)
-                                     : empty_storage;
+    auto &scale = empty_storage;
 
     auto &ao = GEMM_CTX_ARG_STORAGE(a_zero_point);
     auto &bo = GEMM_CTX_ARG_STORAGE(b_zero_point);

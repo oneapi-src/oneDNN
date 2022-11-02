@@ -44,7 +44,9 @@ struct gpu_gemm_t : public gpu_primitive_t {
                 = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_A);
         gemm_args.c_zero_point
                 = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_C);
-
+        gemm_args.a_scales = &CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_B);
+        gemm_args.b_scales = &CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_A);
+        gemm_args.c_scales = &CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_C);
         gemm_exec_ctx_t gemm_ctx(ctx, gemm_args);
         return execute(gemm_ctx);
     }

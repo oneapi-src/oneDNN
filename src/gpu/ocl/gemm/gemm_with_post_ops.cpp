@@ -24,7 +24,7 @@ namespace ocl {
 status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
 
     const auto &d = desc();
-    const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale_runtime
+    const auto attr_skip_mask = primitive_attr_t::skip_mask_t::scales_runtime
             | primitive_attr_t::skip_mask_t::post_ops
             | primitive_attr_t::skip_mask_t::zero_points;
 
@@ -34,10 +34,15 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     if (!ok) return status::unimplemented;
 
     const primitive_attr_t *attributes_with_po = attr();
-    attr_info_ = attr_info_t::create(attributes_with_po);
-    ok = IMPLICATION(attr_info_.with_oscales,
-            attr_info_.with_common_oscales || attr_info_.with_per_oc_oscales);
+    for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+        const auto &mask = attr()->scales_.get(arg).mask_;
+        if (arg == DNNL_ARG_WEIGHTS)
+            ok = ok && (mask == 0 || mask == (1 << (dst_md()->ndims - 1)));
+        else
+            ok = ok && (mask == 0);
+    }
     if (!ok) return status::unimplemented;
+    attr_info_ = attr_info_t::create(attributes_with_po);
 
     if (d->sum_ab != sum_ab::sum_none) return status::unimplemented;
 
@@ -76,8 +81,8 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     desc_.b_desc = *gemm_pd_->arg_md(DNNL_ARG_SRC_1);
     desc_.c_desc = *gemm_pd_->arg_md(DNNL_ARG_DST);
     desc_.c_desc.data_type = dst_type;
-    if (!set_default_formats()) return status::unimplemented;
     CHECK(attr_.set_default_formats(dst_md(0)));
+    if (!set_default_formats()) return status::unimplemented;
 
     compute::kernel_ctx_t kernel_ctx;
     use_scratchpad_with_post_op_worker = use_reorder
@@ -133,6 +138,16 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int(
             "D2_WO_PADDING", ndims > 2 ? gemm_pd_->dst_md()->dims[2] : 1);
     def_attr_info(kernel_ctx, attr_info_, attr()->post_ops_);
+    const auto &attr_scales = attr()->scales_;
+    const bool with_src_scales
+            = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
+    const bool with_wei_scales
+            = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
+    const bool with_dst_scales
+            = !attr_scales.get(DNNL_ARG_DST).has_default_values();
+    kernel_ctx.define_int("A_SCALES", with_src_scales);
+    kernel_ctx.define_int("B_SCALES", with_wei_scales);
+    kernel_ctx.define_int("C_SCALES", with_dst_scales);
     def_dispatch(kernel_ctx, dispatch_);
     return status::success;
 }
@@ -188,8 +203,12 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
     arg_list.set(idx++,
             pd()->use_scratchpad() ? *c_mem_before_po_worker->memory_storage()
                                    : memory_storage_t::empty_storage());
-    arg_list.set(idx++, GEMM_CTX_ARG_STORAGE(output_scales));
-    arg_list.set(idx, pd()->attr()->output_scales_.mask_ != 0 ? 1 : 0);
+    //a/b tensors are swapped for gemm
+    arg_list.set(idx++, GEMM_CTX_ARG_STORAGE(b_scales));
+    arg_list.set(idx++, GEMM_CTX_ARG_STORAGE(a_scales));
+    arg_list.set(idx++, GEMM_CTX_ARG_STORAGE(c_scales));
+    arg_list.set(idx,
+            pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ != 0 ? 1 : 0);
     auto nd_range = pd()->dispatch_.nd_range();
     exec_status = parallel_for(ctx, nd_range, post_process_kernel_, arg_list);
     return exec_status;

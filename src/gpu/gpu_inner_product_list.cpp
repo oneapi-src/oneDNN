@@ -33,7 +33,6 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_IP_P({
     {{forward}, {
         INSTANCE(ocl::gemm_inner_product_fwd_t)
-        INSTANCE(ocl::gemm_post_ops_inner_product_fwd_t)
         INSTANCE(ocl::convolution_inner_product_fwd_t)
         INSTANCE(ocl::ref_inner_product_fwd_t)
         nullptr,

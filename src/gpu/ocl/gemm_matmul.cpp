@@ -31,7 +31,6 @@ status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST);
     const auto bia_d = ctx.memory_mdw(DNNL_ARG_BIAS);
 
-    memory_storage_t *scales = &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
     memory_storage_t *a0
             = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
 
@@ -54,7 +53,10 @@ status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
     gemm_args.a_zero_point = b0;
     gemm_args.b_zero_point = a0;
     gemm_args.c_zero_point = c0;
-    gemm_args.output_scales = scales;
+    gemm_args.a_scales
+            = &CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+    gemm_args.b_scales = &CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    gemm_args.c_scales = &CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
     gemm_args.exec_args = ctx.args();
     auto gemm_desc = create_gemm_desc(src_d.md_, weights_d.md_, dst_d.md_,
             bia_d.md_, pd()->desc()->accum_data_type, ctx.stream()->engine());

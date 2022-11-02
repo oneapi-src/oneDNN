@@ -74,8 +74,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            const auto attr_skip_mask
-                    = smask_t::oscale_runtime | smask_t::post_ops;
+            const auto attr_skip_mask = smask_t::post_ops;
 
             dev_info_ = compute_engine->device_info();
             arch_ = dev_info_->gpu_arch();

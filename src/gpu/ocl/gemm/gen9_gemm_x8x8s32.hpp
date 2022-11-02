@@ -54,8 +54,8 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops
-                    | smask_t::zero_points_runtime;
+            const auto attr_skip_mask
+                    = smask_t::post_ops | smask_t::zero_points_runtime;
 
             bool ok = set_default_formats();
             if (!ok) return status::unimplemented;

@@ -307,9 +307,7 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     auto stride_c = pd()->desc()->stride_c();
 
     auto &empty_storage = memory_storage_t::empty_storage();
-    auto &runtime_alpha = pd()->with_alpha()
-            ? GEMM_CTX_ARG_STORAGE(output_scales)
-            : empty_storage;
+    auto &runtime_alpha = empty_storage;
     auto beta = pd()->beta();
 
     auto eltwise_alpha = pd()->eltwise_alpha();
@@ -437,9 +435,7 @@ status_t gen9_gemm_t::execute_superkernel(const gemm_exec_ctx_t &ctx) const {
     auto ldc = pd()->desc()->ldc();
 
     auto &empty_storage = memory_storage_t::empty_storage();
-    auto &runtime_alpha = pd()->with_alpha()
-            ? GEMM_CTX_ARG_STORAGE(output_scales)
-            : empty_storage;
+    auto &runtime_alpha = empty_storage;
     auto beta = pd()->beta();
 
     auto eltwise_alpha = pd()->eltwise_alpha();

@@ -36,7 +36,7 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             ? bias.offset() / types::data_type_size(exec_d->bias_type())
             : 0;
 
-    const auto &scales = GEMM_CTX_ARG_STORAGE(output_scales);
+    const auto &scales = memory_storage_t::empty_storage();
     const auto &a0 = GEMM_CTX_ARG_STORAGE(a_zero_point);
     const auto &b0 = GEMM_CTX_ARG_STORAGE(b_zero_point);
     const auto &c0 = GEMM_CTX_ARG_STORAGE(c_zero_point);
@@ -55,7 +55,7 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     const dim_t ldb = exec_d->ldb();
     const dim_t ldc = exec_d->ldc();
 
-    const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
+    const dim_t scale_stride = 1;
     const float eltwise_alpha = pd()->attr_info.eltwise_alpha;
     const float eltwise_beta = pd()->attr_info.eltwise_beta;
     const float eltwise_scale = pd()->attr_info.eltwise_scale;

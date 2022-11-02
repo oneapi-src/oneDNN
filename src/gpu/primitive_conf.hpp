@@ -148,9 +148,10 @@ struct attr_info_t {
                 = (attr_info.sum_idx != -1) && (attr_info.sum_scale != 0.0f);
 
         // Output scales
-        attr_info.with_oscales = !attr->output_scales_.has_default_values();
+        attr_info.with_oscales
+                = !attr->scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
 
-        const auto &scales_mask = attr->output_scales_.mask_;
+        const auto &scales_mask = attr->scales_.get(DNNL_ARG_WEIGHTS).mask_;
         attr_info.with_common_oscales
                 = attr_info.with_oscales && (scales_mask == 0);
         attr_info.with_per_oc_oscales

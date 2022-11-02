@@ -56,7 +56,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
 
             const auto attr_skip_mask
-                    = primitive_attr_t::skip_mask_t::oscale_runtime
+                    = primitive_attr_t::skip_mask_t::scales_runtime
                     | primitive_attr_t::skip_mask_t::post_ops;
 
             bool ok = is_fwd() && set_default_params() == status::success
@@ -76,11 +76,18 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             init_2d_desc(&a_md, src_md());
             init_2d_desc(&b_md, weights_md(), true);
             init_2d_desc(&c_md, dst_md());
+            primitive_attr_t gemm_attr = *attr();
+            auto wei_mask = gemm_attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
+            if (wei_mask == 1) //transpose mask for gemm
+                gemm_attr.scales_.set(DNNL_ARG_WEIGHTS, 1 << (b_md.ndims - 1));
+            else if (wei_mask != 0)
+                return status::unimplemented;
             bool gemm_ok = status::success
                     == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
-                            weights_md(1), desc()->accum_data_type, attr(),
+                            weights_md(1), desc()->accum_data_type, &gemm_attr,
                             true);
             if (!gemm_ok) return status::unimplemented;
+
             init_scratchpad();
 
             return status::success;

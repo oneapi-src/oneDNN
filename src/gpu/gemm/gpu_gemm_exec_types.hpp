@@ -40,7 +40,9 @@ struct gemm_exec_args_t {
     memory_storage_t *b_zero_point = nullptr;
     memory_storage_t *c_zero_point = nullptr;
     memory_storage_t *bias = nullptr;
-    memory_storage_t *output_scales = nullptr;
+    memory_storage_t *a_scales = nullptr;
+    memory_storage_t *b_scales = nullptr;
+    memory_storage_t *c_scales = nullptr;
     memory_storage_t *sum_ab = nullptr;
     exec_args_t exec_args;
 };

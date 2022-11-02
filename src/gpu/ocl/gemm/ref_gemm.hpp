@@ -60,8 +60,8 @@ struct ref_gemm_t : public gpu_gemm_t {
                             desc()->a_desc.dims[0] == desc()->b_desc.dims[0])
                     && IMPLICATION(acc_dt != s32,
                             attr()->zero_points_.has_default_values())
-                    && attr()->has_default_values(smask_t::oscale_runtime
-                            | smask_t::zero_points_runtime | smask_t::post_ops)
+                    && attr()->has_default_values(
+                            smask_t::zero_points_runtime | smask_t::post_ops)
                     && attr_oscale_ok() && attr_zp_ok() && attr_post_ops_ok()
                     && desc()->sum_ab == sum_ab::sum_none
                     && ((utils::one_of(a_dt, u8, s8)
@@ -92,8 +92,10 @@ struct ref_gemm_t : public gpu_gemm_t {
         }
 
         bool attr_oscale_ok() const {
-            const auto &oscale = attr()->output_scales_;
-            return oscale.mask_ == 0;
+            const auto &scales = attr()->scales_;
+            return scales.get(DNNL_ARG_SRC).mask_ == 0
+                    && scales.get(DNNL_ARG_WEIGHTS).mask_ == 0
+                    && scales.get(DNNL_ARG_DST).mask_ == 0;
         }
 
         bool attr_zp_ok() const {

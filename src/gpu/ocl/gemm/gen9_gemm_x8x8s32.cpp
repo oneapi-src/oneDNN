@@ -195,7 +195,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     auto &ao = GEMM_CTX_ARG_STORAGE(a_zero_point);
     auto &bo = GEMM_CTX_ARG_STORAGE(b_zero_point);
     auto &co = GEMM_CTX_ARG_STORAGE(c_zero_point);
-    auto &alpha = GEMM_CTX_ARG_STORAGE(output_scales);
+    auto &alpha = memory_storage_t::empty_storage();
 
     size_t off_a0
             = a.offset() / types::data_type_size(a_type) + pd()->dyn_offset_a;

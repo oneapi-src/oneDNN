@@ -33,7 +33,6 @@ status_t gemm_inner_product_fwd_t::execute_forward(
     gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
     gemm_args.bias = &CTX_IN_STORAGE(DNNL_ARG_BIAS);
-    memory_storage_t *scales = &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
     memory_storage_t *a0
             = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
 
@@ -46,7 +45,10 @@ status_t gemm_inner_product_fwd_t::execute_forward(
     gemm_args.a_zero_point = b0;
     gemm_args.b_zero_point = a0;
     gemm_args.c_zero_point = c0;
-    gemm_args.output_scales = scales;
+    gemm_args.a_scales
+            = &CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+    gemm_args.b_scales = &CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    gemm_args.c_scales = &CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
     gemm_args.exec_args = ctx.args();
 
     gemm_exec_ctx_t gemm_ctx(ctx, gemm_args);

@@ -59,8 +59,8 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
             if (arch >= compute::gpu_arch_t::xe_hpc)
                 return status::unimplemented;
 
-            const auto attr_skip_mask = smask_t::oscale_runtime
-                    | smask_t::post_ops | smask_t::zero_points_runtime;
+            const auto attr_skip_mask
+                    = smask_t::post_ops | smask_t::zero_points_runtime;
 
             bool ok = set_default_formats();
             if (!ok) return status::unimplemented;
