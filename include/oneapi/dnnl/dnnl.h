@@ -314,50 +314,11 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_scratchpad_mode(
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_scratchpad_mode(
         dnnl_primitive_attr_t attr, dnnl_scratchpad_mode_t mode);
 
-/// Sets output scaling factors correspondence mask and values. The output
-/// scaling factors must be passed at execution time as an argument with index
-/// #DNNL_ARG_ATTR_OUTPUT_SCALES.
-///
-/// @note
-///     The order of dimensions does not depend on how elements are laid
-///     out in memory. For example:
-///     - for a 2D CNN activations tensor the order is always (n, c)
-///     - for a 4D CNN activations tensor the order is always (n, c, h, w)
-///     - for a 5D CNN weights tensor the order is always
-///        (g, oc, ic, kh, kw)
-///
-/// Example usage:
-/// @code
-///     int mb = 32, oc = 32, oh = 14, ow = 14; // convolution output params
-///     float scales[oc] = { ... }; // unique output scales per output channel
-///     int oc_dim = 1; // mb_dim = 0, channel_dim = 1, height_dim = 2, ...
-///
-///     dnnl_convolution_desc_t conv_d; // create a convolution descriptor
-///
-///     dnnl_primitive_attr_t attr;
-///     dnnl_primitive_attr_create(&attr); // create primitive attributes
-///     dnnl_primitive_attr_set_output_scales_mask(attr, 1 << oc_dim);
-///
-///     dnnl_primitive_desc_t conv_pd;
-///     dnnl_convolution_forward_primitive_desc_create(&conv_pd, engine, ..., attr);
-/// @endcode
-///
-/// @param attr Primitive attributes.
-/// @param mask Scaling factors correspondence mask that defines the
-///     correspondence between the output tensor dimensions and the @p scales
-///     array. The set i-th bit indicates that a dedicated output scaling
-///     factor is used for each index along that dimension. The mask value of
-///     0 implies a common output scaling factor for the whole output tensor.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_primitive_attr_set_output_scales_mask(
-        dnnl_primitive_attr_t attr, int mask);
-
 /// Sets primitive attributes scaling factors for primitive operations for a
 /// given memory argument. The scaling factors must be passed at execution time
 /// as an argument with index #DNNL_ARG_ATTR_SCALES | arg.
 ///
-/// @sa dnnl_primitive_attr_set_output_scales_mask
+/// @sa dnnl_primitive_attr_set_scales_mask
 ///
 ///
 /// @param attr Primitive attributes.
@@ -377,7 +338,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_scales_mask(
 /// memory argument. The zero points must be passed at execution time
 /// as an argument with index #DNNL_ARG_ATTR_ZERO_POINTS | arg.
 ///
-/// @sa dnnl_primitive_attr_set_output_scales_mask
+/// @sa dnnl_primitive_attr_set_zero_points_mask
 ///
 ///
 /// @param attr Primitive attributes.

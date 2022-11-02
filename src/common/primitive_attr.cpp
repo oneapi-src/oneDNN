@@ -399,13 +399,6 @@ status_t dnnl_primitive_attr_set_scratchpad_mode(
     return attr->set_scratchpad_mode(scratchpad_mode);
 }
 
-status_t dnnl_primitive_attr_set_output_scales_mask(
-        primitive_attr_t *attr, int mask) {
-    bool ok = attr && mask >= 0 && attr->scales_.has_default_values();
-    if (!ok) return invalid_arguments;
-    return attr->output_scales_.set(mask);
-}
-
 status_t dnnl_primitive_attr_set_scales_mask(
         primitive_attr_t *attr, int arg, int mask) {
     bool ok = attr && mask >= 0 && arg >= 0

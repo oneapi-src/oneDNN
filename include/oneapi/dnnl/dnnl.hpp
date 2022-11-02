@@ -3246,52 +3246,11 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set scratchpad mode primitive attribute");
     }
 
-    /// Sets the output scaling factors correspondence mask and values. The
-    /// scaling factors must be passed at execution time as an argument with
-    /// index #DNNL_ARG_ATTR_OUTPUT_SCALES.
-    ///
-    /// Example usage:
-    /// @code
-    ///     int mb = 32, oc = 32,
-    ///         oh = 14, ow = 14; // convolution output params
-    ///     // unique output scales per output channel
-    ///     vector<float> scales = { ... };
-    ///     int oc_dim = 1; // mb_dim = 0, channel_dim = 1, height_dim = 2, ...
-    ///
-    ///     // construct a convolution descriptor
-    ///     dnnl::convolution::desc conv_d;
-    ///
-    ///     dnnl::primitive_attr attr;
-    ///     attr.set_output_scales_mask(attr, 1 << oc_dim);
-    ///
-    ///     dnnl::primitive_desc conv_pd(conv_d, attr, engine);
-    /// @endcode
-    ///
-    /// @note
-    ///     The order of dimensions does not depend on how elements are laid
-    ///     out in memory. For example:
-    ///     - for a 2D CNN activations tensor the order is always (n, c)
-    ///     - for a 4D CNN activations tensor the order is always (n, c, h, w)
-    ///     - for a 5D CNN weights tensor the order is always
-    ///        (g, oc, ic, kh, kw)
-    ///
-    /// @param mask Defines the correspondence between the output tensor
-    ///     dimensions and the @p scales vector. The set i-th bit indicates
-    ///     that a dedicated scaling factor is used for each index along that
-    ///     dimension. Set the mask to 0 to use a common output scaling factor
-    ///     for the whole output tensor.
-    void set_output_scales_mask(int mask) {
-        error::wrap_c_api(
-                dnnl_primitive_attr_set_output_scales_mask(get(), mask),
-                "could not set output scales primitive attribute");
-    }
-
     /// Sets scaling factors for primitive operations for a given memory
     /// argument. The scaling factors must be passed at execution time
     /// as an argument with index #DNNL_ARG_ATTR_SCALES | arg.
     ///
     /// @sa dnnl_primitive_attr_set_scales_mask
-    /// @sa dnnl::primitive_attr::set_output_scales_mask
     ///
     /// @param arg Parameter argument index as passed to the
     ///     primitive::execute() call.
@@ -3310,7 +3269,6 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     /// index #DNNL_ARG_ATTR_ZERO_POINTS | arg.
     ///
     /// @sa dnnl_primitive_attr_set_zero_points_mask
-    /// @sa dnnl::primitive_attr::set_output_scales_mask
     ///
     /// @param arg Parameter argument index as passed to the
     ///     primitive::execute() call.
