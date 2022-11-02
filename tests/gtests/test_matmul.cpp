@@ -151,30 +151,9 @@ protected:
     }
 
     static void create_attr(const matmul_test_params_t &p, primitive_attr &attr,
-            memory &scales_m, memory &zero_points_src_m,
-            memory &zero_points_weights_m, memory &zero_points_dst_m,
-            engine &eng) {
+            memory &zero_points_src_m, memory &zero_points_weights_m,
+            memory &zero_points_dst_m, engine &eng) {
         const int ndims = (int)p.base.dst.dims.size();
-
-        // output scales
-        if (p.attr.scale_flags != P::NONE) {
-            ASSERT_TRUE(p.attr.scale_flags & P::SCALES);
-
-            unsigned scales_mask = p.attr.scale_flags & P::MASK_MASK;
-            ASSERT_TRUE(scales_mask == P::COMMON || scales_mask == P::PER_N);
-
-            int mask = scales_mask == P::PER_N ? 1 << (ndims - 1) : 0;
-            memory::dim scale_size = mask ? p.base.dst.dims[ndims - 1] : 1;
-
-            attr.set_output_scales_mask(mask);
-
-            scales_m = test::make_memory(
-                    {{scale_size}, memory::data_type::f32, {1}}, eng);
-            auto s = map_memory<float>(scales_m);
-            GTEST_EXPECT_NE(s, nullptr);
-            for (memory::dim i = 0; i < scale_size; ++i)
-                s[i] = 2.f;
-        }
 
         // zero points
         auto handle_zero_points = [&](int arg, unsigned flags,
@@ -268,7 +247,7 @@ protected:
         primitive_attr attr;
         memory scales_m, zero_points_src_m, zero_points_weights_m,
                 zero_points_dst_m;
-        create_attr(p, attr, scales_m, zero_points_src_m, zero_points_weights_m,
+        create_attr(p, attr, zero_points_src_m, zero_points_weights_m,
                 zero_points_dst_m, eng);
 
         auto matmul_pd = matmul::primitive_desc(
@@ -312,7 +291,6 @@ protected:
                         {DNNL_ARG_WEIGHTS, weights_m},
                         {DNNL_ARG_BIAS, bia_m},
                         {DNNL_ARG_DST, dst_m},
-                        {DNNL_ARG_ATTR_OUTPUT_SCALES, scales_m},
                         {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC,
                                 zero_points_src_m},
                         {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS,
@@ -367,10 +345,6 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
     const float scale = 1.f;
     const float alpha = 1.f;
     const float beta = 1.f;
-
-    const int ndims = std::get<4>(GetParam());
-    // per-channel output scales
-    attr.set_output_scales_mask(1 << (ndims - 1));
 
     dnnl::post_ops ops;
     ops.append_sum(1.0);
@@ -553,15 +527,6 @@ static auto cases_f = [](memory::data_type dt) {
                      data_type::f32},
                     {}});
 
-    // output scales
-    cases.push_back({{{{10, 2}, dt, tag::ab}, {{2, 20}, dt, tag::ab},
-                             {{10, 20}, dt, tag::ab}, data_type::undef},
-            {P::SCALES | P::COMMON}});
-    // output scales + per_n + runtime
-    cases.push_back({{{{10, 2}, dt, tag::ab}, {{2, 20}, dt, tag::ab},
-                             {{10, 20}, dt, tag::ab}, data_type::undef},
-            {P::SCALES | P::PER_N}});
-
     // post-ops
     cases.push_back({{{{10, 1}, dt, tag::ab}, {{1, 20}, dt, tag::ab},
                              {{10, 20}, dt, tag::ab}},
@@ -616,17 +581,6 @@ static auto cases_x8 = [](memory::data_type src_dt, memory::data_type dst_dt) {
                              P::DST | P::LEADING_DIM | P::RUNTIME},
                      data_type::u8},
                     {}});
-
-    // output scales
-    cases.push_back(
-            {{{{10, 2}, src_dt, tag::ab}, {{2, 20}, data_type::s8, tag::ab},
-                     {{10, 20}, dst_dt, tag::ab}, data_type::undef},
-                    {P::SCALES | P::COMMON}});
-    // output scales + per_n + runtime
-    cases.push_back(
-            {{{{10, 2}, src_dt, tag::ab}, {{2, 20}, data_type::s8, tag::ab},
-                     {{10, 20}, dst_dt, tag::ab}, data_type::undef},
-                    {P::SCALES | P::PER_N}});
 
     // zero points
     cases.push_back(

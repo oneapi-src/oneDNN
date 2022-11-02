@@ -15,9 +15,9 @@
 *******************************************************************************/
 
 CPU_INST_TEST_CASE(SimpleSmall_Blocked_Attributes,
-        PARAMS_ATTR(nhwc, FMT_WEIGHTS_BLOCKED16, FMT_BIAS, nhwc, 0.3f, COMMON,
+        PARAMS_ATTR(nhwc, FMT_WEIGHTS_BLOCKED16, FMT_BIAS, nhwc, 0.5f, COMMON,
                 2, 1, 32, 13, 13, 32, 12, 12, 3, 3, 0, 0, 1, 1),
-        PARAMS_ATTR(nhwc, FMT_WEIGHTS_BLOCKED16, FMT_BIAS, nhwc, 0.3f, COMMON,
+        PARAMS_ATTR(nhwc, FMT_WEIGHTS_BLOCKED16, FMT_BIAS, nhwc, 0.5f, COMMON,
                 2, 1, 32, 13, 13, 32, 12, 12, 3, 3, 0, 0, 1, 1),
         PARAMS_ATTR(nhwc, FMT_WEIGHTS_BLOCKED16, FMT_BIAS, nhwc, 0.5f, COMMON,
                 2, 1, 32, 13, 13, 32, 12, 12, 3, 3, 0, 0, 1, 1),

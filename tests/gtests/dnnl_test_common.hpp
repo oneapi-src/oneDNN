@@ -579,21 +579,31 @@ struct test_convolution_attr_t {
     };
 
     void dnnl_attr_recreate() {
-        mkl_attr = dnnl::primitive_attr();
-        if (oscale.is_def()) {
+        dnnl_attr = dnnl::primitive_attr();
+        if (src_scale.is_def()) {
             const int mask = 0;
-            mkl_attr.set_output_scales_mask(mask);
+            dnnl_attr.set_scales_mask(DNNL_ARG_SRC, mask);
+        }
+        if (wei_scale.is_def()) {
+            const int mask = 0;
+            dnnl_attr.set_scales_mask(DNNL_ARG_WEIGHTS, mask);
+        }
+        if (dst_scale.is_def()) {
+            const int mask = 0;
+            dnnl_attr.set_scales_mask(DNNL_ARG_DST, mask);
         }
     }
 
     test_convolution_attr_t(
             float s, scale_t::policy_t p = scale_t::policy_t::NONE)
-        : oscale(s, p), mkl_attr() {}
+        : src_scale(s, p), wei_scale(s, p), dst_scale(s, p), dnnl_attr() {}
 
     test_convolution_attr_t() : test_convolution_attr_t(1.f) {}
 
-    scale_t oscale;
-    dnnl::primitive_attr mkl_attr;
+    scale_t src_scale;
+    scale_t wei_scale;
+    scale_t dst_scale;
+    dnnl::primitive_attr dnnl_attr;
 };
 
 struct test_convolution_formats_t {
@@ -808,7 +818,6 @@ inline std::string to_string(dnnl_stream_flags_t stream_flags) {
 
 // testing all available C++ primitive descriptor constructors
 struct allows_attr_t {
-    bool oscale;
     bool po_sum;
     bool po_eltwise;
     bool po_binary;
@@ -822,17 +831,6 @@ template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr(const engine &eng, const prim_params_t &... prim_params) {
     dnnl::primitive_attr attr;
     EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr));
-}
-
-template <typename pd_t, typename... prim_params_t>
-void test_fwd_pd_attr_oscale(const engine &eng, bool supports_oscale,
-        const prim_params_t &... prim_params) {
-    dnnl::primitive_attr attr_oscale;
-    attr_oscale.set_output_scales_mask(0);
-    if (supports_oscale)
-        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_oscale));
-    else
-        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_oscale));
 }
 
 template <typename pd_t, typename... prim_params_t>
@@ -895,15 +893,6 @@ void test_fwd_pd_attr_scales(const engine &eng, bool supports_scales,
 
     if (supports_scales) { // Currently only used with binary ops
         EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_scales));
-
-        // Check oscale and scales don't work together
-        dnnl::primitive_attr attr_oscale_scales;
-        attr_oscale_scales.set_output_scales_mask(0);
-        EXPECT_ANY_THROW(attr_oscale_scales.set_scales_mask(DNNL_ARG_SRC, 0));
-
-        dnnl::primitive_attr attr_scales_oscale;
-        attr_scales_oscale.set_scales_mask(DNNL_ARG_SRC, 0);
-        EXPECT_ANY_THROW(attr_scales_oscale.set_output_scales_mask(0));
     } else
         EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_scales));
 }
@@ -933,7 +922,6 @@ void test_fwd_pd_constructors(const pd_t &pd, const allows_attr_t &aa,
     // ctor w/ empty attr, should not throw
     test_fwd_pd_attr<pd_t>(eng, prim_params...);
     // following ctors w/ attrs may throw based on pd support
-    test_fwd_pd_attr_oscale<pd_t>(eng, aa.oscale, prim_params...);
     test_fwd_pd_attr_po_sum<pd_t>(eng, aa.po_sum, prim_params...);
     test_fwd_pd_attr_po_eltwise<pd_t>(eng, aa.po_eltwise, prim_params...);
     test_fwd_pd_attr_po_binary<pd_t>(eng, aa.po_binary, prim_params...);
@@ -949,17 +937,6 @@ void test_bwd_pd_attr(const engine &eng, const hint_pd_t &hint,
         const prim_params_t &... prim_params) {
     dnnl::primitive_attr attr;
     EXPECT_NO_THROW(pd_t pd(eng, prim_params..., hint, attr));
-}
-
-template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
-void test_bwd_pd_attr_oscale(const engine &eng, const hint_pd_t &hint,
-        bool supports_oscale, const prim_params_t &... prim_params) {
-    dnnl::primitive_attr attr_oscale;
-    attr_oscale.set_output_scales_mask(0);
-    if (supports_oscale)
-        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., hint, attr_oscale));
-    else
-        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., hint, attr_oscale));
 }
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
@@ -1048,7 +1025,6 @@ void test_bwd_pd_constructors(const pd_t &pd, const hint_pd_t &hint,
     // ctor w/ empty attr, should not throw
     test_bwd_pd_attr<pd_t>(eng, hint_pd, prim_params...);
     // following ctors w/ attrs may throw based on pd support
-    test_bwd_pd_attr_oscale<pd_t>(eng, hint_pd, aa.oscale, prim_params...);
     test_bwd_pd_attr_po_sum<pd_t>(eng, hint_pd, aa.po_sum, prim_params...);
     test_bwd_pd_attr_po_eltwise<pd_t>(
             eng, hint_pd, aa.po_eltwise, prim_params...);

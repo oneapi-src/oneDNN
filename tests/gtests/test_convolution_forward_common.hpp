@@ -79,14 +79,26 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
 
                 float a_fp = (float)a;
 
+                if (attr.src_scale.is_def()) {
+                    const auto &s = attr.src_scale;
+                    using P = test_convolution_attr_t::scale_t;
+                    if (s.policy == P::policy_t::COMMON) { a_fp *= s.scale; }
+                }
+
+                if (attr.wei_scale.is_def()) {
+                    const auto &s = attr.wei_scale;
+                    using P = test_convolution_attr_t::scale_t;
+                    if (s.policy == P::policy_t::COMMON) { a_fp *= s.scale; }
+                }
+
                 a_fp += (float)(bias_data ? bias_data[bias_mdw.off_l(
                                         g * c.oc / c.ng + oc, true)]
                                           : 0);
 
-                if (attr.oscale.is_def()) {
-                    const auto &s = attr.oscale;
+                if (attr.dst_scale.is_def()) {
+                    const auto &s = attr.dst_scale;
                     using P = test_convolution_attr_t::scale_t;
-                    if (s.policy == P::policy_t::COMMON) { a_fp *= s.scale; }
+                    if (s.policy == P::policy_t::COMMON) { a_fp /= s.scale; }
                 }
 
                 a_fp = out_round<data_t_dst>(a_fp);
@@ -167,7 +179,9 @@ protected:
 
         auto aprop_kind = prop_kind::forward;
         bool with_bias = p.formats.bias_format != memory::format_tag::undef;
-        bool with_oscales = attr.oscale.is_def();
+        bool with_src_scales = attr.src_scale.is_def();
+        bool with_wei_scales = attr.wei_scale.is_def();
+        bool with_dst_scales = attr.dst_scale.is_def();
 
         auto c_src_desc = create_md({cd.mb, cd.ic, cd.ih, cd.iw}, data_type_src,
                 p.formats.src_format);
@@ -181,7 +195,13 @@ protected:
         auto c_bias_desc = with_bias
                 ? create_md({cd.oc}, data_type_dst, p.formats.bias_format)
                 : create_md({}, data_type_dst, p.formats.bias_format);
-        auto c_oscales_desc = with_oscales
+        auto c_src_scales_desc = with_src_scales
+                ? create_md({1}, memory::data_type::f32, memory::format_tag::x)
+                : create_md({}, memory::data_type::f32, memory::format_tag::x);
+        auto c_wei_scales_desc = with_wei_scales
+                ? create_md({1}, memory::data_type::f32, memory::format_tag::x)
+                : create_md({}, memory::data_type::f32, memory::format_tag::x);
+        auto c_dst_scales_desc = with_dst_scales
                 ? create_md({1}, memory::data_type::f32, memory::format_tag::x)
                 : create_md({}, memory::data_type::f32, memory::format_tag::x);
 
@@ -189,7 +209,9 @@ protected:
         auto c_weights = test_memory(c_weights_desc, eng);
         auto c_bias = test_memory(c_bias_desc, eng);
         auto c_dst = test_memory(c_dst_desc, eng);
-        auto c_oscales = test_memory(c_oscales_desc, eng);
+        auto c_src_scales = test_memory(c_src_scales_desc, eng);
+        auto c_wei_scales = test_memory(c_wei_scales_desc, eng);
+        auto c_dst_scales = test_memory(c_dst_scales_desc, eng);
 
         // Only true for dense format
         fill_data<data_t_dst>(
@@ -202,9 +224,17 @@ protected:
             fill_data<data_t_dst>(
                     c_bias.get_size() / sizeof(data_t_dst), c_bias.get());
         }
-        if (with_oscales) {
-            fill_data<float>(c_oscales.get_size() / sizeof(float),
-                    c_oscales.get(), attr.oscale.scale, 0.0f);
+        if (with_src_scales) {
+            fill_data<float>(c_src_scales.get_size() / sizeof(float),
+                    c_src_scales.get(), attr.src_scale.scale, 0.0f);
+        }
+        if (with_wei_scales) {
+            fill_data<float>(c_wei_scales.get_size() / sizeof(float),
+                    c_wei_scales.get(), attr.wei_scale.scale, 0.0f);
+        }
+        if (with_dst_scales) {
+            fill_data<float>(c_dst_scales.get_size() / sizeof(float),
+                    c_dst_scales.get(), attr.dst_scale.scale, 0.0f);
         }
 
         check_zero_tail<data_t_src>(1, c_src.get());
@@ -222,10 +252,10 @@ protected:
                 ? convolution_forward::primitive_desc(eng, aprop_kind,
                         p.aalgorithm, c_src_desc, c_weights_desc, c_bias_desc,
                         c_dst_desc, strides, dilations, padL, padR,
-                        attr.mkl_attr)
+                        attr.dnnl_attr)
                 : convolution_forward::primitive_desc(eng, aprop_kind,
                         p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc,
-                        strides, dilations, padL, padR, attr.mkl_attr);
+                        strides, dilations, padL, padR, attr.dnnl_attr);
 
         conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_primitive_desc.get()); // test construction from a C pd
@@ -257,8 +287,12 @@ protected:
                                 {DNNL_ARG_WEIGHTS, c_weights.get()},
                                 {DNNL_ARG_BIAS, c_bias.get()},
                                 {DNNL_ARG_DST, c_dst.get()},
-                                {DNNL_ARG_ATTR_OUTPUT_SCALES,
-                                        c_oscales.get()}});
+                                {DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC,
+                                        c_src_scales.get()},
+                                {DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS,
+                                        c_wei_scales.get()},
+                                {DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
+                                        c_dst_scales.get()}});
         strm.wait();
 
         auto ref_memory = test::make_memory(c_dst_desc, eng);

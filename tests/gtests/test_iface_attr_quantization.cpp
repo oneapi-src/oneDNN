@@ -32,18 +32,17 @@ protected:
     engine eng = get_test_engine();
     void SetUp() override {}
 
-    // TODO: remove me since oscale is replaced with scales.
-    static primitive_attr gen_attr_with_oscale() {
-        primitive_attr attr;
-        attr.set_output_scales_mask(0);
-        return attr;
-    }
-
     static primitive_attr gen_attr_with_scales() {
         primitive_attr attr;
         attr.set_scales_mask(DNNL_ARG_SRC, 0);
         attr.set_scales_mask(DNNL_ARG_WEIGHTS, 0);
         attr.set_scales_mask(DNNL_ARG_DST, 0);
+        return attr;
+    }
+
+    static primitive_attr gen_attr_with_scales(int arg, int mask = 0) {
+        primitive_attr attr;
+        attr.set_scales_mask(arg, mask);
         return attr;
     }
 
@@ -80,7 +79,7 @@ TEST_F(attr_quantization_test_t, TestBNorm) {
                 eng, prop_kind::forward_inference, md, md, 0.1f, flags));
         CHECK_UNIMPL(batch_normalization_forward::primitive_desc(eng,
                 prop_kind::forward_inference, md, md, 0.1f, flags,
-                gen_attr_with_oscale()));
+                gen_attr_with_scales()));
 
         for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS,
                      DNNL_ARG_MEAN, DNNL_ARG_VARIANCE, DNNL_ARG_DST}) {
@@ -94,10 +93,10 @@ TEST_F(attr_quantization_test_t, TestBNorm) {
 TEST_F(attr_quantization_test_t, TestBinary) {
     memory::desc md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
     CHECK_OK(binary::primitive_desc(eng, algorithm::binary_add, md, md, md));
-    CHECK_UNIMPL(binary::primitive_desc(
-            eng, algorithm::binary_add, md, md, md, gen_attr_with_oscale()));
 
     for (auto arg : {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1, DNNL_ARG_DST}) {
+        CHECK_OK(binary::primitive_desc(eng, algorithm::binary_add, md, md, md,
+                gen_attr_with_scales(arg)));
         CHECK_UNIMPL(binary::primitive_desc(
                 eng, algorithm::binary_add, md, md, md, gen_attr_with_zp(arg)));
     }
@@ -106,11 +105,11 @@ TEST_F(attr_quantization_test_t, TestBinary) {
 TEST_F(attr_quantization_test_t, TestConcat) {
     memory::desc md {{1, 16, 3, 3}, data_type::s8, tag::abcd};
     CHECK_OK(concat::primitive_desc(eng, 1, {md, md}));
-    CHECK_UNIMPL(
-            concat::primitive_desc(eng, 1, {md, md}, gen_attr_with_oscale()));
 
     for (auto arg :
             {DNNL_ARG_MULTIPLE_SRC, DNNL_ARG_MULTIPLE_SRC + 1, DNNL_ARG_DST}) {
+        CHECK_OK(concat::primitive_desc(
+                eng, 1, {md, md}, gen_attr_with_scales(arg)));
         CHECK_UNIMPL(concat::primitive_desc(
                 eng, 1, {md, md}, gen_attr_with_zp(arg)));
     }
@@ -128,7 +127,7 @@ TEST_F(attr_quantization_test_t, TestConv) {
             {1, 1}, {1, 1}));
     CHECK_OK(convolution_forward::primitive_desc(eng, prop_kind::forward,
             algorithm::convolution_direct, src_md, wei_md, dst_md, {1, 1},
-            {1, 1}, {1, 1}, gen_attr_with_oscale()));
+            {1, 1}, {1, 1}, gen_attr_with_scales()));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
         if ((src_md.get_data_type() == data_type::s8
@@ -151,10 +150,9 @@ TEST_F(attr_quantization_test_t, TestDeconv) {
     memory::desc src_md {{1, 16, 7, 7}, data_type::f32, tag::any};
     memory::desc wei_md {{32, 16, 3, 3}, data_type::f32, tag::any};
     memory::desc dst_md {{1, 32, 7, 7}, data_type::f32, tag::any};
-    // TODO: add u8s8 combination to replace CHECK_UNIMPL with CHECK_OK below
-    CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng, prop_kind::forward,
+    CHECK_OK(deconvolution_forward::primitive_desc(eng, prop_kind::forward,
             algorithm::deconvolution_direct, src_md, wei_md, dst_md, {1, 1},
-            {1, 1}, {1, 1}, gen_attr_with_oscale()));
+            {1, 1}, {1, 1}, gen_attr_with_scales()));
 
     for (auto arg :
             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
@@ -172,7 +170,7 @@ TEST_F(attr_quantization_test_t, TestEltwise) {
                 eng, prop_kind::forward, algorithm::eltwise_relu, md, md, 0.f));
 
         CHECK_UNIMPL(eltwise_forward::primitive_desc(eng, prop_kind::forward,
-                algorithm::eltwise_relu, md, md, 0.f, gen_attr_with_oscale()));
+                algorithm::eltwise_relu, md, md, 0.f, gen_attr_with_scales()));
 
         for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
             CHECK_UNIMPL(eltwise_forward::primitive_desc(eng,
@@ -191,7 +189,7 @@ TEST_F(attr_quantization_test_t, TestInnerProduct) {
     CHECK_OK(inner_product_forward::primitive_desc(
             eng, prop_kind::forward, src_md, wei_md, dst_md));
     CHECK_OK(inner_product_forward::primitive_desc(eng, prop_kind::forward,
-            src_md, wei_md, dst_md, gen_attr_with_oscale()));
+            src_md, wei_md, dst_md, gen_attr_with_scales()));
 
     for (auto arg :
             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
@@ -237,7 +235,7 @@ TEST_F(attr_quantization_test_t, TestLRN) {
                 algorithm::lrn_across_channels, md, md, 5, 1.f, 0.75f, 1.0f));
         CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
                 prop_kind::forward_inference, algorithm::lrn_across_channels,
-                md, md, 5, 1.f, 0.75f, 1.0f, gen_attr_with_oscale()));
+                md, md, 5, 1.f, 0.75f, 1.0f, gen_attr_with_scales()));
 
         for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
             CHECK_UNIMPL(lrn_forward::primitive_desc(eng,
@@ -259,7 +257,7 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmul) {
 
         CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md));
         CHECK_OK(matmul::primitive_desc(
-                eng, a_md, b_md, c_md, gen_attr_with_oscale()));
+                eng, a_md, b_md, c_md, gen_attr_with_scales()));
 
         for (auto arg :
                 {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
@@ -285,7 +283,7 @@ TEST_F(attr_quantization_test_t, TestPool) {
     CHECK_UNIMPL(
             pooling_forward::primitive_desc(eng, prop_kind::forward_inference,
                     algorithm::pooling_max, src_md, dst_md, {2, 2}, {2, 2},
-                    {0, 0}, {0, 0}, {0, 0}, gen_attr_with_oscale()));
+                    {0, 0}, {0, 0}, {0, 0}, gen_attr_with_scales()));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_UNIMPL(pooling_forward::primitive_desc(eng,
@@ -304,7 +302,7 @@ TEST_F(attr_quantization_test_t, TestPReLU) {
             eng, prop_kind::forward, data_md, weights_md, data_md));
 
     CHECK_UNIMPL(prelu_forward::primitive_desc(eng, prop_kind::forward, data_md,
-            weights_md, data_md, gen_attr_with_oscale()));
+            weights_md, data_md, gen_attr_with_scales()));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_UNIMPL(prelu_forward::primitive_desc(eng, prop_kind::forward,
@@ -316,10 +314,10 @@ CPU_TEST_F(attr_quantization_test_t, TestReorder) {
     memory::desc src_md {{1, 16, 8, 8}, data_type::s8, tag::abcd};
     memory::desc dst_md {{1, 16, 8, 8}, data_type::s8, tag::acdb};
     CHECK_OK(reorder::primitive_desc(eng, src_md, eng, dst_md));
-    CHECK_OK(reorder::primitive_desc(
-            eng, src_md, eng, dst_md, gen_attr_with_oscale()));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
+        CHECK_OK(reorder::primitive_desc(
+                eng, src_md, eng, dst_md, gen_attr_with_scales(arg)));
         CHECK_OK(reorder::primitive_desc(
                 eng, src_md, eng, dst_md, gen_attr_with_zp(arg)));
     }
@@ -386,7 +384,7 @@ TEST_F(attr_quantization_test_t, TestShuffle) {
     CHECK_OK(shuffle_forward::primitive_desc pd(
             eng, prop_kind::forward, md, md, 1, 4));
     CHECK_UNIMPL(shuffle_forward::primitive_desc pd(
-            eng, prop_kind::forward, md, md, 1, 4, gen_attr_with_oscale()));
+            eng, prop_kind::forward, md, md, 1, 4, gen_attr_with_scales()));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_UNIMPL(shuffle_forward::primitive_desc pd(
@@ -402,10 +400,11 @@ TEST_F(attr_quantization_test_t, TestSoftmax) {
 
     CHECK_OK(softmax_forward::primitive_desc(
             eng, prop_kind::forward, algorithm::softmax_accurate, md, md, 1));
-    CHECK_OK(softmax_forward::primitive_desc(eng, prop_kind::forward,
-            algorithm::softmax_accurate, md, md, 1, gen_attr_with_scales()));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
+        CHECK_OK(softmax_forward::primitive_desc(eng, prop_kind::forward,
+                algorithm::softmax_accurate, md, md, 1,
+                gen_attr_with_scales(arg)));
         CHECK_UNIMPL(softmax_forward::primitive_desc(eng, prop_kind::forward,
                 algorithm::softmax_accurate, md, md, 1, gen_attr_with_zp(arg)));
     }
@@ -415,7 +414,7 @@ TEST_F(attr_quantization_test_t, TestSum) {
     memory::desc md {{1, 16, 3, 3}, data_type::s8, tag::abcd};
     CHECK_OK(sum::primitive_desc(eng, {1.f, 1.f}, {md, md}));
     CHECK_UNIMPL(sum::primitive_desc(
-            eng, {1.f, 1.f}, {md, md}, gen_attr_with_oscale()));
+            eng, {1.f, 1.f}, {md, md}, gen_attr_with_scales()));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_UNIMPL(sum::primitive_desc(

@@ -119,16 +119,6 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScratchpadArg) {
     }
 }
 
-HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestIntOutputScales) {
-    dnnl::primitive_attr attr;
-
-    // non-default scale
-    attr.set_output_scales_mask(0);
-
-    // invalid mask
-    EXPECT_ANY_THROW(attr.set_output_scales_mask(-1));
-}
-
 TEST_F(attr_test_t, TestZeroPoints) {
     dnnl::primitive_attr attr;
 
@@ -365,8 +355,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
     attr.set_post_ops(ops);
 
     ASSERT_EQ(attr.get_post_ops().kind(0), primitive::kind::convolution);
-    attr.get_post_ops().get_params_dw(0, wei_dt, bias_dt, dst_dt, kernel,
-            stride, padding);
+    attr.get_post_ops().get_params_dw(
+            0, wei_dt, bias_dt, dst_dt, kernel, stride, padding);
     ASSERT_EQ(wei_dt, memory::data_type::s8);
     ASSERT_EQ(bias_dt, memory::data_type::f32);
     ASSERT_EQ(dst_dt, memory::data_type::u8);
@@ -382,8 +372,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
     ASSERT_EQ(attr.get_post_ops().kind(0), primitive::kind::convolution);
     ASSERT_EQ(attr.get_post_ops().kind(1), primitive::kind::convolution);
 
-    attr.get_post_ops().get_params_dw(1, wei_dt, bias_dt, dst_dt, kernel,
-            stride, padding);
+    attr.get_post_ops().get_params_dw(
+            1, wei_dt, bias_dt, dst_dt, kernel, stride, padding);
 
     ASSERT_EQ(wei_dt, memory::data_type::u8);
     ASSERT_EQ(bias_dt, memory::data_type::s32);
@@ -401,8 +391,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
     ASSERT_EQ(attr.get_post_ops().kind(1), primitive::kind::convolution);
     ASSERT_EQ(attr.get_post_ops().kind(2), primitive::kind::convolution);
 
-    attr.get_post_ops().get_params_dw(2, wei_dt, bias_dt, dst_dt, kernel,
-            stride, padding);
+    attr.get_post_ops().get_params_dw(
+            2, wei_dt, bias_dt, dst_dt, kernel, stride, padding);
 
     ASSERT_EQ(wei_dt, memory::data_type::f32);
     ASSERT_EQ(bias_dt, memory::data_type::f32);
@@ -418,8 +408,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, DepthwiseFusionPostop) {
 
     ASSERT_EQ(attr.get_post_ops().kind(3), primitive::kind::convolution);
 
-    attr.get_post_ops().get_params_dw(3, wei_dt, bias_dt, dst_dt, kernel,
-            stride, padding);
+    attr.get_post_ops().get_params_dw(
+            3, wei_dt, bias_dt, dst_dt, kernel, stride, padding);
 
     ASSERT_EQ(wei_dt, memory::data_type::s8);
     ASSERT_EQ(bias_dt, memory::data_type::f32);
@@ -536,7 +526,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetAttr) {
     ops.append_dw(dt, dt, dt, 3, 1, 1);
     attr_s.set_scales_mask(DNNL_ARG_SRC_0, 0);
     attr_os.set_scales_mask(DNNL_ARG_DST, 0);
-    attr_dw.set_scales_mask(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, 1 << 1);
+    attr_dw.set_scales_mask(
+            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, 1 << 1);
     attr_dw.set_post_ops(ops);
 
     memory::desc dat_md {{512, 512, 3, 3}, dt, memory::format_tag::nchw};
