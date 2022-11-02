@@ -164,8 +164,8 @@ config_ptr gen_managed_conv1x1_backprop_data_t::get_default_config(
   }
   cfg.BS_split_num = num_threads / split_s;
   cfg.S_split_num = split_s;
-  if (OS <= 256) {
-    // for small spatial size, we prefer to give splits only on BS
+  if (OS <= 256 && BS >= num_threads) {
+    // for small spatial size and large bs, we prefer to give splits only on BS
     cfg.BS_split_num = num_threads;
     cfg.S_split_num = 1;
   }
@@ -260,11 +260,11 @@ gen_managed_conv1x1_backprop_data_t::gen_managed_conv1x1_backprop_data_t(
   }
 
   if (OS >= 256)
-    im_ow_block_ = H;
+    im_ow_block_ = W;
   else if (OS >= 64)
-    im_ow_block_ = has_stride ? H : H * 2;
+    im_ow_block_ = has_stride ? W : W * 2;
   else
-    im_ow_block_ = has_stride ? H : OS;
+    im_ow_block_ = has_stride ? W : OS;
   im_ic_block_ = IC_block_default;
   im_oc_block_ = OC_block_default;
   im_bs_block_ = 1;
@@ -367,8 +367,9 @@ void gen_managed_conv1x1_backprop_data_t::
                   expr LDC = ori_IC;
                   LDC->attr().set("plain_init", true);
                   _if_(o_oc == 0) {
+                    // when strides > 1, im_ow_block_ = OW
                     sc::builtin::dnnl_brgemm_init(tensor_ptr(C, cidx),
-                      stride_h * im_ow_block_, im_ic_block_, LDC,
+                      stride_h * stride_w * im_ow_block_, im_ic_block_, LDC,
                       datatypes::f32, 0);
                   }
                 }
