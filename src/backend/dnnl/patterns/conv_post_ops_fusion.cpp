@@ -676,7 +676,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_conv_bias_fusion_gpu)
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         dnnl, int8_bf16_conv_post_ops_fusion)
         .set_priority(10.4f)
-        .set_kind(impl::partition_kind::quantized_matmul_post_ops)
+        .set_kind(impl::partition_kind::quantized_convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
