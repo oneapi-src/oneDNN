@@ -73,14 +73,9 @@ status_t brgemm_convolution_bwd_strided_t<isa, enable_postops>::pd_t::init(
             && impl_supports_datatype(diff_src_type)
             && impl_supports_datatype(wei_type)
             && impl_supports_datatype(diff_dst_type)
-            && one_of(diff_src_type, f32, bf16) && one_of(wei_type, f32, bf16)
-            && one_of(diff_dst_type, f32, bf16) && diff_dst_type == wei_type
-            && IMPLICATION(diff_dst_type == f32, diff_src_type == f32)
-            && IMPLICATION(with_bias(),
-                    (diff_dst_type == bf16
-                            && one_of(bias_md_.data_type, f32, bf16))
-                            || everyone_is(
-                                    f32, diff_dst_type, bias_md_.data_type))
+            && one_of(wei_type, f32, bf16, f16) && wei_type == diff_dst_type
+            && one_of(diff_src_type, wei_type, f32)
+            && one_of(with_bias(), one_of(bias_md_.data_type, f32, wei_type))
             && attr()->has_default_values(skip_mask, diff_src_type)
             && IMPLICATION(enable_postops,
                     attr()->post_ops_.check_sum_consistent_dt(diff_src_type))
@@ -807,6 +802,8 @@ void brgemm_convolution_bwd_strided_t<isa, enable_postops>::ker_trans(
 
 template struct brgemm_convolution_bwd_strided_t<avx512_core_amx>;
 template struct brgemm_convolution_bwd_strided_t<avx512_core_amx, true>;
+template struct brgemm_convolution_bwd_strided_t<avx512_core_amx_fp16>;
+template struct brgemm_convolution_bwd_strided_t<avx512_core_amx_fp16, true>;
 
 } // namespace x64
 

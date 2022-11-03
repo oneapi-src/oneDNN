@@ -46,16 +46,10 @@ using namespace data_type;
 namespace brgemm_convolution_bwd_utils {
 
 inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
-        const memory_desc_wrapper &mdw, const format_tag_t tag_value,
-        bool any_eligible) {
-
+        const memory_desc_wrapper &mdw, const format_tag_t tag_value) {
     if (mdw.format_kind() == format_kind::any) {
-        if (any_eligible) {
-            CHECK(memory_desc_init_by_tag(md, tag_value));
-            tag = tag_value;
-        } else {
-            tag = format_tag::undef;
-        }
+        CHECK(memory_desc_init_by_tag(md, tag_value));
+        tag = tag_value;
     } else {
         tag = mdw.matches_one_of_tag(tag_value);
     }
@@ -92,7 +86,7 @@ bool is_groups_ok(jit_brgemm_conv_conf_t &jcp) {
     // and bf16 grouped conv with layout nxc on jit_bf16 impl
     // TODO: remove this condition after the restriction on small oc is removed
     return jcp.ngroups > 1
-            && IMPLICATION(one_of(jcp.src_dt, u8, s8, bf16),
+            && IMPLICATION(one_of(jcp.src_dt, u8, s8, bf16, f16),
                     jcp.oc % 4 == 0 && jcp.ic % 4 == 0);
 }
 
@@ -125,7 +119,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIdhwO16o64i4o : IdhwO16o64i4o;
                     else
                         wei_tag = with_groups ? gIdhwO64i4o : IdhwO64i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIdhwO16o64i2o : IdhwO16o64i2o;
                     else
@@ -140,7 +134,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIwO16o64i4o : IwO16o64i4o;
                     else
                         wei_tag = with_groups ? gIwO64i4o : IwO64i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIwO16o64i2o : IwO16o64i2o;
                     else
@@ -157,7 +151,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIhwO16o64i4o : IhwO16o64i4o;
                     else
                         wei_tag = with_groups ? gIhwO64i4o : IhwO64i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIhwO16o64i2o : IhwO16o64i2o;
                     else
@@ -174,7 +168,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIdhwO16o48i4o : IdhwO16o48i4o;
                     else
                         wei_tag = with_groups ? gIdhwO48i4o : IdhwO48i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIdhwO16o48i2o : IdhwO16o48i2o;
                     else
@@ -189,7 +183,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIwO16o48i4o : IwO16o48i4o;
                     else
                         wei_tag = with_groups ? gIwO48i4o : IwO48i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIwO16o48i2o : IwO16o48i2o;
                     else
@@ -206,7 +200,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIhwO16o48i4o : IhwO16o48i4o;
                     else
                         wei_tag = with_groups ? gIhwO48i4o : IhwO48i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIhwO16o48i2o : IhwO16o48i2o;
                     else
@@ -223,7 +217,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIdhwO16o32i4o : IdhwO16o32i4o;
                     else
                         wei_tag = with_groups ? gIdhwO32i4o : IdhwO32i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIdhwO16o32i2o : IdhwO16o32i2o;
                     else
@@ -238,7 +232,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIwO16o32i4o : IwO16o32i4o;
                     else
                         wei_tag = with_groups ? gIwO32i4o : IwO32i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIwO16o32i2o : IwO16o32i2o;
                     else
@@ -255,7 +249,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIhwO16o32i4o : IhwO16o32i4o;
                     else
                         wei_tag = with_groups ? gIhwO32i4o : IhwO32i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIhwO16o32i2o : IhwO16o32i2o;
                     else
@@ -272,7 +266,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIdhwO16o16i4o : IdhwO16o16i4o;
                     else
                         wei_tag = with_groups ? gIdhwO16i4o : IdhwO16i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIdhwO16o16i2o : IdhwO16o16i2o;
                     else
@@ -287,7 +281,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIwO16o16i4o : IwO16o16i4o;
                     else
                         wei_tag = with_groups ? gIwO16i4o : IwO16i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIwO16o16i2o : IwO16o16i2o;
                     else
@@ -305,7 +299,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
                         wei_tag = with_groups ? gIhwO16o16i4o : IhwO16o16i4o;
                     else
                         wei_tag = with_groups ? gIhwO16i4o : IhwO16i4o;
-                } else if (jcp.wei_dt == bf16) {
+                } else if (one_of(jcp.wei_dt, bf16, f16)) {
                     if (jcp.is_oc_padded)
                         wei_tag = with_groups ? gIhwO16o16i2o : IhwO16o16i2o;
                     else
@@ -318,13 +312,9 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
 
     src_tag = dst_tag;
 
-    const bool any_eligible = (jcp.prop_kind == prop_kind::backward_data
-            || jcp.wei_dt == data_type::s8 || is_amx(jcp.isa));
-    CHECK(init_tag(
-            jcp.src_tag, diff_dst_md, diff_dst_d, src_tag, any_eligible));
-    CHECK(init_tag(
-            jcp.dst_tag, diff_src_md, diff_src_d, dst_tag, any_eligible));
-    CHECK(init_tag(jcp.wei_tag, weights_md, weights_d, wei_tag, true));
+    CHECK(init_tag(jcp.src_tag, diff_dst_md, diff_dst_d, src_tag));
+    CHECK(init_tag(jcp.dst_tag, diff_src_md, diff_src_d, dst_tag));
+    CHECK(init_tag(jcp.wei_tag, weights_md, weights_d, wei_tag));
 
     return status::success;
 }
@@ -1355,8 +1345,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (jcp.is_bf32) return status::unimplemented;
 
-    brg_blocking_t::last_oc_block_size
-            = (jcp.wei_dt == f32) ? 1 : ((jcp.wei_dt == bf16) ? 2 : 4);
+    brg_blocking_t::last_oc_block_size = data_type_vnni_granularity(jcp.wei_dt);
 
     // TODO: optimize grouped convolutions with small oc
     const bool is_grouped_small_oc
@@ -1389,6 +1378,9 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         return status::unimplemented;
 
     if (!IMPLICATION(jcp.wei_dt == bf16, mayiuse(avx512_core_bf16)))
+        return status::unimplemented;
+
+    if (!IMPLICATION(jcp.wei_dt == f16, mayiuse(avx512_core_fp16)))
         return status::unimplemented;
 
     jcp.acc_dt = types::is_integral_dt(jcp.src_dt) ? s32 : f32;
@@ -1442,11 +1434,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     // fast check data layout before spending time for blocking selection
     format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
-    const bool any_eligible = (jcp.prop_kind == prop_kind::forward_inference
-            || jcp.wei_dt == data_type::s8 || is_amx(jcp.isa));
 
-    CHECK(init_tag(
-            jcp.src_tag, diff_dst_md, diff_dst_d, src_tag, any_eligible));
+    CHECK(init_tag(jcp.src_tag, diff_dst_md, diff_dst_d, src_tag));
 
     return status::success;
 }
