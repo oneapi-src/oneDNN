@@ -62,6 +62,16 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
         if (!impl::utils::pm::match_pattern(cur_op, pgraph, candidate_fusion)) {
             return status::success;
         }
+
+        // check if those candidate ops have dynamic input shape
+        for (const auto &c : candidate_fusion) {
+            for (const auto &in_val : c->get_input_values()) {
+                auto in_lt = in_val->get_logical_tensor();
+                if (impl::logical_tensor_wrapper_t(in_lt).has_dynamic_dim())
+                    return status::success;
+            }
+        }
+
         fusion_ops.emplace_back(candidate_fusion);
         return status::success;
     });
