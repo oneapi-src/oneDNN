@@ -123,17 +123,20 @@ int prb_t::get_compensation_mask(flag_bit_t flag) const {
     return mask;
 }
 
-float *prb_t::generate_oscales() {
-    const attr_t::scale_t &oscale = this->attr.oscale;
-    const int mask = attr_t::get_default_mask(oscale.policy);
+float *prb_t::generate_scales(int arg) const {
+    const auto &scales = attr.scales;
+    if (scales.is_def()) return nullptr;
+
+    const auto &e = scales.get(arg);
+    const int mask = attr_t::get_default_mask(e.policy);
     int64_t uniq_scales = nelems(mask);
 
-    float *scales = (float *)zmalloc(sizeof(float) * uniq_scales, 64);
-    SAFE_V(scales != nullptr ? OK : FAIL);
+    float *values = (float *)zmalloc(sizeof(float) * uniq_scales, 64);
+    SAFE_V(values != nullptr ? OK : FAIL);
     for (int d = 0; d < uniq_scales; ++d)
-        scales[d] = oscale.scale;
-    if (uniq_scales > 1) scales[uniq_scales - 1] /= 2.f;
-    return scales;
+        values[d] = e.scale;
+    if (uniq_scales > 1) values[uniq_scales - 1] /= 2.f;
+    return values;
 }
 
 int32_t *prb_t::generate_zero_points(int arg) const {

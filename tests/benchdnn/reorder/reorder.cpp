@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <random>
 
 #include <stdlib.h>
 
@@ -60,11 +61,14 @@ int fill_memory_int(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 int fill_memory_fp(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     const auto conf = prb->get_conf(kind);
-    const int scale_mask = attr_t::get_default_mask(prb->attr.oscale.policy);
+    const int arg = kind == SRC ? DNNL_ARG_SRC : DNNL_ARG_DST;
+    const float *scales = kind == SRC ? prb->src_scales : prb->dst_scales;
+    const int scale_mask
+            = attr_t::get_default_mask(prb->attr.scales.get(arg).policy);
 
     for (int64_t idx = 0; idx < mem_fp.nelems(); ++idx) {
         const int64_t mask_idx = mem_fp.get_scale_idx(idx, scale_mask);
-        const float scale = prb->scales[mask_idx];
+        const float scale = scales ? scales[mask_idx] : 1.0;
 
         const float gen[7] = {
                 conf->max, // saturate to max of output data type
@@ -184,11 +188,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         }
     }
 
-    attr_args_t attr_args;
-    const int mask = attr_t::get_default_mask(prb->attr.oscale.policy);
-    attr_args.prepare_output_scales(prb->attr, prb->scales, prb->nelems(mask));
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args));
+            create_dnnl_attr(prb->attr, attr_args_t()));
 
     init_pd_args.is_iterator_supported = false;
     return dnnl_reorder_primitive_desc_create(
@@ -201,20 +202,24 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type({sdt, ddt}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res);
 
-    bool oscale_ok = true;
+    bool scales_ok = true;
 #if !defined(DNNL_X64) || DNNL_X64 == 0
     {
         // reference reorder supports only a subset of oscale policies
         const std::vector<policy_t> supported_policy = {policy_t::PER_OC,
                 policy_t::PER_DIM_0, policy_t::PER_DIM_1, policy_t::PER_DIM_01};
 
-        oscale_ok = std::any_of(supported_policy.cbegin(),
+        scales_ok &= std::any_of(supported_policy.cbegin(),
                 supported_policy.cend(), [&](const policy_t policy) {
-                    return prb->attr.oscale.policy == policy;
+                    return prb->attr.scales.get(DNNL_ARG_SRC).policy == policy;
+                });
+        scales_ok &= std::any_of(supported_policy.cbegin(),
+                supported_policy.cend(), [&](const policy_t policy) {
+                    return prb->attr.scales.get(DNNL_ARG_DST).policy == policy;
                 });
     }
 #endif
-    if (!oscale_ok) {
+    if (!scales_ok) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
@@ -266,10 +271,10 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
 
     if (is_gpu()) {
-        // GPU does not support run-time dims/oscale.
+        // GPU does not support run-time dims.
         // Reorders w/ compensation are not supported by design: zp_comp is done
         // in kernels directly, but s8s8 instructions are available in HW.
-        if (prb->runtime_dim_mask != 0 || prb->attr.oscale.runtime
+        if (prb->runtime_dim_mask != 0
                 || prb->is_reorder_with_compensation(FLAG_ANY)) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
@@ -361,10 +366,17 @@ int doit(const prb_t *prb, res_t *res) {
             = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0;
     if (has_sum) { SAFE(fill_memory(prb, DST, dst_dt, dst_fp), WARN); }
 
-    dnn_mem_t scales, src_zero_points_m, dst_zero_points_m;
-    const int mask = attr_t::get_default_mask(prb->attr.oscale.policy);
-    maybe_prepare_runtime_scales(
-            scales, prb->attr.oscale, prb->nelems(mask), prb->scales);
+    const int src_mask = attr_t::get_default_mask(
+            prb->attr.scales.get(DNNL_ARG_SRC).policy);
+    const int dst_mask = attr_t::get_default_mask(
+            prb->attr.scales.get(DNNL_ARG_DST).policy);
+    dnn_mem_t src_scales, dst_scales;
+    dnn_mem_t src_zero_points_m, dst_zero_points_m;
+
+    maybe_prepare_runtime_scales(src_scales, prb->attr.scales.get(DNNL_ARG_SRC),
+            prb->nelems(src_mask), prb->src_scales);
+    maybe_prepare_runtime_scales(dst_scales, prb->attr.scales.get(DNNL_ARG_DST),
+            prb->nelems(dst_mask), prb->dst_scales);
     maybe_prepare_runtime_zero_points(
             src_zero_points_m, prb->attr, DNNL_ARG_SRC, 1, prb->src_zp);
     maybe_prepare_runtime_zero_points(
@@ -375,7 +387,8 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_FROM, src_dt);
     args.set(DNNL_ARG_TO, dst_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-    args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+    args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales);
+    args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
 
@@ -401,6 +414,8 @@ int doit(const prb_t *prb, res_t *res) {
         ref_args.set(DNNL_ARG_TO, dst_fp);
         ref_args.set(DNNL_ARG_SRC_1, dst_s8_comp_ref); // Additional input
         ref_args.set(DNNL_ARG_SRC_2, dst_zp_comp_ref); // Additional input
+        ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales);
+        ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales);
 
         // Remove extra desc so that reorders with compensation could have
         // proper reorder from blocked layout to plain for comparison.
