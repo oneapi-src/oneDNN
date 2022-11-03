@@ -23,12 +23,12 @@
 
 --attr-post-ops=
 
-# Output scale check
+# Arg scales check
 --cfg=f32,bf16bf16bf16,u8s8u8,s8s8s32,s8s8f32
---attr-oscale=common:2.25*,per_oc:5*
+--attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:2.25*
 --batch=shapes_2d_ci
 --batch=shapes_3d
---attr-oscale=
+--attr-scales=
 
 # Zero-points check
 --cfg=s8s8s8,u8s8f32,u8s8bf16
