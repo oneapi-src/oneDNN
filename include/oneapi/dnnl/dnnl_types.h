@@ -2244,9 +2244,6 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// Output scaling factors provided at execution time.
 #define DNNL_ARG_ATTR_OUTPUT_SCALES 513
 
-/// Scaling factors provided at execution time.
-#define DNNL_ARG_ATTR_SCALES 512
-
 /// Starting index for source arguments for primitives that take a variable
 /// number of source arguments.
 #define DNNL_ARG_MULTIPLE_SRC 1024
@@ -2254,15 +2251,18 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// variable number of destination arguments.
 #define DNNL_ARG_MULTIPLE_DST 2048
 
+/// Scaling factors provided at execution time.
+#define DNNL_ARG_ATTR_SCALES 4096
+
 /// Zero points provided at execution time.
-#define DNNL_ARG_ATTR_ZERO_POINTS 4096
+#define DNNL_ARG_ATTR_ZERO_POINTS 8192
 
 /// Arguments for fused depthwise convolution.
 /// See @ref dev_guide_attributes_post_ops_depthwise_fusion
-#define DNNL_ARG_ATTR_POST_OP_DW 8192
+#define DNNL_ARG_ATTR_POST_OP_DW 16384
 
 /// Starting point for a binary post operation.
-#define DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE 16384
+#define DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE 32768
 
 /// Arguments for a binary post operation. Up to 32 arguments are supported.
 /// See @ref dev_guide_attributes_post_ops_binary_fusion
