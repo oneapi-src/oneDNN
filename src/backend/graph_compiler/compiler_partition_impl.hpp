@@ -63,8 +63,7 @@ public:
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
             const impl::engine_t *aengine,
-            const impl::compilation_context_t *acompilation_context)
-            const override;
+            const impl::context_t *acontext) const override;
 
     const impl::backend *get_assigned_backend() const override {
         return &compiler_backend_t::get_singleton();
@@ -132,6 +131,10 @@ public:
     impl::status_t execute(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override;
+    status_t query_dynamic_outputs(
+            const std::vector<logical_tensor_t *> &out_lts,
+            const std::vector<const logical_tensor_t *> &in_lts,
+            const impl::context_t *acontext) const override;
 
 private:
     std::shared_ptr<sc::jit_function_t> jit_func_;

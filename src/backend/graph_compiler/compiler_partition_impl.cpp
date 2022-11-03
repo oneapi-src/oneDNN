@@ -121,9 +121,8 @@ impl::status_t compiler_partition_impl_t::compile(
         impl::compiled_partition_t *compiled_partition,
         const std::vector<impl::logical_tensor_t> &inputs,
         const std::vector<impl::logical_tensor_t> &outputs,
-        const impl::engine_t *aengine,
-        const impl::compilation_context_t *acompilation_context) const {
-    UNUSED(acompilation_context);
+        const impl::engine_t *aengine, const impl::context_t *acontext) const {
+    UNUSED(acontext);
     try {
         impl::status_t res = status::success;
         // here we call infer_shape since logical tensor info
@@ -362,6 +361,16 @@ compiler_compiled_partition_impl_t::~compiler_compiled_partition_impl_t() {
     }
     jit_func_ = nullptr;
     graph_engine_->allocator_->release();
+}
+
+status_t compiler_compiled_partition_impl_t::query_dynamic_outputs(
+        const std::vector<logical_tensor_t *> &out_lts,
+        const std::vector<const logical_tensor_t *> &in_lts,
+        const impl::context_t *acontext) const {
+    UNUSED(out_lts);
+    UNUSED(in_lts);
+    UNUSED(acontext);
+    return status::unimplemented;
 }
 
 impl::status_t compiler_compiled_partition_impl_t::execute(
