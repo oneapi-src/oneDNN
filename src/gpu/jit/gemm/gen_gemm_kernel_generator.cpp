@@ -5152,7 +5152,7 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
                 if (!offX.isValid()) baseAdjustElems = addr[0].ud(5);
 
                 and_(1, baseAdjust, ptr.ud(0), baseAlign - 1);
-                and_(1, addr[0].ud(0), ptr.ud(0), -uint32_t(baseAlign));
+                and_(1, addr[0].ud(0), ptr.ud(0), ~uint32_t(baseAlign - 1));
                 mov(1, addr[0].ud(1), ptr.ud(1));
                 if (block.ebytes > 1)
                     shr(1, baseAdjustElems, baseAdjust, log2(block.ebytes));
