@@ -139,7 +139,7 @@ status_t vectorized_resampling_bwd_t::pd_t::init_conf(engine_t *engine) {
     conf.lws[1] = conf.lws[2] = 1;
 
     // gws: multiple of lws and padded C, and each other dim
-    const int gws_divisor = math::lcm(conf.lws[0], conf.padded_c);
+    const int gws_divisor = math::lcm((int)conf.lws[0], (int)conf.padded_c);
     conf.gws[0] = diff_src_md()->padded_dims[0] * conf.padded_c * ID() * IH()
             * IW() / conf.vect_size;
     conf.gws[0] = utils::rnd_up(conf.gws[0], gws_divisor);
