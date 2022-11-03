@@ -40,26 +40,39 @@ dnnl_data_type_t prb_t::get_dt(data_kind_t data_kind) const {
 }
 
 void prb_t::generate_oscales() {
-    if (attr.oscale.is_def()) return;
+    // Brgemm takes single pointer oscale, but relies on a combination of arg
+    // scales attributes. This helps to reuse attributes from primitives, but
+    // requires them to pre-compute oscale = src_scale * wei_scale[:]
+    const auto &attr_scales = attr.scales;
 
-    if (attr.oscale.policy == policy_t::COMMON) {
+    const auto &src_sc = attr_scales.get(DNNL_ARG_SRC);
+    float src_scale_val = 1.0f;
+    if (!src_sc.is_def()) {
+        assert(src_sc.policy == policy_t::COMMON);
+        src_scale_val = src_sc.scale;
+    }
+
+    const auto &wei_sc = attr_scales.get(DNNL_ARG_WEIGHTS);
+
+    if (wei_sc.policy == policy_t::COMMON) {
         scales = (float *)zmalloc(sizeof(float), 4);
         SAFE_V(scales != nullptr ? OK : FAIL);
-        scales[0] = attr.oscale.scale;
+        scales[0] = wei_sc.scale;
+        if (!src_sc.is_def()) { scales[0] *= src_scale_val; }
         return;
     }
 
-    assert(attr.oscale.policy == policy_t::PER_OC);
+    assert(wei_sc.policy == policy_t::PER_OC);
 
     scales = (float *)zmalloc(sizeof(float) * n, 64);
     SAFE_V(scales != nullptr ? OK : FAIL);
 
     const float K = 32;
-    /* scale in [1/K .. K], with starting point at oscale.scale */
-    float s[2] = {attr.oscale.scale, attr.oscale.scale / 2};
+    /* scale in [1/K .. K], with starting point at wei_sc.scale */
+    float s[2] = {wei_sc.scale, wei_sc.scale / 2};
     for (int64_t i = 0; i < n; ++i) {
         int64_t si = i % 2; // 0 -> left, 1 -> right
-        scales[i] = s[si];
+        scales[i] = s[si] * src_scale_val;
         if (si == 0) {
             s[si] /= 2.;
             if (s[si] < 1. / K) s[si] *= K * K; // turn around to become ~K

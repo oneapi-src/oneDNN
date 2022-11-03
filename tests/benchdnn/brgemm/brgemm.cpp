@@ -510,12 +510,18 @@ int doit(const prb_t *prb, res_t *res) {
                 = wei_ptr + i * wei_batch_offset * wei_dt.sizeof_dt();
     }
 
+    // Brgemm takes single pointer oscale, but relies on a combination of arg
+    // scales attributes. This helps to reuse attributes from primitives, but
+    // requires them to pre-compute oscale = src_scale * wei_scale[:]
+    dnn_mem_t scales;
+    auto src_scale = prb->attr.scales.get(DNNL_ARG_SRC);
+    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
+    auto attr_scale = wei_scale.runtime ? wei_scale : src_scale;
+    maybe_prepare_runtime_scales(scales, attr_scale, prb->n, prb->scales);
     // Handle output scale common policy separately since the implementation
     // always expects them to be of vector length in case of `common` policy.
-    dnn_mem_t scales;
-    maybe_prepare_runtime_scales(scales, prb->attr.oscale, prb->n, prb->scales);
-    std::vector<float> v16_scales(16, prb->attr.oscale.scale);
-    const float *scales_ptr = prb->attr.oscale.policy == policy_t::COMMON
+    std::vector<float> v16_scales(16, prb->scales[0]);
+    const float *scales_ptr = attr_scale.policy == policy_t::COMMON
             ? v16_scales.data()
             : (const float *)scales;
 
