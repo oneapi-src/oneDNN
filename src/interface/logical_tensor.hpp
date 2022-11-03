@@ -99,12 +99,34 @@ struct logical_tensor_wrapper_t {
         return false;
     }
 
+    static bool is_dim_unknown(const dim_t d) {
+        return d == static_cast<dim_t>(DNNL_GRAPH_UNKNOWN_DIM);
+    }
+
+    // shape is determinable at compilation
     bool is_shape_unknown() const {
         // TODO(lvtao): need to specify: DNNL_GRAPH_UNKNOWN_NDIMS?
         if (ndims() < 0) return true;
 
         for (int d = 0; d < ndims(); ++d) {
-            if (dims()[d] < 0) return true;
+            if (is_dim_unknown(dims()[d])) return true;
+        }
+
+        return false;
+    }
+
+    static bool is_dim_dynamic(const dim_t d) {
+        // TODO(wuxun): need to specify DNNL_GRAPH_DYNAMIC_DIM?
+        return d < static_cast<dim_t>(DNNL_GRAPH_UNKNOWN_DIM);
+    }
+
+    // shape is known till execution
+    bool has_dynamic_dim() const {
+        // currently doesn't support unknown dimension case
+        if (ndims() < 0) return false;
+
+        for (int d = 0; d < ndims(); ++d) {
+            if (is_dim_dynamic(dims()[d])) return true;
         }
 
         return false;

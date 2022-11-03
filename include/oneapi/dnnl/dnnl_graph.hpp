@@ -728,6 +728,70 @@ public:
 
 /// @} dnnl_graph_api_tensor
 
+/// @addtogroup dnnl_graph_api_context Context
+///
+/// @{
+
+/// Context. It contains useful context information for compilation.
+/// Currently, it supports passing tensor content. For example, DynamicReshape
+/// has a required shape input, but this shape is stored in a tensor and can be
+/// accessed until execution stage. Users can pass the shape tensor content to
+/// through context.
+///
+/// Considering the content in context is critical to compilation, it will
+/// be part of compiled partition cache key. That means, if users compile
+/// a partition with different context twice time, the compiled partition
+/// cache will be missed and recompilation will happen. Users should
+/// guarantee the content in context is kept unchanged during each
+/// `compilation-execution` period.
+///
+/// Users can specify the content for any input tensors, but not all of them are
+/// critical to compilation. For example, the content of input shape is
+/// important for the library to generate kernels for DynamicReshape operation
+/// while the content of input data is not useful. Another example is the
+/// constant weight tensor for Convolution operation in inference mode,
+/// typically it's not critical for kernel generation but it still exposes an
+/// optimization opportunity to the library by reordering or freezing the
+/// constant weight tensor at compilation stage.
+///
+/// The context can also be used to pass tensor content in API
+/// @ref dnnl::graph::compiled_partition::query_dynamic_outputs. It allows user
+/// to query output shapes according to given tensor content provided at
+/// execution stage.
+///
+class context : public detail::compilation_context_handle {
+public:
+    using dims_t = std::vector<dnnl_graph_dim_t>;
+
+    /// Constructs an empty context.
+    context() {
+        dnnl_graph_compilation_context_t ctx = nullptr;
+        error::check_succeed(dnnl_graph_compilation_context_create(&ctx),
+                "could not create a context.");
+        reset(ctx);
+    }
+
+    /// Constructs a context object for C data.
+    ///
+    /// @param ctx A raw pointer to the C API handle
+    context(dnnl_graph_compilation_context_t ctx) { reset(ctx, false); }
+
+    /// Sets tensor data handle to a context. This handle
+    /// will be interpreted according to the logical tensor specified by the
+    /// given id.
+    ///
+    /// @param id Logical tensor id
+    /// @param handle A raw pointer to tensor buffer
+    void set_tensor_data_handle(size_t id, void *handle) {
+        error::check_succeed(
+                dnnl_graph_compilation_context_set_tensor_data_handle(
+                        get(), id, handle),
+                "could not set tensor data handle to a context");
+    }
+};
+
+/// @} dnnl_graph_api_context
+
 /// @addtogroup dnnl_graph_api_compiled_partition Compiled partition
 ///
 /// A compiled partition represents the generated kernels specialized for a
@@ -749,7 +813,7 @@ public:
 
     /// Queries an input or output logical tensor according to tensor ID. If the
     /// tensor ID doesn't belong to any input or output of the compiled
-    /// partition, an exception will be raised by the API.
+    /// partition, an empty logical tensor will be returned.
     ///
     /// @param tid The unique id of required tensor.
     /// @returns The logical tensor.
@@ -759,6 +823,46 @@ public:
                                      get(), tid, &lt),
                 "query logical tensor from compiled_partition failed");
         return logical_tensor {lt};
+    }
+
+    /// Queries a list of dynamic output logical tensors. This API is dedicated
+    /// for dynamic shape case, users need provide input logical tensors with
+    /// concrete input shapes and then library can help infer output shape.
+    /// Other than dynamic dimensions, those determinable dimensions (denoted as
+    /// -1 or any positive value) should be the same as the values which are
+    /// passed to compilation API before, otherwise an exception will be raised.
+    ///
+    /// @param inputs The input logical tensors with concrete shapes.
+    /// @param ctx Context information used to assist shape inference.
+    /// @returns A list of output logical tensors.
+    std::vector<logical_tensor> query_dynamic_outputs(
+            const std::vector<logical_tensor> &inputs,
+            const context &context = {}) const {
+        size_t num = 0;
+        error::check_succeed(
+                dnnl_graph_compiled_partition_get_outputs_num(get(), &num),
+                "could not get outputs num from compiled partition");
+        if (num == 0) return {};
+
+        std::vector<dnnl_graph_logical_tensor_t> c_outputs(num);
+        std::vector<const dnnl_graph_logical_tensor_t *> c_inputs;
+        c_inputs.reserve(inputs.size());
+        for (const auto &in : inputs) {
+            c_inputs.push_back(&(in.data));
+        }
+
+        error::check_succeed(
+                dnnl_graph_compiled_partition_query_dynamic_outputs(get(), num,
+                        c_outputs.data(), c_inputs.size(), c_inputs.data(),
+                        context.get()),
+                "could not query dynamic outputs from compiled partition");
+
+        std::vector<logical_tensor> outputs;
+        outputs.reserve(num);
+        for (auto &c_out : c_outputs)
+            outputs.emplace_back(c_out);
+
+        return outputs;
     }
 
     /// Returns the hint of in-place pairs from a compiled partition. It
@@ -1411,6 +1515,9 @@ private:
 /// A partition object.
 class partition : public detail::partition_handle {
 public:
+    /// An alias to context
+    using compilation_context = context;
+
     /// Policy specifications for partitioning.
     enum class policy {
         /// Max policy is to be defined. The library intends to deliver best
@@ -1503,68 +1610,6 @@ public:
         = dnnl_graph_partition_kind_quantized_residual_conv_blocks,
     };
 
-    /// @addtogroup dnnl_graph_api_compilation_context Compilation Context
-    ///
-    /// @{
-
-    /// Compilation Context. It contains useful context information for
-    /// compilation. Currently, it supports passing tensor content. For example,
-    /// DynamicReshape has a required shape input, but this shape is stored in a
-    /// tensor and can be accessed until execution stage. Users can pass the
-    /// shape tensor content to through context.
-    ///
-    /// Considering the content in context is critical to compilation, it will
-    /// be part of compiled partition cache key. That means, if users compile
-    /// a partition with different context twice time, the compiled partition
-    /// cache will be missed and recompilation will happen. Users should
-    /// guarantee the content in context is kept unchanged during each
-    /// `compilation-execution` period.
-    ///
-    /// Users can specifying the content for any input tensors, but not all of
-    /// them are critical to compilation. For example, the content of input
-    /// shape is important for the library to generate kernels for
-    /// DynamicReshape operation while the content of input data is not useful.
-    /// Another example is the constant weight tensor for Convolution operation
-    /// in inference mode, typically it's not critical for kernel generation but
-    /// it still exposes an optimization opportunity to the library by
-    /// reordering or freezing the constant weight tensor at compilation stage.
-    ///
-    class compilation_context : public detail::compilation_context_handle {
-    public:
-        using dims_t = std::vector<dnnl_graph_dim_t>;
-
-        /// Constructs an empty compilation context.
-        compilation_context() {
-            dnnl_graph_compilation_context_t ctx = nullptr;
-            error::check_succeed(dnnl_graph_compilation_context_create(&ctx),
-                    "could not create a compilation context.");
-            reset(ctx);
-        }
-
-        /// Constructs a compilation context object for C data.
-        ///
-        /// @param p A raw pointer to the C API handle
-        compilation_context(dnnl_graph_compilation_context_t ctx) {
-            reset(ctx, false);
-        }
-
-        /// Sets tensor data handle to a compilation context. This handle
-        /// will be interpreted according to the logical tensor specified by the
-        /// given id.
-        ///
-        /// @param id Logical tensor id
-        /// @param handle A raw pointer to tensor buffer
-        void set_tensor_data_handle(size_t id, void *handle) {
-            error::check_succeed(
-                    dnnl_graph_compilation_context_set_tensor_data_handle(
-                            get(), id, handle),
-                    "could not set tensor data handle to a compilation "
-                    "context.");
-        }
-    };
-
-    /// @} dnnl_graph_api_compilation_context
-
     /// Default constructor. Constructs an empty partition object.
     partition() = default;
 
@@ -1629,7 +1674,7 @@ public:
     /// The output logical tensors can also have layout type `any`. The
     /// compilation will choose the optimal layout for output tensors. The
     /// optimal layout will be represented as an opaque layout ID saved in the
-    /// output logical tensor. Compilation context may contain more information
+    /// output logical tensor. Context may contain more information
     /// useful for compiling a partition. The library can still succeed to
     /// compile if a context is empty.
     ///

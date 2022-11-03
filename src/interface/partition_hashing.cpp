@@ -48,8 +48,7 @@ key_t::key_t(size_t partition_id, engine_kind_t engine_kind,
 
 key_t::key_t(const partition_t *partition,
         const std::vector<const logical_tensor_t *> &ins,
-        const std::vector<const logical_tensor_t *> &outs,
-        const compilation_context_t *ctx)
+        const std::vector<const logical_tensor_t *> &outs, const context_t *ctx)
     : key_t(partition->id(), partition->get_engine_kind(), partition->get_ops(),
             ins, outs) {
     using ltw = logical_tensor_wrapper_t;

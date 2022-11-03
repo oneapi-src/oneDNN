@@ -68,8 +68,12 @@ extern "C" {
 #define DNNL_GRAPH_UNKNOWN_NDIMS -1
 
 /// A wildcard value for dimensions that are unknown at a tensor or operation
-/// creation time.
+/// creation time, but can be determined at compilation time.
 #define DNNL_GRAPH_UNKNOWN_DIM -1
+
+/// A wildcard value for dimensions that are dynamic at a tensor or operation
+/// creation time and can only be known at execution time.
+#define DNNL_GRAPH_DYNAMIC_DIM -2
 
 /// A type to describe tensor dimension.
 typedef int64_t dnnl_graph_dim_t;
@@ -279,12 +283,14 @@ typedef struct dnnl_graph_partition *dnnl_graph_partition_t;
 /// A constant partition handle.
 typedef const struct dnnl_graph_partition *const_dnnl_graph_partition_t;
 
-/// A compilation context handle
-typedef struct dnnl_graph_compilation_context *dnnl_graph_compilation_context_t;
+/// An opaque structure to describe a context.
+struct dnnl_graph_context;
+
+/// A context handle
+typedef struct dnnl_graph_context *dnnl_graph_compilation_context_t;
 
 /// A constant compilation context handle
-typedef const struct dnnl_graph_compilation_context
-        *const_dnnl_graph_compilation_context_t;
+typedef const struct dnnl_graph_context *const_dnnl_graph_compilation_context_t;
 
 /// @} dnnl_graph_api_partition
 

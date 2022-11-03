@@ -90,7 +90,7 @@ struct key_t {
     key_t(const partition_t *partition,
             const std::vector<const logical_tensor_t *> &ins,
             const std::vector<const logical_tensor_t *> &outs,
-            const compilation_context_t *ctx = nullptr);
+            const context_t *ctx = nullptr);
 
     bool operator==(const key_t &other) const;
     const std::thread::id &thread_id() const { return thread_id_; }

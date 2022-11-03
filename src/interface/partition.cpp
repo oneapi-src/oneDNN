@@ -213,7 +213,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile_v2(partition_t *partition,
         compiled_partition_t *compiled_partition, size_t in_num,
         const logical_tensor_t **inputs, size_t out_num,
         const logical_tensor_t **outputs, const engine_t *engine,
-        const compilation_context_t *compilation_context) {
+        const context_t *context) {
     if (utils::any_null(partition, compiled_partition, engine)) {
         return status::invalid_arguments;
     }
@@ -231,7 +231,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile_v2(partition_t *partition,
 
     if (utils::get_verbose() >= 2) {
         double ms = utils::get_msec();
-        CHECK(partition->compile(cp, in, out, engine, compilation_context));
+        CHECK(partition->compile(cp, in, out, engine, context));
         ms = utils::get_msec() - ms;
 
         const char *cache_status = cp.second ? "cache_hit" : "cache_miss";
@@ -239,7 +239,7 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_compile_v2(partition_t *partition,
                 compiled_partition->info(), ms);
         fflush(stdout);
     } else {
-        CHECK(partition->compile(cp, in, out, engine, compilation_context));
+        CHECK(partition->compile(cp, in, out, engine, context));
     }
     return status::success;
 }
@@ -316,24 +316,24 @@ status_t DNNL_GRAPH_API dnnl_graph_partition_get_kind(
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_compilation_context_destroy(
-        compilation_context_t *compilation_context) {
-    delete compilation_context;
+        context_t *context) {
+    delete context;
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_compilation_context_create(
-        compilation_context_t **compilation_context) {
-    if (compilation_context == nullptr) return status::invalid_arguments;
+        context_t **context) {
+    if (context == nullptr) return status::invalid_arguments;
 
-    *compilation_context = new compilation_context_t();
+    *context = new context_t();
     return status::success;
 }
 
 status_t DNNL_GRAPH_API dnnl_graph_compilation_context_set_tensor_data_handle(
-        compilation_context_t *compilation_context, size_t id, void *handle) {
-    if (utils::any_null(compilation_context)) return status::invalid_arguments;
+        context_t *context, size_t id, void *handle) {
+    if (utils::any_null(context)) return status::invalid_arguments;
 
-    compilation_context->set_tensor_data_handle(id, handle);
+    context->set_tensor_data_handle(id, handle);
     return status::success;
 }
 
@@ -507,6 +507,39 @@ status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_query_logical_tensor(
     return compiled_partition->query_logical_tensor(tid, lt);
 }
 
+status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_get_outputs_num(
+        const compiled_partition_t *compiled_partition, size_t *num) {
+    if (utils::any_null(compiled_partition, num))
+        return status::invalid_arguments;
+
+    *num = compiled_partition->get_outputs().size();
+    return status::success;
+}
+
+status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_query_dynamic_outputs(
+        const compiled_partition_t *compiled_partition, size_t num_outputs,
+        logical_tensor_t *outputs, size_t num_inputs,
+        const logical_tensor_t **inputs, const context_t *context) {
+    if (utils::any_null(compiled_partition, outputs))
+        return status::invalid_arguments;
+
+    std::vector<const logical_tensor_t *> in_lts {};
+    if (num_inputs > 0) {
+        in_lts.reserve(num_inputs);
+        for (size_t i = 0; i < num_inputs; ++i)
+            in_lts.emplace_back(*(inputs + i));
+    }
+
+    std::vector<logical_tensor_t *> out_lts {};
+    if (num_outputs > 0) {
+        out_lts.reserve(num_outputs);
+        for (size_t i = 0; i < num_outputs; ++i)
+            out_lts.emplace_back(outputs + i);
+    }
+
+    return compiled_partition->query_dynamic_outputs(out_lts, in_lts, context);
+}
+
 status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_get_inplace_ports(
         const compiled_partition_t *compiled_partition,
         size_t *num_inplace_pairs, const inplace_pair_t **inplace_pairs) {
@@ -599,8 +632,8 @@ bool dnnl_graph_partition::is_supported() const {
 status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
         std::vector<const impl::logical_tensor_t *> &inputs,
         std::vector<const impl::logical_tensor_t *> &outputs,
-        const engine_t *aengine,
-        const compilation_context_t *acompilation_context) const {
+        const engine_t *aengine, const context_t *acontext) const {
+    using ltw = impl::logical_tensor_wrapper_t;
     status_t ret;
 
     if (!aengine || aengine->kind() != pimpl_->get_engine_kind())
@@ -608,6 +641,35 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
 
     const backend *backend = pimpl_->get_assigned_backend();
     if (!backend) return status::invalid_arguments;
+
+    // additional check for dynamic shape cases
+    // raise error if input shape are determinable (-1 or any other positive
+    // value) at graph building stage while dynamic (-2) at compilation stage.
+    for (const auto &part_in : get_inputs()) {
+        auto id = part_in.id;
+        auto found = std::find_if(inputs.begin(), inputs.end(),
+                [&id](const impl::logical_tensor_t *lt) {
+                    return id == lt->id;
+                });
+        if (found == inputs.end() || !ltw(*found).has_dynamic_dim()) continue;
+
+        // ndims is unknown at graph building but dynamic at compilation
+        if (ltw(part_in).ndims() < 0) return status::invalid_arguments;
+        const auto &part_in_dims = ltw(part_in).vdims();
+        const auto &real_dims = ltw(*found).vdims();
+        assertm(part_in_dims.size() == real_dims.size(),
+                "ndims provided in graph building is different from "
+                "compilation.");
+        for (size_t i = 0; i < real_dims.size(); ++i) {
+            if (ltw::is_dim_dynamic(real_dims[i])
+                    && !ltw::is_dim_dynamic(part_in_dims[i])) {
+                assertm(false,
+                        "dynamic dimension should be consistent at graph "
+                        "building and compilation.");
+                return status::invalid_arguments;
+            }
+        }
+    }
 
     // Pre-process the given logical tensor. The pre-process includes
     // 1. decode backend id from the layout id and remove it
@@ -665,8 +727,7 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
 
     // The impl's compile will generate the compiled_partition_impl and
     // modify the given inputs outputs logical tensor
-    ret = pimpl_->compile(
-            cp, tmp_inputs, tmp_outputs, aengine, acompilation_context);
+    ret = pimpl_->compile(cp, tmp_inputs, tmp_outputs, aengine, acontext);
     if (status::success != ret) return ret;
 
     // Post-process the modified logical tensor and store them
@@ -687,11 +748,10 @@ impl::status_t dnnl_graph_partition::compile(
         std::pair<impl::compiled_partition_t *, bool> &compiled_partition,
         std::vector<const impl::logical_tensor_t *> &inputs,
         std::vector<const impl::logical_tensor_t *> &outputs,
-        const impl::engine_t *aengine,
-        const impl::compilation_context_t *acompilation_context) const {
+        const impl::engine_t *aengine, const impl::context_t *acontext) const {
     namespace partition_hashing = impl::partition_hashing;
     auto &global_compiled_partition_cache = impl::compiled_partition_cache();
-    partition_hashing::key_t key(this, inputs, outputs, acompilation_context);
+    partition_hashing::key_t key(this, inputs, outputs, acontext);
 
     std::promise<impl::compiled_partition_cache_t::cache_value_t> cp_promise;
     // Try to get the shared future from the cache, if it's missing then
@@ -716,8 +776,8 @@ impl::status_t dnnl_graph_partition::compile(
         // The requested compiled partition is NOT present in the cache
         // therefore we have to create it and notify the waiting threads once
         // the creation is done.
-        status = this->compile(compiled_partition.first, inputs, outputs,
-                aengine, acompilation_context);
+        status = this->compile(
+                compiled_partition.first, inputs, outputs, aengine, acontext);
         if (status != impl::status::success) {
             // Communicate an error
             cp_promise.set_value({nullptr, status});
@@ -758,6 +818,50 @@ impl::status_t dnnl_graph_partition::compile(
     }
     compiled_partition.second = is_from_cache;
     return status;
+}
+
+status_t dnnl_graph_compiled_partition::query_dynamic_outputs(
+        const std::vector<impl::logical_tensor_t *> &out_lts,
+        const std::vector<const impl::logical_tensor_t *> &in_lts,
+        const impl::context_t *context) const {
+    using ltw = impl::logical_tensor_wrapper_t;
+    // check if provided input shapes are align with those passed through
+    // compilation API
+    if (!in_lts.empty()) {
+        const auto &part_inputs = get_inputs();
+        for (const auto &in : in_lts) {
+            auto lid = in->id;
+            auto found = std::find_if(part_inputs.begin(), part_inputs.end(),
+                    [&lid](const impl::logical_tensor_t &e) {
+                        return e.id == lid;
+                    });
+            // id is not found in partition's inputs
+            if (found == part_inputs.end()) continue;
+            auto found_ltw = ltw(*found);
+            auto given_ltw = ltw(in);
+            if (found_ltw.ndims() != given_ltw.ndims()) {
+                assertm(false,
+                        "ndims should be equal to original input for dynamic "
+                        "shape inference.");
+                return impl::status::invalid_shape;
+            }
+
+            for (int32_t i = 0; i < found_ltw.ndims(); ++i) {
+                // other than dynamic dimension, those determinable
+                // dimension values should be the same as original partition
+                // input dimension values
+                if (!ltw::is_dim_dynamic(found_ltw.dims()[i])
+                        && found_ltw.dims()[i] != given_ltw.dims()[i]) {
+                    assertm(false,
+                            "dimension is either dynamic or equal to original "
+                            "dim value.");
+                    return impl::status::invalid_shape;
+                }
+            }
+        }
+    }
+
+    return pimpl_->query_dynamic_outputs(out_lts, in_lts, context);
 }
 
 status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,

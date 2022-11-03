@@ -49,12 +49,11 @@ class backend;
 } // namespace graph
 } // namespace dnnl
 
-struct dnnl_graph_compilation_context {
+struct dnnl_graph_context {
 public:
-    dnnl_graph_compilation_context() = default;
+    dnnl_graph_context() = default;
 
-    dnnl_graph_compilation_context(const dnnl_graph_compilation_context &other)
-            = default;
+    dnnl_graph_context(const dnnl_graph_context &other) = default;
 
     void set_tensor_data_handle(size_t id, void *handle) {
         tensor_data_handle_map_[id] = handle;
@@ -155,16 +154,14 @@ public:
             std::vector<const impl::logical_tensor_t *> &inputs,
             std::vector<const impl::logical_tensor_t *> &outputs,
             const impl::engine_t *e = nullptr,
-            const impl::compilation_context_t *acompilation_context
-            = nullptr) const;
+            const impl::context_t *acontext = nullptr) const;
 
     impl::status_t compile(
             std::pair<impl::compiled_partition_t *, bool> &compiled_partition,
             std::vector<const impl::logical_tensor_t *> &inputs,
             std::vector<const impl::logical_tensor_t *> &outputs,
             const impl::engine_t *aengine,
-            const impl::compilation_context_t *acompilation_context
-            = nullptr) const;
+            const impl::context_t *acontext = nullptr) const;
 
     impl::status_t infer_shape(
             std::vector<const impl::logical_tensor_t *> &inputs,
@@ -223,6 +220,11 @@ public:
         }
         return pimpl_->query_logical_tensor(tid, lt);
     }
+
+    impl::status_t query_dynamic_outputs(
+            const std::vector<impl::logical_tensor_t *> &out_lts,
+            const std::vector<const impl::logical_tensor_t *> &in_lts,
+            const impl::context_t *context = nullptr) const;
 
     const impl::engine_t &get_engine() const { return pimpl_->get_engine(); }
 

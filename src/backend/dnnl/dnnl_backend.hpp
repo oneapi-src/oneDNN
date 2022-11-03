@@ -229,9 +229,8 @@ struct kernel_base_t {
             const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const impl::compilation_context_t *acompilation_context = nullptr) {
-        auto ret = compile_impl(
-                part, aengine, inputs, outputs, acompilation_context);
+            const impl::context_t *acontext = nullptr) {
+        auto ret = compile_impl(part, aengine, inputs, outputs, acontext);
         if (ret != impl::status::success) return ret;
         return prepare_inplace_pairs_impl();
     }
@@ -264,7 +263,7 @@ struct kernel_base_t {
             const impl::engine_t *aengine,
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
-            const impl::compilation_context_t *acompilation_context)
+            const impl::context_t *acontext)
             = 0;
 
     virtual impl::status_t execute_impl(const impl::stream_t *astream,

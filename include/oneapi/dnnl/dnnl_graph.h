@@ -522,7 +522,7 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_compilation_context_create(
 dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_compilation_context_destroy(
         dnnl_graph_compilation_context_t compilation_context);
 
-/// Sets tensor data handle to a compilation context. This handle will be
+/// Sets tensor data handle to a context. This handle will be
 /// interpreted according to the logical tensor specified by the given id.
 ///
 /// @param compilation_context The target compilation context.
@@ -578,7 +578,7 @@ dnnl_graph_status_t DNNL_GRAPH_API dnnl_graph_compiled_partition_destroy(
 
 /// Queries an input or output logical tensor according to tensor ID. If the
 /// tensor ID doesn't belong to any input or output of the compiled partition,
-/// an error status #dnnl_graph_invalid_arguments will be returned by the API.
+/// an empty logical tensor will be queried out.
 ///
 /// @param compiled_partition The handle of target compiled_partition.
 /// @param tid The unique id of required tensor.
@@ -589,6 +589,38 @@ dnnl_graph_status_t DNNL_GRAPH_API
 dnnl_graph_compiled_partition_query_logical_tensor(
         const_dnnl_graph_compiled_partition_t compiled_partition, size_t tid,
         dnnl_graph_logical_tensor_t *lt);
+
+/// Returns the number of output logical tensors from a compiled partition
+///
+/// @param compiled_partition The handle of target compiled_partition.
+/// @param num Number of output logical tensors
+/// @returns #dnnl_graph_success on success or a status describing the error
+///     otherwise.
+dnnl_graph_status_t DNNL_GRAPH_API
+dnnl_graph_compiled_partition_get_outputs_num(
+        const_dnnl_graph_compiled_partition_t compiled_partition, size_t *num);
+
+/// Queries a list of dynamic output logical tensors. This API is dedicated for
+/// dynamic shape case, users need provide input logical tensors with concrete
+/// input shapes and then library can help infer output shape. Other than
+/// dynamic dimensions, those determinable dimensions (denoted as -1 or any
+/// positive value) should be the same as the values which are passed to
+/// compilation API before.
+///
+/// @param compiled_partition The handle of target compiled_partition.
+/// @param num_outputs Number of output logical tensors to be queried
+/// @param outputs The output logical tensors to be queried.
+/// @param num_inputs Number of input logical tensors
+/// @param inputs The input logical tensors
+/// @param context Context information used to assist dynamic shape inference.
+/// @returns #dnnl_graph_success on success or a status describing the error
+///     otherwise.
+dnnl_graph_status_t DNNL_GRAPH_API
+dnnl_graph_compiled_partition_query_dynamic_outputs(
+        const_dnnl_graph_compiled_partition_t compiled_partition,
+        size_t num_outputs, dnnl_graph_logical_tensor_t *outputs,
+        size_t num_inputs, const dnnl_graph_logical_tensor_t **inputs,
+        const_dnnl_graph_compilation_context_t context);
 
 /// Returns the hint of in-place pairs from a compiled partition. It indicates
 /// that an input and an output of the partition can share the same memory
