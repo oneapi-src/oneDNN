@@ -50,7 +50,7 @@ void ir_printer_t::view(constant_c v) {
             case sc_data_etype::POINTER:
                 os_ << "((void*)" << v->value_[i].u64 << ')';
                 break;
-            default: assert(0 && "Unknown type for const");
+            default: os_ << "((unknown)" << v->value_[i].u64 << ')';
         }
         if (i != v->value_.size() - 1) { os_ << ',' << ' '; }
     }

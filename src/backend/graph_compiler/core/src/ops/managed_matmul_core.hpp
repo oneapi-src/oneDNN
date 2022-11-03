@@ -18,6 +18,7 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_MANAGED_MATMUL_CORE_HPP
 
 #include <vector>
+#include <compiler/ir/graph/trait/may_prefetch.hpp>
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 
@@ -26,6 +27,7 @@ namespace ops {
 
 class SC_INTERNAL_API managed_matmul_core_op_t
     : public tunable_op_t,
+      public op_traits::may_prefetch_t,
       public op_traits::batchwise_shrinkable_t {
 public:
     managed_matmul_core_op_t(const std::vector<graph_tensor_ptr> &producer_lt,
@@ -59,6 +61,12 @@ public:
         stat_map.append_ops_by_status(this, infer_status_code::FAIL);
     }
 
+    std::vector<int> query_prefetch(const context_ptr &ctx, bool is_global,
+            const std::vector<tensor_slice> &ins) override;
+
+    void generate_prefetcher_body_for_tensor(const context_ptr &ctx,
+            const std::vector<expr> &func_args, const std::vector<expr> &ins,
+            const std::vector<int> &indices) override;
     void infer_binding_axis(bound_axis_map &bdax_map) override;
     void pre_binding_axis(bound_axis_map &bdax_map) override;
 };

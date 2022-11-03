@@ -38,9 +38,9 @@ struct engine_vtable_t {
 };
 
 struct stream_vtable_t {
-    using parallel_call_cpu_t
-            = void (*)(void (*)(void *, void *, int64_t, generic_val *), void *,
-                    void *, int64_t, int64_t, int64_t, generic_val *);
+    using parallel_call_cpu_t = void (*)(
+            void (*)(void *, void *, int64_t, generic_val *), uint64_t, void *,
+            void *, int64_t, int64_t, int64_t, generic_val *);
     parallel_call_cpu_t parallel_call;
     constexpr stream_vtable_t(parallel_call_cpu_t pcall)
         : parallel_call(pcall) {}

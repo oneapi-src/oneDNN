@@ -149,6 +149,9 @@ public:
 };
 
 func_c local_tensor_lowering_cpu_t::operator()(func_c m) {
+    if (m->attr_ && m->attr_->get_or_else(function_attrs::low_level, false)) {
+        return m;
+    }
     tensor_lower_impl_t impl;
     COMPILE_ASSERT(m->params_.size() >= 2
                     && m->params_.front()->dtype_ == datatypes::pointer,

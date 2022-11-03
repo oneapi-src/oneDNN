@@ -550,6 +550,9 @@ public:
 };
 
 func_c index2var_t::operator()(func_c f) {
+    if (f->attr_ && f->attr_->get_or_else(function_attrs::low_level, false)) {
+        return f;
+    }
     index2var_analysis_t pass;
     pass.dispatch(f);
     indexing2var_impl_t impl {pass.alias_map_};

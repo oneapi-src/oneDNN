@@ -1321,6 +1321,13 @@ enum class intrin_type {
     permutex2var,
     read_struct, // read field from a struct
     write_struct, // write a field to a struct
+    // tell the thread pool that the next barrier should run a function when the
+    // thread is waiting for others
+    set_thread_idle_func,
+    // _mm_prefetch(X, _MM_HINT_T{N}}). The locality should be set in the
+    // intrin_attrs_["locality"]. It should be an int from 0 to 3, ranging from
+    // very local to cache (0, or _MM_HINT_T0) to not local (3)
+    prefetch,
     // Below are micro-kernels, which should be lower to function call before
     // codegen
     brgemm,

@@ -80,6 +80,31 @@ managed_matmul_core_op_t::managed_matmul_core_op_t(
     attrs_["temp.padded_A_K"] = std::make_shared<VConst>();
 }
 
+std::vector<int> managed_matmul_core_op_t::query_prefetch(
+        const context_ptr &ctx, bool is_global,
+        const std::vector<tensor_slice> &ins) {
+    if (!is_global) { return {0, 1}; }
+    auto gen = create_generator();
+    auto gen_ptr = static_cast<gen_managed_matmul_core_t *>(gen.get());
+    if (gen_ptr->is_okay_to_prefetch(
+                *config_data_.get_as<managed_matmul_core_config_t>(),
+                is_global)) {
+        return {1};
+    } else {
+        return {};
+    }
+}
+
+void managed_matmul_core_op_t::generate_prefetcher_body_for_tensor(
+        const context_ptr &ctx, const std::vector<expr> &func_args,
+        const std::vector<expr> &ins, const std::vector<int> &indices) {
+    auto gen = create_generator();
+    static_cast<gen_managed_matmul_core_t *>(gen.get())
+            ->generate_prefetcher_body_for_tensor(ctx,
+                    *config_data_.get_as<managed_matmul_core_config_t>(),
+                    func_args, ins, indices);
+}
+
 body_generator_ptr managed_matmul_core_op_t::create_generator() {
     auto mat_gen = utils::make_unique<gen_managed_matmul_core_t>(this,
             graph::extract_detail_from_tensors(get_inputs()),

@@ -29,6 +29,7 @@ using config_ptr = reflection::shared_general_object_t;
 class fusion_manager;
 class sc_op;
 struct graph_tensor;
+struct tensor_slice;
 
 namespace tuner {
 struct config_space;

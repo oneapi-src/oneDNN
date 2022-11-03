@@ -31,6 +31,12 @@
 namespace sc {
 
 namespace function_attrs {
+// bool, if this function represents low-level semantic, which will disable some
+// passes on this function
+constexpr const char *low_level = "low_level";
+// bool, whether to run idle func at the last parallel-for's barrier of this
+// function
+constexpr const char *has_idle_func = "has_idle_func";
 // bool, if the function in invisible externally of the module. default = false
 constexpr const char *private_ = "private";
 // bool, if the function in a pure function (observes and produces no

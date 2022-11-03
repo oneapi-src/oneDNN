@@ -141,6 +141,7 @@ context_ptr get_default_context() {
         parse_value(env_names[SC_DEAD_WRITE_ELIMINATION],
                 flags.dead_write_elimination_);
         parse_value(env_names[SC_DEBUG_INFO], flags.debug_info_);
+        parse_value(env_names[SC_PREFETCH], flags.prefetch_);
         parse_value(env_names[SC_INDEX2VAR], flags.index2var_);
         parse_value(env_names[SC_PRINT_IR], flags.print_ir_);
         parse_value(env_names[SC_MIXED_FUSION], flags.mixed_fusion_);

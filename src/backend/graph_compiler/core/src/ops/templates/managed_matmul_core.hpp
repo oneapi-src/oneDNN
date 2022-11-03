@@ -106,6 +106,14 @@ public:
     std::vector<int> &M_anchor_info, std::vector<int> &N_anchor_info,
     bool is_partial = false, const expr &k_s = 0) const;
 
+  void generate_prefetcher_body_for_tensor(const context_ptr &ctx,
+    const managed_matmul_core_config_t &config,
+    const std::vector<expr> &func_args, const std::vector<expr> &ins,
+    const std::vector<int> &indices);
+
+  bool is_okay_to_prefetch(
+    const managed_matmul_core_config_t &config, bool is_global);
+
   config_ptr get_default_config(context_ptr ctx) const override;
   config_ptr get_default_transposed_a_config(const context_ptr &ctx) const;
 

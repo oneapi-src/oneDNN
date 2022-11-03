@@ -53,9 +53,6 @@ public:
     // change the global symbol to a local variable
     std::vector<expr> global_symbol_local_def_;
     std::unordered_map<expr_c, expr> global_symbol_replace_map_;
-    bool use_managed_thread_pool_;
-    module_globals_resolver_impl_t(bool use_managed_thread_pool)
-        : use_managed_thread_pool_(use_managed_thread_pool) {}
 
     expr_c visit(call_c v) override {
         func_t the_func = std::dynamic_pointer_cast<func_base>(v->func_);
@@ -68,18 +65,14 @@ public:
         auto itr = map->find(the_func->name_);
         if (itr == map->end()) {
             // if is parallel-call function
-            if (v->func_ == get_parallel_call_func()) {
+            if (v->func_ == get_parallel_call_with_env_func(true)
+                    || v->func_ == get_parallel_call_with_env_func(false)) {
                 std::vector<expr> ret;
                 dispatch_expr_vector(v->args_, ret);
-                assert(ret.size() == 5UL);
-                // add an additional arg
-                ret.insert(ret.begin() + 1, 2, expr());
-                ret[1] = current_rtl_ctx;
-                ret[2] = current_base;
-                return copy_attr(*v,
-                        builder::make_call(get_parallel_call_with_env_func(
-                                                   use_managed_thread_pool_),
-                                ret));
+                assert(ret.size() == 8UL);
+                ret[2] = current_rtl_ctx;
+                ret[3] = current_base;
+                return copy_attr(*v, make_expr<call_node>(v->func_, ret));
             } else if (v->func_->attr_
                     && v->func_->attr_->get_or_else(
                             "is_brgemm_func_with_stream", false)) {
@@ -269,6 +262,10 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
     std::unordered_map<std::string, func_t> replace_map;
     for (auto &f : funcs) {
         if (!f->body_.defined()) { continue; }
+        if (f->attr_
+                && f->attr_->get_or_else(function_attrs::low_level, false)) {
+            continue;
+        }
         auto params = f->params_;
         // insert two placeholders
         params.insert(params.begin(), 2, expr());
@@ -280,24 +277,15 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
         replace_map[f->name_] = copy_attr(*f, std::move(retf));
         funcp->decl_ = copy_attr(*f, std::move(funcp->decl_));
     }
-    float gflop = m->attr_.get_or_else(ir_module_t::attr_key_t::GFLOP, 0.0f);
-    // if the workload is too small, directly use thread pool backend instead of
-    // managed thread pool. if gflop per thread is large enough, or there is
-    // only one single thread, enable managed thread pool. For MLP workload on
-    // 24-core cascade lake, 1.6Gflop is turning point of choosing
-    // managed/native thread pool
-    auto &rtl_cfg = runtime_config_t::get();
-    bool use_managed_thread_pool = rtl_cfg.managed_thread_pool_
-            && (rtl_cfg.get_num_threads() == 1
-                    || gflop / rtl_cfg.get_num_threads() > 0.0666f);
 
-    SC_MODULE_INFO << "Use managed thread pool? " << use_managed_thread_pool
-                   << ". Module gflops = " << gflop;
-    ret->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
-            = use_managed_thread_pool;
     for (unsigned i = 0; i < funcs.size(); i++) {
         if (!funcs[i]->body_.defined()) { continue; }
-        module_globals_resolver_impl_t impl {use_managed_thread_pool};
+        if (funcs[i]->attr_
+                && funcs[i]->attr_->get_or_else(
+                        function_attrs::low_level, false)) {
+            continue;
+        }
+        module_globals_resolver_impl_t impl;
         impl.map = &replace_map;
         auto funcp = replace_map[funcs[i]->name_];
         assert(funcp);

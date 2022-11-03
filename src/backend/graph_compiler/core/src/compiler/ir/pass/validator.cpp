@@ -84,7 +84,9 @@ func_c validate_impl_t::dispatch(func_c v) {
     cur_func_ = v.get();
     defined_vars_.emplace_back(var_scope());
     allow_tensor_view_ = cur_func_->attr_
-            && cur_func_->attr_->get_or_else("allow_tensor_view", false);
+            && (cur_func_->attr_->get_or_else("allow_tensor_view", false)
+                    || cur_func_->attr_->get_or_else(
+                            function_attrs::low_level, false));
     for (auto &p : v->params_) {
         defined_vars_.back().insert(p.get());
     }
@@ -566,7 +568,11 @@ void validate_impl_t::view(returns_c v) {
                     "Returning void in a non-void function: " << v);
         }
     }
-    COMPILE_ASSERT(for_loop_levels_ == 0, "Cannot return in a for-loop: " << v);
+    COMPILE_ASSERT(for_loop_levels_ == 0
+                    || (cur_func_->attr_
+                            && cur_func_->attr_->get_or_else(
+                                    function_attrs::low_level, false)),
+            "Cannot return in a for-loop: " << v);
 }
 
 static void check_var_tensor_def(

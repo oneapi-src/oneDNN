@@ -36,7 +36,9 @@ public:
     int func_id;
     func_c dispatch(func_c v) override {
         if (v->attr_
-                && v->attr_->get_or_else(function_attrs::skip_trace, false)) {
+                && (v->attr_->get_or_else(function_attrs::skip_trace, false)
+                        || v->attr_->get_or_else(
+                                function_attrs::low_level, false))) {
             return v;
         }
         func_id = register_traced_func(v->name_);

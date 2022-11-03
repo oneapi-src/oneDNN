@@ -368,6 +368,7 @@ public:
     context_ptr ctx_;
     ir_module_ptr mod_;
     int var_cnt_ = 0;
+    int parallel_depth_ = 0;
     // use a var instead of complex arg expr
     std::vector<std::vector<std::pair<expr_c, expr_c>>> need_defs_;
 
@@ -453,8 +454,44 @@ public:
         return cast_s32_u8s8(real_in);
     }
 
+    stmt_c visit(for_loop_c v) override {
+        if (v->kind_ == for_type::PARALLEL) { parallel_depth_++; }
+        auto ret = ir_visitor_t::visit(v);
+        if (v->kind_ == for_type::PARALLEL) { parallel_depth_--; }
+        return ret;
+    }
+
     expr_c visit(intrin_call_c v) override {
         auto ret = ir_visitor_t::visit(v);
+        if (v->type_ == intrin_type::set_thread_idle_func) {
+            COMPILE_ASSERT(parallel_depth_ == 0,
+                    "set_thread_idle_func in parallel is not yet "
+                    "implemented");
+            std::vector<stmt_c> insert_before;
+            expr args_pack;
+
+            if (v->args_.size() == 2UL) {
+                args_pack = v->args_[1];
+            } else {
+                args_pack = builder::make_tensor(
+                        std::string("__idle_args") + std::to_string(var_cnt_++),
+                        {v->args_.size() - 1}, datatypes::generic);
+                auto def = builder::make_var_tensor_def_unattached(args_pack);
+                insert_before.emplace_back(def);
+                def->attr()[attr_keys::tsr_dont_buf_sched] = true;
+
+                for (size_t i = 1; i < v->args_.size(); i++) {
+                    insert_before.emplace_back(
+                            builder::make_assign_unattached(args_pack[i - 1],
+                                    builder::make_cast(
+                                            datatypes::generic, v->args_[i])));
+                }
+                insert_seq_before_ = std::move(insert_before);
+            }
+
+            return builtin::get_set_idle_func_managed_func()(
+                    v->args_[0], args_pack);
+        }
         intrin_func_creator lower_func = nullptr;
         intrin_func_namer namer_func = nullptr;
         switch (v->type_) {
@@ -489,6 +526,7 @@ public:
                 lower_func = &create_write_struct_func_wrapper;
                 namer_func = &get_write_struct_func_name;
                 break;
+
             default: break;
         }
         if (lower_func) {
@@ -571,7 +609,7 @@ public:
     stmt_c visit(stmts_c v) override {
         bool changed = false;
         need_defs_.emplace_back();
-        std::vector<stmt_c> seqs = std::move(insert_seq_before_);
+        std::vector<stmt_c> seqs;
         size_t def_sz = 0;
         for (auto &st : v->seq_) {
             auto new_st = dispatch(st);
@@ -586,6 +624,10 @@ public:
                 }
                 def_sz = cur_defs.size();
             }
+            for (auto &insert : insert_seq_before_) {
+                seqs.emplace_back(std::move(insert));
+            }
+            insert_seq_before_.clear();
             seqs.emplace_back(new_st);
         }
         need_defs_.pop_back();

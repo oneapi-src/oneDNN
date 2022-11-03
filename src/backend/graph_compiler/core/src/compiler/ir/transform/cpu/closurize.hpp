@@ -60,7 +60,6 @@ public:
     SC_DECL_PASS_INFO_FUNC();
 };
 
-func_t get_parallel_call_func();
 func_t get_parallel_call_with_env_func(bool managed);
 } // namespace sc
 

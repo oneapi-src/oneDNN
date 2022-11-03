@@ -39,27 +39,14 @@
 #include <omp.h>
 #endif
 
-// todo: handle signed integers
-extern "C" void sc_parallel_call_cpu(void (*pfunc)(int64_t, sc::generic_val *),
-        int64_t begin, int64_t end, int64_t step, sc::generic_val *args) {
-    sc::runtime::thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_
-            = true;
-#if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
-#pragma omp parallel for
-#endif
-    for (int64_t i = begin; i < end; i += step) {
-        pfunc(i, args);
-    }
-}
-
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_CUSTOM
 #error "unimplemented"
 #elif SC_CPU_THREADPOOL == SC_THREAD_POOL_TBB
 static tbb::task_scheduler_init init;
 extern "C" void sc_parallel_call_cpu_with_env_impl(
         void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
-        void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
-        int64_t step, sc::generic_val *args) {
+        uint64_t flags, void *rtl_ctx, void *module_env, int64_t begin,
+        int64_t end, int64_t step, sc::generic_val *args) {
     thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_ = true;
     tbb::parallel_for(begin, end, step,
             [&](int64_t i) { pfunc(rtl_ctx, module_env, i, args); });
@@ -112,8 +99,8 @@ static thread_local int instance_id = instance_cnt++;
 // omp or sequential
 extern "C" void sc_parallel_call_cpu_with_env_impl(
         void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
-        void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
-        int64_t step, sc::generic_val *args) {
+        uint64_t flags, void *rtl_ctx, void *module_env, int64_t begin,
+        int64_t end, int64_t step, sc::generic_val *args) {
 #ifdef SC_KERNEL_PROFILE
     int parent_instance_id = instance_id;
 #endif

@@ -25,6 +25,7 @@
 #include "memorypool.hpp"
 #include "runtime.hpp"
 #include "thread_locals.hpp"
+#include "thread_pool_flags.hpp"
 #include <cpu/x64/amx_tile_configure.hpp>
 #include <runtime/microkernel/cpu/kernel_timer.hpp>
 #include <util/simple_math.hpp>
@@ -42,20 +43,31 @@ static void do_dispatch(thread_manager *s, int tid);
 namespace sc {
 namespace runtime {
 #ifdef SC_KERNEL_PROFILE
-static void make_trace(int in_or_out) {
-    if (sc_is_trace_enabled()) { sc_make_trace_kernel(2, in_or_out, 0); }
+static void make_trace(int in_or_out, int count) {
+    if (sc_is_trace_enabled()) { sc_make_trace_kernel(2, in_or_out, count); }
 }
 
 #else
-#define make_trace(v)
+#define make_trace(v, count) SC_UNUSED(count)
 #endif
 
+constexpr uint64_t max_wait_count = 1;
+
 void thread_manager::thread_pool_state::wait_all() {
-    make_trace(0);
-    for (;;) {
+    make_trace(0, 0);
+    uint64_t wait_count = 0;
+    auto idl_f = idle_func;
+    bool has_idle_func = idl_f
+            && (execution_flags & thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC);
+    int count = 0;
+    for (;; wait_count++) {
         if (remaining.load(std::memory_order_acquire) == 0) {
-            make_trace(1);
+            make_trace(1, count);
             break;
+        }
+        if (has_idle_func && wait_count > max_wait_count) {
+            count = idl_f(&remaining, 0, 0, idle_args);
+            has_idle_func = false;
         }
         _mm_pause();
     }
@@ -91,20 +103,36 @@ static void worker_func(thread_manager *ths, int tid) {
     int st;
     auto &task = ths->state.task;
     int current_job_id = 2;
+    uint64_t wait_count = 0;
 
-    make_trace(0);
-    while ((st = ths->state.trigger) != -1) {
-        if (st == current_job_id) {
-            make_trace(1);
-            do_dispatch(ths, tid);
-            make_trace(0);
-            --ths->state.remaining;
-            current_job_id++;
+    while (true) {
+        auto idl_f = ths->state.idle_func;
+        bool has_idle_func = idl_f
+                && (ths->state.execution_flags
+                        & thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC);
+        int count = 0;
+        while ((st = ths->state.trigger) != current_job_id) {
+            if (st == -1) {
+                do_cleanup();
+                make_trace(1, count);
+                return;
+            }
+            wait_count += 1;
+            if (has_idle_func && wait_count > max_wait_count) {
+                count = idl_f(&ths->state.trigger, current_job_id, tid,
+                        ths->state.idle_args);
+                has_idle_func = false;
+            }
+            _mm_pause();
         }
-        _mm_pause();
+
+        make_trace(1, count);
+        do_dispatch(ths, tid);
+        make_trace(0, 0);
+        --ths->state.remaining;
+        current_job_id++;
+        wait_count = 0;
     }
-    do_cleanup();
-    make_trace(1);
 }
 
 void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
@@ -173,9 +201,12 @@ static void do_dispatch(thread_manager *s, int tid) {
             ? tid * my_jobs
             : the_tid * my_jobs + (tid - the_tid) * my_jobs_2;
     my_begin = my_begin * step + begin;
+    bool disable_rolling = s->state.execution_flags
+            & sc::runtime::thread_pool_flags::THREAD_POOL_DISABLE_ROLLING;
     for (size_t jid = 0; jid < cur_jobs; jid++) {
         // Rolling i with tid
-        size_t rolling_i = (jid + tid) % cur_jobs * step + my_begin;
+        size_t real_jid = disable_rolling ? jid : ((jid + tid) % cur_jobs);
+        size_t rolling_i = real_jid * step + my_begin;
         s->state.task.pfunc(s->state.task.stream, s->state.task.module_env,
                 rolling_i, s->state.task.args);
     }
@@ -183,15 +214,29 @@ static void do_dispatch(thread_manager *s, int tid) {
 
 void sc_parallel_call_managed(
         void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
-        void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
-        int64_t step, sc::generic_val *args) {
+        uint64_t execution_flags, void *rtl_ctx, void *module_env,
+        int64_t begin, int64_t end, int64_t step, sc::generic_val *args) {
     sc::runtime::thread_local_buffer_t::tls_buffer_.additional_->is_main_thread_
             = true;
     thread_manager *stream = &thread_manager::cur_mgr;
+    stream->state.execution_flags = execution_flags;
     stream->state.reset_scoreboard();
     stream->state.task = thread_manager::thread_pool_state::task_type {
             pfunc, rtl_ctx, module_env, begin, end, step, args};
     stream->state.trigger++;
     do_dispatch(stream, 0);
     stream->state.wait_all();
+
+    if (execution_flags
+            & sc::runtime::thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC) {
+        stream->state.idle_func = nullptr;
+    }
+    stream->state.execution_flags
+            = sc::runtime::thread_pool_flags::THREAD_POOL_DEFAULT;
+}
+
+void sc_set_idle_func_managed(thread_manager::idle_func_t func, void *args) {
+    thread_manager *mgr = &thread_manager::cur_mgr;
+    mgr->state.idle_func = func;
+    mgr->state.idle_args = args;
 }

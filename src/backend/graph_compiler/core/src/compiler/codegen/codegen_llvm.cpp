@@ -487,6 +487,8 @@ public:
                 kv.second.second = MDNode::get(context_, vec);
             }
         }
+        bool is_low_level = v->attr_
+                && v->attr_->get_or_else(function_attrs::low_level, false);
         // LLVM func args are SSA values and cannot be modified. We use alloca
         // to alloc modifiable slots for each params
         for (size_t i = 0; i < v->params_.size(); i++) {
@@ -494,25 +496,31 @@ public:
             auto &p = v->params_[i];
             if (p.isa<var>()) {
                 auto varnode = p.static_as<var>();
-                switch (i) {
-                    case 0:
-                        assert(arg->getName() == "__stream_arg");
-                        var_ptr_in_func_.insert(std::make_pair(p, arg));
-                        set_dbg_info_for_func_arg(arg, SP, dunit, p->dtype_,
-                                varnode->name_, i + 1, LineNo, true);
-                        break;
-                    case 1:
-                        assert(arg->getName() == "__module_data_arg");
-                        var_ptr_in_func_.insert(std::make_pair(p, arg));
-                        set_dbg_info_for_func_arg(arg, SP, dunit, p->dtype_,
-                                varnode->name_, i + 1, LineNo, true);
-                        break;
-                    default: {
-                        auto varalloca = define_var(v->params_[i], arg);
-                        set_dbg_info_for_func_arg(varalloca, SP, dunit,
-                                p->dtype_, varnode->name_, i + 1, LineNo,
-                                false);
-                        break;
+                if (is_low_level) {
+                    auto varalloca = define_var(v->params_[i], arg);
+                    set_dbg_info_for_func_arg(varalloca, SP, dunit, p->dtype_,
+                            varnode->name_, i + 1, LineNo, false);
+                } else {
+                    switch (i) {
+                        case 0:
+                            assert(arg->getName() == "__stream_arg");
+                            var_ptr_in_func_.insert(std::make_pair(p, arg));
+                            set_dbg_info_for_func_arg(arg, SP, dunit, p->dtype_,
+                                    varnode->name_, i + 1, LineNo, true);
+                            break;
+                        case 1:
+                            assert(arg->getName() == "__module_data_arg");
+                            var_ptr_in_func_.insert(std::make_pair(p, arg));
+                            set_dbg_info_for_func_arg(arg, SP, dunit, p->dtype_,
+                                    varnode->name_, i + 1, LineNo, true);
+                            break;
+                        default: {
+                            auto varalloca = define_var(v->params_[i], arg);
+                            set_dbg_info_for_func_arg(varalloca, SP, dunit,
+                                    p->dtype_, varnode->name_, i + 1, LineNo,
+                                    false);
+                            break;
+                        }
                     }
                 }
             } else {
@@ -886,14 +894,18 @@ public:
         if (is_lvalue_mode) {
             current_val_ = ptr;
         } else {
+            bool is_volatile = (v->ptr_->attr_
+                    && v->ptr_->attr_->get_or_else("volatile", false));
             if (v->dtype_.lanes_ > 1) {
                 current_val_ = set_alias(
-                        builder_.CreateAlignedLoad(
-                                get_type(v->dtype_), ptr, SC_LLVM_ALIGN(1)),
+                        builder_.CreateAlignedLoad(get_type(v->dtype_), ptr,
+                                SC_LLVM_ALIGN(1), is_volatile),
                         v->ptr_);
             } else {
-                current_val_ = set_alias(
-                        builder_.CreateLoad(get_type(v->dtype_), ptr), v->ptr_);
+                current_val_
+                        = set_alias(builder_.CreateLoad(get_type(v->dtype_),
+                                            ptr, is_volatile),
+                                v->ptr_);
             }
         }
     }
@@ -1024,11 +1036,26 @@ public:
                 assert(v->args_.size() == 1);
                 auto inval = generate_expr(v->args_[0]);
                 auto outty = get_type(v->dtype_);
-                COMPILE_ASSERT(!outty->isPointerTy()
-                                && !inval->getType()->isPointerTy(),
-                        "LLVM backend: reinterpret cannot be used in pointer "
-                        "cast");
-                current_val_ = builder_.CreateBitCast(inval, outty);
+                if (outty->isPointerTy()) {
+                    auto src_cate
+                            = get_type_category_nothrow(v->args_[0]->dtype_);
+                    bool is_src_int
+                            = src_cate == CATE_INT || src_cate == CATE_UINT;
+                    if (is_src_int) {
+                        current_val_ = builder_.CreateIntToPtr(inval, outty);
+                    } else {
+                        current_val_ = builder_.CreatePointerCast(inval, outty);
+                    }
+                } else if (inval->getType()->isPointerTy()) {
+                    auto dst_cate = get_type_category_nothrow(v->dtype_);
+                    bool is_dest_int
+                            = dst_cate == CATE_INT || dst_cate == CATE_UINT;
+                    COMPILE_ASSERT(is_dest_int,
+                            "Expecting pointer to int for reinterpret");
+                    current_val_ = builder_.CreatePtrToInt(inval, outty);
+                } else {
+                    current_val_ = builder_.CreateBitCast(inval, outty);
+                }
             } break;
             case intrin_type::abs: {
                 assert(v->args_.size() == 1);
@@ -1425,6 +1452,25 @@ public:
                 current_val_
                         = builder_.CreateShuffleVector(inval1, inval2, array);
             } break;
+
+            case intrin_type::prefetch: {
+                assert(v->args_.size() == 1);
+                auto locality = v->intrin_attrs_->get<int>("locality");
+                assert(locality <= 3 && locality >= 0
+                        && "bad locality for prefetch");
+                auto inval1 = generate_expr(v->args_[0]);
+                current_val_ = builder_.CreateIntrinsic(Intrinsic::prefetch,
+#if SC_LLVM_BACKEND > 8
+                        {builder_.getInt8PtrTy()},
+#else
+                        {},
+#endif
+                        {builder_.CreatePointerCast(
+                                 inval1, builder_.getInt8PtrTy()),
+                                /*rw*/ builder_.getInt32(0),
+                                /*locality*/ builder_.getInt32(3 - locality),
+                                /*type:i/d*/ builder_.getInt32(1)});
+            } break;
             default: {
                 std::stringstream ss;
                 ss << "Intrinsics not implemented ";
@@ -1479,6 +1525,7 @@ public:
             const stmt_c &v, BasicBlock *current, BasicBlock *cont) {
         builder_.SetInsertPoint(current);
         dispatch(v);
+        current = builder_.GetInsertBlock();
         if (current->empty() || !llvm::isa<llvm::ReturnInst>(current->back())) {
             builder_.CreateBr(cont);
         }

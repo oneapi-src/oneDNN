@@ -289,7 +289,9 @@ expr constant_node::remake() const {
 bool constant_node::equals(expr_c v, ir_comparer &ctx) const {
     ASCAST_OR_RETURN(v, other);
     if (other->value_.size() != value_.size()) return false;
-    switch (dtype_.type_code_) {
+    sc_data_etype etype = dtype_.is_etype_pointer() ? sc_data_etype::POINTER
+                                                    : dtype_.type_code_;
+    switch (etype) {
         case sc_data_etype::F16:
         case sc_data_etype::BF16:
         case sc_data_etype::F32:

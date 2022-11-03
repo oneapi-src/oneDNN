@@ -49,6 +49,7 @@ struct scflags_t {
     bool print_ir_ = false;
     bool ssa_passes_ = false;
     bool brgemm_use_amx_ = false;
+    bool prefetch_ = false;
     std::string dump_graph_;
     std::string graph_dump_results_;
     bool value_check_ = false;

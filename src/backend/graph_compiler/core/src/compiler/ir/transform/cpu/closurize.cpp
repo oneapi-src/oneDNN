@@ -25,10 +25,12 @@
 #include <compiler/ir/transform/closurize_impl.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <runtime/config.hpp>
+#include <runtime/thread_pool_flags.hpp>
 #include <runtime/trace.hpp>
 #include <util/any_map.hpp>
 #include <util/utils.hpp>
 
+SC_MODULE(pass.closurize)
 namespace sc {
 
 SC_DECL_PASS_INFO(closurizer_cpu,
@@ -38,21 +40,11 @@ SC_DECL_PASS_INFO(closurizer_cpu,
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
-func_t get_parallel_call_func() {
-    static func_t f
-            = builder::_decl_func("sc_parallel_call_cpu", datatypes::void_t,
-                    {_arg_("func", datatypes::pointer),
-                            _arg_("begin", datatypes::index),
-                            _arg_("end", datatypes::index),
-                            _arg_("step", datatypes::index),
-                            _arg_("args", datatypes::pointer)});
-    return f;
-}
-
 func_t get_parallel_call_with_env_func(bool managed) {
     static func_t f = builder::_decl_func("sc_parallel_call_cpu_with_env",
             datatypes::void_t,
             {_arg_("func", datatypes::pointer),
+                    _arg_("flags", datatypes::index),
                     _arg_("stream", datatypes::pointer),
                     _arg_("env", datatypes::s8.get_pointerof()),
                     _arg_("begin", datatypes::index),
@@ -62,6 +54,7 @@ func_t get_parallel_call_with_env_func(bool managed) {
     static func_t f_managed
             = builder::_decl_func("sc_parallel_call_managed", datatypes::void_t,
                     {_arg_("func", datatypes::pointer),
+                            _arg_("flags", datatypes::index),
                             _arg_("stream", datatypes::pointer),
                             _arg_("env", datatypes::s8.get_pointerof()),
                             _arg_("begin", datatypes::index),
@@ -73,6 +66,8 @@ func_t get_parallel_call_with_env_func(bool managed) {
 
 class closurize_cpu_impl_t : public closurize_impl_t {
     int rename_counter_ = 0;
+    bool use_managed_thread_pool_;
+    std::vector<call> out_calls;
     // makes the closure function and its generic wrapper
     func_t make_closure_func(const std::string &name,
             std::vector<expr_c> &&params, stmt_c body,
@@ -161,17 +156,44 @@ class closurize_cpu_impl_t : public closurize_impl_t {
         expr_c step_v = para_attr[0].step_;
         cast_to(step_v, datatypes::index, step_v);
         step_v = folder(step_v);
-        auto ret_call = builder::make_call(get_parallel_call_func(),
+        auto ret_call = builder::make_call(
+                get_parallel_call_with_env_func(use_managed_thread_pool_),
                 std::vector<expr_c> {builder::make_func_addr(std::move(target)),
+                        /*flags*/ make_expr<constant_node>(UINT64_C(0)),
+                        /*stream*/
+                        make_expr<constant_node>(
+                                UINT64_C(0), datatypes::pointer),
+                        /*env*/
+                        make_expr<constant_node>(
+                                UINT64_C(0), datatypes::s8.get_pointerof()),
                         begin_v, end_v, step_v, argsbuf});
+        out_calls.emplace_back(ret_call.static_as<call>());
         seq->seq_.emplace_back(make_stmt<evaluate_node_t>(std::move(ret_call)));
         return seq;
     }
 
 public:
     using closurize_impl_t::dispatch;
-    closurize_cpu_impl_t(const ir_module_ptr &m)
-        : closurize_impl_t(m->get_module_vars(), m) {}
+
+    func_c dispatch(func_c f) override {
+        out_calls.clear();
+        auto ret = closurize_impl_t::dispatch(f);
+        if (!out_calls.empty() && f->attr_
+                && f->attr_->get_or_else(
+                        function_attrs::has_idle_func, false)) {
+            auto &the_flag = out_calls.back()
+                                     ->args_.at(1)
+                                     .checked_as<constant>()
+                                     ->value_.at(0)
+                                     .u64;
+            the_flag |= runtime::thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC;
+            the_flag |= runtime::thread_pool_flags::THREAD_POOL_DISABLE_ROLLING;
+        }
+        return ret;
+    }
+    closurize_cpu_impl_t(const ir_module_ptr &m, bool use_managed_thread_pool)
+        : closurize_impl_t(m->get_module_vars(), m)
+        , use_managed_thread_pool_(use_managed_thread_pool) {}
 };
 
 class single_core_remove_parallel_t : public ir_visitor_t {
@@ -201,10 +223,24 @@ public:
 };
 
 const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
-    std::vector<call> out_closures;
+    float gflop
+            = inmod->attr_.get_or_else(ir_module_t::attr_key_t::GFLOP, 0.0f);
+    // if the workload is too small, directly use thread pool backend instead of
+    // managed thread pool. if gflop per thread is large enough, or there is
+    // only one single thread, enable managed thread pool. For MLP workload on
+    // 24-core cascade lake, 1.6Gflop is turning point of choosing
+    // managed/native thread pool
+    auto &rtl_cfg = runtime_config_t::get();
+    bool use_managed_thread_pool = rtl_cfg.managed_thread_pool_
+            && (rtl_cfg.get_num_threads() == 1
+                    || gflop / rtl_cfg.get_num_threads() > 0.0666f);
+
+    SC_MODULE_INFO << "Use managed thread pool? " << use_managed_thread_pool
+                   << ". Module gflops = " << gflop;
+
     auto ret = inmod->copy();
     ir_visitor_t *the_pass;
-    closurize_cpu_impl_t pass(ret);
+    closurize_cpu_impl_t pass(ret, use_managed_thread_pool);
     single_core_remove_parallel_t singlepass {};
     if (single_core_) {
         the_pass = &singlepass;
@@ -218,6 +254,9 @@ const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
                 the_pass->dispatch(funcs[i]));
         funcs[i] = std::move(f);
     }
+
+    ret->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
+            = use_managed_thread_pool;
     return ret;
 }
 

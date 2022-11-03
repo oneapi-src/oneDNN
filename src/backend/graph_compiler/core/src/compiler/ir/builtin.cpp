@@ -667,6 +667,14 @@ func_t get_init_barrier_func() {
     return func;
 }
 
+func_t get_set_idle_func_managed_func() {
+    static func_t f = builder::make_func("sc_set_idle_func_managed",
+            {builder::make_var(datatypes::pointer, "funcptr"),
+                    builder::make_var(datatypes::pointer, "arg1")},
+            stmt(), datatypes::void_t);
+    return f;
+}
+
 } // namespace builtin
 
 } // namespace sc

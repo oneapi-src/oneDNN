@@ -26,6 +26,7 @@
 #include "tunable_op.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/graph/lowering.hpp>
@@ -1495,6 +1496,43 @@ void schedule_loop_body(
             break;
         }
     }
+}
+
+static op_traits::may_prefetch_t *find_prefetch_op(const sc_graph_t &graph) {
+    // fix-me (yijie): should provide a way to find the main op of the partition
+    // find the first tunable & prefetchable op
+    op_traits::may_prefetch_t *found_op = nullptr;
+    op_visitor_t::dfs_topology_sort(graph.ops_.size())
+            .visit_graph(graph, [&found_op](const sc_op_ptr &op) {
+                if (found_op) { return; }
+                if (op->isa<tunable_op_t>()
+                        && op->isa<op_traits::may_prefetch_t>()) {
+                    for (auto &ins : op->get_inputs()) {
+                        if (ins->producer_owner_->isa<input_op>()) {
+                            found_op
+                                    = op->dyn_cast<op_traits::may_prefetch_t>();
+                            return;
+                        }
+                    }
+                }
+            });
+    return found_op;
+}
+
+std::vector<int> mixed_fuse_op_t::query_prefetch(const context_ptr &ctx,
+        bool is_global, const std::vector<tensor_slice> &ins) {
+    if (auto found_op = find_prefetch_op(sub_graph_)) {
+        return found_op->query_prefetch(ctx, is_global, ins);
+    }
+    return {};
+}
+
+void mixed_fuse_op_t::generate_prefetcher_body_for_tensor(
+        const context_ptr &ctx, const std::vector<expr> &func_args,
+        const std::vector<expr> &ins, const std::vector<int> &indices) {
+    auto found_op = find_prefetch_op(sub_graph_);
+    assert(found_op);
+    found_op->generate_prefetcher_body_for_tensor(ctx, func_args, ins, indices);
 }
 
 void mixed_fuse_op_t::schedule_loops(const stmt &body) {

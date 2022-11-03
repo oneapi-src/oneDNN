@@ -79,6 +79,9 @@ ostream &codegen_c_vis::print_cpp_var_def(const var &v) {
 }
 
 ostream &codegen_c_vis::print_tensor_def(const tensor &v) {
+    if (v->attr_ && v->attr_->get_or_else("volatile", false)) {
+        *os << "volatile ";
+    }
     print_type(v->elem_dtype_);
     auto ali_info = alias_info::get_alias_info(*v);
     if (ali_info && !ali_info->has_no_alias()) {
@@ -341,6 +344,9 @@ void codegen_c_vis::view(func_addr_c v) {
     }
 }
 
+static const char *prefetch_names[]
+        = {"_MM_HINT_T0", "_MM_HINT_T1", "_MM_HINT_T2", "_MM_HINT_NTA"};
+
 void codegen_c_vis::view(intrin_call_c v) {
     switch (v->type_) {
         case intrin_type::min: binary_func_codegen_c(v, "sc_min"); break;
@@ -401,6 +407,15 @@ void codegen_c_vis::view(intrin_call_c v) {
             *os << v->intrin_attrs_->get<int>("permute_imm");
             *os << ')';
             break;
+        case intrin_type::prefetch: {
+            *os << "_mm_prefetch(";
+            dispatch(v->args_[0]);
+            auto locality = v->intrin_attrs_->get<int>("locality");
+            COMPILE_ASSERT(locality <= 3 && locality >= 0,
+                    "bad locality for prefetch");
+            *os << ", " << prefetch_names[locality] << ')';
+            break;
+        }
         case intrin_type::broadcast:
             print_type(v->dtype_);
             *os << "(";

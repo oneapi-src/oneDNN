@@ -270,6 +270,9 @@ public:
 };
 
 func_c tensor2var_t::operator()(func_c f) {
+    if (f->attr_ && f->attr_->get_or_else(function_attrs::low_level, false)) {
+        return f;
+    }
     tensor2var_analysis_t analy;
     analy.dispatch(f);
     tensor2var_replacer_t impl;

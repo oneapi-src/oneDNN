@@ -23,6 +23,8 @@ namespace sc {
 
 namespace runtime {
 struct thread_manager {
+    using idle_func_t = uint64_t (*)(std::atomic<int> *remaining,
+            int expected_remain, int tid, void *args);
     struct thread_pool_state {
         struct task_type {
             void (*pfunc)(void *, void *, int64_t, sc::generic_val *);
@@ -36,6 +38,10 @@ struct thread_manager {
         std::atomic<int> trigger;
         int num_threads;
         std::atomic<int> remaining;
+
+        idle_func_t idle_func = nullptr;
+        void *idle_args = nullptr;
+        uint64_t execution_flags = 0;
 
         void wait_all();
         void reset_scoreboard();
@@ -54,7 +60,10 @@ struct thread_manager {
 
 extern "C" SC_API void sc_parallel_call_managed(
         void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
-        void *rtl_ctx, void *module_env, int64_t begin, int64_t end,
-        int64_t step, sc::generic_val *args);
+        uint64_t execution_flags, void *rtl_ctx, void *module_env,
+        int64_t begin, int64_t end, int64_t step, sc::generic_val *args);
+
+extern "C" SC_API void sc_set_idle_func_managed(
+        sc::runtime::thread_manager::idle_func_t func, void *args);
 
 #endif

@@ -23,6 +23,7 @@
 #include <runtime/barrier.hpp>
 #include <runtime/config.hpp>
 #include <runtime/dynamic_dispatch/op_func_decl.hpp>
+#include <runtime/managed_thread_pool.hpp>
 #include <runtime/memorypool.hpp>
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
@@ -32,7 +33,6 @@ namespace sc {
 
 const std::unordered_map<std::string, void *> &get_runtime_function_map() {
     static std::unordered_map<std::string, void *> table = {
-            {"sc_parallel_call_cpu", (void *)sc_parallel_call_cpu},
             {"dnnl_brgemm_init", (void *)dnnl_brgemm_init},
             {"dnnl_brgemm_update", (void *)dnnl_brgemm_update},
             {"dnnl_brgemm_init_update", (void *)dnnl_brgemm_init_update},
@@ -73,6 +73,7 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"sc_parallel_call_managed",
                     (void *)runtime_config_t::get()
                             .thread_pool_table_->parallel_call_managed},
+            {"sc_set_idle_func_managed", (void *)sc_set_idle_func_managed},
             {"sc_arrive_at_barrier", (void *)sc_arrive_at_barrier},
             {"sc_init_barrier", (void *)sc_init_barrier},
             // dynamic query function

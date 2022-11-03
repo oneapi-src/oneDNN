@@ -1312,6 +1312,9 @@ static T1 run(const context_ptr &ctx, T1 f, bool remove_dead, bool inplace) {
 }
 
 func_c buffer_scheduler_t::operator()(func_c f) {
+    if (f->attr_ && f->attr_->get_or_else(function_attrs::low_level, false)) {
+        return f;
+    }
     return run(ctx_, f, eliminate_dead_writes_, do_inplace_opt_);
 }
 

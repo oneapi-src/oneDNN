@@ -167,6 +167,8 @@ expr_c bf16_promote_impl_t::visit(intrin_call_c v) {
         case intrin_type::permutex2var:
         case intrin_type::read_struct:
         case intrin_type::write_struct:
+        case intrin_type::prefetch:
+        case intrin_type::set_thread_idle_func:
         case intrin_type::reinterpret: break;
         default:
             COMPILE_ASSERT(false, "Unsupport BF16 intrin type: " << v->type_);
@@ -368,6 +370,9 @@ expr_c bf16_legalizer_t::operator()(expr_c f) {
 }
 
 func_c bf16_eliminator_t::operator()(func_c f) {
+    if (f->attr_ && f->attr_->get_or_else(function_attrs::low_level, false)) {
+        return f;
+    }
     bf16_elimination_analyzer_t analyzer(ctx_);
     analyzer.dispatch(f);
     bf16_cast_elimination_impl_t pass(ctx_, analyzer.var_use_cnt_);

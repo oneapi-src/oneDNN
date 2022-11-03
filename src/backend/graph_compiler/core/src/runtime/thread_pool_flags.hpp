@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,21 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_PARALLEL_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_PARALLEL_HPP
-#include <runtime/config.hpp>
-#include <runtime/generic_val.hpp>
-#include <util/def.hpp>
-
-// the default implementation of SC's thread pool
-extern "C" SC_API void sc_parallel_call_cpu_with_env_impl(
-        void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
-        uint64_t flags, void *rtl_ctx, void *module_env, int64_t begin,
-        int64_t end, int64_t step, sc::generic_val *args);
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_THREAD_POOL_FLAGS_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_THREAD_POOL_FLAGS_HPP
+#include <stdint.h>
 
 namespace sc {
-extern thread_pool_table sc_pool_table;
-}
+
+namespace runtime {
+
+namespace thread_pool_flags {
+constexpr int THREAD_POOL_DEFAULT = 0;
+constexpr int THREAD_POOL_RUN_IDLE_FUNC = 1;
+constexpr int THREAD_POOL_DISABLE_ROLLING = 1 << 1;
+} // namespace thread_pool_flags
+
+} // namespace runtime
+} // namespace sc
 
 #endif

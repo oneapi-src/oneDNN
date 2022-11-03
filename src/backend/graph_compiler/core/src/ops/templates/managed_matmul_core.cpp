@@ -386,6 +386,79 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
     plain_K, K_block_default, is_bf16 ? 2 : (is_f32 ? 1 : 4), 16);
 }
 
+bool gen_managed_matmul_core_t::is_okay_to_prefetch(
+  const managed_matmul_core_config_t &config, bool is_global) {
+  const int num_threads = runtime_config_t::get().get_num_threads();
+  if (!in_tensors_[1].get_format().is_blocking()
+    || num_threads / config.M_split_num / config.N_split_num > 1) {
+    return false;
+  }
+  return true;
+}
+
+void gen_managed_matmul_core_t::generate_prefetcher_body_for_tensor(
+  const context_ptr &ctx, const managed_matmul_core_config_t &config,
+  const std::vector<expr> &func_args, const std::vector<expr> &ins,
+  const std::vector<int> &indices) {
+  auto lookup = func_args[0];
+  auto expected = func_args[1];
+  auto tid = func_args[2];
+  bool is_int8 = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8);
+  uint64_t sizeof_dtype = utils::get_sizeof_type(get_A_dtype());
+  bool is_bf16 = get_A_dtype() == datatypes::bf16;
+  int N = static_cast<int>(
+        utils::rnd_up(in_tensors_[1].get_plain_dims()[1], iin_block_)),
+      K = static_cast<int>(
+        utils::rnd_up(in_tensors_[0].get_plain_dims()[1], iik_block_));
+
+  _var_(cnt, datatypes::index);
+  cnt = 0;
+  expr n_idx, N_single_thr_size, X_bigger_num;
+  _for_(n_s, tid % config.N_split_num, tid % config.N_split_num + 1) {
+    N_single_thr_size = get_balance211_length(
+      N / iin_block_, config.N_split_num, n_s, n_idx, X_bigger_num);
+    N_single_thr_size = N_single_thr_size * iin_block_;
+    n_idx = n_idx * iin_block_;
+    // only K_split_num=1 for convenience
+    _for_(n_b, 0, config.N_sub_block) {
+      expr n_b_idx, n_b_bigger_num, k_b_idx, k_b_bigger_num;
+      _var_init_(n_o_end, datatypes::s32,
+        get_balance211_length(N_single_thr_size / iin_block_,
+          config.N_sub_block, n_b, n_b_idx, n_b_bigger_num));
+      _for_(k_b, 0, config.K_sub_block) {
+        _for_(n_o, 0, n_o_end) {
+          _var_init_(n_start_idx, datatypes::index,
+            n_idx + n_b_idx * iin_block_
+              + ((n_o + tid) % n_o_end) * iin_block_);
+          _var_init_(bs, datatypes::s32,
+            get_balance211_length(K / iik_block_, config.K_sub_block, k_b,
+              k_b_idx, k_b_bigger_num));
+          _var_init_(k_start_idx, datatypes::index, 0 + k_b_idx * iik_block_);
+          _for_(i, 0, iik_block_ * iin_block_ * bs, 512 / sizeof_dtype) {
+            _if_(lookup[0] == expected) { _return_(cnt); }
+            cnt = cnt + 1;
+            _for_(j, 0, 512 / sizeof_dtype, 64 / sizeof_dtype) {
+              std::vector<expr> indices;
+              if (get_A_dtype() == datatypes::f32) {
+                indices = {n_start_idx / expr(iin_block_),
+                  k_start_idx / expr(iik_block_), 0, i + j};
+              } else {
+                indices = {n_start_idx / expr(iin_block_),
+                  k_start_idx / expr(iik_block_), 0, 0, i + j};
+              }
+              auto tptr = builder::tensor_ptr(ins[0], indices);
+              builder::get_current_builder()->push_evaluate(
+                make_expr<intrin_call_node>(intrin_type::prefetch,
+                  std::vector<expr> {tptr}, any_map_t {{"locality", 1}}));
+            }
+          }
+        }
+      }
+    }
+  }
+  _return_(cnt);
+}
+
 float gen_managed_matmul_core_t::get_gflop() const {
   const int64_t plain_M = get_mma_plain_dims()[0];
   const int64_t plain_K = get_mma_plain_dims()[1];

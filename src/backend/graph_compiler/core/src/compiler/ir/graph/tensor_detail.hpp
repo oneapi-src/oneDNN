@@ -103,8 +103,6 @@ public:
     // sets the data format and stride
     void set_format_and_stride(
             const sc_data_format_t &newv, const sc_dims &strides);
-    // gets the size of the tensor in bytes
-    size_t size() const;
     // judge whether the current logical tensor is dense
     bool is_dense();
     // print the tensor detail to string

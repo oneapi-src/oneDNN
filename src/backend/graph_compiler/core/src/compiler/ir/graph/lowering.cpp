@@ -31,6 +31,7 @@
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <compiler/ir/graph/fused_op.hpp>
+#include <compiler/ir/graph/trait/may_prefetch.hpp>
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/pass/ir_copy_internal.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
@@ -43,6 +44,7 @@
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/matmul_core.hpp>
+#include <runtime/config.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <unordered_map>
 #include <util/scoped_timer.hpp>
@@ -989,6 +991,116 @@ static std::string get_dispatch_callee_name(const expr &kernel) {
     return kernel.checked_as<indexing>()->ptr_.checked_as<tensor>()->name_;
 }
 
+static func_t insert_prefetch(const context_ptr &ctx,
+        const std::vector<std::pair<sc_op_ptr, stmt>> &op_execution_log,
+        sc_op *node, const std::vector<expr> &input_tsr, ir_module_t &mod,
+        std::vector<stmt> &outbody) {
+    if (!ctx->flags_.prefetch_) { return func_t(); }
+    if (op_execution_log.empty()) { return func_t(); }
+    auto prefetch_op = node->dyn_cast<op_traits::may_prefetch_t>();
+    if (!prefetch_op) { return func_t(); }
+    std::vector<tensor_slice> ins;
+    ins.reserve(input_tsr.size());
+    for (auto &in : input_tsr) {
+        ins.emplace_back(in);
+    }
+    auto can_prefetch_index = prefetch_op->query_prefetch(ctx, true, ins);
+    if (can_prefetch_index.empty()) { return func_t(); }
+    // now find the position where we insert prefetch
+    size_t pos = std::string::npos;
+    // how many Ops are executed between "pos" and current Op
+    size_t pos_diff = 0;
+    for (int64_t i = op_execution_log.size() - 1; i >= 0; i--) {
+        if (op_execution_log[i].second.defined()) {
+            // if the op is executed in main body (not in cached const/input)
+            // auto gflop = op_execution_log[i].first->get_gflop();
+            bool is_good_for_insert = true;
+            if (is_good_for_insert) {
+                auto func = op_execution_log[i]
+                                    .second.checked_as<evaluate>()
+                                    ->value_.checked_as<call>()
+                                    ->func_;
+                if (func->attr_
+                        && func->attr_->get_or_else(
+                                function_attrs::has_idle_func, false)) {
+                    // if we want to insert to a position that is already doing
+                    // prefetch, skip
+                    return func_t();
+                }
+                pos = i;
+                break;
+            }
+            pos_diff++;
+        }
+    }
+    if (pos == std::string::npos || pos_diff > 3) {
+        // if there is no large ops, or the position is too far away from the
+        // current op, don't insert prefetch
+        return func_t();
+    }
+
+    std::vector<int> filtered_prefetch_index;
+    // we need to check at this point (at "pos"), which input of the Op ("node")
+    // is ready to prefetch
+    for (auto in_idx : can_prefetch_index) {
+        auto &tsr = node->get_inputs().at(in_idx);
+        // todo (yijie): add more detailed cache size management
+        // skip prefetch on this tensor if it is too large
+        if (tsr->details_.get_blocking_byte_size() * 2
+                > ctx->machine_.cpu_flags_.getDCacheSize(2)
+                        * runtime_config_t::get().get_num_threads()) {
+            continue;
+        }
+        auto producer_op = tsr->producer_owner_;
+        size_t producer_idx = op_execution_log.size();
+        for (size_t i = 0; i < op_execution_log.size(); i++) {
+            if (op_execution_log[i].first.get() == producer_op) {
+                if (op_execution_log[i].second.defined()) {
+                    producer_idx = i;
+                } else {
+                    // if the producer op is in cached const/input, it is always
+                    // ready to be prefetched
+                    producer_idx = 0;
+                }
+                break;
+            }
+        }
+        if (producer_idx <= pos) {
+            if (!input_tsr.at(in_idx).isa<tensor>()) {
+                SC_MODULE_WARN << "Cannot prefetch tensor_view"
+                               << input_tsr.at(in_idx);
+            } else {
+                // if the input is already computed before "pos"
+                filtered_prefetch_index.push_back(in_idx);
+            }
+        }
+    }
+    if (filtered_prefetch_index.empty()) { return func_t(); }
+    std::vector<stmt> out;
+    auto ret = prefetch_op->generate_prefetcher_and_set_idle(
+            ctx, true, ins, filtered_prefetch_index, out);
+    // insert the thread pool manipulation code before pos
+    bool found = false;
+    for (auto itr = outbody.begin(); itr != outbody.end(); ++itr) {
+        if (itr->ptr_same(op_execution_log[pos].second)) {
+            for (auto &set_idle_body : out) {
+                itr = outbody.insert(itr, set_idle_body);
+            }
+            auto func = op_execution_log[pos]
+                                .second.checked_as<evaluate>()
+                                ->value_.checked_as<call>()
+                                ->func_;
+            func->attr()[function_attrs::has_idle_func] = true;
+            found = true;
+            break;
+        }
+    }
+    assert(found);
+    SC_UNUSED(found);
+    mod.add_func({ret});
+    return ret;
+}
+
 ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         const std::vector<sc_op_ptr> &args) {
     auto timer = SC_SCOPED_TIMER_INFO("graph.driver.time.lowering", "");
@@ -1031,6 +1143,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     bool is_graph_dynamic = graph.is_dynamic();
     general_lower_params_t gp {ret_mod, ltsr_rtsr, graph, func_body, init_body,
             tensor_counter, global_tensor_counter, is_graph_dynamic};
+    std::vector<std::pair<sc_op_ptr, stmt>> op_execution_log;
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
         std::vector<expr> ins, outs;
         // special kinds of Ops that we need to take care of
@@ -1106,6 +1219,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         }
         int const_type
                 = node->attrs_.get_or_else("constant", const_kind::not_const);
+        bool executed_in_main_body = false;
         switch (kind) {
             case kinput: {
                 for (auto &v : outs) {
@@ -1193,6 +1307,10 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     }
                     callee_name = callee->name_;
                     kernel_call = builder::make_call(callee, exprargs);
+                    if (const_type == const_kind::not_const) {
+                        insert_prefetch(ctx, op_execution_log, node.get(), ins,
+                                *ret_mod, func_body->seq_);
+                    }
                 }
                 stmts_node_t *target_body
                         = (const_type != const_kind::not_const)
@@ -1200,6 +1318,11 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                         : func_body.get();
                 target_body->seq_.emplace_back(
                         builder::make_evaluate_unattached(kernel_call));
+                if (const_type == const_kind::not_const) {
+                    executed_in_main_body = true;
+                    op_execution_log.emplace_back(
+                            node, target_body->seq_.back());
+                }
                 if (ctx->flags_.value_check_) {
                     make_value_check_call(outs, ret_mod, callee_name,
                             global_str_counter, target_body);
@@ -1211,6 +1334,9 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                             target_body, is_graph_dynamic);
                 }
             }
+        }
+        if (!executed_in_main_body) {
+            op_execution_log.emplace_back(node, stmt());
         }
     });
     if (!args.empty()) {

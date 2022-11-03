@@ -24,6 +24,7 @@
 #include "visitor.hpp"
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/trait/may_inplace.hpp>
+#include <compiler/ir/graph/trait/may_prefetch.hpp>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -156,7 +157,9 @@ public:
     void schedule_loops(const stmt &body);
 };
 
-class mixed_fuse_op_t : public graph_op_t, public op_traits::may_inplace_t {
+class mixed_fuse_op_t : public graph_op_t,
+                        public op_traits::may_prefetch_t,
+                        public op_traits::may_inplace_t {
 public:
     mixed_fuse_op_t(const std::string &name,
             const std::shared_ptr<mixed_parti_t> &parti,
@@ -167,6 +170,13 @@ public:
     ir_module_ptr get_func(context_ptr ctx) override;
     void get_graph_impl(std::shared_ptr<sc_graph_t> &) override;
     void schedule_loops(const stmt &body);
+
+    std::vector<int> query_prefetch(const context_ptr &ctx, bool is_global,
+            const std::vector<tensor_slice> &ins) override;
+
+    void generate_prefetcher_body_for_tensor(const context_ptr &ctx,
+            const std::vector<expr> &func_args, const std::vector<expr> &ins,
+            const std::vector<int> &indices) override;
     std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
     get_inplace_map() override;
 };
