@@ -477,22 +477,21 @@ status_t dnnl_post_ops_get_params_sum(const post_ops_t *post_ops, int index,
     return success;
 }
 
-status_t dnnl_post_ops_append_eltwise(post_ops_t *post_ops, float scale,
-        alg_kind_t kind, float alpha, float beta) {
+status_t dnnl_post_ops_append_eltwise(
+        post_ops_t *post_ops, alg_kind_t kind, float alpha, float beta) {
     if (post_ops == nullptr) return invalid_arguments;
 
-    return post_ops->append_eltwise(scale, kind, alpha, beta);
+    return post_ops->append_eltwise(1.0f, kind, alpha, beta);
 }
 
 status_t dnnl_post_ops_get_params_eltwise(const post_ops_t *post_ops, int index,
-        float *scale, alg_kind_t *alg, float *alpha, float *beta) {
+        alg_kind_t *alg, float *alpha, float *beta) {
     bool ok = true
             && simple_get_params_check(post_ops, index, primitive_kind::eltwise)
-            && !any_null(scale, alpha, beta);
+            && !any_null(alpha, beta);
     if (!ok) return invalid_arguments;
 
     const auto &e = post_ops->entry_[index].eltwise;
-    *scale = e.scale;
     *alg = e.alg;
     *alpha = e.alpha;
     *beta = e.beta;

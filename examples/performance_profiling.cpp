@@ -132,7 +132,7 @@ void create_and_execute_relu(memory &data, engine &eng, stream &s) {
 primitive_attr create_attr_with_relu_post_op() {
     // create a post-op with relu
     post_ops ops;
-    ops.append_eltwise(1.f, algorithm::eltwise_relu, 0.f, 0.f);
+    ops.append_eltwise(algorithm::eltwise_relu, 0.f, 0.f);
 
     // create an attribute and set the corresponding post op
     primitive_attr attr;

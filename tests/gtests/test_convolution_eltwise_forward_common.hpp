@@ -239,7 +239,7 @@ protected:
                 "Unsupported padding for CUDA.");
 
         dnnl::post_ops ops;
-        ops.append_eltwise(1.0, p.alg, p.eltwise_alpha, p.eltwise_beta);
+        ops.append_eltwise(p.alg, p.eltwise_alpha, p.eltwise_beta);
 
         dnnl::primitive_attr attr;
         attr.set_post_ops(ops);

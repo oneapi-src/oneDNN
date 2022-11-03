@@ -117,7 +117,7 @@ matmul::primitive_desc matmul_pd_create(
     attr.set_zero_points_mask(DNNL_ARG_SRC, /* mask */ 0);
     attr.set_zero_points_mask(DNNL_ARG_DST, /* mask */ 0);
     post_ops po;
-    po.append_eltwise(1.f, algorithm::eltwise_relu, 0.f, 0.f);
+    po.append_eltwise(algorithm::eltwise_relu, 0.f, 0.f);
     attr.set_post_ops(po);
 
     // Create a MatMul primitive descriptor

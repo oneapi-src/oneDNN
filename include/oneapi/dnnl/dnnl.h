@@ -518,19 +518,18 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_sum(
 /// In the simplest case when the elementwise is the only post operation, the
 /// computations would be:
 ///
-///     dst[:] <- scale * eltwise_op (op(...)) // instead of dst[:] <- op(...)
+///     dst[:] <- eltwise_op (op(...)) // instead of dst[:] <- op(...)
 ///
 /// where eltwise_op is configured with the given parameters.
 ///
 /// @param post_ops Post-ops.
-/// @param scale Scaling factor.
 /// @param alg_kind Elementwise algorithm for the post-op.
 /// @param alpha Alpha parameter for the elementwise algorithm.
 /// @param beta Beta parameter for the elementwise algorithm.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_post_ops_append_eltwise(dnnl_post_ops_t post_ops,
-        float scale, dnnl_alg_kind_t alg_kind, float alpha, float beta);
+        dnnl_alg_kind_t alg_kind, float alpha, float beta);
 
 /// Returns the parameters of an elementwise post-op.
 ///
@@ -545,8 +544,8 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_eltwise(dnnl_post_ops_t post_ops,
 /// @returns #dnnl_invalid_arguments if @p index does not refer to an
 ///     elementwise post-op.
 dnnl_status_t DNNL_API dnnl_post_ops_get_params_eltwise(
-        const_dnnl_post_ops_t post_ops, int index, float *scale,
-        dnnl_alg_kind_t *alg_kind, float *alpha, float *beta);
+        const_dnnl_post_ops_t post_ops, int index, dnnl_alg_kind_t *alg_kind,
+        float *alpha, float *beta);
 
 /// Appends a depthwise post-op convolution.
 ///

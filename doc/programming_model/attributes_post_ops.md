@@ -85,7 +85,6 @@ API:
 The parameters (C++ API for simplicity):
 ~~~cpp
 void dnnl::post_ops::append_eltwise(
-        float scale, // scaling factor (described below)
         algorithm alg, float alpha, float beta // same as in eltwise primitive
         );
 ~~~
@@ -100,15 +99,11 @@ The eltwise post-op replaces:
 with
 
 \f[
-    \dst[:] = scale \cdot \operatorname{eltwise}( \operatorname{Op}(...) )
+    \dst[:] = \operatorname{eltwise}( \operatorname{Op}(...) )
 \f]
 
 The intermediate result of \f$\operatorname{Op}(...)\f$ is not preserved.
 Hence, in most cases this kind of fusion cannot be used during training.
-
-The \f$scale\f$ factor is supported in
-[INT8](@ref dev_guide_attributes_quantization) inference only. For all other
-cases the scale must be `1.0`.
 
 @anchor dev_guide_attributes_post_ops_sum
 ### Sum Post-op

@@ -2976,18 +2976,16 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// The kind of this post-op is #dnnl::primitive::kind::eltwise.
     ///
     /// In the simplest case when the elementwise is the only post-op, the
-    /// computations would be `dst[:] := scale * eltwise_op (op(...))` instead
+    /// computations would be `dst[:] := eltwise_op (op(...))` instead
     /// of `dst[:] <- op(...)`, where eltwise_op is configured with the given
     /// parameters.
     ///
-    /// @param scale Scaling factor.
     /// @param aalgorithm Elementwise algorithm.
     /// @param alpha Alpha parameter for the elementwise algorithm.
     /// @param beta Beta parameter for the elementwise algorithm.
-    void append_eltwise(
-            float scale, algorithm aalgorithm, float alpha, float beta) {
-        error::wrap_c_api(dnnl_post_ops_append_eltwise(get(), scale,
-                                  convert_to_c(aalgorithm), alpha, beta),
+    void append_eltwise(algorithm aalgorithm, float alpha, float beta) {
+        error::wrap_c_api(dnnl_post_ops_append_eltwise(
+                                  get(), convert_to_c(aalgorithm), alpha, beta),
                 "could not append an elementwise post-op");
     }
 
@@ -2998,11 +2996,11 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// @param aalgorithm Output elementwise algorithm kind.
     /// @param alpha Output alpha parameter for the elementwise algorithm.
     /// @param beta Output beta parameter for the elementwise algorithm.
-    void get_params_eltwise(int index, float &scale, algorithm &aalgorithm,
-            float &alpha, float &beta) const {
+    void get_params_eltwise(
+            int index, algorithm &aalgorithm, float &alpha, float &beta) const {
         dnnl_alg_kind_t c_alg;
         error::wrap_c_api(dnnl_post_ops_get_params_eltwise(
-                                  get(), index, &scale, &c_alg, &alpha, &beta),
+                                  get(), index, &c_alg, &alpha, &beta),
                 "could not get parameters of an elementwise post-op");
         aalgorithm = static_cast<dnnl::algorithm>(c_alg);
     }

@@ -239,14 +239,13 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
         ASSERT_NO_THROW(impl_info_no_postops = pd.impl_info_str(););
 
         dnnl::primitive_attr attr;
-        const float scale = 1.f;
         const float alpha = 1.f;
         const float beta = 1.f;
         dnnl::post_ops ops;
 
         ops.append_sum(1.0);
 
-        ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
+        ops.append_eltwise(algorithm::eltwise_relu, alpha, beta);
 
         const auto &binary_po_tensor_dims = std::get<1>(GetParam());
         memory::desc src1_po_md(

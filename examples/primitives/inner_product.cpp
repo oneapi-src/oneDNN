@@ -114,12 +114,10 @@ void inner_product_example(dnnl::engine::kind engine_kind) {
             = memory::desc(weights_dims, dt::f32, tag::any);
 
     // Create primitive post-ops (ReLU).
-    const float scale = 1.0f;
     const float alpha = 0.f;
     const float beta = 0.f;
     post_ops inner_product_ops;
-    inner_product_ops.append_eltwise(
-            scale, algorithm::eltwise_relu, alpha, beta);
+    inner_product_ops.append_eltwise(algorithm::eltwise_relu, alpha, beta);
     primitive_attr inner_product_attr;
     inner_product_attr.set_post_ops(inner_product_ops);
 

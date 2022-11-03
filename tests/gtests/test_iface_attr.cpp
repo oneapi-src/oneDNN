@@ -278,14 +278,13 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestPostOps) {
     ASSERT_EQ(1, sum_zp);
     ASSERT_EQ(data_type::f32, dt);
 
-    ops.append_eltwise(2.2f, algorithm::eltwise_clip, 3.3f, 4.4f);
+    ops.append_eltwise(algorithm::eltwise_clip, 3.3f, 4.4f);
     attr.set_post_ops(ops);
 
     ASSERT_EQ(attr.get_post_ops().len(), 2);
     ASSERT_EQ(attr.get_post_ops().kind(0), primitive::kind::sum);
     ASSERT_EQ(attr.get_post_ops().kind(1), primitive::kind::eltwise);
-    attr.get_post_ops().get_params_eltwise(1, scale, alg, alpha, beta);
-    ASSERT_FLOAT_EQ(scale, 2.2f);
+    attr.get_post_ops().get_params_eltwise(1, alg, alpha, beta);
     ASSERT_EQ(alg, algorithm::eltwise_clip);
     ASSERT_FLOAT_EQ(alpha, 3.3f);
     ASSERT_FLOAT_EQ(beta, 4.4f);
@@ -322,7 +321,7 @@ TEST_F(attr_test_t, TestPostOpsCheckLimit) {
     for (int i = 0; i < 32; i++) {
         EXPECT_NO_THROW(ops_sum.append_sum(i + 1.f));
         EXPECT_NO_THROW(ops_eltwise.append_eltwise(
-                i, algorithm::eltwise_relu, 2 * i, 0.f));
+                algorithm::eltwise_relu, 2 * i, 0.f));
         EXPECT_NO_THROW(ops_binary.append_binary(algorithm::binary_add,
                 memory::desc({i}, data_type::s8, memory::format_tag::a)));
         EXPECT_NO_THROW(ops_prelu.append_prelu(1));
@@ -331,7 +330,7 @@ TEST_F(attr_test_t, TestPostOpsCheckLimit) {
     EXPECT_ANY_THROW(ops_prelu.append_prelu(1));
     EXPECT_ANY_THROW(ops_sum.append_sum(1.f));
     EXPECT_ANY_THROW(
-            ops_eltwise.append_eltwise(1.f, algorithm::eltwise_relu, 1.f, 0.f));
+            ops_eltwise.append_eltwise(algorithm::eltwise_relu, 1.f, 0.f));
     EXPECT_ANY_THROW(ops_binary.append_binary(algorithm::binary_add,
             memory::desc({1}, data_type::s8, memory::format_tag::a)));
 }

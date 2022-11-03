@@ -81,7 +81,7 @@ TEST(comparison_operators_t, TestEltwisePostOp) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
 
-    ops.append_eltwise(NAN, algorithm::eltwise_clip, 2.5f, 3.5f);
+    ops.append_eltwise(algorithm::eltwise_clip, NAN, 3.5f);
     attr.set_post_ops(ops);
     TEST_SELF_COMPARISON(attr);
 }

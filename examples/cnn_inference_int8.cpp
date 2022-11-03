@@ -143,11 +143,10 @@ void simple_net_int8(engine::kind engine_kind) {
     /// a PostOps object and configure it to execute an _eltwise relu_ operation.
     /// @snippet cnn_inference_int8.cpp Configure post-ops
     //[Configure post-ops]
-    const float ops_scale = 1.f;
     const float ops_alpha = 0.f; // relu negative slope
     const float ops_beta = 0.f;
     post_ops ops;
-    ops.append_eltwise(ops_scale, algorithm::eltwise_relu, ops_alpha, ops_beta);
+    ops.append_eltwise(algorithm::eltwise_relu, ops_alpha, ops_beta);
     conv_attr.set_post_ops(ops);
     //[Configure post-ops]
 

@@ -100,11 +100,10 @@ void matmul_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(bias_data.data(), bias_mem);
 
     // Create primitive post-ops (ReLU).
-    const float scale = 1.0f;
     const float alpha = 0.f;
     const float beta = 0.f;
     post_ops matmul_ops;
-    matmul_ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
+    matmul_ops.append_eltwise(algorithm::eltwise_relu, alpha, beta);
     primitive_attr matmul_attr;
     matmul_attr.set_post_ops(matmul_ops);
 

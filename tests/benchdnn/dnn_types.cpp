@@ -526,10 +526,6 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             e.eltwise.beta = std::stof(parser::get_substr(subs, subs_pos, ':'));
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            e.eltwise.scale
-                    = std::stof(parser::get_substr(subs, subs_pos, ':'));
-            if (e.eltwise.scale <= 0) return FAIL;
         } else if (e.is_binary_kind()) {
             e.binary.src1_dt
                     = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
@@ -687,10 +683,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
             if (!c_ws.is_def() || !c_ds.is_def()) s << ":" << c_ws;
             if (!c_ds.is_def()) s << ":" << c_ds;
         } else if (e.is_eltwise_kind()) {
-            if (e.eltwise.scale != 1.f)
-                s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta << ":"
-                  << e.eltwise.scale;
-            else if (e.eltwise.beta != 0.f)
+            if (e.eltwise.beta != 0.f)
                 s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta;
             else if (e.eltwise.alpha != 0.f)
                 s << ":" << e.eltwise.alpha;
@@ -1004,8 +997,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST, dst_mask));
 
             } else if (e.is_eltwise_kind()) {
-                DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops, e.eltwise.scale,
-                        e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
+                DNN_SAFE_V(dnnl_post_ops_append_eltwise(
+                        ops, e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
             } else if (e.is_binary_kind()) {
                 const auto &src1_md = attr_args.get_md(
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
@@ -1348,43 +1341,41 @@ void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
     }
 }
 
-float compute_eltwise_fwd(
-        pk_t kind, float src, float scale, float alpha, float beta) {
+float compute_eltwise_fwd(pk_t kind, float src, float alpha, float beta) {
     // don't compute on nan, propagate it
     if (std::isnan(src)) return NAN;
 
     using namespace dnnl::impl::math;
 
     switch (kind) {
-        case pk_t::RELU: return scale * relu_fwd(src, alpha);
-        case pk_t::TANH: return scale * tanh_fwd(src);
-        case pk_t::ELU: return scale * elu_fwd(src, alpha);
-        case pk_t::SQUARE: return scale * square_fwd(src);
-        case pk_t::ABS: return scale * abs_fwd(src);
-        case pk_t::SQRT: return scale * sqrt_fwd(src);
-        case pk_t::LINEAR: return scale * linear_fwd(src, alpha, beta);
-        case pk_t::SRELU: return scale * soft_relu_fwd(src, alpha);
-        case pk_t::MISH: return scale * mish_fwd(src);
-        case pk_t::LOGISTIC: return scale * logistic_fwd(src);
-        case pk_t::EXP: return scale * exp_fwd(src);
-        case pk_t::GELU_TANH: return scale * gelu_tanh_fwd(src);
-        case pk_t::SWISH: return scale * swish_fwd(src, alpha);
-        case pk_t::LOG: return scale * log_fwd(src);
-        case pk_t::CLIP: return scale * clip_fwd(src, alpha, beta);
-        case pk_t::CLIP_V2: return scale * clip_v2_fwd(src, alpha, beta);
-        case pk_t::POW: return scale * pow_fwd(src, alpha, beta);
-        case pk_t::GELU_ERF: return scale * gelu_erf_fwd(src);
-        case pk_t::ROUND: return scale * round_fwd(src);
-        case pk_t::HARDSWISH: return scale * hardswish_fwd(src, alpha, beta);
-        case pk_t::HARDSIGMOID:
-            return scale * hardsigmoid_fwd(src, alpha, beta);
-        case pk_t::RELU_DST: return scale * relu_fwd(src, alpha);
-        case pk_t::TANH_DST: return scale * tanh_fwd(src);
-        case pk_t::ELU_DST: return scale * elu_fwd(src, alpha);
-        case pk_t::SQRT_DST: return scale * sqrt_fwd(src);
-        case pk_t::LOGISTIC_DST: return scale * logistic_fwd(src);
-        case pk_t::EXP_DST: return scale * exp_fwd(src);
-        case pk_t::CLIP_V2_DST: return scale * clip_v2_fwd(src, alpha, beta);
+        case pk_t::RELU: return relu_fwd(src, alpha);
+        case pk_t::TANH: return tanh_fwd(src);
+        case pk_t::ELU: return elu_fwd(src, alpha);
+        case pk_t::SQUARE: return square_fwd(src);
+        case pk_t::ABS: return abs_fwd(src);
+        case pk_t::SQRT: return sqrt_fwd(src);
+        case pk_t::LINEAR: return linear_fwd(src, alpha, beta);
+        case pk_t::SRELU: return soft_relu_fwd(src, alpha);
+        case pk_t::MISH: return mish_fwd(src);
+        case pk_t::LOGISTIC: return logistic_fwd(src);
+        case pk_t::EXP: return exp_fwd(src);
+        case pk_t::GELU_TANH: return gelu_tanh_fwd(src);
+        case pk_t::SWISH: return swish_fwd(src, alpha);
+        case pk_t::LOG: return log_fwd(src);
+        case pk_t::CLIP: return clip_fwd(src, alpha, beta);
+        case pk_t::CLIP_V2: return clip_v2_fwd(src, alpha, beta);
+        case pk_t::POW: return pow_fwd(src, alpha, beta);
+        case pk_t::GELU_ERF: return gelu_erf_fwd(src);
+        case pk_t::ROUND: return round_fwd(src);
+        case pk_t::HARDSWISH: return hardswish_fwd(src, alpha, beta);
+        case pk_t::HARDSIGMOID: return hardsigmoid_fwd(src, alpha, beta);
+        case pk_t::RELU_DST: return relu_fwd(src, alpha);
+        case pk_t::TANH_DST: return tanh_fwd(src);
+        case pk_t::ELU_DST: return elu_fwd(src, alpha);
+        case pk_t::SQRT_DST: return sqrt_fwd(src);
+        case pk_t::LOGISTIC_DST: return logistic_fwd(src);
+        case pk_t::EXP_DST: return exp_fwd(src);
+        case pk_t::CLIP_V2_DST: return clip_v2_fwd(src, alpha, beta);
 
         default: assert(!"unknown attr::post_ops::kind");
     };
@@ -1479,10 +1470,9 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
         } else if (e.is_convolution_kind()) {
             continue;
         } else if (e.is_eltwise_kind()) {
-            const auto &s = e.eltwise.scale;
             const auto &a = e.eltwise.alpha;
             const auto &b = e.eltwise.beta;
-            val = compute_eltwise_fwd(e.kind, val, s, a, b);
+            val = compute_eltwise_fwd(e.kind, val, a, b);
         } else if (e.is_binary_kind()) {
             val = compute_binary(e.kind, val, *it_po);
             it_po++;

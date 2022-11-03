@@ -180,7 +180,6 @@ static int check_attr() {
         SELF_CHECK_EQ(ee.alg, dnnl_eltwise_relu);
         SELF_CHECK_EQ(ee.alpha, 0.5f);
         SELF_CHECK_EQ(ee.beta, 0.f);
-        SELF_CHECK_EQ(ee.scale, 1.f);
 
         e = po[0].entry[1];
         SELF_CHECK_EQ(e.kind, pk_t::DW_K3S2P1);
@@ -196,7 +195,6 @@ static int check_attr() {
         SELF_CHECK_EQ(ee.alg, dnnl_eltwise_linear);
         SELF_CHECK_EQ(ee.alpha, 2.f);
         SELF_CHECK_EQ(ee.beta, 1.f);
-        SELF_CHECK_EQ(ee.scale, 3.f);
     }
 
     {
@@ -241,12 +239,11 @@ void append_convolution(attr_t::post_ops_t &po, pk_t akind,
 }
 
 void append_eltwise(attr_t::post_ops_t &po, pk_t akind, float aalpha = 0.f,
-        float abeta = 0.f, float ascale = 1.f) {
+        float abeta = 0.f) {
     attr_t::post_ops_t::entry_t e(akind);
     e.eltwise.alg = attr_t::post_ops_t::kind2dnnl_kind(akind);
     e.eltwise.alpha = aalpha;
     e.eltwise.beta = abeta;
-    e.eltwise.scale = ascale;
     po.entry.push_back(e);
 }
 
@@ -267,7 +264,7 @@ static int check_post_ops2str() {
     SELF_CHECK_EQ(po.len(), 3);
     SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8");
 
-    append_eltwise(po, pk_t::LINEAR, 5.f, 10.f, 2.f);
+    append_eltwise(po, pk_t::LINEAR, 5.f, 10.f);
     SELF_CHECK_EQ(po.len(), 4);
     SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10:2");
 
@@ -296,7 +293,6 @@ static int check_str2post_ops() {
             SELF_CHECK_EQ(ops.entry[2 * i + 0].sum.scale, 2. + i);
             if (2 * i + 1 >= len) return OK;
             SELF_CHECK_EQ(ops.entry[2 * i + 1].kind, attr_t::post_ops_t::RELU);
-            SELF_CHECK_EQ(ops.entry[2 * i + 1].eltwise.scale, 1.);
             SELF_CHECK_EQ(ops.entry[2 * i + 1].eltwise.alpha, 0.);
             SELF_CHECK_EQ(ops.entry[2 * i + 1].eltwise.beta, 0.);
         }

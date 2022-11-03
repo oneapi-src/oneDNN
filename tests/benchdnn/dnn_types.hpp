@@ -296,7 +296,6 @@ struct attr_t {
                 dnnl_alg_kind_t alg = dnnl_alg_kind_undef;
                 float alpha = 0.f;
                 float beta = 0.f;
-                float scale = 1.f;
             } eltwise;
             struct {
                 int kernel = 0;
@@ -535,8 +534,8 @@ void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,
         int arg, bool opposite_scale = false);
 void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
         int64_t c, int arg, bool opposite_zero_point = false);
-float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
-        float scale, float alpha, float beta);
+float compute_eltwise_fwd(
+        attr_t::post_ops_t::kind_t kind, float src, float alpha, float beta);
 float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         float src, float alpha, float beta);
 float compute_binary(attr_t::post_ops_t::kind_t kind, float src0, float src1);

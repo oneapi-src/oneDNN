@@ -127,11 +127,10 @@ void convolution_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(bias_data.data(), user_bias_mem);
 
     // Create primitive post-ops (ReLU).
-    const float scale = 1.f;
     const float alpha = 0.f;
     const float beta = 0.f;
     post_ops conv_ops;
-    conv_ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
+    conv_ops.append_eltwise(algorithm::eltwise_relu, alpha, beta);
     primitive_attr conv_attr;
     conv_attr.set_post_ops(conv_ops);
 
@@ -277,11 +276,10 @@ void depthwise_convolution_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(bias_data.data(), user_bias_mem);
 
     // Create primitive post-ops (ReLU).
-    const float scale = 1.f;
     const float alpha = 0.f;
     const float beta = 0.f;
     post_ops conv_ops;
-    conv_ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
+    conv_ops.append_eltwise(algorithm::eltwise_relu, alpha, beta);
     primitive_attr conv_attr;
     conv_attr.set_post_ops(conv_ops);
 

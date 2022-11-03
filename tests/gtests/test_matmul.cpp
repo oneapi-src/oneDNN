@@ -206,7 +206,7 @@ protected:
             switch (post_op.kind) {
                 case primitive::kind::sum: po.append_sum(); break;
                 case primitive::kind::eltwise:
-                    po.append_eltwise(1.f, post_op.alg, 0.f, 0.f);
+                    po.append_eltwise(post_op.alg, 0.f, 0.f);
                     break;
                 default: ASSERT_TRUE(!"unknown post op kind");
             }
@@ -342,13 +342,12 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(
     ASSERT_NO_THROW(impl_info_no_postops = matmul_pd.impl_info_str(););
 
     dnnl::primitive_attr attr;
-    const float scale = 1.f;
     const float alpha = 1.f;
     const float beta = 1.f;
 
     dnnl::post_ops ops;
     ops.append_sum(1.0);
-    ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
+    ops.append_eltwise(algorithm::eltwise_relu, alpha, beta);
 
     const auto &binary_po_tensor_dims = std::get<1>(GetParam());
     memory::desc src1_po_md(

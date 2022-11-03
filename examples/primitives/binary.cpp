@@ -91,11 +91,10 @@ void binary_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(src_1_data.data(), src_1_mem);
 
     // Create primitive post-ops (ReLU).
-    const float scale = 1.0f;
     const float alpha = 0.f;
     const float beta = 0.f;
     post_ops binary_ops;
-    binary_ops.append_eltwise(scale, algorithm::eltwise_relu, alpha, beta);
+    binary_ops.append_eltwise(algorithm::eltwise_relu, alpha, beta);
     primitive_attr binary_attr;
     binary_attr.set_post_ops(binary_ops);
 

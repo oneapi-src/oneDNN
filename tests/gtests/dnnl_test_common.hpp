@@ -850,7 +850,7 @@ template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_po_eltwise(const engine &eng, bool supports_po_eltwise,
         const prim_params_t &... prim_params) {
     dnnl::post_ops ops_eltwise;
-    ops_eltwise.append_eltwise(1.0f, dnnl::algorithm::eltwise_relu, 0.f, 0.f);
+    ops_eltwise.append_eltwise(dnnl::algorithm::eltwise_relu, 0.f, 0.f);
     dnnl::primitive_attr attr_po_eltwise;
     attr_po_eltwise.set_post_ops(ops_eltwise);
     if (supports_po_eltwise)
@@ -956,7 +956,7 @@ template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr_po_eltwise(const engine &eng, const hint_pd_t &hint,
         bool supports_po_eltwise, const prim_params_t &... prim_params) {
     dnnl::post_ops ops_eltwise;
-    ops_eltwise.append_eltwise(1.f, dnnl::algorithm::eltwise_relu, 0.f, 0.f);
+    ops_eltwise.append_eltwise(dnnl::algorithm::eltwise_relu, 0.f, 0.f);
     dnnl::primitive_attr attr_po_eltwise;
     attr_po_eltwise.set_post_ops(ops_eltwise);
     if (supports_po_eltwise)
