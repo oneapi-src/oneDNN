@@ -127,6 +127,7 @@ const char *fmt_tag2str(dnnl_format_tag_t tag);
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 const char *sparse_encoding2str(dnnl_sparse_encoding_t encoding);
 #endif
+const char *sparse_encoding2str(dnnl_sparse_encoding_t encoding);
 
 /* engine kind */
 const char *engine_kind2str(dnnl_engine_kind_t kind);
@@ -175,6 +176,9 @@ const char *sparse_encoding2str(dnnl_sparse_encoding_t encoding) {
     return dnnl_sparse_encoding2str(encoding);
 }
 #endif
+const char *sparse_encoding2str(dnnl_sparse_encoding_t encoding) {
+    return dnnl_sparse_encoding2str(encoding);
+}
 
 const char *engine_kind2str(dnnl_engine_kind_t kind) {
     return dnnl_engine_kind2str(kind);

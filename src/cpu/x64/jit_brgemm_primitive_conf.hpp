@@ -46,6 +46,9 @@ struct jit_brgemm_primitive_conf_t {
     bool with_binary;
     bool with_scales;
     bool req_s8s8_compensation;
+    bool signed_input;
+    bool weights_compressed;
+    int weights_starting_offset;
     int nb_ic, ic_block, ic_block_ext;
     int nb_oc, oc_block, oc_block_ext;
     int nb_iw, iw_block;
@@ -68,6 +71,7 @@ struct jit_brgemm_primitive_conf_t {
     bool is_bf32;
 
     int is_oc_scale;
+    size_t weight_comp_bitmask_off;
 
     int LDA, LDB, LDC, LDD;
     int M, N, K, M_tail, N_tail, K_tail;

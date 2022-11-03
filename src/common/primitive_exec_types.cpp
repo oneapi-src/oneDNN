@@ -132,7 +132,7 @@ void *exec_ctx_t::host_ptr(
     if (do_zeropad) status = mem->zero_pad(*this);
     if (status_) *status_ = status;
 
-    auto *mem_storage = mem->memory_storage(index);
+    auto *mem_storage = mem->memory_storage();
     return host_ptr(mem_storage);
 }
 

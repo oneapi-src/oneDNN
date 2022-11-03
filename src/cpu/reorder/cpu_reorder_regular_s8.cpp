@@ -28,6 +28,10 @@ const impl_list_map_t &regular_s8_impl_list_map() {
     static const impl_list_map_t the_map = REG_REORDER_P({
         // s8 ->
         {{s8, data_type::undef, 0}, {
+            // TODO: move it down when checks for sparse md are implemented in other implementations.
+            DNNL_X64_ONLY(REG_SPARSE_SR(s8, oi, s8, OI16i64o4i, sparse_inputs_order::keep, sparse_spec::reference))
+            DNNL_X64_ONLY(REG_SPARSE_SR(s8, io, s8, OI16i64o4i, sparse_inputs_order::keep, sparse_spec::reference))
+
             CPU_REORDER_INSTANCE(rnn_weights_reorder_s8_t, s8)
             CPU_REORDER_INSTANCE(rnn_brgemm_weights_reorder_s8_t, s8, s8)
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::brgemm_matmul_matrix_B_reorder_t))

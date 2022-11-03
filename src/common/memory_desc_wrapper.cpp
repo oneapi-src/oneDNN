@@ -80,15 +80,24 @@ static status_t fill_blocked_impl(memory_desc_t &md, T&& perm, T&& inner_blks, T
     return status::success;
 }
 
-status_t fill_blocked(memory_desc_t &md, std::initializer_list<int> perm,
-        std::initializer_list<int> inner_blks,
-        std::initializer_list<int> inner_idxs) {
+status_t fill_blocked(memory_desc_t &md,
+                      std::initializer_list<int> perm,
+                      std::initializer_list<int> inner_blks,
+                      std::initializer_list<int> inner_idxs) {
     return fill_blocked_impl(md, perm, inner_blks, inner_idxs);
 }
 
-status_t fill_blocked(memory_desc_t &md, std::vector<int>& perm,
+status_t fill_blocked(memory_desc_t &md,
+                      std::vector<int>& perm,
                       std::vector<int>& inner_blks,
                       std::vector<int>& inner_idxs) {
+    return fill_blocked_impl(md, perm, inner_blks, inner_idxs);
+}
+
+status_t fill_blocked(memory_desc_t &md,
+                      std::vector<dim_t>& perm,
+                      std::vector<dim_t>& inner_blks,
+                      std::vector<dim_t>& inner_idxs) {
     return fill_blocked_impl(md, perm, inner_blks, inner_idxs);
 }
 

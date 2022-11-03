@@ -43,6 +43,7 @@ const char DNNL_API *dnnl_fmt_tag2str(dnnl_format_tag_t v);
 const char DNNL_API *dnnl_prop_kind2str(dnnl_prop_kind_t v);
 const char DNNL_API *dnnl_prim_kind2str(dnnl_primitive_kind_t v);
 const char DNNL_API *dnnl_alg_kind2str(dnnl_alg_kind_t v);
+const char DNNL_API *dnnl_sparse_encoding2str(dnnl_sparse_encoding_t v);
 const char DNNL_API *dnnl_rnn_flags2str(dnnl_rnn_flags_t v);
 const char DNNL_API *dnnl_rnn_direction2str(dnnl_rnn_direction_t v);
 const char DNNL_API *dnnl_scratchpad_mode2str(dnnl_scratchpad_mode_t v);

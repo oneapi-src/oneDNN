@@ -55,6 +55,8 @@ typedef enum {
     /// Format kind for sparse tensors.
     dnnl_format_kind_sparse,
 #endif
+    /// Format for sparse data.
+    dnnl_format_sparse,
     /// Parameter to allow internal only format kinds without undefined
     /// behavior. This parameter is chosen to be valid for so long as
     /// sizeof(int) >= 2.
@@ -2188,6 +2190,50 @@ typedef struct dnnl_memory_desc *dnnl_memory_desc_t;
 /// A memory descriptor handle.
 typedef const struct dnnl_memory_desc *const_dnnl_memory_desc_t;
 
+/// Sparse encodings.
+typedef enum {
+    dnnl_sparse_encoding_undef = 0,
+    dnnl_sparse_encoding_any,
+    dnnl_sparse_encoding_packed,
+} dnnl_sparse_encoding_t;
+
+/* typedef struct dnnl_sparse_desc *dnnl_sparse_desc_t; */
+/* typedef const struct dnnl_sparse_desc *const_dnnl_sparse_desc_t; */
+
+/// Flags for memory special features
+typedef enum {
+    dnnl_memory_extra_flag_none = 0x0U,
+    /// Indicates the weights have an additional buffer, that depends on the
+    /// @p compensation_mask.
+    ///
+    /// For instance, in 4D case with the compensation mask equals (1 << 0)
+    /// the additional buffer would consist of OC values:
+    /// O[oc : 0,OC] =
+    ///  -128 * SUM(ic : 0,IC; kh : 0,KH; kw : 0,KW){ weights(oc, ic, kh, kw) }
+    dnnl_memory_extra_flag_compensation_conv_s8s8 = 0x1U,
+    dnnl_memory_extra_flag_scale_adjust = 0x2U,
+    dnnl_memory_extra_flag_rnn_u8s8_compensation = 0x4U,
+    dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation
+    = dnnl_memory_extra_flag_rnn_u8s8_compensation,
+    dnnl_memory_extra_flag_compensation_conv_asymmetric_src = 0x8U,
+    dnnl_memory_extra_flag_rnn_s8s8_compensation = 0x16U,
+} dnnl_memory_extra_flags_t;
+
+/// Description of extra information stored in memory
+typedef struct {
+    /// The flags contain arbitrary extra information, such as compensation.
+    /// @sa dnnl_memory_extra_flags_t
+    uint64_t flags;
+    /// Compensation mask
+    int compensation_mask;
+    /// Scale applied to the data
+    float scale_adjust;
+    /// Compensation mask for asymmetric quantization
+    int asymm_compensation_mask;
+    /// For future backwards compatibility
+    char reserved[60];
+} dnnl_memory_extra_desc_t;
+
 /// @struct dnnl_memory
 /// An opaque structure to describe a memory.
 struct dnnl_memory;
@@ -2686,6 +2732,8 @@ typedef enum {
     dnnl_query_num_handles_s32, ///< Number of buffers required for a memory
 ///  descriptor
 #endif
+    dnnl_query_sparse_encoding,
+
     // Max value to prevent UB for internal use only dnnl_query_t
     dnnl_query_max = 0x7fff,
 } dnnl_query_t;

@@ -310,6 +310,7 @@ bool jit_brgemm_ip_conf_t::adjust_thread_balance() const {
     const bool skip_thread_balancing = !jbgp.is_amx && !is_f32_compute_avx512;
     if (IMPLICATION(jbgp.is_wei_layout_any, skip_thread_balancing))
         return false;
+    if (jbgp.weights_compressed) return false; // @todo add comment about the reasoning
 
     int os_chunks = div_up(jbgp.os, get_os_block(true, false));
 
@@ -1334,10 +1335,27 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
 
     if (!one_of(true, is_int8, is_bf16, is_f16, is_f32))
         return status::unimplemented;
+
+    jbgp.weights_compressed = false;
     if (is_int8) {
         jbgp.acc_dt = s32;
         jbgp.with_scales = true;
         jbgp.with_dst_scales = true;
+        jbgp.weights_compressed = weights_d.is_sparse_desc()
+                && weights_d.sparse_desc().encoding == sparse_encoding::packed;
+        // XXX: assumption on block size.
+        // TODO: generalize this.
+        if (jbgp.weights_compressed) {
+            jbgp.weights_compressed = true;
+            int total_blocks = (jbgp.oc * jbgp.ic) / 4096;
+            jbgp.weights_starting_offset
+                    = ceil((float)total_blocks * 2 / 64.0) * 64;
+            jbgp.weight_comp_bitmask_off = jbgp.weights_starting_offset + jbgp.ic * jbgp.oc;
+        }
+    } else if (is_bf16) {
+        jbgp.acc_dt = f32;
+    } else if (is_f32) {
+        jbgp.acc_dt = f32;
     } else
         jbgp.acc_dt = f32;
 
@@ -1382,7 +1400,10 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
         if (jbgp.with_bias && bias_md.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
 
-        jbgp.is_wei_layout_any = weights_d.format_kind() == format_kind::any;
+        jbgp.is_wei_layout_any = (weights_d.format_kind() == format_kind::any)
+                || (weights_d.format_kind() == format_kind::sparse
+                        && weights_d.sparse_desc().encoding
+                                == sparse_encoding::packed);
 
         memory_desc_t want_wei_md = weights_md;
         jbgp.wei_tag = get_brgemm_ip_weights_tag(weights_md);
@@ -1438,6 +1459,11 @@ void jit_brgemm_ip_conf_t::init_scratchpad_base(
     if (jbgp.is_amx)
         scratchpad.book(key_conv_amx_tile_buffer,
                 (size_t)jbgp.nthr * jbgp.amx_buf_size_per_thread, sizeof(char));
+
+    if (jbgp.weights_compressed)
+        scratchpad.book(key_brgemm_primitive_decomp_buf,
+                (size_t)jbgp.nthr * jbgp.ic * 64,
+                types::data_type_size(jbgp.wei_dt));
 }
 
 void jit_brgemm_ip_fwd_conf_t::init_scratchpad(

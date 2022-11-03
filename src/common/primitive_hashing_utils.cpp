@@ -88,6 +88,12 @@ size_t get_md_hash(const memory_desc_t &md) {
                     sparse_desc_t::max_metadata_types);
             break;
 #endif
+        case format_kind::sparse:
+            seed = hash_combine(seed,
+                    static_cast<size_t>(md.format_desc.sparse_desc.encoding));
+            // User cannot initialize `packed_desc` therefore therefore
+            // at this point `packed_desc` is always zero initialized.
+            break;
         default: assert(!"unknown format_kind");
     }
 

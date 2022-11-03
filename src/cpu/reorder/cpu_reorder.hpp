@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "cpu/reorder/simple_reorder.hpp"
+#include "cpu/reorder/simple_sparse_reorder.hpp"
 
 #include "common/impl_list_item.hpp"
 #include "common/memory.hpp"
@@ -87,6 +88,8 @@ extern const impl_list_map_t &comp_bf16_s8_impl_list_map();
 extern const impl_list_map_t &comp_s8_s8_impl_list_map();
 
 // clang-format off
+#define REG_SPARSE_SR(idt, ifmt, odt, ofmt, ...) \
+    CPU_REORDER_INSTANCE(simple_sparse_reorder_t, idt, ifmt, odt, ofmt, __VA_ARGS__)
 
 using spec_reference = spec::reference;
 using spec_direct_copy = spec::direct_copy;

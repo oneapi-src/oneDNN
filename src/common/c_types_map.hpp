@@ -193,12 +193,12 @@ const sparse_encoding_t undef = dnnl_sparse_encoding_undef;
 const sparse_encoding_t csr = dnnl_csr;
 } // namespace sparse_encoding
 #else
-// Declare dummy values to avoid guarding internal implementation.
-using sparse_encoding_t = int;
-namespace sparse_encoding {
-const sparse_encoding_t undef = 0;
-const sparse_encoding_t csr = 1;
-} // namespace sparse_encoding
+// // Declare dummy values to avoid guarding internal implementation.
+// using sparse_encoding_t = int;
+// namespace sparse_encoding {
+// const sparse_encoding_t undef = 0;
+// const sparse_encoding_t csr = 1;
+// } // namespace sparse_encoding
 #endif
 
 using format_kind_t = dnnl_format_kind_t;
@@ -210,13 +210,14 @@ const format_kind_t opaque = dnnl_format_kind_opaque;
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 const format_kind_t sparse = dnnl_format_kind_sparse;
 #else
-const format_kind_t sparse = dnnl_format_kind_undef;
+// const format_kind_t sparse = dnnl_format_kind_undef;
 #endif
 
 // Internal only format kinds.
 const format_kind_t internal_only_start = (format_kind_t)(1 << 8);
 const format_kind_t wino = internal_only_start;
 const format_kind_t rnn_packed = (format_kind_t)(internal_only_start + 1);
+const format_kind_t sparse = dnnl_format_sparse;
 } // namespace format_kind
 
 #ifdef DNNL_EXPERIMENTAL_PROFILING
@@ -1763,6 +1764,13 @@ const rnn_flags_t diff_weights_overwrite
         = dnnl_rnn_flags_diff_weights_overwrite;
 } // namespace rnn_flags
 
+using sparse_encoding_t = dnnl_sparse_encoding_t;
+namespace sparse_encoding {
+const sparse_encoding_t undef = dnnl_sparse_encoding_undef;
+const sparse_encoding_t any = dnnl_sparse_encoding_any;
+const sparse_encoding_t packed = dnnl_sparse_encoding_packed;
+} // namespace sparse_encoding
+
 using engine_kind_t = dnnl_engine_kind_t;
 namespace engine_kind {
 const engine_kind_t any_engine = dnnl_any_engine;
@@ -1898,15 +1906,16 @@ const query_t sparse_encoding = dnnl_query_sparse_encoding;
 const query_t nnz_s64 = dnnl_query_nnz_s64;
 const query_t num_handles_s32 = dnnl_query_num_handles_s32;
 #else
-const query_t sparse_encoding = dnnl_query_undef;
-const query_t nnz_s64 = dnnl_query_undef;
-const query_t num_handles_s32 = dnnl_query_undef;
+// const query_t sparse_encoding = dnnl_query_undef;
+// const query_t nnz_s64 = dnnl_query_undef;
+// const query_t num_handles_s32 = dnnl_query_undef;
 #endif
 
 // Internal only query kinds.
 const query_t internal_only_start = (query_t)(1 << 12);
 const query_t zero_pad_d = internal_only_start;
 const query_t preferred_gpu_threads_per_eu = (query_t)(internal_only_start + 1);
+const query_t sparse_encoding = dnnl_query_sparse_encoding;
 } // namespace query
 
 using rnn_direction_t = dnnl_rnn_direction_t;

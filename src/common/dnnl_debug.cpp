@@ -52,6 +52,7 @@ const char *dnnl_fmt_kind2str(dnnl_format_kind_t v) {
 #endif
     if (v == format_kind::wino || v == format_kind::rnn_packed) return "opaque";
     if (v == dnnl_format_kind_max) return "max";
+    if (v == dnnl_format_sparse) return "format_sparse";
     assert(!"unknown fmt_kind");
     return "unknown fmt_kind";
 }

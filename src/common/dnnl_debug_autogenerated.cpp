@@ -1707,6 +1707,14 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     return "unknown alg_kind";
 }
 
+const char *dnnl_sparse_encoding2str(dnnl_sparse_encoding_t v) {
+    if (v == dnnl_sparse_encoding_undef) return "undef";
+    if (v == dnnl_sparse_encoding_any) return "any";
+    if (v == dnnl_sparse_encoding_packed) return "sparse_encoding_packed";
+    assert(!"unknown sparse_encoding");
+    return "unknown sparse_encoding";
+}
+
 const char *dnnl_rnn_flags2str(dnnl_rnn_flags_t v) {
     if (v == dnnl_rnn_flags_undef) return "undef";
     if (v == dnnl_rnn_flags_diff_weights_overwrite) return "rnn_flags_diff_weights_overwrite";

@@ -894,6 +894,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// Format kind for sparse tensors.
         sparse = dnnl_format_kind_sparse,
 #endif
+        sparsed = dnnl_format_sparse,
         /// A special format kind that indicates that tensor format is opaque.
         opaque = dnnl_format_kind_opaque,
     };
@@ -2590,7 +2591,6 @@ struct memory : public handle<dnnl_memory_t> {
     /// A memory descriptor.
     struct desc : public handle<dnnl_memory_desc_t> {
         using handle<dnnl_memory_desc_t>::handle;
-
         friend struct memory;
 
         /// Constructs a zero (empty) memory descriptor. Such a memory
@@ -2704,6 +2704,31 @@ struct memory : public handle<dnnl_memory_t> {
         /// @param md The C API memory descriptor.
         desc(dnnl_memory_desc_t md) : handle<dnnl_memory_desc_t>(md) {}
 
+        /// @fork
+        /// Copy constructor for memory::desc
+        /// Ensures deep copy (underlying C structure is copied as well)
+        /// To preserve behavior of 2.x oneDNN versions
+        ///
+        /// @param desc memory descriptor to copy.
+        desc(const memory::desc& adesc) {
+            auto cdesc = adesc.get();
+            dnnl_memory_desc_t cloned_md = nullptr;
+            dnnl_memory_desc_clone(&cloned_md, cdesc);
+
+            reset(cloned_md);
+        }
+
+        desc sparse_desc(const dims &adims, data_type adata_type,
+                bool allow_empty = false) {
+            dnnl_memory_desc_t md = nullptr;
+            dnnl_status_t status = dnnl_memory_desc_create_sparse(&md, dnnl_sparse_encoding_packed,
+                    (int)adims.size(), adims.data(), convert_to_c(adata_type));
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not construct a memory descriptor with sparse format");
+            return desc(md);
+        }
         /// Constructs a memory descriptor for a region inside an area
         /// described by this memory descriptor.
         //
@@ -2952,9 +2977,9 @@ struct memory : public handle<dnnl_memory_t> {
         /// Returns the data type of the memory descriptor.
         ///
         /// @returns The data type.
-        memory::data_type get_data_type() const {
-            return query_data_type(query::data_type);
-        }
+        // memory::data_type get_data_type() const {
+        //     return query_data_type(query::data_type);
+        // }
 #endif
 
         /// Returns the format kind of the memory descriptor.
@@ -2967,6 +2992,30 @@ struct memory : public handle<dnnl_memory_t> {
             return status == dnnl_success
                     ? static_cast<dnnl::memory::format_kind>(format_kind)
                     : dnnl::memory::format_kind::undef;
+        }
+
+        /// Returns the format kind of the memory descriptor.
+        ///
+        /// @returns the format kind.
+        dnnl_sparse_encoding_t get_sparse_encoding() const {
+            dnnl_sparse_encoding_t sparse_encoding;
+            dnnl_status_t status = dnnl_memory_desc_query(
+                get(), dnnl_query_sparse_encoding, &sparse_encoding);
+            return status == dnnl_success
+                    ? sparse_encoding
+                    : dnnl_sparse_encoding_undef;
+        }
+
+        /// Returns the data type of the memory descriptor.
+        ///
+        /// @returns The data type.
+        memory::data_type get_data_type() const {
+            dnnl_data_type_t data_type;
+            dnnl_status_t status = dnnl_memory_desc_query(
+                    get(), dnnl_query_data_type, &data_type);
+            return status == dnnl_success
+                    ? static_cast<dnnl::memory::data_type>(data_type)
+                    : dnnl::memory::data_type::undef;
         }
 
         /// Returns dimensions of the memory descriptor.
@@ -3150,6 +3199,44 @@ struct memory : public handle<dnnl_memory_t> {
     ///       library owns the buffer.
     ///     - #DNNL_MEMORY_NONE to create dnnl::memory without an underlying
     ///       buffer.
+    // memory(const desc &md, const engine &aengine, void *handle) {
+    //     dnnl_memory_t result;
+    //     error::wrap_c_api(
+    //             dnnl_memory_create(&result, md.get(), aengine.get(), handle),
+    //             "could not create a memory object");
+    //     reset(result);
+    // }
+
+    /// Constructs a memory object.
+    ///
+    /// The underlying buffer(s) for the memory will be allocated by the
+    /// library.
+    ///
+    /// @param md Memory descriptor.
+    /// @param aengine Engine to store the data on.
+    // memory(const desc &md, const engine &aengine)
+    //     : memory(md, aengine, DNNL_MEMORY_ALLOCATE) {}
+#endif
+
+    /// Constructs a memory object.
+    ///
+    /// Unless @p handle is equal to #DNNL_MEMORY_NONE, the constructed memory
+    /// object will have the underlying buffer set. In this case, the buffer
+    /// will be initialized as if #dnnl::memory::set_data_handle() had been
+    /// called.
+    ///
+    /// @sa memory::set_data_handle()
+    ///
+    /// @param md Memory descriptor.
+    /// @param aengine Engine to store the data on.
+    /// @param handle Handle of the memory buffer to use.
+    ///     - A pointer to the user-allocated buffer. In this case the library
+    ///       doesn't own the buffer.
+    ///     - The #DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+    ///       allocate the buffer for the memory object. In this case the
+    ///       library owns the buffer.
+    ///     - #DNNL_MEMORY_NONE to create dnnl::memory without an underlying
+    ///       buffer.
     memory(const desc &md, const engine &aengine, void *handle) {
         dnnl_memory_t result;
         error::wrap_c_api(
@@ -3158,15 +3245,11 @@ struct memory : public handle<dnnl_memory_t> {
         reset(result);
     }
 
-    /// Constructs a memory object.
-    ///
     /// The underlying buffer for the memory will be allocated by the library.
-    ///
     /// @param md Memory descriptor.
     /// @param aengine Engine to store the data on.
     memory(const desc &md, const engine &aengine)
         : memory(md, aengine, DNNL_MEMORY_ALLOCATE) {}
-#endif
 
     /// Returns the associated memory descriptor.
     desc get_desc() const {
