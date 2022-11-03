@@ -370,7 +370,7 @@ __kernel void gen9_calc_mean_var(__global DATA_T *src,
         }
 #if HAS_IC_VECT_TAIL
         // tails
-        for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
+        for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
             const int sg_idx = IC_VECT_SGROUPS + sg;
             float s_tail = LOAD_DATA_1x16(&src[(IC_VECT_SGROUPS + sg) * 16]);
             sum[sg_idx] = summation(s_tail, sum[sg_idx]);
