@@ -2564,7 +2564,31 @@ public:
     virtual const char *name() const = 0;
     virtual const char *source_file() const = 0;
 
+    void dump_debug_traces(const uint8_t *code, size_t code_size) const {
+#if !defined(NDEBUG) && defined(__GNUC__)
+        if (code && get_jit_dump()) {
+        #define MAX_FNAME_LEN 256
+            static int counter = 0;
+            char fname[MAX_FNAME_LEN + 1];
+            snprintf(fname, MAX_FNAME_LEN, "dnnl_traces_cpu_%s.%d.txt", name(),
+                    counter);
+            counter++;
+
+            std::cout << "[ oneDNN ] dump_debug_traces: " << fname << std::endl;
+            FILE *fp = fopen(fname, "wb+");
+            if (fp) {
+                for (const auto & p : get_debug_traces()) {
+                    fprintf(fp, "%lx:\t%s\n", p.first, p.second.c_str());
+                }
+                fclose(fp);
+            }
+        #undef MAX_FNAME_LEN
+        }
+#endif
+    }
+
     void register_jit_code(const Xbyak::uint8 *code, size_t code_size) const {
+        dump_debug_traces(code, code_size);
         jit_utils::register_jit_code(code, code_size, name(), source_file());
     }
 

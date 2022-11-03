@@ -67,6 +67,13 @@
 #include <iostream>
 #endif
 
+// for debug trace in GCC
+#if !defined(NDEBUG) && defined(__GNUC__)
+#include <execinfo.h>
+#include <map>
+#include <sstream>
+#endif
+
 // #define XBYAK_DISABLE_AVX512
 
 #if !defined(XBYAK_USE_MMAP_ALLOCATOR) && !defined(XBYAK_DONT_USE_MMAP_ALLOCATOR)
@@ -1896,12 +1903,14 @@ private:
 	bool isInDisp16(uint32_t x) const { return 0xFFFF8000 <= x || x <= 0x7FFF; }
 	void opModR(const Reg& reg1, const Reg& reg2, int code0, int code1 = NONE, int code2 = NONE)
 	{
+		debug_trace();
 		rex(reg2, reg1);
 		db(code0 | (reg1.isBit(8) ? 0 : 1)); if (code1 != NONE) db(code1); if (code2 != NONE) db(code2);
 		setModRM(3, reg1.getIdx(), reg2.getIdx());
 	}
 	void opModM(const Address& addr, const Reg& reg, int code0, int code1 = NONE, int code2 = NONE, int immSize = 0)
 	{
+		debug_trace();
 		if (addr.is64bitDisp()) XBYAK_THROW(ERR_CANT_USE_64BIT_DISP)
 		rex(addr, reg);
 		db(code0 | (reg.isBit(8) ? 0 : 1)); if (code1 != NONE) db(code1); if (code2 != NONE) db(code2);
@@ -2142,6 +2151,7 @@ private:
 		if (bit == 16 || bit == BIT) {
 			if (bit == 16) db(0x66);
 			if (op.isREG()) {
+				debug_trace();
 				if (op.getReg().getIdx() >= 8) db(0x41);
 				db(alt | (op.getIdx() & 7));
 				return;
@@ -2236,6 +2246,7 @@ private:
 	}
 	void opVex(const Reg& r, const Operand *p1, const Operand& op2, int type, int code, int imm8 = NONE)
 	{
+		debug_trace();
 		if (op2.isMEM()) {
 			const Address& addr = op2.getAddress();
 			const RegExp& regExp = addr.getRegExp();
@@ -2697,6 +2708,31 @@ public:
 		}
 		opModRM(*p1, *p2, (p1->isREG() && p2->isREG() && (p1->getBit() == p2->getBit())), p2->isMEM(), 0x86 | (p1->isBit(8) ? 0 : 1));
 	}
+
+#if !defined(NDEBUG) && defined(__GNUC__)
+	std::map<size_t, std::string> debug_traces;
+	void debug_trace() {
+		void *array[8];
+		int size = backtrace(array, 8);
+		char **strings = backtrace_symbols(array, size);
+		std::stringstream ss;
+		// skip first 2 frame (backtrace,trace_code)
+		for(int i = 2; i < size; ++i) ss << "," << strings[i];
+		auto offset = getSize();
+		if (debug_traces.count(offset)) {
+			debug_traces[offset] += ss.str();
+		} else {
+			debug_traces[offset] = ss.str();
+		}
+		free(strings);
+	}
+	std::map<size_t, std::string> get_debug_traces() const {
+		return debug_traces;
+	}
+#else
+	void debug_trace() {}
+	std::map<size_t, std::string> get_debug_traces() const { return {}; }
+#endif
 
 #ifndef XBYAK_DISABLE_SEGMENT
 	void push(const Segment& seg)
