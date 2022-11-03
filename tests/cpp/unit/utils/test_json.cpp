@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 #include <cstdio>
+#include <map>
 #include <string>
 #include "utils/json.hpp"
 #include "gtest/gtest.h"
@@ -22,13 +23,20 @@ TEST(Json, WriterReader) {
     std::string filename = "test.txt";
     std::ofstream of(filename);
     dnnl::graph::impl::utils::json::json_writer_t writer(&of);
-    const std::string test_v = "\"\\tr\nls\\kv\rm\"";
+    const std::string test_v = "\"\\tr\nlshjk\t\\kv\rm\"";
     ASSERT_NO_THROW(writer.write_string(test_v));
     of.close();
     std::ifstream fs("test.txt");
     dnnl::graph::impl::utils::json::json_reader_t read(&fs);
     std::string tmp;
     ASSERT_NO_THROW(read.read_string(&tmp));
+    ASSERT_NO_THROW(read.read<std::string>(&tmp));
+
+    std::map<std::basic_string<char>, char> mymap;
+    dnnl::graph::impl::utils::json::map_json_t<
+            std::map<std::basic_string<char>, char>>
+            map_tmp;
+    ASSERT_NO_THROW(map_tmp.read(&read, &mymap));
     fs.close();
     ASSERT_EQ(std::remove("test.txt"), 0);
 }

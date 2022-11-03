@@ -16,6 +16,7 @@
 
 #include "gtest/gtest.h"
 
+#include "interface/c_types_map.hpp"
 #include "interface/tensor.hpp"
 
 #include "backend/fake/fake_backend.hpp"
@@ -32,4 +33,10 @@ TEST(FakeBackend, GetMemSize) {
     auto &fake_backend = impl::fake_impl::fake_backend_t::get_singleton();
 
     ASSERT_EQ(fake_backend.get_mem_size(lt), static_cast<size_t>(-1));
+}
+
+TEST(FakeBackend, SupportEngineKind) {
+    auto &fake_backend = impl::fake_impl::fake_backend_t::get_singleton();
+    impl::engine_kind_t kind = get_test_engine_kind();
+    ASSERT_EQ(fake_backend.support_engine_kind(kind), true);
 }

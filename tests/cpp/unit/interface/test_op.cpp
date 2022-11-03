@@ -387,3 +387,12 @@ TEST(Op, EachPublicOpHasKindString) {
         ASSERT_NE(str, "internal_op");
     }
 }
+
+TEST(Op, ReSetAttributeValue) {
+    using namespace dnnl::graph::impl;
+
+    op_t matmul {0, op_kind::MatMul, std::string("matmul")};
+    matmul.set_attr<bool>(op_attr::transpose_a, true);
+    dnnl::graph::impl::utils::attribute_value_t a;
+    ASSERT_NO_THROW(matmul.set_attr(impl::op_attr::transpose_a, a));
+}

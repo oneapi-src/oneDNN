@@ -239,5 +239,13 @@ TEST(CompiledPartitionCache, CompileWithContext) {
 #endif
 }
 
+TEST(CompiledPartition, InvalidArguments) {
+    impl::partition_t pti;
+    std::vector<const impl::logical_tensor_t *> inputs;
+    std::vector<const impl::logical_tensor_t *> outputs;
+    ASSERT_EQ(impl::status::invalid_arguments,
+            pti.compile(nullptr, inputs, outputs, nullptr, nullptr));
+}
+
 } // namespace graph
 } // namespace dnnl

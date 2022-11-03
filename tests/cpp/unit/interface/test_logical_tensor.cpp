@@ -215,7 +215,10 @@ TEST(LogicalTensor, IsIdentical) {
             1, {1, 2, 2, 1}, impl::data_type::f32, impl::layout_type::undef);
     impl::logical_tensor_t lt4 = utils::logical_tensor_init(
             1, {1, 2, 2, 1}, impl::data_type::f32, impl::layout_type::opaque);
+    impl::logical_tensor_t lt5 = utils::logical_tensor_init(
+            1, {1, 2, 2, 1}, impl::data_type::f32, impl::layout_type::opaque);
     ASSERT_EQ(ltw(lt1).is_identical(lt2), true);
     ASSERT_EQ(ltw(lt1).is_identical(lt3), false);
     ASSERT_EQ(ltw(lt3).is_identical(lt4), false);
+    ASSERT_EQ(ltw(lt4).is_identical(lt5), true);
 }

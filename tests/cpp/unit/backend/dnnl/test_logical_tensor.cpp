@@ -50,4 +50,5 @@ TEST(LogicalTensor, ImplicitEqualLayout) {
             0, {1, 2, 3, 4}, impl::data_type::f32, impl::layout_type::strided);
 
     ASSERT_TRUE(ltw(lt1).has_same_layout_as(ltw(lt2)));
+    ASSERT_TRUE(ltw(lt2).has_same_layout_as(ltw(lt1)));
 }

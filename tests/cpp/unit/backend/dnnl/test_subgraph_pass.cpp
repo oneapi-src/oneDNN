@@ -2044,3 +2044,122 @@ TEST(SubgraphPass, FuseAdjacentReorders) {
         }
     }
 }
+
+TEST(SubgraphPass, CombineBinaryPostOpScales) {
+    namespace utils = dnnl::graph::tests::unit::utils;
+    dnnl_impl::dnnl_backend::get_singleton();
+    using dims = impl::dnnl_impl::dims;
+    using config_t = std::tuple<impl::op_kind_t, bool>;
+
+    impl::engine_t &engine = get_engine();
+    dnnl::engine p_engine = impl::dnnl_impl::make_dnnl_engine(engine);
+
+    auto conf = config_t {impl::op_kind::AvgPool, true};
+    std::string qtype = "symmetric";
+
+    impl::op_kind_t base_op = impl::op_kind::Wildcard;
+    bool per_channel_broadcast = false;
+    std::tie(base_op, per_channel_broadcast) = conf;
+
+    const std::string data_format {"NCX"};
+    const int64_t channels = 2;
+    std::vector<int64_t> src_shape {2, channels, 4, 4};
+    std::vector<int64_t> dst_shape {2, channels, 2, 2};
+    std::vector<int64_t> other_shape {1, 1, 1, 1};
+    if (per_channel_broadcast) other_shape[1] = channels;
+
+    const float scale_src = 5 / 127.f;
+    const float scale_out = 10 / 127.f;
+    const float scale_other = 2 / 127.f;
+    const int64_t zp_src = (qtype == "symmetric") ? 0 : -2;
+    const int64_t zp_out = (qtype == "symmetric") ? 0 : -2;
+    const int64_t zp_other = (qtype == "symmetric") ? 0 : 4;
+
+    impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t pool_op(1, base_op, "pool_op");
+    size_t spatial_size = src_shape.size() - 2;
+    pool_op.set_attr<dims>(impl::op_attr::strides, dims(spatial_size, 2));
+    pool_op.set_attr<dims>(impl::op_attr::kernel, dims(spatial_size, 2));
+    pool_op.set_attr<dims>(impl::op_attr::pads_begin, dims(spatial_size, 0));
+    pool_op.set_attr<dims>(impl::op_attr::pads_end, dims(spatial_size, 0));
+    pool_op.set_attr<std::string>(impl::op_attr::data_format, data_format);
+    pool_op.set_attr<bool>(impl::op_attr::exclude_pad, false);
+
+    impl::op_t qout_op(2, impl::op_kind::Quantize, "qout_op");
+    qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
+    qout_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_out});
+    qout_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t dqother_op(3, impl::op_kind::Dequantize, "dqother_op");
+    dqother_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqother_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_other});
+    dqother_op.set_attr<std::vector<float>>(
+            impl::op_attr::scales, {scale_other});
+    dqother_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t mul_op(4, impl::op_kind::Multiply, "mul_op");
+
+    auto src_s8 = utils::logical_tensor_init(0, src_shape, impl::data_type::s8);
+    auto src_f32_dq
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::f32);
+    auto dst_f32
+            = utils::logical_tensor_init(2, dst_shape, impl::data_type::f32);
+    auto dst_s8 = utils::logical_tensor_init(3, dst_shape, impl::data_type::s8);
+    auto other_s8
+            = utils::logical_tensor_init(4, other_shape, impl::data_type::s8);
+    auto other_f32_dq
+            = utils::logical_tensor_init(5, other_shape, impl::data_type::f32);
+    auto dst_mul_f32
+            = utils::logical_tensor_init(6, dst_shape, impl::data_type::f32);
+
+    dqdata_op.add_input(src_s8);
+    dqdata_op.add_output(src_f32_dq);
+
+    pool_op.add_input(src_f32_dq);
+    pool_op.add_output(dst_f32);
+
+    dqother_op.add_input(other_s8);
+    dqother_op.add_output(other_f32_dq);
+
+    mul_op.add_input(other_f32_dq);
+    mul_op.add_input(dst_f32);
+
+    mul_op.add_output(dst_mul_f32);
+
+    qout_op.add_input(dst_mul_f32);
+    qout_op.add_output(dst_s8);
+
+    impl::graph_t g(engine.kind());
+    g.add_op(&dqdata_op);
+    g.add_op(&pool_op);
+    g.add_op(&dqother_op);
+    g.add_op(&mul_op);
+    g.add_op(&qout_op);
+    g.build_graph();
+
+    auto subgraph = std::make_shared<impl::dnnl_impl::subgraph_t>(g.get_ops(),
+            p_engine, impl::fpmath_mode::any, /* reset_layout */ false, false);
+    ASSERT_EQ(impl::dnnl_impl::lower_down(subgraph), impl::status::success);
+    ASSERT_EQ(impl::dnnl_impl::fuse_to_int8_pool(subgraph),
+            impl::status::success);
+    ASSERT_EQ(impl::dnnl_impl::combine_binary_post_op_scales(subgraph),
+            impl::status::success);
+    ASSERT_EQ(
+            impl::dnnl_impl::fold_mul_scales(subgraph), impl::status::success);
+    ASSERT_EQ(impl::dnnl_impl::remove_quant_data_with_no_effect(subgraph),
+            impl::status::success);
+    ASSERT_EQ(impl::dnnl_impl::replace_quant_data_with_binary_post_op(subgraph),
+            impl::status::success);
+    ASSERT_EQ(impl::dnnl_impl::fuse_static_mul_scales_add_zps(subgraph),
+            impl::status::success);
+    ASSERT_EQ(impl::dnnl_impl::fuse_static_sub_zps_mul_scales(subgraph),
+            impl::status::success);
+    ASSERT_EQ(impl::dnnl_impl::fuse_post_ops(subgraph), impl::status::success);
+    ASSERT_EQ(subgraph->num_ops(), 2U);
+}

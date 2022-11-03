@@ -39,10 +39,18 @@ TEST(Backend, CompareLogicalTensor) {
             0, {1, 2, 2, 1}, impl::data_type::f32, impl::layout_type::opaque);
     impl::logical_tensor_t lt4 = utils::logical_tensor_init(
             1, {1, 2, 2, 1}, impl::data_type::f32, impl::layout_type::undef);
+    impl::logical_tensor_t lt5 = utils::logical_tensor_init(
+            0, {1, 2, 2, 1}, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t lt6 = utils::logical_tensor_init(
+            0, {1, 2, 2, 1}, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t lt7 = utils::logical_tensor_init(
+            1, {1, 2, 2, 1}, impl::data_type::f32, impl::layout_type::opaque);
 
     ASSERT_EQ(bkd.compare_logical_tensor(lt1, lt2), true);
     ASSERT_EQ(bkd.compare_logical_tensor(lt1, lt4), true);
     ASSERT_EQ(bkd.compare_logical_tensor(lt1, lt3), false);
+    ASSERT_EQ(bkd.compare_logical_tensor(lt5, lt6), true);
+    ASSERT_EQ(bkd.compare_logical_tensor(lt3, lt7), true);
 }
 
 TEST(Backend, RegisterBackend) {
