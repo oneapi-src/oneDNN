@@ -247,6 +247,11 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::apply_postops(const Zmm zmm_out,
         }
 
         postops_injector_->compute_vector_range({(size_t)vmm_idx}, rhs_arg_params, ddp, qdp);
+
+        if ((jcp.with_depthwise || jcp.with_quantization) && jcp.src_zero_point) {
+            // restore reg_zp_compensation register which was overwritten by legacy postOps
+            mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
+        }
     }
 }
 
