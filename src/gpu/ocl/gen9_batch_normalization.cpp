@@ -35,9 +35,9 @@ bool use_fused_atomics_reduction(bnorm_conf_t &conf, engine_t *engine) {
 }
 
 inline float get_ss_utilization(int max_ss, const size_t *gws, size_t *lws) {
-    const int gws_size = gws[0] * gws[1] * gws[2];
-    const int lws_size = lws[0] * lws[1] * lws[2];
-    const int used_ss = utils::div_up(gws_size, lws_size);
+    const size_t gws_size = gws[0] * gws[1] * gws[2];
+    const size_t lws_size = lws[0] * lws[1] * lws[2];
+    const size_t used_ss = utils::div_up(gws_size, lws_size);
     return (float)used_ss / max_ss;
 }
 
