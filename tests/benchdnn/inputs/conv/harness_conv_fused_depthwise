@@ -11,7 +11,7 @@
 
 --cfg=u8s8u8,s8s8u8
 --stag= --dtag=
---attr-oscale=per_oc:0.5*
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:0.5*
 --attr-post-ops=relu+dw_k3s1p1:u8:per_oc:2.5*+relu:0.5+add:s8, \
                 add:f32:per_oc+dw_k3s1p1:s8:common:1.5*+linear:0.5:1.5, \
                 relu+dw_k3s1p1:s32+add:s32:per_oc+abs, \
@@ -30,7 +30,7 @@
 --attr-scratchpad=user
 
 --cfg=f32
---attr-oscale=
+--attr-scales=
 --attr-post-ops=relu+dw_k3s2p1:f32+tanh
 --batch=shapes_fused_mobilenet_stride_2
 
@@ -40,7 +40,7 @@
 
 --cfg=u8s8u8,s8s8u8
 --stag= --dtag=
---attr-oscale=per_oc:0.5*
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:0.5*
 --attr-post-ops=relu+dw_k3s2p1:u8:per_oc:2.5*+relu:0.5+add:s8, \
                 add:f32:per_oc+dw_k3s2p1:s8:common:1.5*+linear:0.5:1.5, \
                 relu+dw_k3s2p1:s32+add:s32:per_oc+abs, \
@@ -58,12 +58,12 @@
 
 --skip-impl=ref,x64:gemm
 --cfg=f32
---attr-oscale=
+--attr-scales=
 --attr-post-ops=dw_k3s1p1:f32
 --batch=shapes_fused_large_src
 --attr-post-ops=relu+dw_k3s2p1:f32+tanh
 --batch=shapes_fused_large_src
---attr-oscale=per_oc:0.5*
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:0.5*
 --cfg=s8s8s8
 --attr-post-ops=linear:2+dw_k3s1p1:u8:per_oc:2.5*+relu
 --batch=shapes_fused_large_src

@@ -41,7 +41,7 @@
 
 # Inference
 --dir=FWD_I
---attr-oscale=,common:0.25*,per_oc:5*
+--attr-scales=,src:common:0.25*,wei:per_oc:5*,dst:common:2*,src:common:0.25*+wei:per_oc:5*
 
 ## Direct
 --alg=direct
