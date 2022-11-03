@@ -147,7 +147,7 @@ public:
     ///     binary to generate. The device target doesn’t contain uArch
     ///     information. The backend should access the uArch information by
     ///     querying device runtime.
-    /// @param acompilation_context The context information, which will be used
+    /// @param acontext The context information, which will be used
     ///     during compilation. The context can be nullptr.
     /// @return The status code
     /// @note
@@ -175,8 +175,7 @@ public:
     virtual status_t compile(compiled_partition_t *compiled_partition,
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs,
-            const engine_t *aengine,
-            const compilation_context_t *acompilation_context) const = 0;
+            const engine_t *aengine, const context_t *acontext) const = 0;
 
     /// get partition_impl id
     size_t id() const { return id_; }
@@ -310,8 +309,7 @@ public:
         return inplace_pairs_;
     }
 
-    /// Query out a specific logical tensor by using an id. This function
-    /// is used in C APIThe queried
+    /// Query out a specific logical tensor by using an id.
     /// @param tid The id used to find the required logical tensor
     /// @param lt The address of buffer that is used to store the queried
     ///     logical tensor. Will be zero if not find the required one
@@ -321,6 +319,21 @@ public:
     ///     this compiled partition. This will be a common situation if FWK
     ///     gives arbitrary connection, and shouldn't be regarded as an error
     status_t query_logical_tensor(size_t tid, logical_tensor_t *lt) const;
+
+    /// Query dynamic output logical tensors according to inputs and optional
+    /// context.
+    /// @param out_lts The queried output logical tensors
+    /// @param in_lts A list of input logical tensors with concrete shapes
+    /// @param acontext Context information
+    /// @return The status code. Will always be true
+    /// @note If we don't find the logical tensor in compiled partition's
+    ///     inputs_and outputs_, this means the logical tensor is not used by
+    ///     this compiled partition. This will be a common situation if FWK
+    ///     gives arbitrary connection, and shouldn't be regarded as an error
+    virtual status_t query_dynamic_outputs(
+            const std::vector<logical_tensor_t *> &out_lts,
+            const std::vector<const logical_tensor_t *> &in_lts,
+            const impl::context_t *acontext) const = 0;
 
     /// The mutable getter for inputs and outputs
     /// @note After compile, backend may choose opaque layout for in/outputs.

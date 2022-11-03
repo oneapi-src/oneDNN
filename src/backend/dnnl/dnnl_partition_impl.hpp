@@ -70,6 +70,16 @@ public:
                 engine, inputs, outputs, kernel->inplace_pairs_)
         , kernel_(kernel) {}
 
+    status_t query_dynamic_outputs(
+            const std::vector<logical_tensor_t *> &out_lts,
+            const std::vector<const logical_tensor_t *> &in_lts,
+            const impl::context_t *acontext) const override {
+        UNUSED(out_lts);
+        UNUSED(in_lts);
+        UNUSED(acontext);
+        return status::unimplemented;
+    }
+
     impl::status_t execute(const impl::stream_t *g_stream,
             const std::vector<impl::tensor_t> &inputs,
             const std::vector<impl::tensor_t> &outputs) override {
@@ -177,8 +187,7 @@ public:
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
             const impl::engine_t *g_engine,
-            const impl::compilation_context_t *compilation_context)
-            const override {
+            const impl::context_t *context) const override {
         // compile will transform the subgraph in partition, so we make
         // a copy
         auto part = std::dynamic_pointer_cast<dnnl_partition_impl_t>(
@@ -202,8 +211,7 @@ public:
         // compile kernel.
         // FIXME(qun) will modify the outputs inside the compile, which
         // break the constant semantics
-        ret = kernel->compile(
-                part.get(), g_engine, inputs, outputs, compilation_context);
+        ret = kernel->compile(part.get(), g_engine, inputs, outputs, context);
         if (ret != status::success) return ret;
 
         std::vector<impl::logical_tensor_t> ordered_inputs;

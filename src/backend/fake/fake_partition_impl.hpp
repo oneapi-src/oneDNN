@@ -126,13 +126,12 @@ public:
             const std::vector<impl::logical_tensor_t> &inputs,
             const std::vector<impl::logical_tensor_t> &outputs,
             const impl::engine_t *g_engine,
-            const impl::compilation_context_t *acompilation_context)
-            const override {
+            const impl::context_t *acontext) const override {
         UNUSED(compiled_partition);
         UNUSED(inputs);
         UNUSED(outputs);
         UNUSED(g_engine);
-        UNUSED(acompilation_context);
+        UNUSED(acontext);
         return status::unimplemented;
     }
 
