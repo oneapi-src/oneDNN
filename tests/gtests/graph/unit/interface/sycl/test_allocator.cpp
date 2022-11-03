@@ -58,7 +58,7 @@ TEST(TestAllocator, SyclAllocator) {
             graph::allocator_t::mem_type_t::persistent, 1024};
     ASSERT_EQ(alloc_attr.type_, graph::allocator_t::mem_type_t::persistent);
 
-    ASSERT_EQ(alloc_attr.alignment_, 1024);
+    ASSERT_EQ(alloc_attr.alignment_, 1024U);
     graph::allocator_t &sycl_alloc = *graph::allocator_t::create(
             dnnl::graph::testing::sycl_malloc_wrapper,
             dnnl::graph::testing::sycl_free_wrapper);
