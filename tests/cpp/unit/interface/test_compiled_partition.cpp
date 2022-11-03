@@ -183,8 +183,8 @@ TEST(CompiledPartitionCache, CompileWithContext) {
             std::vector<impl::partition_t *> parts {&par};
             g.get_ordered_partitions(parts);
 
-            // create compilation context
-            impl::compilation_context_t ctx;
+            // create context
+            impl::context_t ctx;
             float content[6] = {0., 1., 2., 3., 4., 5.};
             ctx.set_tensor_data_handle(0, content);
 

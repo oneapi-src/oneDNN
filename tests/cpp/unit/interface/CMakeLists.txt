@@ -18,7 +18,7 @@ set(OBJ_LIB ${LIB_NAME}_interface_unit_test)
 add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_backend.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_compilation_context.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_context.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_engine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp

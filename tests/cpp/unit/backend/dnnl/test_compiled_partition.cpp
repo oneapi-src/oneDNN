@@ -370,3 +370,60 @@ TEST(CompiledPartition, GetInputsAndOutputs) {
                 ltw(cp->get_outputs()[i]).is_identical(ltw(outputs[i])), true);
     }
 }
+
+TEST(CompiledPartition, QueryLogicalTensor) {
+    impl::engine_t &eng = get_engine();
+
+    impl::op_t n(impl::op_kind::Multiply);
+
+    impl::logical_tensor_t lt_in1 = utils::logical_tensor_init(
+            /* tid= */ 1, {1, 2, 3, 4}, impl::data_type::f32);
+    impl::logical_tensor_t lt_in2 = utils::logical_tensor_init(
+            /* tid= */ 2, {1, 2, 3, 4}, impl::data_type::f32);
+    impl::logical_tensor_t lt_out = utils::logical_tensor_init(
+            /* tid= */ 3, impl::data_type::f32, impl::layout_type::any);
+
+    // repeated inputs
+    n.add_input(lt_in1);
+    n.add_input(lt_in2);
+    n.add_output(lt_out);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&n);
+    g.build_graph();
+    run_all_passes(g);
+
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    // only one input
+    std::vector<const impl::logical_tensor_t *> lt_ins {&lt_in1, &lt_in2};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&lt_out};
+
+    impl::status_t status = p.compile(&cp, lt_ins, lt_outs, &eng);
+    ASSERT_EQ(status, impl::status::success);
+
+    impl::logical_tensor_t query_lt_out;
+    ASSERT_EQ(cp.query_logical_tensor(lt_out.id, &query_lt_out),
+            impl::status::success);
+    ASSERT_EQ(query_lt_out.layout_type, impl::layout_type::strided);
+    ASSERT_EQ(impl::logical_tensor_wrapper_t(query_lt_out).vdims()[0],
+            impl::logical_tensor_wrapper_t(lt_in1).vdims()[0]);
+    ASSERT_EQ(impl::logical_tensor_wrapper_t(query_lt_out).vdims()[1],
+            impl::logical_tensor_wrapper_t(lt_in1).vdims()[1]);
+    ASSERT_EQ(impl::logical_tensor_wrapper_t(query_lt_out).vdims()[2],
+            impl::logical_tensor_wrapper_t(lt_in1).vdims()[2]);
+    ASSERT_EQ(impl::logical_tensor_wrapper_t(query_lt_out).vdims()[3],
+            impl::logical_tensor_wrapper_t(lt_in1).vdims()[3]);
+
+    impl::logical_tensor_t query_lt_out_2;
+    impl::context_t *ctx = nullptr;
+    ASSERT_EQ(cp.query_dynamic_outputs({&query_lt_out_2}, lt_ins, ctx),
+            impl::status::unimplemented);
+}

@@ -7157,3 +7157,88 @@ TEST(Execute, MatmulEmptyInput) {
             impl::status::success);
     strm.wait();
 }
+
+TEST(Compile, InputShapeWithDynamicDim) {
+    impl::op_t matmul_op(impl::op_kind::MatMul);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, true);
+    impl::engine_t &eng = get_engine();
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, {1, 2, 4}, impl::data_type::f32);
+    impl::logical_tensor_t weight
+            = utils::logical_tensor_init(1, {1, 2, 4}, impl::data_type::f32);
+    impl::logical_tensor_t bias
+            = utils::logical_tensor_init(2, {1, 2, 2}, impl::data_type::f32);
+    impl::logical_tensor_t dst
+            = utils::logical_tensor_init(3, {1, 2, 2}, impl::data_type::f32);
+
+    matmul_op.add_input(src);
+    matmul_op.add_input(weight);
+    matmul_op.add_input(bias);
+    matmul_op.add_output(dst);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&matmul_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("matmul_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src, &weight, &bias};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    // case 1: input shape has unknown dim, compilation will fail
+    src = utils::logical_tensor_init(0, {1, 2, -1}, impl::data_type::f32);
+
+    impl::op_t matmul_op_2(impl::op_kind::MatMul);
+    matmul_op_2.set_attr<bool>(impl::op_attr::transpose_b, true);
+
+    matmul_op_2.add_input(src);
+    matmul_op_2.add_input(weight);
+    matmul_op_2.add_input(bias);
+    matmul_op_2.add_output(dst);
+
+    impl::graph_t g2(eng.kind());
+    g2.add_op(&matmul_op_2);
+    g2.build_graph();
+
+    apass->run(g2);
+    ASSERT_EQ(g2.get_num_partitions(), 1U);
+    auto part2 = g2.get_partitions()[0];
+
+    // compile
+    impl::partition_t p2;
+    p2.init(part2);
+
+    impl::compiled_partition_t cp2(p2);
+    ASSERT_EQ(p2.compile(&cp2, inputs, outputs, &eng),
+            impl::status::invalid_arguments);
+
+    // case 2: input shape has dynamic dim, pattern will be skipped
+    src = utils::logical_tensor_init(0, {1, 2, -2}, impl::data_type::f32);
+
+    impl::op_t matmul_op_3(impl::op_kind::MatMul);
+    matmul_op_3.set_attr<bool>(impl::op_attr::transpose_b, true);
+
+    matmul_op_3.add_input(src);
+    matmul_op_3.add_input(weight);
+    matmul_op_3.add_input(bias);
+    matmul_op_3.add_output(dst);
+
+    impl::graph_t g3(eng.kind());
+    g3.add_op(&matmul_op_3);
+    g3.build_graph();
+
+    apass->run(g3);
+    ASSERT_EQ(g3.get_num_partitions(), 0U);
+}

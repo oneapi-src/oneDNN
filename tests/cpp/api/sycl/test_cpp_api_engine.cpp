@@ -38,7 +38,7 @@ public:
         engine::kind kind = param.eng_kind_;
 
         std::unique_ptr<device> sycl_dev;
-        std::unique_ptr<context> sycl_ctx;
+        std::unique_ptr<sycl::context> sycl_ctx;
 
         auto platform_list = platform::get_platforms();
         for (const auto &plt : platform_list) {
@@ -47,7 +47,7 @@ public:
                 if ((kind == engine::kind::gpu && dev.is_gpu())
                         || (kind == engine::kind::cpu && dev.is_cpu())) {
                     sycl_dev.reset(new device(dev));
-                    sycl_ctx.reset(new context(*sycl_dev));
+                    sycl_ctx.reset(new sycl::context(*sycl_dev));
 
                     allocator alloc = dnnl::graph::sycl_interop::make_allocator(
                             dnnl::graph::testing::sycl_malloc_wrapper,

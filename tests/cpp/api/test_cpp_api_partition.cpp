@@ -113,6 +113,8 @@ TEST(APIPartition, PartitionTest) {
             real_engine_kind == engine::kind::gpu
                     ? logical_tensor::layout_type::opaque
                     : logical_tensor::layout_type::strided);
+    EXPECT_THROW(cp1.query_dynamic_outputs(in0), error);
+    EXPECT_THROW(cp1.query_dynamic_outputs({}), error);
 }
 
 TEST(APIPartition, GetInputOutputIDs) {

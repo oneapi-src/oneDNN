@@ -20,8 +20,8 @@
 
 namespace impl = dnnl::graph::impl;
 
-TEST(CompilationContext, Create) {
-    impl::compilation_context_t ctx;
+TEST(Context, Create) {
+    impl::context_t ctx;
 
     size_t tid = 123;
     // a vector

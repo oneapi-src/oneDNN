@@ -252,6 +252,18 @@ TEST(CAPI, CompileConv2D) {
     EXPECT_EQ(num_inplace_pairs,
             0U); // Convolutional operator W/O sum has no in-place operation.
 
+    size_t num_outputs = 0;
+    EXPECT_EQ(dnnl_graph_compiled_partition_get_outputs_num(
+                      compiled_partition, &num_outputs),
+            dnnl_graph_success);
+    EXPECT_EQ(num_outputs, 1U);
+
+    dnnl_graph_logical_tensor_t queried_output;
+    EXPECT_EQ(dnnl_graph_compiled_partition_query_dynamic_outputs(
+                      compiled_partition, 1U, &queried_output, 2U, inputs,
+                      nullptr),
+            dnnl_graph_unimplemented);
+
     COMPILED_CONV2D_DESTROY;
 #undef COMPILED_CONV2D_DESTROY
 }
