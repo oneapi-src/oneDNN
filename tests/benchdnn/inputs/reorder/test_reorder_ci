@@ -3,10 +3,10 @@
 # reference reorders
 --sdt=f32,bf16,f16,s32,s8,u8
 --ddt=f32,bf16,f16,s32,s8,u8
---attr-oscale=, \
-              per_dim_0:2*, \
-              per_dim_1:0.5*, \
-              per_dim_01:0.25*
+--attr-scales=, \
+              src:per_dim_0:2*, \
+              src:per_dim_1:0.5*, \
+              src:per_dim_01:0.25*
 --attr-zero-points=,src:common:-1*+dst:common:2*
 --attr-post-ops=,sum:0.5
 --runtime-dim-mask=0,63
