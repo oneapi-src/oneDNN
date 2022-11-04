@@ -621,7 +621,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
 private:
     dnnl::impl::status_t validate_binary(dnnl::impl::alg_kind_t alg,
-            const dnnl::impl::memory_desc_t *user_src1_desc);
+            const dnnl::impl::memory_desc_t *user_src1_desc) const;
 };
 
 struct dnnl_primitive_attr : public dnnl::impl::c_compatible {

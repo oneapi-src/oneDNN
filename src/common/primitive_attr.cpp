@@ -198,7 +198,7 @@ status_t post_ops_t::append_dw(data_type_t wei_dt, data_type_t bias_dt,
 }
 
 status_t post_ops_t::validate_binary(
-        alg_kind_t alg, const memory_desc_t *user_src1_desc) {
+        alg_kind_t alg, const memory_desc_t *user_src1_desc) const {
 
     if (len() == post_ops_limit) return out_of_memory;
     using namespace alg_kind;
