@@ -69,6 +69,7 @@ status_t insert_permute_for_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
 
         size_t num_post_binary_ops = 0;
         size_t dw_conv_index = 2;
+        bool with_runtime_dst_scales = false;
         bool with_runtime_dst_points = false;
         const auto &pops = fusion_info.get_post_ops();
         for (size_t n = 0; n < pops.size(); ++n) {
@@ -77,17 +78,23 @@ status_t insert_permute_for_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
         }
 
         if (fusion_info.with_runtime_output_scales()) { dw_conv_index += 1; }
+        if (fusion_info.with_runtime_scales(true, 0)) { dw_conv_index += 1; }
+        if (fusion_info.with_runtime_scales(true, 1)) { dw_conv_index += 1; }
         if (fusion_info.with_runtime_zero_points(true, 0)) {
             dw_conv_index += 1;
         }
         if (fusion_info.with_runtime_zero_points(true, 1)) {
             dw_conv_index += 1;
         }
+        if (fusion_info.with_runtime_scales(false, 0)) {
+            with_runtime_dst_scales = true;
+        }
         if (fusion_info.with_runtime_zero_points(false, 0)) {
             with_runtime_dst_points = true;
         }
 
-        for (size_t i = 0; i < op->num_inputs() - with_runtime_dst_points;
+        for (size_t i = 0; i < op->num_inputs() - with_runtime_dst_scales
+                        - with_runtime_dst_points;
                 ++i) {
             auto val = op->get_input_value(i);
             auto ndims = val->get_logical_tensor().ndims;
@@ -102,6 +109,7 @@ status_t insert_permute_for_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
             } else if (i == dw_conv_index && need_permute_post_dw_conv_wei) {
                 perm = get_xio2oix_permutation(ndims);
             } else if (i >= op->num_inputs() - num_post_binary_ops
+                                    - with_runtime_dst_scales
                                     - with_runtime_dst_points
                     && need_permute_src) {
                 // optionally permute post-binary/post-sum inputs
@@ -550,13 +558,17 @@ impl::status_t insert_runtime_u8_to_s8_for_matmul(
 
         bool with_bias = cur_op->has_attr(op_attr::with_bias)
                 && cur_op->get_attr<bool>(op_attr::with_bias);
-        const bool has_runtime_scales = with_runtime_scales(cur_op, mgr);
+        const bool has_runtime_src_scales
+                = with_runtime_scales(cur_op, mgr, true, 0);
+        const bool has_runtime_wei_scales
+                = with_runtime_scales(cur_op, mgr, true, 1);
         const bool has_runtime_src_zps = with_runtime_zps(cur_op, mgr, true, 0);
         const bool has_runtime_wei_zps = with_runtime_zps(cur_op, mgr, true, 1);
 
         size_t index = 2;
         if (with_bias) index += 1;
-        if (has_runtime_scales) index += 1;
+        if (has_runtime_src_scales) index += 1;
+        if (has_runtime_wei_scales) index += 1;
         if (has_runtime_src_zps) index += 1;
         if (has_runtime_wei_zps) {
             if (cur_op->get_input_value(index)->has_producer()

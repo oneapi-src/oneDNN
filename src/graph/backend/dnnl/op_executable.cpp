@@ -1507,7 +1507,7 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<op_t> &op,
 
     post_ops add_post_ops;
     // sqrt_variance = sqrt(temp)
-    add_post_ops.append_eltwise(1.0f, algorithm::eltwise_sqrt, 0.0f, 0.0f);
+    add_post_ops.append_eltwise(algorithm::eltwise_sqrt, 0.0f, 0.0f);
 
     primitive_attr add_attr;
     add_attr.set_post_ops(add_post_ops);
@@ -1622,9 +1622,14 @@ static arg_indices_t get_arg_indices_for_conv_and_matmul(
             ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
 
-    if (fusion_info.with_runtime_output_scales()) {
-        arg_indices.insert(
-                {DNNL_ARG_ATTR_OUTPUT_SCALES, indices_t {input, index++}});
+    if (fusion_info.with_runtime_scales(true, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC,
+                indices_t {input, index++}});
+    }
+
+    if (fusion_info.with_runtime_scales(true, 1)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS,
+                indices_t {input, index++}});
     }
 
     if (fusion_info.with_runtime_zero_points(true, 0)) {
@@ -1638,6 +1643,11 @@ static arg_indices_t get_arg_indices_for_conv_and_matmul(
     }
 
     get_arg_indices_for_post_ops(op, mgr, arg_indices, index);
+
+    if (fusion_info.with_runtime_scales(false, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
+                indices_t {input, index++}});
+    }
 
     if (fusion_info.with_runtime_zero_points(false, 0)) {
         arg_indices.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST,
@@ -1748,7 +1758,7 @@ static arg_indices_t get_arg_indices_for_siso_op(
                 {DNNL_ARG_ATTR_OUTPUT_SCALES, indices_t {input, index++}});
     }
 
-    if (fusion_info.with_runtime_dst_scales()) {
+    if (fusion_info.with_runtime_scales(false, 0)) {
         arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
                 indices_t {input, index++}});
     }
@@ -2009,7 +2019,7 @@ arg_indices_t layernorm_executable_t::get_arg_indices(
             ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
 
-    if (fusion_info.with_runtime_dst_scales()) {
+    if (fusion_info.with_runtime_scales(false, 0)) {
         arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
                 indices_t {input, in_index++}});
     }

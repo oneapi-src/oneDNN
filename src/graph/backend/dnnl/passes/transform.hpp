@@ -35,10 +35,6 @@ status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg);
 
 status_t fold_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
-status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg);
-
-status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg);
-
 status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg);
 
 status_t defer_src_zps_for_pool(std::shared_ptr<subgraph_t> &sg);
@@ -50,8 +46,6 @@ status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg);
 status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg);
 
 status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg);
-
-status_t fuse_dst_scales(std::shared_ptr<subgraph_t> &sg);
 
 status_t replace_quant_data_with_binary_post_op(
         std::shared_ptr<subgraph_t> &sg);
@@ -219,6 +213,18 @@ status_t convert_to_runtime_dst_zero_points(std::shared_ptr<subgraph_t> &sg);
 status_t convert_runtime_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
 status_t convert_runtime_zero_points(std::shared_ptr<subgraph_t> &sg);
+
+status_t convert_to_runtime_src_scales(std::shared_ptr<subgraph_t> &sg);
+
+status_t fuse_src_scales(std::shared_ptr<subgraph_t> &sg);
+
+status_t convert_to_runtime_dst_scales(std::shared_ptr<subgraph_t> &sg);
+
+status_t fuse_dst_scales(std::shared_ptr<subgraph_t> &sg);
+
+status_t convert_bias_to_f32(std::shared_ptr<subgraph_t> &sg);
+
+status_t expand_convtranspose_scales(std::shared_ptr<subgraph_t> &sg);
 
 } // namespace dnnl_impl
 } // namespace graph

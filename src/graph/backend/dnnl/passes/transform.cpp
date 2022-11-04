@@ -114,54 +114,6 @@ status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg) {
     return status::success;
 }
 
-status_t fuse_dst_scales(std::shared_ptr<subgraph_t> &sg) {
-    auto &mgr = sg->fusion_info_mgr_;
-    subgraph_rewriter_t rewriter(sg);
-
-    std::vector<std::pair<op_t *, op_t *>> fuse_groups;
-
-    std::set<op_t *> visited;
-    for (auto &cur_op : sg->get_ops()) {
-        if ((cur_op->get_kind() != op_kind::dnnl_softmax
-                    && cur_op->get_kind() != op_kind::dnnl_layernorm)
-                || visited.count(cur_op.get()) != 0)
-            continue;
-
-        auto out_val = cur_op->get_output_values()[0];
-        auto consumers = out_val->get_consumers();
-        if (consumers.size() != 1) continue;
-
-        auto &next_op = consumers[0].get_op();
-        if (next_op.get_kind() != op_kind::dnnl_mul_scales) continue;
-
-        fuse_groups.emplace_back(
-                std::pair<op_t *, op_t *> {cur_op.get(), &next_op});
-        visited.insert(cur_op.get());
-        visited.insert(&next_op);
-    }
-
-    for (auto &fuse_group : fuse_groups) {
-        auto base_op = fuse_group.first;
-        auto scale_op = fuse_group.second;
-
-        int64_t key = -1;
-        if (base_op->has_attr(op_attr::fusion_info_key)
-                && base_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
-            key = base_op->get_attr<int64_t>(op_attr::fusion_info_key);
-        } else {
-            key = mgr.init_info();
-            base_op->set_attr<int64_t>(op_attr::fusion_info_key, key);
-        }
-
-        fusion_info_t &fusion_info = mgr.get_mutable_info(key);
-        fusion_info.set_dst_scales(scale_op->shared_from_this());
-        rewriter.fuse_op_to_predecessor(scale_op->shared_from_this());
-    }
-
-    rewriter.run();
-    return infer_shape(sg);
-}
-
 status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
     auto &mgr = sg->fusion_info_mgr_;
     subgraph_rewriter_t rewriter(sg);
@@ -170,7 +122,7 @@ status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
 
     std::set<op_t *> visited;
     for (auto &cur_op : sg->get_ops()) {
-        if ((!has_int8_support(cur_op->get_kind()))
+        if (cur_op->get_kind() != op_kind::dnnl_reorder
                 || visited.count(cur_op.get()) != 0)
             continue;
 
@@ -329,6 +281,58 @@ status_t replace_quant_data_with_binary_post_op(
     return infer_shape(sg);
 }
 
+status_t convert_to_runtime_src_scales(std::shared_ptr<subgraph_t> &sg) {
+    std::set<op_t *> visited;
+    std::vector<op_t *> scales_ops;
+
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_mul_scales
+                || visited.count(cur_op.get()) != 0)
+            continue;
+
+        scales_ops.emplace_back(cur_op.get());
+        visited.insert(cur_op.get());
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &cur_op : scales_ops) {
+        assertm(cur_op->num_outputs() == 1,
+                "scale_op should have only one output value.");
+        auto out_val = cur_op->get_output_values()[0];
+        auto consumers = out_val->get_consumers();
+        if (!impl::utils::one_of(consumers[0].get_op().get_kind(),
+                    op_kind::dnnl_matmul, op_kind::dnnl_convolution,
+                    op_kind::dnnl_convtranspose))
+            continue;
+
+        // make scales as a constant input
+        op_ptr const_data_op;
+        const auto scales
+                = cur_op->get_attr<std::vector<float>>(op_attr::scales);
+        const_data_op = std::make_shared<op_t>(op_kind::dnnl_constant_scales);
+        const_data_op->set_attr(op_attr::scales, scales);
+        std::vector<int64_t> dst_shape(1, scales.size());
+        const_data_op->set_attr(op_attr::shape, dst_shape);
+        logical_tensor_t const_data_dst_lt
+                = empty_logical_tensor_with_default_id();
+        auto const_data_dst_value = std::make_shared<value_t>(
+                *const_data_op, 0, const_data_dst_lt, true);
+        const_data_dst_value->set_data_type(graph::data_type::f32);
+        const_data_dst_value->set_layout_type(layout_type::strided);
+        const_data_dst_value->set_strides({1});
+        const_data_op->add_output(const_data_dst_value);
+        cur_op->set_attr(op_attr::with_runtime_scales, true);
+        cur_op->remove_attr(op_attr::scales);
+
+        // connect mul_scale and constant data
+        cur_op->connect_input(1, const_data_dst_value);
+        rewriter.to_insert(const_data_op);
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
 status_t convert_to_runtime_scales(std::shared_ptr<subgraph_t> &sg) {
     std::set<op_t *> visited;
     subgraph_rewriter_t rewriter(sg);
@@ -336,23 +340,15 @@ status_t convert_to_runtime_scales(std::shared_ptr<subgraph_t> &sg) {
         if (cur_op->get_kind() != op_kind::dnnl_mul_scales
                 || cur_op->num_inputs() != 1
                 || !cur_op->get_input_value(0)->has_producer()
-                || !impl::utils::one_of(cur_op->get_input_op(0)->get_kind(),
-                        op_kind::dnnl_matmul, op_kind::dnnl_convolution,
-                        op_kind::dnnl_convtranspose, op_kind::dnnl_softmax,
-                        op_kind::dnnl_layernorm, op_kind::dnnl_reorder)
+                || cur_op->get_input_op(0)->get_kind() != op_kind::dnnl_reorder
                 || visited.count(cur_op.get()))
             continue;
 
         visited.insert(cur_op.get());
         // make scales as a constant input
         op_ptr const_data_op;
-        auto scales = cur_op->get_attr<std::vector<float>>(op_attr::scales);
-        // TODO(Xinyu): do not inv scales in qdata once oscales removed.
-        if (impl::utils::one_of(cur_op->get_input_op(0)->get_kind(),
-                    op_kind::dnnl_softmax, op_kind::dnnl_layernorm)) {
-            scales = dnnl_impl::utils::fmap(
-                    scales, [](float s) { return 1.f / s; });
-        }
+        const auto scales
+                = cur_op->get_attr<std::vector<float>>(op_attr::scales);
         const_data_op = std::make_shared<op_t>(op_kind::dnnl_constant_scales);
         const_data_op->set_attr(op_attr::scales, scales);
         std::vector<int64_t> dst_shape(1, scales.size());
@@ -585,17 +581,13 @@ status_t fold_sum_scales(std::shared_ptr<subgraph_t> &sg) {
             continue;
         }
         if (l_op.num_inputs() > 0 && l_op.get_input_value(0)->has_producer()
-                && impl::utils::one_of(
-                        l_op.get_input_value(0)->get_producer().get_kind(),
-                        op_kind::dnnl_matmul, op_kind::dnnl_convolution,
-                        op_kind::dnnl_convtranspose, op_kind::dnnl_reorder)) {
+                && l_op.get_input_value(0)->get_producer().get_kind()
+                        == op_kind::dnnl_reorder) {
             mul_scale_op_offset = 1;
         } else if (r_op.num_inputs() > 0
                 && r_op.get_input_value(0)->has_producer()
-                && impl::utils::one_of(
-                        r_op.get_input_value(0)->get_producer().get_kind(),
-                        op_kind::dnnl_matmul, op_kind::dnnl_convolution,
-                        op_kind::dnnl_convtranspose, op_kind::dnnl_reorder)) {
+                && r_op.get_input_value(0)->get_producer().get_kind()
+                        == op_kind::dnnl_reorder) {
             mul_scale_op_offset = 0;
         }
 
@@ -636,206 +628,6 @@ status_t fold_sum_scales(std::shared_ptr<subgraph_t> &sg) {
 
     rewriter.run();
     return status::success;
-}
-
-status_t fuse_to_int8_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &op : sg->get_ops()) {
-        if ((op->get_kind() == op_kind::dnnl_convolution
-                    || op->get_kind() == op_kind::dnnl_convtranspose)
-                && op->get_input_value(0)->has_producer()
-                && op->get_input_value(1)->has_producer()) {
-            auto &in0 = op->get_input_value(0)->get_producer();
-            auto &in1 = op->get_input_value(1)->get_producer();
-            if (in0.get_kind() != op_kind::dnnl_mul_scales
-                    || in1.get_kind() != op_kind::dnnl_mul_scales)
-                continue;
-
-            fusion_groups.emplace_back(
-                    std::vector<op_t *> {op.get(), &in0, &in1});
-        }
-    }
-
-    subgraph_rewriter_t rewriter(sg);
-    for (auto &fusion_group : fusion_groups) {
-        op_t *conv_op = fusion_group[0];
-        op_t *in0 = fusion_group[1];
-        op_t *in1 = fusion_group[2];
-
-        op_ptr mul_op = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
-
-        auto dq_src_scales = in0->get_attr<std::vector<float>>(op_attr::scales);
-        auto dq_wei_scales = in1->get_attr<std::vector<float>>(op_attr::scales);
-        std::vector<float> fused_scale(
-                std::max(dq_src_scales.size(), dq_wei_scales.size()), 0);
-        if (dq_src_scales.size() >= dq_wei_scales.size()) {
-            for (size_t i = 0; i < dq_src_scales.size(); i++)
-                fused_scale[i] = (dq_src_scales[i] * dq_wei_scales[0]);
-            mul_op->set_attr<int64_t>(
-                    op_attr::axis, in0->get_attr<int64_t>(op_attr::axis));
-            mul_op->set_attr<std::string>(
-                    op_attr::qtype, in0->get_attr<std::string>(op_attr::qtype));
-        } else {
-            // Currently for ConvTranspose, the output channel in weight tensor
-            // (OC/g, IC, H, W) is not equal to the one in output tensor
-            // (N, OC, H, W) if `groups` > 1, so the size of weight's
-            // per-channel scale is not the same as the output channel in output
-            // tensor, here we will broadcast scales from `OC/g` to `OC`.
-            int64_t group = conv_op->get_attr<int64_t>(op_attr::groups);
-            if (conv_op->get_kind() == op_kind::dnnl_convtranspose
-                    && group > 1) {
-                fused_scale.resize(group * dq_wei_scales.size(), 0);
-                for (size_t i = 0; i < fused_scale.size(); ++i)
-                    fused_scale[i] = (dq_src_scales[0]
-                            * dq_wei_scales[i % dq_wei_scales.size()]);
-            } else {
-                for (size_t i = 0; i < fused_scale.size(); ++i)
-                    fused_scale[i] = (dq_src_scales[0] * dq_wei_scales[i]);
-            }
-            // FIXME(qun) set the axis to 1 is ok now since oneDNN always treat
-            // the 1-th dim as channel. But it might be a problem if we want to
-            // do quantization along other dimension.
-            mul_op->set_attr<int64_t>(op_attr::axis, 1);
-            mul_op->set_attr<std::string>(
-                    op_attr::qtype, in1->get_attr<std::string>(op_attr::qtype));
-        }
-        mul_op->set_attr<std::vector<float>>(op_attr::scales, fused_scale);
-
-        auto in0_ivalue = in0->get_input_value(0);
-        auto in1_ivalue = in1->get_input_value(0);
-        conv_op->connect_input(0, in0_ivalue);
-        conv_op->connect_input(1, in1_ivalue);
-        in0_ivalue->remove_consumer(*in0, 0);
-        in1_ivalue->remove_consumer(*in1, 0);
-
-        rewriter.to_remove(in0->shared_from_this());
-        rewriter.to_remove(in1->shared_from_this());
-
-        if (conv_op->num_inputs() == 3) { //with bias
-            op_ptr mul_op1 = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
-
-            assertm(std::all_of(fused_scale.begin(), fused_scale.end(),
-                            [](float i) { return i != 0.f; }),
-                    "scales can't be zero");
-
-            std::vector<float> inv_scales(fused_scale.size());
-            for (size_t i = 0; i < fused_scale.size(); i++)
-                inv_scales[i] = 1.f / fused_scale[i];
-
-            // FIXME(xxx) add other attrs
-            mul_op1->set_attr<std::vector<float>>(op_attr::scales, inv_scales);
-            mul_op1->set_attr<int64_t>(op_attr::axis, 0);
-            mul_op1->set_attr<std::string>(op_attr::qtype,
-                    mul_op->get_attr<std::string>(op_attr::qtype));
-
-            rewriter.insert_op_before(mul_op1, conv_op->shared_from_this(), 2);
-            // Some of oneDNN's conv primitive implementation can't support bf16
-            // bias
-            mul_op1->get_output_value(0)->set_data_type(graph::data_type::f32);
-        }
-
-        rewriter.insert_op_after(mul_op, conv_op->shared_from_this(), 0);
-    }
-
-    rewriter.run();
-    return infer_shape(sg);
-}
-
-status_t fuse_to_int8_matmul(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != op_kind::dnnl_matmul
-                || !cur_op->get_input_value(0)->has_producer()
-                || !cur_op->get_input_value(1)->has_producer())
-            continue;
-        auto &in0 = cur_op->get_input_value(0)->get_producer();
-        auto &in1 = cur_op->get_input_value(1)->get_producer();
-        if (in0.get_kind() == op_kind::dnnl_mul_scales
-                && in1.get_kind() == op_kind::dnnl_mul_scales)
-            fusion_groups.emplace_back(
-                    std::vector<op_t *> {cur_op.get(), &in0, &in1});
-    }
-
-    subgraph_rewriter_t rewriter(sg);
-    for (auto &fusion_group : fusion_groups) {
-        op_t *matmul_op = fusion_group[0];
-        op_t *in0 = fusion_group[1];
-        op_t *in1 = fusion_group[2];
-
-        op_ptr mul_scales_op = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
-
-        const auto &dq_src_scales
-                = in0->get_attr<std::vector<float>>(op_attr::scales);
-        const auto &dq_wei_scales
-                = in1->get_attr<std::vector<float>>(op_attr::scales);
-        std::vector<float> fused_scales(
-                std::max(dq_src_scales.size(), dq_wei_scales.size()), 1.f);
-        // src: per_tensor, weight: per_channel
-        if (dq_src_scales.size() < dq_wei_scales.size()) {
-            for (size_t i = 0; i < dq_wei_scales.size(); ++i)
-                fused_scales[i] = dq_src_scales[0] * dq_wei_scales[i];
-            // FIXME(wuxun): if quantization is per-channel, need to set axis
-            // to the last dimension of dst
-            int64_t new_axis
-                    = matmul_op->get_output_value(0)->get_logical_tensor().ndims
-                    - 1;
-            mul_scales_op->set_attr<int64_t>(op_attr::axis, new_axis);
-            mul_scales_op->set_attr<std::string>(
-                    op_attr::qtype, in1->get_attr<std::string>(op_attr::qtype));
-        } else {
-            for (size_t i = 0; i < dq_src_scales.size(); ++i)
-                fused_scales[i] = dq_src_scales[i] * dq_wei_scales[0];
-            mul_scales_op->set_attr<int64_t>(
-                    op_attr::axis, in0->get_attr<int64_t>(op_attr::axis));
-            mul_scales_op->set_attr<std::string>(
-                    op_attr::qtype, in0->get_attr<std::string>(op_attr::qtype));
-        }
-        mul_scales_op->set_attr<std::vector<float>>(
-                op_attr::scales, fused_scales);
-
-        // update the connection relationship between matmul and mul_scales ops
-        auto in0_value = in0->get_input_value(0);
-        auto in1_value = in1->get_input_value(0);
-        matmul_op->connect_input(0, in0_value);
-        matmul_op->connect_input(1, in1_value);
-        in0_value->remove_consumer(*in0, 0);
-        in1_value->remove_consumer(*in1, 0);
-
-        rewriter.to_remove(in0->shared_from_this());
-        rewriter.to_remove(in1->shared_from_this());
-
-        // with bias
-        if (matmul_op->num_inputs() == 3) {
-            op_ptr bias_mul_op
-                    = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
-
-            assertm(std::all_of(fused_scales.begin(), fused_scales.end(),
-                            [](float i) { return i != 0.f; }),
-                    "scales can't be zero");
-
-            std::vector<float> inv_scales(fused_scales.size(), 1.f);
-            for (size_t i = 0; i < inv_scales.size(); ++i)
-                inv_scales[i] = 1.f / fused_scales[i];
-            bias_mul_op->set_attr<std::vector<float>>(
-                    op_attr::scales, inv_scales);
-            bias_mul_op->set_attr<int64_t>(op_attr::axis, 0);
-            bias_mul_op->set_attr<std::string>(op_attr::qtype,
-                    mul_scales_op->get_attr<std::string>(op_attr::qtype));
-
-            rewriter.insert_op_before(
-                    bias_mul_op, matmul_op->shared_from_this(), 2);
-            // Some of oneDNN's matmul primitive implementation can't support
-            // bf16 bias
-            bias_mul_op->get_output_value(0)->set_data_type(
-                    graph::data_type::f32);
-        }
-
-        rewriter.insert_op_after(
-                mul_scales_op, matmul_op->shared_from_this(), 0);
-    }
-
-    rewriter.run();
-    return infer_shape(sg);
 }
 
 status_t fuse_to_int8_reorder(std::shared_ptr<subgraph_t> &sg) {
@@ -1215,19 +1007,6 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                     insert_empty_workspace(tmp_ptr);
                     continue;
                 }
-
-                auto out_val = post_op->get_output_values()[0];
-                auto consumers = out_val->get_consumers();
-                if (!consumers.empty()) {
-                    auto &next_op = consumers[0].get_op();
-                    // set eltwise post-ops scale
-                    if (next_op.get_kind() == op_kind::dnnl_mul_scales) {
-                        scale = next_op.get_attr<std::vector<float>>(
-                                op_attr::scales)[0];
-                        rewriter.fuse_op_to_predecessor(
-                                next_op.shared_from_this());
-                    }
-                }
                 fusion_info.append_post_eltwise(
                         post_op->shared_from_this(), scale);
             } else if (post_op->get_kind() == op_kind::dnnl_binary
@@ -1460,6 +1239,190 @@ status_t fuse_src_zero_points(std::shared_ptr<subgraph_t> &sg) {
     return infer_shape(sg);
 }
 
+status_t fuse_src_scales(std::shared_ptr<subgraph_t> &sg) {
+    auto &mgr = sg->fusion_info_mgr_;
+
+    std::vector<op_t *> scales_ops;
+
+    std::set<op_t *> visited;
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_mul_scales
+                || visited.count(cur_op.get()) != 0)
+            continue;
+        scales_ops.emplace_back(cur_op.get());
+        visited.insert(cur_op.get());
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &scale_op : scales_ops) {
+        assertm(scale_op->num_outputs() == 1,
+                "scale_op should have only one output value.");
+        auto out_val = scale_op->get_output_values()[0];
+        auto consumers = out_val->get_consumers();
+
+        if (!impl::utils::one_of(consumers[0].get_op().get_kind(),
+                    op_kind::dnnl_matmul, op_kind::dnnl_convolution,
+                    op_kind::dnnl_convtranspose))
+            continue;
+
+        auto &next_op = consumers[0].get_op();
+        auto offset = consumers[0].get_offset();
+        if (offset == 0 || offset == 1) {
+            int64_t key = -1;
+            if (next_op.has_attr(op_attr::fusion_info_key)) {
+                key = next_op.get_attr<int64_t>(op_attr::fusion_info_key);
+            } else {
+                key = mgr.init_info();
+                next_op.set_attr<int64_t>(op_attr::fusion_info_key, key);
+            }
+            fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+            if (scale_op->has_attr(op_attr::with_runtime_scales)
+                    && scale_op->get_attr<bool>(op_attr::with_runtime_scales)) {
+                value_ptr in0_val = scale_op->get_input_value(0);
+                in0_val->remove_consumer(*scale_op, 0);
+                value_ptr in1_val = scale_op->get_input_value(1);
+                in1_val->remove_consumer(*scale_op, 1);
+                value_ptr out_val = scale_op->get_output_value(0);
+                auto consumers = out_val->get_consumers();
+                in0_val->add_consumer(next_op, offset);
+                next_op.connect_input(offset, in0_val);
+                next_op.add_input(in1_val);
+                in1_val->add_consumer(next_op, next_op.num_inputs() - 1);
+                fusion_info.set_runtime_scales(
+                        scale_op->shared_from_this(), true, offset);
+                rewriter.to_remove(scale_op->shared_from_this());
+            } else {
+                assertm(false, "src scales must be runtime scales.");
+            }
+        }
+    }
+    rewriter.run();
+    return infer_shape(sg);
+}
+
+status_t fuse_dst_scales(std::shared_ptr<subgraph_t> &sg) {
+    auto &mgr = sg->fusion_info_mgr_;
+    subgraph_rewriter_t rewriter(sg);
+
+    std::vector<std::pair<op_t *, op_t *>> fuse_groups;
+
+    std::set<op_t *> visited;
+    for (auto &cur_op : sg->get_ops()) {
+        if ((cur_op->get_kind() != op_kind::dnnl_convolution
+                    && cur_op->get_kind() != op_kind::dnnl_matmul
+                    && cur_op->get_kind() != op_kind::dnnl_convtranspose
+                    && cur_op->get_kind() != op_kind::dnnl_softmax
+                    && cur_op->get_kind() != op_kind::dnnl_layernorm)
+                || visited.count(cur_op.get()) != 0)
+            continue;
+        auto out_val = cur_op->get_output_values()[0];
+        auto consumers = out_val->get_consumers();
+        if (consumers.size() != 1) continue;
+        auto &next_op = consumers[0].get_op();
+        if (next_op.get_kind() != op_kind::dnnl_mul_scales) continue;
+        fuse_groups.emplace_back(
+                std::pair<op_t *, op_t *> {cur_op.get(), &next_op});
+        visited.insert(cur_op.get());
+        visited.insert(&next_op);
+    }
+
+    for (auto &fuse_group : fuse_groups) {
+        auto base_op = fuse_group.first;
+        auto scale_op = fuse_group.second;
+
+        int64_t key = -1;
+        if (base_op->has_attr(op_attr::fusion_info_key)
+                && base_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+            key = base_op->get_attr<int64_t>(op_attr::fusion_info_key);
+        } else {
+            key = mgr.init_info();
+            base_op->set_attr<int64_t>(op_attr::fusion_info_key, key);
+        }
+
+        fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+        fusion_info.set_runtime_scales(scale_op->shared_from_this(), false, 0);
+        rewriter.fuse_op_to_predecessor(scale_op->shared_from_this());
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
+status_t convert_to_runtime_dst_scales(std::shared_ptr<subgraph_t> &sg) {
+    std::set<op_t *> visited;
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_mul_scales
+                || cur_op->num_inputs() != 1
+                || !cur_op->get_input_value(0)->has_producer()
+                || !impl::utils::one_of(cur_op->get_input_op(0)->get_kind(),
+                        op_kind::dnnl_softmax, op_kind::dnnl_layernorm,
+                        op_kind::dnnl_convolution, op_kind::dnnl_matmul,
+                        op_kind::dnnl_convtranspose)
+                || visited.count(cur_op.get()))
+            continue;
+
+        visited.insert(cur_op.get());
+        // make scales as a constant input
+        op_ptr const_data_op;
+        auto scales = cur_op->get_attr<std::vector<float>>(op_attr::scales);
+        // TODO(Xinyu): do not inv scales in qdata once oscales removed.
+        scales = dnnl_impl::utils::fmap(
+                scales, [](float s) { return 1.f / s; });
+        const_data_op = std::make_shared<op_t>(op_kind::dnnl_constant_scales);
+        const_data_op->set_attr(op_attr::scales, scales);
+        std::vector<int64_t> dst_shape(1, scales.size());
+        const_data_op->set_attr(op_attr::shape, dst_shape);
+        logical_tensor_t const_data_dst_lt
+                = empty_logical_tensor_with_default_id();
+        auto const_data_dst_value = std::make_shared<value_t>(
+                *const_data_op, 0, const_data_dst_lt, true);
+        const_data_dst_value->set_data_type(graph::data_type::f32);
+        const_data_dst_value->set_layout_type(layout_type::strided);
+        const_data_dst_value->set_strides({1});
+        const_data_op->add_output(const_data_dst_value);
+        cur_op->set_attr(op_attr::with_runtime_scales, true);
+        cur_op->remove_attr(op_attr::scales);
+
+        // connect mul_scale and constant data
+        cur_op->connect_input(1, const_data_dst_value);
+        rewriter.to_insert(const_data_op);
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
+status_t convert_bias_to_f32(std::shared_ptr<subgraph_t> &sg) {
+    std::set<op_t *> visited;
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_convolution
+                || cur_op->num_inputs() < 3
+                || !cur_op->get_input_value(0)->has_producer()
+                || !cur_op->get_input_value(1)->has_producer()
+                || cur_op->get_input_op(0)->get_kind()
+                        != op_kind::dnnl_mul_scales
+                || cur_op->get_input_op(1)->get_kind()
+                        != op_kind::dnnl_mul_scales
+                || ltw(cur_op->get_input_value(2)->get_logical_tensor())
+                                .data_type()
+                        != impl::data_type::bf16
+                || visited.count(cur_op.get()))
+            continue;
+
+        visited.insert(cur_op.get());
+        op_ptr tc_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
+        rewriter.insert_op_before(tc_op, cur_op->shared_from_this(), 2);
+        // Some of oneDNN's conv primitive implementation can't support bf16
+        // bias
+        tc_op->get_output_value(0)->set_data_type(graph::data_type::f32);
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
 status_t fuse_dst_zero_points(std::shared_ptr<subgraph_t> &sg) {
     auto &mgr = sg->fusion_info_mgr_;
     std::vector<op_t *> zp_ops;
@@ -1597,6 +1560,39 @@ status_t insert_bn_folding(std::shared_ptr<subgraph_t> &sg) {
 
     rewriter.run();
     return infer_shape(sg);
+}
+
+status_t expand_convtranspose_scales(std::shared_ptr<subgraph_t> &sg) {
+    for (const auto &op : sg->get_ops()) {
+        if (op->get_kind() == op_kind::dnnl_convtranspose
+                && op->get_input_value(0)->has_producer()
+                && op->get_input_value(1)->has_producer()) {
+            auto &in0 = op->get_input_value(0)->get_producer();
+            auto &in1 = op->get_input_value(1)->get_producer();
+            if (in0.get_kind() != op_kind::dnnl_mul_scales
+                    || in1.get_kind() != op_kind::dnnl_mul_scales)
+                continue;
+
+            auto dq_src_scales
+                    = in0.get_attr<std::vector<float>>(op_attr::scales);
+            auto dq_wei_scales
+                    = in1.get_attr<std::vector<float>>(op_attr::scales);
+            int64_t group = op->get_attr<int64_t>(op_attr::groups);
+            if (dq_src_scales.size() < dq_wei_scales.size() && group > 1) {
+                // Currently for ConvTranspose, the output channel in weight tensor
+                // (OC/g, IC, H, W) is not equal to the one in output tensor
+                // (N, OC, H, W) if `groups` > 1, so the size of weight's
+                // per-channel scale is not the same as the output channel in output
+                // tensor, here we will broadcast scales from `OC/g` to `OC`.
+                std::vector<float> expand_scales(
+                        group * dq_wei_scales.size(), 0);
+                for (size_t i = 0; i < expand_scales.size(); ++i)
+                    expand_scales[i] = dq_wei_scales[i % dq_wei_scales.size()];
+                in1.set_attr(op_attr::scales, expand_scales);
+            }
+        }
+    }
+    return status::success;
 }
 
 status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {

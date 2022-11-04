@@ -111,8 +111,6 @@ public:
                     pipeline, replace_quant_data_with_binary_post_op);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_runtime_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_runtime_zero_points);
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_mul_scales_add_zps);
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_sub_zps_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_mul_scales_add_zps);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_sub_zps_mul_scales);
         }

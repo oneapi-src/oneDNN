@@ -127,6 +127,15 @@ public:
         }
     }
 
+    void set_runtime_scales(const op_ptr &op, bool is_input, size_t index) {
+        auto fused_scales = std::make_shared<meta_op_t>(op);
+        if (is_input) {
+            input_scales_[index] = fused_scales;
+        } else {
+            dst_scales_ = fused_scales;
+        }
+    }
+
     // used to modify the fused zps, like modifying it's axis after inserting
     // reshape op
     op_t *get_mutable_zero_points(bool is_input, size_t index) const {
@@ -197,16 +206,6 @@ public:
         return *pos;
     }
 
-    bool with_runtime_dst_scales() const {
-        if (!dst_scales_) return false;
-        const op_t *scale_op = const_cast<op_t *>(dst_scales_->get_op());
-        if (scale_op->has_attr(op_attr::with_runtime_scales)) {
-            return scale_op->get_attr<bool>(op_attr::with_runtime_scales);
-        } else {
-            return false;
-        }
-    }
-
     bool with_runtime_output_scales() const {
         if (!output_scales_) return false;
         const op_t *scale_op = const_cast<op_t *>(output_scales_->get_op());
@@ -238,11 +237,33 @@ public:
         }
     }
 
+    bool with_runtime_scales(bool is_input, size_t indice) const {
+        if (is_input) {
+            if (input_scales_.find(indice) == input_scales_.end()) return false;
+            const op_t *zp_op
+                    = const_cast<op_t *>(input_scales_.at(indice)->get_op());
+            if (zp_op->has_attr(op_attr::with_runtime_scales)) {
+                return zp_op->get_attr<bool>(op_attr::with_runtime_scales);
+            } else {
+                return false;
+            }
+        } else {
+            if (!dst_scales_) return false;
+            const op_t *zp_op = const_cast<op_t *>(dst_scales_->get_op());
+            if (zp_op->has_attr(op_attr::with_runtime_scales)) {
+                return zp_op->get_attr<bool>(op_attr::with_runtime_scales);
+            } else {
+                return false;
+            }
+        }
+    }
+
 private:
     std::shared_ptr<meta_op_t> output_scales_;
-    std::shared_ptr<meta_op_t> dst_scales_;
     std::unordered_map<size_t, std::shared_ptr<meta_op_t>> input_zps_;
     std::shared_ptr<meta_op_t> output_zps_;
+    std::unordered_map<size_t, std::shared_ptr<meta_op_t>> input_scales_;
+    std::shared_ptr<meta_op_t> dst_scales_;
     std::vector<std::shared_ptr<meta_op_t>> post_ops_;
 };
 
