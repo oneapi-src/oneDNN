@@ -338,7 +338,6 @@ int doit(const prb_t *prb, res_t *res) {
         return res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED, OK;
 
     attr_args_t attr_args;
-    attr_args.prepare_output_scales(prb->attr, prb->scales, prb->n);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 

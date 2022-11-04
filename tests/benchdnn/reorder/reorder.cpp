@@ -205,7 +205,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     bool scales_ok = true;
 #if !defined(DNNL_X64) || DNNL_X64 == 0
     {
-        // reference reorder supports only a subset of oscale policies
+        // reference reorder supports only a subset of scale policies
         const std::vector<policy_t> supported_policy = {policy_t::PER_OC,
                 policy_t::PER_DIM_0, policy_t::PER_DIM_1, policy_t::PER_DIM_01};
 
@@ -237,10 +237,10 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     if (prb->is_reorder_with_compensation(FLAG_ANY)) {
         // Compensation is supported for s8 dst data type.
         const bool dt_ok = ddt == dnnl_s8;
-        // Compensation can be paired with oscale only.
+        // Compensation can be paired with scale only.
         const bool attr_ok = prb->attr.scales.is_def()
-                && prb->attr.zero_points.is_def() && prb->attr.post_ops.is_def()
-                && prb->attr.oscale.runtime == false;
+                && prb->attr.zero_points.is_def()
+                && prb->attr.post_ops.is_def();
         // Compensation does not support runtime dims.
         const bool rt_ok = prb->runtime_dim_mask == 0;
 

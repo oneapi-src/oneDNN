@@ -555,8 +555,7 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 }
 
 bool attr_t::is_def(bool skip_fpmath) const {
-    return oscale.is_def() && scales.is_def() && zero_points.is_def()
-            && post_ops.is_def()
+    return scales.is_def() && zero_points.is_def() && post_ops.is_def()
             && scratchpad_mode == dnnl_scratchpad_mode_library
             && IMPLICATION(
                     !skip_fpmath, fpmath_mode == dnnl_fpmath_mode_strict);
@@ -719,7 +718,6 @@ std::ostream &operator<<(std::ostream &s, dnnl_fpmath_mode_t fm) {
 
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     if (!attr.is_def()) {
-        if (!attr.oscale.is_def()) s << "--attr-oscale=" << attr.oscale << " ";
         if (!attr.scales.is_def()) s << "--attr-scales=" << attr.scales << " ";
         if (!attr.zero_points.is_def())
             s << "--attr-zero-points=" << attr.zero_points << " ";
@@ -831,11 +829,6 @@ dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
 #undef CASE
 }
 
-void attr_args_t::prepare_output_scales(
-        const attr_t &attr, const void *vals, int64_t count, int mask) {
-    insert(DNNL_ARG_ATTR_OUTPUT_SCALES, vals, count, mask, attr.oscale.runtime);
-}
-
 void attr_args_t::prepare_scales(const attr_t &attr, int arg, const void *vals,
         int64_t count, int mask) {
     insert(arg, vals, count, mask, attr.scales.get(arg).runtime);
@@ -907,13 +900,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
     dnnl_primitive_attr_t dnnl_attr = nullptr;
     DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
 
-    if (!attr.oscale.is_def()) {
-        SAFE_V(attr.oscale.runtime ? OK : FAIL);
-        const auto &os_args = attr_args.get(DNNL_ARG_ATTR_OUTPUT_SCALES);
-        const auto &policy = attr.oscale.policy;
-        const auto mask = os_args.get_mask(policy);
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales_mask(dnnl_attr, mask));
-    } else if (!attr.scales.is_def()) {
+    if (!attr.scales.is_def()) {
         const auto &as = attr.scales;
         for (const auto &arg : as.scales) {
             const int arg_name = arg.first;
@@ -1305,14 +1292,6 @@ int check_tag(const std::string &tag_, bool check_enum_tags_only) {
     auto tag = normalize_tag(tag_);
     if (tag == tag::undef || tag == tag::any) return OK;
     return check_abc_tag(tag, check_enum_tags_only);
-}
-
-void maybe_oscale(
-        const attr_t &attr, float &d, const float *scales, int64_t oc) {
-    if (!attr.oscale.is_def()) {
-        int64_t idx = attr.oscale.policy == policy_t::COMMON ? 0 : oc;
-        d *= scales[idx];
-    }
 }
 
 void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,

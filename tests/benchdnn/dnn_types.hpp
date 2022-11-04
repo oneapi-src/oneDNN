@@ -351,14 +351,12 @@ struct attr_t {
         if (sizeof...(rest) > 0) this->insert(rest...);
     }
 
-    void insert(const scale_t &s) { this->oscale = s; }
     void insert(const arg_scales_t &as) { this->scales = as; }
     void insert(const zero_points_t &zp) { this->zero_points = zp; }
     void insert(const post_ops_t &po) { this->post_ops = po; }
     void insert(dnnl_scratchpad_mode_t sm) { this->scratchpad_mode = sm; }
     void insert(dnnl_fpmath_mode_t fpm) { this->fpmath_mode = fpm; }
 
-    scale_t oscale;
     arg_scales_t scales;
     zero_points_t zero_points;
     post_ops_t post_ops;
@@ -528,8 +526,6 @@ dnnl_engine_kind_t str2engine_kind(const char *str);
 dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str);
 dnnl_fpmath_mode_t str2fpmath_mode(const char *str);
 
-void maybe_oscale(
-        const attr_t &attr, float &d, const float *scales, int64_t oc);
 void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,
         int arg, bool opposite_scale = false);
 void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,

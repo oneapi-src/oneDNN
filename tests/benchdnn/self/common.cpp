@@ -51,30 +51,14 @@ static int check_attr2str() {
 
     SELF_CHECK_PRINT_EQ(attr, "");
 
-    attr.oscale.policy = policy_t::COMMON;
-    attr.oscale.scale = 2.4;
-    SELF_CHECK_PRINT_EQ(attr, "--attr-oscale=common:2.4 ");
-
-    attr.oscale.policy = policy_t::PER_OC;
-    attr.oscale.scale = 3.2;
-    attr.oscale.runtime = true;
-    SELF_CHECK_PRINT_EQ(attr, "--attr-oscale=per_oc:3.2* ");
-
-    attr.oscale.policy = policy_t::PER_DIM_01;
-    attr.oscale.scale = 3.2;
-    attr.oscale.runtime = false;
-    SELF_CHECK_PRINT_EQ(attr, "--attr-oscale=per_dim_01:3.2 ");
-
+    attr = attr_t();
     attr.zero_points.set(DNNL_ARG_SRC, policy_t::COMMON, 1, false);
-    SELF_CHECK_PRINT_EQ(attr,
-            "--attr-oscale=per_dim_01:3.2 --attr-zero-points=src:common:1 ");
+    SELF_CHECK_PRINT_EQ(attr, "--attr-zero-points=src:common:1 ");
 
     attr.zero_points.set(DNNL_ARG_SRC, policy_t::PER_DIM_0, 3, false);
     attr.zero_points.set(DNNL_ARG_WEIGHTS, {policy_t::PER_DIM_1, 2, true});
     SELF_CHECK_PRINT_EQ2(attr,
-            "--attr-oscale=per_dim_01:3.2 "
             "--attr-zero-points=src:per_dim_0:3+wei:per_dim_1:2* ",
-            "--attr-oscale=per_dim_01:3.2 "
             "--attr-zero-points=wei:per_dim_1:2*+src:per_dim_0:3 ");
 
     attr = attr_t();
@@ -101,25 +85,12 @@ static int check_attr() {
         SELF_CHECK_EQ((os).runtime, os_runtime); \
     } while (0)
 
-#define SELF_CHECK_ATTR_OSCALE(str, os_policy, os_scale, os_runtime) \
-    do { \
-        std::vector<attr_t::scale_t> os; \
-        SELF_CHECK_EQ(parse_attr_oscale(os, str), true); \
-        SELF_CHECK_EQ(os.size(), 1); \
-        SELF_CHECK_OSCALE(os[0], os_policy, os_scale, os_runtime); \
-    } while (0)
 #define SELF_CHECK_ATTR_ZP(zp, arg, zero_points_value, zero_points_runtime) \
     do { \
         const auto &entry = (zp).get(arg); \
         SELF_CHECK_EQ(entry.value, zero_points_value); \
         SELF_CHECK_EQ(entry.runtime, zero_points_runtime); \
     } while (0)
-
-    SELF_CHECK_ATTR_OSCALE("--attr-oscale=", COMMON, 1., false);
-    SELF_CHECK_ATTR_OSCALE("--attr-oscale=common:1.0", COMMON, 1., false);
-    SELF_CHECK_ATTR_OSCALE("--attr-oscale=common:2.0", COMMON, 2., false);
-    SELF_CHECK_ATTR_OSCALE("--attr-oscale=common:2.0*", COMMON, 2., true);
-    SELF_CHECK_ATTR_OSCALE("--attr-oscale=per_oc:.5*", PER_OC, .5, true);
 
     {
         std::vector<attr_t::zero_points_t> zp;
