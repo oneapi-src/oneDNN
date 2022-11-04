@@ -1041,6 +1041,8 @@ status_t init_vec_size(conv_config_t &cfg) {
         int vec_dim = (prb.is_fwd || prb.is_bwd_w) ? prb.oc : prb.ic;
         if (vec_size > grf_elems && vec_dim <= 8) vec_size = grf_elems;
     }
+    // SIMD32 produces invalid layouts in bwd_w.
+    if (prb.is_bwd_w) vec_size = std::min(vec_size, 16);
     cfg.set_vec_size(vec_size);
     return status::success;
 }

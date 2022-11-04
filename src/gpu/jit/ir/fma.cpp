@@ -57,8 +57,6 @@ fma_kind_t fma_kind::get_supported_kind(
 
 int fma_kind::get_simd_size(ngen::HW hw, const fma_kind_t kind, const type_t &a,
         const type_t &b, const type_t &c) {
-    int max_simd_size = 16;
-    int min_simd_size = hw >= ngen::HW::XeHPC ? 16 : 8;
     int ret = 0;
     switch (kind) {
         case fma_kind_t::dp4a:
@@ -70,7 +68,6 @@ int fma_kind::get_simd_size(ngen::HW hw, const fma_kind_t kind, const type_t &a,
         default: break;
     }
     ir_assert(ret != 0);
-    ret = std::max(std::min(ret, max_simd_size), min_simd_size);
     return ret;
 }
 

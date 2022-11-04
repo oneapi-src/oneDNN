@@ -413,7 +413,7 @@ private:
             }
         }
 
-        // Couldn't find N dimension, try different blocking scheme.
+        // Couldn't find block dimension, try different blocking scheme.
         if (block_idx == -1) return false;
 
         auto &block_loop = loops[block_idx];
