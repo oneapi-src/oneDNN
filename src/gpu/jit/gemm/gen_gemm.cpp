@@ -314,6 +314,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
     if (!utils::one_of(pd()->desc()->c_type(), data_type::f32, data_type::f16))
         block_k = k;
+    if (pd()->post_ops()->len() > 0
+            && pd()->post_ops()->entry_[0].kind != primitive_kind::sum)
+        block_k = k;
 
     if (k_parallel_global)
         block_k = pd()->kernel_desc()->aux_params()->k0;

@@ -163,7 +163,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
 
     if (post_ops.len() > 0) {
-        problem_.post_ops = post_ops;
+        problem_.postOps = post_ops;
         int po_count = post_ops.len();
         problem_.Tbinary.reserve(po_count);
         problem_.binary.reserve(po_count);
@@ -268,7 +268,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     EvaluateParams eval_params;
 
     eval_params.sizes = match_params[0].sizes;
-    eval_params.beta = beta;
+    eval_params.beta = (post_ops.len() > 0) ? 0.0f : beta;
     eval_params.euCount = eu_count;
 
     entry_ = select(
@@ -355,7 +355,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     if (alpha == 1.0f) problem_.alpha_real = alpha;
     if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
     if (post_ops.len() > 0) {
-        problem_.post_ops = post_ops;
+        problem_.postOps = post_ops;
         problem_.Ts = Type::f32;
     }
     if (c_offset == offset_t::runtime)
@@ -469,8 +469,8 @@ void gen_gemm_kernel_t::init_interface() {
         if (problem.cOffset == COffset::Pre)
             interface_.newArgument("ldco", DataType::d);
     }
-    for (int i = 0; i < problem.post_ops.len(); i++) {
-        if (problem.post_ops.entry_[i].kind != primitive_kind::binary) continue;
+    for (int i = 0; i < problem.postOps.len(); i++) {
+        if (problem.postOps.entry_[i].kind != primitive_kind::binary) continue;
         auto bname = "binary" + std::to_string(i);
         interface_.newArgument(bname, ExternalArgumentType::GlobalPtr);
         interface_.newArgument("offset_" + bname, DataType::d);
@@ -485,8 +485,8 @@ void gen_gemm_kernel_t::init_interface() {
             interface_.newArgument("stride_A1", DataType::d);
             interface_.newArgument("stride_B1", DataType::d);
             interface_.newArgument("stride_C1", DataType::d);
-            for (int i = 0; i < problem.post_ops.len(); i++)
-                if (problem.post_ops.entry_[i].kind == primitive_kind::binary
+            for (int i = 0; i < problem.postOps.len(); i++)
+                if (problem.postOps.entry_[i].kind == primitive_kind::binary
                         && problem.binaryBatch[i])
                     interface_.newArgument(
                             "stride1_binary" + std::to_string(i), DataType::d);
@@ -494,8 +494,8 @@ void gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("stride_A", DataType::d);
         interface_.newArgument("stride_B", DataType::d);
         interface_.newArgument("stride_C", DataType::d);
-        for (int i = 0; i < problem.post_ops.len(); i++)
-            if (problem.post_ops.entry_[i].kind == primitive_kind::binary
+        for (int i = 0; i < problem.postOps.len(); i++)
+            if (problem.postOps.entry_[i].kind == primitive_kind::binary
                     && problem.binaryBatch[i])
                 interface_.newArgument(
                         "stride_binary" + std::to_string(i), DataType::d);

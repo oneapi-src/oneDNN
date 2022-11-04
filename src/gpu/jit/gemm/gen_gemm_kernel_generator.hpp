@@ -534,7 +534,8 @@ struct RegisterBlock {
     uint8_t splitComplex : 1; // True if complex data split into successive real and imaginary parts.
     uint8_t : 6;
     uint8_t crosspack; // Crosspack for this block (1 if none).
-    uint8_t component; // Component # for this block.
+    uint8_t component : 6; // Component # for this block.
+    int8_t cxComponent : 2; // Complex component # for this block (-1 if not complex or interleaved).
     uint16_t bytes; // # of bytes in this block.
     uint16_t offsetBytes; // Byte offset within register block.
 
@@ -566,6 +567,9 @@ struct RegisterBlock {
 
     MaskInfo rowMask; // Row mask for this block.
     MaskInfo colMask; // Column mask for this block.
+
+    static constexpr int8_t Interleaved
+            = -1; // Value for cxComponent indicating interleaved real/imaginary data.
 
     void calcBytes(Type T); // Auto-calculate # of registers.
     void calcBytes(Type T, const MatrixAddressingStrategy &astrategy);
@@ -803,7 +807,7 @@ struct GEMMProblem : public CommonProblem {
     bool sumA = false,
          sumB
             = false; // If true, calculate A row sums/B column sums and store in CO.
-    post_ops_t post_ops; // Fused post operations to apply
+    post_ops_t postOps; // Fused post operations to apply
     bool postOpFwd = true; // Eltwise parameters
     std::vector<MatrixAddressing> binary; // Binary postop data
     std::vector<Type> Tbinary; // Binary types
@@ -812,17 +816,11 @@ struct GEMMProblem : public CommonProblem {
             binaryCol; //    (false means broadcast in the given dimension)
     std::vector<bool> binaryBatch;
 
-    bool hasPostOp() const { return post_ops.len() > 0; }
-    bool hasEltwisePostOp() const {
-        for (int idx = 0; idx < post_ops.len(); idx++)
-            if (post_ops.entry_[idx].is_eltwise()) return true;
+    bool hasPostOp() const { return postOps.len() > 0; }
+    bool hasBinaryPostOp() const {
+        for (int idx = 0; idx < postOps.len(); idx++)
+            if (postOps.entry_[idx].is_binary()) return true;
         return false;
-    }
-    int binaryPOCount() const {
-        int count = 0;
-        for (int idx = 0; idx < post_ops.len(); idx++)
-            count += int(post_ops.entry_[idx].is_binary());
-        return count;
     }
 
     bool beta0() const {
@@ -1373,6 +1371,12 @@ public:
     using Injector = jit_post_op_injector<hw>;
     std::unique_ptr<Injector> postOpInjector;
 
+    static bool supportedBinaryOp(alg_kind_t alg) {
+        using namespace alg_kind;
+        return utils::one_of(alg, binary_add, binary_sub, binary_mul,
+                binary_div, binary_min, binary_max);
+    }
+
     void gemm(GEMMProblem problem, GEMMStrategy strategy,
             const ngen::InterfaceHandler &interface_);
     void gemmSuperkernel(GEMMSuperkernelProblem problem,
@@ -1762,7 +1766,8 @@ protected:
             bool reverseOrder = false);
     void makeUnbackedRegLayout(Type T, std::vector<RegisterBlock> &layout,
             int r, int c, bool colMajor, int crosspack = 1, int tileR = 0,
-            int tileC = 0, bool allowPartialRegs = true);
+            int tileC = 0, bool allowPartialRegs = true,
+            bool fullySplitCx = false);
     bool upgradeLayoutToBlock2D(Type T,
             const std::vector<RegisterBlock> &layoutSrc,
             std::vector<RegisterBlock> &layout2D, bool remainderR,
@@ -2080,8 +2085,8 @@ protected:
     void gemmPrefetchC(const GEMMProblem &problem, GEMMStrategy &strategy,
             GEMMState &state);
 
-    void gemmApplyBinaryOps(const GEMMProblem &problem, GEMMStrategy &strategy,
-            GEMMState &state);
+    void gemmApplyPostOps(int poMin, int poMax, const GEMMProblem &problem,
+            GEMMStrategy &strategy, GEMMState &state);
     void gemmLoadBinaryOpArgs(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
 

@@ -141,23 +141,41 @@ struct gen_gemm_t : public gpu_gemm_t {
                                     && (attr()->zero_points_.has_default_values(
                                             DNNL_ARG_DST)));
 
-            // Look through post-ops and remember binary srcs.
+            // Examine post-ops and remember binary srcs.
             post_ops_ = attr()->post_ops_;
-            binary_srcs_.reserve(post_ops_.entry_.size() + 4);
-            for (size_t i = 0; i < post_ops_.entry_.size(); i++) {
-                switch (post_ops_.entry_[i].kind) {
+            binary_srcs_.reserve(post_ops_.len() + 4);
+
+            bool with_sum = false;
+            bool sum_at_begin = false;
+
+            for (int i = 0; i < post_ops_.len(); i++) {
+                const auto &e = post_ops_.entry_[i];
+                switch (e.kind) {
                     case binary:
+                        ok &= gemm_kernel_generator_t<ngen::HW::Unknown>::
+                                supportedBinaryOp(e.binary.alg);
                         binary_srcs_.push_back(
                                 binary_src_t {binary_src_t::binary, int(i)});
                         break;
                     case sum:
+                        ok &= !with_sum;
+                        with_sum = true;
+                        sum_at_begin = (i == 0);
+                        binary_srcs_.push_back(
+                                binary_src_t {binary_src_t::none, 0});
+                        beta_ = e.sum.scale;
+                        break;
                     case eltwise:
+                        ok &= jit_eltwise_injector_f32_is_supported(
+                                e.eltwise.alg);
                         binary_srcs_.push_back(
                                 binary_src_t {binary_src_t::none, 0});
                         break;
                     default: return status::unimplemented;
                 }
             }
+
+            if (!ok) return status::unimplemented;
 
             // If scales are present, convert them and any bias to binary post-ops.
             const auto *wei_scales = &attr()->scales_.get(DNNL_ARG_WEIGHTS);
@@ -218,32 +236,12 @@ struct gen_gemm_t : public gpu_gemm_t {
                         binary_src_t {binary_src_t::scales, DNNL_ARG_DST});
             }
 
-            // Check post-ops. Two combinations of post-ops supported currently:
-            //   binary [binary] ... [binary]
-            //   [sum] eltwise [eltwise] ...  [eltwise]
-
-            ok &= post_ops_.len() <= GEMM_MAX_PO;
-
-            bool with_binary = false;
-            if (post_ops_.find(binary) != -1) {
-                with_binary = true;
-                for (int i = 0; i < post_ops_.len(); i++)
-                    ok &= (post_ops_.entry_[i].kind == binary);
-                ok &= arch_ >= arch_t::xe_hp;
-            } else {
-                ok &= IMPLICATION(post_ops_.find(sum) != -1,
-                              post_ops_.find(sum) == 0
-                                      && post_ops_.find(sum, 1) == -1)
-                        && IMPLICATION(post_ops_.len() > 0,
-                                jit_post_op_injector_is_supported(
-                                        post_ops_, true));
-            }
-
-            if (!ok) return status::unimplemented;
+            bool with_binary = (post_ops_.find(binary) != -1);
 
             // check GPU architecture
             ok &= utils::one_of(arch_, arch_t::gen9, arch_t::xe_lp,
                     arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc);
+            ok &= IMPLICATION(with_binary, arch_ >= arch_t::xe_hp);
 
             if (!ok) return status::unimplemented;
 
@@ -269,8 +267,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             if (d->c_type() == f16 && arch_ < compute::gpu_arch_t::xe_hpg)
                 acc_type = data_type::f16;
 
-            if (with_binary && types::data_type_size(acc_type) < 4)
-                return status::unimplemented;
+            if (types::data_type_size(acc_type) < 4) {
+                // Limited post-op support for low-precision accumulation.
+                ok &= !with_binary && IMPLICATION(with_sum, sum_at_begin);
+            }
 
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
 
@@ -404,11 +404,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         float alpha() const { return 1.0f; }
 
-        float beta() const {
-            using namespace primitive_kind;
-            const auto &p = post_ops_;
-            return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
-        }
+        float beta() const { return beta_; }
 
         bool with_bias() const {
             return desc()->bias_type() != data_type::undef && !bias_via_binary_;
@@ -513,6 +509,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                 default: return 0;
             }
         }
+
+        float beta_ = 0.0f;
 
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
