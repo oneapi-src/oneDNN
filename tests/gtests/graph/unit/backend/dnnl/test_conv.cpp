@@ -4744,7 +4744,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         graph::op_t tcdst_op {5, graph::op_kind::TypeCast, "typecast_dst"};
 
         graph::op_t qout_op(6, graph::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qout_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
                 graph::op_attr::scales, {scale_out});
@@ -4920,7 +4920,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         graph::op_t tcdst_op {8, graph::op_kind::TypeCast, "typecast_dst"};
 
         graph::op_t qout_op(9, graph::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qout_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
                 graph::op_attr::scales, {scale_out});
@@ -5105,7 +5105,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         graph::op_t tcdst_op {6, graph::op_kind::TypeCast, "typecast_dst"};
 
         graph::op_t qout_op(7, graph::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qout_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
                 graph::op_attr::scales, {scale_out});
@@ -5289,7 +5289,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         graph::op_t tcdst_op {8, graph::op_kind::TypeCast, "typecast_dst"};
 
         graph::op_t qout_op(9, graph::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qout_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
         qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
                 graph::op_attr::scales, {scale_out});

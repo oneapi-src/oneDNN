@@ -180,27 +180,19 @@ TEST(SubgraphPass, LowerDownToInt8Conv) {
     ASSERT_EQ(producer1.get_attr<std::vector<float>>(op_attr::scales)[0],
             scales[0]);
 
-    // 2. merge into int8 conv, change the input's scales to output scale
-    dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
-    dnnl_impl::fold_mul_scales(subgraph);
+    // 2. fuse src, wei scales
+    dnnl_impl::convert_to_runtime_src_scales(subgraph);
+    dnnl_impl::fuse_src_scales(subgraph);
     auto qconv_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
-    auto &consumer
-            = (*qconv_op)->get_output_value(0)->get_consumers()[0].get_op();
-    ASSERT_EQ(consumer.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
-    ASSERT_EQ(consumer.get_attr<std::vector<float>>(op_attr::scales)[0],
-            scales[0] * scales[0]);
-
-    // 3. fuse output mul_scales op to conv's output scale
-    dnnl_impl::fuse_output_scales(subgraph);
 
     dnnl_impl::infer_shape(subgraph);
     dnnl_impl::binary_canonicalization(subgraph);
     dnnl_impl::infer_shape(subgraph);
 
-    // 4. fuse post ops to int8 conv
+    // 3. fuse post ops to int8 conv
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), status::success);
 
     qconv_op = std::find_if(subgraph->get_ops().begin(),
@@ -306,23 +298,15 @@ TEST(SubgraphPass, LowerDownToInt8Matmul) {
     ASSERT_EQ(producer1.get_attr<std::vector<float>>(op_attr::scales)[0],
             scales[0]);
 
-    // 2. merge into int8 matmul, change the input's scales to output scale
-    dnnl_impl::fuse_to_int8_matmul(subgraph);
-    dnnl_impl::fold_mul_scales(subgraph);
+    // 2. fuse src, wei scales
+    dnnl_impl::convert_to_runtime_src_scales(subgraph);
+    dnnl_impl::fuse_src_scales(subgraph);
     auto qmatmul_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
             });
-    auto &consumer
-            = (*qmatmul_op)->get_output_value(0)->get_consumers()[0].get_op();
-    ASSERT_EQ(consumer.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
-    ASSERT_EQ(consumer.get_attr<std::vector<float>>(op_attr::scales)[0],
-            scales[0] * scales[0]);
 
-    // 3. fuse output mul_scales op to matmul's output scale
-    dnnl_impl::fuse_output_scales(subgraph);
-
-    // 4. fuse post ops to int8 matmul
+    // 3. fuse post ops to int8 matmul
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), status::success);
 
     qmatmul_op = std::find_if(subgraph->get_ops().begin(),
@@ -538,14 +522,17 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
 
     // run lower down passes
     dnnl_impl::check_with_bias(subgraph);
-    dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
     dnnl_impl::fold_mul_scales(subgraph);
     dnnl_impl::fold_sum_scales(subgraph);
     dnnl_impl::convert_to_runtime_scales(subgraph);
+    dnnl_impl::convert_to_runtime_src_scales(subgraph);
+    dnnl_impl::fuse_src_scales(subgraph);
     dnnl_impl::fuse_output_scales(subgraph);
     dnnl_impl::convert_to_runtime_src_zero_points(subgraph);
     dnnl_impl::fuse_src_zero_points(subgraph);
     dnnl_impl::fuse_post_ops(subgraph);
+    dnnl_impl::convert_to_runtime_dst_scales(subgraph);
+    dnnl_impl::fuse_dst_scales(subgraph);
     dnnl_impl::convert_to_runtime_dst_zero_points(subgraph);
     dnnl_impl::fuse_dst_zero_points(subgraph);
     dnnl_impl::convert_runtime_mul_scales(subgraph);
@@ -615,7 +602,7 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     for (auto &mem_offkey : cached_mem_offkeys) {
         unique_offkeys.insert(mem_offkey.second);
     }
-    ASSERT_EQ(unique_offkeys.size(), 4U);
+    ASSERT_EQ(unique_offkeys.size(), 5U);
 
     std::vector<graph::op_t *> topo_ordered_ops;
     dnnl::impl::graph::topo_order_visit(
@@ -637,8 +624,12 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
             ASSERT_NE(exec_arg.find(DNNL_ARG_SRC), exec_arg.end());
             ASSERT_NE(exec_arg.find(DNNL_ARG_WEIGHTS), exec_arg.end());
             ASSERT_NE(exec_arg.find(DNNL_ARG_BIAS), exec_arg.end());
-            ASSERT_NE(
-                    exec_arg.find(DNNL_ARG_ATTR_OUTPUT_SCALES), exec_arg.end());
+            ASSERT_NE(exec_arg.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC),
+                    exec_arg.end());
+            ASSERT_NE(exec_arg.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS),
+                    exec_arg.end());
+            ASSERT_NE(exec_arg.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST),
+                    exec_arg.end());
             ASSERT_NE(exec_arg.find(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST),
                     exec_arg.end());
             ASSERT_NE(exec_arg.find(DNNL_GRAPH_ARG_POST_SRC), exec_arg.end());
@@ -762,13 +753,16 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
     dnnl_impl::subgraph_validator_t validator;
     validator.run(subgraph); // validate and set default param
 
-    dnnl_impl::fuse_to_int8_matmul(subgraph);
     dnnl_impl::fold_mul_scales(subgraph);
     dnnl_impl::convert_to_runtime_scales(subgraph);
+    dnnl_impl::convert_to_runtime_src_scales(subgraph);
+    dnnl_impl::fuse_src_scales(subgraph);
     dnnl_impl::fuse_output_scales(subgraph);
     dnnl_impl::convert_to_runtime_src_zero_points(subgraph);
     dnnl_impl::fuse_src_zero_points(subgraph);
     dnnl_impl::fuse_post_ops(subgraph);
+    dnnl_impl::convert_to_runtime_dst_scales(subgraph);
+    dnnl_impl::fuse_dst_scales(subgraph);
     dnnl_impl::convert_to_runtime_dst_zero_points(subgraph);
     dnnl_impl::fuse_dst_zero_points(subgraph);
     dnnl_impl::convert_runtime_mul_scales(subgraph);
@@ -1408,8 +1402,8 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulScaleAddPasses) {
         dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
         ASSERT_EQ(pipeline.run(subgraph), graph::status::success);
 
-        // reorder, matmul, 3 const
-        ASSERT_EQ(subgraph->get_ops().size(), 5U);
+        // reorder, matmul, 4 const
+        ASSERT_EQ(subgraph->get_ops().size(), 6U);
 
         for (auto &val : subgraph->get_input_values()) {
             auto lt = val->get_logical_tensor();
@@ -1428,8 +1422,8 @@ TEST(TestInt8MatmulPassesWithDiffInputs, X8X8BF16MatmulScaleAddPasses) {
 
         ASSERT_EQ(dnnl_impl::layout_propagation(subgraph),
                 graph::status::success);
-        // reorder, matmul, 3 const
-        ASSERT_EQ(subgraph->get_ops().size(), 5U);
+        // reorder, matmul, 4 const
+        ASSERT_EQ(subgraph->get_ops().size(), 6U);
     }
 }
 
@@ -1762,7 +1756,7 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     dnnl_impl::pass_pipeline_t pipeline(vis, true, true);
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
     ASSERT_EQ(pipeline.run(subgraph), graph::status::success);
-    // 1 bias scaling, 1 bias unsqueezing, 1 fused matmul, 2 reshape, 3 const
+    // 1 bias unsqueezing, 1 fused matmul, 2 reshape, 4 const
     ASSERT_EQ(subgraph->num_ops(), 8U);
 }
 

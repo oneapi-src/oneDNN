@@ -3695,10 +3695,10 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddU8s8u8MixBf16) {
     graph::op_t tcdst_op {7, graph::op_kind::TypeCast, "typecast_dst"};
 
     graph::op_t qout_op(8, graph::op_kind::Quantize, "qdout_op");
-    qout_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+    qout_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
     qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
     qout_op.set_attr<std::vector<float>>(graph::op_attr::scales, {scale_src});
-    qout_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+    qout_op.set_attr<int64_t>(graph::op_attr::axis, 0);
 
     // prepare logical tensor
     graph::logical_tensor_t src_u8
@@ -4021,10 +4021,10 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddGeluU8s8u8MixBf16) {
     graph::op_t tcgelu_op {8, graph::op_kind::TypeCast, "typecast_gelu"};
 
     graph::op_t qout_op(9, graph::op_kind::Quantize, "qdout_op");
-    qout_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+    qout_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
     qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
     qout_op.set_attr<std::vector<float>>(graph::op_attr::scales, {scale_src});
-    qout_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+    qout_op.set_attr<int64_t>(graph::op_attr::axis, 0);
 
     // prepare logical tensor
     graph::logical_tensor_t src_u8
