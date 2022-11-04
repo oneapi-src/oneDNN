@@ -354,7 +354,7 @@ algorithms:
 
 - _Direct_. The convolution operation is computed directly using SIMD
   instructions. This is the algorithm used for the most shapes and supports
-  int8, f32, bf16 and f64 (only on GPU engine) data types.
+  int8, f32, bf16, f16 and f64 (only on GPU engine) data types.
 
 - _Winograd_. This algorithm reduces computational complexity of convolution
   at the expense of accuracy loss and additional memory operations. The
