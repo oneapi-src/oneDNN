@@ -41,7 +41,8 @@ protected:
             if (scales.has_default_values()) continue;
             int mask = scales.mask_;
             if (arg == DNNL_ARG_WEIGHTS) {
-                if (!utils::one_of(mask, 0, 1 << with_groups())) return false;
+                if (!utils::one_of(mask, 0, 1 << (int)with_groups()))
+                    return false;
             } else {
                 if (mask != 0) return false;
             }
@@ -81,7 +82,8 @@ protected:
             if (arg == DNNL_ARG_WEIGHTS) {
                 // XXX: per_oc for BWD_D is treated as per_ic assuming it's
                 // called from deconvolution.
-                if (!utils::one_of(mask, 0, 1 << with_groups())) return false;
+                if (!utils::one_of(mask, 0, 1 << (int)with_groups()))
+                    return false;
             } else {
                 if (mask != 0) return false;
             }

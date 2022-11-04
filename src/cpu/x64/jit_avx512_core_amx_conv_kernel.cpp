@@ -2612,7 +2612,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    const int wei_mask_per_oc = 1 << with_groups;
+    const int wei_mask_per_oc = 1 << (int)with_groups;
     jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
     jcp.dst_scale = !dst_scales.has_default_values();
 
@@ -3911,7 +3911,7 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    const int wei_mask_per_ic = 1 << with_groups;
+    const int wei_mask_per_ic = 1 << (int)with_groups;
     jcp.is_ic_scale = wei_scales.mask_ == wei_mask_per_ic;
     jcp.dst_scale = !dst_scales.has_default_values();
 

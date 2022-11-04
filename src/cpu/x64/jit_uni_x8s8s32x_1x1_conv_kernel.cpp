@@ -909,7 +909,7 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
     const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    const int wei_mask_per_oc = 1 << with_groups;
+    const int wei_mask_per_oc = 1 << (int)with_groups;
     jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
     jcp.dst_scale = !dst_scales.has_default_values();
 

@@ -237,7 +237,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 const auto &mask = attr()->scales_.get(arg).mask_;
                 if (arg == DNNL_ARG_WEIGHTS)
-                    ok = ok && (mask == 0 || mask == (1 << with_groups()));
+                    ok = ok && (mask == 0 || mask == (1 << (int)with_groups()));
                 else
                     ok = ok && (mask == 0);
             }

@@ -194,7 +194,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     const auto &dst_scales = attr_.scales_.get(DNNL_ARG_DST);
     jcp.with_scale = !src_scales.has_default_values()
             || !wei_scales.has_default_values();
-    const int wei_mask_per_oc = 1 << with_groups;
+    const int wei_mask_per_oc = 1 << (int)with_groups;
     jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
 
     // only common and per-oc-channel scales are supported
