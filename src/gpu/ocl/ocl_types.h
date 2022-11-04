@@ -399,6 +399,10 @@
 #define DATA4_T int4
 #define DATA8_T int8
 #define DATA16_T int16
+#define DATA_MAX INT_MAX
+#define DATA_MIN INT_MIN
+#define DATA_ZERO 0
+#define DATA_ONE 1
 #define DATA_TO_REF convert_float
 #define TO_DATA_T(v) convert_int_sat_rte
 #define TO_DATA8_T(v) convert_int8_sat_rte
@@ -410,6 +414,15 @@
 #define CONVERT_FLOAT2_T convert_float2
 #define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
+#define DEF_ACC_DATA_T int
+#define DEF_ACC_DATA2_T int2
+#define DEF_ACC_DATA4_T int4
+#define DEF_ACC_DATA8_T int8
+#define TO_DATA_T(v) convert_int_sat_rte(v)
+#define TO_DEF_ACC_DATA_T convert_int_sat_rte
+#define TO_DEF_ACC_DATA2_T convert_int2_sat_rte
+#define TO_DEF_ACC_DATA4_T convert_int4_sat_rte
+#define TO_DEF_ACC_DATA8_T convert_int8_sat_rte
 #define POST_OP_DATA_T float
 #define DATA_MIN INT_MIN
 #define DATA_MAX INT_MAX
