@@ -875,7 +875,6 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers(
             cvt2ps(brg.dt_bias, zmm_bias(ldb), ptr_bias, true, false, k_mask);
         }
     }
-
 }
 
 void jit_brgemm_amx_uker_base_t::uni_prefetch(
