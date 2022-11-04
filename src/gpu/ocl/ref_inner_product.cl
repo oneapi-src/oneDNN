@@ -22,7 +22,8 @@
 KERNEL_ATTR
 __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
         __global WEI_DATA_T *wei, __global BIA_DATA_T *bias,
-        __global DST_DATA_T *dst POST_OP_ARGS, __global float *output_scale) {
+        __global DST_DATA_T *dst POST_OP_ARGS, __global float *src_scales,
+        __global float *wei_scales, __global float *dst_scales) {
 
     const int mb = GWS_GET_MB();
     const int oc = GWS_GET_OC();
@@ -43,12 +44,19 @@ __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
                     d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wei[wei_off]);
                 }
     DATA_T tmp = d;
-#if WITH_BIAS
-    tmp += BIA_TO_REF(bias[oc]);
+#if WITH_SRC_SCALES
+    tmp *= src_scales[0];
+#endif
+#if WITH_WEI_SCALES
+#if WEI_SCALES_MASK == 0
+    tmp *= wei_scales[0];
+#else
+    tmp *= wei_scales[oc];
+#endif
 #endif
 
-#if WITH_SCALES
-    tmp *= output_scale[0];
+#if WITH_BIAS
+    tmp += BIA_TO_REF(bias[oc]);
 #endif
 
     float dest_data;
@@ -58,6 +66,10 @@ __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
 
     APPLY_POST_OPS_SERIAL_BINARY_2D(
             tmp, DATA_T, dest_data, float, mb, 1, oc, 1);
+
+#if WITH_DST_SCALES
+    tmp /= dst_scales[0];
+#endif
 
     dst[mb * OC + oc] = TO_DST(tmp);
 }
