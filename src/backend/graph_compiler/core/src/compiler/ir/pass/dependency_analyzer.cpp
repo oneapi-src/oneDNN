@@ -73,6 +73,8 @@ public:
         }
     };
     std::vector<nested_state_t> state_stack;
+    // tensor => the loop depth where it is defined
+    std::unordered_map<expr_c, int> tsr_defined_loop_depth;
     // tensor => the set of indexing on the tensor in the loops
     std::unordered_map<expr_c, std::unordered_set<expr_c>> tsr_accesses_in_loop;
     // tensor => the set of indexing on the tensor outside of any loops
@@ -172,6 +174,22 @@ public:
                         // access
                         add_to_dependency(
                                 cur_stmt.remove_const().get(), other_owner);
+                        auto def_loop_depth = tsr_defined_loop_depth[tsr];
+                        /* if the tensor is defined in an outer loop, lile
+                        tensor A[100]
+                        for(i,...) {
+                            for(j,...) {
+                                t=A[i]
+                                A[i]=t+1
+                            }
+                        }
+
+                        We cannot remove the write to A[i]
+                        */
+                        if (loop_depth > 0 && def_loop_depth < loop_depth - 1) {
+                            add_to_dependency(
+                                    other_owner, cur_stmt.remove_const().get());
+                        }
                     } else {
                         // if the access's index may be the same of v,
                         // conservatively add reverse dependency
@@ -186,7 +204,10 @@ public:
     }
 
     void view(define_c v) override {
-        if (!v->var_.isa<tensor>()) { dispatch(v->var_); }
+        if (!v->var_.isa<tensor>()) {
+            tsr_defined_loop_depth[v->var_] = loop_depth;
+            dispatch(v->var_);
+        }
         if (v->init_.defined()) { dispatch(v->init_); }
     }
 
