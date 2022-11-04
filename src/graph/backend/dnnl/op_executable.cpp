@@ -1444,9 +1444,10 @@ reorder_executable_t::desc_t reorder_executable_t::create_desc(
     if (op->has_attr(op_attr::with_runtime_scales)
             && op->get_attr<bool>(op_attr::with_runtime_scales)) {
         // runtime scales
-        prm_attr.set_output_scales_mask(mask);
+        // prm_attr.set_output_scales_mask(mask);
+        assertm(false, "only support runtime arg scales.\n");
     } else if (op->has_attr(op_attr::scales)) {
-        assertm(false, "only support runtime scales.\n");
+        assertm(false, "only support runtime arg scales.\n");
     }
 
     if (op->has_attr(op_attr::with_runtime_dst_zps)
