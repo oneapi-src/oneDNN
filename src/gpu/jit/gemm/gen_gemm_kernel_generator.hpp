@@ -810,6 +810,7 @@ struct GEMMProblem : public CommonProblem {
     std::vector<bool> binaryRow; // Dimensionality of binary data
     std::vector<bool>
             binaryCol; //    (false means broadcast in the given dimension)
+    std::vector<bool> binaryBatch;
 
     bool hasPostOp() const { return post_ops.len() > 0; }
     bool hasEltwisePostOp() const {

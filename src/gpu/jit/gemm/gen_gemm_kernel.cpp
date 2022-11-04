@@ -164,10 +164,25 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 
     if (post_ops.len() > 0) {
         problem_.post_ops = post_ops;
+        int po_count = post_ops.len();
+        problem_.Tbinary.reserve(po_count);
+        problem_.binary.reserve(po_count);
+        problem_.binaryRow.reserve(po_count);
+        problem_.binaryCol.reserve(po_count);
+        problem_.binaryBatch.reserve(po_count);
+
         if (a_type == data_type::f16) problem_.Ts = Type::f32;
-        for (int i = 0; i < post_ops.len(); i++) {
+
+        for (int i = 0; i < po_count; i++) {
             const auto &entry = post_ops.entry_[i];
-            if (entry.kind != primitive_kind::binary) continue;
+            if (entry.kind != primitive_kind::binary) {
+                problem_.Tbinary.push_back(Type::invalid);
+                problem_.binaryRow.push_back(false);
+                problem_.binaryCol.push_back(false);
+                problem_.binaryBatch.push_back(false);
+                problem_.binary.push_back(MatrixAddressing {});
+                continue;
+            }
 
             const auto &src_md = entry.binary.src1_desc;
             memory_desc_wrapper src_mdw(src_md);
@@ -193,6 +208,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
             problem_.Tbinary.push_back(T);
             problem_.binaryRow.push_back(nr > 1);
             problem_.binaryCol.push_back(nc > 1);
+            problem_.binaryBatch.push_back(ndims >= 3);
 
             MatrixAddressing atype;
             atype.layout = trans ? MatrixLayout::T : MatrixLayout::N;
@@ -453,7 +469,8 @@ void gen_gemm_kernel_t::init_interface() {
         if (problem.cOffset == COffset::Pre)
             interface_.newArgument("ldco", DataType::d);
     }
-    for (int i = 0; i < problem.binaryPOCount(); i++) {
+    for (int i = 0; i < problem.post_ops.len(); i++) {
+        if (problem.post_ops.entry_[i].kind != primitive_kind::binary) continue;
         auto bname = "binary" + std::to_string(i);
         interface_.newArgument(bname, ExternalArgumentType::GlobalPtr);
         interface_.newArgument("offset_" + bname, DataType::d);
@@ -468,16 +485,20 @@ void gen_gemm_kernel_t::init_interface() {
             interface_.newArgument("stride_A1", DataType::d);
             interface_.newArgument("stride_B1", DataType::d);
             interface_.newArgument("stride_C1", DataType::d);
-            for (int i = 0; i < problem.binaryPOCount(); i++)
-                interface_.newArgument(
-                        "stride1_binary" + std::to_string(i), DataType::d);
+            for (int i = 0; i < problem.post_ops.len(); i++)
+                if (problem.post_ops.entry_[i].kind == primitive_kind::binary
+                        && problem.binaryBatch[i])
+                    interface_.newArgument(
+                            "stride1_binary" + std::to_string(i), DataType::d);
         }
         interface_.newArgument("stride_A", DataType::d);
         interface_.newArgument("stride_B", DataType::d);
         interface_.newArgument("stride_C", DataType::d);
-        for (int i = 0; i < problem.binaryPOCount(); i++)
-            interface_.newArgument(
-                    "stride_binary" + std::to_string(i), DataType::d);
+        for (int i = 0; i < problem.post_ops.len(); i++)
+            if (problem.post_ops.entry_[i].kind == primitive_kind::binary
+                    && problem.binaryBatch[i])
+                interface_.newArgument(
+                        "stride_binary" + std::to_string(i), DataType::d);
         if (problem.batchDims > 1) {
             interface_.newArgument("batch_size1", DataType::ud);
             interface_.newArgument("recip_batch_size1", DataType::ud);

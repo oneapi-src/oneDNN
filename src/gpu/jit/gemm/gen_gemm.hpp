@@ -31,7 +31,7 @@
 #include "gpu/jit/jit_post_op_injector.hpp"
 #include "gpu/primitive_conf.hpp"
 
-#define GEMM_MAX_BINARY_PO 16
+#define GEMM_MAX_PO 36
 
 namespace dnnl {
 namespace impl {
@@ -39,6 +39,12 @@ namespace gpu {
 namespace jit {
 
 struct gen_gemm_t : public gpu_gemm_t {
+    struct binary_src_t {
+        enum type_t { none, scales, bias, binary } type;
+        int index;
+
+        binary_src_t(type_t type_, int index_) : type(type_), index(index_) {}
+    };
 
     struct pd_t : public gpu_gemm_pd_t {
         using gpu_gemm_pd_t::gpu_gemm_pd_t;
@@ -50,6 +56,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             using namespace prop_kind;
             using namespace data_type;
             using namespace primitive_kind;
+            using namespace alg_kind;
             using smask_t = primitive_attr_t::skip_mask_t;
             using arch_t = compute::gpu_arch_t;
 
@@ -61,7 +68,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             // - runtime dims are not supported
             bool ok = true;
 
-            auto attr_skip_mask = smask_t::post_ops;
+            auto attr_skip_mask = smask_t::scales_runtime | smask_t::post_ops;
 
             dev_info_ = compute_engine->device_info();
             arch_ = dev_info_->gpu_arch();
@@ -134,25 +141,102 @@ struct gen_gemm_t : public gpu_gemm_t {
                                     && (attr()->zero_points_.has_default_values(
                                             DNNL_ARG_DST)));
 
+            // Look through post-ops and remember binary srcs.
+            post_ops_ = attr()->post_ops_;
+            binary_srcs_.reserve(post_ops_.entry_.size() + 4);
+            for (size_t i = 0; i < post_ops_.entry_.size(); i++) {
+                switch (post_ops_.entry_[i].kind) {
+                    case binary:
+                        binary_srcs_.push_back(
+                                binary_src_t {binary_src_t::binary, int(i)});
+                        break;
+                    case sum:
+                    case eltwise:
+                        binary_srcs_.push_back(
+                                binary_src_t {binary_src_t::none, 0});
+                        break;
+                    default: return status::unimplemented;
+                }
+            }
+
+            // If scales are present, convert them and any bias to binary post-ops.
+            const auto *wei_scales = &attr()->scales_.get(DNNL_ARG_WEIGHTS);
+            const auto *src_scales = &attr()->scales_.get(DNNL_ARG_SRC);
+            const auto *c_scales = &attr()->scales_.get(DNNL_ARG_DST);
+
+            bias_via_binary_ = with_bias()
+                    && (!wei_scales->has_default_values()
+                            || !src_scales->has_default_values());
+            if (bias_via_binary_) {
+                auto status
+                        = post_ops_.prepend_binary(binary_add, &d->bias_desc);
+                if (status != status::success) return status;
+                binary_srcs_.insert(binary_srcs_.begin(),
+                        binary_src_t {binary_src_t::bias, 0});
+            }
+
+            if (!wei_scales->has_default_values()) {
+                const auto &mask = wei_scales->mask_;
+                ok = ok && (mask == 0 || mask == (1 << (d->c_desc.ndims - 1)));
+
+                dim_t dims = {(mask > 0) ? d->m() : 1};
+                memory_desc_init_by_tag(
+                        wei_scales_md, 1, &dims, f32, format_tag::a);
+
+                auto status
+                        = post_ops_.prepend_binary(binary_mul, &wei_scales_md);
+                if (status != status::success) return status;
+
+                binary_srcs_.insert(binary_srcs_.begin(),
+                        binary_src_t {binary_src_t::scales, DNNL_ARG_WEIGHTS});
+            }
+            if (!src_scales->has_default_values()) {
+                ok = ok && (src_scales->mask_ == 0);
+
+                dim_t dims = {1};
+                memory_desc_init_by_tag(
+                        src_scales_md, 1, &dims, f32, format_tag::a);
+
+                auto status
+                        = post_ops_.prepend_binary(binary_mul, &src_scales_md);
+                if (status != status::success) return status;
+
+                binary_srcs_.insert(binary_srcs_.begin(),
+                        binary_src_t {binary_src_t::scales, DNNL_ARG_SRC});
+            }
+            if (!c_scales->has_default_values()) {
+                ok = ok && (c_scales->mask_ == 0);
+
+                dim_t dims = {1};
+                memory_desc_init_by_tag(
+                        c_scales_md, 1, &dims, f32, format_tag::a);
+
+                auto status = post_ops_.append_binary(binary_div, &c_scales_md);
+                if (status != status::success) return status;
+
+                binary_srcs_.push_back(
+                        binary_src_t {binary_src_t::scales, DNNL_ARG_DST});
+            }
+
             // Check post-ops. Two combinations of post-ops supported currently:
             //   binary [binary] ... [binary]
             //   [sum] eltwise [eltwise] ...  [eltwise]
 
-            const auto &post_ops = attr()->post_ops_;
+            ok &= post_ops_.len() <= GEMM_MAX_PO;
+
             bool with_binary = false;
-            if (post_ops.find(binary) != -1) {
+            if (post_ops_.find(binary) != -1) {
                 with_binary = true;
-                for (int i = 0; i < post_ops.len(); i++)
-                    ok &= (post_ops.entry_[i].kind == binary);
-                ok &= post_ops.len() <= GEMM_MAX_BINARY_PO;
+                for (int i = 0; i < post_ops_.len(); i++)
+                    ok &= (post_ops_.entry_[i].kind == binary);
                 ok &= arch_ >= arch_t::xe_hp;
             } else {
-                ok &= IMPLICATION(post_ops.find(sum) != -1,
-                              post_ops.find(sum) == 0
-                                      && post_ops.find(sum, 1) == -1)
-                        && IMPLICATION(post_ops.len() > 0,
+                ok &= IMPLICATION(post_ops_.find(sum) != -1,
+                              post_ops_.find(sum) == 0
+                                      && post_ops_.find(sum, 1) == -1)
+                        && IMPLICATION(post_ops_.len() > 0,
                                 jit_post_op_injector_is_supported(
-                                        post_ops, true));
+                                        post_ops_, true));
             }
 
             if (!ok) return status::unimplemented;
@@ -202,7 +286,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                     dev_info_->eu_count(), mode, batch_dims(), eff_transa(),
                     eff_transb(), eff_trans_bias(), swap_ab(),
                     with_ab_zero_points(), with_c_zero_points(), with_bias(),
-                    sum_ab(), alpha(), beta(), attr()->post_ops_, eff_a_type(),
+                    sum_ab(), alpha(), beta(), post_ops_, eff_a_type(),
                     eff_b_type(), desc()->c_type(), co_type, acc_type,
                     eff_align_a(), eff_align_b(), align_c(), eff_m(), eff_n(),
                     d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch());
@@ -212,7 +296,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             // global k-parallel kernels don't support post-ops.
             // use global k-parallel kernels only with f32 accumulation
             bool k_parallel_global = kernel_desc_.driver_info()->kParallel;
-            bool with_eltwise = (attr()->post_ops_.find(eltwise) != -1);
+            bool with_eltwise = (post_ops_.find(eltwise) != -1);
 
             ok &= IMPLICATION(k_parallel_global,
                     !with_bias() && !with_eltwise && !with_binary
@@ -322,12 +406,12 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         float beta() const {
             using namespace primitive_kind;
-            const auto &p = attr()->post_ops_;
+            const auto &p = post_ops_;
             return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
         }
 
         bool with_bias() const {
-            return desc()->bias_type() != data_type::undef;
+            return desc()->bias_type() != data_type::undef && !bias_via_binary_;
         }
 
         int bias_cmask() const {
@@ -401,16 +485,33 @@ struct gen_gemm_t : public gpu_gemm_t {
             return &kernel_desc_;
         }
 
+        const post_ops_t *post_ops() const { return &post_ops_; }
+        const std::vector<binary_src_t> &binary_srcs() const {
+            return binary_srcs_;
+        }
+
         dim_t ld_binary(int idx) const {
-            const auto &entry = attr()->post_ops_.entry_[idx];
-            assert(entry.kind == primitive_kind::binary);
-            return gemm_desc_t::get_ld(entry.binary.src1_desc);
+            switch (binary_srcs_[idx].type) {
+                case binary_src_t::binary: {
+                    const auto &entry = post_ops_.entry_[idx];
+                    assert(entry.kind == primitive_kind::binary);
+                    return gemm_desc_t::get_ld(entry.binary.src1_desc);
+                }
+                case binary_src_t::bias: return desc()->ld_bias();
+                default: return 1;
+            }
         }
 
         dim_t stride_binary(int idx, int stride = 0) const {
-            const auto &entry = attr()->post_ops_.entry_[idx];
-            assert(entry.kind == primitive_kind::binary);
-            return gemm_desc_t::get_stride(entry.binary.src1_desc, stride);
+            switch (binary_srcs_[idx].type) {
+                case binary_src_t::binary: {
+                    const auto &entry = post_ops_.entry_[idx];
+                    assert(entry.kind == primitive_kind::binary);
+                    return gemm_desc_t::get_stride(
+                            entry.binary.src1_desc, stride);
+                }
+                default: return 0;
+            }
         }
 
         size_t dyn_offset_a = 0;
@@ -420,6 +521,12 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         bool swap_ab_ = false;
         bool ab_zp_ = false;
+        bool bias_via_binary_ = false;
+
+        post_ops_t post_ops_;
+        std::vector<binary_src_t> binary_srcs_;
+
+        memory_desc_t wei_scales_md, src_scales_md, c_scales_md;
 
         const compute::device_info_t *dev_info_;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;

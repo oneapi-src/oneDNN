@@ -87,7 +87,7 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
     if (!packed_c())
         limits_ok = limits_ok && (d->ldc() != DNNL_RUNTIME_DIM_VAL);
 
-    auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
+    auto attr_skip_mask = smask_t::post_ops;
 
     if (dt_int_ok) attr_skip_mask |= smask_t::zero_points_runtime;
 
