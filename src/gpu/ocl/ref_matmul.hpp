@@ -54,9 +54,9 @@ struct ref_matmul_t : public gpu_primitive_t {
                               attr()->zero_points_.common())
                     && IMPLICATION(desc()->accum_data_type != s32,
                             attr()->zero_points_.has_default_values())
-                    && attr()->has_default_values(smask_t::oscale_runtime
+                    && attr()->has_default_values(smask_t::scales_runtime
                             | smask_t::zero_points_runtime | smask_t::post_ops)
-                    && attr_oscale_ok() && set_default_formats()
+                    && attr_scales_ok() && set_default_formats()
                     && !has_blocks()
                     && ((utils::one_of(src_dt_, u8, s8)
                                 && utils::one_of(wei_dt_, u8, s8)
@@ -96,9 +96,23 @@ struct ref_matmul_t : public gpu_primitive_t {
         attr_info_t attr_info_ = {};
 
     private:
-        bool attr_oscale_ok() const {
-            const auto &oscale = attr()->output_scales_;
-            return oscale.mask_ == 0 || oscale.mask_ == (1 << (batched() + 1));
+        bool attr_scales_ok() const {
+            std::vector<int> supported_args
+                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+            if (!attr()->scales_.has_default_values(supported_args))
+                return false;
+            for (int arg : supported_args) {
+                auto &scales = attr()->scales_.get(arg);
+                if (scales.has_default_values()) continue;
+                int mask = scales.mask_;
+                if (arg == DNNL_ARG_WEIGHTS) {
+                    if (!utils::one_of(mask, 0, 1 << (batched() + 1)))
+                        return false;
+                } else {
+                    if (mask != 0) return false;
+                }
+            }
+            return true;
         }
     };
 

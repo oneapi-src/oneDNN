@@ -23,9 +23,10 @@
 
 __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
         __global DST_DATA_T *C, __global BIA_DATA_T *bia, __global int *a0,
-        __global int *b0, __global int *c0, __global float *scales,
-        long scale_stride, long K, long N, long M, long D0, long D1, long D2,
-        long bia_stride_d3, long bia_stride_d2, long bia_stride_d1,
+        __global int *b0, __global int *c0, __global float *src_scales,
+        __global float *wei_scales, long wei_scale_stride,
+        __global float *dst_scales, long K, long N, long M, long D0, long D1,
+        long D2, long bia_stride_d3, long bia_stride_d2, long bia_stride_d1,
         long bia_stride_d0, long bia_stride_m, long bia_stride_n,
         long a_stride_d3, long a_stride_d2, long a_stride_d1, long a_stride_d0,
         long a_stride_m, long a_stride_k, long b_stride_d3, long b_stride_d2,
@@ -79,15 +80,18 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
                 c_stride_d0, c_stride_d1, c_stride_d2, c_stride_d3);
 #if WITH_BIAS || NON_DEFAULT_ATTRS
         POST_OP_DATA_T temp = (POST_OP_DATA_T)acc;
+#if WITH_SRC_SCALES
+        temp *= src_scales[0];
+#endif
+#if WITH_WEI_SCALES
+        temp *= wei_scales[wei_scale_stride * n];
+#endif
 #if WITH_BIAS
         long bia_off = offset6D(m, n, d0, d1, d2, d3, bia_stride_m,
                 bia_stride_n, bia_stride_d0, bia_stride_d1, bia_stride_d2,
                 bia_stride_d3);
         temp += bia[bia_off];
 #endif // WITH_BIAS
-#if WITH_SCALES
-        temp *= scales[scale_stride * n];
-#endif
 
         float dst_data;
 #if WITH_SUM
@@ -112,6 +116,9 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
             APPLY_POST_OPS_SERIAL(po_acc, float, dst_data, float, d3, 1, d2, 1,
                     d1, 1, d0, 1, m, 1, n, 1);
 
+#if WITH_DST_SCALES
+        po_acc /= dst_scales[0];
+#endif
         po_acc += dst_zp;
         C[dst_off] = TO_DST(po_acc);
 #else // WITH_BIAS || NON_DEFAULT_ATTRS
