@@ -118,16 +118,18 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     using namespace utils;
     using namespace format_tag;
     using smask_t = primitive_attr_t::skip_mask_t;
+    const deconvolution_desc_t *fwd_deconv_d = desc();
 
     const bool ok = is_fwd()
             && (desc()->alg_kind & alg_kind::deconvolution_direct)
+            && IMPLICATION(fwd_deconv_d->src_desc.data_type == f16,
+                    isa == avx512_core_amx_fp16)
             && attr()->has_default_values(smask_t::oscale_runtime
                     | smask_t::post_ops | smask_t::zero_points_runtime)
             && output_scales_mask_ok() && post_ops_ok() && zero_points_ok()
             && !has_zero_dim_memory();
     if (!ok) return status::unimplemented;
 
-    const deconvolution_desc_t *fwd_deconv_d = desc();
     convolution_desc_t conv_d = convolution_desc_t();
 
     assert(fwd_deconv_d->src_desc.data_type != data_type::undef);
@@ -228,6 +230,7 @@ status_t brgemm_deconvolution_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
 }
 
 template struct brgemm_deconvolution_fwd_t<avx512_core_amx>;
+template struct brgemm_deconvolution_fwd_t<avx512_core_amx_fp16>;
 
 } // namespace x64
 } // namespace cpu

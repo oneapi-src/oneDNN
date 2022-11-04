@@ -1947,6 +1947,8 @@ template struct brgemm_convolution_fwd_t<avx512_core_fp16, true>;
 template struct brgemm_convolution_fwd_t<avx512_core_amx>;
 template struct brgemm_convolution_fwd_t<avx512_core_amx, true>;
 template struct brgemm_convolution_fwd_t<avx512_core_amx_fp16>;
+template struct brgemm_convolution_fwd_t<avx512_core_amx_fp16, true>;
+
 } // namespace x64
 
 } // namespace cpu
