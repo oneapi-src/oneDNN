@@ -197,8 +197,9 @@ status_t post_ops_t::append_dw(data_type_t wei_dt, data_type_t bias_dt,
     return success;
 }
 
-status_t post_ops_t::append_binary(
+status_t post_ops_t::validate_binary(
         alg_kind_t alg, const memory_desc_t *user_src1_desc) {
+
     if (len() == post_ops_limit) return out_of_memory;
     using namespace alg_kind;
     bool alg_ok = one_of(alg, binary_add, binary_mul, binary_max, binary_min,
@@ -213,8 +214,30 @@ status_t post_ops_t::append_binary(
             return invalid_arguments;
     }
 
+    return success;
+}
+
+status_t post_ops_t::append_binary(
+        alg_kind_t alg, const memory_desc_t *user_src1_desc) {
+    auto status = validate_binary(alg, user_src1_desc);
+    if (status != success) return status;
+
     entry_.emplace_back();
     auto &e = entry_.back();
+    e.kind = primitive_kind::binary;
+    e.binary.alg = alg;
+    e.binary.user_src1_desc = *user_src1_desc;
+    e.binary.src1_desc = *user_src1_desc;
+    return success;
+}
+
+status_t post_ops_t::prepend_binary(
+        alg_kind_t alg, const memory_desc_t *user_src1_desc) {
+    auto status = validate_binary(alg, user_src1_desc);
+    if (status != success) return status;
+
+    entry_.emplace(entry_.begin());
+    auto &e = entry_[0];
     e.kind = primitive_kind::binary;
     e.binary.alg = alg;
     e.binary.user_src1_desc = *user_src1_desc;

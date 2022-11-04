@@ -547,6 +547,9 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             const dnnl::impl::memory_desc_t *user_src1_desc);
     dnnl::impl::status_t append_prelu(int mask);
 
+    dnnl::impl::status_t prepend_binary(dnnl::impl::alg_kind_t alg,
+            const dnnl::impl::memory_desc_t *user_src1_desc);
+
     int find(dnnl::impl::primitive_kind_t kind, int start = 0,
             int stop = -1) const {
         if (stop == -1) stop = len();
@@ -615,6 +618,10 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
     // Since binary post op accepts no more than 32 memory arguments by
     // design, we limit the amount of post-ops to 32.
     static constexpr int post_ops_limit = 32;
+
+private:
+    dnnl::impl::status_t validate_binary(dnnl::impl::alg_kind_t alg,
+            const dnnl::impl::memory_desc_t *user_src1_desc);
 };
 
 struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
