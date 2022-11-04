@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ private:
 
     // Allows to shift A data by 128 for s8s8 problem for AVX512 in copy
     // routine, not in compute kernel. It's disabled for now, as it
-    // requires setting some hint to brgemm kerenel to avoid double shifting
+    // requires setting some hint to brgemm kernel to avoid double shifting
     const bool allow_input_shift_for_s8s8 = false;
 
     Xbyak::Zmm get_zmm_comp_acc(int i) {
@@ -274,7 +274,7 @@ void jit_brgemm_matmul_copy_a_impl_t::copy_K_loop(
 
         // is_last_K_iter == true: we need to reduce values within acc
         // register, add mixed ab_compensation component if any, multiply
-        // it by negative zp_b_value and finally store the reslt
+        // it by negative zp_b_value and finally store the result
 
         // step 1: reduce values within acc register
         const auto ymm_red0 = ymm(get_zmm_comp_acc(0).getIdx());
