@@ -171,7 +171,7 @@ static int check_attr() {
     {
         std::vector<attr_t::post_ops_t> po;
         auto st = parse_attr_post_ops(po,
-                "--attr-post-ops=relu:0.5+dw_k3s2p1:s8:per_oc:2*+linear:2:1:3");
+                "--attr-post-ops=relu:0.5+dw_k3s2p1:s8:per_oc:2*+linear:2:1");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(po[0].len(), 3);
         auto &e = po[0].entry[0];
@@ -266,16 +266,16 @@ static int check_post_ops2str() {
 
     append_eltwise(po, pk_t::LINEAR, 5.f, 10.f);
     SELF_CHECK_EQ(po.len(), 4);
-    SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10:2");
+    SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10");
 
     append_convolution(po, pk_t::DW_K3S1P1);
     SELF_CHECK_EQ(po.len(), 5);
-    SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10:2+dw_k3s1p1");
+    SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10+dw_k3s1p1");
 
     append_convolution(po, pk_t::DW_K3S2P1, dnnl_s32, policy_t::PER_OC, 2.f);
     SELF_CHECK_EQ(po.len(), 6);
     SELF_CHECK_PRINT_EQ(po,
-            "sum+relu+sum:2:1:s8+linear:5:10:2+dw_k3s1p1+dw_k3s2p1:s32:per_oc:"
+            "sum+relu+sum:2:1:s8+linear:5:10+dw_k3s1p1+dw_k3s2p1:s32:per_oc:"
             "2");
 
     return OK;

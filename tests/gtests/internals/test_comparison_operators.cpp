@@ -77,15 +77,6 @@ TEST(comparison_operators_t, TestSumPostOp) {
     TEST_SELF_COMPARISON(attr);
 }
 
-TEST(comparison_operators_t, TestEltwisePostOp) {
-    dnnl::primitive_attr attr;
-    dnnl::post_ops ops;
-
-    ops.append_eltwise(algorithm::eltwise_clip, NAN, 3.5f);
-    attr.set_post_ops(ops);
-    TEST_SELF_COMPARISON(attr);
-}
-
 HANDLE_EXCEPTIONS_FOR_TEST(comparison_operators_t, TestDepthwisePostOp) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
