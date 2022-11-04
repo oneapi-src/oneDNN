@@ -531,7 +531,7 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
   if (config.pack_input == 1 && (sd_ > 1 || sh_ > 1 || sw_ > 1)) {
     if (blocking_input_) {
       _tensor_(input_tmp, get_input_dtype(),
-        {mb_, C_num_block, oh_, ow_, config.C_block});
+        {mb_expr_, C_num_block, oh_, ow_, config.C_block});
       _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
         _named_for_(lk, c_o, 0, C_num_block) {
           _named_for_(lp, p, 0, oh_) {
@@ -550,7 +550,7 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
       }
       input1 = input_tmp.static_as<tensor>();
     } else {
-      _tensor_(input_tmp, get_input_dtype(), {mb_, oh_, ow_, ic_});
+      _tensor_(input_tmp, get_input_dtype(), {mb_expr_, oh_, ow_, ic_});
       _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
         _named_for_(lp, p, 0, oh_) {
           _for_(q, 0, ow_) {

@@ -105,6 +105,12 @@ void padding_op_t::infer_slice_ranges(
     // search known ranges from any input of cur fusbile op
     slice_range_map known_ranges_map
             = search_known_slice_ranges(this, fsmap, stat_map);
+
+    if (attrs_.get_or_else(op_attr_key::bwise_break_post_fuse, false)) {
+        fsmap.get(get_outputs()[0]) = known_ranges_map[0];
+        return;
+    }
+
     size_t slice_size = known_ranges_map[0].size();
 
     auto required_axis = get_real_padding_axis();

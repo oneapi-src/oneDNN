@@ -399,15 +399,31 @@ void tensor_view_op_t::prepare_fusion_data(fdata_map &fdmap) {
 }
 
 slice_range_list infer_tensor_view_slice(
-        const slice_range_list &known_ranges_list, const sc_dims &src_dims,
-        const sc_dims &dst_dims) {
+        const slice_range_list &known_ranges_list, const sc_dims &src_tv_dims,
+        const sc_dims &dst_tv_dims) {
     slice_range_list ret;
     // auto skip
-    if (src_dims == dst_dims) {
+    if (src_tv_dims == dst_tv_dims) {
         ret = known_ranges_list;
         return ret;
     }
-    for (auto &known_ranges : known_ranges_list) {
+    for (auto known_ranges : known_ranges_list) {
+        slice_range consistent_tv_slice;
+        auto src_dims = src_tv_dims, dst_dims = dst_tv_dims;
+        while (!dst_dims.empty() && !src_dims.empty()) {
+            if (dst_dims.back() != src_dims.back()) break;
+            consistent_tv_slice.insert(
+                    consistent_tv_slice.begin(), known_ranges.back());
+            known_ranges.pop_back();
+            src_dims.pop_back();
+            dst_dims.pop_back();
+        }
+
+        if (consistent_tv_slice.size() == dst_tv_dims.size()) {
+            ret.emplace_back(consistent_tv_slice);
+            continue;
+        }
+
         bool slice_stop = false;
         // flatten index
         expr flatten_idx = 0;
@@ -488,6 +504,8 @@ slice_range_list infer_tensor_view_slice(
         for (auto &r : reshape_ranges) {
             r.first = f.expand_polynomial(ca(r.first)).remove_const();
         }
+        reshape_ranges.insert(reshape_ranges.end(), consistent_tv_slice.begin(),
+                consistent_tv_slice.end());
         ret.emplace_back(reshape_ranges);
     }
     return ret;
@@ -513,6 +531,7 @@ void tensor_view_op_t::infer_slice_ranges(
 
         auto tv_slice
                 = infer_tensor_view_slice(known_ranges_list, src_dims, shapes);
+
         if (tv_slice.empty()) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;

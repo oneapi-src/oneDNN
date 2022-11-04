@@ -72,7 +72,13 @@ void annotate_fusion_break(sc_graph_t &mgr, const context_ptr &ctx) {
                         if (prev3_lhs->isa<quantize::dequantize_op_t>()
                                 || prev3_rhs
                                            ->isa<quantize::dequantize_op_t>()) {
-                            op->attrs_[op_attr_key::break_post_fuse] = true;
+                            for (auto &user : op->get_outputs()[0]->uses_) {
+                                if (auto deq = user.second->dyn_cast<
+                                               quantize::dequantize_op_t>()) {
+                                    deq->attrs_[op_attr_key::break_pre_fuse]
+                                            = true;
+                                }
+                            }
                         }
                     }
                 }

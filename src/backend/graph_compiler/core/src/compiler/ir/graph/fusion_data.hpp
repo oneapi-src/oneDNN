@@ -212,6 +212,7 @@ struct iter_fuse_anchor_t {
 struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
     stmts anchor_position_;
     fslice_map fsmap_;
+
     // parent anchor
     std::shared_ptr<fuse_anchor_map_t> parent_;
     // blocked graph tensor set, the reason why not use empty gt for judgement
@@ -401,6 +402,12 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
     bool is_cousin_for(const std::shared_ptr<fuse_anchor_map_t> &cur) const {
         return is_cousin_for(cur.get());
     }
+
+    bool check_input_for_op(mixed_parti_t *parti, const sc_op *op,
+            std::unordered_set<graph_tensor_ptr> &known_gt);
+
+    void forbid_op_in_anchor(
+            const sc_op *op, std::unordered_set<graph_tensor_ptr> &known_gt);
 };
 
 using fuse_anchor_map_ptr = std::shared_ptr<fuse_anchor_map_t>;
