@@ -772,18 +772,19 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     size_t memlimit_bytes;
     size_t optimal_burst_bytes;
 
+    const memory_desc_wrapper original_src_mdw(src_md());
     const memory_desc_wrapper original_dst_mdw(dst_md());
+    quantization_t src_quant(attr(), original_src_mdw, DNNL_ARG_SRC);
+    quantization_t dst_quant(attr(), original_src_mdw, DNNL_ARG_SRC);
 
-    conf.scale_quant = !attr()->output_scales_.has_default_values();
-    conf.scale_mask = attr()->output_scales_.mask_;
-    conf.scales_num = get_attr_oscales_count(
-            attr()->output_scales_.mask_, original_dst_mdw);
+    auto mask = src_quant.scale_mask() | src_quant.zp_mask()
+            | dst_quant.scale_mask() | dst_quant.zp_mask();
 
     memory_desc_t new_a;
     memory_desc_t new_b;
     memcpy(&new_a, src_md(), sizeof(new_a));
     memcpy(&new_b, dst_md(), sizeof(new_b));
-    compress(new_a, new_b, conf.scale_mask);
+    compress(new_a, new_b, mask);
 
     if (!is_generic_faster_than_ref(new_a, new_b)) return status::unimplemented;
 
@@ -792,15 +793,14 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     conf.src_md_info = memory_desc_info_t::create(src_mdw);
     conf.dst_md_info = memory_desc_info_t::create(dst_mdw);
 
+    conf.src_quant = {attr(), src_mdw, DNNL_ARG_SRC};
+    conf.dst_quant = {attr(), dst_mdw, DNNL_ARG_DST};
+    conf.sum_quant = {attr()};
+
     status_t status = status::success;
 
     const auto &padded_dims = dst_mdw.padded_dims();
-    const auto &zp = attr()->zero_points_;
-    conf.with_sum_ab = with_alpha() || beta() != 0.f;
-    conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
     conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
-    conf.with_src_zp = !zp.has_default_values(DNNL_ARG_SRC);
-    conf.with_dst_zp = !zp.has_default_values(DNNL_ARG_DST);
     conf.ndims = src_mdw.ndims();
     conf.nelems = utils::array_product(padded_dims, conf.ndims);
 
@@ -819,7 +819,7 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     int vect_size = 1;
     int vect_dim = 0;
 
-    if (!fill_conf_vld(src_mdw, dst_mdw, conf.scale_mask, memlimit_bytes,
+    if (!fill_conf_vld(src_mdw, dst_mdw, mask, memlimit_bytes,
                 optimal_burst_bytes, conf.aux_data.vld, vect_dim, vect_size,
                 &blocks[0])) {
         return status::unimplemented;
@@ -869,18 +869,9 @@ status_t generic_reorder_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.add_option("-cl-std=CL2.0");
 
-    if (conf.with_sum_a)
-        kernel_ctx.define_int("WITH_SUM_A", 1);
-    else if (conf.with_sum_ab)
-        kernel_ctx.define_int("WITH_SUM_AB", 1);
-
-    if (conf.scale_quant) {
-        kernel_ctx.define_int("SCALE_QUANT", 1);
-        kernel_ctx.define_int("SCALE_MASK", conf.scale_mask);
-    }
-
-    kernel_ctx.define_int("WITH_SRC_ZPOINTS", conf.with_src_zp);
-    kernel_ctx.define_int("WITH_DST_ZPOINTS", conf.with_dst_zp);
+    conf.src_quant.define_macros(kernel_ctx, "SRC");
+    conf.dst_quant.define_macros(kernel_ctx, "DST");
+    conf.sum_quant.define_macros(kernel_ctx, "SUM");
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
@@ -959,10 +950,11 @@ status_t generic_reorder_t::pd_t::init_kernel_ctx(
 }
 
 void generic_reorder_t::pd_t::init_scratchpad() {
-    if (conf.scales_num > 0) {
+    if (conf.src_quant.with_scale()) {
         auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(memory_tracking::names::key_reorder_scales,
-                conf.scales_num, sizeof(float), OCL_BUFFER_ALIGNMENT);
+                conf.src_quant.num_scales(), sizeof(float),
+                OCL_BUFFER_ALIGNMENT);
     }
 }
 
@@ -976,33 +968,18 @@ status_t generic_reorder_t::execute(const exec_ctx_t &ctx) const {
 
     const auto &conf = pd()->conf;
     if (conf.nelems == 0) { return status::success; }
-    const float alpha = 1.0f;
-    const float beta = pd()->beta();
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, dst);
-    arg_list.set(2, alpha);
-    arg_list.set(3, beta);
 
-    if (conf.scale_quant) {
-        auto &runtime_scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
-        arg_list.set(4, runtime_scales);
-    } else {
-        arg_list.set(4, memory_storage_t::empty_storage());
-    }
+    arg_list.set(2, conf.src_quant.scales(ctx));
+    arg_list.set(3, conf.src_quant.zero_points(ctx));
+    arg_list.set(4, conf.dst_quant.scales(ctx));
+    arg_list.set(5, conf.dst_quant.zero_points(ctx));
 
-    if (conf.with_src_zp) {
-        auto &zps = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
-        arg_list.set(5, zps);
-    } else
-        arg_list.set(5, memory_storage_t::empty_storage());
-
-    if (conf.with_dst_zp) {
-        auto &zps = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
-        arg_list.set(6, zps);
-    } else
-        arg_list.set(6, memory_storage_t::empty_storage());
+    arg_list.set(6, conf.sum_quant.scales());
+    arg_list.set(7, conf.sum_quant.zero_points());
 
     auto nd_range = conf.dispatch.nd_range();
 

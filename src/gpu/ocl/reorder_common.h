@@ -224,6 +224,28 @@
 #define SRC_TO_DST8(x) TO_DST8(SRC_TO_REF8(x))
 #endif
 
+#define SCALE_MUL(x, s) (x) * (s)
+#define SCALE_DIV(x, s) (x) / (s)
+#define SCALE_NONE(x, s) (x)
+
+#if WITH_SRC_SCALE
+#define SRC_SCALE SCALE_MUL
+#else
+#define SRC_SCALE SCALE_NONE
+#endif
+
+#if WITH_DST_SCALE
+#define DST_SCALE SCALE_DIV
+#else
+#define DST_SCALE SCALE_NONE
+#endif
+
+#if WITH_SUM_SCALE
+#define SUM_SCALE SCALE_MUL
+#else
+#define SUM_SCALE SCALE_NONE
+#endif
+
 #define ZP_SHIFT(x, x0) (x) - (float)(x0)
 #define ZP_UNSHIFT(x, x0) (x) + (float)(x0)
 #define ZP_NO_SHIFT(x, x0) (x)
@@ -231,8 +253,7 @@
 #define ZP_READ_PTR(x) x[0]
 #define ZP_ZERO(x) 0
 
-#define SRC_ZP_T __global int *
-#if WITH_SRC_ZPOINTS
+#if WITH_SRC_ZPOINT
 #define SRC_SHIFT ZP_SHIFT
 #define GET_SRC_ZP ZP_READ_PTR
 #else
@@ -240,111 +261,94 @@
 #define GET_SRC_ZP ZP_ZERO
 #endif
 
-#define DST_ZP_T __global int *
-#if WITH_DST_ZPOINTS
-#define DST_SHIFT ZP_SHIFT
-#define DST_UNSHIFT ZP_UNSHIFT
+#if WITH_DST_ZPOINT
+#define DST_SHIFT ZP_UNSHIFT
 #define GET_DST_ZP ZP_READ_PTR
 #else
 #define DST_SHIFT ZP_NO_SHIFT
-#define DST_UNSHIFT ZP_NO_SHIFT
 #define GET_DST_ZP ZP_ZERO
 #endif
 
-#define AXPBY_OP(op, a, b, x, y, x0, y0) \
-    DST_UNSHIFT(op(a, b, SRC_SHIFT(x, x0), DST_SHIFT(y, y0)), y0)
+#if WITH_SUM_ZPOINT
+#define SUM_SHIFT ZP_SHIFT
+#define GET_SUM_ZP ZP_READ_VAL
+#else
+#define SUM_SHIFT ZP_NO_SHIFT
+#define GET_SUM_ZP ZP_ZERO
+#endif
 
-#if WITH_SUM_A
-#define OP(_a, _b, _x, _y) (_a) * (_x)
-#define REORDER(_dst, _src, _a, _b, _x0, _y0) \
-    do { \
-        const float _x = SRC_TO_REF(_src); \
-        const float _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
-        _dst = TO_DST(_s); \
-    } while (0)
-#define REORDER8(_dst, _src, _a, _b, _x0, _y0) \
-    do { \
-        const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
-        const float8 _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
-        _dst = TO_DST8(_s); \
-    } while (0)
-#elif WITH_SUM_AB
-#define OP(_a, _b, _x, _y) (_a) * (_x) + (_b) * (_y)
-#define REORDER(_dst, _src, _a, _b, _x0, _y0) \
+#define SRC_AXPY(a, x, x0) SRC_SCALE(SRC_SHIFT(x, x0), a)
+#define DST_AXPY(a, x, x0) DST_SHIFT(DST_SCALE(x, a), x0)
+#define SUM_AXPY(a, x, x0) SUM_SCALE(SUM_SHIFT(x, x0), a)
+#define AXPY(src, dst, a, b, c, x0, y0, z0) \
+    DST_AXPY(b, (SRC_AXPY(a, src, x0) + SUM_AXPY(c, dst, y0 + z0)), y0)
+
+#if WITH_SRC_SCALE || WITH_SRC_ZPOINT
+#define WITH_SRC_MOD 1
+#endif
+
+#if WITH_DST_SCALE || WITH_DST_ZPOINT
+#define WITH_DST_MOD 1
+#endif
+
+#if WITH_SUM_SCALE || WITH_SUM_ZPOINT
+#define WITH_SUM_MOD 1
+#endif
+
+#if WITH_SUM_MOD
+#define REORDER(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         const float _x = SRC_TO_REF(_src); \
         const float _y = DST_TO_REF(_dst); \
-        const float _s = AXPBY_OP(OP, _a, _b, _x, _y, _x0, _y0); \
+        const float _s = AXPY(_x, _y, _a, _b, _c, _x0, _y0, _z0); \
         _dst = TO_DST(_s); \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b, _x0, _y0) \
+#define REORDER8(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
         const float8 _y = convert_float8(DST_TO_REF8(_dst)); \
-        const float8 _s = AXPBY_OP(OP, _a, _b, _x, _y, _x0, _y0); \
+        const float8 _s = AXPY(_x, _y, _a, _b, _c, _x0, _y0, _z0); \
         _dst = TO_DST8(_s); \
     } while (0)
-#elif SCALE_QUANT
-#define OP(_a, _b, _x, _y) (_a) * (_x) + (_b)
-#define REORDER(_out, _src, _a, _b, _x0, _y0) \
+#elif WITH_SRC_MOD || WITH_DST_MOD
+#define REORDER(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         const float _x = SRC_TO_REF(_src); \
-        const float _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
-        _out = TO_DST(_s); \
-    } while (0)
-#define REORDER8(_out, _src, _a, _b, _x0, _y0) \
-    do { \
-        const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
-        const float8 _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
-        _out = TO_DST8(_s); \
-    } while (0)
-#elif WITH_SRC_ZPOINTS || WITH_DST_ZPOINTS
-#define OP(_a, _b, _x, _y) (_x)
-#define REORDER(_dst, _src, _a, _b, _x0, _y0) \
-    do { \
-        const float _x = SRC_TO_REF(_src); \
-        const float _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
+        const float _s = AXPY(_x, 0.f, _a, _b, _c, _x0, _y0, _z0); \
         _dst = TO_DST(_s); \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b, _x0, _y0) \
+#define REORDER8(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
-        const float8 _s = AXPBY_OP(OP, _a, _b, _x, 0.f, _x0, _y0); \
+        const float8 _s = AXPY(_x, 0.f, _a, _b, _c, _x0, _y0, _z0); \
         _dst = TO_DST8(_s); \
     } while (0)
 #else
-#define REORDER(_dst, _src, _a, _b, _x0, _y0) \
+#define REORDER(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         _dst = SRC_TO_DST(_src); \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b, _x0, _y0) \
+#define REORDER8(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         _dst = SRC_TO_DST8(_src); \
     } while (0)
-#endif // WITH_SUM_AB
+#endif // WITH_SUM_MOD
 
-#if SCALE_QUANT
+#if WITH_SRC_SCALE || WITH_DST_SCALE
+#define MASK_DIM(prefix, dim) ((CONCAT2(prefix, _SCALE_MASK) >> dim) & 1)
+#define SCALE_DIM(prefix, dim) \
+    (MASK_DIM(prefix, dim) ? CONCAT3(prefix, _D, dim) : 1)
+#define SCALE_S5(prefix) (1)
+#define SCALE_S4(prefix) (SCALE_DIM(prefix, 5) * SCALE_S5(prefix))
+#define SCALE_S3(prefix) (SCALE_DIM(prefix, 4) * SCALE_S4(prefix))
+#define SCALE_S2(prefix) (SCALE_DIM(prefix, 3) * SCALE_S3(prefix))
+#define SCALE_S1(prefix) (SCALE_DIM(prefix, 2) * SCALE_S2(prefix))
+#define SCALE_S0(prefix) (SCALE_DIM(prefix, 1) * SCALE_S1(prefix))
+#define SCALE_STRIDE(prefix, dim) \
+    (CONCAT2(SCALE_S, dim)(prefix) * MASK_DIM(prefix, dim))
 
-#define MASK_D(_d) ((SCALE_MASK >> _d) & 1)
-
-#define SCALE_D0 (MASK_D(0) ? SRC_D0 : 1)
-#define SCALE_D1 (MASK_D(1) ? SRC_D1 : 1)
-#define SCALE_D2 (MASK_D(2) ? SRC_D2 : 1)
-#define SCALE_D3 (MASK_D(3) ? SRC_D3 : 1)
-#define SCALE_D4 (MASK_D(4) ? SRC_D4 : 1)
-#define SCALE_D5 (MASK_D(5) ? SRC_D5 : 1)
-
-#define SCALE_S0 (SCALE_D1 * SCALE_D2 * SCALE_D3 * SCALE_D4 * SCALE_D5)
-#define SCALE_S1 (SCALE_D2 * SCALE_D3 * SCALE_D4 * SCALE_D5)
-#define SCALE_S2 (SCALE_D3 * SCALE_D4 * SCALE_D5)
-#define SCALE_S3 (SCALE_D4 * SCALE_D5)
-#define SCALE_S4 (SCALE_D5)
-#define SCALE_S5 (1)
-#define NSCALES (SCALE_S0 * SCALE_D0)
-
-#define SCALE_OFF(x0, x1, x2, x3, x4, x5) \
-    ((x0)*SCALE_S0 * MASK_D(0) + (x1)*SCALE_S1 * MASK_D(1) \
-            + (x2)*SCALE_S2 * MASK_D(2) + (x3)*SCALE_S3 * MASK_D(3) \
-            + (x4)*SCALE_S4 * MASK_D(4) + (x5)*SCALE_S5 * MASK_D(5))
-
-#endif // SCALE_QUANT
+#define SCALE_OFF(prefix, x0, x1, x2, x3, x4, x5) \
+    ((x0)*SCALE_STRIDE(prefix, 0) + (x1)*SCALE_STRIDE(prefix, 1) \
+            + (x2)*SCALE_STRIDE(prefix, 2) + (x3)*SCALE_STRIDE(prefix, 3) \
+            + (x4)*SCALE_STRIDE(prefix, 4) + (x5)*SCALE_STRIDE(prefix, 5))
+#endif // WITH_SRC_SCALE || WITH_DST_SCALE

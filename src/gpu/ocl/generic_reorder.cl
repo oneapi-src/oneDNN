@@ -18,11 +18,14 @@
 
 KERNEL_ATTR
 __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
-        __global DST_DATA_T *restrict dst, float alpha, float beta,
-        __global float *restrict scales, SRC_ZP_T src_zps, DST_ZP_T dst_zps) {
+        __global DST_DATA_T *restrict dst, __global float *restrict src_scales,
+        __global int *restrict src_zps, __global float *restrict dst_scales,
+        __global int *restrict dst_zps, float sum_scale, int sum_zp) {
 
     const int src_zp = GET_SRC_ZP(src_zps);
     const int dst_zp = GET_DST_ZP(dst_zps);
+    float src_scale = 1.0f;
+    float dst_scale = 1.0f;
 
     src += SRC_OFFSET0;
     dst += DST_OFFSET0;
@@ -188,18 +191,26 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
 
         if (!pad) {
             SRC_DATA_T from_cache = cache[cache_idx];
-#if WITH_SUM_AB
+#if WITH_SUM_SCALE || WITH_SUM_ZPOINT
             // TODO: move to separate loop to enable burst reads from dst?
             dst_tmp = dst[dst_off];
 #endif
-#if SCALE_QUANT
-            // TODO: move to separate loop to enable burst reads from scales?
-            uint scale_idx = SCALE_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
-                    d[3] + b[3], d[4] + b[4], d[5] + b[5]);
-            alpha = scale_idx < NSCALES ? scales[scale_idx] : 0.0;
+#if WITH_SRC_SCALE
+            uint src_scale_idx = SCALE_OFF(SRC, d[0] + b[0], d[1] + b[1],
+                    d[2] + b[2], d[3] + b[3], d[4] + b[4], d[5] + b[5]);
+            src_scale = src_scale_idx < NUM_SRC_SCALES
+                    ? src_scales[src_scale_idx]
+                    : 0.0;
 #endif
-
-            REORDER(dst_tmp, from_cache, alpha, beta, src_zp, dst_zp);
+#if WITH_DST_SCALE
+            uint dst_scale_idx = SCALE_OFF(DST, d[0] + b[0], d[1] + b[1],
+                    d[2] + b[2], d[3] + b[3], d[4] + b[4], d[5] + b[5]);
+            dst_scale = dst_scale_idx < NUM_DST_SCALES
+                    ? dst_scales[dst_scale_idx]
+                    : 0.0;
+#endif
+            REORDER(dst_tmp, from_cache, src_scale, dst_scale, sum_scale,
+                    src_zp, dst_zp, sum_zp);
             dst[dst_off] = dst_tmp;
         }
     }

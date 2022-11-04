@@ -741,10 +741,140 @@ union reorder_implementation {
     xb_to_xab_xba_t ab;
     vectorize_last_dim_t vld;
 };
+
+class scales_query_t {
+public:
+    bool has_default_values() const { return scales().has_default_values(); }
+    int get_mask() const { return scales().mask_; }
+    size_t get_count() const {
+        return get_attr_oscales_count(get_mask(), mdw_);
+    }
+    memory_storage_t &get_scales(const exec_ctx_t &ctx) const {
+        return CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | arg_);
+    }
+
+    scales_query_t(const primitive_attr_t *attr, const memory_desc_wrapper &mdw,
+            int arg)
+        : attr_(attr), mdw_(mdw), arg_(arg) {}
+    scales_query_t() : attr_(nullptr), mdw_(nullptr), arg_(0) {}
+
+private:
+    const runtime_scales_t &scales() const { return attr_->scales_.get(arg_); }
+
+    const primitive_attr_t *attr_;
+    memory_desc_wrapper mdw_;
+    int arg_;
+};
+
+class zero_points_query_t {
+public:
+    bool has_default_values() const { return zps().has_default_values(arg_); }
+    int get_mask() const {
+        int mask;
+        zps().get(arg_, &mask);
+        return mask;
+    }
+    size_t get_count() const {
+        return get_attr_oscales_count(get_mask(), mdw_);
+    }
+    memory_storage_t &get_zero_points(const exec_ctx_t &ctx) const {
+        return CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | arg_);
+    }
+
+    zero_points_query_t(const primitive_attr_t *attr,
+            const memory_desc_wrapper &mdw, int arg)
+        : attr_(attr), mdw_(mdw), arg_(arg) {}
+    zero_points_query_t() : attr_(nullptr), mdw_(nullptr), arg_(0) {}
+
+private:
+    const zero_points_t &zps() const { return attr_->zero_points_; }
+
+    const primitive_attr_t *attr_;
+    memory_desc_wrapper mdw_;
+    int arg_;
+};
+
+struct quantization_t {
+public:
+    bool with_scale() const { return !scale_.has_default_values(); }
+    int scale_mask() const { return scale_.get_mask(); }
+    size_t num_scales() const { return scale_.get_count(); }
+    memory_storage_t &scales(const exec_ctx_t &ctx) const {
+        return scale_.get_scales(ctx);
+    }
+
+    bool with_zp() const { return !zp_.has_default_values(); }
+    int zp_mask() const { return zp_.get_mask(); }
+    size_t num_zps() const { return zp_.get_count(); }
+    memory_storage_t &zero_points(const exec_ctx_t &ctx) const {
+        return zp_.get_zero_points(ctx);
+    }
+
+    void define_macros(
+            compute::kernel_ctx_t &kernel_ctx, const std::string &name) const {
+        if (with_scale()) {
+            kernel_ctx.define_int("WITH_" + name + "_SCALE", 1);
+            kernel_ctx.define_int(name + "_SCALE_MASK", scale_mask());
+            kernel_ctx.define_int(name + "_NUM_SCALES", num_scales());
+        }
+
+        if (with_zp()) {
+            kernel_ctx.define_int("WITH_" + name + "_ZPOINT", 1);
+            kernel_ctx.define_int(name + "_ZPOINT_MASK", zp_mask());
+            kernel_ctx.define_int(name + "_NUM_ZPOINTS", num_zps());
+        }
+    }
+
+    quantization_t(const primitive_attr_t *attr, const memory_desc_wrapper &mdw,
+            int arg)
+        : scale_(attr, mdw, arg), zp_(attr, mdw, arg) {}
+    quantization_t() = default;
+
+private:
+    scales_query_t scale_;
+    zero_points_query_t zp_;
+};
+
+struct sum_quantization_t {
+public:
+    bool with_scale() const { return scale_ != 0; }
+    int scale_mask() const { return 0; }
+    size_t num_scales() const { return (size_t)(with_scale()); }
+    float scales() const { return scale_; }
+
+    bool with_zp() const { return zp_ != 0; }
+    int zp_mask() const { return 0; }
+    size_t num_zps() const { return (size_t)(with_zp()); }
+    int zero_points() const { return zp_; }
+
+    void define_macros(
+            compute::kernel_ctx_t &kernel_ctx, const std::string &name) const {
+        if (with_scale()) kernel_ctx.define_int("WITH_" + name + "_SCALE", 1);
+        if (with_zp()) kernel_ctx.define_int("WITH_" + name + "_ZPOINT", 1);
+    }
+
+    sum_quantization_t(const primitive_attr_t *attr) {
+        const auto &post_ops = attr->post_ops_;
+        const int sum_idx = post_ops.find(primitive_kind::sum);
+        if (sum_idx != -1) {
+            const auto &sum = post_ops.entry_[sum_idx].sum;
+            scale_ = sum.scale;
+            zp_ = sum.zero_point;
+        }
+    }
+    sum_quantization_t() = default;
+
+private:
+    float scale_ = 0;
+    int zp_ = 0;
+};
+
 struct reorder_conf_t {
     bool has_padding;
-    bool scale_quant, with_sum_ab, with_sum_a;
-    bool with_src_zp, with_dst_zp;
+
+    quantization_t src_quant, dst_quant;
+    sum_quantization_t sum_quant;
+
     reorder_kernel_t implementation;
     int ndims;
     size_t nelems;
@@ -752,9 +882,6 @@ struct reorder_conf_t {
     compute::dispatch_t dispatch;
 
     int sub_group_size;
-    int scale_mask;
-    size_t scales_num;
-
     memory_desc_info_t src_md_info;
     memory_desc_info_t dst_md_info;
 

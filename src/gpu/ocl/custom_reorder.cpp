@@ -333,20 +333,26 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
     int last = conf.ndims - 1;
     size_t last_dim = padded_dims[last];
 
+    const bool multi_scale_quant
+            = (conf.src_quant.with_scale() && conf.src_quant.num_scales() > 1)
+            || (conf.dst_quant.with_scale() && conf.dst_quant.num_scales() > 1);
     const bool has_padding_or_multi_scale_quant
-            = conf.has_padding || (conf.scale_quant && conf.scales_num > 1);
+            = conf.has_padding || multi_scale_quant;
 
     const bool type_s8_u8 = utils::one_of(src_mdw.data_type(), dnnl_s8, dnnl_u8)
             || utils::one_of(dst_mdw.data_type(), dnnl_s8, dnnl_u8);
 
     const bool allow_unroll
-            = !conf.has_padding && !conf.scale_quant && !type_s8_u8;
+            = !conf.has_padding && !multi_scale_quant && !type_s8_u8;
 
     if (is_broadcast_by_strides(src_mdw) || is_broadcast_by_strides(dst_mdw)) {
         return reorder_kernel_t::none;
     }
 
-    if (matches_one_NxN_layout(src_mdw, dst_mdw, 16, conf.scale_mask)) {
+    int mask = conf.src_quant.scale_mask() | conf.src_quant.zp_mask()
+            | conf.dst_quant.scale_mask() | conf.dst_quant.zp_mask();
+
+    if (matches_one_NxN_layout(src_mdw, dst_mdw, 16, mask)) {
         // W/A for compiler bug: avoid using intel_sub_group_shuffle with
         // SIMD16 on gen12lp
         if (dev_info->gpu_arch() == compute::gpu_arch_t::xe_lp) {
@@ -362,7 +368,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         }
         return reorder_kernel_t::transpose16x16;
     }
-    if (matches_one_NxN_layout(src_mdw, dst_mdw, 8, conf.scale_mask)) {
+    if (matches_one_NxN_layout(src_mdw, dst_mdw, 8, mask)) {
         if (dev_info->gpu_arch() == compute::gpu_arch_t::gen9) {
             return reorder_kernel_t::local8x8;
         }
@@ -383,10 +389,10 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
         return reorder_kernel_t::dense_vector;
     }
 
-    if (fits_3ch(src_mdw, dst_mdw, conf.scale_mask)) {
+    if (fits_3ch(src_mdw, dst_mdw, mask)) {
         return reorder_kernel_t::pad_innermost;
     }
-    if (fits_xab_xba(src_mdw, dst_mdw, conf.scale_mask)) {
+    if (fits_xab_xba(src_mdw, dst_mdw, mask)) {
         return reorder_kernel_t::xb_to_xab_xba;
     }
     // This kernel works on tensors that have common innermost dim. Tries to
@@ -401,7 +407,7 @@ reorder_kernel_t select_kernel(const reorder_conf_t &conf,
             && (src_last.size % (2 * dst_last.size) == 0
                     || dst_last.size % (2 * src_last.size) == 0)
             && src_mdw.offset0() == 0 && dst_mdw.offset0() == 0
-            && !(conf.scale_mask & (1 << inner_dim))
+            && !(mask & (1 << inner_dim))
             && dst_mdw.dims()[inner_dim] == dst_mdw.padded_dims()[inner_dim]
             && src_mdw.dims()[inner_dim] == src_mdw.padded_dims()[inner_dim]) {
         return reorder_kernel_t::vectorize_groups;
@@ -531,16 +537,10 @@ status_t custom_reorder_t::pd_t::init_conf(engine_t *engine) {
     status_t status = status::success;
 
     const auto &padded_dims = dst_mdw.padded_dims();
-    const auto &zp = attr()->zero_points_;
-    conf.with_sum_ab = (with_alpha() || beta() != 0.f);
-    conf.scale_quant = !attr()->output_scales_.has_default_values();
-    conf.scale_mask = attr()->output_scales_.mask_;
-    conf.scales_num
-            = get_attr_oscales_count(attr()->output_scales_.mask_, dst_mdw);
-    conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
+    conf.src_quant = {attr(), src_mdw, DNNL_ARG_SRC};
+    conf.dst_quant = {attr(), dst_mdw, DNNL_ARG_DST};
+    conf.sum_quant = {attr()};
     conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
-    conf.with_src_zp = !zp.has_default_values(DNNL_ARG_SRC);
-    conf.with_dst_zp = !zp.has_default_values(DNNL_ARG_DST);
     conf.ndims = src_mdw.ndims();
     conf.nelems = utils::array_product(padded_dims, conf.ndims);
 
@@ -564,6 +564,8 @@ status_t custom_reorder_t::pd_t::init_conf(engine_t *engine) {
     int temp_block = 1;
 
     const bool may_use_sg8 = compute_engine->mayiuse_sub_group(8);
+    int mask = conf.src_quant.scale_mask() | conf.src_quant.zp_mask()
+            | conf.dst_quant.scale_mask() | conf.dst_quant.zp_mask();
 
     switch (conf.implementation) {
         case none: return status_t::dnnl_unimplemented;
@@ -603,8 +605,8 @@ status_t custom_reorder_t::pd_t::init_conf(engine_t *engine) {
             vect_size = conf.sub_group_size;
         } break;
         case xb_to_xab_xba:
-            fill_conf_xab_xba(src_mdw, dst_mdw, conf.scale_mask,
-                    conf.aux_data.ab, vect_dim, vect_size, &blocks[0]);
+            fill_conf_xab_xba(src_mdw, dst_mdw, mask, conf.aux_data.ab,
+                    vect_dim, vect_size, &blocks[0]);
             conf.sub_group_size = vect_size;
             break;
         case vectorize_last_dim:
@@ -799,18 +801,9 @@ status_t custom_reorder_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.add_option("-cl-std=CL2.0");
 
-    if (conf.with_sum_a)
-        kernel_ctx.define_int("WITH_SUM_A", 1);
-    else if (conf.with_sum_ab)
-        kernel_ctx.define_int("WITH_SUM_AB", 1);
-
-    if (conf.scale_quant) {
-        kernel_ctx.define_int("SCALE_QUANT", 1);
-        kernel_ctx.define_int("SCALE_MASK", conf.scale_mask);
-    }
-
-    kernel_ctx.define_int("WITH_SRC_ZPOINTS", conf.with_src_zp);
-    kernel_ctx.define_int("WITH_DST_ZPOINTS", conf.with_dst_zp);
+    conf.src_quant.define_macros(kernel_ctx, "SRC");
+    conf.dst_quant.define_macros(kernel_ctx, "DST");
+    conf.sum_quant.define_macros(kernel_ctx, "SUM");
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
@@ -959,10 +952,11 @@ status_t custom_reorder_t::pd_t::init_kernel_ctx(
 }
 
 void custom_reorder_t::pd_t::init_scratchpad() {
-    if (conf.scales_num > 0) {
+    if (conf.src_quant.with_scale() > 0) {
         auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(memory_tracking::names::key_reorder_scales,
-                conf.scales_num, sizeof(float), OCL_BUFFER_ALIGNMENT);
+                conf.src_quant.num_scales(), sizeof(float),
+                OCL_BUFFER_ALIGNMENT);
     }
 }
 
@@ -977,35 +971,17 @@ status_t custom_reorder_t::execute(const exec_ctx_t &ctx) const {
     const auto &conf = pd()->conf;
     if (conf.nelems == 0) return status::success;
 
-    float alpha = 1.0f;
-    float beta = pd()->beta();
-
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, dst);
-    arg_list.set(2, alpha);
-    arg_list.set(3, beta);
 
-    if (conf.scale_quant) {
-        auto &runtime_scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
-        arg_list.set(4, runtime_scales);
-    } else {
-        arg_list.set(4, memory_storage_t::empty_storage());
-    }
+    arg_list.set(2, conf.src_quant.scales(ctx));
+    arg_list.set(3, conf.src_quant.zero_points(ctx));
+    arg_list.set(4, conf.dst_quant.scales(ctx));
+    arg_list.set(5, conf.dst_quant.zero_points(ctx));
 
-    if (conf.with_src_zp) {
-        auto &zps = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
-        arg_list.set(5, zps);
-    } else {
-        arg_list.set(5, memory_storage_t::empty_storage());
-    }
-
-    if (conf.with_dst_zp) {
-        auto &zps = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
-        arg_list.set(6, zps);
-    } else {
-        arg_list.set(6, memory_storage_t::empty_storage());
-    }
+    arg_list.set(6, conf.sum_quant.scales());
+    arg_list.set(7, conf.sum_quant.zero_points());
 
     auto nd_range = conf.dispatch.nd_range();
 
