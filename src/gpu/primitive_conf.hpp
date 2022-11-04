@@ -618,29 +618,45 @@ struct binary_conf_t {
 };
 
 // Reduction
+struct reduction_phase_t {
+    data_type_t src_type, dst_type;
+    compute::nd_range_t nd_range;
+    compute::kernel_t kernel;
+    int reduction_size, initial_size, final_size;
+    int num_reduction_chunks;
+    bool is_final, is_first;
+};
+
 struct reduction_conf_t {
+    // Used by reference implementation
+    alg_kind_t alg;
     int ndims, power, div;
     float eps;
     dim_t src_dims[MAX_NDIMS], reduce_dims[MAX_NDIMS], dst_dims[MAX_NDIMS];
     bool is_reduction_dim[MAX_NDIMS];
+    data_type_t src_type, dst_type;
+    memory_desc_info_t src_md_info, dst_md_info;
+    compute::dispatch_t dispatch;
+    offsets_t off;
+    attr_info_t attr_info;
 
+    // Used by gen9 implementation
     int initial_hwd_dim, initial_hwd_chunk_size;
     int final_hwd_dim, final_hwd_chunk_size;
     int initial_c_chunks, final_c_dim, final_c_chunk_size;
     int initial_n_chunk_size, initial_n_chunks;
     int final_n_dim, final_n_chunk_size;
-
     bool skip_final_phase;
     int c_block_size, n_block_size;
     int vector_size;
     int sub_group_size;
-    data_type_t src_type, dst_type;
-    alg_kind_t alg;
-    compute::dispatch_t dispatch;
     compute::dispatch_t finalize_dispatch;
-    memory_desc_info_t src_md_info, dst_md_info;
-    offsets_t off;
-    attr_info_t attr_info;
+
+    // Used by combined implementation
+    int outer_dim_size, inner_dim_size, gws_inner_dim_size;
+    std::vector<reduction_phase_t> phases;
+    int inner_dim_per_sg;
+    size_t sp_size[2];
 };
 
 // Reorder
