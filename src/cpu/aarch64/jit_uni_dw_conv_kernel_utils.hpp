@@ -199,7 +199,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     jcp.ur_w = nstl::min(jcp.ur_w, jcp.ow);
 
     jcp.ch_block = simd_w;
-    jcp.nb_ch = jcp.oc / jcp.ch_block;
+    jcp.nb_ch = div_up(jcp.oc, jcp.ch_block);
     jcp.nb_ch_blocking = isa == sve_512 ? 4 : isa == sve_256 ? 3 : 2;
     if (jcp.nb_ch < jcp.nb_ch_blocking) jcp.nb_ch_blocking = jcp.nb_ch;
 
