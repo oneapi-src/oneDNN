@@ -1539,16 +1539,14 @@ private:
         const int k_blk = ((channels > 4)) ? 32 / c_blk : 1;
         const int m_blk = cfg_.simd();
 
-        const type_t s_type = a_view.type();
-        const type_t i_type = type_t::s32(); // x32 type that is always signed
+        const type_t s_type = is_mad ? a_view.type() : type_t::s32();
+        const type_t i_type = type_t::s32();
         auto has_sign = [&]() {
             if (is_runtime) return s_type.is_signed();
             ir_assert(is_scalar);
             return prb_.zp_cfg.common_src_zero_point < 0;
         };
-        const type_t d_type = (has_sign()) ? type_t::s32() : type_t::u32();
-        ir_assert((is_mad) ? s_type.is_x16() : s_type.is_x8());
-
+        const type_t d_type = type_t::s32();
         const int a_stride
                 = s_type.size() * int(a_view.tlayout().blocks()[0].stride);
         int desc_m = 0, desc_n = 0;
@@ -1624,7 +1622,7 @@ private:
                     a_off += m_blk * a_stride) {
                 int iter = (a_off / m_blk / a_stride) % loop.size();
                 type_t sv_type(s_type.kind(), m_blk);
-                type_t b_type(s_type.kind(), (!is_scalar) ? m_blk : 1);
+                type_t b_type(type_t::s32().kind(), (!is_scalar) ? m_blk : 1);
                 auto a = load_t::make(sv_type, a_buf_, a_off, a_stride);
                 auto b_off
                         = (!is_scalar && (channels > m_blk)) ? iter * m_blk : 0;
@@ -1647,21 +1645,10 @@ private:
         }
 
         if (is_scalar) {
-            expr_t expr = (!is_runtime)
-                    ? (prb_.zp_cfg.common_src_zero_point & 0xFF) * 0x01010101
-                    : cast_t::make(type_t::s8(4),
-                            shuffle_t::make_broadcast(
-                                    load_t::make(s_type, zp_buf_, 0), 4));
-            data = data.append(store_t::make(zp_buf_, 0, expr));
-        } else {
-            data = data.append(store_t::make(zp_buf_, 0,
-                    load_t::make(type_t::u8(m_blk_x2), zp_buf_, 0, 4)));
-            if (channels > 16)
-                data = data.append(store_t::make(zp_buf_, 16,
-                        load_t::make(type_t::u8(m_blk_x2), zp_buf_, 64, 4)));
-            if (m_blk_x2 != m_blk)
-                data = data.append(store_t::make(zp_buf_, 32,
-                        load_t::make(type_t::u32(4), zp_buf_, 4, 8), 8));
+            // store int8 ones vector for dp4a into unused space in buffer
+            int ones = 0x01010101;
+            data = data.append(store_t::make(zp_buf_, 4, ones));
+            data = data.append(store_t::make(zp_buf_, 8, expr_t(0)));
         }
         std::vector<stmt_t> parts;
 
@@ -1695,11 +1682,11 @@ private:
             const int blk
                     = (masks.is_simd() || masks.is_scalar()) ? m_blk_x2 : m_blk;
             for (int i = 0; i < k_blk; i++) {
+                type_t vi(i_type.kind(), m_blk_x2);
                 for (int i_k = i * (c_blk / 4); i_k
                         < ((channels > 4) ? (c_blk + i * c_blk) / 4 : prb_.kw);
                         i_k += m_blk_x2 / m_blk) {
-                    type_t vi(i_type.kind(), m_blk_x2);
-                    const int szp_off = (is_scalar) ? 0 : (i_k * d_type.size());
+                    const int szp_off = (is_scalar) ? 4 : (i_k * d_type.size());
                     auto b0 = load_t::make(d_type, zp_buf_, szp_off);
                     auto b1 = load_t::make(
                             d_type, zp_buf_, szp_off + m_blk * d_type.size());
@@ -1714,11 +1701,23 @@ private:
                             ternary_op_t::make(op_kind_t::_dp4a, a, b, c, vi)));
                 }
 
+                auto apply_scalar = [&]() {
+                    type_t vs32(i_type.kind(), m_blk);
+                    auto zp0 = load_t::make(d_type, zp_buf_, 0);
+                    auto b = load_t::make(vs32, acc[i * 2 + 1], 0);
+                    auto zero
+                            = load_t::make(d_type, zp_buf_, 2 * d_type.size());
+                    parts.emplace_back(store_t::make(acc[i * 2 + 1], 0,
+                            b * shuffle_t::make_broadcast(zp0, vs32.elems())));
+                };
+
+                if (is_scalar && m_blk == m_blk_x2) apply_scalar();
                 if (m_blk_x2 != m_blk) {
                     type_t vi(i_type.kind(), m_blk);
                     auto a = load_t::make(vi, acc[i * 2 + 1], 0);
                     auto b = load_t::make(vi, acc[i * 2 + 0], 0);
                     parts.emplace_back(store_t::make(acc[i * 2 + 1], 0, a + b));
+                    if (is_scalar) apply_scalar();
                     if (!masks.is_bool() && (blk != m_blk))
                         parts.emplace_back(store_t::make(acc[i * 2 + 0], 0, a));
                 }
