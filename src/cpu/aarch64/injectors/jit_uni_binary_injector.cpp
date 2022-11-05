@@ -1889,6 +1889,8 @@ void jit_uni_binary_injector_t<isa>::compute_vector(size_t idx,
 }
 
 template class jit_uni_binary_injector_t<sve_512>;
+template class jit_uni_binary_injector_t<sve_256>;
+template class jit_uni_binary_injector_t<sve_128>;
 
 } // namespace binary_injector
 } // namespace aarch64
