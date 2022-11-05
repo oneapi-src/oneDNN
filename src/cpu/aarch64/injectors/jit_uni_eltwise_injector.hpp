@@ -177,7 +177,7 @@ private:
         _op_mxcsr = jit_generator::_op_mxcsr
     };
 
-    static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
+    const size_t vlen = get_sve_length();
     static constexpr size_t preserved_vecs_max = 9;
     static constexpr size_t preserved_gprs_max = 4;
     static constexpr size_t vecs_count = cpu_isa_traits<isa>::n_vregs;
