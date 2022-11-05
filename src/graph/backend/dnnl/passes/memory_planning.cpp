@@ -77,7 +77,6 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
                     : 2; // src, wei
             if (mgr.get_info(key).with_runtime_scales(true, 0)) { index += 1; }
             if (mgr.get_info(key).with_runtime_scales(true, 1)) { index += 1; }
-            if (mgr.get_info(key).with_runtime_output_scales()) { index += 1; }
             if (mgr.get_info(key).with_runtime_zero_points(true, 0)) {
                 index += 1;
             }

@@ -522,12 +522,8 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
 
     // run lower down passes
     dnnl_impl::check_with_bias(subgraph);
-    dnnl_impl::fold_mul_scales(subgraph);
-    dnnl_impl::fold_sum_scales(subgraph);
-    dnnl_impl::convert_to_runtime_scales(subgraph);
     dnnl_impl::convert_to_runtime_src_scales(subgraph);
     dnnl_impl::fuse_src_scales(subgraph);
-    dnnl_impl::fuse_output_scales(subgraph);
     dnnl_impl::convert_to_runtime_src_zero_points(subgraph);
     dnnl_impl::fuse_src_zero_points(subgraph);
     dnnl_impl::fuse_post_ops(subgraph);
@@ -753,11 +749,8 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
     dnnl_impl::subgraph_validator_t validator;
     validator.run(subgraph); // validate and set default param
 
-    dnnl_impl::fold_mul_scales(subgraph);
-    dnnl_impl::convert_to_runtime_scales(subgraph);
     dnnl_impl::convert_to_runtime_src_scales(subgraph);
     dnnl_impl::fuse_src_scales(subgraph);
-    dnnl_impl::fuse_output_scales(subgraph);
     dnnl_impl::convert_to_runtime_src_zero_points(subgraph);
     dnnl_impl::fuse_src_zero_points(subgraph);
     dnnl_impl::fuse_post_ops(subgraph);
@@ -1756,8 +1749,8 @@ TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     dnnl_impl::pass_pipeline_t pipeline(vis, true, true);
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
     ASSERT_EQ(pipeline.run(subgraph), graph::status::success);
-    // 1 bias unsqueezing, 1 fused matmul, 2 reshape, 4 const
-    ASSERT_EQ(subgraph->num_ops(), 8U);
+    // 1 bias unsqueezing, 1 bias reorder, 1 fused matmul, 2 reshape, 4 const
+    ASSERT_EQ(subgraph->num_ops(), 9U);
 }
 
 TEST(SubgraphPass, CheckUndefinedOpAttribute) {

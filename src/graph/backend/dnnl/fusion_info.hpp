@@ -103,19 +103,18 @@ public:
 
     fusion_info_t() = default;
 
-    void set_output_scales(const op_ptr &op) {
-        output_scales_ = std::make_shared<meta_op_t>(op);
-    }
-
-    void set_dst_scales(const op_ptr &op) {
-        dst_scales_ = std::make_shared<meta_op_t>(op);
-    }
-
-    // used to modify the fused output scales, like modifying it's axis after
+    // used to modify the fused arg scales, like modifying it's axis after
     // inserting reshape op
-    op_t *get_mutable_output_scales() {
-        if (!output_scales_) return nullptr;
-        return const_cast<op_t *>(output_scales_->get_op());
+    op_t *get_mutable_scales(bool is_input, size_t index) {
+        if (is_input) {
+            if (input_scales_.find(index) == input_scales_.end())
+                return nullptr;
+            return const_cast<op_t *>(input_scales_.at(index)->get_op());
+        } else {
+            assertm(index == 0, "index for output scales must be 0");
+            if (!dst_scales_) return nullptr;
+            return const_cast<op_t *>(dst_scales_->get_op());
+        }
     }
 
     void set_zero_points(const op_ptr &op, bool is_input, size_t index) {
@@ -206,16 +205,6 @@ public:
         return *pos;
     }
 
-    bool with_runtime_output_scales() const {
-        if (!output_scales_) return false;
-        const op_t *scale_op = const_cast<op_t *>(output_scales_->get_op());
-        if (scale_op->has_attr(op_attr::with_runtime_scales)) {
-            return scale_op->get_attr<bool>(op_attr::with_runtime_scales);
-        } else {
-            return false;
-        }
-    }
-
     bool with_runtime_zero_points(bool is_input, size_t indice) const {
         if (is_input) {
             if (input_zps_.find(indice) == input_zps_.end()) return false;
@@ -259,7 +248,6 @@ public:
     }
 
 private:
-    std::shared_ptr<meta_op_t> output_scales_;
     std::unordered_map<size_t, std::shared_ptr<meta_op_t>> input_zps_;
     std::shared_ptr<meta_op_t> output_zps_;
     std::unordered_map<size_t, std::shared_ptr<meta_op_t>> input_scales_;

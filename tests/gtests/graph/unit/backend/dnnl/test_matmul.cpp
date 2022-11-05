@@ -3526,7 +3526,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasU8s8u8MixBf16) {
     dqweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
     dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
     dqweight_op.set_attr<std::vector<float>>(graph::op_attr::scales, scale_wei);
-    dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+    dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 0);
 
     graph::op_t tcdata_op {2, graph::op_kind::TypeCast, "typecast_data"};
     graph::op_t tcweight_op {3, graph::op_kind::TypeCast, "typecast_weight"};
@@ -3843,7 +3843,7 @@ TEST(ExecuteSubgraphInt8, MatmulBiasGeluU8s8u8MixBf16) {
     dqweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
     dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
     dqweight_op.set_attr<std::vector<float>>(graph::op_attr::scales, scale_wei);
-    dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+    dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 0);
 
     graph::op_t tcdata_op {2, graph::op_kind::TypeCast, "typecast_data"};
     graph::op_t tcweight_op {3, graph::op_kind::TypeCast, "typecast_weight"};

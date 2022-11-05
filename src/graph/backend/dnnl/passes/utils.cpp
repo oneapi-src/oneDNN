@@ -534,17 +534,6 @@ bool is_typecast(const op_t *op) {
     return is_typecast;
 }
 
-bool with_runtime_oscales(const op_ptr &op, const fusion_info_mgr_t &mgr) {
-    if (op->has_attr(op_attr::fusion_info_key)
-            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
-        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
-        const fusion_info_t &fusion_info = mgr.get_info(key);
-        return fusion_info.with_runtime_output_scales();
-    } else {
-        return false;
-    }
-}
-
 bool with_runtime_zps(const op_ptr &op, const fusion_info_mgr_t &mgr,
         bool is_input, size_t indice) {
     if (op->has_attr(op_attr::fusion_info_key)

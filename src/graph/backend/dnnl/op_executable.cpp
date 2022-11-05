@@ -1443,9 +1443,8 @@ reorder_executable_t::desc_t reorder_executable_t::create_desc(
 
     if (op->has_attr(op_attr::with_runtime_scales)
             && op->get_attr<bool>(op_attr::with_runtime_scales)) {
-        // runtime scales
-        // prm_attr.set_output_scales_mask(mask);
-        assertm(false, "only support runtime arg scales.\n");
+        // runtime arg scales
+        prm_attr.set_scales_mask(DNNL_ARG_SRC, mask);
     } else if (op->has_attr(op_attr::scales)) {
         assertm(false, "only support runtime arg scales.\n");
     }
@@ -1753,11 +1752,6 @@ static arg_indices_t get_arg_indices_for_siso_op(
                       && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1)
             ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
-
-    if (fusion_info.with_runtime_output_scales()) {
-        arg_indices.insert(
-                {DNNL_ARG_ATTR_OUTPUT_SCALES, indices_t {input, index++}});
-    }
 
     if (fusion_info.with_runtime_scales(false, 0)) {
         arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
@@ -2089,9 +2083,14 @@ arg_indices_t reorder_executable_t::get_arg_indices(
 
     if ((op->has_attr(op_attr::with_runtime_scales)
                 && op->get_attr<bool>(op_attr::with_runtime_scales))
-            || fusion_info.with_runtime_output_scales()) {
-        arg_indices.insert(
-                {DNNL_ARG_ATTR_OUTPUT_SCALES, indices_t {input, index++}});
+            || fusion_info.with_runtime_scales(true, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC,
+                indices_t {input, index++}});
+    }
+
+    if (fusion_info.with_runtime_scales(false, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
+                indices_t {input, index++}});
     }
 
     if ((op->has_attr(op_attr::with_runtime_src_zps)
