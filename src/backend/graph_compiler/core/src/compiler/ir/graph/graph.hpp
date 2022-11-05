@@ -166,7 +166,7 @@ struct sc_op_info_t {
     // layout propagation.
     dispatch_set_ptr dispatch_key_set_;
     // current used impl type
-    int cur_impl_;
+    int cur_impl_ = 0;
 };
 
 struct op_base_trait_t {};

@@ -20,7 +20,7 @@
 #include <runtime/dynamic_dispatch/utils.hpp>
 #include <runtime/target_machine.hpp>
 namespace sc {
-static bool is_block_larger_than_shape(
+static bool is_block_produce_padding(
         runtime::dynamic_tensor_t *in, runtime::dispatch_key *in_fmt_st) {
     if (!in_fmt_st->is_plain()) {
         int dim_count[runtime::dispatch_key::meta::MAX_DIMS] = {0};
@@ -30,12 +30,12 @@ static bool is_block_larger_than_shape(
             dim_count[ori_dim]++;
             if (dim_count[ori_dim] == 2) {
                 if (first_block) {
-                    if (in->dims_[ori_dim] < in_fmt_st->get_block1()) {
+                    if (in->dims_[ori_dim] % in_fmt_st->get_block1() != 0) {
                         return true;
                     }
                     first_block = false;
                 } else {
-                    if (in->dims_[ori_dim] < in_fmt_st->get_block2()) {
+                    if (in->dims_[ori_dim] % in_fmt_st->get_block2() != 0) {
                         return true;
                     }
                 }
@@ -45,38 +45,44 @@ static bool is_block_larger_than_shape(
     return false;
 }
 
-static int check_and_set_fusible_impl(runtime::dynamic_tensor_t *in0,
-        runtime::dynamic_tensor_t *in1, runtime::dispatch_key *in0_fmt_st,
-        runtime::dispatch_key *in1_fmt_st, runtime::dispatch_key *out_fmt_st) {
+static bool is_fast_transpose_padding(runtime::dynamic_tensor_t *in,
+        runtime::dispatch_key *in_fmt_st, runtime::dispatch_key *out_fmt_st) {
+    int ori_in_dim = in_fmt_st->get(in_fmt_st->ndims() - 1);
+    int ori_out_dim = out_fmt_st->get(out_fmt_st->ndims() - 1);
+    uint32_t etype = in->dtype_;
+    if (ori_in_dim != ori_out_dim) {
+        if (etype == uint32_t(sc_data_etype::F32)
+                && (in->dims_[ori_in_dim] % 8 != 0
+                        || in->dims_[ori_out_dim] % 8 != 0)) {
+            return true;
+        }
+        if (etype == uint32_t(sc_data_etype::BF16)
+                && (in->dims_[ori_in_dim] % 8 != 0
+                        || in->dims_[ori_in_dim] % 32 != 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static int check_and_set_reorder_impl(runtime::dynamic_tensor_t *in,
+        runtime::dispatch_key *in_fmt_st, runtime::dispatch_key *out_fmt_st) {
     int impl_alg = impl_kind_t::no_padding;
-    int simd_length = std::min(UINT64_C(16),
-            static_cast<uint64_t>(runtime::get_runtime_target_machine()
-                                          .cpu_flags_.get_max_vector_lanes(
-                                                  sc_data_etype(in0->dtype_))));
-    int ndims = in0->ndims_;
-    if (is_block_larger_than_shape(in0, in0_fmt_st)) {
+    // int simd_length = std::min(UINT64_C(16),
+    //         static_cast<uint64_t>(runtime::get_runtime_target_machine()
+    //                                       .cpu_flags_.get_max_vector_lanes(
+    //                                               sc_data_etype(in->dtype_))));
+    int ndims = in->ndims_;
+    if (is_block_produce_padding(in, in_fmt_st)
+            || is_block_produce_padding(in, out_fmt_st)) {
         impl_alg = impl_kind_t::normal;
     }
-    if (in1 && in1_fmt_st && is_block_larger_than_shape(in1, in1_fmt_st)) {
+    if (impl_alg == impl_kind_t::no_padding
+            && is_fast_transpose_padding(in, in_fmt_st, out_fmt_st)) {
         impl_alg = impl_kind_t::normal;
     }
-    for (int i = 0; i < in0->ndims_; i++) {
-        if (!(in0->dims_[i] == 1 || in0->dims_[i] % simd_length == 0)) {
-            impl_alg = impl_kind_t::normal;
-            break;
-        }
-    }
-    if (impl_alg == impl_kind_t::no_padding && in1) {
-        for (int i = 0; i < in1->ndims_; i++) {
-            if (!(in1->dims_[i] == 1 || in1->dims_[i] % simd_length == 0)) {
-                impl_alg = impl_kind_t::normal;
-                break;
-            }
-        }
-    }
-    in0_fmt_st->set_impl_alg(impl_alg);
+    in_fmt_st->set_impl_alg(impl_alg);
     out_fmt_st->set_impl_alg(impl_alg);
-    if (in1_fmt_st) { in1_fmt_st->set_impl_alg(impl_alg); }
     return impl_alg;
 }
 
@@ -191,8 +197,8 @@ extern "C" void query_format_reorder_op(void *table, void *out, void *in,
     uint64_t cp_in_fmt = *in_fmt, cp_out_fmt = *out_fmt;
     auto *in_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_in_fmt);
     auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);
-    auto tmp_impl_alg = check_and_set_fusible_impl(
-            in_dyn_tsr, out_dyn_tsr, in_fmt_st, nullptr, out_fmt_st);
+    auto tmp_impl_alg
+            = check_and_set_reorder_impl(in_dyn_tsr, in_fmt_st, out_fmt_st);
     if (impl_alg) { *impl_alg = tmp_impl_alg; }
     if (kernel_table) {
         uint64_t keys[2] = {*in_fmt_st, *out_fmt_st};

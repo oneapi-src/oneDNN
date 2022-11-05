@@ -27,6 +27,7 @@
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <runtime/dynamic_dispatch/ops/impl_type.hpp>
 #include <unordered_map>
 #include <util/exceptions.hpp>
 #include <util/math_utils.hpp>
@@ -1446,7 +1447,8 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
         std::vector<int> &out_a_axis, std::vector<int> &out_b_axis,
         const sc_dims &plain_dims, const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, const tensor_slice &src,
-        const tensor_slice &dst, const sc_data_type_t &dtype) {
+        const tensor_slice &dst, const sc_data_type_t &dtype, bool is_dynamic,
+        bool dynamic_no_padding) {
     if (!ctx->machine_.cpu_flags_.fAVX2) { return false; }
     if (!dtype.is_etype(sc_data_etype::F32)
             && !dtype.is_etype(sc_data_etype::BF16)) {
@@ -1461,8 +1463,13 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
     auto output_blocking_shapes
             = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
-    if (math_utils::get_dims_product(input_blocking_shapes)
-            != math_utils::get_dims_product(output_blocking_shapes)) {
+    if ((!is_dynamic
+                && math_utils::get_dims_product(input_blocking_shapes)
+                        != math_utils::get_dims_product(output_blocking_shapes))
+            || (is_dynamic && !dynamic_no_padding)) {
+        return false;
+    }
+    if (input_format.is_vnni_format() || output_format.is_vnni_format()) {
         return false;
     }
     auto inp_b_idx = inp_code.get(input_ndims - 1);
@@ -1512,42 +1519,32 @@ static bool can_be_fast_transpose(const context_ptr &ctx,
                     - out_b_axis.size()) {
         return false;
     }
+    auto satisfy_dim_lanes = [&](int trans_lanes1, int trans_lanes2) {
+        return plain_dims[inp_b_idx] % trans_lanes1 == 0
+                && plain_dims[out_a_idx] % trans_lanes2 == 0
+                && get_expr_as_int(
+                           src.shape_[inp_a_axis[inp_a_axis.size() - 1]])
+                        % trans_lanes2
+                == 0
+                && get_expr_as_int(
+                           dst.shape_[out_b_axis[out_b_axis.size() - 1]])
+                        % trans_lanes1
+                == 0
+                && get_expr_as_int(src.shape_[input_blocking_shapes.size() - 1])
+                        % trans_lanes1
+                == 0
+                && get_expr_as_int(
+                           dst.shape_[output_blocking_shapes.size() - 1])
+                        % trans_lanes2
+                == 0;
+    };
     if (dtype == datatypes::f32) {
-        return plain_dims[inp_b_idx] % trans_lanes == 0
-                && plain_dims[out_a_idx] % trans_lanes == 0
-                && get_expr_as_int(
-                           src.shape_[inp_a_axis[inp_a_axis.size() - 1]])
-                        % trans_lanes
-                == 0
-                && get_expr_as_int(
-                           dst.shape_[out_b_axis[out_b_axis.size() - 1]])
-                        % trans_lanes
-                == 0
-                && get_expr_as_int(src.shape_[input_blocking_shapes.size() - 1])
-                        % trans_lanes
-                == 0
-                && get_expr_as_int(
-                           dst.shape_[output_blocking_shapes.size() - 1])
-                        % trans_lanes
-                == 0;
+        return dynamic_no_padding
+                || (!is_dynamic && satisfy_dim_lanes(trans_lanes, trans_lanes));
     } else if (dtype == datatypes::bf16) {
-        return plain_dims[inp_b_idx] % trans_lanes == 0
-                && plain_dims[out_a_idx] % trans_lanes_bf16 == 0
-                && get_expr_as_int(
-                           src.shape_[inp_a_axis[inp_a_axis.size() - 1]])
-                        % trans_lanes_bf16
-                == 0
-                && get_expr_as_int(
-                           dst.shape_[out_b_axis[out_b_axis.size() - 1]])
-                        % trans_lanes
-                == 0
-                && get_expr_as_int(src.shape_[input_blocking_shapes.size() - 1])
-                        % trans_lanes
-                == 0
-                && get_expr_as_int(
-                           dst.shape_[output_blocking_shapes.size() - 1])
-                        % trans_lanes_bf16
-                == 0;
+        return dynamic_no_padding
+                || (!is_dynamic
+                        && satisfy_dim_lanes(trans_lanes, trans_lanes_bf16));
     }
     return false;
 }
@@ -1628,9 +1625,9 @@ static void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
     int step = trans_lanes; // fixed f32x8
     auto bld = builder::get_current_builder();
     auto input_blocking_dims
-            = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
+            = get_blocking_shapes_expr(graph, plain_dims, input_format);
     auto output_blocking_dims
-            = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
+            = get_blocking_shapes_expr(graph, plain_dims, output_format);
     std::vector<expr> rows;
     std::vector<expr> iter_vars;
     std::vector<stmt_c> cur_list;
@@ -1654,8 +1651,8 @@ static void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
     }
     auto compute_transpose_f32 = [&](const std::vector<expr> &in_indexes,
                                          const std::vector<expr> &out_indexes) {
-        std::vector<int> input_accum_divisors = {1};
-        std::vector<int> output_accum_divisors = {1};
+        std::vector<expr> input_accum_divisors = {1};
+        std::vector<expr> output_accum_divisors = {1};
         for (int axis = inp_a_axis.size() - 1; axis >= 0; axis--) {
             input_accum_divisors.push_back(input_accum_divisors.back()
                     * input_blocking_dims[inp_a_axis[axis]]);
@@ -1707,8 +1704,8 @@ static void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
     auto compute_transpose_bf16 = [&](const std::vector<expr> &in_indexes,
                                           const std::vector<expr>
                                                   &out_indexes) {
-        std::vector<int> input_accum_divisors = {1};
-        std::vector<int> output_accum_divisors = {1};
+        std::vector<expr> input_accum_divisors = {1};
+        std::vector<expr> output_accum_divisors = {1};
 
         for (int axis = inp_a_axis.size() - 1; axis >= 0; axis--) {
             input_accum_divisors.push_back(input_accum_divisors.back()
@@ -1768,7 +1765,7 @@ static void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
         }
     };
 
-    auto compute_loops = [&](const sc_dims &blocking_dims,
+    auto compute_loops = [&](const std::vector<expr> &blocking_dims,
                                  const std::vector<int> &a_axis,
                                  const std::vector<int> &b_axis,
                                  const tensor_slice &tsr) {
@@ -1865,7 +1862,7 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
         const sc_dims &plain_dims, const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, const tensor_slice &src,
         const tensor_slice &dst, const sc_data_type_t &dtype,
-        bool &is_vnni_reorder) {
+        bool &is_vnni_reorder, bool is_dynamic, bool dynamic_no_padding) {
     // VNNI reorder only support NK2NKknk-liked format.
     // Last axis should be 2 if dytpe is bf16 and 4 if dytpe is u8/s8
     // eg. 384N 64K -> 12N 4K 8k 32n 2k
@@ -1876,8 +1873,10 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     auto output_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
     bool is_padding = false;
-    if (math_utils::get_dims_product(input_blocking_dims)
-            != math_utils::get_dims_product(output_blocking_dims)) {
+    if ((!is_dynamic
+                && math_utils::get_dims_product(input_blocking_dims)
+                        != math_utils::get_dims_product(output_blocking_dims))
+            || (is_dynamic && !dynamic_no_padding)) {
         is_padding = true;
     }
     if (!(ctx->machine_.cpu_flags_.fAVX512F
@@ -2174,7 +2173,8 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
         std::vector<int> &inp_n_axis, std::vector<int> &inp_k_axis,
         std::vector<int> &out_n_axis, std::vector<int> &out_k_axis,
-        size_t wkld = 0UL, const bool &is_vnni_reorder = false) {
+        size_t wkld = 0UL, const bool &is_vnni_reorder = false,
+        bool is_dynamic = false, bool dynamic_no_padding = false) {
     bool is_bf16 = dtype.as_etype() == sc_data_etype::BF16;
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
@@ -2184,9 +2184,13 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
     auto output_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
+    auto output_blocking_dims_expr
+            = get_blocking_shapes_expr(graph, plain_dims, output_format);
     bool is_padding = false;
-    if (math_utils::get_dims_product(input_blocking_dims)
-            != math_utils::get_dims_product(output_blocking_dims)) {
+    if ((!is_dynamic
+                && math_utils::get_dims_product(input_blocking_dims)
+                        != math_utils::get_dims_product(output_blocking_dims))
+            || (is_dynamic && !dynamic_no_padding)) {
         is_padding = true;
     }
 
@@ -2402,7 +2406,7 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         // padding case
         if (is_padding) {
             // create iter variable and output index for padding case
-            for (size_t i = 0; i < output_blocking_dims.size(); i++) {
+            for (size_t i = 0; i < output_blocking_dims_expr.size(); i++) {
                 out_indexes_2.emplace_back(iter_vars[i] + dst.get_offset()[i]);
                 if (!is_vnni_reorder) { // vnni transpose
                     if (static_cast<int>(i) == out_n_axis[1]
@@ -2461,9 +2465,8 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
 
             // build padding for loop
             for (auto iter_v = 0UL; iter_v < iter_vars_2.size(); iter_v++) {
-                auto iter_end = (uint64_t)
-                        output_blocking_dims[output_blocking_dims.size()
-                                - iter_v - 1];
+                auto iter_end = output_blocking_dims_expr
+                        [output_blocking_dims_expr.size() - iter_v - 1];
                 if (!is_vnni_reorder) { // NK->NKkn2k
                     if (iter_v == 2 || iter_v == 1) {
                         iter_end = 4;
@@ -2487,7 +2490,7 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
 
             // calculate vnni condition
             vnni_condition = true;
-            for (int i = static_cast<int>(output_blocking_dims.size()) - 1;
+            for (int i = static_cast<int>(output_blocking_dims_expr.size()) - 1;
                     i >= 0; i--) {
                 auto temp_cond = (iter_vars.at(i) + dst.get_offset()[i]
                         < dst.get_shape()[i]);
@@ -2523,13 +2526,13 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         expr iter_end;
         // for-loop-transforms only support step=1
         // we can only divide iter_end_ rather than multiply step_
-        for (int i = static_cast<int>(output_blocking_dims.size()) - 1; i >= 0;
-                i--) {
+        for (int i = static_cast<int>(output_blocking_dims_expr.size()) - 1;
+                i >= 0; i--) {
             // if the offset of dst is given(commit op)
             if (!is_padding || !dst.get_offset()[i].isa<constant>()) {
                 iter_end = dst.get_shape()[i];
             } else {
-                iter_end = (uint64_t)output_blocking_dims[i];
+                iter_end = output_blocking_dims_expr[i];
             }
             expr cur_step = 1;
             if (!is_vnni_reorder) { // vnni transpose
@@ -2565,27 +2568,30 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
         size_t wkld = 0UL, bool is_innermost_dim_strided = false,
-        bool is_dynamic = false, bool dynamic_no_padding = false) {
+        bool is_dynamic = false, int impl_alg = 0) {
     COMPILE_ASSERT(input_format.is_convertible(output_format),
             "Can not convert input format "
                     << input_format << " to output format " << output_format
                     << ".");
     std::vector<int> inp_a_axis, inp_b_axis, out_a_axis, out_b_axis;
     bool is_vnni_reorder = false;
-    if (!is_innermost_dim_strided && !is_dynamic
+    bool dynamic_no_padding = impl_alg & impl_kind_t::no_padding;
+    if (!is_innermost_dim_strided
             && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis, out_a_axis,
                     out_b_axis, plain_dims, input_format, output_format, src,
-                    dst, dtype)) {
+                    dst, dtype, is_dynamic, dynamic_no_padding)) {
         compute_fast_transpose(graph, ctx, src, dst, input_format,
                 output_format, dtype, plain_dims, output_loop, attrs,
                 inp_a_axis, inp_b_axis, out_a_axis, out_b_axis, wkld);
-    } else if (!is_innermost_dim_strided && !is_dynamic
+    } else if (!is_innermost_dim_strided
             && can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
                     out_b_axis, plain_dims, input_format, output_format, src,
-                    dst, dtype, is_vnni_reorder)) {
+                    dst, dtype, is_vnni_reorder, is_dynamic,
+                    dynamic_no_padding)) {
         compute_vnni_reorder(graph, ctx, src, dst, input_format, output_format,
                 dtype, plain_dims, output_loop, attrs, inp_a_axis, inp_b_axis,
-                out_a_axis, out_b_axis, wkld, is_vnni_reorder);
+                out_a_axis, out_b_axis, wkld, is_vnni_reorder, is_dynamic,
+                dynamic_no_padding);
     } else if (is_not_blocking(input_format)
             && is_not_blocking(output_format)) {
         compute_reorder_stride2stride(graph, ctx, src, dst, input_format,
@@ -2687,11 +2693,14 @@ bool reorder_op_t::support_optmized_kernel(const context_ptr &ctx) const {
     return (!is_innermost_dim_strided && !is_dynamic()
                    && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis,
                            out_a_axis, out_b_axis, plain_dims_, input_format,
-                           output_format, src, dst, dtype))
+                           output_format, src, dst, dtype, is_dynamic(),
+                           info_.cur_impl_ & impl_kind_t::no_padding))
             || (!is_dynamic()
                     && can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis,
                             out_a_axis, out_b_axis, plain_dims_, input_format,
-                            output_format, src, dst, dtype, is_vnni_reorder));
+                            output_format, src, dst, dtype, is_vnni_reorder,
+                            is_dynamic(),
+                            info_.cur_impl_ & impl_kind_t::no_padding));
 }
 
 void reorder_op_t::compute_block(context_ptr ctx,
@@ -2706,8 +2715,7 @@ void reorder_op_t::compute_block(context_ptr ctx,
     compute_reorder_block(get_owner_graph(), ctx, *inputs[0], *dst[0],
             input_format, output_format, info_.inputs_[0]->details_.dtype_,
             plain_dims_, use_output_loop(), attrs_, wkld,
-            is_innermost_dim_strided, is_dynamic(),
-            info_.cur_impl_ & impl_kind_t::no_padding);
+            is_innermost_dim_strided, is_dynamic(), info_.cur_impl_);
 }
 
 std::vector<int> reorder_op_t::get_impl_dispatch_candidates() const {
