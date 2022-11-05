@@ -391,18 +391,41 @@ public:
         }
     }
 
-    void emul(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
-            const ngen_operand_t &src0, const ngen_operand_t &src1) {
+    void emul(const ngen::InstructionModifier &mod_, const ngen_operand_t &dst_,
+            const ngen_operand_t &src0_, const ngen_operand_t &src1_) {
+        int width = mod_.getExecSize();
+        int esize = ngen_is_dw(src0_.type()) && ngen_is_dw(src1_.type())
+                ? 8
+                : width;
+        int step = esize;
+        auto src0 = src0_;
+        auto src1 = src1_;
+        auto dst = dst_;
+        auto mod = mod_;
         if (src0.is_immediate()) {
             ir_assert(src1.is_reg_data());
             emul(mod, dst, src1, src0);
             return;
         }
         if (src1.is_reg_data()) {
-            if (ngen_is_dw(src1.type()) && ngen_is_w(src0.type())) {
-                emul(mod, dst.reg_data(), src1.reg_data(), src0.reg_data());
-            } else {
-                emul(mod, dst.reg_data(), src0.reg_data(), src1.reg_data());
+            for (int i = 0; i < width; i += step) {
+                step = std::min(step, width - i);
+                step = utils::rnd_down_pow2(step);
+                esize = step;
+                mod.setExecSize(esize);
+                auto subreg = [&](const ngen_operand_t &src) {
+                    auto hs = src.reg_buf_data().hs();
+                    int stride = hs == 0 ? 1 : esize;
+                    return src.sub_reg_data(i, stride);
+                };
+                src0 = subreg(src0_);
+                src1 = subreg(src1_);
+                dst = dst_.sub_reg_data(i, 1);
+                if (ngen_is_dw(src1.type()) && ngen_is_w(src0.type())) {
+                    emul(mod, dst.reg_data(), src1.reg_data(), src0.reg_data());
+                } else {
+                    emul(mod, dst.reg_data(), src0.reg_data(), src1.reg_data());
+                }
             }
         } else {
             auto &src1_imm = src1.immediate();
