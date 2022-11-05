@@ -744,53 +744,53 @@ union reorder_implementation {
 
 class scales_query_t {
 public:
-    bool has_default_values() const { return scales().has_default_values(); }
-    int get_mask() const { return scales().mask_; }
-    size_t get_count() const {
-        return get_attr_oscales_count(get_mask(), mdw_);
-    }
+    bool has_default_values() const { return scales_.has_default_values(); }
+    int get_mask() const { return scales_.mask_; }
+    size_t get_count() const { return count_; }
     memory_storage_t &get_scales(const exec_ctx_t &ctx) const {
         return CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | arg_);
     }
 
+    scales_query_t() = default;
     scales_query_t(const primitive_attr_t *attr, const memory_desc_wrapper &mdw,
             int arg)
-        : attr_(attr), mdw_(mdw), arg_(arg) {}
-    scales_query_t() : attr_(nullptr), mdw_(nullptr), arg_(0) {}
+        : arg_(arg) {
+        scales_ = attr->scales_.get(arg);
+        count_ = get_attr_oscales_count(scales_.mask_, mdw);
+    }
 
 private:
-    const runtime_scales_t &scales() const { return attr_->scales_.get(arg_); }
-
-    const primitive_attr_t *attr_;
-    memory_desc_wrapper mdw_;
-    int arg_;
+    runtime_scales_t scales_;
+    dim_t count_ = 0;
+    int arg_ = 0;
 };
 
 class zero_points_query_t {
 public:
-    bool has_default_values() const { return zps().has_default_values(arg_); }
+    bool has_default_values() const { return zps_.has_default_values(arg_); }
     int get_mask() const {
         int mask;
-        zps().get(arg_, &mask);
+        zps_.get(arg_, &mask);
         return mask;
     }
-    size_t get_count() const {
-        return get_attr_oscales_count(get_mask(), mdw_);
-    }
+    size_t get_count() const { return count_; }
     memory_storage_t &get_zero_points(const exec_ctx_t &ctx) const {
         return CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | arg_);
     }
 
+    zero_points_query_t() = default;
     zero_points_query_t(const primitive_attr_t *attr,
             const memory_desc_wrapper &mdw, int arg)
-        : attr_(attr), mdw_(mdw), arg_(arg) {}
-    zero_points_query_t() : attr_(nullptr), mdw_(nullptr), arg_(0) {}
+        : arg_(arg) {
+        zps_ = attr->zero_points_;
+        int mask;
+        zps_.get(arg, &mask);
+        count_ = get_attr_oscales_count(mask, mdw);
+    }
 
 private:
-    const zero_points_t &zps() const { return attr_->zero_points_; }
-
-    const primitive_attr_t *attr_;
-    memory_desc_wrapper mdw_;
+    zero_points_t zps_;
+    dim_t count_;
     int arg_;
 };
 
