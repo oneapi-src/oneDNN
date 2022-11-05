@@ -109,7 +109,6 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
             for (size_t i = 0; i < preserved_vecs_count; ++i)
                 h->str(ZReg(preserved_vec_idxs[i]), ptr(h->X_SP, i, MUL_VL));
         }
-
         load_table_addr();
     }
 
@@ -138,7 +137,8 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble_tail(
 
     if (save_state_ && preserve_vmm_) {
         for (size_t i = 0; i < tail_vecs_to_preserve; ++i)
-            h->str(ZReg(idx_off + i), ptr(h->X_SP, i, MUL_VL));
+            h->str(ZReg(preserved_vec_idxs[idx_off + i]),
+                    ptr(h->X_SP, i, MUL_VL));
 
         if (idx_off) h->sub_imm(h->X_SP, h->X_SP, idx_off * vlen, h->X_TMP_0);
     }
@@ -1597,8 +1597,6 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
     for (auto it = entry_map_.begin(); it != entry_map_.end(); it++) {
         const auto &te = (*it).second; // get map entry for a given key
         const auto len = te.bcast ? vlen : sizeof(table_entry_val_t);
-        /*        for (size_t d = 0; d < len; d += sizeof(table_entry_val_t))
-            h->dd(te.val);*/
         for (size_t d = 0; d < len; d += sizeof(table_entry_val_t))
             h->dd(te.val);
 
