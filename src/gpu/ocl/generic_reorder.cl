@@ -198,14 +198,14 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_SRC_SCALE
             uint src_scale_idx = SCALE_OFF(SRC, d[0] + b[0], d[1] + b[1],
                     d[2] + b[2], d[3] + b[3], d[4] + b[4], d[5] + b[5]);
-            src_scale = src_scale_idx < NUM_SRC_SCALES
+            src_scale = src_scale_idx < SRC_NUM_SCALES
                     ? src_scales[src_scale_idx]
                     : 0.0;
 #endif
 #if WITH_DST_SCALE
             uint dst_scale_idx = SCALE_OFF(DST, d[0] + b[0], d[1] + b[1],
                     d[2] + b[2], d[3] + b[3], d[4] + b[4], d[5] + b[5]);
-            dst_scale = dst_scale_idx < NUM_DST_SCALES
+            dst_scale = dst_scale_idx < DST_NUM_SCALES
                     ? dst_scales[dst_scale_idx]
                     : 0.0;
 #endif

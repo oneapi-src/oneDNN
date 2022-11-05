@@ -18,7 +18,7 @@
 KERNEL_ATTR
 __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
         __global DST_DATA_T *restrict dst, __global float *restrict src_scales,
-        __global float *restrict dst_scales, __global int *restrict src_zps,
+        __global int *restrict src_zps, __global float *restrict dst_scales,
         __global int *restrict dst_zps, float sum_scale, int sum_zp) {
 
     const int src_zp = GET_SRC_ZP(src_zps);

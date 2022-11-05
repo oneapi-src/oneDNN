@@ -393,17 +393,17 @@ bool can_be_combined(int idx, int mask) {
     return !(idx == NO_IDX || (mask & (1 << idx)));
 }
 
-void compress(memory_desc_t &a, memory_desc_t &b, int &mask) {
+void compress(memory_desc_t &a, memory_desc_t &b, int &a_mask, int &b_mask) {
     const auto blks_a = query_dims_and_blocks(a);
     const auto blks_b = query_dims_and_blocks(b);
-    const int skip_mask = mask | extended_dims(a) | extended_dims(b);
+    const int skip_mask = a_mask | b_mask | extended_dims(a) | extended_dims(b);
 
     const int ndims = a.ndims;
     std::vector<int> successors(ndims, NO_IDX);
     std::vector<int> aliases(ndims);
     for (int i = 0; i < ndims; ++i) {
         aliases[i] = i;
-        if (mask & (1 << i)) continue;
+        if ((a_mask | b_mask) & (1 << i)) continue;
         auto succ = successor(blks_a, blks_b, i);
         if (!can_be_combined(succ, skip_mask)) continue;
         successors[i] = succ;
@@ -418,7 +418,8 @@ void compress(memory_desc_t &a, memory_desc_t &b, int &mask) {
         int into = std::min(i, succ);
         combine(a, into, from);
         combine(b, into, from);
-        remove_bit(mask, from);
+        remove_bit(a_mask, from);
+        remove_bit(b_mask, from);
         aliases[from] = into;
     }
 }
@@ -775,16 +776,19 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper original_src_mdw(src_md());
     const memory_desc_wrapper original_dst_mdw(dst_md());
     quantization_t src_quant(attr(), original_src_mdw, DNNL_ARG_SRC);
-    quantization_t dst_quant(attr(), original_src_mdw, DNNL_ARG_SRC);
+    quantization_t dst_quant(attr(), original_dst_mdw, DNNL_ARG_DST);
 
-    auto mask = src_quant.scale_mask() | src_quant.zp_mask()
-            | dst_quant.scale_mask() | dst_quant.zp_mask();
+    auto src_mask = src_quant.scale_mask();
+    auto dst_mask = dst_quant.scale_mask();
 
     memory_desc_t new_a;
     memory_desc_t new_b;
+    primitive_attr_t attr_copy = *attr();
     memcpy(&new_a, src_md(), sizeof(new_a));
     memcpy(&new_b, dst_md(), sizeof(new_b));
-    compress(new_a, new_b, mask);
+    compress(new_a, new_b, src_mask, dst_mask);
+    if (src_mask) attr_copy.scales_.set(DNNL_ARG_SRC, src_mask);
+    if (dst_mask) attr_copy.scales_.set(DNNL_ARG_DST, dst_mask);
 
     if (!is_generic_faster_than_ref(new_a, new_b)) return status::unimplemented;
 
@@ -793,9 +797,9 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     conf.src_md_info = memory_desc_info_t::create(src_mdw);
     conf.dst_md_info = memory_desc_info_t::create(dst_mdw);
 
-    conf.src_quant = {attr(), src_mdw, DNNL_ARG_SRC};
-    conf.dst_quant = {attr(), dst_mdw, DNNL_ARG_DST};
-    conf.sum_quant = {attr()};
+    conf.src_quant = {&attr_copy, src_mdw, DNNL_ARG_SRC};
+    conf.dst_quant = {&attr_copy, dst_mdw, DNNL_ARG_DST};
+    conf.sum_quant = {&attr_copy};
 
     status_t status = status::success;
 
@@ -819,7 +823,7 @@ status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
     int vect_size = 1;
     int vect_dim = 0;
 
-    if (!fill_conf_vld(src_mdw, dst_mdw, mask, memlimit_bytes,
+    if (!fill_conf_vld(src_mdw, dst_mdw, src_mask | dst_mask, memlimit_bytes,
                 optimal_burst_bytes, conf.aux_data.vld, vect_dim, vect_size,
                 &blocks[0])) {
         return status::unimplemented;
