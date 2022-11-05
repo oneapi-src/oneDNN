@@ -39,13 +39,9 @@ status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg);
 
 status_t defer_src_zps_for_pool(std::shared_ptr<subgraph_t> &sg);
 
-status_t fuse_to_int8_reorder(std::shared_ptr<subgraph_t> &sg);
-
 status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg);
 
 status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg);
-
-status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg);
 
 status_t replace_quant_data_with_binary_post_op(
         std::shared_ptr<subgraph_t> &sg);
@@ -158,10 +154,6 @@ status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg);
 
 status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg);
 
-status_t fuse_static_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg);
-
-status_t fuse_static_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg);
-
 status_t fuse_dynamic_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg);
 
 status_t fuse_dynamic_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg);
@@ -203,8 +195,6 @@ impl::status_t lift_up_typecast(std::shared_ptr<subgraph_t> &sg);
 // This pass will compute matmul with the dst layout of following transpose if
 // the operator after transpose need a dense layout
 impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg);
-
-status_t convert_to_runtime_scales(std::shared_ptr<subgraph_t> &sg);
 
 status_t convert_to_runtime_src_zero_points(std::shared_ptr<subgraph_t> &sg);
 

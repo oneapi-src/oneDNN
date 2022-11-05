@@ -45,21 +45,6 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
         const std::shared_ptr<op_t> &op, const fusion_info_t &fusion_info) {
     dnnl::primitive_attr attr;
 
-    // convert output scales
-    if (fusion_info.output_scales_) {
-        assertm(false, "only support runtime arg scales.\n");
-        // const op_t *oscales_op = fusion_info.output_scales_->get_op();
-        // int mask = 0;
-        // if (oscales_op->has_attr(op_attr::axis)
-        //         && oscales_op->has_attr(op_attr::qtype)) {
-        //     int64_t axis = oscales_op->get_attr<int64_t>(op_attr::axis);
-        //     std::string qtype
-        //             = oscales_op->get_attr<std::string>(op_attr::qtype);
-        //     mask = qtype == "per_tensor" ? 0 : 1 << axis;
-        // }
-        // attr.set_output_scales_mask(mask);
-    }
-
     if (fusion_info.dst_scales_) {
         const op_t *dst_scales_op = fusion_info.dst_scales_->get_op();
         assertm(fusion_info.with_runtime_scales(false, 0),

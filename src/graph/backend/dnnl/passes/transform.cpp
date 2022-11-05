@@ -114,53 +114,6 @@ status_t fuse_bias_add(std::shared_ptr<subgraph_t> &sg) {
     return status::success;
 }
 
-status_t fuse_output_scales(std::shared_ptr<subgraph_t> &sg) {
-    auto &mgr = sg->fusion_info_mgr_;
-    subgraph_rewriter_t rewriter(sg);
-
-    std::vector<std::pair<op_t *, op_t *>> fuse_groups;
-
-    std::set<op_t *> visited;
-    for (auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != op_kind::dnnl_reorder
-                || visited.count(cur_op.get()) != 0)
-            continue;
-
-        auto out_val = cur_op->get_output_values()[0];
-        auto consumers = out_val->get_consumers();
-        if (consumers.size() != 1) continue;
-
-        auto &next_op = consumers[0].get_op();
-        if (next_op.get_kind() != op_kind::dnnl_mul_scales) continue;
-
-        fuse_groups.emplace_back(
-                std::pair<op_t *, op_t *> {cur_op.get(), &next_op});
-        visited.insert(cur_op.get());
-        visited.insert(&next_op);
-    }
-
-    for (auto &fuse_group : fuse_groups) {
-        auto base_op = fuse_group.first;
-        auto scale_op = fuse_group.second;
-
-        int64_t key = -1;
-        if (base_op->has_attr(op_attr::fusion_info_key)
-                && base_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
-            key = base_op->get_attr<int64_t>(op_attr::fusion_info_key);
-        } else {
-            key = mgr.init_info();
-            base_op->set_attr<int64_t>(op_attr::fusion_info_key, key);
-        }
-
-        fusion_info_t &fusion_info = mgr.get_mutable_info(key);
-        fusion_info.set_output_scales(scale_op->shared_from_this());
-        rewriter.fuse_op_to_predecessor(scale_op->shared_from_this());
-    }
-
-    rewriter.run();
-    return infer_shape(sg);
-}
-
 // replace mul_scales and add_zps with binary_mul and binary_add respectively
 status_t replace_quant_data_with_binary_post_op(
         std::shared_ptr<subgraph_t> &sg) {
@@ -302,49 +255,9 @@ status_t convert_to_runtime_src_scales(std::shared_ptr<subgraph_t> &sg) {
         auto consumers = out_val->get_consumers();
         if (!impl::utils::one_of(consumers[0].get_op().get_kind(),
                     op_kind::dnnl_matmul, op_kind::dnnl_convolution,
-                    op_kind::dnnl_convtranspose))
+                    op_kind::dnnl_convtranspose, op_kind::dnnl_reorder))
             continue;
 
-        // make scales as a constant input
-        op_ptr const_data_op;
-        const auto scales
-                = cur_op->get_attr<std::vector<float>>(op_attr::scales);
-        const_data_op = std::make_shared<op_t>(op_kind::dnnl_constant_scales);
-        const_data_op->set_attr(op_attr::scales, scales);
-        std::vector<int64_t> dst_shape(1, scales.size());
-        const_data_op->set_attr(op_attr::shape, dst_shape);
-        logical_tensor_t const_data_dst_lt
-                = empty_logical_tensor_with_default_id();
-        auto const_data_dst_value = std::make_shared<value_t>(
-                *const_data_op, 0, const_data_dst_lt, true);
-        const_data_dst_value->set_data_type(graph::data_type::f32);
-        const_data_dst_value->set_layout_type(layout_type::strided);
-        const_data_dst_value->set_strides({1});
-        const_data_op->add_output(const_data_dst_value);
-        cur_op->set_attr(op_attr::with_runtime_scales, true);
-        cur_op->remove_attr(op_attr::scales);
-
-        // connect mul_scale and constant data
-        cur_op->connect_input(1, const_data_dst_value);
-        rewriter.to_insert(const_data_op);
-    }
-
-    rewriter.run();
-    return infer_shape(sg);
-}
-
-status_t convert_to_runtime_scales(std::shared_ptr<subgraph_t> &sg) {
-    std::set<op_t *> visited;
-    subgraph_rewriter_t rewriter(sg);
-    for (auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != op_kind::dnnl_mul_scales
-                || cur_op->num_inputs() != 1
-                || !cur_op->get_input_value(0)->has_producer()
-                || cur_op->get_input_op(0)->get_kind() != op_kind::dnnl_reorder
-                || visited.count(cur_op.get()))
-            continue;
-
-        visited.insert(cur_op.get());
         // make scales as a constant input
         op_ptr const_data_op;
         const auto scales
@@ -628,41 +541,6 @@ status_t fold_sum_scales(std::shared_ptr<subgraph_t> &sg) {
 
     rewriter.run();
     return status::success;
-}
-
-status_t fuse_to_int8_reorder(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<std::vector<op_t *>> fusion_groups;
-    for (const auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != op_kind::dnnl_reorder
-                || !cur_op->get_input_value(0)->has_producer())
-            continue;
-        auto &in = cur_op->get_input_value(0)->get_producer();
-        if (in.get_kind() == op_kind::dnnl_mul_scales)
-            fusion_groups.emplace_back(std::vector<op_t *> {cur_op.get(), &in});
-    }
-
-    for (auto &fusion_group : fusion_groups) {
-        op_t *reorder_op = fusion_group[0];
-        op_t *in_op = fusion_group[1];
-
-        // update the connection relationship between reorder and mul_scales ops
-        // basically switch the order of these two ops
-        auto in_op_in_value = in_op->get_input_value(0);
-        auto reorder_op_in_value = reorder_op->get_input_value(0);
-        auto out_value = reorder_op->get_output_value(0);
-
-        reorder_op->connect_input(0, in_op_in_value);
-        in_op_in_value->remove_consumer(*in_op, 0);
-        reorder_op->connect_output(0, reorder_op_in_value);
-        reorder_op_in_value->set_producer(*reorder_op);
-        reorder_op_in_value->remove_consumer(*reorder_op, 0);
-
-        in_op->connect_input(0, reorder_op_in_value);
-        in_op->connect_output(0, out_value);
-        out_value->set_producer(*in_op);
-    }
-
-    return infer_shape(sg);
 }
 
 // FIXME(xx) This pass works correctly only when all inputs/outputs scales/zps
@@ -1262,7 +1140,7 @@ status_t fuse_src_scales(std::shared_ptr<subgraph_t> &sg) {
 
         if (!impl::utils::one_of(consumers[0].get_op().get_kind(),
                     op_kind::dnnl_matmul, op_kind::dnnl_convolution,
-                    op_kind::dnnl_convtranspose))
+                    op_kind::dnnl_convtranspose, op_kind::dnnl_reorder))
             continue;
 
         auto &next_op = consumers[0].get_op();
@@ -1312,7 +1190,8 @@ status_t fuse_dst_scales(std::shared_ptr<subgraph_t> &sg) {
                     && cur_op->get_kind() != op_kind::dnnl_matmul
                     && cur_op->get_kind() != op_kind::dnnl_convtranspose
                     && cur_op->get_kind() != op_kind::dnnl_softmax
-                    && cur_op->get_kind() != op_kind::dnnl_layernorm)
+                    && cur_op->get_kind() != op_kind::dnnl_layernorm
+                    && cur_op->get_kind() != op_kind::dnnl_reorder)
                 || visited.count(cur_op.get()) != 0)
             continue;
         auto out_val = cur_op->get_output_values()[0];
@@ -1358,7 +1237,7 @@ status_t convert_to_runtime_dst_scales(std::shared_ptr<subgraph_t> &sg) {
                 || !impl::utils::one_of(cur_op->get_input_op(0)->get_kind(),
                         op_kind::dnnl_softmax, op_kind::dnnl_layernorm,
                         op_kind::dnnl_convolution, op_kind::dnnl_matmul,
-                        op_kind::dnnl_convtranspose)
+                        op_kind::dnnl_convtranspose, op_kind::dnnl_reorder)
                 || visited.count(cur_op.get()))
             continue;
 
@@ -1397,7 +1276,8 @@ status_t convert_bias_to_f32(std::shared_ptr<subgraph_t> &sg) {
     std::set<op_t *> visited;
     subgraph_rewriter_t rewriter(sg);
     for (auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != op_kind::dnnl_convolution
+        if (!impl::utils::one_of(cur_op->get_kind(), op_kind::dnnl_convolution,
+                    op_kind::dnnl_matmul)
                 || cur_op->num_inputs() < 3
                 || !cur_op->get_input_value(0)->has_producer()
                 || !cur_op->get_input_value(1)->has_producer()
@@ -2738,71 +2618,6 @@ status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg) {
     return status::success;
 }
 
-status_t fuse_static_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<std::pair<op_t *, op_t *>> fuse_groups;
-    for (const auto &op : sg->get_ops()) {
-        // This pass only handle static quantization
-        if (op->get_kind() != op_kind::dnnl_mul_scales
-                || (op->has_attr(op_attr::with_runtime_scales)
-                        && op->get_attr<bool>(op_attr::with_runtime_scales)))
-            continue;
-
-        auto out_val = op->get_output_values()[0];
-        auto consumers = out_val->get_consumers();
-        if (consumers.empty()) continue;
-
-        auto &consumer_op = consumers[0].get_op();
-        if (consumer_op.get_kind() != op_kind::dnnl_add_zps) continue;
-
-        fuse_groups.emplace_back(
-                std::pair<op_t *, op_t *> {op.get(), &consumer_op});
-    }
-
-    if (fuse_groups.empty()) return status::success;
-
-    subgraph_rewriter_t rewriter(sg);
-    for (auto &fuse_ops : fuse_groups) {
-        op_t *mul_scales_op = fuse_ops.first;
-        op_t *add_zps_op = fuse_ops.second;
-
-        const int64_t axis = mul_scales_op->get_attr<int64_t>(op_attr::axis);
-        const std::string &qtype
-                = mul_scales_op->get_attr<std::string>(op_attr::qtype);
-        const std::vector<float> &scales
-                = mul_scales_op->get_attr<std::vector<float>>(op_attr::scales);
-        const std::vector<int64_t> &zps
-                = add_zps_op->get_attr<std::vector<int64_t>>(op_attr::zps);
-
-        op_ptr fused_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
-        fused_op->set_attr<bool>(op_attr::change_layout, false);
-        fused_op->set_attr<int64_t>(op_attr::axis, axis);
-        fused_op->set_attr<std::string>(op_attr::qtype, qtype);
-        fused_op->set_attr<std::vector<float>>(op_attr::scales, scales);
-        if (!utils::all_zero(zps)) {
-            fused_op->set_attr<std::vector<int64_t>>(op_attr::dst_zps, zps);
-        }
-
-        auto in_val = mul_scales_op->get_input_value(0);
-        in_val->remove_consumer(*mul_scales_op, 0);
-        fused_op->connect_input(0, in_val);
-
-        auto out_val = add_zps_op->get_output_value(0);
-        fused_op->add_output(out_val);
-        out_val->set_producer(*fused_op);
-
-        rewriter.to_insert(fused_op);
-
-        // add scratchpad output
-        insert_empty_scratchpad(fused_op);
-
-        rewriter.to_remove(mul_scales_op->shared_from_this());
-        rewriter.to_remove(add_zps_op->shared_from_this());
-    }
-
-    rewriter.run();
-    return status::success;
-}
-
 status_t convert_runtime_mul_scales(std::shared_ptr<subgraph_t> &sg) {
     std::vector<op_t *> mul_scales;
     std::set<op_t *> visited;
@@ -2899,70 +2714,6 @@ status_t convert_runtime_zero_points(std::shared_ptr<subgraph_t> &sg) {
     return infer_shape(sg);
 }
 
-status_t fuse_static_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg) {
-    std::vector<std::pair<op_t *, op_t *>> fuse_groups;
-    for (const auto &op : sg->get_ops()) {
-        // This pass only handle static quantization
-        if (op->get_kind() != op_kind::dnnl_sub_zps
-                || (op->has_attr(op_attr::with_runtime_zps)
-                        && op->get_attr<bool>(op_attr::with_runtime_zps)))
-            continue;
-
-        auto out_val = op->get_output_values()[0];
-        auto consumers = out_val->get_consumers();
-        if (consumers.empty()) continue;
-
-        auto &consumer_op = consumers[0].get_op();
-        if (consumer_op.get_kind() != op_kind::dnnl_mul_scales) continue;
-
-        fuse_groups.emplace_back(
-                std::pair<op_t *, op_t *> {op.get(), &consumer_op});
-    }
-
-    if (fuse_groups.empty()) return status::success;
-
-    subgraph_rewriter_t rewriter(sg);
-    for (auto &fuse_ops : fuse_groups) {
-        op_t *sub_zps_op = fuse_ops.first;
-        op_t *mul_scales_op = fuse_ops.second;
-
-        const int64_t axis = sub_zps_op->get_attr<int64_t>(op_attr::axis);
-        const std::string &qtype
-                = sub_zps_op->get_attr<std::string>(op_attr::qtype);
-        const std::vector<float> &scales
-                = mul_scales_op->get_attr<std::vector<float>>(op_attr::scales);
-        const std::vector<int64_t> &zps
-                = sub_zps_op->get_attr<std::vector<int64_t>>(op_attr::zps);
-
-        op_ptr fused_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
-        fused_op->set_attr<bool>(op_attr::change_layout, false);
-        fused_op->set_attr<int64_t>(op_attr::axis, axis);
-        fused_op->set_attr<std::string>(op_attr::qtype, qtype);
-        fused_op->set_attr<std::vector<float>>(op_attr::scales, scales);
-        if (!utils::all_zero(zps)) {
-            fused_op->set_attr<std::vector<int64_t>>(op_attr::src_zps, zps);
-        }
-        auto in_val = sub_zps_op->get_input_value(0);
-        in_val->remove_consumer(*sub_zps_op, 0);
-        fused_op->connect_input(0, in_val);
-
-        auto out_val = mul_scales_op->get_output_value(0);
-        fused_op->add_output(out_val);
-        out_val->set_producer(*fused_op);
-
-        rewriter.to_insert(fused_op);
-
-        // add scratchpad output
-        insert_empty_scratchpad(fused_op);
-
-        rewriter.to_remove(sub_zps_op->shared_from_this());
-        rewriter.to_remove(mul_scales_op->shared_from_this());
-    }
-
-    rewriter.run();
-    return status::success;
-}
-
 status_t fuse_dynamic_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
     std::vector<std::pair<op_ptr, op_ptr>> fuse_groups;
     std::set<op_t *> visited;
@@ -3014,7 +2765,7 @@ status_t fuse_dynamic_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
         src->remove_consumer(*mul_scales, 0);
         fused_op->connect_input(0, src);
 
-        // fuse scales as output scales
+        // fuse scales as arg src scales
         auto scales = mul_scales->get_input_value(1);
         scales->remove_consumer(*mul_scales, 1);
         fused_op->connect_input(1, scales);

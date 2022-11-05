@@ -322,11 +322,6 @@ std::string kind2str(op_kind_t kind);
 // which only has different input/output data type.
 bool is_typecast(const op_t *op);
 
-/// This function is to check if the op contains oscales in attributes, will be
-/// deprecated once oscales removed.
-bool with_runtime_oscales(
-        const std::shared_ptr<op_t> &op, const fusion_info_mgr_t &mgr);
-
 bool with_runtime_scales(const std::shared_ptr<op_t> &op,
         const fusion_info_mgr_t &mgr, bool is_input, size_t indice);
 
