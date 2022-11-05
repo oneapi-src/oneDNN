@@ -244,6 +244,8 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
 }
 
 template class jit_uni_postops_injector_t<sve_512>;
+template class jit_uni_postops_injector_t<sve_256>;
+template class jit_uni_postops_injector_t<sve_128>;
 
 } // namespace injector
 } // namespace aarch64
