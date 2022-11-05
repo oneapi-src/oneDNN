@@ -553,22 +553,23 @@ void jit_uni_binary_kernel_t<isa>::compute_dst(int unroll, bool tail) {
                 const auto off_end = off_start + zero_pad_left * dt_size;
                 const int off_ = offt * dt_size + off_start;
                 int count_end = off_end - off_start;
+
                 for (int count = 0; count < count_end;) {
                     const int off = off_ + count;
-                    if (count >= 8) {
-                        assert(off % 8 == 0 && offt < (1 << 15));
+                    if (count >= 8 && off % 8 == 0) {
+                        assert(off < (1 << 11));
                         str(X_TMP_1, ptr(reg_offt_dst_, off));
                         count += 8;
-                    } else if (count >= 4) {
-                        assert(off % 4 == 0 && offt < (1 << 14));
+                    } else if (count >= 4 && off % 4 == 0) {
+                        assert(off < (1 << 11));
                         str(W_TMP_1, ptr(reg_offt_dst_, off));
                         count += 4;
-                    } else if (count >= 2) {
-                        assert(off % 2 == 0 && offt < (1 << 13));
+                    } else if (count >= 2 && off % 2 == 0) {
+                        assert(off < (1 << 11));
                         strh(W_TMP_1, ptr(reg_offt_dst_, off));
                         count += 2;
                     } else {
-                        assert(offt < (1 << 12));
+                        assert(off < (1 << 11));
                         strb(W_TMP_1, ptr(reg_offt_dst_, off));
                         count += 1;
                     }
@@ -742,6 +743,12 @@ void jit_uni_binary_kernel_t<isa>::forward_over_outer_dims() {
 template <cpu_isa_t isa>
 void jit_uni_binary_kernel_t<isa>::generate() {
     preamble();
+
+    if (isa == sve_256)
+        ptrue(P_ALL_ONE.b, VL32);
+    else if (isa == sve_128)
+        ptrue(P_ALL_ONE.b, VL16);
+
     load_kernel_params();
     prepare_isa_kernel();
     // if outer dims is not aligned to simd_w, iterate over it to avoid
@@ -759,6 +766,8 @@ void jit_uni_binary_kernel_t<isa>::generate() {
 #undef PARAM_OFF
 
 template struct jit_uni_binary_kernel_t<sve_512>;
+template struct jit_uni_binary_kernel_t<sve_256>;
+template struct jit_uni_binary_kernel_t<sve_128>;
 
 } // namespace aarch64
 } // namespace cpu

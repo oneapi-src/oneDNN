@@ -573,12 +573,27 @@ void jit_io_helper_t<Vmm>::store_f32(const Vmm &src_vmm,
     if (io_conf_.nt_stores_enabled_) {
         host_->stnt1d(Xbyak_aarch64::ZRegD(src_vmm.getIdx()), mask,
                 Xbyak_aarch64::ptr(dst_addr));
-    } else if (!is_superset(isa_, sve_512) && tail) {
-        const Xbyak_aarch64::ZReg src(tail_conf_->tail_vmm_mask_idx_);
-        const Xbyak_aarch64::ZReg src2(src_vmm.getIdx());
-        host_->cmplt(host_->P_TMP.s, mask / Xbyak_aarch64::T_z, src.s, 0);
-        host_->st1w(src2.s, host_->P_TMP / Xbyak_aarch64::T_m,
-                Xbyak_aarch64::ptr(dst_addr));
+    } else if (!is_superset(isa_, sve_128) && tail) {
+        // ASIMD 128-bit
+        switch (tail_conf_->tail_size_) {
+            case 1:
+                host_->str(Xbyak_aarch64::SReg(src_vmm.getIdx()),
+                        Xbyak_aarch64::ptr(dst_addr));
+                break;
+            case 2:
+                host_->str(Xbyak_aarch64::DReg(src_vmm.getIdx()),
+                        Xbyak_aarch64::ptr(dst_addr));
+                break;
+            case 3:
+                host_->str(Xbyak_aarch64::DReg(src_vmm.getIdx()),
+                        Xbyak_aarch64::ptr(dst_addr));
+                host_->add(dst_addr, dst_addr, 8);
+                host_->st1(Xbyak_aarch64::VReg4S(src_vmm.getIdx())[2],
+                        Xbyak_aarch64::ptr(dst_addr));
+                host_->sub(dst_addr, dst_addr, 8);
+                break;
+            default: assert(!"unreachable");
+        }
     } else {
         host_->st1w(Xbyak_aarch64::ZRegS(src_vmm.getIdx()), mask,
                 Xbyak_aarch64::ptr(dst_addr));

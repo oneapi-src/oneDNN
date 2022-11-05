@@ -136,7 +136,11 @@ conditional_register_preserve_guard_t<
                     : register_preserve_guard_t<isa> {nullptr, {}, {}}} {};
 
 template class register_preserve_guard_t<sve_512>;
+template class register_preserve_guard_t<sve_256>;
+template class register_preserve_guard_t<sve_128>;
 template class conditional_register_preserve_guard_t<sve_512>;
+template class conditional_register_preserve_guard_t<sve_256>;
+template class conditional_register_preserve_guard_t<sve_128>;
 
 } // namespace injector_utils
 } // namespace aarch64
