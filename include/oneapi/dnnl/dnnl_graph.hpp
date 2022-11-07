@@ -833,7 +833,7 @@ public:
     /// passed to compilation API before, otherwise an exception will be raised.
     ///
     /// @param inputs The input logical tensors with concrete shapes.
-    /// @param ctx Context information used to assist shape inference.
+    /// @param context Context information used to assist shape inference.
     /// @returns A list of output logical tensors.
     std::vector<logical_tensor> query_dynamic_outputs(
             const std::vector<logical_tensor> &inputs,
