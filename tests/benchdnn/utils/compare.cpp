@@ -43,7 +43,7 @@ static void dump_point_values(const dnnl_memory_desc_t &md, data_kind_t kind,
     if (kind != DAT_TOTAL) skind = "[" + std::string(data_kind2str(kind)) + "]";
 
     BENCHDNN_PRINT(0,
-            "[%4ld]%s[%s] exp_f32:%8g exp:%8g got:%8g diff:%8g rdiff:%8g\n",
+            "[%4ld]%s[%s] exp_f32:%12g exp:%12g got:%12g diff:%8g rdiff:%8g\n",
             (long)l_offset, skind.c_str(), ind_str.c_str(), exp_f32, exp, got,
             diff, rel_diff);
 }
