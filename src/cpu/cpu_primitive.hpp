@@ -112,9 +112,9 @@
         scale = scale_p; \
     }
 
-#define DEFINE_ZERO_POINT_VALUE(zero_point, mem_arg) \
+#define DEFINE_ZERO_POINT_VALUE_ATTR(attr, zero_point, mem_arg) \
     int32_t zero_point = 0; \
-    if (!pd()->attr()->zero_points_.has_default_values(mem_arg)) { \
+    if (!attr->zero_points_.has_default_values(mem_arg)) { \
         const auto zero_points_d \
                 = ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | mem_arg); \
         bool ok = zero_points_d.data_type() == data_type::s32 \
@@ -126,5 +126,8 @@
         zero_point = *zero_points_ptr; \
     } \
     MAYBE_UNUSED(zero_point);
+
+#define DEFINE_ZERO_POINT_VALUE(zero_point, mem_arg) \
+    DEFINE_ZERO_POINT_VALUE_ATTR(pd()->attr(), zero_point, mem_arg)
 
 #endif // CPU_CPU_PRIMITIVE_HPP
