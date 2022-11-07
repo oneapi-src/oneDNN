@@ -29,7 +29,7 @@ After broadcasting *SquaredDifference* does the following with the input tensors
     * *none* - no auto-broadcasting is allowed, all input shapes should match
     * *numpy* - numpy broadcasting rules, aligned with ONNX Broadcasting.
       Description is available in
-      [ONNX docs](https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md).
+      [ONNX docs](https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md#broadcasting-in-onnx).
 
   * **Type**: string
   * **Default value**: *numpy*

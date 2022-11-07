@@ -16,7 +16,7 @@ attribute.
   * **Range of values**:
     * *none* - no auto-broadcasting is allowed, all input shapes should match.
     * *numpy* - numpy broadcasting rules, description is available in
-      [ONNX docs](https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md).
+      [ONNX docs](https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md#broadcasting-in-onnx).
   * **Type**: string
   * **Default value**: *numpy*
   * **Required**: *no*

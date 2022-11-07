@@ -23,7 +23,7 @@ Broadcasting is performed according to `auto_broadcast` value.
   * **Range of values**:
     * *none* - no auto-broadcasting is allowed, all input shapes must match.
     * *numpy* - numpy broadcasting rules, description is available in
-      [ONNX docs](https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md).
+      [ONNX docs](https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md#broadcasting-in-onnx).
   * **Type**: string
   * **Default value**: *numpy*
   * **Required**: *no*
