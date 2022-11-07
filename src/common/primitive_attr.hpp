@@ -198,6 +198,8 @@ struct runtime_scales_t : public c_compatible {
         is_set_ = false;
     }
 
+    // TODO: replace with `-1` to remove `is_set_`.
+    // Hide `mask_` under `private:` to force interface usage.
     int mask_ = 0;
     bool is_set_ = false;
 };
@@ -216,14 +218,7 @@ struct arg_scales_t : public c_compatible {
         return scales_ == rhs.scales_;
     }
 
-    bool has_default_values() const {
-        for (const auto &s : scales_) {
-            if (!s.second.has_default_values()) return false;
-        }
-        return true;
-    }
-
-    bool has_default_values(const std::vector<int> &skip_args) const {
+    bool has_default_values(const std::vector<int> &skip_args = {}) const {
         for (const auto &s : scales_) {
             if (!s.second.has_default_values()) {
                 bool skip = false;
@@ -232,10 +227,8 @@ struct arg_scales_t : public c_compatible {
                         skip = true;
                         break;
                     }
-                if (skip)
-                    continue;
-                else
-                    return false;
+                if (skip) continue;
+                return false;
             }
         }
         return true;
@@ -246,10 +239,11 @@ struct arg_scales_t : public c_compatible {
         return scales_[arg].set(mask);
     }
 
-    status_t get(int arg, int *mask) const {
+    status_t get(int arg, int *mask, bool *is_set) const {
         if (!check_arg(arg)) return status::invalid_arguments;
         const auto &s = get(arg);
         if (mask) *mask = s.mask_;
+        if (is_set) *is_set = s.is_set_;
         return status::success;
     }
 
