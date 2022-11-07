@@ -162,7 +162,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && IMPLICATION(req_comp,
                         one_of(D_mask, (size_t)1, (size_t)g * oc, (size_t)ic,
                                 (size_t)g * oc * ic))
-                && one_of(oscale_mask, 0, 0x1, 0x2, 0x3)
+                && IMPLICATION(!w_groups, one_of(oscale_mask, 0, 0x1))
+                && IMPLICATION(w_groups, one_of(oscale_mask, 0, 0x3))
                 && one_of(input_d.data_type(), f32, s8, bf16)
                 && output_d.data_type() == s8;
     }
@@ -332,7 +333,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && IMPLICATION(req_comp,
                         one_of(D_mask, (size_t)1, (size_t)g * oc, (size_t)ic,
                                 (size_t)g * oc * ic))
-                && one_of(oscale_mask, 0, 0x1, 0x2, 0x3)
+                && IMPLICATION(!w_groups, one_of(oscale_mask, 0, 0x1))
+                && IMPLICATION(w_groups, one_of(oscale_mask, 0, 0x3))
                 && one_of(input_d.data_type(), f32, s8, bf16)
                 && output_d.data_type() == s8;
     }
@@ -676,6 +678,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const bool req_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
 
+        const int oscale_mask = attr->output_scales_.mask_;
+
         auto mask_ok = [&](bool check, int mask) {
             const int c_mask = 0x1,
                       g_mask = 0x3; // mask for i/o-channel and ngroups
@@ -687,6 +691,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && mask_ok(req_asymmetric_comp,
                         output_d.extra().asymm_compensation_mask)
                 && one_of(input_d.data_type(), f32, s8, bf16)
+                && IMPLICATION(!w_groups, one_of(oscale_mask, 0, 0x1))
+                && IMPLICATION(w_groups, one_of(oscale_mask, 0, 0x3))
                 && output_d.data_type() == s8 && !req_comp;
     }
 
