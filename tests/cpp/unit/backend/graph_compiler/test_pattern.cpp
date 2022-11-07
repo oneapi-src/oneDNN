@@ -169,6 +169,81 @@ TEST(GCPatternTests, FP32MHAPatternAlternative) {
     ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
+// test fp32 distill_bert MHA pattern
+TEST(GCPatternTests, FP32DistillBertMHAPattern) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, false, false);
+    agraph.build_graph();
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "fp32_distill_bert_mha_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1UL);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 6U);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+}
+
+// test bf16 distill_bert MHA pattern
+TEST(GCPatternTests, BF16DistillBertMHAPattern) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, true, false);
+    agraph.build_graph();
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "bf16_distill_bert_mha_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1U);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 6U);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+}
+
+// test int8-bf16 distill_Bert MHA pattern
+TEST(GCPatternTests, INT8BF16DistillBertMHAPattern) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, true, true);
+    agraph.build_graph();
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass = get_pass(
+            compiler_backend_ptr, "int8_bf16_distill_bert_mha_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1U);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 18U);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+}
+
 // test fp32 MHA pattern (no reshape)
 TEST(GCPatternTests, FP32MHAPatternOptionalReshape) {
     REQUIRE_AVX512();

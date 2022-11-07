@@ -52,7 +52,8 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                 {op_kind::BatchNormForwardTraining,
                         "batchnorm_forward_training"},
                 {op_kind::BatchNormTrainingBackprop,
-                        "batchnorm_training_backprop"}};
+                        "batchnorm_training_backprop"},
+                {op_kind::Select, "select"}};
 
 sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
         const std::unordered_map<impl::op_attr_t,
@@ -241,7 +242,7 @@ inline sc::sc_data_type_t compiler_graph_impl_t::convert_data_type(
         return sc::sc_data_type_t(sc::sc_data_etype::S32, 1);
     if (dtype == data_type::s8)
         return sc::sc_data_type_t(sc::sc_data_etype::S8, 1);
-    if (dtype == data_type::u8)
+    if (dtype == data_type::u8 || dtype == data_type::boolean)
         return sc::sc_data_type_t(sc::sc_data_etype::U8, 1);
     assert(0 && "undefined or unknown data_type");
     return sc::sc_data_type_t();

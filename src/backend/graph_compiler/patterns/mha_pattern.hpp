@@ -182,6 +182,51 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             "reshape_reorder_output");
                 });
 
+// fp32_distill_bert_mha_pattern
+/*
+           (f32)[Query]    [Key](f32)
+                      \     /
+                       MatMul
+      (f32)[Fill Value]  |
+   (bool)[Att Mask]   \  |
+                    \  \ |
+                      Select
+                         |
+                      Softmax  [Value](f32)
+                            \     /
+                             MatMul
+                                |
+                            Transpose
+                                |
+                             Reorder
+                                |
+                             [output](f32)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, fp32_distill_bert_mha_pattern)
+        .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto matmul_qk = pgraph->append_op(
+                            impl::op_kind::MatMul, "matmul_qk");
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto select = pgraph->append_op(impl::op_kind::Select,
+                            {in_edge(2, matmul_qk, 0)}, "select");
+                    auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
+                            {in_edge(0, select, 0)}, "softmax");
+                    auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
+                            {in_edge(0, softmax, 0)}, "matmul_v");
+                    matmul_v->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
+                    auto transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)}, "transpose");
+                    pgraph->append_op(impl::op_kind::Reorder,
+                            {in_edge(0, transpose, 0)}, "reorder_output");
+                });
+
 // fp32 MHA training forward pattern
 /*
     (f32)[QueryTrans]   [KeyTrans](f32)
@@ -684,6 +729,51 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     impl::op_kind::StaticReshape},
                             {in_edge(0, transpose_output, 0)},
                             "reshape_reorder_output");
+                });
+
+// bf16_distill_bert_mha_pattern
+/*
+           (bf16)[Query]    [Key](bf16)
+                      \     /
+                       MatMul
+     (bf16)[Fill Value]  |
+   (bool)[Att Mask]   \  |
+                    \  \ |
+                      Select
+                         |
+                      Softmax  [Value](bf16)
+                            \     /
+                             MatMul
+                                |
+                            Transpose
+                                |
+                             Reorder
+                                |
+                             [output](bf16)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, bf16_distill_bert_mha_pattern)
+        .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto matmul_qk = pgraph->append_op(
+                            impl::op_kind::MatMul, "matmul_qk");
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto select = pgraph->append_op(impl::op_kind::Select,
+                            {in_edge(2, matmul_qk, 0)}, "select");
+                    auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
+                            {in_edge(0, select, 0)}, "softmax");
+                    auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
+                            {in_edge(0, softmax, 0)}, "matmul_v");
+                    matmul_v->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto transpose
+                            = pgraph->append_op(impl::op_kind::StaticTranspose,
+                                    {in_edge(0, matmul_v, 0)}, "transpose");
+                    pgraph->append_op(impl::op_kind::Reorder,
+                            {in_edge(0, transpose, 0)}, "reorder_output");
                 });
 
 // bf16 MHA training forward pattern
@@ -1237,6 +1327,108 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {in_edge(0, fscore_scale, 0)}, "fscore_add");
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             {in_edge(0, fscore_add, 0)}, "softmax");
+                    auto cast_softmax_fp32 = pgraph->append_op(
+                            impl::op_kind::TypeCast, {in_edge(0, softmax, 0)},
+                            "cast_softmax_fp32");
+                    auto quantize_softmax
+                            = pgraph->append_op(impl::op_kind::Quantize,
+                                    {in_edge(0, cast_softmax_fp32, 0)},
+                                    "quantize_softmax");
+                    auto dequantize_softmax
+                            = pgraph->append_op(impl::op_kind::Dequantize,
+                                    {in_edge(0, quantize_softmax, 0)},
+                                    "dequantize_softmax");
+                    auto cast_softmax
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    {in_edge(0, dequantize_softmax, 0)},
+                                    "cast_softmax");
+
+                    auto dequantize_value = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequantize_value");
+                    auto cast_value = pgraph->append_op(impl::op_kind::TypeCast,
+                            {in_edge(0, dequantize_value, 0)}, "cast_value");
+
+                    auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
+                            {in_edge(0, cast_softmax, 0),
+                                    in_edge(1, cast_value, 0)},
+                            "matmul_v");
+                    auto transpose_output = pgraph->append_op(
+                            impl::op_kind::StaticTranspose,
+                            {in_edge(0, matmul_v, 0)}, "transpose_output");
+                    auto reshape_reorder_output = pgraph->append_alternation(
+                            {impl::op_kind::Reorder,
+                                    impl::op_kind::StaticReshape},
+                            {in_edge(0, transpose_output, 0)},
+                            "reshape_reorder_output");
+                    auto cast_output_fp32
+                            = pgraph->append_op(impl::op_kind::TypeCast,
+                                    {in_edge(0, reshape_reorder_output, 0)},
+                                    "cast_output_fp32");
+                    pgraph->append_op(impl::op_kind::Quantize,
+                            {in_edge(0, cast_output_fp32, 0)},
+                            "quantize_output");
+                });
+
+/*
+        (int8)[Query]   [Key](int8)
+                 |          |
+             Dequantize Dequantize
+                 |          |
+              TypeCast   TypeCast
+                   \     /
+                    MatMul
+  (bf16)[Fill Value]  |
+(bool)[Att Mask]   \  |
+                 \  \ |
+                   Select
+                      |
+                   Softmax
+                      |
+                   TypeCast
+                      |
+                   Quantize  [Value](int8)
+                      |          |
+                  Dequantize Dequantize
+                      |          |
+                   TypeCast   TypeCast
+                         \     /
+                          MatMul
+                             |
+                         Transpose
+                             |
+                          Reorder
+                             |
+                          TypeCast
+                             |
+                          Quantize
+                             |
+                        [output](int8)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, int8_bf16_distill_bert_mha_pattern)
+        .set_priority(5.0f)
+        .set_kind(impl::partition_kind::quantized_mha)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto dequantize_query = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequantize_query");
+                    auto cast_query = pgraph->append_op(impl::op_kind::TypeCast,
+                            {in_edge(0, dequantize_query, 0)}, "cast_query");
+
+                    auto dequantize_key = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequantize_key");
+                    auto cast_key = pgraph->append_op(impl::op_kind::TypeCast,
+                            {in_edge(0, dequantize_key, 0)}, "cast_key");
+
+                    auto matmul_qk = pgraph->append_op(impl::op_kind::MatMul,
+                            {in_edge(0, cast_query, 0),
+                                    in_edge(1, cast_key, 0)},
+                            "matmul_qk");
+                    auto fscore_select = pgraph->append_op(
+                            impl::op_kind::Select, {in_edge(2, matmul_qk, 0)},
+                            "fscore_select");
+                    auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
+                            {in_edge(0, fscore_select, 0)}, "softmax");
                     auto cast_softmax_fp32 = pgraph->append_op(
                             impl::op_kind::TypeCast, {in_edge(0, softmax, 0)},
                             "cast_softmax_fp32");
