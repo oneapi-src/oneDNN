@@ -45,7 +45,7 @@ const _dt_conf_t conf_f16 = {
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -6, 6, 0, 1, 1.0,
                 0.},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
-                0.},
+                1e-3},
         {dnnl_f32},
 };
 
