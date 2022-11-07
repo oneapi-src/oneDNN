@@ -196,7 +196,13 @@ struct attr_t {
         }
 
         bool is_def(int arg) const { return get(arg).is_def(); }
-        bool is_def() const { return scales.empty(); }
+        bool is_def() const {
+            bool def = true;
+            for (const auto &e : scales) {
+                def = def && is_def(e.first);
+            }
+            return def;
+        }
         int from_str(const std::string &s);
 
         arg_scales_t() : scales() {} // needed for debug icc190 build;
