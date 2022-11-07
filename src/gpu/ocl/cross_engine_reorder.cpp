@@ -20,6 +20,7 @@
 #include "common/utils.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -54,7 +55,12 @@ status_t cross_engine_reorder_t::pd_t::init(
 
     if (src_mdw.has_runtime_dims_or_strides()) return status::unimplemented;
 
-    bool with_sum_ab = with_alpha() || beta() != 0.0;
+    quantization_t src_quant {attr(), src_mdw, DNNL_ARG_SRC};
+    quantization_t dst_quant {attr(), dst_mdw, DNNL_ARG_DST};
+    sum_quantization_t sum_quant {attr()};
+    bool with_sum_ab = src_quant.with_scale() || src_quant.with_zp()
+            || dst_quant.with_scale() || dst_quant.with_zp()
+            || sum_quant.with_scale() || sum_quant.with_zp();
     do_reorder_ = with_sum_ab || src_mdw != dst_mdw;
 
     engine_t *reorder_engine
@@ -98,14 +104,17 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     }
 
     auto exec_reorder = [&](const memory_t *src_mem, const memory_t *dst_mem,
-                                const memory_t *scales_mem) {
+                                const memory_t *src_scales_mem,
+                                const memory_t *dst_scales_mem) {
         exec_args_t r_args;
         r_args[DNNL_ARG_SRC]
                 = memory_arg_t {const_cast<memory_t *>(src_mem), true};
         r_args[DNNL_ARG_DST]
                 = memory_arg_t {const_cast<memory_t *>(dst_mem), false};
-        r_args[DNNL_ARG_ATTR_OUTPUT_SCALES]
-                = memory_arg_t {const_cast<memory_t *>(scales_mem), true};
+        r_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC]
+                = memory_arg_t {const_cast<memory_t *>(src_scales_mem), true};
+        r_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST]
+                = memory_arg_t {const_cast<memory_t *>(dst_scales_mem), true};
 
         exec_ctx_t r_ctx(ctx, std::move(r_args));
 
@@ -124,7 +133,8 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
             }
             if (status == status::success)
                 status = exec_reorder(ctx.input(DNNL_ARG_FROM), wspace.get(),
-                        ctx.input(DNNL_ARG_ATTR_OUTPUT_SCALES));
+                        ctx.input(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC),
+                        ctx.input(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST));
         }
         if (status == status::success) {
             status = compute_stream->copy(
@@ -139,7 +149,8 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
                 src_mdw.size());
         if (status == status::success && pd()->do_reorder_) {
             status = exec_reorder(wspace.get(), ctx.output(DNNL_ARG_TO),
-                    ctx.input(DNNL_ARG_ATTR_OUTPUT_SCALES));
+                    ctx.input(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC),
+                    ctx.input(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST));
         }
     }
     return status;
