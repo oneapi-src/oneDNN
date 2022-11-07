@@ -16,6 +16,7 @@
 
 #include "gpu/ocl/ocl_math_utils.h"
 #include "gpu/ocl/ocl_post_ops.h"
+#include "gpu/ocl/ocl_scales.h"
 #include "gpu/ocl/ocl_types.h"
 
 #define KDHW_SIZE (KH * KW * KD)
@@ -51,27 +52,6 @@
 
 #define BLOCK_READ_BIA(data, idx) \
     data = as_float4(intel_sub_group_block_read4((__global uint *)&bias[idx]));
-
-#define BLOCK_READ_SCALES(data, idx) \
-    if (OC >= idx + (SUB_GROUP_SIZE * 4)) { \
-        data = as_float4(intel_sub_group_block_read4( \
-                (__global uint *)&runtime_scales[idx])); \
-    } else { \
-        float local_dat[4] = {}; \
-        for (int i = 0; i < 4; ++i) \
-            if (idx + ((i + 1) * SUB_GROUP_SIZE) <= OC) { \
-                local_dat[i] = as_float(intel_sub_group_block_read( \
-                        (__global uint *)&runtime_scales[idx \
-                                + (SUB_GROUP_SIZE * i)])); \
-            } else if (idx + (i * SUB_GROUP_SIZE) + sub_local_id < OC) { \
-                local_dat[i] = runtime_scales[idx + (SUB_GROUP_SIZE * i) \
-                        + sub_local_id]; \
-            } \
-        data.s0 = local_dat[0]; \
-        data.s1 = local_dat[1]; \
-        data.s2 = local_dat[2]; \
-        data.s3 = local_dat[3]; \
-    }
 
 #if SCALES_PER_OC
 #define SCALE_VEC4 scales.s01230123
@@ -642,7 +622,8 @@ conv_nhwc_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 
 #if SCALES_PER_OC
     float4 scales;
-    BLOCK_READ_SCALES(scales, (group_oc + oc) * OC_BLOCK);
+    block_read_scales(
+            &scales, (group_oc + oc) * OC_BLOCK, sub_local_id, runtime_scales);
 #endif
 
 #if WITH_BIAS
