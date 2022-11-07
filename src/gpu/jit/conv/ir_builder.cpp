@@ -1539,11 +1539,6 @@ private:
 
         const type_t s_type = is_mad ? a_view.type() : type_t::s32();
         const type_t i_type = type_t::s32();
-        auto has_sign = [&]() {
-            if (is_runtime) return s_type.is_signed();
-            ir_assert(is_scalar);
-            return prb_.zp_cfg.common_src_zero_point < 0;
-        };
         const type_t d_type = type_t::s32();
         const int a_stride
                 = s_type.size() * int(a_view.tlayout().blocks()[0].stride);
@@ -1590,7 +1585,7 @@ private:
 
         auto get_src_zp_size = [](bool scalar, bool runtime, bool mad, int b) {
             if (scalar) return (!mad) ? b * 2 : ((runtime) ? b : 0);
-            return (!mad) ? std::max(b * 2, 32) : 32;
+            return ((!mad) ? std::max(b * 2, 32) : 32) + (runtime ? b + b : 0);
         };
         const int m_blk_x2 = std::min(m_blk * 2, 16);
         const int src_zp_size = get_src_zp_size(
@@ -1684,19 +1679,54 @@ private:
                 for (int i_k = i * (c_blk / 4); i_k
                         < ((channels > 4) ? (c_blk + i * c_blk) / 4 : prb_.kw);
                         i_k += m_blk_x2 / m_blk) {
-                    const int szp_off = (is_scalar) ? 4 : (i_k * d_type.size());
-                    auto b0 = load_t::make(d_type, zp_buf_, szp_off);
-                    auto b1 = load_t::make(
-                            d_type, zp_buf_, szp_off + m_blk * d_type.size());
-                    auto b = (is_scalar) ? b0 : wide_scalar(b0, b1, m_blk_x2);
-                    auto c = load_t::make(vi, b_buf_,
-                            (i_m * (32 / 4) + i_k * m_blk) * d_type.size());
-                    if (is_scalar) std::swap(b, c);
-                    auto a = (i_k != i * (c_blk / 4))
-                            ? load_t::make(vi, acc[i * 2 + 1], 0)
-                            : expr_t(0);
-                    parts.emplace_back(store_t::make(acc[i * 2 + 1], 0,
-                            ternary_op_t::make(op_kind_t::_dp4a, a, b, c, vi)));
+                    if (is_scalar) {
+                        const int szp_off = 4;
+                        auto b0 = load_t::make(d_type, zp_buf_, szp_off);
+                        auto b = b0;
+                        auto c = load_t::make(vi, b_buf_,
+                                (i_m * (32 / 4) + i_k * m_blk) * d_type.size());
+                        std::swap(b, c);
+                        auto a = (i_k != i * (c_blk / 4))
+                                ? load_t::make(vi, acc[i * 2 + 1], 0)
+                                : expr_t(0);
+                        parts.emplace_back(store_t::make(acc[i * 2 + 1], 0,
+                                ternary_op_t::make(
+                                        op_kind_t::_dp4a, a, b, c, vi)));
+                    } else {
+                        const int szp_off = (i_k * 4) % c_blk;
+                        if (i_k == i * (c_blk / 4)) {
+                            parts.emplace_back(store_t::make(acc[i * 2 + 1], 0,
+                                    shuffle_t::make_broadcast(
+                                            expr_t(0), vi.elems())));
+                        }
+                        for (int i_b = 0; i_b < 4; i_b++) {
+                            auto b0 = load_t::make(d_type, zp_buf_,
+                                    (szp_off + i_b) * d_type.size());
+                            auto b1 = load_t::make(d_type, zp_buf_,
+                                    (szp_off + i_b + 4) * d_type.size());
+                            auto b = wide_scalar(b0, b1, m_blk_x2);
+                            auto b_tmp_offset = (src_zp_size - m_blk_x2 * k_blk
+                                                        - (m_blk_x2 * k_blk))
+                                    * d_type.size();
+                            parts.emplace_back(store_t::make(zp_buf_,
+                                    b_tmp_offset,
+                                    cast_t::make(type_t::s16(m_blk_x2),
+                                            load_t::make(type_t::s8(m_blk_x2),
+                                                    b_buf_,
+                                                    (i_m * (32 / 4)
+                                                            + i_k * m_blk)
+                                                                    * d_type.size()
+                                                            + i_b,
+                                                    4)),
+                                    4));
+                            auto c = load_t::make(type_t::s16(m_blk_x2),
+                                    zp_buf_, b_tmp_offset, 4);
+                            auto a = load_t::make(vi, acc[i * 2 + 1], 0);
+                            parts.emplace_back(store_t::make(acc[i * 2 + 1], 0,
+                                    ternary_op_t::make(
+                                            op_kind_t::_mad, a, b, c, vi)));
+                        }
+                    }
                 }
 
                 auto apply_scalar = [&]() {
