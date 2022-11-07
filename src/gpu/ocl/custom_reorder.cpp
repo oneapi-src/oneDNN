@@ -952,10 +952,16 @@ status_t custom_reorder_t::pd_t::init_kernel_ctx(
 }
 
 void custom_reorder_t::pd_t::init_scratchpad() {
-    if (conf.src_quant.with_scale() > 0) {
+    if (conf.src_quant.with_scale()) {
         auto scratchpad = scratchpad_registry().registrar();
-        scratchpad.book(memory_tracking::names::key_reorder_scales,
+        scratchpad.book(memory_tracking::names::key_reorder_src_scales,
                 conf.src_quant.num_scales(), sizeof(float),
+                OCL_BUFFER_ALIGNMENT);
+    }
+    if (conf.dst_quant.with_scale()) {
+        auto scratchpad = scratchpad_registry().registrar();
+        scratchpad.book(memory_tracking::names::key_reorder_dst_scales,
+                conf.dst_quant.num_scales(), sizeof(float),
                 OCL_BUFFER_ALIGNMENT);
     }
 }
