@@ -2073,7 +2073,7 @@ status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd) {
 
         // If the kernel fits 128 registers, switch to the normal mode which is
         // expected to have better performance for such cases.
-        int bound = (!try_cfg.is_dp_fma() ? 128 : 112);
+        int bound = (!try_cfg.is_dp_fma() ? 128 : 116);
         int estimated_peak_grf_usage = estimate_register_count(try_cfg);
         if (try_regs == 256 && estimated_peak_grf_usage <= bound) {
             try_regs = 128;

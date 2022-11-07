@@ -981,7 +981,7 @@ static const int max_slm_bufs = 3;
 
 // GRF usage for kernel arguments, local work IDs/sizes, signal header,
 // temporary expressions, etc.
-static const int reserved_regs = 16;
+static const int reserved_regs = 20;
 } // namespace constants
 
 class conv_config_t {
