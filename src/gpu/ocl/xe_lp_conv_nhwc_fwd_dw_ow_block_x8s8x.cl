@@ -67,8 +67,8 @@ conv_nhwc_fwd_dw_ow_block_x8s8x(const __global uchar *src,
 
 #if SCALES_PER_OC
     float2 scales = 1;
-    scales.s0 = runtime_scales[g + 2 * sglid];
-    if (g + 2 * sglid + 1 < G) scales.s1 = runtime_scales[g + 2 * sglid + 1];
+    scales.s0 = scales_per_oc[g + 2 * sglid];
+    if (g + 2 * sglid + 1 < G) scales.s1 = scales_per_oc[g + 2 * sglid + 1];
 #endif
 
     for (int kd = 0; kd < KD; kd++) {

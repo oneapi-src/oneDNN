@@ -240,10 +240,10 @@ conv_dw_fwd_mb_block_x8s8x(const __global uchar *src, const __global char *wei,
     float2 scales = 1;
     if (g < G - 2) {
         scales = as_float2(intel_sub_group_block_read2(
-                (const __global uint *)&runtime_scales[g]));
+                (const __global uint *)&scales_per_oc[g]));
     } else {
         scales.s1 = as_float(intel_sub_group_block_read(
-                (const __global uint *)&runtime_scales[g]));
+                (const __global uint *)&scales_per_oc[g]));
     }
 #endif
 
