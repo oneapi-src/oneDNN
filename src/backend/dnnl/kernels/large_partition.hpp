@@ -120,6 +120,7 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, combine_binary_post_op_scales);
 
+        BACKEND_DNNL_ADD_PASS(pipeline, swap_relu_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fold_sum_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);

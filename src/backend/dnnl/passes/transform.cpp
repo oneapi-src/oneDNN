@@ -285,6 +285,40 @@ impl::status_t replace_quant_data_with_binary_post_op(
     return infer_shape(sg);
 }
 
+impl::status_t swap_relu_mul_scales(std::shared_ptr<subgraph_t> &sg) {
+    while (true) {
+        std::vector<std::pair<impl::op_t *, impl::op_t *>> to_be_swapped;
+        for (auto &op : sg->get_ops()) {
+            bool ok = op->get_kind() == op_kind::dnnl_mul_scales
+                    && op->get_input_value(0)->has_producer();
+            if (!ok) continue;
+
+            impl::op_t *producer = op->get_input_op(0);
+            ok = producer->get_kind() == op_kind::dnnl_eltwise;
+            if (!ok) continue;
+
+            const auto alg = static_cast<dnnl::algorithm>(
+                    producer->get_attr<int64_t>(op_attr::alg_kind));
+            ok = alg == dnnl::algorithm::eltwise_relu;
+            if (!ok) continue;
+
+            to_be_swapped.emplace_back(
+                    std::pair<impl::op_t *, impl::op_t *> {producer, op.get()});
+        }
+
+        if (to_be_swapped.empty()) break;
+        subgraph_rewriter_t rewriter(sg);
+        for (auto &pair : to_be_swapped) {
+            impl::op_t *relu = pair.first;
+            impl::op_t *mul_scales = pair.second;
+
+            rewriter.swap_neighboring_si_ops(
+                    relu->shared_from_this(), mul_scales->shared_from_this());
+        }
+    }
+    return infer_shape(sg);
+}
+
 impl::status_t fold_mul_scales(std::shared_ptr<subgraph_t> &sg) {
     // lambda function to fold the consecutive mul_scales ops
     auto fold_mul_scales_func = [&]() {

@@ -117,6 +117,7 @@ public:
 
         if (quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_matmul);
+            BACKEND_DNNL_ADD_PASS(pipeline, swap_relu_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fold_sum_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);

@@ -549,7 +549,9 @@ TEST(SubgraphPass, Int8ConvSumRelu) {
     // run lower down passes
     dnnl_impl::check_with_bias(subgraph);
     dnnl_impl::fuse_to_int8_conv_or_deconv(subgraph);
+    dnnl_impl::swap_relu_mul_scales(subgraph);
     dnnl_impl::fold_mul_scales(subgraph);
+    dnnl_impl::fold_sum_scales(subgraph);
     dnnl_impl::fuse_output_scales(subgraph);
     dnnl_impl::fuse_post_ops(subgraph);
     dnnl_impl::fuse_zero_points(subgraph);
