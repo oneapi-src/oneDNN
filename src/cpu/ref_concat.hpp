@@ -62,7 +62,7 @@ struct ref_concat_t : public primitive_t {
                 primitive_attr_t r_attr;
                 if (!sc.get(DNNL_ARG_MULTIPLE_SRC + i).has_default_values()) {
                     int mask = 0;
-                    CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask));
+                    CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask, nullptr));
                     if (mask != 0) return status::unimplemented;
                     r_attr.output_scales_.set(mask);
                 }
