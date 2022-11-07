@@ -21,6 +21,7 @@
 #include "patterns/conv_pattern.hpp"
 #include "patterns/mha_pattern.hpp"
 #include "patterns/mlp_pattern.hpp"
+#include "patterns/norm_pattern.hpp"
 #include "target_machine.hpp"
 
 namespace dnnl {
@@ -42,6 +43,8 @@ bool compiler_backend_t::register_passes() {
     REQUIRE_AVX512_BEGIN
     COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mha_pattern, pass_registry_);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_mlp_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(fp32_norm_pattern, pass_registry_);
+    COMPILER_BACKEND_REGISTER_PASSES_CALL(bf16_norm_pattern, pass_registry_);
     COMPILER_BACKEND_REGISTER_PASSES_CALL(
             fp32_conv_training_pattern, pass_registry_);
     REQUIRE_SINGLE_THREAD_BEGIN

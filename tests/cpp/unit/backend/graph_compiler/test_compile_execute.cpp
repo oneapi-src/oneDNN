@@ -675,3 +675,75 @@ TEST(GCGraphTest, BF16ConvolutionalBottleneckTrainingCompileExecution) {
 
     compile_execution_pipeline(agraph, 2);
 }
+
+TEST(GCGraphTest, FP32InstanceNormCompileExecution) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_instance_norm_subgraph(agraph, id_gen,
+            {6, 224, 224, 160, 32}, {1, 1, 1}, {1, 1, 1, 32, 4}, {1}, "VALID",
+            {0, 0, 0}, {0, 0, 0}, {1, 2, 3});
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, FP32InstanceNormReluCompileExecution) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_instance_norm_subgraph(agraph, id_gen,
+            {6, 224, 224, 160, 32}, {1, 1, 1}, {1, 1, 1, 32, 4}, {1}, "VALID",
+            {0, 0, 0}, {0, 0, 0}, {1, 2, 3}, "ReLU");
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, FP32InstanceNormLeakyReluCompileExecution) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_instance_norm_subgraph(agraph, id_gen,
+            {6, 224, 224, 160, 32}, {1, 1, 1}, {1, 1, 1, 32, 4}, {1}, "VALID",
+            {0, 0, 0}, {0, 0, 0}, {1, 2, 3}, "LeakyReLU");
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16InstanceNormCompileExecution) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_instance_norm_subgraph(agraph, id_gen,
+            {6, 224, 224, 160, 32}, {1, 1, 1}, {1, 1, 1, 32, 4}, {1}, "None",
+            {1, 1, 1}, {1, 1, 1}, {1, 2, 3}, "", true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16InstanceNormReluCompileExecution) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_instance_norm_subgraph(agraph, id_gen,
+            {6, 224, 224, 160, 32}, {1, 1, 1}, {1, 1, 1, 32, 4}, {1}, "None",
+            {1, 1, 1}, {1, 1, 1}, {1, 2, 3}, "ReLU", true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16InstanceNormLeakyReluCompileExecution) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_instance_norm_subgraph(agraph, id_gen,
+            {6, 224, 224, 160, 32}, {1, 1, 1}, {1, 1, 1, 32, 4}, {1}, "VALID",
+            {0, 0, 0}, {0, 0, 0}, {1, 2, 3}, "LeakyReLU", true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}

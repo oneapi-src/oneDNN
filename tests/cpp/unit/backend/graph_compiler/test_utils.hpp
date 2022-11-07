@@ -2780,6 +2780,172 @@ inline void construct_convolutional_bottleneck_training_subgraph(
     (void)(relu_bwd_last);
 }
 
+inline void construct_instance_norm_subgraph(impl::graph_t &agraph,
+        utils::id_generator &id_gen, const impl::dims &input_shape,
+        const impl::dims &strides, const impl::dims &filter_shape,
+        const impl::dims &bias_shape, const std::string &auto_pad,
+        const impl::dims &pads_begin, const impl::dims &pads_end,
+        const impl::dims &reduce_axes, const std::string &relu_type = "",
+        bool is_bf16 = false) {
+    auto dtype = is_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
+
+    impl::op_t conv_fwd(
+            id_gen.get_id(), impl::op_kind::Convolution, "conv_fwd");
+    conv_fwd.set_attr<std::string>(impl::op_attr::auto_pad, auto_pad);
+    conv_fwd.set_attr<std::string>(impl::op_attr::data_format, "NXC");
+    conv_fwd.set_attr<std::string>(impl::op_attr::filter_format, "XIO");
+    conv_fwd.set_attr<impl::dims>(impl::op_attr::pads_begin, pads_begin);
+    conv_fwd.set_attr<impl::dims>(impl::op_attr::pads_end, pads_end);
+    conv_fwd.set_attr<impl::dims>(impl::op_attr::strides, strides);
+    conv_fwd.set_attr<impl::dims>(
+            impl::op_attr::dilations, impl::dims {1, 1, 1});
+
+    // infered based on NXC & XIO
+    impl::dims dst_shape = {input_shape[0], input_shape[1], input_shape[2],
+            input_shape[3], filter_shape[4]};
+    auto src = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);
+    auto weight
+            = utils::logical_tensor_init(id_gen.get_id(), filter_shape, dtype);
+    auto conv_dst
+            = utils::logical_tensor_init(id_gen.get_id(), dst_shape, dtype);
+
+    conv_fwd.add_input(src);
+    conv_fwd.add_input(weight);
+    conv_fwd.add_output(conv_dst);
+    agraph.add_op(&conv_fwd);
+
+    impl::op_t bias_add(id_gen.get_id(), impl::op_kind::Add, "bias_add");
+    bias_add.set_attr<std::string>(impl::op_attr::auto_broadcast, "numpy");
+    auto bias_add_lhs
+            = utils::logical_tensor_init(id_gen.get_id(), bias_shape, dtype);
+    auto bias_add_rhs = conv_dst;
+    auto bias_add_dst
+            = utils::logical_tensor_init(id_gen.get_id(), dst_shape, dtype);
+    bias_add.add_input(bias_add_lhs);
+    bias_add.add_input(bias_add_rhs);
+    bias_add.add_output(bias_add_dst);
+    agraph.add_op(&bias_add);
+
+    impl::dims reduce_dst_shape = dst_shape;
+    for (auto i : reduce_axes) {
+        reduce_dst_shape[i] = 1;
+    }
+    impl::op_t reduce_mean_1 {
+            id_gen.get_id(), impl::op_kind::ReduceMean, "reduce_mean_1"};
+    reduce_mean_1.set_attr(impl::op_attr::keep_dims, true);
+    reduce_mean_1.set_attr(impl::op_attr::axes, reduce_axes);
+
+    auto reduce_mean_1_dst = utils::logical_tensor_init(
+            id_gen.get_id(), reduce_dst_shape, dtype);
+    reduce_mean_1.add_input(bias_add_dst);
+    reduce_mean_1.add_output(reduce_mean_1_dst);
+    agraph.add_op(&reduce_mean_1);
+
+    impl::op_t sqd_diff {
+            id_gen.get_id(), impl::op_kind::SquaredDifference, "squared_diff"};
+    auto sqd_diff_dst
+            = utils::logical_tensor_init(id_gen.get_id(), dst_shape, dtype);
+    sqd_diff.add_input(bias_add_dst);
+    sqd_diff.add_input(reduce_mean_1_dst);
+    sqd_diff.add_output(sqd_diff_dst);
+    agraph.add_op(&sqd_diff);
+
+    impl::op_t reduce_mean_2 {
+            id_gen.get_id(), impl::op_kind::ReduceMean, "reduce_mean_2"};
+    reduce_mean_2.set_attr(impl::op_attr::keep_dims, true);
+    reduce_mean_2.set_attr(impl::op_attr::axes, reduce_axes);
+    auto reduce_mean_2_dst = utils::logical_tensor_init(
+            id_gen.get_id(), reduce_dst_shape, dtype);
+    reduce_mean_2.add_input(sqd_diff_dst);
+    reduce_mean_2.add_output(reduce_mean_2_dst);
+    agraph.add_op(&reduce_mean_2);
+
+    impl::op_t bias_add_2(id_gen.get_id(), impl::op_kind::Add, "bias_add_2");
+    bias_add_2.set_attr<std::string>(impl::op_attr::auto_broadcast, "numpy");
+    auto bias_add_2_lhs = reduce_mean_2_dst;
+    auto bias_add_2_rhs
+            = utils::logical_tensor_init(id_gen.get_id(), bias_shape, dtype);
+    auto bias_add_2_dst = utils::logical_tensor_init(
+            id_gen.get_id(), reduce_dst_shape, dtype);
+    bias_add_2.add_input(bias_add_2_lhs);
+    bias_add_2.add_input(bias_add_2_rhs);
+    bias_add_2.add_output(bias_add_2_dst);
+    agraph.add_op(&bias_add_2);
+
+    impl::op_t rsqrt(id_gen.get_id(), impl::op_kind::Rsqrt, "rsqrt");
+    auto rsqrt_dst = utils::logical_tensor_init(
+            id_gen.get_id(), reduce_dst_shape, dtype);
+    rsqrt.add_input(bias_add_2_dst);
+    rsqrt.add_output(rsqrt_dst);
+    agraph.add_op(&rsqrt);
+
+    impl::op_t mul_1 {id_gen.get_id(), impl::op_kind::Multiply, "mul_1"};
+    auto mul_1_rhs = utils::logical_tensor_init(
+            id_gen.get_id(), reduce_dst_shape, dtype);
+    auto mul_1_dst = utils::logical_tensor_init(
+            id_gen.get_id(), reduce_dst_shape, dtype);
+    mul_1.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
+    mul_1.add_input(rsqrt_dst);
+    mul_1.add_input(mul_1_rhs);
+    mul_1.add_output(mul_1_dst);
+    agraph.add_op(&mul_1);
+
+    impl::op_t mul_2 {id_gen.get_id(), impl::op_kind::Multiply, "mul_2"};
+    auto mul_2_dst = utils::logical_tensor_init(
+            id_gen.get_id(), reduce_dst_shape, dtype);
+    mul_2.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
+    mul_2.add_input(reduce_mean_1_dst);
+    mul_2.add_input(mul_1_dst);
+    mul_2.add_output(mul_2_dst);
+    agraph.add_op(&mul_2);
+
+    impl::op_t mul_3 {id_gen.get_id(), impl::op_kind::Multiply, "mul_3"};
+    auto mul_3_dst
+            = utils::logical_tensor_init(id_gen.get_id(), dst_shape, dtype);
+    mul_3.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
+    mul_3.add_input(bias_add_dst);
+    mul_3.add_input(mul_1_dst);
+    mul_3.add_output(mul_3_dst);
+    agraph.add_op(&mul_3);
+
+    impl::op_t sub(id_gen.get_id(), impl::op_kind::Subtract, "subtract");
+    auto sub_lhs = utils::logical_tensor_init(
+            id_gen.get_id(), reduce_dst_shape, dtype);
+    auto sub_dst = utils::logical_tensor_init(
+            id_gen.get_id(), reduce_dst_shape, dtype);
+    sub.add_input(sub_lhs);
+    sub.add_input(mul_2_dst);
+    sub.add_output(sub_dst);
+    agraph.add_op(&sub);
+
+    impl::op_t bias_add_3(id_gen.get_id(), impl::op_kind::Add, "bias_add_3");
+    bias_add_3.set_attr<std::string>(impl::op_attr::auto_broadcast, "numpy");
+    auto bias_add_3_dst
+            = utils::logical_tensor_init(id_gen.get_id(), dst_shape, dtype);
+    bias_add_3.add_input(mul_3_dst);
+    bias_add_3.add_input(sub_dst);
+    bias_add_3.add_output(bias_add_3_dst);
+    agraph.add_op(&bias_add_3);
+
+    if (relu_type == "ReLU") {
+        impl::op_t relu(id_gen.get_id(), impl::op_kind::ReLU, "relu");
+        auto relu_dst
+                = utils::logical_tensor_init(id_gen.get_id(), dst_shape, dtype);
+        relu.add_input(bias_add_3_dst);
+        relu.add_output(relu_dst);
+        agraph.add_op(&relu);
+    } else if (relu_type == "LeakyReLU") {
+        impl::op_t leaky_relu(
+                id_gen.get_id(), impl::op_kind::LeakyReLU, "leaky_relu");
+        leaky_relu.set_attr<float>(impl::op_attr::alpha, 0.01);
+        auto leaky_relu_dst
+                = utils::logical_tensor_init(id_gen.get_id(), dst_shape, dtype);
+        leaky_relu.add_input(bias_add_3_dst);
+        leaky_relu.add_output(leaky_relu_dst);
+        agraph.add_op(&leaky_relu);
+    }
+}
+
 } // namespace utils
 } // namespace compiler
 } // namespace unit
