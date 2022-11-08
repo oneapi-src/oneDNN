@@ -237,11 +237,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     conf.attr_info = attr_info_t::create(attr());
 
     // Heuristics based on testing on PVC
-    conf.sub_group_size = 32;
-    if (compute_engine->device_info()->gpu_arch()
-            == compute::gpu_arch_t::xe_lp) {
-        conf.sub_group_size = 16;
-    }
+    conf.sub_group_size = compute_engine->device_info()->max_subgroup_size();
 
     const int target_reduction_size = 8;
 
