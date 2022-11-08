@@ -2586,3 +2586,87 @@ TEST(ExecuteSubgraphFp32, Convtranspose3Postops) {
                 /*atol*/ 1.f));
     }
 }
+
+TEST(Execute, ConvtransposeWithCache) {
+    using dims = impl::dnnl_impl::dims;
+
+    // default engine kind is cpu.
+    impl::engine_t &eng = get_engine();
+    test::vector<float> src {1.0, 2.0, 3.0, 4.0};
+    test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
+            0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+    test::vector<float> ref_dst {1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0};
+    test::vector<float> dst(ref_dst.size(), 0);
+    impl::op_t convtranspose_op(impl::op_kind::ConvTranspose);
+    convtranspose_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    convtranspose_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    convtranspose_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    convtranspose_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    convtranspose_op.set_attr<int64_t>(impl::op_attr::groups, 2);
+    convtranspose_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    convtranspose_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 4, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t weight_lt
+            = utils::logical_tensor_init(1, {4, 4, 1, 1}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt
+            = utils::logical_tensor_init(2, {1, 8, 1, 1}, impl::data_type::f32);
+
+    convtranspose_op.add_input(src_lt);
+    convtranspose_op.add_input(weight_lt);
+    convtranspose_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&convtranspose_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("convtranspose_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt, &weight_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+    ASSERT_EQ(dst_lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t weight_ts(weight_lt, &eng, weight.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    ASSERT_EQ(cp.execute(&strm, {src_ts, weight_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+
+    //test with same data and stream to see
+    //if the memory cache runs correctly
+    test::vector<float> src2 {1.0, 2.0, 3.0, 4.0};
+    test::vector<float> weight2 {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
+            0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+    test::vector<float> ref_dst2 {1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0};
+    test::vector<float> dst2(ref_dst.size(), 0);
+
+    impl::tensor_t src_ts2(src_lt, &eng, src2.data());
+    impl::tensor_t weight_ts2(weight_lt, &eng, weight2.data());
+    impl::tensor_t dst_ts2(dst_lt, &eng, dst2.data());
+
+    ASSERT_EQ(cp.execute(&strm, {src_ts2, weight_ts2}, {dst_ts2}),
+            impl::status::success);
+    strm.wait();
+    for (size_t i = 0; i < dst2.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst2[i], ref_dst2[i]);
+    }
+}

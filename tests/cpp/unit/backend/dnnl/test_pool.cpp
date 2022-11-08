@@ -789,6 +789,85 @@ TEST(Execute, MaxPool) {
     }
 }
 
+TEST(Execute, MaxPoolwithCache) {
+    using dims = impl::dnnl_impl::dims;
+    impl::engine_t &eng = get_engine();
+
+    test::vector<float> src {-1.0, -2.0, 2.0, 0.5, -4, -1.0, 2.0, 1.5, 4.0,
+            -1.5, -1.0, 2.0, 1.0, -2.0, -1.0, 2.0};
+    test::vector<float> ref_dst {-1.0, 2.0, 4.0, 2.0};
+    test::vector<float> dst(ref_dst.size(), 0.0);
+
+    impl::op_t max_pool_op(0, impl::op_kind::MaxPool, "maxpool");
+    max_pool_op.set_attr<dims>(impl::op_attr::strides, {2, 2});
+    max_pool_op.set_attr<dims>(impl::op_attr::kernel, {2, 2});
+    max_pool_op.set_attr<dims>(impl::op_attr::pads_begin, {0, 0});
+    max_pool_op.set_attr<dims>(impl::op_attr::pads_end, {0, 0});
+    max_pool_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    max_pool_op.set_attr<dims>(impl::op_attr::dilations, {1, 1});
+
+    // prepare logical tensor
+    impl::logical_tensor_t src_lt
+            = utils::logical_tensor_init(0, {1, 1, 4, 4}, impl::data_type::f32);
+    impl::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            1, {1, 1, 2, 2}, impl::data_type::f32, impl::layout_type::any);
+
+    max_pool_op.add_input(src_lt);
+    max_pool_op.add_output(dst_lt);
+
+    impl::graph_t g(eng.kind());
+    g.add_op(&max_pool_op);
+    g.build_graph();
+
+    impl::pass::pass_base_ptr apass = get_pass("max_pool_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> inputs {&src_lt};
+    std::vector<const impl::logical_tensor_t *> outputs {&dst_lt};
+
+    p.compile(&cp, inputs, outputs, &eng);
+
+    impl::logical_tensor_t lt;
+    cp.query_logical_tensor(dst_lt.id, &lt);
+    ASSERT_EQ(lt.layout_type, impl::layout_type::strided);
+
+    impl::tensor_t src_ts(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts(dst_lt, &eng, dst.data());
+
+    impl::stream_t &strm = get_stream();
+    cp.execute(&strm, {src_ts}, {dst_ts});
+    strm.wait();
+
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
+    }
+
+    //test with same data and stream to see
+    //if the memory cache runs correctly
+    test::vector<float> src2 {-1.0, -2.0, 2.0, 0.5, -4, -1.0, 2.0, 1.5, 4.0,
+            -1.5, -1.0, 2.0, 1.0, -2.0, -1.0, 2.0};
+    test::vector<float> ref_dst2 {-1.0, 2.0, 4.0, 2.0};
+    test::vector<float> dst2(ref_dst2.size(), 0.0);
+
+    impl::tensor_t src_ts2(src_lt, &eng, src2.data());
+    impl::tensor_t dst_ts2(dst_lt, &eng, dst2.data());
+
+    cp.execute(&strm, {src_ts2}, {dst_ts2});
+    strm.wait();
+
+    for (size_t i = 0; i < dst.size(); ++i) {
+        ASSERT_FLOAT_EQ(dst2[i], ref_dst2[i]);
+    }
+}
+
 TEST(Execute, MaxPoolWithOpaqueInput) {
     // dequantize - maxpool
     using dims = impl::dnnl_impl::dims;

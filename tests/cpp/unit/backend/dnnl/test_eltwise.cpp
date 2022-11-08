@@ -96,6 +96,16 @@ static inline void test_eltwise_common(test::vector<float> &src,
             ASSERT_FLOAT_EQ(dst[i], ref_dst[i]);
         }
     }
+
+    //test with same data and stream to see
+    //if the memory cache runs correctly
+    test::vector<float> dst2(src.size(), 0.0);
+
+    impl::tensor_t src_ts2(src_lt, &eng, src.data());
+    impl::tensor_t dst_ts2(dst_lt, &eng, dst2.data());
+
+    cp.execute(&strm, {src_ts2}, {dst_ts2});
+    strm.wait();
 }
 
 TEST(Execute, Abs) {
