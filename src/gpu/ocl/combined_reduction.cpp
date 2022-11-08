@@ -43,7 +43,7 @@ static reduction_phase_t init_phase(int start, int end, int num_reductions,
 void combined_reduction_t::pd_t::init_scratchpad() {
     // Only need scratchpads for the first 2 phases, since we can reuse them
     // and memory requirements are monotonically decreasing each phase.
-    key_t keys[2] = {memory_tracking::names::key_reduction,
+    uint32_t keys[2] = {memory_tracking::names::key_reduction,
             memory_tracking::names::key_reduction_1};
 
     for (int phase_num = 0;
@@ -237,7 +237,8 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     conf.attr_info = attr_info_t::create(attr());
 
     // Heuristics based on testing on PVC
-    conf.sub_group_size = 32;
+    conf.sub_group_size = compute_engine->device_info()->max_subgroup_size();
+
     const int target_reduction_size = 8;
 
     // Pad the inner dim to a multiple of subgroup size
