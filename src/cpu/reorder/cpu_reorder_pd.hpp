@@ -39,6 +39,68 @@ struct cpu_reorder_pd_t : public reorder_pd_t {
                         && post_ops.entry_[0].kind == primitive_kind::sum);
         return args_ok ? status::success : status::unimplemented;
     }
+
+    // The function splits dimension products based on input mask and returns
+    //   them as `D_start`, `D_mask` and `D_rest`.
+    // Its used to estimate amount of memory for scratchpad and precomputed
+    //   destination scales.
+    void get_D_values(const memory_desc_wrapper &input_d, int mask,
+            dim_t *D_start, dim_t *D_mask, dim_t *D_rest) const {
+        int ndims = input_d.ndims();
+        int ndims_start = 0, ndims_mask = 0;
+        // XXX: Currently user can pass a mask that has non-zero values in
+        // dimensions that do not exist in a md. Since attributes are created
+        // separately mask can't be validated.
+        // This line truncates a given mask in range [0, 1 << ndims - 1]
+        // TODO: Such masks can be either prohibited at pd creation step at
+        // API level or checked by each implementation that relies on it.
+        mask &= (1 << ndims) - 1;
+
+        for (; mask > 0 && !(mask & 0x1); mask >>= 1)
+            ++ndims_start;
+        for (; mask > 0 && mask & 0x1; mask >>= 1)
+            ++ndims_mask;
+        assert(mask == 0);
+
+        if (D_start)
+            *D_start = utils::array_product(input_d.dims(), ndims_start);
+        if (D_mask)
+            *D_mask = utils::array_product(
+                    input_d.dims() + ndims_start, ndims_mask);
+        assert(*D_mask >= 1);
+        if (D_rest) *D_rest = input_d.nelems() / (*D_start * *D_mask);
+    }
+
+    // The function serves same purpose as `dnnl::impl::cpu::precompute_scales`.
+    // The reason it's dedicated to reorder is it's the only primitive so far
+    //   that utilizes `mask > 0` for destination scales.
+    const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
+            const primitive_attr_t *attr, size_t count,
+            const float *dst_scales) const {
+        using namespace dnnl::impl::memory_tracking::names;
+
+        int mask = -1;
+        bool is_set = false;
+        auto status = attr->scales_.get(DNNL_ARG_DST, &mask, &is_set);
+        if (status != status::success) return nullptr;
+
+        // It's possible that mask > 0 but `count` is still `1`. This case is
+        //   covered by `DEFINE_ARG_SCALES_BUFFER` macro and no need to inverse
+        //   in such case.
+        if (is_set && mask > 0 && count > 1) {
+            auto loc_scales = scratchpad.template get<float>(
+                    key_reorder_precomputed_dst_scales);
+            if (!loc_scales) return nullptr;
+
+            PRAGMA_OMP_SIMD()
+            for (size_t c = 0; c < count; c++)
+                loc_scales[c] = 1.f / dst_scales[c];
+
+            return loc_scales;
+        } else {
+            return dst_scales;
+        }
+    }
 };
 
 } // namespace cpu

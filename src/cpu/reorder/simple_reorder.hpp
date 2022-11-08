@@ -77,8 +77,20 @@ struct conv_req_comp {}; // {s8, u8: asymmetric quantization}
     MAYBE_UNUSED(scratchpad); \
     const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM, pd->src_md()); \
     const auto output_d = ctx.memory_mdw(DNNL_ARG_TO, pd->dst_md()); \
-    DEFINE_SCALES_BUFFER_ATTR(pd->attr(), scales); \
-    const float alpha = scales[0]; \
+    DEFINE_ARG_SCALES_BUFFER_ATTR(pd->attr(), src_scales, DNNL_ARG_FROM); \
+    DEFINE_ARG_SCALES_BUFFER_ATTR(pd->attr(), dst_scales_, DNNL_ARG_TO); \
+    int src_scales_mask, dst_scales_mask; \
+    CHECK(get_scales_mask(pd->attr(), &src_scales_mask, &dst_scales_mask)); \
+    int scales_mask = std::max(src_scales_mask, dst_scales_mask); \
+    MAYBE_UNUSED(scales_mask); \
+    dim_t D_start, D_mask, D_rest; \
+    pd->get_D_values(input_d, scales_mask, &D_start, &D_mask, &D_rest); \
+    const float *dst_scales = pd->precompute_scales( \
+            scratchpad, pd->attr(), D_mask, dst_scales_); \
+    MAYBE_UNUSED(dst_scales); \
+    DEFINE_ZERO_POINT_VALUE_ATTR(pd->attr(), src_zp, DNNL_ARG_FROM); \
+    DEFINE_ZERO_POINT_VALUE_ATTR(pd->attr(), dst_zp, DNNL_ARG_TO); \
+    const float alpha = src_scales[0] * dst_scales[0]; \
     MAYBE_UNUSED(alpha); \
     const float beta = pd->beta(); \
     MAYBE_UNUSED(beta);
@@ -105,16 +117,37 @@ inline bool simple_po_check(const primitive_attr_t *attr) {
     const auto &po = attr->post_ops_;
     return po.len() == 0 || (po.len() == 1 && po.entry_[0].is_sum(false));
 }
+inline status_t get_scales_mask(
+        const primitive_attr_t *attr, int *src_mask, int *dst_mask) {
+    const auto &s = attr->scales_;
+    if (src_mask) {
+        *src_mask = 0;
+        if (!s.get(DNNL_ARG_SRC).has_default_values())
+            *src_mask = s.get(DNNL_ARG_SRC).mask_;
+    }
+    if (dst_mask) {
+        *dst_mask = 0;
+        if (!s.get(DNNL_ARG_DST).has_default_values())
+            *dst_mask = s.get(DNNL_ARG_DST).mask_;
+    }
+
+    // This is used in a check function.
+    if (*src_mask > 0 && *dst_mask > 0 && *dst_mask != *src_mask)
+        return status::invalid_arguments;
+    return status::success;
+}
 inline bool simple_attr_check(const primitive_attr_t *attr,
         bool many_scales_support, bool sum_support) {
     using smask_t = primitive_attr_t::skip_mask_t;
-    smask_t skip_mask = smask_t::oscale_runtime;
+    smask_t skip_mask = smask_t::scales_runtime;
     if (sum_support) skip_mask = skip_mask | smask_t::post_ops;
     if (!attr->has_default_values(skip_mask)) return false;
-    if (!attr->defined()) return false;
     if (sum_support) simple_po_check(attr);
     if (many_scales_support) return true;
-    return attr->output_scales_.mask_ == 0;
+    int src_mask, dst_mask;
+    if (get_scales_mask(attr, &src_mask, &dst_mask) != status::success)
+        return false;
+    return src_mask == 0 && dst_mask == 0;
 }
 } // namespace
 
@@ -134,21 +167,18 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (input_d.has_runtime_dims_or_strides()) return false;
 
-        const size_t D_mask = array_product(
-                input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
+        int src_scales_mask, dst_scales_mask;
+        auto status = get_scales_mask(attr, &src_scales_mask, &dst_scales_mask);
+        if (status != status::success) return false;
+        int scales_mask = std::max(src_scales_mask, dst_scales_mask);
+
         static constexpr bool w_groups = one_of(
                 tag_o, format_tag::wigo, format_tag::hwigo, format_tag::dhwigo);
-        const int oc_idx = w_groups ? 1 : 0;
-        const int oc = input_d.dims()[oc_idx];
-        const int ic = input_d.dims()[oc_idx + 1];
-        const int g = w_groups ? (input_d.dims()[0]) : 1;
 
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
         const bool req_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
-
-        const int oscale_mask = attr->output_scales_.mask_;
 
         auto mask_ok = [&](bool check, int mask) {
             return IMPLICATION(check, mask == (w_groups ? 0x3 : 0x1));
@@ -160,11 +190,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && mask_ok(req_comp, output_d.extra().compensation_mask)
                 && mask_ok(req_asymmetric_comp,
                         output_d.extra().asymm_compensation_mask)
-                && IMPLICATION(req_comp,
-                        one_of(D_mask, (size_t)1, (size_t)g * oc, (size_t)ic,
-                                (size_t)g * oc * ic))
-                && IMPLICATION(!w_groups, one_of(oscale_mask, 0, 0x1))
-                && IMPLICATION(w_groups, one_of(oscale_mask, 0, 0x3))
+                && IMPLICATION(!w_groups, one_of(scales_mask, 0, 0x1))
+                && IMPLICATION(w_groups, one_of(scales_mask, 0, 0x3))
                 && one_of(input_d.data_type(), f32, s8, bf16)
                 && output_d.data_type() == s8;
     }
@@ -212,9 +239,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 ? reinterpret_cast<int32_t *>(output + zp_offset)
                 : nullptr;
 
-        const int smask = pd->attr()->output_scales_.mask_;
-        const bool per_oc = smask & (1 << (w_groups + 0));
-        const bool per_ic = smask & (1 << (w_groups + 1));
+        const bool per_oc = scales_mask & (1 << (w_groups + 0));
+        const bool per_ic = scales_mask & (1 << (w_groups + 1));
         const size_t ic_stride = per_ic ? 1 : 0;
         const size_t oc_stride = per_oc ? per_ic ? IC : 1 : 0;
 
@@ -240,9 +266,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                                            g, oc, ic, w)];
                 const size_t os_off
                         = (g * OC + oc) * oc_stride + ic * ic_stride;
-                const float s = scales[os_off];
+                const float s = src_scales[src_scales_mask == 0 ? 0 : os_off];
+                const float d = dst_scales[dst_scales_mask == 0 ? 0 : os_off];
 
-                o = qz_b0<data_t<type_i>, data_t<type_o>>()(i, s * adj_scale);
+                o = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                        i, s * adj_scale * d);
                 if (req_comp) cp[g * OC + oc] -= (int32_t)o;
                 if (has_asymmetric_comp) zp[g * OC + oc] -= (int32_t)o;
             }
@@ -303,23 +331,21 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (input_d.has_runtime_dims_or_strides()) return false;
 
-        const size_t D_mask = array_product(
-                input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
+        int src_scales_mask, dst_scales_mask;
+        auto status = get_scales_mask(attr, &src_scales_mask, &dst_scales_mask);
+        if (status != status::success) return false;
+        int scales_mask = std::max(src_scales_mask, dst_scales_mask);
+
         const bool w_groups = !one_of(tag_o, OIw4i16o4i, OIw2i8o4i, OIw4o4i,
                 OIhw4i16o4i, OIhw2i8o4i, OIhw4o4i, OIdhw4i16o4i, OIdhw2i8o4i,
                 OIdhw4o4i, OI4i16o4i, OI4i32o4i, OI4i64o4i, OIw4i32o4i,
                 OIw4i64o4i, OIhw4i32o4i, OIhw4i64o4i, OIdhw4i32o4i,
                 OIdhw4i64o4i);
-        const dim_t oc = (input_d.dims()[w_groups + 0]);
-        const dim_t ic = (input_d.dims()[w_groups + 1]);
-        const dim_t g = w_groups ? input_d.dims()[0] : 1;
 
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
         const bool req_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
-
-        const int oscale_mask = attr->output_scales_.mask_;
 
         auto mask_ok = [&](bool check, int mask) {
             return IMPLICATION(check, mask == (w_groups ? 0x3 : 0x1));
@@ -331,11 +357,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && mask_ok(req_comp, output_d.extra().compensation_mask)
                 && mask_ok(req_asymmetric_comp,
                         output_d.extra().asymm_compensation_mask)
-                && IMPLICATION(req_comp,
-                        one_of(D_mask, (size_t)1, (size_t)g * oc, (size_t)ic,
-                                (size_t)g * oc * ic))
-                && IMPLICATION(!w_groups, one_of(oscale_mask, 0, 0x1))
-                && IMPLICATION(w_groups, one_of(oscale_mask, 0, 0x3))
+                && IMPLICATION(!w_groups, one_of(scales_mask, 0, 0x1))
+                && IMPLICATION(w_groups, one_of(scales_mask, 0, 0x3))
                 && one_of(input_d.data_type(), f32, s8, bf16)
                 && output_d.data_type() == s8;
     }
@@ -389,14 +412,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t H = is_1d || is_0d ? 1 : dims[2 + w_groups + is_3d];
         const dim_t W = is_0d ? 1 : dims[w_groups + is_3d + 3 - is_1d];
 
-        int smask = pd->attr()->output_scales_.mask_;
         // XXX: Currently user can pass a mask that has non-zero values in
         // dimensions that do not exist in a md. Since attributes are created
         // separately mask can't be validated.
         // This line truncates a given mask in range [0, 1 << ndims - 1]
         // TODO: Such masks can be either prohibited at pd creation step at
         // API level or checked by each implementation that relies on it.
-        smask &= (1 << ndims) - 1;
+        scales_mask &= (1 << ndims) - 1;
 
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
@@ -410,8 +432,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 ? output_d.extra().scale_adjust
                 : 1.f;
 
-        const bool per_oc = smask & (1 << (w_groups + 0));
-        const bool per_ic = smask & (1 << (w_groups + 1));
+        const bool per_oc = scales_mask & (1 << (w_groups + 0));
+        const bool per_ic = scales_mask & (1 << (w_groups + 1));
         const size_t ic_stride = per_ic ? 1 : 0;
         const size_t oc_stride = per_oc ? per_ic ? IC : 1 : 0;
         const size_t nb_ic_stride = (per_ic ? 1 : 0) * icblksize;
@@ -424,7 +446,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
                            int32_t *c, int32_t *zp, const float *s,
-                           const dim_t oc_block, const dim_t ic_block) {
+                           const float *d, const dim_t oc_block,
+                           const dim_t ic_block) {
 #define index AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>
             for_(dim_t ic = 0; ic < ic_block; ++ic)
             for (dim_t oc = 0; oc < oc_block; ++oc) {
@@ -432,8 +455,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         = oc * plain_d.blocking_desc().strides[w_groups + 0]
                         + ic * plain_d.blocking_desc().strides[w_groups + 1];
                 const size_t os_off = oc * oc_stride + ic * ic_stride;
+                const float src_scale = s[src_scales_mask == 0 ? 0 : os_off];
+                const float dst_scale = d[dst_scales_mask == 0 ? 0 : os_off];
                 out[index(oc, ic)] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                        inp[plain_off], s[os_off] * adj_scale);
+                        inp[plain_off], src_scale * adj_scale * dst_scale);
                 if (req_comp) c[oc] -= (128 * (int32_t)(out[index(oc, ic)]));
                 if (has_asymmetric_comp)
                     zp[oc] -= (int32_t)(out[index(oc, ic)]);
@@ -479,10 +504,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 dim_t _offset = (g * NB_OC + O) * ocblksize;
                 dim_t os_nb_off
                         = (g * NB_OC + O) * nb_oc_stride + I * nb_ic_stride;
+                const float *src_scales_ptr
+                        = &src_scales[src_scales_mask == 0 ? 0 : os_nb_off];
+                const float *dst_scales_ptr
+                        = &dst_scales[dst_scales_mask == 0 ? 0 : os_nb_off];
                 ker(i, o, (order_keep && req_comp) ? &cp[_offset] : nullptr,
                         (order_keep && has_asymmetric_comp) ? &zp[_offset]
                                                             : nullptr,
-                        &scales[os_nb_off], oc_block, ic_block);
+                        src_scales_ptr, dst_scales_ptr, oc_block, ic_block);
             }
         });
 
@@ -568,8 +597,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t H = is_1d ? 1 : dims[2 + w_groups + is_3d];
         const dim_t W = dims[w_groups + is_3d + 3 - is_1d];
 
-        const size_t D_mask = utils::array_product(input_d.dims(),
-                math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
         const bool has_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
 
@@ -579,12 +606,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 : 1.f;
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
-                           int32_t *zp, const float *s, const dim_t oc_block) {
+                           int32_t *zp, const float *s, const float *d,
+                           const dim_t oc_block) {
             for (dim_t oc = 0; oc < oc_block; ++oc) {
                 const auto plain_off
                         = oc * plain_d.blocking_desc().strides[w_groups + 0];
                 out[oc] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                        inp[plain_off], s[oc] * adj_scale);
+                        inp[plain_off], s[oc] * adj_scale * d[oc]);
                 if (has_asymmetric_comp) zp[oc] -= (int32_t)(out[oc]);
             }
             // fill memory with '0' in case of padded channel dimensions
@@ -618,10 +646,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 const dim_t oc_block
                         = nstl::min(oc_blksize, OC - O * oc_blksize);
                 dim_t _offset = (g * NB_OC + O) * oc_blksize;
-                ker(i, o,
-                        (order_keep && has_asymmetric_comp) ? &zp[_offset]
-                                                            : nullptr,
-                        &scales[(D_mask == 1) ? 0 : _offset], oc_block);
+                int32_t *zp_ptr = (order_keep && has_asymmetric_comp)
+                        ? &zp[_offset]
+                        : nullptr;
+                const float *src_scales_ptr
+                        = &src_scales[src_scales_mask == 0 ? 0 : _offset];
+                const float *dst_scales_ptr
+                        = &dst_scales[dst_scales_mask == 0 ? 0 : _offset];
+                ker(i, o, zp_ptr, src_scales_ptr, dst_scales_ptr, oc_block);
             }
         });
 
@@ -667,6 +699,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (input_d.has_runtime_dims_or_strides()) return false;
 
+        int src_scales_mask, dst_scales_mask;
+        auto status = get_scales_mask(attr, &src_scales_mask, &dst_scales_mask);
+        if (status != status::success) return false;
+        int scales_mask = std::max(src_scales_mask, dst_scales_mask);
+
         const bool w_groups = !one_of(tag_o, OwI16o4i, OIw16i16o4i, OhwI16o4i,
                 OIhw16i16o4i, OdhwI16o4i, OIdhw16i16o4i);
 
@@ -679,8 +716,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const bool req_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
 
-        const int oscale_mask = attr->output_scales_.mask_;
-
         auto mask_ok = [&](bool check, int mask) {
             const int c_mask = 0x1,
                       g_mask = 0x3; // mask for o-channel and ngroups
@@ -692,8 +727,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && mask_ok(req_asymmetric_comp,
                         output_d.extra().asymm_compensation_mask)
                 && one_of(input_d.data_type(), f32, s8, bf16)
-                && IMPLICATION(!w_groups, one_of(oscale_mask, 0, 0x1))
-                && IMPLICATION(w_groups, one_of(oscale_mask, 0, 0x3))
+                && IMPLICATION(!w_groups, one_of(scales_mask, 0, 0x1))
+                && IMPLICATION(w_groups, one_of(scales_mask, 0, 0x3))
                 && output_d.data_type() == s8 && !req_comp;
     }
 
@@ -737,8 +772,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t H = is_1d ? 1 : dims[2 + w_groups + is_3d];
         const dim_t W = dims[w_groups + is_3d + 3 - is_1d];
 
-        const size_t D_mask = utils::array_product(input_d.dims(),
-                math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
         const bool has_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
 
@@ -753,8 +786,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         ctx.zero_pad_output(DNNL_ARG_TO);
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
-                           int32_t *zp, const float *s, const dim_t oc_block,
-                           const dim_t ic_block) {
+                           int32_t *zp, const float *s, const float *d,
+                           const dim_t oc_block, const dim_t ic_block) {
             for_(dim_t ic = 0; ic < ic_block; ++ic)
             for (dim_t oc = 0; oc < oc_block; ++oc) {
                 const auto plain_off
@@ -763,7 +796,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 auto index = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
                         oc, ic);
                 out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                        inp[plain_off], s[oc] * adj_scale);
+                        inp[plain_off], s[oc] * adj_scale * d[oc]);
 
                 if (has_asymmetric_comp) zp[oc] -= (int32_t)(out[index]);
             }
@@ -796,10 +829,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 const dim_t ic_block
                         = nstl::min(ic_blksize, IC - I * ic_blksize);
                 dim_t _offset = (g * NB_OC + O) * oc_blksize;
-                ker(i, o,
-                        (order_keep && has_asymmetric_comp) ? &zp[_offset]
-                                                            : nullptr,
-                        &scales[(D_mask == 1) ? 0 : _offset], oc_block,
+                int32_t *zp_ptr = (order_keep && has_asymmetric_comp)
+                        ? &zp[_offset]
+                        : nullptr;
+                const float *src_scales_ptr
+                        = &src_scales[src_scales_mask == 0 ? 0 : _offset];
+                const float *dst_scales_ptr
+                        = &dst_scales[dst_scales_mask == 0 ? 0 : _offset];
+                ker(i, o, zp_ptr, src_scales_ptr, dst_scales_ptr, oc_block,
                         ic_block);
             }
         });
@@ -841,8 +878,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     check, mask == (1 << ndims) - 1 - (1 << (ndims - 2)));
         };
 
-        const size_t D_mask = utils::array_product(
-                input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
+        int src_scales_mask, dst_scales_mask;
+        auto status = get_scales_mask(attr, &src_scales_mask, &dst_scales_mask);
+        if (status != status::success) return false;
+        int scales_mask = std::max(src_scales_mask, dst_scales_mask);
+        const size_t D_mask
+                = array_product(input_d.dims(), math::ilog2q(scales_mask + 1));
 
         return simple_attr_check(attr, true, false)
                 && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
@@ -904,7 +945,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
                            int32_t *cp, int32_t *zp, const float *s,
-                           const int d0_block, const int d1_block) {
+                           const float *d, const int d0_block,
+                           const int d1_block) {
             for (int d0 = 0; d0 < d0_block; ++d0) {
                 for (int d1 = 0; d1 < d1_block; ++d1) {
                     const auto plain_off
@@ -914,7 +956,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
                                     d0, d1);
                     out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                            inp[plain_off], s[0] * adj_scale);
+                            inp[plain_off], s[0] * adj_scale * d[0]);
 
                     auto o = static_cast<int32_t>(out[index]);
                     if (req_comp) cp[d1] -= (128 * o);
@@ -925,7 +967,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
                                     d0, d1);
                     out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                            0, s[0] * adj_scale);
+                            0, s[0] * adj_scale * d[0]);
                 }
             }
 
@@ -934,7 +976,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 auto index = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
                         d0, d1);
                 out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                        0, s[0] * adj_scale);
+                        0, s[0] * adj_scale * d[0]);
             }
         };
 
@@ -969,10 +1011,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 const dim_t d1_block
                         = nstl::min(D1_blksize, D1dim - D1 * D1_blksize);
                 dim_t _offset = batch * NB_D1dim * D1_blksize + D1 * D1_blksize;
+                int32_t *zp_ptr = (order_keep && has_asymmetric_comp)
+                        ? &zp[_offset]
+                        : nullptr;
+                const float *src_scales_ptr
+                        = &src_scales[src_scales_mask == 0 ? 0 : _offset];
+                const float *dst_scales_ptr
+                        = &dst_scales[dst_scales_mask == 0 ? 0 : _offset];
                 ker(i, o, (order_keep && req_comp) ? &cp[_offset] : nullptr,
-                        (order_keep && has_asymmetric_comp) ? &zp[_offset]
-                                                            : nullptr,
-                        &scales[0], d0_block, d1_block);
+                        zp_ptr, src_scales_ptr, dst_scales_ptr, d0_block,
+                        d1_block);
             }
         });
 
@@ -1001,8 +1049,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (input_d.has_runtime_dims_or_strides()) return false;
 
-        const size_t D_mask = array_product(
-                input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
+        int src_scales_mask, dst_scales_mask;
+        auto status = get_scales_mask(attr, &src_scales_mask, &dst_scales_mask);
+        if (status != status::success) return false;
+        int scales_mask = std::max(src_scales_mask, dst_scales_mask);
+
         const dim_t g = input_d.dims()[0];
         const dim_t oc = input_d.dims()[1];
         const dim_t ic = input_d.dims()[2];
@@ -1011,13 +1062,23 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 & memory_extra_flags::compensation_conv_s8s8;
         const bool req_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
+        int s8s8_comp_mask = output_d.extra().compensation_mask;
+        int zp_comp_mask = output_d.extra().asymm_compensation_mask;
+        int comp_mask = std::max(s8s8_comp_mask, zp_comp_mask);
+
+        const size_t D_mask
+                = array_product(input_d.dims(), math::ilog2q(comp_mask + 1));
 
         return order_keep && oc == 1 && ic == 1 // depth-wise case
                 && simple_attr_check(attr, true, false)
                 && (req_comp || req_asymmetric_comp)
+                && IMPLICATION(req_comp && req_asymmetric_comp,
+                        output_d.extra().compensation_mask
+                                == output_d.extra().asymm_compensation_mask)
                 && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
                 && IMPLICATION(
                         req_comp, one_of(D_mask, (size_t)1, (size_t)g * oc))
+                && one_of(scales_mask, 0, 0x3)
                 && one_of(input_d.data_type(), f32, s8, bf16)
                 && output_d.data_type() == s8;
     }
@@ -1046,8 +1107,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t W = dims[4 - is_1d];
         const bool zero_padding_needed = !output_d.is_dense();
 
-        const size_t D_mask = utils::array_product(input_d.dims(),
-                math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
         const bool has_asymmetric_comp = output_d.extra().flags
@@ -1061,12 +1120,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 : 1.f;
 
         auto ker_out = [&](const data_t<type_i> *inp, data_t<type_o> *out,
-                               const float *s, const dim_t g_block) {
+                               const float *src_scales, const float *dst_scales,
+                               const dim_t g_block) {
             PRAGMA_OMP_SIMD()
             for (dim_t g = 0; g < g_block; g++) {
                 const auto i_off = g * input_d.blocking_desc().strides[0];
+                const float src_scale
+                        = src_scales[src_scales_mask == 0 ? 0 : g * OC];
+                const float dst_scale
+                        = dst_scales[dst_scales_mask == 0 ? 0 : g * OC];
                 out[g] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                        inp[i_off], s[g * OC] * adj_scale);
+                        inp[i_off], src_scale * adj_scale * dst_scale);
             }
         };
 
@@ -1118,9 +1182,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     const auto out
                             = &output[wei_blk_off(output_d, gb, O, I, h, w)];
                     dim_t offset = gb * blksize + O;
+                    const float *src_scales_ptr
+                            = &src_scales[src_scales_mask == 0 ? 0 : offset];
+                    const float *dst_scales_ptr
+                            = &dst_scales[dst_scales_mask == 0 ? 0 : offset];
 
-                    ker_out(inp, out, &scales[(D_mask == 1) ? 0 : offset],
-                            g_block);
+                    ker_out(inp, out, src_scales_ptr, dst_scales_ptr, g_block);
                     if (req_comp) ker_s8(out, &cp[offset], g_block);
                     if (has_asymmetric_comp) ker_zp(out, &zp[offset], g_block);
 
@@ -2009,81 +2076,53 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         /* supported smask: 0x0...011..10...0,
          * i.e. 1 should be contiguous */
-        int smask = attr ? attr->output_scales_.mask_ : 0;
-        for (; smask > 0 && !(smask & 0x1); smask >>= 1)
-            ;
-        for (; smask > 0 && smask & 0x1; smask >>= 1)
-            ;
+        int src_scales_mask = -1;
+        int dst_scales_mask = -1;
+        CHECK(get_scales_mask(attr, &src_scales_mask, &dst_scales_mask));
+
+        for (auto smask : {src_scales_mask, dst_scales_mask}) {
+            for (; smask > 0 && !(smask & 0x1); smask >>= 1)
+                ;
+            for (; smask > 0 && smask & 0x1; smask >>= 1)
+                ;
+            if (smask != 0) return false;
+        }
+
+        using skip_mask_t = dnnl_primitive_attr::skip_mask_t;
         return input_d.is_blocking_desc() && output_d.is_blocking_desc()
                 && !output_d.is_additional_buffer()
-                && !input_d.is_additional_buffer() && smask == 0
-                && attr->has_default_values(
-                        dnnl_primitive_attr::skip_mask_t::oscale_runtime
-                        | dnnl_primitive_attr::skip_mask_t::zero_points_runtime
-                        | dnnl_primitive_attr::skip_mask_t::post_ops)
+                && !input_d.is_additional_buffer()
+                && attr->has_default_values(skip_mask_t::scales_runtime
+                        | skip_mask_t::zero_points_runtime
+                        | skip_mask_t::post_ops)
                 && simple_po_check(attr);
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
-    static status_t execute(
-            const cpu_reorder_pd_t *pd_object, const exec_ctx_t &ctx) {
-        // DEFINE_SCALES_BUFFER and DEFINE_ZERO_POINT_VALUE macro use pd() to
-        // query properties, hence wrapping the primitive descriptor into a
-        // function.
-        auto pd = [pd_object]() { return pd_object; };
-
-        auto input = CTX_IN_MEM(const data_t<type_i> *, DNNL_ARG_FROM);
-        auto output = CTX_OUT_MEM(data_t<type_o> *, DNNL_ARG_TO);
-
-        const float beta = pd()->beta();
-        DEFINE_SCALES_BUFFER(scales);
-        DEFINE_ZERO_POINT_VALUE(i0, DNNL_ARG_FROM);
-        DEFINE_ZERO_POINT_VALUE(o0, DNNL_ARG_TO);
-
-        const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM, pd()->src_md());
-        const auto output_d = ctx.memory_mdw(DNNL_ARG_TO, pd()->dst_md());
-
-        const size_t nelems = input_d.nelems();
-        const int ndims = input_d.ndims();
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
 
         // This kernel is used also for tensors with multiple inner
         // blocks for which generic zero padding must be used.
         // TODO: apply zero padding inside parallel_nd()
         ctx.zero_pad_output(DNNL_ARG_TO);
 
-        int ndims_start = 0, ndims_mask = 0;
-        int smask = pd()->attr()->output_scales_.mask_;
-        // XXX: Currently user can pass a mask that has non-zero values in
-        // dimensions that do not exist in a md. Since attributes are created
-        // separately mask can't be validated.
-        // This line truncates a given mask in range [0, 1 << ndims - 1]
-        // TODO: Such masks can be either prohibited at pd creation step at
-        // API level or checked by each implementation that relies on it.
-        smask &= (1 << ndims) - 1;
-
-        for (; smask > 0 && !(smask & 0x1); smask >>= 1)
-            ++ndims_start;
-        for (; smask > 0 && smask & 0x1; smask >>= 1)
-            ++ndims_mask;
-        assert(smask == 0);
-
-        const ptrdiff_t D_start
-                = utils::array_product(input_d.dims(), ndims_start);
-        const ptrdiff_t D_mask = utils::array_product(
-                input_d.dims() + ndims_start, ndims_mask);
-        const ptrdiff_t D_rest = nelems / D_start / D_mask;
-
         parallel_nd(D_start, D_mask, D_rest,
                 [&](ptrdiff_t ds, ptrdiff_t dm, ptrdiff_t dr) {
-                    const float scale = scales[dm];
+                    const float src_scale
+                            = src_scales[src_scales_mask == 0 ? 0 : dm];
+                    const float dst_scale
+                            = dst_scales[dst_scales_mask == 0 ? 0 : dm];
 
                     const size_t e = (ds * D_mask + dm) * D_rest + dr;
                     const auto &i = input[input_d.off_l(e)];
                     auto &o = output[output_d.off_l(e)];
 
-                    float f = scale * ((float)i - i0) + o0;
-                    o = _qz<data_type::f32, type_o>()(f, o, 1.f, beta);
+                    float f = src_scale * ((float)i - src_zp);
+                    if (beta) f += beta * o;
+                    f = f * dst_scale + dst_zp;
+                    o = _qz_a1b0<data_type::f32, type_o>()(f);
                 });
 
         return status::success;
@@ -2107,13 +2146,20 @@ struct simple_reorder_t : public primitive_t {
             using skip_mask_t = dnnl_primitive_attr::skip_mask_t;
             bool args_ok = src_md->data_type == type_i
                     && dst_md->data_type == type_o
-                    && attr->has_default_values(skip_mask_t::oscale_runtime
+                    && attr->has_default_values(skip_mask_t::scales_runtime
                             | skip_mask_t::zero_points
                             | skip_mask_t::zero_points_runtime
                             | skip_mask_t::post_ops)
                     && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             spec>::is_applicable(src_md, dst_md, attr);
             if (!args_ok) return status::invalid_arguments;
+
+            int mask = -1;
+            bool is_set = false;
+            CHECK(attr->scales_.get(DNNL_ARG_DST, &mask, &is_set));
+            const memory_desc_wrapper input_d(src_md);
+            if (input_d.has_runtime_dims_or_strides() && is_set && mask > 0)
+                return status::unimplemented;
 
             auto _pd = new pd_t(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
@@ -2129,6 +2175,16 @@ struct simple_reorder_t : public primitive_t {
             auto scratchpad = _pd->scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_reorder_space,
                     scratchpad_sz_, 1, 16);
+
+            if (is_set && mask > 0) {
+                dim_t D_mask;
+                _pd->get_D_values(input_d, mask, nullptr, &D_mask, nullptr);
+                scratchpad.template book<float>(
+                        memory_tracking::names::
+                                key_reorder_precomputed_dst_scales,
+                        D_mask);
+            }
+
             _pd->init_scratchpad_md();
             return safe_ptr_assign(*reorder_pd, _pd);
         }

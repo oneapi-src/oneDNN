@@ -64,9 +64,10 @@ struct ref_concat_t : public gpu_primitive_t {
             reorder_pds_.resize(n_ + use_tent_dst());
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
-                if (!sc.get(DNNL_ARG_MULTIPLE_SRC + i).has_default_values()) {
-                    int mask = 0;
-                    CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask));
+                int mask = 0;
+                bool is_set = false;
+                CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask, &is_set));
+                if (is_set) {
                     if (mask != 0) return status::unimplemented;
                     r_attr.scales_.set(DNNL_ARG_SRC, mask);
                 }

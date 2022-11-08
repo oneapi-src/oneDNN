@@ -317,7 +317,7 @@ CPU_TEST_F(attr_quantization_test_t, TestReorder) {
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
         CHECK_OK(reorder::primitive_desc(
-                eng, src_md, eng, dst_md, gen_attr_with_scales(arg)));
+                eng, src_md, eng, dst_md, gen_attr_with_scales()));
         CHECK_OK(reorder::primitive_desc(
                 eng, src_md, eng, dst_md, gen_attr_with_zp(arg)));
     }

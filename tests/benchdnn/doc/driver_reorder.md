@@ -15,9 +15,10 @@ where *reorder-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--dtag={nchw [default], ...}` -- physical dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
- - `--attr-oscale=STRING` -- output scale primitive attribute. No oscale is
-            set by default. See `--def-scales` for additional specific reorder
-            mechanics and refer to [attributes](knobs_attr.md) for details.
+ - `--attr-scales=STRING` -- per argument scales primitive attribute. No
+            scales are set by default. See `--def-scales` for additional
+            reorder specific mechanics and refer to [attributes](knobs_attr.md)
+            for details.
  - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
             points are set by default. Refer to [attributes](knobs_attr.md)
             for details.
