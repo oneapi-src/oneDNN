@@ -289,6 +289,42 @@ inline memory make_memory(const memory::desc &memory_desc,
     return amemory;
 }
 
+/// Executes computations specified by the primitive in a specified stream and
+/// returns a SYCL event.
+///
+/// Arguments are passed via an arguments map containing
+/// <index, memory object> pairs. The index must be one of the `DNNL_ARG_*`
+/// values such as `DNNL_ARG_SRC`, and the memory must have a memory descriptor
+/// matching the one returned by
+/// #dnnl::primitive_desc::query_md(#query::exec_arg_md, index) unless using
+/// dynamic shapes (see #DNNL_RUNTIME_DIM_VAL).
+///
+/// @param aprimitive Primitive to execute.
+/// @param astream Stream object. The stream must belong to the same engine
+///     as the primitive.
+/// @param args Arguments map.
+/// @param deps Optional vector with `cl_event` dependencies.
+///
+/// @returns Output event. It's the user's responsibility to manage lifetime
+///     of the event.
+inline cl_event execute(const dnnl::primitive &aprimitive,
+        const stream &astream, const std::unordered_map<int, memory> &args,
+        const std::vector<cl_event> &deps = {}) {
+    std::vector<dnnl_exec_arg_t> c_args;
+    c_args.reserve(args.size());
+    for (const auto &a : args)
+        c_args.push_back({a.first, a.second.get()});
+
+    const cl_event *c_deps = deps.empty() ? nullptr : deps.data();
+
+    cl_event return_event;
+    error::wrap_c_api(dnnl_ocl_interop_primitive_execute(aprimitive.get(),
+                              astream.get(), (int)c_args.size(), c_args.data(),
+                              c_deps, (int)deps.size(), &return_event),
+            "could not execute a primitive");
+    return return_event;
+}
+
 } // namespace ocl_interop
 
 /// @} dnnl_api_ocl_interop

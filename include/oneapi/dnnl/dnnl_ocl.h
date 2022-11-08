@@ -211,6 +211,31 @@ dnnl_status_t DNNL_API dnnl_ocl_interop_stream_create(
 dnnl_status_t DNNL_API dnnl_ocl_interop_stream_get_command_queue(
         dnnl_stream_t stream, cl_command_queue *queue);
 
+/// Executes computations specified by the primitive in a specified stream and
+/// returns an OpenCL event.
+///
+/// @param primitive Primitive to execute.
+/// @param stream Stream to use.
+/// @param nargs Number of arguments.
+/// @param args Array of arguments. Each argument is an
+///     <index, #dnnl_memory_t> pair. The index is one of the `DNNL_ARG_*`
+///     values such as `DNNL_ARG_SRC`. Unless runtime shapes are used (see
+///     #DNNL_RUNTIME_DIM_VAL), the memory object must have the same memory
+///     descriptor as that returned by
+///     #dnnl_primitive_desc_query_md(#dnnl_query_exec_arg_md, index).
+/// @param deps A pointer to a vector of size @p ndeps that contains
+///     dependencies.
+/// @param ndeps Number of dependencies.
+/// @param return_event Output event. It's the user's responsibility to
+///     manage lifetime of the event. Can be NULL. When @p stream is in-order
+///     NULL will be returned.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ocl_interop_primitive_execute(
+        const_dnnl_primitive_t primitive, dnnl_stream_t stream, int nargs,
+        const dnnl_exec_arg_t *args, const cl_event *deps, int ndeps,
+        cl_event *return_event);
+
 /// @} dnnl_api_ocl_interop
 
 /// @} dnnl_api_interop
