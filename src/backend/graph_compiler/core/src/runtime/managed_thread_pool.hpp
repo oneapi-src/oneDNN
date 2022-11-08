@@ -35,13 +35,14 @@ struct thread_manager {
             int64_t step;
             sc::generic_val *args;
         } task;
-        std::atomic<int> trigger;
         int num_threads;
-        std::atomic<int> remaining;
 
+        std::atomic<int> trigger;
         idle_func_t idle_func = nullptr;
         void *idle_args = nullptr;
         uint64_t execution_flags = 0;
+
+        alignas(64) std::atomic<int> remaining;
 
         void wait_all();
         void reset_scoreboard();

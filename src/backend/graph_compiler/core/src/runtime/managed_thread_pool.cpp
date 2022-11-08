@@ -55,19 +55,17 @@ constexpr uint64_t max_wait_count = 1;
 
 void thread_manager::thread_pool_state::wait_all() {
     make_trace(0, 0);
-    uint64_t wait_count = 0;
     auto idl_f = idle_func;
     bool has_idle_func = idl_f
             && (execution_flags & thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC);
     int count = 0;
-    for (;; wait_count++) {
+    if (has_idle_func && remaining.load(std::memory_order_acquire) != 0) {
+        count = idl_f(&remaining, 0, 0, idle_args);
+    }
+    for (;;) {
         if (remaining.load(std::memory_order_acquire) == 0) {
             make_trace(1, count);
             break;
-        }
-        if (has_idle_func && wait_count > max_wait_count) {
-            count = idl_f(&remaining, 0, 0, idle_args);
-            has_idle_func = false;
         }
         _mm_pause();
     }
@@ -103,7 +101,6 @@ static void worker_func(thread_manager *ths, int tid) {
     int st;
     auto &task = ths->state.task;
     int current_job_id = 2;
-    uint64_t wait_count = 0;
 
     while (true) {
         auto idl_f = ths->state.idle_func;
@@ -111,27 +108,25 @@ static void worker_func(thread_manager *ths, int tid) {
                 && (ths->state.execution_flags
                         & thread_pool_flags::THREAD_POOL_RUN_IDLE_FUNC);
         int count = 0;
-        while ((st = ths->state.trigger) != current_job_id) {
+        if (has_idle_func && (st = ths->state.trigger) != current_job_id) {
+            count = idl_f(&ths->state.trigger, current_job_id, tid,
+                    ths->state.idle_args);
+        }
+        while ((st = ths->state.trigger.load(std::memory_order_relaxed))
+                != current_job_id) {
             if (st == -1) {
                 do_cleanup();
                 make_trace(1, count);
                 return;
             }
-            wait_count += 1;
-            if (has_idle_func && wait_count > max_wait_count) {
-                count = idl_f(&ths->state.trigger, current_job_id, tid,
-                        ths->state.idle_args);
-                has_idle_func = false;
-            }
             _mm_pause();
         }
-
+        std::atomic_thread_fence(std::memory_order_acquire);
         make_trace(1, count);
         do_dispatch(ths, tid);
         make_trace(0, 0);
         --ths->state.remaining;
         current_job_id++;
-        wait_count = 0;
     }
 }
 
@@ -181,7 +176,7 @@ void thread_manager::run_main_function(main_func_t f, runtime::stream_t *stream,
     }
 }
 
-thread_local thread_manager thread_manager::cur_mgr;
+alignas(64) thread_local thread_manager thread_manager::cur_mgr;
 } // namespace runtime
 } // namespace sc
 
@@ -223,7 +218,8 @@ void sc_parallel_call_managed(
     stream->state.reset_scoreboard();
     stream->state.task = thread_manager::thread_pool_state::task_type {
             pfunc, rtl_ctx, module_env, begin, end, step, args};
-    stream->state.trigger++;
+    stream->state.trigger
+            = stream->state.trigger.load(std::memory_order_relaxed) + 1;
     do_dispatch(stream, 0);
     stream->state.wait_all();
 
