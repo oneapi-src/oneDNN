@@ -28,11 +28,7 @@ status_t rnn_weights_reorder_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());
 
-    status_t status = status::success;
-
     const auto &dims = dst_mdw.padded_dims();
-    conf.with_sum_ab = with_alpha() || beta() != 0.f;
-    conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
     conf.do_reorder = src_mdw != dst_mdw;
     conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
     conf.ndims = src_mdw.ndims();
@@ -52,11 +48,15 @@ status_t rnn_weights_reorder_t::pd_t::init_conf(engine_t *engine) {
     conf.dispatch.define_dim("D4", 4, dims[4]);
     conf.dispatch.generate();
 
-    conf.mask = attr()->rnn_weights_qparams_.mask_;
+    const auto &qparams = attr()->rnn_weights_qparams_;
+    const bool qparams_is_set = !qparams.has_default_values();
+    conf.mask = qparams.mask_;
     const auto &input_dims = src_mdw.dims();
     conf.scales_count = conf.mask ? input_dims[3] * input_dims[4] : 1;
+    conf.with_sum_ab = qparams_is_set || beta() != 0.f;
+    conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
 
-    return status;
+    return status::success;
 }
 
 status_t rnn_weights_reorder_t::pd_t::init_kernel_ctx(
@@ -145,7 +145,7 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
     if (do_reorder) {
         wspace = ctx.get_scratchpad_grantor().get_memory_storage(
                 key_reorder_rnn_space);
-        scales_buf = &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
+        scales_buf = &CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
     }
 
     // Copy to gpu

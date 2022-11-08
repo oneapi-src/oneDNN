@@ -31,22 +31,18 @@ void compute_ref(
 
     const auto dst_dt = prb->ddt;
     const auto nelems = src.nelems();
+    const auto &src_scales = prb->attr.scales.get(DNNL_ARG_FROM);
+    const auto &dst_scales = prb->attr.scales.get(DNNL_ARG_TO);
+    const int src_scale_mask = attr_t::get_default_mask(src_scales.policy);
+    const int dst_scale_mask = attr_t::get_default_mask(dst_scales.policy);
     // This is native to reorder zero point which comes from reorder attributes.
     const int src_zero_point = prb->src_zp ? prb->src_zp[0] : 0;
     const int dst_zero_point = prb->dst_zp ? prb->dst_zp[0] : 0;
-    const auto src_scale = prb->attr.scales.get(DNNL_ARG_SRC);
-    const auto dst_scale = prb->attr.scales.get(DNNL_ARG_DST);
-    const int src_scale_mask = attr_t::get_default_mask(src_scale.policy);
-    const int dst_scale_mask = attr_t::get_default_mask(dst_scale.policy);
 
     float beta = 0;
-    int sum_zero_point = 0;
     const auto &po = prb->attr.post_ops;
-    const int sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
-    if (sum_idx >= 0) {
-        beta = po.entry[sum_idx].sum.scale;
-        sum_zero_point = po.entry[sum_idx].sum.zero_point;
-    }
+    const int beta_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
+    if (beta_idx >= 0) beta = po.entry[beta_idx].sum.scale;
 
     // These are non-native compensations coming from other primitives with
     // s8s8 or zero-points support to pre-compute compensated part and apply it
@@ -60,16 +56,19 @@ void compute_ref(
     benchdnn_parallel_nd(nelems, [&](int64_t idx) {
         float s = src.get_elem(idx) - src_zero_point;
         float d = 0;
-        if (sum_idx >= 0)
-            d = dst.get_elem(idx) - (sum_zero_point + dst_zero_point);
+        if (beta_idx >= 0) d = dst.get_elem(idx) - dst_zero_point;
 
-        const int64_t src_scale_idx = src.get_scale_idx(idx, src_scale_mask);
-        const int64_t dst_scale_idx = dst.get_scale_idx(idx, dst_scale_mask);
-        maybe_scale(prb->attr, s, prb->src_scales, src_scale_idx, DNNL_ARG_SRC);
-        float value = s8_scale_factor * s + beta * d;
-        maybe_scale(prb->attr, value, prb->dst_scales, dst_scale_idx,
-                DNNL_ARG_DST, true);
-        value += dst_zero_point;
+        float src_scale = 1.f, dst_scale = 1.f;
+        if (!src_scales.is_def()) {
+            int64_t src_mask_idx = src.get_scale_idx(idx, src_scale_mask);
+            src_scale = prb->src_scales[src_mask_idx];
+        }
+        if (!dst_scales.is_def()) {
+            int64_t dst_mask_idx = dst.get_scale_idx(idx, dst_scale_mask);
+            dst_scale = prb->dst_scales[dst_mask_idx];
+        }
+        float value = (s8_scale_factor * src_scale * s + beta * d) / dst_scale
+                + dst_zero_point;
         value = maybe_saturate(dst_dt, value);
         if (dst_dt == dnnl_s32 && value >= (float)INT_MAX)
             value = BENCHDNN_S32_TO_F32_SAT_CONST;
@@ -121,16 +120,21 @@ void compute_ref(
             dims_t reduce_pos = off2dims_idx(reduce_dims, r);
             const int64_t src_reduce_off = md_off_v(src, reduce_pos.data());
             const int64_t src_off = src_idle_off + src_reduce_off;
-            const int64_t src_scale_idx
-                    = src.get_scale_idx(src_off, src_scale_mask);
-            const int64_t dst_scale_idx
-                    = dst.get_scale_idx(src_off, dst_scale_mask);
-            float s = src.get_elem(src_off);
-            maybe_scale(
-                    prb->attr, s, prb->src_scales, src_scale_idx, DNNL_ARG_SRC);
-            float value = s * s8_scale_factor;
-            maybe_scale(prb->attr, value, prb->dst_scales, dst_scale_idx,
-                    DNNL_ARG_DST, true);
+
+            float src_scale = 1.f, dst_scale = 1.f;
+            if (!src_scales.is_def()) {
+                int64_t src_mask_idx
+                        = src.get_scale_idx(src_off, src_scale_mask);
+                src_scale = prb->src_scales[src_mask_idx];
+            }
+            if (!dst_scales.is_def()) {
+                int64_t dst_mask_idx
+                        = dst.get_scale_idx(src_off, dst_scale_mask);
+                dst_scale = prb->dst_scales[dst_mask_idx];
+            }
+
+            const float alpha = src_scale / dst_scale;
+            const float value = src.get_elem(src_off) * alpha * s8_scale_factor;
             comp_val -= maybe_saturate(dst_dt, value);
         }
         if (need_zp_comp) zp_comp_ptr[f] = comp_val;

@@ -90,3 +90,6 @@
 
 # Regression
 --batch=harness_reorder_regression
+
+# Scales
+--batch=harness_reorder_scales

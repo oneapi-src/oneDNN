@@ -204,7 +204,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
             && !im_d.has_runtime_dims_or_strides() && !im_d.has_zero_dim()
             && !om_d.has_runtime_dims_or_strides() && !om_d.has_zero_dim()
             && attr->has_default_values(
-                    primitive_attr_t::skip_mask_t::oscale_runtime
+                    primitive_attr_t::skip_mask_t::scales_runtime
                     | primitive_attr_t::skip_mask_t::zero_points_runtime
                     | primitive_attr_t::skip_mask_t::post_ops)
             && check_post_ops(attr);
@@ -271,10 +271,28 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     p.is_tail_present = is_tail_present;
     p.req_src_zp = !attr->zero_points_.has_default_values(DNNL_ARG_SRC);
     p.req_dst_zp = !attr->zero_points_.has_default_values(DNNL_ARG_DST);
-    p.scale_type = attr->output_scales_.has_default_values()
-            ? scale_type_t::NONE
-            : (attr->output_scales_.mask_ == 0 ? scale_type_t::COMMON
-                                               : scale_type_t::MANY);
+
+    p.src_scale_type = scale_type_t::NONE;
+    int src_mask = 0;
+    bool is_src_set = false;
+    CHECK(attr->scales_.get(DNNL_ARG_SRC, &src_mask, &is_src_set));
+    if (is_src_set) {
+        p.src_scale_type
+                = src_mask == 0 ? scale_type_t::COMMON : scale_type_t::MANY;
+    }
+
+    p.dst_scale_type = scale_type_t::NONE;
+    int dst_mask = 0;
+    bool is_dst_set = false;
+    CHECK(attr->scales_.get(DNNL_ARG_DST, &dst_mask, &is_dst_set));
+    if (is_dst_set) {
+        p.dst_scale_type
+                = dst_mask == 0 ? scale_type_t::COMMON : scale_type_t::MANY;
+    }
+
+    if (is_src_set && is_dst_set && src_mask != dst_mask)
+        return status::unimplemented;
+
     p.scale_adjust = (om_d.extra().flags & memory_extra_flags::scale_adjust)
             ? om_d.extra().scale_adjust
             : 1.f;
@@ -295,8 +313,9 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
         return status::unimplemented;
 
     ptrdiff_t ss[max_ndims] = {0}; // scales strides
-    if (p.scale_type == scale_type_t::MANY) {
-        const int mask = attr->output_scales_.mask_;
+    if (p.src_scale_type == scale_type_t::MANY
+            || p.dst_scale_type == scale_type_t::MANY) {
+        const int mask = nstl::max(src_mask, dst_mask);
         ptrdiff_t dense_stride = 1;
         ptrdiff_t last_stride = 1;
         for (int d = old.ndims - 1; d >= 0; --d) {
