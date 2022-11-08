@@ -17,6 +17,7 @@
 #ifndef CPU_REORDER_SIMPLE_REORDER_HPP
 #define CPU_REORDER_SIMPLE_REORDER_HPP
 
+#include <algorithm>
 #include <assert.h>
 
 #include "common/bfloat16.hpp"
@@ -682,7 +683,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         auto mask_ok = [&](bool check, int mask) {
             const int c_mask = 0x1,
-                      g_mask = 0x3; // mask for i/o-channel and ngroups
+                      g_mask = 0x3; // mask for o-channel and ngroups
             return IMPLICATION(check, mask == (w_groups ? g_mask : c_mask));
         };
 
@@ -983,11 +984,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-        typename utils::enable_if<false
-                        || (utils::one_of(
-                                    tag_i, format_tag::goiw, format_tag::wigo)
-                                && utils::one_of(tag_o, format_tag::Goiw16g,
-                                        format_tag::Goiw8g, format_tag::Goiw4g))
+        typename utils::enable_if<
+                (utils::one_of(tag_i, format_tag::goiw, format_tag::wigo)
+                        && utils::one_of(tag_o, format_tag::Goiw16g,
+                                format_tag::Goiw8g, format_tag::Goiw4g))
                         || (utils::one_of(
                                     tag_i, format_tag::goihw, format_tag::hwigo)
                                 && utils::one_of(tag_o, format_tag::Goihw16g,
@@ -1497,14 +1497,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         using namespace data_type;
         using namespace utils;
 
-        constexpr int blksize = false
-                ? 0
-                : one_of(tag_traits<tag_o>::inner_blks, ib::_4a, ib::_4b)
-                        ? 4
-                        : one_of(tag_traits<tag_o>::inner_blks, ib::_8a,
-                                  ib::_8b)
-                                ? 8
-                                : 16;
+        dim_t blksize = -1;
+        switch (tag_traits<tag_o>::inner_blks) {
+            case ib::_4a:
+            case ib::_4b: blksize = 4; break;
+            case ib::_8a:
+            case ib::_8b: blksize = 8; break;
+            default: blksize = 16;
+        }
 
         constexpr bool f32bf16
                 = one_of(type_i, f32, bf16) && one_of(type_o, f32, bf16);
@@ -1578,8 +1578,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                                     ? (md).blk_off(h0, h1, m2) \
                                     : /* ndims >= 3 ? */ (md).blk_off(h0, h1))
 
-        constexpr int i_mult = order_keep ? blksize : 1;
-        constexpr int o_mult = order_keep ? 1 : blksize;
+        const int i_mult = order_keep ? blksize : 1;
+        const int o_mult = order_keep ? 1 : blksize;
 
         if (blk_idx == 0) {
             const dim_t BH0 = pdims[0] / blksize;
@@ -1655,36 +1655,38 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         using namespace data_type;
         using namespace utils;
 
-        constexpr dim_t blksize_0 = false
-                ? 0
-                : one_of(tag_traits<tag_o>::inner_blks, ib::_4b4a, ib::_4b4c,
-                          ib::_4c4b)
-                        ? 4
-                        : one_of(tag_traits<tag_o>::inner_blks, ib::_8a8b,
-                                  ib::_8b8a, ib::_8b8c, ib::_8c8b, ib::_2c8b4c)
-                                ? 8
-                                : one_of(tag_traits<tag_o>::inner_blks,
-                                          ib::_16a16b, ib::_16b16a, ib::_16b16c,
-                                          ib::_16c16b, ib::_8a16b2a,
-                                          ib::_4b16a4b, ib::_8b16a2b,
-                                          ib::_8b16c2b, ib::_4c16b4c,
-                                          ib::_8c16b2c)
-                                        ? 16
-                                        : -1;
-
-        constexpr dim_t blksize_1
-                = one_of(tag_traits<tag_o>::inner_blks, ib::_8a8b, ib::_8b8a,
-                          ib::_8b8c, ib::_8c8b, ib::_2c8b4c)
-                ? 8
-                : one_of(tag_traits<tag_o>::inner_blks, ib::_16a16b,
-                          ib::_16b16a, ib::_16b16c, ib::_16c16b, ib::_8a16b2a,
-                          ib::_4b16a4b, ib::_8b16a2b, ib::_8b16c2b,
-                          ib::_4c16b4c, ib::_8c16b2c)
-                        ? 16
-                        : one_of(tag_traits<tag_o>::inner_blks, ib::_4b4a,
-                                  ib::_4b4c, ib::_4c4b)
-                                ? 4
-                                : -1;
+        dim_t blksize_0 = -1;
+        dim_t blksize_1 = -1;
+        switch (tag_traits<tag_o>::inner_blks) {
+            case ib::_4b4a:
+            case ib::_4b4c:
+            case ib::_4c4b:
+                blksize_0 = 4;
+                blksize_1 = 4;
+                break;
+            case ib::_8a8b:
+            case ib::_8b8a:
+            case ib::_8b8c:
+            case ib::_8c8b:
+            case ib::_2c8b4c:
+                blksize_0 = 8;
+                blksize_1 = 8;
+                break;
+            case ib::_16a16b:
+            case ib::_16b16a:
+            case ib::_16b16c:
+            case ib::_16c16b:
+            case ib::_8a16b2a:
+            case ib::_4b16a4b:
+            case ib::_8b16a2b:
+            case ib::_8b16c2b:
+            case ib::_4c16b4c:
+            case ib::_8c16b2c:
+                blksize_0 = 16;
+                blksize_1 = 16;
+                break;
+            default: blksize_0 = -1; blksize_1 = -1;
+        }
 
         const dim_t NB_H0 = pdims[0 + with_g] / blksize_0;
         const dim_t NB_H1 = pdims[1 + with_g] / blksize_1;
@@ -1771,11 +1773,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 #undef blk_off
         };
 
-        constexpr int i_mult_0 = order_keep ? blksize_0 : 1;
-        constexpr int o_mult_0 = order_keep ? 1 : blksize_0;
+        const int i_mult_0 = order_keep ? blksize_0 : 1;
+        const int o_mult_0 = order_keep ? 1 : blksize_0;
 
-        constexpr int i_mult_1 = order_keep ? blksize_1 : 1;
-        constexpr int o_mult_1 = order_keep ? 1 : blksize_1;
+        const int i_mult_1 = order_keep ? blksize_1 : 1;
+        const int o_mult_1 = order_keep ? 1 : blksize_1;
 
 #define off(md, g, h0, h1, m0, m1, m2) \
     (ndims >= 5 + with_g ? (md).blk_off<!with_g>(g, h0, h1, m0, m1, m2) \
@@ -1814,7 +1816,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 spec::direct_copy>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
-        /* FIXME: is the formula correct? */
         return !input_d.has_runtime_dims_or_strides()
                 && input_d.similar_to(output_d, true, false, 0)
                 && input_d.is_dense() && output_d.is_dense()
@@ -1825,8 +1826,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
     static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
-
-        assert(input_d.is_dense());
 
         input += input_d.blk_off(0);
         output += output_d.blk_off(0);
@@ -1912,7 +1911,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         auto is_dense_no_0 = [](const memory_desc_wrapper &data_d) {
             return nelems_no_dim_0(data_d) == _size_no_dim_0(data_d);
         };
-        /* FIXME: is the formula correct? */
         return !input_d.has_runtime_dims_or_strides()
                 && input_d.similar_to(output_d, true, false, 1)
                 && is_dense_no_0(input_d) && is_dense_no_0(output_d)
@@ -1942,9 +1940,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 nd_iterator_init(start, n, N, dim1_s, nelems_no_d0);
                 while (start < end) {
                     dim_t work_rem = end - start;
-                    dim_t dim1_e = dim1_s + work_rem > nelems_no_d0
-                            ? nelems_no_d0
-                            : dim1_s + work_rem;
+                    dim_t dim1_e = std::min(dim1_s + work_rem, nelems_no_d0);
                     PRAGMA_OMP_SIMD()
                     for (dim_t e = dim1_s; e < dim1_e; ++e) {
                         output[os * n + e]
@@ -1961,9 +1957,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 nd_iterator_init(start, n, N, dim1_s, nelems_no_d0);
                 while (start < end) {
                     dim_t work_rem = end - start;
-                    dim_t dim1_e = dim1_s + work_rem > nelems_no_d0
-                            ? nelems_no_d0
-                            : dim1_s + work_rem;
+                    dim_t dim1_e = std::min(dim1_s + work_rem, nelems_no_d0);
                     PRAGMA_OMP_SIMD()
                     for (dim_t e = dim1_s; e < dim1_e; ++e) {
                         output[os * n + e]
@@ -2110,14 +2104,13 @@ struct simple_reorder_t : public primitive_t {
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
                 const memory_desc_t *dst_md) {
-            bool args_ok = true && src_md->data_type == type_i
+            using skip_mask_t = dnnl_primitive_attr::skip_mask_t;
+            bool args_ok = src_md->data_type == type_i
                     && dst_md->data_type == type_o
-                    && attr->has_default_values(
-                            dnnl_primitive_attr::skip_mask_t::oscale_runtime
-                            | dnnl_primitive_attr::skip_mask_t::zero_points
-                            | dnnl_primitive_attr::skip_mask_t::
-                                    zero_points_runtime
-                            | dnnl_primitive_attr::skip_mask_t::post_ops)
+                    && attr->has_default_values(skip_mask_t::oscale_runtime
+                            | skip_mask_t::zero_points
+                            | skip_mask_t::zero_points_runtime
+                            | skip_mask_t::post_ops)
                     && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             spec>::is_applicable(src_md, dst_md, attr);
             if (!args_ok) return status::invalid_arguments;
