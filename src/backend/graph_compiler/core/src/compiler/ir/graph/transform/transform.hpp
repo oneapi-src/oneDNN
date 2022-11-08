@@ -75,6 +75,9 @@ SC_INTERNAL_API void global_reschedule(
 SC_INTERNAL_API void inplace_transform(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
+SC_INTERNAL_API void div_bcast_transform(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+
 void brgemm_fusion_transform(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 

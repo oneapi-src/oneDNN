@@ -426,6 +426,16 @@ expr clamp_op_t::compute_element(expr in) {
             make_expr<constant_node>(clamp_min, dtype));
 }
 
+expr reciprocal_op_t::compute_element(expr in) {
+    // TODO(xxx): return approximate reciprocal when fast math enabled
+    auto dtype = in->dtype_;
+    COMPILE_ASSERT(dtype.type_code_ == sc_data_etype::F32
+                    || dtype.type_code_ == sc_data_etype::BF16,
+            "reciprocal_op_t currently only supports fp32/bf16");
+    auto f_one = make_expr<constant_node>((float)1.f, dtype);
+    return builder::make_div(f_one, in);
+}
+
 OP_REGISTER(sigmoid_op_t, sigmoid)
 OP_REGISTER(exp_op_t, exp)
 OP_REGISTER(erf_op_t, erf)
@@ -437,5 +447,6 @@ OP_REGISTER(round_op_t, round)
 OP_REGISTER(squared_root_op_t, squared_root)
 OP_REGISTER(cast_op_t, cast)
 OP_REGISTER(clamp_op_t, clamp)
+OP_REGISTER(reciprocal_op_t, reciprocal)
 
 } // namespace sc

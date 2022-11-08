@@ -236,5 +236,22 @@ public:
     };
 };
 
+class reciprocal_op_t : public unary_elementwise_op_impl_t {
+public:
+    DECLARE_COMPUTE_ELEMENT();
+    reciprocal_op_t(const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
+        : unary_elementwise_op_impl_t("reciprocal", ins, outs, attrs) {
+        approximate_ = attrs.get_or_else("approximate", false);
+    }
+    reciprocal_op_t(graph_tensor_ptr v, bool approximate = false)
+        : unary_elementwise_op_impl_t(std::move(v), "reciprocal")
+        , approximate_(approximate) {};
+
+private:
+    // This flag decides return exact one-div or approximate reciprocal.
+    bool approximate_;
+};
+
 } // namespace sc
 #endif
