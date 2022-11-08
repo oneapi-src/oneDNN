@@ -118,7 +118,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type(dts, prb->dir, res);
     skip_unimplemented_arg_scale(prb->attr, res);
 
-     // N.B: Adding this for gpu as cfg is not supported in POST-OPS
+    // N.B: Adding this for gpu as cfg is not supported in POST-OPS
     if (is_gpu()) {
         bool have_post_ops = !prb->attr.post_ops.is_def();
         bool is_bf16u8 = (dts[0] == dnnl_bf16 && dts[1] == dnnl_bf16

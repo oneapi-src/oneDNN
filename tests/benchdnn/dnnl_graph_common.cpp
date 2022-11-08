@@ -364,8 +364,7 @@ int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales,
             [eps](const float scale) { return 1.f / (scale + eps); });
     dnnl_primitive_attr_t bia_attr = nullptr;
     dnnl_primitive_attr_create(&bia_attr);
-    dnnl_primitive_attr_set_output_scales_mask(
-            bia_attr, bia_mask);
+    dnnl_primitive_attr_set_output_scales_mask(bia_attr, bia_mask);
     SAFE(dst.reorder(src, bia_attr), CRIT);
     dnnl_primitive_attr_destroy(bia_attr);
 
