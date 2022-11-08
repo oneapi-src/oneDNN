@@ -102,6 +102,7 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
             {"ReLUBackprop", dnnl::graph::op::kind::ReLUBackprop},
             {"Reorder", dnnl::graph::op::kind::Reorder},
             {"Round", dnnl::graph::op::kind::Round},
+            {"Rsqrt", dnnl::graph::op::kind::Rsqrt},
             {"Select", dnnl::graph::op::kind::Select},
             {"Sigmoid", dnnl::graph::op::kind::Sigmoid},
             {"SigmoidBackprop", dnnl::graph::op::kind::SigmoidBackprop},
