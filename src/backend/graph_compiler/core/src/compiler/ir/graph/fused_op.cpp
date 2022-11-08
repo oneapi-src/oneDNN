@@ -1456,6 +1456,8 @@ void schedule_loop_body(
     }
     COMPILE_ASSERT(target_loop.isa<for_loop>(), "for loop node is expected");
     for_loop outer_most_loop = target_loop.checked_as<for_loop>();
+    // avoid some nested parallel inside the body
+    remove_parallel(outer_most_loop);
     outer_most_loop->kind_ = for_type::PARALLEL;
     assert(outer_most_loop.defined());
     const int run_threads = runtime_config_t::get().get_num_threads();

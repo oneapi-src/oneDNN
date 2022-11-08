@@ -60,6 +60,9 @@ int get_number_of_squeeze_dims(const sc_dims &dims);
 bool slice_full_on_axis(
         const sc_dims &dim, slice_range ranges, const std::vector<int> &axis);
 
+bool slice_divisible_on_axis(
+        const sc_dims &dim, slice_range ranges, const std::vector<int> &axis);
+
 inline uint16_t vectorize_step(const context_ptr &ctx, sc_data_etype detype) {
     return std::min(uint16_t(16), ctx->get_max_vector_lanes(detype));
 }

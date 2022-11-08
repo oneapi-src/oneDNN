@@ -21,6 +21,7 @@
 #include <tuple>
 #include <vector>
 #include <ops/body_generator.hpp>
+#include <util/any_map.hpp>
 
 namespace sc {
 namespace ops {
@@ -28,12 +29,39 @@ namespace ops {
 struct conv_fwd_config_t {
   int K_block;
   int C_block;
-  int tile_d;
-  int tile_p;
-  int tile_q;
-  int tile_os;
-  int pack_input;
-  int loop_sched;
+  int tile_d = 1;
+  int tile_p = 1;
+  int tile_q = 1;
+  int tile_os = -1;
+  int pack_input = 0;
+  int loop_sched = 0;
+
+  int bs_threads = 1;
+  int s_threads = 1;
+  int oc_threads = 1;
+  int s_block = 1;
+  conv_fwd_config_t() = default;
+  // new config entry
+  conv_fwd_config_t(int bs_threads, int s_threads, int oc_threads, int oc_block,
+    int ic_block, int s_block)
+    : K_block(oc_block)
+    , C_block(ic_block)
+    , bs_threads(bs_threads)
+    , s_threads(s_threads)
+    , oc_threads(oc_threads)
+    , s_block(s_block) {}
+
+  // old config entry
+  conv_fwd_config_t(int K_block, int C_block, int tile_d, int tile_p,
+    int tile_q, int tile_os, int pack_input, int loop_sched)
+    : K_block(K_block)
+    , C_block(C_block)
+    , tile_d(tile_d)
+    , tile_p(tile_p)
+    , tile_q(tile_q)
+    , tile_os(tile_os)
+    , pack_input(pack_input)
+    , loop_sched(loop_sched) {}
 };
 
 class gen_conv_fwd_t : public body_generator_t<conv_fwd_config_t> {
@@ -91,7 +119,6 @@ public:
 
   bool inverse_filter_ = false;
 
-protected:
 #define CONV_ARG_LIST \
   const context_ptr &ctx, const conv_fwd_config_t &config, \
     fusion_manager *fusion, expr &output, const expr &input, \
@@ -103,13 +130,13 @@ protected:
               const std::vector<char> &os_mask = std::vector<char>()
   void compute_1x1_no_pack_input(CONV_ARG_LIST) const;
   void compute_1x1_pack_input(CONV_ARG_LIST) const;
+  void compute_conv1d(CONV_ARG_LIST) const;
   void compute_conv3d_no_padding(CONV_ARG_LIST) const;
   void compute_conv_no_padding(CONV_ARG_LIST) const;
   void compute_conv_padding(CONV_ARG_LIST) const;
   void compute_conv_padding_v2(CONV_ARG_LIST) const;
 #undef CONV_ARG_LIST
 
-private:
   size_t ndims_ = 0;
   int mb_ = 0, ic_ = 0, id_ = 0, ih_ = 0, iw_ = 0;
   int oc_ = 0, kd_ = 0, kh_ = 0, kw_ = 0;
@@ -118,11 +145,15 @@ private:
   int pd_ = 0, ph_ = 0, pw_ = 0;
   int actual_os_ = 0, adj_os_ = 0;
   int num_elems_skip_per_ow_ = 0;
+  int im_oc_block_, im_ic_block_, im_s_block_;
   bool try_os_blocking_ = false;
   bool is_1x1_conv_ = false;
   bool is_3d_ = false;
+  bool is_1d_ = false;
+  bool use_conv1d = false;
   bool blocking_input_ = false;
   bool blocking_output_ = false;
+  sc::any_map_t attrs_;
   void validate_conv_fwd_default_config(
     const context_ptr &ctx, conv_fwd_config_t &cfg) const;
 };

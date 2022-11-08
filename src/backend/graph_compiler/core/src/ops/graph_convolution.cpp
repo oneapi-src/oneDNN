@@ -157,7 +157,8 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     auto filter_format
             = attrs_.get_or_else("filter_format", std::string("XIO"));
     auto dim = inputs[0]->details_.get_plain_dims().size();
-    COMPILE_ASSERT(dim == 4 || dim == 5, "Only support conv2D and conv3D.");
+    COMPILE_ASSERT(dim == 3 || dim == 4 || dim == 5,
+            "Only support conv1D, conv2D and conv3D.");
     auto is_3D = (dim == 5);
 
     auto attrs = attrs_; // avoid attributes overwriting

@@ -773,4 +773,19 @@ float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops) {
     }
     return evaluate_loop_parallel_balance(loop_ranges);
 }
+
+bool slice_divisible_on_axis(
+        const sc_dims &dim, slice_range ranges, const std::vector<int> &axis) {
+    for (auto &ax : axis) {
+        auto second = do_cast_and_fold(ranges[ax].second);
+        // slice range length should be divisible by dims
+        if (second.isa<constant>()
+                && dim[ax] % get_const_as_int(second.checked_as<constant>())
+                        != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace sc

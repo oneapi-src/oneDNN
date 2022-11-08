@@ -502,7 +502,7 @@ slice_range_list infer_tensor_view_slice(
         constant_folder_t f;
         auto_caster_t ca;
         for (auto &r : reshape_ranges) {
-            r.first = f.expand_polynomial(ca(r.first)).remove_const();
+            r.first = ca(r.first).remove_const();
         }
         reshape_ranges.insert(reshape_ranges.end(), consistent_tv_slice.begin(),
                 consistent_tv_slice.end());

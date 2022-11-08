@@ -74,6 +74,10 @@ void conv_fwd_core_op_t::infer_slice_ranges(
          wei_dims = get_inputs()[1]->details_.get_blocking_dims(),
          out_dims = get_outputs()[0]->details_.get_blocking_dims();
 
+    if (get_inputs()[0]->details_.get_plain_dims()[0] == 1) {
+        // N = 1, no need to do bs fusion or conv has been already flattened
+        stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+    }
     slice_range inp_slice, wei_slice, out_slice;
     if (!known_ranges_map[0].empty()) {
         slice_range inp_tmp;
@@ -129,8 +133,9 @@ void conv_fwd_core_op_t::infer_out_tensor_details() {
     auto &pads_end = attrs_.has_key("pads_end")
             ? attrs_.get<sc_dims>("pads_end")
             : attrs_.get<sc_dims>("paddings");
-    auto expected_out_shape = infer_out_dims(get_owner_graph(), indims,
-            weightdims, pads_begin, pads_end, attrs_.get<sc_dims>("strides"));
+    auto expected_out_shape
+            = infer_out_dims(get_owner_graph(), indims, weightdims, pads_begin,
+                    pads_end, attrs_.get<sc_dims>("strides"), attrs_);
     if (!cur_plain_dims.empty()) {
         COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
                         == expected_out_shape,
@@ -143,37 +148,49 @@ void conv_fwd_core_op_t::infer_out_tensor_details() {
 sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
         const sc_dims &input_dims, const sc_dims &weight_dims,
         const sc_dims &pads_begin, const sc_dims &pads_end,
-        const sc_dims &stride) {
+        const sc_dims &stride, const any_map_t &attrs) {
     int ndims = input_dims.size();
+    const bool is_1d = (ndims == 3);
     const bool is_3d = (ndims == 5);
-    COMPILE_ASSERT(utils::is_one_of(static_cast<int>(input_dims.size()), 4, 5),
-            "wrong input dims, expected to be 4D or 5D input, but got "
+    COMPILE_ASSERT(
+            utils::is_one_of(static_cast<int>(input_dims.size()), 3, 4, 5),
+            "wrong input dims, expected to be 3D, 4D or 5D input, but got "
                     << input_dims.size() << "D.");
-    COMPILE_ASSERT(utils::is_one_of(static_cast<int>(weight_dims.size()), 4, 5)
+    COMPILE_ASSERT(
+            utils::is_one_of(static_cast<int>(weight_dims.size()), 3, 4, 5)
                     && (weight_dims.size() == input_dims.size()),
             "wrong weight dims, only support 4D or 5D weights, but got "
                     << weight_dims.size() << "D.");
     COMPILE_ASSERT(
             is_3d ? utils::is_one_of(static_cast<int>(pads_begin.size()), 1, 3)
-                  : utils::is_one_of(static_cast<int>(pads_begin.size()), 1, 2),
+                  : is_1d ? utils::is_one_of(
+                            static_cast<int>(pads_begin.size()), 1, 1)
+                          : utils::is_one_of(
+                                  static_cast<int>(pads_begin.size()), 1, 2),
             "wrong pads_begin dims, should be 1D or 2D for 2D conv, and 1D or "
             "3D for 3D conv, but got "
                     << pads_begin.size() << "D for in " << (is_3d ? 3 : 2)
                     << "D conv.");
     COMPILE_ASSERT(is_3d
                     ? utils::is_one_of(static_cast<int>(pads_end.size()), 1, 3)
-                    : utils::is_one_of(static_cast<int>(pads_end.size()), 1, 2),
+                    : is_1d ? utils::is_one_of(
+                              static_cast<int>(pads_end.size()), 1, 1)
+                            : utils::is_one_of(
+                                    static_cast<int>(pads_end.size()), 1, 2),
             "wrong pads_end dims, should be 1D or 2D for 2D conv, and 1D or 3D "
             "for 3D conv, but got "
-                    << pads_end.size() << "D for in " << (is_3d ? 3 : 2)
-                    << "D conv.");
+                    << pads_end.size() << "D for in "
+                    << (is_3d ? 3 : is_1d ? 1 : 2) << "D conv.");
     COMPILE_ASSERT(is_3d
                     ? utils::is_one_of(static_cast<int>(stride.size()), 1, 3)
-                    : utils::is_one_of(static_cast<int>(stride.size()), 1, 2),
+                    : is_1d ? utils::is_one_of(
+                              static_cast<int>(stride.size()), 1, 2)
+                            : utils::is_one_of(
+                                    static_cast<int>(stride.size()), 1, 2),
             "wrong stride dims, should be 1D or 2D for 2D conv, and 1D or 3D "
             "for 3D conv, but got "
-                    << stride.size() << "D for in " << (is_3d ? 3 : 2)
-                    << "D conv.");
+                    << stride.size() << "D for in "
+                    << (is_3d ? 3 : is_1d ? 1 : 2) << "D conv.");
     sc_dims pads_begin_dims(ndims - 2, pads_begin[0]);
     if (pads_begin.size() > 1) { pads_begin_dims = pads_begin; }
     sc_dims pads_end_dims(ndims - 2, pads_end[0]);
@@ -199,7 +216,12 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
                     stride_dims[i - 2]);
         }
     }
-
+    if (is_1d && stride.size() > 1) {
+        out_dims[2] = attrs.get_or_else("origin_oh", sc_dim(1))
+                * attrs.get_or_else("origin_ow", sc_dim(1))
+                * (input_dims[2] / attrs.get_or_else("origin_ih", sc_dim(1))
+                        / attrs.get_or_else("origin_iw", sc_dim(1)));
+    }
     return out_dims;
 }
 
@@ -300,8 +322,6 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
     }
     COMPILE_ASSERT(pads_begin == pads_end,
             "Current conv_fwd_core only supports symmetric padding.");
-    auto expected_out_shape = infer_out_dims(get_owner_graph(), indims,
-            weightdims, pads_begin, pads_end, strides);
     auto &data_dtype = info_.inputs_[0]->details_.dtype_;
     auto &weight_dtype = info_.inputs_[1]->details_.dtype_;
     if (info_.outputs_.empty()) {
@@ -347,7 +367,9 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     COMPILE_ASSERT(info_.inputs_.size() == 2,
             "conv expects 2 inputs, but got " << info_.inputs_.size()
                                               << " inputs.");
-
+    ndims_ = info_.inputs_[0]->details_.get_plain_dims().size();
+    auto body_gen = create_generator();
+    auto gen = static_cast<gen_conv_fwd_t *>(body_gen.get());
     if (!config_data_) {
         config_data_ = create_generator()->get_default_config(ctx);
     }
@@ -355,8 +377,13 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     in_formats.reserve(2);
     int C_block = tcfg.C_block;
     int K_block = tcfg.K_block;
+    if (gen->use_conv1d) {
+        C_block = gen->im_ic_block_;
+        K_block = gen->im_oc_block_;
+    }
 
     const bool is_3d = ndims_ == 5;
+    const bool is_1d = ndims_ == 3;
     const auto src_dtype = info_.inputs_[0]->details_.dtype_;
     const auto wei_dtype = info_.inputs_[1]->details_.dtype_;
     auto &pads_begin = attrs_.has_key("pads_begin")
@@ -370,49 +397,65 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
                     "constant", const_kind::not_const);
 
     auto weight_plain_dims = info_.inputs_[1]->details_.get_plain_dims();
-    auto ph = pads_begin[0];
-    auto kh = weight_plain_dims[ndims_ - 2];
-    auto pw = pads_begin[0];
-    auto kw = weight_plain_dims[ndims_ - 1];
-    bool channel_last_support
-            = (kh == 1 || kw == 1) || (is_use_amx(ctx) && ph <= kh && pw <= kw);
+    bool channel_last_support = false;
+    if (!is_1d) {
+        auto ph = pads_begin[0];
+        auto kh = weight_plain_dims[ndims_ - 2];
+        auto pw = pads_begin[0];
+        auto kw = weight_plain_dims[ndims_ - 1];
+        channel_last_support = (kh == 1 || kw == 1)
+                || (is_use_amx(ctx) && ph <= kh && pw <= kw);
+    }
     std::string test_format;
     if (attrs_.has_key("temp.test_format")) {
         test_format = attrs_.get<std::string>("temp.test_format");
     }
-    bool force_channel_last = test_format == "NHWC" || test_format == "NDHWC";
-    bool force_blocking = test_format == "NCHWc" || test_format == "NCDHWc";
+    bool force_channel_last = test_format == "NHWC" || test_format == "NDHWC"
+            || test_format == "NSC";
+    bool force_blocking = test_format == "NCHWc" || test_format == "NCDHWc"
+            || test_format == "NCSc";
     bool use_channel_last
             = ((!is_weight_constant) && channel_last_support && !force_blocking)
             || force_channel_last;
+    // data layout
     if (use_channel_last) {
-        in_formats.push_back(
-                {is_3d ? sc_data_format_t::NDHWC() : sc_data_format_t::NHWC()});
+        in_formats.push_back({is_3d ? sc_data_format_t::NDHWC()
+                                    : is_1d ? sc_data_format_t::NSC()
+                                            : sc_data_format_t::NHWC()});
     } else {
-        in_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(C_block)
-                                    : sc_data_format_t::NCHWc(C_block)});
+        in_formats.push_back(
+                {is_3d ? sc_data_format_t::NCDHWc(C_block)
+                       : is_1d ? sc_data_format_t::NSC()
+                               : sc_data_format_t::NCHWc(C_block)});
     }
 
+    // weight layout
     if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)
             && wei_dtype == datatypes::s8) {
         in_formats.push_back(
                 {is_3d ? sc_data_format_t::KCDRSck4c(C_block, K_block)
-                       : sc_data_format_t::KCRSck4c(C_block, K_block)});
+                       : is_1d ? sc_data_format_t::KCSck4c(C_block, K_block)
+                               : sc_data_format_t::KCRSck4c(C_block, K_block)});
     } else if (src_dtype == datatypes::bf16 && wei_dtype == datatypes::bf16) {
         in_formats.push_back(
                 {is_3d ? sc_data_format_t::KCDRSck2c(C_block, K_block)
-                       : sc_data_format_t::KCRSck2c(C_block, K_block)});
+                       : is_1d ? sc_data_format_t::KCSck2c(C_block, K_block)
+                               : sc_data_format_t::KCRSck2c(C_block, K_block)});
     } else {
         in_formats.push_back(
                 {is_3d ? sc_data_format_t::KCDRSck(C_block, K_block)
-                       : sc_data_format_t::KCRSck(C_block, K_block)});
+                       : is_1d ? sc_data_format_t::KCSck(C_block, K_block)
+                               : sc_data_format_t::KCRSck(C_block, K_block)});
     }
     if (use_channel_last) {
-        out_formats.push_back(
-                {is_3d ? sc_data_format_t::NDHWC() : sc_data_format_t::NHWC()});
+        out_formats.push_back({is_3d ? sc_data_format_t::NDHWC()
+                                     : is_1d ? sc_data_format_t::NSC()
+                                             : sc_data_format_t::NHWC()});
     } else {
-        out_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(K_block)
-                                     : sc_data_format_t::NCHWc(K_block)});
+        out_formats.push_back(
+                {is_3d ? sc_data_format_t::NCDHWc(K_block)
+                       : is_1d ? sc_data_format_t::NSC()
+                               : sc_data_format_t::NCHWc(K_block)});
     }
     format_to_dense_format_stride_pair(
             in_formats, out_formats, supported_ins, supported_outs);

@@ -60,7 +60,10 @@ void permute_propagation(
 SC_INTERNAL_API void tensor_view_transform(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
-SC_INTERNAL_API void graph_simplify(
+SC_INTERNAL_API void flatten_conv(
+        sc_graph_t &graph, const context_ptr &ctx = get_default_context());
+SC_INTERNAL_API
+void graph_simplify(
         sc_graph_t &graph, const context_ptr &ctx = get_default_context());
 
 void horizontal_merge(

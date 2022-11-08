@@ -730,7 +730,7 @@ size_t sc_op::hash_contents() const {
         // To hash unordered_map, use `XOR`, which satisfies commutative law.
         // Otherwise, for ordered containers (like arrays), use `hash_combine`
         // to distinguish result from the differnt sequence order.
-        seed ^= kv.second.hash();
+        if (!kv.second.empty()) { seed ^= kv.second.hash(); }
     }
     return seed;
 }

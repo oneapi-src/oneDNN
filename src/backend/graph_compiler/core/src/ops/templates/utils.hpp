@@ -70,6 +70,14 @@ inline bool is_use_amx(const context_ptr &ctx) {
     && ctx->flags_.brgemm_use_amx_;
 }
 
+inline std::vector<expr> dims_to_expr(const sc_dims &dim) {
+  std::vector<expr> ret;
+  for (auto i : dim) {
+    ret.emplace_back(dim2unsigned(i));
+  }
+  return ret;
+}
+
 /**
  * filter the vector by factor and tile factor, in order to adapt to the input
  * of dnnl amx.

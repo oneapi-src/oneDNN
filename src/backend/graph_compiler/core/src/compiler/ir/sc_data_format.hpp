@@ -166,6 +166,8 @@ SC_DEF_FMT(Aa, 0, 0)
 SC_DEF_FMT(ABab, 0, 1, 0, 1)
 SC_DEF_FMT(ABba, 0, 1, 1, 0)
 SC_DEF_FMT(BAab, 1, 0, 0, 1)
+SC_DEF_FMT(ABCb, 0, 1, 2, 1)
+SC_DEF_FMT(ABCba, 0, 1, 2, 1, 0)
 SC_DEF_FMT(ABCDb, 0, 1, 2, 3, 1)
 SC_DEF_FMT(ABCDba, 0, 1, 2, 3, 1, 0)
 SC_DEF_FMT(ABCDab, 0, 1, 2, 3, 0, 1)
@@ -185,6 +187,7 @@ SC_DEF_FMT(ABCDEba, 0, 1, 2, 3, 4, 1, 0)
 SC_DEF_FMT(BACDEab, 1, 0, 2, 3, 4, 0, 1)
 
 // vnni format
+SC_DEF_FMT(KCSckc, 0, 1, 2, 1, 0, 1)
 SC_DEF_FMT(KCRSckc, 0, 1, 2, 3, 1, 0, 1)
 SC_DEF_FMT(KCDRSckc, 0, 1, 2, 3, 4, 1, 0, 1)
 SC_DEF_FMT(CKRSkck, 1, 0, 2, 3, 0, 1, 0)
@@ -206,7 +209,9 @@ constexpr auto NCHW = ABCD, NHWC = ACDB, KCRS = ABCD, NKHW = ABCD, MK = AB,
                NKkn = BAab, MNmn = ABab, NCDHW = ABCDE, NDHWC = ACDEB,
                KCDRS = ABCDE, NCDHWc = ABCDEb, KCDRSck = ABCDEba,
                CKRSkc = BACDab, CKDRSkc = BACDEab, NHWCn = ACDBa,
-               NDHWCn = ACDEBa, CKRSck = BACDba, CKDRSck = BACDEba;
+               NDHWCn = ACDEBa, CKRSck = BACDba, CKDRSck = BACDEba, NSC = ACB,
+               NCS = ABC, NCSc = ABCb, KCS = ABC, KCSck = ABCba;
+
 #undef SC_DEF_FMT
 }; // namespace format_kinds
 struct SC_API sc_data_format_t {
@@ -262,6 +267,27 @@ struct SC_API sc_data_format_t {
     }
     constexpr static inline sc_data_format_t KCRSck4c(int c, int k) {
         return sc_data_format_t(format_kinds::KCRSckc, {c, k, 4});
+    }
+    constexpr static inline sc_data_format_t NCS() {
+        return sc_data_format_t(format_kinds::NCS);
+    }
+    constexpr static inline sc_data_format_t NSC() {
+        return sc_data_format_t(format_kinds::NSC);
+    }
+    constexpr static inline sc_data_format_t NCSc(int c) {
+        return sc_data_format_t(format_kinds::NCSc, {c});
+    }
+    constexpr static inline sc_data_format_t KCS() {
+        return sc_data_format_t(format_kinds::KCS);
+    }
+    constexpr static inline sc_data_format_t KCSck(int c, int k) {
+        return sc_data_format_t(format_kinds::KCSck, {c, k, 0, 0});
+    }
+    constexpr static inline sc_data_format_t KCSck2c(int c, int k) {
+        return sc_data_format_t(format_kinds::KCSckc, {c, k, 2});
+    }
+    constexpr static inline sc_data_format_t KCSck4c(int c, int k) {
+        return sc_data_format_t(format_kinds::KCSckc, {c, k, 4});
     }
     constexpr static inline sc_data_format_t MK() {
         return sc_data_format_t(format_kinds::MK);

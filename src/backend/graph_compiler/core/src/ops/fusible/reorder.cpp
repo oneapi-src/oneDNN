@@ -714,7 +714,7 @@ void infer_reorder_slice(slice_range_list &input_slice_list,
     auto_caster_t ca;
     for (auto &reorder_range : output_slice_list) {
         for (auto &r : reorder_range) {
-            r.first = f.expand_polynomial(ca(r.first)).remove_const();
+            r.first = ca(r.first).remove_const();
         }
     }
 }
@@ -733,6 +733,22 @@ void reorder_op_t::infer_slice_ranges(
     // search known ranges from any input of cur fusbile op
     slice_range_map known_ranges_map
             = search_known_slice_ranges(this, fsmap, stat_map);
+
+    std::vector<int> required_axis(
+            get_inputs()[0]->details_.get_blocking_dims().size(), 0);
+    for (auto i = 0UL; i < get_inputs()[0]->details_.get_blocking_dims().size();
+            i++) {
+        required_axis[i] = i;
+    }
+    for (auto &src_range : fsmap.get(get_inputs()[0])) {
+        if (!slice_divisible_on_axis(
+                    get_inputs()[0]->details_.get_blocking_dims(), src_range,
+                    required_axis)) {
+            stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            return;
+        }
+    }
+
     if (known_ranges_map.empty()) return;
     auto input_slice_list = known_ranges_map[0];
 
@@ -973,14 +989,14 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
         const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
-        const sc_dims &plain_dims, any_map_t &attrs, size_t wkld = 0UL,
-        bool is_innermost_dim_strided = false) {
+        const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
+        size_t wkld = 0UL, bool is_innermost_dim_strided = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
     int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
     auto bld = builder::get_current_builder();
     std::vector<expr> iter_vars;
-    std::vector<expr> in_indexes;
+    std::vector<expr> in_indexes, out_indexes;
     std::vector<expr> loop_indexes;
     auto input_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
@@ -998,36 +1014,73 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
     if (!can_vectorize) {
         cannot_convert_warning(input_format, output_format, plain_dims);
     }
-    for (size_t i = 0; i < plain_dims.size(); i++) {
-        iter_vars.emplace_back(builder::make_var(datatypes::index,
-                std::string("_fuseiter") + fusion_create_idx()));
-        loop_indexes.emplace_back(iter_vars[i]);
-        in_indexes.emplace_back(iter_vars[i] + src.get_offset()[i]);
-    }
-    std::vector<expr> out_indexes = get_reorder_stride2stride_indexes(
-            in_indexes, input_format, output_format, plain_dims);
+    if (!output_loop) {
+        for (size_t i = 0; i < plain_dims.size(); i++) {
+            iter_vars.emplace_back(builder::make_var(datatypes::index,
+                    std::string("_fuseiter") + fusion_create_idx()));
+            loop_indexes.emplace_back(iter_vars[i]);
+            in_indexes.emplace_back(iter_vars[i] + src.get_offset()[i]);
+        }
+        out_indexes = get_reorder_stride2stride_indexes(
+                in_indexes, input_format, output_format, plain_dims);
 
-    auto cur = builder::make_stmts_unattached({builder::make_assign_unattached(
-            builder::make_indexing(output, out_indexes),
-            builder::make_indexing(src.tptr_, loop_indexes))});
-    cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
-    stmt body;
-    std::vector<stmt> loops;
-    for (int i = static_cast<int>(plain_dims.size()) - 1; i >= 0; i--) {
-        body = cur.isa<stmts>()
-                ? cur
-                : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
-        cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)), expr(0),
-                src.get_shape()[i], expr(1), std::move(body), true,
-                for_type::NORMAL);
-        loops.push_back(cur);
+        auto cur = builder::make_stmts_unattached(
+                {builder::make_assign_unattached(
+                        builder::make_indexing(output, out_indexes),
+                        builder::make_indexing(src.tptr_, loop_indexes))});
+        cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
+        stmt body;
+        std::vector<stmt> loops;
+        for (int i = static_cast<int>(plain_dims.size()) - 1; i >= 0; i--) {
+            body = cur.isa<stmts>() ? cur
+                                    : make_stmt<stmts_node_t>(
+                                            std::vector<stmt> {std::move(cur)});
+            cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
+                    expr(0), src.get_shape()[i], expr(1), std::move(body), true,
+                    for_type::NORMAL);
+            loops.push_back(cur);
+        }
+        std::reverse(loops.begin(), loops.end());
+        for (size_t i = 0; i < plain_dims.size() - 2; i++) {
+            loops[0].checked_as<for_loop>()->fuse(
+                    loops[i].checked_as<for_loop>());
+        }
+        bld->emit(cur);
+        if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
+    } else {
+        for (size_t i = 0; i < plain_dims.size(); i++) {
+            iter_vars.emplace_back(builder::make_var(datatypes::index,
+                    std::string("_fuseiter") + fusion_create_idx()));
+            loop_indexes.emplace_back(iter_vars[i]);
+            out_indexes.emplace_back(iter_vars[i] + dst.get_offset()[i]);
+        }
+        in_indexes = get_reorder_stride2stride_indexes(
+                out_indexes, output_format, input_format, plain_dims);
+
+        auto cur = builder::make_stmts_unattached(
+                {builder::make_assign_unattached(
+                        builder::make_indexing(output, out_indexes),
+                        builder::make_indexing(input, in_indexes))});
+        cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
+        stmt body;
+        std::vector<stmt> loops;
+        for (int i = static_cast<int>(plain_dims.size()) - 1; i >= 0; i--) {
+            body = cur.isa<stmts>() ? cur
+                                    : make_stmt<stmts_node_t>(
+                                            std::vector<stmt> {std::move(cur)});
+            cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
+                    expr(0), dst.get_shape()[i], expr(1), std::move(body), true,
+                    for_type::NORMAL);
+            loops.push_back(cur);
+        }
+        std::reverse(loops.begin(), loops.end());
+        for (size_t i = 0; i < plain_dims.size() - 2; i++) {
+            loops[0].checked_as<for_loop>()->fuse(
+                    loops[i].checked_as<for_loop>());
+        }
+        bld->emit(cur);
+        if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
     }
-    std::reverse(loops.begin(), loops.end());
-    for (size_t i = 0; i < plain_dims.size() - 2; i++) {
-        loops[0].checked_as<for_loop>()->fuse(loops[i].checked_as<for_loop>());
-    }
-    bld->emit(cur);
-    if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
 }
 
 void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
@@ -2595,7 +2648,7 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
     } else if (is_not_blocking(input_format)
             && is_not_blocking(output_format)) {
         compute_reorder_stride2stride(graph, ctx, src, dst, input_format,
-                output_format, dtype, plain_dims, attrs, wkld,
+                output_format, dtype, plain_dims, output_loop, attrs, wkld,
                 is_innermost_dim_strided);
     } else if (is_not_blocking(input_format) && output_format.is_blocking()) {
         compute_reorder_stride2block(graph, ctx, src, dst, input_format,
