@@ -749,9 +749,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         }
 
         if (can_load_xmm && !can_store_xmm) {
-            const bool fast_return = true // transposition on the fly
-                    && prb_.scale_type != scale_type_t::MANY
-                    && prb_.beta == 0.f;
+            // transposition on the fly
+            const bool fast_return
+                    = prb_.scale_type != scale_type_t::MANY && prb_.beta == 0.f;
             if (fast_return) {
                 if (prb_.scale_type == scale_type_t::COMMON)
                     for (int ur = 0; ur < reg_unroll; ur += load_step)
@@ -814,51 +814,55 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         /* scale and beta processing */
         if (can_store_xmm) {
-            /* xmm <-- scale * xmm[:] */
-            if (prb_.scale_type == scale_type_t::COMMON) {
-                for (int ur = 0; ur < reg_unroll; ur += ur_step)
-                    uni_vmulps(Xmm(ur), Xmm(ur), xmm_scale_);
-            } else if (prb_.scale_type == scale_type_t::MANY) {
-                enum class scale_load_type_t { bcast, load, gather };
+            const auto apply_scales = [&](const Xmm &vreg_scales) {
+                if (prb_.scale_type == scale_type_t::COMMON) {
+                    for (int ur = 0; ur < reg_unroll; ur += ur_step)
+                        uni_vmulps(Xmm(ur), Xmm(ur), vreg_scales);
+                } else if (prb_.scale_type == scale_type_t::MANY) {
+                    enum class scale_load_type_t { bcast, load, gather };
 
-                uni_vpxor(xmm_scale_, xmm_scale_, xmm_scale_);
-                for (int ur = 0; ur < reg_unroll; ur += ur_step) {
-                    scale_load_type_t scale_load_type
-                            = scale_load_type_t::bcast; // the best case
+                    uni_vpxor(vreg_scales, vreg_scales, vreg_scales);
+                    for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                        scale_load_type_t scale_load_type
+                                = scale_load_type_t::bcast; // the best case
 
-                    for (int r = ur + 1; r < ur + ur_step; ++r)
-                        if (s_off[r] != s_off[r - 1] + 0)
-                            scale_load_type = scale_load_type_t::load;
+                        for (int r = ur + 1; r < ur + ur_step; ++r)
+                            if (s_off[r] != s_off[r - 1] + 0)
+                                scale_load_type = scale_load_type_t::load;
 
-                    if (scale_load_type == scale_load_type_t::bcast
-                            && !tail_processing) {
-                        uni_vbroadcastss(xmm_scale_, s_addr(s_off[ur]));
-                        uni_vmulps(Xmm(ur), Xmm(ur), xmm_scale_);
-                        continue;
+                        if (scale_load_type == scale_load_type_t::bcast
+                                && !tail_processing) {
+                            uni_vbroadcastss(vreg_scales, s_addr(s_off[ur]));
+                            uni_vmulps(Xmm(ur), Xmm(ur), vreg_scales);
+                            continue;
+                        }
+
+                        // bcast doesn't work, the next try -- load
+                        for (int r = ur + 1; r < ur + ur_step; ++r)
+                            if (s_off[r] != s_off[r - 1] + 1)
+                                scale_load_type = scale_load_type_t::gather;
+
+                        if (scale_load_type == scale_load_type_t::load
+                                && !tail_processing) {
+                            uni_vmovups(vreg_scales, s_addr(s_off[ur]));
+                            uni_vmulps(Xmm(ur), Xmm(ur), vreg_scales);
+                            continue;
+                        }
+
+                        // load doesn't work as well
+                        // so gather the scale factors one by one
+                        for (int r = ur; r < ur + ur_step; ++r) {
+                            if (zero_padding[r] == 0 || !tail_processing)
+                                uni_vpinsrd(vreg_scales, vreg_scales,
+                                        s_addr(s_off[r]), r - ur);
+                        }
+                        uni_vmulps(Xmm(ur), Xmm(ur), vreg_scales);
                     }
-
-                    // bcast doesn't work, the next try -- load
-                    for (int r = ur + 1; r < ur + ur_step; ++r)
-                        if (s_off[r] != s_off[r - 1] + 1)
-                            scale_load_type = scale_load_type_t::gather;
-
-                    if (scale_load_type == scale_load_type_t::load
-                            && !tail_processing) {
-                        uni_vmovups(xmm_scale_, s_addr(s_off[ur]));
-                        uni_vmulps(Xmm(ur), Xmm(ur), xmm_scale_);
-                        continue;
-                    }
-
-                    // load doesn't work as well
-                    // so gather the scale factors one by one
-                    for (int r = ur; r < ur + ur_step; ++r) {
-                        if (zero_padding[r] == 0 || !tail_processing)
-                            uni_vpinsrd(xmm_scale_, xmm_scale_,
-                                    s_addr(s_off[r]), r - ur);
-                    }
-                    uni_vmulps(Xmm(ur), Xmm(ur), xmm_scale_);
                 }
-            }
+            };
+
+            /* xmm <-- scale * xmm[:] */
+            apply_scales(xmm_scale_);
 
             /* dst <-- beta * dst + xmm[:] */
             assert(prb_.beta == 0.f || prb_.beta == 1.f);
@@ -881,16 +885,20 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 }
             }
         } else {
-            /* xmm[0] <-- scale * xmm[0] */
-            if (prb_.scale_type == scale_type_t::COMMON) {
-                for (int ur = 0; ur < reg_unroll; ur += ur_step)
-                    uni_vmulss(Xmm(ur), Xmm(ur), xmm_scale_);
-            } else if (prb_.scale_type == scale_type_t::MANY) {
-                for (int ur = 0; ur < reg_unroll; ur += ur_step) {
-                    if (zero_padding[ur] == 0 || !tail_processing)
-                        uni_vmulss(Xmm(ur), Xmm(ur), s_addr(s_off[ur]));
+            const auto apply_scales = [&](const Xmm &vreg_scales) {
+                if (prb_.scale_type == scale_type_t::COMMON) {
+                    for (int ur = 0; ur < reg_unroll; ur += ur_step)
+                        uni_vmulss(Xmm(ur), Xmm(ur), vreg_scales);
+                } else if (prb_.scale_type == scale_type_t::MANY) {
+                    for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                        if (zero_padding[ur] == 0 || !tail_processing)
+                            uni_vmulss(Xmm(ur), Xmm(ur), s_addr(s_off[ur]));
+                    }
                 }
-            }
+            };
+
+            /* xmm[0] <-- scale * xmm[0] */
+            apply_scales(xmm_scale_);
 
             /* dst <-- beta * dst + xmm[0] */
             assert(prb_.beta == 0.f || prb_.beta == 1.f);
@@ -951,16 +959,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         }
 
         if (compensation_needed_) {
-            const int xmm_begin = 9;
-            const int xmm_end = 11;
-            int xmm_id = xmm_begin;
-            const auto get_temp_xmm = [&] {
-                const Xbyak::Xmm temp {xmm_id++};
-
-                if (xmm_id > xmm_end) { xmm_id = xmm_begin; }
-
-                return temp;
-            };
             const bool mayiuse_avx2 = mayiuse(avx2);
             const auto uni_vpaddd_wrapper
                     = [&](const Xmm xmm, const Address &addr) {
@@ -997,17 +995,15 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
                     if (comp_load_type == comp_load_type_t::bcast
                             && all_ip_padding_zero) {
-                        const auto reduction_xmm = get_temp_xmm();
-                        const auto xmm_reorder_result = Xmm(ur);
-                        uni_vcvtps2dq(reduction_xmm, xmm_reorder_result);
-                        uni_vphaddd(
-                                reduction_xmm, reduction_xmm, reduction_xmm);
-                        uni_vphaddd(
-                                reduction_xmm, reduction_xmm, reduction_xmm);
+                        // xmm_compensation is used for reduction.
+                        uni_vcvtps2dq(xmm_compensation, Xmm(ur));
+                        uni_vphaddd(xmm_compensation, xmm_compensation,
+                                xmm_compensation);
+                        uni_vphaddd(xmm_compensation, xmm_compensation,
+                                xmm_compensation);
                         const auto comp_addr = c_addr(c_off[ur]);
-                        const auto xmm_tmp_ = get_temp_xmm();
                         uni_vmovss(xmm_tmp_, comp_addr);
-                        uni_vpaddd(xmm_tmp_, xmm_tmp_, reduction_xmm);
+                        uni_vpaddd(xmm_tmp_, xmm_tmp_, xmm_compensation);
                         uni_vmovss(comp_addr, xmm_tmp_);
                         continue;
                     }
@@ -1021,24 +1017,18 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
                     if (comp_load_type == comp_load_type_t::load
                             && all_ip_padding_zero) {
-                        const auto xmm_reorder_result_dq = get_temp_xmm();
-                        const auto xmm_reorder_result = Xmm(ur);
                         const auto comp_addr = c_addr(c_off[ur]);
-                        uni_vcvtps2dq(
-                                xmm_reorder_result_dq, xmm_reorder_result);
-                        uni_vpaddd_wrapper(xmm_reorder_result_dq, comp_addr);
-                        uni_vmovups(comp_addr, xmm_reorder_result_dq);
+                        uni_vcvtps2dq(xmm_tmp_, Xmm(ur));
+                        uni_vpaddd_wrapper(xmm_tmp_, comp_addr);
+                        uni_vmovups(comp_addr, xmm_tmp_);
                         continue;
                     }
 
-                    const auto xmm_reorder_result_dq = get_temp_xmm();
-                    const auto xmm_reorder_result = Xmm(ur);
-                    uni_vcvtps2dq(xmm_reorder_result_dq, xmm_reorder_result);
-
+                    uni_vcvtps2dq(xmm_compensation, Xmm(ur));
                     for (int r = ur; r < ur + ur_step; ++r) {
                         if (zero_padding[r] == 0 || !tail_processing) {
-                            uni_vshufps(xmm_tmp_, xmm_reorder_result_dq,
-                                    xmm_reorder_result_dq, r);
+                            uni_vshufps(xmm_tmp_, xmm_compensation,
+                                    xmm_compensation, r);
                             const Reg32 reg_tmp_32 = reg_tmp_.cvt32();
                             uni_vmovd(reg_tmp_32, xmm_tmp_);
                             const auto comp_addr = c_addr(c_off[r]);
@@ -1049,13 +1039,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             } else {
                 for (int ur = 0; ur < reg_unroll; ur += ur_step) {
                     if (zero_padding[ur] == 0 || !tail_processing) {
-                        const auto xmm_reorder_result_dq = get_temp_xmm();
-                        const auto xmm_reorder_result = Xmm(ur);
                         const auto comp_addr = c_addr(c_off[ur]);
-                        uni_vcvtps2dq(
-                                xmm_reorder_result_dq, xmm_reorder_result);
-                        uni_vpaddd_wrapper(xmm_reorder_result_dq, comp_addr);
-                        uni_vmovss(comp_addr, xmm_reorder_result_dq);
+                        uni_vcvtps2dq(xmm_compensation, Xmm(ur));
+                        uni_vpaddd_wrapper(xmm_compensation, comp_addr);
+                        uni_vmovss(comp_addr, xmm_compensation);
                     }
                 }
             }
@@ -1503,6 +1490,7 @@ private:
     const Reg64 reg_off_out_ = r9;
     const Reg64 reg_off_scale_ = r10;
     const Reg64 reg_off_comp_ = r11;
+    // r13-r15 are reserved for creating loops over compute kernels...
 
     const Reg64 reg_tmp_ = rax;
 
@@ -1514,6 +1502,7 @@ private:
     const Xmm xmm_tmp_ = xmm12;
     const Xmm xmm_src_zp_ = xmm9;
     const Xmm xmm_dst_zp_ = xmm11;
+    const Xmm xmm_compensation = xmm8;
     const Xmm xmm_saturation_ubound_ = xmm12;
     const Ymm ymm_saturation_ubound_ = ymm12;
 
@@ -2084,27 +2073,31 @@ status_t jit_uni_reorder_t::pd_t::init(
         engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
     CHECK(cpu_reorder_pd_t::init(engine, src_engine, dst_engine));
 
-    const bool compensation_needed
-            = prb_.req_s8s8_comp || prb_.req_asymmetric_comp;
-    if (compensation_needed) init_scratchpad();
+    init_scratchpad();
 
     return status::success;
 }
 
 void jit_uni_reorder_t::pd_t::init_scratchpad() {
-    const memory_desc_wrapper od(dst_md());
-    const auto G = with_groups_ ? od.padded_dims()[0] : 1;
-    const auto N = od.padded_dims()[with_groups_ ? 1 : 0];
-    static constexpr int cache_line_size = 16;
-    const auto wspace_per_thr_size
-            = utils::rnd_up(G * N, cache_line_size) * sizeof(int32_t);
-
     auto scratchpad = scratchpad_registry().registrar();
-    const auto compensation_reduce_size = wspace_per_thr_size * nthr_;
 
-    //every thread gets its own scratchpad space for each N
-    scratchpad.template book<int32_t>(memory_tracking::names::key_reorder_space,
-            compensation_reduce_size);
+    const bool compensation_needed
+            = prb_.req_s8s8_comp || prb_.req_asymmetric_comp;
+    if (compensation_needed) {
+        const memory_desc_wrapper od(dst_md());
+        const auto G = with_groups_ ? od.padded_dims()[0] : 1;
+        const auto N = od.padded_dims()[with_groups_ ? 1 : 0];
+        static constexpr int cache_line_size = 16;
+        const auto wspace_per_thr_size
+                = utils::rnd_up(G * N, cache_line_size) * sizeof(int32_t);
+
+        const auto compensation_reduce_size = wspace_per_thr_size * nthr_;
+
+        // Every thread gets its own scratchpad space for each N.
+        scratchpad.template book<int32_t>(
+                memory_tracking::names::key_reorder_space,
+                compensation_reduce_size);
+    }
 }
 
 status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
