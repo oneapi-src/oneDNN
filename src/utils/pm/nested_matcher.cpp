@@ -730,12 +730,12 @@ repetition_matcher_t::repetition_matcher_t(const binding_t &bind_arg,
 }
 
 bool repetition_matcher_t::prepare_next_matching_round(
-        match_context_t &local_cached_ctx) {
+        const match_context_t &local_cached_ctx) {
     // Forward matching
     if (forward_match_) {
         single_iter_bind_.bind_kind = BIND_IN;
         oport_t oport = pmap_.first;
-        op_t *current_op = local_cached_ctx.out_port_map[oport].first;
+        op_t *current_op = local_cached_ctx.out_port_map.at(oport).first;
         if (oport >= current_op->num_outputs()) return true;
         auto cons = current_op->get_output_value(oport)->get_consumers();
         if (cons.empty()) return true;
@@ -753,7 +753,7 @@ bool repetition_matcher_t::prepare_next_matching_round(
             // for next round's match
             iport_t iport = pmap_.second;
             // start op for last round's match
-            op_t *start_op = local_cached_ctx.in_port_map[iport].first;
+            op_t *start_op = local_cached_ctx.in_port_map.at(iport).first;
             pb_op_t *start_pb_op = updated_op_map_[start_op];
             op_t *next_op = nullptr;
             size_t next_op_iport = 0;
@@ -771,7 +771,7 @@ bool repetition_matcher_t::prepare_next_matching_round(
     } else { // backward matching
         single_iter_bind_.bind_kind = BIND_OUT;
         iport_t iport = pmap_.second;
-        op_t *current_op = local_cached_ctx.in_port_map[iport].first;
+        op_t *current_op = local_cached_ctx.in_port_map.at(iport).first;
         if (iport >= current_op->num_inputs()) return true;
         auto in_value = current_op->get_input_value(iport);
         single_iter_bind_.bind_op = &(in_value->get_producer());
@@ -864,14 +864,38 @@ bool repetition_matcher_t::post_repetition_matching(
     return true;
 }
 
+bool repetition_matcher_t::verify_current_matching_round(
+        const match_context_t &local_cached_ctx,
+        const std::unordered_map<op_t *, pb_op_t *> &local_op_map) const {
+    if (forward_match_) return true;
+
+    // for backward match
+    oport_t oport = pmap_.first;
+    op_t *cur_op = local_cached_ctx.out_port_map.at(oport).first;
+    size_t cur_op_port = local_cached_ctx.out_port_map.at(oport).second;
+    auto cons = cur_op->get_output_value(cur_op_port)->get_consumers();
+    if (cons.size() <= 1) return true;
+
+    // if current op has more than 1 consumers, while the repetition unit
+    // only has 1 consumer, only allow_external_outputs can survive.
+    pb_op_t *cur_pb_op = local_op_map.at(cur_op);
+    if (cur_pb_op->is_allowing_external_outputs()) return true;
+    return false;
+}
+
 int64_t repetition_matcher_t::match_repetition_blocks() {
     // num of repetition blocks matched
     int64_t num_rep = 0;
     while (true) {
         match_context_t local_cached_ctx {rep_global_ctx_};
-        if (!match_graph(single_iter_bind_, &local_cached_ctx, updated_op_map_))
+        std::unordered_map<op_t *, pb_op_t *> local_op_map = updated_op_map_;
+        if (!match_graph(single_iter_bind_, &local_cached_ctx, local_op_map))
             break;
+        if (!verify_current_matching_round(local_cached_ctx, local_op_map))
+            break;
+
         ++num_rep;
+        updated_op_map_ = local_op_map;
 
         // connect previous repetition's out_port_map to
         // current repetition's in_port_map
