@@ -258,12 +258,12 @@ static bool compute_range(const expr_c &parent, const const_range_t *l,
             return parse_bool_infer_result(l->less_than(*r, false), out);
             break;
         case sc_expr_type::cmp_ge:
-            // l>=r ====> r<l
-            return parse_bool_infer_result(r->less_than(*l, false), out);
+            // l>=r ====> r<=l
+            return parse_bool_infer_result(r->less_than(*l, true), out);
             break;
         case sc_expr_type::cmp_gt:
-            // l>r ====> r<=l
-            return parse_bool_infer_result(r->less_than(*l, true), out);
+            // l>r ====> r<l
+            return parse_bool_infer_result(r->less_than(*l, false), out);
             break;
         default: break;
     }
