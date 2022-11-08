@@ -63,9 +63,11 @@ status_t jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
-    DEFINE_SCALES_BUFFER_ATTR_ARG(
-            pd()->dw_conv_pd_.get() ? pd()->dw_conv_pd_->attr() : nullptr,
-            dw_scales, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_OUTPUT_SCALES);
+
+    DEFINE_ARG_SCALES_BUFFER(
+            dw_wei_scales, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(
+            dw_dst_scales, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -83,30 +85,32 @@ status_t jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward(
             local_scales[c] = src_scales[0] * wei_scales[c] * factor;
     }
 
+    const float *dw_oscales = nullptr;
     if (pd()->jcp_.with_dw_conv) {
         auto jcp_dw = pd()->jcp_dw_;
-        if (jcp_dw->signed_input && (!jcp_dw->has_vnni)) {
-            memory_tracking::grantor_t dw_scratchpad(
-                    scratchpad, memory_tracking::names::prefix_fusion);
-            auto attr_dw = pd()->dw_conv_pd_->attr();
+        memory_tracking::grantor_t dw_scratchpad(
+                scratchpad, memory_tracking::names::prefix_fusion);
+        auto attr_dw = pd()->dw_conv_pd_->attr();
 
-            auto local_scales = dw_scratchpad.template get<float>(
-                    key_conv_adjusted_scales);
-            int mask = attr_dw->output_scales_.mask_;
-            float factor = 1.f / jcp_dw->wei_adj_scale;
-            if (mask == 0) {
-                utils::array_set(local_scales, dw_scales[0] * factor,
-                        pd()->jcp_.ic_block);
-            } else {
-                for (dim_t c = 0; c < pd()->dw_conv_pd_->OC(); c++)
-                    local_scales[c] = dw_scales[c] * factor;
-            }
+        auto dw_local_scales
+                = dw_scratchpad.template get<float>(key_conv_adjusted_scales);
+        int wei_mask = attr_dw->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+        float factor = 1.f / jcp_dw->wei_adj_scale;
+        if (wei_mask == 0) {
+            utils::array_set(dw_local_scales,
+                    dw_wei_scales[0] / dst_scales[0] * factor,
+                    pd()->jcp_.ic_block);
+        } else {
+            for (dim_t c = 0; c < pd()->dw_conv_pd_->OC(); c++)
+                dw_local_scales[c] = dw_wei_scales[c] / dst_scales[0] * factor;
         }
+        dw_oscales = dw_local_scales;
     }
     parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
-                dst, local_scales, dst_scales, dw_scales, src_zero_point,
-                dst_zero_point, scratchpad, post_ops_binary_rhs_arg_vec.data(),
+                dst, local_scales, dst_scales, dw_oscales, dw_dst_scales,
+                src_zero_point, dst_zero_point, scratchpad,
+                post_ops_binary_rhs_arg_vec.data(),
                 post_ops_binary_rhs_arg_vec_dw.data());
     });
     return status::success;
@@ -117,8 +121,8 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward_thr(
         const int ithr, const int nthr, const char *src, const char *weights,
         const char *bias, const char *weights_dw, const char *bias_dw,
         char *dst, const float *oscales, const float *dst_scales,
-        const float *dw_oscales, const int32_t *src_zero_point,
-        const int32_t *dst_zero_point,
+        const float *dw_oscales, const float *dw_dst_scales,
+        const int32_t *src_zero_point, const int32_t *dst_zero_point,
         const memory_tracking::grantor_t &scratchpad,
         const void *post_ops_binary_rhs_arg_vec,
         const void *post_ops_binary_rhs_arg_vec_dw) const {
@@ -140,17 +144,12 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward_thr(
             ? scratchpad.get<char>(key_conv_rtus_space)
             : nullptr;
 
-    auto local_scales = scratchpad.get<float>(key_conv_adjusted_scales);
-
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
     const int ndims = dst_d.ndims();
     const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
     const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
     const int stride_w = pd()->desc()->strides[ndims - 3];
-
-    if (jcp.signed_input && (!jcp.has_vnni))
-        oscales = scratchpad.get<float>(key_conv_adjusted_scales);
 
     auto offset = weights_d.size() - weights_d.additional_buffer_size();
     char *w = const_cast<char *>(weights);
@@ -195,8 +194,6 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward_thr(
         compensation_dw = (jcp_dw->signed_input)
                 ? reinterpret_cast<int32_t *>(w + offset)
                 : nullptr;
-        if (jcp_dw->signed_input && (!jcp_dw->has_vnni))
-            dw_oscales = dw_scratchpad.get<float>(key_conv_adjusted_scales);
     }
 
     char *pbuf {nullptr};
@@ -276,9 +273,7 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward_thr(
                 : nullptr;
         p.src_zero_point = jcp.src_zero_point ? src_zero_point : nullptr;
         p.dst_zero_point = jcp.dst_zero_point ? dst_zero_point : nullptr;
-        p.scales = (jcp.signed_input && (!jcp.has_vnni))
-                ? &local_scales[jcp.is_oc_scale * _ocb * jcp.oc_block]
-                : &oscales[jcp.is_oc_scale * _ocb * jcp.oc_block];
+        p.scales = &oscales[jcp.is_oc_scale * _ocb * jcp.oc_block];
         p.dst_scale = dst_scales;
         if (pd()->rtus_.reduce_src_) {
             rp.ws = rtus_space
@@ -420,6 +415,7 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward_thr(
             par_conv_dw.scales = dw_oscales
                     ? &dw_oscales[jcp_dw->is_oc_scale * ocb * jcp_dw->ch_block]
                     : nullptr;
+            par_conv_dw.dst_scale = dw_dst_scales;
 
             par_conv_dw.oc_l_off = ocb * jcp_dw->ch_block;
             par_conv_dw.post_ops_binary_rhs_arg_vec

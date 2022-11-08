@@ -187,7 +187,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             if (po_op_iter == -1) return status::unimplemented;
 
             primitive_attr_t attr_1x1(*attr());
-            // erase dw_con post-op scales
+            // erase dw_conv post-op scales
             for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 auto &scale
                         = attr_1x1.scales_.get(DNNL_ARG_ATTR_POST_OP_DW | arg);
