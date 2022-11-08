@@ -952,7 +952,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
         });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_MHA_fusion)
-        .set_priority(11.0f)
+        .set_priority(22.0f)
         .set_kind(impl::partition_kind::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1029,7 +1029,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_MHA_fusion)
                      [output](f32)
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_MHA_fusion)
-        .set_priority(20.0f)
+        .set_priority(21.0f)
         .set_kind(impl::partition_kind::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1097,7 +1097,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, f32_MHA_fusion)
                         [output](int8)
 */
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_bf16_MHA_fusion)
-        .set_priority(11.0f)
+        .set_priority(22.0f)
         .set_kind(impl::partition_kind::quantized_mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {

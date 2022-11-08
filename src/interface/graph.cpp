@@ -370,6 +370,14 @@ status_t DNNL_GRAPH_API dnnl_graph_graph_filter(
     auto status = graph->build_graph();
     if (status != status::success) return status::invalid_graph;
 
+    // recover the ops to unmatched status and clean the partition_impl list to
+    // make the function reentrant
+    for (auto &op : graph->get_ops()) {
+        op->remove_attr(op_attr::matched);
+        op->set_partition(nullptr);
+    }
+    graph->clean_partitions();
+
 #ifdef DNNL_GRAPH_ENABLE_DUMP
     if (utils::getenv_int_user("DUMP", 0) > 0
             || utils::check_verbose_string_user("DUMP", "graph")) {

@@ -87,7 +87,8 @@ impl::status_t pass_manager_t::run_passes(
         std::list<pass_base_ptr> passes;
         helper.declare_field("passes", &passes);
         bool read_json = helper.read_fields(&read);
-        if (read_json && hash == dnnl_graph_version()->hash) {
+        if (read_json && hash == dnnl_graph_version()->hash
+                && pass_registry_.get_passes().size() >= passes.size()) {
             for (auto &pass : passes) {
                 if (pass->get_enable()) {
                     auto &new_pass = get_pass_ptr(pass->get_pass_name());

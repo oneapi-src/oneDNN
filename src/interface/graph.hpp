@@ -244,6 +244,8 @@ public:
         return partition_impls_;
     }
 
+    void clean_partitions() { partition_impls_.clear(); }
+
     /*!
      * \brief Get partition numbers
      * \return partition numbers
