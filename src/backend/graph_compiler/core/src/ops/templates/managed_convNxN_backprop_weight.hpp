@@ -20,25 +20,13 @@
 #include <memory>
 #include <tuple>
 #include <vector>
+#include "conv_bwd.hpp"
 #include <ops/body_generator.hpp>
 
 namespace sc {
 namespace ops {
-struct nested_conv_bwd_weight_core_config_t {
-  int oc_threads;
-  int ic_threads;
-  int bs_threads;
-  int oh_threads;
-  int od_threads;
-  int oc_num_blocks;
-  int ic_num_blocks;
-  int bs_num_blocks;
-  int oh_num_blocks;
-  int od_num_blocks;
-  int ow_num_blocks;
-};
 class gen_nested_conv_bwd_weight_core_t
-  : public body_generator_t<nested_conv_bwd_weight_core_config_t> {
+  : public body_generator_t<managed_conv_bwd_weight_config_t> {
 public:
   // inner most block
   int im_oc_block_;
@@ -52,7 +40,7 @@ public:
     static constexpr int in_delta_output = 1;
     static constexpr int out_delta_weight = 0;
   };
-  using parent = body_generator_t<nested_conv_bwd_weight_core_config_t>;
+  using parent = body_generator_t<managed_conv_bwd_weight_config_t>;
   using parent::generate;
 
   bool bwise_fusion_ = false;
@@ -96,15 +84,15 @@ public:
     const expr &obs_offset, const expr &oc_offset, const expr &oh_offset,
     const expr &ow_offset, fusion_manager *fusion) const;
 
-  bool generate(context_ptr ctx,
-    const nested_conv_bwd_weight_core_config_t &config, fusion_manager *fusion,
-    const std::vector<expr> &inputs, const std::vector<expr> &outputs,
+  bool generate(context_ptr ctx, const managed_conv_bwd_weight_config_t &config,
+    fusion_manager *fusion, const std::vector<expr> &inputs,
+    const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
 
   config_ptr get_default_config(context_ptr ctx) const override;
 
   void schedule_loops(context_ptr ctx,
-    const nested_conv_bwd_weight_core_config_t &config, stmt body,
+    const managed_conv_bwd_weight_config_t &config, stmt body,
     std::vector<for_loop> &fors) const override;
 };
 } // namespace ops

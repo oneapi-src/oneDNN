@@ -80,6 +80,7 @@ public:
 
 private:
     int ndims_ = 0;
+    bool is_1x1_;
 };
 
 class SC_INTERNAL_API conv_bwd_weight_core_op_t : public tunable_op_t {
@@ -101,6 +102,7 @@ public:
 
 private:
     int ndims_ = 0;
+    bool is_1x1_;
 };
 
 } // namespace ops

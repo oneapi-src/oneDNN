@@ -34,20 +34,6 @@
 
 using namespace sc::builder;
 namespace sc {
-
-using ops::managed_conv1x1_bwd_data_config_t;
-// clang-format off
-SC_CLASS(managed_conv1x1_bwd_data_config_t)
-  SC_FIELD(BS_split_num)
-  SC_FIELD(S_split_num)
-  SC_FIELD(IC_split_num)
-  SC_FIELD(BS_sub_block)
-  SC_FIELD(S_sub_block)
-  SC_FIELD(IC_sub_block)
-  SC_FIELD(OC_sub_block)
-SC_CLASS_END();
-// clang-format on
-
 namespace ops {
 
 static void get_blocks_and_ib_blocks(const int X, const int X_split_num,
@@ -105,9 +91,9 @@ static void compute_single_thr_and_idx(const int X, const int X_split_num,
 config_ptr gen_managed_conv1x1_backprop_data_t::get_default_config(
   context_ptr ctx) const {
   auto ret
-    = reflection::general_object_t::make<managed_conv1x1_bwd_data_config_t>();
-  managed_conv1x1_bwd_data_config_t &cfg
-    = *ret.unchecked_get_as<managed_conv1x1_bwd_data_config_t>();
+    = reflection::general_object_t::make<managed_conv_bwd_data_config_t>();
+  managed_conv_bwd_data_config_t &cfg
+    = *ret.unchecked_get_as<managed_conv_bwd_data_config_t>();
   const int num_threads = runtime_config_t::get().get_num_threads();
   const int im_bs_block = im_bs_block_;
   const int im_ow_block = im_ow_block_;
@@ -162,17 +148,17 @@ config_ptr gen_managed_conv1x1_backprop_data_t::get_default_config(
       cost = new_cost;
     }
   }
-  cfg.BS_split_num = num_threads / split_s;
-  cfg.S_split_num = split_s;
+  cfg.bs_threads = num_threads / split_s;
+  cfg.spatial_threads = split_s;
   if (OS <= 256 && BS >= num_threads) {
     // for small spatial size and large bs, we prefer to give splits only on BS
-    cfg.BS_split_num = num_threads;
-    cfg.S_split_num = 1;
+    cfg.bs_threads = num_threads;
+    cfg.spatial_threads = 1;
   }
 
-  int single_BS = utils::divide_and_ceil(BS, cfg.BS_split_num) * im_bs_block;
+  int single_BS = utils::divide_and_ceil(BS, cfg.bs_threads) * im_bs_block;
   int single_S = utils::divide_and_ceil(
-                   utils::divide_and_ceil(OS, im_ow_block), cfg.S_split_num)
+                   utils::divide_and_ceil(OS, im_ow_block), cfg.spatial_threads)
     * im_ow_block;
   int single_IC = IC, single_OC = OC;
   int L2_size = static_cast<int>(ctx->machine_.cpu_flags_.getDCacheSize(2));
@@ -186,17 +172,17 @@ config_ptr gen_managed_conv1x1_backprop_data_t::get_default_config(
       = (sqrt(pow(2 * sizeofdtypeA * L2_C, 2) + 4 * sizeofdtypeC * L2_size)
           - 2 * sizeofdtypeA * L2_C)
       / (2 * sizeofdtypeC);
-    cfg.BS_sub_block = std::max(1, single_BS / L2_C);
-    cfg.S_sub_block = std::max(1, single_S / L2_C);
+    cfg.bs_num_blocks = std::max(1, single_BS / L2_C);
+    cfg.spatial_num_blocks = std::max(1, single_S / L2_C);
   } else {
     int L2_BS_S = L2_size / (2 * sizeofdtypeA * single_IC * single_OC);
-    cfg.BS_sub_block = std::max(1, single_BS / L2_BS_S);
-    cfg.S_sub_block = std::max(1, single_S / L2_BS_S);
+    cfg.bs_num_blocks = std::max(1, single_BS / L2_BS_S);
+    cfg.spatial_num_blocks = std::max(1, single_S / L2_BS_S);
   }
 
-  cfg.IC_split_num = 1;
-  cfg.IC_sub_block = 1;
-  cfg.OC_sub_block = 1;
+  cfg.ic_threads = 1;
+  cfg.ic_num_blocks = 1;
+  cfg.oc_num_blocks = 1;
 
   return std::move(ret);
 }
@@ -294,13 +280,13 @@ float gen_managed_conv1x1_backprop_data_t::get_gflop() const {
 }
 
 void gen_managed_conv1x1_backprop_data_t::schedule_loops(context_ptr ctx,
-  const managed_conv1x1_bwd_data_config_t &config, stmt body,
+  const managed_conv_bwd_data_config_t &config, stmt body,
   std::vector<for_loop> &fors) const {}
 
 void gen_managed_conv1x1_backprop_data_t::
   single_thread_conv1x1_backprop_data_call(const context_ptr &ctx,
     const logical_tensor_t &ta, const logical_tensor_t &tb,
-    const logical_tensor_t &tc, const managed_conv1x1_bwd_data_config_t &config,
+    const logical_tensor_t &tc, const managed_conv_bwd_data_config_t &config,
     const expr &BS, const expr &OS, const expr &IC, const expr &OC,
     const expr &bs_idx, const expr &s_idx, const expr &ic_idx,
     const expr &oc_idx, const int stride_d, const int stride_h,
@@ -309,8 +295,9 @@ void gen_managed_conv1x1_backprop_data_t::
     const expr &ic_s, std::vector<int> &BS_anchor_info,
     std::vector<int> &S_anchor_info, std::vector<int> &IC_anchor_info,
     const bool is_out_blocking, bool is_partial, const expr &oc_s) const {
-  expr BS_sub_block = config.BS_sub_block, S_sub_block = config.S_sub_block,
-       IC_sub_block = config.IC_sub_block, OC_sub_block = config.OC_sub_block;
+  expr BS_sub_block = config.bs_num_blocks,
+       S_sub_block = config.spatial_num_blocks,
+       IC_sub_block = config.ic_num_blocks, OC_sub_block = config.oc_num_blocks;
   for_loop im_oc, im_bs, im_os, im_ic, o_im_oc;
   int ori_BS = static_cast<int>(ta.get_plain_dims()[0]),
       ori_H = static_cast<int>(ta.get_plain_dims()[ndims_ - 2]),
@@ -421,21 +408,22 @@ void gen_managed_conv1x1_backprop_data_t::
           if (BS_anchor_info[1] == BS_anchor_info[2]
             && S_anchor_info[1] == S_anchor_info[2]
             && IC_anchor_info[1] == IC_anchor_info[2]
-            && BS_anchor_info[1] / im_bs_block_ % config.BS_sub_block == 0
-            && S_anchor_info[1] / im_ow_block_ % config.S_sub_block == 0
-            && IC_anchor_info[1] / im_ic_block_ % config.IC_sub_block
+            && BS_anchor_info[1] / im_bs_block_ % config.bs_num_blocks == 0
+            && S_anchor_info[1] / im_ow_block_ % config.spatial_num_blocks == 0
+            && IC_anchor_info[1] / im_ic_block_ % config.ic_num_blocks
               == 0) { // no imbalance
             if (ori_H % stride_h == 0 && ori_W % stride_w == 0) {
               fusion->create_output_fusion_anchor({tensor_slice(C,
                 std::vector<std::pair<expr, expr>> {
                   {bs_idx + o_bs * BS / BS_sub_block,
-                    BS_anchor_info[1] / config.BS_sub_block},
+                    BS_anchor_info[1] / config.bs_num_blocks},
                   {(s_idx + o_s * OS / S_sub_block) / ori_W * stride_h,
-                    S_anchor_info[1] / config.S_sub_block / ori_W * stride_h},
+                    S_anchor_info[1] / config.spatial_num_blocks / ori_W
+                      * stride_h},
                   {(s_idx + o_s * OS / S_sub_block) % ori_W * stride_w,
                     ori_W * stride_w},
                   {ic_idx + o_ic * IC / IC_sub_block,
-                    IC_anchor_info[1] / config.IC_sub_block},
+                    IC_anchor_info[1] / config.ic_num_blocks},
                 })});
             }
           }
@@ -443,14 +431,14 @@ void gen_managed_conv1x1_backprop_data_t::
       } // o_ic
     } // o_os
   } // o_bs
-  if (config.OC_sub_block > 1) {
+  if (config.ic_num_blocks > 1) {
     im_ic->attr()[stmt_attr_key::reduce_root_loop]
       = std::weak_ptr<stmt_base_t>(o_im_oc.impl);
   }
 }
 
 bool gen_managed_conv1x1_backprop_data_t::generate(context_ptr ctx,
-  const managed_conv1x1_bwd_data_config_t &config, fusion_manager *fusion,
+  const managed_conv_bwd_data_config_t &config, fusion_manager *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // Init OP param
@@ -472,13 +460,14 @@ bool gen_managed_conv1x1_backprop_data_t::generate(context_ptr ctx,
   int OS = OD * OH * OW, IS = ID * IH * IW;
 
   // Get config
-  int BS_split_num = config.BS_split_num, S_split_num = config.S_split_num,
-      IC_split_num = config.IC_split_num;
+  int BS_split_num = config.bs_threads, S_split_num = config.spatial_threads,
+      IC_split_num = config.ic_threads;
   int num_threads = runtime_config_t::get().get_num_threads();
   int OC_split_num = num_threads / BS_split_num / S_split_num / IC_split_num;
   assert(OC_split_num == 1);
-  int BS_sub_block = config.BS_sub_block, S_sub_block = config.S_sub_block,
-      IC_sub_block = config.IC_sub_block, OC_sub_block = config.OC_sub_block;
+  int BS_sub_block = config.bs_num_blocks,
+      S_sub_block = config.spatial_num_blocks,
+      IC_sub_block = config.ic_num_blocks, OC_sub_block = config.oc_num_blocks;
   int BS_block_size = utils::divide_and_ceil(
                         utils::divide_and_ceil(BS, BS_split_num), im_bs_block_)
     * im_bs_block_;

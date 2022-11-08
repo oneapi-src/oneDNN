@@ -55,6 +55,36 @@ SC_CLASS(conv_bwd_weight_config_t)
 SC_CLASS_END();
 // clang-format on
 
+using ops::managed_conv_bwd_data_config_t;
+// clang-format off
+SC_CLASS(managed_conv_bwd_data_config_t)
+  SC_FIELD(bs_threads)
+  SC_FIELD(spatial_threads)
+  SC_FIELD(ic_threads)
+  SC_FIELD(bs_num_blocks)
+  SC_FIELD(spatial_num_blocks)
+  SC_FIELD(ic_num_blocks)
+  SC_FIELD(oc_num_blocks)
+SC_CLASS_END();
+// clang-format on
+
+using ops::managed_conv_bwd_weight_config_t;
+// clang-format off
+SC_CLASS(managed_conv_bwd_weight_config_t)
+  SC_FIELD(oc_threads)
+  SC_FIELD(ic_threads)
+  SC_FIELD(bs_threads)
+  SC_FIELD(oh_threads)
+  SC_FIELD(od_threads)
+  SC_FIELD(oc_num_blocks)
+  SC_FIELD(ic_num_blocks)
+  SC_FIELD(bs_num_blocks)
+  SC_FIELD(oh_num_blocks)
+  SC_FIELD(od_num_blocks)
+  SC_FIELD(ow_num_blocks)
+SC_CLASS_END();
+// clang-format on
+
 namespace ops {
 
 config_ptr gen_conv_bwd_t::get_default_config(context_ptr ctx) const {

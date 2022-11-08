@@ -34,32 +34,14 @@
 
 using namespace sc::builder;
 namespace sc {
-
-using ops::nested_conv_bwd_weight_core_config_t;
-// clang-format off
-SC_CLASS(nested_conv_bwd_weight_core_config_t)
-  SC_FIELD(oc_threads)
-  SC_FIELD(ic_threads)
-  SC_FIELD(bs_threads)
-  SC_FIELD(oh_threads)
-  SC_FIELD(od_threads)
-  SC_FIELD(oc_num_blocks)
-  SC_FIELD(ic_num_blocks)
-  SC_FIELD(bs_num_blocks)
-  SC_FIELD(oh_num_blocks)
-  SC_FIELD(od_num_blocks)
-  SC_FIELD(ow_num_blocks)
-SC_CLASS_END();
-// clang-format on
-
 namespace ops {
 
 config_ptr gen_nested_conv_bwd_weight_core_t::get_default_config(
   context_ptr ctx) const {
-  auto ret = reflection::general_object_t::make<
-    nested_conv_bwd_weight_core_config_t>();
-  nested_conv_bwd_weight_core_config_t &cfg
-    = *ret.unchecked_get_as<nested_conv_bwd_weight_core_config_t>();
+  auto ret
+    = reflection::general_object_t::make<managed_conv_bwd_weight_config_t>();
+  managed_conv_bwd_weight_config_t &cfg
+    = *ret.unchecked_get_as<managed_conv_bwd_weight_config_t>();
   int num_threads = runtime_config_t::get().get_num_threads();
   const int OC = get_grad_dims()[1];
   const int OH = get_grad_dims()[ndims_ - 2];
@@ -162,7 +144,7 @@ float gen_nested_conv_bwd_weight_core_t::get_gflop() const {
 }
 
 void gen_nested_conv_bwd_weight_core_t::schedule_loops(context_ptr ctx,
-  const nested_conv_bwd_weight_core_config_t &config, stmt body,
+  const managed_conv_bwd_weight_config_t &config, stmt body,
   std::vector<for_loop> &fors) const {}
 
 void gen_nested_conv_bwd_weight_core_t::forward_input_reorder_call(
@@ -200,8 +182,8 @@ void gen_nested_conv_bwd_weight_core_t::forward_input_reorder_call(
             }
             _else_ {
               temp_forward_input[span_t(tmp_input_idx, lanes)]
-                = builder::make_constant(std::vector<union_val>(lanes, 0.f),
-                  sc_data_type_t(dtype.type_code_, lanes));
+                = builder::make_broadcast(
+                  builder::make_cast(dtype.type_code_, 0), lanes);
             }
           }
         }
@@ -357,7 +339,7 @@ void gen_nested_conv_bwd_weight_core_t::inner_loop_call(const context_ptr &ctx,
 }
 
 bool gen_nested_conv_bwd_weight_core_t::generate(context_ptr ctx,
-  const nested_conv_bwd_weight_core_config_t &config, fusion_manager *fusion,
+  const managed_conv_bwd_weight_config_t &config, fusion_manager *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // set padding && stride, if d does not exist, set padding == 0 && stride ==

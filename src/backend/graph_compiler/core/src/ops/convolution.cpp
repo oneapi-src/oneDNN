@@ -25,6 +25,7 @@
 #include "templates/conv_fwd.hpp"
 #include "templates/managed_conv1x1_backprop_data.hpp"
 #include "templates/managed_conv1x1_backprop_weight.hpp"
+#include "templates/managed_convNxN_backprop_data.hpp"
 #include "templates/managed_convNxN_backprop_weight.hpp"
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
@@ -492,7 +493,8 @@ conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(
     auto output_shape = attrs_.get<sc_dims>("output_shape");
     ndims_ = info_.inputs_[0]->details_.get_plain_dims().size();
     auto &weightdims = info_.inputs_[1]->details_.get_plain_dims();
-
+    is_1x1_ = std::all_of(weightdims.begin() + 2, weightdims.end(),
+            [](int x) { return x == 1; });
     auto strides = attrs_.get<sc_dims>("strides");
     if (attrs_.has_key("auto_pad")) {
         auto pad_type = attrs_.get<std::string>("auto_pad");
@@ -528,9 +530,8 @@ bool conv_bwd_data_core_op_t::use_managed_generator() {
     int num_threads = runtime_config_t::get().get_num_threads();
     const sc_dims &input_shape = info_.inputs_[0]->details_.get_plain_dims();
     const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
-    bool is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
-            [](int x) { return x == 1; });
-    if (is_1x1) {
+    const sc_dims &output_shape = info_.outputs_[0]->details_.get_plain_dims();
+    if (is_1x1_) {
         // managed generator constraints for 1x1 case
         // ToDo(zhangyan): improve following constraints
         if (num_threads % 7 != 0) { return false; }
@@ -551,6 +552,28 @@ bool conv_bwd_data_core_op_t::use_managed_generator() {
         // we need to check whether we can fully utilize all threads
         int possible_parallel_space = BS * (OS / im_ow_block);
         if (possible_parallel_space < num_threads) { return false; }
+        return true;
+    } else {
+        // managed generator constraints for NxN case
+        if (ndims_ != 4) { return false; }
+        auto tmp_kernel
+                = utils::make_unique<gen_managed_convNxN_backprop_data_t>(this,
+                        stride, pads_begin,
+                        graph::extract_detail_from_tensors(get_inputs()),
+                        graph::extract_detail_from_tensors(get_outputs()));
+        int im_ic_block = tmp_kernel->im_ic_block_;
+        int BS = input_shape[0], IC = output_shape[1], IH = output_shape[2];
+        int OW = input_shape[3], IW = output_shape[3];
+        if (IC % im_ic_block) { return false; }
+        // TODO(yifei): fix this restriction
+        // currently we force im_ow_block_ = OW
+        // this only holds if OW * stride_w == IW
+        int stride_w = stride.back();
+        if (OW * stride_w != IW) { return false; }
+        // we need to check whether we can fully utilize all threads
+        int possible_parallel_space = BS * IH * (IC / im_ic_block);
+        // TODO(yifei): loosen the restriction here
+        if (BS == 1 || possible_parallel_space < num_threads) { return false; }
         return true;
     }
     return false;
@@ -581,10 +604,18 @@ body_generator_ptr conv_bwd_data_core_op_t::create_generator() {
                     graph::extract_detail_from_tensors(get_outputs()));
         }
     } else {
-        auto ret = utils::make_unique<gen_convNxN_backprop_data>(this, stride,
-                pads_begin, graph::extract_detail_from_tensors(get_inputs()),
-                graph::extract_detail_from_tensors(get_outputs()));
-        return std::move(ret);
+        if (use_managed_generator()) {
+            return utils::make_unique<gen_managed_convNxN_backprop_data_t>(this,
+                    stride, pads_begin,
+                    graph::extract_detail_from_tensors(get_inputs()),
+                    graph::extract_detail_from_tensors(get_outputs()));
+        } else {
+            SC_WARN << "Fall-back to non-managed convNxN backprop data.";
+            return utils::make_unique<gen_convNxN_backprop_data>(this, stride,
+                    pads_begin,
+                    graph::extract_detail_from_tensors(get_inputs()),
+                    graph::extract_detail_from_tensors(get_outputs()));
+        }
     }
 }
 
@@ -602,12 +633,12 @@ void conv_bwd_data_core_op_t::query_format(context_ptr ctx,
     int oc_block, ic_block;
     if (use_managed_generator()) {
         auto temp_generator = create_generator();
-        ic_block = dynamic_cast<gen_managed_conv1x1_backprop_data_t *>(
-                temp_generator.get())
-                           ->im_ic_block_;
-        oc_block = dynamic_cast<gen_managed_conv1x1_backprop_data_t *>(
-                temp_generator.get())
-                           ->im_oc_block_;
+        auto gen_1x1 = dynamic_cast<gen_managed_conv1x1_backprop_data_t *>(
+                temp_generator.get());
+        auto gen_NxN = dynamic_cast<gen_managed_convNxN_backprop_data_t *>(
+                temp_generator.get());
+        ic_block = is_1x1_ ? gen_1x1->im_ic_block_ : gen_NxN->im_ic_block_;
+        oc_block = is_1x1_ ? gen_1x1->im_oc_block_ : gen_NxN->im_oc_block_;
     } else {
         const conv_bwd_data_config_t &tcfg
                 = *config_data_.get_as<conv_bwd_data_config_t>();
@@ -650,6 +681,8 @@ conv_bwd_weight_core_op_t::conv_bwd_weight_core_op_t(
     auto &in_data_dims = info_.inputs_[0]->details_.get_plain_dims();
     auto &in_fwd_output_dims = info_.inputs_[1]->details_.get_plain_dims();
     auto &weight_shape = attrs_.get<sc_dims>("filter_shape");
+    is_1x1_ = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
+            [](int x) { return x == 1; });
     COMPILE_ASSERT(in_data_dims[0] == in_fwd_output_dims[0],
             "The two inputs of conv_bwd_weight_core should have the same batch "
             "size.");
@@ -695,9 +728,7 @@ bool conv_bwd_weight_core_op_t::use_managed_generator() {
     const sc_dims &weight_shape = info_.outputs_[0]->details_.get_plain_dims();
     const sc_dims &input_shape = info_.inputs_[0]->details_.get_plain_dims();
     const sc_dims &delta_shape = info_.inputs_[1]->details_.get_plain_dims();
-    bool is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
-            [](int x) { return x == 1; });
-    if (!is_1x1) {
+    if (!is_1x1_) {
         // managed generator constraints for NxN case
         if (num_threads % 7 != 0) { return false; }
         if (ndims_ != 4) { return false; }
@@ -758,9 +789,7 @@ body_generator_ptr conv_bwd_weight_core_op_t::create_generator() {
             : attrs_.get<sc_dims>("paddings");
     auto &weight_shape = attrs_.get<sc_dims>("filter_shape");
     sc_dims input_dims = info_.inputs_[0]->details_.get_plain_dims();
-    bool is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
-            [](int x) { return x == 1; });
-    if (is_1x1) {
+    if (is_1x1_) {
         if (use_managed_generator()) {
             return utils::make_unique<gen_managed_conv1x1_backprop_weight_t>(
                     this, stride, pads_begin,
@@ -816,30 +845,16 @@ void conv_bwd_weight_core_op_t::query_format(context_ptr ctx,
     }
     if (use_managed_generator()) {
         auto temp_generator = create_generator();
-        auto weight_shape = this->info_.outputs_[0]->details_.get_plain_dims();
-        bool is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
-                [](int x) { return x == 1; });
-        int im_bs_block = is_1x1
-                ? dynamic_cast<gen_managed_conv1x1_backprop_weight_t *>(
-                        temp_generator.get())
-                          ->im_bs_block_
-                : dynamic_cast<gen_nested_conv_bwd_weight_core_t *>(
-                        temp_generator.get())
-                          ->im_bs_block_;
-        int im_ic_block = is_1x1
-                ? dynamic_cast<gen_managed_conv1x1_backprop_weight_t *>(
-                        temp_generator.get())
-                          ->im_ic_block_
-                : dynamic_cast<gen_nested_conv_bwd_weight_core_t *>(
-                        temp_generator.get())
-                          ->im_ic_block_;
-        int im_oc_block = is_1x1
-                ? dynamic_cast<gen_managed_conv1x1_backprop_weight_t *>(
-                        temp_generator.get())
-                          ->im_oc_block_
-                : dynamic_cast<gen_nested_conv_bwd_weight_core_t *>(
-                        temp_generator.get())
-                          ->im_oc_block_;
+        auto gen_1x1 = dynamic_cast<gen_managed_conv1x1_backprop_weight_t *>(
+                temp_generator.get());
+        auto gen_NxN = dynamic_cast<gen_nested_conv_bwd_weight_core_t *>(
+                temp_generator.get());
+        int im_bs_block
+                = is_1x1_ ? gen_1x1->im_bs_block_ : gen_NxN->im_bs_block_;
+        int im_ic_block
+                = is_1x1_ ? gen_1x1->im_ic_block_ : gen_NxN->im_ic_block_;
+        int im_oc_block
+                = is_1x1_ ? gen_1x1->im_oc_block_ : gen_NxN->im_oc_block_;
         const bool is_3d = ndims_ == 5;
         in_formats.reserve(get_inputs().size());
         in_formats.push_back({is_3d ? sc_data_format_t::NDHWCn(im_bs_block)

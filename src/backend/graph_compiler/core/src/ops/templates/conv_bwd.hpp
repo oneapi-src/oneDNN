@@ -44,6 +44,16 @@ struct conv_bwd_weight_config_t {
   int loop_sched;
 };
 
+struct managed_conv_bwd_data_config_t {
+  int bs_threads;
+  int spatial_threads;
+  int ic_threads;
+  int bs_num_blocks;
+  int spatial_num_blocks;
+  int ic_num_blocks;
+  int oc_num_blocks;
+};
+
 struct managed_conv_bwd_weight_config_t {
   int oc_threads;
   int ic_threads;

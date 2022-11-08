@@ -36,6 +36,8 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"dnnl_brgemm_init", (void *)dnnl_brgemm_init},
             {"dnnl_brgemm_update", (void *)dnnl_brgemm_update},
             {"dnnl_brgemm_init_update", (void *)dnnl_brgemm_init_update},
+            {"dnnl_brgemm_init_list_update",
+                    (void *)dnnl_brgemm_init_list_update},
             {"dnnl_brgemm_list_update", (void *)dnnl_brgemm_list_update},
             {"dnnl_brgemm_list_call", (void *)dnnl_brgemm_list_call},
             {"dnnl_brgemm_list_call_postops",

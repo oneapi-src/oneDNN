@@ -290,7 +290,9 @@ static expr brgemm_init_kernel_cache(brgemm_mode mode,
                                         postops_setting]); // postops set
     } else {
         // cache basic args and bdmask
-        const int expected_cache_org_args = brgemm_args::NUM_BASIC_ARGS_LIST;
+        // brgemm_args::LEN does not require to be cached
+        // so we use NUM_BASIC_ARGS_STRIDE rather than NUM_BASIC_ARGS_LIST here
+        const int expected_cache_org_args = brgemm_args::NUM_BASIC_ARGS_STRIDE;
         const int expected_cache_extra_start = brgemm_args::NUM_FULL_ARGS_LIST;
         const int expected_cache_extra_args
                 = brgemm_args::extra_args_offset::cache_nargs;

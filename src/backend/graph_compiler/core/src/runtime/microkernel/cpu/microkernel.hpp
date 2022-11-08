@@ -43,6 +43,12 @@ SC_API int dnnl_brgemm_list_update(const void **A_list, const void **B_list,
         int stride_a, int stride_b, int len, int dtypeA, int dtypeB,
         const void *brg_attrs, char *bd_mask, const void *postops_setting,
         const void *postops_data, void *c_buf, sc::runtime::stream_t *stream);
+SC_API int dnnl_brgemm_init_list_update(const void **A_list,
+        const void **B_list, void *C, int num, int M, int N, int K, int LDA,
+        int LDB, int LDC, int stride_a, int stride_b, int len, int dtypeA,
+        int dtypeB, const void *brg_attrs, char *bd_mask,
+        const void *postops_setting, const void *postops_data, void *c_buf,
+        sc::runtime::stream_t *stream);
 SC_API void *dnnl_brgemm_list_func(int M, int N, int K, int LDA, int LDB,
         int LDC, float beta, int dtypeA, int dtypeB, const void *brg_attrs,
         char *bd_mask, const void *postops_setting);
