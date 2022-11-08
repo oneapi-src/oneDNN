@@ -775,6 +775,8 @@ public:
                 // special strides for a/b.
                 auto a_out_op = maybe_alloc_strided_op(obj.type, obj.a);
                 auto b_out_op = maybe_alloc_strided_op(obj.type, obj.b);
+                bool is_mul = obj.op_kind == op_kind_t::_mul;
+                flag_setter_t no_vs(&allow_vert_stride_region_, !is_mul);
                 auto src0_op = eval(obj.a, a_out_op);
                 auto src1_op = eval(obj.b, b_out_op);
 
@@ -963,6 +965,7 @@ public:
             case op_kind_t::_dp4a:
             case op_kind_t::_add3:
             case op_kind_t::_mad: {
+                flag_setter_t no_vs(&allow_vert_stride_region_, false);
                 auto dst_op = alloc_dst_op(obj);
                 auto mod = dst_op.mod();
                 auto src0_op = eval(obj.a);
@@ -996,6 +999,16 @@ public:
     }
 
 private:
+    struct flag_setter_t {
+        flag_setter_t(bool *flag, bool value) : flag(flag), old(*flag) {
+            *flag = value;
+        }
+        ~flag_setter_t() { *flag = old; }
+
+        bool *flag;
+        bool old;
+    };
+
     ngen_operand_t alloc_dst_op(const expr_t &e) {
         ir_assert(!expr_binding_.is_bound(e)) << "Already evaluated: " << e;
         if (expr_binding_.is_dst_bound(e)) return expr_binding_.get_dst(e);
@@ -1176,6 +1189,7 @@ private:
 
         // Pattern 1: [xxyy]
         auto is_xxyy = [&]() {
+            if (!allow_vert_stride_region_) return false;
             for (int i = 0; i < elems / 2; i++) {
                 if (obj.idx[i] != 0) return false;
                 if (obj.idx[i + elems / 2] != 1) return false;
@@ -1320,6 +1334,7 @@ private:
     ir_kernel_t<hw> *host_;
     expr_binding_t expr_binding_;
     ngen_register_scope_t &scope_;
+    bool allow_vert_stride_region_ = true;
 
     object_eq_map_t<expr_t, type_t> int_up_converts_;
 };
