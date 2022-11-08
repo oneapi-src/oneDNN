@@ -68,7 +68,7 @@ struct ref_concat_t : public gpu_primitive_t {
                     int mask = 0;
                     CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask));
                     if (mask != 0) return status::unimplemented;
-                    r_attr.output_scales_.set(mask);
+                    r_attr.scales_.set(DNNL_ARG_SRC, mask);
                 }
                 CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
                         src_md(i), src_image_md(i), &r_attr));
@@ -131,7 +131,8 @@ struct ref_concat_t : public gpu_primitive_t {
             exec_args_t r_args;
             r_args[DNNL_ARG_SRC] = src;
             r_args[DNNL_ARG_DST] = dst;
-            if (src_scales) r_args[DNNL_ARG_ATTR_OUTPUT_SCALES] = *src_scales;
+            if (src_scales)
+                r_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC] = *src_scales;
             exec_ctx_t r_ctx(ctx, std::move(r_args));
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + r_num, reorder);
