@@ -38,7 +38,9 @@ status_t gen_reorder_t::pd_t::init(
     const auto src_dt = src_md()->data_type;
     const auto dst_dt = dst_md()->data_type;
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto *device_info = compute_engine->device_info();
     bool ok = src_engine == dst_engine && src_engine->kind() == engine_kind::gpu
+            && device_info->gpu_arch() > compute::gpu_arch_t::xe_lp
             && IMPLICATION(src_dt == data_type::f16 || dst_dt == data_type::f16,
                     compute_engine->mayiuse(compute::device_ext_t::khr_fp16))
             && IMPLICATION(src_dt == data_type::bf16,
