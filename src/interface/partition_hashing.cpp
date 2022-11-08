@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <memory>
+#include <utility>
 
 #include "interface/partition.hpp"
 #include "interface/partition_hashing.hpp"
@@ -77,7 +78,8 @@ key_t::key_t(const partition_t *partition,
                             "tensor data handle cannot be nullptr.");
                     std::memcpy(m.data(), ctx->get_tensor_data_handle(tid),
                             total_size);
-                    context_content_map_.insert({tid, m});
+                    context_content_pairs_.emplace_back(
+                            std::pair<size_t, impl::utils::any_t> {tid, m});
                 });
             }
         }
@@ -128,25 +130,29 @@ bool key_t::operator==(const key_t &rhs) const {
             return false;
     }
 
-    if (context_content_map_.size() != rhs.context_content_map_.size())
+    if (context_content_pairs_.size() != rhs.context_content_pairs_.size())
         return false;
 
-    for (auto &&pair : context_content_map_) {
-        if (rhs.context_content_map_.count(pair.first) == 0) return false;
-        auto found = std::find_if(ins_.begin(), ins_.end(),
+    for (auto &&pair : context_content_pairs_) {
+        auto rhs_matched = std::find_if(rhs.context_content_pairs_.begin(),
+                rhs.context_content_pairs_.end(),
+                [&pair](const std::pair<size_t, impl::utils::any_t> &p) {
+                    return p.first == pair.first;
+                });
+        if (rhs_matched == rhs.context_content_pairs_.end()) return false;
+
+        auto lhs_matched = std::find_if(ins_.begin(), ins_.end(),
                 [&pair](const impl::logical_tensor_t &lt) {
                     return lt.id == pair.first;
                 });
         PARTITION_HASHING_SWITCH_TYPE(
-                logical_tensor_wrapper_t(*found).data_type(), dtype, {
+                logical_tensor_wrapper_t(*lhs_matched).data_type(), dtype, {
                     const auto &a
                             = impl::utils::any_cast<const std::vector<dtype> &>(
                                     pair.second);
-                    const auto b_iter
-                            = rhs.context_content_map_.find(pair.first);
                     const auto &b
                             = impl::utils::any_cast<const std::vector<dtype> &>(
-                                    *b_iter);
+                                    *rhs_matched);
                     if (a != b) return false;
                 });
     }

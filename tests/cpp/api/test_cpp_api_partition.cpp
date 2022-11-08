@@ -33,9 +33,9 @@ TEST(APIPartition, PartitionTest) {
 
     graph g(engine_kind);
 
-    std::vector<int64_t> input_dims {8, 256, 56, 56};
-    std::vector<int64_t> conv_weight_dims {64, 256, 1, 1};
-    std::vector<int64_t> conv_dst_dims {8, 64, 56, 56};
+    std::vector<int64_t> input_dims {8, 4, 56, 56};
+    std::vector<int64_t> conv_weight_dims {3, 4, 1, 1};
+    std::vector<int64_t> conv_dst_dims {8, 3, 56, 56};
     std::vector<int64_t> infer_dst_dims {-1, -1, -1, -1};
 
     logical_tensor lt1 {0, logical_tensor::data_type::f32, input_dims,
@@ -113,8 +113,23 @@ TEST(APIPartition, PartitionTest) {
             real_engine_kind == engine::kind::gpu
                     ? logical_tensor::layout_type::opaque
                     : logical_tensor::layout_type::strided);
+
     EXPECT_THROW(cp1.query_dynamic_outputs(in0), error);
     EXPECT_THROW(cp1.query_dynamic_outputs({}), error);
+
+    partition::compilation_context ctx;
+    std::vector<float> buffer1(product(input_dims), 1.5);
+    std::vector<float> buffer2(product(conv_weight_dims), 2.9);
+    ctx.set_tensor_data_handle(lt1_plain.get_id(), buffer1.data());
+    ctx.set_tensor_data_handle(lt2_plain.get_id(), buffer2.data());
+
+    auto cp2 = partitions[0].compile(in0, out0, eng, ctx);
+    // query logical tensor from compiled partition
+    auto lt6_opaque = cp2.query_logical_tensor(3);
+    ASSERT_EQ(lt6_opaque.get_layout_type(),
+            real_engine_kind == engine::kind::gpu
+                    ? logical_tensor::layout_type::opaque
+                    : logical_tensor::layout_type::strided);
 }
 
 TEST(APIPartition, GetInputOutputIDs) {

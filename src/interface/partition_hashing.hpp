@@ -21,6 +21,7 @@
 #include <memory>
 #include <thread>
 #include <typeindex>
+#include <utility>
 #include <vector>
 #include <type_traits>
 #include <unordered_map>
@@ -99,9 +100,8 @@ struct key_t {
     mutable std::vector<op_t *> ops_;
     mutable std::vector<logical_tensor_t> ins_;
     mutable std::vector<logical_tensor_t> outs_;
-    // FIXME(wuxun): also need fix
-    /// map from id <-> context content
-    mutable std::unordered_map<size_t, impl::utils::any_t> context_content_map_;
+    mutable std::vector<std::pair<size_t, impl::utils::any_t>>
+            context_content_pairs_;
     int nthread_;
     engine_kind_t engine_kind_;
 
@@ -194,7 +194,7 @@ struct hash<dnnl::graph::impl::partition_hashing::key_t> {
         seed = get_array_hash(seed, key.outs_.data(), key.outs_.size());
 
         // Combine hash for context content
-        for (const auto &pair : key.context_content_map_) {
+        for (const auto &pair : key.context_content_pairs_) {
             seed = hash_combine(seed, pair.first);
             auto found = std::find_if(key.ins_.begin(), key.ins_.end(),
                     [&pair](const logical_tensor_t &lt) {
