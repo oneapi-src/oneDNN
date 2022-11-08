@@ -43,6 +43,12 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
     // post-ops after depthwise post-op.
     auto &dw_po = attr_1x1.post_ops_.entry_[dw_po_index].depthwise_conv;
 
+    // erase 1x1 conv scales
+    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+        auto &scale = attr_dw.scales_.get(arg);
+        if (!scale.has_default_values()) attr_dw.scales_.reset(arg);
+    }
+
     const auto &dw_src_scales = attr_1x1.scales_.get(DNNL_ARG_DST);
     const auto &dw_wei_scales
             = attr_1x1.scales_.get(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);

@@ -70,7 +70,8 @@
                     && scales_d.ndims() == 1; \
             if (!ok) return status::invalid_arguments; \
             if (scales_d.dims()[0] == 1) { \
-                if (arg == DNNL_ARG_DST) { \
+                if (utils::one_of(arg, DNNL_ARG_DST, \
+                            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST)) { \
                     utils::array_set( \
                             CONCAT2(scales, _buf16), 1.f / scales[0], 16); \
                 } else { \
