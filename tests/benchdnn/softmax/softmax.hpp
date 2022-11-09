@@ -83,13 +83,8 @@ struct prb_t : public prb_dims_t {
         , attr(attr)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
-        , user_mb(mb)
-        , scales(NULL) {
+        , user_mb(mb) {
         if (mb) dims[0] = mb;
-        generate_oscales();
-    }
-    ~prb_t() {
-        if (scales) zfree(scales);
     }
 
     dir_t dir;
@@ -101,9 +96,6 @@ struct prb_t : public prb_dims_t {
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
     int64_t user_mb;
-
-    float *scales;
-    void generate_oscales();
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 

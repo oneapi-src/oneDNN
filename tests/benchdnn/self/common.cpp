@@ -51,30 +51,14 @@ static int check_attr2str() {
 
     SELF_CHECK_PRINT_EQ(attr, "");
 
-    attr.oscale.policy = policy_t::COMMON;
-    attr.oscale.scale = 2.4;
-    SELF_CHECK_PRINT_EQ(attr, "--attr-oscale=common:2.4 ");
-
-    attr.oscale.policy = policy_t::PER_OC;
-    attr.oscale.scale = 3.2;
-    attr.oscale.runtime = true;
-    SELF_CHECK_PRINT_EQ(attr, "--attr-oscale=per_oc:3.2* ");
-
-    attr.oscale.policy = policy_t::PER_DIM_01;
-    attr.oscale.scale = 3.2;
-    attr.oscale.runtime = false;
-    SELF_CHECK_PRINT_EQ(attr, "--attr-oscale=per_dim_01:3.2 ");
-
+    attr = attr_t();
     attr.zero_points.set(DNNL_ARG_SRC, policy_t::COMMON, 1, false);
-    SELF_CHECK_PRINT_EQ(attr,
-            "--attr-oscale=per_dim_01:3.2 --attr-zero-points=src:common:1 ");
+    SELF_CHECK_PRINT_EQ(attr, "--attr-zero-points=src:common:1 ");
 
     attr.zero_points.set(DNNL_ARG_SRC, policy_t::PER_DIM_0, 3, false);
     attr.zero_points.set(DNNL_ARG_WEIGHTS, {policy_t::PER_DIM_1, 2, true});
     SELF_CHECK_PRINT_EQ2(attr,
-            "--attr-oscale=per_dim_01:3.2 "
             "--attr-zero-points=src:per_dim_0:3+wei:per_dim_1:2* ",
-            "--attr-oscale=per_dim_01:3.2 "
             "--attr-zero-points=wei:per_dim_1:2*+src:per_dim_0:3 ");
 
     attr = attr_t();
@@ -101,25 +85,12 @@ static int check_attr() {
         SELF_CHECK_EQ((os).runtime, os_runtime); \
     } while (0)
 
-#define SELF_CHECK_ATTR_OSCALE(str, os_policy, os_scale, os_runtime) \
-    do { \
-        std::vector<attr_t::scale_t> os; \
-        SELF_CHECK_EQ(parse_attr_oscale(os, str), true); \
-        SELF_CHECK_EQ(os.size(), 1); \
-        SELF_CHECK_OSCALE(os[0], os_policy, os_scale, os_runtime); \
-    } while (0)
 #define SELF_CHECK_ATTR_ZP(zp, arg, zero_points_value, zero_points_runtime) \
     do { \
         const auto &entry = (zp).get(arg); \
         SELF_CHECK_EQ(entry.value, zero_points_value); \
         SELF_CHECK_EQ(entry.runtime, zero_points_runtime); \
     } while (0)
-
-    SELF_CHECK_ATTR_OSCALE("--attr-oscale=", COMMON, 1., false);
-    SELF_CHECK_ATTR_OSCALE("--attr-oscale=common:1.0", COMMON, 1., false);
-    SELF_CHECK_ATTR_OSCALE("--attr-oscale=common:2.0", COMMON, 2., false);
-    SELF_CHECK_ATTR_OSCALE("--attr-oscale=common:2.0*", COMMON, 2., true);
-    SELF_CHECK_ATTR_OSCALE("--attr-oscale=per_oc:.5*", PER_OC, .5, true);
 
     {
         std::vector<attr_t::zero_points_t> zp;
@@ -164,13 +135,14 @@ static int check_attr() {
         const auto &ce = e.convolution;
         SELF_CHECK_EQ(ce.stride, 1);
         SELF_CHECK_EQ(ce.dst_dt, dnnl_f32);
-        SELF_CHECK_OSCALE(ce.oscale, COMMON, 1.f, false);
+        SELF_CHECK_OSCALE(ce.wei_scale, COMMON, 1.f, false);
+        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 1.f, false);
     }
 
     {
         std::vector<attr_t::post_ops_t> po;
         auto st = parse_attr_post_ops(po,
-                "--attr-post-ops=relu:0.5+dw_k3s2p1:s8:per_oc:2+linear:2:1:3");
+                "--attr-post-ops=relu:0.5+dw_k3s2p1:s8:per_oc:2*+linear:2:1");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(po[0].len(), 3);
         auto &e = po[0].entry[0];
@@ -179,14 +151,14 @@ static int check_attr() {
         SELF_CHECK_EQ(ee.alg, dnnl_eltwise_relu);
         SELF_CHECK_EQ(ee.alpha, 0.5f);
         SELF_CHECK_EQ(ee.beta, 0.f);
-        SELF_CHECK_EQ(ee.scale, 1.f);
 
         e = po[0].entry[1];
         SELF_CHECK_EQ(e.kind, pk_t::DW_K3S2P1);
         const auto &ce = e.convolution;
         SELF_CHECK_EQ(ce.stride, 2);
         SELF_CHECK_EQ(ce.dst_dt, dnnl_s8);
-        SELF_CHECK_OSCALE(ce.oscale, PER_OC, 2.f, false);
+        SELF_CHECK_OSCALE(ce.wei_scale, PER_OC, 2.f, true);
+        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 1.f, false);
 
         e = po[0].entry[2];
         SELF_CHECK_EQ(e.kind, pk_t::LINEAR);
@@ -194,7 +166,21 @@ static int check_attr() {
         SELF_CHECK_EQ(ee.alg, dnnl_eltwise_linear);
         SELF_CHECK_EQ(ee.alpha, 2.f);
         SELF_CHECK_EQ(ee.beta, 1.f);
-        SELF_CHECK_EQ(ee.scale, 3.f);
+    }
+
+    {
+        std::vector<attr_t::post_ops_t> po;
+        auto st = parse_attr_post_ops(
+                po, "--attr-post-ops=dw_k3s1p1:s8:per_oc:2*:common:4*");
+        SELF_CHECK_EQ(st, true);
+        SELF_CHECK_EQ(po[0].len(), 1);
+        const auto &e = po[0].entry[0];
+        SELF_CHECK_EQ(e.kind, pk_t::DW_K3S1P1);
+        const auto &ce = e.convolution;
+        SELF_CHECK_EQ(ce.stride, 1);
+        SELF_CHECK_EQ(ce.dst_dt, dnnl_s8);
+        SELF_CHECK_OSCALE(ce.wei_scale, PER_OC, 2.f, true);
+        SELF_CHECK_OSCALE(ce.dst_scale, COMMON, 4.f, true);
     }
 
 #undef SELF_CHECK_OSCALE
@@ -219,17 +205,16 @@ void append_convolution(attr_t::post_ops_t &po, pk_t akind,
     attr_t::post_ops_t::entry_t e(akind);
     e.convolution.stride = e.kind == pk_t::DW_K3S1P1 ? 1 : 2;
     e.convolution.dst_dt = adst_dt;
-    e.convolution.oscale = attr_t::scale_t(apolicy, ascale);
+    e.convolution.wei_scale = attr_t::scale_t(apolicy, ascale);
     po.entry.push_back(e);
 }
 
 void append_eltwise(attr_t::post_ops_t &po, pk_t akind, float aalpha = 0.f,
-        float abeta = 0.f, float ascale = 1.f) {
+        float abeta = 0.f) {
     attr_t::post_ops_t::entry_t e(akind);
     e.eltwise.alg = attr_t::post_ops_t::kind2dnnl_kind(akind);
     e.eltwise.alpha = aalpha;
     e.eltwise.beta = abeta;
-    e.eltwise.scale = ascale;
     po.entry.push_back(e);
 }
 
@@ -250,18 +235,18 @@ static int check_post_ops2str() {
     SELF_CHECK_EQ(po.len(), 3);
     SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8");
 
-    append_eltwise(po, pk_t::LINEAR, 5.f, 10.f, 2.f);
+    append_eltwise(po, pk_t::LINEAR, 5.f, 10.f);
     SELF_CHECK_EQ(po.len(), 4);
-    SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10:2");
+    SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10");
 
     append_convolution(po, pk_t::DW_K3S1P1);
     SELF_CHECK_EQ(po.len(), 5);
-    SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10:2+dw_k3s1p1");
+    SELF_CHECK_PRINT_EQ(po, "sum+relu+sum:2:1:s8+linear:5:10+dw_k3s1p1");
 
     append_convolution(po, pk_t::DW_K3S2P1, dnnl_s32, policy_t::PER_OC, 2.f);
     SELF_CHECK_EQ(po.len(), 6);
     SELF_CHECK_PRINT_EQ(po,
-            "sum+relu+sum:2:1:s8+linear:5:10:2+dw_k3s1p1+dw_k3s2p1:s32:per_oc:"
+            "sum+relu+sum:2:1:s8+linear:5:10+dw_k3s1p1+dw_k3s2p1:s32:per_oc:"
             "2");
 
     return OK;
@@ -279,7 +264,6 @@ static int check_str2post_ops() {
             SELF_CHECK_EQ(ops.entry[2 * i + 0].sum.scale, 2. + i);
             if (2 * i + 1 >= len) return OK;
             SELF_CHECK_EQ(ops.entry[2 * i + 1].kind, attr_t::post_ops_t::RELU);
-            SELF_CHECK_EQ(ops.entry[2 * i + 1].eltwise.scale, 1.);
             SELF_CHECK_EQ(ops.entry[2 * i + 1].eltwise.alpha, 0.);
             SELF_CHECK_EQ(ops.entry[2 * i + 1].eltwise.beta, 0.);
         }

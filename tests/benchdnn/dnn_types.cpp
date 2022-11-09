@@ -23,6 +23,7 @@
 #include <string>
 
 #include <algorithm>
+#include <iostream>
 #include <sstream>
 
 #include "oneapi/dnnl/dnnl.h"
@@ -197,10 +198,12 @@ const char *attr_t::policy2str(policy_t policy) {
     return "unknown attr_t::policy_t policy";
 }
 
-int attr_t::get_default_mask(policy_t policy) {
+int attr_t::get_default_mask(policy_t policy, int arg) {
     switch (policy) {
         case PER_DIM_0: return (1 << 0);
         case PER_OC:
+            if (arg == DNNL_ARG_WEIGHTS) return get_default_mask(PER_DIM_0);
+
         case PER_DIM_1: return (1 << 1);
         case PER_DIM_01: return (1 << 0) + (1 << 1);
         case PER_DIM_2: return (1 << 2);
@@ -506,7 +509,14 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
 
             auto scale_str = parser::get_substr(subs, subs_pos, '+');
-            SAFE(e.convolution.oscale.from_str(scale_str), WARN);
+            SAFE(e.convolution.wei_scale.from_str(scale_str), WARN);
+            size_t dst_scale_pos = 0;
+            for (int i = 0; i < 2; ++i)
+                dst_scale_pos = scale_str.find(":", dst_scale_pos + 1);
+            if (dst_scale_pos != std::string::npos) {
+                auto dst_scale_str = scale_str.substr(dst_scale_pos + 1);
+                SAFE(e.convolution.dst_scale.from_str(dst_scale_str), WARN);
+            }
         } else if (e.is_eltwise_kind()) {
             e.eltwise.alpha
                     = std::stof(parser::get_substr(subs, subs_pos, ':'));
@@ -516,10 +526,6 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
             e.eltwise.beta = std::stof(parser::get_substr(subs, subs_pos, ':'));
             if (subs_pos == std::string::npos) continue;
             if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
-
-            e.eltwise.scale
-                    = std::stof(parser::get_substr(subs, subs_pos, ':'));
-            if (e.eltwise.scale <= 0) return FAIL;
         } else if (e.is_binary_kind()) {
             e.binary.src1_dt
                     = str2dt(parser::get_substr(subs, subs_pos, ':').c_str());
@@ -549,8 +555,7 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 }
 
 bool attr_t::is_def(bool skip_fpmath) const {
-    return oscale.is_def() && scales.is_def() && zero_points.is_def()
-            && post_ops.is_def()
+    return scales.is_def() && zero_points.is_def() && post_ops.is_def()
             && scratchpad_mode == dnnl_scratchpad_mode_library
             && IMPLICATION(
                     !skip_fpmath, fpmath_mode == dnnl_fpmath_mode_strict);
@@ -669,15 +674,15 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":k" << e.convolution.kernel << "s" << e.convolution.stride
                   << "p" << e.convolution.padding;
             }
-            const auto &co = e.convolution.oscale;
-            if (e.convolution.dst_dt != dnnl_f32 || !co.is_def())
+            const auto &c_ws = e.convolution.wei_scale;
+            const auto &c_ds = e.convolution.dst_scale;
+            if (e.convolution.dst_dt != dnnl_f32 || !c_ws.is_def()
+                    || !c_ds.is_def())
                 s << ":" << e.convolution.dst_dt;
-            if (!co.is_def()) s << ":" << co;
+            if (!c_ws.is_def() || !c_ds.is_def()) s << ":" << c_ws;
+            if (!c_ds.is_def()) s << ":" << c_ds;
         } else if (e.is_eltwise_kind()) {
-            if (e.eltwise.scale != 1.f)
-                s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta << ":"
-                  << e.eltwise.scale;
-            else if (e.eltwise.beta != 0.f)
+            if (e.eltwise.beta != 0.f)
                 s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta;
             else if (e.eltwise.alpha != 0.f)
                 s << ":" << e.eltwise.alpha;
@@ -713,7 +718,6 @@ std::ostream &operator<<(std::ostream &s, dnnl_fpmath_mode_t fm) {
 
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     if (!attr.is_def()) {
-        if (!attr.oscale.is_def()) s << "--attr-oscale=" << attr.oscale << " ";
         if (!attr.scales.is_def()) s << "--attr-scales=" << attr.scales << " ";
         if (!attr.zero_points.is_def())
             s << "--attr-zero-points=" << attr.zero_points << " ";
@@ -825,9 +829,9 @@ dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
 #undef CASE
 }
 
-void attr_args_t::prepare_output_scales(
-        const attr_t &attr, const void *vals, int64_t count, int mask) {
-    insert(DNNL_ARG_ATTR_OUTPUT_SCALES, vals, count, mask, attr.oscale.runtime);
+void attr_args_t::prepare_scales(const attr_t &attr, int arg, const void *vals,
+        int64_t count, int mask) {
+    insert(arg, vals, count, mask, attr.scales.get(arg).runtime);
 }
 
 struct post_ops_rhs_tensor_entry_t {
@@ -882,16 +886,10 @@ int attr_args_t::prepare_post_ops_mds(
     return OK;
 }
 
-void attr_args_t::prepare_dw_post_op(const attr_t &attr,
-        dnnl_data_type_t wei_dt, dnnl_data_type_t bia_dt, const void *vals,
-        int64_t count, int mask) {
+void attr_args_t::prepare_dw_post_op(
+        const attr_t &attr, dnnl_data_type_t wei_dt, dnnl_data_type_t bia_dt) {
     const int dw_idx = attr.post_ops.convolution_index();
     if (dw_idx == -1) return;
-
-    const auto &dw = attr.post_ops.entry[dw_idx].convolution;
-    // insert output scale which applies in fused convolution
-    insert(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_OUTPUT_SCALES, vals, count,
-            mask, dw.oscale.runtime);
 
     dw_entry.wei_dt = wei_dt;
     dw_entry.bia_dt = bia_dt;
@@ -902,26 +900,33 @@ dnnl_primitive_attr_t create_dnnl_attr(
     dnnl_primitive_attr_t dnnl_attr = nullptr;
     DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
 
-    if (!attr.oscale.is_def()) {
-        SAFE_V(attr.oscale.runtime ? OK : FAIL);
-        const auto &os_args = attr_args.get(DNNL_ARG_ATTR_OUTPUT_SCALES);
-        const auto &policy = attr.oscale.policy;
-        const auto mask = os_args.get_mask(policy);
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales_mask(dnnl_attr, mask));
-    } else if (!attr.scales.is_def()) {
+    if (!attr.scales.is_def()) {
         const auto &as = attr.scales;
         for (const auto &arg : as.scales) {
             const int arg_name = arg.first;
             if (as.is_def(arg_name)) continue;
 
-            const auto &e = arg.second;
-            // Only RT scales are supported.
-            SAFE_V(e.runtime ? OK : FAIL);
-            // Only common policy is supported in the library at this point
-            int mask = attr_t::get_default_mask(e.policy);
+            if (arg_name == DNNL_ARG_WEIGHTS
+                    && arg.second.policy == policy_t::PER_OC
+                    && !attr_args.get(arg_name).is_def()) {
+                const auto &e = attr_args.get(arg_name);
+                // Only RT scales are supported.
+                SAFE_V(e.runtime ? OK : FAIL);
+                // Only common policy is supported in the library at this point
+                int mask = e.mask;
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
-                    dnnl_attr, arg_name, mask));
+                DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
+                        dnnl_attr, arg_name, mask));
+            } else {
+                const auto &e = arg.second;
+                // Only RT scales are supported.
+                SAFE_V(e.runtime ? OK : FAIL);
+                // Only common policy is supported in the library at this point
+                int mask = attr_t::get_default_mask(e.policy, arg_name);
+
+                DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
+                        dnnl_attr, arg_name, mask));
+            }
         }
     }
 
@@ -957,21 +962,30 @@ dnnl_primitive_attr_t create_dnnl_attr(
                 const auto wei_dt = attr_args.get_dw_arg(DNNL_ARG_WEIGHTS);
                 const auto bia_dt = attr_args.get_dw_arg(DNNL_ARG_BIAS);
 
-                const auto &os_args = attr_args.get(
-                        DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_OUTPUT_SCALES);
-                const auto scales = os_args.get_float_ptr();
-                const auto &policy = e.convolution.oscale.policy;
-                // API expects count=0 if output_scale was not set
-                const auto count = scales ? os_args.get_count(policy) : 0;
-                const auto mask = os_args.get_mask(policy);
-
                 DNN_SAFE_V(dnnl_post_ops_append_dw(ops, wei_dt, bia_dt,
                         e.convolution.dst_dt, e.convolution.kernel,
-                        e.convolution.stride, e.convolution.padding, count,
-                        mask, scales));
+                        e.convolution.stride, e.convolution.padding));
+
+                const auto &wei_policy = e.convolution.wei_scale.policy;
+                int wei_mask = attr_t::get_default_mask(
+                        wei_policy, DNNL_ARG_WEIGHTS);
+                // dw conv always has group dim
+                if (wei_mask) wei_mask = 1 << wei_mask;
+                if (e.convolution.wei_scale.runtime)
+                    DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(dnnl_attr,
+                            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
+                            wei_mask));
+
+                const auto &dst_policy = e.convolution.dst_scale.policy;
+                int dst_mask
+                        = attr_t::get_default_mask(dst_policy, DNNL_ARG_DST);
+                if (e.convolution.dst_scale.runtime)
+                    DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(dnnl_attr,
+                            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST, dst_mask));
+
             } else if (e.is_eltwise_kind()) {
-                DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops, e.eltwise.scale,
-                        e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
+                DNN_SAFE_V(dnnl_post_ops_append_eltwise(
+                        ops, e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
             } else if (e.is_binary_kind()) {
                 const auto &src1_md = attr_args.get_md(
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
@@ -1280,11 +1294,17 @@ int check_tag(const std::string &tag_, bool check_enum_tags_only) {
     return check_abc_tag(tag, check_enum_tags_only);
 }
 
-void maybe_oscale(
-        const attr_t &attr, float &d, const float *scales, int64_t oc) {
-    if (!attr.oscale.is_def()) {
-        int64_t idx = attr.oscale.policy == policy_t::COMMON ? 0 : oc;
-        d *= scales[idx];
+void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,
+        int arg, bool opposite_scale) {
+    if (attr.scales.is_def()) return;
+
+    const auto &e = attr.scales.get(arg);
+    if (!e.is_def()) {
+        int64_t idx = e.policy == policy_t::COMMON ? 0 : c;
+        if (opposite_scale)
+            d /= scales[idx];
+        else
+            d *= scales[idx];
     }
 }
 
@@ -1300,43 +1320,41 @@ void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
     }
 }
 
-float compute_eltwise_fwd(
-        pk_t kind, float src, float scale, float alpha, float beta) {
+float compute_eltwise_fwd(pk_t kind, float src, float alpha, float beta) {
     // don't compute on nan, propagate it
     if (std::isnan(src)) return NAN;
 
     using namespace dnnl::impl::math;
 
     switch (kind) {
-        case pk_t::RELU: return scale * relu_fwd(src, alpha);
-        case pk_t::TANH: return scale * tanh_fwd(src);
-        case pk_t::ELU: return scale * elu_fwd(src, alpha);
-        case pk_t::SQUARE: return scale * square_fwd(src);
-        case pk_t::ABS: return scale * abs_fwd(src);
-        case pk_t::SQRT: return scale * sqrt_fwd(src);
-        case pk_t::LINEAR: return scale * linear_fwd(src, alpha, beta);
-        case pk_t::SRELU: return scale * soft_relu_fwd(src, alpha);
-        case pk_t::MISH: return scale * mish_fwd(src);
-        case pk_t::LOGISTIC: return scale * logistic_fwd(src);
-        case pk_t::EXP: return scale * exp_fwd(src);
-        case pk_t::GELU_TANH: return scale * gelu_tanh_fwd(src);
-        case pk_t::SWISH: return scale * swish_fwd(src, alpha);
-        case pk_t::LOG: return scale * log_fwd(src);
-        case pk_t::CLIP: return scale * clip_fwd(src, alpha, beta);
-        case pk_t::CLIP_V2: return scale * clip_v2_fwd(src, alpha, beta);
-        case pk_t::POW: return scale * pow_fwd(src, alpha, beta);
-        case pk_t::GELU_ERF: return scale * gelu_erf_fwd(src);
-        case pk_t::ROUND: return scale * round_fwd(src);
-        case pk_t::HARDSWISH: return scale * hardswish_fwd(src, alpha, beta);
-        case pk_t::HARDSIGMOID:
-            return scale * hardsigmoid_fwd(src, alpha, beta);
-        case pk_t::RELU_DST: return scale * relu_fwd(src, alpha);
-        case pk_t::TANH_DST: return scale * tanh_fwd(src);
-        case pk_t::ELU_DST: return scale * elu_fwd(src, alpha);
-        case pk_t::SQRT_DST: return scale * sqrt_fwd(src);
-        case pk_t::LOGISTIC_DST: return scale * logistic_fwd(src);
-        case pk_t::EXP_DST: return scale * exp_fwd(src);
-        case pk_t::CLIP_V2_DST: return scale * clip_v2_fwd(src, alpha, beta);
+        case pk_t::RELU: return relu_fwd(src, alpha);
+        case pk_t::TANH: return tanh_fwd(src);
+        case pk_t::ELU: return elu_fwd(src, alpha);
+        case pk_t::SQUARE: return square_fwd(src);
+        case pk_t::ABS: return abs_fwd(src);
+        case pk_t::SQRT: return sqrt_fwd(src);
+        case pk_t::LINEAR: return linear_fwd(src, alpha, beta);
+        case pk_t::SRELU: return soft_relu_fwd(src, alpha);
+        case pk_t::MISH: return mish_fwd(src);
+        case pk_t::LOGISTIC: return logistic_fwd(src);
+        case pk_t::EXP: return exp_fwd(src);
+        case pk_t::GELU_TANH: return gelu_tanh_fwd(src);
+        case pk_t::SWISH: return swish_fwd(src, alpha);
+        case pk_t::LOG: return log_fwd(src);
+        case pk_t::CLIP: return clip_fwd(src, alpha, beta);
+        case pk_t::CLIP_V2: return clip_v2_fwd(src, alpha, beta);
+        case pk_t::POW: return pow_fwd(src, alpha, beta);
+        case pk_t::GELU_ERF: return gelu_erf_fwd(src);
+        case pk_t::ROUND: return round_fwd(src);
+        case pk_t::HARDSWISH: return hardswish_fwd(src, alpha, beta);
+        case pk_t::HARDSIGMOID: return hardsigmoid_fwd(src, alpha, beta);
+        case pk_t::RELU_DST: return relu_fwd(src, alpha);
+        case pk_t::TANH_DST: return tanh_fwd(src);
+        case pk_t::ELU_DST: return elu_fwd(src, alpha);
+        case pk_t::SQRT_DST: return sqrt_fwd(src);
+        case pk_t::LOGISTIC_DST: return logistic_fwd(src);
+        case pk_t::EXP_DST: return exp_fwd(src);
+        case pk_t::CLIP_V2_DST: return clip_v2_fwd(src, alpha, beta);
 
         default: assert(!"unknown attr::post_ops::kind");
     };
@@ -1431,10 +1449,9 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
         } else if (e.is_convolution_kind()) {
             continue;
         } else if (e.is_eltwise_kind()) {
-            const auto &s = e.eltwise.scale;
             const auto &a = e.eltwise.alpha;
             const auto &b = e.eltwise.beta;
-            val = compute_eltwise_fwd(e.kind, val, s, a, b);
+            val = compute_eltwise_fwd(e.kind, val, a, b);
         } else if (e.is_binary_kind()) {
             val = compute_binary(e.kind, val, *it_po);
             it_po++;

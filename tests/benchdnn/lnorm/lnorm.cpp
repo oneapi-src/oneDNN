@@ -232,6 +232,44 @@ int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
     return OK;
 }
 
+int fill_scales(
+        const attr_t &attr, int arg, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    assert(mem_dt.nelems() == mem_fp.nelems());
+
+    const auto &scales = attr.scales.get(arg);
+
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand int_seed(idx_start + 1);
+        int_seed.discard(1);
+
+        std::uniform_int_distribution<> gen(-5, 5);
+
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            int pow2 = gen(int_seed);
+            const float gen_val = pow2 < 0 ? (1.f / (1 << pow2)) : (1 << pow2);
+            const float fixed_val = scales.scale;
+            const float val = nelems == 1 ? fixed_val : gen_val;
+            mem_fp.set_elem(idx, val);
+        }
+    });
+
+    SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
@@ -243,10 +281,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 prb->ndims - 1, prb->dims.data(), dnnl_f32, prb->stat_tag);
     }
 
-    attr_args_t attr_args;
-    attr_args.prepare_output_scales(prb->attr, prb->scales, 1);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args));
+            create_dnnl_attr(prb->attr, attr_args_t()));
 
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (prb->dir & FLAG_FWD) {
@@ -395,8 +431,10 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt, d_sc_dt, d_sh_dt;
 
-    dnn_mem_t scales;
-    maybe_prepare_runtime_scales(scales, prb->attr.oscale, prb->n, prb->scales);
+    const dnnl_dims_t scale_dims = {1};
+    auto scales_md = dnn_mem_t::init_md(1, scale_dims, dnnl_f32, tag::abx);
+    dnn_mem_t src_scales_dt(scales_md, test_engine);
+    dnn_mem_t dst_scales_dt(scales_md, test_engine);
 
     args_t args, ref_args;
 
@@ -421,6 +459,11 @@ int doit(const prb_t *prb, res_t *res) {
         if (use_sc) { SAFE(sc_dt.reorder(sc_fp), WARN); }
         if (use_sh) { SAFE(sh_dt.reorder(sh_fp), WARN); }
 
+        dnn_mem_t src_scales_fp(scales_md, ref_engine);
+        dnn_mem_t dst_scales_fp(scales_md, ref_engine);
+        fill_scales(prb->attr, DNNL_ARG_SRC, src_scales_dt, src_scales_fp);
+        fill_scales(prb->attr, DNNL_ARG_DST, dst_scales_dt, dst_scales_fp);
+
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_MEAN, mean_dt);
         args.set(DNNL_ARG_VARIANCE, var_dt);
@@ -428,7 +471,8 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_SHIFT, sh_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_dt);
+        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_dt);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
@@ -439,6 +483,8 @@ int doit(const prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SCALE, sc_fp);
             ref_args.set(DNNL_ARG_SHIFT, sh_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_fp);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_fp);
 
             std::vector<data_kind_t> kinds {DST};
             if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {

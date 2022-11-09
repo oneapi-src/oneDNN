@@ -145,9 +145,6 @@ struct settings_t : public base_settings_t {
     void reset() { *this = settings_t(perf_template); }
 };
 
-// moved out of prb_t to support fusion
-float *generate_oscales(const attr_t::scale_t &oscale, int N);
-
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
             const std::string &stag, const std::string &wtag,
@@ -163,27 +160,25 @@ struct prb_t : public desc_t {
         , attr(attr)
         , user_mb(mb)
         , ops(0)
-        , scales(NULL)
-        , scales_dw(NULL)
+        , src_scales(NULL)
+        , wei_scales(NULL)
+        , dst_scales(NULL)
         , src_zp(NULL)
         , dst_zp(NULL)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe) {
         if (mb) this->mb = mb;
         count_ops();
-        scales = generate_oscales(attr.oscale, oc);
+        src_scales = generate_scales(DNNL_ARG_SRC);
+        wei_scales = generate_scales(DNNL_ARG_WEIGHTS);
+        dst_scales = generate_scales(DNNL_ARG_DST);
         src_zp = generate_zero_points(DNNL_ARG_SRC);
         dst_zp = generate_zero_points(DNNL_ARG_DST);
-
-        const int dw_idx = this->attr.post_ops.convolution_index();
-        if (dw_idx != -1) {
-            const auto &e = this->attr.post_ops.entry[dw_idx];
-            scales_dw = generate_oscales(e.convolution.oscale, oc);
-        }
     }
     ~prb_t() {
-        if (scales) zfree(scales);
-        if (scales_dw) zfree(scales_dw);
+        if (src_scales) zfree(src_scales);
+        if (wei_scales) zfree(wei_scales);
+        if (dst_scales) zfree(dst_scales);
         if (src_zp) zfree(src_zp);
         if (dst_zp) zfree(dst_zp);
     }
@@ -196,7 +191,7 @@ struct prb_t : public desc_t {
     int64_t user_mb;
 
     double ops;
-    float *scales, *scales_dw;
+    float *src_scales, *wei_scales, *dst_scales;
     int32_t *src_zp, *dst_zp;
     thr_ctx_t ctx_init, ctx_exe;
 
@@ -218,7 +213,8 @@ struct prb_t : public desc_t {
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 
 private:
-    int32_t *generate_zero_points(int arg);
+    float *generate_scales(int arg) const;
+    int32_t *generate_zero_points(int arg) const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 

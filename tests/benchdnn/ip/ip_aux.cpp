@@ -27,35 +27,42 @@
 
 namespace ip {
 
-void prb_t::generate_oscales() {
-    if (attr.oscale.is_def()) return;
+float *prb_t::generate_scales(int arg) const {
+    const auto &scales = attr.scales;
+    if (scales.is_def()) return nullptr;
 
-    if (attr.oscale.policy == policy_t::COMMON) {
-        scales = (float *)zmalloc(sizeof(float), 4);
-        SAFE_V(scales != nullptr ? OK : FAIL);
-        scales[0] = attr.oscale.scale;
-        return;
+    const auto &e = scales.get(arg);
+    if (e.policy == policy_t::COMMON) {
+        float *s = (float *)zmalloc(sizeof(float), 4);
+        SAFE_V(s != nullptr ? OK : FAIL);
+        s[0] = e.scale;
+        return s;
     }
 
-    assert(attr.oscale.policy == policy_t::PER_OC);
+    assert(e.policy == policy_t::PER_OC);
+    const auto mask = attr_t::get_default_mask(e.policy, arg);
+    int64_t s_nelems = desc_nelems(arg, mask);
 
-    scales = (float *)zmalloc(sizeof(float) * oc, 64);
-    SAFE_V(scales != nullptr ? OK : FAIL);
+    float *s = (float *)zmalloc(sizeof(float) * s_nelems, 64);
+    SAFE_V(s != nullptr ? OK : FAIL);
 
     const float K = 32;
-    /* scale in [1/K .. K], with starting point at oscale.scale */
-    float s[2] = {attr.oscale.scale, attr.oscale.scale / 2};
+    /* scale in [1/K .. K], with starting point at e.scale */
+    float s_val[2] = {e.scale, e.scale / 2};
     for (int64_t i = 0; i < oc; ++i) {
         int64_t si = i % 2; // 0 -> left, 1 -> right
-        scales[i] = s[si];
+        s[i] = s_val[si];
         if (si == 0) {
-            s[si] /= 2.;
-            if (s[si] < 1. / K) s[si] *= K * K; // turn around to become ~K
+            s_val[si] /= 2.;
+            // turn around to become ~K
+            if (s_val[si] < 1. / K) s_val[si] *= K * K;
         } else {
-            s[si] *= 2.;
-            if (s[si] > K) s[si] /= K * K; // turn around to become ~K
+            s_val[si] *= 2.;
+            // turn around to become ~K
+            if (s_val[si] > K) s_val[si] /= K * K;
         }
     }
+    return s;
 }
 
 int str2desc(desc_t *desc, const char *str) {
@@ -178,6 +185,22 @@ dims_t desc_t::bia_dims() const {
 dims_t desc_t::dst_dims() const {
     dims_t dst_dims {mb, oc};
     return dst_dims;
+}
+
+int64_t desc_t::desc_nelems(int arg, int mask) const {
+    dims_t dims;
+    switch (arg) {
+        case DNNL_ARG_SRC: dims = src_dims(); break;
+        case DNNL_ARG_WEIGHTS: dims = wei_dims(); break;
+        case DNNL_ARG_DST: dims = dst_dims(); break;
+        default: assert(!"unsupported arg");
+    }
+
+    int64_t nelems = 1;
+    for (int d = 0; d < ndims; d++) {
+        nelems *= (mask & (1 << d)) ? dims[d] : 1;
+    }
+    return nelems;
 }
 
 } // namespace ip

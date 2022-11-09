@@ -82,6 +82,9 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
         });
     }
 
+    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
+    auto attr_scale_arg = wei_scale.runtime ? DNNL_ARG_WEIGHTS : DNNL_ARG_SRC;
+
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
     static constexpr int bias_broadcast_mask = 2;
     benchdnn_parallel_nd(M, N, [&](int64_t m, int64_t n) {
@@ -94,7 +97,7 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
             float *bia_ptr = (float *)bia_m;
             tmp += bia_ptr[bia_off];
         }
-        maybe_oscale(prb->attr, tmp, prb->scales, n);
+        maybe_scale(prb->attr, tmp, prb->scales, n, attr_scale_arg);
 
         const auto v_po_vals
                 = prepare_po_vals(dst_m, args, v_po_masks, dst_off);

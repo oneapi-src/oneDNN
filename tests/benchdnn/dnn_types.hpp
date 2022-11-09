@@ -119,7 +119,7 @@ struct attr_t {
 
     static policy_t str2policy(const std::string &str);
     static const char *policy2str(policy_t policy);
-    static int get_default_mask(policy_t policy);
+    static int get_default_mask(policy_t policy, int arg = DNNL_ARG_DST);
 
     struct scale_t {
         scale_t(policy_t apolicy = COMMON, float ascale = 1.,
@@ -224,8 +224,8 @@ struct attr_t {
             EXP_DST,
             GELU_ERF,
             GELU_TANH,
-            HARDSWISH,
             HARDSIGMOID,
+            HARDSWISH,
             LINEAR,
             LOG,
             LOGISTIC,
@@ -273,7 +273,9 @@ struct attr_t {
                 } else if (is_eltwise_kind()) {
                     eltwise.alg = kind2dnnl_kind(kind);
                 } else if (is_convolution_kind()) {
-                    convolution.oscale = scale_t();
+                    convolution.src_scale = scale_t();
+                    convolution.wei_scale = scale_t();
+                    convolution.dst_scale = scale_t();
                     if (kind != DW) {
                         convolution.kernel = 3;
                         convolution.stride = kind == DW_K3S1P1 ? 1 : 2;
@@ -294,14 +296,15 @@ struct attr_t {
                 dnnl_alg_kind_t alg = dnnl_alg_kind_undef;
                 float alpha = 0.f;
                 float beta = 0.f;
-                float scale = 1.f;
             } eltwise;
             struct {
                 int kernel = 0;
                 int stride = 0;
                 int padding = 0;
                 dnnl_data_type_t dst_dt = dnnl_f32;
-                scale_t oscale;
+                scale_t src_scale;
+                scale_t wei_scale;
+                scale_t dst_scale;
             } convolution;
             struct {
                 dnnl_alg_kind_t alg = dnnl_alg_kind_undef;
@@ -348,14 +351,12 @@ struct attr_t {
         if (sizeof...(rest) > 0) this->insert(rest...);
     }
 
-    void insert(const scale_t &s) { this->oscale = s; }
     void insert(const arg_scales_t &as) { this->scales = as; }
     void insert(const zero_points_t &zp) { this->zero_points = zp; }
     void insert(const post_ops_t &po) { this->post_ops = po; }
     void insert(dnnl_scratchpad_mode_t sm) { this->scratchpad_mode = sm; }
     void insert(dnnl_fpmath_mode_t fpm) { this->fpmath_mode = fpm; }
 
-    scale_t oscale;
     arg_scales_t scales;
     zero_points_t zero_points;
     post_ops_t post_ops;
@@ -425,6 +426,10 @@ struct attr_args_t {
                 bool runtime = false)
             : vals(vals), count(count), mask(mask), runtime(runtime) {}
 
+        bool is_def() const {
+            return vals == NULL && count == 1 && mask == -1 && runtime == false;
+        }
+
         int64_t get_count(policy_t policy) const {
             return (policy == policy_t::COMMON || runtime) ? 1 : count;
         }
@@ -454,12 +459,14 @@ struct attr_args_t {
     void prepare_output_scales(
             const attr_t &attr, const void *vals, int64_t count, int mask = -1);
 
+    void prepare_scales(const attr_t &attr, int arg, const void *vals,
+            int64_t count, int mask = -1);
+
     int prepare_post_ops_mds(
             const attr_t &attr, int ndims, const dnnl_dims_t dims);
 
     void prepare_dw_post_op(const attr_t &attr, dnnl_data_type_t wei_dt,
-            dnnl_data_type_t bia_dt, const void *vals, int64_t count,
-            int mask = -1);
+            dnnl_data_type_t bia_dt);
 
     entry_t get(int arg) const {
         const auto it = entries.find(arg);
@@ -519,12 +526,12 @@ dnnl_engine_kind_t str2engine_kind(const char *str);
 dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str);
 dnnl_fpmath_mode_t str2fpmath_mode(const char *str);
 
-void maybe_oscale(
-        const attr_t &attr, float &d, const float *scales, int64_t oc);
+void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,
+        int arg, bool opposite_scale = false);
 void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
         int64_t c, int arg, bool opposite_zero_point = false);
-float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
-        float scale, float alpha, float beta);
+float compute_eltwise_fwd(
+        attr_t::post_ops_t::kind_t kind, float src, float alpha, float beta);
 float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         float src, float alpha, float beta);
 float compute_binary(attr_t::post_ops_t::kind_t kind, float src0, float src1);

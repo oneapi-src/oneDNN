@@ -328,39 +328,6 @@ const _dt_conf_t conf_s8s8u8 = {
         {dnnl_s32},
 };
 
-const _dt_conf_t conf_u8s8f32_wino = {
-        {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 35, 0, 9, .25, 0.},
-        {dnnl_f32, -FLT_MAX, FLT_MAX, -16, 128, 0, 1, .25, 2e-5}, // oscale
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_u8s8s32_wino = {
-
-        {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 35, 0, 9, .25, 0.},
-        {dnnl_s32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_u8s8s8_wino = {
-        {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 35, 0, 9, .25, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -127, 127, 0, 1, .25, 0.},
-        {dnnl_s32},
-};
-
-const _dt_conf_t conf_u8s8u8_wino = {
-        {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
-        {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 35, 0, 9, .25, 0.},
-        {dnnl_u8, 0, UINT8_MAX, 0, 255, 0, 1, .25, 0.},
-        {dnnl_s32},
-};
-
 const dt_conf_t *str2cfg(const char *str) {
 #define CASE(cfg) \
     if (!strcasecmp(STRINGIFY(cfg), str)) return CONCAT2(conf_, cfg)
@@ -380,10 +347,6 @@ const dt_conf_t *str2cfg(const char *str) {
     CASE(s8s8s32);
     CASE(s8s8s8);
     CASE(s8s8u8);
-    CASE(u8s8f32_wino);
-    CASE(u8s8s32_wino);
-    CASE(u8s8s8_wino);
-    CASE(u8s8u8_wino);
     CASE(bf16bf16f32);
     CASE(bf16bf16f16);
     CASE(bf16bf16s8);
@@ -425,10 +388,6 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     CASE(s8s8s32);
     CASE(s8s8s8);
     CASE(s8s8u8);
-    CASE(u8s8f32_wino);
-    CASE(u8s8s32_wino);
-    CASE(u8s8s8_wino);
-    CASE(u8s8u8_wino);
     CASE(f16f16f32);
     CASE(f32f16f16);
     CASE(f16f32f16);
@@ -459,10 +418,6 @@ const dt_conf_t *auto_cfg(const alg_t alg, const dt_conf_t *cfg) {
     if (!strcmp(cfg_s, STRINGIFY(_cfg_))) return CONCAT2(conf_, _cfg_)
     CASE(f32_wino);
     CASE(f16_wino);
-    CASE(u8s8f32_wino);
-    CASE(u8s8s32_wino);
-    CASE(u8s8s8_wino);
-    CASE(u8s8u8_wino);
 #undef CASE
     return cfg;
 }

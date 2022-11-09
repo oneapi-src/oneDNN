@@ -37,6 +37,7 @@ struct desc_t {
     dims_t wei_dims() const;
     dims_t bia_dims() const;
     dims_t dst_dims() const;
+    int64_t desc_nelems(int arg, int mask) const;
 };
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
@@ -92,13 +93,19 @@ struct prb_t : public desc_t {
         , ctx_exe(ctx_exe)
         , user_mb(mb)
         , ops(0)
-        , scales(NULL) {
+        , src_scales(NULL)
+        , wei_scales(NULL)
+        , dst_scales(NULL) {
         if (mb) this->mb = mb;
         count_ops();
-        generate_oscales();
+        src_scales = generate_scales(DNNL_ARG_SRC);
+        wei_scales = generate_scales(DNNL_ARG_WEIGHTS);
+        dst_scales = generate_scales(DNNL_ARG_DST);
     }
     ~prb_t() {
-        if (scales) zfree(scales);
+        if (src_scales) zfree(src_scales);
+        if (wei_scales) zfree(wei_scales);
+        if (dst_scales) zfree(dst_scales);
     }
 
     dir_t dir;
@@ -109,7 +116,7 @@ struct prb_t : public desc_t {
     int64_t user_mb;
 
     double ops;
-    float *scales;
+    float *src_scales, *wei_scales, *dst_scales;
 
     void count_ops() {
         if (ops > 0) return;
@@ -122,7 +129,7 @@ struct prb_t : public desc_t {
                 : cfg[dk];
     }
 
-    void generate_oscales();
+    float *generate_scales(int arg) const;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };

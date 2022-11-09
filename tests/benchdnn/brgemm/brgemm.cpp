@@ -71,9 +71,11 @@ dnnl_status_t brgemm_attr_init(
         auto key_str = parser::get_substr(key_value_str, value_pos, ':');
         auto value_str = parser::get_substr(key_value_str, value_pos, '\0');
 
-#define PROCESS_KEY_VAL(setting) \
-    if (key_str.find(STRINGIFY(setting)) != std::string::npos) \
+#define PROCESS_SETTING_KEY_VAL(setting, key) \
+    if (key_str.compare(STRINGIFY(key)) == 0) \
         brgattr->setting = std::stoi(value_str);
+
+#define PROCESS_KEY_VAL(setting) PROCESS_SETTING_KEY_VAL(setting, setting)
 
         // TODO: `max_top_vpad` and `max_bottom_vpad` do not affect anything in
         // the kernel call and reference computation so far since
@@ -91,7 +93,20 @@ dnnl_status_t brgemm_attr_init(
         // PROCESS_KEY_VAL(bd_mask_level);
         PROCESS_KEY_VAL(use_uker);
         PROCESS_KEY_VAL(use_interleave_stores);
+        PROCESS_KEY_VAL(postops_only);
+        PROCESS_KEY_VAL(hint_bd_block);
+        PROCESS_KEY_VAL(hint_bd_block2);
+        PROCESS_KEY_VAL(hint_ld_block);
+        PROCESS_KEY_VAL(hint_ld_block2);
 
+        PROCESS_SETTING_KEY_VAL(hint_prfA.dist1, hint_prfA_dist1);
+        PROCESS_SETTING_KEY_VAL(hint_prfA.dist2, hint_prfA_dist2);
+        PROCESS_SETTING_KEY_VAL(hint_prfB.dist1, hint_prfB_dist1);
+        PROCESS_SETTING_KEY_VAL(hint_prfB.dist2, hint_prfB_dist2);
+        PROCESS_SETTING_KEY_VAL(hint_prfC.dist1, hint_prfC_dist1);
+        PROCESS_SETTING_KEY_VAL(hint_prfC.dist2, hint_prfC_dist2);
+
+#undef PROCESS_SETTING_KEY_VAL
 #undef PROCESS_KEY_VAL
 
         if (key_str.find(STRINGIFY(hint_innermost_loop)) != std::string::npos)
@@ -105,6 +120,12 @@ dnnl_status_t brgemm_attr_init(
             brgattr->hint_prefetching
                     = static_cast<brgemm_kernel_prefetching_t>(
                             std::stoi(value_str));
+        if (key_str.find(STRINGIFY(hint_load_nt_A)) != std::string::npos)
+            brgattr->hint_load_nt_A = static_cast<brgemm_kernel_hint_nt_t>(
+                    std::stoi(value_str));
+        if (key_str.find(STRINGIFY(hint_load_nt_B)) != std::string::npos)
+            brgattr->hint_load_nt_B = static_cast<brgemm_kernel_hint_nt_t>(
+                    std::stoi(value_str));
     }
 
     // `max_bs` is handled directly through the driver interface.
@@ -126,8 +147,14 @@ std::string prepare_wei_format_string(
         case 48: wtag += "48b"; break;
         case 32: wtag += "32b"; break;
         default:
-            assert(n <= 16);
-            wtag += "16b";
+            if (n <= 16)
+                wtag += "16b";
+            else {
+                if (n % 16 != 0) {
+                    wtag += std::to_string(n) + "b";
+                } else
+                    wtag += std::to_string(16 * div_up(n, 16)) + "b";
+            }
             break;
     }
     if (is_vnni_layout) {
@@ -311,7 +338,6 @@ int doit(const prb_t *prb, res_t *res) {
         return res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED, OK;
 
     attr_args_t attr_args;
-    attr_args.prepare_output_scales(prb->attr, prb->scales, prb->n);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -340,10 +366,12 @@ int doit(const prb_t *prb, res_t *res) {
     }
     auto brgemm_kernel = make_benchdnn_dnnl_wrapper(brgemm_kernel_);
 
-    char palette[AMX_PALETTE_SIZE] = {};
-    const auto init_tile_status = brgemm_init_tiles(brgemm_desc, palette);
-    if (init_tile_status == dnnl_success)
+    const auto is_tmm = brgemm_desc.is_tmm;
+    if (is_tmm) {
+        char palette[AMX_PALETTE_SIZE] = {};
+        DNN_SAFE(brgemm_init_tiles(brgemm_desc, palette), WARN);
         DNN_SAFE(amx_tile_configure(palette), WARN);
+    }
 
     auto src_md = dnn_mem_t::init_md(
             prb->ndims, src_dims, prb->src_dt(), prb->stag, src_strides);
@@ -481,12 +509,18 @@ int doit(const prb_t *prb, res_t *res) {
                 = wei_ptr + i * wei_batch_offset * wei_dt.sizeof_dt();
     }
 
+    // Brgemm takes single pointer oscale, but relies on a combination of arg
+    // scales attributes. This helps to reuse attributes from primitives, but
+    // requires them to pre-compute oscale = src_scale * wei_scale[:]
+    dnn_mem_t scales;
+    auto src_scale = prb->attr.scales.get(DNNL_ARG_SRC);
+    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
+    auto attr_scale = wei_scale.runtime ? wei_scale : src_scale;
+    maybe_prepare_runtime_scales(scales, attr_scale, prb->n, prb->scales);
     // Handle output scale common policy separately since the implementation
     // always expects them to be of vector length in case of `common` policy.
-    dnn_mem_t scales;
-    maybe_prepare_runtime_scales(scales, prb->attr.oscale, prb->n, prb->scales);
-    std::vector<float> v16_scales(16, prb->attr.oscale.scale);
-    const float *scales_ptr = prb->attr.oscale.policy == policy_t::COMMON
+    std::vector<float> v16_scales(16, prb->scales[0]);
+    const float *scales_ptr = attr_scale.policy == policy_t::COMMON
             ? v16_scales.data()
             : (const float *)scales;
 
@@ -565,7 +599,7 @@ int doit(const prb_t *prb, res_t *res) {
             std::placeholders::_2);
     measure_perf(prb->ctx_exe, res, perf_func, args);
 
-    if (init_tile_status == dnnl_success) DNN_SAFE(amx_tile_release(), WARN);
+    if (is_tmm) DNN_SAFE(amx_tile_release(), WARN);
 
     return OK;
 }

@@ -45,7 +45,7 @@ void check_correctness(const settings_t &s, const settings_t &def) {
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_strides : s.strides)
     for_(const auto &i_rt_dims_masks : s.rt_dims_masks)
-    for_(const auto &i_oscale : s.oscale)
+    for_(const auto &i_scales : s.scales)
     for_(const auto &i_zero_points : s.zero_points)
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
@@ -53,7 +53,7 @@ void check_correctness(const settings_t &s, const settings_t &def) {
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for_(const auto &i_fpmath_mode : s.fpmath_mode)
     for (const auto &i_bia_cfg : bia_cfg) {
-        auto attr = settings_t::get_attr(i_oscale, i_zero_points, i_post_ops,
+        auto attr = settings_t::get_attr(i_scales, i_zero_points, i_post_ops,
                 i_scratchpad_mode, i_fpmath_mode);
 
         const bool strided_input = !i_strides[STRIDES_SRC].empty()
@@ -157,7 +157,7 @@ int bench(int argc, char **argv) {
                 || parse_multivector_option(s.rt_dims_masks, def.rt_dims_masks,
                         atoi, argv[0], "runtime_dims_masks",
                         help_runtime_dims_masks)
-                || parse_attr_oscale(s.oscale, argv[0])
+                || parse_attr_scales(s.scales, argv[0])
                 || parse_attr_zero_points(s.zero_points, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_attr_scratchpad_mode(

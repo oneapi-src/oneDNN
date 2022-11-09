@@ -27,11 +27,16 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &sc = args.find(DNNL_ARG_SCALE);
     const dnn_mem_t &sh = args.find(DNNL_ARG_SHIFT);
     const dnn_mem_t &dst = args.find(DNNL_ARG_DST);
+    const dnn_mem_t &src_scale = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    const dnn_mem_t &dst_scale = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
     float *dst_ptr = (float *)dst;
 
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
+
+    assert(src_scale.nelems() == 1 && dst_scale.nelems() == 1);
+    const float output_scale = src_scale.get_elem(0) / dst_scale.get_elem(0);
 
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         float smean = mean.get_elem(n);
@@ -43,8 +48,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
             float beta = use_sh ? sh.get_elem(c) : 0;
             auto off = n * prb->c + c;
             float res = gamma * (src.get_elem(off) - smean) + beta;
-            maybe_oscale(prb->attr, res, prb->scales, 0);
-            dst_ptr[off] = res;
+            dst_ptr[off] = res * output_scale;
         }
     });
 }

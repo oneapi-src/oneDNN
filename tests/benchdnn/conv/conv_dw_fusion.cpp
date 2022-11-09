@@ -48,11 +48,15 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     if (prb->alg == alg_t::AUTO) alg = dnnl_convolution_auto;
 
     attr_args_t attr_args;
-    attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
 
+    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
+    if (wei_scale.policy == policy_t::PER_OC) {
+        auto wei_mask = 1 << prb->has_groups;
+        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, prb->wei_scales,
+                prb->oc, wei_mask);
+    }
     const auto dw_bia_dt = prb->dir == FWD_B ? dnnl_f32 : dnnl_data_type_undef;
-    attr_args.prepare_dw_post_op(
-            prb->attr, prb->cfg[WEI].dt, dw_bia_dt, prb->scales_dw, prb->oc);
+    attr_args.prepare_dw_post_op(prb->attr, prb->cfg[WEI].dt, dw_bia_dt);
     attr_args.prepare_post_ops_mds(
             prb->attr, prb->ndims, prb->dst_dims().data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
@@ -106,9 +110,11 @@ std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *prb) {
     int fusion_index = po.convolution_index();
 
     attr_t attr;
-    attr.oscale.scale = prb->attr.oscale.scale;
-    attr.oscale.policy = prb->attr.oscale.policy;
-    attr.oscale.runtime = prb->attr.oscale.runtime;
+    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+        auto sc = prb->attr.scales.get(arg);
+        if (!sc.is_def()) attr.scales.set(arg, sc);
+    }
+
     for (int i = 0; i < fusion_index; ++i) {
         attr.post_ops.entry.push_back(prb->attr.post_ops.entry[i]);
     }
@@ -125,9 +131,15 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
     const auto &fused_conv_po = po.entry[fusion_index].convolution;
 
     attr_t fusion_attr;
-    fusion_attr.oscale.scale = fused_conv_po.oscale.scale;
-    fusion_attr.oscale.policy = fused_conv_po.oscale.policy;
-    fusion_attr.oscale.runtime = fused_conv_po.oscale.runtime;
+    // dw_conv src_scale = 1x1_conv dst_scale
+    if (!prb->attr.scales.get(DNNL_ARG_DST).is_def())
+        fusion_attr.scales.set(
+                DNNL_ARG_SRC, prb->attr.scales.get(DNNL_ARG_DST));
+    if (!fused_conv_po.wei_scale.is_def())
+        fusion_attr.scales.set(DNNL_ARG_WEIGHTS, fused_conv_po.wei_scale);
+    if (!fused_conv_po.dst_scale.is_def())
+        fusion_attr.scales.set(DNNL_ARG_DST, fused_conv_po.dst_scale);
+
     for (int i = fusion_index + 1; i < po.len(); ++i) {
         fusion_attr.post_ops.entry.push_back(prb->attr.post_ops.entry[i]);
     }
@@ -305,9 +317,25 @@ int doit(const prb_t *prb, res_t *res) {
                  const_pd0, binary_po_args0, binary_po_dt0, binary_po_fp0),
             WARN);
 
-    dnn_mem_t scales;
-    maybe_prepare_runtime_scales(
-            scales, prb->attr.oscale, prb->oc, prb->scales);
+    dnn_mem_t src_scales_dt0, src_scales_fp0;
+    dnn_mem_t wei_scales_dt0, wei_scales_fp0;
+    dnn_mem_t dst_scales_dt0, dst_scales_fp0;
+
+    const int src_mask = attr_t::get_default_mask(
+            prb->attr.scales.get(DNNL_ARG_SRC).policy);
+    const int wei_mask = attr_t::get_default_mask(
+            prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy, DNNL_ARG_WEIGHTS);
+    const int dst_mask = attr_t::get_default_mask(
+            prb->attr.scales.get(DNNL_ARG_DST).policy);
+    maybe_prepare_runtime_scales_v2(src_scales_dt0, src_scales_fp0,
+            prb->attr.scales.get(DNNL_ARG_SRC),
+            prb->desc_nelems(DNNL_ARG_SRC, src_mask), prb->src_scales);
+    maybe_prepare_runtime_scales_v2(wei_scales_dt0, wei_scales_fp0,
+            prb->attr.scales.get(DNNL_ARG_WEIGHTS),
+            prb->desc_nelems(DNNL_ARG_WEIGHTS, wei_mask), prb->wei_scales);
+    maybe_prepare_runtime_scales_v2(dst_scales_dt0, dst_scales_fp0,
+            prb->attr.scales.get(DNNL_ARG_DST),
+            prb->desc_nelems(DNNL_ARG_DST, dst_mask), prb->dst_scales);
 
     SAFE(conv::fill_src(p0.get(), src_dt0, src_fp0, res), WARN);
     SAFE(conv::fill_wei(p0.get(), wei_dt0, wei_fp0, res), WARN);
@@ -361,9 +389,20 @@ int doit(const prb_t *prb, res_t *res) {
                  const_pd1, binary_po_args1, binary_po_dt1, binary_po_fp1),
             WARN);
 
-    dnn_mem_t scales_dw;
-    maybe_prepare_runtime_scales(
-            scales_dw, p1->attr.oscale, p1->oc, p1->scales);
+    dnn_mem_t wei_scales_dt1, wei_scales_fp1;
+    dnn_mem_t dst_scales_dt1, dst_scales_fp1;
+
+    int dw_wei_mask = attr_t::get_default_mask(
+            p1->attr.scales.get(DNNL_ARG_WEIGHTS).policy, DNNL_ARG_WEIGHTS);
+    if (p1->has_groups) dw_wei_mask = (1 << dw_wei_mask) + 1;
+    const int dw_dst_mask = attr_t::get_default_mask(
+            p1->attr.scales.get(DNNL_ARG_DST).policy);
+    maybe_prepare_runtime_scales_v2(wei_scales_dt1, wei_scales_fp1,
+            p1->attr.scales.get(DNNL_ARG_WEIGHTS),
+            p1->desc_nelems(DNNL_ARG_WEIGHTS, dw_wei_mask), p1->wei_scales);
+    maybe_prepare_runtime_scales_v2(dst_scales_dt1, dst_scales_fp1,
+            p1->attr.scales.get(DNNL_ARG_DST),
+            p1->desc_nelems(DNNL_ARG_DST, dw_dst_mask), p1->dst_scales);
 
     SAFE(conv::fill_wei(p1.get(), wei_dt1, wei_fp1, res), WARN);
     SAFE(conv::fill_bia(p1.get(), bia_dt1, bia_fp1, res), WARN);
@@ -393,7 +432,9 @@ int doit(const prb_t *prb, res_t *res) {
         args0.set(DNNL_ARG_WEIGHTS, wei_dt0);
         args0.set(DNNL_ARG_BIAS, bia_dt0);
         args0.set(DNNL_ARG_DST, dst_dt0);
-        args0.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+        args0.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_dt0);
+        args0.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_scales_dt0);
+        args0.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_dt0);
         args0.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt0);
         args0.set(binary_po_args0, binary_po_dt0);
 
@@ -404,7 +445,9 @@ int doit(const prb_t *prb, res_t *res) {
         args1.set(DNNL_ARG_WEIGHTS, wei_dt1);
         args1.set(DNNL_ARG_BIAS, bia_dt1);
         args1.set(DNNL_ARG_DST, dst_dt1);
-        args1.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales_dw);
+        args1.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, dst_scales_dt0);
+        args1.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_scales_dt1);
+        args1.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_dt1);
         args1.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt1);
         args1.set(binary_po_args1, binary_po_dt1);
 
@@ -441,11 +484,16 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
         args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
-        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_dt0);
+        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_scales_dt0);
+        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_dt0);
         args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, fused_wei_dt);
         args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS, fused_bia_dt);
-        args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_OUTPUT_SCALES,
-                scales_dw);
+        args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_SCALES
+                        | DNNL_ARG_WEIGHTS,
+                wei_scales_dt1);
+        args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
+                dst_scales_dt1);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
         args.set(binary_po_args, binary_po_dt);
 

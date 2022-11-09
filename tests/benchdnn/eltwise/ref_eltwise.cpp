@@ -31,7 +31,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
 
     benchdnn_parallel_nd(nelems, [&](int64_t i) {
         float res = compute_eltwise_fwd(
-                prb->alg, src.get_elem(i), 1.0, prb->alpha, prb->beta);
+                prb->alg, src.get_elem(i), prb->alpha, prb->beta);
 
         const auto v_po_vals = prepare_po_vals(dst, args, v_po_masks, i);
 
