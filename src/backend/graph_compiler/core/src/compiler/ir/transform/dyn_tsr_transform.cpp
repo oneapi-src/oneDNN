@@ -47,7 +47,10 @@ static expr create_dyn_tsr_from_tensor(
         name = in.checked_as<tensor>()->name_;
         tsr = in;
     } else {
-        tsr = in.checked_as<tensorptr>()->base_->ptr_;
+        tsr = in;
+        while (tsr.isa<tensorptr>()) {
+            tsr = tsr.checked_as<tensorptr>()->base_->ptr_;
+        }
         name = tsr.checked_as<tensor>()->name_ + "_tptr";
     }
     auto dyn_tsr = builder::make_tensor(std::string("dyn_") + name,
@@ -245,6 +248,16 @@ public:
         return v;
     }
 
+    // eliminate duplicate dynamic var definition.
+    stmt_c visit(define_c v) override {
+        if (var_defined_in_func_.find(v->var_) != var_defined_in_func_.end()) {
+            return builder::make_stmts_unattached({});
+        }
+        auto ret = ir_visitor_t::visit(v).checked_as<define_c>();
+        if (ret->var_.isa<var>()) { var_defined_in_func_.insert(ret->var_); }
+        return ret;
+    }
+
     func_c dispatch(func_c v) override {
         tsr_replace_map_.clear();
         bool all_const = true;
@@ -256,10 +269,6 @@ public:
         // kernel func should transform all tensors.
         bool trans_all_params = v->attr_
                 && v->attr_->get_or_else(attr_keys::always_trans, false);
-        if (v->name_ == "__init_const_globals") {
-            int a = 1;
-            int b = 2;
-        }
         for (auto &p : v->params_) {
             if (p.isa<tensor>()) {
                 auto old_tsr = p.static_as<tensor>();

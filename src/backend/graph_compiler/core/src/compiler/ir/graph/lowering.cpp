@@ -44,9 +44,11 @@
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/matmul_core.hpp>
+#include <ops/reshape.hpp>
 #include <runtime/config.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <unordered_map>
+#include <unordered_set>
 #include <util/scoped_timer.hpp>
 
 namespace sc {
@@ -168,15 +170,19 @@ static void make_value_check_call(const std::vector<expr> &outs,
 }
 
 static graph_tensor_ptr get_linked_output_tsr(const graph_tensor_ptr &ltensor) {
+    if (ltensor->producer_owner_->isa<input_op>()) { return nullptr; }
     if (!ltensor->uses_.empty()) {
         for (size_t i = 0; i < ltensor->uses_.size(); i++) {
-            if (ltensor->uses_[i].second->isa<tensor_view_op_t>()) {
+            if (ltensor->uses_[i].second->isa<tensor_view_op_t>()
+                    || ltensor->uses_[i]
+                               .second->isa<ops::dynamic_reshape_op>()) {
                 auto reshape = ltensor->uses_[i].second;
                 auto next_ltensor = reshape->get_outputs()[0];
                 for (auto &cld : next_ltensor->uses_) {
                     if (cld.second->isa<output_op>()) {
                         return cld.second->get_inputs()[cld.first];
-                    } else if (cld.second->isa<tensor_view_op_t>()) {
+                    } else if (cld.second->isa<tensor_view_op_t>()
+                            || cld.second->isa<ops::dynamic_reshape_op>()) {
                         auto cur_linked_out
                                 = get_linked_output_tsr(next_ltensor);
                         if (cur_linked_out) { return cur_linked_out; }
@@ -919,8 +925,9 @@ void create_op_tensors(general_lower_params_t &gp, std::vector<expr> &ins,
         if (kind == kconstant) {
             get_or_create_tensor(gp, ltensor, false, const_kind::global_const);
         } else if (kind == kreshape) {
-            COMPILE_ASSERT(node->get_inputs().size() == 1,
-                    "Reshape should have 1 input");
+            COMPILE_ASSERT(node->get_inputs().size() == 1
+                            || node->get_inputs().size() == 2,
+                    "Reshape should have 1 or 2(dynamic_reshape) input");
             // If the output of tensor view is output of graph
             if (gp.ltsr_rtsr.find(ltensor) != gp.ltsr_rtsr.end()
                     && has_output_uses(ltensor)) {
@@ -950,7 +957,7 @@ void create_op_tensors(general_lower_params_t &gp, std::vector<expr> &ins,
             gp.ltsr_rtsr[ltensor].tensor_ = out_tsr_pair.second;
         } else {
             graph_tensor_ptr out_tsr;
-            // for pattern like node->reshape->output
+            // for pattern like node->reshape->output, node != input
             if (auto out_tsr = get_linked_output_tsr(ltensor)) {
                 gp.ltsr_rtsr[ltensor].tensor_ = get_reshape_tptr(
                         gp, out_tsr, ltensor, const_type, kind)
@@ -991,6 +998,25 @@ static std::string get_dispatch_callee_name(const expr &kernel) {
     return kernel.checked_as<indexing>()->ptr_.checked_as<tensor>()->name_;
 }
 
+static void dynamic_reshape_var_assignment(general_lower_params_t &gp,
+        std::unordered_set<expr> &dynamic_var_set, const sc_op_ptr &node) {
+    auto &graph = gp.graph;
+    auto out_plain_dims = node->get_outputs()[0]->details_.get_plain_dims();
+    auto shape_tsr = gp.ltsr_rtsr[node->get_inputs()[1]].tensor_;
+    for (size_t i = 0; i < out_plain_dims.size(); i++) {
+        auto &dyn_dim = out_plain_dims[i];
+        // may be inferred by dynamic shape binding.
+        if (!is_dynamic_dim(dyn_dim)) { continue; }
+        auto var = graph.dim_to_expr(dyn_dim);
+        if (dynamic_var_set.find(var) == dynamic_var_set.end()) {
+            gp.func_body->seq_.emplace_back(
+                    builder::make_var_tensor_def_unattached(
+                            graph.dim_to_expr(dyn_dim), linkage::local,
+                            builder::make_indexing(shape_tsr, {i})));
+            dynamic_var_set.insert(var);
+        }
+    }
+}
 static func_t insert_prefetch(const context_ptr &ctx,
         const std::vector<std::pair<sc_op_ptr, stmt>> &op_execution_log,
         sc_op *node, const std::vector<expr> &input_tsr, ir_module_t &mod,
@@ -1143,6 +1169,8 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     bool is_graph_dynamic = graph.is_dynamic();
     general_lower_params_t gp {ret_mod, ltsr_rtsr, graph, func_body, init_body,
             tensor_counter, global_tensor_counter, is_graph_dynamic};
+    // the set of dynamic var defined in func body.(dynamic reshape)
+    std::unordered_set<expr> dyn_var_set;
     std::vector<std::pair<sc_op_ptr, stmt>> op_execution_log;
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
         std::vector<expr> ins, outs;
@@ -1161,7 +1189,8 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         } else if (node->isa<reorder_op_t>()) {
             // todo: assume reorder is fused break in dynamic now.
             kind = kreorder;
-        } else if (node->isa<tensor_view_op_t>()) {
+        } else if (node->isa<tensor_view_op_t>()
+                || node->isa<ops::dynamic_reshape_op>()) {
             kind = kreshape;
         }
         // fixme(jingze): Use jit instead of runtime op.
@@ -1235,6 +1264,9 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
             }
             case kconstant:
             case kreshape: {
+                if (node->isa<ops::dynamic_reshape_op>()) {
+                    dynamic_reshape_var_assignment(gp, dyn_var_set, node);
+                }
                 break;
                 // nothing to do.
             }

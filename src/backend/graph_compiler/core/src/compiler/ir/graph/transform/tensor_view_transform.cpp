@@ -19,6 +19,7 @@
 
 #include "../fusible_op.hpp"
 #include "../visitor.hpp"
+#include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <ops/fusible/memory_movement.hpp>
 
@@ -72,6 +73,13 @@ sc_data_format_t try_compress_format(
 // view. If the reorder actually does not result in memory movement, we
 // mark it as should_transform.
 bool should_transform_reorder(const sc_op_ptr &node) {
+    if (can_op_be_dispatched(node)) {
+        auto key_set = node->get_dispatch_key_set()->get_inner_set();
+        return std::all_of(key_set.begin(), key_set.end(),
+                [](const op_dispatch_key_t &key) {
+                    return key.in_out_formats_[0] == key.in_out_formats_[1];
+                });
+    }
     assert(node->isa<reorder_op_t>());
     auto input_plain_shapes = node->get_inputs()[0]->details_.get_plain_dims();
     auto output_plain_shapes
@@ -219,7 +227,6 @@ void convert_to_tensor_view(sc_graph_t &graph, const context_ptr &ctx) {
     int reorder2tv = graph.attrs_.get_or_else("temp.reorder2tv", 1);
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
         if (node->isa<reorder_op_t>() && reorder2tv
-                && !can_op_be_dispatched(node)
                 && should_transform_reorder(node)) {
             auto tensor_view_out = node->get_outputs()[0]->copy();
             tensor_view_out->producer_owner_ = nullptr;

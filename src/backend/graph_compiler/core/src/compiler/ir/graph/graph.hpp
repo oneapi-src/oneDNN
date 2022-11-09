@@ -150,6 +150,7 @@ struct SC_API graph_tensor SC_EXTENDS_LEAK_CHECK(graph_tensor) {
         return std::make_shared<graph_tensor>(
                 nullptr, fmt, shape, dtype, stride);
     }
+    bool is_dynamic() const { return details_.is_dynamic(); }
 };
 
 using ltensors = std::vector<logical_tensor_t>;

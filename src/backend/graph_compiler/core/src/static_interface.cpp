@@ -23,6 +23,7 @@
     F(matmul_core); \
     F(softmax); \
     F(static_reshape); \
+    F(dynamic_reshape); \
     F(shape_of_tensor); \
     F(matmul); \
     F(quantize); \

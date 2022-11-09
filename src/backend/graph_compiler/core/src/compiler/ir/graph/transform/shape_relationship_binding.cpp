@@ -91,7 +91,7 @@ private:
 
 SC_INTERNAL_API void shape_relationship_binding(
         sc_graph_t &graph, const context_ptr &ctx) {
-    if (graph.empty() || !graph.is_dynamic()) { return; }
+    if (graph.empty() || !graph.is_dynamic() || !graph.dyn_info_) { return; }
     // stage 1, first satisfy all dynamic dimensions are placeholder not any.
     for (auto &node : graph.ops_) {
         auto ins = node->get_inputs();
