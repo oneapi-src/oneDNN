@@ -2310,6 +2310,12 @@ struct memory : public handle<dnnl_memory_t> {
         goIhw32i = dnnl_goIhw32i,
         goIdhw4i = dnnl_goIdhw4i,
         goIdhw32i = dnnl_goIdhw32i,
+        cab = dnnl_cab,
+        cdab = dnnl_cdab,
+        cdeab = dnnl_cdeab,
+        woi = dnnl_woi,
+        hwoi = dnnl_hwoi,
+        dhwoi = dnnl_dhwoi,
     };
 
     /// A memory descriptor.

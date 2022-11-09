@@ -91,6 +91,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_acb) return "acb";
     if (v == dnnl_bac) return "bac";
     if (v == dnnl_bca) return "bca";
+    if (v == dnnl_cab) return "cab";
     if (v == dnnl_cba) return "cba";
     if (v == dnnl_abdc) return "abdc";
     if (v == dnnl_acbd) return "acbd";
@@ -99,6 +100,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_adcb) return "adcb";
     if (v == dnnl_bacd) return "bacd";
     if (v == dnnl_bcda) return "bcda";
+    if (v == dnnl_cdab) return "cdab";
     if (v == dnnl_cdba) return "cdba";
     if (v == dnnl_dcab) return "dcab";
     if (v == dnnl_abced) return "abced";
@@ -108,6 +110,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_adecb) return "adecb";
     if (v == dnnl_bacde) return "bacde";
     if (v == dnnl_bcdea) return "bcdea";
+    if (v == dnnl_cdeab) return "cdeab";
     if (v == dnnl_cdeba) return "cdeba";
     if (v == dnnl_decab) return "decab";
     if (v == dnnl_abcdfe) return "abcdfe";
@@ -748,15 +751,18 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_oiw) return "oiw";
     if (v == dnnl_owi) return "owi";
     if (v == dnnl_wio) return "wio";
+    if (v == dnnl_woi) return "woi";
     if (v == dnnl_iwo) return "iwo";
     if (v == dnnl_oihw) return "oihw";
     if (v == dnnl_hwio) return "hwio";
+    if (v == dnnl_hwoi) return "hwoi";
     if (v == dnnl_ohwi) return "ohwi";
     if (v == dnnl_ihwo) return "ihwo";
     if (v == dnnl_iohw) return "iohw";
     if (v == dnnl_oidhw) return "oidhw";
     if (v == dnnl_iodhw) return "iodhw";
     if (v == dnnl_dhwio) return "dhwio";
+    if (v == dnnl_dhwoi) return "dhwoi";
     if (v == dnnl_odhwi) return "odhwi";
     if (v == dnnl_idhwo) return "idhwo";
     if (v == dnnl_goiw) return "goiw";
