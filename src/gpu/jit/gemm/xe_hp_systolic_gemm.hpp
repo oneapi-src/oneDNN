@@ -125,6 +125,17 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         bool use_new_kernels() const { return use_new_kernels_; }
         bool alt() const { return alt_; }
 
+        status_t query(query_t what, int idx, void *result) const override {
+            switch ((int)what) {
+                case (int)query::preferred_gpu_threads_per_eu: {
+                    *(int *)result = 4;
+                    break;
+                }
+                default: return gpu_gemm_pd_t::query(what, idx, result);
+            }
+            return status::success;
+        }
+
         const compute::device_info_t *dev_info_ = nullptr;
 
     private:
