@@ -286,7 +286,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
         const int phase_end = utils::div_up(phase_start, phase_reductions);
 
         // Set scratchpad sizes
-        const int phase_num = conf.phases.size();
+        const int phase_num = (int)conf.phases.size();
         if (!is_final && phase_num < 2) {
             conf.sp_size[phase_num]
                     = conf.outer_dim_size * phase_end * conf.inner_dim_size;
