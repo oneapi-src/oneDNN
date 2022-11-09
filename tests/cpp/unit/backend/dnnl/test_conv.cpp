@@ -4872,7 +4872,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasU8s8u8MixBf16) {
         impl::op_t tcdst_op {5, impl::op_kind::TypeCast, "typecast_dst"};
 
         impl::op_t qout_op(6, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
         qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
                 impl::op_attr::scales, {scale_out});
@@ -5047,7 +5047,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddU8s8u8MixBf16) {
         impl::op_t tcdst_op {8, impl::op_kind::TypeCast, "typecast_dst"};
 
         impl::op_t qout_op(9, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
         qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
                 impl::op_attr::scales, {scale_out});
@@ -5231,7 +5231,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasGeluU8s8u8MixBf16) {
         impl::op_t tcdst_op {6, impl::op_kind::TypeCast, "typecast_dst"};
 
         impl::op_t qout_op(7, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
         qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
                 impl::op_attr::scales, {scale_out});
@@ -5414,7 +5414,7 @@ TEST(ExecuteSubgraphInt8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
         impl::op_t tcdst_op {8, impl::op_kind::TypeCast, "typecast_dst"};
 
         impl::op_t qout_op(9, impl::op_kind::Quantize, "qdout_op");
-        qout_op.set_attr<std::string>(impl::op_attr::qtype, qtype);
+        qout_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
         qout_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_out});
         qout_op.set_attr<std::vector<float>>(
                 impl::op_attr::scales, {scale_out});

@@ -58,7 +58,9 @@ TEST(LayoutId, OpaqueMdLayoutIdMapping) {
     dnnl::primitive_attr conv_attr;
     conv_attr.set_zero_points_mask(DNNL_ARG_SRC, 0);
     conv_attr.set_zero_points_mask(DNNL_ARG_DST, 0);
-    conv_attr.set_output_scales_mask(0);
+    conv_attr.set_scales_mask(DNNL_ARG_SRC, 0);
+    conv_attr.set_scales_mask(DNNL_ARG_WEIGHTS, 0);
+    conv_attr.set_scales_mask(DNNL_ARG_DST, 0);
     conv_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
     dnnl::convolution_forward::primitive_desc conv_pd(eng,
             dnnl::prop_kind::forward, dnnl::algorithm::convolution_direct,
