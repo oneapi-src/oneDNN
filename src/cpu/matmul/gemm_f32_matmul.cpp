@@ -95,9 +95,10 @@ static bool should_gemm_execute_sum_po(
 status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     auto check_attr_scales = [&]() -> bool {
         using namespace data_type;
-        bool ok = true;
-        // TODO: Check that the rest argument scales are default
-        for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+        const std::vector<int> supported_args
+                = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+        bool ok = attr()->scales_.has_default_values(supported_args);
+        for (int arg : supported_args) {
             const auto &mask = attr()->scales_.get(arg).mask_;
             if (arg == DNNL_ARG_WEIGHTS)
                 ok = ok && (mask == 0 || mask == (1 << (dst_md()->ndims - 1)));
