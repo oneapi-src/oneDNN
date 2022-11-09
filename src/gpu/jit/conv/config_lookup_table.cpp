@@ -95,6 +95,8 @@ bool type_filter_t::matches(const std::vector<data_type_t> &values) const {
             if (values[i] != data_type::f32) return false;
         } else if (ptrn == "bf16") {
             if (values[i] != data_type::bf16) return false;
+        } else if (ptrn == "f16") {
+            if (values[i] != data_type::f16) return false;
         } else {
             ir_error_not_expected() << ptrn;
         }
@@ -116,6 +118,7 @@ std::vector<std::string> &type_filter_t::all_patterns() {
     static std::vector<std::string> ret = {
             "x8",
             "bf16",
+            "f16",
             "f32",
             "*",
     };
@@ -179,6 +182,7 @@ bool conv_problem_filter_t::matches_desc(const conv_problem_t &prb) const {
 }
 
 bool conv_problem_filter_t::matches_post_ops(const conv_problem_t &prb) const {
+    if (post_ops_ == "*") return true;
     if (post_ops_ == "sum") return prb.with_sum;
     ir_assert(post_ops_.empty()) << post_ops_;
     return !prb.with_sum;
@@ -186,6 +190,41 @@ bool conv_problem_filter_t::matches_post_ops(const conv_problem_t &prb) const {
 
 conv_config_lookup_table_t::conv_config_lookup_table_t() {
     // clang-format off
+    // wdsr
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic128ih240iw135oc32oh240ow135kh3kw3ph1pw1", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic32ih240iw135oc128oh240ow135kh3kw3ph1pw1", "fsp=1");
+    // kuaishou noisy 
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic128ih56oc128oh56kh3ph1 post_ops=*", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic128ih56oc256oh28kh1sh2ph0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic128ih56oc256oh28kh3sh2ph1", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic256ih28oc512oh14kh3sh2ph1", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic3ih448oc64oh224kh7sh2ph3", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic512ih14oc512oh14kh3ph1 post_ops=*", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic64ih112oc128oh56kh1sh2ph0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic64ih112oc128oh56kh3sh2ph1", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic64ih112oc64oh112kh3ph1", "fsp=1");
+    // kuaishou block 
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic512ih28iw21oc512oh28ow21kh3kw3ph1pw1 post_ops=*", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic256ih56iw42oc256oh56ow42kh3kw3ph1pw1 post_ops=*", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic3ih896iw672oc64oh448ow336kh7kw7sh2sw2ph3pw3", "fsp=1");
+    // kuaishou blur
+    //
+    add("hw=xehpg dir=fwd cfg=x8x8x8 mb=1+ desc=ic768iw900oc160ow900kw1pw0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=x8x8x8 mb=1+ desc=ic768iw900oc192ow900kw1pw0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=x8x8x8 mb=1+ desc=ic768ih30oc192oh30kh1ph0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=x8x8x8 mb=1+ desc=ic288ih61oc384oh30kh3sh2ph0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=x8x8x8 mb=1+ desc=ic192iw3721oc64ow3721kw1pw0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=x8x8x8 mb=1+ desc=ic192iw3721oc48ow3721kw1pw0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=x8x8x8 mb=1+ desc=ic32ih255oc32oh253kh3ph0", "fsp=1");
+    //
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic768iw900oc160ow900kw1pw0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic768iw900oc192ow900kw1pw0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic768ih30oc192oh30kh1ph0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic288ih61oc384oh30kh3sh2ph0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic192iw3721oc64ow3721kw1pw0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic192iw3721oc48ow3721kw1pw0", "fsp=1");
+    add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic32ih255oc32oh253kh3ph0", "fsp=1");
+
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic2048iw49oc512ow49kw1pw0", "T=oc8mb1osp4 s=x3.g2.v4 c=0");
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic128iw784oc512ow784kw1pw0 post_ops=sum", "T=oc8mb1osp4 s=x2.g1.v1 c=0");
     add("hw=xehpg dir=fwd cfg=x8x8* mb=128+ desc=ic256ih28oc256oh14kh3sh2ph1", "T=oc8mb1osp4 s=x3.g2.v4 c=0");
