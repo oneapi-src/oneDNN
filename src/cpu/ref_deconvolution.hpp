@@ -232,9 +232,10 @@ struct ref_deconvolution_fwd_t : public primitive_t {
 
         bool scales_mask_ok() const {
             using namespace data_type;
-            bool ok = true;
-            // TODO: Check that the rest argument scales are default
-            for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+            const std::vector<int> supported_args
+                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+            bool ok = attr()->scales_.has_default_values(supported_args);
+            for (int arg : supported_args) {
                 const auto &mask = attr()->scales_.get(arg).mask_;
                 if (arg == DNNL_ARG_WEIGHTS)
                     ok = ok && (mask == 0 || mask == (1 << (int)with_groups()));
