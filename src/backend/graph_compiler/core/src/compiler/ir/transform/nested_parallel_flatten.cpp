@@ -402,14 +402,13 @@ void work() {
         }
         offset_idx = do_cast_and_fold(
                 builder::make_mul(offset_idx, tsr->dims_[0]));
-
         std::shared_ptr<static_data_t> new_data_init(nullptr);
         if (tsr->init_value_) {
             auto size = tsr->init_value_->size_;
             if (size == 0) {
                 new_data_init = tensor_node::get_zero_tensor_initializer();
             } else {
-                std::shared_ptr<char> ddata(new char[size * num_of_copies]);
+                std::unique_ptr<char[]> ddata(new char[size * num_of_copies]);
                 for (int i = 0; i < num_of_copies; i++) {
                     memcpy(ddata.get() + i * size, tsr->init_value_->data_,
                             size);

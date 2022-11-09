@@ -48,7 +48,9 @@
     F(batchnorm_forward_training); \
     F(batchnorm_training_backprop); \
     F(managed_matmul_core); \
-    F(select);
+    F(select); \
+    F(layernorm); \
+    F(gelu);
 
 #define DECL_INIT(NAME) extern volatile bool __help_dummy_##NAME;
 
