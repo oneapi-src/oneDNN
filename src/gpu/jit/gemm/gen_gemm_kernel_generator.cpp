@@ -7948,12 +7948,12 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
                 switch (state.Tacc.size()) {
                     case 2:
                         mov<uint32_t>(8 | mod, indirect[a0[2]].uw(), src);
-                        mov<uint32_t>(8 | mod, indirect[a0[3]].uw(),
+                        mov<uint32_t>(8 | mod | M8, indirect[a0[3]].uw(),
                                 src.sub(hw, 8, DataType::ud)(1));
                         break;
                     default:
                         mov<uint32_t>(8 | mod, indirect[a0[2]].ud(), src);
-                        mov<uint32_t>(8 | mod, indirect[a0[3]].ud(),
+                        mov<uint32_t>(8 | mod | M8, indirect[a0[3]].ud(),
                                 src.sub(hw, 8, DataType::ud)(1));
                         break;
                 }
