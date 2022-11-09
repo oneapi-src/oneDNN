@@ -64,6 +64,7 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
             {"Exp", dnnl::graph::op::kind::Exp},
             {"GELU", dnnl::graph::op::kind::GELU},
             {"GELUBackprop", dnnl::graph::op::kind::GELUBackprop},
+            {"HardSigmoid", dnnl::graph::op::kind::HardSigmoid},
             {"HardSwish", dnnl::graph::op::kind::HardSwish},
             {"HardSwishBackprop", dnnl::graph::op::kind::HardSwishBackprop},
             {"Index", dnnl::graph::op::kind::Index},

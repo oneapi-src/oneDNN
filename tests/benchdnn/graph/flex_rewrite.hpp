@@ -211,6 +211,7 @@ struct flex_rewrite {
                 case dnnl::graph::op::kind::Exp:
                 case dnnl::graph::op::kind::GELU:
                 case dnnl::graph::op::kind::GELUBackprop:
+                case dnnl::graph::op::kind::HardSigmoid:
                 case dnnl::graph::op::kind::HardSwish:
                 case dnnl::graph::op::kind::HardSwishBackprop:
                 case dnnl::graph::op::kind::InterpolateBackprop:
