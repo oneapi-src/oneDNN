@@ -361,7 +361,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     attr_args_t attr_args;
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
     if (wei_scale.policy == policy_t::PER_OC) {
-        auto wei_mask = 1 << prb->has_groups;
+        auto wei_mask = prb->has_groups ? 2 : 1;
         attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, prb->wei_scales,
                 prb->oc, wei_mask);
     }

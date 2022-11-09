@@ -12737,13 +12737,9 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     if (strategy.prefetchC < 0) gemmPrefetchC(problem, strategy, state);
 
     // Generate k loop.
-    switch (type) {
-        default:
-            if (lateKLoopCheck) state.raVFlag.unlock(state.flagAP);
-            syncall(); /* Avoid unnecessary SWSB dependencies entering loop. */
-            ls.materialize();
-            break;
-    }
+    if (lateKLoopCheck) state.raVFlag.unlock(state.flagAP);
+    syncall(); /* Avoid unnecessary SWSB dependencies entering loop. */
+    ls.materialize();
 
     // Release barrier header from short k loop.
     state.ra.safeRelease(barrierHeader);
@@ -16066,7 +16062,7 @@ void gemm_kernel_generator_t<hw>::gemmReleaseBatchIDs(
         GEMMState &state) {
     if (problem.batch != BatchMode::Strided) return;
     if (problem.batchDims == 1 && state.r0_info == r0) return;
-    if (problem.hasBinaryPostOp() > 0) return;
+    if (problem.hasBinaryPostOp()) return;
     for (int b = 0; b < problem.batchDims; b++)
         state.ra.safeRelease(state.batchID[b]);
 }
