@@ -161,6 +161,8 @@ public:
                 dnnl_graph_test_prelu_bwd_params>::GetParam();
         impl::engine_t &eng = get_engine();
         impl::stream_t &strm = get_stream();
+        // skip prelu backward on gpu
+        SKIP_IF(eng.kind() == impl::engine_kind::gpu, "skip on gpu");
 
         test::vector<float> src;
         test::vector<float> wei;

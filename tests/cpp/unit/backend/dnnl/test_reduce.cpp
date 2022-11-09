@@ -545,6 +545,9 @@ TEST(Execute, ReduceMeanOutputDims) {
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
 
+    // skip reduction on gpu
+    SKIP_IF(eng.kind() == impl::engine_kind::gpu, "skip on gpu");
+
     test::vector<float> src0_data {1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f};
     test::vector<float> ref_dst_data {4.f};
     test::vector<float> dst_data(ref_dst_data.size(), 0.0);
