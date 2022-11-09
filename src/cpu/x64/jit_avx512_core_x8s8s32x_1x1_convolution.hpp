@@ -71,6 +71,10 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_md(0)->data_type)
+                    && attr()->scales_.has_default_values(
+                            {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST,
+                                    DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
+                                    DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST})
                     && attr()->post_ops_.check_sum_consistent_dt(
                             dst_md(0)->data_type)
                     && !has_zero_dim_memory() && zero_points_ok()
@@ -291,8 +295,9 @@ private:
     void execute_forward_thr(const int ithr, const int nthr, const char *src,
             const char *weights, const char *bias, const char *weights_dw,
             const char *bias_dw, char *dst, const float *oscales,
-            const float *dw_oscales, const float *dst_scales,
-            const int32_t *src_zero_point, const int32_t *dst_zero_point,
+            const float *dst_scales, const float *dw_oscales,
+            const float *dw_dst_scales, const int32_t *src_zero_point,
+            const int32_t *dst_zero_point,
             const memory_tracking::grantor_t &scratchpad,
             const void *post_ops_binary_rhs_arg_vec,
             const void *post_ops_binary_rhs_arg_vec_dw) const;
