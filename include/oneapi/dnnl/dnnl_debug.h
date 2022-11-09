@@ -34,14 +34,14 @@ extern "C" {
 
 const char DNNL_API *dnnl_status2str(dnnl_status_t v);
 const char DNNL_API *dnnl_dt2str(dnnl_data_type_t v);
+const char DNNL_API *dnnl_fpmath_mode2str(dnnl_fpmath_mode_t v);
+const char DNNL_API *dnnl_engine_kind2str(dnnl_engine_kind_t v);
 const char DNNL_API *dnnl_fmt_tag2str(dnnl_format_tag_t v);
 const char DNNL_API *dnnl_prop_kind2str(dnnl_prop_kind_t v);
 const char DNNL_API *dnnl_prim_kind2str(dnnl_primitive_kind_t v);
 const char DNNL_API *dnnl_alg_kind2str(dnnl_alg_kind_t v);
 const char DNNL_API *dnnl_rnn_flags2str(dnnl_rnn_flags_t v);
 const char DNNL_API *dnnl_rnn_direction2str(dnnl_rnn_direction_t v);
-const char DNNL_API *dnnl_engine_kind2str(dnnl_engine_kind_t v);
-const char DNNL_API *dnnl_fpmath_mode2str(dnnl_fpmath_mode_t v);
 const char DNNL_API *dnnl_scratchpad_mode2str(dnnl_scratchpad_mode_t v);
 const char DNNL_API *dnnl_cpu_isa2str(dnnl_cpu_isa_t v);
 const char DNNL_API *dnnl_cpu_isa_hints2str(dnnl_cpu_isa_hints_t v);

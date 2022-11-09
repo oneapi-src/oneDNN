@@ -32,6 +32,10 @@ const char *dnnl_status2str(dnnl_status_t v) {
     if (v == dnnl_last_impl_reached) return "last_impl_reached";
     if (v == dnnl_runtime_error) return "runtime_error";
     if (v == dnnl_not_required) return "not_required";
+    if (v == dnnl_invalid_graph) return "invalid_graph";
+    if (v == dnnl_invalid_graph_op) return "invalid_graph_op";
+    if (v == dnnl_invalid_shape) return "invalid_shape";
+    if (v == dnnl_invalid_data_type) return "invalid_data_type";
     assert(!"unknown status");
     return "unknown status";
 }
@@ -48,6 +52,24 @@ const char *dnnl_dt2str(dnnl_data_type_t v) {
     if (v == dnnl_data_type_max) return "data_type_max";
     assert(!"unknown dt");
     return "unknown dt";
+}
+
+const char *dnnl_fpmath_mode2str(dnnl_fpmath_mode_t v) {
+    if (v == dnnl_fpmath_mode_strict) return "strict";
+    if (v == dnnl_fpmath_mode_bf16) return "bf16";
+    if (v == dnnl_fpmath_mode_f16) return "f16";
+    if (v == dnnl_fpmath_mode_any) return "any";
+    if (v == dnnl_fpmath_mode_tf32) return "tf32";
+    assert(!"unknown fpmath_mode");
+    return "unknown fpmath_mode";
+}
+
+const char *dnnl_engine_kind2str(dnnl_engine_kind_t v) {
+    if (v == dnnl_any_engine) return "any";
+    if (v == dnnl_cpu) return "cpu";
+    if (v == dnnl_gpu) return "gpu";
+    assert(!"unknown engine_kind");
+    return "unknown engine_kind";
 }
 
 const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
@@ -1449,24 +1471,6 @@ const char *dnnl_rnn_direction2str(dnnl_rnn_direction_t v) {
     if (v == dnnl_bidirectional_sum) return "bidirectional_sum";
     assert(!"unknown rnn_direction");
     return "unknown rnn_direction";
-}
-
-const char *dnnl_engine_kind2str(dnnl_engine_kind_t v) {
-    if (v == dnnl_any_engine) return "any";
-    if (v == dnnl_cpu) return "cpu";
-    if (v == dnnl_gpu) return "gpu";
-    assert(!"unknown engine_kind");
-    return "unknown engine_kind";
-}
-
-const char *dnnl_fpmath_mode2str(dnnl_fpmath_mode_t v) {
-    if (v == dnnl_fpmath_mode_strict) return "strict";
-    if (v == dnnl_fpmath_mode_bf16) return "bf16";
-    if (v == dnnl_fpmath_mode_f16) return "f16";
-    if (v == dnnl_fpmath_mode_any) return "any";
-    if (v == dnnl_fpmath_mode_tf32) return "tf32";
-    assert(!"unknown fpmath_mode");
-    return "unknown fpmath_mode";
 }
 
 const char *dnnl_scratchpad_mode2str(dnnl_scratchpad_mode_t v) {
