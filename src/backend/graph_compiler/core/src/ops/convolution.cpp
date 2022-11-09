@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include "convolution.hpp"
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
@@ -28,11 +29,14 @@
 #include "templates/managed_convNxN_backprop_data.hpp"
 #include "templates/managed_convNxN_backprop_weight.hpp"
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
+#include <compiler/ir/transform/loop_transform.hpp>
 #include <ops/templates/utils.hpp>
 #include <runtime/config.hpp>
+#include <unordered_map>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 
@@ -49,6 +53,72 @@ sc_data_type_t conv_fwd_core_op_t::infer_out_dtype(
         return datatypes::f32;
     }
 }
+
+void conv_fwd_core_op_t::commit_into_anchor(mixed_parti_t *parti) {
+    std::vector<expr> ins, outs;
+    std::tie(ins, outs) = parti->buf_alloc_.get_buffer(this);
+    // prepare slice
+    std::vector<slice_range> ins_slice(get_inputs().size()),
+            outs_slice(get_outputs().size());
+
+    auto committed_anchor = parti->lookup_anchor_map(this);
+    std::transform(get_inputs().begin(), get_inputs().end(), ins_slice.begin(),
+            [&committed_anchor](const graph_tensor_ptr &gt) {
+                auto slice_list = committed_anchor->fsmap_.get(gt);
+                COMPILE_ASSERT(slice_list.size() == 1,
+                        "multi-slice is not expected to tunable op");
+                return slice_list[0];
+            });
+    std::transform(get_outputs().begin(), get_outputs().end(),
+            outs_slice.begin(),
+            [&committed_anchor](const graph_tensor_ptr &gt) {
+                auto slice_list = committed_anchor->fsmap_.get(gt);
+                COMPILE_ASSERT(slice_list.size() == 1,
+                        "multi-slice is not expected to tunable op");
+                return slice_list[0];
+            });
+
+    // prepare tptr for function call
+    std::vector<expr> tptr_ins(ins.size()), tptr_outs(outs.size());
+    std::transform(ins.begin(), ins.end(), ins_slice.begin(), tptr_ins.begin(),
+            [&](const expr &tsr, const slice_range &range) {
+                return transform_tsr2tptr_with_range(tsr, range);
+            });
+    std::transform(outs.begin(), outs.end(), outs_slice.begin(),
+            tptr_outs.begin(), [&](const expr &tsr, const slice_range &range) {
+                return transform_tsr2tptr_with_range(tsr, range);
+            });
+
+    // prepare strided tsr for function definition
+    std::vector<expr> strd_ins(ins.size()), strd_outs(outs.size());
+    std::transform(ins.begin(), ins.end(), ins_slice.begin(), strd_ins.begin(),
+            [&](const expr &tsr, const slice_range &range) {
+                return transform_tsr2stsr_with_range(tsr, range);
+            });
+    std::transform(outs.begin(), outs.end(), outs_slice.begin(),
+            strd_outs.begin(), [&](const expr &tsr, const slice_range &range) {
+                return transform_tsr2stsr_with_range(tsr, range);
+            });
+
+    std::unordered_map<expr, expr> def_to_call_map;
+    for (size_t i = 0; i < ins.size(); i++) {
+        def_to_call_map[strd_ins[i]] = tptr_ins[i];
+    }
+    for (size_t i = 0; i < outs.size(); i++) {
+        def_to_call_map[strd_outs[i]] = tptr_outs[i];
+    }
+
+    parti->buf_alloc_.update_input_buffer_info(this);
+    auto func = get_func(parti, strd_ins, strd_outs);
+    // update output buffer info after inner anchor created
+    parti->buf_alloc_.update_output_buffer_info(this);
+
+    // replace strided tensor with tensorptr
+    mxp_replacer_t(def_to_call_map).replace_func(func);
+    remove_parallel(func->body_);
+    committed_anchor->commit_stmt(func->body_);
+}
+
 void conv_fwd_core_op_t::infer_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
     bool is_weight_constant

@@ -444,10 +444,12 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
   // 2. provide better support in scc bench
   // 3. add iterated anchor
 
+  // std::max avoid grid tuning generate bad config
   int num_threads = runtime_config_t::get().get_num_threads();
-  int bs_threads = config.bs_threads;
-  int s_threads = config.s_threads;
-  int oc_threads = num_threads / bs_threads / s_threads;
+  int bs_threads = std::max(1, config.bs_threads);
+  int s_threads
+    = std::max(1, std::min(num_threads / bs_threads, config.s_threads));
+  int oc_threads = std::max(1, num_threads / bs_threads / s_threads);
   int ic_threads = 1;
   int oc_block = config.K_block;
   int s_block = config.s_block;
@@ -566,7 +568,7 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                           expr oc
                             = poc * oc_num_block_pt * oc_block / im_oc_block
                             + o_oc * oc_block / im_oc_block + i_oc;
-                          _if_(oc < oc_) {
+                          _if_(oc * im_oc_block < oc_) {
                             if (sh_ > 1 || sw_ > 1) {
                               if (shrink_tensor) {
                                 input_tmp
@@ -592,7 +594,7 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                               expr ic
                                 = pic * ic_num_block_pt * ic_block / im_ic_block
                                 + o_ic * ic_block / im_ic_block + i_c;
-                              _if_(ic < ic_) {
+                              _if_(ic * im_ic_block < ic_) {
                                 std::vector<expr> input_pos
                                   = std::vector<expr> {n, s, ic * im_ic_block};
                                 if (sh_ > 1 || sw_ > 1) {
@@ -670,7 +672,8 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                                 get_input_dtype(), get_weight_dtype(),
                                 brg_attrs);
                             }
-                            if (fusion && ic_used_threads == 1) {
+                            if (fusion && ic_used_threads == 1
+                              && ic_num_block_pt == 1) {
                               _if_(o_ic == (ic_num_block - 1)) {
                                 fusion->create_output_fusion_anchor(
                                   {tensor_slice(output,
@@ -681,7 +684,8 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                             }
                           }
                         }
-                        if (fusion && ic_used_threads == 1) {
+                        if (fusion && ic_used_threads == 1
+                          && ic_num_block_pt == 1) {
                           _if_(o_ic == (ic_num_block - 1)) {
                             fusion->create_output_fusion_anchor({tensor_slice(
                               output,
@@ -695,7 +699,8 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                         }
                       }
                     }
-                    if (fusion && ic_used_threads == 1) {
+                    if (fusion && ic_used_threads == 1
+                      && ic_num_block_pt == 1) {
                       _if_(o_ic == (ic_num_block - 1)) {
                         fusion->create_output_fusion_anchor(
                           {tensor_slice(output,
@@ -712,7 +717,9 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                     }
                   }
                 }
-                if (fusion && ic_used_threads == 1) {
+                // TODO(zhicong): need to use iterated anchor to support more
+                // fusion opportunity
+                if (false && fusion && ic_used_threads == 1) {
                   fusion->create_output_fusion_anchor({tensor_slice(output,
                     std::vector<std::pair<expr, expr>> {{n, 1UL},
                       {(ps * s_num_block_pt * s_block / im_s_block
@@ -810,14 +817,9 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
     }
   }
 
-  if (ic_num_block_pt > 1) {
-    lioc->attr()[stmt_attr_key::reduce_root_loop]
-      = std::weak_ptr<stmt_base_t>(looc.impl);
-  }
   // lpbs->fuse(lpoc)->fuse(lps)->fuse(lpic); // parallel loop
   // lobs->fuse(los)->fuse(looc)->fuse(loic)->fuse(lioc)->fuse(lis); // single
   // thread loop
-  loops = {lpbs, lps};
 }
 
 void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {

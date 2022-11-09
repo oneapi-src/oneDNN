@@ -27,7 +27,8 @@
 namespace sc {
 
 bool conv1d_should_flatten(const sc_dims &weight_shape, const sc_dims &strides,
-        const sc_dims &paddings, const sc_data_format_t &format) {
+        const sc_dims &paddings, const sc_data_format_t &format,
+        bool is_weight_constant) {
     bool res = true;
     if (weight_shape.size() != 4UL) { // should be 2d case
         return false;
@@ -43,6 +44,10 @@ bool conv1d_should_flatten(const sc_dims &weight_shape, const sc_dims &strides,
     }
     // TODO(zhicong): improve conv1d performance in RN50 stage 1
     if (weight_shape[0] < 64 || weight_shape[1] < 64) { res = false; }
+    if (!is_weight_constant) {
+        // TODO(zhicong): improve f32/bf16 training fwd config
+        res = false;
+    }
     return res;
 }
 
@@ -120,10 +125,15 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
             auto ih = op->get_inputs()[0]->details_.get_plain_dims()[2];
             auto ow = op->get_outputs()[0]->details_.get_plain_dims()[3];
             auto oh = op->get_outputs()[0]->details_.get_plain_dims()[2];
-
+            bool is_weight_constant
+                    = op->get_inputs()[1]->producer_owner_->isa<constant_op_t>()
+                    || op->get_inputs()[1]->producer_owner_->attrs_.get_or_else(
+                            "constant", const_kind::not_const)
+                    || op->get_inputs()[1]->attrs_.get_or_else(
+                            "constant", const_kind::not_const);
             if (conv1d_should_flatten(
                         op->get_inputs()[1]->details_.get_plain_dims(), stride,
-                        pads_begin, data_format)) {
+                        pads_begin, data_format, is_weight_constant)) {
                 { // pre tensor_view(data)
                     auto shape
                             = get_conv1d_flatten_shape(sc_data_format_t::NCHW(),
