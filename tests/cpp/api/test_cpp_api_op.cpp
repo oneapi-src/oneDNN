@@ -65,6 +65,7 @@ TEST(APIOp, CreateAllOps) {
             op::kind::GELUBackprop,
             op::kind::Greater,
             op::kind::GreaterEqual,
+            op::kind::HardSigmoid,
             op::kind::HardSwish,
             op::kind::HardSwishBackprop,
             op::kind::Index,
