@@ -48,6 +48,7 @@
         <tab type="user" title="GELUBackprop" url="@ref dev_guide_op_gelubackprop"/>
         <tab type="user" title="Greater" url="@ref dev_guide_op_greater"/>
         <tab type="user" title="GreaterEqual" url="@ref dev_guide_op_greaterequal"/>
+        <tab type="user" title="HardSigmoid" url="@ref dev_guide_op_hardsigmoid"/>
         <tab type="user" title="HardSwish" url="@ref dev_guide_op_hardswish"/>
         <tab type="user" title="HardSwishBackprop" url="@ref dev_guide_op_hardswishbackprop"/>
         <tab type="user" title="Index" url="@ref dev_guide_op_index"/>

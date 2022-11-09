@@ -39,6 +39,7 @@ FP32/FP16/BF16/S8/U8 data type.  For complete OP definition, please refer to
 - Exp
 - GELU
 - GELUBackprop
+- HardSigmoid
 - HardSwish
 - HardSwishBackprop
 - Index
