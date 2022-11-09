@@ -229,6 +229,16 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   if (try_os_blocking_) {
     // if use os blocking override tile p and tile q above
     cfg.tile_os = cfg.tile_q;
+    auto os_choices = get_os_blocks(ow_, adj_os_);
+    std::sort(os_choices.begin(), os_choices.end());
+    if (ow_ <= 32 && ow_ % 16 != 0) {
+      for (unsigned i = os_choices.size() - 1; i >= 0; i--) {
+        if (nthreads <= adj_os_ / os_choices[i] * mb_) {
+          cfg.tile_os = os_choices[i];
+          break;
+        }
+      }
+    }
     cfg.tile_q = -1;
     cfg.tile_p = -1;
   }
@@ -241,7 +251,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     cfg.tile_d = 1;
     cfg.tile_p = 1;
     cfg.tile_q = ow_;
-  };
+  }
   if (use_conv1d) {
     const int num_threads = runtime_config_t::get().get_num_threads();
     auto thread_split = get_splits(num_threads);
