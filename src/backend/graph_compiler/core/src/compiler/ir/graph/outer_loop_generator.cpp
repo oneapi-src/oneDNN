@@ -398,8 +398,9 @@ anchor_loop_generator_t::create_inner_anchor() {
         fanchor_map.emplace_back(
                 std::make_shared<fuse_anchor_map_t>(s, fsmap, parent_fanchor_));
         auto body = bld->pop_scope();
-        bld->push_for_loop(loop_vars[i], 0, range[loop_num].second, 1, body,
-                true, for_type::NORMAL);
+        auto loop = bld->push_for_loop(loop_vars[i], 0, range[loop_num].second,
+                1, body, true, for_type::NORMAL);
+        if (i == 0) loop->attr()[stmt_attr_key::merge_loop] = true;
         inner_slice[loop_num] = range[loop_num];
     }
     return fanchor_map;

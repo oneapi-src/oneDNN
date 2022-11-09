@@ -118,7 +118,8 @@ void tunable_op_t::create_mixed_partition(mixed_parti_t *parti) {
 void tunable_op_t::append_mixed_partition(mixed_parti_t *parti) {
     search_anchor(parti);
     COMPILE_ASSERT(parti->ready_for_op(this),
-            "not suitable anchor found for " << op_name_);
+            "Not suitable anchor found for " << op_name_ << "_"
+                                             << logical_op_id_);
     parti->buf_alloc_.allocate_buffer(this);
     commit_into_anchor(parti);
 }
@@ -180,7 +181,8 @@ void tunable_op_t::commit_into_anchor(mixed_parti_t *parti) {
     for (size_t i = 0; i < outs.size(); i++) {
         def_to_call_map[strd_outs[i]] = tptr_outs[i];
     }
-
+    // commit content id to anchor
+    committed_anchor->append_content(static_cast<sc_op *>(this));
     parti->buf_alloc_.update_input_buffer_info(this);
     auto func = get_func(parti, strd_ins, strd_outs);
     // update output buffer info after inner anchor created

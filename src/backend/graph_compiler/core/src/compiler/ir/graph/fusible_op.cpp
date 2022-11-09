@@ -127,7 +127,8 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
 void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
     search_anchor(parti);
     COMPILE_ASSERT(parti->ready_for_op(this),
-            "Not suitable anchor found for " << op_name_);
+            "Not suitable anchor found for " << op_name_ << "_"
+                                             << logical_op_id_);
 
     if (!parti->empty()) {
         parti->buf_alloc_.allocate_buffer(this);
@@ -157,8 +158,7 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
             anchor_loop_generator_t gen(base_gt, committed_anchor);
             // create_inner_anchor
             auto inner_anchor = gen.create_inner_anchor();
-            parti->fanchors_.insert(parti->fanchors_.end(),
-                    inner_anchor.begin(), inner_anchor.end());
+            parti->append_fusion_anchor(inner_anchor);
             auto inner_ss = bld.pop_scope().checked_as<stmts>();
             // search inner anchor again
             search_anchor(parti);
@@ -238,6 +238,8 @@ void fusible_op_t::commit_into_anchor(mixed_parti_t *parti) {
         auto compute_core = bld.pop_scope().checked_as<stmts>();
         committed_anchor->commit_stmts(compute_core);
     }
+    // commit content id to anchor
+    committed_anchor->append_content(static_cast<sc_op *>(this));
 }
 
 void fusible_op_t::query_format(context_ptr ctx,

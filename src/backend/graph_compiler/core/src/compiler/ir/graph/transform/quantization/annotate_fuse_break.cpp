@@ -53,7 +53,7 @@ void annotate_fusion_break(sc_graph_t &mgr, const context_ptr &ctx) {
                         auto prev3 = prev2->get_inputs()[0]->producer_owner_;
                         if (prev3->isa<ops::conv_fwd_op_t>()
                                 || prev3->isa<add_op_t>()) {
-                            prev2->attrs_[op_attr_key::break_post_fuse] = true;
+                            prev1->attrs_[op_attr_key::break_pre_fuse] = true;
                         }
                     }
                 }

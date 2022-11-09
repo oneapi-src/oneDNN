@@ -177,6 +177,8 @@ struct mixed_parti_t : fusion_partition_t {
     std::vector<sc_op_ptr> committed_ops_;
     // binding axis information from GIR with outer loops in TIR
     outerloop_axis_binder ax_binder_;
+    // dep matrix
+    dep_mat_ptr dep_m_;
 
     /* related to IR */
     context_ptr ctx_;
@@ -198,6 +200,19 @@ struct mixed_parti_t : fusion_partition_t {
 
     using ptr = std::shared_ptr<mixed_parti_t>;
 
+    // append fusion anchor
+    void append_fusion_anchor(const fuse_anchor_map_ptr &fanchor) {
+        fanchor->binded_mxp_ = this;
+        fanchors_.emplace_back(fanchor);
+    }
+
+    void append_fusion_anchor(
+            const std::vector<fuse_anchor_map_ptr> &fanchors) {
+        for (auto &fanchor : fanchors) {
+            append_fusion_anchor(fanchor);
+        }
+    }
+
     /**
      * The mixed partition merge will override base merge method, including
      * following several steps:
@@ -212,10 +227,10 @@ struct mixed_parti_t : fusion_partition_t {
      * `fanchors_`.
      * 6. call base class `merge` method to do disjoint-set merge.
      * */
-    void merge(
-            const ptr &other, const op_dep_matrix_t &g, bool check_connection);
+    void merge(const ptr &other, bool check_connection);
 
-    mixed_parti_t(const sc_op_ptr &op, const context_ptr &ctx);
+    mixed_parti_t(const context_ptr &ctx, const sc_op_ptr &op,
+            const dep_mat_ptr &dep_m);
 
     bool is_ok_to_add(sc_op *op, const op_dep_matrix_t &g);
 
@@ -301,6 +316,9 @@ struct mixed_parti_t : fusion_partition_t {
     // query partition whether contains op with given type
     template <typename T>
     bool contain_op_with_type() const;
+
+    // query partition whether contains op with conv type
+    bool is_conv_workload() const;
 
     // query partition whether contains tunable op
     bool contain_tunable_op() const;

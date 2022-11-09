@@ -19,8 +19,10 @@
 
 #include <functional>
 #include <list>
+#include <memory>
 #include <vector>
 #include <compiler/ir/graph/graph.hpp>
+
 namespace sc {
 
 /**
@@ -153,6 +155,8 @@ public:
         return ret;
     }
 };
+
+using dep_mat_ptr = std::shared_ptr<op_dep_matrix_t>;
 
 /**
  * op_sorting_visitor_t is sort based, and visiting order is defined by the user

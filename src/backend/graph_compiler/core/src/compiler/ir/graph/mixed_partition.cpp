@@ -524,9 +524,9 @@ int outerloop_axis_binder::align_with(
         cur_axis = bd_ax_map_.get(other.base_gt_);
         other_axis = other.bd_ax_map_.get(other.base_gt_);
     } else {
-        SC_MODULE_WARN
+        SC_MODULE_INFO
                 << "Could not validate axis due to no binding hint found";
-        return check_axis_size;
+        return 0;
     }
     COMPILE_ASSERT(!cur_axis.empty() && !other_axis.empty(),
             "binding axis could not be empty, but got "
@@ -559,7 +559,7 @@ void extract_anchor_from_fmgr_to_parti(fusion_manager *fmgr,
             for (size_t i = 0; i < ir_tsrs.size(); i++) {
                 if (iter_anchor.tsr_.ptr_same(ir_tsrs[i])) {
                     fsmap.get(gtsrs[i]) = iter_anchor.slice_list_;
-                    parti->fanchors_.emplace_back(
+                    parti->append_fusion_anchor(
                             std::make_shared<fuse_iter_anchor_map_t>(
                                     iter_anchor.iter_,
                                     iter_anchor.anchor_position_, fsmap,
@@ -618,7 +618,7 @@ void extract_anchor_from_fmgr_to_parti(fusion_manager *fmgr,
             }
         }
         if (!fsmap.empty()) {
-            parti->fanchors_.emplace_back(std::make_shared<fuse_anchor_map_t>(
+            parti->append_fusion_anchor(std::make_shared<fuse_anchor_map_t>(
                     anchor_map.first, fsmap, parent_fanchor));
             extracted_anchor_size++;
         }
@@ -628,41 +628,105 @@ void extract_anchor_from_fmgr_to_parti(fusion_manager *fmgr,
                 << "Could not extract fusion anchor from fmgr, please check";
 }
 
-bool fuse_anchor_map_t::check_input_for_op(mixed_parti_t *parti,
+bool fuse_anchor_map_t::has_view_of(sc_op *op) {
+    auto op_anchor = binded_mxp_->op_anchor_map_[op];
+    if (!op_anchor) return true;
+    while (true) {
+        if (op_anchor.get() == this) return true;
+        if (op_anchor->content_number_map_.find(this)
+                == op_anchor->content_number_map_.end()) {
+            if (op_anchor->parent_) {
+                op_anchor = op_anchor->parent_;
+            } else
+                break;
+        } else if (op_anchor->content_number_map_.find(this)->second
+                > op_anchor->content_number_map_.find(op)->second) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    auto ths_root_scope = get_root()->get_parent_scope()->seq_;
+    stmt ths_anchor_ss = get_root()->anchor_position_;
+    auto other_pos = std::find_if(ths_root_scope.begin(), ths_root_scope.end(),
+            [&ths_anchor_ss](
+                    const stmt &s) { return ths_anchor_ss.ptr_same(s); });
+    auto op_anchor_loop = op_anchor->get_parent_loop();
+    while (true) {
+        auto op_anchor_pos = std::find_if(ths_root_scope.begin(),
+                ths_root_scope.end(), [&op_anchor_loop](const stmt &s) {
+                    return op_anchor_loop.ptr_same(s);
+                });
+        if (op_anchor_pos != ths_root_scope.end()) {
+            return op_anchor_pos < other_pos;
+        }
+        if (op_anchor_loop->attr().has_key("builder.parent_node")) {
+            op_anchor_loop = get_parent_node(op_anchor_loop);
+        } else {
+            return false;
+        }
+    }
+}
+
+bool fuse_anchor_map_t::check_dep_for_op(const sc_op *op) {
+    if (op->isa<input_op>() || op->isa<constant_op_t>()) return true;
+    auto parti = binded_mxp_;
+    auto dep_m = parti->dep_m_;
+    for (auto &inp : op->get_inputs()) {
+        // check dep ops
+        for (auto &cur : parti->ops) {
+            if (std::any_of(cur->get_outputs().begin(),
+                        cur->get_outputs().end(),
+                        [&parti](const graph_tensor_ptr &gt) {
+                            return parti->is_parti_out(gt);
+                        })
+                    && (dep_m->lookup(cur.get(), inp->producer_owner_) == 1
+                            || cur.get() == inp->producer_owner_)) {
+                // this fanchor should has view of depent op
+                if (!this->has_view_of(cur.get())) return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool fuse_anchor_map_t::check_input_for_op(
         const sc_op *op, std::unordered_set<graph_tensor_ptr> &known_gt) {
-    auto fanchor = this->shared_from_this();
+    auto fanchor = this;
     return std::all_of(op->get_inputs().begin(), op->get_inputs().end(),
-            [&fanchor, &parti, &known_gt](const graph_tensor_ptr &gt) {
-                // if the producer owner of gt is excluded in current
-                // partition
-                if (!parti->contains(gt->producer_owner_)) return true;
+            [&fanchor, &known_gt](const graph_tensor_ptr &gt) {
+                auto parti = fanchor->binded_mxp_;
+                auto dep_op = gt->producer_owner_;
                 // if the producer owner of gt is successfully inferred
                 if (known_gt.find(gt) != known_gt.end()) return true;
+                // if the producer owner of gt is excluded in current
+                // partition
+                if (!parti->contains(dep_op)) {
+                    return fanchor->check_dep_for_op(dep_op);
+                }
+
+                // fanchor should has view of depent op
+                if (!fanchor->has_view_of(dep_op)) return false;
+
                 slice_range_list inferred_slice = fanchor->fsmap_.get(gt);
-                fuse_anchor_map_ptr cur = fanchor;
+                fuse_anchor_map_t *cur = fanchor;
+
+                COMPILE_ASSERT(!dep_op->get_inputs().empty(),
+                        dep_op->op_name_ << " op has no input")
+                // find the borrowed scope
                 while (cur->parent_) {
-                    auto cached_cur = cur;
-                    cur = cur->parent_;
-                    // find the borrowed scope
-                    if (cur->content_number_map_.find(gt->producer_owner_)
-                            != cur->content_number_map_.end()) {
-                        // usually occurs when patition merge and
-                        // be_merged_max_anchor is null
-                        if (!cur->fsmap_.haskey(gt)
-                                || cur->fsmap_.get(gt).empty())
-                            return false;
-                        if (cur->content_number_map_.find(cached_cur.get())
-                                == cur->content_number_map_.end())
-                            return false;
-                        if (cur->content_number_map_[gt->producer_owner_]
-                                > cur->content_number_map_[cached_cur.get()])
-                            continue;
-                        slice_range_list cur_slice = cur->fsmap_.get(gt);
-                        auto res = cmp_slice_range(inferred_slice, cur_slice);
-                        if (res != cmp_res::l_larger_r) {
-                            fanchor->borrowed_fanchor_map_[gt] = cur;
-                            return true;
-                        }
+                    cur = cur->parent_.get();
+                    // if input is ready on cur anchor, its input slice range
+                    // should not be empty
+                    if (!cur->fsmap_.haskey(dep_op->get_inputs()[0])
+                            || cur->fsmap_.get(dep_op->get_inputs()[0]).empty())
+                        continue;
+                    slice_range_list cur_slice = cur->fsmap_.get(gt);
+                    auto res = cmp_slice_range(inferred_slice, cur_slice);
+                    if (res != cmp_res::l_larger_r) {
+                        fanchor->borrowed_fanchor_map_[gt]
+                                = cur->shared_from_this();
+                        return true;
                     }
                 }
                 return false;
@@ -784,7 +848,7 @@ void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti) {
                     continue;
                 }
             }
-            if (!fanchor->check_input_for_op(parti, op, known_gt)) {
+            if (!fanchor->check_input_for_op(op, known_gt)) {
                 fanchor->forbid_op_in_anchor(op, known_gt);
                 continue;
             }
@@ -802,7 +866,6 @@ void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti) {
                 fanchor->forbid_op_in_anchor(op, known_gt);
                 continue;
             }
-            fanchor->append_op(op);
             parti->set_anchor_for_op(op, fanchor);
             continue;
         }
@@ -810,7 +873,6 @@ void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti) {
             auto &fail_list
                     = stat_map.get_ops_by_status(infer_status_code::FAIL);
             if (fail_list.find(op->shared_from_this()) == fail_list.end()) {
-                fanchor->append_op(op);
                 parti->set_anchor_for_op(op, fanchor);
                 continue;
             }
@@ -840,14 +902,14 @@ enum class parti_dep : int {
 /**
  * Check two partition dependency
  * */
-static parti_dep check_parti_dep(
-        mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
+static parti_dep check_parti_dep(mixed_parti_t *A, mixed_parti_t *B) {
     A = A->get_root(), B = B->get_root();
+    auto dep_m = A->dep_m_;
     auto A_ops = A->ops, B_ops = B->ops;
     bool A_dep_B = false, B_dep_A = false;
     for (auto &op_a : A_ops) {
         for (auto &op_b : B_ops) {
-            auto dep_flag = g.lookup(op_a, op_b);
+            auto dep_flag = dep_m->lookup(op_a, op_b);
             if (dep_flag == 1)
                 B_dep_A = true;
             else if (dep_flag == -1)
@@ -892,10 +954,9 @@ static bool check_parti_connectionship(mixed_parti_t *A, mixed_parti_t *B) {
 /**
  * Check two partition ring risk
  * */
-static bool check_parti_ring_risk(
-        mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
+static bool check_parti_ring_risk(mixed_parti_t *A, mixed_parti_t *B) {
     A = A->get_root(), B = B->get_root();
-    auto dep = check_parti_dep(A, B, g);
+    auto dep = check_parti_dep(A, B);
     if (dep == parti_dep::inter_dep)
         return true;
     else if (dep == parti_dep::no_dep)
@@ -909,7 +970,8 @@ static bool check_parti_ring_risk(
             if (append_parti->is_parti_inp(inp)
                     && !target_parti->contains(inp->producer_owner_)) {
                 for (auto &op_in_set : target_parti->ops) {
-                    auto result = g.lookup(op_in_set->logical_op_id_,
+                    auto result = target_parti->dep_m_->lookup(
+                            op_in_set->logical_op_id_,
                             inp->producer_owner_->logical_op_id_);
                     if (result == 1) { return true; }
                 }
@@ -925,18 +987,18 @@ static bool check_parti_ring_risk(
  *           /     \
  *      parti A   parti B
  * */
-static bool check_parti_forked(
-        mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
+static bool check_parti_forked(mixed_parti_t *A, mixed_parti_t *B) {
     A = A->get_root(), B = B->get_root();
+    auto dep_m = A->dep_m_;
     // for all op depends on A, should not depends on B
     for (auto &op_in_A : A->ops) {
         auto A_id = op_in_A->logical_op_id_;
-        auto related_ids = g.lookup_ops_depend_on(A_id);
+        auto related_ids = dep_m->lookup_ops_depend_on(A_id);
         for (auto &op_in_B : B->ops) {
             auto B_id = op_in_B->logical_op_id_;
             if (std::any_of(related_ids.begin(), related_ids.end(),
-                        [&B_id, &g](const int &rid) {
-                            return g.lookup(B_id, rid) == 1;
+                        [&B_id, &dep_m](const int &rid) {
+                            return dep_m->lookup(B_id, rid) == 1;
                         })) {
                 return false;
             }
@@ -948,23 +1010,26 @@ static bool check_parti_forked(
 /**
  * Check two partition axis binding
  * */
-static int check_parti_loop_axis_binding(mixed_parti_t *A, mixed_parti_t *B,
-        const op_dep_matrix_t &g, int check_loop_size) {
+static int check_parti_loop_axis_binding(
+        mixed_parti_t *A, mixed_parti_t *B, int check_loop_size) {
+    // skip conv workload until all conv ops implement axis binding infer
+    if (A->is_conv_workload() || B->is_conv_workload()) {
+        return check_loop_size;
+    }
     // auto skip when A and B have no dependency
-    if (check_parti_forked(A, B, g)) return check_loop_size;
+    if (check_parti_forked(A, B)) return check_loop_size;
     A = A->get_root(), B = B->get_root();
     return A->ax_binder_.align_with(B->ax_binder_, check_loop_size);
 }
 
-static bool try_merge_mixed_parti_parallel(
-        mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
+static bool try_merge_mixed_parti_parallel(mixed_parti_t *A, mixed_parti_t *B) {
     A = A->get_root(), B = B->get_root();
     if (A == B) return false;
     if (!A->func_.get() || !B->func_.get()) return false;
     if (!check_parti_connectionship(A, B)) return false;
-    if (check_parti_ring_risk(A, B, g)) return false;
+    if (check_parti_ring_risk(A, B)) return false;
 
-    auto dep = check_parti_dep(A, B, g);
+    auto dep = check_parti_dep(A, B);
     COMPILE_ASSERT(
             dep != parti_dep::inter_dep, "inter-dependency is not expected");
 
@@ -986,7 +1051,7 @@ static bool try_merge_mixed_parti_parallel(
         return false;
     }
     // check axis binding.
-    if (!check_parti_loop_axis_binding(append_parti, target_parti, g,
+    if (!check_parti_loop_axis_binding(append_parti, target_parti,
                 1 /*due to current parallel merge only for outer most loop*/)) {
         return false;
     }
@@ -1058,7 +1123,7 @@ static bool try_merge_mixed_parti_parallel(
         // dummy fsmap, the tensor belongs to this scope will not be shrinked
         fslice_map fsmap;
         common_fanchor = std::make_shared<fuse_anchor_map_t>(s, fsmap);
-        target_parti->fanchors_.emplace_back(common_fanchor);
+        target_parti->append_fusion_anchor(common_fanchor);
     } else if (common_other_fanchor) {
         common_fanchor->merge(common_other_fanchor);
     }
@@ -1069,8 +1134,7 @@ static bool try_merge_mixed_parti_parallel(
     /* * * * * * * * * * * * * * * * *
      * Step 2: Merge fanchor_
      * * * * * * * * * * * * * * * * */
-    target_parti->fanchors_.insert(target_parti->fanchors_.end(),
-            append_parti->fanchors_.begin(), append_parti->fanchors_.end());
+    target_parti->append_fusion_anchor(append_parti->fanchors_);
 
     /* * * * * * * * * * * * * * * * *
      * Step 3: Merge buffer_
@@ -1118,13 +1182,13 @@ static bool try_merge_mixed_parti_parallel(
 }
 
 static bool try_merge_mixed_parti_horizontally(
-        mixed_parti_t *A, mixed_parti_t *B, const op_dep_matrix_t &g) {
+        mixed_parti_t *A, mixed_parti_t *B) {
     A = A->get_root(), B = B->get_root();
     if (A == B) return false;
     if (!A->func_.get() || !B->func_.get()) return false;
     if (!A->contain_tunable_op() || !B->contain_tunable_op()) return false;
     if (!check_parti_connectionship(A, B)) return false;
-    if (check_parti_dep(A, B, g) != parti_dep::no_dep) return false;
+    if (check_parti_dep(A, B) != parti_dep::no_dep) return false;
 
     auto outer_loops_A = A->get_outer_loops(),
          outer_loops_B = B->get_outer_loops();
@@ -1170,8 +1234,7 @@ static bool try_merge_mixed_parti_horizontally(
     /* * * * * * * * * * * * * * * * *
      * Step 2: Merge fanchor_
      * * * * * * * * * * * * * * * * */
-    A->fanchors_.insert(
-            A->fanchors_.end(), B->fanchors_.begin(), B->fanchors_.end());
+    A->append_fusion_anchor(B->fanchors_);
 
     /* * * * * * * * * * * * * * * * *
      * Step 3: Merge buffer_
@@ -1311,14 +1374,14 @@ static void try_align_parti_outer_loops(mixed_parti_t *A, mixed_parti_t *B) {
 }
 
 // check brgemm pre-op fusion
-static bool try_merge_brgemm_and_preop_parti(mixed_parti_t *A, mixed_parti_t *B,
-        const op_dep_matrix_t &g, bool check_connection = true) {
+static bool try_merge_brgemm_and_preop_parti(
+        mixed_parti_t *A, mixed_parti_t *B, bool check_connection = true) {
     A = A->get_root(), B = B->get_root();
     if (A == B) return false;
     if (!A->func_.get() || !B->func_.get()) return false;
     if (check_connection && !check_parti_connectionship(A, B)) return false;
-    if (check_parti_ring_risk(A, B, g)) return false;
-    auto dep_flag = check_parti_dep(A, B, g);
+    if (check_parti_ring_risk(A, B)) return false;
+    auto dep_flag = check_parti_dep(A, B);
     if (dep_flag == parti_dep::inter_dep) return false;
 
     mixed_parti_t *brgemm_parti, *preop_parti;
@@ -1332,7 +1395,7 @@ static bool try_merge_brgemm_and_preop_parti(mixed_parti_t *A, mixed_parti_t *B,
         return false;
     }
 
-    if (check_parti_dep(brgemm_parti, preop_parti, g) == parti_dep::l_dep_r)
+    if (check_parti_dep(brgemm_parti, preop_parti) == parti_dep::l_dep_r)
         return false;
 
     SC_MODULE_INFO << "pre-op merging two partition:";
@@ -1434,14 +1497,14 @@ static bool try_merge_brgemm_and_preop_parti(mixed_parti_t *A, mixed_parti_t *B,
     return true;
 }
 
-static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
-        const op_dep_matrix_t &g, bool check_connection = true) {
+static bool try_merge_mixed_parti_vertically(
+        mixed_parti_t *A, mixed_parti_t *B, bool check_connection = true) {
     A = A->get_root(), B = B->get_root();
     if (A == B) return false;
     if (!A->func_.get() || !B->func_.get()) return false;
     if (check_connection && !check_parti_connectionship(A, B)) return false;
-    if (check_connection && check_parti_ring_risk(A, B, g)) return false;
-    auto dep_flag = check_parti_dep(A, B, g);
+    if (check_connection && check_parti_ring_risk(A, B)) return false;
+    auto dep_flag = check_parti_dep(A, B);
     // if two partition inter-depends each other, could not merge them
     if (dep_flag == parti_dep::inter_dep) return false;
     if (check_connection && dep_flag != parti_dep::no_dep) return false;
@@ -1474,7 +1537,7 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
 
     // validate axis binding
     merged_loop_size = check_parti_loop_axis_binding(
-            parti_be_merged, pa_to_merge, g, merged_loop_size);
+            parti_be_merged, pa_to_merge, merged_loop_size);
 
     if (!merged_loop_size) return false;
 
@@ -1510,8 +1573,8 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
                     << "Cost model ignores partition with reduce_compute: "
                     << A->func_->name_ << " and " << B->func_->name_
                     << " in cache inefficiencent case";
-        } else if (pa_to_merge->committed_ops_[0]
-                           ->isa<ops::conv_fwd_core_op_t>()) {
+        } else if (pa_to_merge
+                           ->contain_op_with_type<ops::conv_fwd_core_op_t>()) {
             SC_MODULE_INFO
                     << "Cost model ignores partition for convolution workload: "
                     << A->func_->name_ << " and " << B->func_->name_
@@ -1604,7 +1667,7 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
             be_merged_anchor_map->attach_parent_anchor(
                     max_to_merge_anchor_map, max_be_merged_anchor_map);
         }
-        pa_to_merge->fanchors_.emplace_back(be_merged_anchor_map);
+        pa_to_merge->append_fusion_anchor(be_merged_anchor_map);
     }
 
     /* * * * * * * * * * * * * * * * *
@@ -1677,17 +1740,16 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
  * @param check_connection: if the value is False, the connection ship should be
  * ensured by joint op.
  * */
-void mixed_parti_t::merge(
-        const ptr &other, const op_dep_matrix_t &g, bool check_connection) {
+void mixed_parti_t::merge(const ptr &other, bool check_connection) {
     if (!try_merge_brgemm_and_preop_parti(
-                this, other.get(), g, check_connection)) {
-        try_merge_mixed_parti_vertically(
-                this, other.get(), g, check_connection);
+                this, other.get(), check_connection)) {
+        try_merge_mixed_parti_vertically(this, other.get(), check_connection);
     }
 }
 
-mixed_parti_t::mixed_parti_t(const sc_op_ptr &op, const context_ptr &ctx)
-    : ctx_(ctx) {
+mixed_parti_t::mixed_parti_t(
+        const context_ptr &ctx, const sc_op_ptr &op, const dep_mat_ptr &dep_m)
+    : dep_m_(dep_m), ctx_(ctx) {
     buf_alloc_.binded_mxp_ = this;
     if (!op->isa<constant_op_t>() && !op->isa<tensor_view_op_t>()) {
         SC_MODULE_INFO << "================  create new partition: "
@@ -2015,6 +2077,12 @@ bool mixed_parti_t::contain_op_with_type() const {
     return (count_op_with_type<T>() != 0);
 }
 
+bool mixed_parti_t::is_conv_workload() const {
+    return contain_op_with_type<ops::conv_fwd_core_op_t>()
+            || contain_op_with_type<ops::conv_bwd_data_core_op_t>()
+            || contain_op_with_type<ops::conv_bwd_weight_core_op_t>();
+}
+
 bool mixed_parti_t::contain_tunable_op() const {
     return contain_op_with_type<tunable_op_t>();
 }
@@ -2139,12 +2207,16 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
                                 ->search_anchor(parent_partition.get());
                         op->dyn_cast<op_traits::mixed_partition_acceptable>()
                                 ->search_anchor(cur_in_partition.get());
-                        // the difference between later partition merge is that
-                        // current merge need to check partition connection to
-                        // ensure legality.
-                        try_merge_brgemm_and_preop_parti(parent_partition.get(),
-                                cur_in_partition.get(), dep,
-                                /*check connection*/ true);
+                        if (parent_partition->ready_for_op(op.get())
+                                && cur_in_partition->ready_for_op(op.get())) {
+                            // the difference between later partition merge is
+                            // that current merge need to check partition
+                            // connection to ensure legality.
+                            try_merge_brgemm_and_preop_parti(
+                                    parent_partition.get(),
+                                    cur_in_partition.get(),
+                                    /*check connection*/ true);
+                        }
                     }
                 }
             }
@@ -2165,15 +2237,14 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
                     if (parent_partition) {
                         // support matmul to fuse m_o axis
                         if (op->isa<tunable_op_t>()) {
-                            cur_in_partition->merge(
-                                    parent_partition, dep, false);
+                            cur_in_partition->merge(parent_partition, false);
                         } else {
                             if (parent_partition->contain_tunable_op()) {
                                 cur_in_partition->merge(
-                                        parent_partition, dep, false);
+                                        parent_partition, false);
                             } else {
                                 parent_partition->merge(
-                                        cur_in_partition, dep, false);
+                                        cur_in_partition, false);
                             }
                         }
                         parent_partition
@@ -2187,7 +2258,8 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
             }
         }
         if (!parent_partition) {
-            parent_partition = std::make_shared<mixed_parti_t>(op, ctx);
+            parent_partition = std::make_shared<mixed_parti_t>(
+                    ctx, op, std::make_shared<op_dep_matrix_t>(dep));
         } else {
             parent_partition->get_root()->add(op);
         }
@@ -2616,12 +2688,10 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
 }
 
 using crossover_alg
-        = std::function<void(const std::vector<mixed_parti_t::ptr> &parti_vec,
-                op_dep_matrix_t &dep)>;
+        = std::function<void(const std::vector<mixed_parti_t::ptr> &parti_vec)>;
 
 static void horizontal_crossover(
-        const std::vector<mixed_parti_t::ptr> &parti_vec,
-        op_dep_matrix_t &dep) {
+        const std::vector<mixed_parti_t::ptr> &parti_vec) {
     SC_MODULE_INFO << "Applying horizontal merge crossover algorithm...";
     auto op_size = parti_vec.size();
     for (size_t i = 0; i < op_size; i++) {
@@ -2630,14 +2700,13 @@ static void horizontal_crossover(
         for (size_t j = i; j < op_size; j++) {
             auto parti_B = parti_vec[j];
             if (!parti_B) continue;
-            try_merge_mixed_parti_horizontally(
-                    parti_A.get(), parti_B.get(), dep);
+            try_merge_mixed_parti_horizontally(parti_A.get(), parti_B.get());
         }
     }
 }
 
-static void parallel_crossover(const std::vector<mixed_parti_t::ptr> &parti_vec,
-        op_dep_matrix_t &dep) {
+static void parallel_crossover(
+        const std::vector<mixed_parti_t::ptr> &parti_vec) {
     SC_MODULE_INFO << "Applying parallel merge crossover algorithm...";
     auto op_size = parti_vec.size();
     for (size_t i = 0; i < op_size; i++) {
@@ -2646,13 +2715,13 @@ static void parallel_crossover(const std::vector<mixed_parti_t::ptr> &parti_vec,
         for (size_t j = i; j < op_size; j++) {
             auto parti_B = parti_vec[j];
             if (!parti_B) continue;
-            try_merge_mixed_parti_parallel(parti_A.get(), parti_B.get(), dep);
+            try_merge_mixed_parti_parallel(parti_A.get(), parti_B.get());
         }
     }
 }
 
-static void vertical_crossover(const std::vector<mixed_parti_t::ptr> &parti_vec,
-        op_dep_matrix_t &dep) {
+static void vertical_crossover(
+        const std::vector<mixed_parti_t::ptr> &parti_vec) {
     SC_MODULE_INFO << "Applying vertical merge crossover algorithm...";
     auto op_size = parti_vec.size();
     for (size_t i = 0; i < op_size; i++) {
@@ -2664,14 +2733,13 @@ static void vertical_crossover(const std::vector<mixed_parti_t::ptr> &parti_vec,
             // currently only apply on conv image affine
             if (parti_A->contain_op_with_type<ops::conv_fwd_core_op_t>()
                     && parti_B->contain_op_with_type<ops::conv_fwd_core_op_t>())
-                try_merge_mixed_parti_vertically(
-                        parti_A.get(), parti_B.get(), dep);
+                try_merge_mixed_parti_vertically(parti_A.get(), parti_B.get());
         }
     }
 }
 
 static void crossover_partition(std::vector<mixed_parti_t::ptr> &op_2_partition,
-        op_dep_matrix_t &dep, const std::vector<crossover_alg> &algs) {
+        const std::vector<crossover_alg> &algs) {
     std::unordered_set<mixed_parti_t::ptr> parti_set;
     for (auto &parti : op_2_partition) {
         // auto skip const parti
@@ -2685,7 +2753,7 @@ static void crossover_partition(std::vector<mixed_parti_t::ptr> &op_2_partition,
     std::vector<mixed_parti_t::ptr> parti_vec {
             parti_set.begin(), parti_set.end()};
     for (auto &al : algs) {
-        al(parti_vec, dep);
+        al(parti_vec);
     }
     for (auto &parti : op_2_partition) {
         if (parti) {
@@ -2710,7 +2778,7 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
 
     std::vector<crossover_alg> algs
             = {horizontal_crossover, vertical_crossover, parallel_crossover};
-    crossover_partition(op_2_partition, dep, algs);
+    crossover_partition(op_2_partition, algs);
 
     std::vector<sc_op_ptr> fused_ops;
     for (auto &parti : op_2_partition) {

@@ -28,6 +28,7 @@
 #include <compiler/ir/sc_expr.hpp>
 #include <unordered_map>
 #include <unordered_set>
+#include <util/variant.hpp>
 
 namespace sc {
 
@@ -209,9 +210,25 @@ struct iter_fuse_anchor_t {
     bool defined() const { return anchor_position_.defined(); }
 };
 
+using anchor_content_t = variant<sc_op *, fuse_anchor_map_t *>;
+struct op_or_fuse_anchor_map_hasher {
+    size_t operator()(const anchor_content_t &v) const {
+        return std::hash<void *>()(v.cast<void *>());
+    }
+};
+
+struct op_or_fuse_anchor_map_cmper {
+    bool operator()(
+            const anchor_content_t &v, const anchor_content_t &v2) const {
+        return v.cast<void *>() == v2.cast<void *>();
+    }
+};
+
 struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
     stmts anchor_position_;
     fslice_map fsmap_;
+
+    mixed_parti_t *binded_mxp_;
 
     // parent anchor
     std::shared_ptr<fuse_anchor_map_t> parent_;
@@ -223,7 +240,9 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
             borrowed_fanchor_map_;
     // content inferred under current fusion anchor scope, includes op and
     // anchor
-    std::unordered_map<void *, size_t> content_number_map_;
+    std::unordered_map<anchor_content_t, size_t, op_or_fuse_anchor_map_hasher,
+            op_or_fuse_anchor_map_cmper>
+            content_number_map_;
 
     fuse_anchor_map_t() = default;
     fuse_anchor_map_t(stmts pos, const fslice_map &fsmap,
@@ -231,7 +250,7 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
         : anchor_position_(std::move(pos))
         , fsmap_(std::move(fsmap))
         , parent_(parent) {
-        if (parent) { parent_->append_anchor(this); }
+        if (parent) { parent_->append_content(this); }
     };
     bool defined() const { return anchor_position_.defined(); }
 
@@ -248,14 +267,18 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
         }
     }
 
-    void append_op(sc_op *op) {
+    void append_content(anchor_content_t content) {
         content_number_map_.insert(
-                std::make_pair(op, content_number_map_.size()));
+                std::make_pair(content, content_number_map_.size()));
+        // recursively attach to parent anchor
+        auto root = this;
+        while (root->parent_) {
+            auto num_id = root->parent_->content_number_map_[root];
+            root = root->parent_.get();
+            root->content_number_map_.insert(std::make_pair(content, num_id));
+        }
     }
-    void append_anchor(fuse_anchor_map_t *fanchor) {
-        content_number_map_.insert(
-                std::make_pair(fanchor, content_number_map_.size()));
-    }
+
     void attach_parent_anchor(const std::shared_ptr<fuse_anchor_map_t> &parent,
             const std::shared_ptr<fuse_anchor_map_t> &repl_parent) {
         if (!parent) return;
@@ -267,7 +290,7 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
         }
         if (root == parent.get()) return;
         root->parent_ = parent;
-        parent->append_anchor(root);
+        parent->append_content(root);
     }
 
     fuse_anchor_map_t *get_root() const {
@@ -403,11 +426,16 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
         return is_cousin_for(cur.get());
     }
 
-    bool check_input_for_op(mixed_parti_t *parti, const sc_op *op,
-            std::unordered_set<graph_tensor_ptr> &known_gt);
+    // check this anchor whether has view of given op
+    bool has_view_of(sc_op *op);
+
+    bool check_input_for_op(
+            const sc_op *op, std::unordered_set<graph_tensor_ptr> &known_gt);
 
     void forbid_op_in_anchor(
             const sc_op *op, std::unordered_set<graph_tensor_ptr> &known_gt);
+
+    bool check_dep_for_op(const sc_op *op);
 };
 
 using fuse_anchor_map_ptr = std::shared_ptr<fuse_anchor_map_t>;
