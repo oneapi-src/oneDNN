@@ -2384,6 +2384,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.ic_block = 16;
     jcp.oc_block = 16;
 
+    const auto ic_unrounded = jcp.ic;
     if (jcp.ngroups == 1) {
         jcp.oc = rnd_up(jcp.oc, jcp.oc_block);
         jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
@@ -2411,6 +2412,9 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             && is_small_ic
             // no trivial cases
             && 1 < jcp.kh * jcp.kw
+            // reduction dimension size (heuristic)
+            && IMPLICATION(is_int8_convolution,
+                    12 * 3 * 3 < ic_unrounded * jcp.kh * jcp.kw)
             // required for use of VPERMB instruction in weights copy kernel
             && IMPLICATION(is_int8_convolution,
                     cpu().has(Xbyak::util::Cpu::tAVX512_VBMI))
@@ -2418,6 +2422,15 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
             // no dilation or excessive stride along h-direction
             && jcp.stride_h <= jcp.kh && jcp.stride_w <= jcp.kw;
+
+    // Dispatch specific small ic shapes to VNNI for better performance
+    const auto is_2d_small_ic = jcp.ndims == 4
+            && (ic_unrounded < 12
+                    || (ic_unrounded >= 12 && ic_unrounded < 16
+                            && jcp.ow * jcp.oh < 768 * 768));
+    if (is_int8_convolution && is_2d_small_ic && !jcp.is_relo)
+        return status::unimplemented;
+
     jcp.nreduce = jcp.kh * jcp.kw * jcp.ic_block_int_np;
 
     if (!jcp.is_relo) {
