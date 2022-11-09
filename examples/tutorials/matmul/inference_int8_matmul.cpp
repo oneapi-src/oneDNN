@@ -124,24 +124,28 @@ matmul::primitive_desc matmul_pd_create(
     return matmul::primitive_desc(eng, a_md, b_md, c_md, attr);
 }
 
-void prepare_input(memory &A_u8_mem, memory &scale_f32_mem, memory &zp_A_mem,
-        memory &zp_C_mem) {
+void prepare_input(memory &A_u8_mem, memory &sc_A_mem, memory &sc_B_mem,
+        memory &sc_C_mem, memory &zp_A_mem, memory &zp_C_mem) {
     int64_t M = A_u8_mem.get_desc().get_dims()[0];
-    int64_t N = scale_f32_mem.get_desc().get_dims()[0];
+    int64_t N = sc_B_mem.get_desc().get_dims()[0];
     int64_t K = A_u8_mem.get_desc().get_dims()[1];
 
     std::vector<uint8_t> A_u8(M * K);
     init_vector(A_u8);
 
-    std::vector<float> scales_f32(N);
-    init_vector(scales_f32);
+    std::vector<float> sc_B(N);
+    init_vector(sc_B);
 
+    float sc_A = 0.5f;
+    float sc_C = 0.25f;
     int32_t zp_A = 128, zp_C = 40;
 
     write_to_dnnl_memory(A_u8.data(), A_u8_mem);
     write_to_dnnl_memory(&zp_A, zp_A_mem);
     write_to_dnnl_memory(&zp_C, zp_C_mem);
-    write_to_dnnl_memory(scales_f32.data(), scale_f32_mem);
+    write_to_dnnl_memory(&sc_A, sc_A_mem);
+    write_to_dnnl_memory(sc_B.data(), sc_B_mem);
+    write_to_dnnl_memory(&sc_C, sc_C_mem);
 }
 
 void sanity_check(memory &C_u8_mem, memory &zp_C_mem) {
@@ -168,14 +172,14 @@ void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K,
     memory A_u8_mem({{M, K}, memory::data_type::u8, {K, 1}}, eng);
     memory zp_A_mem({{1}, memory::data_type::s32, {1}}, eng);
     memory zp_C_mem({{1}, memory::data_type::s32, {1}}, eng);
-    memory sc_A_mem({{N}, memory::data_type::f32, {1}}, eng);
+    memory sc_A_mem({{1}, memory::data_type::f32, {1}}, eng);
     memory sc_B_mem({{N}, memory::data_type::f32, {1}}, eng);
-    memory sc_C_mem({{N}, memory::data_type::f32, {1}}, eng);
+    memory sc_C_mem({{1}, memory::data_type::f32, {1}}, eng);
 
     // the function below fills dnnl::memory with some values
     // these memories, typically, come from the previous layers / operations
     // with meaningful data inside
-    prepare_input(A_u8_mem, sc_A_mem, zp_A_mem, zp_C_mem);
+    prepare_input(A_u8_mem, sc_A_mem, sc_B_mem, sc_C_mem, zp_A_mem, zp_C_mem);
 
     // output - no initialization required
     memory C_u8_mem({{M, N}, memory::data_type::u8, {N, 1}}, eng);
