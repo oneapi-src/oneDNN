@@ -1984,6 +1984,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = IMPLICATION(!is_amx(jcp.isa) && jcp.ic <= 128,
                       jcp.od * jcp.oh < 100
                               || jcp.ic * jcp.oc_block * jcp.ow_block > 8192)
+            && !(is_amx(jcp.isa) && jcp.ic < 16 && jcp.ndims == 4)
             && IMPLICATION(is_amx(jcp.isa) && jcp.ic <= 16,
                     jcp.ow < 2048
                             || div_up(jcp.ow_block, selected_ur) * jcp.kd
