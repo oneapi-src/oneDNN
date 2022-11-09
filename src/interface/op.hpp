@@ -380,6 +380,7 @@ public:
             CASE(GELUBackprop);
             CASE(Greater);
             CASE(GreaterEqual);
+            CASE(HardSigmoid);
             CASE(HardSwish);
             CASE(HardSwishBackprop);
             CASE(Index);

@@ -169,6 +169,7 @@ const op_kind_t GELU = dnnl_graph_op_gelu;
 const op_kind_t GELUBackprop = dnnl_graph_op_gelu_backprop;
 const op_kind_t Greater = dnnl_graph_op_greater;
 const op_kind_t GreaterEqual = dnnl_graph_op_greater_equal;
+const op_kind_t HardSigmoid = dnnl_graph_op_hard_sigmoid;
 const op_kind_t HardSwish = dnnl_graph_op_hard_swish;
 const op_kind_t HardSwishBackprop = dnnl_graph_op_hard_swish_backprop;
 const op_kind_t Index = dnnl_graph_op_index;

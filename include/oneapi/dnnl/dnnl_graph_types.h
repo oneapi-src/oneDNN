@@ -417,6 +417,7 @@ typedef enum {
     dnnl_graph_op_gelu_backprop,
     dnnl_graph_op_greater,
     dnnl_graph_op_greater_equal,
+    dnnl_graph_op_hard_sigmoid,
     dnnl_graph_op_hard_swish,
     dnnl_graph_op_hard_swish_backprop,
     dnnl_graph_op_index,

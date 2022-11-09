@@ -974,6 +974,7 @@ public:
         GELUBackprop = dnnl_graph_op_gelu_backprop,
         Greater = dnnl_graph_op_greater,
         GreaterEqual = dnnl_graph_op_greater_equal,
+        HardSigmoid = dnnl_graph_op_hard_sigmoid,
         HardSwish = dnnl_graph_op_hard_swish,
         HardSwishBackprop = dnnl_graph_op_hard_swish_backprop,
         Index = dnnl_graph_op_index,
