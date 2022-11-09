@@ -69,17 +69,14 @@ static int check_known_skipped_case_graph(
 
 static quant_data_t get_qdata_for(const ::lnorm::prb_t *prb) {
     const auto q_dt = convert_dt(prb->dt[1]);
-    const auto scales = get_scales(prb->attr.oscale, prb->scales, prb->c);
+    const auto src_scales = prb->attr.scales.get(DNNL_ARG_SRC);
+    const auto dst_scales = prb->attr.scales.get(DNNL_ARG_DST);
+    const auto scale = dst_scales.scale / src_scales.scale;
     //oscale is set to the quant's attr with reciprocal for each scale in graph side
-    std::vector<float> scales_update;
-    scales_update.resize(scales.size());
-    std::transform(scales.begin(), scales.end(), scales_update.begin(),
-            [](float val) { return 1.f / val; });
+    std::vector<float> scales = {scale};
     const std::vector<int64_t> zps(scales.size(), 0L);
-    const std::string q_type = prb->attr.oscale.policy == policy_t::COMMON
-            ? "per_tensor"
-            : "per_channel";
-    return quant_data_t(q_dt, scales_update, zps, q_type, 0, prb->tag[1]);
+    const std::string q_type = "per_tensor";
+    return quant_data_t(q_dt, scales, zps, q_type, 0, prb->tag[1]);
 }
 
 fill_status_t append_graph_with_block(const ::lnorm::prb_t *prb) {

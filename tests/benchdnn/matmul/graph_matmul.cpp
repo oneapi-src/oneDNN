@@ -74,7 +74,8 @@ static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
         return quant_data_t(q_dt, {1.0f}, {zp_val}, prb->stag);
     } else if (arg == WEI) {
         const auto q_dt = convert_dt(prb->wei_dt());
-        const auto scales = get_scales(prb->attr.oscale, prb->scales, prb->n);
+        const auto scales = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
+                prb->wei_scales, prb->n);
         std::vector<int64_t> zps(scales.size(), 0L);
 
         // if zp is not default, copy values and pass it to oneDNN Graph
@@ -83,7 +84,8 @@ static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
             if (wei_zp_e.policy == policy_t::COMMON) zps[0] = wei_zp_e.value;
         }
 
-        const std::string q_type = prb->attr.oscale.policy == policy_t::COMMON
+        const std::string q_type = prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy
+                        == policy_t::COMMON
                 ? "per_tensor"
                 : "per_channel";
         // apply oscale to last dimension(oc) when policy is per_channel
@@ -91,12 +93,10 @@ static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
         return quant_data_t(q_dt, scales, zps, q_type, axis, prb->wtag);
     } else if (arg == DST) {
         const auto q_dt = convert_dt(prb->dst_dt());
-        const float scale_val = 1.f
-                * (1.f / get_post_eltwise_scale(prb->attr.post_ops.entry));
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_DST)
                 ? 0L
                 : prb->dst_zp[0];
-        return quant_data_t(q_dt, {scale_val}, {zp_val}, prb->dtag);
+        return quant_data_t(q_dt, {1.0f}, {zp_val}, prb->dtag);
     }
 
     BENCHDNN_PRINT(
@@ -385,7 +385,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
                                 convert_dt(prb->dst_dt())})) {
             bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::abx);
             scale_bia(bia_fp_scaled, bia_fp,
-                    get_scales(prb->attr.oscale, prb->scales, prb->n),
+                    get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS), prb->wei_scales, prb->n),
                     prb->bia_mask);
             ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
         } else {

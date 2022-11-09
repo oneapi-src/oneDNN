@@ -58,9 +58,10 @@ static int check_known_skipped_case_graph(
 
     // TODO(xiang): remove after onednn fix this.
     // GPU only support deconv with per_tensor output scale=1
-    bool oscale_support = prb->attr.oscale.is_def()
-            || (prb->attr.oscale.policy == policy_t::PER_OC
-                    && prb->attr.oscale.scale == 1);
+    bool oscale_support = prb->attr.scales.get(DNNL_ARG_WEIGHTS).is_def()
+            || (prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy
+                            == policy_t::PER_OC
+                    && prb->attr.scales.get(DNNL_ARG_WEIGHTS).scale == 1);
     // GPU doesn't support deconv with zero points
     bool zp_support = prb->attr.zero_points.is_def();
     if (is_gpu() && (!oscale_support || !zp_support)) {
@@ -130,9 +131,11 @@ static quant_data_t get_qdata_for(int arg, const ::deconv::prb_t *prb) {
                 : prb->src_zp[0];
         return quant_data_t(q_dt, {1.0f}, {zp_val}, prb->stag);
     } else if (arg == WEI) {
-        const auto scales = get_scales(prb->attr.oscale, prb->scales, prb->oc);
+        const auto scales = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
+                prb->wei_scales, prb->oc);
         const std::vector<int64_t> zps(scales.size(), 0L);
-        const std::string q_type = prb->attr.oscale.policy == policy_t::COMMON
+        const std::string q_type = prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy
+                        == policy_t::COMMON
                 ? "per_tensor"
                 : "per_channel";
         dims_t wei_dims = get_graph_compatible_wei_dims(
@@ -142,12 +145,10 @@ static quant_data_t get_qdata_for(int arg, const ::deconv::prb_t *prb) {
         return quant_data_t(
                 q_dt, scales, zps, q_type, /* axis */ 1, wei_strides);
     } else if (arg == DST) {
-        const float scale_val = 1.f
-                * (1.f / get_post_eltwise_scale(prb->attr.post_ops.entry));
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_DST)
                 ? 0L
                 : prb->dst_zp[0];
-        return quant_data_t(q_dt, {scale_val}, {zp_val}, prb->dtag);
+        return quant_data_t(q_dt, {1.f}, {zp_val}, prb->dtag);
     }
 
     BENCHDNN_PRINT(
@@ -466,7 +467,8 @@ int doit(const ::deconv::prb_t *prb, res_t *res) {
         if (prb->dir == FWD_B) {
             bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
             std::vector<float> scales
-                    = get_scales(prb->attr.oscale, prb->scales, prb->oc);
+                    = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
+                            prb->wei_scales, prb->oc);
             int bia_mask = scales.size() == 1 ? 0 : 1;
             scale_bia(bia_fp_scaled, bia_fp, scales, bia_mask);
         }

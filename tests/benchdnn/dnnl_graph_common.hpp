@@ -74,8 +74,6 @@ void check_graph_eltwise_params(res_t *res,
 bool check_has_sum_po(const std::vector<attr_t::post_ops_t::entry_t> &post_ops);
 std::vector<float> get_scales(const attr_t::scale_t &scales_info,
         const float *raw_scales, int64_t channel_size);
-float get_post_eltwise_scale(
-        const std::vector<attr_t::post_ops_t::entry_t> &post_ops) noexcept;
 dnnl::graph::logical_tensor::data_type convert_dt(
         const dnnl_data_type_t dt) noexcept;
 dnnl_data_type_t convert_dt(

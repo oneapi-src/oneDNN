@@ -66,19 +66,19 @@ static quant_data_t get_qdata_for(int arg, const ::conv::prb_t *prb) {
                 : prb->src_zp[0];
         return quant_data_t(q_dt, {1.0f}, {zp_val}, prb->stag);
     } else if (arg == WEI) {
-        const auto scales = get_scales(prb->attr.oscale, prb->scales, prb->oc);
+        const auto scales = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
+                prb->wei_scales, prb->oc);
         const std::vector<int64_t> zps(scales.size(), 0L);
-        const std::string q_type = prb->attr.oscale.policy == policy_t::COMMON
+        const std::string q_type = prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy
+                        == policy_t::COMMON
                 ? "per_tensor"
                 : "per_channel";
         return quant_data_t(q_dt, scales, zps, q_type, 0, prb->wtag);
     } else if (arg == DST) {
-        const float scale_val = 1.f
-                * (1.f / get_post_eltwise_scale(prb->attr.post_ops.entry));
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_DST)
                 ? 0L
                 : prb->dst_zp[0];
-        return quant_data_t(q_dt, {scale_val}, {zp_val}, prb->dtag);
+        return quant_data_t(q_dt, {1.f}, {zp_val}, prb->dtag);
     }
 
     BENCHDNN_PRINT(
@@ -470,7 +470,8 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             if (prb->dir == FWD_B) {
                 bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
                 std::vector<float> scales
-                        = get_scales(prb->attr.oscale, prb->scales, prb->oc);
+                        = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
+                                prb->wei_scales, prb->oc);
                 int bia_mask = scales.size() == 1 ? 0 : 1;
                 scale_bia(bia_fp_scaled, bia_fp, scales, bia_mask);
             }

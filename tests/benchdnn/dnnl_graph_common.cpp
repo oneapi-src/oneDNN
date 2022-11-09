@@ -68,10 +68,10 @@ void check_graph_scales_and_zps_support(const attr_t &attr, res_t *res) {
     const std::set<policy_t> supported_policy = {policy_t::PER_OC,
             policy_t::PER_DIM_0, policy_t::PER_DIM_1, policy_t::COMMON};
 
-    bool oscale_ok = attr.oscale.is_def()
+    bool oscale_ok = attr.scales.get(DNNL_ARG_DST).is_def()
             || std::any_of(supported_policy.cbegin(), supported_policy.cend(),
                     [&](const policy_t policy) {
-                        return attr.oscale.policy == policy;
+                        return attr.scales.get(DNNL_ARG_DST).policy == policy;
                     });
     if (!oscale_ok) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
@@ -124,14 +124,6 @@ bool check_has_sum_po(
         if (entry.is_sum_kind()) return true;
     }
     return false;
-}
-
-float get_post_eltwise_scale(
-        const std::vector<attr_t::post_ops_t::entry_t> &post_ops) noexcept {
-    for (const auto &po : post_ops) {
-        if (po.is_eltwise_kind()) return po.eltwise.scale;
-    }
-    return 1.f;
 }
 
 dnnl::graph::logical_tensor::data_type convert_dt(
@@ -364,7 +356,7 @@ int scale_bia(dnn_mem_t &dst, dnn_mem_t &src, const std::vector<float> &scales,
             [eps](const float scale) { return 1.f / (scale + eps); });
     dnnl_primitive_attr_t bia_attr = nullptr;
     dnnl_primitive_attr_create(&bia_attr);
-    dnnl_primitive_attr_set_output_scales_mask(bia_attr, bia_mask);
+    dnnl_primitive_attr_set_scales_mask(bia_attr, DNNL_ARG_DST, bia_mask);
     SAFE(dst.reorder(src, bia_attr), CRIT);
     dnnl_primitive_attr_destroy(bia_attr);
 

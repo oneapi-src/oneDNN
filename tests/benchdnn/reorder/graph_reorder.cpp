@@ -71,7 +71,8 @@ static int check_known_skipped_case_graph(
 
     //TODO: Currently  Skip test cases for zps with per-channel quantization.
     if (prb->attr.zero_points.points.size() > 0
-            && prb->attr.oscale.policy != attr_t::policy_t::COMMON) {
+            && prb->attr.scales.get(DNNL_ARG_DST).policy
+                    != attr_t::policy_t::COMMON) {
         res->state = SKIPPED;
     }
 
@@ -107,7 +108,7 @@ static void set_quant_op_attr(dnnl::graph::op &op, const std::string &qtype,
 
 static int fill_zps(const ::reorder::prb_t *prb, const int64_t axis,
         std::vector<int64_t> &src_zps, std::vector<int64_t> &dst_zps) {
-    if (prb->attr.oscale.policy == attr_t::policy_t::COMMON) {
+    if (prb->attr.scales.get(DNNL_ARG_DST).policy == attr_t::policy_t::COMMON) {
         if (prb->attr.zero_points.is_def()) {
             src_zps.emplace_back(0);
             dst_zps.emplace_back(0);
@@ -136,12 +137,12 @@ static int fill_zps(const ::reorder::prb_t *prb, const int64_t axis,
 
 static int fill_scales(const ::reorder::prb_t *prb, const int64_t axis,
         std::vector<float> &scales) {
-    if (prb->attr.oscale.policy == attr_t::policy_t::COMMON) {
-        scales.emplace_back(prb->scales[0]);
+    if (prb->attr.scales.get(DNNL_ARG_DST).policy == attr_t::policy_t::COMMON) {
+        scales.emplace_back(prb->dst_scales[0]);
     } else {
         //TODO: needs update for PER_DIM_01
         for (int i = 0; i < prb->dims[axis]; i++) {
-            scales.emplace_back(prb->scales[i]);
+            scales.emplace_back(prb->dst_scales[i]);
         }
     }
     //Need to inverse scale
@@ -194,11 +195,14 @@ fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
 
     const auto src_dt = convert_dt(prb->sdt);
     const auto dst_dt = convert_dt(prb->ddt);
-    const auto qtype = convert_attr_policy(prb->attr.oscale.policy);
-    bool runtime = prb->attr.oscale.runtime;
+    const auto qtype
+            = convert_attr_policy(prb->attr.scales.get(DNNL_ARG_DST).policy);
+    bool runtime = prb->attr.scales.get(DNNL_ARG_DST).runtime;
     // axis is used only for PER_DIM_0 and PER_DIM_1 policies
-    int64_t axis
-            = prb->attr.oscale.policy == attr_t::policy_t::PER_DIM_1 ? 1 : 0;
+    int64_t axis = prb->attr.scales.get(DNNL_ARG_DST).policy
+                    == attr_t::policy_t::PER_DIM_1
+            ? 1
+            : 0;
     std::vector<float> default_scales({1.0});
     const auto sz_dims
             = qtype == "per_channel" ? dims_t {prb->dims[axis]} : dims_t {1};
@@ -416,9 +420,10 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     dnn_mem_t scales_dt, zps_dt;
     std::vector<float> scales;
     std::vector<int64_t> src_zps, dst_zps;
-    if (prb->attr.oscale.runtime) {
+    if (prb->attr.scales.get(DNNL_ARG_DST).runtime) {
         // axis is used only for PER_DIM_0 and PER_DIM_1 policies
-        int64_t axis = prb->attr.oscale.policy == attr_t::policy_t::PER_DIM_1
+        int64_t axis = prb->attr.scales.get(DNNL_ARG_DST).policy
+                        == attr_t::policy_t::PER_DIM_1
                 ? 1
                 : 0;
 
@@ -434,7 +439,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
 
     tensors_in.emplace_back(
             dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
-    if (prb->attr.oscale.runtime) {
+    if (prb->attr.scales.get(DNNL_ARG_DST).runtime) {
         tensors_in.emplace_back(dnnl::graph::tensor(
                 ins[1], eng, static_cast<void *>(scales_dt)));
         if (!prb->attr.zero_points.is_def())
