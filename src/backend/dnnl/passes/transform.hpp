@@ -46,16 +46,6 @@ impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg);
 impl::status_t replace_quant_data_with_binary_post_op(
         std::shared_ptr<subgraph_t> &sg);
 
-// swap relu and mul_scales so that mul_scales can be folded into previous
-// layers:
-///
-///         |                                   |
-///       relu                              mul_scales
-///         |                                   |
-///     mul_scales                             relu
-///         |                                   |
-impl::status_t swap_relu_mul_scales(std::shared_ptr<subgraph_t> &sg);
-
 // fold the output scales of int8 conv/deconv/matmul/reorder+add pattern into
 // the input scales of add:
 ///
