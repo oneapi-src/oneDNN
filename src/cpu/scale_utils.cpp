@@ -17,6 +17,7 @@
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
+#include "common/nstl.hpp"
 
 #include "cpu/cpu_primitive.hpp"
 
@@ -38,8 +39,9 @@ void book_precomputed_scales(memory_tracking::registrar_t &scratchpad,
             = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
     if (with_src_scales && with_wei_scales) {
         const int wei_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-        const size_t precomputed_scales_size
-                = wei_mask == 0 ? scales_simd_w : oc;
+        const size_t precomputed_scales_size = wei_mask == 0
+                ? scales_simd_w
+                : nstl::max(static_cast<size_t>(oc), scales_simd_w);
         scratchpad.template book<float>(
                 memory_tracking::names::key_precomputed_scales,
                 precomputed_scales_size);
@@ -62,7 +64,7 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
     if (with_src_scales && with_wei_scales) {
         auto loc_scales
                 = scratchpad.template get<float>(key_precomputed_scales);
-        if (wei_scale_count == 1) {
+        if (wei_scale_mask == 0) {
             utils::array_set(
                     loc_scales, src_scales[0] * wei_scales[0], scales_simd_w);
         } else {
