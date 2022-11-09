@@ -258,10 +258,12 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                         &reduction_bias_md, 0.0f, 0.0f));
                 primitive_attr_t reduction_attr;
                 int threads_per_eu;
-                CHECK(gemm_pd_->query(query::preferred_gpu_threads_per_eu, 0,
-                        &threads_per_eu));
-                reduction_attr.set_gpu_attr(
-                        gpu_primitive_attr_t(threads_per_eu));
+                auto status
+                        = gemm_pd_->query(query::preferred_gpu_threads_per_eu,
+                                0, &threads_per_eu);
+                if (status == status::success)
+                    reduction_attr.set_gpu_attr(
+                            gpu_primitive_attr_t(threads_per_eu));
                 dnnl_primitive_desc_iterator it(engine,
                         (op_desc_t *)&reduction_d, &reduction_attr, nullptr);
                 if (!it.is_initialized()) return status::out_of_memory;
