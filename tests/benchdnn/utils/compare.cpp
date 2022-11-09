@@ -169,6 +169,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     const bool has_eltwise = attr.post_ops.eltwise_index() != -1;
     const bool has_exp_eltwise
             = attr.post_ops.find(attr_t::post_ops_t::kind_t::EXP) >= 0;
+    const bool has_dst_scale = !attr.scales.get(DNNL_ARG_DST).is_def();
 
     // Atomics to be updated in parallel section, non-atomics - in sequential.
     std::atomic<bool> all_ok(true);
@@ -218,6 +219,15 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             if (!ok && has_eltwise
                     && (fabsf(args.exp) > 1e+5f || has_exp_eltwise)) {
                 ok = args.rel_diff <= std::max(epsilon_dt(dt), 5e-6f);
+            }
+            // Attr dst scale is used as a divisor to quantize data to dt.
+            // Implementation might decide to pre-compute inverse value and
+            // multiply on it in kernel. This difference might result in a
+            // slight error comparing to a division operation.
+            if (!ok && has_dst_scale) {
+                const float experimental_tolerated_trh
+                        = std::max(epsilon_dt(dt), 1e-5f);
+                ok = args.rel_diff <= experimental_tolerated_trh;
             }
             // Binary MAX, MIN and comparison operations post-ops may return
             // different results for different backends when NaN is one of
