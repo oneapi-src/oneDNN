@@ -276,7 +276,7 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_SRC_SCALE && SRC_NUM_SCALES > 1
             src_scale = src_scales[SCALE_OFF(SRC, d0, d1, d2, d3, d4, d5)];
 #endif
-#if WITH_DST_SCALE && SRC_NUM_SCALES > 1
+#if WITH_DST_SCALE && DST_NUM_SCALES > 1
             dst_scale = dst_scales[SCALE_OFF(DST, d0, d1, d2, d3, d4, d5)];
 #endif
 #ifdef TRANSPOSE_NXN
@@ -588,7 +588,7 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
         src_scale = src_scales[SCALE_OFF(SRC, d[0] + b[0], d[1] + b[1],
                 d[2] + b[2], d[3] + b[3], d[4] + b[4], d[5] + b[5])];
 #endif
-#if WITH_DST_SCALE && SRC_NUM_SCALES > 1
+#if WITH_DST_SCALE && DST_NUM_SCALES > 1
         dst_scale = dst_scales[SCALE_OFF(DST, d[0] + b[0], d[1] + b[1],
                 d[2] + b[2], d[3] + b[3], d[4] + b[4], d[5] + b[5])];
 #endif
@@ -596,7 +596,7 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
             const int coff = sg_off + VECT_SIZE * GROUP * j + VECT_SIZE * i;
             const int doff = dst_off + VECT_SIZE * j;
             DST_DATA_T dst_tmp;
-#if WITH_SUM_SCALE || ITH_SUM_ZPOINT
+#if WITH_SUM_SCALE || WITH_SUM_ZPOINT
             dst_tmp = dst[doff + sgId * DST_INNERMOST_STRIDE];
 #endif
             REORDER(dst_tmp, cache[coff + sgId], src_scale, dst_scale,
