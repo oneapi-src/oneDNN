@@ -46,37 +46,63 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
         const fusion_info_t &fusion_info) {
     dnnl::primitive_attr attr;
 
-    // convert output scales
-    if (fusion_info.output_scales_) {
-        const impl::op_t *oscales_op = fusion_info.output_scales_->get_op();
-        assertm(fusion_info.with_runtime_output_scales(),
-                "only support runtime output scales.\n");
+    if (fusion_info.dst_scales_) {
+        const op_t *dst_scales_op = fusion_info.dst_scales_->get_op();
+        assertm(fusion_info.with_runtime_scales(false, 0),
+                "only support runtime dst scales.\n");
         int mask = 0;
-        if (oscales_op->has_attr(op_attr::axis)
-                && oscales_op->has_attr(op_attr::qtype)) {
-            int64_t axis = oscales_op->get_attr<int64_t>(op_attr::axis);
+        if (dst_scales_op->has_attr(op_attr::axis)
+                && dst_scales_op->has_attr(op_attr::qtype)) {
+            int64_t axis = dst_scales_op->get_attr<int64_t>(op_attr::axis);
             std::string qtype
-                    = oscales_op->get_attr<std::string>(op_attr::qtype);
+                    = dst_scales_op->get_attr<std::string>(op_attr::qtype);
             mask = qtype == "per_tensor" ? 0 : 1 << axis;
         }
-        attr.set_output_scales_mask(mask);
+        attr.set_scales_mask(DNNL_ARG_DST, mask);
+    }
+
+    // convert input scales
+    if (!fusion_info.input_scales_.empty()) {
+        for (const auto &in_scales : fusion_info.input_scales_) {
+            size_t in_scales_indices = in_scales.first;
+            const op_t *in_scales_op = in_scales.second->get_op();
+            assertm(fusion_info.with_runtime_scales(true, in_scales_indices),
+                    "only support runtime src scales.\n");
+            int mask = 0;
+            if (in_scales_op->has_attr(op_attr::axis)
+                    && in_scales_op->has_attr(op_attr::qtype)) {
+                int64_t axis = in_scales_op->get_attr<int64_t>(op_attr::axis);
+                std::string qtype
+                        = in_scales_op->get_attr<std::string>(op_attr::qtype);
+                if (impl::utils::one_of(op->get_kind(),
+                            op_kind::dnnl_convolution,
+                            op_kind::dnnl_convtranspose)
+                        && in_scales_indices == 1) {
+                    axis = 0;
+                    if (op->get_input_value(1)->has_producer()
+                            && op->get_input_op(1)->get_kind()
+                                    == op_kind::dnnl_to_group) {
+                        const auto &to_group = op->get_input_op(1);
+                        if (to_group->get_attr<int64_t>(op_attr::groups) > 1) {
+                            axis += 1;
+                        }
+                    }
+                }
+                mask = qtype == "per_tensor" ? 0 : 1 << axis;
+            }
+            attr.set_scales_mask(
+                    in_scales_indices == 0 ? DNNL_ARG_SRC : DNNL_ARG_WEIGHTS,
+                    mask);
+        }
     }
 
     // convert input zps
     if (!fusion_info.input_zps_.empty()) {
         for (const auto &in_zps : fusion_info.input_zps_) {
             size_t in_zps_indice = in_zps.first;
-            const impl::op_t *in_zps_op = in_zps.second->get_op();
             assertm(fusion_info.with_runtime_zero_points(true, in_zps_indice),
                     "only support runtime src zero points.\n");
             int mask = 0;
-            if (in_zps_op->has_attr(op_attr::axis)
-                    && in_zps_op->has_attr(op_attr::qtype)) {
-                int64_t axis = in_zps_op->get_attr<int64_t>(op_attr::axis);
-                std::string qtype
-                        = in_zps_op->get_attr<std::string>(op_attr::qtype);
-                mask = qtype == "per_tensor" ? 0 : 1 << axis;
-            }
             attr.set_zero_points_mask(
                     in_zps_indice == 0 ? DNNL_ARG_SRC : DNNL_ARG_WEIGHTS, mask);
         }
@@ -84,17 +110,9 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
 
     // convert output zps
     if (fusion_info.output_zps_) {
-        const impl::op_t *out_zps_op = fusion_info.output_zps_->get_op();
         assertm(fusion_info.with_runtime_zero_points(false, 0),
                 "only support runtime src zero points.\n");
         int mask = 0;
-        if (out_zps_op->has_attr(op_attr::axis)
-                && out_zps_op->has_attr(op_attr::qtype)) {
-            int64_t axis = out_zps_op->get_attr<int64_t>(op_attr::axis);
-            std::string qtype
-                    = out_zps_op->get_attr<std::string>(op_attr::qtype);
-            mask = qtype == "per_tensor" ? 0 : 1 << axis;
-        }
         attr.set_zero_points_mask(DNNL_ARG_DST, mask);
     }
 
@@ -104,7 +122,6 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
         const impl::op_t *fused_op = pop->get_op();
         const auto fused_op_kind = fused_op->get_kind();
         if (fused_op_kind == op_kind::dnnl_eltwise) {
-            float scale = pop->get_scale();
             float alpha = 0.f;
             float beta = 0.f;
             if (fused_op->has_attr(op_attr::alpha)) {
@@ -115,7 +132,7 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             }
             const auto alg = static_cast<dnnl::algorithm>(
                     fused_op->get_attr<int64_t>(op_attr::alg_kind));
-            dnnl_pops.append_eltwise(scale, alg, alpha, beta);
+            dnnl_pops.append_eltwise(alg, alpha, beta);
         } else if (fused_op_kind == op_kind::dnnl_binary) {
             const auto &extra_inputs = pop->get_unfused_input_indices();
             if (pop->is_post_sum()) {
@@ -168,9 +185,7 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                     op_attr::strides)[0];
             const int64_t pad_l = fused_op->get_attr<std::vector<int64_t>>(
                     op_attr::pads_begin)[0];
-            const int mask = 0;
-            dnnl_pops.append_dw(
-                    wei_dt, bia_dt, dst_dt, ks, stride, pad_l, mask, {});
+            dnnl_pops.append_dw(wei_dt, bia_dt, dst_dt, ks, stride, pad_l);
         } else {
             // not reachable
         }

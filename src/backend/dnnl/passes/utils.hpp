@@ -313,8 +313,11 @@ std::string kind2str(impl::op_kind_t kind);
 // which only has different input/output data type.
 bool is_typecast(const impl::op_t *op);
 
-bool with_runtime_scales(
-        const std::shared_ptr<impl::op_t> &op, const fusion_info_mgr_t &mgr);
+bool with_runtime_scales(const std::shared_ptr<op_t> &op,
+        const fusion_info_mgr_t &mgr, bool is_input, size_t indice);
+
+bool with_runtime_dst_scales(
+        const std::shared_ptr<op_t> &op, const fusion_info_mgr_t &mgr);
 
 bool with_runtime_zps(const std::shared_ptr<impl::op_t> &op,
         const fusion_info_mgr_t &mgr, bool is_input, size_t indice);

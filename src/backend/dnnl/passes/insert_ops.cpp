@@ -70,6 +70,7 @@ impl::status_t insert_permute_for_conv_or_deconv(
 
         size_t num_post_binary_ops = 0;
         size_t dw_conv_index = 2;
+        bool with_runtime_dst_scales = false;
         bool with_runtime_dst_points = false;
         const auto &pops = fusion_info.get_post_ops();
         for (size_t n = 0; n < pops.size(); ++n) {
@@ -77,18 +78,23 @@ impl::status_t insert_permute_for_conv_or_deconv(
                 num_post_binary_ops++;
         }
 
-        if (fusion_info.with_runtime_output_scales()) { dw_conv_index += 1; }
+        if (fusion_info.with_runtime_scales(true, 0)) { dw_conv_index += 1; }
+        if (fusion_info.with_runtime_scales(true, 1)) { dw_conv_index += 1; }
         if (fusion_info.with_runtime_zero_points(true, 0)) {
             dw_conv_index += 1;
         }
         if (fusion_info.with_runtime_zero_points(true, 1)) {
             dw_conv_index += 1;
         }
+        if (fusion_info.with_runtime_scales(false, 0)) {
+            with_runtime_dst_scales = true;
+        }
         if (fusion_info.with_runtime_zero_points(false, 0)) {
             with_runtime_dst_points = true;
         }
 
-        for (size_t i = 0; i < op->num_inputs() - with_runtime_dst_points;
+        for (size_t i = 0; i < op->num_inputs() - with_runtime_dst_scales
+                        - with_runtime_dst_points;
                 ++i) {
             auto val = op->get_input_value(i);
             auto ndims = val->get_logical_tensor().ndims;
@@ -105,6 +111,7 @@ impl::status_t insert_permute_for_conv_or_deconv(
             } else if (i == dw_conv_index && need_permute_post_dw_conv_wei) {
                 perm = get_permutation(ndims, "XIO", "OIX");
             } else if (i >= op->num_inputs() - num_post_binary_ops
+                                    - with_runtime_dst_scales
                                     - with_runtime_dst_points
                     && need_permute_src) {
                 // optionally permute post-binary/post-sum inputs
@@ -358,6 +365,7 @@ impl::status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
 }
 
 impl::status_t insert_permute_for_matmul(std::shared_ptr<subgraph_t> &sg) {
+    auto &mgr = sg->fusion_info_mgr_;
     subgraph_rewriter_t rewriter(sg);
 
     for (auto &cur_op : sg->get_ops()) {
@@ -379,6 +387,20 @@ impl::status_t insert_permute_for_matmul(std::shared_ptr<subgraph_t> &sg) {
             permute_op->set_attr<std::vector<int64_t>>(
                     op_attr::permutation, perm);
             rewriter.insert_op_before(permute_op, cur_op, i);
+
+            if (cur_op->has_attr(op_attr::fusion_info_key)
+                    && cur_op->get_attr<int64_t>(op_attr::fusion_info_key)
+                            != -1) {
+                int64_t key
+                        = cur_op->get_attr<int64_t>(op_attr::fusion_info_key);
+                fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+                op_t *scales_op = fusion_info.get_mutable_scales(true, i);
+                if (scales_op
+                        && scales_op->get_attr<std::string>(op_attr::qtype)
+                                == "per_channel") {
+                    scales_op->set_attr<int64_t>(op_attr::axis, ndims - 1);
+                }
+            }
         }
         // remove attr to avoid re-transpose during shape inference
         cur_op->set_attr<bool>(op_attr::transpose_a, false);
@@ -450,18 +472,12 @@ impl::status_t insert_reshape_for_ndx2d_matmul(
                         op_attr::shape, expected_dims3);
                 rewriter.insert_op_before(reshape_op3, cur_op, offset);
             }
-        }
-
-        // update the axis
-        if (cur_op->has_attr(op_attr::fusion_info_key)
-                && cur_op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
-            int64_t key = cur_op->get_attr<int64_t>(op_attr::fusion_info_key);
-            fusion_info_t &fusion_info = mgr.get_mutable_info(key);
-            impl::op_t *oscales_op = fusion_info.get_mutable_output_scales();
-            if (oscales_op
-                    && oscales_op->get_attr<std::string>(op_attr::qtype)
+            // update weight axis
+            op_t *scales_op = fusion_info.get_mutable_scales(true, 1);
+            if (scales_op
+                    && scales_op->get_attr<std::string>(op_attr::qtype)
                             == "per_channel") {
-                oscales_op->set_attr<int64_t>(op_attr::axis, 1); // the 2nd dim;
+                scales_op->set_attr<int64_t>(op_attr::axis, 1);
             }
         }
     }
@@ -518,6 +534,20 @@ impl::status_t insert_unsqueeze_and_squeeze_for_matmul(
                         op_attr::axes, axes);
                 rewriter.insert_op_before(unsqueeze_op, op, i);
             }
+
+            // update the axis
+            if (i == 1 && op->has_attr(op_attr::fusion_info_key)
+                    && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+                int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
+                fusion_info_t &fusion_info = mgr.get_mutable_info(key);
+                op_t *scales_op = fusion_info.get_mutable_scales(true, 1);
+                if (scales_op
+                        && scales_op->get_attr<std::string>(op_attr::qtype)
+                                == "per_channel") {
+                    scales_op->set_attr<int64_t>(op_attr::axis,
+                            unsqueezed_dst_ndims - 1); // the 2nd dim;
+                }
+            }
         }
 
         // squeeze dst
@@ -526,20 +556,6 @@ impl::status_t insert_unsqueeze_and_squeeze_for_matmul(
             squeeze_op->set_attr<std::vector<int64_t>>(
                     op_attr::axes, squeeze_axes);
             rewriter.insert_op_after(squeeze_op, op, 0);
-        }
-
-        // update the axis
-        if (op->has_attr(op_attr::fusion_info_key)
-                && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
-            int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
-            fusion_info_t &fusion_info = mgr.get_mutable_info(key);
-            impl::op_t *oscales_op = fusion_info.get_mutable_output_scales();
-            if (oscales_op
-                    && oscales_op->get_attr<std::string>(op_attr::qtype)
-                            == "per_channel") {
-                oscales_op->set_attr<int64_t>(op_attr::axis,
-                        unsqueezed_dst_ndims - 1); // the 2nd dim;
-            }
         }
     }
 
@@ -567,13 +583,17 @@ impl::status_t insert_runtime_u8_to_s8_for_matmul(
 
         bool with_bias = cur_op->has_attr(op_attr::with_bias)
                 && cur_op->get_attr<bool>(op_attr::with_bias);
-        const bool has_runtime_scales = with_runtime_scales(cur_op, mgr);
+        const bool has_runtime_src_scales
+                = with_runtime_scales(cur_op, mgr, true, 0);
+        const bool has_runtime_wei_scales
+                = with_runtime_scales(cur_op, mgr, true, 1);
         const bool has_runtime_src_zps = with_runtime_zps(cur_op, mgr, true, 0);
         const bool has_runtime_wei_zps = with_runtime_zps(cur_op, mgr, true, 1);
 
         size_t index = 2;
         if (with_bias) index += 1;
-        if (has_runtime_scales) index += 1;
+        if (has_runtime_src_scales) index += 1;
+        if (has_runtime_wei_scales) index += 1;
         if (has_runtime_src_zps) index += 1;
         if (has_runtime_wei_zps) {
             if (cur_op->get_input_value(index)->has_producer()

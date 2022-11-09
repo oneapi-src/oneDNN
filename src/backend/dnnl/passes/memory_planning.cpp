@@ -75,7 +75,8 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
                             && op.get_attr<bool>(op_attr::with_bias)
                     ? 3 // src, wei, bias
                     : 2; // src, wei
-            if (mgr.get_info(key).with_runtime_output_scales()) { index += 1; }
+            if (mgr.get_info(key).with_runtime_scales(true, 0)) { index += 1; }
+            if (mgr.get_info(key).with_runtime_scales(true, 1)) { index += 1; }
             if (mgr.get_info(key).with_runtime_zero_points(true, 0)) {
                 index += 1;
             }

@@ -92,16 +92,15 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
 
         if (quantized) {
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_reorder);
-            BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
-            BACKEND_DNNL_ADD_PASS(pipeline, fold_sum_scales);
-            BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);
-            BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_zero_points);
         }
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
         if (quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_zero_points);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_zero_points);
         }

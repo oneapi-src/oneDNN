@@ -1491,11 +1491,10 @@ reorder_executable_t::desc_t reorder_executable_t::create_desc(
 
     if (op->has_attr(op_attr::with_runtime_scales)
             && op->get_attr<bool>(op_attr::with_runtime_scales)) {
-        // runtime scales
-        prm_attr.set_output_scales_mask(mask);
+        // runtime arg scales
+        prm_attr.set_scales_mask(DNNL_ARG_SRC, mask);
     } else if (op->has_attr(op_attr::scales)) {
-        auto scales = op->get_attr<std::vector<float>>(op_attr::scales);
-        prm_attr.set_output_scales_mask(mask);
+        assertm(false, "only support runtime arg scales.\n");
     }
 
     if (op->has_attr(op_attr::with_runtime_dst_zps)
@@ -1558,7 +1557,7 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<impl::op_t> &op,
 
     post_ops add_post_ops;
     // sqrt_variance = sqrt(temp)
-    add_post_ops.append_eltwise(1.0f, algorithm::eltwise_sqrt, 0.0f, 0.0f);
+    add_post_ops.append_eltwise(algorithm::eltwise_sqrt, 0.0f, 0.0f);
 
     primitive_attr add_attr;
     add_attr.set_post_ops(add_post_ops);
@@ -1673,9 +1672,14 @@ static arg_indices_t get_arg_indices_for_conv_and_matmul(
             ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
 
-    if (fusion_info.with_runtime_output_scales()) {
-        arg_indices.insert(
-                {DNNL_ARG_ATTR_OUTPUT_SCALES, indice_t {input, indice++}});
+    if (fusion_info.with_runtime_scales(true, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC,
+                indice_t {input, indice++}});
+    }
+
+    if (fusion_info.with_runtime_scales(true, 1)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS,
+                indice_t {input, indice++}});
     }
 
     if (fusion_info.with_runtime_zero_points(true, 0)) {
@@ -1689,6 +1693,11 @@ static arg_indices_t get_arg_indices_for_conv_and_matmul(
     }
 
     get_arg_indices_for_post_ops(op, mgr, arg_indices, indice);
+
+    if (fusion_info.with_runtime_scales(false, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
+                indice_t {input, indice++}});
+    }
 
     if (fusion_info.with_runtime_zero_points(false, 0)) {
         arg_indices.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST,
@@ -1794,9 +1803,9 @@ static arg_indices_t get_arg_indices_for_siso_op(
             ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
 
-    if (fusion_info.with_runtime_output_scales()) {
-        arg_indices.insert(
-                {DNNL_ARG_ATTR_OUTPUT_SCALES, indice_t {input, indice++}});
+    if (fusion_info.with_runtime_scales(false, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
+                indice_t {input, indice++}});
     }
 
     get_arg_indices_for_post_ops(op, mgr, arg_indices, indice);
@@ -2052,9 +2061,9 @@ arg_indices_t layernorm_executable_t::get_arg_indices(
             ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
 
-    if (fusion_info.with_runtime_output_scales()) {
-        arg_indices.insert(
-                {DNNL_ARG_ATTR_OUTPUT_SCALES, indice_t {input, in_indice++}});
+    if (fusion_info.with_runtime_scales(false, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
+                indice_t {input, in_indice++}});
     }
 
     size_t out_indice = 0;
@@ -2121,9 +2130,14 @@ arg_indices_t reorder_executable_t::get_arg_indices(
 
     if ((op->has_attr(op_attr::with_runtime_scales)
                 && op->get_attr<bool>(op_attr::with_runtime_scales))
-            || fusion_info.with_runtime_output_scales()) {
-        arg_indices.insert(
-                {DNNL_ARG_ATTR_OUTPUT_SCALES, indice_t {input, indice++}});
+            || fusion_info.with_runtime_scales(true, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC,
+                indice_t {input, indice++}});
+    }
+
+    if (fusion_info.with_runtime_scales(false, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
+                indice_t {input, indice++}});
     }
 
     if ((op->has_attr(op_attr::with_runtime_src_zps)

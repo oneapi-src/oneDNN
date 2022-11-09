@@ -113,19 +113,16 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_matmul_or_conv);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
 
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_matmul);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_conv_or_deconv);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_bias_to_f32);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_pool);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_reorder);
 
         BACKEND_DNNL_ADD_PASS(pipeline, combine_binary_post_op_scales);
 
         BACKEND_DNNL_ADD_PASS(pipeline, swap_relu_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
-        BACKEND_DNNL_ADD_PASS(pipeline, fold_sum_scales);
-        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_zero_points);
         // tricky here.
         BACKEND_DNNL_ADD_PASS(pipeline, insert_runtime_u8_to_s8_for_matmul);
@@ -134,6 +131,8 @@ public:
                 pipeline, insert_unsqueeze_and_squeeze_for_reduction);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_zero_points);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_zero_points);
 
@@ -148,8 +147,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_runtime_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_runtime_zero_points);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_mul_scales_add_zps);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_static_sub_zps_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_mul_scales_add_zps);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dynamic_sub_zps_mul_scales);
 

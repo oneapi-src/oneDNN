@@ -95,8 +95,8 @@ public:
         BACKEND_DNNL_ADD_PASS(
                 pipeline, fuse_post_typecast_to_softmax_or_layernorm);
         BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
-        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_scales);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_output_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_scales);
         pipeline.reset_visualize_arg(true, false);
 
         if (enable_constant_cache_) {
