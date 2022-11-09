@@ -196,42 +196,64 @@ void gen_managed_conv1x1_backprop_weight_t::schedule_loops(context_ptr ctx,
 
 void gen_managed_conv1x1_backprop_weight_t::forward_input_reorder_call(
   context_ptr &ctx, const expr &temp_forward_input, const expr &forward_input,
-  const sc_data_type_t &dtype, int bs_block, int ic_block, int oh_block,
-  int ow_block, int IH, int IW, const expr &bs_offset, const expr &ic_offset,
-  const expr &oh_offset, const expr &ow_offset, int stride_h,
-  int stride_w) const {
-  // NHWCn --> NCHWcn
-  int lanes = vectorize_step(ctx, get_B_dtype().type_code_, 32);
-  if (bs_block < lanes || bs_block % lanes != 0) { lanes = 1; }
-  trace_guard_t trg(ctx, "forward_input_reorder");
-  _for_(ih_reorder, 0, oh_block) {
-    _for_(iw_reorder, 0, ow_block) {
-      _for_(ic_reorder, 0, ic_block) {
-        _for_(ibs_reorder, 0, bs_block, lanes) {
-          expr bs_idx = bs_offset + ibs_reorder;
-          expr ic_idx = ic_offset + ic_reorder;
-          expr h_idx = oh_offset + ih_reorder;
-          expr w_idx = ow_offset + iw_reorder;
-          expr input_h_idx = h_idx * stride_h;
-          expr input_w_idx = w_idx * stride_w;
-          std::vector<expr> tmp_input_idx {ibs_reorder / im_bs_block_,
-            ic_reorder / im_ic_block_, ih_reorder, iw_reorder,
-            ic_reorder % im_ic_block_, ibs_reorder % im_bs_block_};
-          std::vector<expr> input_idx {bs_idx / im_bs_block_, input_h_idx,
-            input_w_idx, ic_idx, bs_idx % im_bs_block_};
-          _if_((input_h_idx >= 0 && input_h_idx < IH)
-            && (input_w_idx >= 0 && input_w_idx < IW)) {
-            temp_forward_input[span_t(tmp_input_idx, lanes)]
-              = forward_input[span_t(input_idx, lanes)];
-          }
-          _else_ {
-            temp_forward_input[span_t(tmp_input_idx, lanes)]
-              = builder::make_broadcast(
-                builder::make_cast(dtype.type_code_, 0), lanes);
+  const logical_tensor_t &input_lt, const sc_data_type_t &dtype, int bs_block,
+  int ic_block, int oh_block, int ow_block, int IH, int IW,
+  const expr &bs_offset, const expr &ic_offset, const expr &oh_offset,
+  const expr &ow_offset, int stride_h, int stride_w) const {
+  // NHWCn or NHWC --> NCHWcn
+  if (stride_h > 1 || stride_w > 1) {
+    trace_guard_t trg(ctx, "forward_input_reorder");
+    _for_(ih_reorder, 0, oh_block) {
+      _for_(iw_reorder, 0, ow_block) {
+        _for_(ic_reorder, 0, ic_block) {
+          _for_(ibs_reorder, 0, bs_block) {
+            expr bs_idx = bs_offset + ibs_reorder;
+            expr ic_idx = ic_offset + ic_reorder;
+            expr h_idx = oh_offset + ih_reorder;
+            expr w_idx = ow_offset + iw_reorder;
+            expr input_h_idx = h_idx * stride_h;
+            expr input_w_idx = w_idx * stride_w;
+            std::vector<expr> tmp_input_idx {ibs_reorder / im_bs_block_,
+              ic_reorder / im_ic_block_, ih_reorder, iw_reorder,
+              ic_reorder % im_ic_block_, ibs_reorder % im_bs_block_};
+            std::vector<expr> input_idx {
+              bs_idx, input_h_idx, input_w_idx, ic_idx};
+            _if_((input_h_idx >= 0 && input_h_idx < IH)
+              && (input_w_idx >= 0 && input_w_idx < IW)) {
+              temp_forward_input[tmp_input_idx] = forward_input[input_idx];
+            }
+            _else_ {
+              temp_forward_input[tmp_input_idx] = builder::make_constant(
+                std::vector<union_val>(0.f), sc_data_type_t(dtype.type_code_));
+            }
           }
         }
       }
     }
+  } else {
+    // use vnni reorder when strides = 1
+    // shrinked_shape
+    std::vector<expr> temp_forward_input_shape_shr = {bs_block / im_bs_block_,
+      ic_block / im_ic_block_, oh_block, ow_block, im_ic_block_, im_bs_block_};
+    std::vector<expr> shrink_offset = std::vector<expr> {
+      bs_offset / im_bs_block_, ic_offset / im_ic_block_, oh_offset, ow_offset,
+      bs_offset % im_bs_block_, ic_offset % im_ic_block_};
+    temp_forward_input->attr()[tensor_shrinker_attrs::should_shrink]
+      = tensor_shrinker_t::shrink_info_t {
+        shrink_offset, temp_forward_input_shape_shr, stmts()};
+    slice_range tmp_input_slice_range
+      = slice_range {{bs_offset, bs_block / im_bs_block_},
+        {ic_offset, ic_block / im_ic_block_}, {oh_offset, oh_block},
+        {ow_offset, ow_block}, {0, im_bs_block_}, {0, im_ic_block_}};
+    ops::commit_op(ctx, "reorder",
+      {tensor_slice(forward_input,
+        {{bs_offset, bs_block}, {oh_offset, oh_block}, {ow_offset, ow_block},
+          {ic_offset, ic_block}})},
+      {tensor_slice(temp_forward_input, std::move(tmp_input_slice_range))},
+      {graph_tensor::make(
+        input_lt.get_plain_dims(), input_lt.get_format(), input_lt.dtype_)},
+      {},
+      {{"out_format", sc_data_format_t::NCHWcn(im_ic_block_, im_bs_block_)}});
   }
 }
 
@@ -331,7 +353,9 @@ void gen_managed_conv1x1_backprop_weight_t::inner_loop_call(context_ptr &ctx,
                   {temp_forward_idx_non_block[0] + i_bs,
                     temp_forward_idx_non_block[1] + i_ic,
                     temp_forward_idx_non_block[2] + i_oh,
-                    temp_forward_idx_non_block[3], 0, 0}),
+                    temp_forward_idx_non_block[3],
+                    temp_forward_idx_non_block[4],
+                    temp_forward_idx_non_block[5]}),
                 tensor_ptr(temp_output_delta, temp_output_delta_brgemm_index),
                 tensor_ptr(real_delta_weight_buf, real_weight_idx), ow_block,
                 im_ic_block_, im_oc_block_, im_bs_block_, im_bs_block_,
@@ -344,7 +368,9 @@ void gen_managed_conv1x1_backprop_weight_t::inner_loop_call(context_ptr &ctx,
                   {temp_forward_idx_non_block[0] + i_bs,
                     temp_forward_idx_non_block[1] + i_ic,
                     temp_forward_idx_non_block[2] + i_oh,
-                    temp_forward_idx_non_block[3], 0, 0}),
+                    temp_forward_idx_non_block[3],
+                    temp_forward_idx_non_block[4],
+                    temp_forward_idx_non_block[5]}),
                 tensor_ptr(temp_output_delta, temp_output_delta_brgemm_index),
                 tensor_ptr(real_delta_weight_buf, real_weight_idx), ow_block,
                 im_ic_block_, im_oc_block_, im_bs_block_, im_bs_block_,
@@ -452,18 +478,32 @@ bool gen_managed_conv1x1_backprop_weight_t::generate(context_ptr ctx,
                         expr oh_offset
                           = p_oh * oh_single_core + o_oh * oh_block;
                         expr ow_offset = o_ow * ow_block;
-                        _tensor_(temp_forward_input, dtype,
-                          std::vector<expr> {bs_block / im_bs_block_,
-                            ic_block / im_ic_block_, oh_block, ow_block,
-                            im_ic_block_, im_bs_block_});
-                        // start perform reorder: N[D]HWCn->NC[D]HWcn
+                        // start perform reorder:
+                        // N[D]HWCn or N[D]HWC ->NC[D]HWcn
                         // TODO(zhangyan): consider 3D case
+                        // full shape based on forward_input's reorder result
+                        std::vector<expr> temp_forward_input_shape_full
+                          = std::vector<expr> {BS / im_bs_block_,
+                            IC / im_ic_block_, IH, IW, im_ic_block_,
+                            im_bs_block_};
+                        std::vector<expr> temp_forward_input_shape
+                          = std::vector<expr> {bs_block / im_bs_block_,
+                            ic_block / im_ic_block_, oh_block, ow_block,
+                            im_ic_block_, im_bs_block_};
+                        _tensor_(temp_forward_input, dtype,
+                          has_stride ? temp_forward_input_shape
+                                     : temp_forward_input_shape_full);
                         forward_input_reorder_call(ctx, temp_forward_input,
-                          forward_input, dtype, bs_block, ic_block, oh_block,
-                          ow_block, IH, IW, obs_offset, ic_offset, oh_offset,
-                          ow_offset, stride_h, stride_w);
-                        std::vector<expr> temp_forward_idx_non_block {
-                          0, 0, 0, 0};
+                          forward_input, in_tensors_[0], dtype, bs_block,
+                          ic_block, oh_block, ow_block, IH, IW, obs_offset,
+                          ic_offset, oh_offset, ow_offset, stride_h, stride_w);
+                        std::vector<expr> temp_forward_idx_non_block
+                          = has_stride
+                          ? std::vector<expr> {0, 0, 0, 0, 0, 0}
+                          : std::vector<expr> {obs_offset / im_bs_block_,
+                            ic_offset / im_ic_block_, oh_offset, ow_offset,
+                            obs_offset % im_bs_block_,
+                            ic_offset % im_ic_block_};
                         std::vector<expr> temp_weight_idx = is_partial
                           ? std::vector<expr> {p_bs * oh_threads * od_threads
                               + p_od * oh_threads + p_oh,

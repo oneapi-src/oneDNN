@@ -205,12 +205,13 @@ SC_DEF_FMT(ACBDcdc, 0, 2, 1, 3, 2, 3, 2)
 
 constexpr auto NCHW = ABCD, NHWC = ACDB, KCRS = ABCD, NKHW = ABCD, MK = AB,
                KN = AB, NK = BA, MN = AB, NCHWc = ABCDb, NCHWnc = ABCDab,
-               NCHWncn = ABCDaba, NKHWk = ABCDb, KCRSck = ABCDba, MKmk = ABab,
-               NKkn = BAab, MNmn = ABab, NCDHW = ABCDE, NDHWC = ACDEB,
-               KCDRS = ABCDE, NCDHWc = ABCDEb, KCDRSck = ABCDEba,
-               CKRSkc = BACDab, CKDRSkc = BACDEab, NHWCn = ACDBa,
-               NDHWCn = ACDEBa, CKRSck = BACDba, CKDRSck = BACDEba, NSC = ACB,
-               NCS = ABC, NCSc = ABCb, KCS = ABC, KCSck = ABCba;
+               NCHWcn = ABCDba, NCHWncn = ABCDaba, NKHWk = ABCDb,
+               KCRSck = ABCDba, MKmk = ABab, NKkn = BAab, MNmn = ABab,
+               NCDHW = ABCDE, NDHWC = ACDEB, KCDRS = ABCDE, NCDHWc = ABCDEb,
+               KCDRSck = ABCDEba, CKRSkc = BACDab, CKDRSkc = BACDEab,
+               NHWCn = ACDBa, NDHWCn = ACDEBa, CKRSck = BACDba,
+               CKDRSck = BACDEba, NSC = ACB, NCS = ABC, NCSc = ABCb, KCS = ABC,
+               KCSck = ABCba;
 
 #undef SC_DEF_FMT
 }; // namespace format_kinds
@@ -321,6 +322,9 @@ struct SC_API sc_data_format_t {
     }
     constexpr static inline sc_data_format_t NCHWnc(int n, int c) {
         return sc_data_format_t(format_kinds::NCHWnc, {n, c});
+    }
+    constexpr static inline sc_data_format_t NCHWcn(int c, int n) {
+        return sc_data_format_t(format_kinds::NCHWcn, {c, n});
     }
     constexpr static inline sc_data_format_t NCHWnc2n(int n, int c) {
         return sc_data_format_t(format_kinds::NCHWncn, {n, c, 2});

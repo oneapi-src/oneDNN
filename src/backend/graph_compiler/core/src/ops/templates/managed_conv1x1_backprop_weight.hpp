@@ -67,10 +67,10 @@ public:
 
   void forward_input_reorder_call(context_ptr &ctx,
     const expr &temp_forward_input, const expr &forward_input,
-    const sc_data_type_t &dtype, int bs_single_core, int ic_single_core,
-    int oh_single_core, int OW, int IH, int IW, const expr &bs_offset,
-    const expr &ic_offset, const expr &oh_offset, const expr &ow_offset,
-    int stride_h, int stride_w) const;
+    const logical_tensor_t &input_lt, const sc_data_type_t &dtype,
+    int bs_single_core, int ic_single_core, int oh_single_core, int OW, int IH,
+    int IW, const expr &bs_offset, const expr &ic_offset, const expr &oh_offset,
+    const expr &ow_offset, int stride_h, int stride_w) const;
 
   void inner_loop_call(context_ptr &ctx, const expr &temp_forward_input,
     const std::vector<expr> &temp_forward_idx_non_block,

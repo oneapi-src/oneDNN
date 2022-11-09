@@ -900,8 +900,14 @@ void conv_bwd_weight_core_op_t::query_format(context_ptr ctx,
                 = is_1x1_ ? gen_1x1->im_oc_block_ : gen_NxN->im_oc_block_;
         const bool is_3d = ndims_ == 5;
         in_formats.reserve(get_inputs().size());
-        in_formats.push_back({is_3d ? sc_data_format_t::NDHWCn(im_bs_block)
-                                    : sc_data_format_t::NHWCn(im_bs_block)});
+        if (!is_1x1_) {
+            in_formats.push_back(
+                    {is_3d ? sc_data_format_t::NDHWCn(im_bs_block)
+                           : sc_data_format_t::NHWCn(im_bs_block)});
+        } else {
+            in_formats.push_back({is_3d ? sc_data_format_t::NDHWC()
+                                        : sc_data_format_t::NHWC()});
+        }
         // N(D)HWK
         in_formats.push_back(
                 {is_3d ? sc_data_format_t::NDHWC() : sc_data_format_t::NHWC()});
