@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "common/c_types_map.hpp"
+#include "common/thread_local_storage.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/ocl/mdapi_utils.hpp"
@@ -85,6 +86,25 @@ struct ocl_stream_t : public compute::compute_stream_t {
         if (queue_) { clReleaseCommandQueue(queue_); }
     }
 
+    std::vector<ocl_wrapper_t<cl_event>> &get_deps() {
+        auto &deps = const_cast<const ocl_stream_t *>(this)->get_deps();
+        return const_cast<std::vector<ocl_wrapper_t<cl_event>> &>(deps);
+    }
+    const std::vector<ocl_wrapper_t<cl_event>> &get_deps() const {
+        static std::vector<ocl_wrapper_t<cl_event>> empty_deps;
+        return deps_tls_.get(empty_deps);
+    }
+
+    void set_deps(const std::vector<ocl_wrapper_t<cl_event>> &deps) {
+        get_deps() = deps;
+    }
+
+    const ocl_wrapper_t<cl_event> &get_output_event() const {
+        auto &deps = get_deps();
+        assert(deps.size() == 1);
+        return deps[0];
+    }
+
 private:
     ocl_stream_t(engine_t *engine, unsigned flags)
         : compute_stream_t(engine, flags), queue_(nullptr) {}
@@ -111,6 +131,8 @@ private:
 
     cl_command_queue queue_;
     std::unique_ptr<mdapi_helper_t> mdapi_helper_;
+    mutable utils::thread_local_storage_t<std::vector<ocl_wrapper_t<cl_event>>>
+            deps_tls_;
 };
 
 } // namespace ocl
