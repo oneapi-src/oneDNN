@@ -31,9 +31,12 @@
 #include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
+#include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
+#include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
+#include <compiler/ir/transform/tensor_inplace_info.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <ops/convolution.hpp>
@@ -73,7 +76,7 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
             op->get_inputs(), g2b_map_);
 
     // inter-op inplace inferring
-    auto query_inpalce = [&](const graph_tensor_ptr &out,
+    auto query_inplace = [&](const graph_tensor_ptr &out,
                                  const graph_tensor_ptr &in) -> bool {
         return (!op->isa<tunable_op_t>()) && (in->uses_.size() == 1)
                 && (out != in)
@@ -99,7 +102,7 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
         }
         // query input
         for (auto &inp : op->get_inputs()) {
-            if (query_inpalce(out, inp)) {
+            if (query_inplace(out, inp)) {
                 g2b_map_.get(out) = g2b_map_.get(inp);
                 break;
             }
@@ -173,7 +176,7 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
             // IR replace
             mxp_replacer_t(buffer_map).replace_func(binded_mxp_->func_);
             // Buffer replace
-            replace_buffer(ins.get(), old_input, new_input);
+            replace_buffer(ins.get(), new_input);
         }
     }
 }
@@ -189,21 +192,23 @@ size_t mxp_buffer_allocator::get_total_allocated_buffer_size() const {
     return already_allocated_size;
 }
 
-void mxp_buffer_allocator::replace_buffer(
-        graph_tensor *gt, expr &old_input, expr &new_input) {
-    g2b_map_.datamap_[gt] = new_input;
-
-    if (tsr_anch_map_.find(old_input) != tsr_anch_map_.end()) {
-        // auto anch = tsr_anch_map_[old_input];
-        tsr_anch_map_.erase(old_input);
-        // tsr_anch_map_[new_input] = anch;
+void mxp_buffer_allocator::replace_buffer(graph_tensor *gt, expr &new_buffer) {
+    // get old buffer
+    auto old_buffer = g2b_map_.get(gt);
+    // assert new buffer
+    COMPILE_ASSERT(b2g_map_.find(new_buffer) == b2g_map_.end(),
+            "Current, it is only expected to replace with new buffer which "
+            "never appear in mixed IR, but got "
+                    << new_buffer)
+    if (tsr_anch_map_.find(old_buffer) != tsr_anch_map_.end()) {
+        tsr_anch_map_.erase(old_buffer);
     }
-
-    if (b2g_map_.find(old_input) != b2g_map_.end()) {
-        auto gt = b2g_map_[old_input];
-        b2g_map_.erase(old_input);
-        b2g_map_[new_input] = gt;
+    if (b2g_map_.find(old_buffer) != b2g_map_.end()) {
+        auto gt = b2g_map_[old_buffer];
+        b2g_map_.erase(old_buffer);
+        b2g_map_[new_buffer] = gt;
     }
+    g2b_map_.get(gt) = new_buffer;
 }
 
 std::tuple<std::vector<expr>, std::vector<expr>>
@@ -350,6 +355,145 @@ void mxp_buffer_allocator::tensor_initialize() {
             }
             auto ret = padding->get_zero_out_stmt(pad_tsr, range_list);
             decl_body->seq_.insert(decl_body->seq_.begin(), ret);
+        }
+    }
+}
+
+inline bool is_elementwise_producer(const graph_tensor *gt) {
+    return gt->producer_owner_->isa<unary_elementwise_op_t>()
+            || gt->producer_owner_->isa<binary_elementwise_op_t>();
+}
+
+// max step to explore preview ops
+static constexpr int EXPLORE_INPLACE_MAX_STEP = 8;
+
+static void collect_inplace_info(graph_tensor *cur_gt, graph_tensor *ref_gt,
+        std::unordered_set<graph_tensor *> &inplace_set,
+        std::unordered_set<graph_tensor *> &visited_set,
+        const std::unordered_set<graph_tensor *> &valid_set,
+        const dep_mat_ptr &dep, int step) {
+    // if visited, skip
+    if (visited_set.find(cur_gt) != visited_set.end()) return;
+    // mark visited
+    visited_set.insert(cur_gt);
+    // increment by 1 recursive depth and  auto skip
+    if (EXPLORE_INPLACE_MAX_STEP == (step++)) return;
+    // skip repeated
+    if (inplace_set.find(cur_gt) != inplace_set.end()) return;
+    // return when producer is not elementwise op
+    if (!is_elementwise_producer(cur_gt)) { return; }
+    // check inplace condition
+    if ((valid_set.find(cur_gt) != valid_set.end()) && (cur_gt != ref_gt)
+            && (cur_gt->details_.get_blocking_dims()
+                    == ref_gt->details_.get_blocking_dims())
+            && (cur_gt->details_.dtype_ == ref_gt->details_.dtype_)
+            && (cur_gt->details_.get_format() == ref_gt->details_.get_format())
+            && std::all_of(cur_gt->uses_.begin(), cur_gt->uses_.end(),
+                    [&dep, &ref_gt](
+                            const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
+                        return dep->lookup(user.second.get(),
+                                       ref_gt->producer_owner_)
+                                == 1;
+                    })) {
+        inplace_set.insert(cur_gt);
+        // reset step
+        step = 0;
+        // reset ref_gt
+        ref_gt = cur_gt;
+    }
+    // get cur op
+    auto elem_op = cur_gt->producer_owner_;
+    // recusively collect inplace information
+    for (auto &inp : elem_op->get_inputs()) {
+        collect_inplace_info(inp.get(), ref_gt, inplace_set, visited_set,
+                valid_set, dep, step);
+    }
+}
+
+void mxp_buffer_allocator::query_buffer_inplace() {
+    SC_MODULE_INFO << "Query buffer inplace hint...";
+    // step 0: get outer loop
+    auto outer_loops = binded_mxp_->get_outer_loops();
+    if (outer_loops.empty()) return;
+    auto batch_anchor = binded_mxp_->get_anchor_inside_loop(outer_loops.back());
+    if (!batch_anchor) return;
+
+    // step 1: search gt which defined inside outer loop
+    std::vector<graph_tensor *> ref_gt_list;
+    std::unordered_set<graph_tensor *> valid_set;
+    for (auto &tsr2anch : tsr_anch_map_) {
+        auto anchor = tsr2anch.second;
+        auto tsr = tsr2anch.first;
+        if (tsr->attr().has_key(mixed_partition_hint::cut_buffer)) continue;
+        if (b2g_map_.find(tsr) == b2g_map_.end()) continue;
+        auto shrink_gt = b2g_map_[tsr];
+        auto slice_on_batch_anchor = batch_anchor->fsmap_.get(shrink_gt);
+        auto slice_on_cur_anchor = slice_range_list {get_shrinked_info(tsr)};
+        if (slice_on_cur_anchor.empty() || slice_on_batch_anchor.empty())
+            continue;
+        if (cmp_slice_range(slice_on_batch_anchor, slice_on_cur_anchor)
+                == cmp_res::equal) {
+            ref_gt_list.emplace_back(b2g_map_[tsr].get());
+            valid_set.insert(b2g_map_[tsr].get());
+        }
+    }
+    // skip
+    if (ref_gt_list.empty()) return;
+    // sort by op id
+    std::sort(ref_gt_list.begin(), ref_gt_list.end(),
+            [](const graph_tensor *gt1, const graph_tensor *gt2) {
+                return gt1->producer_owner_->logical_op_id_
+                        > gt2->producer_owner_->logical_op_id_;
+            });
+
+    std::unordered_set<expr> replaced_buffer;
+    std::unordered_set<graph_tensor *> visited_set;
+    for (auto &ref_gt : ref_gt_list) {
+        // auto skip
+        if (replaced_buffer.find(g2b_map_.get(ref_gt)) != replaced_buffer.end())
+            continue;
+        // step 2: collect inplace mapping for each gt
+        std::unordered_set<graph_tensor *> inplace_gt_set;
+        collect_inplace_info(ref_gt, ref_gt, inplace_gt_set, visited_set,
+                valid_set, binded_mxp_->dep_m_, /*init_step*/ 0);
+        if (inplace_gt_set.empty()) continue;
+        // step 3: transform map to vector sorted by op committing order
+        std::vector<graph_tensor *> inplace_gt_list;
+        for (auto &commit_op : binded_mxp_->committed_ops_) {
+            if (commit_op.get() == ref_gt->producer_owner_) {
+                inplace_gt_list.emplace_back(ref_gt);
+            } else {
+                for (auto &out : commit_op->get_outputs()) {
+                    if (inplace_gt_set.find(out.get())
+                            != inplace_gt_set.end()) {
+                        inplace_gt_list.emplace_back(out.get());
+                    }
+                }
+            }
+        }
+        // step 4: mark inplace attr for each buffer in list with the previous
+        // one
+        for (size_t i = 1; i < inplace_gt_list.size(); i++) {
+            // get target gt
+            auto target_gt = inplace_gt_list[i - 1];
+            auto target_buf = g2b_map_.get(target_gt);
+            // get inplace gt
+            auto inplace_gt = inplace_gt_list[i];
+            auto inplace_buf = g2b_map_.get(inplace_gt);
+            // skip repeated replaced
+            if (replaced_buffer.find(inplace_buf) != replaced_buffer.end())
+                continue;
+
+            auto target_id
+                    = alias_info::get_or_create_alias_info(*target_buf.get());
+
+            SC_MODULE_INFO << "Mark inplace hint for buffer: " << inplace_buf
+                           << " ==> " << target_buf;
+
+            inplace_buf->attr()[attr_keys::tensor_inplace_hint]
+                    = std::vector<temp_tensor_inplace_info_t> {
+                            {target_id, inplace_kind::ZERO_OFFSET}};
+            replaced_buffer.insert(inplace_buf);
         }
     }
 }
@@ -2031,6 +2175,7 @@ void mixed_parti_t::buffer_schedule() {
     }
     buf_alloc_.tensor_initialize();
     buf_alloc_.declare_and_shrink_tensor();
+    buf_alloc_.query_buffer_inplace();
 }
 
 bool mixed_parti_t::is_parti_inp(const graph_tensor *gt) {

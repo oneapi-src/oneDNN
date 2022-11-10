@@ -32,6 +32,7 @@ const std::shared_ptr<alias_set_t> &tensor_alias_identity_t::get_alias_set() {
 }
 
 bool tensor_alias_identity_t::has_no_alias() const {
+    if (!alias_set_) return true;
     assert(alias_set_->set_.size() >= 1UL);
     return alias_set_->set_.size() == 1;
 }

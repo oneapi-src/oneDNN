@@ -118,13 +118,15 @@ struct mxp_buffer_allocator {
     // initilize tensor
     void tensor_initialize();
     // replace the specific buffer
-    void replace_buffer(graph_tensor *gt, expr &old_input, expr &new_input);
+    void replace_buffer(graph_tensor *gt, expr &new_buffer);
     // calculate total allocated buffer size
     size_t get_total_allocated_buffer_size() const;
     // get real anchor for the specfic buffer
     fuse_anchor_map_ptr get_real_anchor_for_buffer(const expr &buffer) const;
     // get shrinked info for buffer
     slice_range get_shrinked_info(const expr &buffer) const;
+    // query buffer inplace and set hint for IR pass
+    void query_buffer_inplace();
 };
 
 struct outerloop_axis_binder {
