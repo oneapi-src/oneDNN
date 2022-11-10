@@ -458,8 +458,8 @@ static int tensor_offset(const sc_dims &dims_, const std::vector<int> &idx) {
     fusion_manager *fusion, expr &output, const expr &input, \
     const expr &weight, std::vector<for_loop> &loops, const int K_num_block, \
     const int C_num_block, const int os, const int kpack, \
-    const bool use_os_blocking, const bool pack_rows, const expr &os_blk_size, \
-    const expr &os_acc_size, const std::vector<char> &os_mask
+    const bool use_os_blocking, const bool pack_rows, const expr &os_acc_size, \
+    const std::vector<char> &os_mask
 
 void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
   // TODO(zhicong):
@@ -1189,18 +1189,19 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
           int adj_ow = ow_ + (pack_rows ? num_elems_skip_per_ow_ : 0);
 
           if (pack_rows) {
-            auto adj_m = os_blk_size[{o_o}];
-            auto acc_m = os_acc_size[{o_o}];
-            out_tsr = tensor_ptr(output,
-              blocking_output_
-                ? std::vector<expr> {n, k_o, acc_m / ow_, acc_m % ow_, 0}
-                : std::vector<expr> {
-                  n, acc_m / ow_, acc_m % ow_, k_o * config.K_block});
-            sc::builtin::brgemm_init(
-              out_tsr, adj_m, config.K_block, LDC, get_output_dtype(), 0);
-          } else {
-            sc::builtin::brgemm_init(out_tsr, config.tile_os, config.K_block,
-              LDC, get_output_dtype(), 0);
+            if (os / config.tile_os == 1) {
+              out_tsr = tensor_ptr(output,
+                blocking_output_
+                  ? std::vector<expr> {n, k_o, 0, 0, 0}
+                  : std::vector<expr> {n, 0, 0, k_o * config.K_block});
+            } else {
+              auto acc_m = os_acc_size[{o_o}];
+              out_tsr = tensor_ptr(output,
+                blocking_output_
+                  ? std::vector<expr> {n, k_o, acc_m / ow_, acc_m % ow_, 0}
+                  : std::vector<expr> {
+                    n, acc_m / ow_, acc_m % ow_, k_o * config.K_block});
+            }
           }
 
           _for_(c_o, 0, C_num_block) {
@@ -2173,7 +2174,6 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
   }
 
   std::vector<char> os_mask = {};
-  expr os_blk_size = expr();
   expr os_acc_size = expr();
   if (pack_rows) {
     os = adj_os_;
@@ -2188,19 +2188,16 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
       }
     }
 
-    _tensor_(conv_os_blk_size, datatypes::s32, {os_num_block});
     _tensor_(conv_os_acc_size, datatypes::s32, {os_num_block});
     int acc_size = 0;
     int blk_size = 0;
     for (int i = 0; i < os_num_block; ++i) {
       blk_size = std::accumulate(
         os_mask.begin() + i * tile_os, os_mask.begin() + (i + 1) * tile_os, 0);
-      conv_os_blk_size[i] = blk_size;
       conv_os_acc_size[i] = acc_size;
       acc_size += blk_size;
     }
 
-    os_blk_size = conv_os_blk_size;
     os_acc_size = conv_os_acc_size;
   }
 
@@ -2248,7 +2245,7 @@ bool gen_conv_fwd_t::generate(context_ptr ctx, const conv_fwd_config_t &config,
       } else {
         compute_conv_no_padding(ctx, config, fusion, output, input, weight,
           loops, K_num_block, C_num_block, os, kpack, use_os_blocking,
-          pack_rows, os_blk_size, os_acc_size, os_mask);
+          pack_rows, os_acc_size, os_mask);
       }
     } else {
       if (is_use_amx(ctx) && (ph_ <= kh_ && pw_ <= kw_)) {

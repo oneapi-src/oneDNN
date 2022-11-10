@@ -125,8 +125,7 @@ public:
     const expr &weight, std::vector<for_loop> &loops, const int K_num_block, \
     const int C_num_block, const int os, \
     const int kpack = 1, const bool use_os_blocking = false, \
-              const bool pack_rows = false, const expr &os_blk_size = expr(), \
-              const expr &os_acc_size = expr(), \
+              const bool pack_rows = false, const expr &os_acc_size = expr(), \
               const std::vector<char> &os_mask = std::vector<char>()
   void compute_1x1_no_pack_input(CONV_ARG_LIST) const;
   void compute_1x1_pack_input(CONV_ARG_LIST) const;
