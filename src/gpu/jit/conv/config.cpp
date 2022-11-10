@@ -924,7 +924,7 @@ std::vector<int> get_scale_args(const conv_problem_t &prb) {
     return ret;
 }
 
-bool post_ops_ok(const conv_problem_t &prb) {
+bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
     auto *attr = prb.attr;
 
     // No post-ops are supported for f64
@@ -957,6 +957,13 @@ bool post_ops_ok(const conv_problem_t &prb) {
         auto &po = attr->post_ops_.entry_[i];
         if (po.is_eltwise()) {
             if (!jit_eltwise_injector_f32_is_supported(po.eltwise.alg))
+                return false;
+            else if (po.eltwise.alg == alg_kind::eltwise_tanh
+                    && hw_cfg.hw() == ngen::HW::XeHPG
+                    && hw_cfg.eu_count() <= 128)
+                // Workaround for hard to reproduce issue in end to end
+                // workloads. It is unclear what the actual issue is as the
+                // kernel always works correctly in benchdnn.
                 return false;
         }
     }
@@ -1060,7 +1067,7 @@ status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
 
     if (!hw_ok(hw_cfg)) return status::unimplemented;
     if (!data_types_ok(prb, hw_cfg)) return status::unimplemented;
-    if (!post_ops_ok(prb)) return status::unimplemented;
+    if (!post_ops_ok(prb, hw_cfg)) return status::unimplemented;
     if (!zero_points_ok(prb)) return status::unimplemented;
 
     cfg.set_prb(prb);
