@@ -42,10 +42,6 @@ status_t ocl_stream_t::init() {
 
     assert(engine()->kind() == engine_kind::gpu);
 
-    // Out-of-order is not supported
-    bool args_ok = (flags() & stream_flags::out_of_order) == 0;
-    if (!args_ok) return status::unimplemented;
-
     ocl_gpu_engine_t *ocl_engine
             = utils::downcast<ocl_gpu_engine_t *>(engine());
 
@@ -98,14 +94,25 @@ cl_command_queue ocl_stream_t::create_queue(
         if (ret) return ret;
     }
 
+    const bool is_out_of_order = (flags() & stream_flags::out_of_order);
+    if (is_out_of_order) assert(!is_profiling_enabled());
 #ifdef CL_VERSION_2_0
     cl_queue_properties profiling_props[]
             = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0};
-    return clCreateCommandQueueWithProperties(
-            ctx, dev, is_profiling_enabled() ? profiling_props : nullptr, err);
+    cl_queue_properties out_of_order_props[]
+            = {CL_QUEUE_PROPERTIES, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, 0};
+    return clCreateCommandQueueWithProperties(ctx, dev,
+            is_profiling_enabled()
+                    ? profiling_props
+                    : is_out_of_order ? out_of_order_props : nullptr,
+            err);
 #else
     return clCreateCommandQueue(ctx, dev,
-            is_profiling_enabled() ? CL_QUEUE_PROFILING_ENABLE : 0, err);
+            is_profiling_enabled()
+                    ? CL_QUEUE_PROFILING_ENABLE
+                    : is_out_of_order ? CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE
+                                      : 0,
+            err);
 #endif
 }
 
