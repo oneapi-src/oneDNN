@@ -266,8 +266,22 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
       = mb_ > num_threads ? num_threads : closest_split(mb_, thread_split);
     cfg.s_threads = num_threads / cfg.bs_threads;
     cfg.oc_threads = 1;
-    auto ic_threads
-      = num_threads / cfg.bs_threads / cfg.s_threads / cfg.oc_threads;
+    if (mb_ == 1 && oc_ % 32 == 0 && num_threads == 4) {
+      if (oc_ > 1024) {
+        cfg.bs_threads = 1;
+        cfg.oc_threads = num_threads;
+        cfg.s_threads = 1;
+      } else if (oc_ <= 1024 && oh_ * ow_ <= 28 * 28 && num_threads % 2 == 0) {
+        cfg.bs_threads = 1;
+        cfg.oc_threads = num_threads / 2;
+        cfg.s_threads = num_threads / 2;
+      } else {
+        cfg.bs_threads = 1;
+        cfg.oc_threads = 1;
+        cfg.s_threads = num_threads;
+      }
+    }
+    auto ic_threads = 1;
     cfg.s_block
       = utils::divide_and_ceil(
           utils::divide_and_ceil(oh_ * ow_, im_s_block_), cfg.s_threads)
@@ -346,16 +360,27 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   is_1x1_conv_ = (kd_ == 1 && kh_ == 1 && kw_ == 1);
   pd_ = is_3d_ ? pads_begin[0] : 0;
   ph_ = is_1d_ ? 0 : pads_begin[0], pw_ = pads_begin[0];
+  bool is_int8
+    = utils::is_one_of(get_input_dtype(), datatypes::u8, datatypes::s8);
+  bool is_bf16 = get_input_dtype() == datatypes::bf16;
+  auto dtype_block = is_int8 ? 4 : (is_bf16 ? 2 : 1);
   if (owner) { attrs_ = owner->attrs_; }
-  im_oc_block_ = utils::get_blocks(oc_, 1, 256).back();
-  im_ic_block_ = utils::get_blocks(ic_, 1, 256).back();
-  im_s_block_ = utils::get_blocks(ow_ * oh_, 1, 256).back();
-  if (owner && is_1x1_conv_) {
+  auto default_block = dtype_block * 64;
+  if (ic_ * oc_ < 512 * 512) { default_block /= 2; }
+  const int num_threads = runtime_config_t::get().get_num_threads();
+  if (mb_ == 1 && num_threads == 4) { default_block = 64; }
+  auto s_default_block = default_block;
+  if (ic_ * oc_ < 1024 * 1024) { s_default_block = default_block / 2; }
+
+  im_oc_block_ = utils::get_blocks(oc_, 1, default_block).back();
+  im_ic_block_ = utils::get_blocks(ic_, 1, default_block).back();
+  im_s_block_ = utils::get_blocks(ow_ * oh_, 1, s_default_block).back();
+  if (owner && is_1d_) {
     // add constraint for os_block to ensure correctness
     // TODO(zhicong): relax the constraint to have more choice for im_s_block
     auto origin_ow = dim2unsigned(attrs_.get_or_else("origin_ow", sc_dim(ow_)));
     auto origin_oh = dim2unsigned(attrs_.get_or_else("origin_oh", sc_dim(oh_)));
-    auto s_block_list = utils::get_blocks(ow_ * oh_, 1, 256);
+    auto s_block_list = utils::get_blocks(ow_ * oh_, 1, s_default_block);
     s_block_list.erase(std::remove_if(s_block_list.begin(), s_block_list.end(),
                          [&](int blk) {
                            return (blk % (origin_ow * origin_oh) != 0
@@ -385,8 +410,6 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   adj_os_ = std::min(actual_os_ + num_elems_skip_per_ow_ * (oh_ - 1),
     (ih_ + 2 * ph_) * (iw_ + 2 * pw_));
 
-  bool is_int8
-    = utils::is_one_of(get_input_dtype(), datatypes::u8, datatypes::s8);
   // Note: os blocking is only valid for non_1x1, no pad and non 3D conv with
   // amx-int8 only so far.
   bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);

@@ -1651,7 +1651,6 @@ static bool try_merge_mixed_parti_vertically(
     auto dep_flag = check_parti_dep(A, B);
     // if two partition inter-depends each other, could not merge them
     if (dep_flag == parti_dep::inter_dep) return false;
-    if (check_connection && dep_flag != parti_dep::no_dep) return false;
     mixed_parti_t *pa_to_merge = nullptr, *parti_be_merged = nullptr;
 
     pa_to_merge = (dep_flag == parti_dep::l_dep_r) ? B : A;
@@ -2922,7 +2921,7 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
     }
 
     std::vector<crossover_alg> algs
-            = {horizontal_crossover, vertical_crossover, parallel_crossover};
+            = {horizontal_crossover, parallel_crossover, vertical_crossover};
     crossover_partition(op_2_partition, algs);
 
     std::vector<sc_op_ptr> fused_ops;

@@ -75,7 +75,6 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
             auto parent_node = node->get_inputs()[0]->producer_owner_;
 
             if (parent_node->isa<input_op>()) { return; }
-
             auto padding_node = graph.make("padding", {node->get_inputs()[0]},
                     {}, {{"pads_begin", pads_begin}, {"pads_end", pads_end}});
 

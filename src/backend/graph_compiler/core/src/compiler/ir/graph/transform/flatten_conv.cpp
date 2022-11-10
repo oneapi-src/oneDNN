@@ -23,6 +23,7 @@
 #include "../visitor.hpp"
 #include <compiler/ir/graph/dynamic_utils.hpp>
 #include <ops/convolution.hpp>
+#include <runtime/config.hpp>
 
 namespace sc {
 
@@ -42,8 +43,6 @@ bool conv1d_should_flatten(const sc_dims &weight_shape, const sc_dims &strides,
             && format != sc_data_format_t::NHWC()) {
         res = false;
     }
-    // TODO(zhicong): improve conv1d performance in RN50 stage 1
-    if (weight_shape[0] < 64 || weight_shape[1] < 64) { res = false; }
     if (!is_weight_constant) {
         // TODO(zhicong): improve f32/bf16 training fwd config
         res = false;
@@ -76,7 +75,9 @@ sc_dims get_conv1d_flatten_shape(const sc_data_format_t &format,
 // Whether to flatten N axis, which will break bs fusion but may bring perf
 // benefit to single layer
 int should_merge_bs(const int &bs, const int &min_os) {
+    auto num_threads = runtime_config_t::get().get_num_threads();
     int minibatch = std::max(sc_dim(1), sc_dim(28) / sc_dim(std::sqrt(min_os)));
+    if (bs % num_threads != 0) { return bs; }
     return bs % minibatch == 0 ? minibatch : 1;
 }
 
