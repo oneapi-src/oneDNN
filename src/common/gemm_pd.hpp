@@ -102,10 +102,8 @@ protected:
             ok = ok && set_default_format(md);
         }
 
-        for (auto &po : attr_.post_ops_.entry_) {
-            if (po.is_binary())
-                ok = ok && set_default_format(&po.binary.src1_desc);
-        }
+        auto status = attr_.post_ops_.set_default_formats(&desc_.c_desc);
+        ok = ok && (status == status::success);
 
         return ok;
     }
