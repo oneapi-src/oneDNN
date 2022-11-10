@@ -31,7 +31,7 @@ namespace impl = dnnl::graph::impl;
 namespace utils = dnnl::graph::tests::unit::utils;
 namespace dnnl_impl = impl::dnnl_impl;
 
-TEST(DnnlShapeInfer, InferDnnlConvOutputShape) {
+TEST(DnnlInferShape, InferDnnlConvOutputShape) {
     using dims = dnnl::graph::impl::dnnl_impl::dims;
     using ltw = impl::logical_tensor_wrapper_t;
 
@@ -83,7 +83,7 @@ TEST(DnnlShapeInfer, InferFromGroupOutputShape) {
     {
         impl::dims dims {1, 2, 2, 2};
         auto op = std::make_shared<impl::op_t>(
-                id++, impl::op_kind::Wildcard, "wild_card");
+                id++, impl::op_kind::Wildcard, "wildcard");
         impl::logical_tensor_t in_lt
                 = logical_tensor_init(id++, dims, impl::data_type::f32);
         impl::logical_tensor_t out_lt = logical_tensor_init(
@@ -102,7 +102,7 @@ TEST(DnnlShapeInfer, InferFromGroupOutputShape) {
     {
         impl::dims dims {1, 2, 2, 2};
         auto op = std::make_shared<impl::op_t>(
-                id++, impl::op_kind::Wildcard, "wild_card");
+                id++, impl::op_kind::Wildcard, "wildcard");
         impl::logical_tensor_t in_lt
                 = logical_tensor_init(id++, dims, impl::data_type::f32);
         impl::logical_tensor_t out_lt = logical_tensor_init(
@@ -141,7 +141,7 @@ TEST(DnnlShapeInfer, InferBnFoldingOutputShape) {
         auto &out1 = std::get<3>(item);
         auto status = std::get<4>(item);
         auto op = std::make_shared<impl::op_t>(
-                id++, impl::op_kind::Wildcard, "wild_card");
+                id++, impl::op_kind::Wildcard, "wildcard");
         impl::logical_tensor_t in_lt0
                 = logical_tensor_init(id++, in0, impl::data_type::f32);
         impl::logical_tensor_t in_lt1

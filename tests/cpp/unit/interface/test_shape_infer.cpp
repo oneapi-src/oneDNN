@@ -19,11 +19,12 @@
 #include "interface/c_types_map.hpp"
 #include "interface/shape_infer.hpp"
 
-#include "cpp/unit/backend/dnnl/dnnl_test_common.hpp"
+#include "cpp/unit/unit_test_common.hpp"
 #include "cpp/unit/utils.hpp"
 
 namespace impl = dnnl::graph::impl;
 namespace utils = dnnl::graph::tests::unit::utils;
+using impl::dims;
 
 TEST(ShapeInfer, OneWayBroadcast) {
     using dims = impl::dims;
@@ -122,7 +123,6 @@ TEST(ShapeInfer, InvalidShapeForMatmul) {
 }
 
 TEST(ShapeInfer, InvalidShapeForConv) {
-    using dims = impl::dnnl_impl::dims;
     impl::op_t conv_op {0, impl::op_kind::Convolution, std::string("conv")};
     conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
     conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
@@ -175,4 +175,134 @@ TEST(ShapeInfer, InvalidShapeForPool) {
     ASSERT_EQ(impl::infer_pool_bwd_output_shape(
                       &avg_pool_bk_op, inputs, outputs2),
             impl::status::unimplemented);
+}
+
+TEST(ShapeInfer, CanonicalizeError) {
+#ifndef NDEBUG
+    ASSERT_DEATH(impl::canonicalize({1, 2, 3, 4}, "XXXX"), "invalid format");
+#endif
+}
+
+TEST(ShapeInfer, InferConvOuputShapeError) {
+    impl::op_t conv_op(impl::op_kind::Convolution);
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    {
+        std::vector<impl::dim_t> src_shape = {8, 8, 32, 32};
+        std::vector<impl::dim_t> wei_shape = {8, 4, 1, 1};
+        impl::data_type_t dtype = impl::data_type::f32;
+        auto conv0_src = utils::logical_tensor_init(0, src_shape, dtype);
+        auto conv0_wei = utils::logical_tensor_init(1, wei_shape, dtype);
+        auto conv0_dst = utils::logical_tensor_init(2, src_shape, dtype);
+        std::vector<impl::logical_tensor_t *> inputs {&conv0_src, &conv0_wei};
+        std::vector<impl::logical_tensor_t *> outputs {&conv0_dst};
+        ASSERT_EQ(impl::infer_conv_output_shape(&conv_op, inputs, outputs),
+                impl::status::invalid_shape);
+    }
+
+    {
+        conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1, 1, 1, 1});
+        std::vector<impl::dim_t> src_shape = {8, 8, 32, 32};
+        std::vector<impl::dim_t> wei_shape = {8, 8, 1, 1};
+        impl::data_type_t dtype = impl::data_type::f32;
+        auto conv0_src = utils::logical_tensor_init(0, src_shape, dtype);
+        auto conv0_wei = utils::logical_tensor_init(1, wei_shape, dtype);
+        auto conv0_dst = utils::logical_tensor_init(2, src_shape, dtype);
+        std::vector<impl::logical_tensor_t *> inputs {&conv0_src, &conv0_wei};
+        std::vector<impl::logical_tensor_t *> outputs {&conv0_dst};
+        ASSERT_EQ(impl::infer_conv_output_shape(&conv_op, inputs, outputs),
+                impl::status::invalid_shape);
+    }
+}
+
+TEST(ShapeInfer, InferConvBpropDataOuputShape) {
+    impl::op_t conv_op(impl::op_kind::ConvolutionBackpropData);
+    conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::dilations, dims {1, 1});
+    conv_op.set_attr<dims>(impl::op_attr::pads_begin, dims {0, 0});
+    conv_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
+    // according to spec, group should be greater than 0
+    conv_op.set_attr<int64_t>(impl::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    conv_op.set_attr<dims>(impl::op_attr::output_shape, dims {8, 3, 224, 224});
+
+    // prepare logical tensor
+    impl::logical_tensor_t diff_src = utils::logical_tensor_init(
+            0, {8, 3, 224, 224}, impl::data_type::f32);
+    impl::logical_tensor_t weights = utils::logical_tensor_init(
+            1, {16, 3, 3, 3}, impl::data_type::f32);
+    impl::logical_tensor_t diff_dst = utils::logical_tensor_init(
+            2, {8, 16, 222, 222}, impl::data_type::f32);
+
+    conv_op.add_input(diff_dst);
+    conv_op.add_input(weights);
+    conv_op.add_output(diff_src);
+    std::vector<impl::logical_tensor_t *> inputs {&diff_src, &weights};
+    std::vector<impl::logical_tensor_t *> outputs {&diff_dst};
+    {
+        conv_op.set_attr<std::string>(impl::op_attr::data_format, "XXXXX");
+        ASSERT_EQ(impl::infer_conv_bprop_data_output_shape(
+                          &conv_op, inputs, outputs),
+                impl::status::unimplemented);
+    }
+    {
+        conv_op.set_attr<dims>(impl::op_attr::strides, dims {1, 1, 1, 1, 1});
+        conv_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
+        ASSERT_EQ(impl::infer_conv_bprop_data_output_shape(
+                          &conv_op, inputs, outputs),
+                impl::status::invalid_shape);
+    }
+}
+
+TEST(ShapeInfer, InferConvtransposeNcxOixError) {
+    impl::op_t conv {impl::op_kind::ConvTransposeBackpropData,
+            impl::op_t::kind2str(impl::op_kind::ConvTransposeBackpropData)};
+    std::vector<int64_t> strides = {1, 1};
+    std::vector<int64_t> pads_begin = {0, 0}; // empty pads_begin
+    std::vector<int64_t> pads_end = {0, 0}; // empty pads_end
+    std::vector<int64_t> dilations = {2, 2};
+    std::string data_format = "NCX";
+    std::string filter_format = "OIX";
+    std::string auto_pad = "VALID";
+    int64_t groups = 1;
+    int64_t id = 0;
+    conv.set_attr(impl::op_attr::strides, strides);
+    conv.set_attr(impl::op_attr::pads_begin, pads_begin);
+    conv.set_attr(impl::op_attr::pads_end, pads_end);
+    conv.set_attr(impl::op_attr::dilations, dilations);
+    conv.set_attr(impl::op_attr::auto_pad, auto_pad);
+    conv.set_attr(impl::op_attr::data_format, data_format);
+    conv.set_attr(impl::op_attr::filter_format, filter_format);
+    conv.set_attr(impl::op_attr::groups, groups);
+
+    auto lt_data = utils::logical_tensor_init(
+            id++, {1, 1, 16, 16}, impl::data_type::f32);
+    auto lt_weight = utils::logical_tensor_init(
+            id++, {1, 1, 4, 4}, impl::data_type::f32);
+    std::vector<int64_t> expected_out_shape {1, 1, 10, 10};
+
+    auto lt_o = utils::logical_tensor_init(
+            id++, impl::data_type::f32, impl::layout_type::strided);
+    std::vector<impl::logical_tensor_t *> lt_in {&lt_data, &lt_weight};
+    std::vector<impl::logical_tensor_t *> lt_out {&lt_o};
+    {
+        conv.set_attr<int64_t>(impl::op_attr::groups, 2);
+        ASSERT_EQ(impl::infer_convtranspose_bprop_data_output_shape(
+                          &conv, lt_in, lt_out),
+                impl::status::invalid_shape);
+    }
+
+    {
+        conv.set_attr(impl::op_attr::groups, groups);
+        conv.set_attr<impl::dims>(impl::op_attr::strides, {1, 1, 1, 1, 1});
+        ASSERT_EQ(impl::infer_convtranspose_bprop_data_output_shape(
+                          &conv, lt_in, lt_out),
+                impl::status::invalid_shape);
+    }
 }

@@ -128,6 +128,7 @@ TEST(CompiledPartitionCache, SingleOpCase) {
     ASSERT_EQ(get_compiled_partition_cache_size(), 0);
 #else
     ASSERT_EQ(get_compiled_partition_cache_size(), new_capacity);
+    ASSERT_EQ(impl::compiled_partition_cache().get_capacity(), new_capacity);
 #endif
 }
 
@@ -245,6 +246,57 @@ TEST(CompiledPartition, InvalidArguments) {
     std::vector<const impl::logical_tensor_t *> outputs;
     ASSERT_EQ(impl::status::invalid_arguments,
             pti.compile(nullptr, inputs, outputs, nullptr, nullptr));
+}
+TEST(LruCompiledPartitionCache, Method) {
+    impl::engine_t &eng = get_engine();
+    std::vector<impl::op_kind_t> kind_set {
+            impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::Tanh};
+
+    impl::logical_tensor_t input = utils::logical_tensor_init(
+            0, {1, 1, 1, 1}, impl::data_type::f32, impl::layout_type::strided);
+    impl::logical_tensor_t output = utils::logical_tensor_init(
+            1, {1, 1, 1, 1}, impl::data_type::f32, impl::layout_type::strided);
+    // Create op
+    auto elt = std::make_shared<impl::op_t>(1, impl::op_kind::Abs, "elt");
+    elt->add_input(input);
+    elt->add_output(output);
+
+    // Create graph
+    impl::graph_t g {eng.kind()};
+    g.add_op(elt.get());
+    g.build_graph();
+
+    // Create single-op partition
+    std::vector<const impl::backend *> &backends
+            = impl::backend_registry_t::get_singleton()
+                      .get_registered_backends();
+    for (const auto &cbkd : backends) {
+        impl::backend *bkd = const_cast<impl::backend *>(cbkd);
+        bkd->get_partitions(g, impl::partition_policy::fusion);
+    }
+
+    // wrap into the partition
+    impl::partition_t par = impl::partition_t();
+    std::vector<impl::partition_t *> parts {&par};
+    g.get_ordered_partitions(parts);
+
+    impl::compiled_partition_t cp(par);
+    std::pair<impl::compiled_partition_t *, bool> cpcache {&cp, false};
+    std::vector<const impl::logical_tensor_t *> inputs {&input};
+    std::vector<const impl::logical_tensor_t *> outputs {&output};
+    // Partition compilation
+    par.compile(cpcache, inputs, outputs, &eng);
+    ASSERT_NO_THROW(impl::is_partition_in_cache(&par, inputs, outputs));
+    ASSERT_NO_THROW(impl::is_compiled_partition_in_cache(&cp));
+
+#ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
+    impl::partition_hashing::key_t key {
+            par.id(), eng.kind(), {elt}, inputs, outputs};
+    auto &cache_mapper = impl::compiled_partition_cache();
+    ASSERT_NO_THROW(cache_mapper.get_partition(key));
+
+    ASSERT_NO_THROW(cache_mapper.update_entry(key, &par, inputs, outputs));
+#endif
 }
 
 } // namespace graph

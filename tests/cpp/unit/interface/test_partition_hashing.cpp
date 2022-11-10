@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 
 #include "interface/c_types_map.hpp"
+#include "interface/partition_hashing.hpp"
 #include "interface/shape_infer.hpp"
 
 #include "cpp/unit/unit_test_common.hpp"
@@ -37,4 +38,9 @@ TEST(PartitionHashing, GetArrayHash) {
     float arr[num] {1.0f, 2.0f, 3.0f};
     EXPECT_NO_FATAL_FAILURE(
             impl::partition_hashing::get_array_hash(seed, arr, num));
+}
+
+TEST(PartitionHashing, GetOpHash) {
+    impl::op_t op {0, impl::op_kind::Wildcard, "wildcard"};
+    ASSERT_NO_THROW(impl::partition_hashing::get_op_hash(op));
 }

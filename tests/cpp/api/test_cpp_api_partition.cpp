@@ -317,3 +317,19 @@ TEST(APIPartition, CompileWildcardPartition) {
     // compile
     EXPECT_THROW(part.compile({lt1}, {lt2}, eng), error);
 }
+
+TEST(APIPartitionCache, GetSetCapacity) {
+    ASSERT_EQ(dnnl_graph_set_compiled_partition_cache_capacity(-1),
+            dnnl_graph_invalid_arguments);
+    ASSERT_NO_THROW(dnnl_graph_set_compiled_partition_cache_capacity(2));
+
+    ASSERT_EQ(dnnl_graph_get_compiled_partition_cache_capacity(nullptr),
+            dnnl_graph_invalid_arguments);
+    int c;
+#ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
+    ASSERT_EQ((dnnl_graph_get_compiled_partition_cache_capacity(&c), c), 2);
+#else
+    ASSERT_EQ(dnnl_graph_get_compiled_partition_cache_capacity(&c),
+            dnnl_graph_success);
+#endif
+}

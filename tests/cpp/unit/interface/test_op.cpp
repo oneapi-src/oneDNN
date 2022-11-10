@@ -89,7 +89,7 @@ TEST(Op, Attr2str) {
 
 TEST(Op, AddOpIds) {
     using namespace dnnl::graph::impl;
-    op_t wild_card {0, op_kind::Wildcard, std::string("wild_card")};
+    op_t wild_card {0, op_kind::Wildcard, std::string("wildcard")};
     std::vector<size_t> ids {10001, 100023};
     wild_card.add_op_ids(ids);
     ASSERT_EQ(wild_card.get_op_ids().size(), ids.size());

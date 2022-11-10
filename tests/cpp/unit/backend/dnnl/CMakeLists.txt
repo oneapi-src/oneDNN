@@ -20,6 +20,7 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_batch_norm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_binary_op.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_bmm.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_common.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_concat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_constant_cache.cpp

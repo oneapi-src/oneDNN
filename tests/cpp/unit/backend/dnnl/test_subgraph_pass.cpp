@@ -24,7 +24,6 @@
 
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
-
 #include "backend/dnnl/kernels/large_partition.hpp"
 #include "backend/dnnl/op_executable.hpp"
 #include "backend/dnnl/passes/constant_propagation.hpp"
@@ -33,6 +32,7 @@
 #include "backend/dnnl/passes/lower.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
 #include "backend/dnnl/passes/transform.hpp"
+#include "backend/dnnl/subgraph.hpp"
 
 #include "cpp/unit/unit_test_common.hpp"
 #include "cpp/unit/utils.hpp"
@@ -57,6 +57,12 @@ dnnl::graph::impl::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     return *find;
 }
 } // namespace
+
+TEST(Subgraph, Kind2Str) {
+    ASSERT_EQ(impl::dnnl_impl::kind2str(impl::op_kind::Abs), "Abs");
+    ASSERT_EQ(impl::dnnl_impl::kind2str(impl::dnnl_impl::op_kind::dnnl_add_zps),
+            "Dnnl_add_zps");
+}
 
 TEST(SubgraphPass, LowerDownToInt8Conv) {
     /*
@@ -1584,7 +1590,7 @@ TEST(SubgraphPass, CommonReorderElimination) {
     auto lt4 = logical_tensor_init(id++, {1, 3, 5, 5}, impl::data_type::f32);
     auto lt5 = logical_tensor_init(id++, {1, 3, 5, 5}, impl::data_type::f32);
 
-    impl::op_t op0 {0, impl::op_kind::Wildcard, "wild_card"};
+    impl::op_t op0 {0, impl::op_kind::Wildcard, "wildcard"};
     op0.add_input(lt1);
     op0.add_output(lt2);
 
