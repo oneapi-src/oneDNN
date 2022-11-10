@@ -101,7 +101,7 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, jcp.ngroups * jcp.oc, pd()->attr());
+            src_scales, wei_scales, pd()->OC(), pd()->attr());
 
     auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_inp_buffer); // fix the template
@@ -456,7 +456,7 @@ status_t jit_avx512_core_amx_convolution_fwd_t::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, jcp.ngroups * jcp.oc, pd()->attr());
+            src_scales, wei_scales, pd()->OC(), pd()->attr());
 
     // TODO: use block offset instead of hand-calculated one
     //size_t wei_oc_shift = wht_blk_off(weights_d, 0, 1);
@@ -829,8 +829,7 @@ status_t jit_avx512_core_amx_convolution_bwd_data_t<diff_src_type, wei_type,
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, pd()->jcp_.ngroups * pd()->jcp_.oc,
-            pd()->attr());
+            src_scales, wei_scales, pd()->OC(), pd()->attr());
 
     amx_utils::execute_backward_convolution_body(ctx, pd()->jcp_, kernel_,
             diff_dst, weights, nullptr /* no bias */, oscales, dst_scales,

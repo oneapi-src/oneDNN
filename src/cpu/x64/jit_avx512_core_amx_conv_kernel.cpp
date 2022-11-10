@@ -2710,7 +2710,8 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_scratchpad(
         }
     }
 
-    book_precomputed_scales(scratchpad, attr.scales_, jcp.ngroups * jcp.oc);
+    book_precomputed_scales(
+            scratchpad, attr.scales_, jcp.ngroups * jcp.oc_without_padding);
 
     // Keep scratchpad memory footprint under control
     const size_t L2_size_per_core = platform::get_per_core_cache_size(2);
@@ -3938,7 +3939,8 @@ void jit_avx512_core_amx_bwd_data_kernel_t::init_scratchpad(
     }
     scratchpad.book(key_conv_amx_tilecfg, 1, 64); // 1 whole cacheline
 
-    book_precomputed_scales(scratchpad, attr.scales_, jcp.ngroups * jcp.oc);
+    book_precomputed_scales(
+            scratchpad, attr.scales_, jcp.ngroups * jcp.oc_without_padding);
 }
 
 const int jit_avx512_core_amx_bwd_weights_kernel_t::max_ur_w = 32;

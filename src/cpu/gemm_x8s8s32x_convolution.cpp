@@ -135,8 +135,8 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const float *scales = precompute_scales(scratchpad, src_scales, wei_scales,
-            jcp.ngroups * jcp.oc, pd()->attr());
+    const float *scales = precompute_scales(
+            scratchpad, src_scales, wei_scales, pd()->OC(), pd()->attr());
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_forward_thr(ithr, nthr, src_base, wei_base,
@@ -362,8 +362,8 @@ status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const float *scales = precompute_scales(scratchpad, src_scales, wei_scales,
-            jcp.ngroups * jcp.oc, pd()->attr());
+    const float *scales = precompute_scales(
+            scratchpad, src_scales, wei_scales, pd()->OC(), pd()->attr());
 
     const dim_t work_amount = jcp.ngroups * jcp.mb;
 
