@@ -80,7 +80,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, jbgp.oc, pd()->attr());
+            src_scales, wei_scales, pd()->OC(), pd()->attr());
 
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 

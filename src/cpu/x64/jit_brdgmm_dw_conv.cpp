@@ -221,8 +221,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     CHECK(init_scratchpad());
     if (jcp.with_scale) {
         auto scratchpad = scratchpad_registry().registrar();
-        book_precomputed_scales(
-                scratchpad, attr_.scales_, jcp.ngroups * jcp.oc);
+        book_precomputed_scales(scratchpad, attr_.scales_, OC());
     }
 
     return status::success;
@@ -395,7 +394,7 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, jcp.ngroups * jcp.oc, pd()->attr());
+            src_scales, wei_scales, pd()->OC(), pd()->attr());
 
     const int chb_step = jcp.nb_ch_blocking;
     const int chb_work = div_up(jcp.ngroups, chb_step);

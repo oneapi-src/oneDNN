@@ -75,8 +75,7 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, pd()->jcp_.ngroups * pd()->jcp_.oc,
-            pd()->attr());
+            src_scales, wei_scales, pd()->OC(), pd()->attr());
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);

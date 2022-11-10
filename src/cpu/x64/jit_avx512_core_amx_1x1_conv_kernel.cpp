@@ -1247,7 +1247,8 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::init_scratchpad(
         scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_bia);
     }
     scratchpad.book(key_conv_amx_tilecfg, 2, 64); // 2 whole cachelines
-    book_precomputed_scales(scratchpad, attr.scales_, jcp.ngroups * jcp.oc);
+    book_precomputed_scales(
+            scratchpad, attr.scales_, jcp.ngroups * jcp.oc_without_padding);
 }
 
 } // namespace x64

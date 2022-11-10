@@ -136,8 +136,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
             brgemm_inner_product_utils::init_scratchpad(scratchpad, jbgp_);
             if (jbgp_.with_scales)
-                book_precomputed_scales(
-                        scratchpad, attr()->scales_, jbgp_.ngroups * jbgp_.oc);
+                book_precomputed_scales(scratchpad, attr()->scales_, OC());
 
             return status::success;
         }
