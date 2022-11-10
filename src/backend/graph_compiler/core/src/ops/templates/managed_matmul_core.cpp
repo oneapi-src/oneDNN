@@ -179,9 +179,12 @@ config_ptr gen_managed_matmul_core_t::get_default_transposed_a_config(
   const int iim_block = iim_block_;
   const int iin_block = iin_block_;
   const int iik_block = iik_block_;
-  const int M = utils::rnd_up(in_tensors_[0].get_plain_dims()[0], iim_block);
-  const int N = utils::rnd_up(in_tensors_[1].get_plain_dims()[1], iin_block);
-  const int K = utils::rnd_up(in_tensors_[0].get_plain_dims()[1], iik_block);
+  const int ori_M = in_tensors_[0].get_plain_dims()[0];
+  const int ori_N = in_tensors_[1].get_plain_dims()[1];
+  const int ori_K = in_tensors_[0].get_plain_dims()[1];
+  const int M = utils::rnd_up(ori_M, iim_block);
+  const int N = utils::rnd_up(ori_N, iin_block);
+  const int K = utils::rnd_up(ori_K, iik_block);
   const int sizeofdtypeA
     = utils::get_sizeof_etype(in_tensors_[0].dtype_.as_etype());
   const int sizeofdtypeC
@@ -222,106 +225,122 @@ config_ptr gen_managed_matmul_core_t::get_default_transposed_a_config(
   } else if (K == iik_block) {
     return get_default_config(ctx);
   } else {
-    if (M <= 512 && N <= 512) {
-      if (K < 512) { return get_default_config(ctx); }
-      for (auto i : get_splits(num_threads)) {
-        for (auto j : get_splits(num_threads / i)) {
-          float new_cost
-            = std::abs(K / float(M + N) - num_threads / i / j / float(i + j));
-          if (new_cost < cost) {
-            split_m = i;
-            split_n = j;
-            cost = new_cost;
-          }
+    // for small K, no need to give splits
+    if (K < 512) { return get_default_config(ctx); }
+    auto K_split_candidates = get_splits(num_threads);
+    int split_k = K_split_candidates.at(0);
+    std::vector<int> K_real_split_candidates;
+    if (K_split_candidates.size() > 2) {
+      K_split_candidates.pop_back();
+      K_split_candidates.erase(K_split_candidates.begin());
+      for (auto k : K_split_candidates) {
+        // make num_threads / k able to be further split for M and N
+        if (get_splits(num_threads / k).size() > 2) {
+          K_real_split_candidates.push_back(k);
         }
       }
-      cfg.M_split_num = split_m;
-      cfg.N_split_num = split_n;
-    } else {
-      auto K_split_candidates = get_splits(num_threads);
-      if (K_split_candidates.size() == 2 || K < 512) {
-        return get_default_config(ctx);
+      if (K_real_split_candidates.empty()) {
+        K_real_split_candidates = std::move(K_split_candidates);
+      }
+      while (K_real_split_candidates.size() > 4) {
+        // corner case, such as num_threads = 128
+        K_real_split_candidates.pop_back();
+      }
+      while (K_real_split_candidates.size() < 4) {
+        K_real_split_candidates.push_back(K_real_split_candidates.back());
+      }
+
+      float relative_K = float(ori_K) / float(std::min(ori_M, ori_N));
+      if (relative_K < 8.0) {
+        split_k = K_real_split_candidates.at(0);
+      } else if (relative_K >= 8.0 && relative_K <= 12.0) {
+        split_k = K_real_split_candidates.at(1);
+      } else if (relative_K > 12.0 && relative_K <= 32.0) {
+        split_k = K_real_split_candidates.at(2);
       } else {
-        // give split on K, the bigger K is, the bigger split_k is expected.
-        K_split_candidates.pop_back();
-        K_split_candidates.erase(K_split_candidates.begin());
-        assert(!K_split_candidates.empty());
-        int split_k = K_split_candidates[0];
-        if (K > 2048 && K > 2 * M && K > 2 * N) {
-          // may prefer bigger split_k
-          for (auto k : K_split_candidates) {
-            float new_cost = std::abs(K / float(M * N)
-              - k / float(num_threads - k) / float(num_threads - k));
-            if (new_cost < cost) {
-              split_k = k;
-              cost = new_cost;
-            }
-          }
-        }
-        for (auto i : get_splits(num_threads / split_k)) {
-          int num_M_block
-            = utils::divide_and_ceil(M / iim_block, num_threads / i / split_k);
-          int num_N_block = utils::divide_and_ceil(N / iin_block, i);
-          int num_brgemm = num_M_block * num_N_block;
-          int num_core = std::min(i, N / iin_block)
-            * std::min(num_threads / i / split_k, M / iim_block);
-          // Cost = Shape_efficient_weight *
-          // (workload_balance + divide_N_plenty) / core_utilitizaiton
-          // single core gemm prefers square shape for A and B.
-          // For small workload, the A and B shape is not a key problem, but the
-          // num_core and num_brgemm is important to performance. Use 2048 to
-          // reduce the shape weight on small shape.
-          float new_cost = (1024 + M * i * split_k / num_threads + N / i)
-            * (num_brgemm + 8 * i) / num_core;
-          if (new_cost < cost) {
-            split_n = i;
-            cost = new_cost;
-          }
-        }
-        cfg.M_split_num = num_threads / split_k / split_n;
-        cfg.N_split_num = split_n;
+        split_k = K_real_split_candidates.at(3);
+      }
+    } else {
+      SC_MODULE_WARN << "not enough split candidates under " << num_threads
+                     << " threads, may lead to poor performance.";
+      if (float(ori_K) / float(std::min(ori_M, ori_N)) >= 128) {
+        split_k = K_split_candidates.back();
       }
     }
+    for (auto i : get_splits(num_threads / split_k)) {
+      int num_M_block
+        = utils::divide_and_ceil(M / iim_block, num_threads / i / split_k);
+      int num_N_block = utils::divide_and_ceil(N / iin_block, i);
+      int num_brgemm = num_M_block * num_N_block;
+      int num_core = std::min(i, N / iin_block)
+        * std::min(num_threads / i / split_k, M / iim_block);
+
+      float new_cost = 0.0;
+      if (K <= 4096 || (M <= 512 && N <= 512)) {
+        // For small matmul, make M_split_num / N_split_num closer to M / N
+        new_cost = std::abs(num_threads * N - i * i * M * split_k);
+      } else {
+        // Cost = Shape_efficient_weight *
+        // (workload_balance + divide_N_plenty) / core_utilitizaiton
+        // single core gemm prefers square shape for A and B.
+        // For small workload, the A and B shape is not a key problem, but the
+        // num_core and num_brgemm is important to performance. Use 2048 to
+        // reduce the shape weight on small shape.
+        new_cost = (1024 + M * i * split_k / num_threads + N / i)
+          * (num_brgemm + 8 * i) / num_core;
+      }
+      if (new_cost < cost) {
+        split_n = i;
+        cost = new_cost;
+      }
+    }
+    cfg.M_split_num = num_threads / split_k / split_n;
+    cfg.N_split_num = split_n;
   }
 
-  int single_M = utils::divide_and_ceil(
-                   utils::divide_and_ceil(M, iim_block), cfg.M_split_num)
-    * iim_block;
-  int single_N = utils::divide_and_ceil(
-                   utils::divide_and_ceil(N, iin_block), cfg.N_split_num)
-    * iin_block;
-  int single_K = utils::divide_and_ceil(K / iik_block,
-                   num_threads / cfg.M_split_num / cfg.N_split_num)
-    * iik_block;
-  int L2_size = static_cast<int>(ctx->machine_.cpu_flags_.getDCacheSize(2));
-  int single_K_threshold
-    = (single_M * single_N * sizeofdtypeA < L2_size ? 2048 : 4096)
-    / sizeofdtypeA;
-  if (single_K >= single_K_threshold) {
-    cfg.K_sub_block = utils::divide_and_ceil(single_K, single_K_threshold);
-    int L2_K = utils::divide_and_ceil(
-                 utils::divide_and_ceil(single_K, iik_block), cfg.K_sub_block)
+  // big M or N needs to introduce X_sub_block for better cache reuse
+  if (M >= 4096 || N >= 4096) {
+    int single_M
+      = utils::divide_and_ceil(M / iim_block, cfg.M_split_num) * iim_block;
+    int single_N
+      = utils::divide_and_ceil(N / iin_block, cfg.N_split_num) * iin_block;
+    int single_K = utils::divide_and_ceil(K / iik_block,
+                     num_threads / cfg.M_split_num / cfg.N_split_num)
       * iik_block;
-    // sizeofdtypeA* (M * K) + sizeofdtypeB * (N * K) + sizeofdtypeC(M * N) <=
-    // L2_size, let M == N, then
-    // 2 * sizeofdtypeA * M * K + sizeofdtypeC * M * M <= L2_size
-    // Then M = (sqrt((2 * sizeofdtypeA * K) ^ 2 + 4 * sizeofdtypeC *
-    // L2_size) - 2 * sizeofdtypeA * K)/ (2 * sizeofdtypeC)
-    int L2_MN
-      = (sqrt(pow(2 * sizeofdtypeA * L2_K, 2) + 4 * sizeofdtypeC * L2_size)
-          - 2 * sizeofdtypeA * L2_K)
-      / (2 * sizeofdtypeC);
-    cfg.M_sub_block = std::max(1, single_M / L2_MN);
-    cfg.N_sub_block = std::max(1, single_N / L2_MN);
-  } else {
-    // sizeofdtypeA * M * K + sizeofdtypeB * N * K <= L2_size
-    // let M == N, then
-    // M = L2_size / (2 * sizeofdtypeA * K)
-    int L2_MN = L2_size / (2 * sizeofdtypeA * single_K);
-    cfg.M_sub_block = std::max(1, single_M / L2_MN);
-    cfg.N_sub_block = std::max(1, single_N / L2_MN);
-    cfg.K_sub_block = 1;
+    int L2_size = static_cast<int>(ctx->machine_.cpu_flags_.getDCacheSize(2));
+    int single_K_threshold
+      = (single_M * single_N * sizeofdtypeA < L2_size ? 2048 : 4096)
+      / sizeofdtypeA;
+    if (single_K >= single_K_threshold) {
+      cfg.K_sub_block = utils::divide_and_ceil(single_K, single_K_threshold);
+      int L2_K = utils::divide_and_ceil(single_K / iik_block, cfg.K_sub_block)
+        * iik_block;
+      // sizeofdtypeA* (M * K) + sizeofdtypeB * (N * K) + sizeofdtypeC(M * N) <=
+      // L2_size, let M == N, then
+      // 2 * sizeofdtypeA * M * K + sizeofdtypeC * M * M <= L2_size
+      // Then M = (sqrt((2 * sizeofdtypeA * K) ^ 2 + 4 * sizeofdtypeC *
+      // L2_size) - 2 * sizeofdtypeA * K)/ (2 * sizeofdtypeC)
+      int L2_MN
+        = (sqrt(pow(2 * sizeofdtypeA * L2_K, 2) + 4 * sizeofdtypeC * L2_size)
+            - 2 * sizeofdtypeA * L2_K)
+        / (2 * sizeofdtypeC);
+      cfg.M_sub_block = std::max(1, single_M / L2_MN);
+      cfg.N_sub_block = std::max(1, single_N / L2_MN);
+    } else {
+      // sizeofdtypeA * M * K + sizeofdtypeB * N * K <= L2_size
+      // let M == N, then
+      // M = L2_size / (2 * sizeofdtypeA * K)
+      int L2_MN = L2_size / (2 * sizeofdtypeA * single_K);
+      cfg.M_sub_block = std::max(1, single_M / L2_MN);
+      cfg.N_sub_block = std::max(1, single_N / L2_MN);
+      cfg.K_sub_block = 1;
+    }
+    return std::move(ret);
   }
+
+  cfg.M_sub_block = 1;
+  cfg.N_sub_block = 1;
+  cfg.K_sub_block = 1;
   return std::move(ret);
 }
 
@@ -484,7 +503,7 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
   const expr &n_idx, const expr &k_idx, const expr &A, expr &B, const expr &C,
   int dtype_block, fusion_manager *fusion, const expr &m_s, const expr &n_s,
   std::vector<int> &M_anchor_info, std::vector<int> &N_anchor_info,
-  bool is_partial, const expr &k_s) const {
+  std::vector<int> &K_anchor_info, bool is_partial, const expr &k_s) const {
   expr M_sub_block = config.M_sub_block, N_sub_block = config.N_sub_block,
        K_sub_block = config.K_sub_block;
   if (config.im_loop_order == 0) {
@@ -526,28 +545,34 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
             n_idx + n_b_idx * iin_block_
               + ((n_o + tid) % n_o_end) * iin_block_);
           // do reorder here
-          if (in_tensors_[1].get_format() == sc_data_format_t::MK()) {
+          {
             trace_guard_t tg(ctx, "vnni_reorder_B");
             B_vnni_tensor->attr()[tensor_shrinker_attrs::should_shrink]
               = tensor_shrinker_t::shrink_info_t {
-                {n_start_idx / iin_block_, 0, 0, 0, 0},
-                {1, utils::divide_and_ceil(ori_K, iik_block_),
+                {n_start_idx / iin_block_, k_start_idx / iik_block_, 0, 0, 0},
+                {1,
+                  utils::divide_and_ceil(
+                    is_partial ? K_anchor_info[1] : ori_K, iik_block_),
                   iik_block_ / dtype_block, iin_block_, dtype_block},
                 stmts()};
             auto commit_reorder_B
               = [&](int length_N, int length_K, const expr &ko) {
+                  slice_range b_old_range
+                    = {{k_start_idx + ko * iik_block_, length_K},
+                      {n_start_idx, length_N}};
+                  if (in_tensors_[1].get_format() == sc_data_format_t::NK()) {
+                    std::swap(b_old_range[0], b_old_range[1]);
+                  }
                   ops::commit_op(ctx, "reorder",
-                    {tensor_slice(B,
-                      {{k_start_idx + ko * iik_block_, length_K},
-                        {n_start_idx, length_N}})},
+                    {tensor_slice(B, std::move(b_old_range))},
                     {tensor_slice(B_vnni_tensor,
                       {{n_start_idx / iin_block_, 1},
                         {(k_start_idx + ko * iik_block_) / iik_block_,
                           utils::divide_and_ceil(length_K, iik_block_)},
                         {0, iik_block_ / dtype_block}, {0, iin_block_},
                         {0, dtype_block}})},
-                    {graph_tensor::make(
-                      {ori_K, ori_N}, sc_data_format_t::MK(), datatypes::bf16)},
+                    {graph_tensor::make({ori_K, ori_N},
+                      in_tensors_[1].get_format(), datatypes::bf16)},
                     {},
                     {{"out_format",
                       sc_data_format_t::NKkn2k(iik_block_, iin_block_)}});
@@ -567,7 +592,8 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
             } else if (ori_K % iik_block_ == 0) {
               // padding on N axis
               _for_(ko, 0, bs) {
-                _if_(n_s == N_real_split - 1 && n_b == N_sub_block - 1) {
+                _if_(n_s == N_real_split - 1 && n_b == N_sub_block - 1
+                  && n_o == n_o_end - 1) {
                   commit_reorder_B(ori_N % iin_block_, iik_block_, ko);
                 }
                 _else_ { commit_reorder_B(iin_block_, iik_block_, ko); }
@@ -584,7 +610,8 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
             } else {
               // padding on both K and N axes
               _for_(ko, 0, bs) {
-                _if_(n_s == N_real_split - 1 && n_b == N_sub_block - 1) {
+                _if_(n_s == N_real_split - 1 && n_b == N_sub_block - 1
+                  && n_o == n_o_end - 1) {
                   _if_(k_s == K_real_split - 1 && k_b == K_sub_block - 1
                     && ko == bs - 1) {
                     commit_reorder_B(
@@ -615,15 +642,27 @@ void gen_managed_matmul_core_t::single_thread_reorder_matmul_call(
                 m_start_idx / iim_block_, k_start_idx / iik_block_, 0, 0};
             std::vector<expr> bidx = std::vector<expr> {
               n_start_idx / iin_block_, k_start_idx / iik_block_, 0, 0, 0};
-            std::vector<expr> cidx = !tc.get_format().is_blocking()
-              ? std::vector<expr> {m_start_idx, n_start_idx}
-              : std::vector<expr> {
-                m_start_idx / iim_block_, n_start_idx / iin_block_, 0, 0};
-            if (is_partial) { cidx.insert(cidx.begin(), k_s); }
+            std::vector<expr> cidx;
+            if (is_partial) {
+              cidx = !tc.get_format().is_blocking()
+                ? std::vector<expr> {m_b_idx * iim_block_
+                    + ((m_o + tid) % m_o_end) * iim_block_,
+                  n_b_idx * iin_block_ + ((n_o + tid) % n_o_end) * iin_block_}
+                : std::vector<expr> {m_b_idx + (m_o + tid) % m_o_end,
+                  n_b_idx + (n_o + tid) % n_o_end, 0, 0};
+              cidx.insert(cidx.begin(), k_s);
+            } else {
+              cidx = !tc.get_format().is_blocking()
+                ? std::vector<expr> {m_start_idx, n_start_idx}
+                : std::vector<expr> {
+                  m_start_idx / iim_block_, n_start_idx / iin_block_, 0, 0};
+            }
             auto LDA
               = ta.get_format() == sc_data_format_t::MK() ? ori_K : iik_block_;
             auto LDB = iin_block_;
-            auto LDC = !tc.get_format().is_blocking() ? ori_N : iin_block_;
+            auto LDC = !tc.get_format().is_blocking()
+              ? (is_partial ? N_anchor_info[1] : ori_N)
+              : iin_block_;
             auto stride_a = ta.get_format() == sc_data_format_t::MK()
               ? iik_block_
               : iim_block_ * iik_block_;
@@ -847,15 +886,27 @@ void gen_managed_matmul_core_t::single_thread_matmul_call(
                   ? std::vector<expr> {k_start_idx, n_start_idx}
                   : std::vector<expr> {
                     n_start_idx / iin_block_, k_start_idx / iik_block_, 0, 0});
-            std::vector<expr> cidx = !tc.get_format().is_blocking()
-              ? std::vector<expr> {m_start_idx, n_start_idx}
-              : std::vector<expr> {
-                m_start_idx / iim_block_, n_start_idx / iin_block_, 0, 0};
-            if (is_partial) { cidx.insert(cidx.begin(), k_s); }
+            std::vector<expr> cidx;
+            if (is_partial) {
+              cidx = !tc.get_format().is_blocking()
+                ? std::vector<expr> {m_b_idx * iim_block_
+                    + ((m_o + tid) % m_o_end) * iim_block_,
+                  n_b_idx * iin_block_ + ((n_o + tid) % n_o_end) * iin_block_}
+                : std::vector<expr> {m_b_idx + (m_o + tid) % m_o_end,
+                  n_b_idx + (n_o + tid) % n_o_end, 0, 0};
+              cidx.insert(cidx.begin(), k_s);
+            } else {
+              cidx = !tc.get_format().is_blocking()
+                ? std::vector<expr> {m_start_idx, n_start_idx}
+                : std::vector<expr> {
+                  m_start_idx / iim_block_, n_start_idx / iin_block_, 0, 0};
+            }
             auto LDA
               = ta.get_format() == sc_data_format_t::MK() ? ori_K : iik_block_;
             auto LDB = !tb.get_format().is_blocking() ? ori_N : iin_block_;
-            auto LDC = !tc.get_format().is_blocking() ? ori_N : iin_block_;
+            auto LDC = !tc.get_format().is_blocking()
+              ? (is_partial ? N_anchor_info[1] : ori_N)
+              : iin_block_;
             auto stride_a = ta.get_format() == sc_data_format_t::MK()
               ? iik_block_
               : iim_block_ * iik_block_;
@@ -1111,7 +1162,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   expr B = inputs[op_params_t::in_B];
   // used for anchor construction when K_split_num==1 && K_sub_block>1
   std::vector<int> M_anchor_info = {M_blk_num, M_block_size, M_ib_block_size},
-                   N_anchor_info = {N_blk_num, N_block_size, N_ib_block_size};
+                   N_anchor_info = {N_blk_num, N_block_size, N_ib_block_size},
+                   K_anchor_info = {K_blk_num, K_block_size, K_ib_block_size};
   for_loop mloop;
   int M_real_split = std::min(
     static_cast<int>(utils::divide_and_ceil(M, iim_block_)), M_split_num);
@@ -1193,13 +1245,14 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             }
             A = A_trans_tensor;
           }
-          if ((in_tensors_[1].get_format() == sc_data_format_t::MK())
+          if (utils::is_one_of(in_tensors_[1].get_format(),
+                sc_data_format_t::MK(), sc_data_format_t::NK())
             && B_dtype == datatypes::bf16) {
             single_thread_reorder_matmul_call(ctx, in_tensors_[0],
               in_tensors_[1], out_tensors_[0], config, M_single_thr_size,
               N_single_thr_size, (int)utils::rnd_up(K, iik_block_), m_idx,
               n_idx, k_s, A, B, C, dtype_block, fusion, m_s, n_s, M_anchor_info,
-              N_anchor_info);
+              N_anchor_info, K_anchor_info);
           } else {
             single_thread_matmul_call(in_tensors_[0], in_tensors_[1],
               out_tensors_[0], config, M_single_thr_size, N_single_thr_size,
@@ -1352,7 +1405,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
     }
   } else {
     // write into a temp buffer and then do reduce
-    auto out_tmp_buf_shape = out_tensors_[0].get_blocking_dims();
+    sc_dims out_tmp_buf_shape = out_tensors_[0].get_format().is_blocking()
+      ? sc_dims {M_block_size / iim_block_, N_block_size / iin_block_,
+        iim_block_, iin_block_}
+      : sc_dims {M_block_size, N_block_size};
     out_tmp_buf_shape.insert(out_tmp_buf_shape.begin(), K_real_split);
     std::vector<expr> out_tmp_buf_shape_expr;
     out_tmp_buf_shape_expr.reserve(out_tmp_buf_shape.size());
@@ -1364,10 +1420,10 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
       : datatypes::f32;
     expr m_idx, n_idx, k_idx, M_single_thr_size, N_single_thr_size,
       X_bigger_num;
-    _tensor_(out_tmp_buf, out_dtype, out_tmp_buf_shape_expr);
     _named_for_(
       mloop, m_s, 0, M_real_split, 1, for_type::PARALLEL, M_split_num) {
       _for_(n_s, 0, N_real_split, 1, for_type::PARALLEL, N_split_num) {
+        _tensor_(out_tmp_buf, out_dtype, out_tmp_buf_shape_expr);
         M_single_thr_size = get_balance211_length(
           M / iim_block_, M_split_num, m_s, m_idx, X_bigger_num);
         M_single_thr_size = M_single_thr_size * iim_block_;
@@ -1521,13 +1577,14 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             }
             A = A_trans_tensor;
           }
-          if ((in_tensors_[1].get_format() == sc_data_format_t::MK())
+          if (utils::is_one_of(in_tensors_[1].get_format(),
+                sc_data_format_t::MK(), sc_data_format_t::NK())
             && B_dtype == datatypes::bf16) {
             single_thread_reorder_matmul_call(ctx, in_tensors_[0],
               in_tensors_[1], out_tensors_[0], config, M_single_thr_size,
               N_single_thr_size, K_single_thr_size, m_idx, n_idx, k_idx, A, B,
               out_tmp_buf, dtype_block, fusion, m_s, n_s, M_anchor_info,
-              N_anchor_info, true, k_s);
+              N_anchor_info, K_anchor_info, true, k_s);
           } else {
             single_thread_matmul_call(in_tensors_[0], in_tensors_[1],
               out_tensors_[0], config, M_single_thr_size, N_single_thr_size,
@@ -1547,6 +1604,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
         expr N_single_thr_num_block
           = divide_and_ceil(N_single_thr_size, iin_block_);
         if (out_tensors_[0].get_format().is_blocking()) {
+          trace_guard_t tg(ctx, "blocking_post_reduce");
           _for_(lm_ln, 0, M_single_thr_num_block * N_single_thr_num_block, 1,
             for_type::PARALLEL, K_split_num) { //
             expr lm = lm_ln / N_single_thr_num_block;
@@ -1566,9 +1624,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
                         C[span_t({m_idx / iim_block_ + lm,
                                    n_idx / iin_block_ + ln, lmo, lno},
                           lanes)],
-                        out_tmp_buf[span_t({lks, m_idx / iim_block_ + lm,
-                                             n_idx / iin_block_ + ln, lmo, lno},
-                          lanes)]);
+                        out_tmp_buf[span_t({lks, lm, ln, lmo, lno}, lanes)]);
                   }
                 }
               }
@@ -1581,6 +1637,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             }
           }
         } else {
+          trace_guard_t tg(ctx, "plain_post_reduce");
           _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
             builtin::dnnl_brgemm_init(tensor_ptr(C, {m_idx, n_idx}),
               M_single_thr_size, N_single_thr_size, N, out_dtype, 0);
@@ -1593,7 +1650,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
               _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
                 C[span_t({m_idx + lm, n_idx + ln}, lanes)] = builder::make_add(
                   C[span_t({m_idx + lm, n_idx + ln}, lanes)],
-                  out_tmp_buf[span_t({lks, m_idx + lm, n_idx + ln}, lanes)]);
+                  out_tmp_buf[span_t({lks, lm, ln}, lanes)]);
               }
             }
           }

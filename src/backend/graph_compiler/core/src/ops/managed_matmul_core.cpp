@@ -215,9 +215,12 @@ void managed_matmul_core_op_t::query_format(context_ptr ctx,
                     {sc_data_format_t::NKkn4k(iik_block, iin_block)});
         } else if (B_dtype == datatypes::bf16) {
             // do vnni reorder in template for transposed matmul
-            if (B_format == sc_data_format_t::MK()
-                    && (attrs_.get_or_else("transposed_a", false)
-                            || attrs_.get_or_else("transposed_b", false))) {
+            if ((B_format == sc_data_format_t::MK()
+                        && attrs_.get_or_else("transposed_a", false))
+                    || (B_format == sc_data_format_t::NK()
+                            && attrs_.get_or_else("transposed_b", false)
+                            && M <= 512)) {
+                // do pre-op fusion for NK -> NKkn2k only when shapes are small.
                 in_formats.push_back({B_format});
             } else {
                 in_formats.push_back(

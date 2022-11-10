@@ -104,7 +104,8 @@ public:
     const expr &n_idx, const expr &k_idx, const expr &A, expr &B, const expr &C,
     int dtype_block, fusion_manager *fusion, const expr &m_s, const expr &n_s,
     std::vector<int> &M_anchor_info, std::vector<int> &N_anchor_info,
-    bool is_partial = false, const expr &k_s = 0) const;
+    std::vector<int> &K_anchor_info, bool is_partial = false,
+    const expr &k_s = 0) const;
 
   void generate_prefetcher_body_for_tensor(const context_ptr &ctx,
     const managed_matmul_core_config_t &config,
