@@ -27,9 +27,8 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
-#include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel.hpp"
-#include "gpu/jit/gemm/xe_hp_systolic_gemm_kernel.hpp"
+#include "gpu/jit/gemm/jit_gemm_pd.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -38,12 +37,8 @@ namespace gpu {
 namespace jit {
 
 struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
-    struct pd_t : public gpu_gemm_pd_t {
-        using hint_class = void;
-
-        pd_t(const gemm_desc_t *adesc, const primitive_attr_t *attr,
-                const hint_class *)
-            : gpu_gemm_pd_t(adesc, attr, nullptr) {}
+    struct pd_t : public jit_gemm_pd_t {
+        using jit_gemm_pd_t::jit_gemm_pd_t;
 
         DECLARE_COMMON_PD_T("jit:xe_hp:gemm:any", xe_hp_systolic_gemm_t);
 
@@ -72,15 +67,11 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         }
 
         float alpha() const { return 1.0f; }
-
-        float beta() const {
-            using namespace primitive_kind;
-            const auto &p = attr()->post_ops_;
-            return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
-        }
+        float beta() const { return beta_; }
 
         bool with_bias() const {
-            return desc()->bias_type() != data_type::undef;
+            return (desc()->bias_type() != data_type::undef)
+                    && !bias_via_binary_;
         }
 
         int bias_cmask() const {
@@ -117,12 +108,19 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         }
 
         bool with_batch() const { return desc()->is_batched(); }
+        bool with_a_zero_points() const { return a_zp_; }
+        bool with_b_zero_points() const { return b_zp_; }
         bool with_ab_zero_points() const { return a_zp_ || b_zp_; }
         bool with_c_zero_points() const { return c_zp_; }
 
+        bool allow_k_blocking() const {
+            return (desc()->acc_type == desc()->c_type())
+                    && IMPLICATION(post_ops()->len() > 0,
+                            post_ops()->entry_[0].kind == primitive_kind::sum);
+        }
+
         int unroll_m() const { return unroll_m_; }
         int unroll_n() const { return unroll_n_; }
-        bool use_new_kernels() const { return use_new_kernels_; }
         bool alt() const { return alt_; }
 
         status_t query(query_t what, int idx, void *result) const override {
@@ -142,7 +140,6 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         bool any_prepacked_ = false;
         bool packed_a_ = false, packed_b_ = false, packed_c_ = false;
         bool a_zp_ = false, b_zp_ = false, c_zp_ = false;
-        bool use_new_kernels_ = false;
         int unroll_m_ = 0;
         int unroll_n_ = 0;
         bool alt_ = false;
@@ -158,8 +155,7 @@ public:
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 private:
-    status_t init_compute_old(engine_t *engine);
-    status_t init_compute_new(engine_t *engine);
+    status_t init_compute(engine_t *engine);
 
     bool enable_mn_blocking() const;
     std::tuple<int64_t, int64_t, int64_t> get_blocking() const;
@@ -175,10 +171,12 @@ private:
             int32_t k, const memory_storage_t &ap, int64_t offset_a,
             int32_t lda, const memory_storage_t &bp, int64_t offset_b,
             int32_t ldb, const memory_storage_t &c, int64_t offset_c,
-            int32_t ldc, float alpha, float beta, int16_t ao, int16_t bo,
-            const memory_storage_t &co, int32_t offset_co, bool first_k_block,
-            bool last_k_block, int32_t batch, int32_t stride_a,
-            int32_t stride_b, int32_t stride_c) const;
+            int32_t ldc, float alpha, float beta, const memory_storage_t *ao,
+            const memory_storage_t *bo, const memory_storage_t &co,
+            int32_t offset_co, int po_count, const memory_storage_t **po_src,
+            int32_t *offset_po_src, bool first_k_block, bool last_k_block,
+            int32_t batch, int32_t stride_a, int32_t stride_b,
+            int32_t stride_c) const;
 
     static int64_t nice_ld(int64_t ld, int sz, bool get_max = false) {
         const auto align = 32;
@@ -191,13 +189,12 @@ private:
     }
 
     int64_t get_ld_packed(int64_t k, bool get_max = false) const {
-        using compute_kernel_t = xehp_systolic_gemm_kernel_t<gpu_xe_hp>;
-
         auto a_type = pd()->desc()->a_type();
         auto a_sz = types::data_type_size(a_type);
 
-        auto ld = utils::rnd_up(k, compute_kernel_t::unroll_k(a_type));
-        if (pd()->with_ab_zero_points()) ld += 32 / a_sz;
+        int unroll_k = 32 / a_sz;
+        auto ld = utils::rnd_up(k, unroll_k);
+        if (pd()->with_ab_zero_points()) ld += unroll_k;
 
         return nice_ld(ld, int(a_sz), get_max);
     }
@@ -217,6 +214,8 @@ private:
 
     char co_kind_ = 'N';
     bool walk_n_first_ = false;
+
+    GEMMProblem problem_;
 
     const pd_t *pd() const { return (const pd_t *)gpu_primitive_t::pd().get(); }
 };

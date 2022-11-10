@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -165,9 +165,8 @@ void dummy_dpas() {
 
 #if COPY_SUM
 #define GET_A_SUM_ADDRESS \
-    int k_align = (k + UNROLL_K - 1) & ~(UNROLL_K - 1); \
     global int *a_sum = (global int *)(a_packed + offseta_packed \
-            + m0 * lda_packed + k_align * UNROLL_M);
+            + (m0 + UNROLL_M) * lda_packed - UNROLL_M * sizeof(int));
 #else
 #define GET_A_SUM_ADDRESS
 #endif
@@ -395,9 +394,8 @@ xe_hpc_systolic_gemm_copy(long m, long k, global ELEMENT *a, long offseta,
 
 #if COPY_SUM
 #define GET_B_SUM_ADDRESS \
-    int k_align = (k + UNROLL_K - 1) & ~(UNROLL_K - 1); \
     global int *b_sum = (global int *)(b_packed + offsetb_packed \
-            + n0 * ldb_packed + k_align * UNROLL_N);
+            + (n0 + UNROLL_N) * ldb_packed - UNROLL_N * sizeof(int));
 #else
 #define GET_B_SUM_ADDRESS
 #endif
