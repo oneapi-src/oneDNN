@@ -62,14 +62,17 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
 
     const float *scales = nullptr;
     if (with_src_scales && with_wei_scales) {
+        size_t size = 0;
         auto loc_scales
-                = scratchpad.template get<float>(key_precomputed_scales);
+                = scratchpad.template get<float>(key_precomputed_scales, &size);
         if (wei_scale_mask == 0) {
-            utils::array_set(
-                    loc_scales, src_scales[0] * wei_scales[0], scales_simd_w);
+            const size_t count = nstl::min(size / sizeof(float), scales_simd_w);
+            utils::array_set(loc_scales, src_scales[0] * wei_scales[0], count);
         } else {
+            const dim_t count = nstl::min(
+                    static_cast<dim_t>(size / sizeof(float)), wei_scale_count);
             PRAGMA_OMP_SIMD()
-            for (dim_t c = 0; c < wei_scale_count; c++)
+            for (dim_t c = 0; c < count; c++)
                 loc_scales[c] = src_scales[0] * wei_scales[c];
         }
         scales = loc_scales;
