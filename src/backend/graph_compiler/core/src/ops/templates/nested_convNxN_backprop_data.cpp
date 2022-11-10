@@ -14,7 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "managed_convNxN_backprop_data.hpp"
+#include "nested_convNxN_backprop_data.hpp"
 #include <algorithm>
 #include <limits>
 #include <numeric>
@@ -42,12 +42,12 @@ static std::vector<int> get_iota(int range) {
   return result;
 }
 
-config_ptr gen_managed_convNxN_backprop_data_t::get_default_config(
+config_ptr gen_nested_convNxN_backprop_data_t::get_default_config(
   context_ptr ctx) const {
   auto ret
-    = reflection::general_object_t::make<managed_conv_bwd_data_config_t>();
-  managed_conv_bwd_data_config_t &cfg
-    = *ret.unchecked_get_as<managed_conv_bwd_data_config_t>();
+    = reflection::general_object_t::make<nested_conv_bwd_data_config_t>();
+  nested_conv_bwd_data_config_t &cfg
+    = *ret.unchecked_get_as<nested_conv_bwd_data_config_t>();
   const int num_threads = runtime_config_t::get().get_num_threads();
   int BS = get_input_grad_dims()[0], IC = get_input_grad_dims()[1];
   int IH = get_input_grad_dims()[ndims_ - 2],
@@ -98,7 +98,7 @@ config_ptr gen_managed_convNxN_backprop_data_t::get_default_config(
   return std::move(ret);
 }
 
-gen_managed_convNxN_backprop_data_t::gen_managed_convNxN_backprop_data_t(
+gen_nested_convNxN_backprop_data_t::gen_nested_convNxN_backprop_data_t(
   sc_op *owner, const sc_dims &stride, const sc_dims &padding,
   std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
   : parent(owner, std::move(ins), std::move(outs))
@@ -124,7 +124,7 @@ gen_managed_convNxN_backprop_data_t::gen_managed_convNxN_backprop_data_t(
   }
 }
 
-float gen_managed_convNxN_backprop_data_t::get_gflop() const {
+float gen_nested_convNxN_backprop_data_t::get_gflop() const {
   const int OD = ndims_ == 5 ? get_output_grad_dims()[ndims_ - 3] : 1;
   const int P = get_output_grad_dims()[ndims_ - 2];
   const int Q = get_output_grad_dims()[ndims_ - 1];
@@ -138,11 +138,11 @@ float gen_managed_convNxN_backprop_data_t::get_gflop() const {
   return result;
 }
 
-void gen_managed_convNxN_backprop_data_t::schedule_loops(context_ptr ctx,
-  const managed_conv_bwd_data_config_t &config, stmt body,
+void gen_nested_convNxN_backprop_data_t::schedule_loops(context_ptr ctx,
+  const nested_conv_bwd_data_config_t &config, stmt body,
   std::vector<for_loop> &fors) const {}
 
-void gen_managed_convNxN_backprop_data_t::pad_delta_output(
+void gen_nested_convNxN_backprop_data_t::pad_delta_output(
   const context_ptr &ctx, const expr &delta_output,
   const expr &temp_delta_output_buffer, const expr &bs_block, int oc_block,
   int OH, int OW, const expr &oh_range, int ow_ext_range, const expr &bs_offset,
@@ -181,14 +181,13 @@ void gen_managed_convNxN_backprop_data_t::pad_delta_output(
   }
 }
 
-void gen_managed_convNxN_backprop_data_t::inner_loop_call(
-  const context_ptr &ctx, const expr &delta_input, const expr &delta_output,
-  const expr &weight, const sc_data_type_t &dtype, int dtype_block,
-  int ic_block, int oc_block, const expr &bs_block, int od_block,
-  const expr &ih_block, int OW, int stride_h, int stride_w, int padding_h,
-  int padding_w, int R, int S, int IC, int OC, int OH, int IW,
-  const expr &obs_offset, const expr &oc_offset, const expr &ic_offset,
-  const expr &ih_offset, fusion_manager *fusion) const {
+void gen_nested_convNxN_backprop_data_t::inner_loop_call(const context_ptr &ctx,
+  const expr &delta_input, const expr &delta_output, const expr &weight,
+  const sc_data_type_t &dtype, int dtype_block, int ic_block, int oc_block,
+  const expr &bs_block, int od_block, const expr &ih_block, int OW,
+  int stride_h, int stride_w, int padding_h, int padding_w, int R, int S,
+  int IC, int OC, int OH, int IW, const expr &obs_offset, const expr &oc_offset,
+  const expr &ic_offset, const expr &ih_offset, fusion_manager *fusion) const {
   COMPILE_ASSERT(OW == im_ow_block_, "Use fixed config OW == im_ow_block_.");
   COMPILE_ASSERT(OC == im_oc_block_, "Use fixed config OC == im_oc_block_.");
   int num = oc_block / im_oc_block_;
@@ -308,8 +307,8 @@ void gen_managed_convNxN_backprop_data_t::inner_loop_call(
   }
 }
 
-bool gen_managed_convNxN_backprop_data_t::generate(context_ptr ctx,
-  const managed_conv_bwd_data_config_t &config, fusion_manager *fusion,
+bool gen_nested_convNxN_backprop_data_t::generate(context_ptr ctx,
+  const nested_conv_bwd_data_config_t &config, fusion_manager *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   int padding_h = padding_[0], padding_w = padding_[0];

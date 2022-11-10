@@ -24,10 +24,10 @@
 #include "templates/convNxN_backprop_weight.hpp"
 #include "templates/conv_bwd.hpp"
 #include "templates/conv_fwd.hpp"
-#include "templates/managed_conv1x1_backprop_data.hpp"
-#include "templates/managed_conv1x1_backprop_weight.hpp"
-#include "templates/managed_convNxN_backprop_data.hpp"
-#include "templates/managed_convNxN_backprop_weight.hpp"
+#include "templates/nested_conv1x1_backprop_data.hpp"
+#include "templates/nested_conv1x1_backprop_weight.hpp"
+#include "templates/nested_convNxN_backprop_data.hpp"
+#include "templates/nested_convNxN_backprop_weight.hpp"
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
@@ -568,9 +568,9 @@ conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(
     }
 }
 
-bool conv_bwd_data_core_op_t::use_managed_generator() {
-    bool use_managed = attrs_.get_or_else("use_managed", true);
-    if (!use_managed) { return false; }
+bool conv_bwd_data_core_op_t::use_nested_generator() {
+    bool use_nested = attrs_.get_or_else("use_nested", true);
+    if (!use_nested) { return false; }
     const sc_dims &stride = attrs_.get<sc_dims>("strides");
     const sc_dims &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
@@ -580,12 +580,12 @@ bool conv_bwd_data_core_op_t::use_managed_generator() {
     const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
     const sc_dims &output_shape = info_.outputs_[0]->details_.get_plain_dims();
     if (is_1x1_) {
-        // managed generator constraints for 1x1 case
+        // nested generator constraints for 1x1 case
         // ToDo(zhangyan): improve following constraints
         if (num_threads % 7 != 0) { return false; }
         if (ndims_ != 4) { return false; }
         auto tmp_kernel
-                = utils::make_unique<gen_managed_conv1x1_backprop_data_t>(this,
+                = utils::make_unique<gen_nested_conv1x1_backprop_data_t>(this,
                         stride, pads_begin,
                         graph::extract_detail_from_tensors(get_inputs()),
                         graph::extract_detail_from_tensors(get_outputs()));
@@ -598,14 +598,15 @@ bool conv_bwd_data_core_op_t::use_managed_generator() {
             return false;
         }
         // we need to check whether we can fully utilize all threads
-        int possible_parallel_space = BS * (OS / im_ow_block);
+        int possible_parallel_space
+                = BS * (OS / im_ow_block) * (IC / im_ic_block);
         if (possible_parallel_space < num_threads) { return false; }
         return true;
     } else {
-        // managed generator constraints for NxN case
+        // nested generator constraints for NxN case
         if (ndims_ != 4) { return false; }
         auto tmp_kernel
-                = utils::make_unique<gen_managed_convNxN_backprop_data_t>(this,
+                = utils::make_unique<gen_nested_convNxN_backprop_data_t>(this,
                         stride, pads_begin,
                         graph::extract_detail_from_tensors(get_inputs()),
                         graph::extract_detail_from_tensors(get_outputs()));
@@ -639,26 +640,26 @@ body_generator_ptr conv_bwd_data_core_op_t::create_generator() {
     int S = is_3d ? info_.inputs_[1]->details_.get_plain_dims()[4]
                   : info_.inputs_[1]->details_.get_plain_dims()[3];
     if (D == 1 && R == 1 && S == 1) {
-        if (use_managed_generator()) {
-            return utils::make_unique<gen_managed_conv1x1_backprop_data_t>(this,
+        if (use_nested_generator()) {
+            return utils::make_unique<gen_nested_conv1x1_backprop_data_t>(this,
                     stride, pads_begin,
                     graph::extract_detail_from_tensors(get_inputs()),
                     graph::extract_detail_from_tensors(get_outputs()));
         } else {
-            SC_WARN << "Fall-back to non-managed conv1x1 backprop data.";
+            SC_WARN << "Fall-back to non-nested conv1x1 backprop data.";
             return utils::make_unique<gen_conv1x1_backprop_data_t>(this, stride,
                     pads_begin,
                     graph::extract_detail_from_tensors(get_inputs()),
                     graph::extract_detail_from_tensors(get_outputs()));
         }
     } else {
-        if (use_managed_generator()) {
-            return utils::make_unique<gen_managed_convNxN_backprop_data_t>(this,
+        if (use_nested_generator()) {
+            return utils::make_unique<gen_nested_convNxN_backprop_data_t>(this,
                     stride, pads_begin,
                     graph::extract_detail_from_tensors(get_inputs()),
                     graph::extract_detail_from_tensors(get_outputs()));
         } else {
-            SC_WARN << "Fall-back to non-managed convNxN backprop data.";
+            SC_WARN << "Fall-back to non-nested convNxN backprop data.";
             return utils::make_unique<gen_convNxN_backprop_data>(this, stride,
                     pads_begin,
                     graph::extract_detail_from_tensors(get_inputs()),
@@ -679,11 +680,11 @@ void conv_bwd_data_core_op_t::query_format(context_ptr ctx,
         config_data_ = create_generator()->get_default_config(ctx);
     }
     int oc_block, ic_block;
-    if (use_managed_generator()) {
+    if (use_nested_generator()) {
         auto temp_generator = create_generator();
-        auto gen_1x1 = dynamic_cast<gen_managed_conv1x1_backprop_data_t *>(
+        auto gen_1x1 = dynamic_cast<gen_nested_conv1x1_backprop_data_t *>(
                 temp_generator.get());
-        auto gen_NxN = dynamic_cast<gen_managed_convNxN_backprop_data_t *>(
+        auto gen_NxN = dynamic_cast<gen_nested_convNxN_backprop_data_t *>(
                 temp_generator.get());
         ic_block = is_1x1_ ? gen_1x1->im_ic_block_ : gen_NxN->im_ic_block_;
         oc_block = is_1x1_ ? gen_1x1->im_oc_block_ : gen_NxN->im_oc_block_;
@@ -765,9 +766,9 @@ conv_bwd_weight_core_op_t::conv_bwd_weight_core_op_t(
     }
 }
 
-bool conv_bwd_weight_core_op_t::use_managed_generator() {
-    bool use_managed = attrs_.get_or_else("use_managed", true);
-    if (!use_managed) { return false; }
+bool conv_bwd_weight_core_op_t::use_nested_generator() {
+    bool use_nested = attrs_.get_or_else("use_nested", true);
+    if (!use_nested) { return false; }
     const sc_dims &stride = attrs_.get<sc_dims>("strides");
     const sc_dims &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
@@ -777,7 +778,7 @@ bool conv_bwd_weight_core_op_t::use_managed_generator() {
     const sc_dims &input_shape = info_.inputs_[0]->details_.get_plain_dims();
     const sc_dims &delta_shape = info_.inputs_[1]->details_.get_plain_dims();
     if (!is_1x1_) {
-        // managed generator constraints for NxN case
+        // nested generator constraints for NxN case
         if (num_threads % 7 != 0) { return false; }
         if (ndims_ != 4) { return false; }
         int R = weight_shape[ndims_ - 2];
@@ -785,7 +786,7 @@ bool conv_bwd_weight_core_op_t::use_managed_generator() {
         int stride_h = stride[0], stride_w = stride[0];
         if (stride.size() > 1) { stride_w = stride[1]; }
         if (stride_h > R || stride_w > S) { return false; }
-        auto tmp_kernel = utils::make_unique<gen_nested_conv_bwd_weight_core_t>(
+        auto tmp_kernel = utils::make_unique<gen_nested_convNXN_bwd_weight_t>(
                 this, stride, pads_begin,
                 graph::extract_detail_from_tensors(get_inputs()),
                 graph::extract_detail_from_tensors(get_outputs()));
@@ -804,12 +805,12 @@ bool conv_bwd_weight_core_op_t::use_managed_generator() {
         if (possible_parallel_space < num_threads) { return false; }
         return true;
     } else {
-        // managed generator constraints for 1x1 case
+        // nested generator constraints for 1x1 case
         if (num_threads % 7 != 0) { return false; }
         if (ndims_ != 4) { return false; }
         auto tmp_kernel
-                = utils::make_unique<gen_managed_conv1x1_backprop_weight_t>(
-                        this, stride, pads_begin,
+                = utils::make_unique<gen_nested_conv1x1_backprop_weight_t>(this,
+                        stride, pads_begin,
                         graph::extract_detail_from_tensors(get_inputs()),
                         graph::extract_detail_from_tensors(get_outputs()));
         int im_oc_block = tmp_kernel->im_oc_block_;
@@ -838,13 +839,13 @@ body_generator_ptr conv_bwd_weight_core_op_t::create_generator() {
     auto &weight_shape = attrs_.get<sc_dims>("filter_shape");
     sc_dims input_dims = info_.inputs_[0]->details_.get_plain_dims();
     if (is_1x1_) {
-        if (use_managed_generator()) {
-            return utils::make_unique<gen_managed_conv1x1_backprop_weight_t>(
+        if (use_nested_generator()) {
+            return utils::make_unique<gen_nested_conv1x1_backprop_weight_t>(
                     this, stride, pads_begin,
                     graph::extract_detail_from_tensors(get_inputs()),
                     graph::extract_detail_from_tensors(get_outputs()));
         } else {
-            SC_WARN << "Fall-back to non-managed conv1x1 backprop weight.";
+            SC_WARN << "Fall-back to non-nested conv1x1 backprop weight.";
             // tested for reduce on ALL
             int block_size = 64;
             if (weight_shape[0] * weight_shape[1] * input_dims[0]
@@ -866,13 +867,13 @@ body_generator_ptr conv_bwd_weight_core_op_t::create_generator() {
             }
         }
     } else {
-        if (use_managed_generator()) {
-            return utils::make_unique<gen_nested_conv_bwd_weight_core_t>(this,
+        if (use_nested_generator()) {
+            return utils::make_unique<gen_nested_convNXN_bwd_weight_t>(this,
                     stride, pads_begin,
                     graph::extract_detail_from_tensors(get_inputs()),
                     graph::extract_detail_from_tensors(get_outputs()));
         }
-        SC_WARN << "Fall-back to non-managed convNxN backprop weight.";
+        SC_WARN << "Fall-back to non-nested convNxN backprop weight.";
         return utils::make_unique<gen_convNxN_backprop_weight>(this, stride,
                 pads_begin, graph::extract_detail_from_tensors(get_inputs()),
                 graph::extract_detail_from_tensors(get_outputs()),
@@ -891,11 +892,11 @@ void conv_bwd_weight_core_op_t::query_format(context_ptr ctx,
     if (!config_data_) {
         config_data_ = create_generator()->get_default_config(ctx);
     }
-    if (use_managed_generator()) {
+    if (use_nested_generator()) {
         auto temp_generator = create_generator();
-        auto gen_1x1 = dynamic_cast<gen_managed_conv1x1_backprop_weight_t *>(
+        auto gen_1x1 = dynamic_cast<gen_nested_conv1x1_backprop_weight_t *>(
                 temp_generator.get());
-        auto gen_NxN = dynamic_cast<gen_nested_conv_bwd_weight_core_t *>(
+        auto gen_NxN = dynamic_cast<gen_nested_convNXN_bwd_weight_t *>(
                 temp_generator.get());
         int im_bs_block
                 = is_1x1_ ? gen_1x1->im_bs_block_ : gen_NxN->im_bs_block_;

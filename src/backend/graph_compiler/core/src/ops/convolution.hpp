@@ -76,7 +76,7 @@ public:
         // TODO(XXX)
         stat_map.append_ops_by_status(this, infer_status_code::FAIL);
     }
-    bool use_managed_generator();
+    bool use_nested_generator();
 
 private:
     int ndims_ = 0;
@@ -98,7 +98,7 @@ public:
         // TODO(XXX)
         stat_map.append_ops_by_status(this, infer_status_code::FAIL);
     }
-    bool use_managed_generator();
+    bool use_nested_generator();
 
 private:
     int ndims_ = 0;

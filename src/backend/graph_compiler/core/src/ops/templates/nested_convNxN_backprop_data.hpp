@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_MANAGED_CONVNXN_BACKPROP_DATA_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_MANAGED_CONVNXN_BACKPROP_DATA_HPP
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_NESTED_CONVNXN_BACKPROP_DATA_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_NESTED_CONVNXN_BACKPROP_DATA_HPP
 
 #include <memory>
 #include <tuple>
@@ -25,8 +25,8 @@
 
 namespace sc {
 namespace ops {
-class gen_managed_convNxN_backprop_data_t
-  : public body_generator_t<managed_conv_bwd_data_config_t> {
+class gen_nested_convNxN_backprop_data_t
+  : public body_generator_t<nested_conv_bwd_data_config_t> {
 public:
   // inner most block
   int im_ow_block_;
@@ -40,12 +40,12 @@ public:
     static constexpr int in_weight = 1;
     static constexpr int out_input_grad = 0;
   };
-  using parent = body_generator_t<managed_conv_bwd_data_config_t>;
+  using parent = body_generator_t<nested_conv_bwd_data_config_t>;
   using parent::generate;
 
   bool bwise_fusion_ = false;
 
-  gen_managed_convNxN_backprop_data_t(sc_op *owner, const sc_dims &stride,
+  gen_nested_convNxN_backprop_data_t(sc_op *owner, const sc_dims &stride,
     const sc_dims &padding, std::vector<logical_tensor_t> &&ins,
     std::vector<logical_tensor_t> &&outs);
 
@@ -79,7 +79,7 @@ public:
     const expr &obs_offset, const expr &oc_offset, const expr &ic_offset,
     const expr &ih_offset, fusion_manager *fusion) const;
 
-  bool generate(context_ptr ctx, const managed_conv_bwd_data_config_t &config,
+  bool generate(context_ptr ctx, const nested_conv_bwd_data_config_t &config,
     fusion_manager *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
@@ -87,7 +87,7 @@ public:
   config_ptr get_default_config(context_ptr ctx) const override;
 
   void schedule_loops(context_ptr ctx,
-    const managed_conv_bwd_data_config_t &config, stmt body,
+    const nested_conv_bwd_data_config_t &config, stmt body,
     std::vector<for_loop> &fors) const override;
 };
 } // namespace ops

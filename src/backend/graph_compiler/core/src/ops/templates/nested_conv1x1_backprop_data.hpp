@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_MANAGED_CONV1X1_BACKPROP_DATA_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_MANAGED_CONV1X1_BACKPROP_DATA_HPP
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_NESTED_CONV1X1_BACKPROP_DATA_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_NESTED_CONV1X1_BACKPROP_DATA_HPP
 
 #include <memory>
 #include <tuple>
@@ -25,8 +25,8 @@
 namespace sc {
 
 namespace ops {
-class gen_managed_conv1x1_backprop_data_t
-  : public body_generator_t<managed_conv_bwd_data_config_t> {
+class gen_nested_conv1x1_backprop_data_t
+  : public body_generator_t<nested_conv_bwd_data_config_t> {
 public:
   // inner most block
   int im_bs_block_;
@@ -40,10 +40,10 @@ public:
     static constexpr int in_weight = 1;
     static constexpr int out_del_input = 0;
   };
-  using parent = body_generator_t<managed_conv_bwd_data_config_t>;
+  using parent = body_generator_t<nested_conv_bwd_data_config_t>;
   using parent::generate;
 
-  gen_managed_conv1x1_backprop_data_t(sc_op *owner, const sc_dims &stride,
+  gen_nested_conv1x1_backprop_data_t(sc_op *owner, const sc_dims &stride,
     const sc_dims &padding, std::vector<logical_tensor_t> &&ins,
     std::vector<logical_tensor_t> &&outs);
 
@@ -67,14 +67,14 @@ public:
     int ic_single_thr, int OC, int IC, const expr &oc_s,
     const expr &ic_s) const;
 
-  bool generate(context_ptr ctx, const managed_conv_bwd_data_config_t &config,
+  bool generate(context_ptr ctx, const nested_conv_bwd_data_config_t &config,
     fusion_manager *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
 
   void single_thread_conv1x1_backprop_data_call(const context_ptr &ctx,
     const logical_tensor_t &ta, const logical_tensor_t &tb,
-    const logical_tensor_t &tc, const managed_conv_bwd_data_config_t &config,
+    const logical_tensor_t &tc, const nested_conv_bwd_data_config_t &config,
     const expr &BS, const expr &S, const expr &IC, const expr &OC,
     const expr &bs_idx, const expr &s_idx, const expr &ic_idx,
     const expr &oc_idx, const int stride_d, const int stride_h,
@@ -88,7 +88,7 @@ public:
   config_ptr get_default_config(context_ptr ctx) const override;
 
   void schedule_loops(context_ptr ctx,
-    const managed_conv_bwd_data_config_t &config, stmt body,
+    const nested_conv_bwd_data_config_t &config, stmt body,
     std::vector<for_loop> &fors) const override;
 
 private:

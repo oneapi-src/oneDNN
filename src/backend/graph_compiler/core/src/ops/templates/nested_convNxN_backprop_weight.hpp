@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_MANAGED_CONV1X1_BACKPROP_WEIGHT_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_MANAGED_CONV1X1_BACKPROP_WEIGHT_HPP
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_NESTED_CONVNXN_BACKPROP_WEIGHT_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_NESTED_CONVNXN_BACKPROP_WEIGHT_HPP
 
 #include <memory>
 #include <tuple>
@@ -25,8 +25,8 @@
 
 namespace sc {
 namespace ops {
-class gen_managed_conv1x1_backprop_weight_t
-  : public body_generator_t<managed_conv_bwd_weight_config_t> {
+class gen_nested_convNXN_bwd_weight_t
+  : public body_generator_t<nested_conv_bwd_weight_config_t> {
 public:
   // inner most block
   int im_oc_block_;
@@ -40,12 +40,12 @@ public:
     static constexpr int in_delta_output = 1;
     static constexpr int out_delta_weight = 0;
   };
-  using parent = body_generator_t<managed_conv_bwd_weight_config_t>;
+  using parent = body_generator_t<nested_conv_bwd_weight_config_t>;
   using parent::generate;
 
   bool bwise_fusion_ = false;
 
-  gen_managed_conv1x1_backprop_weight_t(sc_op *owner, const sc_dims &stride,
+  gen_nested_convNXN_bwd_weight_t(sc_op *owner, const sc_dims &stride,
     const sc_dims &padding, std::vector<logical_tensor_t> &&ins,
     std::vector<logical_tensor_t> &&outs);
 
@@ -65,25 +65,26 @@ public:
   sc_data_type_t get_B_dtype() const { return in_tensors_[1].dtype_; }
   sc_data_type_t get_C_dtype() const { return out_tensors_[0].dtype_; }
 
-  void forward_input_reorder_call(context_ptr &ctx,
+  void forward_input_reorder_call(const context_ptr &ctx,
     const expr &temp_forward_input, const expr &forward_input,
-    const logical_tensor_t &input_lt, const sc_data_type_t &dtype,
-    int bs_single_core, int ic_single_core, int oh_single_core, int OW, int IH,
-    int IW, const expr &bs_offset, const expr &ic_offset, const expr &oh_offset,
-    const expr &ow_offset, int stride_h, int stride_w) const;
+    const sc_data_type_t &dtype, int bs_block, int ic_block, int oh_block,
+    int ow_block, int IH, int IW, const expr &h_ext, const expr &w_ext,
+    const expr &bs_offset, const expr &ic_offset, const expr &oh_offset,
+    const expr &ow_offset, int stride_h, int padding_h, int stride_w,
+    int padding_w, const expr &sh_idx, const expr &sw_idx) const;
 
-  void inner_loop_call(context_ptr &ctx, const expr &temp_forward_input,
+  void inner_loop_call(const context_ptr &ctx, const expr &temp_forward_input,
     const std::vector<expr> &temp_forward_idx_non_block,
     const logical_tensor_t &delta_output_lt, const expr &delta_output,
     const expr &temp_delta_weight, const std::vector<expr> &temp_weight_idx,
     const sc_data_type_t &dtype, int dtype_block, int ic_block, int oc_block,
     int bs_block, int od_block, int oh_block, int ow_block, int stride_h,
-    int stride_w, const expr &o_bs, const expr &o_od, const expr &o_oh,
-    const expr &o_ow, const expr &obs_offset, const expr &oc_offset,
-    const expr &oh_offset, const expr &ow_offset, fusion_manager *fusion,
-    bool is_partial) const;
+    int stride_w, int R, int S, const expr &sh_idx, const expr &sw_idx,
+    const expr &o_bs, const expr &o_od, const expr &o_oh, const expr &o_ow,
+    const expr &obs_offset, const expr &oc_offset, const expr &oh_offset,
+    const expr &ow_offset, fusion_manager *fusion) const;
 
-  bool generate(context_ptr ctx, const managed_conv_bwd_weight_config_t &config,
+  bool generate(context_ptr ctx, const nested_conv_bwd_weight_config_t &config,
     fusion_manager *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,
     std::vector<for_loop> &loops) const override;
@@ -91,7 +92,7 @@ public:
   config_ptr get_default_config(context_ptr ctx) const override;
 
   void schedule_loops(context_ptr ctx,
-    const managed_conv_bwd_weight_config_t &config, stmt body,
+    const nested_conv_bwd_weight_config_t &config, stmt body,
     std::vector<for_loop> &fors) const override;
 };
 } // namespace ops

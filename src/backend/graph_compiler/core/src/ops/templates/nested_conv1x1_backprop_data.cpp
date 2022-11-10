@@ -14,7 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "managed_conv1x1_backprop_data.hpp"
+#include "nested_conv1x1_backprop_data.hpp"
 #include <algorithm>
 #include <limits>
 #include <memory>
@@ -88,12 +88,12 @@ static void compute_single_thr_and_idx(const int X, const int X_split_num,
   }
 }
 
-config_ptr gen_managed_conv1x1_backprop_data_t::get_default_config(
+config_ptr gen_nested_conv1x1_backprop_data_t::get_default_config(
   context_ptr ctx) const {
   auto ret
-    = reflection::general_object_t::make<managed_conv_bwd_data_config_t>();
-  managed_conv_bwd_data_config_t &cfg
-    = *ret.unchecked_get_as<managed_conv_bwd_data_config_t>();
+    = reflection::general_object_t::make<nested_conv_bwd_data_config_t>();
+  nested_conv_bwd_data_config_t &cfg
+    = *ret.unchecked_get_as<nested_conv_bwd_data_config_t>();
   const int num_threads = runtime_config_t::get().get_num_threads();
   const int im_bs_block = im_bs_block_;
   const int im_ow_block = im_ow_block_;
@@ -117,8 +117,8 @@ config_ptr gen_managed_conv1x1_backprop_data_t::get_default_config(
                              : get_output_dims()[ndims_ - 2];
   const int W = stride_w > 1 ? get_input_dims()[ndims_ - 1]
                              : get_output_dims()[ndims_ - 1];
-  const int IC = get_input_dims()[1];
-  const int OC = get_output_dims()[1];
+  const int IC = get_weight_dims()[1];
+  const int OC = get_weight_dims()[0];
   const int BS = get_input_dims()[0];
   const int OS = D * H * W;
 
@@ -150,10 +150,19 @@ config_ptr gen_managed_conv1x1_backprop_data_t::get_default_config(
   }
   cfg.bs_threads = num_threads / split_s;
   cfg.spatial_threads = split_s;
-  if (OS <= 256 && BS >= num_threads) {
-    // for small spatial size and large bs, we prefer to give splits only on BS
-    cfg.bs_threads = num_threads;
-    cfg.spatial_threads = 1;
+  cfg.ic_threads = 1;
+  // when spatial size is small, and has enough IC split space, give splits on
+  // BS and IC
+  if (OS < 64 && IC > 256) {
+    auto possible_factors = get_splits(num_threads);
+    for (int64_t i = possible_factors.size() - 1; i >= 0; --i) {
+      if (BS >= possible_factors[i]) {
+        cfg.bs_threads = possible_factors[i];
+        cfg.ic_threads = num_threads / possible_factors[i];
+        cfg.spatial_threads = 1;
+        break;
+      }
+    }
   }
 
   int single_BS = utils::divide_and_ceil(BS, cfg.bs_threads) * im_bs_block;
@@ -180,14 +189,13 @@ config_ptr gen_managed_conv1x1_backprop_data_t::get_default_config(
     cfg.spatial_num_blocks = std::max(1, single_S / L2_BS_S);
   }
 
-  cfg.ic_threads = 1;
-  cfg.ic_num_blocks = 1;
+  cfg.ic_num_blocks = std::max(1, IC / im_ic_block / cfg.ic_threads / 8);
   cfg.oc_num_blocks = 1;
 
   return std::move(ret);
 }
 
-gen_managed_conv1x1_backprop_data_t::gen_managed_conv1x1_backprop_data_t(
+gen_nested_conv1x1_backprop_data_t::gen_nested_conv1x1_backprop_data_t(
   sc_op *owner, const sc_dims &stride, const sc_dims &padding,
   std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
   : parent(owner, std::move(ins), std::move(outs))
@@ -222,8 +230,8 @@ gen_managed_conv1x1_backprop_data_t::gen_managed_conv1x1_backprop_data_t(
                              : get_output_dims()[ndims_ - 2];
   const int W = stride_w > 1 ? get_input_dims()[ndims_ - 1]
                              : get_output_dims()[ndims_ - 1];
-  const int IC = get_input_dims()[1];
-  const int OC = get_output_dims()[1];
+  const int IC = get_weight_dims()[1];
+  const int OC = get_weight_dims()[0];
   const int BS = get_input_dims()[0];
   const int OS = D * H * W;
 
@@ -256,7 +264,7 @@ gen_managed_conv1x1_backprop_data_t::gen_managed_conv1x1_backprop_data_t(
   im_bs_block_ = 1;
 }
 
-float gen_managed_conv1x1_backprop_data_t::get_gflop() const {
+float gen_nested_conv1x1_backprop_data_t::get_gflop() const {
   float result = 0.0;
   bool is_3d = ndims_ == 5;
   int stride_d = is_3d ? stride_[0] : 1, stride_h = stride_[0],
@@ -279,14 +287,14 @@ float gen_managed_conv1x1_backprop_data_t::get_gflop() const {
   return result;
 }
 
-void gen_managed_conv1x1_backprop_data_t::schedule_loops(context_ptr ctx,
-  const managed_conv_bwd_data_config_t &config, stmt body,
+void gen_nested_conv1x1_backprop_data_t::schedule_loops(context_ptr ctx,
+  const nested_conv_bwd_data_config_t &config, stmt body,
   std::vector<for_loop> &fors) const {}
 
-void gen_managed_conv1x1_backprop_data_t::
+void gen_nested_conv1x1_backprop_data_t::
   single_thread_conv1x1_backprop_data_call(const context_ptr &ctx,
     const logical_tensor_t &ta, const logical_tensor_t &tb,
-    const logical_tensor_t &tc, const managed_conv_bwd_data_config_t &config,
+    const logical_tensor_t &tc, const nested_conv_bwd_data_config_t &config,
     const expr &BS, const expr &OS, const expr &IC, const expr &OC,
     const expr &bs_idx, const expr &s_idx, const expr &ic_idx,
     const expr &oc_idx, const int stride_d, const int stride_h,
@@ -431,14 +439,14 @@ void gen_managed_conv1x1_backprop_data_t::
       } // o_ic
     } // o_os
   } // o_bs
-  if (config.ic_num_blocks > 1) {
+  if (config.oc_num_blocks > 1) {
     im_ic->attr()[stmt_attr_key::reduce_root_loop]
       = std::weak_ptr<stmt_base_t>(o_im_oc.impl);
   }
 }
 
-bool gen_managed_conv1x1_backprop_data_t::generate(context_ptr ctx,
-  const managed_conv_bwd_data_config_t &config, fusion_manager *fusion,
+bool gen_nested_conv1x1_backprop_data_t::generate(context_ptr ctx,
+  const nested_conv_bwd_data_config_t &config, fusion_manager *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // Init OP param
@@ -594,10 +602,10 @@ bool gen_managed_conv1x1_backprop_data_t::generate(context_ptr ctx,
   if (is_3d) {
     COMPILE_ASSERT(get_weight_dims()[2] == 1 && get_weight_dims()[3] == 1
         && get_weight_dims()[4] == 1,
-      "gen_managed_conv1x1_backprop_data_t kernels==1");
+      "gen_nested_conv1x1_backprop_data_t kernels==1");
   } else {
     COMPILE_ASSERT(get_weight_dims()[2] == 1 && get_weight_dims()[3] == 1,
-      "gen_managed_conv1x1_backprop_data_t kernels==1");
+      "gen_nested_conv1x1_backprop_data_t kernels==1");
   }
 
   // define compute

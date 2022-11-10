@@ -55,9 +55,9 @@ SC_CLASS(conv_bwd_weight_config_t)
 SC_CLASS_END();
 // clang-format on
 
-using ops::managed_conv_bwd_data_config_t;
+using ops::nested_conv_bwd_data_config_t;
 // clang-format off
-SC_CLASS(managed_conv_bwd_data_config_t)
+SC_CLASS(nested_conv_bwd_data_config_t)
   SC_FIELD(bs_threads)
   SC_FIELD(spatial_threads)
   SC_FIELD(ic_threads)
@@ -68,9 +68,9 @@ SC_CLASS(managed_conv_bwd_data_config_t)
 SC_CLASS_END();
 // clang-format on
 
-using ops::managed_conv_bwd_weight_config_t;
+using ops::nested_conv_bwd_weight_config_t;
 // clang-format off
-SC_CLASS(managed_conv_bwd_weight_config_t)
+SC_CLASS(nested_conv_bwd_weight_config_t)
   SC_FIELD(oc_threads)
   SC_FIELD(ic_threads)
   SC_FIELD(bs_threads)

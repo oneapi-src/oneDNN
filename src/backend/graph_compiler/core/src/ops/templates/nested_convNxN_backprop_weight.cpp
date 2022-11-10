@@ -14,7 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "managed_convNxN_backprop_weight.hpp"
+#include "nested_convNxN_backprop_weight.hpp"
 #include <algorithm>
 #include <limits>
 #include <string>
@@ -36,12 +36,12 @@ using namespace sc::builder;
 namespace sc {
 namespace ops {
 
-config_ptr gen_nested_conv_bwd_weight_core_t::get_default_config(
+config_ptr gen_nested_convNXN_bwd_weight_t::get_default_config(
   context_ptr ctx) const {
   auto ret
-    = reflection::general_object_t::make<managed_conv_bwd_weight_config_t>();
-  managed_conv_bwd_weight_config_t &cfg
-    = *ret.unchecked_get_as<managed_conv_bwd_weight_config_t>();
+    = reflection::general_object_t::make<nested_conv_bwd_weight_config_t>();
+  nested_conv_bwd_weight_config_t &cfg
+    = *ret.unchecked_get_as<nested_conv_bwd_weight_config_t>();
   int num_threads = runtime_config_t::get().get_num_threads();
   const int OC = get_grad_dims()[1];
   const int OH = get_grad_dims()[ndims_ - 2];
@@ -99,8 +99,8 @@ config_ptr gen_nested_conv_bwd_weight_core_t::get_default_config(
   return std::move(ret);
 }
 
-gen_nested_conv_bwd_weight_core_t::gen_nested_conv_bwd_weight_core_t(
-  sc_op *owner, const sc_dims &stride, const sc_dims &padding,
+gen_nested_convNXN_bwd_weight_t::gen_nested_convNXN_bwd_weight_t(sc_op *owner,
+  const sc_dims &stride, const sc_dims &padding,
   std::vector<logical_tensor_t> &&ins, std::vector<logical_tensor_t> &&outs)
   : parent(owner, std::move(ins), std::move(outs))
   , stride_(stride)
@@ -129,7 +129,7 @@ gen_nested_conv_bwd_weight_core_t::gen_nested_conv_bwd_weight_core_t(
   }
 }
 
-float gen_nested_conv_bwd_weight_core_t::get_gflop() const {
+float gen_nested_convNXN_bwd_weight_t::get_gflop() const {
   const int OD = ndims_ == 5 ? get_grad_dims()[ndims_ - 3] : 1;
   const int P = get_grad_dims()[ndims_ - 2];
   const int Q = get_grad_dims()[ndims_ - 1];
@@ -143,11 +143,11 @@ float gen_nested_conv_bwd_weight_core_t::get_gflop() const {
   return result;
 }
 
-void gen_nested_conv_bwd_weight_core_t::schedule_loops(context_ptr ctx,
-  const managed_conv_bwd_weight_config_t &config, stmt body,
+void gen_nested_convNXN_bwd_weight_t::schedule_loops(context_ptr ctx,
+  const nested_conv_bwd_weight_config_t &config, stmt body,
   std::vector<for_loop> &fors) const {}
 
-void gen_nested_conv_bwd_weight_core_t::forward_input_reorder_call(
+void gen_nested_convNXN_bwd_weight_t::forward_input_reorder_call(
   const context_ptr &ctx, const expr &temp_forward_input,
   const expr &forward_input, const sc_data_type_t &dtype, int bs_block,
   int ic_block, int oh_block, int ow_block, int IH, int IW, const expr &h_ext,
@@ -192,7 +192,7 @@ void gen_nested_conv_bwd_weight_core_t::forward_input_reorder_call(
   }
 }
 
-void gen_nested_conv_bwd_weight_core_t::inner_loop_call(const context_ptr &ctx,
+void gen_nested_convNXN_bwd_weight_t::inner_loop_call(const context_ptr &ctx,
   const expr &temp_forward_input,
   const std::vector<expr> &temp_forward_idx_non_block,
   const logical_tensor_t &delta_output_lt, const expr &delta_output,
@@ -338,8 +338,8 @@ void gen_nested_conv_bwd_weight_core_t::inner_loop_call(const context_ptr &ctx,
   }
 }
 
-bool gen_nested_conv_bwd_weight_core_t::generate(context_ptr ctx,
-  const managed_conv_bwd_weight_config_t &config, fusion_manager *fusion,
+bool gen_nested_convNXN_bwd_weight_t::generate(context_ptr ctx,
+  const nested_conv_bwd_weight_config_t &config, fusion_manager *fusion,
   const std::vector<expr> &inputs, const std::vector<expr> &outputs,
   std::vector<for_loop> &loops) const {
   // set padding && stride, if d does not exist, set padding == 0 && stride ==
