@@ -86,9 +86,7 @@ private:
     bool is_gpu(ngen::HW arg_hw, int arg_eu_count) const {
         return (hw == arg_hw) && (eu_count_ == arg_eu_count);
     }
-    bool use_tanh_compat() const {
-        return is_gpu(ngen::HW::XeHPG, 96) || is_gpu(ngen::HW::XeHPG, 128);
-    }
+    bool use_tanh_compat() const { return false; }
 
     int max_batch_size();
     int phase_count(alg_kind_t alg);
