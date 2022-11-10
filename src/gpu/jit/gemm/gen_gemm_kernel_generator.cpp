@@ -3772,11 +3772,12 @@ static Subregister findBlockReg(Type T, const RegisterBlock &block, int rr,
 static Subregister findBlockReg(Type T, const vector<RegisterBlock> &layout,
         int r, int c, const GRFMultirange &regs, int &nelems,
         const RegisterBlock *&block, int cxComponent = -1, int component = 0) {
+    int ecomponent = component;
     for (auto &l : layout) {
         int rr = r - l.offsetR;
         int cc = c - l.offsetC;
         if (rr >= 0 && rr < l.nr && cc >= 0 && cc < l.nc
-                && component == l.component
+                && ecomponent == l.component
                 && one_of(l.cxComponent, cxComponent,
                         RegisterBlock::Interleaved)) {
             block = &l;
@@ -9819,6 +9820,8 @@ bool gemm_kernel_generator_t<hw>::gemmLoadABOffset(const GEMMProblem &problem,
     MatrixAddressingStrategy As_strategy = strategy.A, Bs_strategy = strategy.B;
     As_strategy.accessType = AccessType::Block;
     Bs_strategy.accessType = AccessType::Block;
+    As_strategy.tileR = As_strategy.tileC = 0;
+    Bs_strategy.tileR = Bs_strategy.tileC = 0;
     As_strategy.dpasw = Bs_strategy.dpasw = false;
 
     bool ok = true;
@@ -12843,11 +12846,11 @@ static inline bool needsKLoopReset(const GEMMProblem &problem) {
 }
 
 // Setup for C accumulation.
-// NOTE: modifies strategy + state.
+// NOTE: modifies problem/strategy/state.
 template <HW hw>
 bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
         GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state) {
-    auto Ta = problem.Ta, Tb = problem.Tb, Tc = problem.Tc;
+    auto &Ta = problem.Ta, &Tb = problem.Tb, Tc = problem.Tc;
     auto Ta_ext = problem.Ta_ext, Tb_ext = problem.Tb_ext,
          Tc_ext = problem.Tc_ext;
     auto &Ta_load = state.Ta_load, &Tb_load = state.Tb_load;
@@ -14090,7 +14093,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccessC(COperation op,
         storeProblem.beta_real = 0;
         storeProblem.beta_imag = 0;
 
-        // Do any post-sum post-ops.
+        // Do any post-sum post-ops
         if (newPostOps)
             gemmApplyPostOps(
                     poSum + 1, problem.postOps.len(), problem, strategy, state);
@@ -15024,6 +15027,8 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
             state.inputs.ao = interface.getArgumentIfExists("ao");
             state.inputs.bo = interface.getArgumentIfExists("bo");
         }
+        state.inputs.aoPtr = interface.getArgumentIfExists("ao_ptr");
+        state.inputs.boPtr = interface.getArgumentIfExists("bo_ptr");
     }
     state.inputs.offsetA = interface.getArgumentIfExists("offset_A");
     state.inputs.offsetB = interface.getArgumentIfExists("offset_B");
@@ -15186,8 +15191,10 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
             state.ra.claim(state.inputs.C[q]);
 
     if (problem.abOffset != ABOffset::None) {
-        state.ra.claim(state.inputs.ao);
-        state.ra.claim(state.inputs.bo);
+        if (state.inputs.ao.isValid()) state.ra.claim(state.inputs.ao);
+        if (state.inputs.bo.isValid()) state.ra.claim(state.inputs.bo);
+        if (state.inputs.aoPtr.isValid()) state.ra.claim(state.inputs.aoPtr);
+        if (state.inputs.boPtr.isValid()) state.ra.claim(state.inputs.boPtr);
     }
 
     if (problem.usesCO()) {
@@ -16778,6 +16785,36 @@ void gemm_kernel_generator_t<hw>::gemm(
     } else
         state.fullK = state.inputs.k;
 
+    // Load ao/bo from memory if needed.
+    if (problem.abOffset != ABOffset::None && state.inputs.abo.isInvalid()) {
+        state.inputs.abo = state.ra.alloc_sub<uint32_t>(
+                getHint(HintType::LongTerm, strategy));
+        state.inputs.ao = state.inputs.abo.w(0);
+        state.inputs.bo = state.inputs.abo.w(1);
+
+        auto loadABO = [&](const ngen::Subregister &xo,
+                               ngen::Subregister &xoPtr) {
+            if (xoPtr.isInvalid())
+                mov(1, xo, 0);
+            else {
+                auto header = state.ra.alloc_range(2);
+                auto data = state.ra.alloc();
+                emov<uint64_t>(1, header, xoPtr, strategy, state);
+                (hw >= HW::XeHPG)
+                        ? load(1, data, D32 | CacheSettingsLSC::L1C_L3C, A64,
+                                header)
+                        : load(1, data, scattered_dword(1), A64, header);
+                mov(1, xo, -data.w(0));
+                state.ra.safeRelease(xoPtr);
+                state.ra.safeRelease(header);
+                state.ra.safeRelease(data);
+            }
+        };
+
+        loadABO(state.inputs.ao, state.inputs.aoPtr);
+        loadABO(state.inputs.bo, state.inputs.boPtr);
+    }
+
     // Persistent thread preparation and re-entry.
     if (strategy.persistent) {
         if (!strategy.linearOrder()) stub();
@@ -17961,7 +17998,9 @@ bool gemm_kernel_generator_t<hw>::sysgemmAccumulateC(
     auto beta = saveData[0].ud(7).reinterpret(0, problem.Ts.ngen());
     auto remFusedStorage = saveData[1].ud(0);
     auto diagC = saveData[1].ud(1);
+    auto saveI0 = saveData[1].ud(1);
     auto effCO = saveData[1].uq(1);
+    auto saveJ0 = saveData[1].ud(3);
     auto slotAB = saveData[1].ud(4);
     auto effAs = saveData[1].uq(2).reinterpret(0, state.effA.getType());
     auto effBs = saveData[1].uq(3).reinterpret(0, state.effB.getType());
@@ -17992,6 +18031,12 @@ bool gemm_kernel_generator_t<hw>::sysgemmAccumulateC(
     if (state.effCO.isValid()) {
         effCO = effCO.reinterpret(0, state.effCO.getType());
         emov(1, effCO, state.effCO, strategy, state);
+    }
+    if (problem.hasBinaryPostOp()) {
+        if (state.diagC.isValid()) stub();
+        if (state.effCO.isValid() && effCO.getBytes() > 4) stub();
+        mov(1, saveI0, state.i0);
+        mov(1, saveJ0, state.j0);
     }
     if (problem.abOffset != ABOffset::None) {
         state.effAs = effAs;
@@ -18080,6 +18125,10 @@ bool gemm_kernel_generator_t<hw>::sysgemmAccumulateC(
     if (state.fusedGEMM.slotA.isValid()) {
         state.fusedGEMM.slotA = slotAB.uw(0);
         state.fusedGEMM.slotB = slotAB.uw(1);
+    }
+    if (problem.hasBinaryPostOp()) {
+        state.i0 = saveI0;
+        state.j0 = saveJ0;
     }
 
     state.ra.claim(C_ptr);
@@ -19382,7 +19431,9 @@ bool gemm_kernel_generator_t<hw>::sysgemm2AccumulateC(
     auto beta = saveData[0].ud(7).reinterpret(0, problem.Ts.ngen());
     auto remFusedStorage = saveData[1].ud(0);
     auto diagC = saveData[1].ud(1);
+    auto saveI0 = saveData[1].ud(1);
     auto effCO = saveData[1].uq(1);
+    auto saveJ0 = saveData[1].ud(3);
     auto C_ptr = saveData[1].uq(2);
     auto slotAB = saveData[1].ud(6);
     auto effAs = a0.ud(4); // dwords 4-5
@@ -19415,6 +19466,12 @@ bool gemm_kernel_generator_t<hw>::sysgemm2AccumulateC(
     if (state.effCO.isValid()) {
         effCO = effCO.reinterpret(0, state.effCO.getType());
         emov(1, effCO, state.effCO, strategy, state);
+    }
+    if (problem.hasBinaryPostOp()) {
+        if (state.diagC.isValid()) stub();
+        if (state.effCO.isValid() && effCO.getBytes() > 4) stub();
+        mov(1, saveI0, state.i0);
+        mov(1, saveJ0, state.j0);
     }
     if (problem.abOffset != ABOffset::None) {
         GRF temp = state.ra.alloc();
@@ -19515,6 +19572,10 @@ bool gemm_kernel_generator_t<hw>::sysgemm2AccumulateC(
         state.effBs = state.ra.alloc_sub(tbs);
         mov<uint32_t>(getDwords(tas), state.effAs.ud()(1), effAs(1));
         mov<uint32_t>(getDwords(tbs), state.effBs.ud()(1), effBs(1));
+    }
+    if (problem.hasBinaryPostOp()) {
+        state.i0 = saveI0;
+        state.j0 = saveJ0;
     }
 
     // Set up C internal layout and registers.
