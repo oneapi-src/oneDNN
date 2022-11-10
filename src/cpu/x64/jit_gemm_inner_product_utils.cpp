@@ -1104,9 +1104,11 @@ void jit_pp_kernel_t<isa>::generate() {
     mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
     if (this->do_scale_) mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
     if (this->do_dst_scale_) {
-        mov(reg_tmp, ptr[reg_param + PARAM_OFF(dst_scale)]);
+        // don't overwrite reg_param
+        assert(reg_tmp_comp.getIdx() != reg_param.getIdx());
+        mov(reg_tmp_comp, ptr[reg_param + PARAM_OFF(dst_scale)]);
         auto xreg_dst_scale = Xmm(vreg_dst_scale.getIdx());
-        uni_vmovq(xreg_dst_scale, reg_tmp);
+        uni_vmovq(xreg_dst_scale, reg_tmp_comp);
         uni_vbroadcastss(vreg_dst_scale, xreg_dst_scale);
     }
     if (this->do_dst_zero_points_) {
