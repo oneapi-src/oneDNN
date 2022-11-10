@@ -113,55 +113,8 @@ void gen_gemm_kernel_desc_t::update_driver_info() {
 #undef ARCH_DISPATCH
 }
 
-status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
-        int stepping, int eu_count, compute_mode mode, int batch_dims,
-        bool trans_a, bool trans_b, bool trans_co, bool swap_ab, bool ab_offset,
-        bool c_offset, bool bias, sum_ab_t reduce_ab, float alpha, float beta,
-        const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
-        data_type_t c_type, data_type_t co_type, data_type_t acc_type,
-        int align_a, int align_b, int align_c, dim_t m, dim_t n, dim_t k,
-        dim_t lda, dim_t ldb, dim_t ldc, dim_t batch) {
-    using namespace ngen;
-    using namespace kcatalog;
-
-    arch_ = arch;
-    hw_ = convert_dnnl_arch_to_hw(arch);
-    stepping_ = stepping;
-    m_ = m;
-    n_ = n;
-    k_ = k;
-    eu_count_ = eu_count;
-
-    align_a = nstl::max(align_a, int(types::data_type_size(a_type)));
-    align_b = nstl::max(align_b, int(types::data_type_size(b_type)));
-    align_c = nstl::max(align_c, int(types::data_type_size(c_type)));
-
-    // Set up problem structure.
-    problem_.Ta = problem_.Ta_ext = convert_dnnl_to_kernel_type(a_type);
-    problem_.Tb = problem_.Tb_ext = convert_dnnl_to_kernel_type(b_type);
-    problem_.Tc = convert_dnnl_to_kernel_type(acc_type);
-    problem_.Tco = convert_dnnl_to_kernel_type(co_type);
-    problem_.Tc_ext = convert_dnnl_to_kernel_type(c_type);
-    problem_.Ts = problem_.Tc;
-    problem_.A.layout = trans_a ? MatrixLayout::T : MatrixLayout::N;
-    problem_.B.layout = trans_b ? MatrixLayout::T : MatrixLayout::N;
-    problem_.C.layout = MatrixLayout::N;
-    problem_.A.crosspack = problem_.B.crosspack = problem_.C.crosspack = 1;
-    problem_.A.packSize = problem_.B.packSize = problem_.C.packSize = 0;
-    problem_.A.setAlignment(align_a);
-    problem_.B.setAlignment(align_b);
-    problem_.C.setAlignment(align_c);
-    if (batch_dims > 0) {
-        problem_.batch = BatchMode::Strided;
-        problem_.batchDims = batch_dims;
-    }
-    if (ab_offset) problem_.abOffset = ABOffset::Calc;
-
-    if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
-
-    if (alpha == 1.0f) problem_.alpha_real = alpha;
-    if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
-
+status_t gen_gemm_kernel_desc_t::transfer_post_ops(
+        const post_ops_t &post_ops, bool swap_ab) {
     if (post_ops.len() > 0) {
         problem_.postOps = post_ops;
         int po_count = post_ops.len();
@@ -171,7 +124,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         problem_.binaryCol.reserve(po_count);
         problem_.binaryBatch.reserve(po_count);
 
-        if (a_type == data_type::f16) problem_.Ts = Type::f32;
+        if (problem_.Ta == Type::f16) problem_.Ts = Type::f32;
 
         for (int i = 0; i < po_count; i++) {
             const auto &entry = post_ops.entry_[i];
@@ -218,6 +171,64 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
             problem_.binary.push_back(atype);
         }
     }
+
+    return status::success;
+}
+
+status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
+        int stepping, int eu_count, compute_mode mode, int batch_dims,
+        bool trans_a, bool trans_b, bool trans_co, bool swap_ab, bool a_offset,
+        bool b_offset, bool c_offset, bool bias, sum_ab_t reduce_ab,
+        float alpha, float beta, const post_ops_t &post_ops, data_type_t a_type,
+        data_type_t b_type, data_type_t c_type, data_type_t co_type,
+        data_type_t acc_type, int align_a, int align_b, int align_c, dim_t m,
+        dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc, dim_t batch) {
+    using namespace ngen;
+    using namespace kcatalog;
+
+    arch_ = arch;
+    hw_ = convert_dnnl_arch_to_hw(arch);
+    stepping_ = stepping;
+    m_ = m;
+    n_ = n;
+    k_ = k;
+    eu_count_ = eu_count;
+    a_offset_ = a_offset;
+    b_offset_ = b_offset;
+
+    align_a = nstl::max(align_a, int(types::data_type_size(a_type)));
+    align_b = nstl::max(align_b, int(types::data_type_size(b_type)));
+    align_c = nstl::max(align_c, int(types::data_type_size(c_type)));
+
+    // Set up problem structure.
+    problem_.Ta = problem_.Ta_ext = convert_dnnl_to_kernel_type(a_type);
+    problem_.Tb = problem_.Tb_ext = convert_dnnl_to_kernel_type(b_type);
+    problem_.Tc = convert_dnnl_to_kernel_type(acc_type);
+    problem_.Tco = convert_dnnl_to_kernel_type(co_type);
+    problem_.Tc_ext = convert_dnnl_to_kernel_type(c_type);
+    problem_.Ts = problem_.Tc;
+    problem_.A.layout = trans_a ? MatrixLayout::T : MatrixLayout::N;
+    problem_.B.layout = trans_b ? MatrixLayout::T : MatrixLayout::N;
+    problem_.C.layout = MatrixLayout::N;
+    problem_.A.crosspack = problem_.B.crosspack = problem_.C.crosspack = 1;
+    problem_.A.packSize = problem_.B.packSize = problem_.C.packSize = 0;
+    problem_.A.setAlignment(align_a);
+    problem_.B.setAlignment(align_b);
+    problem_.C.setAlignment(align_c);
+    if (batch_dims > 0) {
+        problem_.batch = BatchMode::Strided;
+        problem_.batchDims = batch_dims;
+    }
+    if (a_offset || b_offset) problem_.abOffset = ABOffset::Calc;
+
+    if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
+
+    if (alpha == 1.0f) problem_.alpha_real = alpha;
+    if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
+
+    auto status = transfer_post_ops(post_ops, swap_ab);
+    if (status != status::success) return status;
+
     if (c_offset || bias || reduce_ab != sum_ab::sum_none) {
         assert(!(c_offset && bias));
         if (bias) problem_.cOffset = COffset::Pre;
@@ -461,8 +472,18 @@ void gen_gemm_kernel_t::init_interface() {
     interface_.newArgument("k", DataType::d);
     interface_.newArgument("alpha_real", s_type_ngen);
     interface_.newArgument("beta_real", s_type_ngen);
-    if (problem.abOffset != ABOffset::None)
-        interface_.newArgument("abo", DataType::ud);
+    if (problem.abOffset != ABOffset::None) {
+        if (!desc()->a_offset_ && !desc()->b_offset_)
+            interface_.newArgument("abo", DataType::ud);
+        else {
+            if (desc()->a_offset_)
+                interface_.newArgument(
+                        "ao_ptr", ExternalArgumentType::GlobalPtr);
+            if (desc()->b_offset_)
+                interface_.newArgument(
+                        "bo_ptr", ExternalArgumentType::GlobalPtr);
+        }
+    }
     if (problem.cOffset != COffset::None || problem.sumA || problem.sumB) {
         interface_.newArgument("CO", ExternalArgumentType::GlobalPtr);
         interface_.newArgument("offset_CO", DataType::d);
