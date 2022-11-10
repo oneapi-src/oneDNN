@@ -404,7 +404,8 @@ void jit_pp_ker_t::generate() {
         vcvtdq2ps(vreg_zp_dst_common_, ptr_b[reg_tmp_]);
     }
 
-    vbroadcastss(vreg_dst_scale_, ptr[reg_param_ + PARAM_OFF(dst_scale)]);
+    if (jcp_.with_dst_scale)
+        vbroadcastss(vreg_dst_scale_, ptr[reg_param_ + PARAM_OFF(dst_scale)]);
     if (jcp_.with_sum)
         vbroadcastss(vreg_sum_scale_, ptr[reg_param_ + PARAM_OFF(sum_scale)]);
     if (jcp_.signed_input)
