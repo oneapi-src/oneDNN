@@ -2,7 +2,7 @@
 --reset
 --cfg=s8s8s8
 --bia_dt=f32
---attr-oscale=per_oc:2.25,common:2.25
+--attr-scales=per_oc:2.25*,common:2.25*
 --attr-post-ops=relu
 --batch=shapes_int8_2d
 

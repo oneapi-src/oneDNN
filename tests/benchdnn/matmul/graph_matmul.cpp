@@ -67,16 +67,26 @@ static int check_known_skipped_case_graph(
 
 static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
     if (arg == SRC) {
+        const auto scales_src = get_scales(
+                prb->attr.scales.get(DNNL_ARG_SRC), prb->src_scales, prb->n);
         const auto q_dt = convert_dt(prb->src_dt());
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_SRC)
                 ? 0L
                 : prb->src_zp[0];
-        return quant_data_t(q_dt, {1.0f}, {zp_val}, prb->stag);
+        const std::string q_type
+                = prb->attr.scales.get(DNNL_ARG_SRC).policy == policy_t::COMMON
+                ? "per_tensor"
+                : "per_channel";
+        // apply scale to last dimension(oc) when policy is per_channel
+        int64_t axis = q_type == "per_channel" ? prb->ndims - 1 : 0;
+        return quant_data_t(
+                q_dt, scales_src, {zp_val}, q_type, axis, prb->stag);
     } else if (arg == WEI) {
         const auto q_dt = convert_dt(prb->wei_dt());
-        const auto scales = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
-                prb->wei_scales, prb->n);
-        std::vector<int64_t> zps(scales.size(), 0L);
+        const auto scales_wei
+                = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
+                        prb->wei_scales, prb->n);
+        std::vector<int64_t> zps(scales_wei.size(), 0L);
 
         // if zp is not default, copy values and pass it to oneDNN Graph
         if (!prb->attr.zero_points.is_def(DNNL_ARG_WEIGHTS)) {
@@ -88,15 +98,24 @@ static quant_data_t get_qdata_for(int arg, const ::matmul::prb_t *prb) {
                         == policy_t::COMMON
                 ? "per_tensor"
                 : "per_channel";
-        // apply oscale to last dimension(oc) when policy is per_channel
+        // apply scale to last dimension(oc) when policy is per_channel
         int64_t axis = q_type == "per_channel" ? prb->ndims - 1 : 0;
-        return quant_data_t(q_dt, scales, zps, q_type, axis, prb->wtag);
+        return quant_data_t(q_dt, scales_wei, zps, q_type, axis, prb->wtag);
     } else if (arg == DST) {
+        const auto scales_dst = get_scales(
+                prb->attr.scales.get(DNNL_ARG_DST), prb->dst_scales, prb->n);
         const auto q_dt = convert_dt(prb->dst_dt());
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_DST)
                 ? 0L
                 : prb->dst_zp[0];
-        return quant_data_t(q_dt, {1.0f}, {zp_val}, prb->dtag);
+        const std::string q_type
+                = prb->attr.scales.get(DNNL_ARG_DST).policy == policy_t::COMMON
+                ? "per_tensor"
+                : "per_channel";
+        // apply scale to last dimension(oc) when policy is per_channel
+        int64_t axis = q_type == "per_channel" ? prb->ndims - 1 : 0;
+        return quant_data_t(
+                q_dt, scales_dst, {zp_val}, q_type, axis, prb->dtag);
     }
 
     BENCHDNN_PRINT(
@@ -378,19 +397,7 @@ int doit(const ::matmul::prb_t *prb, res_t *res) {
                             | DNNL_ARG_SRC_1));
         }
         ref_args.set(binary_po_args, binary_po_fp);
-
-        if (apply_bias
-                && is_low_precision(
-                        {convert_dt(prb->src_dt()), convert_dt(prb->wei_dt()),
-                                convert_dt(prb->dst_dt())})) {
-            bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::abx);
-            scale_bia(bia_fp_scaled, bia_fp,
-                    get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS), prb->wei_scales, prb->n),
-                    prb->bia_mask);
-            ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
-        } else {
-            ref_args.set(DNNL_ARG_BIAS, bia_fp);
-        }
+        ref_args.set(DNNL_ARG_BIAS, bia_fp);
 
         check_correctness(prb, {DST}, args, ref_args, ::matmul::setup_cmp, res);
     }

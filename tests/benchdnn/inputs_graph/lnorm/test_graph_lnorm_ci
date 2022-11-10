@@ -4,4 +4,4 @@
 
 # lnorm + quant
 --reset
---dir=FWD_I --dt=f32:u8,f32:s8  --flags=,CH  --attr-oscale=common:10 --tag=abx 64x128x28x28
+--dir=FWD_I --dt=f32:u8,f32:s8  --flags=,CH  --attr-scales=,dst:common:10* --tag=abx 64x128x28x28

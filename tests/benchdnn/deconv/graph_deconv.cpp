@@ -126,14 +126,17 @@ static dims_t get_acbdx_strides(
 static quant_data_t get_qdata_for(int arg, const ::deconv::prb_t *prb) {
     const auto q_dt = convert_dt(prb->cfg[arg].dt);
     if (arg == SRC) {
+        const auto scales_src = get_scales(
+                prb->attr.scales.get(DNNL_ARG_SRC), prb->src_scales, prb->oc);
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_SRC)
                 ? 0L
                 : prb->src_zp[0];
-        return quant_data_t(q_dt, {1.0f}, {zp_val}, prb->stag);
+        return quant_data_t(q_dt, scales_src, {zp_val}, prb->stag);
     } else if (arg == WEI) {
-        const auto scales = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
-                prb->wei_scales, prb->oc);
-        const std::vector<int64_t> zps(scales.size(), 0L);
+        const auto scales_wei
+                = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
+                        prb->wei_scales, prb->oc);
+        const std::vector<int64_t> zps(scales_wei.size(), 0L);
         const std::string q_type = prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy
                         == policy_t::COMMON
                 ? "per_tensor"
@@ -143,12 +146,14 @@ static quant_data_t get_qdata_for(int arg, const ::deconv::prb_t *prb) {
         dims_t wei_strides = get_acbdx_strides(
                 wei_dims, normalize_tag(prb->wtag, prb->ndims));
         return quant_data_t(
-                q_dt, scales, zps, q_type, /* axis */ 1, wei_strides);
+                q_dt, scales_wei, zps, q_type, /* axis */ 1, wei_strides);
     } else if (arg == DST) {
+        const auto scales_dst = get_scales(
+                prb->attr.scales.get(DNNL_ARG_DST), prb->dst_scales, prb->oc);
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_DST)
                 ? 0L
                 : prb->dst_zp[0];
-        return quant_data_t(q_dt, {1.f}, {zp_val}, prb->dtag);
+        return quant_data_t(q_dt, scales_dst, {zp_val}, prb->dtag);
     }
 
     BENCHDNN_PRINT(
@@ -462,23 +467,12 @@ int doit(const ::deconv::prb_t *prb, res_t *res) {
                             | DNNL_ARG_SRC_1));
         }
 
-        // re-scale bias
-        dnn_mem_t bia_fp_scaled;
-        if (prb->dir == FWD_B) {
-            bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
-            std::vector<float> scales
-                    = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
-                            prb->wei_scales, prb->oc);
-            int bia_mask = scales.size() == 1 ? 0 : 1;
-            scale_bia(bia_fp_scaled, bia_fp, scales, bia_mask);
-        }
-
         args_t args, ref_args;
         if (prb->dir & FLAG_FWD) {
             args.set(DNNL_ARG_DST, dst_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
-            ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
+            ref_args.set(DNNL_ARG_BIAS, bia_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
             ref_args.set(DNNL_ARG_WEIGHTS_1, wei_tr_fp); // Hack. See ref.
             ref_args.set(binary_po_args, binary_po_fp);

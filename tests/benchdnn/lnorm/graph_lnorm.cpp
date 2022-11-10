@@ -72,7 +72,7 @@ static quant_data_t get_qdata_for(const ::lnorm::prb_t *prb) {
     const auto src_scales = prb->attr.scales.get(DNNL_ARG_SRC);
     const auto dst_scales = prb->attr.scales.get(DNNL_ARG_DST);
     const auto scale = dst_scales.scale / src_scales.scale;
-    //oscale is set to the quant's attr with reciprocal for each scale in graph side
+    //scale is set to the quant's attr with reciprocal for each scale in graph side
     std::vector<float> scales = {scale};
     const std::vector<int64_t> zps(scales.size(), 0L);
     const std::string q_type = "per_tensor";
@@ -269,6 +269,17 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
     auto sh_fp = make_dnn_mem(lt_sh, dt::f32, tag::x);
     auto sh_dt = make_dnn_mem(lt_sh, dt::f32, tag::x);
 
+    dnnl::graph::logical_tensor lt_scales {5, dt::f32, dims_t {1},
+            dnnl::graph::logical_tensor::layout_type::strided};
+    auto src_scales_fp = make_dnn_mem(lt_scales, dt::f32, tag::x);
+    auto src_scales_dt = make_dnn_mem(lt_scales, dt::f32, tag::x);
+    auto dst_scales_fp = make_dnn_mem(lt_scales, dt::f32, tag::x);
+    auto dst_scales_dt = make_dnn_mem(lt_scales, dt::f32, tag::x);
+    src_scales_fp.set_elem(0, 1);
+    SAFE(src_scales_dt.reorder(src_scales_fp), WARN);
+    dst_scales_fp.set_elem(0, prb->attr.scales.get(DNNL_ARG_DST).scale);
+    SAFE(dst_scales_dt.reorder(dst_scales_fp), WARN);
+
     std::vector<dnnl::graph::tensor> tensors_in;
     std::vector<dnnl::graph::tensor> tensors_out;
 
@@ -333,6 +344,8 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_SCALE, sc_fp);
             ref_args.set(DNNL_ARG_SHIFT, sh_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_fp);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_fp);
 
             std::vector<data_kind_t> kinds {DST};
             if (!(prb->flags & ::lnorm::GLOB_STATS) && !(prb->dir & FLAG_INF)) {
@@ -450,6 +463,8 @@ int doit(const ::lnorm::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
             ref_args.set(DNNL_ARG_DIFF_SCALE, d_sc_fp);
             ref_args.set(DNNL_ARG_DIFF_SHIFT, d_sh_fp);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_fp);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_fp);
 
             std::vector<data_kind_t> kinds {SRC};
             if (prb->use_sc() && prb->use_sh() && (prb->dir & FLAG_WEI)) {

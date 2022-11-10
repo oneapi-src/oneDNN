@@ -2,7 +2,7 @@
 --reset
 --dir=FWD_D
 --cfg=u8s8s8,s8s8s8
---attr-oscale=per_oc:2.25,common:2.25
+--attr-scales=src:common:5*+wei:common:5*+dst:common:5*
 --batch=shapes_2d
 
 # int8 tests - with groups
@@ -12,22 +12,22 @@
 --stag=abcd
 --wtag=acbde
 --dtag=abcd
---attr-oscale=per_oc:2.25,common:2.25
+--attr-scales=src:common:5*+wei:common:5*+dst:common:5*
 --batch=shapes_2d_groups
 
 # int8 + post-ops - no groups
 --reset
 --dir=FWD_D,FWD_B
 --cfg=u8s8s8,s8s8s8
---attr-oscale=per_oc:2.25,common:2.25
---attr-zero-points=,src:common:2+dst:common:3
+--attr-scales=src:common:5*+wei:common:5*
+--attr-zero-points=,src:common:2*+dst:common:3*
 --attr-post-ops=sum,sum:0.0137735:3,relu,add:s8:common
 --batch=shapes_2d
 
 --reset
 --dir=FWD_D,FWD_B
 --cfg=u8s8s8,s8s8s8
---attr-oscale=common:2.25
+--attr-scales=src:common:5*+wei:common:5*+dst:common:5*
 --attr-post-ops=abs,elu,exp,gelu_erf,clip_v2,log,round,logistic,sqrt,square,tanh
 g1oc3ic16_oh5ih5kh3ph1_n"2d_conv:1st"
 
@@ -38,8 +38,8 @@ g1oc3ic16_oh5ih5kh3ph1_n"2d_conv:1st"
 --stag=abcd
 --wtag=acbde
 --dtag=abcd
---attr-oscale=per_oc:2.25,common:2.25
---attr-zero-points=,src:common:2+dst:common:3
+--attr-scales=src:common:5*+wei:common:5*+dst:common:5*
+--attr-zero-points=,src:common:2*+dst:common:3*
 --attr-post-ops=sum,sum:0.0137735:3,relu,add:s8:common
 --batch=shapes_2d_groups
 
@@ -49,7 +49,7 @@ g1oc3ic16_oh5ih5kh3ph1_n"2d_conv:1st"
 --stag=abcd
 --wtag=acbde
 --dtag=abcd
---attr-oscale=common:2.25
+--attr-scales=src:common:5*+wei:common:5*+dst:common:5*
 --attr-post-ops=abs,elu,exp,gelu_erf,clip_v2,log,round,logistic,sqrt,square,tanh
 g4oc16ic16_oh5ih5kh3ph1_n"2d_conv:grouped"
 

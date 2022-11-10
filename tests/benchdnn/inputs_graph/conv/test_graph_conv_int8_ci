@@ -5,19 +5,19 @@
 
 # int8
 --reset
---cfg=u8s8u8,u8s8s8 --dir=FWD_I --attr-oscale=per_oc:2.25 mb50ic64ih56oc64oh56kh1ph0
+--cfg=u8s8u8,u8s8s8 --dir=FWD_I --attr-scales=src:common:5*+wei:common:5*+dst:common:5* mb50ic64ih56oc64oh56kh1ph0
 
 # int8, asym quant
 --reset
---cfg=u8s8u8 --attr-oscale=per_oc:2.25 --attr-zero-points=src:common:2+dst:common:3 --stag=acdb --wtag=any  --dtag=acdb ic3ih224oc64oh112kh7sh2ph3
+--cfg=u8s8u8 --attr-scales=src:common:5*+wei:common:5*+dst:common:5* --attr-zero-points=src:common:2*+dst:common:3* --stag=acdb --wtag=any  --dtag=acdb ic3ih224oc64oh112kh7sh2ph3
 
 # int8 post sum with scale,zp and post relu
 --reset
---cfg=u8s8u8 --attr-oscale=per_oc:1 --attr-post-ops=sum:0.0137735:3+relu mb32ic64ih56iw56oc256oh56ow56kh1kw1sh1sw1ph0pw0dh0dw0
+--cfg=u8s8u8 --attr-scales=src:common:5*+wei:common:5*+dst:common:5* --attr-post-ops=sum:0.0137735:3+relu mb32ic64ih56iw56oc256oh56ow56kh1kw1sh1sw1ph0pw0dh0dw0
 
 # int8 post s8 sum with scale,zp and post relu
 --reset
---cfg=u8s8u8 --attr-oscale=per_oc:1 --attr-post-ops=sum:0.0137735:0:s8+relu:0.17 mb32ic64ih56iw56oc256oh56ow56kh1kw1sh1sw1ph0pw0dh0dw0
+--cfg=u8s8u8 --attr-scales=src:common:5*+wei:common:5*+dst:common:5* --attr-post-ops=sum:0.0137735:0:s8+relu:0.17 mb32ic64ih56iw56oc256oh56ow56kh1kw1sh1sw1ph0pw0dh0dw0
 
 # int8 post relu with scale
 --reset
@@ -37,7 +37,7 @@ mb50ic64ih56oc64oh56kh1ph0
 --reset
 --cfg=u8s8f32
 --dir=FWD_I,FWD_B
---attr-oscale=per_oc:2.25
+--attr-scales=src:common:5*+wei:common:5*
 # sum:1:0:s8+relu case will not work in --api=P due to sum_src_dt == dst_dt restriction
 # oneDNN graph is not limited by it, because of additional reorder
 --attr-post-ops=,relu,sum:1:0:s8+relu

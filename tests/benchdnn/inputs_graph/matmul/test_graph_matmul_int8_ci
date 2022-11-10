@@ -1,27 +1,20 @@
 # int8
 --reset
---cfg=s8s8s8 --attr-oscale=per_oc:2.25 16x512:512x256:16x256
+--cfg=s8s8s8 --attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:2.25* 16x512:512x256:16x256
 
-# int8 post bias+relu
---reset
---cfg=s8s8s8
---bia_dt=f32
---bia_mask=2
---attr-post-ops=eltwise_relu
---attr-oscale=per_oc
-128x512:512x256:128x256
+
 
 # int8 asym matmul
 --reset
 --cfg=u8s8u8
---attr-oscale=per_oc:2.25
---attr-zero-points=dst:common:3+src:common:2
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:2.25*
+--attr-zero-points=dst:common:3*+src:common:2*
 10x10x15x30:10x10x30x15:10x10x15x15
 
 # int8 post sum with scale, zp
 --reset
 --cfg=s8s8s8
---attr-oscale=per_oc:2.25 --attr-post-ops=sum:0.03:3 16x512:512x256:16x256
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:2.25* --attr-post-ops=sum:0.03:3 16x512:512x256:16x256
 
 # int8 post relu with scale
 --reset
@@ -31,8 +24,7 @@
 # x8s8f32 cases
 --reset
 --cfg=u8s8f32
---bia_dt=undef,f32
---attr-oscale=per_oc:2.25
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*
 # sum:1:0:s8 case will not work in --api=P due to sum_src_dt == dst_dt restriction
 # oneDNN graph is not limited by it, because of additional reorder
 # gelu_erf needs to be enabled below when the correctness issue will be addressed
@@ -41,42 +33,38 @@
 
 --reset
 --cfg=u8s8f32
---bia_dt=undef
---attr-oscale=per_oc:2.25
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*
 --attr-post-ops=div:f32,div:f32+add:f32 16x512:512x256:16x256
 
 # x8s8bf16 - matmul + bias
 --reset
 --cfg=u8s8bf16
---bia_dt=bf16
---attr-oscale=per_oc:2.25
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*
 --batch=shapes_int8_2d
 
 # x8s8bf16 - matmul + div
 --reset
 --cfg=u8s8bf16
---bia_dt=undef
---attr-oscale=per_oc:2.25
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*
 --attr-post-ops=,div:bf16
 --batch=shapes_int8_2d
 
 # x8s8bf16 - matmul + add
 --reset
 --cfg=u8s8bf16 
---attr-oscale=per_oc:2.25 
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*
 --attr-post-ops=add:bf16 
 16x13:13x512:16x512
 
 #x8s8bf16 - matmul + several binary post-ops
 --reset
 --cfg=u8s8bf16 
---attr-oscale=per_oc:2.25 
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*
 --attr-post-ops=div:bf16+add:bf16 
 16x13:13x512:16x512
 
 # int8 + several binary post-ops
 --reset
 --cfg=s8s8s8
---bia_dt=undef
 --attr-post-ops=add:s8:common+add:s8:common,add:s8:common+mul:f32:per_oc,mul:f32:common+add:s8:common+div:f32:per_oc
 16x256:256x1:16x1

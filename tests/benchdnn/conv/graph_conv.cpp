@@ -61,24 +61,37 @@ static int check_known_skipped_case_graph(
 static quant_data_t get_qdata_for(int arg, const ::conv::prb_t *prb) {
     const auto q_dt = convert_dt(prb->cfg[arg].dt);
     if (arg == SRC) {
+        const auto scales_src = get_scales(
+                prb->attr.scales.get(DNNL_ARG_SRC), prb->src_scales, prb->oc);
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_SRC)
                 ? 0L
                 : prb->src_zp[0];
-        return quant_data_t(q_dt, {1.0f}, {zp_val}, prb->stag);
+        const std::string q_type
+                = prb->attr.scales.get(DNNL_ARG_SRC).policy == policy_t::COMMON
+                ? "per_tensor"
+                : "per_channel";
+        return quant_data_t(q_dt, scales_src, {zp_val}, q_type, 0, prb->stag);
     } else if (arg == WEI) {
-        const auto scales = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
-                prb->wei_scales, prb->oc);
-        const std::vector<int64_t> zps(scales.size(), 0L);
+        const auto scales_wei
+                = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
+                        prb->wei_scales, prb->oc);
+        const std::vector<int64_t> zps(scales_wei.size(), 0L);
         const std::string q_type = prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy
                         == policy_t::COMMON
                 ? "per_tensor"
                 : "per_channel";
-        return quant_data_t(q_dt, scales, zps, q_type, 0, prb->wtag);
+        return quant_data_t(q_dt, scales_wei, zps, q_type, 0, prb->wtag);
     } else if (arg == DST) {
+        const auto scales_dst = get_scales(
+                prb->attr.scales.get(DNNL_ARG_DST), prb->dst_scales, prb->oc);
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_DST)
                 ? 0L
                 : prb->dst_zp[0];
-        return quant_data_t(q_dt, {1.f}, {zp_val}, prb->dtag);
+        const std::string q_type
+                = prb->attr.scales.get(DNNL_ARG_DST).policy == policy_t::COMMON
+                ? "per_tensor"
+                : "per_channel";
+        return quant_data_t(q_dt, scales_dst, {zp_val}, q_type, 0, prb->dtag);
     }
 
     BENCHDNN_PRINT(
@@ -464,18 +477,7 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
             }
             ref_args.set(binary_po_args, binary_po_fp);
             ref_args.set(prelu_po_args, prelu_po_fp);
-
-            // re-scale bias
-            dnn_mem_t bia_fp_scaled;
-            if (prb->dir == FWD_B) {
-                bia_fp_scaled = make_dnn_mem(ins[2], dt::f32, tag::x);
-                std::vector<float> scales
-                        = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
-                                prb->wei_scales, prb->oc);
-                int bia_mask = scales.size() == 1 ? 0 : 1;
-                scale_bia(bia_fp_scaled, bia_fp, scales, bia_mask);
-            }
-            ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
+            ref_args.set(DNNL_ARG_BIAS, bia_fp);
 
             check_correctness(
                     prb, {DST}, args, ref_args, ::conv::setup_cmp, res);

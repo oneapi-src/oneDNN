@@ -136,19 +136,26 @@ static int fill_zps(const ::reorder::prb_t *prb, const int64_t axis,
 }
 
 static int fill_scales(const ::reorder::prb_t *prb, const int64_t axis,
-        std::vector<float> &scales) {
+        std::vector<float> &src_scales, std::vector<float> &dst_scales) {
     if (prb->attr.scales.get(DNNL_ARG_DST).policy == attr_t::policy_t::COMMON) {
-        scales.emplace_back(prb->dst_scales[0]);
+        if (prb->attr.scales.is_def()) {
+            src_scales.emplace_back(1.f);
+            dst_scales.emplace_back(1.f);
+        } else if (prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8) {
+            //Quantize Op
+            src_scales.emplace_back(1.f);
+            dst_scales.emplace_back(prb->dst_scales[0]);
+        } else if ((prb->sdt == dnnl_s8 || prb->sdt == dnnl_u8)
+                && prb->ddt == dnnl_f32) {
+            //Dequantize Op
+            src_scales.emplace_back(prb->src_scales[0]);
+            dst_scales.emplace_back(1.f);
+        }
     } else {
         //TODO: needs update for PER_DIM_01
         for (int i = 0; i < prb->dims[axis]; i++) {
-            scales.emplace_back(prb->dst_scales[i]);
-        }
-    }
-    //Need to inverse scale
-    if (prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8) {
-        for (size_t i = 0; i < scales.size(); i++) {
-            scales[i] = 1.f / scales[i];
+            src_scales.emplace_back(prb->src_scales[i]);
+            dst_scales.emplace_back(prb->dst_scales[i]);
         }
     }
     return OK;
@@ -156,12 +163,19 @@ static int fill_scales(const ::reorder::prb_t *prb, const int64_t axis,
 
 static void prepare_runtime_scales(const ::reorder::prb_t *prb,
         dnn_mem_t &scales_dt, const dnnl::graph::logical_tensor &in,
-        std::vector<float> scales, int64_t axis) {
+        std::vector<float> src_scales, std::vector<float> dst_scales,
+        int64_t axis) {
     // scales is required input for dynamic q/deq
     scales_dt = make_dnn_mem(in, dt::f32, tag::x);
-    fill_scales(prb, axis, scales);
-    for (size_t i = 0; i < scales.size(); i++) {
-        scales_dt.set_elem(i, scales[i]);
+    fill_scales(prb, axis, src_scales, dst_scales);
+    if (is_quantize(convert_dt(prb->sdt), convert_dt(prb->ddt))) {
+        for (size_t i = 0; i < dst_scales.size(); i++) {
+            scales_dt.set_elem(i, static_cast<int32_t>(dst_scales[i]));
+        }
+    } else {
+        for (size_t i = 0; i < src_scales.size(); i++) {
+            scales_dt.set_elem(i, static_cast<int32_t>(src_scales[i]));
+        }
     }
 }
 
@@ -207,10 +221,10 @@ fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
     const auto sz_dims
             = qtype == "per_channel" ? dims_t {prb->dims[axis]} : dims_t {1};
 
-    std::vector<float> scales;
+    std::vector<float> src_scales, dst_scales;
     std::vector<int64_t> src_zps, dst_zps;
     if (!runtime) {
-        fill_scales(prb, axis, scales);
+        fill_scales(prb, axis, src_scales, dst_scales);
         fill_zps(prb, axis, src_zps, dst_zps);
     }
 
@@ -231,7 +245,7 @@ fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
 
         dnnl::graph::op dequantize_op(op0_id, dnnl::graph::op::kind::Dequantize,
                 graph.stringify_id(op0_id));
-        set_quant_op_attr(dequantize_op, qtype, default_scales, src_zps, axis);
+        set_quant_op_attr(dequantize_op, qtype, src_scales, src_zps, axis);
 
         graph.append(op0_id, dequantize_op, {op0_src_id}, {op0_dst_id});
 
@@ -253,7 +267,7 @@ fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
         dnnl::graph::op quantize_op(op2_id, dnnl::graph::op::kind::Quantize,
                 graph.stringify_id(op2_id));
         quantize_op.set_attr("qtype", qtype);
-        set_quant_op_attr(quantize_op, qtype, scales, dst_zps, axis);
+        set_quant_op_attr(quantize_op, qtype, dst_scales, dst_zps, axis);
 
         graph.append(op2_dst_id, quantize_op, {op1_dst_id}, {op2_dst_id});
     } else if (is_reorder || is_tc || (!runtime && is_qdq)) {
@@ -285,6 +299,7 @@ fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
         dnnl::graph::op aop(op_id, op_kind, graph.stringify_id(op_id));
         if (is_qdq) {
             const auto zps = is_quantize(src_dt, dst_dt) ? dst_zps : src_zps;
+            const auto scales = is_quantize(src_dt, dst_dt) ? dst_scales : src_scales;
             set_quant_op_attr(aop, qtype, scales, zps, axis);
         }
 
@@ -349,7 +364,7 @@ fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
 
         dnnl::graph::op quantize_op(op1_id, dnnl::graph::op::kind::Quantize,
                 graph.stringify_id(op1_id));
-        set_quant_op_attr(quantize_op, qtype, scales, dst_zps, axis);
+        set_quant_op_attr(quantize_op, qtype, dst_scales, dst_zps, axis);
 
         graph.append(op1_id, quantize_op, {op0_dst_id}, {op1_dst_id});
     } else {
@@ -418,7 +433,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     SAFE(src_dt.reorder(src_fp), WARN);
 
     dnn_mem_t scales_dt, zps_dt;
-    std::vector<float> scales;
+    std::vector<float> src_scales, dst_scales;
     std::vector<int64_t> src_zps, dst_zps;
     if (prb->attr.scales.get(DNNL_ARG_DST).runtime) {
         // axis is used only for PER_DIM_0 and PER_DIM_1 policies
@@ -427,7 +442,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
                 ? 1
                 : 0;
 
-        prepare_runtime_scales(prb, scales_dt, ins[1], scales, axis);
+        prepare_runtime_scales(prb, scales_dt, ins[1], src_scales, dst_scales, axis);
         maybe_prepare_runtime_zero_points(
                 prb, zps_dt, ins[2], src_zps, dst_zps, axis);
     }

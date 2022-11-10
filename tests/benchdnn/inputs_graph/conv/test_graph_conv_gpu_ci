@@ -40,7 +40,7 @@ g1mb1ic3id116ih132iw132oc32od114oh130ow130kd3kh3kw3sd1sh1sw1pd0ph0pw0dd0dh0dw0n"
 
 # int8
 --reset
---cfg=u8s8u8,u8s8s8 --dir=FWD_I --attr-oscale=per_oc:2.25 mb50ic64ih56oc64oh56kh1ph0
+--cfg=u8s8u8,u8s8s8 --dir=FWD_I --attr-scales=wei:per_oc:5* mb50ic64ih56oc64oh56kh1ph0
 
 # int8 post sum with scale,zp and post relu
 --reset
