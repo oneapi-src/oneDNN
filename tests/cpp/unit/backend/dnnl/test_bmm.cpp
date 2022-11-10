@@ -1423,3 +1423,141 @@ TEST(ExecuteSubgraphInt8, U8u8bf16DivBmm) {
             impl::status::success);
     strm.wait();
 }
+
+TEST(ExecuteSubgraphInt8, U8u8bf16DivBmmUnfusible) {
+    impl::engine_t &engine = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    std::vector<int64_t> src_shape = {1, 12, 128, 64};
+    std::vector<int64_t> weight_shape = {1, 12, 64, 128};
+    std::vector<int64_t> dst_shape = {1, 12, 128, 128};
+    std::vector<int64_t> div_src1_shape = {1, 12, 128, 64};
+
+    test::vector<uint8_t> src_data(product(src_shape));
+    test::vector<uint8_t> weight_data(product(weight_shape));
+
+    // u8 2 s8 shift by using reorder with -128 zps is not supported on
+    // GPU
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "Skip on GPU device.");
+
+    // oneDNN binary primitive doesn't support bf16:bf16->bf16 divide on cpu
+    // machine without vnni
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF(engine.kind() == impl::engine_kind::cpu
+                    && isa < dnnl_cpu_isa_avx512_core_vnni,
+            "Skip on non-avx512 CPU device.");
+
+    // random generate src, weight data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> src_distribution(0.0f, 255.f);
+    std::uniform_real_distribution<float> weight_distribution(0.0f, 255.f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return src_distribution(generator); });
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return weight_distribution(generator); });
+    float scale_src = 1 / 255.f;
+    float scale_wei = 1 / 255.f;
+    int64_t zp_src = 110;
+    int64_t zp_wei = 114;
+
+    impl::op_t dqdata_op(0, impl::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(impl::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(impl::op_attr::axis, 0);
+
+    impl::op_t dqweight_op(1, impl::op_kind::Dequantize, "dqweight_op");
+    dqweight_op.set_attr<std::string>(impl::op_attr::qtype, "per_tensor");
+    dqweight_op.set_attr<std::vector<int64_t>>(impl::op_attr::zps, {zp_wei});
+    dqweight_op.set_attr<std::vector<float>>(
+            impl::op_attr::scales, {scale_wei});
+    dqweight_op.set_attr<int64_t>(impl::op_attr::axis, 1);
+
+    impl::op_t tcdata_op {2, impl::op_kind::TypeCast, "typecast_data"};
+    impl::op_t tcweight_op {3, impl::op_kind::TypeCast, "typecast_weight"};
+
+    impl::op_t matmul_op(4, impl::op_kind::MatMul, "matmul_op");
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(impl::op_attr::transpose_b, false);
+
+    impl::op_t binary_op(5, impl::op_kind::Divide, "binary_div");
+    binary_op.set_attr<std::string>(impl::op_attr::auto_broadcast, "numpy");
+
+    // prepare logical tensor
+    impl::logical_tensor_t src
+            = utils::logical_tensor_init(0, src_shape, impl::data_type::u8);
+    impl::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(1, src_shape, impl::data_type::f32);
+    impl::logical_tensor_t src_bf16
+            = utils::logical_tensor_init(2, src_shape, impl::data_type::bf16);
+    impl::logical_tensor_t weight
+            = utils::logical_tensor_init(3, weight_shape, impl::data_type::u8);
+    impl::logical_tensor_t weight_f32_dq
+            = utils::logical_tensor_init(4, weight_shape, impl::data_type::f32);
+    impl::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+            5, weight_shape, impl::data_type::bf16);
+    impl::logical_tensor_t dst_bf16
+            = utils::logical_tensor_init(6, dst_shape, impl::data_type::bf16);
+    impl::logical_tensor_t div_src1 = utils::logical_tensor_init(
+            7, div_src1_shape, impl::data_type::bf16);
+    impl::logical_tensor_t div_bf16
+            = utils::logical_tensor_init(8, src_shape, impl::data_type::bf16);
+
+    dqdata_op.add_input(src);
+    dqdata_op.add_output(src_f32_dq);
+
+    dqweight_op.add_input(weight);
+    dqweight_op.add_output(weight_f32_dq);
+
+    tcdata_op.add_input(src_f32_dq);
+    tcdata_op.add_output(src_bf16);
+
+    tcweight_op.add_input(weight_f32_dq);
+    tcweight_op.add_output(weight_bf16);
+
+    binary_op.add_input(src_bf16);
+    binary_op.add_input(div_src1);
+    binary_op.add_output(div_bf16);
+
+    matmul_op.add_input(div_bf16);
+    matmul_op.add_input(weight_bf16);
+    matmul_op.add_output(dst_bf16);
+
+    impl::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&dqdata_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&dqweight_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&matmul_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&tcdata_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&tcweight_op), impl::status::success);
+    ASSERT_EQ(g.add_op(&binary_op), impl::status::success);
+    ASSERT_EQ(g.build_graph(), impl::status::success);
+
+    impl::pass::pass_base_ptr apass
+            = get_pass("x8x8bf16_div_matmul_fusion_cpu");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    impl::compiled_partition_t cp(p);
+
+    std::vector<const impl::logical_tensor_t *> lt_ins {
+            &src, &weight, &div_src1};
+    std::vector<const impl::logical_tensor_t *> lt_outs {&dst_bf16};
+
+    ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, &engine), impl::status::success);
+
+    test::vector<float> div_src1_data(product(div_src1_shape));
+    test::vector<float> dst_data(product(dst_shape));
+    impl::tensor_t src_ts(src, &engine, src_data.data());
+    impl::tensor_t weight_ts(weight, &engine, weight_data.data());
+    impl::tensor_t div_src1_ts(div_src1, &engine, div_src1_data.data());
+    impl::tensor_t dst_ts(dst_bf16, &engine, dst_data.data());
+    ASSERT_EQ(cp.execute(&strm, {src_ts, weight_ts, div_src1_ts}, {dst_ts}),
+            impl::status::success);
+    strm.wait();
+}
