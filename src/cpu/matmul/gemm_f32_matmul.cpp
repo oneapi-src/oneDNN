@@ -73,10 +73,8 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
 
     nthr_ = dnnl_get_max_threads();
     gemm_based::book_acc_scratchpad(*this, params_, sizeof(acc_data_t), nthr_);
-    if (N() != DNNL_RUNTIME_DIM_VAL) {
-        auto scratchpad = scratchpad_registry().registrar();
-        book_precomputed_scales(scratchpad, attr()->scales_, N());
-    }
+    auto scratchpad = scratchpad_registry().registrar();
+    book_precomputed_scales(scratchpad, attr()->scales_, N());
 
     return status::success;
 }
@@ -109,7 +107,7 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
         if (!attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
                 && !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()
                 && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ != 0) {
-            // This case requires scratchpad
+            // This case requires scratchpad with unknown size
             if (N() == DNNL_RUNTIME_DIM_VAL) return false;
         }
         return ok;
