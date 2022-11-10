@@ -70,6 +70,7 @@ struct ocl_stream_t : public compute::compute_stream_t {
     }
 
     void before_exec_hook() override;
+    void after_exec_hook() override;
 
     cl_command_queue queue() const { return queue_; }
 

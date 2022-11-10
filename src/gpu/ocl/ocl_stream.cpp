@@ -113,6 +113,10 @@ void ocl_stream_t::before_exec_hook() {
     if (is_profiling_enabled()) notify_before_exec();
 }
 
+void ocl_stream_t::after_exec_hook() {
+    set_deps({});
+}
+
 status_t ocl_stream_t::copy(
         const memory_storage_t &src, const memory_storage_t &dst, size_t size) {
 

@@ -41,6 +41,8 @@ status_t dnnl_sycl_interop_primitive_execute(
     auto *sycl_stream
             = utils::downcast<dnnl::impl::sycl::sycl_stream_t *>(stream);
 
+    sycl_stream->before_exec_hook();
+
     if (deps_ != nullptr) {
         const auto &deps = *(const std::vector<::sycl::event> *)deps_;
         sycl_stream->set_deps(deps);
@@ -58,6 +60,8 @@ status_t dnnl_sycl_interop_primitive_execute(
     ::sycl::event return_event = sycl_stream->get_output_event();
     if (return_event_ != nullptr)
         *(::sycl::event *)return_event_ = return_event;
+
+    sycl_stream->after_exec_hook();
 
     return status::success;
 }

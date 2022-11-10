@@ -89,8 +89,6 @@ status_t primitive_execute(
     auto stream = ctx.stream();
     status_t status = success;
 
-    stream->before_exec_hook();
-
 #if defined(DNNL_ENABLE_ITT_TASKS)
     const bool enable_itt = itt::get_itt(itt::__itt_task_level_low);
     if (enable_itt)
@@ -116,8 +114,6 @@ status_t primitive_execute(
 #if defined(DNNL_ENABLE_ITT_TASKS)
     if (enable_itt) itt::primitive_task_end();
 #endif
-
-    stream->after_exec_hook();
 
     if (msan_enabled) unpoison_outputs(ctx.args());
 
@@ -180,6 +176,8 @@ status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
             primitive_iface->pd()->impl().get(), nargs, c_args, args);
     if (status != status::success) return status;
 
+    stream->before_exec_hook();
+
     exec_ctx_t ctx(stream, std::move(args));
 #ifdef DNNL_ENABLE_STACK_CHECKER
     stack_checker::stack_checker_t sc("dnnl_primitive_execute");
@@ -187,11 +185,15 @@ status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
     bool is_wino
             = std::string(pd_iface->info()).find("wino") != std::string::npos;
     if (!is_wino) {
-        return sc.check(
+        status = sc.check(
                 dnnl::impl::primitive_execute, primitive_iface, std::ref(ctx));
     }
+#else
+    status = dnnl::impl::primitive_execute(primitive_iface, ctx);
 #endif
-    return dnnl::impl::primitive_execute(primitive_iface, ctx);
+    stream->after_exec_hook();
+
+    return status;
 }
 
 status_t dnnl_primitive_get_primitive_desc(
