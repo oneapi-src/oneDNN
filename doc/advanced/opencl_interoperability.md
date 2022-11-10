@@ -66,6 +66,26 @@ To construct a oneDNN memory object, use one of the following interfaces:
 To identify whether a memory object is USM-based or buffer-based,
 dnnl::ocl_interop::get_memory_kind() query can be used.
 
+## Handling Dependencies
+
+OpenCL queues could be in-order or out-of-order. For out-of-order queues, the
+order of execution is defined by the dependencies between OpenCL tasks therefore
+users must handle the dependencies using OpenCL events.
+
+oneDNN provides two mechanisms to handle dependencies:
+
+1. dnnl::ocl_interop::execute() interface
+
+    This interface enables the user to pass dependencies between primitives
+    using OpenCL events. In this case, the user is responsible for passing
+    proper dependencies for every primitive execution.
+
+2. In-order oneDNN stream
+
+    oneDNN enables the user to create in-order streams when submitted primitives
+    are executed in the order they were submitted. Using in-order streams
+    prevents possible read-before-write or concurrent read/write issues.
+
 @note oneDNN follows retain/release OpenCL semantics when using OpenCL objects
 during construction. An OpenCL object is retained on construction and released
 on destruction. This ensures that the OpenCL object will not be destroyed while
@@ -73,6 +93,9 @@ the oneDNN object stores a reference to it.
 
 @note The access interfaces do not retain the OpenCL object. It is the user's
 responsibility to retain the returned OpenCL object if necessary.
+
+@note It's the user's responsibility to manage lifetime of the OpenCL event
+returned by dnnl::ocl_interop::execute().
 
 @note USM memory doesn't support retain/release OpenCL semantics. When
 constructing a oneDNN memory object using a user-provided USM pointer oneDNN
