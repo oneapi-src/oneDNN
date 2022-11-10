@@ -31,13 +31,13 @@ namespace jit {
 status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c,
+        const memory_storage_t *ao, const memory_storage_t *bo,
         const memory_storage_t &co, int po_count,
         const memory_storage_t **po_srcs, int64_t offset_a, int64_t offset_b,
         int64_t offset_c, int32_t offset_co, int32_t *offset_po_src,
         int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
-        int32_t k0, float alpha, float beta, int16_t ao, int16_t bo,
-        int32_t cmask, bool last_k_block, bool swapab,
-        bool disable_hilbert) const {
+        int32_t k0, float alpha, float beta, int32_t cmask, bool last_k_block,
+        bool swapab, bool disable_hilbert) const {
 
     uint32_t flags = 0;
     bool k_parallel
@@ -81,10 +81,8 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     set_scalar_arg_cvt(arg_list, argn++, alpha, scalar_type_);
     set_scalar_arg_cvt(arg_list, argn++, beta, scalar_type_);
 
-    if (pd()->with_ab_zero_points()) {
-        uint32_t abo = uint16_t(-ao) | (uint16_t(-bo) << 16);
-        arg_list.set(argn++, abo);
-    }
+    if (pd()->with_a_zero_points()) arg_list.set(argn++, *ao);
+    if (pd()->with_b_zero_points()) arg_list.set(argn++, *bo);
     if (pd()->with_c_zero_points() || pd()->with_bias()
             || pd()->with_sum_ab()) {
         arg_list.set(argn++, co);
@@ -222,6 +220,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &bias = GEMM_CTX_ARG_STORAGE(bias);
     auto &sum_ab = GEMM_CTX_ARG_STORAGE(sum_ab);
     auto *co = &c_zp;
+    memory_storage_t *ao = nullptr, *bo = nullptr;
 
     const memory_storage_t *po_srcs[GEMM_MAX_PO];
 
@@ -231,7 +230,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     for (int i = 0; i < po_count; i++) {
         auto &src = pd()->binary_srcs()[i];
         switch (src.type) {
-            case binary_src_t::binary:
+            case pd_t::binary_src_t::binary:
                 po_srcs[i]
                         = ctx.args()
                                   .exec_args
@@ -239,8 +238,8 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                                           | DNNL_ARG_SRC_1)
                                   .mem->memory_storage();
                 break;
-            case binary_src_t::bias: po_srcs[i] = &bias; break;
-            case binary_src_t::scales:
+            case pd_t::binary_src_t::bias: po_srcs[i] = &bias; break;
+            case pd_t::binary_src_t::scales:
                 switch (src.index) {
                     case DNNL_ARG_WEIGHTS:
                         po_srcs[i] = &GEMM_CTX_ARG_STORAGE(a_scales);
@@ -274,7 +273,6 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
         if (po_srcs[i])
             po_offsets0[i] = po_srcs[i]->offset() / problem.Tbinary[i];
 
-    int16_t ao = 0, bo = 0;
     int cmask = 0;
 
     if (pd()->with_c_zero_points()) {
@@ -291,8 +289,10 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
         cmask = pd()->sum_ab_cmask();
     }
 
-    if (pd()->with_ab_zero_points()) {
-        // TODO: Add handling for RT A & B zero points
+    if (pd()->with_a_zero_points() || pd()->with_b_zero_points()) {
+        ao = &GEMM_CTX_ARG_STORAGE(a_zero_point);
+        bo = &GEMM_CTX_ARG_STORAGE(b_zero_point);
+        if (swapab) std::swap(ao, bo);
     }
 
     if (swapab) {
@@ -337,9 +337,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
         if (k_parallel_global && beta != 1.0f
                 && (k > k0 * nocopy_info()->wg[2])) {
-            status = launch_nocopy(ctx, compute_stream, a, b, c, *co, po_count,
-                    po_srcs, off_a0, off_b0, off_c0, int32_t(off_co0),
-                    po_offsets0, lda, ldb, ldc, m, n, 0, 1, 1.0f, beta, 0, 0, 0,
+            status = launch_nocopy(ctx, compute_stream, a, b, c, ao, bo, *co,
+                    po_count, po_srcs, off_a0, off_b0, off_c0, int32_t(off_co0),
+                    po_offsets0, lda, ldb, ldc, m, n, 0, 1, 1.0f, beta, 0,
                     false, swapab, true);
             beta = 1.0f;
         }
@@ -391,11 +391,11 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 }
 
                 float eff_beta = (Bk == 0) ? beta : 1.0f;
-                status = launch_nocopy(ctx, compute_stream, a, b, c, *co,
-                        po_count, po_srcs, off_a_src, off_b_src, off_c, off_co,
-                        po_offsets, lda, ldb, ldc, size_m, size_n, size_k, k0,
-                        alpha, eff_beta, ao, bo, cmask, last_k_block, swapab,
-                        disable_hilbert);
+                status = launch_nocopy(ctx, compute_stream, a, b, c, ao, bo,
+                        *co, po_count, po_srcs, off_a_src, off_b_src, off_c,
+                        off_co, po_offsets, lda, ldb, ldc, size_m, size_n,
+                        size_k, k0, alpha, eff_beta, cmask, last_k_block,
+                        swapab, disable_hilbert);
 
                 if (status) return status;
             }

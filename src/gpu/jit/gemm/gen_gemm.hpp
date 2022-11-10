@@ -26,12 +26,10 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/kernel.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
-#include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel.hpp"
+#include "gpu/jit/gemm/jit_gemm_pd.hpp"
 #include "gpu/jit/jit_post_op_injector.hpp"
 #include "gpu/primitive_conf.hpp"
-
-#define GEMM_MAX_PO 36
 
 namespace dnnl {
 namespace impl {
@@ -39,15 +37,8 @@ namespace gpu {
 namespace jit {
 
 struct gen_gemm_t : public gpu_gemm_t {
-    struct binary_src_t {
-        enum type_t { none, scales, bias, binary } type;
-        int index;
-
-        binary_src_t(type_t type_, int index_) : type(type_), index(index_) {}
-    };
-
-    struct pd_t : public gpu_gemm_pd_t {
-        using gpu_gemm_pd_t::gpu_gemm_pd_t;
+    struct pd_t : public jit_gemm_pd_t {
+        using jit_gemm_pd_t::jit_gemm_pd_t;
         using kernel_desc_t = gen_gemm_nocopy_kernel_desc_t;
 
         DECLARE_COMMON_PD_T("jit:gemm:any", gen_gemm_t);
@@ -87,17 +78,12 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
                     && utils::one_of(d->a_type(), u8, s8)) {
-                ok = ok && utils::one_of(d->a_type(), u8, s8)
-                        && utils::one_of(d->b_type(), u8, s8)
-                        && (attr()->zero_points_.has_default_values(
-                                    DNNL_ARG_DST)
-                                || !attr()->zero_points_.defined(DNNL_ARG_DST));
+                ok = ok && utils::one_of(d->b_type(), u8, s8);
 
-                if (!attr()->zero_points_.has_default_values(DNNL_ARG_SRC))
-                    return status::unimplemented;
-
-                if (!attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS))
-                    return status::unimplemented;
+                a_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC);
+                b_zp_ = !attr()->zero_points_.has_default_values(
+                        DNNL_ARG_WEIGHTS);
+                if (swap_ab_) std::swap(a_zp_, b_zp_);
 
                 int cmask_a = 0, cmask_b = 0, cmask_c = 0;
                 attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &cmask_b);
@@ -141,100 +127,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                                     && (attr()->zero_points_.has_default_values(
                                             DNNL_ARG_DST)));
 
-            // Examine post-ops and remember binary srcs.
-            post_ops_ = attr()->post_ops_;
-            binary_srcs_.reserve(post_ops_.len() + 4);
-
-            bool with_sum = false;
-            bool sum_at_begin = false;
-
-            for (int i = 0; i < post_ops_.len(); i++) {
-                const auto &e = post_ops_.entry_[i];
-                switch (e.kind) {
-                    case binary:
-                        ok &= gemm_kernel_generator_t<ngen::HW::Unknown>::
-                                supportedBinaryOp(e.binary.alg);
-                        binary_srcs_.push_back(
-                                binary_src_t {binary_src_t::binary, int(i)});
-                        break;
-                    case sum:
-                        ok &= !with_sum;
-                        with_sum = true;
-                        sum_at_begin = (i == 0);
-                        binary_srcs_.push_back(
-                                binary_src_t {binary_src_t::none, 0});
-                        beta_ = e.sum.scale;
-                        break;
-                    case eltwise:
-                        ok &= jit_eltwise_injector_f32_is_supported(
-                                e.eltwise.alg);
-                        binary_srcs_.push_back(
-                                binary_src_t {binary_src_t::none, 0});
-                        break;
-                    default: return status::unimplemented;
-                }
-            }
-
-            if (!ok) return status::unimplemented;
-
-            // If scales are present, convert them and any bias to binary post-ops.
-            const auto *wei_scales = &attr()->scales_.get(DNNL_ARG_WEIGHTS);
-            const auto *src_scales = &attr()->scales_.get(DNNL_ARG_SRC);
-            const auto *c_scales = &attr()->scales_.get(DNNL_ARG_DST);
-
-            bias_via_binary_ = with_bias()
-                    && (!wei_scales->has_default_values()
-                            || !src_scales->has_default_values());
-            if (bias_via_binary_) {
-                auto status
-                        = post_ops_.prepend_binary(binary_add, &d->bias_desc);
-                if (status != status::success) return status;
-                binary_srcs_.insert(binary_srcs_.begin(),
-                        binary_src_t {binary_src_t::bias, 0});
-            }
-
-            if (!wei_scales->has_default_values()) {
-                const auto &mask = wei_scales->mask_;
-                ok = ok && (mask == 0 || mask == (1 << (d->c_desc.ndims - 1)));
-
-                dim_t dims = {(mask > 0) ? d->m() : 1};
-                memory_desc_init_by_tag(
-                        wei_scales_md, 1, &dims, f32, format_tag::a);
-
-                auto status
-                        = post_ops_.prepend_binary(binary_mul, &wei_scales_md);
-                if (status != status::success) return status;
-
-                binary_srcs_.insert(binary_srcs_.begin(),
-                        binary_src_t {binary_src_t::scales, DNNL_ARG_WEIGHTS});
-            }
-            if (!src_scales->has_default_values()) {
-                ok = ok && (src_scales->mask_ == 0);
-
-                dim_t dims = {1};
-                memory_desc_init_by_tag(
-                        src_scales_md, 1, &dims, f32, format_tag::a);
-
-                auto status
-                        = post_ops_.prepend_binary(binary_mul, &src_scales_md);
-                if (status != status::success) return status;
-
-                binary_srcs_.insert(binary_srcs_.begin(),
-                        binary_src_t {binary_src_t::scales, DNNL_ARG_SRC});
-            }
-            if (!c_scales->has_default_values()) {
-                ok = ok && (c_scales->mask_ == 0);
-
-                dim_t dims = {1};
-                memory_desc_init_by_tag(
-                        c_scales_md, 1, &dims, f32, format_tag::a);
-
-                auto status = post_ops_.append_binary(binary_div, &c_scales_md);
-                if (status != status::success) return status;
-
-                binary_srcs_.push_back(
-                        binary_src_t {binary_src_t::scales, DNNL_ARG_DST});
-            }
+            auto status = init_post_ops();
+            if (status != status::success) return status;
 
             bool with_binary = (post_ops_.find(binary) != -1);
 
@@ -269,7 +163,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (types::data_type_size(acc_type) < 4) {
                 // Limited post-op support for low-precision accumulation.
-                ok &= !with_binary && IMPLICATION(with_sum, sum_at_begin);
+                ok &= !with_binary && IMPLICATION(with_sum_, sum_at_begin_);
             }
 
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
@@ -282,14 +176,15 @@ struct gen_gemm_t : public gpu_gemm_t {
                 mode = static_cast<decltype(mode)>(
                         mode | kernel_desc_t::mode_bf16x1);
 
-            auto status = kernel_desc_.select_kernel(arch_, stepping,
+            status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), mode, batch_dims(), eff_transa(),
                     eff_transb(), eff_trans_bias(), swap_ab(),
-                    with_ab_zero_points(), with_c_zero_points(), with_bias(),
-                    sum_ab(), alpha(), beta(), post_ops_, eff_a_type(),
-                    eff_b_type(), desc()->c_type(), co_type, acc_type,
-                    eff_align_a(), eff_align_b(), align_c(), eff_m(), eff_n(),
-                    d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch());
+                    with_a_zero_points(), with_b_zero_points(),
+                    with_c_zero_points(), with_bias(), sum_ab(), alpha(),
+                    beta(), post_ops_, eff_a_type(), eff_b_type(),
+                    desc()->c_type(), co_type, acc_type, eff_align_a(),
+                    eff_align_b(), align_c(), eff_m(), eff_n(), d->k(),
+                    eff_lda(), eff_ldb(), d->ldc(), d->batch());
 
             if (status != status::success) return status;
 
@@ -398,10 +293,6 @@ struct gen_gemm_t : public gpu_gemm_t {
             return gpu_gemm_pd_t::set_default_formats();
         }
 
-        bool with_c_zero_points() const {
-            return !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
-        }
-
         float alpha() const { return 1.0f; }
 
         float beta() const { return beta_; }
@@ -429,7 +320,12 @@ struct gen_gemm_t : public gpu_gemm_t {
             }
         }
 
-        bool with_ab_zero_points() const { return ab_zp_; }
+        bool with_a_zero_points() const { return a_zp_; }
+        bool with_b_zero_points() const { return b_zp_; }
+
+        bool with_c_zero_points() const {
+            return !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
+        }
 
         bool swap_ab() const { return swap_ab_; }
 
@@ -481,50 +377,13 @@ struct gen_gemm_t : public gpu_gemm_t {
             return &kernel_desc_;
         }
 
-        const post_ops_t *post_ops() const { return &post_ops_; }
-        const std::vector<binary_src_t> &binary_srcs() const {
-            return binary_srcs_;
-        }
-
-        dim_t ld_binary(int idx) const {
-            switch (binary_srcs_[idx].type) {
-                case binary_src_t::binary: {
-                    const auto &entry = post_ops_.entry_[idx];
-                    assert(entry.kind == primitive_kind::binary);
-                    return gemm_desc_t::get_ld(entry.binary.src1_desc);
-                }
-                case binary_src_t::bias: return desc()->ld_bias();
-                default: return 1;
-            }
-        }
-
-        dim_t stride_binary(int idx, int stride = 0) const {
-            switch (binary_srcs_[idx].type) {
-                case binary_src_t::binary: {
-                    const auto &entry = post_ops_.entry_[idx];
-                    assert(entry.kind == primitive_kind::binary);
-                    return gemm_desc_t::get_stride(
-                            entry.binary.src1_desc, stride);
-                }
-                default: return 0;
-            }
-        }
-
-        float beta_ = 0.0f;
-
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
         size_t dyn_offset_c = 0;
         size_t dyn_offset_co = 0;
 
         bool swap_ab_ = false;
-        bool ab_zp_ = false;
-        bool bias_via_binary_ = false;
-
-        post_ops_t post_ops_;
-        std::vector<binary_src_t> binary_srcs_;
-
-        memory_desc_t wei_scales_md, src_scales_md, c_scales_md;
+        bool a_zp_ = false, b_zp_ = false;
 
         const compute::device_info_t *dev_info_;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
@@ -563,13 +422,13 @@ private:
     status_t launch_nocopy(const gemm_exec_ctx_t &ctx,
             compute::compute_stream_t *s, const memory_storage_t &a,
             const memory_storage_t &b, const memory_storage_t &c,
-            const memory_storage_t &co, int binary_count,
-            const memory_storage_t **binary, int64_t offset_a, int64_t offset_b,
-            int64_t offset_c, int32_t offset_co, int32_t *offset_binary,
+            const memory_storage_t *ao, const memory_storage_t *bo,
+            const memory_storage_t &co, int po_count,
+            const memory_storage_t **po_src, int64_t offset_a, int64_t offset_b,
+            int64_t offset_c, int32_t offset_co, int32_t *offset_po_src,
             int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n,
-            int32_t k, int32_t k0, float alpha, float beta, int16_t ao,
-            int16_t bo, int32_t cmask, bool last_k_block, bool swapab,
-            bool disable_hilbert) const;
+            int32_t k, int32_t k0, float alpha, float beta, int32_t cmask,
+            bool last_k_block, bool swapab, bool disable_hilbert) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     const CommonDriverInfo *nocopy_info() const {
