@@ -1067,6 +1067,7 @@ struct GEMMState : public CommonState {
     struct Inputs {
         ngen::Subregister A, B, C[2], CO, base; // q
         ngen::Subregister ao, bo, abo; // w/w/ud
+        ngen::Subregister aoPtr, boPtr; // q
         ngen::Subregister offsetA, offsetB, offsetC[2]; // q
         ngen::Subregister offsetCO; // d
         ngen::Subregister lda, ldb, ldc[2], ldco; // d
