@@ -121,11 +121,9 @@ struct gen_gemm_nocopy_kernel_desc_t : public gen_gemm_kernel_desc_t {
 };
 
 struct gen_gemm_xe_systolic_kernel_desc_t : public gen_gemm_kernel_desc_t {
-    enum class offset_t { none, fixed, row, column, runtime };
-
     status_t select_kernel(compute::gpu_arch_t arch, int eu_count,
-            int batch_dims, bool packed_c, offset_t a_offset, offset_t b_offset,
-            offset_t c_offset, offset_t bias, float alpha, float beta,
+            int batch_dims, bool packed_c, bool a_offset, bool b_offset,
+            bool c_offset, bool bias, float alpha, float beta,
             const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
             data_type_t c_type, data_type_t co_type, data_type_t acc_type,
             dim_t m, dim_t n, dim_t k, dim_t batch, int unroll_m, int unroll_n,

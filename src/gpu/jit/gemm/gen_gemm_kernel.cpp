@@ -308,8 +308,8 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 
 status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
         compute::gpu_arch_t arch, int eu_count, int batch_dims, bool packed_c,
-        offset_t a_offset, offset_t b_offset, offset_t c_offset, offset_t bias,
-        float alpha, float beta, const post_ops_t &post_ops, data_type_t a_type,
+        bool a_offset, bool b_offset, bool c_offset, bool bias, float alpha,
+        float beta, const post_ops_t &post_ops, data_type_t a_type,
         data_type_t b_type, data_type_t c_type, data_type_t co_type,
         data_type_t acc_type, dim_t m, dim_t n, dim_t k, dim_t batch,
         int unroll_m, int unroll_n, bool alt) {
@@ -322,6 +322,8 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     n_ = n;
     k_ = k;
     eu_count_ = eu_count;
+    a_offset_ = a_offset;
+    b_offset_ = b_offset;
 
     if (!utils::one_of(hw_, HW::XeHP, HW::XeHPG, HW::XeHPC))
         return status::unimplemented;
@@ -359,26 +361,19 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
         problem_.batch = BatchMode::Strided;
         problem_.batchDims = batch_dims;
     }
-    if (a_offset == offset_t::fixed && b_offset == offset_t::fixed)
-        problem_.abOffset = ABOffset::Load;
-    else if (a_offset != offset_t::none || b_offset != offset_t::none)
-        return status::unimplemented;
+    if (a_offset || b_offset) problem_.abOffset = ABOffset::Load;
     if (alpha == 1.0f) problem_.alpha_real = alpha;
     if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
-    if (post_ops.len() > 0) {
-        problem_.postOps = post_ops;
-        problem_.Ts = Type::f32;
-    }
-    if (c_offset == offset_t::runtime)
-        problem_.cOffset = COffset::Post;
-    else if (c_offset != offset_t::none)
-        return status::unimplemented;
 
-    if (bias == offset_t::runtime) {
+    auto status = transfer_post_ops(post_ops);
+    if (status != status::success) return status;
+
+    if (c_offset) problem_.cOffset = COffset::Post;
+
+    if (bias) {
         if (problem_.cOffset != COffset::None) return status::unimplemented;
         problem_.cOffset = COffset::Pre;
-    } else if (bias != offset_t::none)
-        return status::unimplemented;
+    }
 
     if (problem_.cOffset != COffset::None) {
         problem_.CO.crosspack = 1;
