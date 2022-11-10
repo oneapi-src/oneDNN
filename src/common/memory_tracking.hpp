@@ -475,12 +475,14 @@ struct grantor_t {
         , exec_ctx_(parent.exec_ctx_) {}
 
     template <typename T = void>
-    T *get(const key_t &key) const {
+    T *get(const key_t &key, size_t *size = nullptr) const {
         if (!base_mem_storage_) {
             assert(registry_.size() == 0);
             return nullptr;
         }
         auto e = registry_.get(make_key(prefix_, key));
+
+        if (size) *size = e.size;
         if (e.size == 0) return nullptr;
 
         char *host_storage_ptr = get_host_storage_ptr(base_mem_storage_);
