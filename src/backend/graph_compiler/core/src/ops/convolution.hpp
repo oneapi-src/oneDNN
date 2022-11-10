@@ -56,8 +56,6 @@ public:
             int bw_size, gt2axis_map &bw_axis_map) override;
     void infer_slice_ranges(
             fslice_map &fsmap, infer_status_map_t &stat_map) override;
-    // TODO(zhicong): reduce the duplication of the fuction
-    void commit_into_anchor(mixed_parti_t *parti) override;
 
 private:
     int ndims_ = 0;

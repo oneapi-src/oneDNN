@@ -521,26 +521,25 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
     return input_idx;
   };
 
-  _named_for_(lpbs, pbs, 0, mb_expr_, 1,
-    bs_threads > 1 ? for_type::PARALLEL : for_type::NORMAL,
-    bs_threads == 1 ? 0 : bs_threads) {
-    if (sh_ > 1 || sw_ > 1) {
-      auto in_dims = input_blocking_dims;
-      in_dims[1] = output_blocking_dims[1];
-      _tensor_(in_tmp, tinput.dtype_, dims_to_expr(in_dims));
-      input_tmp = in_tmp;
-    }
-    _named_for_(lps, ps, 0, s_threads, 1,
-      s_threads > 1 ? for_type::PARALLEL : for_type::NORMAL,
-      s_threads == 1 ? 0 : s_threads) {
-      _named_for_(lpoc, poc, 0, oc_threads, 1,
-        oc_threads > 1 ? for_type::PARALLEL : for_type::NORMAL,
-        oc_threads == 1 ? 0 : oc_threads) {
-        expr s_num_block = builder::make_select(
-               ps < (os_used_threads - 1), s_num_block_pt, s_tail_num_block_pt),
-             oc_num_block = builder::make_select(poc < (oc_used_threads - 1),
-               oc_num_block_pt, oc_tail_num_block_pt);
-        _named_for_(lpic, pic, 0, ic_threads, 1, for_type::PARALLEL) {
+  _named_for_(lpbs, pbs, 0, mb_expr_, 1, for_type::PARALLEL) {
+    _named_for_(lps, ps, 0, s_threads, 1) {
+      _named_for_(lpoc, poc, 0, oc_threads, 1) {
+        _named_for_(lpic, pic, 0, ic_threads, 1) {
+          expr s_num_block = builder::make_select(ps < (os_used_threads - 1),
+                 s_num_block_pt, s_tail_num_block_pt),
+               oc_num_block = builder::make_select(poc < (oc_used_threads - 1),
+                 oc_num_block_pt, oc_tail_num_block_pt);
+          if (sh_ > 1 || sw_ > 1) {
+            auto in_dims = input_blocking_dims;
+            in_dims[1] = output_blocking_dims[1];
+            _tensor_(in_tmp, tinput.dtype_, dims_to_expr(in_dims));
+            input_tmp = in_tmp;
+            if (s_threads == 1 && oc_threads == 1 && ic_threads == 1) {
+              shrink_tensor = false;
+            } else {
+              shrink_tensor = true;
+            }
+          }
           _if_(ps < os_used_threads && poc < oc_used_threads
             && pic < ic_used_threads) {
             // single core
@@ -740,63 +739,6 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                 {pbs, 1UL}, {0, os_}, {0, oc_}})});
           }
         } // final reduce
-        if (ic_used_threads > 1) {
-          for_loop rln, rls, rlic, rloc;
-          int lanes = 1;
-          if (oc_block / 16 && oc_block % 16 == 0 && oc_ % oc_block % 16 == 0) {
-            lanes = std::min(16U,
-              (uint32_t)(ctx->get_max_vector_lanes(toutput.dtype_.type_code_)));
-          }
-          auto real_output = tensor_ptr(output,
-            dims_to_expr(sc_dims(output_blocking_dims.size(), 0UL)),
-            dims_to_expr(output_blocking_dims), false);
-          expr rs_end = builder::make_select(
-            ps * s_num_block_pt * s_block + s_num_block * s_block
-              > (uint64_t)os_,
-            builder::make_cast(
-              datatypes::index, os_ - ps * s_num_block_pt * s_block),
-            builder::make_cast(datatypes::index, s_num_block * s_block));
-          expr roc_end = constant_folder_t()(
-            builder::make_select(
-              poc * oc_num_block_pt * oc_block + oc_num_block * oc_block
-                > (uint64_t)oc_,
-              builder::make_select(oc_ > poc * oc_num_block_pt * oc_block,
-                builder::make_cast(
-                  datatypes::index, oc_ - poc * oc_num_block_pt * oc_block),
-                expr(0UL)),
-              builder::make_cast(datatypes::index, oc_num_block * oc_block)))
-                           .remove_const();
-
-          _named_for_(rln, rn, 0, 1, 1, for_type::PARALLEL) {
-            _named_for_(rls, rs, 0, rs_end, 1) {
-              _if_(ps < os_used_threads && poc < oc_used_threads) {
-                _named_for_(rlic, ric, 0, ic_used_threads, 1) {
-                  _named_for_(rloc, roc, 0, roc_end, lanes) {
-                    std::vector<expr> out_idx
-                      = {pbs, ps * s_num_block_pt * s_block + rs,
-                        poc * oc_num_block_pt * oc_block + roc},
-                      out_tmp_idx
-                      = {ric * mb_ + pbs, ps * s_num_block_pt * s_block + rs,
-                        poc * oc_num_block_pt * oc_block + roc};
-                    _if_(ric == 0) {
-                      if (toutput.dtype_ == datatypes::s32) {
-                        real_output[span_t(out_idx, lanes)]
-                          = builder::make_broadcast(0, lanes);
-                      } else {
-                        real_output[span_t(out_idx, lanes)]
-                          = builder::make_broadcast(0.f, lanes);
-                      }
-                    }
-                    real_output[span_t(out_idx, lanes)]
-                      = real_output[span_t(out_idx, lanes)]
-                      + output_tmp[span_t(out_tmp_idx, lanes)];
-                  }
-                }
-              }
-            }
-          }
-          rln->fuse(rls); // reduction parallel loop
-        }
         if (fusion && oc_threads == 1 && s_threads == 1) {
           fusion->create_output_fusion_anchor({tensor_slice(output,
             std::vector<std::pair<expr, expr>> {
@@ -820,6 +762,7 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
   // lpbs->fuse(lpoc)->fuse(lps)->fuse(lpic); // parallel loop
   // lobs->fuse(los)->fuse(looc)->fuse(loic)->fuse(lioc)->fuse(lis); // single
   // thread loop
+  loops = {lpbs, lps, lpoc, lpic};
 }
 
 void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
@@ -2083,6 +2026,8 @@ void gen_conv_fwd_t::schedule_loops(context_ptr ctx,
   const conv_fwd_config_t &config, stmt body,
   std::vector<for_loop> &fors) const {
   if (use_conv1d) {
+    auto lpbs = fors[0], lps = fors[1], lpoc = fors[2], lpic = fors[3];
+    lpbs->fuse(lps)->fuse(lpoc)->fuse(lpic);
   } else {
     COMPILE_ASSERT(static_cast<int>(fors.size()) == 4,
       "expected to have 4 for loops, but got " << fors.size() << " for loops.");
