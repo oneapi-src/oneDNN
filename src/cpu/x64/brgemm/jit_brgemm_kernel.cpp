@@ -1214,10 +1214,16 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
             if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
                 int zp_c_off = zp_c_values_offset(ld);
-                auto zp_c_addr
-                        = EVEX_compress_addr(reg_aux_zp_c_values, zp_c_off);
-                cvt2ps(data_type::s32, vmm_zp_c, zp_c_addr, is_tail, false,
-                        k_mask, is_tail ? brg.ldb_tail : brg.ld_block);
+                if (is_superset(brg.isa_impl, avx512_core)) {
+                    auto zp_c_addr
+                            = EVEX_compress_addr(reg_aux_zp_c_values, zp_c_off);
+                    cvt2ps(data_type::s32, vmm_zp_c, zp_c_addr, is_tail, false,
+                            k_mask, is_tail ? brg.ldb_tail : brg.ld_block);
+                } else {
+                    cvt2ps(data_type::s32, vmm_zp_c,
+                            ptr[reg_aux_zp_c_values + zp_c_off], is_tail, false,
+                            k_mask, is_tail ? brg.ldb_tail : brg.ld_block);
+                }
             }
             for (int bd = 0; bd < bd_block; bd++) {
                 auto vmm = accm(ld_block2, bd, ld);
@@ -1305,18 +1311,18 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
             auto vmm_zp_comp_a = vmm_tmp(0);
             int zp_comp_a_off = zp_comp_a_offset(ld);
-            auto zp_comp_a_addr
-                    = EVEX_compress_addr(reg_aux_zp_comp_a, zp_comp_a_off);
             // apply src zero points value to the accumulated values
             if (IMPLICATION(is_tail, isa_has_masks(brg.isa_impl))) {
+                auto zp_comp_a_addr
+                        = EVEX_compress_addr(reg_aux_zp_comp_a, zp_comp_a_off);
                 auto vmm_zp_comp_a_masked
                         = vmm_mask(vmm_zp_comp_a, is_tail, false, k_mask);
                 uni_vmovups(vmm_zp_comp_a_masked, zp_comp_a_addr);
             } else {
                 // cannot use vmaskmovps as vmm_zp_a_val clashes with
                 // vmm_tail_mask
-                load_data(data_type::s32, vmm_zp_comp_a, zp_comp_a_addr,
-                        brg.ldb_tail);
+                load_data(data_type::s32, vmm_zp_comp_a,
+                        ptr[reg_aux_zp_comp_a + zp_comp_a_off], brg.ldb_tail);
             }
             uni_vpmulld(vmm_zp_comp_a, vmm_zp_comp_a, vmm_zp_a_val);
 
@@ -1332,11 +1338,18 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
         mov(reg_aux_zp_comp_b, ptr[rsp + reg_aux_zp_comp_b_offs_]);
         for (int bd = 0; bd < bd_block; bd++) {
             int zp_comp_b_off = zp_comp_b_offset(bd);
-            auto zp_comp_b_addr = EVEX_compress_addr(
-                    reg_aux_zp_comp_b, zp_comp_b_off, true);
             for (int ld = 0; ld < ld_block2; ld++) {
                 auto vmm = accm(ld_block2, bd, ld);
-                uni_vpaddd(vmm, vmm, zp_comp_b_addr);
+                if (is_superset(brg.isa_impl, avx512_core)) {
+                    const auto zp_comp_b_addr = EVEX_compress_addr(
+                            reg_aux_zp_comp_b, zp_comp_b_off, true);
+                    uni_vpaddd(vmm, vmm, zp_comp_b_addr);
+                } else {
+                    const auto vmm_zp_comp_b = vmm_tmp(2);
+                    uni_vpbroadcastd(vmm_zp_comp_b,
+                            ptr[reg_aux_zp_comp_b + zp_comp_b_off]);
+                    uni_vpaddd(vmm, vmm, vmm_zp_comp_b);
+                }
             }
         }
     }
@@ -1346,14 +1359,15 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_compensation(
         for (int ld = 0; ld < ld_block2; ld++) {
             auto vmm_comp = vmm_tmp(0);
             int comp_offset = compensations_offset(ld);
-            auto comp_addr
-                    = EVEX_compress_addr(reg_aux_compensation, comp_offset);
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
             if (IMPLICATION(is_tail, is_superset(brg.isa_impl, avx512_core))) {
+                auto comp_addr
+                        = EVEX_compress_addr(reg_aux_compensation, comp_offset);
                 vmm_comp = vmm_mask(vmm_comp, is_tail, false, k_mask);
                 uni_vmovups(vmm_comp, comp_addr);
             } else {
-                vmaskmovps(vmm_comp, vmm_tail_mask(), comp_addr);
+                vmaskmovps(vmm_comp, vmm_tail_mask(),
+                        ptr[reg_aux_compensation + comp_offset]);
             }
             for (int bd = 0; bd < bd_block; bd++) {
                 auto vmm = accm(ld_block2, bd, ld);
