@@ -1,4 +1,4 @@
-# HardSwish {#dev_guide_op_hardsigmoid}
+# HardSigmoid {#dev_guide_op_hardsigmoid}
 
 **Versioned name**: *HardSigmoid-1*
 
