@@ -129,6 +129,17 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
     auto src_dt = make_dnn_mem(ins[0], (prb->stag).c_str());
     const dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
 
+    dnnl::graph::logical_tensor lt_scales {1, dt::f32, dims_t {1},
+            dnnl::graph::logical_tensor::layout_type::strided};
+    auto src_scales_fp = make_dnn_mem(lt_scales, dt::f32, tag::x);
+    auto src_scales_dt = make_dnn_mem(lt_scales, dt::f32, tag::x);
+    auto dst_scales_fp = make_dnn_mem(lt_scales, dt::f32, tag::x);
+    auto dst_scales_dt = make_dnn_mem(lt_scales, dt::f32, tag::x);
+    src_scales_fp.set_elem(0, 1);
+    SAFE(src_scales_dt.reorder(src_scales_fp), WARN);
+    dst_scales_fp.set_elem(0, prb->attr.scales.get(DNNL_ARG_DST).scale);
+    SAFE(dst_scales_dt.reorder(dst_scales_fp), WARN);
+
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
     const dnnl::graph::engine &eng = get_test_engine();
 
@@ -146,6 +157,8 @@ int doit(const ::softmax::prb_t *prb, res_t *res) {
             args.set(DNNL_ARG_DST, dst_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
             ref_args.set(DNNL_ARG_DST, dst_fp);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_fp);
+            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_fp);
 
             check_correctness(
                     prb, {DST}, args, ref_args, ::softmax::setup_cmp, res);
