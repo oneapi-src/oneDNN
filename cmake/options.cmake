@@ -372,6 +372,8 @@ set(DNNL_BLAS_VENDOR "NONE" CACHE STRING
         (https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html)
       - OPENBLAS
         (https://www.openblas.net)
+      - ACCELERATE
+        (https://developer.apple.com/documentation/accelerate/blas)
       - ARMPL
         Arm Performance Libraries
         (https://developer.arm.com/tools-and-software/server-and-hpc/downloads/arm-performance-libraries)
