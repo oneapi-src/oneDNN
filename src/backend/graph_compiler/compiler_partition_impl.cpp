@@ -248,15 +248,6 @@ impl::status_t compiler_partition_impl_t::compile(
                 "Graph compiler backend only supports cpu engine");
         sc::context_ptr ctx;
         ctx = sc::get_default_context();
-        if (pkind_ == partition_kind::residual_conv_blocks
-                || pkind_ == partition_kind::quantized_residual_conv_blocks) {
-            if (pname_.find("forward") == std::string::npos
-                    && pname_.find("backward") == std::string::npos) {
-                // use old fusion manager for conv inference patterns
-                ctx = std::make_shared<sc::context_t>(*ctx);
-                ctx->flags_.mixed_fusion_ = false;
-            }
-        }
         std::shared_ptr<compiler_graph_engine_t> graph_engine;
         {
             std::lock_guard<std::mutex> lock(global_mutex);
