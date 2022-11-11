@@ -707,7 +707,8 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                           }
                         }
                         if (fusion && ic_used_threads == 1
-                          && ic_num_block_pt == 1) {
+                          && ic_num_block_pt == 1
+                          && oc_block * oc_used_threads == oc_) {
                           _if_(o_ic == (ic_num_block - 1)) {
                             fusion->create_output_fusion_anchor({tensor_slice(
                               output,
@@ -721,8 +722,9 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                         }
                       }
                     }
-                    if (fusion && ic_used_threads == 1
-                      && ic_num_block_pt == 1) {
+                    if (fusion && ic_used_threads == 1 && ic_num_block_pt == 1
+                      && oc_block * oc_used_threads == oc_
+                      && s_block * os_used_threads == os_) {
                       _if_(o_ic == (ic_num_block - 1)) {
                         fusion->create_output_fusion_anchor(
                           {tensor_slice(output,
@@ -741,7 +743,9 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
                 }
                 // TODO(zhicong): need to use iterated anchor to support more
                 // fusion opportunity
-                if (false && fusion && ic_used_threads == 1) {
+                if (false && fusion && ic_used_threads == 1
+                  && oc_block * oc_used_threads == oc_
+                  && s_block * os_used_threads == os_) {
                   fusion->create_output_fusion_anchor({tensor_slice(output,
                     std::vector<std::pair<expr, expr>> {{n, 1UL},
                       {(ps * s_num_block_pt * s_block / im_s_block
