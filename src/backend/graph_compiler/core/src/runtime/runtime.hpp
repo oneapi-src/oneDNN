@@ -26,8 +26,8 @@ SC_API void print_float(float f);
 SC_API void print_index(uint64_t f);
 SC_API void print_int(int f);
 SC_API void print_str(char *f);
-SC_API uint64_t boundary_check(
-        const char *name, uint64_t idx, uint64_t acc_len, uint64_t tsr_len);
+SC_API uint64_t boundary_check(const char *name, uint64_t idx, uint64_t acc_len,
+        uint64_t mask, uint64_t tsr_len);
 SC_API void *sc_global_aligned_alloc(size_t sz, size_t align);
 SC_API void sc_global_aligned_free(void *ptr, size_t align);
 SC_API void sc_make_trace(int id, int in_or_out, int arg);

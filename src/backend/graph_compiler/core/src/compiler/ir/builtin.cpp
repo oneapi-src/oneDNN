@@ -78,15 +78,17 @@ void print_str(const char *v) {
     print_str(std::string(v));
 }
 
-expr boundary_check(expr name, expr idx, expr access_len, expr boundary_len) {
+expr boundary_check(
+        expr name, expr idx, expr access_len, expr mask, expr boundary_len) {
     static func_t boundary_check_f = make_func("boundary_check",
             {make_var(datatypes::pointer, "name"),
                     make_var(datatypes::index, "idx"),
                     make_var(datatypes::index, "access_len"),
+                    make_var(datatypes::index, "mask"),
                     make_var(datatypes::index, "boundary_len")},
             stmt(), datatypes::index);
     return boundary_check_f(std::move(name), std::move(idx),
-            std::move(access_len), std::move(boundary_len));
+            std::move(access_len), std::move(mask), std::move(boundary_len));
 }
 
 expr make_trace(expr func_name, expr in_or_out, expr arg) {

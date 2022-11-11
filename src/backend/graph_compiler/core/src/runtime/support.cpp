@@ -15,6 +15,7 @@
  *******************************************************************************/
 
 #include <cmath>
+#include <limits>
 #include <stdio.h>
 #include <stdlib.h>
 #include "config.hpp"
@@ -53,8 +54,19 @@ extern "C" void print_str(char *f) {
     fputs(f, stdout);
 }
 
-extern "C" uint64_t boundary_check(
-        const char *name, uint64_t idx, uint64_t acc_len, uint64_t tsr_len) {
+extern "C" uint64_t boundary_check(const char *name, uint64_t idx,
+        uint64_t acc_len, uint64_t mask, uint64_t tsr_len) {
+    // no actual load/store.
+    if (mask == 0) { return idx; }
+    if (mask != std::numeric_limits<uint64_t>::max()) {
+        uint16_t mask_len = 0;
+        while (mask) {
+            mask = mask >> 1;
+            mask_len++;
+        }
+        acc_len = mask_len;
+    }
+
     if (idx >= tsr_len || idx + acc_len > tsr_len) {
         fprintf(stderr,
                 "Boundary check for tensor %s failed. idx=%llu acc_len=%llu "

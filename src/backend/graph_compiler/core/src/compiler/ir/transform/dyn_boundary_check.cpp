@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include "dyn_boundary_check.hpp"
+#include <limits>
 #include <map>
 #include <string>
 #include <utility>
@@ -47,6 +48,8 @@ static void boundary_check_brgemm_update(std::vector<expr> &args,
     args[2] = boundary_check_maker(args[2], args[4] * args[9]);
 }
 
+static expr full_mask = builder::make_constant(
+        {std::numeric_limits<uint64_t>::max()}, datatypes::index);
 class dyn_boundary_check_adder_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
@@ -74,14 +77,15 @@ public:
                 return builder::tensor_ptr(tsr,
                         {ths->caster_(builtin::boundary_check(
                                 ths->get_or_create_str(tsr->name_), (uint64_t)0,
-                                bound, tsr->dims_[0]))});
+                                bound, full_mask, tsr->dims_[0]))});
             } else {
                 auto tsptr = old_arg.checked_as<tensorptr>();
                 auto tsr = tsptr->base_->ptr_.checked_as<tensor>();
                 return builder::tensor_ptr(tsr,
                         {ths->caster_(builtin::boundary_check(
                                 ths->get_or_create_str(tsr->name_),
-                                tsptr->base_->idx_[0], bound, tsr->dims_[0]))});
+                                tsptr->base_->idx_[0], bound, full_mask,
+                                tsr->dims_[0]))});
             }
         };
     }
@@ -107,10 +111,13 @@ public:
     expr_c visit(indexing_c v) override {
         assert(v->idx_.size() == 1);
         auto tsr = v->ptr_.checked_as<tensor>();
-        auto newidx = caster_(
-                builtin::boundary_check(get_or_create_str(tsr->name_),
-                        v->idx_[0], (uint64_t)v->dtype_.lanes_, tsr->dims_[0]))
-                              .remove_const();
+
+        auto mask = v->mask_.defined() ? v->mask_ : full_mask;
+        auto newidx
+                = caster_(builtin::boundary_check(get_or_create_str(tsr->name_),
+                                  v->idx_[0], (uint64_t)v->dtype_.lanes_, mask,
+                                  tsr->dims_[0]))
+                          .remove_const();
         auto ret = v->remake().static_as<indexing>();
         ret->idx_ = {std::move(newidx)};
         return ret;
