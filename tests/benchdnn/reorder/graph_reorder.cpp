@@ -299,7 +299,8 @@ fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
         dnnl::graph::op aop(op_id, op_kind, graph.stringify_id(op_id));
         if (is_qdq) {
             const auto zps = is_quantize(src_dt, dst_dt) ? dst_zps : src_zps;
-            const auto scales = is_quantize(src_dt, dst_dt) ? dst_scales : src_scales;
+            const auto scales
+                    = is_quantize(src_dt, dst_dt) ? dst_scales : src_scales;
             set_quant_op_attr(aop, qtype, scales, zps, axis);
         }
 
@@ -442,7 +443,8 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
                 ? 1
                 : 0;
 
-        prepare_runtime_scales(prb, scales_dt, ins[1], src_scales, dst_scales, axis);
+        prepare_runtime_scales(
+                prb, scales_dt, ins[1], src_scales, dst_scales, axis);
         maybe_prepare_runtime_zero_points(
                 prb, zps_dt, ins[2], src_zps, dst_zps, axis);
     }
