@@ -636,7 +636,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (is_bench_mode(CORR)) {
             ref_args.set(DNNL_ARG_SRC, src_fp);
-            ref_args.set(DNNL_ARG_DIFF_WEIGHTS_1, wei_tr_fp); // Hack. See ref.
+            ref_args.set(DNNL_ARG_WEIGHTS, wei_tr_fp); // Hack. See ref.
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);

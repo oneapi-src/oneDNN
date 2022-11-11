@@ -482,7 +482,7 @@ int doit(const ::deconv::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_BIAS, bia_fp_scaled);
             ref_args.set(DNNL_ARG_DST, dst_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS_1, wei_tr_fp); // Hack. See ref.
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
             ref_args.set(binary_po_args, binary_po_fp);
 
             check_correctness(
@@ -492,14 +492,14 @@ int doit(const ::deconv::prb_t *prb, res_t *res) {
             ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
             ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS_1, wei_tr_fp); // Hack. See ref.
+            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_tr_fp); // Hack. See ref.
 
             check_correctness(
                     prb, {SRC}, args, ref_args, ::deconv::setup_cmp, res);
         } else if (prb->dir == BWD_W) {
             args.set(DNNL_ARG_DIFF_WEIGHTS, wei_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
-            ref_args.set(DNNL_ARG_DIFF_WEIGHTS_1, wei_tr_fp); // Hack. See ref.
+            ref_args.set(DNNL_ARG_WEIGHTS, wei_tr_fp); // Hack. See ref.
             ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
             ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_fp);
 
