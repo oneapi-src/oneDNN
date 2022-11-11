@@ -1544,11 +1544,12 @@ status_t expand_convtranspose_scales(std::shared_ptr<subgraph_t> &sg) {
                     = in1.get_attr<std::vector<float>>(op_attr::scales);
             int64_t group = op->get_attr<int64_t>(op_attr::groups);
             if (dq_src_scales.size() < dq_wei_scales.size() && group > 1) {
-                // Currently for ConvTranspose, the output channel in weight tensor
-                // (OC/g, IC, H, W) is not equal to the one in output tensor
-                // (N, OC, H, W) if `groups` > 1, so the size of weight's
-                // per-channel scale is not the same as the output channel in output
-                // tensor, here we will broadcast scales from `OC/g` to `OC`.
+                // Currently for ConvTranspose, the output channel in weight
+                // tensor (OC/g, IC, H, W) is not equal to the one in output
+                // tensor (N, OC, H, W) if `groups` > 1, so the size of weight's
+                // per-channel scale is not the same as the output channel in
+                // output tensor, here we will broadcast scales from `OC/g` to
+                // `OC`.
                 std::vector<float> expand_scales(
                         group * dq_wei_scales.size(), 0);
                 for (size_t i = 0; i < expand_scales.size(); ++i)
