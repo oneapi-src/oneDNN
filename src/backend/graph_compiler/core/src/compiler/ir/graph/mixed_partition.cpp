@@ -1158,7 +1158,8 @@ static int check_parti_loop_axis_binding(
         mixed_parti_t *A, mixed_parti_t *B, int check_loop_size) {
     // skip conv workload until all conv ops implement axis binding infer
     if (A->is_conv_workload() || B->is_conv_workload()) {
-        return check_loop_size;
+        // limit to at most one outer loop (batch-dimension)
+        return std::min(1, check_loop_size);
     }
     // auto skip when A and B have no dependency
     if (check_parti_forked(A, B)) return check_loop_size;
