@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,9 +59,9 @@ TEST(LayoutId, OpaqueMdLayoutIdMapping) {
     dnnl::memory::desc conv_dst(
             {1, 64, 224, 224}, data_type::u8, format_tag::any);
     dnnl::primitive_attr conv_attr;
-    conv_attr.set_zero_points(DNNL_ARG_SRC, 0, {75});
-    conv_attr.set_zero_points(DNNL_ARG_DST, 0, {75});
-    conv_attr.set_output_scales(0, {0.1f});
+    conv_attr.set_zero_points_mask(DNNL_ARG_SRC, 0);
+    conv_attr.set_zero_points_mask(DNNL_ARG_DST, 0);
+    conv_attr.set_scales_mask(DNNL_ARG_DST, 0);
     conv_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
     dnnl::convolution_forward::primitive_desc conv_pd(eng,
             dnnl::prop_kind::forward, dnnl::algorithm::convolution_direct,
