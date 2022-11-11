@@ -98,6 +98,8 @@ void compute_vectorized_op(sc_graph_t &graph,
         = nullptr /*by default expand loop by dst*/,
         bool unroll_inner_loop = false);
 expr make_select_by_mask(const expr &, const expr &, const expr &, uint32_t);
+expr generate_mask_var_by_step(stmt &mask_def, const expr &cur_step,
+        int32_t step, const expr &sup_condition = expr());
 void compute_mask_and_generate_condition(sc_graph_t &graph,
         const std::vector<const tensor_slice *> &src, const sc_dims &plain_dims,
         sc_data_format_t format, const std::vector<expr> &iter_vars, int lanes,

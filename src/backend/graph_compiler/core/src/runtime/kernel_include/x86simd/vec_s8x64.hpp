@@ -37,11 +37,17 @@ public:
     static INLINE vec_s8x64 load_aligned(const int8_t *p) {
         return _mm512_load_si512((const __m512i *)p);
     }
+    static INLINE vec_s8x64 mask_load(const int8_t *p, __mmask64 mask) {
+        return _mm512_mask_loadu_epi8(vec_s8x64(0).v, mask, p);
+    }
     static INLINE void store(vec_s8x64 v, int8_t *p) {
         _mm512_storeu_si512((__m512i *)p, v.v);
     }
     static INLINE void store_aligned(vec_s8x64 v, int8_t *p) {
         _mm512_store_si512((__m512i *)p, v.v);
+    }
+    static INLINE void mask_store(int8_t *p, __mmask64 mask, vec_s8x64 &a) {
+        return _mm512_mask_storeu_epi8(p, mask, a.v);
     }
 };
 

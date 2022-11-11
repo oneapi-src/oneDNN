@@ -134,6 +134,9 @@ private:
             } else {
                 live_range.update(index);
             }
+            if (v->node_type_ == sc_expr_type::indexing) {
+                update_dependency_liveness(v, index);
+            }
         }
     }
 

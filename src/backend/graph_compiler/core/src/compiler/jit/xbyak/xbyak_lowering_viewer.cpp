@@ -737,13 +737,14 @@ void xbyak_lowering_viewer::handle_avx_intrisic(const expr_c &dst,
             auto op_src = GET_OPERAND(args[0]);
             handle_avx_cmov(op_dst, op_src, code, cpu_dtype);
         } break;
-        case xbyak_intrin_type::zero_mov: {
+        case xbyak_intrin_type::mask_mov: {
             auto &msk_cond = modifier.cond_mask_;
             assert(msk_cond.defined());
             auto op_cond = GET_OPERAND(msk_cond);
             auto op_dst = GET_OPERAND(dst);
             auto op_src = GET_OPERAND(args[0]);
-            handle_avx_zero_mov(op_dst, op_src, op_cond, cpu_dtype);
+            handle_avx_mask_mov(
+                    op_dst, op_src, op_cond, cpu_dtype, modifier.zero_mask_);
         } break;
         case xbyak_intrin_type::blend: {
             // Reminder: operand order is reversed comparing to select(l,r)
@@ -810,6 +811,7 @@ void xbyak_lowering_viewer::handle_assign(
         } break;
         case cpu_data_type::uint_32_x4:
         case cpu_data_type::uint_32_x16:
+        case cpu_data_type::sint_32_x8:
         case cpu_data_type::sint_32_x16: {
             handle_avx_movps(lhs_op, rhs_op);
         } break;
@@ -906,7 +908,8 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
         // At the lowered asm level, u64 and all pointers are basically
         // interchangable (assuming we're using 64-bit pointers).
         handle_x86_mov(op_out, op_in);
-    } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::s8)
+    } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::s8
+                       || out_dtype == datatypes::u8)
             && (in_dtype == datatypes::generic
                     || in_dtype == datatypes::index)) {
         handle_x86_mov(op_out, op_in);
@@ -969,13 +972,22 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
     } else if (out_dtype == sc_data_type_t::u32(8)
             && in_dtype == sc_data_type_t::u16(8)) {
         XBYAK_GEN(vpmovzxwd, AVX_X_XM, op_out, op_in);
+    } else if (out_dtype == sc_data_type_t::boolean(8)
+            && (in_dtype == sc_data_type_t::s32(1)
+                    || in_dtype == sc_data_type_t::u8(1)
+                    || in_dtype == sc_data_type_t::u16(1))) {
+        XBYAK_GEN(kmovb, AVX_KMR32_KMR32, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::boolean(16)
-            && in_dtype == sc_data_type_t::u16(1)) {
+            && (in_dtype == sc_data_type_t::u16(1)
+                    || in_dtype == sc_data_type_t::s32(1))) {
         XBYAK_GEN(kmovw, AVX_KMR32_KMR32, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::boolean(32)
             && (in_dtype == sc_data_type_t::s32(1)
                     || in_dtype == sc_data_type_t::u32(1))) {
         XBYAK_GEN(kmovd, AVX_KMR32_KMR32, op_out, op_in);
+    } else if (out_dtype == sc_data_type_t::boolean(64)
+            && (in_dtype == sc_data_type_t::index(1))) {
+        XBYAK_GEN(kmovq, AVX_KMR64_KMR64, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::bf16(16)
             && in_dtype == sc_data_type_t::f32(16)) {
         COMPILE_ASSERT(profile_.target_machine_.cpu_flags_.fAVX512BF16,
@@ -1834,19 +1846,38 @@ void xbyak_lowering_viewer::handle_avx_blend(const operand &op_dst,
     }
 }
 
-void xbyak_lowering_viewer::handle_avx_zero_mov(const operand &op_dst,
+void xbyak_lowering_viewer::handle_avx_mask_mov(const operand &op_dst,
         const operand &op_src, const operand &op_cond,
-        const x86_64::cpu_data_type &cpu_dtype) {
+        const x86_64::cpu_data_type &cpu_dtype, bool zero) {
     COMPILE_ASSERT(op_cond.is_mask(), "op_cond must be Opmask.");
     switch (cpu_dtype) {
         // may have other datatypes needs to support
-        case cpu_data_type::uint_16_x16: {
-            XBYAK_GEN(vmovdqu16, AVX_XM_XM,
-                    op_dst.set_evex(op_cond, operand::T_z), op_src);
+        case cpu_data_type::uint_8_x16:
+        case cpu_data_type::uint_8_x32:
+        case cpu_data_type::uint_8_x64:
+        case cpu_data_type::sint_8_x16:
+        case cpu_data_type::sint_8_x32:
+        case cpu_data_type::sint_8_x64: {
+            XBYAK_GEN(vmovdqu8, AVX_XM_XM, //
+                    op_dst.set_evex(op_cond, zero), op_src);
         } break;
+        case cpu_data_type::uint_16_x8:
+        case cpu_data_type::uint_16_x16:
+        case cpu_data_type::uint_16_x32: {
+            XBYAK_GEN(vmovdqu16, AVX_XM_XM, //
+                    op_dst.set_evex(op_cond, zero), op_src);
+        } break;
+        case cpu_data_type::uint_32_x8:
+        case cpu_data_type::uint_32_x16:
+        case cpu_data_type::sint_32_x8:
+        case cpu_data_type::sint_32_x16: {
+            XBYAK_GEN(vmovdqu32, AVX_XM_XM, //
+                    op_dst.set_evex(op_cond, zero), op_src);
+        } break;
+        case cpu_data_type::float_32_x8:
         case cpu_data_type::float_32_x16: {
-            XBYAK_GEN(vmovups, AVX_XM_XM,
-                    op_dst.set_evex(op_cond, operand::T_z), op_src);
+            XBYAK_GEN(vmovups, AVX_XM_XM, //
+                    op_dst.set_evex(op_cond, zero), op_src);
         } break;
         default:
             COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);

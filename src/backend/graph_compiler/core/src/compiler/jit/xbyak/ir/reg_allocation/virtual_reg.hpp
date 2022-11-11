@@ -181,7 +181,7 @@ inline bool is_simd_data(const sc_data_type_t &t) {
 }
 
 inline virt_reg_type get_virt_reg_type(const sc_data_type_t &t) {
-    if (t == sc_data_type_t::boolean(16) || t == sc_data_type_t::boolean(32)) {
+    if (t.type_code_ == sc_data_etype::BOOLEAN && t.lanes_ > 1) {
         return virt_reg_type::mask_reg;
     } else if (is_simd_data(t)) {
         return virt_reg_type::fp_reg;

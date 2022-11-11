@@ -67,7 +67,7 @@ struct xbyak_expr_data_t {
 enum class xbyak_intrin_type {
     call_arg = 0, // special intrin to represent call arg location (reg/stack)
     sign_ext, // special intrin to represent CWD/CDQ/CQO/XOR before div/idiv
-    zero_mov, // special intrin to represent avx512 zero masked move
+    mask_mov, // special intrin to represent avx512 zero masked move
     test, // special intrin to represent x86 bool logical compare
     cmov, // conditional move
     add,

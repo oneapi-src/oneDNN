@@ -38,6 +38,12 @@ public:
     using ir_visitor_t::dispatch;
     using ir_visitor_t::visit;
 
+    expr_c visit(tensor_c v) override {
+        // avoid constant_optimizer for loop index dependent tensor
+        // TODO(longsheng): why ssa break beacuse of this
+        return v;
+    }
+
     expr_c visit(constant_c v) override {
         const auto &dtype = v->dtype_;
         const auto &value = v->value_;

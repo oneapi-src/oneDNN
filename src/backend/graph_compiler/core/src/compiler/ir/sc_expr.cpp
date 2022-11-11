@@ -228,7 +228,8 @@ expr::lvalue_proxy_t expr::operator[](const span_t &index) const {
     }
 
     return expr::lvalue_proxy_t(
-            builder::make_indexing(*this, idx, index.length_), true);
+            builder::make_indexing(*this, idx, index.length_, index.mask_),
+            true);
 }
 
 void print_indents(ostream &os, int indent) {

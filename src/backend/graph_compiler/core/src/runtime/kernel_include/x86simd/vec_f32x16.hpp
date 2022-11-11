@@ -48,11 +48,17 @@ public:
         // gcc bug here, we need to cast to double
         return _mm512_load_ps((double *)p);
     }
+    static INLINE vec_f32x16 mask_load(const float *p, __mmask16 mask) {
+        return _mm512_mask_loadu_ps(vec_f32x16(0.f).v, mask, p);
+    }
     static INLINE void store(vec_f32x16 v, float *p) {
         _mm512_storeu_ps(p, v.v);
     }
     static INLINE void store_aligned(vec_f32x16 v, float *p) {
         _mm512_store_ps(p, v.v);
+    }
+    static INLINE void mask_store(float *p, __mmask16 mask, vec_f32x16 &a) {
+        return _mm512_mask_storeu_ps(p, mask, a.v);
     }
 };
 
