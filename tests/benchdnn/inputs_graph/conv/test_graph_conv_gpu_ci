@@ -42,6 +42,10 @@ g1mb1ic3id116ih132iw132oc32od114oh130ow130kd3kh3kw3sd1sh1sw1pd0ph0pw0dd0dh0dw0n"
 --reset
 --cfg=u8s8u8,u8s8s8 --dir=FWD_I --attr-oscale=per_oc:2.25 mb50ic64ih56oc64oh56kh1ph0
 
+# int8 post sum with scale,zp and post relu
+--reset
+--cfg=u8s8u8 --attr-oscale=per_oc:1 --attr-post-ops=sum:0.0137735:3+relu mb32ic64ih56iw56oc256oh56ow56kh1kw1sh1sw1ph0pw0dh0dw0
+
 # main op
 --reset
 --dir=FWD_B,BWD_D,BWD_W
