@@ -25,7 +25,7 @@ namespace sc {
 
 SC_DECL_PASS_INFO(local_tensor_lowering_cpu,
         SC_PASS_DEPENDS_ON(constant_folder, buffer_scheduler, tensor_init,
-                module_globals_resolver),
+                module_globals_resolver, simple_loop_invariant_code_motion),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
