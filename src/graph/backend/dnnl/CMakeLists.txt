@@ -33,6 +33,20 @@ foreach(SOURCE_FILE ${SOURCES_EXTRA})
     list(APPEND SOURCES "${SOURCE_FILE}")
 endforeach()
 
+# The build option is for debug and testing purpose. Please do not use it in
+# production.
+if(_ONEDNN_GRAPH_LAYOUT_DEBUG)
+    message(STATUS "Graph: enable layout debug mode in DNNL backend")
+
+    file(GLOB FILES_REQUIRED_LAYOUT_DEBUG
+        ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/dnnl_backend.cpp
+    )
+
+    set_source_files_properties(${FILES_REQUIRED_LAYOUT_DEBUG}
+        PROPERTIES COMPILE_FLAGS "-DDNNL_GRAPH_LAYOUT_DEBUG")
+endif()
+
 if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STREQUAL "Intel"))
     file(GLOB FILES_REQUIRED_BIGOBJ
         ${CMAKE_CURRENT_SOURCE_DIR}/dnnl_backend.cpp

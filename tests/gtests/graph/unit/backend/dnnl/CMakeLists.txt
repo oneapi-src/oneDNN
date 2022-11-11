@@ -58,6 +58,15 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_local_cache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_typecast.cpp
 )
+
+if(_ONEDNN_GRAPH_LAYOUT_DEBUG)
+    file(GLOB FILES_REQUIRED_LAYOUT_DEBUG
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_layout_id.cpp
+    )
+
+    set_source_files_properties(${FILES_REQUIRED_LAYOUT_DEBUG}
+        PROPERTIES COMPILE_FLAGS "-DDNNL_GRAPH_LAYOUT_DEBUG")
+endif()
     
 set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
