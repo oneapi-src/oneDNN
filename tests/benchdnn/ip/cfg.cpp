@@ -104,41 +104,6 @@ const _dt_conf_t conf_f16 = {
         {dnnl_f32},
 };
 
-const _dt_conf_t conf_f16f16f32 = {
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, 0, .35, 1,
-                1e-3},
-        {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64, 0},
-        {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64,
-                1e-6},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f32f16f16 = {
-        {dnnl_f32, -int_max_exact, int_max_exact, -64, 64, 0, .35, 1. / 128,
-                1e-6},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, .35, 1,
-                1e-3},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f16f32f16 = {
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f32, -int_max_exact, int_max_exact, -128, 128, 0, 1.0, 1. / 256,
-                1e-6},
-        {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64,
-                1e-6},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                1e-3},
-        {dnnl_f32},
-};
-
 const _dt_conf_t conf_f16f16s8 = {
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
                 1e-3},
@@ -264,9 +229,6 @@ const dt_conf_t *str2cfg(const char *str) {
     if (!strcasecmp(STRINGIFY(cfg), str)) return CONCAT2(conf_, cfg)
     CASE(f32);
     CASE(f16);
-    CASE(f16f16f32);
-    CASE(f32f16f16);
-    CASE(f16f32f16);
     CASE(f16f16s8);
     CASE(f16f16u8);
     CASE(u8s8f32);
@@ -298,9 +260,6 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     if (cfg == CONCAT2(conf_, _cfg)) return s << STRINGIFY(_cfg)
     CASE(f32);
     CASE(f16);
-    CASE(f16f16f32);
-    CASE(f32f16f16);
-    CASE(f16f32f16);
     CASE(f16f16s8);
     CASE(f16f16u8);
     CASE(u8s8f32);

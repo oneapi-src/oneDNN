@@ -342,7 +342,8 @@ void compute_ref_fwd(
         if (args.arg(i) == DNNL_ARG_SRC)
             ref_conv_args.set(DNNL_ARG_DIFF_DST, args.dnn_mem(i));
         else if (args.arg(i) == DNNL_ARG_WEIGHTS)
-            ref_conv_args.set(DNNL_ARG_WEIGHTS, args.find(DNNL_ARG_WEIGHTS_1));
+            ref_conv_args.set(
+                    DNNL_ARG_WEIGHTS, args.find(DNNL_ARG_DIFF_WEIGHTS));
         else if (args.arg(i) == DNNL_ARG_DST)
             ref_conv_args.set(DNNL_ARG_DIFF_SRC, args.dnn_mem(i));
         else
@@ -369,7 +370,8 @@ void compute_ref_bwd_d(
         if (args.arg(i) == DNNL_ARG_DIFF_SRC)
             ref_conv_args.set(DNNL_ARG_DST, args.dnn_mem(i));
         else if (args.arg(i) == DNNL_ARG_WEIGHTS)
-            ref_conv_args.set(DNNL_ARG_WEIGHTS, args.find(DNNL_ARG_WEIGHTS_1));
+            ref_conv_args.set(
+                    DNNL_ARG_WEIGHTS, args.find(DNNL_ARG_DIFF_WEIGHTS));
         else if (args.arg(i) == DNNL_ARG_DIFF_DST)
             ref_conv_args.set(DNNL_ARG_SRC, args.dnn_mem(i));
         else
@@ -397,7 +399,7 @@ void compute_ref_bwd_w(
             ref_conv_args.set(DNNL_ARG_DIFF_DST, args.dnn_mem(i));
         else if (args.arg(i) == DNNL_ARG_DIFF_WEIGHTS)
             ref_conv_args.set(
-                    DNNL_ARG_DIFF_WEIGHTS, args.find(DNNL_ARG_DIFF_WEIGHTS_1));
+                    DNNL_ARG_DIFF_WEIGHTS, args.find(DNNL_ARG_WEIGHTS));
         else if (args.arg(i) == DNNL_ARG_DIFF_DST)
             ref_conv_args.set(DNNL_ARG_SRC, args.dnn_mem(i));
         else
@@ -412,8 +414,8 @@ void compute_ref_bwd_w(
 
     // Need to transpose data in weights back for proper comparison. This step
     // is done here as it's not needed for fast-ref-gpu.
-    transpose_data_wei(prb, args.find(DNNL_ARG_DIFF_WEIGHTS_1),
-            args.find(DNNL_ARG_DIFF_WEIGHTS));
+    transpose_data_wei(
+            prb, args.find(DNNL_ARG_WEIGHTS), args.find(DNNL_ARG_DIFF_WEIGHTS));
 
     // We don't reuse `compute_ref_bwd_bias` as it doesn't match arguments and
     // entry problem which is transposed - `p_tr`. Simpler to use the kernel
@@ -451,8 +453,7 @@ void compute_ref(
         const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     // Update prb descriptor to re-use convolution reference.
     prb_t prb_tr((desc_t)*prb, prb->dir, prb->cfg, prb->stag, prb->wtag,
-            prb->dtag, prb->alg, prb->attr, prb->ctx_init, prb->ctx_exe,
-            prb->mb);
+            prb->dtag, prb->alg, prb->attr, prb->mb);
     std::swap(prb_tr.ic, prb_tr.oc);
     std::swap(prb_tr.ih, prb_tr.oh);
     std::swap(prb_tr.id, prb_tr.od);

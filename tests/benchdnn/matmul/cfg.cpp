@@ -21,7 +21,7 @@ namespace matmul {
 // Adjust density based on accumulation chain.
 float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
     float density = 1.f;
-    if (!is_bench_mode(CORR) || density_args.data_kind != SRC) return density;
+    if (density_args.data_kind != SRC) return density;
 
     // Find the number of accumulators safe to use with the following equations:
     // Integer value can be expressed exactly with floating-point is
@@ -97,7 +97,6 @@ std::string str2cfg(const char *str) {
     if (!strcasecmp(STRINGIFY(cfg), str)) return s = str, s;
     CASE(f32);
     CASE(f16);
-    CASE(f16f16f32);
     CASE(f16f16s8);
     CASE(f16f16u8);
     CASE(u8s8f32);
@@ -131,8 +130,6 @@ void handle_legacy_cfg(
         dt = {dnnl_bf16};
     else if (cfg == "f16")
         dt = {dnnl_f16};
-    else if (cfg == "f16f16f32")
-        dt = {dnnl_f16, dnnl_f16, dnnl_f16};
     else if (cfg == "f16f16s8")
         dt = {dnnl_f16, dnnl_f16, dnnl_s8};
     else if (cfg == "f16f16u8")

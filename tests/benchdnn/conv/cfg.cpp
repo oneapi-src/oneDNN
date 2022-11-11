@@ -143,10 +143,13 @@ const _dt_conf_t conf_bf16bf16u8 = {
 };
 
 const _dt_conf_t conf_bf16bf16bf16 = {
-        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        /* eps is 1e-2 because of loss in precision of
+     * output when converted from fp32 to bf16.
+     * oneDNN output is compared against reference computed in fp32.*/
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
         {dnnl_f32},
 };
 
@@ -171,27 +174,6 @@ const _dt_conf_t conf_f32f32u8 = {
         {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
         {dnnl_s8, 0, UINT8_MAX, 0, UINT8_MAX, 0, 1, .25, 0.},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f32f16f16 = {
-        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, -2, 1, 1.0,
-                0.},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -6, 6, 0, 1, 1.0,
-                0.},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
-                0.},
-        {dnnl_f32},
-};
-
-const _dt_conf_t conf_f16f32f16 = {
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
-                0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
-                0.},
         {dnnl_f32},
 };
 
@@ -247,7 +229,7 @@ const _dt_conf_t conf_u8s8bf16 = {
         {dnnl_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
         {dnnl_s32},
 };
 
@@ -296,7 +278,7 @@ const _dt_conf_t conf_s8s8bf16 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
-        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
         {dnnl_s32},
 };
 
@@ -392,8 +374,6 @@ const dt_conf_t *str2cfg(const char *str) {
     CASE(f16f16f32);
     CASE(f16f16s8);
     CASE(f16f16u8);
-    CASE(f32f16f16);
-    CASE(f16f32f16);
 #undef CASE
     []() {
         SAFE(FAIL, CRIT);
@@ -437,8 +417,6 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     CASE(f32f32s8);
     CASE(f32f32u8);
     CASE(bf16f32bf16);
-    CASE(f32f16f16);
-    CASE(f16f32f16);
 #undef CASE
     SAFE_V(FAIL);
     return s;

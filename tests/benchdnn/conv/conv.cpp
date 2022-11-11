@@ -27,6 +27,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "tests/test_isa_common.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
@@ -129,8 +130,7 @@ int fill_src(
 
     const auto &c = prb->get_dt_conf(SRC);
     const int range = c.f_max - c.f_min + 1;
-    const float sparsity
-            = (!is_bench_mode(CORR) || src_nelems < 100) ? 1.f : c.f_sparsity;
+    const float sparsity = src_nelems < 100 ? 1.f : c.f_sparsity;
 
     benchdnn_parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
@@ -198,7 +198,6 @@ int fill_wei(
 
     const auto &c = prb->get_dt_conf(WEI);
     const int range = c.f_max - c.f_min + 1;
-    const float sparsity = !is_bench_mode(CORR) ? 1.f : c.f_sparsity;
 
     benchdnn_parallel_nd(prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kd,
             prb->kh, prb->kw,
@@ -206,7 +205,7 @@ int fill_wei(
                     int64_t kw) {
                 const int64_t gen = 113 * g + 127 * kd + 131 * kh + 137 * kw
                         + 139 * oc + 149 * ic + 151;
-                const bool non_base = flip_coin(gen, sparsity);
+                const bool non_base = flip_coin(gen, c.f_sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
                                              : c.f_base;
                 ((float *)mem_00)[wei_off_f(prb, g, oc, ic, kd, kh, kw)]
@@ -225,8 +224,8 @@ int fill_wei(
     if ((wei_x8x8 || !is_def_zp) && is_cpu()) {
         // Check that s8 -> s8_comp exists in the library since users may have
         // already quantized data.
-        dnn_mem_t mem_fp_s8(mem_fp.md_, dnnl_s8, tag::abx, get_cpu_engine());
-        dnn_mem_t mem_dt_s8(mem_dt.md_, get_test_engine());
+        dnn_mem_t mem_fp_s8(mem_fp.md_, dnnl_s8, get_cpu_engine());
+        dnn_mem_t mem_dt_s8(mem_dt.md_, dnnl_s8, get_test_engine());
         SAFE(mem_fp_s8.reorder(mem_fp), WARN);
         SAFE(mem_dt_s8.reorder(mem_fp_s8), WARN);
         SAFE(mem_dt.size() == mem_dt_s8.size() ? OK : FAIL, WARN);
@@ -411,7 +410,7 @@ int init_prim_ref(
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
     prb_t prb_cpu {*prb, prb->dir, conf_f32, tag::abx, tag::abx, tag::abx,
-            DIRECT, cpu_attr, prb->ctx_init, prb->ctx_exe, prb->mb};
+            DIRECT, cpu_attr, prb->mb};
 
     init_pd_args_t<prb_t> init_pd_args(
             /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
@@ -445,21 +444,30 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         // Specific configurations are not supported.
         const bool is_f32_src = prb->get_dt_conf(SRC).dt == dnnl_f32;
         const bool is_f32_wei = prb->get_dt_conf(WEI).dt == dnnl_f32;
-        const bool is_f16 = prb->get_dt_conf(WEI).dt == dnnl_f16;
         const bool is_bf16_src = prb->get_dt_conf(SRC).dt == dnnl_bf16;
         const bool is_bf16_wei = prb->get_dt_conf(WEI).dt == dnnl_bf16;
         const bool is_int8_dst = prb->get_dt_conf(DST).dt == dnnl_s8
                 || prb->get_dt_conf(DST).dt == dnnl_u8;
         const bool is_f32f32x8 = is_f32_src && is_f32_wei && is_int8_dst;
         const bool is_bf16bf16x8 = is_bf16_src && is_bf16_wei && is_int8_dst;
-        const bool is_valid_f16 = is_f16
-                && (prb->get_dt_conf(DST).dt == dnnl_f32
-                        || prb->get_dt_conf(DST).dt == dnnl_f16);
 
-        if (is_f32f32x8 || is_bf16bf16x8 || !is_valid_f16) {
+        if (is_f32f32x8 || is_bf16bf16x8) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+        static auto isa = dnnl_get_effective_cpu_isa();
+        const bool is_f16_src = prb->get_dt_conf(SRC).dt == dnnl_f16;
+        const bool is_f16_wei = prb->get_dt_conf(WEI).dt == dnnl_f16;
+        const bool is_f16_dst = prb->get_dt_conf(DST).dt == dnnl_f16;
+        const bool is_f16_not_ok = (is_f16_src || is_f16_wei || is_f16_dst)
+                && dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core_fp16);
+        if (is_f16_not_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+#endif
     }
 
     // Winograd implementation has very limited scope and support. It doesn't
@@ -495,14 +503,27 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_pd = query_pd(prim);
 
-    if (prb->alg == AUTO)
-        prb->alg = alg_kind2alg(query_conv_alg_kind(const_pd));
-    prb->cfg = auto_cfg(prb->alg, prb->cfg);
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
+
+    alg_t alg = prb->alg;
+    if (alg == AUTO) {
+        dnnl_convolution_desc_t *temp_conv_desc = {nullptr};
+        DNN_SAFE(dnnl_primitive_desc_query(const_pd, dnnl_query_convolution_d,
+                         0, &temp_conv_desc),
+                CRIT);
+        alg = alg_kind2alg(temp_conv_desc->alg_kind);
+    }
+    const auto cfg = auto_cfg(alg, prb->cfg);
+    prb_t p_new((desc_t)*prb, prb->dir, cfg, prb->stag, prb->wtag, prb->dtag,
+            alg, prb->attr, prb->mb);
+    prb = &p_new;
 
     const auto &src_md = prb->dir == BWD_D
             ? query_md(const_pd, DNNL_ARG_DIFF_SRC)
@@ -637,7 +658,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(FAIL, CRIT);
     }
 
-    return measure_perf(prb->ctx_exe, res, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace conv

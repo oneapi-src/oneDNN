@@ -34,6 +34,3 @@
 
 # bf16
 --batch=test_resampling_bfloat16
-
-# f16
---batch=test_resampling_float16

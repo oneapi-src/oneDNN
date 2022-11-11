@@ -118,12 +118,15 @@ int doit(const prb_t *prb, res_t *res) {
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     bool is_service_prim = prb->dir & FLAG_BWD;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res, FLAG_FWD, nullptr,
-                 is_service_prim),
+    SAFE(init_prim(prim, init_pd, prb, res, FLAG_FWD, nullptr, is_service_prim),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_fpd = query_pd(prim);
+
+    if (check_mem_size(const_fpd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
 
     const auto &data_md = query_md(const_fpd, DNNL_ARG_SRC);
     const auto &ws_md = query_md(const_fpd, DNNL_ARG_WORKSPACE);
@@ -141,9 +144,9 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_fp(data_md, fp, tag, ref_engine);
     dnn_mem_t dst_dt(data_md, test_engine);
 
+    if (prb->dir & FLAG_INF) SAFE(ws_md.ndims == 0 ? OK : FAIL, WARN);
     dnn_mem_t ws_fp(ws_md, ref_engine);
     dnn_mem_t ws_dt(ws_md, test_engine);
-    if (prb->dir & FLAG_INF) SAFE(ws_dt.ndims() == 0 ? OK : FAIL, WARN);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     dnn_mem_t d_dst_dt, d_src_dt;
@@ -176,6 +179,10 @@ int doit(const prb_t *prb, res_t *res) {
 
         auto const_bpd = query_pd(prim);
 
+        if (check_mem_size(const_bpd) != OK) {
+            return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+        }
+
         const auto &d_data_md = query_md(const_bpd, DNNL_ARG_DIFF_DST);
         const auto &d_scratchpad_md = query_md(const_bpd, DNNL_ARG_SCRATCHPAD);
 
@@ -207,7 +214,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    return measure_perf(prb->ctx_exe, res, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace lrn

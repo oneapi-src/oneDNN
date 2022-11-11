@@ -29,50 +29,45 @@ namespace sum {
 void check_correctness(const settings_t &s) {
     for_(const auto &i_sdt : s.sdt)
     for_(const auto &i_ddt : s.ddt)
-    for_(const auto &i_stag : s.stag)
+    for_(const auto &i_stag_ : s.stag)
     for_(const auto &i_dtag : s.dtag)
-    for_(const auto &i_input_scales : s.input_scales)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
-    for_(const auto &i_ctx_init : s.ctx_init)
-    for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_inplace : s.inplace) {
-        const int n_inputs = static_cast<int>(i_sdt.size());
-        const int n_stags = static_cast<int>(i_stag.size());
-        if (n_stags != n_inputs && n_stags != 1) {
-            BENCHDNN_PRINT(0,
-                    "ERROR: Expected number of stag arguments is `1` or `%d`, "
-                    "provided `%d`.\n",
-                    n_inputs, n_stags);
-            SAFE_V(FAIL);
+        // broadcast tag if needed
+        auto i_stag = i_stag_;
+        if (i_stag.size() == 1) {
+            const auto val = i_stag_[0];
+            i_stag.assign(i_sdt.size(), val);
         }
 
-        const int n_input_scales = static_cast<int>(i_input_scales.size());
-        if (n_input_scales != n_inputs && n_input_scales != 1) {
-            BENCHDNN_PRINT(0,
-                    "ERROR: Expected number of scales arguments is `1` or "
-                    "`%d`, provided `%d`.\n",
-                    n_inputs, n_input_scales);
+        if (i_sdt.size() != i_stag.size()) // expect 1:1 match of dt and tag
             SAFE_V(FAIL);
-        }
 
         auto attr = settings_t::get_attr(i_scratchpad_mode);
 
-        const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag,
-                i_input_scales, i_inplace, attr, i_ctx_init, i_ctx_exe);
-        std::stringstream ss;
-        ss << prb;
-        const std::string cpp_pstr = ss.str();
-        const char *pstr = cpp_pstr.c_str();
-        BENCHDNN_PRINT(1, "run: %s\n", pstr);
+        for (const auto &i_input_scales : s.input_scales) {
+            // expect either single scale value, or 1:1 match of dt and scale
+            if (i_input_scales.size() != 1
+                    && i_input_scales.size() != i_sdt.size())
+                SAFE_V(FAIL);
 
-        res_t res {};
-        doit(&prb, &res);
+            const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag,
+                    i_input_scales, i_inplace, attr);
+            std::stringstream ss;
+            ss << prb;
+            const std::string cpp_pstr = ss.str();
+            const char *pstr = cpp_pstr.c_str();
+            BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
-        parse_result(res, pstr);
+            res_t res {};
+            doit(&prb, &res);
 
-        if (is_bench_mode(PERF)) {
-            perf_report_t pr(&prb, s.perf_template);
-            pr.report(&res, pstr);
+            parse_result(res, pstr);
+
+            if (is_bench_mode(PERF)) {
+                perf_report_t pr(&prb, s.perf_template);
+                pr.report(&res, pstr);
+            }
         }
     }
 }
@@ -100,8 +95,6 @@ int bench(int argc, char **argv) {
                 || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
-                || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
-                || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv(), argv[0])
                 || parse_reset(s, argv[0]) || parse_help(argv[0]);

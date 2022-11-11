@@ -114,6 +114,41 @@ dnnl_primitive_attr_t create_dnnl_rnn_attr(const prb_t &prb) {
     return dnnl_attr;
 }
 
+int check_ldoi_s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
+        const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp,
+        const_dnnl_primitive_attr_t attr = nullptr) {
+    // TODO: enable for all cpu_kind when supported
+    if (is_gpu()) return OK;
+
+    // we compare ldio_f32 -> ldio_s8 to ldio_f32 -> ldoi_f32 -> ldio_s8
+    // f32 is in ldio
+    dnn_mem_t mem_ldoi_f32(mem_fp.md_, dnnl_f32, "ldoi", get_cpu_engine());
+    dnn_mem_t mem_s8_src(mem_dt.md_, dnnl_s8, get_test_engine());
+
+    mem_ldoi_f32.reorder(mem_fp);
+    mem_s8_src.reorder(mem_ldoi_f32, attr);
+
+    dnn_mem_t mem_s8_dst(mem_dt.md_, dnnl_s8, get_test_engine());
+    mem_s8_dst.reorder(mem_fp, attr);
+
+    // we check that the two are identical
+    auto sz = mem_dt.size();
+    uint8_t *s8_src_handle = (uint8_t *)mem_s8_src;
+    uint8_t *s8_dst_handle = (uint8_t *)mem_s8_dst;
+
+    // check that both have the same size
+    assert(mem_s8_src.size() == mem_s8_dst.size());
+    // check that both have the same alignment modulo align_data in
+    // gemm_pack_storage.hpp
+    assert((uint64_t)s8_src_handle % 0x1000
+            == (uint64_t)s8_dst_handle % 0x1000);
+    for (size_t i = 0; i < sz; ++i) {
+        if (s8_src_handle[i] != s8_dst_handle[i]) { return FAIL; }
+    }
+
+    return OK;
+}
+
 int check_s8s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
         const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp) {
     // TODO: enable for all cpu_kind when supported
@@ -142,8 +177,8 @@ int check_s8s8_reorder(const prb_t &prb, rnn_data_kind_t kind,
     // alignment as packed buffer is aligned internally and the offset
     // is kept in the metadata.
     // Works fine with dnn_mem_t as it is align to 2MB large page boundary
-    dnn_mem_t mem_s8_src(mem_fp.md_, dnnl_s8, tag::abx, get_cpu_engine());
-    dnn_mem_t mem_s8_dst(mem_dt.md_, get_test_engine());
+    dnn_mem_t mem_s8_src(mem_fp.md_, dnnl_s8, get_cpu_engine());
+    dnn_mem_t mem_s8_dst(mem_dt.md_, dnnl_s8, get_test_engine());
 
     /* 1. compute f32_plain --quant--> s8_plain_quantized */
     /* Do fixed partitioning to have same filling for any number of threads */
@@ -285,6 +320,10 @@ int fill_memory(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     mem_dt.reorder(mem_fp, reorder_attr);
     if ((reorder_attr != nullptr) && (dt == dnnl_s8))
         if (check_s8s8_reorder(prb, kind, mem_dt, mem_fp) != OK) return FAIL;
+    if ((kind == WEIGHTS_PROJECTION) && (dt == dnnl_s8))
+        if (check_ldoi_s8_reorder(prb, kind, mem_dt, mem_fp, reorder_attr)
+                != OK)
+            return FAIL;
 
     // Bullet 4.a holds: quantize weights for int8 benchdnn reference RNN
     if (prb.is_int8()) {
@@ -426,7 +465,7 @@ int fill_weights(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     assert(kind == WEIGHTS_PROJECTION ? mem_fp.ndims() == 4
                                       : mem_fp.ndims() == 5);
 
-    const auto &dims = mem_fp.dims();
+    const auto &dims = mem_fp.md_.dims;
     const int64_t L = dims[0];
     const int64_t D = dims[1];
     const int64_t I = dims[2];
@@ -478,7 +517,7 @@ int fill_bias(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     // To reduce likelihood of cancellation happening in bwd by bias,
     // (especially for GRU), we want diff_bias to be sparse
-    const auto &dims = mem_fp.dims();
+    auto dims = mem_fp.md_.dims;
     auto L = dims[0];
     auto D = dims[1];
     auto G = dims[2];
@@ -839,8 +878,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
             [&, prb](const compare::compare_t::driver_check_func_args_t &args) {
                 // Limitation from current filling.
                 // TODO: find a better filling to get rid of this...
-                if ((prb->alg == VANILLA_GRU || prb->alg == LBR_AUGRU
-                            || prb->alg == VANILLA_RNN || prb->alg == LBR_GRU)
+                if ((prb->alg == LBR_GRU || prb->alg == LBR_AUGRU
+                            || prb->alg == VANILLA_RNN)
                         && prb->prop == dnnl_backward) {
                     return args.diff < args.trh;
                 }
@@ -854,12 +893,16 @@ int doit(const prb_t &prb, res_t *res) {
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     bool is_service_prim = prb.dir & FLAG_BWD;
-    SAFE(init_prim(prb.ctx_init, prim, init_pd, &prb, res, FLAG_FWD, nullptr,
-                 is_service_prim),
+    SAFE(init_prim(
+                 prim, init_pd, &prb, res, FLAG_FWD, nullptr, is_service_prim),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_fpd = query_pd(prim);
+
+    if (check_mem_size(const_fpd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
 
     const auto &src_layer_md = query_md(const_fpd, DNNL_ARG_SRC_LAYER);
     const auto &src_layer_attention_md
@@ -1016,6 +1059,10 @@ int doit(const prb_t &prb, res_t *res) {
         prim.reset(tmp_prim.release());
 
         auto const_bpd = query_pd(prim);
+
+        if (check_mem_size(const_bpd) != OK) {
+            return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+        }
 
         const auto &bwd_weights_layer_md
                 = query_md(const_bpd, DNNL_ARG_WEIGHTS_LAYER);
@@ -1217,7 +1264,7 @@ int doit(const prb_t &prb, res_t *res) {
         }
     }
 
-    return measure_perf(prb.ctx_exe, res, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace rnn

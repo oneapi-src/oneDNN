@@ -32,11 +32,6 @@ struct desc_t {
     int64_t mb, oc, ic, id, ih, iw;
     std::string name;
     int ndims;
-
-    dims_t src_dims() const;
-    dims_t wei_dims() const;
-    dims_t bia_dims() const;
-    dims_t dst_dims() const;
 };
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
@@ -79,8 +74,7 @@ struct settings_t : public base_settings_t {
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, const dt_conf_t *cfg,
             const std::string &stag, const std::string &wtag,
-            const std::string &dtag, const attr_t &attr,
-            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe)
+            const std::string &dtag, const attr_t &attr)
         : desc_t(desc)
         , dir(dir)
         , cfg(cfg)
@@ -88,8 +82,6 @@ struct prb_t : public desc_t {
         , wtag(wtag)
         , dtag(dtag)
         , attr(attr)
-        , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe)
         , user_mb(mb)
         , ops(0)
         , scales(NULL) {
@@ -105,7 +97,6 @@ struct prb_t : public desc_t {
     const dt_conf_t *cfg;
     std::string stag, wtag, dtag;
     attr_t attr;
-    thr_ctx_t ctx_init, ctx_exe;
     int64_t user_mb;
 
     double ops;
@@ -152,8 +143,6 @@ struct perf_report_t : public base_perf_report_t {
 
     double ops() const override { return p_->ops; }
     const attr_t *attr() const override { return &p_->attr; }
-    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
-    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const int64_t *user_mb() const override { return &p_->user_mb; }
     const std::string *name() const override { return &p_->name; }
     const dir_t *dir() const override { return &p_->dir; }

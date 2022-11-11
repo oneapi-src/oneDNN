@@ -17,8 +17,5 @@
 # bf16
 --batch=test_deconv_bfloat16
 
-# f16
---batch=test_deconv_float16_nxc
-
 # Regression
 --batch=harness_deconv_regression_general_f32

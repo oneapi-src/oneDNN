@@ -26,6 +26,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &ws = args.find(DNNL_ARG_WORKSPACE);
 
     float *dst_ptr = (float *)dst;
+    int *ws_ptr = (int *)ws;
 
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
     auto ker = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
@@ -66,7 +67,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
         float res = 0.f;
         if (prb->alg == max) {
             res = max_value;
-            if (!(prb->dir & FLAG_INF)) ws.set_elem(dst_off, ws_off);
+            if (!(prb->dir & FLAG_INF)) ws_ptr[dst_off] = ws_off;
         } else if (prb->alg == avg_np || prb->alg == avg_p) {
             res = avg_value / get_num_summands(prb, od, oh, ow);
         }

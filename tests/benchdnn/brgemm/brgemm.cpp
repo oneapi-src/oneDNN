@@ -373,16 +373,9 @@ int doit(const prb_t *prb, res_t *res) {
             WARN);
     if (res->state == SKIPPED) return OK;
 
-    // Create BRGeMM kernel, analogous to primitive creation.
-    // ctx_init can here be used to select core type on hetero ISA with
-    // tbb
+    // Create BRGeMM kernel, analogous to primitive creation
     brgemm_kernel_t *brgemm_kernel_;
-    {
-        auto brgemm_kernel_addr = &brgemm_kernel_;
-        DNN_SAFE(create_in_thr_ctx(prb->ctx_init, brgemm_kernel_create,
-                         brgemm_kernel_addr, brgemm_desc),
-                WARN);
-    }
+    DNN_SAFE(brgemm_kernel_create(&brgemm_kernel_, brgemm_desc), WARN);
     auto brgemm_kernel = make_benchdnn_dnnl_wrapper(brgemm_kernel_);
 
     char palette[AMX_PALETTE_SIZE] = {};
@@ -555,7 +548,7 @@ int doit(const prb_t *prb, res_t *res) {
             brgemm_kernel_, prb->batch_size, v_batch_element.data(), acc_ptr,
             dst_ptr, post_ops_data, scratchpad_ptr, std::placeholders::_1,
             std::placeholders::_2);
-    measure_perf(prb->ctx_exe, res, perf_func, args);
+    measure_perf(res, perf_func, args);
 
     if (init_tile_status == dnnl_success) DNN_SAFE(amx_tile_release(), WARN);
 

@@ -440,8 +440,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     bool is_service_prim = prb->dir & FLAG_BWD;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res, FLAG_FWD, nullptr,
-                 is_service_prim),
+    SAFE(init_prim(prim, init_pd, prb, res, FLAG_FWD, nullptr, is_service_prim),
             WARN);
 
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
@@ -632,7 +631,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    return measure_perf(prb->ctx_exe, res, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace bnorm

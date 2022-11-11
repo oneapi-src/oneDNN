@@ -49,8 +49,7 @@
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
 extern "C" dnnl_status_t dnnl_impl_gpu_set_profiling(int flag);
 extern "C" dnnl_status_t dnnl_impl_gpu_reset_profiling();
-extern "C" dnnl_status_t dnnl_impl_gpu_get_profile_info(
-        uint64_t &time, double &freq, int mode);
+extern "C" dnnl_status_t dnnl_impl_gpu_get_profiling_time(uint64_t *time);
 #endif
 
 int check_pd_cache(const_dnnl_primitive_desc_t pd) {
@@ -323,7 +322,7 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args, res_t *res) {
     return execute_and_wait(exec_func, engine, args, res);
 }
 
-void enable_gpu_profiling() {
+void maybe_enable_profiling() {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
     if (!is_bench_mode(PROF)) return;
@@ -331,7 +330,7 @@ void enable_gpu_profiling() {
 #endif
 }
 
-void disable_gpu_profiling() {
+void maybe_disable_profiling() {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
     if (!is_bench_mode(PROF)) return;
@@ -340,19 +339,12 @@ void disable_gpu_profiling() {
 #endif
 }
 
-void reset_gpu_profiling() {
+void maybe_reset_profiling(uint64_t *nsec) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
     if (!is_bench_mode(PROF)) return;
+    if (nsec) DNN_SAFE_V(dnnl_impl_gpu_get_profiling_time(nsec));
     DNN_SAFE_V(dnnl_impl_gpu_reset_profiling());
-#endif
-}
-
-void get_gpu_profiling_info(uint64_t &nsec, double &freq, int mode) {
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
-        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    if (!is_bench_mode(PROF)) return;
-    DNN_SAFE_V(dnnl_impl_gpu_get_profile_info(nsec, freq, mode));
 #endif
 }
 
@@ -395,7 +387,7 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             = fix_times_per_prb ? fix_times_per_prb : min_times_per_prb;
 
     t.reset();
-    reset_gpu_profiling();
+    maybe_reset_profiling();
 
     bool is_first_loop = true;
     while (true) {
@@ -404,15 +396,9 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
         }
         DNN_SAFE(dnnl_stream_wait(stream), WARN);
 
-        if (is_bench_mode(PROF)) {
-            uint64_t nsec = 0;
-            double freq = 0;
-            get_gpu_profiling_info(nsec, freq, 0);
-            reset_gpu_profiling();
-            t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
-        } else {
-            t.stamp(cur_batch_times);
-        }
+        uint64_t ticks = 0;
+        maybe_reset_profiling(&ticks);
+        t.stamp(cur_batch_times, (unsigned long long)ticks);
 
         if (should_stop(t)) break;
 
@@ -429,16 +415,14 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
             is_first_loop = false;
         }
     }
-
     return OK;
 }
 
-int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
-        args_t &args) {
+int measure_perf(res_t *res, perf_function_t &perf_func, args_t &args) {
     int ret = OK;
     if (is_bench_mode(PERF)) {
         const auto &engine = get_test_engine();
-        stream_t stream(engine, ctx.get_interop_obj());
+        stream_t stream(engine);
         std::vector<dnnl_exec_arg_t> dnnl_args;
         execute_unmap_args(args, dnnl_args);
 
@@ -447,23 +431,20 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
         // For DPCPP CPU and GPU: measure iterations in batches to hide driver
         // overhead. DPCPP CPU follows the model of GPU, thus, handled similar.
         if (is_cpu() && !is_sycl_engine(engine))
-            ret = execute_in_thr_ctx(ctx, measure_perf_individual, t, stream,
-                    perf_func, dnnl_args);
+            ret = measure_perf_individual(t, stream, perf_func, dnnl_args);
         else
-            ret = execute_in_thr_ctx(ctx, measure_perf_aggregate, t, stream,
-                    perf_func, dnnl_args);
+            ret = measure_perf_aggregate(t, stream, perf_func, dnnl_args);
 
         if (ret == OK) execute_map_args(args);
     }
     return ret;
 }
 
-int measure_perf(
-        const thr_ctx_t &ctx, res_t *res, dnnl_primitive_t prim, args_t &args) {
+int measure_perf(res_t *res, dnnl_primitive_t prim, args_t &args) {
     perf_function_t perf_func = std::bind(&primitive_executor, prim,
             std::placeholders::_1, std::placeholders::_2);
 
-    return measure_perf(ctx, res, perf_func, args);
+    return measure_perf(res, perf_func, args);
 }
 
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
@@ -832,8 +813,7 @@ static size_t get_gpu_ram_size() {
     return 0;
 }
 
-static int check_total_size(
-        size_t total_mem_size, size_t scratchpad_size, res_t *res) {
+static int validate_mem_size(size_t total_mem_size) {
     static uint64_t cpu_device_capacity = get_cpu_ram_size();
     static uint64_t gpu_device_capacity = get_gpu_ram_size();
 
@@ -849,32 +829,8 @@ static int check_total_size(
     const bool fits_device_ram = total_mem_size <= benchdnn_limit;
     auto GB = [](double bytes) { return bytes / powf(2, 30); };
 
-    if (!fits_device_ram) {
+    if (!fits_device_ram)
         BENCHDNN_PRINT(2, "%s\n", "benchdnn: not enough RAM for a problem.");
-        if (is_cpu(get_test_engine())) {
-            // Try to catch a huge scratchpad size requested by the library.
-            // Use following logic:
-            //     scratch_size
-            // ---------------------- <= 0.75 (pre-defined threshold).
-            // io_size + scratch_size
-            //
-            // 0.75 value supposed to be experimental and might be adjusted.
-            static constexpr float scratch_trh = 0.75f;
-            if (scratchpad_size > scratch_trh * total_mem_size) {
-                BENCHDNN_PRINT(2, "%s `%ld` %s `%ld`.\n",
-                        "benchdnn: CPU scratchpad size", (long)scratchpad_size,
-                        "exceeded a given threshold",
-                        (long)(scratch_trh * total_mem_size));
-                res->state = FAILED;
-            } else {
-                res->state = SKIPPED;
-            }
-        } else {
-            assert(is_gpu(get_test_engine()));
-            res->state = SKIPPED;
-        }
-        res->reason = NOT_ENOUGH_RAM;
-    }
 
     BENCHDNN_PRINT((!fits_device_ram ? 2 : 6),
             "Requested: %g GB, benchdnn limit: %g GB, CPU RAM capacity: %g GB, "
@@ -882,7 +838,7 @@ static int check_total_size(
             GB(total_mem_size), GB(benchdnn_limit), GB(cpu_device_capacity),
             GB(gpu_device_capacity));
 
-    return res->state == FAILED ? FAIL : OK;
+    return fits_device_ram ? OK : FAIL;
 }
 
 static size_t get_md_size(const dnnl_memory_desc_t *md,
@@ -956,15 +912,15 @@ static size_t get_memory_bytes(const_dnnl_primitive_desc_t const_pd,
     return total_mem_size;
 }
 
-int check_mem_size(const dnnl_memory_desc_t &md, res_t *res) {
+int check_mem_size(const dnnl_memory_desc_t &md) {
     if (!mem_check) return OK;
 
     size_t total_mem_size = dnnl_memory_desc_get_size(&md);
 
-    return check_total_size(total_mem_size, 0, res);
+    return validate_mem_size(total_mem_size);
 }
 
-int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res) {
+int check_mem_size(const_dnnl_primitive_desc_t const_pd) {
     if (!mem_check) return OK;
 
     bool add_ref_size = true;
@@ -973,13 +929,11 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     size_t total_mem_size = get_memory_bytes(const_pd, inputs, add_ref_size)
             + get_memory_bytes(const_pd, outputs, add_ref_size);
 
-    // Depending on scratchpad mode, either of sizes will be 0.
     const auto &scratchpad = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-    size_t scratchpad_size = get_md_size(&scratchpad, add_ref_size);
-    scratchpad_size += query_mem_consumption(const_pd);
-    total_mem_size += scratchpad_size;
+    total_mem_size += get_md_size(&scratchpad, add_ref_size);
+    total_mem_size += query_mem_consumption(const_pd);
 
-    return check_total_size(total_mem_size, scratchpad_size, res);
+    return validate_mem_size(total_mem_size);
 }
 
 int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
@@ -1029,7 +983,7 @@ static void maybe_print_cpu_engine_error_message() {
 }
 
 engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {
-    enable_gpu_profiling();
+    maybe_enable_profiling();
     size_t idx = engine_kind == dnnl_cpu ? 0 : engine_index;
     dnnl_status_t status = dnnl_engine_create(&engine_, engine_kind, idx);
     if (engine_kind == dnnl_cpu && status != dnnl_success)
@@ -1083,13 +1037,11 @@ engine_t::~engine_t() {
     if (is_owner_) DNN_SAFE_V(dnnl_engine_destroy(engine_));
 }
 
-stream_t::stream_t(dnnl_engine_t engine, void *interop_obj) {
+stream_t::stream_t(dnnl_engine_t engine) {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
     if (is_cpu(engine)) {
-        auto tp = static_cast<dnnl::threadpool_interop::threadpool_iface *>(
-                interop_obj);
-        if (tp == nullptr) tp = dnnl::testing::get_threadpool();
-        SAFE_V(dnnl_threadpool_interop_stream_create(&stream_, engine, tp));
+        SAFE_V(dnnl_threadpool_interop_stream_create(
+                &stream_, engine, dnnl::testing::get_threadpool()));
         return;
     }
 #endif

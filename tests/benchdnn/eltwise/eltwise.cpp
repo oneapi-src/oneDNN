@@ -345,10 +345,14 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_fpd = query_pd(prim);
+
+    if (check_mem_size(const_fpd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
 
     const auto &src_md = query_md(const_fpd, DNNL_ARG_SRC);
     const auto &dst_md = query_md(const_fpd, DNNL_ARG_DST);
@@ -397,13 +401,15 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (prb->dir & FLAG_BWD) {
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
-        SAFE(init_prim(prb->ctx_init, tmp_prim, init_pd, prb, res, FLAG_BWD,
-                     const_fpd),
-                WARN);
+        SAFE(init_prim(tmp_prim, init_pd, prb, res, FLAG_BWD, const_fpd), WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
         prim.reset(tmp_prim.release());
 
         auto const_bpd = query_pd(prim);
+
+        if (check_mem_size(const_bpd) != OK) {
+            return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+        }
 
         const auto &d_dst_md = query_md(const_bpd, DNNL_ARG_DIFF_DST);
         const auto &d_src_md = query_md(const_bpd, DNNL_ARG_DIFF_SRC);
@@ -445,7 +451,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    return measure_perf(prb->ctx_exe, res, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace eltwise

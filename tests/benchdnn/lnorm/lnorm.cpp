@@ -70,11 +70,12 @@ int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
         alg = (exact_bits - logL) / 2 - 1 >= min_flex_bits ? ALG_1 : ALG_0;
 
     const int64_t flex_bits = alg == ALG_0
-            ? want_flex_bits
-            : MIN2(exact_bits, (exact_bits - logL) / 2 - 1);
+            ? want_flex_bits /* BFloat16 has only 7 bits of mantissa */
+            : MIN2(prb->dt[0] == dnnl_bf16 ? 7 : exact_bits,
+                    (exact_bits - logL) / 2 - 1);
     if (flex_bits < min_flex_bits) return FAIL;
 
-    if (exact_bits / 2 == flex_bits) alg = ALG_2;
+    if (exact_bits == 2 * flex_bits) alg = ALG_2;
 
     if ((alg == ALG_0 || alg == ALG_1) && !is_integral_dt(prb->dt[0])) {
         const int64_t flex_mask = (1 << flex_bits) - 1;
@@ -373,10 +374,14 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_pd = query_pd(prim);
+
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
 
     const bool use_ss = prb->use_ss();
     const bool use_sc = prb->use_sc();
@@ -399,11 +404,11 @@ int doit(const prb_t *prb, res_t *res) {
     // On inference w/o global stats the layer norm doesn't require stat
     // memories. Hence, we need to prepare the mean_fp and var_fp ourselves.
     dnn_mem_t mean_fp(
-            prb->ndims - 1, src_fp.dims(), dnnl_f32, tag::abx, ref_engine);
+            prb->ndims - 1, src_md.dims, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t mean_dt(mean_md, test_engine);
 
     dnn_mem_t var_fp(
-            prb->ndims - 1, src_fp.dims(), dnnl_f32, tag::abx, ref_engine);
+            prb->ndims - 1, src_md.dims, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t var_dt(var_md, test_engine);
 
     dnn_mem_t ss_fp(ss_md, dnnl_f32, tag::abx, ref_engine);
@@ -536,7 +541,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    return measure_perf(prb->ctx_exe, res, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace lnorm

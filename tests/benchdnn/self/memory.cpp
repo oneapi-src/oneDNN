@@ -43,6 +43,10 @@ static int check_bool_operator() {
         dnn_mem_t m(md, dnnl_f32, tag::abx, get_test_engine());
         if (!m) return FAIL;
     }
+    {
+        dnn_mem_t m(md, dnnl_f32, get_test_engine());
+        if (!m) return FAIL;
+    }
     return OK;
 }
 

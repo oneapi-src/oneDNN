@@ -106,13 +106,13 @@ void compute_ref(
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
     benchdnn_parallel_nd(idle_size, [&](int64_t f) {
         dims_t idle_pos = off2dims_idx(dst_dims, f);
-        const int64_t dst_off = md_off_v(dst, idle_pos.data());
-        const int64_t src_idle_off = md_off_v(src, idle_pos.data());
+        const int64_t dst_off = md_off_v(dst.md_, idle_pos.data());
+        const int64_t src_idle_off = md_off_v(src.md_, idle_pos.data());
         float acc {0.0f};
         init_acc(acc, alg);
         for (int64_t r = 0; r < reduce_size; ++r) {
             dims_t reduce_pos = off2dims_idx(reduce_dims, r);
-            const int64_t src_reduce_off = md_off_v(src, reduce_pos.data());
+            const int64_t src_reduce_off = md_off_v(src.md_, reduce_pos.data());
             const int64_t src_off = src_idle_off + src_reduce_off;
             accumulate(acc, src.get_elem(src_off), alg, p, eps);
         }

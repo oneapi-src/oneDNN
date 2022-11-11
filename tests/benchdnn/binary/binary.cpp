@@ -138,11 +138,6 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
     // See `skip_invalid_inplace` for details.
     if (prb->inplace) {
-        if (is_sum) {
-            res->state = SKIPPED, res->reason = INVALID_CASE;
-            return;
-        }
-
         skip_invalid_inplace(
                 res, prb->sdt[0], prb->ddt, prb->stag[0], prb->dtag);
         if (res->state == SKIPPED) return;
@@ -178,10 +173,14 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_pd = query_pd(prim);
+
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
 
     const auto &src0_md = query_md(const_pd, DNNL_ARG_SRC_0);
     const auto &src1_md = query_md(const_pd, DNNL_ARG_SRC_1);
@@ -243,7 +242,7 @@ int doit(const prb_t *prb, res_t *res) {
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 
-    return measure_perf(prb->ctx_exe, res, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace binary

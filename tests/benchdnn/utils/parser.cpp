@@ -531,57 +531,6 @@ static bool parse_fast_ref_gpu(
     return parsed;
 }
 
-bool parse_ctx(std::vector<thr_ctx_t> &ctx,
-        const std::vector<thr_ctx_t> &def_ctx, const char *str,
-        const std::string &option_name) {
-    const std::string name_in_help
-            = (option_name == "ctx-init") ? "initialization." : "execution.";
-    const std::string help = 
-            "MAX_CONCURENCY[:CORE_TYPE[:THREADS_PER_CORE]] (Default:"
-            "`auto:auto:auto`)\n Specifies the threading context "
-            "used during primitive " + name_in_help +
-            "\nMAX_CONCURRENCY is the maximum number of threads."
-            "\nCORE_TYPE enables to select big (value 0) or small cores "
-            "(value 1) for hybrid CPUs (TBB runtime only)."
-            "\nTHREADS_PER_CORE allows to enable/disable hyper-threading "
-            "(TBB runtime only).";
-
-    auto str2ctx = [&option_name](const char *str) {
-        thr_ctx_t result = default_thr_ctx;
-        try {
-            size_t start_pos = 0;
-            /* concurrency piece */
-            std::string val_str = get_substr(str, start_pos, ':');
-            if (val_str != "auto") result.max_concurrency = std::stoll(val_str);
-            /* core_type piece */
-            val_str = start_pos != eol ? get_substr(str, start_pos, ':') : "";
-            if (val_str != "auto" && !val_str.empty())
-                result.core_type = std::stoll(val_str);
-            /* nthr_per_core piece */
-            val_str = start_pos != eol ? get_substr(str, start_pos, ':') : "";
-            if (val_str != "auto" && !val_str.empty())
-                result.nthr_per_core = std::stoll(val_str);
-        } catch (const std::invalid_argument &) {
-            BENCHDNN_PRINT(0, "%s %s\n", option_name.c_str(),
-                    "fields should be 'auto' or integer values");
-            exit(1);
-        }
-
-        return result;
-    };
-
-    return parse_vector_option(ctx, def_ctx, str2ctx, str, option_name, help);
-}
-
-bool parse_ctx_init(std::vector<thr_ctx_t> &ctx,
-        const std::vector<thr_ctx_t> &def_ctx, const char *str) {
-    return parse_ctx(ctx, def_ctx, str, "ctx-init");
-}
-bool parse_ctx_exe(std::vector<thr_ctx_t> &ctx,
-        const std::vector<thr_ctx_t> &def_ctx, const char *str) {
-    return parse_ctx(ctx, def_ctx, str, "ctx-exe");
-}
-
 static bool parse_fix_times_per_prb(
         const char *str, const std::string &option_name = "fix-times-per-prb") {
     static const std::string help

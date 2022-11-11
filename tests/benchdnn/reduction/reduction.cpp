@@ -154,22 +154,20 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     // TODO: consider change the filling with power-of-two values for better
     // answer precision.
     cmp.set_threshold(5 * epsilon_dt(prb->ddt));
-    if (is_amd_gpu()) {
-        // MIOpen implementation is less accurate for f16 data type therefore
-        // adjust the threshold.
-        if (prb->sdt == dnnl_f16 || prb->ddt == dnnl_f16)
-            cmp.set_threshold(1.5e-4 * 4);
-    }
 }
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_pd = query_pd(prim);
+
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
 
     const auto fp_dt = dnnl_f32;
     const auto abx_tag = tag::abx;
@@ -211,7 +209,7 @@ int doit(const prb_t *prb, res_t *res) {
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 
-    return measure_perf(prb->ctx_exe, res, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace reduction

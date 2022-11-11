@@ -12,7 +12,7 @@ where *binary-knobs* are:
             Refer to [data types](knobs_dt.md) for details.
  - `--ddt={f32 [default], ...}` -- dst data type.
             Refer to [data types](knobs_dt.md) for details.
- - `--stag={abx:any [default], ...}` -- physical src memory layout.
+ - `--stag={nchw:nchw [default], ...}` -- physical src memory layout.
             Refer to ``Inputs`` below.
             Refer to [tags](knobs_tag.md) for details.
  - `--dtag={any [default], ...}` -- physical dst memory layout.

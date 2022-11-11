@@ -23,6 +23,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "tests/test_isa_common.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
@@ -38,14 +39,33 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     dnnl_inner_product_desc_t ipd;
 
+    dnnl_dims_t src_dims_0d = {prb->mb, prb->ic};
+    dnnl_dims_t src_dims_1d = {prb->mb, prb->ic, prb->iw};
+    dnnl_dims_t src_dims_2d = {prb->mb, prb->ic, prb->ih, prb->iw};
+    dnnl_dims_t src_dims_3d = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
+    dnnl_dims_t wei_dims_0d = {prb->oc, prb->ic};
+    dnnl_dims_t wei_dims_1d = {prb->oc, prb->ic, prb->iw};
+    dnnl_dims_t wei_dims_2d = {prb->oc, prb->ic, prb->ih, prb->iw};
+    dnnl_dims_t wei_dims_3d = {prb->oc, prb->ic, prb->id, prb->ih, prb->iw};
+    dnnl_dims_t bia_dims = {prb->oc};
+    dnnl_dims_t dst_dims = {prb->mb, prb->oc};
+
+    dnnl_dim_t *src_dims = prb->ndims == 5
+            ? src_dims_3d
+            : prb->ndims == 4 ? src_dims_2d
+                              : prb->ndims == 3 ? src_dims_1d : src_dims_0d;
+
+    dnnl_dim_t *wei_dims = prb->ndims == 5
+            ? wei_dims_3d
+            : prb->ndims == 4 ? wei_dims_2d
+                              : prb->ndims == 3 ? wei_dims_1d : wei_dims_0d;
+
     auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->src_dims().data(), prb->cfg[SRC].dt, prb->stag);
+            prb->ndims, src_dims, prb->cfg[SRC].dt, prb->stag);
     auto wei_d = dnn_mem_t::init_md(
-            prb->ndims, prb->wei_dims().data(), prb->cfg[WEI].dt, prb->wtag);
-    auto bia_d = dnn_mem_t::init_md(
-            1, prb->bia_dims().data(), prb->cfg[BIA].dt, tag::any);
-    auto dst_d = dnn_mem_t::init_md(
-            2, prb->dst_dims().data(), prb->cfg[DST].dt, prb->dtag);
+            prb->ndims, wei_dims, prb->cfg[WEI].dt, prb->wtag);
+    auto bia_d = dnn_mem_t::init_md(1, bia_dims, prb->cfg[BIA].dt, tag::any);
+    auto dst_d = dnn_mem_t::init_md(2, dst_dims, prb->cfg[DST].dt, prb->dtag);
 
     switch (prb->dir) {
         case FWD_D:
@@ -76,7 +96,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     attr_args_t attr_args;
     attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
-    attr_args.prepare_post_ops_mds(prb->attr, 2, prb->dst_dims().data());
+    attr_args.prepare_post_ops_mds(prb->attr, 2, dst_dims);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -93,7 +113,7 @@ int init_prim_ref(
     auto cpu_attr = prb->attr;
     update_cpu_ref_attrs(cpu_attr);
     prb_t prb_cpu {*prb, prb->mb, prb->dir, conf_f32, tag::abx, tag::abx,
-            tag::abx, cpu_attr, prb->ctx_init, prb->ctx_exe};
+            tag::abx, cpu_attr};
 
     init_pd_args_t<prb_t> init_pd_args(
             /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
@@ -137,13 +157,12 @@ int fill_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
     const auto &c = prb->get_dt_conf(SRC);
     const int range = c.f_max - c.f_min + 1;
-    const float sparsity
-            = (!is_bench_mode(CORR) || prb->ic < 5) ? 1.f : c.f_sparsity;
 
     benchdnn_parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
                 const int gen
                         = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
+                const float sparsity = prb->ic < 5 ? 1.f : c.f_sparsity;
                 const bool non_base = flip_coin(gen, sparsity);
                 const float value
                         = non_base ? c.f_min + gen * 1 % range : c.f_base;
@@ -162,13 +181,12 @@ int fill_wei(
 
     const auto &c = prb->get_dt_conf(WEI);
     const int range = c.f_max - c.f_min + 1;
-    const float sparsity
-            = (!is_bench_mode(CORR) || prb->ic < 5) ? 1.f : c.f_sparsity;
 
     benchdnn_parallel_nd(prb->oc, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t oc, int64_t ic, int64_t kd, int64_t kh, int64_t kw) {
                 const int gen = 127 * kd + 131 * kh + 137 * kw + 139 * oc
                         + 149 * ic + 7;
+                const float sparsity = prb->ic < 5 ? 1.f : c.f_sparsity;
                 const bool non_base = flip_coin(gen, sparsity);
                 const float value
                         = non_base ? c.f_min + gen * 1 % range : c.f_base;
@@ -179,8 +197,8 @@ int fill_wei(
     if (s8_s8 && is_cpu()) {
         // Check that s8 -> s8_comp exists in the library since users may have
         // already quantized data.
-        dnn_mem_t mem_fp_s8(mem_fp.md_, dnnl_s8, tag::abx, get_cpu_engine());
-        dnn_mem_t mem_dt_s8(mem_dt.md_, get_test_engine());
+        dnn_mem_t mem_fp_s8(mem_fp.md_, dnnl_s8, get_cpu_engine());
+        dnn_mem_t mem_dt_s8(mem_dt.md_, dnnl_s8, get_test_engine());
         SAFE(mem_fp_s8.reorder(mem_fp), WARN);
         SAFE(mem_dt_s8.reorder(mem_fp_s8), WARN);
         SAFE(mem_dt.size() == mem_dt_s8.size() ? OK : FAIL, WARN);
@@ -233,21 +251,20 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
             res);
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     if (is_cpu()) {
-
-        auto is_dt_f16_or_f32 = [&](dnnl_data_type_t dt) {
-            return dt == dnnl_f16 || dt == dnnl_f32;
-        };
-
-        if (!IMPLICATION(prb->cfg[SRC].dt == dnnl_f16
-                            || prb->cfg[WEI].dt == dnnl_f16
-                            || prb->cfg[DST].dt == dnnl_f16,
-                    is_dt_f16_or_f32(prb->cfg[SRC].dt)
-                            && is_dt_f16_or_f32(prb->cfg[WEI].dt)
-                            && is_dt_f16_or_f32(prb->cfg[DST].dt))) {
+        static auto isa = dnnl_get_effective_cpu_isa();
+        const bool is_f16_src = prb->get_dt_conf(SRC).dt == dnnl_f16;
+        const bool is_f16_wei = prb->get_dt_conf(WEI).dt == dnnl_f16;
+        const bool is_f16_dst = prb->get_dt_conf(DST).dt == dnnl_f16;
+        const bool is_f16_not_ok = (is_f16_src || is_f16_wei || is_f16_dst)
+                && dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core_fp16);
+        if (is_f16_not_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
         }
     }
+#endif
 
     skip_unimplemented_sum_po(prb->attr, res, prb->get_dt_conf(DST).dt);
 }
@@ -267,10 +284,14 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_pd = query_pd(prim);
+
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
 
     const auto &src_md = prb->dir == BWD_D
             ? query_md(const_pd, DNNL_ARG_DIFF_SRC)
@@ -389,7 +410,7 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
-    return measure_perf(prb->ctx_exe, res, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace ip

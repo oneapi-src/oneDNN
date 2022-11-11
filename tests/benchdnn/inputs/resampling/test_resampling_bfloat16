@@ -9,9 +9,3 @@
 --tag=abx,axb,aBx8b,aBx16b
 --batch=set_all
 
-# post-ops
---dir=FWD_D
---sdt=bf16
---ddt=bf16
---attr-post-ops=add:bf16
---batch=shapes_ci

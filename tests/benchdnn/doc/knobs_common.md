@@ -82,21 +82,6 @@ The following common options are supported:
   value. The default value is `0`. Refer to [verbose](knobs_verbose.md) for
   details.
 
-* `--ctx-init=MAX_CONCURENCY[:CORE_TYPE[:THREADS_PER_CORE]]` --
-  Specifies the threading context for primitive creation.
-  `MAX_CONCURRENCY` is an integer value or `auto` (default) and
-  specifies the maximum number of threads in the context.
-  `CORE_TYPE` is an integer value or `auto` (default) that specifies the
-  type or cores used in the context for hybrid CPUs, 0 being the
-  largest cores available on the system (TBB runtime only).
-  `THREADS_PER_CORE` is an integer value or `auto` that allows to
-  enable (value 2) or disable (value 1) hyper-threading (TBB runtime only).
-
-* `--ctx-exe=MAX_CONCURENCY[:CORE_TYPE[:THREADS_PER_CORE]]` --
-  Specifies the threading context for primitive execution.
-  Accepted values are similar to the `ctx-init` option.
-
-
 The following common options are applicable only for correctness mode:
 
 * `--fast-ref-gpu=BOOL` -- Instructs the driver to use faster reference path

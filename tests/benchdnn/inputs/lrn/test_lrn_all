@@ -13,6 +13,3 @@
 
 # bf16
 --batch=test_lrn_bfloat16
-
-# f16
---batch=test_lrn_float16

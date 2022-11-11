@@ -55,6 +55,3 @@
 
 # bf16
 --batch=test_bnorm_bfloat16_plain
-
-# f16
---batch=test_bnorm_float16_plain

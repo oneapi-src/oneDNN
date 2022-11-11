@@ -35,7 +35,7 @@ namespace pool {
 
 // though integers are expected, eps is needed to cover division error
 const dt_conf_t conf_entry_f32
-        = {dnnl_f32, -FLT_MAX, FLT_MAX, -2048, 2048, 5e-7};
+        = {dnnl_f32, -FLT_MAX, FLT_MAX, -2048, 2048, 3e-7};
 const dt_conf_t conf_entry_s32 = {dnnl_s32, INT_MIN, INT_MAX, -2048, 2048, 0.};
 const dt_conf_t conf_entry_s8
         = {dnnl_s8, INT8_MIN, INT8_MAX, INT8_MIN, INT8_MAX, 0.};

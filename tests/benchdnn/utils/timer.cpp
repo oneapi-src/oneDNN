@@ -29,17 +29,17 @@ double ms_now() {
 }
 
 #if !defined(BENCHDNN_USE_RDPMC) || defined(_WIN32)
-uint64_t ticks_now() {
-    return (uint64_t)0;
+unsigned long long ticks_now() {
+    return (unsigned long long)0;
 }
 #else
-uint64_t ticks_now() {
-    uint32_t eax, edx, ecx;
+unsigned long long ticks_now() {
+    unsigned eax, edx, ecx;
 
     ecx = (1 << 30) + 1;
     __asm__ volatile("rdpmc" : "=a"(eax), "=d"(edx) : "c"(ecx));
 
-    return (uint64_t)eax | (uint64_t)edx << 32;
+    return (unsigned long long)eax | (unsigned long long)edx << 32;
 }
 #endif
 
@@ -60,11 +60,19 @@ void timer_t::start() {
     ms_start_ = ms_now();
 }
 
-void timer_t::stop(int add_times, int64_t add_ticks, double add_ms) {
+void timer_t::stop(int add_times, unsigned long long add_ticks) {
     if (add_times == 0) return;
 
-    uint64_t d_ticks = add_ticks;
-    double d_ms = add_ms;
+    unsigned long long d_ticks;
+    double d_ms;
+
+    if (add_ticks > 0) {
+        d_ticks = add_ticks;
+        d_ms = add_ticks / 1e6;
+    } else {
+        d_ticks = ticks_now() - ticks_start_;
+        d_ms = ms_now() - ms_start_;
+    }
 
     ticks_start_ += d_ticks;
     ms_start_ += d_ms;
@@ -86,10 +94,6 @@ void timer_t::stop(int add_times, int64_t add_ticks, double add_ms) {
             = times_ ? std::max(ticks_[mode_t::max], d_ticks) : d_ticks;
 
     times_ += add_times;
-}
-
-void timer_t::stamp(int add_times) {
-    stop(add_times, ticks_now() - ticks_start_, ms_now() - ms_start_);
 }
 
 timer_t &timer_t::operator=(const timer_t &rhs) {

@@ -70,7 +70,3 @@
 --oflag=s8s8_comp:2,zp_comp:2,s8s8_comp:2+zp_comp:2
 --stag=ab,ba --dtag=BA16a16b4a,BA16a32b4a,BA16a48b4a,BA16a64b4a
 64x64 89x73
-
---oflag=s8s8_comp:5,zp_comp:5,s8s8_comp:5+zp_comp:5
---stag=abc,acb --dtag=aCB16b16c4b,aCB16b32c4b,aCB16b48c4b,aCB16b64c4b
-64x64x64 57x89x73

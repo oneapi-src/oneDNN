@@ -57,29 +57,20 @@ struct prb_t : public prb_dims_t {
     prb_t(const prb_dims_t &prb_dims, const std::vector<dnnl_data_type_t> &sdt,
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,
             const std::string &dtag, const std::vector<float> &input_scales,
-            bool inplace, const attr_t &attr, const thr_ctx_t &ctx_init,
-            const thr_ctx_t &ctx_exe)
+            bool inplace, const attr_t &attr)
         : prb_dims_t(prb_dims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
-        , input_scales(input_scales)
+        , input_scales(sdt.size())
         , inplace(inplace)
-        , attr(attr)
-        , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe) {
-        // Broadcast tag if needed
-        if (stag.size() == 1) {
-            const auto val = stag[0]; // Need a copy here.
-            this->stag.assign(n_inputs(), val);
-        }
-
-        // Broadcast input_scale if needed
-        if (input_scales.size() == 1) {
-            const auto val = input_scales[0]; // Need a copy here.
-            this->input_scales.assign(n_inputs(), val);
-        }
+        , attr(attr) {
+        // if there is a single scale then broadcast it
+        for (int i_input = 0; i_input < n_inputs(); i_input++)
+            this->input_scales[i_input] = ((int)input_scales.size() == 1)
+                    ? input_scales[0]
+                    : input_scales[i_input];
     }
     ~prb_t() {}
 
@@ -91,7 +82,6 @@ struct prb_t : public prb_dims_t {
     std::vector<float> input_scales;
     bool inplace;
     attr_t attr;
-    thr_ctx_t ctx_init, ctx_exe;
 
     int n_inputs() const { return (int)sdt.size(); }
 };
@@ -113,9 +103,6 @@ struct perf_report_t : public base_perf_report_t {
 
     void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }
 
-    const attr_t *attr() const override { return &p_->attr; }
-    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
-    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const std::vector<dnnl_data_type_t> *sdt() const override {
         return &p_->sdt;

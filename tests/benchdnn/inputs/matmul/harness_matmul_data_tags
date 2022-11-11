@@ -13,7 +13,6 @@
 --attr-fpmath=,bf16
 --wtag=BA16a64b,BA16a48b,BA16a32b,BA16a16b
 --batch=shapes_2d
---attr-fpmath=
 
 --cfg=bf16bf16bf16
 --wtag=BA16a64b2a,BA16a48b2a,BA16a32b2a,BA16a16b2a
@@ -22,18 +21,3 @@
 --cfg=u8s8f32
 --wtag=BA16a64b4a,BA16a48b4a,BA16a32b4a,BA16a16b4a
 --batch=shapes_2d
-
---stag=abc --dtag=abc
---cfg=f32
---attr-fpmath=,bf16
---wtag=aCB16b16c,aCB16b32c,aCB16b48c,aCB16b64c
---batch=shapes_3d
---attr-fpmath=
-
---cfg=bf16bf16bf16
---wtag=aCB16b16c2b,aCB16b32c2b,aCB16b48c2b,aCB16b64c2b
---batch=shapes_3d
-
---cfg=u8s8f32
---wtag=aCB16b16c4b,aCB16b32c4b,aCB16b48c4b,aCB16b64c4b
---batch=shapes_3d

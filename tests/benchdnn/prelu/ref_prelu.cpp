@@ -69,7 +69,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
 
     if (wei_nelems == 1) {
         const int reduce_dim = 0;
-        const int64_t N = d_src.dims()[reduce_dim];
+        const int64_t N = d_src.md_.dims[reduce_dim];
         const int64_t nelems_per_thr = src_nelems / N;
         d_wei_buf = new float[N];
         benchdnn_parallel_nd(N, [&](int64_t n) {
@@ -100,12 +100,13 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
 
         benchdnn_parallel_nd(wei_nelems, [&](int64_t f) {
             dims_t wei_pos = off2dims_idx(wei_dims, f);
-            const int64_t wei_off = md_off_v(wei, wei_pos.data());
-            const int64_t src_wei_off = md_off_v(src, wei_pos.data());
+            const int64_t wei_off = md_off_v(wei.md_, wei_pos.data());
+            const int64_t src_wei_off = md_off_v(src.md_, wei_pos.data());
 
             for (int64_t r = 0; r < reduce_size; ++r) {
                 dims_t reduce_pos = off2dims_idx(reduce_dims, r);
-                const int64_t src_reduce_off = md_off_v(src, reduce_pos.data());
+                const int64_t src_reduce_off
+                        = md_off_v(src.md_, reduce_pos.data());
                 const int64_t src_off = src_wei_off + src_reduce_off;
                 ker(src_off, wei_off, wei_off);
             }

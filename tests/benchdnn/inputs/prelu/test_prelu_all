@@ -5,5 +5,3 @@
 --batch=option_set_all
 
 --batch=test_prelu_bfloat16
-
---batch=test_prelu_float16

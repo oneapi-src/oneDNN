@@ -74,8 +74,7 @@ struct prb_t : public prb_dims_t {
     prb_t(const prb_dims_t &prb_dims, const std::vector<std::string> &tag,
             const std::string &stat_tag, dir_t dir,
             const std::vector<dnnl_data_type_t> &dt, flags_t flags,
-            const attr_t &attr, const thr_ctx_t &ctx_init,
-            const thr_ctx_t &ctx_exe, bool inplace, check_alg_t check_alg)
+            const attr_t &attr, bool inplace, check_alg_t check_alg)
         : prb_dims_t(prb_dims)
         , check_alg(check_alg)
         , tag(tag)
@@ -85,8 +84,6 @@ struct prb_t : public prb_dims_t {
         , flags(flags)
         , inplace(inplace)
         , attr(attr)
-        , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe)
         , scales(NULL) {
         n = 1;
         for (int d = 0; d < ndims - 1; d++)
@@ -115,7 +112,6 @@ struct prb_t : public prb_dims_t {
     flags_t flags;
     bool inplace;
     attr_t attr;
-    const thr_ctx_t ctx_init, ctx_exe;
     int64_t n, c;
     float eps;
 
@@ -148,9 +144,6 @@ struct perf_report_t : public base_perf_report_t {
         s << flags2str(p_->flags);
     }
 
-    const attr_t *attr() const override { return &p_->attr; }
-    const thr_ctx_t *ctx_init() const override { return &p_->ctx_init; }
-    const thr_ctx_t *ctx_exe() const override { return &p_->ctx_exe; }
     const std::string *name() const override { return &p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
     const std::vector<dnnl_data_type_t> *sdt() const override {

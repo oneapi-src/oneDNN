@@ -1,9 +1,0 @@
-# tag `a` regression check
---reset
---skip-impl=
-
---dir=FWD_D
---dt=f32
---tag=a
---attr-post-ops=mul:f32
-16

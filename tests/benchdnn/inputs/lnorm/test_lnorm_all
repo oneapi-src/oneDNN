@@ -21,6 +21,3 @@
 
 # int8
 --batch=test_lnorm_int8
-
-# F16
---batch=test_lnorm_float16

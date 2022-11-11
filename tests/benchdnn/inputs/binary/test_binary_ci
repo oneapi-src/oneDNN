@@ -2,7 +2,7 @@
 
 --inplace=true,false
 --alg=ADD,MUL,MAX,MIN,DIV,SUB,GE,GT,LE,LT,EQ,NE
---stag=abx:any,axb:any
+--stag=abx:abx,axb:axb
 
 --ddt=f32 --sdt=f32:f32
 --batch=shapes_ci

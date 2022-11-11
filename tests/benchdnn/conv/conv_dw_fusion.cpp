@@ -108,8 +108,7 @@ std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *prb) {
     }
 
     return std::unique_ptr<prb_t>(new prb_t((desc_t)*prb, prb->dir, prb->cfg,
-            prb->stag, prb->wtag, tag::any, prb->alg, attr, prb->ctx_init,
-            prb->ctx_exe, prb->mb));
+            prb->stag, prb->wtag, tag::any, prb->alg, attr, prb->mb));
 }
 
 std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
@@ -169,8 +168,7 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
     cd.init_pad_r();
 
     return std::unique_ptr<prb_t>(new prb_t(cd, prb->dir, p_dw_cfg, tag::any,
-            tag::any, prb->dtag, alg_t::DIRECT, fusion_attr, prb->ctx_init,
-            prb->ctx_exe, prb->mb));
+            tag::any, prb->dtag, alg_t::DIRECT, fusion_attr, prb->mb));
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
@@ -194,14 +192,34 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Original problem with fusion attributes
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     auto const_pd = query_pd(prim);
 
-    if (prb->alg == alg_t::AUTO)
-        prb->alg = conv::alg_kind2alg(query_conv_alg_kind(const_pd));
-    prb->cfg = auto_cfg(prb->alg, prb->cfg);
+    // Check memory requirements only for original problem though it's broken
+    // due to quering not by arg md.
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
+
+    const auto adjust_alg = [](const_dnnl_primitive_desc_t pd, alg_t &alg) {
+        if (alg == alg_t::AUTO) {
+            dnnl_convolution_desc_t *temp_conv_desc = {nullptr};
+            DNN_SAFE(dnnl_primitive_desc_query(
+                             pd, dnnl_query_convolution_d, 0, &temp_conv_desc),
+                    CRIT);
+            alg = conv::alg_kind2alg(temp_conv_desc->alg_kind);
+        }
+        return OK;
+    };
+
+    alg_t alg = prb->alg;
+    adjust_alg(const_pd, alg);
+    auto cfg = auto_cfg(alg, prb->cfg);
+    prb_t p_new((desc_t)*prb, prb->dir, cfg, prb->stag, prb->wtag, prb->dtag,
+            alg, prb->attr, prb->mb);
+    prb = &p_new;
 
     const auto &src_md = prb->dir == BWD_D
             ? query_md(const_pd, DNNL_ARG_DIFF_SRC)
@@ -263,9 +281,11 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd0 = query_pd(prim0);
 
-    if (p0->alg == alg_t::AUTO)
-        p0->alg = conv::alg_kind2alg(query_conv_alg_kind(const_pd0));
-    p0->cfg = auto_cfg(p0->alg, p0->cfg);
+    alg = p0->alg;
+    adjust_alg(const_pd0, alg);
+    cfg = auto_cfg(alg, p0->cfg);
+    p0.reset(new prb_t((desc_t)*p0, p0->dir, cfg, p0->stag, p0->wtag, p0->dtag,
+            alg, p0->attr, p0->mb));
 
     const auto &src_md0 = p0->dir == BWD_D
             ? query_md(const_pd0, DNNL_ARG_DIFF_SRC)
@@ -315,9 +335,11 @@ int doit(const prb_t *prb, res_t *res) {
 
     auto const_pd1 = query_pd(prim1);
 
-    if (p1->alg == alg_t::AUTO)
-        p1->alg = conv::alg_kind2alg(query_conv_alg_kind(const_pd1));
-    p1->cfg = auto_cfg(p1->alg, p1->cfg);
+    alg = p1->alg;
+    adjust_alg(const_pd1, alg);
+    cfg = auto_cfg(alg, p1->cfg);
+    p1.reset(new prb_t((desc_t)*p1, p1->dir, cfg, p1->stag, p1->wtag, p1->dtag,
+            alg, p1->attr, p1->mb));
 
     const auto &src_md1 = prb->dir == BWD_D
             ? query_md(const_pd1, DNNL_ARG_DIFF_SRC)
@@ -364,11 +386,11 @@ int doit(const prb_t *prb, res_t *res) {
     // Work around for the issue above
     SAFE(src_dt.reorder(src_fp0), WARN);
     SAFE(wei_dt.reorder(wei_fp0), WARN);
-    if (bia_dt.dt() != dnnl_data_type_undef)
+    if (bia_md.data_type != dnnl_data_type_undef)
         SAFE(bia_dt.reorder(bia_fp0), WARN);
     SAFE(dst_dt.reorder(dst_fp1), WARN);
     SAFE(fused_wei_dt.reorder(wei_fp1), WARN);
-    if (fused_bia_dt.dt() != dnnl_data_type_undef)
+    if (fused_bia_md.data_type != dnnl_data_type_undef)
         SAFE(fused_bia_dt.reorder(bia_fp1), WARN);
 
     args_t args, args0, args1, ref_args;
@@ -449,7 +471,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(FAIL, CRIT);
     }
 
-    return measure_perf(prb->ctx_exe, res, prim, args);
+    return measure_perf(res, prim, args);
 }
 
 } // namespace conv_dw_fusion
