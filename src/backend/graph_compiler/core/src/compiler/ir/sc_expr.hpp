@@ -370,21 +370,7 @@ union union_val {
 };
 
 class expr_base;
-
-/**
- * The helper struct to easily build a vector indexing node.
- * Specifies a range (start_index, length)
- * @param index_ the start index in the tensor
- * @param length_ the length of the vector to load
- * */
-struct span_t {
-    std::vector<node_ptr<expr_base, expr_base>> index_;
-    uint16_t length_;
-    span_t(std::vector<node_ptr<expr_base, expr_base>> index, uint16_t length)
-        : index_(std::move(index)), length_(length) {}
-    span_t(span_t &&other)
-        : index_(std::move(other.index_)), length_(other.length_) {}
-};
+struct span_t;
 
 // the const version of node_ptr of expr_base
 template <>
@@ -528,6 +514,28 @@ public:
     lvalue_proxy_t operator[](const span_t &index) const;
 };
 using expr = node_ptr<expr_base, expr_base>;
+/**
+ * The helper struct to easily build a vector indexing node.
+ * Specifies a range (start_index, length)
+ * @param index_ the start index in the tensor
+ * @param length_ the length of the vector to load
+ * @param mask_ the mask of vector to load, should be lanes == length_ or
+ * bits == length_, e.g. length_==16, vec_f32x16(trans2d) or uint16_t(most
+ * cases).
+ * */
+struct span_t {
+    std::vector<expr> index_;
+    uint16_t length_;
+    expr mask_;
+
+    span_t(std::vector<expr> index, uint16_t length, expr mask = expr())
+        : index_(std::move(index)), length_(length), mask_(std::move(mask)) {}
+
+    span_t(span_t &&other)
+        : index_(std::move(other.index_))
+        , length_(other.length_)
+        , mask_(std::move(other.mask_)) {}
+};
 
 class ir_comparer;
 

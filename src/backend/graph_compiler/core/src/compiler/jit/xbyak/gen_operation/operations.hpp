@@ -328,6 +328,24 @@ namespace sc_xbyak {
         } \
     }
 
+#define AVX_KMR64_KMR64(GEN, INS, OP_1, OP_2) \
+    { \
+        /*  */ if (OP_1.is_mask() && OP_2.is_reg()) { \
+            (GEN).INS(OP_1.get_mask(), OP_2.get_reg64()); \
+        } else if (OP_1.is_mask() && OP_2.is_addr()) { \
+            (GEN).INS(OP_1.get_mask(), OP_2.get_addr()); \
+        } else if (OP_1.is_mask() && OP_2.is_mask()) { \
+            (GEN).INS(OP_1.get_mask(), OP_2.get_mask()); \
+        } else if (OP_1.is_addr() && OP_2.is_mask()) { \
+            (GEN).INS(OP_1.get_addr(), OP_2.get_mask()); \
+        } else if (OP_1.is_reg() && OP_2.is_mask()) { \
+            (GEN).INS(OP_1.get_reg64(), OP_2.get_mask()); \
+        } else { \
+            COMPILE_ASSERT(false, \
+                    "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2); \
+        } \
+    }
+
 /*
  * AMX Instruction Format
  */

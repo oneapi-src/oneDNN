@@ -41,12 +41,22 @@ public:
     static INLINE vec_u32x8 load_aligned(const int32_t *p) {
         return _mm256_load_si256((const __m256i *)p);
     }
+#ifdef __AVX512F__
+    static INLINE vec_u32x8 mask_load(const uint32_t *p, __mmask8 mask) {
+        return _mm256_mask_loadu_epi32(vec_u32x8(0).v, mask, p);
+    }
+#endif
     static INLINE void store(vec_u32x8 v, uint32_t *p) {
         _mm256_storeu_si256((__m256i *)p, v.v);
     }
     static INLINE void store_aligned(vec_u32x8 v, uint32_t *p) {
         _mm256_store_si256((__m256i *)p, v.v);
     }
+#ifdef __AVX512F__
+    static INLINE void mask_store(uint32_t *p, __mmask8 mask, vec_u32x8 &a) {
+        return _mm256_mask_storeu_epi32(p, mask, a.v);
+    }
+#endif
 };
 
 INLINE vec_u32x8 operator+(vec_u32x8 const &a, vec_u32x8 const &b) {

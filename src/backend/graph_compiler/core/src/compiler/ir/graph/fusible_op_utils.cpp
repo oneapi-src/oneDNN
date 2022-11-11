@@ -132,15 +132,30 @@ stmt mask_compute_func_t::operator()(const std::vector<expr> &in,
 
 expr make_select_by_mask(const expr &lhs_vec, const expr &cur_index,
         const expr &upper_bound, uint32_t lanes) {
+    sc_data_type_t var_dtype;
     auto bld = builder::get_current_builder();
-    auto offset = builder::make_cast(datatypes::s32, upper_bound)
-            - builder::make_cast(datatypes::s32, cur_index);
-    offset = static_cast<int>(lanes)
-            - builder::make_max(
-                    0, builder::make_min(static_cast<int>(lanes), offset));
+    auto upper_bound_int = builder::make_cast(datatypes::s32, upper_bound);
+    auto cur_index_int = builder::make_cast(datatypes::s32, cur_index);
+    int step = static_cast<int>(lanes);
+    // upper_bound - cur_index
+    auto cur_step = builder::make_min(
+            builder::make_max(
+                    builder::make_sub(upper_bound_int, cur_index_int), 0),
+            step);
+    stmt mask_def;
+    auto mask = generate_mask_var_by_step(mask_def, cur_step, step);
+    bld->emit(mask_def);
+    expr rhs_vec = make_expr<constant_node>(
+            std::vector<union_val>(lanes, UINT64_C(0)),
+            sc_data_type_t(lhs_vec->dtype_.type_code_, lanes));
+    return builder::make_select(mask, lhs_vec, rhs_vec);
+}
+
+expr generate_mask_var_by_step(stmt &mask_def, const expr &cur_step,
+        int32_t step, const expr &sup_condition) {
     sc_data_type_t var_dtype;
     uint64_t init_value;
-    switch (lanes) {
+    switch (step) {
         case 4: {
             var_dtype = datatypes::u8;
             init_value = std::numeric_limits<uint8_t>::max();
@@ -166,20 +181,22 @@ expr make_select_by_mask(const expr &lhs_vec, const expr &cur_index,
             init_value = std::numeric_limits<uint64_t>::max();
             break;
         }
-        default: COMPILE_ASSERT(false, "invalid lanes: " << lanes);
+        default: COMPILE_ASSERT(false, "invalid lanes: " << step);
     }
+    auto full_mask = builder::make_constant({init_value}, var_dtype);
+    auto empty_mask = builder::make_constant({UINT64_C(0)}, var_dtype);
+    auto empty_mask_condition = sup_condition.defined()
+            ? cur_step == 0 || !sup_condition
+            : cur_step == 0;
+    auto mask_select = builder::make_select(empty_mask_condition, empty_mask,
+            builder::make_select(cur_step == step, full_mask,
+                    full_mask
+                            >> builder::make_cast(var_dtype, step - cur_step)));
     auto mask = builder::make_var(
             var_dtype, "__mask_" + std::to_string(var_idx++));
-    auto def = builder::make_var_tensor_def_unattached(mask, linkage::local,
-            builder::make_constant({init_value}, var_dtype));
-    auto assign = builder::make_assign_unattached(
-            mask, mask >> builder::make_cast(var_dtype, offset));
-    bld->emit(def);
-    bld->emit(assign);
-    expr rhs_vec = make_expr<constant_node>(
-            std::vector<union_val>(lanes, UINT64_C(0)),
-            sc_data_type_t(lhs_vec->dtype_.type_code_, lanes));
-    return builder::make_select(mask, lhs_vec, rhs_vec);
+    mask_def = builder::make_var_tensor_def_unattached(
+            mask, linkage::local, mask_select);
+    return mask;
 }
 
 /** Determine whether masks are needed during elementwise computation and

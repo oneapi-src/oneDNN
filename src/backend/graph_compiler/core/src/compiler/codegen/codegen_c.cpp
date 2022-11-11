@@ -559,7 +559,8 @@ void codegen_c_vis::view(select_c v) {
 void codegen_c_vis::view(indexing_c v) {
     if (v->dtype_.lanes_ > 1) {
         if (v->mask_.defined()) {
-            *os << "mask_load(&";
+            print_type(v->dtype_);
+            *os << "::mask_load(&";
             dispatch(v->ptr_);
             *os << '[';
             assert(v->idx_.size() == 1);
@@ -652,7 +653,8 @@ void codegen_c_vis::view(tensor_c v) {
 void codegen_c_vis::view(assign_c v) {
     if (v->var_->dtype_.lanes_ > 1 && v->var_.isa<indexing>()) {
         if (v->var_.static_as<indexing>()->mask_.defined()) {
-            *os << "mask_store(";
+            print_type(v->var_->dtype_);
+            *os << "::mask_store(";
             *os << "&";
             indexing dst = v->var_.static_as<indexing>();
             dispatch(dst->ptr_);

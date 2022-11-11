@@ -160,8 +160,10 @@ int64_t location_manager::stack_push(
             gen_.vmovups(gen_.zword[gen_.rsp], to_zmm(reg));
         } break;
         // not supported
+        case cpu_data_type::mask_x8:
         case cpu_data_type::mask_x16:
         case cpu_data_type::mask_x32:
+        case cpu_data_type::mask_x64:
         case cpu_data_type::void_t: {
             COMPILE_ASSERT(false, "Invalid stack push reg: " << dtype);
         } break;
@@ -284,8 +286,10 @@ int64_t location_manager::stack_pop(
             gen_.add(gen_.rsp, slot_size);
         } break;
         // not supported
+        case cpu_data_type::mask_x8:
         case cpu_data_type::mask_x16:
         case cpu_data_type::mask_x32:
+        case cpu_data_type::mask_x64:
         case cpu_data_type::void_t: {
             COMPILE_ASSERT(false, "Invalid stack pop reg: " << dtype);
         } break;
@@ -931,8 +935,10 @@ const Xbyak::AddressFrame *location_manager::get_address_frame(
         case cpu_data_type::sint_32_x16: return &(gen_.zword);
         case cpu_data_type::float_32_x16: return &(gen_.zword);
         // not supported
+        case cpu_data_type::mask_x8:
         case cpu_data_type::mask_x16:
         case cpu_data_type::mask_x32:
+        case cpu_data_type::mask_x64:
         case cpu_data_type::void_t: {
             COMPILE_ASSERT(false, "Invalid address_frame: " << cpu_dtype);
         } break;
@@ -1300,8 +1306,10 @@ expr_location location_manager::convert_virtual_reg(const expr_c &v) {
             return expr_location::make_reg(to_zmm(reg), cpu_dtype);
         }
         // simd mask
+        case cpu_data_type::mask_x8:
         case cpu_data_type::mask_x16:
-        case cpu_data_type::mask_x32: {
+        case cpu_data_type::mask_x32:
+        case cpu_data_type::mask_x64: {
             return expr_location::make_reg(to_mask(reg), cpu_dtype);
         }
         // not supported

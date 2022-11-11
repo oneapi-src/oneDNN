@@ -77,6 +77,9 @@ public:
                 && vv->ptr_.defined());
         update_spill_weight(vv->ptr_, 64 * loop_depth());
         update_spill_weight(vv->idx_.back(), 64 * loop_depth());
+        if (vv->mask_.defined()) {
+            update_spill_weight(vv->mask_, 64 * loop_depth());
+        }
         return vv;
     }
 

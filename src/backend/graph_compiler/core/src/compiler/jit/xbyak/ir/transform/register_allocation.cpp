@@ -349,12 +349,12 @@ public:
 
     expr_c visit(indexing_c v) override {
         // ptr[idx], spilled ptr and idx need to be load to reg
-        return resolve_spill(v.remove_const());
+        return resolve_spill(std::move(v));
     }
 
     expr_c visit(xbyak_intrin_c v) override {
         // var = xbyak_intrin(args...), check intrin_format
-        return resolve_spill(v.remove_const());
+        return resolve_spill(std::move(v));
     }
 
 protected:
@@ -407,7 +407,10 @@ protected:
         return xbyak_visitor_t::visit(std::move(v));
     }
 
-    expr_c resolve_spill(indexing v) {
+    expr_c resolve_spill(indexing_c x) {
+        auto v = xbyak_visitor_t::visit(std::move(x))
+                         .remove_const()
+                         .static_as<indexing>();
         auto ptr = v->ptr_;
         auto idx = v->idx_.back();
         if (is_spilled(ptr)) {
@@ -419,7 +422,10 @@ protected:
         return v;
     }
 
-    expr_c resolve_spill(xbyak_intrin v) {
+    expr_c resolve_spill(xbyak_intrin_c x) {
+        auto v = xbyak_visitor_t::visit(std::move(x))
+                         .remove_const()
+                         .static_as<xbyak_intrin>();
         // resolve args load
         auto resolve = [&]() {
             size_t i = 0;

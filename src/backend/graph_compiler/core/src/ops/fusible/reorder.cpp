@@ -44,6 +44,10 @@ static bool has_output_use(const sc_op *op) {
     return false;
 }
 
+static expr cast_to_s32(const expr &in) {
+    return builder::make_cast(datatypes::s32, in);
+}
+
 static bool is_dynamic_reorder_inplace(sc_op *op, const context_ptr &ctx) {
     COMPILE_ASSERT(
             ctx->machine_.device_type_ == runtime::target_machine_t::type::cpu,
@@ -873,7 +877,8 @@ static std::vector<expr> get_reorder_stride2stride_indexes(
 
 static std::vector<expr> get_reorder_block2plain_indexes(sc_graph_t &graph,
         const std::vector<expr> &in_indexes, const sc_data_format_t &format,
-        const sc_dims &plain_dims, expr &condition) {
+        const sc_dims &plain_dims, expr &condition, expr &last_axis_offset,
+        expr &other_axis_condition) {
     if (in_indexes.empty()) { return std::vector<expr>(); }
     COMPILE_ASSERT(format.format_code_ != format_kinds::any,
             "format can not be any_t in reorder op, please check it in layout "
@@ -891,8 +896,11 @@ static std::vector<expr> get_reorder_block2plain_indexes(sc_graph_t &graph,
     COMPILE_ASSERT(in_indexes.size() <= sc_data_format_kind_t::MAX_DIMS,
             "Too many dims in plain shapes");
     condition = true;
+    other_axis_condition = true;
     std::unordered_map<int, int>
             axis2blocks; // plain_axis to block idx, idx++ after an access
+    auto last_orig_axis
+            = format.format_code_.get(static_cast<int>(num_format_dims) - 1);
     // format index
     for (int inp_idx = static_cast<int>(num_format_dims + base_out_dim) - 1;
             inp_idx >= static_cast<int>(base_out_dim); inp_idx--) {
@@ -909,14 +917,36 @@ static std::vector<expr> get_reorder_block2plain_indexes(sc_graph_t &graph,
                     + in_indexes[inp_idx]
                             * format.blocks_[blocks[axis2blocks[orig_axis]]];
             if (axis2blocks[orig_axis] == 0) {
-                condition = condition
-                        && ret[base_out_dim + orig_axis] < graph.dim_to_expr(
-                                   plain_dims[base_out_dim + orig_axis]);
+                auto new_condition
+                        = ret[base_out_dim + orig_axis] < graph.dim_to_expr(
+                                  plain_dims[base_out_dim + orig_axis]);
+                condition = condition && new_condition;
+                if (orig_axis == last_orig_axis) {
+                    auto last_axis_offset_tmp
+                            = cast_to_s32(graph.dim_to_expr(
+                                      plain_dims[base_out_dim + orig_axis]))
+                            - cast_to_s32(ret[base_out_dim + orig_axis]);
+                    last_axis_offset = last_axis_offset.defined()
+                            ? builder::make_min(
+                                    last_axis_offset_tmp, last_axis_offset)
+                            : last_axis_offset_tmp;
+                } else {
+                    other_axis_condition
+                            = other_axis_condition && new_condition;
+                }
             } else {
-                condition = condition
-                        && ret[base_out_dim + orig_axis]
-                                < format.blocks_[blocks[axis2blocks[orig_axis]
-                                        - 1]];
+                auto new_condition = ret[base_out_dim + orig_axis]
+                        < format.blocks_[blocks[axis2blocks[orig_axis] - 1]];
+                condition = condition && new_condition;
+                if (orig_axis == last_orig_axis) {
+                    last_axis_offset
+                            = cast_to_s32(format.blocks_[blocks
+                                              [axis2blocks[orig_axis] - 1]])
+                            - cast_to_s32(ret[base_out_dim + orig_axis]);
+                } else {
+                    other_axis_condition
+                            = other_axis_condition && new_condition;
+                }
             }
         }
         axis2blocks[orig_axis]--; // next block
@@ -985,12 +1015,18 @@ static void set_const_fold_bypass(const context_ptr &ctx, const stmt &v) {
     }
 }
 
+constexpr const int byte = 8;
+constexpr const int avx_simd_length = 128;
+bool is_valid_step(int step) {
+    return utils::is_one_of(step, 4, 8, 16, 32, 64);
+}
 void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         const tensor_slice &src, tensor_slice &dst,
         const sc_data_format_t &input_format,
         const sc_data_format_t &output_format, sc_data_type_t dtype,
         const sc_dims &plain_dims, bool output_loop, any_map_t &attrs,
-        size_t wkld = 0UL, bool is_innermost_dim_strided = false) {
+        size_t wkld = 0UL, bool is_innermost_dim_strided = false,
+        bool is_dynamic = false, bool dynamic_no_padding = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
     int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
@@ -1002,19 +1038,24 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
     auto output_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
+    auto input_blocking_dims_expr
+            = get_blocking_shapes_expr(graph, plain_dims, input_format);
+    auto output_blocking_dims_expr
+            = get_blocking_shapes_expr(graph, plain_dims, output_format);
     auto output_last_origin_axis = output_format.format_code_.get(
             output_format.format_code_.ndims() - 1);
     auto input_last_origin_axis = input_format.format_code_.get(
             input_format.format_code_.ndims() - 1);
     bool can_vectorize = !is_innermost_dim_strided
             && input_last_origin_axis == output_last_origin_axis
-            && input_blocking_dims[input_blocking_dims.size() - 1] % step == 0
-            && output_blocking_dims[output_blocking_dims.size() - 1] % step
-                    == 0;
+            && step * utils::get_sizeof_type(dtype) * byte >= avx_simd_length;
     if (!can_vectorize) {
         cannot_convert_warning(input_format, output_format, plain_dims);
     }
+    step = can_vectorize ? step : 1;
+    bool no_padding = is_dynamic && dynamic_no_padding;
     if (!output_loop) {
+        no_padding |= !is_dynamic && input_blocking_dims.back() % step == 0;
         for (size_t i = 0; i < plain_dims.size(); i++) {
             iter_vars.emplace_back(builder::make_var(datatypes::index,
                     std::string("_fuseiter") + fusion_create_idx()));
@@ -1023,12 +1064,23 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         }
         out_indexes = get_reorder_stride2stride_indexes(
                 in_indexes, input_format, output_format, plain_dims);
-
-        auto cur = builder::make_stmts_unattached(
-                {builder::make_assign_unattached(
-                        builder::make_indexing(output, out_indexes),
-                        builder::make_indexing(src.tptr_, loop_indexes))});
+        auto cur = builder::make_stmts_unattached({});
+        expr mask;
+        stmt mask_def;
+        if (!no_padding && can_vectorize) {
+            auto cur_step = builder::make_min(
+                    builder::make_max(builder::make_constant(0),
+                            cast_to_s32(input_blocking_dims_expr.back())
+                                    - cast_to_s32(iter_vars.back())),
+                    step);
+            mask = generate_mask_var_by_step(mask_def, cur_step, step);
+            cur.static_as<stmts>()->seq_.emplace_back(mask_def);
+        }
+        auto assign = builder::make_assign_unattached(
+                builder::make_indexing(output, out_indexes, step, mask),
+                builder::make_indexing(src.tptr_, loop_indexes, step, mask));
         cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
+        cur.static_as<stmts>()->seq_.emplace_back(assign);
         stmt body;
         std::vector<stmt> loops;
         for (int i = static_cast<int>(plain_dims.size()) - 1; i >= 0; i--) {
@@ -1036,8 +1088,12 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
                                     : make_stmt<stmts_node_t>(
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                    expr(0), src.get_shape()[i], expr(1), std::move(body), true,
-                    for_type::NORMAL);
+                    expr(0), src.get_shape()[i],
+                    i == static_cast<int>(plain_dims.size()) - 1
+                                    && can_vectorize
+                            ? expr(step)
+                            : expr(1),
+                    std::move(body), true, for_type::NORMAL);
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
@@ -1048,19 +1104,30 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
         bld->emit(cur);
         if (!can_vectorize) { set_const_fold_bypass(ctx, cur); }
     } else {
+        no_padding |= !is_dynamic && output_blocking_dims.back() % step == 0;
         for (size_t i = 0; i < plain_dims.size(); i++) {
             iter_vars.emplace_back(builder::make_var(datatypes::index,
                     std::string("_fuseiter") + fusion_create_idx()));
-            loop_indexes.emplace_back(iter_vars[i]);
             out_indexes.emplace_back(iter_vars[i] + dst.get_offset()[i]);
         }
         in_indexes = get_reorder_stride2stride_indexes(
                 out_indexes, output_format, input_format, plain_dims);
-
-        auto cur = builder::make_stmts_unattached(
-                {builder::make_assign_unattached(
-                        builder::make_indexing(output, out_indexes),
-                        builder::make_indexing(input, in_indexes))});
+        auto cur = builder::make_stmts_unattached({});
+        expr mask;
+        stmt mask_def;
+        if (!no_padding && can_vectorize) {
+            auto cur_step = builder::make_min(
+                    builder::make_max(builder::make_constant(0),
+                            cast_to_s32(output_blocking_dims_expr.back())
+                                    - cast_to_s32(iter_vars.back())),
+                    step);
+            mask = generate_mask_var_by_step(mask_def, cur_step, step);
+            cur.static_as<stmts>()->seq_.emplace_back(mask_def);
+        }
+        auto assign = builder::make_assign_unattached(
+                builder::make_indexing(output, out_indexes, step, mask),
+                builder::make_indexing(input, in_indexes, step, mask));
+        cur.static_as<stmts>()->seq_.emplace_back(assign);
         cur->attr()[op_traits::workload_computable_t::workload_number] = wkld;
         stmt body;
         std::vector<stmt> loops;
@@ -1069,8 +1136,12 @@ void compute_reorder_stride2stride(sc_graph_t &graph, const context_ptr &ctx,
                                     : make_stmt<stmts_node_t>(
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
-                    expr(0), dst.get_shape()[i], expr(1), std::move(body), true,
-                    for_type::NORMAL);
+                    expr(0), dst.get_shape()[i],
+                    i == static_cast<int>(plain_dims.size()) - 1
+                                    && can_vectorize
+                            ? expr(step)
+                            : expr(1),
+                    std::move(body), true, for_type::NORMAL);
             loops.push_back(cur);
         }
         std::reverse(loops.begin(), loops.end());
@@ -1092,7 +1163,6 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
         bool dynamic_no_padding = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
-    int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
     auto bld = builder::get_current_builder();
     auto input_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
@@ -1104,23 +1174,21 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
             output_format.format_code_.ndims() - 1);
     auto input_last_origin_axis = input_format.format_code_.get(
             input_format.format_code_.ndims() - 1);
-    bool can_vectorize = !is_innermost_dim_strided
-            && input_last_origin_axis == output_last_origin_axis
-            && input_blocking_dims[input_blocking_dims.size() - 1] % step == 0
-            && output_blocking_dims[output_blocking_dims.size() - 1] % step
-                    == 0;
-    if (can_vectorize && attrs.get_or_else(op_attr_key::no_fuse, false)) {
-        int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
+    // block has constraint
+    assert(!is_dynamic_dim(input_blocking_dims.back()));
+    int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
+    int step = std::min(static_cast<int>(vectorize_step(ctx, dtype.type_code_)),
+            static_cast<int>(input_blocking_dims.back()));
+    if (attrs.get_or_else(op_attr_key::no_fuse, false)) {
         while (step < max_step
-                && input_blocking_dims[input_blocking_dims.size() - 1]
-                                % (2 * step)
-                        == 0
-                && output_blocking_dims[output_blocking_dims.size() - 1]
-                                % (2 * step)
-                        == 0) {
+                && input_blocking_dims.back() % (2 * step) == 0) {
             step = 2 * step;
         }
     }
+    bool can_vectorize = !is_innermost_dim_strided
+            && input_last_origin_axis == output_last_origin_axis
+            && input_blocking_dims.back() % step == 0 && is_valid_step(step)
+            && step * utils::get_sizeof_type(dtype) * 8 >= 128;
 
     bool no_padding = !is_dynamic
             && sc_data_format_t::get_padded_plain_shapes(
@@ -1143,24 +1211,41 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
         loop_indexes.emplace_back(iter_vars[i]);
     }
     expr condition;
-    std::vector<expr> tmp_out_indexes = get_reorder_block2plain_indexes(
-            graph, in_indexes, input_format, plain_dims, condition);
+    expr last_axis_offset, other_axis_condition;
+    std::vector<expr> tmp_out_indexes = get_reorder_block2plain_indexes(graph,
+            in_indexes, input_format, plain_dims, condition, last_axis_offset,
+            other_axis_condition);
     std::vector<expr> out_indexes
             = get_reorder_stride2stride_indexes(tmp_out_indexes,
                     output_format.to_plain(), output_format, plain_dims);
 
-    auto assign
-            = builder::make_stmts_unattached({builder::make_assign_unattached(
-                    builder::make_indexing(output, out_indexes, step),
-                    // here, use src.tptr instead of input is aimed to avoid
-                    // input is tensor_view_op. Oherwisw, it will throw
-                    // illegal exception in index_flatten
-                    builder::make_indexing(
-                            expr(src.tptr_), loop_indexes, step))});
+    expr mask;
+    stmt mask_def;
+    if (!no_padding && can_vectorize) {
+        // mask = min(max(0, last_dim_len - last_dim_idx),
+        // To choose [0 ~ step] mask
+        auto cur_step = builder::make_min(
+                builder::make_max(builder::make_constant(0), last_axis_offset),
+                step);
+        // mask = other_dims_condition ? mask : 0;
+        mask = generate_mask_var_by_step(
+                mask_def, cur_step, step, other_axis_condition);
+    }
+
+    auto assign = builder::make_assign_unattached(
+            builder::make_indexing(output, out_indexes, step, mask),
+            // here, use src.tptr instead of input is aimed to avoid
+            // input is tensor_view_op. Oherwisw, it will throw
+            // illegal exception in index_flatten
+            builder::make_indexing(expr(src.tptr_), loop_indexes, step));
     assign->attr()[op_traits::workload_computable_t::workload_number] = wkld;
-    auto cur = no_padding
-            ? assign
-            : builder::make_if_else_unattached(condition, assign, stmt());
+    stmt cur = assign;
+    if (mask_def.defined()) {
+        cur = builder::make_stmts_unattached({mask_def, assign});
+    }
+    if (!no_padding && !can_vectorize) {
+        cur = builder::make_if_else_unattached(condition, assign, stmt());
+    }
     stmt body;
     for (int i = static_cast<int>(input_blocking_dims.size()) - 1; i >= 0;
             i--) {
@@ -1189,7 +1274,6 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
         bool is_dynamic = false, bool dynamic_no_padding = false) {
     auto input = src.get_real_tensor();
     auto output = dst.get_real_tensor();
-    int step = static_cast<int>(vectorize_step(ctx, dtype.type_code_));
     auto bld = builder::get_current_builder();
     auto input_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
@@ -1206,10 +1290,22 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
     auto output_last_origin_axis = output_format.format_code_.get(
             output_format.format_code_.ndims() - 1);
 
+    // block has constraint
+    assert(!is_dynamic_dim(output_blocking_dims.back()));
+    int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
+    int step = std::min(static_cast<int>(vectorize_step(ctx, dtype.type_code_)),
+            static_cast<int>(output_blocking_dims.back()));
+    if (attrs.get_or_else(op_attr_key::no_fuse, false)) {
+        while (step < max_step
+                && output_blocking_dims.back() % (2 * step) == 0) {
+            step = 2 * step;
+        }
+    }
+
     bool can_vectorize = !is_innermost_dim_strided
             && input_last_origin_axis == output_last_origin_axis
-            && output_blocking_dims[output_blocking_dims.size() - 1] % step == 0
-            && input_blocking_dims[input_blocking_dims.size() - 1] % step == 0;
+            && output_blocking_dims.back() % step == 0 && is_valid_step(step)
+            && step * utils::get_sizeof_type(dtype) * 8 >= 128;
     bool no_padding = !is_dynamic
             && sc_data_format_t::get_padded_plain_shapes(
                        output_blocking_dims, output_format)
@@ -1219,19 +1315,6 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
 
     if (!can_vectorize) {
         cannot_convert_warning(input_format, output_format, plain_dims);
-    }
-
-    if (can_vectorize && attrs.get_or_else(op_attr_key::no_fuse, false)) {
-        int max_step = ctx->get_max_vector_lanes(dtype.type_code_);
-        while (step < max_step
-                && output_blocking_dims[output_blocking_dims.size() - 1]
-                                % (2 * step)
-                        == 0
-                && input_blocking_dims[input_blocking_dims.size() - 1]
-                                % (2 * step)
-                        == 0) {
-            step = 2 * step;
-        }
     }
 
     step = can_vectorize ? step : 1;
@@ -1287,29 +1370,48 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
             out_indexes.emplace_back(iter_vars[i] + dst.get_offset()[i]);
         }
         expr condition;
+        expr last_axis_offset, other_axis_condition;
         std::vector<expr> tmp_in_indexes = get_reorder_block2plain_indexes(
-                graph, out_indexes, output_format, plain_dims, condition);
+                graph, out_indexes, output_format, plain_dims, condition,
+                last_axis_offset, other_axis_condition);
         std::vector<expr> in_indexes
                 = get_reorder_stride2stride_indexes(tmp_in_indexes,
                         input_format.to_plain(), input_format, plain_dims);
 
-        auto assign = builder::make_stmts_unattached(
-                {builder::make_assign_unattached(
-                        builder::make_indexing(expr(output), out_indexes, step),
-                        builder::make_indexing(
-                                expr(input), in_indexes, step))});
+        expr mask;
+        stmt mask_def;
+        if (!no_padding && can_vectorize) {
+            // mask = min(max(0, last_dim_len - last_dim_idx),
+            // To choose [0 ~ step] mask
+            auto cur_step = builder::make_min(
+                    builder::make_max(
+                            builder::make_constant(0), last_axis_offset),
+                    step);
+            // mask = other_dims_condition ? mask : 0;
+            mask = generate_mask_var_by_step(
+                    mask_def, cur_step, step, other_axis_condition);
+        }
+        auto assign = builder::make_assign_unattached(
+                builder::make_indexing(expr(output), out_indexes, step),
+                builder::make_indexing(expr(input), in_indexes, step, mask));
+
         assign->attr()[op_traits::workload_computable_t::workload_number]
                 = wkld;
-        auto padding = builder::make_stmts_unattached(
-                {builder::make_assign_unattached(
-                        builder::make_indexing(output, out_indexes, step),
-                        builder::make_constant({0UL},
-                                sc_data_type_t(dtype.type_code_, step)))});
-        auto cur = no_padding
-                ? assign
-                : builder::make_if_else_unattached(condition, assign, padding);
+        stmt cur = assign;
+        if (mask_def.defined()) {
+            cur = builder::make_stmts_unattached({mask_def, assign});
+        }
+        if (!no_padding && !can_vectorize) {
+            auto padding = builder::make_stmts_unattached(
+                    {builder::make_assign_unattached(
+                            builder::make_indexing(output, out_indexes, step),
+                            builder::make_constant({0UL},
+                                    sc_data_type_t(dtype.type_code_, step)))});
+            cur = builder::make_if_else_unattached(condition, assign, padding);
+        }
         stmt body;
         std::vector<stmt> loops;
+        //______________mask version
         for (int i = static_cast<int>(output_blocking_dims.size()) - 1; i >= 0;
                 i--) {
             body = cur.isa<stmts>() ? cur
@@ -1404,8 +1506,10 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
             loop_indexes.emplace_back(iter_vars[i]);
         }
         expr condition;
-        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(
-                graph, in_indexes, input_format, plain_dims, condition);
+        expr last_axis_offset, other_axis_condition;
+        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(graph,
+                in_indexes, input_format, plain_dims, condition,
+                last_axis_offset, other_axis_condition);
         std::vector<expr> out_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, output_format);
 
@@ -1447,8 +1551,10 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
             out_indexes.emplace_back(iter_vars[i] + dst.get_offset()[i]);
         }
         expr condition;
-        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(
-                graph, out_indexes, output_format, plain_dims, condition);
+        expr last_axis_offset, other_axis_condition;
+        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(graph,
+                out_indexes, output_format, plain_dims, condition,
+                last_axis_offset, other_axis_condition);
         std::vector<expr> in_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, input_format);
         auto assign = builder::make_stmts_unattached(
@@ -1872,8 +1978,10 @@ static void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
             loop_indexes.emplace_back(iter_vars[i]);
         }
         expr condition;
-        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(
-                graph, in_indexes, input_format, plain_dims, condition);
+        expr last_axis_offset, other_axis_condition;
+        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(graph,
+                in_indexes, input_format, plain_dims, condition,
+                last_axis_offset, other_axis_condition);
         std::vector<expr> out_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, output_format);
         if (dtype == datatypes::f32) {
@@ -1893,8 +2001,10 @@ static void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
             out_indexes.emplace_back(iter_vars[i] + dst.get_offset()[i]);
         }
         expr condition;
-        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(
-                graph, out_indexes, output_format, plain_dims, condition);
+        expr last_axis_offset, other_axis_condition;
+        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(graph,
+                out_indexes, output_format, plain_dims, condition,
+                last_axis_offset, other_axis_condition);
         std::vector<expr> in_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, input_format);
         if (dtype == datatypes::f32) {
@@ -2272,8 +2382,10 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             loop_indexes.emplace_back(iter_vars[i]);
         }
         expr condition;
-        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(
-                graph, in_indexes, input_format, plain_dims, condition);
+        expr last_axis_offset, other_axis_condition;
+        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(graph,
+                in_indexes, input_format, plain_dims, condition,
+                last_axis_offset, other_axis_condition);
         std::vector<expr> out_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, output_format);
         for (int i = 0; i < step; i++) {
@@ -2381,8 +2493,10 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
 
         // calculate the input index according to the output index
         expr condition, vnni_condition;
-        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(
-                graph, out_indexes, output_format, plain_dims, condition);
+        expr last_axis_offset, other_axis_condition;
+        std::vector<expr> tmp_indexes = get_reorder_block2plain_indexes(graph,
+                out_indexes, output_format, plain_dims, condition,
+                last_axis_offset, other_axis_condition);
         std::vector<expr> in_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, input_format);
 
@@ -2491,6 +2605,7 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             // build padding if else case
             {
                 expr cond = true;
+                expr last_axis_offset, other_axis_condition;
                 auto padding = builder::make_stmts_unattached(
                         {builder::make_assign_unattached(
                                 builder::make_indexing(
@@ -2499,7 +2614,8 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                                         sc_data_type_t(dtype.type_code_, 1)))});
                 std::vector<expr> tmp_in_indexes_2
                         = get_reorder_block2plain_indexes(graph, out_indexes_2,
-                                output_format, plain_dims, cond);
+                                output_format, plain_dims, cond,
+                                last_axis_offset, other_axis_condition);
                 std::vector<expr> in_indexes_2
                         = get_reorder_stride2stride_indexes(tmp_in_indexes_2,
                                 input_format.to_plain(), input_format,
@@ -2649,7 +2765,7 @@ void compute_reorder_block(sc_graph_t &graph, const context_ptr &ctx,
             && is_not_blocking(output_format)) {
         compute_reorder_stride2stride(graph, ctx, src, dst, input_format,
                 output_format, dtype, plain_dims, output_loop, attrs, wkld,
-                is_innermost_dim_strided);
+                is_innermost_dim_strided, is_dynamic, dynamic_no_padding);
     } else if (is_not_blocking(input_format) && output_format.is_blocking()) {
         compute_reorder_stride2block(graph, ctx, src, dst, input_format,
                 output_format, dtype, plain_dims, output_loop, attrs, wkld,

@@ -45,11 +45,17 @@ public:
     static INLINE vec_u32x16 load_aligned(const uint32_t *p) {
         return _mm512_load_si512((const __m512i *)p);
     }
+    static INLINE vec_u32x16 mask_load(const uint32_t *p, __mmask16 mask) {
+        return _mm512_mask_loadu_epi32(vec_u32x16(0).v, mask, p);
+    }
     static INLINE void store(vec_u32x16 v, uint32_t *p) {
         _mm512_storeu_si512((__m512i *)p, v.v);
     }
     static INLINE void store_aligned(vec_u32x16 v, uint32_t *p) {
         _mm512_store_si512((__m512i *)p, v.v);
+    }
+    static INLINE void mask_store(uint32_t *p, __mmask16 mask, vec_u32x16 &a) {
+        return _mm512_mask_storeu_epi32(p, mask, a.v);
     }
 };
 

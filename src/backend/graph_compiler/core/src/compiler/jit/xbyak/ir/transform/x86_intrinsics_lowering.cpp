@@ -155,6 +155,14 @@ public:
                 auto src = val.static_as<cmp>();
                 transform_cmp_set(dst, src, val->node_type_);
             } break;
+            case sc_expr_type::var: {
+                // If potential mask store, do not zero mask
+                transform_assign(dst, val, dst, false);
+            } break;
+            case sc_expr_type::indexing: {
+                // If potential mask load, need zero mask
+                transform_assign(dst, val, val, true);
+            } break;
             default: {
                 add_assignment(dst, val);
             } break;
@@ -371,24 +379,8 @@ public:
 
     void transform_select(const expr &dst, const select &sel) {
         const sc_data_type_t dst_dtype = dst->dtype_;
-        // If 16+simd blend cond is not mask type, cast to mask
-        auto get_cond = [&](expr cond, sc_data_type_t dtype) {
-            auto lanes = dtype.lanes_;
-            if (lanes >= 16 && cond->dtype_ != sc_data_type_t::boolean(lanes)) {
-                auto mask = builder::make_var(
-                        sc_data_type_t::boolean(lanes), "__mmask");
-                auto tmp = load_when_imm(cond, "__msk_tmp_var");
-                add_defination(mask, linkage::local);
-                add_assignment(mask,
-                        builder::make_cast(
-                                sc_data_type_t::boolean(lanes), tmp));
-                return mask;
-            } else {
-                return cond;
-            }
-        };
         // Transform select
-        auto cond = get_cond(sel->cond_, dst_dtype);
+        auto cond = cast_when_mask(sel->cond_, dst_dtype);
         auto zero = is_const_zero(sel->r_);
         auto isa = convert_x86_operation(dst_dtype) ? xbyak_intrin_isa::x86
                                                     : xbyak_intrin_isa::avx;
@@ -426,7 +418,7 @@ public:
                 // avx512 zero mask move
                 add_assignment(dst,
                         make_xbyak_intrin(dst_dtype, {sel->l_},
-                                xbyak_intrin_type::zero_mov, isa,
+                                xbyak_intrin_type::mask_mov, isa,
                                 xbyak_intrin_modifier(cond, zero)));
             } else {
                 // blend order reversed: select second operand if cond is true
@@ -664,6 +656,26 @@ public:
         }
     }
 
+    void transform_assign(const expr &dst, const expr &src,
+            const expr &maybe_masked, bool zero_masked) {
+        if (maybe_masked.isa<indexing>()) {
+            auto mask = maybe_masked.static_as<indexing>()->mask_;
+            if (mask.defined()) {
+                // Must be simd move
+                assert(dst->dtype_.lanes_ > 1);
+                auto cond = cast_when_mask(mask, dst->dtype_);
+                add_assignment(dst,
+                        make_xbyak_intrin(dst->dtype_, {src},
+                                xbyak_intrin_type::mask_mov,
+                                xbyak_intrin_isa::avx,
+                                xbyak_intrin_modifier(cond, zero_masked)));
+                // return here when mask_mov, avoid add_assignment twice
+                return;
+            }
+        }
+        add_assignment(dst, src);
+    }
+
     // --------------
     // Intrin helpers
     // --------------
@@ -677,6 +689,21 @@ public:
         } else {
             return v;
         }
+    }
+
+    // If simd cond is not mask type, cast to mask
+    expr cast_when_mask(expr cond, sc_data_type_t dtype) {
+        auto lanes = dtype.lanes_;
+        if (cond->dtype_ != sc_data_type_t::boolean(lanes)) {
+            auto mask = builder::make_var(
+                    sc_data_type_t::boolean(lanes), "__mmask");
+            auto tmp = load_when_imm(cond, "__msk_tmp_var");
+            add_defination(mask, linkage::local);
+            add_assignment(mask,
+                    builder::make_cast(sc_data_type_t::boolean(lanes), tmp));
+            return mask;
+        }
+        return cond;
     }
 
     void add_assignment(const expr &var, const expr &value) {

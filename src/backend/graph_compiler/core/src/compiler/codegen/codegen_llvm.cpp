@@ -70,7 +70,6 @@ SC_MODULE(codegen.llvm);
 
 using namespace llvm;
 namespace sc {
-
 std::unique_ptr<TargetMachine> get_llvm_target_machine(
         CodeGenOpt::Level optlevel = CodeGenOpt::Level::Default) {
     auto target_triple = sys::getProcessTriple();
@@ -831,19 +830,7 @@ public:
     void view(select_c v) override {
         auto l = generate_expr(v->l_);
         auto r = generate_expr(v->r_);
-        auto cond = generate_expr(v->cond_);
-        auto &dtype = v->cond_->dtype_;
-        if (dtype.lanes_ == 1 && !dtype.is_etype(sc_data_etype::BOOLEAN)) {
-            auto ty_int1 = builder_.getInt1Ty();
-            auto bit_len = utils::get_sizeof_type(v->cond_->dtype_) * 8;
-            auto mask_ty =
-#if SC_LLVM_BACKEND > 10
-                    VectorType::get(ty_int1, bit_len, false);
-#else
-                    VectorType::get(ty_int1, bit_len);
-#endif
-            cond = builder_.CreateBitCast(cond, mask_ty);
-        }
+        auto cond = convert_mask(v->cond_);
         current_val_ = builder_.CreateSelect(cond, l, r);
     }
 
@@ -874,12 +861,27 @@ public:
         return inst;
     }
 
+    Value *convert_mask(const expr &in) {
+        auto mask = generate_expr(in);
+        auto &dtype = in->dtype_;
+        if (dtype.lanes_ == 1 && !dtype.is_etype(sc_data_etype::BOOLEAN)) {
+            auto ty_int1 = builder_.getInt1Ty();
+            auto bit_len = utils::get_sizeof_type(dtype) * 8;
+            auto mask_ty =
+#if SC_LLVM_BACKEND > 10
+                    VectorType::get(ty_int1, bit_len, false);
+#else
+                    VectorType::get(ty_int1, bit_len);
+#endif
+            mask = builder_.CreateBitCast(mask, mask_ty);
+        }
+        return mask;
+    }
+
     void view(indexing_c v) override {
         bool is_lvalue_mode = is_lvalue_mode_;
         is_lvalue_mode_ = false;
         COMPILE_ASSERT(v->idx_.size() == 1, "Expecting 1D array: " << v);
-        COMPILE_ASSERT(
-                !v->mask_.defined(), "Masked load not implemented: " << v);
         auto base = generate_expr(v->ptr_);
         auto ptr = builder_.CreateGEP(base->getType()->getPointerElementType(),
                 base, generate_expr(v->idx_.front()));
@@ -896,16 +898,31 @@ public:
         } else {
             bool is_volatile = (v->ptr_->attr_
                     && v->ptr_->attr_->get_or_else("volatile", false));
-            if (v->dtype_.lanes_ > 1) {
+            if (v->mask_.defined()) {
+                auto *mask = convert_mask(v->mask_);
+                auto znode = make_expr<constant_node>(0UL, v->dtype_);
+                auto zero = generate_expr(znode);
+#if SC_LLVM_BACKEND > 10
                 current_val_ = set_alias(
-                        builder_.CreateAlignedLoad(get_type(v->dtype_), ptr,
-                                SC_LLVM_ALIGN(1), is_volatile),
+                        builder_.CreateMaskedLoad(get_type(v->dtype_), ptr,
+                                SC_LLVM_ALIGN(1), mask),
                         v->ptr_);
+#else
+                current_val_ = set_alias(
+                        builder_.CreateMaskedLoad(ptr, 1, mask, zero), v->ptr_);
+#endif
             } else {
-                current_val_
-                        = set_alias(builder_.CreateLoad(get_type(v->dtype_),
-                                            ptr, is_volatile),
-                                v->ptr_);
+                if (v->dtype_.lanes_ > 1) {
+                    current_val_ = set_alias(
+                            builder_.CreateAlignedLoad(get_type(v->dtype_), ptr,
+                                    SC_LLVM_ALIGN(1), is_volatile),
+                            v->ptr_);
+                } else {
+                    current_val_
+                            = set_alias(builder_.CreateLoad(get_type(v->dtype_),
+                                                ptr, is_volatile),
+                                    v->ptr_);
+                }
             }
         }
     }
@@ -1073,7 +1090,8 @@ public:
                                 0UL, v->args_[0]->dtype_);
                         auto zero = generate_expr(znode);
                         auto sign = builder_.CreateICmpSGT(inval, zero);
-                        current_val_ = builder_.CreateSelect(sign, inval, zero);
+                        auto neg = builder_.CreateSub(zero, inval);
+                        current_val_ = builder_.CreateSelect(sign, inval, neg);
                     } break;
                     default: assert(0); break;
                 }
@@ -1545,8 +1563,21 @@ public:
         }
         if (v->value_->dtype_.lanes_ > 1 && v->var_.isa<indexing>()) {
             // assigning to tensor
-            set_alias(builder_.CreateAlignedStore(val, ptr, SC_LLVM_ALIGN(1)),
-                    v->var_);
+            if (v->var_.static_as<indexing>()->mask_.defined()) {
+                auto *mask = convert_mask(v->var_.static_as<indexing>()->mask_);
+#if SC_LLVM_BACKEND > 10
+                set_alias(builder_.CreateMaskedStore(
+                                  val, ptr, SC_LLVM_ALIGN(1), mask),
+                        v->var_);
+#else
+                set_alias(
+                        builder_.CreateMaskedStore(val, ptr, 1, mask), v->var_);
+#endif
+            } else {
+                set_alias(
+                        builder_.CreateAlignedStore(val, ptr, SC_LLVM_ALIGN(1)),
+                        v->var_);
+            }
         } else {
             set_alias(builder_.CreateStore(val, ptr), v->var_);
         }
