@@ -80,10 +80,13 @@ void print_str(const char *v);
  * @param idx the index to check
  * @param access_len the length of the access in number of elements, for
  * accessing 1 element, this parameter should be 1
+ * @param mask the mask of indexing load/store. Its bit width is equal to the
+ * step of index. If there is no mask, pass the max value of uint64_t here.
  * @param boundary_len max boundary in number of elements
  * @return the return value of boundary_check, should equal to `idx`
  * */
-expr boundary_check(expr name, expr idx, expr access_len, expr boundary_len);
+expr boundary_check(
+        expr name, expr idx, expr access_len, expr mask, expr boundary_len);
 
 /**
  * Generates a evaluate_call to sc_make_trace
