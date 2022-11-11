@@ -2604,13 +2604,13 @@ TEST(Execute, ConvtransposeWithCache) {
     convtranspose_op.set_attr<dims>(impl::op_attr::pads_end, dims {0, 0});
     convtranspose_op.set_attr<int64_t>(impl::op_attr::groups, 2);
     convtranspose_op.set_attr<std::string>(impl::op_attr::data_format, "NCX");
-    convtranspose_op.set_attr<std::string>(impl::op_attr::filter_format, "OIX");
+    convtranspose_op.set_attr<std::string>(impl::op_attr::filter_format, "XOI");
 
     // prepare logical tensor
     impl::logical_tensor_t src_lt
             = utils::logical_tensor_init(0, {1, 4, 1, 1}, impl::data_type::f32);
     impl::logical_tensor_t weight_lt
-            = utils::logical_tensor_init(1, {4, 4, 1, 1}, impl::data_type::f32);
+            = utils::logical_tensor_init(1, {1, 1, 4, 4}, impl::data_type::f32);
     impl::logical_tensor_t dst_lt
             = utils::logical_tensor_init(2, {1, 8, 1, 1}, impl::data_type::f32);
 

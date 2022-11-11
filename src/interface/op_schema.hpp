@@ -17,6 +17,7 @@
 #ifndef INTERFACE_OP_SCHEMA_HPP
 #define INTERFACE_OP_SCHEMA_HPP
 
+#include <algorithm>
 #include <functional>
 #include <map>
 #include <memory>
@@ -80,13 +81,15 @@ public:
 
         // constructor for optional attributes which need to have default value
         attribute_t(op_attr_t name, std::string &&description, bool required,
-                attribute_kind_t attr_kind, utils::attribute_value_t value)
+                attribute_kind_t attr_kind, utils::attribute_value_t value,
+                std::vector<utils::attribute_value_t> &&candidates = {})
             : name_(name)
             , description_(std::move(description))
             , required_(false)
             , has_default_value_(true)
             , attr_kind_(attr_kind)
-            , attr_(std::move(value)) {
+            , attr_(std::move(value))
+            , candidates_(std::move(candidates)) {
             assertm(!required,
                     "this attribute should be an optional attribute "
                     "since default value is provided");
@@ -96,12 +99,14 @@ public:
         // constructor for required attributes or special optional attributes
         // that have no default value.
         attribute_t(op_attr_t name, std::string &&description, bool required,
-                attribute_kind_t attr_kind)
+                attribute_kind_t attr_kind,
+                std::vector<utils::attribute_value_t> &&candidates = {})
             : name_(name)
             , description_(std::move(description))
             , required_(required)
             , has_default_value_(false)
-            , attr_kind_(attr_kind) {}
+            , attr_kind_(attr_kind)
+            , candidates_(std::move(candidates)) {}
 
         // op attribute name.
         op_attr_t name_;
@@ -122,6 +127,9 @@ public:
 
         // default value for the attribute
         utils::attribute_value_t attr_;
+
+        // predefined valid attribute value candidates
+        std::vector<utils::attribute_value_t> candidates_;
     };
 
     enum class param_num_option { fixed, optional, variadic };
@@ -186,22 +194,30 @@ public:
 
     /*! @brief Set a particular attribute of the op schema. */
     op_schema_t &set_attr(op_attr_t name, std::string &&description,
-            bool required, attribute_kind_t attr_kind);
+            bool required, attribute_kind_t attr_kind,
+            const std::vector<const char *> &candidates = {});
 
     /*! @brief Set a particular attribute of the op schema. */
     template <typename T>
     op_schema_t &set_attr(op_attr_t name, std::string &&description,
-            bool required, attribute_kind_t attr_kind, T value) {
+            bool required, attribute_kind_t attr_kind, T value,
+            const std::vector<T> &candidates = {}) {
         assertm(attributes_.count(name) == 0,
                 "provided attribute has already been set");
-        attributes_[name] = attribute_t(
-                name, std::move(description), required, attr_kind, {value});
+        std::vector<utils::attribute_value_t> candidates_tmp(candidates.size());
+        std::transform(candidates.begin(), candidates.end(),
+                candidates_tmp.begin(),
+                [](const T &c) { return utils::attribute_value_t {c}; });
+        attributes_[name] = attribute_t(name, std::move(description), required,
+                attr_kind, utils::attribute_value_t(value),
+                std::move(candidates_tmp));
         return *this;
     }
 
     /*! @brief Set a particular attribute of the op schema. */
     op_schema_t &set_attr(op_attr_t name, std::string &&description,
-            bool required, attribute_kind_t attr_kind, const char *value);
+            bool required, attribute_kind_t attr_kind, const char *value,
+            const std::vector<const char *> &candidates = {});
 
     /*! @brief Set shape inference function of the op schema. */
     op_schema_t &set_shape_inference_function(shape_infer_fn fn);
@@ -376,7 +392,8 @@ op_schema_t get_op_schema();
                     "in the filter", \
                     true, attribute_kind::is) \
             .set_attr(op_attr::auto_pad, "how the padding is calculated", \
-                    false, attribute_kind::s, "None") \
+                    false, attribute_kind::s, "None", \
+                    {"None", "SAME_UPPER", "SAME_LOWER", "VALID"}) \
             .set_attr(op_attr::groups, \
                     "the number of groups input / output channels are " \
                     "divided into", \
@@ -384,10 +401,10 @@ op_schema_t get_op_schema();
             .set_attr(op_attr::data_format, \
                     "the data format of input / output, the options are " \
                     "NCX and NXC", \
-                    false, attribute_kind::s, "NXC") \
+                    false, attribute_kind::s, "NXC", {"NXC", "NCX"}) \
             .set_attr(op_attr::filter_format, \
                     "the format of weight, the options are OIX, XIO", false, \
-                    attribute_kind::s, "XIO")
+                    attribute_kind::s, "XIO", {"XIO", "OIX"})
 
 #define SET_CONVTRANSPOSE_COMMON_ATTRS \
     set_attr(op_attr::strides, "the distance to slide the filter", true, \
@@ -401,7 +418,8 @@ op_schema_t get_op_schema();
                     "in the filter", \
                     true, attribute_kind::is) \
             .set_attr(op_attr::auto_pad, "how the padding is calculated", \
-                    false, attribute_kind::s, "None") \
+                    false, attribute_kind::s, "None", \
+                    {"None", "SAME_UPPER", "SAME_LOWER", "VALID"}) \
             .set_attr(op_attr::groups, \
                     "the number of groups input / output channels are " \
                     "divided into", \
@@ -409,10 +427,10 @@ op_schema_t get_op_schema();
             .set_attr(op_attr::data_format, \
                     "the data format of input / output, the options are " \
                     "NCX and NXC", \
-                    false, attribute_kind::s, "NXC") \
+                    false, attribute_kind::s, "NXC", {"NXC", "NCX"}) \
             .set_attr(op_attr::filter_format, \
                     "the format of weight, the options are IOX, XOI", false, \
-                    attribute_kind::s, "XOI")
+                    attribute_kind::s, "XOI", {"XOI", "IOX"})
 
 #define SET_REDUCE_COMMON_ATTRS \
     set_attr(op_attr::axes, \

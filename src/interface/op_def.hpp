@@ -62,7 +62,7 @@ DNNL_GRAPH_OP_SCHEMA(Add, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -87,12 +87,13 @@ DNNL_GRAPH_OP_SCHEMA(AvgPool, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NCX", "NXC"})
                 .set_attr(op_attr::rounding_type,
                         "a type of rounding to be applied", false,
                         attribute_kind::s, "floor")
                 .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None")
+                        false, attribute_kind::s, "None",
+                        {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_pool_output_shape))
@@ -122,11 +123,12 @@ DNNL_GRAPH_OP_SCHEMA(AvgPoolBackprop, 1,
                 .set_attr(op_attr::kernel, "size of each filter", true,
                         attribute_kind::is)
                 .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None")
+                        false, attribute_kind::s, "None",
+                        {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_attr(op_attr::input_shape, "describing input shape", false,
                         attribute_kind::is,
                         std::vector<int64_t>(DNNL_GRAPH_MAX_NDIMS, 0))
@@ -155,7 +157,7 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormInference, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
@@ -194,7 +196,7 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormForwardTraining, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
@@ -239,7 +241,7 @@ DNNL_GRAPH_OP_SCHEMA(BatchNormTrainingBackprop, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
@@ -256,7 +258,7 @@ DNNL_GRAPH_OP_SCHEMA(BiasAdd, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_bias_add_output_shape))
@@ -270,7 +272,7 @@ DNNL_GRAPH_OP_SCHEMA(BiasAddBackprop, 1,
                 .set_output(0, "bias_delta", "gradient tensor w.r.t. bias", "T")
                 .set_attr(op_attr::data_format,
                         "the data format of input, the options are NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_bias_backprop_output_shape))
@@ -464,7 +466,7 @@ DNNL_GRAPH_OP_SCHEMA(Divide, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints(
@@ -527,7 +529,7 @@ DNNL_GRAPH_OP_SCHEMA(Equal, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::boolean})
@@ -587,7 +589,7 @@ DNNL_GRAPH_OP_SCHEMA(Greater, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::boolean})
@@ -604,7 +606,7 @@ DNNL_GRAPH_OP_SCHEMA(GreaterEqual, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::boolean})
@@ -674,7 +676,8 @@ DNNL_GRAPH_OP_SCHEMA(Interpolate, 1,
                 .set_output(0, "output",
                         "a tensor with selected data from input tensor", "T1")
                 .set_attr(op_attr::mode, "specifies type of interpolation",
-                        true, attribute_kind::s)
+                        true, attribute_kind::s,
+                        {"nearest", "linear", "bilinear", "trilinear"})
                 .set_attr(op_attr::sizes,
                         "describing output shape for spatial axes", false,
                         attribute_kind::is)
@@ -684,11 +687,13 @@ DNNL_GRAPH_OP_SCHEMA(Interpolate, 1,
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
-                        false, attribute_kind::s, "half_pixel")
+                        // currently only support "half_pixel" mode
+                        false, attribute_kind::s, "half_pixel",
+                        {"half_pixel", "align_corners"})
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
@@ -717,7 +722,8 @@ DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 1,
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
-                        false, attribute_kind::s, "half_pixel")
+                        false, attribute_kind::s, "half_pixel",
+                        {"half_pixel", "align_corners"})
                 .set_attr(op_attr::sizes,
                         "describing output shape for spatial axes", false,
                         attribute_kind::is)
@@ -726,7 +732,7 @@ DNNL_GRAPH_OP_SCHEMA(InterpolateBackprop, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
@@ -838,7 +844,7 @@ DNNL_GRAPH_OP_SCHEMA(Less, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::boolean})
@@ -855,7 +861,7 @@ DNNL_GRAPH_OP_SCHEMA(LessEqual, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::boolean})
@@ -913,7 +919,7 @@ DNNL_GRAPH_OP_SCHEMA(LogicalAnd, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints("T", {data_type::boolean})
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
@@ -939,7 +945,7 @@ DNNL_GRAPH_OP_SCHEMA(LogicalOr, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints("T", {data_type::boolean})
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
@@ -955,7 +961,7 @@ DNNL_GRAPH_OP_SCHEMA(LogicalXor, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints("T", {data_type::boolean})
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
@@ -985,7 +991,7 @@ DNNL_GRAPH_OP_SCHEMA(Maximum, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -1013,12 +1019,13 @@ DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_attr(op_attr::rounding_type,
                         "a type of rounding to be applied", false,
                         attribute_kind::s, "floor")
                 .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None")
+                        false, attribute_kind::s, "None",
+                        {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_pool_output_shape))
@@ -1041,7 +1048,8 @@ DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
                 .set_attr(op_attr::kernel, "size of each filter", true,
                         attribute_kind::is)
                 .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None")
+                        false, attribute_kind::s, "None",
+                        {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
                 .set_attr(op_attr::dilations,
                         "the distance in width and height between elements "
                         "in the filter",
@@ -1050,7 +1058,7 @@ DNNL_GRAPH_OP_SCHEMA(MaxPoolBackprop, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_pool_bwd_output_shape))
@@ -1066,7 +1074,7 @@ DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -1112,7 +1120,7 @@ DNNL_GRAPH_OP_SCHEMA(Multiply, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints(
@@ -1132,7 +1140,7 @@ DNNL_GRAPH_OP_SCHEMA(NotEqual, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting "
                         "of input tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::boolean})
@@ -1149,7 +1157,7 @@ DNNL_GRAPH_OP_SCHEMA(Pow, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -1194,7 +1202,7 @@ DNNL_GRAPH_OP_SCHEMA(PReLU, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_attr(op_attr::per_channel_broadcast,
                         "whether to apply per channel broadcast when slope is "
                         "1D tensor",
@@ -1222,7 +1230,7 @@ DNNL_GRAPH_OP_SCHEMA(PReLUBackprop, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_prelu_bwd_output_shape))
@@ -1416,7 +1424,7 @@ DNNL_GRAPH_OP_SCHEMA(Select, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints("T1", {data_type::boolean})
                 .set_type_constraints(
                         "T2", {data_type::f32, data_type::bf16, data_type::f16})
@@ -1547,7 +1555,7 @@ DNNL_GRAPH_OP_SCHEMA(SquaredDifference, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
@@ -1563,7 +1571,7 @@ DNNL_GRAPH_OP_SCHEMA(Subtract, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(

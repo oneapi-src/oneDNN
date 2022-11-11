@@ -40,11 +40,11 @@ TEST(Execute, ConvResBlock) {
 
     std::vector<int64_t> v_1_1 = {1, 1}, v_0_0 = {0, 0};
     utils::set_conv_common_attr(
-            conv0, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+            conv0, v_1_1, v_0_0, v_0_0, v_1_1, "None", "NCX", "OIX", 1);
     utils::set_conv_common_attr(
-            conv1, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+            conv1, v_1_1, v_0_0, v_0_0, v_1_1, "None", "NCX", "OIX", 1);
     utils::set_conv_common_attr(
-            conv2, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+            conv2, v_1_1, v_0_0, v_0_0, v_1_1, "None", "NCX", "OIX", 1);
 
     // prepare logical tensor
     std::vector<impl::dim_t> src_shape = {8, 8, 32, 32};
@@ -158,11 +158,11 @@ TEST(Execute, ConvResBlockWithNhwcLayout) {
 
     std::vector<int64_t> v_1_1 = {1, 1}, v_0_0 = {0, 0};
     utils::set_conv_common_attr(
-            conv0, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+            conv0, v_1_1, v_0_0, v_0_0, v_1_1, "None", "NCX", "OIX", 1);
     utils::set_conv_common_attr(
-            conv1, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+            conv1, v_1_1, v_0_0, v_0_0, v_1_1, "None", "NCX", "OIX", 1);
     utils::set_conv_common_attr(
-            conv2, v_1_1, v_0_0, v_0_0, v_1_1, "", "NCX", "OIX", 1);
+            conv2, v_1_1, v_0_0, v_0_0, v_1_1, "None", "NCX", "OIX", 1);
 
     // prepare logical tensor
     std::vector<impl::dim_t> shape = {8, 8, 32, 32};
