@@ -30,6 +30,7 @@
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
+#include <compiler/ir/transform/simple_licm.hpp>
 #include <util/hash_utils.hpp>
 
 namespace sc {
@@ -546,6 +547,7 @@ expr sc_graph_t::dim_to_expr(const sc_dim &v) {
         if (it == m.end()) {
             auto dyn_var = make_expr<var_node>(
                     datatypes::index, dynamic_prefix + std::to_string(-v));
+            dyn_var->attr().set(attr_key::const_attr, true);
             m[v] = dyn_var;
             return dyn_var;
         } else {

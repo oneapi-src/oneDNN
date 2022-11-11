@@ -44,6 +44,7 @@
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/nested_parallel_flatten.hpp>
 #include <compiler/ir/transform/parallel_workload_dispatch.hpp>
+#include <compiler/ir/transform/simple_licm.hpp>
 #include <compiler/ir/transform/simplify.hpp>
 #include <compiler/ir/transform/ssa_transform.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
@@ -86,6 +87,8 @@ sequential_module_pass_t get_default_precodegen_passes(
     ret.emplace_back(module_function_pass_t::make<tensor_init_t>(ctx));
     ret.emplace_back(
             module_function_pass_t::make<parallel_workload_dispatcher_t>());
+    ret.emplace_back(module_function_pass_t::make<
+            simple_loop_invariant_code_motion_t>());
     ret.emplace_back(utils::make_unique<constant_folder_t>());
     if (ctx->flags_.index2var_) {
         ret.emplace_back(module_function_pass_t::make<index2var_t>());
