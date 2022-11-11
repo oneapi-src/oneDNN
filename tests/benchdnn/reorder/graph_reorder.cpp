@@ -30,6 +30,11 @@ static int check_known_skipped_case_graph(
     SAFE(init_prim(prim, ::reorder::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
+    auto const_pd = query_pd(prim);
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
+
     /* reorder op requires source and destination data types to be same.
        four possible cases:
        (1) input datatype == output datatype and different layout
@@ -407,7 +412,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     auto dst_dt = make_dnn_mem(outs[0], (prb->dtag).c_str());
 
     //TODO: need to extend for post ops
-    SAFE(fill_memory(prb, SRC, src_dt, src_fp), WARN);
+    SAFE(fill_memory(prb, SRC, src_fp), WARN);
     SAFE(src_dt.reorder(src_fp), WARN);
 
     dnn_mem_t scales_dt, zps_dt;

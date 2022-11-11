@@ -89,6 +89,11 @@ static int check_known_skipped_case_graph(
     SAFE(init_prim(prim, ::concat::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
+    auto const_pd = query_pd(prim);
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
+
     // srcs and dst should have same tags
     const auto tag = prb->dtag;
     const auto same_tags = std::all_of(prb->stag.cbegin(), prb->stag.cend(),

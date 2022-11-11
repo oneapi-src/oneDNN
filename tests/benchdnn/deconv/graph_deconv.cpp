@@ -37,6 +37,11 @@ static int check_known_skipped_case_graph(
     SAFE(init_prim(prim, ::deconv::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
+    auto const_pd = query_pd(prim);
+    if (check_mem_size(const_pd) != OK) {
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
+    }
+
     const bool with_groups = prb->g > 1;
     if (with_groups) {
         const std::string wei_dnnl_fmt_tag_str
@@ -447,8 +452,7 @@ int doit(const ::deconv::prb_t *prb, res_t *res) {
 
     if (is_bench_mode(CORR)) {
         ::deconv::prb_t prb_tr((::deconv::desc_t)*prb, prb->dir, prb->cfg,
-                prb->stag, prb->wtag, prb->dtag, prb->alg, prb->attr,
-                prb->ctx_init, prb->ctx_exe, prb->mb);
+                prb->stag, prb->wtag, prb->dtag, prb->alg, prb->attr, prb->mb);
         std::swap(prb_tr.ic, prb_tr.oc);
         std::swap(prb_tr.ih, prb_tr.oh);
         std::swap(prb_tr.id, prb_tr.od);
