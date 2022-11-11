@@ -77,3 +77,11 @@
 --cfg=bf16bf16bf16 --bia_dt=f32 --bia_mask=4
 2x20x30:2x30x4
 2x20x30:1x30x4
+
+# num_threads smaller than nthr_k
+--reset
+--stag=ab,ba --wtag=ab,ba --dtag=ab
+--cfg=bf16bf16bf16
+--attr-post-ops=,sum:2+relu+mul:f32:per_oc
+8x2664:2664x256:8x256
+3x4128:4128x128:3x128

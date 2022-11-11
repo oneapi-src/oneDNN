@@ -27,3 +27,6 @@
 
 # bf16
 --batch=test_eltwise_bfloat16
+
+# regression check
+--batch=harness_eltwise_regression
