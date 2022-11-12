@@ -196,7 +196,13 @@ struct attr_t {
         }
 
         bool is_def(int arg) const { return get(arg).is_def(); }
-        bool is_def() const { return scales.empty(); }
+        bool is_def() const {
+            bool def = true;
+            for (const auto &e : scales) {
+                def = def && is_def(e.first);
+            }
+            return def;
+        }
         int from_str(const std::string &s);
 
         arg_scales_t() : scales() {} // needed for debug icc190 build;
@@ -346,7 +352,7 @@ struct attr_t {
         , fpmath_mode(dnnl_fpmath_mode_strict) {}
 
     template <typename First, typename... Rest>
-    void insert(const First &first, const Rest &... rest) {
+    void insert(const First &first, const Rest &...rest) {
         this->insert(first);
         if (sizeof...(rest) > 0) this->insert(rest...);
     }

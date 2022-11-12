@@ -26,67 +26,6 @@
 
 namespace reorder {
 
-struct scales_combinations_t {
-    struct iterator_t {
-        bool operator!=(const iterator_t &other) const {
-            return (src_iter_ != other.src_iter_)
-                    || (dst_iter_ != other.dst_iter_)
-                    || (at_end_ != other.at_end_);
-        }
-
-        iterator_t &operator++() {
-            if (at_end_) return *this;
-
-            if (++src_iter_ != src_end_) return *this;
-            src_iter_ = src_begin_;
-            if (++dst_iter_ != dst_end_) return *this;
-            dst_iter_ = dst_begin_;
-            at_end_ = true;
-            return *this;
-        }
-
-        std::pair<float, float> operator*() const {
-            return {*src_iter_, *dst_iter_};
-        }
-
-    private:
-        using internal_iterator_t = typename std::vector<float>::const_iterator;
-        iterator_t(const std::vector<float> &src, const std::vector<float> &dst,
-                bool at_end)
-            : src_iter_(src.begin())
-            , src_begin_(src.begin())
-            , src_end_(src.end())
-            , dst_iter_(dst.begin())
-            , dst_begin_(dst.begin())
-            , dst_end_(dst.end())
-            , at_end_(at_end) {}
-
-        internal_iterator_t src_iter_, src_begin_, src_end_;
-        internal_iterator_t dst_iter_, dst_begin_, dst_end_;
-        bool at_end_ = false;
-
-        friend struct scales_combinations_t;
-    };
-
-    iterator_t begin() const { return {src_scales_, dst_scales_, false}; }
-    iterator_t end() const { return {src_scales_, dst_scales_, true}; }
-
-    scales_combinations_t(
-            const attr_t::arg_scales_t &scales, const settings_t &s)
-        : src_scales_(get_scales(scales.get(DNNL_ARG_SRC), s))
-        , dst_scales_(get_scales(scales.get(DNNL_ARG_DST), s)) {}
-
-private:
-    static std::vector<float> get_scales(
-            const attr_t::scale_t &scale, const settings_t &s) {
-        return scale.scale == 0 ? s.def_scale
-                                : std::vector<float>(1, scale.scale);
-    }
-
-    std::vector<float> src_scales_ {};
-    std::vector<float> dst_scales_ {};
-};
-
 void check_correctness(const settings_t &s) {
     for_(const auto &i_sdt : s.sdt)
     for_(const auto &i_ddt : s.ddt)
@@ -100,67 +39,69 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
-    for_(auto i_runtime_dim_mask : s.runtime_dim_mask)
-    for (auto scale_combo : scales_combinations_t(i_scales, s)) {
-        attr_t::arg_scales_t scales;
-        attr_t::scale_t src_scale = i_scales.get(DNNL_ARG_SRC);
-        attr_t::scale_t dst_scale = i_scales.get(DNNL_ARG_DST);
+    for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
+        const auto &src_scale = i_scales.get(DNNL_ARG_SRC);
+        const std::vector<float> src_test_scales = src_scale.scale == 0
+                ? s.def_scale
+                : std::vector<float>(1, src_scale.scale);
+        const auto &dst_scale = i_scales.get(DNNL_ARG_DST);
+        const std::vector<float> dst_test_scales = dst_scale.scale == 0
+                ? s.def_scale
+                : std::vector<float>(1, dst_scale.scale);
 
-        if (scale_combo.first != 1.0 || src_scale.runtime) {
-            src_scale.scale = scale_combo.first;
-            scales.set(DNNL_ARG_SRC, src_scale);
-        }
-        if (scale_combo.second != 1.0 || dst_scale.runtime) {
-            dst_scale.scale = scale_combo.second;
-            scales.set(DNNL_ARG_DST, dst_scale);
-        }
+        for_(const auto &i_src_test_scale : src_test_scales)
+        for (const auto &i_dst_test_scale : dst_test_scales) {
+            attr_t::arg_scales_t test_arg_scales;
+            test_arg_scales.set(DNNL_ARG_SRC,
+                    {src_scale.policy, i_src_test_scale, src_scale.runtime});
+            test_arg_scales.set(DNNL_ARG_DST,
+                    {dst_scale.policy, i_dst_test_scale, dst_scale.runtime});
+            auto attr = settings_t::get_attr(test_arg_scales, i_zero_points,
+                    i_post_ops, i_scratchpad_mode);
 
-        auto attr = settings_t::get_attr(
-                scales, i_zero_points, i_post_ops, i_scratchpad_mode);
+            const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, attr,
+                    i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
+                    i_runtime_dim_mask);
+            std::stringstream ss;
+            ss << prb;
+            const std::string cpp_pstr = ss.str();
+            const char *pstr = cpp_pstr.c_str();
+            BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
-        const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, attr,
-                i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
-                i_runtime_dim_mask);
-        std::stringstream ss;
-        ss << prb;
-        const std::string cpp_pstr = ss.str();
-        const char *pstr = cpp_pstr.c_str();
-        BENCHDNN_PRINT(1, "run: %s\n", pstr);
+            res_t res {};
+            if (api_mode == GRAPH)
+                benchdnnext::reorder::doit(&prb, &res);
+            else
+                doit(&prb, &res);
 
-        res_t res {};
-        if (api_mode == GRAPH)
-            benchdnnext::reorder::doit(&prb, &res);
-        else
-            doit(&prb, &res);
+            parse_result(res, pstr);
 
-        parse_result(res, pstr);
-
-        if (is_bench_mode(PERF)) {
-            perf_report_t pr(&prb, s.perf_template);
-            pr.report(&res, pstr);
+            if (is_bench_mode(PERF)) {
+                perf_report_t pr(&prb, s.perf_template);
+                pr.report(&res, pstr);
+            }
         }
     }
 }
 
 int verify_input(const settings_t &s) {
     for_(const auto &i_scales : s.scales)
-    for (const auto &e : i_scales.scales) {
-        if (e.second.policy == policy_t::PER_OC) {
-            fprintf(stderr,
-                    "ERROR: reorder driver: `per_oc` policy is not supported "
-                    "due to potential ambiguity. Please use one of `per_dim_0` "
-                    "or `per_dim_1` policies.\n"),
-                    fflush(stderr);
-            SAFE_V(FAIL);
+    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
+        if (i_scales.get(arg).policy == policy_t::PER_OC) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "ERROR: `per_oc` policy is not supported due to "
+                    "potential ambiguity. Please use one of `per_dim_0` or "
+                    "`per_dim_1` policies.");
+            return FAIL;
         }
     }
-    for (const auto &e : s.cross_engine) {
-        if (e != NONE && is_cpu()) {
-            fprintf(stderr,
-                    "ERROR: reorder driver: `cpu` engine does not support "
-                    "anything but `--cross-engine=none`.\n"),
-                    fflush(stderr);
-            SAFE_V(FAIL);
+
+    for (const auto &i_cross_engine : s.cross_engine) {
+        if (i_cross_engine != NONE && is_cpu()) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "ERROR: `cpu` engine does not support anything but "
+                    "`--cross-engine=none`.");
+            return FAIL;
         }
     }
 
@@ -181,9 +122,8 @@ static const std::string help_runtime_dim_mask
           "correspondent dimension.\n";
 
 static const std::string help_def_scales
-        = "FLOAT\n    Argument scales, used to improve testing coverage.\n    "
-          "If `--attr-scales` is specified, does not have an effect.\n";
-
+        = "FLOAT\n    Scales, used to improve testing coverage.\n    If "
+          "`--attr-scales` is specified, does not have an effect.\n";
 static const std::string help_cross_engine
         = "KIND    (Default: `none`)\n    Specifies `KIND` of cross-engine "
           "used for benchmarking.\n    `KIND` values are `none`, `cpu2gpu` "

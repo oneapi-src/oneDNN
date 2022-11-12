@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <random>
 
 #include <stdlib.h>
 
@@ -61,20 +60,28 @@ int fill_memory_int(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 int fill_memory_fp(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     const auto conf = prb->get_conf(kind);
-    const int arg = kind == SRC ? DNNL_ARG_SRC : DNNL_ARG_DST;
-    const float *scales = kind == SRC ? prb->src_scales : prb->dst_scales;
-    const int scale_mask
-            = attr_t::get_default_mask(prb->attr.scales.get(arg).policy);
+    const auto &src_scales = prb->attr.scales.get(DNNL_ARG_FROM);
+    const auto &dst_scales = prb->attr.scales.get(DNNL_ARG_TO);
+    const int src_scale_mask = attr_t::get_default_mask(src_scales.policy);
+    const int dst_scale_mask = attr_t::get_default_mask(dst_scales.policy);
 
     for (int64_t idx = 0; idx < mem_fp.nelems(); ++idx) {
-        const int64_t mask_idx = mem_fp.get_scale_idx(idx, scale_mask);
-        const float scale = scales ? scales[mask_idx] : 1.0;
+        float src_scale = 1.f, dst_scale = 1.f;
+        if (!src_scales.is_def()) {
+            int64_t src_mask_idx = mem_fp.get_scale_idx(idx, src_scale_mask);
+            src_scale = prb->src_scales[src_mask_idx];
+        }
+        if (!dst_scales.is_def()) {
+            int64_t dst_mask_idx = mem_fp.get_scale_idx(idx, dst_scale_mask);
+            dst_scale = prb->dst_scales[dst_mask_idx];
+        }
+        const float scale = src_scale / dst_scale;
 
         const float gen[7] = {
                 conf->max, // saturate to max of output data type
                 conf->min, // saturate to min of output data type
-                1.6f / scale, // rounding check
-                0.2f / scale, // saturate to 0
+                1.6f, // rounding check
+                0.2f, // saturate to 0
                 1.f / scale, // exact multiplication check
                 2.f,
                 scale,
@@ -206,17 +213,15 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 #if !defined(DNNL_X64) || DNNL_X64 == 0
     {
         // reference reorder supports only a subset of scale policies
-        const std::vector<policy_t> supported_policy = {policy_t::PER_OC,
+        const std::vector<policy_t> supported_policy = {policy_t::COMMON,
                 policy_t::PER_DIM_0, policy_t::PER_DIM_1, policy_t::PER_DIM_01};
 
-        scales_ok &= std::any_of(supported_policy.cbegin(),
-                supported_policy.cend(), [&](const policy_t policy) {
-                    return prb->attr.scales.get(DNNL_ARG_SRC).policy == policy;
-                });
-        scales_ok &= std::any_of(supported_policy.cbegin(),
-                supported_policy.cend(), [&](const policy_t policy) {
-                    return prb->attr.scales.get(DNNL_ARG_DST).policy == policy;
-                });
+        for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
+            scales_ok = std::any_of(supported_policy.cbegin(),
+                    supported_policy.cend(), [&](const policy_t policy) {
+                        return prb->attr.scales.get(arg).policy == policy;
+                    });
+        }
     }
 #endif
     if (!scales_ok) {
@@ -224,27 +229,56 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         return;
     }
 
-    // only integral data types can have zero points
-    const bool is_src_zp_ok = is_integral_dt(prb->sdt)
-            || prb->attr.zero_points.is_def(DNNL_ARG_SRC);
-    const bool is_dst_zp_ok = is_integral_dt(prb->ddt)
-            || prb->attr.zero_points.is_def(DNNL_ARG_DST);
-    if (!(is_src_zp_ok && is_dst_zp_ok)) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
-        return;
-    }
-
     if (prb->is_reorder_with_compensation(FLAG_ANY)) {
         // Compensation is supported for s8 dst data type.
         const bool dt_ok = ddt == dnnl_s8;
-        // Compensation can be paired with scale only.
-        const bool attr_ok = prb->attr.scales.is_def()
-                && prb->attr.zero_points.is_def()
-                && prb->attr.post_ops.is_def();
+        // Compensation can be paired with dst scale only.
+        const bool attr_ok
+                = prb->attr.zero_points.is_def() && prb->attr.post_ops.is_def();
         // Compensation does not support runtime dims.
         const bool rt_ok = prb->runtime_dim_mask == 0;
 
-        if (!dt_ok || !attr_ok || !rt_ok) {
+        // Compensation and scales mask should coincide
+        const auto comp_mask = prb->get_compensation_mask(FLAG_ANY);
+        bool masks_ok = true;
+        for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
+            const auto &e = prb->attr.scales.get(arg);
+            if (!e.is_def()) {
+                int e_mask = attr_t::get_default_mask(e.policy);
+                masks_ok = masks_ok && e_mask == comp_mask;
+            }
+        }
+
+        if (!dt_ok || !attr_ok || !rt_ok || !masks_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+
+#if !defined(DNNL_X64) || DNNL_X64 == 0
+        // Simple reorder doesn't provide decent coverage for compensated cases.
+        // Shut them down unconditionally by default.
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+#endif
+    }
+
+    // Destination scale is not supported for runtime dimensions since the
+    // implementation logic inverts dst scales and requires scratchpad for
+    // `mask > 0` cases which is impossible to estimate with rt dims.
+    const auto &dst_scales = prb->attr.scales.get(DNNL_ARG_DST);
+    if (!dst_scales.is_def() && attr_t::get_default_mask(dst_scales.policy) > 0
+            && prb->runtime_dim_mask != 0) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
+    // Compensation is supported through jit reorder only, but jit reorder
+    // doesn't support different masks for source and destination scales.
+    const auto &src_scales = prb->attr.scales.get(DNNL_ARG_SRC);
+    if (!src_scales.is_def() && !dst_scales.is_def()) {
+        if (attr_t::get_default_mask(src_scales.policy)
+                        != attr_t::get_default_mask(dst_scales.policy)
+                && prb->is_reorder_with_compensation(FLAG_ANY)) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -294,6 +328,16 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     // Zero-points can't be used with sum post-op.
     if (!prb->attr.zero_points.is_def(DNNL_ARG_DST)
             && prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) != -1) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
+    }
+
+    // only integral data types can have zero points
+    const bool is_src_zp_ok = is_integral_dt(prb->sdt)
+            || prb->attr.zero_points.is_def(DNNL_ARG_SRC);
+    const bool is_dst_zp_ok = is_integral_dt(prb->ddt)
+            || prb->attr.zero_points.is_def(DNNL_ARG_DST);
+    if (!(is_src_zp_ok && is_dst_zp_ok)) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
     }
