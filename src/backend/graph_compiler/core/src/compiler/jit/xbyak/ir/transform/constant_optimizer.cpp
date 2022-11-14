@@ -145,11 +145,23 @@ public:
             }
             return ir_visitor_t::visit(std::move(v));
         };
+        // mark constant broadcast value as simd encode
+        auto transform_broadcast = [this](intrin_call_c v) -> expr_c {
+            assert(v->args_.size() == 1);
+            auto &r = v->args_[0];
+            if (r.isa<constant>()) {
+                r->attr().set(attr_keys::force_simd_encode, true);
+            }
+            return ir_visitor_t::visit(std::move(v));
+        };
         // Transform intrin_call node with const value
         switch (v->type_) {
             case intrin_type::shl:
             case intrin_type::shr: {
                 return transform_shift(std::move(v));
+            } break;
+            case intrin_type::broadcast: {
+                return transform_broadcast(std::move(v));
             } break;
             default: break;
         }

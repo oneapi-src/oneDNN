@@ -325,6 +325,9 @@ public:
         return ret;
     }
 
+    // avoid dispatch into index dependent tensor
+    expr_c visit(tensor_c v) override { return v; }
+
     // TODO(XXX): for_loop_c var spilled and begin/end/step
     // spilled(non-constant)
     stmt_c visit(for_loop_c v) override {
