@@ -152,7 +152,7 @@ status_t conv_config_t::init_fwd(convolution_pd_t *conv_pd) {
     }
     bh->set_thr_dim("kd", kd);
     bh->set_thr_dim("kh", kh);
-    if (is_small_ic() && !is_dw_large_mb()) {
+    if (is_small_ic() && !is_dw_large_mb() && (g == 1 || oc == ic)) {
         bh->set_block_dims({"kw"});
     } else {
         bh->set_thr_dim("kw", kw);
