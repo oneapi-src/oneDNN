@@ -531,7 +531,10 @@ struct matmul_executable_t : public op_executable_t {
 
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
-        if (is_dummy_) { return dummy_impl_.execute(stream, args); }
+        if (is_dummy_) {
+            dummy_impl_.execute(stream, args);
+            return;
+        }
 
         if (with_sum_) {
             memory &dst_mem
@@ -667,7 +670,10 @@ struct binary_executable_t : public op_executable_t {
 
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
-        if (is_dummy_) { return dummy_impl_.execute(stream, args); }
+        if (is_dummy_) {
+            dummy_impl_.execute(stream, args);
+            return;
+        }
 
         if (with_sum_) {
             memory &dst_mem

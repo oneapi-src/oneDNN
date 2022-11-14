@@ -95,7 +95,8 @@ public:
                 std::vector<std::shared_ptr<T>> &thread_instances
                         = global_cache_.data().find(it.first)->second;
                 auto pos = std::find_if(thread_instances.begin(),
-                        thread_instances.end(), [&](std::shared_ptr<T> &ins) {
+                        thread_instances.end(),
+                        [&](std::shared_ptr<T> &ins) -> bool {
                             return ins.get() == value.get();
                         });
                 assertm(pos != thread_instances.end(),
@@ -169,7 +170,7 @@ private:
                             = global_cache_ref_.data().find(it.first)->second;
                     auto pos = std::find_if(thread_instances.begin(),
                             thread_instances.end(),
-                            [&](std::shared_ptr<T> &ins) {
+                            [&](std::shared_ptr<T> &ins) -> bool {
                                 return ins.get() == value.get();
                             });
                     assertm(pos != thread_instances.end(),

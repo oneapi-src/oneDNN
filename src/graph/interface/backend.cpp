@@ -90,7 +90,7 @@ public:
                 std::memory_order::memory_order_relaxed));
     }
     void store(int flag) {
-        return constant_cache_enabled_.store(static_cast<bool>(flag),
+        constant_cache_enabled_.store(static_cast<bool>(flag),
                 std::memory_order::memory_order_relaxed);
     }
 };
