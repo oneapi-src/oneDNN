@@ -178,11 +178,11 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(
 status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         int stepping, int eu_count, compute_mode mode, int batch_dims,
         bool trans_a, bool trans_b, bool trans_co, bool swap_ab, bool ab_offset,
-        bool c_offset, bool bias, sum_ab_t reduce_ab,
-        float alpha, float beta, const post_ops_t &post_ops, data_type_t a_type,
-        data_type_t b_type, data_type_t c_type, data_type_t co_type,
-        data_type_t acc_type, int align_a, int align_b, int align_c, dim_t m,
-        dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc, dim_t batch) {
+        bool c_offset, bool bias, sum_ab_t reduce_ab, float alpha, float beta,
+        const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
+        data_type_t c_type, data_type_t co_type, data_type_t acc_type,
+        int align_a, int align_b, int align_c, dim_t m, dim_t n, dim_t k,
+        dim_t lda, dim_t ldb, dim_t ldc, dim_t batch) {
     using namespace ngen;
     using namespace kcatalog;
 
@@ -363,20 +363,16 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
         return status::unimplemented;
     if (alpha == 1.0f) problem_.alpha_real = alpha;
     if (beta == 0.0f || beta == 1.0f) problem_.beta_real = beta;
-    if (post_ops.len() > 0) {
-        problem_.postOps = post_ops;
-        problem_.Ts = Type::f32;
-    }
-    if (c_offset == offset_t::runtime)
-        problem_.cOffset = COffset::Post;
-    else if (c_offset != offset_t::none)
-        return status::unimplemented;
+
+    auto status = transfer_post_ops(post_ops);
+    if (status != status::success) return status;
+
+    if (c_offset == offset_t::runtime) problem_.cOffset = COffset::Post;
 
     if (bias == offset_t::runtime) {
         if (problem_.cOffset != COffset::None) return status::unimplemented;
         problem_.cOffset = COffset::Pre;
-    } else if (bias != offset_t::none)
-        return status::unimplemented;
+    }
 
     if (problem_.cOffset != COffset::None) {
         problem_.CO.crosspack = 1;

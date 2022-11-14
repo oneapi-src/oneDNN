@@ -103,25 +103,18 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
     bool arch_ok = utils::one_of(
             arch, arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc);
 
-    ok = true && limits_ok && (dt_float_ok || dt_int_ok) && arch_ok
+    ok = ok && limits_ok && (dt_float_ok || dt_int_ok) && arch_ok
             && compute_engine->mayiuse(compute::device_ext_t::
                             intel_subgroup_split_matrix_multiply_accumulate)
             && attr()->has_default_values(attr_skip_mask)
-            && attr()->output_scales_.mask_ == 0 && attr()->post_ops_.len() <= 2
+            && attr()->output_scales_.mask_ == 0
             && desc()->sum_ab == sum_ab::sum_none
             && IMPLICATION(with_bias(),
-                    (dt_float_ok || dt_int_ok)
-                            && utils::one_of(d->bias_type(), d->a_type(), f32)
-                            && utils::one_of(bias_cmask(), 0, 1 << 0, 1 << 1));
+                    utils::one_of(d->bias_type(), d->a_type(), f32)
+                            && utils::one_of(bias_cmask(), 0, 1, 2, 3));
 
-    // check if there is sum post op and only at first place
-    ok &= IMPLICATION(attr()->post_ops_.find(sum) != -1,
-            attr()->post_ops_.find(sum) == 0
-                    && attr()->post_ops_.find(sum, 1) == -1);
-
-    // check if post ops are supported
-    ok &= IMPLICATION(attr()->post_ops_.len() > 0,
-            jit_post_op_injector_is_supported(attr()->post_ops_, true));
+    auto status = init_post_ops();
+    if (status != status::success) return status;
 
     if (dt_int_ok) {
         ok &= IMPLICATION(a_zp_, !packed_b()) && IMPLICATION(b_zp_, !packed_a())
@@ -134,8 +127,6 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
         attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask_c, nullptr);
         ok &= (cmask_a == 0) && (cmask_b == 0)
                 && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
-        ok &= IMPLICATION(utils::one_of(d->c_type(), f32, s8, u8, f16),
-                (attr()->post_ops_.len() == 0) && use_new_kernels());
     }
 
     if (!ok) return status::unimplemented;
@@ -305,9 +296,6 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     if (bc_prepacked_32) unroll_n_ = 32;
     if (bc_prepacked_48) unroll_n_ = 48;
 
-    use_new_kernels_ = !with_ab_zero_points() && (d->k() >= 64);
-    use_new_kernels_ |= (arch >= compute::gpu_arch_t::xe_hpc);
-
     new_kd_t::choose_unrolls(arch, dev_info_->eu_count(), d->a_type(),
             d->b_type(), d->c_type(), d->m(), d->n(), d->k(), d->batch(),
             unroll_m_, unroll_n_, alt_);
@@ -388,9 +376,6 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
     if ((!packed_a_ && unroll_m_ == 16) || (!packed_b_ && unroll_n_ == 16))
         return false;
 
-    // Zero-padding bug in old kernel driver for packed cases.
-    use_new_kernels_ |= (packed_a_ || packed_b_);
-
     return gpu_gemm_pd_t::set_default_formats();
 }
 
@@ -412,14 +397,14 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
         case 0: co_kind_ = 'F'; break;
         case (1 << 1): co_kind_ = 'R'; break;
         case (1 << 0): co_kind_ = 'C'; break;
+        case 3: co_kind_ = 'M'; break;
         case -1:
         default: co_kind_ = 'N'; break;
     }
 
     // Initialize compute kernels (assembly)
     {
-        auto status = pd()->use_new_kernels() ? init_compute_new(engine)
-                                              : init_compute_old(engine);
+        auto status = init_compute(engine);
         if (status != status::success) return status;
     }
 
@@ -446,136 +431,15 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
     }
 
     if (get_verbose() >= 2) {
-        printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d,new:%c\n",
+        printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d\n",
                 pd()->unroll_m(), pd()->unroll_n(), compute_info_.wg[LoopM],
-                compute_info_.wg[LoopN], compute_info_.wg[LoopK],
-                pd()->use_new_kernels() ? 'Y' : 'N');
+                compute_info_.wg[LoopN], compute_info_.wg[LoopK]);
     }
 
     return status::success;
 }
 
-status_t xe_hp_systolic_gemm_t::init_compute_old(engine_t *engine) {
-    using kernel_t = xehp_systolic_gemm_kernel_t<gpu_xe_hp>;
-    using arch_t = compute::gpu_arch_t;
-
-    kernel_t::config_t cfg;
-
-    auto a_type = pd()->desc()->a_type();
-    auto b_type = pd()->desc()->b_type();
-    auto c_type = pd()->desc()->c_type();
-    auto acc_type = pd()->impl_acc_type();
-
-    cfg.a_type = convert_dnnl_type_to_ngen(a_type);
-    cfg.b_type = convert_dnnl_type_to_ngen(b_type);
-    cfg.c_type = convert_dnnl_type_to_ngen(c_type);
-    cfg.acc_type = convert_dnnl_type_to_ngen(acc_type);
-    cfg.alpha1 = (pd()->alpha() == 1.0f);
-    cfg.beta0 = (pd()->beta() == 0.0f);
-    cfg.beta1 = (pd()->beta() == 1.0f);
-    cfg.post_ops = pd()->attr()->post_ops_;
-    cfg.a_bias = cfg.b_bias = pd()->with_ab_zero_points();
-    cfg.c_packed = pd()->packed_c();
-    cfg.batch = pd()->with_batch();
-    walk_n_first_ = cfg.walk_n_first
-            = (pd()->desc()->m() >= 2 * pd()->desc()->n());
-    cfg.tile_m = pd()->unroll_m();
-    cfg.tile_n = pd()->unroll_n();
-    cfg.global_3x_buf = (cfg.tile_n == 32);
-
-    auto compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
-    cfg.eu_count = compute_engine->device_info()->eu_count();
-
-    if (pd()->with_c_zero_points())
-        cfg.co_type = cfg.c_type;
-    else if (pd()->with_bias()) {
-        cfg.early_c_bias = true;
-        cfg.co_type = convert_dnnl_type_to_ngen(pd()->desc()->bias_type());
-    }
-
-    switch (co_kind_) {
-        case 'F': cfg.c_bias = kernel_t::bias_t::fixed; break;
-        case 'R': cfg.c_bias = kernel_t::bias_t::row; break;
-        case 'C': cfg.c_bias = kernel_t::bias_t::column; break;
-        case 'N':
-        default: cfg.c_bias = kernel_t::bias_t::none; break;
-    }
-
-    bool may_k_block = (pd()->desc()->k() > kernel_t::min_block_k(a_type));
-    bool got_info = false;
-    UNUSED(got_info); // If none of supported archs were selected by user.
-
-    for (bool first_k_block : {false, true}) {
-        for (bool last_k_block : {false, true}) {
-            if ((!first_k_block || !last_k_block) && !may_k_block) continue;
-            if (may_k_block && last_k_block
-                    && (cfg.c_bias == kernel_t::bias_t::none)
-                    && !cfg.have_post_op())
-                kernel_[first_k_block][last_k_block]
-                        = kernel_[first_k_block][false];
-            else if (may_k_block && first_k_block && cfg.beta1)
-                kernel_[first_k_block][last_k_block]
-                        = kernel_[false][last_k_block];
-            else {
-                auto cfg_copy = cfg;
-                if (!first_k_block) {
-                    cfg_copy.beta0 = false;
-                    cfg_copy.beta1 = true;
-                }
-                if (!last_k_block) {
-                    cfg_copy.c_bias = kernel_t::bias_t::none;
-                    cfg_copy.post_ops = post_ops_t();
-                }
-
-                switch (arch_) {
-                    case arch_t::xe_hp:
-                        REG_XEHP_ISA({
-                            auto kernel = kernel_t(cfg_copy);
-
-                            create_kernel(engine,
-                                    &kernel_[first_k_block][last_k_block],
-                                    &kernel);
-
-                            if (!got_info) {
-                                compute_info_ = kernel.driver_info(eu_count_);
-                                got_info = true;
-                            }
-                        });
-                        break;
-                    case arch_t::xe_hpg:
-                        REG_XEHPG_ISA({
-                            using kernel_xe_hpg_t
-                                    = xehp_systolic_gemm_kernel_t<gpu_xe_hpg>;
-                            cfg_copy.emulate64 = true;
-                            auto kernel = kernel_xe_hpg_t(
-                                    cfg_copy.cast<kernel_xe_hpg_t::config_t>());
-
-                            create_kernel(engine,
-                                    &kernel_[first_k_block][last_k_block],
-                                    &kernel);
-
-                            if (!got_info) {
-                                compute_info_ = kernel.driver_info(eu_count_);
-                                got_info = true;
-                            }
-                        });
-                        break;
-                    default:
-                        assert(!"Unsupported GPU architecture.");
-                        return status::unimplemented;
-                        break;
-                }
-
-                if (!kernel_[first_k_block][last_k_block])
-                    return status::runtime_error;
-            }
-        }
-    }
-
-    return status::success;
-}
-
-status_t xe_hp_systolic_gemm_t::init_compute_new(engine_t *engine) {
+status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
     using kernel_t = gen_gemm_kernel_t;
     using kd_t = gen_gemm_xe_systolic_kernel_desc_t;
     using offset_t = kd_t::offset_t;
@@ -595,17 +459,31 @@ status_t xe_hp_systolic_gemm_t::init_compute_new(engine_t *engine) {
     offset_t bias_offset
             = pd()->with_bias() ? offset_t::runtime : offset_t::none;
 
-    bool may_k_block = (d->k() > kd_t::min_block_k(a_type));
+    bool may_k_block
+            = (d->k() > kd_t::min_block_k(a_type)) && !pd()->allow_k_blocking();
     bool got_info = false;
 
-    bool with_eltwise
-            = (pd()->attr()->post_ops_.find(primitive_kind::eltwise) != -1);
+    auto post_ops = pd()->post_ops();
+    bool with_post_ops = (post_ops->find(primitive_kind::eltwise) != -1)
+            || (post_ops->find(primitive_kind::binary) != -1);
+
+    kd_t kd_full;
+
+    auto status = kd_full.select_kernel(arch_, eu_count_, pd()->with_batch(),
+            pd()->packed_c(), ab_offset, ab_offset, c_offset, bias_offset,
+            pd()->alpha(), pd()->beta(), *post_ops, a_type, b_type, c_type,
+            co_type, acc_type, d->m(), d->n(), d->k(), d->batch(),
+            pd()->unroll_m(), pd()->unroll_n(), pd()->alt());
+
+    if (status != status::success) return status;
+
+    problem_ = std::move(*kd_full.problem());
 
     for (bool first_k_block : {false, true}) {
         for (bool last_k_block : {false, true}) {
             if ((!first_k_block || !last_k_block) && !may_k_block) continue;
-            if (may_k_block && last_k_block && (c_offset == offset_t::none)
-                    && !with_eltwise)
+            if (may_k_block && last_k_block && !pd()->with_c_zero_points()
+                    && !with_post_ops)
                 kernel_[first_k_block][last_k_block]
                         = kernel_[first_k_block][false];
             else if (may_k_block && first_k_block && pd()->beta() == 1.0f)
@@ -614,7 +492,7 @@ status_t xe_hp_systolic_gemm_t::init_compute_new(engine_t *engine) {
             else {
                 auto this_beta = pd()->beta();
                 auto this_c_offset = c_offset;
-                auto *this_post_ops = &pd()->attr()->post_ops_;
+                auto *this_post_ops = pd()->post_ops();
                 post_ops_t no_post_ops;
 
                 if (!first_k_block) this_beta = 1.0f;
@@ -743,9 +621,7 @@ xe_hp_systolic_gemm_t::get_blocking() const {
     nblock_k = nstl::max<int64_t>(nblock_k, 1);
     block_k = utils::div_up(k, nblock_k);
     block_k = nstl::max<dim_t>(block_k, 1);
-    block_k = utils::rnd_up(
-            (pd()->desc()->acc_type != pd()->desc()->c_type()) ? k : block_k,
-            unroll_k);
+    block_k = utils::rnd_up(pd()->allow_k_blocking() ? block_k : k, unroll_k);
     block_k = nstl::max<dim_t>(block_k, 1);
 
     return std::make_tuple(block_m, block_n, block_k);
@@ -856,7 +732,8 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
         int64_t offset_a, int32_t lda, const memory_storage_t &bp,
         int64_t offset_b, int32_t ldb, const memory_storage_t &c,
         int64_t offset_c, int32_t ldc, float alpha, float beta, int16_t ao,
-        int16_t bo, const memory_storage_t &co, int32_t offset_co,
+        int16_t bo, const memory_storage_t &co, int32_t offset_co, int po_count,
+        const memory_storage_t **po_srcs, int32_t *offset_po_src,
         bool first_k_block, bool last_k_block, int32_t batch, int32_t stride_a,
         int32_t stride_b, int32_t stride_c) const {
 
@@ -897,23 +774,34 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
     if ((pd()->with_bias() || pd()->with_c_zero_points())) {
         arg_list.set(argn++, co);
         arg_list.set(argn++, offset_co);
-        if (pd()->with_bias() && pd()->use_new_kernels()) {
-            int32_t ldco = 0;
+        if (pd()->with_bias()) {
+            int32_t ldco = pd()->desc()->ld_bias();
             arg_list.set(argn++, ldco);
         }
     }
-    if (pd()->use_new_kernels()) {
-        uint32_t flags = 0;
-        if (co_kind_ == 'R') flags |= FlagCORow;
-        if (co_kind_ == 'C') flags |= FlagCOColumn;
-        if (!first_k_block) flags |= FlagNoninitialKBlock;
-        if (!last_k_block) flags |= FlagNonfinalKBlock;
-        arg_list.set(argn++, flags);
+    for (int i = 0; i < po_count; i++) {
+        if (!po_srcs[i]) continue;
+        arg_list.set(argn++, *po_srcs[i]);
+        arg_list.set(argn++, offset_po_src[i]);
+
+        if (problem_.binaryRow[i] && problem_.binaryCol[i])
+            arg_list.set(argn++, int32_t(pd()->ld_binary(i)));
     }
+
+    uint32_t flags = 0;
+    if (co_kind_ == 'R') flags |= FlagCORow;
+    if (co_kind_ == 'C') flags |= FlagCOColumn;
+    if (!first_k_block) flags |= FlagNoninitialKBlock;
+    if (!last_k_block) flags |= FlagNonfinalKBlock;
+    arg_list.set(argn++, flags);
+
     if (pd()->with_batch()) {
         arg_list.set(argn++, stride_a);
         arg_list.set(argn++, stride_b);
         arg_list.set(argn++, stride_c);
+        for (int i = 0; i < po_count; i++)
+            if (problem_.binaryBatch[i])
+                arg_list.set(argn++, int32_t(pd()->stride_binary(i, 0)));
     }
 
     auto thread_m = utils::div_up(m, pd()->unroll_m() * tg_m) * tg_m;
@@ -957,6 +845,7 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto lda = packed_a ? 0 : pd()->desc()->lda();
     auto ldb = packed_b ? 0 : pd()->desc()->ldb();
     auto ldc = packed_c ? pd()->ldc_packed() : pd()->desc()->ldc();
+    auto ldco = pd()->with_bias() ? pd()->desc()->ld_bias() : 0;
 
     auto stride_a = pd()->desc()->stride_a();
     auto stride_b = pd()->desc()->stride_b();
@@ -977,6 +866,26 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
     int32_t ao = 0, bo = 0;
 
+    const memory_storage_t *po_srcs[GEMM_MAX_PO];
+
+    int po_count = pd()->post_ops()->len();
+    assert(po_count <= GEMM_MAX_PO);
+
+    for (int i = 0; i < po_count; i++) {
+        auto &src = pd()->binary_srcs()[i];
+        switch (src.type) {
+            case pd_t::binary_src_t::binary:
+                po_srcs[i]
+                        = ctx.args()
+                                  .exec_args
+                                  .at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(src.index)
+                                          | DNNL_ARG_SRC_1)
+                                  .mem->memory_storage();
+                break;
+            default: po_srcs[i] = nullptr; break;
+        }
+    }
+
     size_t off_a0
             = a.offset() / types::data_type_size(a_type) + pd()->dyn_offset_a;
     size_t off_b0
@@ -984,6 +893,11 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     size_t off_c0
             = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
     size_t off_co0 = 0;
+
+    int32_t po_offsets0[GEMM_MAX_PO] = {0}, po_offsets[GEMM_MAX_PO] = {0};
+    for (int i = 0; i < po_count; i++)
+        if (po_srcs[i])
+            po_offsets0[i] = po_srcs[i]->offset() / problem_.Tbinary[i];
 
     if (pd()->with_ab_zero_points()) {
         const int *ao_i32 = nullptr;
@@ -1048,15 +962,36 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 switch (co_kind_) {
                     case 'R': off_co += Bm; break;
                     case 'C': off_co += Bn; break;
+                    case 'M':
+                        off_co += isColMajor(problem_.CO.layout)
+                                ? (Bn * ldco + Bm)
+                                : (Bm * ldco + Bn);
+                        break;
                     default: break;
+                }
+
+                for (int i = 0; i < po_count; i++) {
+                    po_offsets[i] = po_offsets0[i];
+                    bool row = problem_.binaryRow[i],
+                         col = problem_.binaryCol[i];
+                    if (row && col) {
+                        auto ld = pd()->ld_binary(i);
+                        po_offsets[i] += isColMajor(problem_.binary[i].layout)
+                                ? (Bn * ld + Bm)
+                                : (Bm * ld + Bn);
+                    } else if (row)
+                        po_offsets[i] += Bm;
+                    else if (col)
+                        po_offsets[i] += Bn;
                 }
 
                 float this_beta = first_k_block ? beta : 1.0f;
                 status = launch_compute(ctx, size_m, size_n, size_k, a_packed,
                         off_a_packed, lda_packed, b_packed, off_b_packed,
                         ldb_packed, c, off_c, ldc, alpha, this_beta, ao, bo,
-                        *co, off_co, first_k_block, last_k_block, batch,
-                        stride_a, stride_b, stride_c);
+                        *co, off_co, po_count, po_srcs, po_offsets,
+                        first_k_block, last_k_block, batch, stride_a, stride_b,
+                        stride_c);
                 if (status) return status;
             }
         }
