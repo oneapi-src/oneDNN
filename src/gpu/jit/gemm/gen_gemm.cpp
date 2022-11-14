@@ -31,9 +31,9 @@ namespace jit {
 status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c,
-        const memory_storage_t &co, int binary_count,
-        const memory_storage_t **binary, int64_t offset_a, int64_t offset_b,
-        int64_t offset_c, int32_t offset_co, int32_t *offset_binary,
+        const memory_storage_t &co, int po_count,
+        const memory_storage_t **po_srcs, int64_t offset_a, int64_t offset_b,
+        int64_t offset_c, int32_t offset_co, int32_t *offset_po_src,
         int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
         int32_t k0, float alpha, float beta, int16_t ao, int16_t bo,
         int32_t cmask, bool last_k_block, bool swapab,
@@ -42,6 +42,8 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     uint32_t flags = 0;
     bool k_parallel
             = (nocopy_info()->kParallel || nocopy_info()->kParallelLocal);
+
+    auto problem = pd()->kernel_desc()->problem();
 
     auto stride_a0 = int32_t(pd()->desc()->stride_a(0));
     auto stride_b0 = int32_t(pd()->desc()->stride_b(0));
@@ -92,11 +94,11 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
             arg_list.set(argn++, ldco);
         }
     }
-    for (int i = 0; i < binary_count; i++) {
-        arg_list.set(argn++, *binary[i]);
-        arg_list.set(argn++, offset_binary[i]);
+    for (int i = 0; i < po_count; i++) {
+        if (!po_srcs[i]) continue;
+        arg_list.set(argn++, *po_srcs[i]);
+        arg_list.set(argn++, offset_po_src[i]);
 
-        auto problem = pd()->kernel_desc()->problem();
         if (problem->binaryRow[i] && problem->binaryCol[i])
             arg_list.set(argn++, int32_t(pd()->ld_binary(i)));
     }
@@ -107,8 +109,9 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         arg_list.set(argn++, stride_a0);
         arg_list.set(argn++, stride_b0);
         arg_list.set(argn++, stride_c0);
-        for (int i = 0; i < binary_count; i++)
-            arg_list.set(argn++, int32_t(pd()->stride_binary(i, 0)));
+        for (int i = 0; i < po_count; i++)
+            if (problem->binaryBatch[i])
+                arg_list.set(argn++, int32_t(pd()->stride_binary(i, 0)));
     }
 
     if (pd()->batch_dims() >= 2) {
@@ -118,8 +121,9 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         arg_list.set(argn++, stride_a1);
         arg_list.set(argn++, stride_b1);
         arg_list.set(argn++, stride_c1);
-        for (int i = 0; i < binary_count; i++)
-            arg_list.set(argn++, int32_t(pd()->stride_binary(i, 1)));
+        for (int i = 0; i < po_count; i++)
+            if (problem->binaryBatch[i])
+                arg_list.set(argn++, int32_t(pd()->stride_binary(i, 1)));
         arg_list.set(argn++, batchSize1);
         arg_list.set(argn++, recipBatchSize1);
     }
@@ -219,16 +223,25 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &sum_ab = GEMM_CTX_ARG_STORAGE(sum_ab);
     auto *co = &c_zp;
 
-    int binary_count = problem.binaryPOCount();
+    const memory_storage_t *po_srcs[GEMM_MAX_PO];
 
-    const memory_storage_t *binary_srcs[GEMM_MAX_BINARY_PO];
+    int po_count = pd()->post_ops()->len();
+    assert(po_count <= GEMM_MAX_PO);
 
-    for (int i = 0; i < binary_count; i++)
-        binary_srcs[i] = ctx.args()
-                                 .exec_args
-                                 .at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(i)
-                                         | DNNL_ARG_SRC_1)
-                                 .mem->memory_storage();
+    for (int i = 0; i < po_count; i++) {
+        auto &src = pd()->binary_srcs()[i];
+        switch (src.type) {
+            case binary_src_t::binary:
+                po_srcs[i]
+                        = ctx.args()
+                                  .exec_args
+                                  .at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(src.index)
+                                          | DNNL_ARG_SRC_1)
+                                  .mem->memory_storage();
+                break;
+            default: po_srcs[i] = nullptr; break;
+        }
+    }
 
     size_t off_a0
             = a.offset() / types::data_type_size(a_type) + pd()->dyn_offset_a;
@@ -238,10 +251,10 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
     size_t off_co0 = 0;
 
-    int32_t binary_offsets0[GEMM_MAX_BINARY_PO],
-            binary_offsets[GEMM_MAX_BINARY_PO];
-    for (int i = 0; i < binary_count; i++)
-        binary_offsets0[i] = binary_srcs[i]->offset() / problem.Tbinary[i];
+    int32_t po_offsets0[GEMM_MAX_PO] = {0}, po_offsets[GEMM_MAX_PO] = {0};
+    for (int i = 0; i < po_count; i++)
+        if (po_srcs[i])
+            po_offsets0[i] = po_srcs[i]->offset() / problem.Tbinary[i];
 
     int16_t ao = 0, bo = 0;
     int cmask = 0;
@@ -289,6 +302,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
     if (!utils::one_of(pd()->desc()->c_type(), data_type::f32, data_type::f16))
         block_k = k;
+    if (pd()->post_ops()->len() > 0
+            && pd()->post_ops()->entry_[0].kind != primitive_kind::sum)
+        block_k = k;
 
     if (k_parallel_global)
         block_k = pd()->kernel_desc()->aux_params()->k0;
@@ -309,10 +325,10 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
         if (k_parallel_global && beta != 1.0f
                 && (k > k0 * nocopy_info()->wg[2])) {
-            status = launch_nocopy(ctx, compute_stream, a, b, c, *co,
-                    binary_count, binary_srcs, off_a0, off_b0, off_c0,
-                    int32_t(off_co0), binary_offsets0, lda, ldb, ldc, m, n, 0,
-                    1, 1.0f, beta, 0, 0, 0, false, swapab, true);
+            status = launch_nocopy(ctx, compute_stream, a, b, c, *co, po_count,
+                    po_srcs, off_a0, off_b0, off_c0, int32_t(off_co0),
+                    po_offsets0, lda, ldb, ldc, m, n, 0, 1, 1.0f, beta, 0, 0, 0,
+                    false, swapab, true);
             beta = 1.0f;
         }
     }
@@ -348,27 +364,26 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                         break;
                 }
 
-                for (int i = 0; i < binary_count; i++) {
-                    binary_offsets[i] = binary_offsets0[i];
+                for (int i = 0; i < po_count; i++) {
+                    po_offsets[i] = po_offsets0[i];
                     bool row = problem.binaryRow[i], col = problem.binaryCol[i];
                     if (row && col) {
                         auto ld = pd()->ld_binary(i);
-                        binary_offsets[i]
-                                += isColMajor(problem.binary[i].layout)
+                        po_offsets[i] += isColMajor(problem.binary[i].layout)
                                 ? (Bn * ld + Bm)
                                 : (Bm * ld + Bn);
                     } else if (row)
-                        binary_offsets[i] += Bm;
+                        po_offsets[i] += Bm;
                     else if (col)
-                        binary_offsets[i] += Bn;
+                        po_offsets[i] += Bn;
                 }
 
                 float eff_beta = (Bk == 0) ? beta : 1.0f;
                 status = launch_nocopy(ctx, compute_stream, a, b, c, *co,
-                        binary_count, binary_srcs, off_a_src, off_b_src, off_c,
-                        off_co, binary_offsets, lda, ldb, ldc, size_m, size_n,
-                        size_k, k0, alpha, eff_beta, ao, bo, cmask,
-                        last_k_block, swapab, disable_hilbert);
+                        po_count, po_srcs, off_a_src, off_b_src, off_c, off_co,
+                        po_offsets, lda, ldb, ldc, size_m, size_n, size_k, k0,
+                        alpha, eff_beta, ao, bo, cmask, last_k_block, swapab,
+                        disable_hilbert);
 
                 if (status) return status;
             }

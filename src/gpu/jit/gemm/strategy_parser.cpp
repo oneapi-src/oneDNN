@@ -425,8 +425,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
 
     if (strategy.block2DCRemainder && !gotSR) strategy.altCRemainder = true;
 
-    int bcount = problem.binaryPOCount();
-    strategy.binary.resize(bcount);
+    int poCount = problem.postOps.len();
+    strategy.binary.resize(poCount);
     for (auto &astrategy : strategy.binary) {
         astrategy.base = (hw >= HW::XeHPC) ? AddressBase::createA64(true)
                                            : AddressBase::createBTS(0);
