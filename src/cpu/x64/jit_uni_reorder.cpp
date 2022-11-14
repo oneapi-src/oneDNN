@@ -1005,6 +1005,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                               vpaddd(xmm, xmm, addr);
                           else {
                               //isas < avx2 demand paddd instruction addr to be aligned
+                              assert(xmm.getIdx() != xmm_tmp_.getIdx());
                               uni_vmovups(xmm_tmp_, addr);
                               paddd(xmm, xmm_tmp_);
                           }
@@ -1057,9 +1058,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     if (comp_load_type == comp_load_type_t::load
                             && all_ip_padding_zero) {
                         const auto comp_addr = c_addr(c_off[ur]);
-                        uni_vcvtps2dq(xmm_tmp_, Xmm(ur));
-                        uni_vpaddd_wrapper(xmm_tmp_, comp_addr);
-                        uni_vmovups(comp_addr, xmm_tmp_);
+                        uni_vcvtps2dq(xmm_compensation, Xmm(ur));
+                        uni_vpaddd_wrapper(xmm_compensation, comp_addr);
+                        uni_vmovups(comp_addr, xmm_compensation);
                         continue;
                     }
 
