@@ -25,6 +25,7 @@
 #include <compiler/ir/transform/parallel_workload_attr.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/visitor.hpp>
+#include <runtime/config.hpp>
 #include <util/any_map.hpp>
 
 namespace sc {
@@ -93,7 +94,10 @@ public:
             }
             // if already in parallel, or the func is marked no_parallel, we
             // cannot make parallel-for
-            bool can_parallel = !is_parallel_ && !no_parallel_;
+            // todo(anyone): need check and reset non-parallel type for all
+            // loops when threads == 1
+            bool can_parallel = !is_parallel_ && !no_parallel_
+                    && runtime_config_t::get().get_num_threads() > 1;
             assert(tsr->dims_.size() == 1);
             auto dim = tsr->dims_[0];
             if (dim.isa<constant>()) {
