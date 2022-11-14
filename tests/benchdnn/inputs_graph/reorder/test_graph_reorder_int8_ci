@@ -1,23 +1,23 @@
 #dequantize op
 --reset
---sdt=s8,u8 --ddt=f32  --attr-scales=src:common:1* --attr-zero-points=,src:common:2*+dst:common:0*  2x64x3x3
+--sdt=s8,u8 --ddt=f32  --attr-zero-points=,src:common:2*+dst:common:0*  2x64x3x3
 
 #quantize op
 --reset
---sdt=f32 --ddt=s8,u8  --attr-zero-points=,src:common:2*+dst:common:2* 2x64x3x3
+--sdt=f32 --ddt=s8,u8  --attr-zero-points=,src:common:0*+dst:common:2* 2x64x3x3
 
 #typecast+quantize fusion op
 --reset
---sdt=bf16 --ddt=u8,s8  --attr-scales=,src:common:1* --attr-zero-points=,src:common:0*+dst:common:2* 2x64x3x3
+--sdt=bf16 --ddt=u8,s8 --attr-scales=,src:common:0.5*,src:per_dim_0:0.2*,src:per_dim_0:0.5* --attr-zero-points=,src:common:0*+dst:common:2* 2x64x3x3
 
 #dequantize+reorder+quantize fusion op
 --reset
---sdt=s8,u8 --ddt=s8,u8 --stag=abx,axb --dtag=abx,axb --attr-scales=,src:common:1* --attr-zero-points=,src:common:0*+dst:common:2* 2x64x3x3
+--sdt=s8,u8 --ddt=s8,u8 --stag=abx,axb --dtag=abx,axb --attr-scales=,src:common:0.5* --attr-zero-points=,src:common:0*+dst:common:2* 2x64x3x3
 
 #dynamic dequantize
 --reset
---sdt=s8,u8 --ddt=f32 --attr-zero-points=,src:common:2*+dst:common:0* 2x64x3x3 2x8x8 16x512
+--sdt=s8,u8 --ddt=f32  --attr-scales=src:common:0.5*,src:per_dim_0:0.2*,src:per_dim_0:0.5* --attr-zero-points=,src:common:2*+dst:common:0* 2x64x3x3 2x8x8 16x512
 
 #dynamic quantize
 --reset
---sdt=f32 --ddt=s8,u8  --attr-scales=dst:common:1* --attr-zero-points=,src:common:0*+dst:common:2* 2x64x3x3 2x8x8 16x512
+--sdt=f32 --ddt=s8,u8  --attr-scales=src:common:0.5*,src:per_dim_0:0.2*,src:per_dim_0:0.5* --attr-zero-points=,src:common:0*+dst:common:2* 2x64x3x3 2x8x8 16x512
