@@ -2425,10 +2425,10 @@ TEST(Execute, ConvBiasAddEltwise) {
                 {eltwise_dst_ts});
         strm->wait();
         for (size_t i = 0; i < dst.size(); ++i) {
-            // we noticed mish test has slightly accuracy issue on GPU or
-            // AArch64 CPU..
+            // We noticed mish test has slight accuracy issue on GPU or AArch64
+            // CPU or SNB.
             if (eng->kind() == graph::engine_kind::gpu
-                    || dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx) {
+                    || dnnl_get_effective_cpu_isa() <= dnnl_cpu_isa_avx) {
                 ASSERT_NEAR(dst[i], param.ref_dst[i], 1e-6);
             } else {
                 ASSERT_FLOAT_EQ(dst[i], param.ref_dst[i]);
