@@ -26,12 +26,10 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/kernel.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
-#include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel.hpp"
+#include "gpu/jit/gemm/jit_gemm_pd.hpp"
 #include "gpu/jit/jit_post_op_injector.hpp"
 #include "gpu/primitive_conf.hpp"
-
-#define GEMM_MAX_PO 36
 
 namespace dnnl {
 namespace impl {
@@ -39,15 +37,8 @@ namespace gpu {
 namespace jit {
 
 struct gen_gemm_t : public gpu_gemm_t {
-    struct binary_src_t {
-        enum type_t { none, scales, bias, binary } type;
-        int index;
-
-        binary_src_t(type_t type_, int index_) : type(type_), index(index_) {}
-    };
-
-    struct pd_t : public gpu_gemm_pd_t {
-        using gpu_gemm_pd_t::gpu_gemm_pd_t;
+    struct pd_t : public jit_gemm_pd_t {
+        using jit_gemm_pd_t::jit_gemm_pd_t;
         using kernel_desc_t = gen_gemm_nocopy_kernel_desc_t;
 
         DECLARE_COMMON_PD_T("jit:gemm:any", gen_gemm_t);
@@ -156,41 +147,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                                     && (attr()->zero_points_.has_default_values(
                                             DNNL_ARG_DST)));
 
-            // Examine post-ops and remember binary srcs.
-            post_ops_ = attr()->post_ops_;
-            binary_srcs_.reserve(post_ops_.len() + 4);
-
-            bool with_sum = false;
-            bool sum_at_begin = false;
-
-            for (int i = 0; i < post_ops_.len(); i++) {
-                const auto &e = post_ops_.entry_[i];
-                switch (e.kind) {
-                    case binary:
-                        ok &= gemm_kernel_generator_t<ngen::HW::Unknown>::
-                                supportedBinaryOp(e.binary.alg);
-                        binary_srcs_.push_back(
-                                binary_src_t {binary_src_t::binary, int(i)});
-                        break;
-                    case sum:
-                        ok &= !with_sum;
-                        with_sum = true;
-                        sum_at_begin = (i == 0);
-                        binary_srcs_.push_back(
-                                binary_src_t {binary_src_t::none, 0});
-                        beta_ = e.sum.scale;
-                        break;
-                    case eltwise:
-                        ok &= jit_eltwise_injector_f32_is_supported(
-                                e.eltwise.alg);
-                        binary_srcs_.push_back(
-                                binary_src_t {binary_src_t::none, 0});
-                        break;
-                    default: return status::unimplemented;
-                }
-            }
-
-            if (!ok) return status::unimplemented;
+            auto status = init_post_ops();
+            if (status != status::success) return status;
 
             bool with_binary = (post_ops_.find(binary) != -1);
 
@@ -225,7 +183,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (types::data_type_size(acc_type) < 4) {
                 // Limited post-op support for low-precision accumulation.
-                ok &= !with_binary && IMPLICATION(with_sum, sum_at_begin);
+                ok &= !with_binary && IMPLICATION(with_sum_, sum_at_begin_);
             }
 
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
@@ -238,7 +196,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 mode = static_cast<decltype(mode)>(
                         mode | kernel_desc_t::mode_bf16x1);
 
-            auto status = kernel_desc_.select_kernel(arch_, stepping,
+            status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), mode, batch_dims(), eff_transa(),
                     eff_transb(), eff_trans_bias(), swap_ab(),
                     with_ab_zero_points(), with_c_zero_points(), with_bias(),
@@ -437,37 +395,6 @@ struct gen_gemm_t : public gpu_gemm_t {
             return &kernel_desc_;
         }
 
-        const post_ops_t *post_ops() const { return &post_ops_; }
-        const std::vector<binary_src_t> &binary_srcs() const {
-            return binary_srcs_;
-        }
-
-        dim_t ld_binary(int idx) const {
-            switch (binary_srcs_[idx].type) {
-                case binary_src_t::binary: {
-                    const auto &entry = post_ops_.entry_[idx];
-                    assert(entry.kind == primitive_kind::binary);
-                    return gemm_desc_t::get_ld(entry.binary.src1_desc);
-                }
-                case binary_src_t::bias: return desc()->ld_bias();
-                default: return 1;
-            }
-        }
-
-        dim_t stride_binary(int idx, int stride = 0) const {
-            switch (binary_srcs_[idx].type) {
-                case binary_src_t::binary: {
-                    const auto &entry = post_ops_.entry_[idx];
-                    assert(entry.kind == primitive_kind::binary);
-                    return gemm_desc_t::get_stride(
-                            entry.binary.src1_desc, stride);
-                }
-                default: return 0;
-            }
-        }
-
-        float beta_ = 0.0f;
-
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
         size_t dyn_offset_c = 0;
@@ -475,11 +402,6 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         bool swap_ab_ = false;
         bool ab_zp_ = false;
-
-        post_ops_t post_ops_;
-        std::vector<binary_src_t> binary_srcs_;
-
-        memory_desc_t wei_scales_md, src_scales_md, c_scales_md;
 
         const compute::device_info_t *dev_info_;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;

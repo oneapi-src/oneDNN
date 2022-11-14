@@ -97,6 +97,9 @@ protected:
     int m_ = -1, n_ = -1, k_ = -1;
     int eu_count_ = -1;
 
+    status_t transfer_post_ops(
+            const post_ops_t &post_ops, bool swap_ab = false);
+
     status_t finalize();
     void update_driver_info();
 };

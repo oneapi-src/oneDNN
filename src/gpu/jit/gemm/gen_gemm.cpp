@@ -231,7 +231,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     for (int i = 0; i < po_count; i++) {
         auto &src = pd()->binary_srcs()[i];
         switch (src.type) {
-            case binary_src_t::binary:
+            case pd_t::binary_src_t::binary:
                 po_srcs[i]
                         = ctx.args()
                                   .exec_args
