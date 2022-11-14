@@ -92,14 +92,14 @@ void dnnl_allocator_t::free(void *p, const dnnl::engine &p_engine,
         const allocator_t *alc, const ::sycl::event &deps) {
     if (p_engine.get_kind() == dnnl::engine::kind::cpu) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-        return alc->deallocate(p, dnnl::sycl_interop::get_device(p_engine),
+        alc->deallocate(p, dnnl::sycl_interop::get_device(p_engine),
                 dnnl::sycl_interop::get_context(p_engine), deps);
 #else
-        return alc->deallocate(p);
+        alc->deallocate(p);
 #endif
     } else if (p_engine.get_kind() == dnnl::engine::kind::gpu) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-        return alc->deallocate(p, dnnl::sycl_interop::get_device(p_engine),
+        alc->deallocate(p, dnnl::sycl_interop::get_device(p_engine),
                 dnnl::sycl_interop::get_context(p_engine), deps);
 #endif
     }
