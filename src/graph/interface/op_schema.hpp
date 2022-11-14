@@ -286,7 +286,7 @@ private:
     size_t get_max_valid_param_num(
             const std::set<size_t> &param_num, param_num_option option) const;
 
-    std::string doc_;
+    std::string doc_ = "";
     op_kind_t op_kind_;
     opset_version version_;
     std::set<size_t> num_inputs_;
@@ -301,8 +301,8 @@ private:
     std::vector<op_parameter_t> inputs_;
     std::vector<op_parameter_t> outputs_;
     std::unordered_map<op_attr_t, attribute_t> attributes_;
-    shape_infer_fn tensor_inference_function_;
-    type_constraint_fn op_type_constraint_function_;
+    shape_infer_fn tensor_inference_function_ = nullptr;
+    type_constraint_fn op_type_constraint_function_ = nullptr;
     bool commutative_inputs_enabled_ = false;
     // type erased key-value storage
     std::unordered_map<std::string, utils::any_t> additional_items_map_;
