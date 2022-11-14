@@ -905,7 +905,7 @@ public:
 #if SC_LLVM_BACKEND > 10
                 current_val_ = set_alias(
                         builder_.CreateMaskedLoad(get_type(v->dtype_), ptr,
-                                SC_LLVM_ALIGN(1), mask),
+                                SC_LLVM_ALIGN(1), mask, zero),
                         v->ptr_);
 #else
                 current_val_ = set_alias(

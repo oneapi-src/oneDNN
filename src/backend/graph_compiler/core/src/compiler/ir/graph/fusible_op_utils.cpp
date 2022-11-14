@@ -172,7 +172,7 @@ expr generate_mask_var_by_step(stmt &mask_def, const expr &cur_step,
             break;
         }
         case 32: {
-            var_dtype = datatypes::s32;
+            var_dtype = datatypes::u32;
             init_value = std::numeric_limits<uint32_t>::max();
             break;
         }
@@ -185,9 +185,9 @@ expr generate_mask_var_by_step(stmt &mask_def, const expr &cur_step,
     }
     auto full_mask = builder::make_constant({init_value}, var_dtype);
     auto empty_mask = builder::make_constant({UINT64_C(0)}, var_dtype);
-    auto empty_mask_condition = sup_condition.defined()
-            ? cur_step == 0 || !sup_condition
-            : cur_step == 0;
+    auto empty_mask_condition = (sup_condition.defined())
+            ? (cur_step == 0 || !sup_condition)
+            : (cur_step == 0);
     auto mask_select = builder::make_select(empty_mask_condition, empty_mask,
             builder::make_select(cur_step == step, full_mask,
                     full_mask
