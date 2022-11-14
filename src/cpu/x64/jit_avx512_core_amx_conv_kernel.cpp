@@ -3940,7 +3940,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::init_scratchpad(
     scratchpad.book(key_conv_amx_tilecfg, 1, 64); // 1 whole cacheline
 
     book_precomputed_scales(
-            scratchpad, attr.scales_, jcp.ngroups * jcp.oc_without_padding);
+            scratchpad, attr.scales_, jcp.ngroups * jcp.ic_without_padding);
 }
 
 const int jit_avx512_core_amx_bwd_weights_kernel_t::max_ur_w = 32;
