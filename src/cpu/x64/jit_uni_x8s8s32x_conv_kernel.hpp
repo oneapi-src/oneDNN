@@ -113,7 +113,7 @@ private:
     const Vmm vmm_zp_comp = vmm_zp_one;
     const Vmm vmm_zp_dw_tmp = vmm_zp_one;
     /* dst scale */
-    const Vmm vmm_dst_scale = Vmm(6);
+    const Vmm vmm_dst_scale = Vmm(5);
 
     /* used in compute_ker (but set during prepare_output) */
     const Vmm vmm_shift = Vmm(1); // only for signed input

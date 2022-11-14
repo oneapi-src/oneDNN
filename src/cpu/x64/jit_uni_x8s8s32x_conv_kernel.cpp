@@ -900,7 +900,9 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
 
     if (jcp.is_depthwise) {
         const bool is_zero_point = jcp.src_zero_point || jcp.dst_zero_point;
-        int idx = ker_max_reg + 1 - jcp.max_regs_ur - 2 * is_zero_point;
+        // dst zero point and dst scale reuse the same register
+        int idx = ker_max_reg + 1 - jcp.max_regs_ur
+                - nstl::max(2 * is_zero_point, static_cast<int>(jcp.dst_scale));
         if (!jcp.is_resrc_depthwise) vmm_dw_src = Vmm(--idx);
         if (!jcp.has_vnni) vmm_dw_tmp = Vmm(--idx);
         if (jcp.signed_input) {
@@ -1303,6 +1305,18 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
     jcp.signed_input = src_d.data_type() == data_type::s8;
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
 
+    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+    const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
+
+    const int wei_mask_per_oc = 1 << (int)with_groups;
+    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
+    jcp.dst_scale = !dst_scales.has_default_values();
+
+    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
+            && everyone_is(src_scales.mask_, dst_scales.mask_, 0);
+    if (!scales_ok) return status::unimplemented;
+
     const auto zp = attr.zero_points_;
     jcp.dst_zero_point = !zp.has_default_values(DNNL_ARG_DST);
     jcp.src_zero_point = !zp.has_default_values(DNNL_ARG_SRC);
@@ -1351,6 +1365,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
         jcp.max_regs_ur = jcp.has_vnni ? 15 - jcp.signed_input : 12;
     }
 
+    if (jcp.dst_scale) jcp.max_regs_ur = 10;
     if (jcp.src_zero_point || jcp.dst_zero_point) jcp.max_regs_ur = 9;
 
     auto set_or_check_wei_format = [&]() {
@@ -1578,18 +1593,6 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
     pick_loop_order(jcp);
 
     jcp.nb_ic_L2 = jcp.nb_ic;
-
-    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
-    const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
-    const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-
-    const int wei_mask_per_oc = 1 << (int)with_groups;
-    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
-    jcp.dst_scale = !dst_scales.has_default_values();
-
-    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
-            && everyone_is(src_scales.mask_, dst_scales.mask_, 0);
-    if (!scales_ok) return status::unimplemented;
 
     jcp.wei_adj_scale
             = (weights_d.extra().flags & memory_extra_flags::scale_adjust)
