@@ -1329,7 +1329,8 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
     }
     bh.set_loop_dim("kd", prb.kd);
     bh.set_loop_dim("kh", prb.kh);
-    if (is_small_ic(prb) && !is_dw_large_mb(prb)) {
+    if (is_small_ic(prb) && !is_dw_large_mb(prb)
+            && (prb.g == 1 || prb.ic == prb.oc)) {
         bh.set_block_dims({"kw"});
     } else {
         bh.set_loop_dim("kw", prb.kw);
