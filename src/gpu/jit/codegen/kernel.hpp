@@ -506,16 +506,30 @@ public:
     void efdiv(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
             const ngen_operand_t &src0, const ngen_operand_t &src1) {
         ir_assert(!src1.is_immediate());
-        auto one = ra_.alloc().f();
-        auto zero = ra_.alloc().f();
-
-        auto tmp = ra_.alloc_range(4);
 
         int esize = mod.getExecSize();
         int grf_size = ngen::GRF::bytes(hw);
         int div_esize = std::min(esize, grf_size / int(sizeof(float)));
 
         int tmp_regs = utils::div_up(esize * int(sizeof(float)), grf_size);
+
+        // fdiv_ieee() is not supported in XeHPG so we use a less precise, inv-based sequence.
+        if (hw < ngen::HW::XeHPC) {
+            auto tmp = ra_.alloc_range(tmp_regs);
+            auto tmp_buf = reg_buf_t(hw, tmp);
+            auto tmp_reg_buf = reg_buf_data_t(tmp_buf).format(
+                    0, src1.reg_buf_data().type(), esize);
+            inv(mod, tmp[0].f(), src1.reg_buf_data());
+            emul(mod, dst, src0, ngen_operand_t(tmp_reg_buf));
+            ra_.safeRelease(tmp);
+            return;
+        }
+
+        auto one = ra_.alloc().f();
+        auto zero = ra_.alloc().f();
+
+        auto tmp = ra_.alloc_range(4);
+
         auto src0_tmp = ra_.alloc_range(tmp_regs);
         auto src1_tmp = ra_.alloc_range(tmp_regs);
 
