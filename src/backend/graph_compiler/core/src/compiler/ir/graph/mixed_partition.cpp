@@ -792,7 +792,7 @@ bool fuse_anchor_map_t::has_view_of(sc_op *op) {
     }
     auto ths_root_scope = get_root()->get_parent_scope()->seq_;
     stmt ths_anchor_ss = get_root()->anchor_position_;
-    auto other_pos = std::find_if(ths_root_scope.begin(), ths_root_scope.end(),
+    auto ths_pos = std::find_if(ths_root_scope.begin(), ths_root_scope.end(),
             [&ths_anchor_ss](
                     const stmt &s) { return ths_anchor_ss.ptr_same(s); });
     auto op_anchor_loop = op_anchor->get_parent_loop();
@@ -802,7 +802,7 @@ bool fuse_anchor_map_t::has_view_of(sc_op *op) {
                     return op_anchor_loop.ptr_same(s);
                 });
         if (op_anchor_pos != ths_root_scope.end()) {
-            return op_anchor_pos < other_pos;
+            return op_anchor_pos < ths_pos;
         }
         if (op_anchor_loop->attr().has_key("builder.parent_node")) {
             op_anchor_loop = get_parent_node(op_anchor_loop);
@@ -863,7 +863,9 @@ bool fuse_anchor_map_t::check_input_for_op(
                     // if input is ready on cur anchor, its input slice range
                     // should not be empty
                     if (!cur->fsmap_.haskey(dep_op->get_inputs()[0])
-                            || cur->fsmap_.get(dep_op->get_inputs()[0]).empty())
+                            || cur->fsmap_.get(dep_op->get_inputs()[0]).empty()
+                            || !cur->fsmap_.haskey(gt)
+                            || cur->fsmap_.get(gt).empty())
                         continue;
                     slice_range_list cur_slice = cur->fsmap_.get(gt);
                     auto res = cmp_slice_range(inferred_slice, cur_slice);
@@ -1682,6 +1684,9 @@ static bool try_merge_mixed_parti_vertically(
     // validate axis binding
     merged_loop_size = check_parti_loop_axis_binding(
             parti_be_merged, pa_to_merge, merged_loop_size);
+    // reset parallel_loop_range
+    parallel_loop_range = {parallel_loop_range.begin(),
+            parallel_loop_range.begin() + merged_loop_size};
 
     if (!merged_loop_size) return false;
 
@@ -1884,10 +1889,9 @@ static bool try_merge_mixed_parti_vertically(
  * @param check_connection: if the value is False, the connection ship should be
  * ensured by joint op.
  * */
-void mixed_parti_t::merge(const ptr &other, bool check_connection) {
-    if (!try_merge_brgemm_and_preop_parti(
-                this, other.get(), check_connection)) {
-        try_merge_mixed_parti_vertically(this, other.get(), check_connection);
+void mixed_parti_t::merge(const ptr &other) {
+    if (!try_merge_brgemm_and_preop_parti(this, other.get(), false)) {
+        try_merge_mixed_parti_vertically(this, other.get(), false);
     }
 }
 
@@ -2382,14 +2386,12 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
                     if (parent_partition) {
                         // support matmul to fuse m_o axis
                         if (op->isa<tunable_op_t>()) {
-                            cur_in_partition->merge(parent_partition, false);
+                            cur_in_partition->merge(parent_partition);
                         } else {
                             if (parent_partition->contain_tunable_op()) {
-                                cur_in_partition->merge(
-                                        parent_partition, false);
+                                cur_in_partition->merge(parent_partition);
                             } else {
-                                parent_partition->merge(
-                                        cur_in_partition, false);
+                                parent_partition->merge(cur_in_partition);
                             }
                         }
                         parent_partition
