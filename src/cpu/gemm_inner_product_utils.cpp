@@ -157,6 +157,7 @@ pp_kernel_t::pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
         // ip: per_oc: 1 << 0
         scale_idx_mult_ = wei_mask == (1 << (ndims_ - 1)) || wei_mask == 1 << 0;
     }
+    do_dst_scale_ = !attr->scales_.get(DNNL_ARG_DST).has_default_values();
 
     post_ops_ = attr->post_ops_;
     const int eltwise_ind = post_ops_.find(primitive_kind::eltwise);
