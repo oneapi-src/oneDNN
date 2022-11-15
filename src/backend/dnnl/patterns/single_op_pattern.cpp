@@ -173,6 +173,8 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(elu_pass, Elu, float_eltwise_fwd, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(elu_bw_pass, EluBackprop, eltwise_bwd_t, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(exp_pass, Exp, float_eltwise_fwd, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
+        hardsigmoid_pass, HardSigmoid, float_eltwise_fwd, 8.f)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         hardswish_pass, HardSwish, float_eltwise_fwd, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         hardswish_bw_pass, HardSwishBackprop, eltwise_bwd_t, 8.f)
