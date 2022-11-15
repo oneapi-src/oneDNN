@@ -87,9 +87,12 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_float("FH", conf.FH);
     kernel_ctx.define_float("FW", conf.FW);
 
-    kernel_ctx.define_int("MAX_NUM_D", (int)std::ceil(conf.FD + 2));
-    kernel_ctx.define_int("MAX_NUM_H", (int)std::ceil(conf.FH + 2));
-    kernel_ctx.define_int("MAX_NUM_W", (int)std::ceil(conf.FW + 2));
+    const int max_d = std::max(1, (int)std::ceil(conf.FD * 1.5 - 0.5));
+    const int max_h = std::max(1, (int)std::ceil(conf.FH * 1.5 - 0.5));
+    const int max_w = std::max(1, (int)std::ceil(conf.FW * 1.5 - 0.5));
+    kernel_ctx.define_int("MAX_NUM_D", max_d);
+    kernel_ctx.define_int("MAX_NUM_H", max_h);
+    kernel_ctx.define_int("MAX_NUM_W", max_w);
 
     def_offsets(conf.off.src_off, kernel_ctx, "SRC", ndims);
     def_offsets(conf.off.dst_off, kernel_ctx, "DST", ndims);
@@ -162,9 +165,10 @@ status_t vectorized_resampling_bwd_t::pd_t::init_conf(engine_t *engine) {
     // Highly-upsampled cases are not supported
     // TODO: Implement multiple linear calculations per work item
     // to eliminate this requirement
-    const int max_num_linear_calcs = 2
-            * (std::ceil(conf.FD) + std::ceil(conf.FH) + std::ceil(conf.FW)
-                    + 6);
+    const int max_d = std::max(1, (int)std::ceil(conf.FD * 1.5 - 0.5));
+    const int max_h = std::max(1, (int)std::ceil(conf.FH * 1.5 - 0.5));
+    const int max_w = std::max(1, (int)std::ceil(conf.FW * 1.5 - 0.5));
+    const int max_num_linear_calcs = 2 * (max_d + max_h + max_w);
     if (max_num_linear_calcs > conf.sub_group_size) {
         return status::unimplemented;
     }
