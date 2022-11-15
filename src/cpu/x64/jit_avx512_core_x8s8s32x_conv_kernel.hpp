@@ -131,7 +131,7 @@ private:
     const Vmm vmm_zp_one = Vmm(26);
     const Vmm vmm_zp_tmp = vmm_zp;
 
-    const Vmm vmm_dst_scale = Vmm(25);
+    const Vmm vmm_dst_scale = Vmm(26);
 
     /* bf16 emulation */
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(26);
