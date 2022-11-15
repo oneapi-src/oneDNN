@@ -229,7 +229,7 @@ struct mixed_parti_t : fusion_partition_t {
      * `fanchors_`.
      * 6. call base class `merge` method to do disjoint-set merge.
      * */
-    void merge(const ptr &other, bool check_connection);
+    void merge(const ptr &other);
 
     mixed_parti_t(const context_ptr &ctx, const sc_op_ptr &op,
             const dep_mat_ptr &dep_m);
