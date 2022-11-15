@@ -186,7 +186,7 @@ __kernel void vectorized_resampling_bwd(
 
         // Do the (costly) linear calculations
         const float x = linear(ox, IX, OX);
-        myres = (x - trunc(x));
+        myres = fabs(x - trunc(x));
     }
 
     // Package to useful arrays
@@ -216,9 +216,8 @@ __kernel void vectorized_resampling_bwd(
     for (int w = 0; w < num_ow_right; w++) {
         w_list[1][w] = sub_group_shuffle(myres, w + offset);
     }
-
     // Have to wait to drop out until shuffles are done
-    if (mb >= DST_D0 || c >= DST_D1) { return; }
+    if (mb >= MB || c >= C) return;
 
     const uint mb_c_off = DST_MB_STRIDE(mb) + DST_C_STRIDE(c_start);
     for_(int c1 = 0; c1 < 2; c1++)
