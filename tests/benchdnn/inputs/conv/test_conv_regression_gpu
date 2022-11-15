@@ -19,6 +19,7 @@ mb32ic128ih1oc129oh1kh1ph0
 mb32ic32ih1oc129oh1kh1ph0
 
 --reset --dir=FWD_I --cfg=u8s8u8 mb32ic3ih60oc64oh30kh3sh2ph0
+--reset --dir=FWD_I --cfg=u8s8u8 g32mb1ic64ih1oc192oh1kh3ph1
 
 #regression - person detection
 --reset
