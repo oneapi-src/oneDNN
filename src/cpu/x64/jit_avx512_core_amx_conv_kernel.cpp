@@ -1742,6 +1742,10 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(int width,
     prepare_output(tail);
 
     // prepare registers for when 'interleave_store()' is computed
+    if (jcp.dst_scale) {
+        mov(reg_dst_scale, ptr[param1 + GET_OFF(dst_scale)]);
+        vmovups(zmm_dst_scale, EVEX_compress_addr(reg_dst_scale, 0));
+    }
     if (jcp.src_zero_point) {
         mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
         mov(reg_src_zero_point, ptr[param1 + GET_OFF(src_zero_point)]);
