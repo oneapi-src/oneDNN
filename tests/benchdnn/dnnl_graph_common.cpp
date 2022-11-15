@@ -177,6 +177,7 @@ dnnl::graph::op::kind convert_alg_kind(
             case dnnl_eltwise_elu: return graph_op::Elu;
             case dnnl_eltwise_exp: return graph_op::Exp;
             case dnnl_eltwise_gelu_erf: return graph_op::GELU;
+            case dnnl_eltwise_hardsigmoid: return graph_op::HardSigmoid;
             case dnnl_eltwise_hardswish: return graph_op::HardSwish;
             case dnnl_eltwise_log: return graph_op::Log;
             case dnnl_eltwise_logistic: return graph_op::Sigmoid;
@@ -329,6 +330,10 @@ std::map<std::string, float> convert_eltw_entry(
         case graph_op::Clamp:
             attrs["min"] = entry.eltwise.alpha;
             attrs["max"] = entry.eltwise.beta;
+            return attrs;
+        case graph_op::HardSigmoid:
+            attrs["alpha"] = entry.eltwise.alpha;
+            attrs["beta"] = entry.eltwise.beta;
             return attrs;
         default: return attrs;
     }

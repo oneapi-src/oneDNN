@@ -24,7 +24,7 @@ g4oc20ic16_od5id5kd3pd1_n"3d_oc_tail_conv:grouped"
 
 # post eltwise
 --reset
---attr-post-ops=logistic,relu,relu:0.25,mish mb50ic64ih56oc64oh56kh1ph0
+--attr-post-ops=logistic,relu,relu:0.25,mish,hardsigmoid:0.2:0.5 mb50ic64ih56oc64oh56kh1ph0
 
 # post sum+eltwise
 --reset

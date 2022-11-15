@@ -13,6 +13,10 @@
 --alg=clip_v2
 64x512x28x28
 
+--alpha=0.2 --beta=0.5
+--alg=hardsigmoid
+64x512x28x28
+
 --alpha= --beta=0
 --alg=elu
 64x512x28x28
