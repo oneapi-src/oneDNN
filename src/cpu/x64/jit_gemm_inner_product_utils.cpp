@@ -171,7 +171,6 @@ private:
     Xbyak::Reg64 bf16_emu_reserv_4 = reg_tmp_comp;
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(31);
 
-    const int default_OC_loop_unroll_ = is_avx512_ ? 4 : 3;
     int max_OC_loop_unroll_ = 13;
     int idx_compute_vreg_start_ = is_avx512_ ? 0 : 1;
     int idx_compute_vreg_max_ = is_avx512_ ? 31 : 15;
@@ -323,7 +322,7 @@ jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
             OC_loop = 0;
             OC_tail = OC;
         } else {
-            OC_loop = vlen * default_OC_loop_unroll_;
+            OC_loop = vlen * max_OC_loop_unroll_;
             OC_tail = OC % OC_loop;
         }
         size_t tail_size = OC_tail % vlen;
@@ -934,7 +933,7 @@ void jit_pp_kernel_t<isa>::compute_oc_channel_blk() {
                 OC_loop = 0;
                 OC_tail = this->OC_;
             } else {
-                OC_loop = vlen * default_OC_loop_unroll_;
+                OC_loop = vlen * max_OC_loop_unroll_;
                 OC_tail = this->OC_ % OC_loop;
             }
 
