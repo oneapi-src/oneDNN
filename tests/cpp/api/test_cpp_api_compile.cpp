@@ -364,8 +364,8 @@ TEST_P(test_average_pool_compile_t, Test_Average_Pool_Compile) {
 
 INSTANTIATE_TEST_SUITE_P(Test_Average_Pool_Compile, test_average_pool_compile_t,
         ::testing::Values(dnnl_graph_test_pool_params_t {{1, 1, 4, 4},
-                                  {1, 1, 2, 3}, {2, 2}, {3, 1}, {0, 0}, {0, 0},
-                                  {0, 0}, false, "NCX", "ceil", "None"},
+                                  {1, 1, 1, 3}, {2, 2}, {3, 1}, {0, 0}, {0, 0},
+                                  {0, 0}, false, "NCX", "floor", "None"},
                 dnnl_graph_test_pool_params_t {{1, 1, 4, 4}, {1, 1, 2, 3},
                         {2, 2}, {3, 1}, {0, 0}, {0, 0}, {0, 0}, true, "NCX",
                         "ceil", "None"}));
