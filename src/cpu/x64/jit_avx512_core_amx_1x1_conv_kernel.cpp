@@ -457,7 +457,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_int8(
 
     if (jcp.dst_scale) {
         mov(reg_ptr_dst_scale, ptr[param1 + GET_OFF(dst_scale)]);
-        vdivps(zmm_out, zmm_out, EVEX_compress_addr(reg_ptr_dst_scale, 0));
+        vmulps(zmm_out, zmm_out, EVEX_compress_addr(reg_ptr_dst_scale, 0));
     }
     if (jcp.dst_zero_point) { vaddps(zmm_out, zmm_out, zmm_dst_zp); }
 
