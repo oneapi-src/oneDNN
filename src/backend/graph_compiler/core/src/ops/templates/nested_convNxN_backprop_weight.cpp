@@ -77,7 +77,12 @@ config_ptr gen_nested_convNXN_bwd_weight_t::get_default_config(
   if (num_threads >= cfg.ic_threads * cfg.bs_threads) {
     cfg.oc_threads = num_threads / cfg.ic_threads / cfg.bs_threads;
   } else {
-    cfg.ic_threads /= 2;
+    int reduction_fatcor = cfg.ic_threads * cfg.bs_threads / num_threads;
+    if (cfg.ic_threads / reduction_fatcor < 1) {
+      cfg.bs_threads = cfg.bs_threads / reduction_fatcor;
+    } else {
+      cfg.ic_threads = cfg.ic_threads / reduction_fatcor;
+    }
     cfg.oc_threads = num_threads / cfg.ic_threads / cfg.bs_threads;
   }
 
