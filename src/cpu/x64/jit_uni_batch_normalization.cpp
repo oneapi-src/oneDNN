@@ -911,8 +911,10 @@ struct jit_bnorm_t : public jit_generator {
                         else
                             uni_vmaxps(vdata, vdata, vzero);
                     } else if (with_relu) { // --flags=R
-                        fwd_process_relu_avx512_common(
-                                vdata, idx * vlen_spat_data_);
+                        if (isa == avx512_core)
+                            fwd_process_relu_avx512_common(vdata, offt);
+                        else
+                            assert(false);
                     }
                     uni_vmovups_spat_data(
                             vmmword[reg_dst + reg_soff_nspc + offt], vdata,
@@ -943,7 +945,7 @@ struct jit_bnorm_t : public jit_generator {
         mov(reg_coff_max_fwd_copy, reg_coff_max);
 
         Label ch_unroll_label[5];
-        const int max_ch_unroll = 4;
+        const int max_ch_unroll = isa == avx512_core ? 4 : 2;
 
         // TODO: Spatial and channel unrolling decisions should be made during
         // initialization depending on the problem size
@@ -1266,8 +1268,9 @@ struct jit_bnorm_t : public jit_generator {
         mov(reg_coff_max_fwd_copy, reg_coff_max);
 
         Label ch_unroll_label[5];
-        const int max_ch_unroll
-                = is_bf16_ && !mayiuse(avx512_core_bf16) ? 3 : 4;
+        const int max_ch_unroll = isa != avx512_core
+                ? 2
+                : is_bf16_ && !mayiuse(avx512_core_bf16) ? 3 : 4;
 
         // TODO: Spatial and channel unrolling decisions should be made during
         // initialization depending on the problem size
@@ -1286,7 +1289,7 @@ struct jit_bnorm_t : public jit_generator {
                 // advance mean_ptr() and var_ptr()
                 add(reg_coff, vlen * ch_blk_size);
 
-                add(reg_ws, 2 * ch_blk_size);
+                add(reg_ws, (vlen / 32) * ch_blk_size);
 
                 sub(reg_coff_max, vlen * ch_blk_size);
                 jmp(ch_unroll_label[ch_idx], T_NEAR);
