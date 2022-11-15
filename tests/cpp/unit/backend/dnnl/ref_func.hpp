@@ -33,6 +33,23 @@ static inline test::vector<float> mish_func(
     return out;
 }
 
+static inline test::vector<float> hardsigmoid_func(
+        const test::vector<float> &inputs, float alpha, float beta) {
+    test::vector<float> out;
+    for (auto &in : inputs) {
+        float ret = 0.f;
+        if (in > 3.f)
+            ret = 1.f;
+        else if (in <= -3.f)
+            ret = 0.f;
+        else
+            ret = in * alpha + beta;
+
+        out.emplace_back(ret);
+    }
+    return out;
+}
+
 static inline test::vector<float> sigmoid_func(
         const test::vector<float> &ref_dst) {
     test::vector<float> out;
