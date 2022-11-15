@@ -939,6 +939,8 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
         if (!attr->has_default_values()) return false;
     }
 
+    if (!attr->scales_.has_default_values())
+        if (!prb.is_s32_accumulator()) return false;
     auto scale_args = get_scale_args(prb);
     if (!attr->scales_.has_default_values(scale_args)) return false;
     for (int arg : scale_args) {
