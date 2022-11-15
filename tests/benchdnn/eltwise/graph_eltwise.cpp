@@ -124,6 +124,10 @@ fill_status_t append_graph_with_block(const ::eltwise::prb_t *prb) {
         case dnnl::graph::op::kind::SoftPlusBackprop:
             eltw_op.set_attr("beta", softplus_beta);
             break;
+        case dnnl::graph::op::kind::HardSigmoid:
+            eltw_op.set_attr("alpha", prb->alpha);
+            eltw_op.set_attr("beta", prb->beta);
+            break;
         default: break;
     }
 
