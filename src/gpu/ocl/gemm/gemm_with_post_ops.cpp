@@ -57,12 +57,16 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     if (!it_gemm_with_po.is_initialized()) return status::invalid_arguments;
     gemm_pd_ = *(++it_gemm_with_po);
     // exit if gemm kernel support post ops
-    if (gemm_pd_ && strstr(gemm_pd_->name(), "ref") == nullptr)
+    if (gemm_pd_ && strstr(gemm_pd_->name(), "ocl") == nullptr)
         return status::unimplemented;
     auto gemm_desc = *desc();
     auto dst_type = gemm_desc.c_desc.data_type;
-    use_reorder = dst_md(0)->data_type != desc()->acc_type;
-    gemm_desc.c_desc.data_type = gemm_desc.acc_type;
+    gemm_desc.c_desc.data_type
+            = utils::one_of(data_type::f16, gemm_desc.a_desc.data_type,
+                      gemm_desc.b_desc.data_type)
+            ? data_type::f32
+            : gemm_desc.acc_type;
+    use_reorder = dst_md(0)->data_type != gemm_desc.c_desc.data_type;
     gemm_desc.bias_desc = glob_zero_md;
     // Setup empty attributes but keep zero points for gemm.
     primitive_attr_t attributes_without_po;
@@ -74,13 +78,14 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
             current_impl_idx /* skip implementation */);
     if (!it_gemm_without_po.is_initialized()) return status::invalid_arguments;
     gemm_pd_ = *(++it_gemm_without_po);
-    if (!gemm_pd_ || strstr(gemm_pd_->name(), "ref") != nullptr)
+    if (!gemm_pd_ || strstr(gemm_pd_->name(), "ocl") != nullptr)
         return status::unimplemented;
     //set tags for end user
     desc_.a_desc = *gemm_pd_->arg_md(DNNL_ARG_SRC_0);
     desc_.b_desc = *gemm_pd_->arg_md(DNNL_ARG_SRC_1);
     desc_.c_desc = *gemm_pd_->arg_md(DNNL_ARG_DST);
     desc_.c_desc.data_type = dst_type;
+    desc_.acc_type = gemm_desc.c_desc.data_type;
     CHECK(attr_.set_default_formats(dst_md(0)));
     if (!set_default_formats()) return status::unimplemented;
 
@@ -119,9 +124,8 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     bool is_int8 = src_md(1)->data_type == data_type::s8;
     kernel_ctx.set_data_type(c_type);
     //here SRC is output tensor of gemm call
-    def_data_type(kernel_ctx, desc()->acc_type, "SRC");
-    def_data_type(
-            kernel_ctx, is_int8 ? data_type::f32 : desc()->acc_type, "ACC");
+    def_data_type(kernel_ctx, desc_.acc_type, "SRC");
+    def_data_type(kernel_ctx, is_int8 ? data_type::f32 : desc_.acc_type, "ACC");
     def_data_type(kernel_ctx, with_bias ? src_md(2)->data_type : c_type, "BIA");
     def_data_type(kernel_ctx, desc()->acc_type, "SPAD");
     def_data_type(kernel_ctx, c_type, "DST");
@@ -157,7 +161,7 @@ void gemm_with_post_ops_t::pd_t::init_scratchpad() {
     if (use_scratchpad_with_post_op_worker) {
         memory_desc_wrapper dst_mdw(dst_md());
         scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer,
-                dst_mdw.size(), types::data_type_size(desc()->acc_type));
+                dst_mdw.size(), types::data_type_size(desc_.acc_type));
     }
     scratchpad.book(memory_tracking::names::key_nested_multiple,
             gemm_pd_->scratchpad_registry());
