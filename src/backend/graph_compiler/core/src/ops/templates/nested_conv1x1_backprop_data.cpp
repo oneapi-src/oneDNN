@@ -127,8 +127,10 @@ config_ptr gen_nested_conv1x1_backprop_data_t::get_default_config(
   const int sizeofdtypeC
     = utils::get_sizeof_etype(out_tensors_[0].dtype_.as_etype());
   float cost = std::numeric_limits<float>::max();
+  auto split_s_list = get_splits(num_threads);
   int split_s = 1;
-  for (int i = 1; i <= num_threads; i++) {
+  for (int64_t j = split_s_list.size() - 1; j >= 0; --j) {
+    int i = split_s_list[j];
     int num_BS_block
       = utils::divide_and_ceil(BS / im_bs_block, num_threads / i);
     int num_S_block = utils::divide_and_ceil(OS / im_ow_block, i);
