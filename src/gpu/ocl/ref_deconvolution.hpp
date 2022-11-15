@@ -121,7 +121,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                     && desc()->alg_kind == alg_kind::deconvolution_direct
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(
-                            attr(), desc()->dst_desc.data_type)
+                            attr(), desc()->dst_desc.data_type, ndims())
                     && (utils::everyone_is(data_type::f32,
                                 desc()->src_desc.data_type,
                                 desc()->weights_desc.data_type,
@@ -146,9 +146,8 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                             || (desc()->weights_desc.data_type == data_type::s8
                                     && utils::one_of(desc()->src_desc.data_type,
                                             data_type::u8, data_type::s8)
-                                    && utils::one_of(desc()->dst_desc.data_type,
-                                            data_type::u8, data_type::s8,
-                                            data_type::s32, data_type::f32)));
+                                    && desc()->dst_desc.data_type
+                                            != data_type::f64));
             if (ok) {
                 CHECK(init_convolution(engine));
                 if (weights_md_.format_kind == format_kind::any)
