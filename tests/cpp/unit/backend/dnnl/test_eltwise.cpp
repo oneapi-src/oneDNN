@@ -310,6 +310,18 @@ TEST(Execute, GeluBackward) {
             impl::op_kind::GELUBackprop, "gelu_bw");
 }
 
+TEST(Execute, HardSigmoid) {
+    test::vector<float> src {-3.1f, -3.f, -1.5f, 0.f, 0.6f, 3.f, 3.1f, 100.f};
+    test::vector<float> ref_dst {0.f, 0.f, 0.25f, 0.5f, 0.6f, 1.f, 1.f, 1.f};
+
+    impl::dims dims {1, 2, 4};
+    const std::map<impl::op_attr_t, float> attrs_data {
+            {impl::op_attr::alpha, 1.0f / 6}, {impl::op_attr::beta, 0.5f}};
+
+    test_eltwise_common(src, ref_dst, dims, impl::op_kind::HardSigmoid,
+            "hardsigmoid", attrs_data);
+}
+
 TEST(Execute, HardSwish) {
     test::vector<float> src {7, -4, 0.0723652095, -0.0364869386, 60, -20,
             0.188521415, -0.729738772, 88.3709564};

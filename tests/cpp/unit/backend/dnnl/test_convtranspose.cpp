@@ -1141,9 +1141,9 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
 
     const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {impl::op_kind::Abs,
             impl::op_kind::Elu, impl::op_kind::Exp, impl::op_kind::GELU,
-            impl::op_kind::Clamp, impl::op_kind::HardSwish, impl::op_kind::Log,
-            impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sigmoid,
-            impl::op_kind::Tanh};
+            impl::op_kind::Clamp, impl::op_kind::HardSigmoid,
+            impl::op_kind::HardSwish, impl::op_kind::Log, impl::op_kind::ReLU,
+            impl::op_kind::Round, impl::op_kind::Sigmoid, impl::op_kind::Tanh};
 
     std::vector<size_t> nds = {2};
     std::vector<int64_t> groups = {1};
@@ -1240,11 +1240,19 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
 
         impl::op_t eltwise_node(3, eltwise_kind, "eltwise_node");
 
-        if (eltwise_kind == impl::op_kind::Elu) {
-            eltwise_node.set_attr<float>(impl::op_attr::alpha, 1.f);
-        } else if (eltwise_kind == impl::op_kind::Clamp) {
-            eltwise_node.set_attr<float>(impl::op_attr::min, -1.f);
-            eltwise_node.set_attr<float>(impl::op_attr::max, 2.f);
+        switch (eltwise_kind) {
+            case impl::op_kind::Elu:
+                eltwise_node.set_attr<float>(impl::op_attr::alpha, 1.f);
+                break;
+            case impl::op_kind::Clamp:
+                eltwise_node.set_attr<float>(impl::op_attr::min, -1.f);
+                eltwise_node.set_attr<float>(impl::op_attr::max, 2.f);
+                break;
+            case impl::op_kind::HardSigmoid:
+                eltwise_node.set_attr<float>(impl::op_attr::alpha, 1.0f / 6);
+                eltwise_node.set_attr<float>(impl::op_attr::beta, 0.5f);
+                break;
+            default: break;
         }
 
         impl::op_t qout_node(4, impl::op_kind::Quantize, "qout_node");

@@ -3080,7 +3080,8 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
             impl::op_kind::Divide, impl::op_kind::Subtract, impl::op_kind::Pow};
     const std::vector<impl::op_kind_t> supported_ops {impl::op_kind::Abs,
             impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
-            impl::op_kind::GELU, impl::op_kind::HardSwish, impl::op_kind::Log,
+            impl::op_kind::GELU, impl::op_kind::HardSigmoid,
+            impl::op_kind::HardSwish, impl::op_kind::Log,
             impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
             impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
             impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Multiply,
@@ -3139,12 +3140,22 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
                 } else {
                     // eltwise
                     op_t eltwise {op_id++, opkind, "eltwise"};
-                    if (opkind == impl::op_kind::Elu) {
-                        eltwise.set_attr<float>(op_attr::alpha, 1.0f);
-                    } else if (opkind == impl::op_kind::Clamp) {
-                        eltwise.set_attr<float>(op_attr::min, 1.0f);
-                        eltwise.set_attr<float>(op_attr::max, 3.0f);
+                    switch (opkind) {
+                        case impl::op_kind::Elu:
+                            eltwise.set_attr<float>(impl::op_attr::alpha, 1.f);
+                            break;
+                        case impl::op_kind::Clamp:
+                            eltwise.set_attr<float>(impl::op_attr::min, -1.f);
+                            eltwise.set_attr<float>(impl::op_attr::max, 2.f);
+                            break;
+                        case impl::op_kind::HardSigmoid:
+                            eltwise.set_attr<float>(
+                                    impl::op_attr::alpha, 1.0f / 6);
+                            eltwise.set_attr<float>(impl::op_attr::beta, 0.5f);
+                            break;
+                        default: break;
                     }
+
                     if (i == 0) {
                         eltwise.add_input(conv_out);
                     } else {
@@ -3185,7 +3196,8 @@ TEST(Pass, FuseConvPostOpsChain) {
             impl::op_kind::Divide, impl::op_kind::Subtract, impl::op_kind::Pow};
     const std::vector<impl::op_kind_t> supported_ops {impl::op_kind::Abs,
             impl::op_kind::Clamp, impl::op_kind::Elu, impl::op_kind::Exp,
-            impl::op_kind::GELU, impl::op_kind::HardSwish, impl::op_kind::Log,
+            impl::op_kind::GELU, impl::op_kind::HardSigmoid,
+            impl::op_kind::HardSwish, impl::op_kind::Log,
             impl::op_kind::Sigmoid, impl::op_kind::SoftPlus, impl::op_kind::Pow,
             impl::op_kind::ReLU, impl::op_kind::Round, impl::op_kind::Sqrt,
             impl::op_kind::Square, impl::op_kind::Tanh, impl::op_kind::Multiply,
@@ -3241,17 +3253,28 @@ TEST(Pass, FuseConvPostOpsChain) {
                 } else {
                     // eltwise
                     op_t eltwise {op_id++, opkind, "eltwise"};
-                    if (opkind == impl::op_kind::Elu) {
-                        eltwise.set_attr<float>(op_attr::alpha, 1.0f);
-                    } else if (opkind == impl::op_kind::Clamp) {
-                        eltwise.set_attr<float>(op_attr::min, 1.0f);
-                        eltwise.set_attr<float>(op_attr::max, 3.0f);
+                    switch (opkind) {
+                        case impl::op_kind::Elu:
+                            eltwise.set_attr<float>(impl::op_attr::alpha, 1.f);
+                            break;
+                        case impl::op_kind::Clamp:
+                            eltwise.set_attr<float>(impl::op_attr::min, -1.f);
+                            eltwise.set_attr<float>(impl::op_attr::max, 2.f);
+                            break;
+                        case impl::op_kind::HardSigmoid:
+                            eltwise.set_attr<float>(
+                                    impl::op_attr::alpha, 1.0f / 6);
+                            eltwise.set_attr<float>(impl::op_attr::beta, 0.5f);
+                            break;
+                        default: break;
                     }
+
                     if (i == 0) {
                         eltwise.add_input(conv_out);
                     } else {
                         eltwise.add_input(postop_output);
                     }
+
                     postop_output
                             = logical_tensor_init(lt_id++, data_type::f32);
                     eltwise.add_output(postop_output);
@@ -4743,12 +4766,12 @@ TEST(Pass, DnnlSingleOpReplacement) {
     std::vector<op_kind_t> single_op_set_supported = {BatchNormInference, Add,
             ReLU, MatMul, AvgPool, MaxPool, AvgPoolBackprop, Clamp,
             ConvolutionBackpropData, ConvolutionBackpropFilters,
-            MaxPoolBackprop, Elu, Exp, HardSwish, Log, LogSoftmax, SoftMax,
-            Multiply, Maximum, Minimum, Mish, MishBackprop, Pow, Sqrt, Square,
-            Tanh, ClampBackprop, EluBackprop, GELUBackprop, LogSoftmaxBackprop,
-            ReLUBackprop, SigmoidBackprop, SqrtBackprop, TanhBackprop,
-            LayerNorm, LayerNormBackprop, SoftMaxBackprop, DynamicQuantize,
-            DynamicDequantize};
+            MaxPoolBackprop, Elu, Exp, HardSigmoid, HardSwish, Log, LogSoftmax,
+            SoftMax, Multiply, Maximum, Minimum, Mish, MishBackprop, Pow, Sqrt,
+            Square, Tanh, ClampBackprop, EluBackprop, GELUBackprop,
+            LogSoftmaxBackprop, ReLUBackprop, SigmoidBackprop, SqrtBackprop,
+            TanhBackprop, LayerNorm, LayerNormBackprop, SoftMaxBackprop,
+            DynamicQuantize, DynamicDequantize};
     for (auto akind : single_op_set_supported) {
         graph_t agraph;
         op_t *op = agraph.create_op(akind);
@@ -14656,8 +14679,8 @@ TEST(Pass, BinaryPostops) {
     std::vector<op_kind_t> supported_binary_ops {
             Add, Divide, Maximum, Minimum, Multiply, Subtract};
     std::vector<op_kind_t> supported_post_ops {Abs, Add, Clamp, Divide, Elu,
-            Exp, GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU,
-            Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+            Exp, GELU, HardSigmoid, HardSwish, Log, Maximum, Minimum, Multiply,
+            Pow, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
     std::vector<op_kind_t> supported_binary_post_ops {
             Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
     for_(auto bop : supported_binary_ops)
@@ -14670,11 +14693,17 @@ TEST(Pass, BinaryPostops) {
         op_t post_op {1, pop, "post op"};
 
         // set additional parameters for specific ops
-        if (pop == Elu) {
-            post_op.set_attr<float>(op_attr::alpha, 1.0f);
-        } else if (pop == Clamp) {
-            post_op.set_attr<float>(op_attr::min, 1.0f);
-            post_op.set_attr<float>(op_attr::max, 3.0f);
+        switch (pop) {
+            case Elu: post_op.set_attr<float>(op_attr::alpha, 1.0f); break;
+            case Clamp:
+                post_op.set_attr<float>(op_attr::min, 1.0f);
+                post_op.set_attr<float>(op_attr::max, 3.0f);
+                break;
+            case HardSigmoid:
+                post_op.set_attr<float>(op_attr::alpha, 1.0f / 6);
+                post_op.set_attr<float>(op_attr::beta, 0.5f);
+                break;
+            default: break;
         }
 
         std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
@@ -14732,8 +14761,8 @@ TEST(Pass, Binary3Postops) {
     std::vector<op_kind_t> supported_binary_ops {
             Add, Divide, Maximum, Minimum, Multiply, Subtract};
     std::vector<op_kind_t> supported_post_ops {Abs, Add, Clamp, Divide, Elu,
-            Exp, GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU,
-            Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+            Exp, GELU, HardSigmoid, HardSwish, Log, Maximum, Minimum, Multiply,
+            Pow, ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
     std::vector<op_kind_t> supported_binary_post_ops {
             Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
 
@@ -14879,8 +14908,8 @@ TEST(Pass, ConvtransposePostops) {
     std::vector<bool> with_post_bias = {true, false};
     std::vector<bool> with_post_activation = {true, false};
     std::vector<op_kind_t> supported_ops {Abs, Add, Clamp, Divide, Elu, Exp,
-            GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round,
-            Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+            GELU, HardSigmoid, HardSwish, Log, Maximum, Minimum, Multiply, Pow,
+            ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
     std::vector<op_kind_t> supported_binary_ops {
             Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
 
@@ -14900,11 +14929,20 @@ TEST(Pass, ConvtransposePostops) {
                     op_t activation {2, Activation, "activation"};
 
                     // set additional parameters for specific ops
-                    if (Activation == Elu) {
-                        activation.set_attr<float>(op_attr::alpha, 1.0f);
-                    } else if (Activation == Clamp) {
-                        activation.set_attr<float>(op_attr::min, 1.0f);
-                        activation.set_attr<float>(op_attr::max, 3.0f);
+                    switch (Activation) {
+                        case Elu:
+                            activation.set_attr<float>(op_attr::alpha, 1.0f);
+                            break;
+                        case Clamp:
+                            activation.set_attr<float>(op_attr::min, 1.0f);
+                            activation.set_attr<float>(op_attr::max, 3.0f);
+                            break;
+                        case HardSigmoid:
+                            activation.set_attr<float>(
+                                    op_attr::alpha, 1.0f / 6);
+                            activation.set_attr<float>(op_attr::beta, 0.5f);
+                            break;
+                        default: break;
                     }
 
                     std::vector<logical_tensor_t> lt_vec
@@ -14988,8 +15026,8 @@ TEST(Pass, Convtranspose3Postops) {
     std::vector<bool> with_post_bias = {true, false};
     std::vector<bool> with_post_activation = {true, false};
     std::vector<op_kind_t> supported_ops {Abs, Add, Clamp, Divide, Elu, Exp,
-            GELU, HardSwish, Log, Maximum, Minimum, Multiply, Pow, ReLU, Round,
-            Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
+            GELU, HardSigmoid, HardSwish, Log, Maximum, Minimum, Multiply, Pow,
+            ReLU, Round, Sigmoid, SoftPlus, Sqrt, Square, Subtract, Tanh};
     std::vector<op_kind_t> supported_binary_ops {
             Add, Divide, Maximum, Minimum, Multiply, Pow, Subtract};
     std::vector<std::vector<op_kind_t>> post_op_seqs {{Abs, Subtract, Divide},
