@@ -610,6 +610,7 @@ static const std::unordered_map<impl::op_kind_t, handler_func> handler_table {
         ITEM(Elu, eltwise_fwd_handler),
         ITEM(Exp, eltwise_fwd_handler),
         ITEM(GELU, eltwise_fwd_handler),
+        ITEM(HardSigmoid, eltwise_fwd_handler),
         ITEM(HardSwish, eltwise_fwd_handler),
         ITEM(LeakyReLU, eltwise_fwd_handler),
         ITEM(Log, eltwise_fwd_handler),
