@@ -142,7 +142,8 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
                     && !memory_desc_ndims_ok(diff_src_md(), diff_dst_md())
                     && this->set_default_formats()
                     && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(attr(), dst_md()->data_type)
+                    && post_ops_with_binary_ok(
+                            attr(), dst_md()->data_type, ndims())
                     && zero_points_ok(attr()) && arg_scales_ok()
                     && IMPLICATION(utils::one_of(f64, diff_src_md()->data_type,
                                            dst_md()->data_type),
