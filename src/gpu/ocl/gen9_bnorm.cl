@@ -36,6 +36,7 @@
 
 #define IS_IC_EQ_8 (IC == 8)
 #define HAS_IC_TAIL (IC != IC16)
+#define HAS_STAT_SP_BLOCK_TAIL (SP % STAT_SP_BLOCK)
 
 #if NHWC_OPTIMIZED
 
@@ -348,8 +349,12 @@ __kernel void gen9_calc_mean_var(__global DATA_T *src,
     SUM_DATA_T sum[IC_BLOCK_SGROUPS] = {0.0f};
     SUM_DATA_T sum_sq[IC_BLOCK_SGROUPS] = {0.0f};
 
+#if HAS_STAT_SP_BLOCK_TAIL
+    for (int sp = 0; sp < min(STAT_SP_BLOCK, SP - sp_block_idx * STAT_SP_BLOCK);
+            ++sp) {
+#else
     for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
-        if (sp_block_idx * STAT_SP_BLOCK + sp >= SP) break;
+#endif
         // vectorized part
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
             VECT_FLOAT_T s_vect = LOAD_VECT_DATA(&src[sg * 16 * VECT_SIZE]);
@@ -585,8 +590,12 @@ __kernel void gen9_calc_mean(__global DATA_T *src, __global float *reduce_temp,
 
     float v_mean[IC_BLOCK_SGROUPS] = {0.0f};
 
+#if HAS_STAT_SP_BLOCK_TAIL
+    for (int sp = 0; sp < min(STAT_SP_BLOCK, SP - sp_block_idx * STAT_SP_BLOCK);
+            ++sp) {
+#else
     for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
-        if (sp_block_idx * STAT_SP_BLOCK + sp >= SP) break;
+#endif
         // vectorized part
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
             VECT_FLOAT_T s_vect = LOAD_VECT_DATA(&src[sg * 16 * VECT_SIZE]);
@@ -792,8 +801,13 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
 
     float v_var[IC_BLOCK_SGROUPS] = {0.0f};
     float v0[IC_BLOCK_SGROUPS] = {0.0f};
+
+#if HAS_STAT_SP_BLOCK_TAIL
+    for (int sp = 0; sp < min(STAT_SP_BLOCK, SP - sp_block_idx * STAT_SP_BLOCK);
+            ++sp) {
+#else
     for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
-        if (sp_block_idx * STAT_SP_BLOCK + sp >= SP) break;
+#endif
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
             VECT_FLOAT_T s_vect = LOAD_VECT_DATA(&src[sg * 16 * VECT_SIZE]);
 
@@ -1062,9 +1076,11 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
     }
 #endif
 
-    for (int sp_idx = 0; sp_idx < STAT_SP_BLOCK; sp_idx++) {
-        if (sp_idx + sp >= SP) break;
-
+#if HAS_STAT_SP_BLOCK_TAIL
+    for (int sp_idx = 0; sp_idx < min(STAT_SP_BLOCK, SP - sp); ++sp_idx) {
+#else
+    for (int sp_idx = 0; sp_idx < STAT_SP_BLOCK; ++sp_idx) {
+#endif
         // vectorized part
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
             const int sg_idx = sg * 16 * VECT_SIZE;
@@ -1464,9 +1480,12 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
     float *diff_beta_tail = NULL;
 #endif
 
+#if HAS_STAT_SP_BLOCK_TAIL
+    for (int sp = 0; sp < min(STAT_SP_BLOCK, SP - sp_block_idx * STAT_SP_BLOCK);
+            ++sp) {
+#else
     for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
-        if (sp_block_idx * STAT_SP_BLOCK + sp >= SP) break;
-
+#endif
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
             const int sg_idx = sg * 16 * VECT_SIZE;
 #if FUSE_BN_RELU
@@ -1873,8 +1892,12 @@ __kernel void gen9_bnorm_bwd(__global DATA_T *src, __global float *mean,
     diff_src_add += offset;
 #endif
 
-    for (int sp = 0; sp < STAT_SP_BLOCK; sp++) {
-        if (sp_block_idx * STAT_SP_BLOCK + sp >= SP) break;
+#if HAS_STAT_SP_BLOCK_TAIL
+    for (int sp = 0; sp < min(STAT_SP_BLOCK, SP - sp_block_idx * STAT_SP_BLOCK);
+            ++sp) {
+#else
+    for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
+#endif
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
             const int sg_idx = sg * 16 * VECT_SIZE;
             VECT_FLOAT_T src_vect = LOAD_VECT_DATA(&src[sg_idx]);
