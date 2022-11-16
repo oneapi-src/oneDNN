@@ -145,7 +145,7 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
     if (do_reorder) {
         wspace = ctx.get_scratchpad_grantor().get_memory_storage(
                 key_reorder_rnn_space);
-        scales_buf = &CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+        scales_buf = &CTX_GPU_RES_STORAGE(SCALES_);
     }
 
     // Copy to gpu
