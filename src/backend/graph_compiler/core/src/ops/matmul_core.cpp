@@ -207,9 +207,8 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                 && !info_.inputs_[1]->producer_owner_->get_inputs().empty();
     }
     assert(in_formats.size() == 2);
-    std::vector<int> blk_candidates = get_dynamic_block_candidates(true);
-    std::vector<int> const_blk_candidates = get_dynamic_block_candidates(false);
-    int max_const_blk = const_blk_candidates.back();
+    std::vector<int> blk_candidates = get_dynamic_block_candidates();
+    std::vector<int> m_blk_candidates = get_dynamic_batch_block_candidates();
     auto A_m_blk = M_block, B_n_blk = N_block, A_k_blk = K_block;
     auto C_m_blk = M_block, C_n_blk = N_block, B_k_blk = K_block;
     sc_data_format_t ret_A_format, ret_B_format, ret_C_format;
@@ -218,7 +217,7 @@ void matmul_core_op_t::query_format(context_ptr ctx,
     bool first = true;
     std::vector<bool> is_padding = {false, true};
     std::vector<bool> is_output_plain = {false, true};
-    for (auto &m_b : blk_candidates) { // M
+    for (auto &m_b : m_blk_candidates) { // M
         for (auto &n_b : blk_candidates) { // N
             for (auto &k_b : blk_candidates) { // K
                 for (auto isp : is_padding) { // is_padding
@@ -440,7 +439,7 @@ void matmul_core_op_t::set_config_by_key(const op_dispatch_key_t &key) {
 }
 
 std::vector<int> matmul_core_op_t::get_impl_dispatch_candidates() const {
-    return get_default_impl_dispatch_candidates();
+    return {};
 }
 
 sc_op_ptr matmul_core_op_t::do_compensations(

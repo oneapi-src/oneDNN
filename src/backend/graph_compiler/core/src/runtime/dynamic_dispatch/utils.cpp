@@ -23,14 +23,21 @@
 namespace sc {
 namespace runtime {
 
-int get_dyn_cfg_single(int in, bool has_48) {
+int get_dyn_cfg_single(int in, bool is_batch) {
     assert(in > 0);
-    int blk = 32;
+    const int blk_step = 16;
+    int blk = 16;
     bool has_no_tail = false;
     int padded_in = std::numeric_limits<int>::max();
-    for (int i = 1; i <= 2; i++) {
-        int cur_blk = 32 * i;
-        if (!has_48 && cur_blk == 48) { continue; }
+    if (is_batch && in <= 16) {
+        if (in <= 2) { return 2; }
+        if (in <= 4) { return 4; }
+        if (in <= 8) { return 8; }
+        return 16;
+    }
+    for (int i = 1; i <= 4; i++) {
+        int cur_blk = blk_step * i;
+        if (cur_blk == 48) { continue; }
         int cur_num_blk = ::sc::utils::divide_and_ceil(in, cur_blk);
         int cur_padded_in = cur_num_blk * cur_blk;
         if (in % cur_padded_in == 0) {

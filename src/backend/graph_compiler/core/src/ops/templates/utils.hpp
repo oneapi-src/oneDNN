@@ -121,8 +121,12 @@ std::vector<T> merge_vec(const std::vector<T> &a, const std::vector<T> &b) {
   return result;
 }
 
-inline std::vector<int> get_dynamic_block_candidates(bool has_48 = true) {
-  return has_48 ? std::vector<int> {32, 64} : std::vector<int> {32, 64};
+inline std::vector<int> get_dynamic_block_candidates() {
+  return std::vector<int> {16, 32, 64};
+}
+
+inline std::vector<int> get_dynamic_batch_block_candidates() {
+  return std::vector<int> {16, 32, 64, 2, 4, 8};
 }
 
 inline uint16_t vectorize_step(

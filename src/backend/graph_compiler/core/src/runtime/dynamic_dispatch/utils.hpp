@@ -24,11 +24,11 @@ namespace runtime {
  * @brief Get the dynamic config single block from the plain dynamic dimension
  *
  * @param in the dynamic dimension
- * @param has_48 default true, candidates are [16, 32, 48, 64], if false,
- * candidates are [16, 32, 64].
+ * @param is_batch default false, candidates are [16, 32, 64], if true,
+ * candidates are [2, 4, 8, 16, 32, 64].
  * @return the selected block config
  */
-int get_dyn_cfg_single(int in, bool has_48 = true);
+int get_dyn_cfg_single(int in, bool is_batch = false);
 
 void deep_copy_dynamic_tensor(
         dynamic_tensor_t *out, const dynamic_tensor_t *in);
