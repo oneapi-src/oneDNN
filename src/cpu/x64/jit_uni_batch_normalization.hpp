@@ -56,7 +56,9 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
                                                                 get_isa()
                                                         : avx2_vnni_2)
                                 : (src_md()->data_type == data_type::f16)
-                                        ? avx512_core_fp16
+                                        ? (mayiuse(avx512_core_fp16)
+                                                        ? avx512_core_fp16
+                                                        : avx2_vnni_2)
                                         : isa,
                         ""),
                 jit_uni_batch_normalization_fwd_t);

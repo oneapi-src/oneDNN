@@ -409,6 +409,9 @@ struct helper_vmovups_data_t {
             // convert bf16 input to f32
             h_->vcvtneebf162ps(vmm_even, addr);
             h_->vcvtneobf162ps(vmm_odd, addr);
+        } else if (is_f16_) {
+            h_->vcvtneeph2ps(vmm_even, addr);
+            h_->vcvtneoph2ps(vmm_odd, addr);
         } else
             assert(!"unsupported data type");
     }
@@ -443,7 +446,10 @@ struct helper_vmovups_data_t {
                 h_->vpmovzxwd(Vmm(dst.getIdx()), src.getAddress());
                 h_->vpslld(Vmm(dst.getIdx()), Vmm(dst.getIdx()), 0x10);
             } else if (is_f16_) {
-                h_->vcvtph2psx(Vmm(dst.getIdx()), src.getAddress());
+                if (mayiuse(avx512_core_fp16))
+                    h_->vcvtph2psx(Vmm(dst.getIdx()), src.getAddress());
+                else
+                    h_->vcvtph2ps(Vmm(dst.getIdx()), src.getAddress());
             } else {
                 h_->uni_vmovups(Vmm(dst.getIdx()), src.getAddress());
             }
@@ -2443,11 +2449,12 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
             && IMPLICATION(src_md()->data_type == bf16,
                     is_superset(isa, avx512_core)
                             || (isa == avx2 && mayiuse(avx2_vnni_2)))
-            // Note: re-using avx512_core implementation for f16. This is okay
-            // as currently, we do not support binary post-ops for this
-            // primitive.
+            // Note: re-using avx512_core/avx2 implementation for f16.
+            // This is okay as currently, we do not support binary post-ops
+            // for this primitive.
             && IMPLICATION(src_md()->data_type == f16,
-                    is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
+                    (is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
+                            || (isa == avx2 && mayiuse(avx2_vnni_2)))
             && check_scale_shift_data_type()
             && (attr()->has_default_values()
                     || with_relu_post_op(is_training()))
@@ -2479,7 +2486,7 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
         return status::unimplemented;
 
     // AVX2 only supports xf16 on plain layout and inference
-    if (utils::one_of(src_md()->data_type, bf16) && isa == avx2
+    if (utils::one_of(src_md()->data_type, bf16, f16) && isa == avx2
             && (is_training()
                     || !memory_desc_matches_tag(*dst_md(), nspc_format)))
         return status::unimplemented;

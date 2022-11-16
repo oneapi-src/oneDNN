@@ -600,6 +600,9 @@ struct jit_bnorm_t : public jit_generator {
             // convert bf16 input to f32
             vcvtneebf162ps(vmm_even, addr);
             vcvtneobf162ps(vmm_odd, addr);
+        } else if (is_f16_) {
+            vcvtneeph2ps(vmm_even, addr);
+            vcvtneoph2ps(vmm_odd, addr);
         } else
             assert(!"unsupported data type!");
     }
@@ -632,7 +635,10 @@ struct jit_bnorm_t : public jit_generator {
                 auto dst_reg =
                         typename vreg_traits<Vmm>::Vmm_lower_t(src.getIdx());
                 if (is_nt_store) {
-                    vcvtps2phx(dst_reg, src_reg);
+                    if (mayiuse(avx512_core_fp16))
+                        vcvtps2phx(dst_reg, src_reg);
+                    else
+                        vcvtps2ph(dst_reg, src_reg, _op_mxcsr);
                     uni_vmovntps(dst.getAddress(), dst_reg);
                 } else {
                     vcvtps2ph(dst.getAddress(), src_reg, _op_mxcsr);
@@ -649,7 +655,10 @@ struct jit_bnorm_t : public jit_generator {
                 vpmovzxwd(Vmm(dst.getIdx()), src.getAddress());
                 vpslld(Vmm(dst.getIdx()), Vmm(dst.getIdx()), 0x10);
             } else if (is_f16_) {
-                vcvtph2psx(Vmm(dst.getIdx()), src.getAddress());
+                if (mayiuse(avx512_core_fp16))
+                    vcvtph2psx(Vmm(dst.getIdx()), src.getAddress());
+                else
+                    vcvtph2ps(Vmm(dst.getIdx()), src.getAddress());
             } else {
                 uni_vmovups(Vmm(dst.getIdx()), src.getAddress());
             }
@@ -2340,11 +2349,12 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
             && IMPLICATION(src_md()->data_type == bf16,
                     is_superset(isa, avx512_core)
                             || (isa == avx2 && mayiuse(avx2_vnni_2)))
-            // Note: re-using avx512_core implementation for f16. This is okay
-            // as currently, we do not support binary post-ops for this
-            // primitive.
+            // Note: re-using avx512_core/avx2 implementation for f16.
+            // This is okay as currently, we do not support binary post-ops
+            // for this primitive.
             && IMPLICATION(src_md()->data_type == f16,
-                    is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
+                    (is_superset(isa, avx512_core) && mayiuse(avx512_core_fp16))
+                            || (isa == avx2 && mayiuse(avx2_vnni_2)))
             && check_scale_shift_data_type()
             && (attr()->has_default_values()
                     || with_relu_post_op(is_training()))
@@ -2360,7 +2370,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
         if (!src_d.matches_one_of_tag(
                     nCw16c, nChw16c, nCdhw16c, nc, nwc, nhwc, ndhwc))
             return status::unimplemented;
-    } else if (isa == avx2 && one_of(src_md()->data_type, bf16)) {
+    } else if (isa == avx2 && one_of(src_md()->data_type, bf16, f16)) {
         if (is_training() || !src_d.matches_one_of_tag(nc, nwc, nhwc, ndhwc))
             return status::unimplemented;
     } else {
