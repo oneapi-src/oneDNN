@@ -438,7 +438,7 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
     auto acc_type = pd()->impl_acc_type();
 
     bool may_k_block
-            = (d->k() > kd_t::min_block_k(a_type)) && !pd()->allow_k_blocking();
+            = (d->k() > kd_t::min_block_k(a_type)) && pd()->allow_k_blocking();
     bool got_info = false;
 
     auto post_ops = pd()->post_ops();
