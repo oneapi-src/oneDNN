@@ -867,6 +867,9 @@ status_t dnnl_graph_compiled_partition::query_dynamic_outputs(
 status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs) const {
+    if (!astream || !astream->get_engine()->match(pimpl_->get_engine()))
+        return status::invalid_arguments;
+
     if (astream->get_engine()->kind() == engine_kind::gpu) {
 #ifdef DNNL_GRAPH_GPU_SYCL
         return execute_sycl(astream, inputs, outputs, {}, nullptr);
@@ -878,9 +881,6 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
         return execute_sycl(astream, inputs, outputs, {}, nullptr);
 #endif
     }
-
-    if (!astream || !astream->get_engine()->match(pimpl_->get_engine()))
-        return status::invalid_arguments;
 
     const backend *backend = src_partition_.get_assigned_backend();
     if (!backend) return status::invalid_arguments;
