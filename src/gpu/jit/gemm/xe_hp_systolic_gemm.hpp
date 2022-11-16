@@ -192,7 +192,7 @@ private:
         auto a_type = pd()->desc()->a_type();
         auto a_sz = types::data_type_size(a_type);
 
-        int unroll_k = 32 / a_sz;
+        int unroll_k = int(32 / a_sz);
         auto ld = utils::rnd_up(k, unroll_k);
         if (pd()->with_ab_zero_points()) ld += unroll_k;
 
