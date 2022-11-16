@@ -512,7 +512,8 @@ private:
             return ngen::RegData();
         }
 
-        ir_assert(send_func.is_store() || send_func.is_store_2d());
+        ir_assert(send_func.is_store() || send_func.is_store_2d()
+                || send_func.is_atomic());
 
         // Reorder buffer to a dense buffer for store.
         int grf_size = ngen::GRF::bytes(hw);
