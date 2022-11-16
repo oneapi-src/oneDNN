@@ -370,7 +370,6 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   const int num_threads = runtime_config_t::get().get_num_threads();
   if (mb_ == 1 && num_threads == 4) { default_block = 64; }
   auto s_default_block = default_block;
-  if (ic_ * oc_ < 1024 * 1024) { s_default_block = default_block / 2; }
 
   im_oc_block_ = utils::get_blocks(oc_, 1, default_block).back();
   im_ic_block_ = utils::get_blocks(ic_, 1, default_block).back();
@@ -387,7 +386,11 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
                              && (origin_ow * origin_oh) % blk != 0);
                          }),
       s_block_list.end());
-    im_s_block_ = s_block_list.back();
+    if (ic_ * oc_ < 1024 * 1024) {
+      im_s_block_ = origin_ow * 2;
+    } else {
+      im_s_block_ = s_block_list.back();
+    }
   }
   if (pads_begin.size() > 1) {
     ph_ = pads_begin[ndims_ - 4];

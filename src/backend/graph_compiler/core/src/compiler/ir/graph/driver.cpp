@@ -62,6 +62,10 @@ create_default_graph_flow(const context_ptr &ctx) {
             true));
     pre_tune_passes.push_back(create_graph_pass("quantized_graph_reschedule",
             quantize::graph_reschedule, {}, pass_type::pre_tune, true));
+    if (ctx->flags_.mixed_fusion_) {
+        pre_tune_passes.push_back(create_graph_pass(
+                "flatten_conv", flatten_conv, {}, pass_type::pre_tune, true));
+    }
     pre_tune_passes.push_back(create_graph_pass("dynamic_graph_transform",
             dynamic_graph_transform, {}, pass_type::pre_tune, true));
     pre_tune_passes.push_back(create_graph_pass("quantize_inline",
@@ -70,10 +74,6 @@ create_default_graph_flow(const context_ptr &ctx) {
             elemwise_bcast_swap, {}, pass_type::pre_tune, true));
     pre_tune_passes.push_back(create_graph_pass("permute_propagation",
             permute_propagation, {}, pass_type::pre_tune, true));
-    if (ctx->flags_.mixed_fusion_) {
-        pre_tune_passes.push_back(create_graph_pass(
-                "flatten_conv", flatten_conv, {}, pass_type::pre_tune, true));
-    }
     pre_tune_passes.push_back(create_graph_pass("quantize_op_compensation",
             quantize::calculate_op_compensation, {}, pass_type::pre_tune,
             true));
