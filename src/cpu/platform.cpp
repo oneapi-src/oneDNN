@@ -133,6 +133,30 @@ bool has_data_type_support(data_type_t data_type) {
     }
 }
 
+bool has_training_support(data_type_t data_type) {
+    // TODO: maybe return false for int8, but some primitives like prelu
+    // have training support
+    switch (data_type) {
+        case data_type::bf16:
+#if DNNL_X64
+            return x64::mayiuse(x64::avx512_core);
+#elif DNNL_PPC64
+#if defined(USE_CBLAS) && defined(BLAS_HAS_SBGEMM) && defined(__MMA__)
+            return true;
+#endif
+#else
+            return false;
+#endif
+        case data_type::f16:
+#if DNNL_X64
+            return x64::mayiuse(x64::avx512_core_fp16);
+#else
+            return false;
+#endif
+        default: return true;
+    }
+}
+
 float s8s8_weights_scale_factor() {
 #if DNNL_X64
     return x64::mayiuse(x64::avx512_core_vnni) ? 1.0f : 0.5f;

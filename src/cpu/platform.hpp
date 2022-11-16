@@ -156,6 +156,7 @@ bool DNNL_API prefer_ymm_requested();
 // (e.g. 'ref' and 'simple_primitive') and should avoid any x64 JIT
 // implementations since these require specific code-path updates.
 bool DNNL_API has_data_type_support(data_type_t data_type);
+bool DNNL_API has_training_support(data_type_t data_type);
 float DNNL_API s8s8_weights_scale_factor();
 
 unsigned get_per_core_cache_size(int level);
