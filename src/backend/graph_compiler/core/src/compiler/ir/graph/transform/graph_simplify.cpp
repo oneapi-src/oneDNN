@@ -118,6 +118,32 @@ void drop_same_op_on_output(sc_graph_t &graph, const graph_tensor_ptr &output) {
     }
 }
 
+// eliminate the tensor_view in which the shape and format are the same for both
+// input and output
+void useless_tensor_view_elimination(
+        sc_graph_t &graph, const context_ptr &ctx) {
+    auto vis = op_visitor_t::bfs();
+    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+        if (node->isa<tensor_view_op_t>()
+                && !node->get_inputs()[0]->producer_owner_->isa<input_op>()) {
+            const auto &in_tensor = node->get_inputs()[0]->details_;
+            const auto &in_shape = in_tensor.get_plain_dims();
+            const auto &in_real_shape = in_tensor.get_blocking_dims();
+            const auto &in_format = in_tensor.get_format();
+            const auto &out_tensor = node->get_outputs()[0]->details_;
+            const auto &out_shape = out_tensor.get_plain_dims();
+            const auto &out_real_shape = out_tensor.get_blocking_dims();
+            const auto &out_format = out_tensor.get_format();
+            if (in_real_shape == out_real_shape && in_shape == out_shape
+                    && in_format == out_format) {
+                node->get_outputs()[0]->replace_with(node->get_inputs()[0]);
+                node->remove();
+            }
+        }
+    });
+    graph.reset_op_ids();
+}
+
 // eliminate horizontal same ops, e.g. qkv input reorder
 void horizontal_same_op_elimination(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
@@ -542,6 +568,7 @@ void graph_constant_folding(sc_graph_t &graph, const context_ptr &ctx) {
 void graph_simplify(sc_graph_t &graph, const context_ptr &ctx) {
     redundant_binary_op_elimination(graph, ctx);
     excess_tensor_view_elimination(graph, ctx);
+    useless_tensor_view_elimination(graph, ctx);
     horizontal_same_op_elimination(graph, ctx);
     graph_constant_folding(graph, ctx);
 }
