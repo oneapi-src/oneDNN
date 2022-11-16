@@ -827,8 +827,9 @@ public:
             default: {
                 // Some cases require pre-allocated register regions with
                 // special strides for a/b.
-                auto a_out_op = maybe_alloc_strided_op(obj.type, obj.a);
-                auto b_out_op = maybe_alloc_strided_op(obj.type, obj.b);
+                auto scope = ngen_register_scope_t(host_->ra_);
+                auto a_out_op = maybe_alloc_strided_op(obj.type, obj.a, scope);
+                auto b_out_op = maybe_alloc_strided_op(obj.type, obj.b, scope);
                 bool is_mul = obj.op_kind == op_kind_t::_mul;
                 flag_setter_t no_vs(&allow_vert_stride_region_, !is_mul);
                 auto src0_op = eval(obj.a, a_out_op);
@@ -1082,8 +1083,8 @@ private:
     }
 
     // Pre-allocates a strided register region for expression `e` if needed.
-    ngen_operand_t maybe_alloc_strided_op(
-            const type_t &res_type, const expr_t &e) {
+    ngen_operand_t maybe_alloc_strided_op(const type_t &res_type,
+            const expr_t &e, ngen_register_scope_t &scope) {
         // Need q-strided region for `e` if res_type is q/uq and `e` is of a
         // sub-q data type and not a scalar.
         if (e.type().is_scalar()) return ngen_operand_t();
@@ -1096,7 +1097,7 @@ private:
         if (shuffle && shuffle->is_broadcast()) return ngen_operand_t();
 
         return ngen_operand_t(
-                scope_.alloc_reg_data(e.type(), res_type.scalar().size()),
+                scope.alloc_reg_data(e.type(), res_type.scalar().size()),
                 e.type().elems());
     }
 
