@@ -1,7 +1,7 @@
 --reset
 
 --dir=FWD_D,BWD_D
---dt=f32
+--dt=f32,bf16
 --tag=abx,axb
 
 --group=2,4

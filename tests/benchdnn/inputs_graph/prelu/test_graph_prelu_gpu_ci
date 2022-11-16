@@ -9,14 +9,6 @@
 --reset
 
 --dir=FWD_D,BWD_DW
---sdt=f16:f16
-
---stag=axb:any,axb:axb
---batch=../../inputs/prelu/shapes_ci
-
---reset
-
---dir=FWD_D,BWD_DW
 --sdt=bf16:bf16
 
 --stag=axb:any,axb:axb

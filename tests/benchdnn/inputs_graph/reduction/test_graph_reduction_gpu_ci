@@ -15,15 +15,6 @@
 --alg=norm_lp_sum
 --stag=abx --dtag=any   16x1024:1x1024
 
-# f16
---reset
-
---sdt=f16 --ddt=f16
---attr-post-ops=,sum,relu,add:f16:common
---p=1 --eps=0.0
---alg=mul,min
---stag=axb --dtag=axb   64x20x7x7:64x20x1x1
-
 # bf16
 --reset
 

@@ -1,8 +1,2 @@
 --reset
 --batch=test_graph_shuffle_ci
-
---reset
---batch=test_graph_shuffle_float16_ci
-
---reset
---batch=test_graph_shuffle_bfloat16_ci

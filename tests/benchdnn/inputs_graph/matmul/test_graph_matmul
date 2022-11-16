@@ -1,11 +1,8 @@
 --reset
---batch=test_graph_matmul_ci
-
---reset
---batch=test_graph_matmul_float16_ci
-
---reset
 --batch=test_graph_matmul_bfloat16_ci
+
+--reset
+--batch=test_graph_matmul_ci
 
 --reset
 --batch=test_graph_matmul_int8_ci
