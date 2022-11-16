@@ -1009,11 +1009,11 @@ private:
 };
 
 int get_post_op_mem_usage(const post_op_tensor_info_t &info, int c_elems,
-        int max_elems_per_dim = 64) {
+        const view_t &c_mem_view, int max_elems_per_dim = 64) {
     int po_elems = 1;
     for (int i = 0; i < info.view().nvdims(); i++) {
         if ((info.mask() & (1 << i)) == 0) continue;
-        po_elems *= std::min(max_elems_per_dim, (int)info.view().vdims()[i]);
+        po_elems *= std::min(max_elems_per_dim, (int)c_mem_view.vdims()[i]);
     }
     po_elems = std::min(po_elems, c_elems);
     int type_size = info.view().type().size();
@@ -1043,12 +1043,12 @@ int find_tile_size(const exec_config_t &exec_cfg,
             for (int j = i; j < std::min(npost_ops, i + post_op_blk); j++) {
                 auto &t = infos[j];
                 if (!t.is_input() || !t.buf().type().is_ptr()) continue;
-                po_batch_size += get_post_op_mem_usage(t, elems);
+                po_batch_size += get_post_op_mem_usage(t, elems, c_mem_view);
             }
             po_size = std::max(po_size, po_batch_size);
         }
 
-        int total_size = c_size + po_size;
+        int total_size = c_size + preload_max_size + po_size;
         int available_size = exec_cfg.regs() * exec_cfg.grf_size()
                 - (int)c_reg_layout.size();
         if (total_size <= available_size * 0.7) return tile_size;
