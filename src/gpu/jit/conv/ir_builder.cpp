@@ -634,22 +634,28 @@ private:
         int mn_idx = (is_a ? 0 : 1);
         int k_idx = (is_a ? 1 : 0);
 
+        layout_t dpas_layout;
         dim_t mn_blk = bmnk_layout.dim(mn_idx);
         dim_t k_blk = bmnk_layout.dim(k_idx);
 
-        // Cannot calculate correct r_count when !is_a, but rcount is effectively
-        // ignored in that case as rcount mainly affects b_layout.
-        // Also note that rcount used here may not be supported in hardware and is used soley to compute layout.
-        int rcount = is_a ? mn_blk : 8;
-        auto _dpas = dpas_t::make(/*is_dpasw=*/false, simd_size_, /*sdepth=*/8,
-                rcount, type_t::undef(), b_type_, a_type_);
-        auto &dpas = _dpas.as<dpas_t>();
+        std::vector<int> try_rcount;
+        if (is_a && mn_blk % 8 == 0) try_rcount.push_back(8);
+        // Cannot calculate correct r_count when !is_a, but rcount is
+        // effectively ignored in that case as rcount mainly affects b_layout.
+        // Also note that rcount used here may not be supported in hardware and
+        // is used solely to compute layout.
+        try_rcount.push_back(is_a ? mn_blk : 8);
+        for (int rcount : try_rcount) {
+            auto _dpas = dpas_t::make(/*is_dpasw=*/false, simd_size_,
+                    /*sdepth=*/8, rcount, type_t::undef(), b_type_, a_type_);
+            auto &dpas = _dpas.as<dpas_t>();
 
-        auto dpas_layout = (is_a ? dpas.b_layout() : dpas.a_layout());
-        dpas_layout = dpas_layout.transpose();
+            dpas_layout = (is_a ? dpas.b_layout() : dpas.a_layout());
+            dpas_layout = dpas_layout.transpose();
 
-        auto default_layout = bmnk_layout.retype(is_a ? a_type_ : b_type_);
-        if (dpas_layout <= default_layout) return default_layout;
+            auto default_layout = bmnk_layout.retype(is_a ? a_type_ : b_type_);
+            if (dpas_layout <= default_layout) return default_layout;
+        }
 
         dim_t dpas_mn_blk = dpas_layout.dim(mn_idx);
         dim_t dpas_k_blk = dpas_layout.dim(k_idx);
