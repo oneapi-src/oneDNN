@@ -93,13 +93,17 @@ struct ref_sum_t : public gpu_primitive_t {
     status_t init(engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
-        scales_.resize(n);
         for (size_t i = 0; i < n; ++i) {
-            scales_[i] = std::make_shared<memory_t>(
-                    engine, &pd()->scale_md_, nullptr);
             CHECK(create_nested_primitive(
                     reorders_[i], pd()->reorder_pds_[i], engine));
         }
+
+        const size_t n_inputs = pd()->n_inputs();
+        scales_.resize(n_inputs);
+        for (size_t i = 0; i < n_inputs; ++i)
+            scales_[i] = std::make_shared<memory_t>(
+                    engine, &pd()->scale_md_, nullptr);
+
         return status::success;
     }
 
@@ -117,7 +121,8 @@ struct ref_sum_t : public gpu_primitive_t {
             float *mapped_mem_storage = nullptr;
             s = scale->map_data((void **)&mapped_mem_storage, nullptr, size);
             if (s != status::success) return s;
-            utils::array_copy(mapped_mem_storage, &s_data[i], count);
+            if (!mapped_mem_storage) return status::out_of_memory;
+            mapped_mem_storage[0] = s_data[i];
             s = scale->unmap_data((void *)mapped_mem_storage, nullptr);
             if (s != status::success) return s;
             scales.reset(scale);
