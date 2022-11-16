@@ -302,8 +302,37 @@ impl::status_t swap_relu_mul_scales(std::shared_ptr<subgraph_t> &sg) {
             ok = alg == dnnl::algorithm::eltwise_relu;
             if (!ok) continue;
 
-            to_be_swapped.emplace_back(
-                    std::pair<impl::op_t *, impl::op_t *> {producer, op.get()});
+            // only support mul_scale+relu+mul_scale or
+            // post_mul_scale+add+relu+mul_scale
+            ok = producer->get_input_value(0)->has_producer();
+            if (!ok) continue;
+            const impl::op_t &prv_op
+                    = producer->get_input_value(0)->get_producer();
+            if (prv_op.get_kind() == op_kind::dnnl_mul_scales) {
+                to_be_swapped.emplace_back(
+                        std::pair<impl::op_t *, impl::op_t *> {
+                                producer, op.get()});
+            } else if (prv_op.get_kind() == op_kind::dnnl_binary
+                    && static_cast<dnnl::algorithm>(
+                               prv_op.get_attr<int64_t>(op_attr::alg_kind))
+                            == dnnl::algorithm::binary_add) {
+                auto lhs_val = prv_op.get_input_value(0);
+                auto rhs_val = prv_op.get_input_value(1);
+                if (!lhs_val->has_producer() || !rhs_val->has_producer()) {
+                    continue;
+                }
+                const auto &l_op = lhs_val->get_producer();
+                const auto &r_op = rhs_val->get_producer();
+                if (l_op.get_kind() != op_kind::dnnl_mul_scales
+                        || r_op.get_kind() != op_kind::dnnl_mul_scales) {
+                    continue;
+                }
+                to_be_swapped.emplace_back(
+                        std::pair<impl::op_t *, impl::op_t *> {
+                                producer, op.get()});
+            } else {
+                continue;
+            }
         }
 
         if (to_be_swapped.empty()) break;
