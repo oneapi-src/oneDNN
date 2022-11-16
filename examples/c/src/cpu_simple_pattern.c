@@ -301,6 +301,7 @@ int main(int argc, char **argv) {
         example_tensor_destroy_all();
         DNNL_GRAPH_CHECK(dnnl_graph_graph_destroy(graph));
         DNNL_GRAPH_CHECK(dnnl_graph_engine_destroy(engine));
+        DNNL_GRAPH_CHECK(dnnl_graph_allocator_destroy(allocator));
         return -1;
     }
     dnnl_graph_partition_t partitions[2];
