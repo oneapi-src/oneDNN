@@ -51,6 +51,8 @@ struct nspc_batch_normalization_fwd_t : public primitive_t {
                     && utils::everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(d_type)
+                    && IMPLICATION(is_training(),
+                            platform::has_training_support(d_type))
                     && check_scale_shift_data_type()
                     && (attr()->has_default_values()
                             || with_relu_post_op(is_training()))
@@ -132,6 +134,7 @@ struct nspc_batch_normalization_bwd_t : public primitive_t {
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_dst_md()->data_type, diff_src_md()->data_type)
                     && platform::has_data_type_support(d_type)
+                    && platform::has_training_support(d_type)
                     && check_scale_shift_data_type()
                     && attr()->has_default_values()
                     && set_default_formats_common()

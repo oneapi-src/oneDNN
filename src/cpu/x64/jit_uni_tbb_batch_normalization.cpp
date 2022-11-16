@@ -65,6 +65,13 @@ int get_simd_w(jit_memory_tag_kind_t tag_kind) {
 }
 
 template <cpu_isa_t isa>
+bool is_avx2_ne_xf16(const batch_normalization_pd_t *pd) {
+    return isa == avx2 && mayiuse(avx2_vnni_2)
+            && utils::one_of(
+                    pd->src_md()->data_type, data_type::bf16, data_type::f16);
+}
+
+template <cpu_isa_t isa>
 std::tuple<dim_t, dim_t, dim_t> get_data_strides(
         const batch_normalization_pd_t *pd, jit_memory_tag_kind_t tag_kind) {
     const int simd_w = get_simd_w<isa>(tag_kind);
@@ -370,7 +377,7 @@ struct helper_vmovups_data_t {
         : h_(host), bf16_emu_(nullptr) {
         is_bf16_ = pd->src_md()->data_type == data_type::bf16;
         is_f16_ = pd->src_md()->data_type == data_type::f16;
-        if (is_bf16_ && !mayiuse(avx512_core_bf16)) {
+        if (is_bf16_ && isa == avx512_core && !mayiuse(avx512_core_bf16)) {
             bf16_emu_ = utils::make_unique<bf16_emulation_t>(h_, zmm_reserved_1,
                     zmm_reserved_2, zmm_reserved_3, reg_tmp, zmm_reserved_4,
                     zmm_reserved_4);
@@ -381,6 +388,30 @@ struct helper_vmovups_data_t {
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
     bool is_bf16_;
     bool is_f16_;
+
+    void merge_interleaved_to_plain(const Vmm &vmm_even, const Vmm &vmm_odd,
+            const Vmm &vmm_aux0) const {
+        Ymm ymm_even = Ymm(vmm_even.getIdx());
+        Ymm ymm_odd = Ymm(vmm_odd.getIdx());
+        Ymm ymm_aux0 = Ymm(vmm_aux0.getIdx());
+        Ymm ymm_aux1 = ymm_odd;
+
+        h_->vpunpckldq(ymm_aux0, ymm_even, ymm_odd);
+        h_->vpunpckhdq(ymm_aux1, ymm_even, ymm_odd);
+        h_->vperm2i128(ymm_even, ymm_aux0, ymm_aux1, 0x20);
+        h_->vperm2i128(ymm_odd, ymm_aux0, ymm_aux1, 0x31);
+    }
+
+    void operator()(const Vmm &vmm_even, const Vmm &vmm_odd,
+            const Address &addr) const {
+        // load two simd_w data from addr into two registers
+        if (is_bf16_) {
+            // convert bf16 input to f32
+            h_->vcvtneebf162ps(vmm_even, addr);
+            h_->vcvtneobf162ps(vmm_odd, addr);
+        } else
+            assert(!"unsupported data type");
+    }
 
     void operator()(const Operand &dst, const Operand &src) const {
         if (dst.isMEM()) {
@@ -393,11 +424,13 @@ struct helper_vmovups_data_t {
 
                 // convert f32 output to bf16
                 if (!bf16_emu_)
-                    h_->vcvtneps2bf16(dst_reg, src_reg);
+                    h_->vcvtneps2bf16(dst_reg, src_reg,
+                            mayiuse(avx512_core) ? Xbyak::EvexEncoding
+                                                 : Xbyak::VexEncoding);
                 else
                     bf16_emu_->vcvtneps2bf16(dst_reg, src_reg);
 
-                h_->vmovdqu16(dst.getAddress(), dst_reg);
+                h_->uni_vmovups(dst.getAddress(), dst_reg);
             } else if (is_f16_) {
                 auto src_reg = Vmm(src.getIdx());
                 h_->vcvtps2ph(dst.getAddress(), src_reg, h_->_op_mxcsr);
@@ -459,6 +492,7 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
     const Vmm vtail_mask_ = Vmm(2);
     const Vmm vNS_ = Vmm(3);
     const Vmm vzero_ = Vmm(4);
+    const Vmm vsrc_aux = Vmm(2); //use for xf16 nspc on AVX2
     // When variance is computed then two vmms(one for variance and
     // one for mean) are needed to unroll one c block at any moment,
     // therefore the number of registers which are used to unrolling
@@ -477,6 +511,7 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
     const jit_memory_tag_kind_t tag_kind_;
     const int vlen;
     const int simd_w;
+    const bool is_avx2_ne_xf16_;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     helper_vmovups_data_t<isa> helper_vmovups_;
     int stride_N_, stride_S_, stride_C_;
@@ -559,6 +594,37 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         }
     }
 
+    void compute_stat_avx2_ne_xf16(
+            bool compute_mean, const int c_blks_to_unroll = 1) {
+        const int start_idx = min_idx_to_unroll_;
+        const int end_idx = c_blks_to_unroll + min_idx_to_unroll_;
+        const int step = simd_w * data_type_size_;
+
+        for (int idx = start_idx, off = 0; idx < end_idx;
+                idx += 2, off += 2 * step) {
+            const bool is_c_blks_tail = (end_idx - idx) < 2;
+            const Vmm vsrc_even = v_;
+            const Vmm vsrc_odd = vsrc_aux;
+            if (is_c_blks_tail)
+                helper_vmovups_(
+                        vsrc_even, vmmword[reg_ptr_src_ + reg_off_dat_ + off]);
+            else
+                helper_vmovups_(vsrc_even, vsrc_odd,
+                        vmmword[reg_ptr_src_ + reg_off_dat_ + off]);
+            for (int i_odd = 0; i_odd < 2 && idx + i_odd < end_idx; ++i_odd) {
+                const Vmm vstat = Vmm(idx + i_odd);
+                const Vmm vsrc = i_odd ? vsrc_odd : vsrc_even;
+                if (compute_mean) {
+                    uni_vaddps(vstat, vstat, vsrc);
+                } else {
+                    const Vmm vmean = Vmm(idx + i_odd + c_blks_to_unroll);
+                    uni_vsubps(vtmp_, vsrc, vmean, vtmp_);
+                    uni_vfmadd231ps(vstat, vtmp_, vtmp_);
+                }
+            }
+        }
+    }
+
     void store_stat(const int c_blks_to_unroll = 1) {
         const int start_idx = min_idx_to_unroll_;
         const int end_idx = c_blks_to_unroll + min_idx_to_unroll_;
@@ -627,7 +693,10 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
                 mov(reg_S_, dword[PARAM_ADDR(S)]);
                 L(label_S);
                 {
-                    compute_stat(compute_mean, c_blks_to_unroll);
+                    is_avx2_ne_xf16_
+                            ? compute_stat_avx2_ne_xf16(
+                                    compute_mean, c_blks_to_unroll)
+                            : compute_stat(compute_mean, c_blks_to_unroll);
 
                     add(reg_off_dat_, stride_S_ * data_type_size_);
 
@@ -719,10 +788,11 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
         , tag_kind_(tag_kind)
         , vlen(get_vlen<isa>(tag_kind))
         , simd_w(get_simd_w<isa>(tag_kind))
+        , is_avx2_ne_xf16_(is_avx2_ne_xf16<isa>(pd))
         , jit_tail_(pd, this, reg_tmp_, reg_blk_has_tail_, reg_C_, vtail_mask_,
                   ktail_mask_)
         , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
-        static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
+        static_assert(utils::one_of(isa, sse41, avx2, avx512_core),
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
@@ -825,7 +895,14 @@ struct jit_bnorm_fwd_t : public jit_generator {
     const Vmm vzero_ = Vmm(10);
     const Vmm vtail_mask_ = Vmm(11);
     const Vmm valpha = Vmm(12);
+    const Vmm vsrc_aux = Vmm(13);
     const Vmm vstore_mask_ = vtmp_;
+    const Vmm vmean_even_ = vmean_;
+    const Vmm vmean_odd_ = Vmm(14);
+    const Vmm vsqrtvar_even_ = vsqrtvar_;
+    const Vmm vsqrtvar_odd_ = Vmm(15);
+    const Vmm vvar_even_ = vvar_;
+    const Vmm vvar_odd_ = vsrc_aux;
 
     const Opmask kstore_mask_ = k1;
     const Opmask ktail_mask_ = k2;
@@ -834,6 +911,7 @@ struct jit_bnorm_fwd_t : public jit_generator {
     const jit_memory_tag_kind_t tag_kind_;
     const int vlen;
     const int simd_w;
+    const bool is_avx2_ne_xf16_;
     jit_bnorm_process_tail_t<isa> jit_tail_;
     jit_bnorm_process_relu_t<isa> jit_relu_;
     helper_vmovups_data_t<isa> helper_vmovups_;
@@ -875,50 +953,153 @@ struct jit_bnorm_fwd_t : public jit_generator {
 #undef PARAM_PTR
     }
 
-    void load_c_specifics() {
-        jit_tail_.uni_vmovups_maybe_tail(
-                vmean_, vmmword[reg_ptr_mean_ + reg_off_c_]);
-        jit_tail_.uni_vmovups_maybe_tail(
-                vvar_, vmmword[reg_ptr_var_ + reg_off_c_]);
+    void load_c_specifics(
+            const bool has_load_mean_sqrtvar, const int offt = 0) {
+        if (!has_load_mean_sqrtvar) {
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vmean_, vmmword[reg_ptr_mean_ + reg_off_c_ + offt]);
+            jit_tail_.uni_vmovups_maybe_tail(
+                    vvar_, vmmword[reg_ptr_var_ + reg_off_c_ + offt]);
 
-        uni_vmovups(vsqrtvar_, vvar_);
-        uni_vaddps(vsqrtvar_, vsqrtvar_, veps_);
-        uni_vsqrtps(vsqrtvar_, vsqrtvar_);
-
-        if (isa == sse41) {
-            movups(vtmp_, vone_);
-            divps(vtmp_, vsqrtvar_);
-            movups(vsqrtvar_, vtmp_);
-        } else
-            vdivps(vsqrtvar_, vone_, vsqrtvar_);
+            uni_vmovups(vsqrtvar_, vvar_);
+            uni_vaddps(vsqrtvar_, vsqrtvar_, veps_);
+            uni_vsqrtps(vsqrtvar_, vsqrtvar_);
+            if (isa == sse41) {
+                movups(vtmp_, vone_);
+                divps(vtmp_, vsqrtvar_);
+                movups(vsqrtvar_, vtmp_);
+            } else
+                vdivps(vsqrtvar_, vone_, vsqrtvar_);
+        }
 
         if (pd_->use_scale())
             jit_tail_.uni_vmovups_maybe_tail(
-                    vgamma_, vmmword[reg_ptr_scale_ + reg_off_c_]);
+                    vgamma_, vmmword[reg_ptr_scale_ + reg_off_c_ + offt]);
         if (pd_->use_shift())
             jit_tail_.uni_vmovups_maybe_tail(
-                    vbeta_, vmmword[reg_ptr_shift_ + reg_off_c_]);
+                    vbeta_, vmmword[reg_ptr_shift_ + reg_off_c_ + offt]);
     }
 
-    void compute_bnorm(bool stream_store_allowed) {
-        helper_vmovups_(v_, vmmword[reg_ptr_src_ + reg_off_dat_]);
-        uni_vsubps(v_, v_, vmean_);
-        uni_vmulps(v_, v_, vsqrtvar_);
+    void compute_bnorm(const Vmm &v, const Vmm &vmean, const Vmm &vsqrtvar,
+            bool stream_store_allowed, bool has_load_src, const int offt = 0) {
+        if (!has_load_src)
+            helper_vmovups_(v, vmmword[reg_ptr_src_ + reg_off_dat_ + offt]);
+        uni_vsubps(v, v, vmean);
+        uni_vmulps(v, v, vsqrtvar);
 
         if (pd_->use_scale() && pd_->use_shift())
-            uni_vfmadd213ps(v_, vgamma_, vbeta_);
+            uni_vfmadd213ps(v, vgamma_, vbeta_);
         else if (pd_->use_scale())
-            uni_vmulps(v_, v_, vgamma_);
+            uni_vmulps(v, v, vgamma_);
         else if (pd_->use_shift())
-            uni_vaddps(v_, v_, vbeta_);
+            uni_vaddps(v, v, vbeta_);
 
-        jit_relu_.fwd_process_relu(v_);
+        jit_relu_.fwd_process_relu(v);
 
         if (stream_store_allowed) {
-            uni_vmovntps(vmmword[reg_ptr_dst_ + reg_off_dat_], v_);
+            uni_vmovntps(vmmword[reg_ptr_dst_ + reg_off_dat_ + offt], v);
         } else {
-            helper_vmovups_(vmmword[reg_ptr_dst_ + reg_off_dat_], v_);
+            helper_vmovups_(vmmword[reg_ptr_dst_ + reg_off_dat_ + offt], v);
         }
+    }
+
+    void load_two_c_mean_sqrtvar() {
+        const int offt = simd_w * acc_type_size_;
+        jit_tail_.uni_vmovups_maybe_tail(
+                vmean_even_, vmmword[reg_ptr_mean_ + reg_off_c_]);
+        jit_tail_.uni_vmovups_maybe_tail(
+                vmean_odd_, vmmword[reg_ptr_mean_ + reg_off_c_ + offt]);
+        jit_tail_.uni_vmovups_maybe_tail(
+                vvar_even_, vmmword[reg_ptr_var_ + reg_off_c_]);
+        jit_tail_.uni_vmovups_maybe_tail(
+                vvar_odd_, vmmword[reg_ptr_var_ + reg_off_c_ + offt]);
+
+        // merge mean and variance in interleave to plain layout when needed
+        if (!pd_->stats_is_src()) {
+            helper_vmovups_.merge_interleaved_to_plain(
+                    vmean_even_, vmean_odd_, vtmp_);
+            helper_vmovups_.merge_interleaved_to_plain(
+                    vvar_even_, vvar_odd_, vtmp_);
+        }
+        uni_vmovups(vsqrtvar_even_, vvar_even_);
+        uni_vaddps(vsqrtvar_even_, vsqrtvar_even_, veps_);
+        uni_vsqrtps(vsqrtvar_even_, vsqrtvar_even_);
+        vdivps(vsqrtvar_even_, vone_, vsqrtvar_even_);
+
+        uni_vmovups(vsqrtvar_odd_, vvar_odd_);
+        uni_vaddps(vsqrtvar_odd_, vsqrtvar_odd_, veps_);
+        uni_vsqrtps(vsqrtvar_odd_, vsqrtvar_odd_);
+        vdivps(vsqrtvar_odd_, vone_, vsqrtvar_odd_);
+    }
+
+    void compute_bnorm_avx2_ne_xf16(
+            const bool is_c_blks_tail, bool stream_store_allowed) {
+        const Vmm vsrc_even = v_;
+        const Vmm vsrc_odd = vsrc_aux;
+        if (is_c_blks_tail) {
+            compute_bnorm(
+                    vsrc_even, vmean_, vsqrtvar_, stream_store_allowed, false);
+        } else {
+            helper_vmovups_(
+                    vsrc_even, vsrc_odd, vmmword[reg_ptr_src_ + reg_off_dat_]);
+            helper_vmovups_.merge_interleaved_to_plain(
+                    vsrc_even, vsrc_odd, vtmp_);
+            load_c_specifics(true);
+            compute_bnorm(vsrc_even, vmean_even_, vsqrtvar_even_,
+                    stream_store_allowed, true);
+
+            load_c_specifics(true, simd_w * acc_type_size_);
+            compute_bnorm(vsrc_odd, vmean_odd_, vsqrtvar_odd_,
+                    stream_store_allowed, true, stride_C_ * data_type_size_);
+        }
+    }
+
+    void compute_avx2_ne_xf16(bool stream_store_allowed) {
+        Label label_C, label_S, label_C_tail, label_C_end, label_S_C_tail;
+        mov(reg_C_, dword[PARAM_ADDR(C)]);
+        L(label_C);
+        {
+            cmp(reg_C_, 1);
+            jle(label_C_tail, T_NEAR);
+
+            mov(reg_off_dat_, reg_off_dat_save_);
+            load_two_c_mean_sqrtvar();
+
+            mov(reg_S_, dword[PARAM_ADDR(S)]);
+            L(label_S);
+            {
+                compute_bnorm_avx2_ne_xf16(false, stream_store_allowed);
+
+                add(reg_off_dat_, stride_S_ * data_type_size_);
+                dec(reg_S_);
+                jnz(label_S, T_NEAR);
+            }
+            add(reg_off_dat_save_, 2 * stride_C_ * data_type_size_);
+            add(reg_off_c_, 2 * simd_w * acc_type_size_);
+
+            sub(reg_C_, 2);
+            jnz(label_C, T_NEAR);
+        }
+
+        L(label_C_tail);
+        {
+            cmp(reg_C_, 0);
+            jz(label_C_end, T_NEAR);
+
+            mov(reg_off_dat_, reg_off_dat_save_);
+            load_c_specifics(false);
+
+            mov(reg_S_, dword[PARAM_ADDR(S)]);
+            L(label_S_C_tail);
+            {
+                compute_bnorm_avx2_ne_xf16(true, stream_store_allowed);
+
+                add(reg_off_dat_, stride_S_ * data_type_size_);
+                dec(reg_S_);
+                jnz(label_S_C_tail, T_NEAR);
+            }
+        }
+        L(label_C_end);
     }
 
     void compute_blocked(bool stream_store_allowed) {
@@ -928,12 +1109,13 @@ struct jit_bnorm_fwd_t : public jit_generator {
         {
             mov(reg_off_dat_, reg_off_dat_save_);
 
-            load_c_specifics();
+            load_c_specifics(false);
 
             mov(reg_S_, dword[PARAM_ADDR(S)]);
             L(label_S);
             {
-                compute_bnorm(stream_store_allowed);
+                compute_bnorm(
+                        v_, vmean_, vsqrtvar_, stream_store_allowed, false);
 
                 add(reg_off_dat_, stride_S_ * data_type_size_);
 
@@ -961,7 +1143,8 @@ struct jit_bnorm_fwd_t : public jit_generator {
             xor_(reg_off_dat_save_, reg_off_dat_save_);
             xor_(reg_off_c_, reg_off_c_);
 
-            compute_blocked(stream_store_allowed);
+            is_avx2_ne_xf16_ ? compute_avx2_ne_xf16(stream_store_allowed)
+                             : compute_blocked(stream_store_allowed);
 
             if (isa == sse41 && tag_kind_ == jit_memory_tag_kind_t::blocked) {
                 xor_(reg_off_dat_save_, reg_off_dat_save_);
@@ -991,12 +1174,13 @@ struct jit_bnorm_fwd_t : public jit_generator {
         , tag_kind_(tag_kind)
         , vlen(get_vlen<isa>(tag_kind))
         , simd_w(get_simd_w<isa>(tag_kind))
+        , is_avx2_ne_xf16_(is_avx2_ne_xf16<isa>(pd))
         , jit_tail_(pd, this, reg_tmp_, reg_blk_has_tail_, reg_C_, vtail_mask_,
                   ktail_mask_)
         , jit_relu_(pd, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_, valpha, vmask, reg_alpha_)
         , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
-        static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
+        static_assert(utils::one_of(isa, sse41, avx2, avx512_core),
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
@@ -1283,7 +1467,7 @@ struct jit_bnorm_bwd_t : public jit_generator {
         , jit_relu_(pd, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_)
         , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
-        static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
+        static_assert(utils::one_of(isa, sse41, avx2, avx512_core),
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
@@ -1681,7 +1865,7 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         , jit_relu_(pd, this, reg_off_dat_, reg_tmp_, reg_ptr_ws_, vzero_,
                   vstore_mask_, kstore_mask_)
         , helper_vmovups_(pd, this, zmm28, zmm29, zmm30, zmm31, reg_tmp_) {
-        static_assert(isa == sse41 || isa == avx2 || isa == avx512_core,
+        static_assert(utils::one_of(isa, sse41, avx2, avx512_core),
                 "unsupported isa");
 
         std::tie(stride_N_, stride_S_, stride_C_)
@@ -2256,8 +2440,9 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
     const bool ok = is_fwd() && mayiuse(isa) && !has_zero_dim_memory()
             && one_of(src_md()->data_type, f32, bf16, f16)
             && src_md()->data_type == dst_md()->data_type
-            && IMPLICATION(
-                    src_md()->data_type == bf16, is_superset(isa, avx512_core))
+            && IMPLICATION(src_md()->data_type == bf16,
+                    is_superset(isa, avx512_core)
+                            || (isa == avx2 && mayiuse(avx2_vnni_2)))
             // Note: re-using avx512_core implementation for f16. This is okay
             // as currently, we do not support binary post-ops for this
             // primitive.
@@ -2291,6 +2476,12 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
         const int simd_w = get_simd_w<isa>(tag_kind_);
         if (C() % simd_w != 0) return status::unimplemented;
     } else
+        return status::unimplemented;
+
+    // AVX2 only supports xf16 on plain layout and inference
+    if (utils::one_of(src_md()->data_type, bf16) && isa == avx2
+            && (is_training()
+                    || !memory_desc_matches_tag(*dst_md(), nspc_format)))
         return status::unimplemented;
 
     const bool isa_supports_avx2 = is_superset(isa, avx2);

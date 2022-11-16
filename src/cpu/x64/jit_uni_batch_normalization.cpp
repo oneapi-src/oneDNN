@@ -250,6 +250,7 @@ struct jit_bnorm_t : public jit_generator {
     const jit_bnorm_conf_t *jbp_ = nullptr;
     bool is_bf16_ = false;
     bool is_f16_ = false;
+    bool is_avx2_ne_xf16_ = false;
 
     Reg64 reg_param = abi_param1;
 
@@ -318,6 +319,7 @@ struct jit_bnorm_t : public jit_generator {
     Vmm vchan_size = Vmm(isa == avx512_core ? 29 : 14);
     Vmm vtail_mask = Vmm(isa == avx512_core ? 30 : 15);
     Vmm vtmp = Vmm(isa == avx512_core ? 31 : 5);
+    Vmm vsrc_aux = vdiff_gamma; // used for xf16 with nspc ON AVX2
     Vmm vdst_aux = vdiff_gamma; // used for ReLU in AVX2 & sse41
     Vmm vmask = Vmm(0);
     Vmm vzero; // is_fwd() ? vdiff_beta : vbeta
@@ -352,6 +354,10 @@ struct jit_bnorm_t : public jit_generator {
 
     bool is_xf16() { return is_bf16_ || is_f16_; }
     int bit_shift() { return 5 - is_xf16(); }
+
+    bool use_bf16_emulation() {
+        return is_bf16_ && isa == avx512_core && !mayiuse(avx512_core_bf16);
+    }
 
     bool stream_store_supported() {
         // keep original behavior for f32
@@ -575,6 +581,29 @@ struct jit_bnorm_t : public jit_generator {
         shl(jbp_->is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
     }
 
+    void merge_interleaved_to_plain(
+            const Vmm &vmm_even, const Vmm &vmm_odd, const Vmm &vmm_aux0) {
+        Ymm ymm_even = Ymm(vmm_even.getIdx());
+        Ymm ymm_odd = Ymm(vmm_odd.getIdx());
+        Ymm ymm_aux0 = Ymm(vmm_aux0.getIdx());
+        Ymm ymm_aux1 = ymm_odd;
+
+        vpunpckldq(ymm_aux0, ymm_even, ymm_odd);
+        vpunpckhdq(ymm_aux1, ymm_even, ymm_odd);
+        vperm2i128(ymm_even, ymm_aux0, ymm_aux1, 0x20);
+        vperm2i128(ymm_odd, ymm_aux0, ymm_aux1, 0x31);
+    }
+    void uni_vmovups_spat_data(
+            const Vmm &vmm_even, const Vmm &vmm_odd, const Address &addr) {
+        // load two simd_w data from addr into two registers
+        if (is_bf16_) {
+            // convert bf16 input to f32
+            vcvtneebf162ps(vmm_even, addr);
+            vcvtneobf162ps(vmm_odd, addr);
+        } else
+            assert(!"unsupported data type!");
+    }
+
     void uni_vmovups_spat_data(
             const Operand &dst, const Operand &src, bool is_nt_store = false) {
         if (dst.isMEM()) {
@@ -586,8 +615,10 @@ struct jit_bnorm_t : public jit_generator {
                         src_reg {src.getIdx()};
 
                 // convert f32 output to bf16
-                if (mayiuse(avx512_core_bf16))
-                    vcvtneps2bf16(dst_reg, src_reg);
+                if (!use_bf16_emulation())
+                    vcvtneps2bf16(dst_reg, src_reg,
+                            mayiuse(avx512_core) ? Xbyak::EvexEncoding
+                                                 : Xbyak::VexEncoding);
                 else
                     bf16_emu_->vcvtneps2bf16(dst_reg, src_reg);
 
@@ -595,7 +626,7 @@ struct jit_bnorm_t : public jit_generator {
                 if (is_nt_store)
                     uni_vmovntps(dst.getAddress(), dst_reg);
                 else
-                    vmovdqu16(dst.getAddress(), dst_reg);
+                    uni_vmovups(dst.getAddress(), dst_reg);
             } else if (is_f16_) {
                 auto src_reg = Vmm(src.getIdx());
                 auto dst_reg =
@@ -778,6 +809,56 @@ struct jit_bnorm_t : public jit_generator {
     void mean_variance_nspc(
             const int num_ch_blks, int num_spat_pts, bool compute_mean) {
 
+        auto mean_compute_avx2_ne_xf16 = [=](int num_ch_blks,
+                                                 int num_spat_pts) {
+            for (int spat_pt = 0; spat_pt < num_spat_pts; ++spat_pt) {
+                for (int ch_idx = 0; ch_idx < num_ch_blks; ch_idx += 2) {
+                    const int offt = ch_idx * vlen_spat_data_;
+                    const bool is_ch_blks_tail = num_ch_blks - ch_idx < 2;
+                    const Vmm vsrc_even = vtmp;
+                    const Vmm vsrc_odd = vsrc_aux;
+                    if (is_ch_blks_tail)
+                        uni_vmovups_spat_data(vsrc_even,
+                                vmmword[reg_src + reg_soff_nspc + offt]);
+                    else
+                        uni_vmovups_spat_data(vsrc_even, vsrc_odd,
+                                vmmword[reg_src + reg_soff_nspc + offt]);
+
+                    uni_vaddps(Vmm(ch_idx), Vmm(ch_idx), vsrc_even);
+                    if (!is_ch_blks_tail)
+                        uni_vaddps(Vmm(ch_idx + 1), Vmm(ch_idx + 1), vsrc_odd);
+                }
+                add(reg_soff_nspc, spat_step);
+            }
+        };
+
+        auto variance_compute_avx2_ne_xf16 = [=](int num_ch_blks,
+                                                     int num_spat_pts) {
+            for (int spat_pt = 0; spat_pt < num_spat_pts; ++spat_pt) {
+                for (int ch_idx = 0; ch_idx < num_ch_blks; ch_idx += 2) {
+                    const int offt = ch_idx * vlen_spat_data_;
+                    const bool is_ch_blks_tail = num_ch_blks - ch_idx < 2;
+                    const Vmm vsrc_even = vtmp;
+                    const Vmm vsrc_odd = vsrc_aux;
+                    const Vmm vmean_ch_even = Vmm(ch_idx + num_ch_blks);
+                    const Vmm vmean_ch_odd = Vmm(ch_idx + 1 + num_ch_blks);
+                    if (is_ch_blks_tail)
+                        uni_vmovups_spat_data(vsrc_even,
+                                vmmword[reg_src + reg_soff_nspc + offt]);
+                    else
+                        uni_vmovups_spat_data(vsrc_even, vsrc_odd,
+                                vmmword[reg_src + reg_soff_nspc + offt]);
+                    uni_vsubps(vsrc_even, vsrc_even, vmean_ch_even);
+                    uni_vfmadd231ps(Vmm(ch_idx), vsrc_even, vsrc_even);
+                    if (!is_ch_blks_tail) {
+                        uni_vsubps(vsrc_odd, vsrc_odd, vmean_ch_odd);
+                        uni_vfmadd231ps(Vmm(ch_idx + 1), vsrc_odd, vsrc_odd);
+                    }
+                }
+                add(reg_soff_nspc, spat_step);
+            }
+        };
+
         auto mean_compute = [=](int num_ch_blks, int num_spat_pts) {
             for (int spat_pt = 0; spat_pt < num_spat_pts; ++spat_pt) {
                 for (int ch_idx = 0; ch_idx < num_ch_blks; ++ch_idx) {
@@ -833,8 +914,14 @@ struct jit_bnorm_t : public jit_generator {
         Label spatial;
         L(spatial);
         {
-            compute_mean ? mean_compute(num_ch_blks, num_spat_pts)
-                         : variance_compute(num_ch_blks, num_spat_pts);
+            if (is_avx2_ne_xf16_)
+                compute_mean
+                        ? mean_compute_avx2_ne_xf16(num_ch_blks, num_spat_pts)
+                        : variance_compute_avx2_ne_xf16(
+                                num_ch_blks, num_spat_pts);
+            else
+                compute_mean ? mean_compute(num_ch_blks, num_spat_pts)
+                             : variance_compute(num_ch_blks, num_spat_pts);
             sub(reg_ctr, num_spat_pts);
             jnz(spatial, T_NEAR);
         }
@@ -863,24 +950,71 @@ struct jit_bnorm_t : public jit_generator {
             const int num_spat_pts = 1;
 
             // pre-compute scale for each channel to avoid costly div and sqrt
-            for (int idx = 0; idx < num_ch_blks; ++idx) {
-                const int coff = idx * vlen;
-                const Vmm vscale = Vmm(idx + num_ch_blks);
-                uni_vmovups_maybe_tail(vsqrtvar, var_ptr(coff));
-                uni_vaddps(vsqrtvar, vsqrtvar, veps);
-                uni_vsqrtps(vsqrtvar, vsqrtvar);
+            // merge variances in interleaved to plain layout if needed
+            for (int idx = 0; idx < num_ch_blks; idx += 2) {
+                const int coff_base = idx * vlen;
+                const bool is_ch_blks_tail = num_ch_blks - idx < 2;
+                const Vmm vvar_even = Vmm(idx);
+                const Vmm vvar_odd = Vmm(idx + 1);
+                if (!is_ch_blks_tail) {
+                    uni_vmovups_maybe_tail(vvar_even, var_ptr(coff_base));
+                    uni_vmovups_maybe_tail(vvar_odd, var_ptr(coff_base + vlen));
+                    if (is_avx2_ne_xf16_ && !pd_->stats_is_src())
+                        merge_interleaved_to_plain(vvar_even, vvar_odd, vtmp);
+                } else
+                    uni_vmovups_maybe_tail(vvar_even, var_ptr(coff_base));
 
-                if (pd_->use_scale()) {
-                    uni_vmovups_maybe_tail(vgamma, gamma_ptr(coff));
-                    uni_vdivps(vscale, vgamma, vsqrtvar, vtmp);
-                } else {
-                    uni_vdivps(vscale, vone, vsqrtvar, vtmp);
+                for (int i_odd = 0; i_odd < 2 && idx + i_odd < num_ch_blks;
+                        ++i_odd) {
+                    const int coff = coff_base + i_odd * vlen;
+                    const Vmm vscale = Vmm(idx + i_odd + num_ch_blks);
+                    const Vmm vvar = i_odd ? vvar_odd : vvar_even;
+                    uni_vmovups(vsqrtvar, vvar);
+                    uni_vaddps(vsqrtvar, vsqrtvar, veps);
+                    uni_vsqrtps(vsqrtvar, vsqrtvar);
+
+                    if (pd_->use_scale()) {
+                        uni_vmovups_maybe_tail(vgamma, gamma_ptr(coff));
+                        uni_vdivps(vscale, vgamma, vsqrtvar, vtmp);
+                    } else {
+                        uni_vdivps(vscale, vone, vsqrtvar, vtmp);
+                    }
                 }
             }
 
             Label spatial;
             L(spatial);
             {
+                if (is_avx2_ne_xf16_) {
+                    for (int idx = 0; idx < num_ch_blks; idx += 2) {
+                        const int offt = idx * vlen_spat_data_;
+                        const int coff = idx * vlen;
+                        const bool is_ch_blks_tail = num_ch_blks - idx < 2;
+                        Vmm vdata_even = Vmm(idx);
+                        Vmm vdata_odd = Vmm(idx + 1);
+                        if (is_ch_blks_tail) {
+                            uni_vmovups_spat_data(vdata_even,
+                                    vmmword[reg_src + reg_soff_nspc + offt]);
+                            if (!pd_->stats_is_src())
+                                uni_vsubps(
+                                        vdata_even, vdata_even, mean_ptr(coff));
+                        } else {
+                            uni_vmovups_spat_data(vdata_even, vdata_odd,
+                                    vmmword[reg_src + reg_soff_nspc + offt]);
+                            // apply mean in interleave to data in interleave
+                            // before merge them to plain layout when needed
+                            if (!pd_->stats_is_src()) {
+                                uni_vsubps(
+                                        vdata_even, vdata_even, mean_ptr(coff));
+                                uni_vsubps(vdata_odd, vdata_odd,
+                                        mean_ptr(coff + vlen));
+                            }
+                            merge_interleaved_to_plain(
+                                    vdata_even, vdata_odd, vtmp);
+                        }
+                    }
+                }
+
                 for (int idx = 0; idx < num_ch_blks; ++idx) {
                     const int coff = idx * vlen;
                     const int offt = idx * vlen_spat_data_;
@@ -892,10 +1026,11 @@ struct jit_bnorm_t : public jit_generator {
                         uni_vmovups_maybe_tail(vbeta, beta_ptr(coff));
                     }
 
-                    uni_vmovups_spat_data(
-                            vdata, vmmword[reg_src + reg_soff_nspc + offt]);
-
-                    uni_vsubps(vdata, vdata, vmean);
+                    if (!is_avx2_ne_xf16_)
+                        uni_vmovups_spat_data(
+                                vdata, vmmword[reg_src + reg_soff_nspc + offt]);
+                    if (IMPLICATION(is_avx2_ne_xf16_, pd_->stats_is_src()))
+                        uni_vsubps(vdata, vdata, vmean);
 
                     if (pd_->use_shift()) {
                         // --flags=S,CH,H
@@ -1268,9 +1403,8 @@ struct jit_bnorm_t : public jit_generator {
         mov(reg_coff_max_fwd_copy, reg_coff_max);
 
         Label ch_unroll_label[5];
-        const int max_ch_unroll = isa != avx512_core
-                ? 2
-                : is_bf16_ && !mayiuse(avx512_core_bf16) ? 3 : 4;
+        const int max_ch_unroll
+                = isa == avx512_core ? 4 - use_bf16_emulation() : 2;
 
         // TODO: Spatial and channel unrolling decisions should be made during
         // initialization depending on the problem size
@@ -1930,6 +2064,8 @@ struct jit_bnorm_t : public jit_generator {
 
         is_bf16_ = pd_->src_md()->data_type == data_type::bf16;
         is_f16_ = pd_->src_md()->data_type == data_type::f16;
+        is_avx2_ne_xf16_
+                = isa == avx2 && mayiuse(avx2_vnni_2) && (is_bf16_ || is_f16_);
         vlen_spat_data_ = vlen / (1 + is_xf16()); // 32B of xF16 -> 64B of FP32
 
         unroll_blocks = isa == avx512_core && !jbp_->is_spatial_thr_ ? 4 : 1;
@@ -1939,14 +2075,12 @@ struct jit_bnorm_t : public jit_generator {
     void generate() override {
         preamble();
 
-        if (is_bf16_) {
+        if (use_bf16_emulation()) {
             // init emulation of bfloat16 operations
-            if (!mayiuse(avx512_core_bf16)) {
-                bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserved_1,
-                        bf16_emu_reserved_2, bf16_emu_reserved_3, reg_bf16_tmp,
-                        bf16_emu_reserved_4, bf16_emu_reserved_4);
-                bf16_emu_->init_vcvtneps2bf16();
-            }
+            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserved_1,
+                    bf16_emu_reserved_2, bf16_emu_reserved_3, reg_bf16_tmp,
+                    bf16_emu_reserved_4, bf16_emu_reserved_4);
+            bf16_emu_->init_vcvtneps2bf16();
         }
 
         if (isa == avx512_core)
@@ -2203,8 +2337,9 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
             && dnnl_thr_syncable()
             && one_of(src_md()->data_type, f32, bf16, f16)
             && src_md()->data_type == dst_md()->data_type
-            && IMPLICATION(
-                    src_md()->data_type == bf16, is_superset(isa, avx512_core))
+            && IMPLICATION(src_md()->data_type == bf16,
+                    is_superset(isa, avx512_core)
+                            || (isa == avx2 && mayiuse(avx2_vnni_2)))
             // Note: re-using avx512_core implementation for f16. This is okay
             // as currently, we do not support binary post-ops for this
             // primitive.
@@ -2225,6 +2360,9 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
         if (!src_d.matches_one_of_tag(
                     nCw16c, nChw16c, nCdhw16c, nc, nwc, nhwc, ndhwc))
             return status::unimplemented;
+    } else if (isa == avx2 && one_of(src_md()->data_type, bf16)) {
+        if (is_training() || !src_d.matches_one_of_tag(nc, nwc, nhwc, ndhwc))
+            return status::unimplemented;
     } else {
         if (!src_d.matches_one_of_tag(nCw8c, nChw8c, nCdhw8c))
             return status::unimplemented;
@@ -2240,9 +2378,10 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
             && !isa_supports_avx2)
         return status::unimplemented;
 
-    // Only IC % 16 == 0 is supported for now
+    // Only IC % simd_w == 0 is supported for now
+    const int simd_w = cpu_isa_traits<isa>::vlen / sizeof(acc_data_t);
     if (src_d.matches_one_of_tag(nc, nwc, nhwc, ndhwc)
-            && src_d.padded_dims()[1] % 16 != 0) {
+            && src_d.padded_dims()[1] % simd_w != 0) {
         return status::unimplemented;
     }
 

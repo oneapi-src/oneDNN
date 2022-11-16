@@ -51,7 +51,10 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
                         (src_md()->data_type == data_type::bf16)
                                 ? (mayiuse(avx512_core_bf16)
                                                 ? avx512_core_bf16
-                                                : bf16_emulation_t::get_isa())
+                                                : mayiuse(avx512_core)
+                                                        ? bf16_emulation_t::
+                                                                get_isa()
+                                                        : avx2_vnni_2)
                                 : (src_md()->data_type == data_type::f16)
                                         ? avx512_core_fp16
                                         : isa,
