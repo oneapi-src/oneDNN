@@ -137,6 +137,22 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
   const auto B_plain_dims = get_mmb_plain_dims();
   std::vector<int> possible_blks;
   cfg.K_block = 64;
+  if (get_in_dtypes(0) == datatypes::f32) {
+    int K = static_cast<int>(A_plain_dims[1]);
+    int ceil64_K = static_cast<int>(sc::utils::rnd_up(K, 64));
+    int ceil48_K = static_cast<int>(sc::utils::rnd_up(K, 48));
+    int ceil32_K = static_cast<int>(sc::utils::rnd_up(K, 32));
+    int pad64_K = ceil64_K - K;
+    int pad48_K = ceil48_K - K;
+    int pad32_K = ceil32_K - K;
+    cfg.K_block = pad48_K >= pad64_K ? (pad64_K > pad32_K ? 32 : 64)
+                                     : (pad48_K >= pad32_K ? 32 : 48);
+    if (K < 32) { cfg.K_block = K; }
+  } else {
+    if (A_plain_dims[1] < 64) {
+      cfg.K_block = utils::rnd_up(A_plain_dims[1], is_bf16 ? 2 : 4);
+    }
+  }
   bool is_cfg_set = false;
   bool is_2d_gemm = A_plain_dims.size() == 2 ? true : false;
   if (in_tensors_[0].get_format().is_blocking() && !is_2d_gemm) {
@@ -201,6 +217,9 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
     } else {
       // bmm default config
       cfg.M_block = 0;
+      if (M < min_block && get_in_dtypes(0) == datatypes::f32) {
+        cfg.M_block = M;
+      }
       for (int m = max_block; m >= min_block; m--) {
         if (M % m == 0) { possible_blks.emplace_back(m); }
       }
@@ -260,7 +279,7 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
       } else {
         cfg.N_block = pad32_N >= pad64_N ? 64 : 32;
       }
-      if (N < 32) { cfg.N_block = 16; }
+      if (N < 32) { cfg.N_block = N; }
     }
   }
   validate_cfg(cfg, is_amx, get_in_dtypes(0));
