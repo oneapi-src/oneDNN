@@ -177,7 +177,10 @@ private:
 };
 
 struct runtime_scales_t : public c_compatible {
-    runtime_scales_t() = default;
+    // Clang-3.8.1 raises an error for a default initialization of a const
+    // object. Const runtime_scales_t object is used as default_scales.
+    // runtime_scales_t() = default;
+    runtime_scales_t() {}
 
     status_t set(int mask) {
         mask_ = mask;
