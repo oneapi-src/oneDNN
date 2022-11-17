@@ -118,8 +118,8 @@ void tunable_op_t::create_mixed_partition(mixed_parti_t *parti) {
 void tunable_op_t::append_mixed_partition(mixed_parti_t *parti) {
     search_anchor(parti);
     COMPILE_ASSERT(parti->ready_for_op(this),
-            "Not suitable anchor found for " << op_name_ << "_"
-                                             << logical_op_id_);
+            "No suitable anchor found for " << op_name_ << "_"
+                                            << logical_op_id_);
     parti->buf_alloc_.allocate_buffer(this);
     commit_into_anchor(parti);
 }

@@ -369,29 +369,29 @@ static constexpr int EXPLORE_INPLACE_MAX_STEP = 8;
 
 static void collect_inplace_info(graph_tensor *cur_gt, graph_tensor *ref_gt,
         std::unordered_set<graph_tensor *> &inplace_set,
-        std::unordered_set<graph_tensor *> &visited_set,
+        std::unordered_set<expr> &visited_set,
         const std::unordered_set<graph_tensor *> &valid_set,
-        const dep_mat_ptr &dep, int step) {
-    // if visited, skip
-    if (visited_set.find(cur_gt) != visited_set.end()) return;
-    // mark visited
-    visited_set.insert(cur_gt);
-    // increment by 1 recursive depth and  auto skip
+        mxp_buffer_allocator *alloc, int step) {
+    // increment by 1 recursive depth and auto skip
     if (EXPLORE_INPLACE_MAX_STEP == (step++)) return;
     // skip repeated
     if (inplace_set.find(cur_gt) != inplace_set.end()) return;
     // return when producer is not elementwise op
     if (!is_elementwise_producer(cur_gt)) { return; }
+    // use buffer as key for map
+    auto cur_buf = alloc->g2b_map_.get(cur_gt);
     // check inplace condition
-    if ((valid_set.find(cur_gt) != valid_set.end()) && (cur_gt != ref_gt)
+    if ((visited_set.find(cur_buf) == visited_set.end())
+            && (valid_set.find(cur_gt) != valid_set.end()) && (cur_gt != ref_gt)
             && (cur_gt->details_.get_blocking_dims()
                     == ref_gt->details_.get_blocking_dims())
             && (cur_gt->details_.dtype_ == ref_gt->details_.dtype_)
             && (cur_gt->details_.get_format() == ref_gt->details_.get_format())
             && std::all_of(cur_gt->uses_.begin(), cur_gt->uses_.end(),
-                    [&dep, &ref_gt](
+                    [&alloc, &ref_gt](
                             const std::pair<int, sc::sc_op_weak_ptr_t> &user) {
-                        return dep->lookup(user.second.get(),
+                        return alloc->binded_mxp_->dep_m_->lookup(
+                                       user.second.get(),
                                        ref_gt->producer_owner_)
                                 == 1;
                     })) {
@@ -401,12 +401,14 @@ static void collect_inplace_info(graph_tensor *cur_gt, graph_tensor *ref_gt,
         // reset ref_gt
         ref_gt = cur_gt;
     }
+    // mark visited
+    visited_set.insert(cur_buf);
     // get cur op
     auto elem_op = cur_gt->producer_owner_;
-    // recusively collect inplace information
+    // recursively collect inplace information
     for (auto &inp : elem_op->get_inputs()) {
         collect_inplace_info(inp.get(), ref_gt, inplace_set, visited_set,
-                valid_set, dep, step);
+                valid_set, alloc, step);
     }
 }
 
@@ -446,16 +448,15 @@ void mxp_buffer_allocator::query_buffer_inplace() {
                         > gt2->producer_owner_->logical_op_id_;
             });
 
-    std::unordered_set<expr> replaced_buffer;
-    std::unordered_set<graph_tensor *> visited_set;
+    std::unordered_set<expr> replaced_buffer, visited_buffer;
     for (auto &ref_gt : ref_gt_list) {
         // auto skip
         if (replaced_buffer.find(g2b_map_.get(ref_gt)) != replaced_buffer.end())
             continue;
         // step 2: collect inplace mapping for each gt
         std::unordered_set<graph_tensor *> inplace_gt_set;
-        collect_inplace_info(ref_gt, ref_gt, inplace_gt_set, visited_set,
-                valid_set, binded_mxp_->dep_m_, /*init_step*/ 0);
+        collect_inplace_info(ref_gt, ref_gt, inplace_gt_set, visited_buffer,
+                valid_set, this, /*init_step*/ 0);
         if (inplace_gt_set.empty()) continue;
         // step 3: transform map to vector sorted by op committing order
         std::vector<graph_tensor *> inplace_gt_list;
