@@ -263,7 +263,6 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
     auto get_output_offset = [=](int i, int j) {
         switch (jcp.prop_kind) {
             case backward_weights: return sizeof(float) * jcp.oc_block * j;
-            case backward_data:
             default:
                 return (i * get_output_i_offset(jcp)
                                + j * get_output_j_offset(jcp))
@@ -278,7 +277,6 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
                         + (i ? reg_output_stride * i
                              : 0) // TODO: Xbyak should allow 0 scale
                         + sizeof(float) * jcp.oc_block * j];
-            case backward_data:
             default:
                 return ptr[aux_reg_output_data
                         + (i * get_output_i_offset(jcp)
