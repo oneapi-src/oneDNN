@@ -568,8 +568,10 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             && dst_stride == 1 && width > 1) {
         int step = get_step();
         auto step_size = step * src_type_size * src_stride;
-        auto nregs = utils::div_up(step_size, grf_size);
-        auto tmp = lex_scope.alloc_reg_buf_data(nregs);
+        auto tmp_regs = utils::div_up(step_size, grf_size);
+        auto tmp = lex_scope.alloc_reg_buf_data(tmp_regs);
+        auto tmp2_regs = utils::div_up(step * dst_type_size, grf_size);
+        auto tmp2 = lex_scope.alloc_reg_buf_data(tmp2_regs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -581,9 +583,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto d_old = d;
             bool d_half_grf_aligned
                     = utils::one_of(d.byte_offset(), 0, grf_size / 2);
-            if (!d_half_grf_aligned) {
-                d = scope.alloc_reg_data(to_ir(dst_type).with_elems(esize));
-            }
+            if (!d_half_grf_aligned) { d = tmp2.format(0, dst_type, esize); }
             if (s.offset() != 0) {
                 auto t = tmp.format(0, src_type, esize, src_stride);
                 plan(mov, esize, t, s);
@@ -601,6 +601,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     // less limitations.
     if (src_xf || dst_xf) {
         int step = get_step();
+        auto tmp_regs = utils::div_up(step * dst_type_size, grf_size);
+        auto tmp = lex_scope.alloc_reg_buf_data(tmp_regs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -620,9 +622,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     do_d0_align = true;
                 }
             }
-            if (do_d0_align) {
-                d = lex_scope.alloc_reg_data(to_ir(dst_type).with_elems(esize));
-            }
+            if (do_d0_align) { d = tmp.format(0, dst_type, esize); }
 
             bool do_align = false;
             if (esize > 1 && s.hs() != 0) {
