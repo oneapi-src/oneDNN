@@ -1684,28 +1684,36 @@ mixed_fuse_op_t::get_inplace_map() {
     auto out_ops = sub_graph_.get_output_ops();
     size_t out_idx = 0;
     for (auto &out : out_ops) {
+        // if the output buffer is already reused while fusion, we cannot reuse
+        // an input buffer for this output
+        bool already_reused
+                = out->attrs_.get_or_else("buffer_already_reused", false);
         for (auto &outtsr : out->get_inputs()) {
-            std::vector<tensor_inplace_info_t> can_inplace;
-            auto *rec_ret = ctx.call(outtsr);
-            if (!rec_ret) {
-                SC_MODULE_WARN << "Max recursion count reached for tensor "
-                                  "inplace optimization "
-                                  "for fused op";
-                return {};
-            }
-            for (size_t i = 0; i < rec_ret->size(); i++) {
-                if ((*rec_ret)[i]
-                        == inplace_recursion_context_t::ZERO_OFFSET_INPLACE) {
-                    can_inplace.emplace_back(tensor_inplace_info_t {
-                            static_cast<int>(i), inplace_kind::ZERO_OFFSET});
-                } else if ((*rec_ret)[i]
-                        == inplace_recursion_context_t::FREE_INPLACE) {
-                    can_inplace.emplace_back(tensor_inplace_info_t {
-                            static_cast<int>(i), inplace_kind::FREE});
+            if (!already_reused) {
+                std::vector<tensor_inplace_info_t> can_inplace;
+                auto *rec_ret = ctx.call(outtsr);
+                if (!rec_ret) {
+                    SC_MODULE_WARN << "Max recursion count reached for tensor "
+                                      "inplace optimization "
+                                      "for fused op";
+                    return {};
                 }
-            }
-            if (!can_inplace.empty()) {
-                ret.emplace_back(out_idx, std::move(can_inplace));
+                for (size_t i = 0; i < rec_ret->size(); i++) {
+                    if ((*rec_ret)[i]
+                            == inplace_recursion_context_t::
+                                    ZERO_OFFSET_INPLACE) {
+                        can_inplace.emplace_back(
+                                tensor_inplace_info_t {static_cast<int>(i),
+                                        inplace_kind::ZERO_OFFSET});
+                    } else if ((*rec_ret)[i]
+                            == inplace_recursion_context_t::FREE_INPLACE) {
+                        can_inplace.emplace_back(tensor_inplace_info_t {
+                                static_cast<int>(i), inplace_kind::FREE});
+                    }
+                }
+                if (!can_inplace.empty()) {
+                    ret.emplace_back(out_idx, std::move(can_inplace));
+                }
             }
             out_idx++;
         }

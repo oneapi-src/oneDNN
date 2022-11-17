@@ -498,6 +498,14 @@ void mxp_buffer_allocator::query_buffer_inplace() {
     }
 }
 
+int mxp_buffer_allocator::use_count(const expr &buffer) const {
+    int cnt = 0;
+    for (auto &g2b : g2b_map_.datamap_) {
+        if (g2b.second.ptr_same(buffer)) cnt++;
+    }
+    return cnt;
+}
+
 fuse_anchor_map_ptr mxp_buffer_allocator::get_real_anchor_for_buffer(
         const expr &buffer) const {
     auto tsr = get_real_tensor(buffer);
@@ -2639,10 +2647,9 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                 fused_op_in.emplace_back(in);
                 input_tsr_set.insert(in);
                 COMPILE_ASSERT(parti.buf_alloc_.g2b_map_.haskey(in),
-                        "No buffer allocated for "
-                                << op->op_name_ << "_"
-                                << std::to_string(op->logical_op_id_)
-                                << " inputs")
+                        "No buffer allocated for " << op->op_name_ << "_"
+                                                   << op->logical_op_id_
+                                                   << " inputs")
                 arg_ins.emplace_back(parti.buf_alloc_.g2b_map_.get(in));
             }
         }
@@ -2654,7 +2661,7 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                 // if there is a use outside of the parti, the tensor should
                 // be marked "output"
                 const auto &outtsr = new_graph_ou.back();
-                sub_graph.make_output({outtsr});
+                auto new_out_op = sub_graph.make_output({outtsr});
                 // make a new output tensor for the fused_op_t in the original
                 // sub_graph
                 fused_op_out.emplace_back(
@@ -2662,14 +2669,17 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                 // save the mapping of the tensor to be replaced => new tensor
                 parti.output_replace_map[out] = fused_op_out.back();
                 COMPILE_ASSERT(parti.buf_alloc_.g2b_map_.haskey(out),
-                        "No buffer allocated for "
-                                << op->op_name_ << "_"
-                                << std::to_string(op->logical_op_id_)
-                                << " outputs")
+                        "No buffer allocated for " << op->op_name_ << "_"
+                                                   << op->logical_op_id_
+                                                   << " outputs")
                 auto out_buffer = parti.buf_alloc_.g2b_map_.get(out);
                 if (out_buffer.isa<tensorptr>()) {
                     redo_flag = true;
                     outtsr->attrs_[mixed_partition_hint::no_inplace] = true;
+                }
+                // if outbuffer is already reused, set attr on output op
+                if (parti.buf_alloc_.use_count(out_buffer) > 1) {
+                    new_out_op->attrs_.set("buffer_already_reused", true);
                 }
                 arg_out.emplace_back(out_buffer);
             }
