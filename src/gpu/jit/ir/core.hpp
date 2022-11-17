@@ -1421,8 +1421,8 @@ public:
     }
 
     static expr_t make_broadcast(const expr_t &expr, int elems) {
+        if (elems == 1) return expr;
         ir_assert(expr.type().is_scalar()) << expr;
-        ir_assert(math::is_pow2(elems));
         return make({expr}, std::vector<int>(elems, 0));
     }
 
