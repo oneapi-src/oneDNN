@@ -125,21 +125,30 @@ impl::status_t compiler_partition_impl_t::compile(
     UNUSED(acontext);
     try {
         impl::status_t res = status::success;
-        // here we call infer_shape since logical tensor info
-        // may be incomplete for the graph corresponding to the
-        // partition
-        std::vector<const impl::logical_tensor_t *> input_ref;
-        std::vector<impl::logical_tensor_t *> output_ref;
-        input_ref.reserve(inputs.size());
-        output_ref.reserve(outputs.size());
-        for (auto &t : inputs) {
-            input_ref.push_back(const_cast<impl::logical_tensor_t *>(&t));
+        // first check whether inputs are dynamic or not
+        bool is_dynamic = false;
+        for (auto lt : inputs) {
+            const impl::logical_tensor_wrapper_t ltw(lt);
+            if (ltw.has_dynamic_dim()) {
+                is_dynamic = true;
+                break;
+            }
         }
-        for (auto &t : outputs) {
-            output_ref.push_back(const_cast<impl::logical_tensor_t *>(&t));
+        // call infer_shape to set intermediate lt shapes if it is not dynamic
+        if (!is_dynamic) {
+            std::vector<const impl::logical_tensor_t *> input_ref;
+            std::vector<impl::logical_tensor_t *> output_ref;
+            input_ref.reserve(inputs.size());
+            output_ref.reserve(outputs.size());
+            for (auto &t : inputs) {
+                input_ref.push_back(const_cast<impl::logical_tensor_t *>(&t));
+            }
+            for (auto &t : outputs) {
+                output_ref.push_back(const_cast<impl::logical_tensor_t *>(&t));
+            }
+            res = this->infer_shape(input_ref, output_ref);
+            if (res != status::success) { return res; }
         }
-        res = this->infer_shape(input_ref, output_ref);
-        if (res != status::success) { return res; }
 
         std::lock_guard<std::mutex> lck(mtx_);
         std::vector<sc::runtime::dynamic_tensor_t> dyn_inputs, dyn_outputs;
@@ -149,7 +158,6 @@ impl::status_t compiler_partition_impl_t::compile(
         size_t id = 0;
         std::vector<size_t> out_lt_ids(outputs.size());
         sc_inputs.reserve(inputs.size());
-        bool is_dynamic = false;
         for (auto &in_lt : inputs) {
             sc::sc_op_ptr in_ret;
             in_ret = sub_graph.make_compiler_backend_input(in_lt);
@@ -169,6 +177,9 @@ impl::status_t compiler_partition_impl_t::compile(
         }
         for (auto &out_lt : outputs) {
             out_lt_ids.emplace_back(out_lt.id);
+        }
+        if (copied_ops_.empty()) {
+            copied_ops_ = impl::graph_t::deep_copy(ops_);
         }
         impl::graph_t temp_graph(copied_ops_);
         auto output_ops = temp_graph.get_output_ops();
@@ -212,18 +223,15 @@ impl::status_t compiler_partition_impl_t::compile(
                         != out_lt_ids.end()) {
                     auto out_ret
                             = sub_graph.make_output({ret->get_outputs()[i]});
-                    if (is_dynamic) {
-                        auto out_dyn_tsr
-                                = sc::convert_graph_tensor_to_dynamic_tensor(
-                                        out_ret->get_inputs()[0]);
-                        dyn_outputs.emplace_back(out_dyn_tsr);
-                    }
                     out_ret->attrs_.set("unique_id", id++);
                     sc::sc_data_format_t output_format
                             = out_ret->get_inputs()[0]->details_.get_format();
                     sc::sc_dims output_strides
                             = out_ret->get_inputs()[0]->details_.get_strides();
-                    if (!output_format.is_any()) {
+                    // TODO(yifei): reconsider the logic here after permuted
+                    // format is supported in dynamic case
+                    // if output is any or it is dynamic, we give plain output
+                    if (!output_format.is_any() && !is_dynamic) {
                         out_ret->attrs_.set("target_formats",
                                 std::vector<sc::sc_data_format_t> {
                                         output_format});
@@ -263,6 +271,12 @@ impl::status_t compiler_partition_impl_t::compile(
 
         ctx->engine_ = static_cast<sc::runtime::engine_t *>(graph_engine.get());
 
+        sc::sc_graph_t cached_graph;
+        if (is_dynamic) {
+            cached_graph = sc::dynamic_shape_infer_preprocess(
+                    backend_graph_obj, ctx);
+        }
+
         sc::graph_driver(backend_graph_obj, 28, 10, ctx);
 
         std::vector<sc::sc_op_ptr> args;
@@ -272,6 +286,13 @@ impl::status_t compiler_partition_impl_t::compile(
                         == outputs_map[out_lt.id]->attrs_.get<size_t>(
                                 "unique_id")) {
                     args.push_back(op);
+                    // ensure dyn_outputs having the same order as outputs
+                    if (is_dynamic) {
+                        auto out_dyn_tsr
+                                = sc::convert_graph_tensor_to_dynamic_tensor(
+                                        op->get_inputs()[0]);
+                        dyn_outputs.emplace_back(out_dyn_tsr);
+                    }
                     break;
                 }
             }
@@ -293,7 +314,8 @@ impl::status_t compiler_partition_impl_t::compile(
                 = sc::jit_engine_t::make(ctx)->get_entry_func(ir_mod, true);
         auto pimpl = std::make_shared<compiler_compiled_partition_impl_t>(
                 *aengine, inputs, outputs, fptr, graph_engine,
-                std::move(dyn_inputs), std::move(dyn_outputs));
+                std::move(dyn_inputs), std::move(dyn_outputs),
+                std::move(cached_graph));
         compiled_partition->init(pimpl);
         return res;
     } catch (...) { return impl::status::unimplemented; }
@@ -323,12 +345,14 @@ compiler_compiled_partition_impl_t::compiler_compiled_partition_impl_t(
         const std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>
                 &graph_engine,
         std::vector<sc::runtime::dynamic_tensor_t> &&dyn_inputs,
-        std::vector<sc::runtime::dynamic_tensor_t> &&dyn_outputs)
+        std::vector<sc::runtime::dynamic_tensor_t> &&dyn_outputs,
+        sc::sc_graph_t &&sc_graph)
     : impl::compiled_partition_impl_t(engine, inputs, outputs, {})
     , jit_func_(jit_func)
     , graph_engine_(graph_engine)
     , dyn_inputs_(std::move(dyn_inputs))
-    , dyn_outputs_(std::move(dyn_outputs)) {
+    , dyn_outputs_(std::move(dyn_outputs))
+    , sc_graph_(std::move(sc_graph)) {
     std::lock_guard<std::mutex> lock(global_mutex);
     partition_count_map[graph_engine_]++;
     graph_engine_->allocator_->retain();
@@ -358,10 +382,67 @@ status_t compiler_compiled_partition_impl_t::query_dynamic_outputs(
         const std::vector<logical_tensor_t *> &out_lts,
         const std::vector<const logical_tensor_t *> &in_lts,
         const impl::context_t *acontext) const {
-    UNUSED(out_lts);
-    UNUSED(in_lts);
-    UNUSED(acontext);
-    return status::unimplemented;
+    // copy dyn_inputs_ & dyn_outputs_ to avoid potential race condition
+    // when different threads accessing the same compiled_partition
+    // holding different execution sizes
+    std::vector<sc::runtime::dynamic_tensor_t> dyn_inputs = dyn_inputs_,
+                                               dyn_outputs = dyn_outputs_;
+    std::vector<sc::runtime::dynamic_tensor_t *> ins, outs;
+    ins.resize(dyn_inputs.size());
+    outs.resize(dyn_outputs.size());
+    std::transform(dyn_inputs.begin(), dyn_inputs.end(), ins.begin(),
+            [](sc::runtime::dynamic_tensor_t &dyn) { return &dyn; });
+    std::transform(dyn_outputs.begin(), dyn_outputs.end(), outs.begin(),
+            [](sc::runtime::dynamic_tensor_t &dyn) { return &dyn; });
+    auto trans_func = [](const impl::logical_tensor_t *lt,
+                              sc::runtime::dynamic_tensor_t *dyn) {
+        dyn->dims_ = const_cast<sc::sc_dim *>(
+                reinterpret_cast<const sc::sc_dim *>(lt->dims));
+    };
+    for (size_t i = 0; i < in_lts.size(); ++i) {
+        size_t lt_id = in_lts[i]->id;
+        auto found = std::find_if(inputs_.begin(), inputs_.end(),
+                [&lt_id](const impl::logical_tensor_t &e) {
+                    return e.id == lt_id;
+                });
+        if (found == inputs_.end()) continue;
+        size_t idx = found - inputs_.begin();
+        trans_func(in_lts[i], ins[idx]);
+    }
+    for (size_t i = 0; i < out_lts.size(); ++i) {
+        size_t lt_id = out_lts[i]->id;
+        auto found = std::find_if(outputs_.begin(), outputs_.end(),
+                [&lt_id](const impl::logical_tensor_t &e) {
+                    return e.id == lt_id;
+                });
+        if (found == outputs_.end()) continue;
+        size_t idx = found - outputs_.begin();
+        trans_func(out_lts[i], outs[idx]);
+    }
+    sc::dynamic_infer_shape_by_graph(
+            sc_graph_, ins.data(), outs.data(), ins.size(), outs.size());
+    for (size_t i = 0; i < out_lts.size(); ++i) {
+        size_t lt_id = out_lts[i]->id;
+        auto found = std::find_if(outputs_.begin(), outputs_.end(),
+                [&lt_id](const impl::logical_tensor_t &e) {
+                    return e.id == lt_id;
+                });
+        if (found == outputs_.end()) continue;
+        size_t idx = found - outputs_.begin();
+        out_lts[i]->ndims = outs[idx]->ndims_;
+        for (auto d = 0; d < outs[idx]->ndims_; ++d) {
+            out_lts[i]->dims[d] = outs[idx]->dims_[d];
+        }
+        // set dense stride here
+        out_lts[i]->layout_type = impl::layout_type::strided;
+        impl::dims shape(
+                out_lts[i]->dims, out_lts[i]->dims + out_lts[i]->ndims);
+        impl::dims strides = utils::get_dense_strides(shape);
+        for (auto d = 0; d < out_lts[i]->ndims; ++d) {
+            out_lts[i]->layout.strides[d] = strides[d];
+        }
+    }
+    return status::success;
 }
 
 impl::status_t compiler_compiled_partition_impl_t::execute(
@@ -371,6 +452,8 @@ impl::status_t compiler_compiled_partition_impl_t::execute(
     // set backend runtime stream
     compiler_graph_stream_t backend_stream {graph_engine_.get()};
     std::vector<sc::generic_val> generic_args;
+    std::vector<sc::runtime::dynamic_tensor_t> dyn_inputs = dyn_inputs_,
+                                               dyn_outputs = dyn_outputs_;
     if (dyn_inputs_.empty()) {
         generic_args.reserve(inputs.size() + outputs.size());
         for (auto out_tensor : outputs) {
@@ -390,9 +473,9 @@ impl::status_t compiler_compiled_partition_impl_t::execute(
             return &dyn;
         };
         auto arg_it = std::transform(outputs.begin(), outputs.end(),
-                dyn_outputs_.begin(), generic_args.begin(), trans_func);
-        std::transform(inputs.begin(), inputs.end(), dyn_inputs_.begin(),
-                arg_it, trans_func);
+                dyn_outputs.begin(), generic_args.begin(), trans_func);
+        std::transform(inputs.begin(), inputs.end(), dyn_inputs.begin(), arg_it,
+                trans_func);
     }
     jit_func_->call_generic(&backend_stream, generic_args.data());
     return status::success;
