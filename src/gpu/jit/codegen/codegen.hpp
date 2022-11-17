@@ -574,6 +574,18 @@ private:
 
         // Emit send instruction.
         auto rd = send_maybe_make_dense_payload(scope, send_func, reg_buf_op);
+        if (!send_func.has_default_slot_mask()) {
+            if (mod.getPredCtrl() != ngen::PredCtrl::None) {
+                auto flag = mod.getFlagReg();
+                if (send_func.slots > 16)
+                    flag = ngen::FlagRegister(flag.index() >> 1);
+                host_->and_(1, flag, flag, send_func.slot_mask);
+            } else {
+                auto flag = scope.alloc_flag(send_func.slots);
+                host_->emov(1, flag, send_func.slot_mask);
+                mod |= flag;
+            }
+        }
         spec_impl.emit(host_, scope, mod, mem_buf_rd, surf_bti,
                 mem_off_op.reg_data(), rd);
     }

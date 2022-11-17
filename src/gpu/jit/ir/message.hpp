@@ -119,15 +119,29 @@ public:
     static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
             const type_t &type, int slots,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
-        return make(hw, op, address, type, slots, hw >= ngen::HW::XeHPC,
-                cache_hint);
+        return make(hw, op, address, type, slots, default_slot_mask,
+                hw >= ngen::HW::XeHPC, cache_hint);
     }
 
     static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
             const type_t &type, int slots, bool is_lsc,
             send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
-        return func_t(
-                new send_t(hw, op, address, type, slots, is_lsc, cache_hint));
+        return make(hw, op, address, type, slots, default_slot_mask, is_lsc,
+                cache_hint);
+    }
+
+    static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
+            const type_t &type, int slots, uint32_t slot_mask, bool is_lsc,
+            send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
+        return func_t(new send_t(
+                hw, op, address, type, slots, slot_mask, is_lsc, cache_hint));
+    }
+
+    static func_t make(ngen::HW hw, send_op_t op, send_address_t address,
+            const type_t &type, int slots, uint32_t slot_mask,
+            send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
+        return make(hw, op, address, type, slots, slot_mask,
+                hw >= ngen::HW::XeHPC, cache_hint);
     }
 
     static func_t make_2d(ngen::HW hw, send_op_t op, const type_t &type,
@@ -152,13 +166,14 @@ public:
 
         return (hw == other.hw) && (op == other.op)
                 && (address == other.address) && (type == other.type)
-                && (slots == other.slots) && (is_lsc == other.is_lsc)
+                && (slots == other.slots) && (slot_mask == other.slot_mask)
+                && (is_lsc == other.is_lsc)
                 && (block_2d_info == other.block_2d_info);
     }
 
     size_t get_hash() const override {
         return ir_utils::get_hash(
-                hw, op, address, type, slots, is_lsc, block_2d_info);
+                hw, op, address, type, slots, slot_mask, is_lsc, block_2d_info);
     }
 
     std::string str() const override {
@@ -291,6 +306,11 @@ public:
 
     bool is_supported() const;
 
+    bool has_default_slot_mask() const {
+        uint32_t all_slots_mask = (slots == 32 ? 0xFFFFFFFF : (1 << slots) - 1);
+        return (slot_mask & all_slots_mask) == all_slots_mask;
+    }
+
     static std::vector<func_t> get_all(ngen::HW hw, send_op_t op,
             send_address_t address, const type_t &mem_type,
             send_cache_hint_t cache_hint);
@@ -300,10 +320,13 @@ public:
     send_address_t address;
     type_t type;
     int slots;
+    uint32_t slot_mask;
     bool is_lsc;
 
     block_2d_info_t block_2d_info;
     send_cache_hint_t cache_hint;
+
+    static const uint32_t default_slot_mask = 0xFFFFFFFF;
 
 private:
     int grf_size() const { return ngen::GRF::bytes(hw); }
@@ -313,7 +336,7 @@ private:
     bool is_xe_hpc_plus() const { return hw >= ngen::HW::XeHPC; }
 
     send_t(ngen::HW hw, send_op_t op, send_address_t address,
-            const type_t &type, int slots, bool is_lsc,
+            const type_t &type, int slots, uint32_t slot_mask, bool is_lsc,
             send_cache_hint_t cache_hint)
         : func_impl_t(_type_info())
         , hw(hw)
@@ -321,6 +344,7 @@ private:
         , address(address)
         , type(type)
         , slots(slots)
+        , slot_mask(slot_mask)
         , is_lsc(is_lsc)
         , cache_hint(cache_hint) {}
 
@@ -332,6 +356,7 @@ private:
         , address(send_address_t::a64)
         , type(type)
         , slots(1)
+        , slot_mask(default_slot_mask)
         , is_lsc(true)
         , block_2d_info(block_2d_info)
         , cache_hint(cache_hint) {
