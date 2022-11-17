@@ -575,6 +575,8 @@ public:
         return ret;
     }
 
+    int nblocks() const { return (int)blocks().size(); }
+
     const std::vector<block_t> &blocks() const { return blocks_; }
 
     dim_t inner_block(int dim_idx, bool skip_outer = true) const {
@@ -833,12 +835,31 @@ public:
 
     layout_t add_outer_block(
             int dim_idx, dim_t block, dim_t stride = -1) const {
-        if (stride == -1) stride = elems();
+        if (stride == -1) {
+            if (blocks_.empty()) {
+                stride = 1;
+            } else {
+                auto &last = blocks_.back();
+                stride = last.block * last.stride;
+            }
+        }
         ir_assert(stride >= elems());
         ir_assert(dim_idx < ndims());
         auto new_blocks = blocks();
         new_blocks.emplace_back(dim_idx, block, stride);
         return layout_t(type(), ndims(), offset(), new_blocks);
+    }
+
+    layout_t add_outer_block_and_pad(
+            int dim_idx, dim_t block, int pad_bytes) const {
+        int type_size = type().size();
+        ir_assert(pad_bytes % type_size == 0);
+        if (blocks_.empty())
+            return add_outer_block(dim_idx, block, pad_bytes / type_size);
+        auto &last = blocks_.back();
+        auto stride = utils::rnd_up((dim_t)last.stride * last.block,
+                (dim_t)(pad_bytes / type_size));
+        return add_outer_block(dim_idx, block, stride);
     }
 
     // Returns a tensor corresponding to the biggest innermost sub-layout so that
@@ -1414,6 +1435,15 @@ public:
         return ph_var;
     }
 
+    std::string str() const {
+        std::ostringstream oss;
+        oss << expr_;
+        if (!mask_.is_empty()) oss << " mask: " << mask_;
+        return oss.str();
+    }
+
+    IR_DEFINE_DUMP()
+
 private:
     static const int max_nvargs = 2;
 
@@ -1426,6 +1456,11 @@ private:
     std::array<int, max_nvargs> vidxs_;
     expr_t mask_;
 };
+
+inline std::ostream &operator<<(std::ostream &out, const tdim_info_t &tdim) {
+    out << tdim.str();
+    return out;
+}
 
 class view_t {
 public:
@@ -1672,8 +1707,8 @@ public:
     }
 
     // FIXME: Offset of the returned layout is always 0.
-    layout_t create_pseudo_vlayout() const {
-        return create_pseudo_vlayout(normalized_tlayout());
+    layout_t create_pseudo_vlayout(bool use_unknown_stride = true) const {
+        return create_pseudo_vlayout(normalized_tlayout(), use_unknown_stride);
     }
 
     layout_t normalized_tlayout() const {
@@ -1850,7 +1885,8 @@ public:
     }
 
 private:
-    layout_t create_pseudo_vlayout(const layout_t &tlayout) const;
+    layout_t create_pseudo_vlayout(
+            const layout_t &tlayout, bool use_unknown_stride) const;
 
     void create_mask_tensor(mask_tensor_t &mask_tensor,
             const layout_t &_vlayout, int vidx, std::vector<dim_t> &vargs,

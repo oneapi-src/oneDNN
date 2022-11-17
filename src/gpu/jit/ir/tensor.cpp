@@ -505,7 +505,8 @@ std::vector<expr_t> view_t::create_vvars(int nvdims) {
     return std::vector<expr_t>(_vvars.begin(), _vvars.begin() + nvdims);
 }
 
-layout_t view_t::create_pseudo_vlayout(const layout_t &tlayout) const {
+layout_t view_t::create_pseudo_vlayout(
+        const layout_t &tlayout, bool use_unknown_stride) const {
     ir_assert(!tlayout.is_empty());
 
     std::vector<dim_t> rem_vdims = vdims_;
@@ -543,9 +544,15 @@ layout_t view_t::create_pseudo_vlayout(const layout_t &tlayout) const {
                 int vidx = tinfo.vidx(i);
                 if (rem_vdims[vidx] == 1) continue;
 
-                // When expression contains 2+ variables, use unknown stride for
-                // the remaining view variables.
-                blocks.emplace_back(vidx, rem_vdims[vidx], stride_t::unknown());
+                if (false && use_unknown_stride) {
+                    // When expression contains 2+ variables, use unknown stride for
+                    // the remaining view variables.
+                    blocks.emplace_back(
+                            vidx, rem_vdims[vidx], stride_t::unknown());
+                } else {
+                    stride_t stride = tinfo.vstride(i) * tb.stride;
+                    blocks.emplace_back(vidx, rem_vdims[vidx], stride);
+                }
                 rem_vdims[vidx] = 1;
             }
             continue;
@@ -567,7 +574,7 @@ layout_t view_t::create_pseudo_vlayout(const layout_t &tlayout) const {
             if (tblock % rem_vdim == 0) {
                 auto tmp_layout
                         = tlayout.split_block(teb, rem_vdim, tblock / rem_vdim);
-                return create_pseudo_vlayout(tmp_layout);
+                return create_pseudo_vlayout(tmp_layout, use_unknown_stride);
             }
 
             ir_error_not_expected() << "Can't create pseudo-layout.";
