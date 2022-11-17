@@ -423,6 +423,8 @@ int doit(const prb_t *prb, res_t *res) {
                 prb->ndims, bia_dims, prb->bia_dt, tag::abx);
     }
 
+    if (is_bench_mode(INIT)) return res->state = INITIALIZED, OK;
+
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
 

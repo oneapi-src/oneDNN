@@ -283,6 +283,8 @@ int doit(const prb_t *prb, res_t *res) {
         tensors_out.emplace_back(output_ts);
     }
 
+    if (is_bench_mode(INIT)) return res->state = INITIALIZED, OK;
+
     SAFE(execute_and_wait(c_partitions, tensors_in, tensors_out, res), WARN);
 
     if (is_bench_mode(PERF)) {

@@ -190,6 +190,7 @@ int doit(const prb_t *prb, res_t *res) {
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (is_bench_mode(INIT)) return OK;
 
     auto const_pd = query_pd(prim);
 

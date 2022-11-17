@@ -539,7 +539,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     if (res->state == SKIPPED) return OK;
 
     auto pd = query_pd(primw);
-    SAFE(check_mem_size(pd, res), WARN);
+    if (!is_bench_mode(INIT)) SAFE(check_mem_size(pd, res), WARN);
     if (res->state == SKIPPED) return OK;
 
     // Further checks are only for tested primitives.
@@ -564,7 +564,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     SAFE(test_persistent_cache_api(primw, pd, res), WARN);
 
     user_prim.reset(primw.release());
-    return OK;
+    return res->state = INITIALIZED, OK;
 }
 
 template <typename func_t, typename prb_t>

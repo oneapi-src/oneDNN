@@ -918,6 +918,7 @@ int doit(const prb_t &prb, res_t *res) {
                  is_service_prim),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (!is_service_prim && is_bench_mode(INIT)) return OK;
 
     auto const_fpd = query_pd(prim);
 
@@ -1044,7 +1045,7 @@ int doit(const prb_t &prb, res_t *res) {
     args.set(DNNL_ARG_WORKSPACE, workspace_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    SAFE(execute_and_wait(prim, args, res), WARN);
+    if (!is_bench_mode(INIT)) SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (prb.prop != dnnl_backward) {
         if (is_bench_mode(CORR)) {
@@ -1073,6 +1074,7 @@ int doit(const prb_t &prb, res_t *res) {
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
         SAFE(init_prim(tmp_prim, init_pd, &prb, res, FLAG_BWD), WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+        if (is_bench_mode(INIT)) return OK;
         prim.reset(tmp_prim.release());
 
         auto const_bpd = query_pd(prim);

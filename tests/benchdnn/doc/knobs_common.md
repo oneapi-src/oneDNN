@@ -58,6 +58,7 @@ The following common options are supported:
     - `PO` or `po` for profiling-based performance testing (GPU only),
     - `CP` or `cp` for both correctness and performance testing,
     - `R` or `r` for run mode.
+    - `I` or `i` for initialization mode.
     - `L` or `l` for listing mode.
   Refer to [modes](benchdnn_general_info.md) for details.
 
