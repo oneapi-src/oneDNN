@@ -97,13 +97,6 @@ struct ref_sum_t : public gpu_primitive_t {
             CHECK(create_nested_primitive(
                     reorders_[i], pd()->reorder_pds_[i], engine));
         }
-
-        const size_t n_inputs = pd()->n_inputs();
-        scales_.resize(n_inputs);
-        for (size_t i = 0; i < n_inputs; ++i)
-            scales_[i] = std::make_shared<memory_t>(
-                    engine, &pd()->scale_md_, nullptr);
-
         return status::success;
     }
 
@@ -151,11 +144,12 @@ struct ref_sum_t : public gpu_primitive_t {
         memory_arg_t dst_acc = {p_temp_dst_acc.get(), false};
 
         for (int i = 0; i < n; ++i) {
-            scales_[i]->set_data_handle(CTX_GPU_RES_STORAGE(i).data_handle());
+            memory_t scales_mem(
+                    ctx.stream()->engine(), &pd()->scale_md_, nullptr);
+            scales_mem.set_data_handle(CTX_GPU_RES_STORAGE(i).data_handle());
             r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
             r_args[DNNL_ARG_DST] = pd()->need_output_reorder() ? dst_acc : dst;
-            r_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC]
-                    = {scales_[i].get(), true};
+            r_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC] = {&scales_mem, true};
             exec_ctx_t r_ctx(ctx, std::move(r_args));
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + i, reorders_[i]);
@@ -183,7 +177,6 @@ struct ref_sum_t : public gpu_primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::vector<std::shared_ptr<primitive_t>> reorders_;
-    std::vector<std::shared_ptr<memory_t>> scales_;
 };
 
 } // namespace ocl
