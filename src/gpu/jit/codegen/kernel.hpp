@@ -638,20 +638,23 @@ public:
 
     // Emulates integer division by a constant.
     // Requirements:
-    //     0 <= x <= UINT32_MAX
-    //     0 <  y <= INT32_MAX
+    //     INT32_MIN <= x <= UINT32_MAX
+    //     0         <  y <= INT32_MAX
     // Computes:
     //     qot = x / y
     //     rem = x % y
     void eidiv(const ngen::InstructionModifier &mod, const ngen::RegData &qot,
             const ngen::RegData &rem, const ngen::RegData &x, uint32_t y) {
+        bool x_signed = utils::one_of(x.getType(), ngen::DataType::b,
+                ngen::DataType::w, ngen::DataType::d);
+        auto div_type = (x_signed ? ngen::DataType::d : ngen::DataType::ud);
         ir_assert(x.getHS() == 0);
         if (ngen::utils::is_zero_or_pow2(y)) {
             auto _x = get_subregister(x);
             if (x.getNeg()) {
                 // Negation modifier has bitwise semantics with shr/and so x
                 // needs to be arithmetically negated first.
-                _x = ra_.alloc_sub(x.getType());
+                _x = ra_.alloc_sub(div_type);
                 mov(1, _x, x);
             }
             if (!qot.isInvalid()) shr(mod, qot, _x, ngen::utils::log2(y));
@@ -663,14 +666,15 @@ public:
         uint32_t m = 0, p = 0;
         eidiv_magicgu(y, m, p);
 
-        auto x_tmp = ra_.alloc().ud();
-        auto qot_tmp = ra_.alloc().ud();
+        auto x_tmp = ra_.alloc().retype(div_type);
+        auto qot_tmp = ra_.alloc().retype(div_type);
         auto _x = x_tmp[0];
         auto _qot = qot_tmp[0];
         mov(1, _x, x);
 
         // qot = (x * m) >> p
-        mul(1, acc0.ud(0), _x, m & 0xFFFF);
+        auto acc = acc0.retype(div_type);
+        mul(1, acc[0], _x, m & 0xFFFF);
         mach(1, _qot, _x, m);
         shr<uint32_t>(1, _qot, _qot, p - 32);
         if (!qot.isInvalid()) mov(mod, qot, _qot);

@@ -1753,8 +1753,6 @@ struct op_traits_t {};
 DECL_OP_TRAITS(op_kind_t::_add, +)
 DECL_OP_TRAITS(op_kind_t::_sub, -)
 DECL_OP_TRAITS(op_kind_t::_mul, *)
-DECL_OP_TRAITS(op_kind_t::_div, /)
-DECL_OP_TRAITS(op_kind_t::_mod, %)
 
 DECL_OP_TRAITS(op_kind_t::_eq, ==)
 DECL_OP_TRAITS(op_kind_t::_ne, !=)
@@ -1770,6 +1768,36 @@ struct op_traits_t<op_kind_t::_min> {
     template <typename T>
     static T compute(T a, T b) {
         return std::min(a, b);
+    }
+};
+
+// Integer division/modulo operation in IR has the following
+// behavior/restrictions:
+// - Rounding is done towards -inf (different from C/C++)
+//   - Example: -1 / 2 = -1 and -1 % 2 = 1
+// - Modulus must be positive
+template <>
+struct op_traits_t<op_kind_t::_div> {
+    template <typename T,
+            typename
+            = typename std::enable_if<std::is_integral<T>::value>::type>
+    static auto compute(T a, T b) -> decltype(a / b) {
+        ir_assert(b > 0);
+        int r = a % b;
+        int d = a / b;
+        if (r < 0) d--;
+        return d;
+    }
+};
+
+template <>
+struct op_traits_t<op_kind_t::_mod> {
+    template <typename T>
+    static auto compute(T a, T b) -> decltype(a % b) {
+        ir_assert(b > 0);
+        int r = a % b;
+        if (r < 0) r += b;
+        return r;
     }
 };
 
