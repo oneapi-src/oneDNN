@@ -44,10 +44,6 @@ static bool has_output_use(const sc_op *op) {
     return false;
 }
 
-static expr cast_to_s32(const expr &in) {
-    return builder::make_cast(datatypes::s32, in);
-}
-
 static bool is_dynamic_reorder_inplace(sc_op *op, const context_ptr &ctx) {
     COMPILE_ASSERT(
             ctx->machine_.device_type_ == runtime::target_machine_t::type::cpu,
@@ -2923,9 +2919,9 @@ bool reorder_op_t::support_optmized_kernel(const context_ptr &ctx) const {
 void reorder_op_t::compute_block(context_ptr ctx,
         const std::vector<tensor_slice *> &dst,
         const std::vector<const tensor_slice *> &inputs) {
-    bool is_innermost_dim_strided
-            = info_.inputs_[0]->details_.get_strides().back() != 1
-            || info_.outputs_[0]->details_.get_strides().back() != 1;
+    bool is_innermost_dim_strided = !is_dynamic()
+            && (info_.inputs_[0]->details_.get_strides().back() != 1
+                    || info_.outputs_[0]->details_.get_strides().back() != 1);
     size_t wkld = compute_fusible_workload(ctx, dst, inputs);
     auto &input_format = info_.inputs_[0]->details_.get_format();
     auto &output_format = info_.outputs_[0]->details_.get_format();

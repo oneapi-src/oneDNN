@@ -570,6 +570,12 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
      * */
     // use src_indices.at(0) as default
     auto &src_idx = src_indices.at(0);
+    // TODO(xxx): need more detailed judgement for `last_dim = 1` case
+    int last_dim = -1;
+    auto &dim_tmp = src[0]->get_shape().back();
+    if (dim_tmp.isa<constant>()) {
+        last_dim = get_const_as_int(dim_tmp.checked_as<constant_c>());
+    }
 
     for (unsigned i = 0; i < src.at(0)->nslice_dims(); i++) {
         iter_vars.emplace_back(builder::make_var(datatypes::index,
@@ -585,17 +591,35 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
             dst_idx.emplace_back(iter_vars.at(i));
         }
     }
+    // need mask
+    expr mask;
+    stmt mask_def;
+    int lanes = static_cast<int>(vx_info.lanes);
+    if (last_dim == 1) {
+        lanes = 1;
+    } else if (last_dim % lanes) {
+        if (rd_op == reduce_operator::add) {
+            auto cur_step = builder::make_min(
+                    builder::make_max(cast_to_s32(src[0]->get_shape().back())
+                                    - cast_to_s32(src_idx.back()),
+                            0),
+                    lanes);
+            mask = generate_mask_var_by_step(mask_def, cur_step, lanes);
+        } else {
+            lanes = 1;
+        }
+    }
     dst_idx = !dst_idx.empty() ? dst_idx : std::vector<expr> {expr {0}};
-    expr indexed_target = builder::make_indexing(
-            dst.tptr_, dst_idx, !last_axis_reduce ? vx_info.lanes : 1);
+    expr indexed_target = builder::make_indexing(dst.tptr_, dst_idx,
+            !last_axis_reduce ? lanes : 1, !last_axis_reduce ? mask : expr());
     expr indexed_input = builder::make_indexing(
-            src.at(0)->tptr_, src_indices.at(0), vx_info.lanes);
+            src.at(0)->tptr_, src_indices.at(0), lanes, mask);
 
     auto bld = builder::get_current_builder();
     COMPILE_ASSERT(bld, "No active builder is set");
     stmt body, cur;
     auto reduce_value
-            = builder::make_var(sc_data_type_t(dtype.type_code_, vx_info.lanes),
+            = builder::make_var(sc_data_type_t(dtype.type_code_, lanes),
                     "reduce_" + fusion_create_var_idx());
     stmt asnode;
     variant<float, int64_t> init_value;
@@ -623,21 +647,21 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
     if (dtype.type_code_ == sc_data_etype::F32) {
         asnode = make_stmt<assign_node_t>(reduce_value,
                 make_expr<constant_node>(init_value.get<float>(),
-                        sc_data_type_t(dtype.type_code_, vx_info.lanes)));
+                        sc_data_type_t(dtype.type_code_, lanes)));
     } else if (dtype.type_code_ == sc_data_etype::BF16) {
         asnode = make_stmt<assign_node_t>(reduce_value,
                 make_expr<constant_node>(bf16_t(init_value.get<float>()),
-                        sc_data_type_t(dtype.type_code_, vx_info.lanes)));
+                        sc_data_type_t(dtype.type_code_, lanes)));
     } else if (dtype.type_code_ == sc_data_etype::U8
             || dtype.type_code_ == sc_data_etype::U32) {
         asnode = make_stmt<assign_node_t>(reduce_value,
                 make_expr<constant_node>(uint64_t(init_value.get<int64_t>()),
-                        sc_data_type_t(dtype.type_code_, vx_info.lanes)));
+                        sc_data_type_t(dtype.type_code_, lanes)));
     } else if (dtype.type_code_ == sc_data_etype::S8
             || dtype.type_code_ == sc_data_etype::S32) {
         asnode = make_stmt<assign_node_t>(reduce_value,
                 make_expr<constant_node>(init_value.get<int64_t>(),
-                        sc_data_type_t(dtype.type_code_, vx_info.lanes)));
+                        sc_data_type_t(dtype.type_code_, lanes)));
     } else {
         COMPILE_ASSERT(0, "unsupported dtype.");
     }
@@ -685,10 +709,16 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
         body = cur.isa<stmts>()
                 ? cur
                 : make_stmt<stmts_node_t>(std::vector<stmt> {std::move(cur)});
+        // insert mask define.
+        if (i == static_cast<int>(src.at(0)->nslice_dims() - 1)
+                && mask_def.defined()) {
+            auto &seq = body.static_as<stmts>()->seq_;
+            seq.insert(seq.begin(), mask_def);
+        }
         cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)), expr(0),
                 src.at(0)->get_shape().at(i),
                 i == static_cast<int>(src.at(0)->nslice_dims() - 1)
-                        ? expr(static_cast<int>(vx_info.lanes))
+                        ? expr(static_cast<int>(lanes))
                         : expr(1),
                 std::move(body), true, for_type::NORMAL);
         // the outer-most reduction axis
@@ -697,28 +727,28 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
                 cur = make_stmt<stmts_node_t>(std::vector<stmt> {define_reduce,
                         asnode, std::move(cur),
                         make_stmt<assign_node_t>(indexed_target,
-                                vx_info.lanes > 1 && last_axis_reduce
+                                lanes > 1 && last_axis_reduce
                                         ? builder::make_reduce_add(reduce_value)
                                         : reduce_value)});
             } else if (rd_op == reduce_operator::mul) {
                 cur = make_stmt<stmts_node_t>(std::vector<stmt> {define_reduce,
                         asnode, std::move(cur),
                         make_stmt<assign_node_t>(indexed_target,
-                                (vx_info.lanes > 1 && last_axis_reduce)
+                                (lanes > 1 && last_axis_reduce)
                                         ? builder::make_reduce_mul(reduce_value)
                                         : reduce_value)});
             } else if (rd_op == reduce_operator::max) {
                 cur = make_stmt<stmts_node_t>(std::vector<stmt> {define_reduce,
                         asnode, std::move(cur),
                         make_stmt<assign_node_t>(indexed_target,
-                                (vx_info.lanes > 1 && last_axis_reduce)
+                                (lanes > 1 && last_axis_reduce)
                                         ? builder::make_reduce_max(reduce_value)
                                         : reduce_value)});
             } else if (rd_op == reduce_operator::min) {
                 cur = make_stmt<stmts_node_t>(std::vector<stmt> {define_reduce,
                         asnode, std::move(cur),
                         make_stmt<assign_node_t>(indexed_target,
-                                (vx_info.lanes > 1 && last_axis_reduce)
+                                (lanes > 1 && last_axis_reduce)
                                         ? builder::make_reduce_min(reduce_value)
                                         : reduce_value)});
             }
@@ -807,18 +837,9 @@ void reduce_op_t::compute_block(context_ptr ctx,
     auto real_rd_axis = get_rd_axis();
     // set default vectorized information
     vx_info_.axis = dst[0]->get_shape().size() - 1;
-    vx_info_.lanes = 1;
-    // TODO(xxx): need more detailed judgement for `last_dim = 1` case
-    int last_dim = 1;
-    auto &dim_tmp = inputs[0]->get_shape().back();
-    if (dim_tmp.isa<constant>()) {
-        last_dim = get_const_as_int(dim_tmp.checked_as<constant_c>());
-    }
     auto vector_lanes
             = vectorize_step(ctx, info_.inputs_[0]->details_.dtype_.type_code_);
-    if (last_dim / vector_lanes && last_dim % vector_lanes == 0) {
-        vx_info_.lanes = vector_lanes;
-    }
+    vx_info_.lanes = vector_lanes;
 
     compute_block_reduce(inputs, *dst[0], rd_op_, real_rd_axis, keep_dims_,
             vx_info_, info_.inputs_[0]->details_.dtype_, attrs_, wkld,

@@ -25,6 +25,7 @@
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
+#include <ops/reshape.hpp>
 
 namespace sc {
 
@@ -36,7 +37,8 @@ void tensor_view_push_back(sc_graph_t &graph, const context_ptr &ctx) {
         bool changed = false;
         auto vis = op_visitor_t::bfs();
         vis.visit_graph(graph, [&](const sc_op_ptr &node) {
-            if (node->isa<tensor_view_op_t>() || node->isa<transpose_op_t>()) {
+            if (node->isa<tensor_view_op_t>() || node->isa<transpose_op_t>()
+                    || node->isa<ops::dynamic_reshape_op>()) {
                 auto cur_node = node;
                 auto details = node->get_inputs()[0]->details_;
                 while (cur_node->is_single_output_single_use()) {

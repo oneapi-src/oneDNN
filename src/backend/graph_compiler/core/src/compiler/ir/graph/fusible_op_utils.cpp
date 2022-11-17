@@ -805,4 +805,8 @@ bool slice_divisible_on_axis(
     return true;
 }
 
+expr cast_to_s32(const expr &in) {
+    return builder::make_cast(datatypes::s32, in);
+}
+
 } // namespace sc

@@ -141,7 +141,7 @@ static constexpr size_t workload_penalty_coefficient = 16UL;
 
 float evaluate_loop_parallel_balance(const sc_dims &loop_ranges);
 float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops);
-
+expr cast_to_s32(const expr &in);
 } // namespace sc
 
 #endif

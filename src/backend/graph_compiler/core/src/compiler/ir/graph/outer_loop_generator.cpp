@@ -72,12 +72,13 @@ static void fuse_outer_loops(for_loop outer_loop, bool is_dynamic = false) {
     size_t end = loops.size() - 1;
     if (is_dynamic) {
         // todo: for vnni reorder
+        if (loops.size() >= 4) { end = loops.size() - 2; }
         if (loops.back()->iter_end_.isa<constant>()
                 && loops.back()->iter_begin_.isa<constant>()
                 && (get_expr_as_int(loops.back()->iter_end_)
                            - get_expr_as_int(loops.back()->iter_begin_))
                         < 16) {
-            end = loops.size() - 2;
+            end = 3;
         }
     }
     for (size_t i = 1; i < end; i++) {
@@ -236,7 +237,13 @@ static std::vector<int> continuous_access_satisfaction(
     }
     // input tensor is too small that can not fill up a cache line.
     // No need to change loop axis.
-    if (fill_up_dim == 0) { return in_axis; }
+    if (fill_up_dim == 0) {
+        if (!graph.is_dynamic()) {
+            return in_axis;
+        } else {
+            fill_up_dim = static_cast<int>(tsr->dims_.size()) - 1;
+        }
+    }
     std::vector<int> out_axis(in_axis.begin(), in_axis.end());
     for (int i = fill_up_dim; i < static_cast<int>(tsr->dims_.size()); i++) {
         auto rend = std::remove(out_axis.begin(), out_axis.end(), i);
