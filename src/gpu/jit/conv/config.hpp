@@ -421,8 +421,26 @@ public:
         return compute_unnormalized_;
     }
 
+    const std::string &user_unnormalized_overridden_tag() const {
+        return user_unnormalized_overridden_tag_;
+    }
+    const std::string &compute_unnormalized_overridden_tag() const {
+        return compute_unnormalized_overridden_tag_;
+    }
+
     void set_from_str(const std::string &s) override {
-        ir_error_not_implemented();
+        auto parts = ir_utils::split(s, ".");
+        switch ((int)parts.size()) {
+            case 1:
+                compute_unnormalized_overridden_tag_ = parts[0];
+                user_unnormalized_overridden_tag_ = parts[0];
+                break;
+            case 2:
+                compute_unnormalized_overridden_tag_ = parts[0];
+                user_unnormalized_overridden_tag_ = parts[1];
+                break;
+            default: ir_error_not_expected();
+        }
     }
 
     void set_user(const layout_t &l) { user_ = l; }
@@ -437,6 +455,8 @@ private:
     layout_t compute_;
     layout_t user_unnormalized_;
     layout_t compute_unnormalized_;
+    std::string user_unnormalized_overridden_tag_;
+    std::string compute_unnormalized_overridden_tag_;
 };
 
 inline std::unordered_map<std::string, int> to_map(const std::string &s) {
@@ -773,12 +793,23 @@ public:
     std::string desc() const override { return "Parameters for prefetching."; }
 
     int bufs() const { return bufs_; }
+    bool a() const { return a_; }
+    bool b() const { return b_; }
 
     operator bool() const { return bufs_ > 0; }
 
     void set_from_str(const std::string &s) override {
+        a_ = false;
+        b_ = false;
+        bool ab_set = false;
         auto parts = ir_utils::split(s, ".");
         for (auto &p : parts) {
+            if (utils::one_of(p, "a", "b", "ab", "ba")) {
+                ab_set = true;
+                a_ = p.find("a") != std::string::npos;
+                b_ = p.find("b") != std::string::npos;
+                continue;
+            }
             ir_assert(p.size() >= 2) << p;
             char name = p[0];
             int value = std::stoi(p.substr(1));
@@ -787,15 +818,29 @@ public:
                 default: ir_error_not_expected() << p;
             }
         }
+        if (!ab_set && bufs_ > 0) {
+            a_ = true;
+            b_ = true;
+        }
     }
 
-    void set(int bufs) { bufs_ = bufs; }
+    void set(int bufs) {
+        bufs_ = bufs;
+        if (bufs_ > 0) {
+            a_ = true;
+            b_ = true;
+        }
+    }
 
     void set_a(bool a) { a_ = a; }
     void set_b(bool b) { b_ = b; }
 
 private:
     int bufs_ = 0;
+    // Whether prefetch for A is enabled.
+    bool a_ = false;
+    // Whether prefetch for B is enabled.
+    bool b_ = false;
 };
 
 class reduce_b_param_t : public bool_param_t {

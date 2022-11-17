@@ -790,6 +790,23 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
         user_wei_tag = prepend_groups_to_tag(user_wei_tag);
     }
 
+    auto &src = cfg.src_layout();
+    auto &wei = cfg.wei_layout();
+    auto &dst = cfg.dst_layout();
+    auto &bia = cfg.bia_layout();
+    if (src.is_overridden()) {
+        src_tag = src.compute_unnormalized_overridden_tag();
+        user_src_tag = src.compute_unnormalized_overridden_tag();
+    }
+    if (wei.is_overridden()) {
+        wei_tag = wei.compute_unnormalized_overridden_tag();
+        user_wei_tag = wei.compute_unnormalized_overridden_tag();
+    }
+    if (dst.is_overridden()) {
+        dst_tag = dst.compute_unnormalized_overridden_tag();
+        user_dst_tag = dst.compute_unnormalized_overridden_tag();
+    }
+
     // Select user layouts.
     auto user_src_layout = init_layout(src_md, user_src_tag);
     auto user_wei_layout = init_layout(wei_md, user_wei_tag);
@@ -819,11 +836,6 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
         if (prb.bia_data_type == data_type::bf16)
             bia_layout = bia_layout.retype(type_t::f32());
     }
-
-    auto &src = cfg.src_layout();
-    auto &wei = cfg.wei_layout();
-    auto &dst = cfg.dst_layout();
-    auto &bia = cfg.bia_layout();
 
     src.set_compute_unnormalized(src_layout);
     src.set_user_unnormalized(user_src_layout);
@@ -2144,7 +2156,7 @@ void conv_config_t::override_set(const std::string &s) {
                 break;
             }
         }
-        ir_assert(found) << p;
+        if (!found) ir_warning() << "Unknown parameter: " << p << std::endl;
     }
 }
 
