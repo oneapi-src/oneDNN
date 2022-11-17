@@ -452,8 +452,7 @@ expr_t grid_splitter_t::pop_block(int size) {
     return idx_expr;
 }
 
-stride_t tdim_info_t::compute_stride(
-        const expr_t &e, int idx, const expr_t &var) {
+stride_t tdim_t::compute_stride(const expr_t &e, int idx, const expr_t &var) {
     // e == var -> fixed stride.
     if (e.is_same(var)) return stride_t(1);
 

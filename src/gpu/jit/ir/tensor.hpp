@@ -1378,12 +1378,11 @@ inline std::ostream &operator<<(
     return out;
 }
 
-class tdim_info_t {
+class tdim_t {
 public:
-    tdim_info_t() = default;
+    tdim_t() = default;
 
-    tdim_info_t(const expr_t &expr, const expr_t &mask)
-        : expr_(expr), mask_(mask) {}
+    tdim_t(const expr_t &expr, const expr_t &mask) : expr_(expr), mask_(mask) {}
 
     int nvargs() const { return nvargs_; }
 
@@ -1457,7 +1456,7 @@ private:
     expr_t mask_;
 };
 
-inline std::ostream &operator<<(std::ostream &out, const tdim_info_t &tdim) {
+inline std::ostream &operator<<(std::ostream &out, const tdim_t &tdim) {
     out << tdim.str();
     return out;
 }
@@ -1520,7 +1519,7 @@ public:
         return vvars_[idx];
     }
 
-    const tdim_info_t &tdim(int idx) const {
+    const tdim_t &tdim(int idx) const {
         ir_assert(idx < ntdims());
         return tdims_[idx];
     }
@@ -1530,7 +1529,7 @@ public:
 
         auto texpr = simplify(_texpr);
 
-        tdim_info_t tdim(texpr, mask);
+        tdim_t tdim(texpr, mask);
         for (int i = 0; i < nvdims(); i++) {
             if (contains_object(texpr, vvars_[i])) tdim.add_vvar(i, vvars_[i]);
         }
@@ -1853,9 +1852,7 @@ public:
         buf_view.set_tlayout(tlayout_);
     }
 
-    static const expr_t &placeholder_var() {
-        return tdim_info_t::placeholder_var();
-    }
+    static const expr_t &placeholder_var() { return tdim_t::placeholder_var(); }
 
     static std::vector<expr_t> create_vvars(int nvdims);
 
@@ -1944,7 +1941,7 @@ private:
     std::vector<dim_t> vdims_;
     std::vector<expr_t> vstart_;
 
-    std::vector<tdim_info_t> tdims_;
+    std::vector<tdim_t> tdims_;
     layout_t tlayout_;
 };
 

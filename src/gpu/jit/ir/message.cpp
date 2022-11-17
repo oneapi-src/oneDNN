@@ -607,8 +607,8 @@ bool access_builder_t::try_build_2d(send_hint_t &send_hint) {
     if (w_tstride != 1) return false;
 
     auto &tlayout = mem_view_.tlayout();
-    auto get_2d_dim = [&](int tdim_idx) {
-        return tlayout.inner_block(tdim_idx, /*skip_outer=*/false);
+    auto get_2d_dim = [&](int tidx) {
+        return tlayout.inner_block(tidx, /*skip_outer=*/false);
     };
 
     int surface_width = 0;
