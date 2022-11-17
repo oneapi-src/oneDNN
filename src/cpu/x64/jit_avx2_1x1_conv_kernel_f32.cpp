@@ -72,7 +72,7 @@ jit_avx2_1x1_conv_kernel_f32::jit_avx2_1x1_conv_kernel_f32(
 }
 
 void jit_avx2_1x1_conv_kernel_f32::generate_bcast_loop(int load_loop_blk) {
-    mov(aux1_reg_bcast_data, reg_bcast_data);
+    mov(aux1_reg_bcast_data, ptr[rsp + reg_bcast_data_off]);
     mov(aux_reg_output_data, reg_output_data);
     mov(bcast_loop_iter, reg_bcast_loop_work);
 
@@ -383,7 +383,6 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
         apply_postops(load_loop_blk, ur, load_dim_tail);
 
         if (jcp.prop_kind == backward_weights && load_dim_tail > 0) {
-            push(reg_bcast_data);
             push(aux_reg_bcast_data);
         }
 
@@ -433,7 +432,6 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
 
         if (jcp.prop_kind == backward_weights && load_dim_tail > 0) {
             pop(aux_reg_bcast_data);
-            pop(reg_bcast_data);
         }
     };
 
@@ -576,6 +574,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate() {
     }
 
     mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
+    mov(ptr[rsp + reg_bcast_data_off], reg_bcast_data);
     mov(reg_load_data, ptr[param1 + GET_OFF(load_data)]);
     mov(reg_output_data, ptr[param1 + GET_OFF(output_data)]);
     if (jcp.with_bias) {
