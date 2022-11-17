@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,7 +69,6 @@ private:
     reg64_t load_loop_iter = r13;
     reg64_t bcast_loop_iter = r14;
     reg64_t reduce_loop_iter = r15;
-    reg64_t imm_addr64 = reduce_loop_iter;
     reg64_t reg_reduce_pos_flag = r8;
     reg64_t reg_output_stride = r12;
     reg64_t reg_bias_data = r12;
