@@ -76,6 +76,7 @@ private:
     reg64_t reg_tmp_output_stride = reg_bcast_data;
     reg64_t reg_tmp = aux_reg_bcast_data;
     reg64_t reg_output_stride_scale = load_loop_iter;
+    reg64_t reg_long_offt = reg_bcast_data;
 
     constexpr static int reg64_size_ = sizeof(int64_t);
     constexpr static int reg_diff_bias_data_stack_offt = 0;
