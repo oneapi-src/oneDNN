@@ -295,11 +295,9 @@ private:
 
 struct zero_points_t : public c_compatible {
     bool operator==(const zero_points_t &rhs) const {
-        auto eq = [](int a, int b) {
-            return a == b || (is_runtime_value(a) && is_runtime_value(b));
-        };
-        return eq(mask_src, rhs.mask_src) && eq(mask_wei, rhs.mask_wei)
-                && eq(mask_dst, rhs.mask_dst);
+        return mask_src == rhs.mask_src && mask_wei == rhs.mask_wei
+                && mask_dst == rhs.mask_dst && is_set_src == rhs.is_set_src
+                && is_set_wei == rhs.is_set_wei && is_set_dst == rhs.is_set_dst;
     }
 
     // arg-specific checks
