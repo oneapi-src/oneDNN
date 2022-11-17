@@ -283,6 +283,43 @@ extern "C" void query_format_tensor_view_op(
     assert(!kernel_table);
 }
 
+extern "C" void query_format_select_op(void *table, void *out, void *in0,
+        void *in1, void *in2, uint64_t *out_fmt, uint64_t *in0_fmt,
+        uint64_t *in1_fmt, uint64_t *in2_fmt, uint64_t *out_size,
+        void *kernel) {
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *in1_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in1);
+    runtime::dynamic_tensor_t *in2_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in2);
+    // update dyn_mask
+    out_dyn_tsr->dyn_mask_ = in1_dyn_tsr->dyn_mask_ | in2_dyn_tsr->dyn_mask_;
+
+    runtime::op_dispatch_tables_t *op_table
+            = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
+    // query format
+    auto &format_table = op_table->format_table_;
+    assert(format_table);
+    uint64_t fmt_keys[3] = {0, 0, *in2_fmt};
+    void *value = format_table->get(fmt_keys, 3);
+    assert(value);
+    *in0_fmt = reinterpret_cast<uint64_t *>(value)[0];
+    *in1_fmt = reinterpret_cast<uint64_t *>(value)[1];
+    *out_fmt = reinterpret_cast<uint64_t *>(value)[3];
+    // query kernel
+    auto &kernel_table = op_table->kernel_table_;
+    if (kernel_table) {
+        uint64_t keys[4] = {*in0_fmt, *in1_fmt, *in2_fmt, *out_fmt};
+        void *func
+                = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 4);
+        assert(func);
+        *reinterpret_cast<void **>(kernel) = func;
+    }
+    // query inplace
+    *out_size = runtime::calculate_blocking_dims(out, out_fmt);
+}
+
 extern "C" void infer_shape_transpose_op(
         void *out, void *in, int *tr_axis, int num_axis) {
     runtime::dynamic_tensor_t *out_dyn_tsr
@@ -322,6 +359,27 @@ extern "C" void infer_shape_tensor_view_op(void *out, void *in,
             old_idx++;
         }
         out_dyn_tsr->dims_[new_idx] = new_axis[new_idx];
+    }
+}
+
+extern "C" void infer_shape_select_op(
+        void *out, void *in0, void *in1, void *in2) {
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *in1_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in1);
+    runtime::dynamic_tensor_t *in2_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in2);
+    bool dims_equal = in1_dyn_tsr->ndims_ == in2_dyn_tsr->ndims_;
+    assert(dims_equal || in2_dyn_tsr->ndims_ == 1);
+    out_dyn_tsr->ndims_ = in1_dyn_tsr->ndims_;
+    for (int i = 0; i < in1_dyn_tsr->ndims_; i++) {
+        if (dims_equal) {
+            out_dyn_tsr->dims_[i]
+                    = std::max(in1_dyn_tsr->dims_[i], in2_dyn_tsr->dims_[i]);
+        } else {
+            out_dyn_tsr->dims_[i] = in1_dyn_tsr->dims_[i];
+        }
     }
 }
 

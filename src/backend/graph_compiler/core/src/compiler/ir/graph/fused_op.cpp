@@ -44,6 +44,7 @@
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
+#include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <ops/matmul_core.hpp>
 #include <runtime/config.hpp>
@@ -1005,6 +1006,14 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
             bld.push_evaluate(builtin::call_tensor_view_op_query_format(
                     table_var, op_outs[0].tensor_, op_ins[0].tensor_,
                     op_outs[0].format_, op_ins[0].format_, op_outs[0].size_,
+                    dummy_kernel));
+        } else if (op->isa<select_op_t>()) {
+            add_global_table_var(table_name, table_ptr, table_var);
+            initialize_format_table_with_op(op, table_ptr);
+            bld.push_evaluate(builtin::call_select_op_query_format(table_var,
+                    op_outs[0].tensor_, op_ins[0].tensor_, op_ins[1].tensor_,
+                    op_ins[2].tensor_, op_outs[0].format_, op_ins[0].format_,
+                    op_ins[1].format_, op_ins[2].format_, op_outs[0].size_,
                     dummy_kernel));
         } else {
             COMPILE_ASSERT(false,

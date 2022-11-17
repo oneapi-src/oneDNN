@@ -49,6 +49,7 @@ public:
     int get_max_input() const;
 
     const std::vector<int> &get_plain_bc_axis() const { return plain_bc_axis_; }
+    shape_rl_vec get_dynamic_shape_relations() const override;
 
 protected:
     std::vector<int> plain_bc_axis_;
