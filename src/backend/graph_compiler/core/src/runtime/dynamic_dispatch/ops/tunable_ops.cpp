@@ -26,37 +26,8 @@ static int check_and_set_matmul_impl(runtime::dynamic_tensor_t *data_dyn_tsr,
         runtime::dispatch_key *data_fmt_st,
         runtime::dispatch_key *weight_fmt_st,
         runtime::dispatch_key *out_fmt_st) {
-    // Currently we only check padding or not
-    int impl_alg = impl_kind_t::no_padding;
-    auto simd_length = std::min(UINT64_C(16),
-            static_cast<uint64_t>(
-                    runtime::get_runtime_target_machine()
-                            .cpu_flags_.get_max_vector_lanes(
-                                    sc_data_etype(data_dyn_tsr->dtype_))));
-    int ndims = data_dyn_tsr->ndims_;
-    if (data_dyn_tsr->dims_[ndims - 2] < data_fmt_st->get_block1()
-            || weight_dyn_tsr->dims_[ndims - 1] < weight_fmt_st->get_block2()) {
-        impl_alg = impl_kind_t::normal;
-    }
-    for (int i = 0; i < data_dyn_tsr->ndims_; i++) {
-        if (data_dyn_tsr->dims_[i] % simd_length) {
-            impl_alg = impl_kind_t::normal;
-            break;
-        }
-    }
-
-    if (impl_alg == impl_kind_t::no_padding) {
-        for (int i = 0; i < weight_dyn_tsr->ndims_; i++) {
-            if (weight_dyn_tsr->dims_[i] % simd_length) {
-                impl_alg = impl_kind_t::normal;
-                break;
-            }
-        }
-    }
-    data_fmt_st->set_impl_alg(impl_alg);
-    weight_fmt_st->set_impl_alg(impl_alg);
-    out_fmt_st->set_impl_alg(impl_alg);
-    return impl_alg;
+    // todo: add managed matmul impl alg here.
+    return impl_kind_t::normal;
 }
 
 extern "C" void infer_shape_matmul_op(void *out, void *data, void *weight) {
@@ -142,8 +113,8 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
 
     int M_blk, N_blk, K_blk;
     M_blk = runtime::get_dyn_cfg_single(M, true);
-    K_blk = runtime::get_dyn_cfg_single(K, true);
-    N_blk = runtime::get_dyn_cfg_single(N, true);
+    K_blk = runtime::get_dyn_cfg_single(K);
+    N_blk = runtime::get_dyn_cfg_single(N);
 
     auto &format_table = op_table->format_table_;
     if (data_fmt_st->is_plain() || data_fmt_st->ndims() == data_ndims) {

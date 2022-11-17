@@ -75,16 +75,18 @@ union dispatch_key {
         : storage_ {0} {
         impl_alg_ = impl_alg;
         is_plain_ = is_plain;
-        if (block1 % 16 == 0 && block2 % 16 == 0 && block1 <= 64
-                && block2 <= 64) {
+        if (block1 % 16 == 0 && block1 <= 64) {
             block1_ = 0;
-            block2_ = 0;
             block_idx1_ = block1 ? (block1 / 16 - 1) : 0;
-            block_idx2_ = block2 ? (block2 / 16 - 1) : 0;
         } else {
             block1_ = block1;
-            block2_ = block2;
             block_idx1_ = 0;
+        }
+        if (block2 % 16 == 0 && block2 <= 64) {
+            block2_ = 0;
+            block_idx2_ = block2 ? (block2 / 16 - 1) : 0;
+        } else {
+            block2_ = block2;
             block_idx2_ = 0;
         }
         format_kind_ = format_kind;
