@@ -81,7 +81,8 @@ private:
     constexpr static int reg_diff_bias_data_stack_offt = 0;
     constexpr static int reg_binary_post_op_acc_off = 1 * reg64_size_;
     constexpr static int reg_abi_param1_backup = 2 * reg64_size_;
-    constexpr static int stack_space_needed = 3 * reg64_size_;
+    constexpr static int reg_bcast_data_off = 3 * reg64_size_;
+    constexpr static int stack_space_needed = 4 * reg64_size_;
 
     ymm_t vreg_bcast = ymm_t(15);
     ymm_t vtmp = ymm_t(14);
