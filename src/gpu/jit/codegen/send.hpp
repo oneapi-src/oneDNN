@@ -96,7 +96,7 @@ public:
                 emit_load_or_store(host, mod, ngen::block_hword(elems),
                         address_base, header, data);
                 break;
-            default: ir_error_not_expected();
+            default: ir_error_not_expected() << send_.type;
         }
     }
 

@@ -29,6 +29,7 @@ namespace jit {
 
 // Send operation kind.
 enum class send_op_t {
+    undef,
     atomic_fadd,
     load,
     load_2d,
@@ -179,8 +180,8 @@ public:
         std::ostringstream oss;
         oss << op;
         oss << ".";
-        if (is_scattered()) oss << slots << "x";
         oss << type.str();
+        if (is_scattered()) oss << "x" << slots;
         if (is_2d()) oss << "." << block_2d_info.str();
         if (cache_hint != send_cache_hint_t::undef) oss << "." << cache_hint;
         return oss.str();
@@ -241,8 +242,7 @@ public:
 
     int payload_type_stride() const {
         ir_assert(!is_2d());
-        if (type.kind() == type_kind_t::byte) return 4;
-        return type.size();
+        return std::max(4, type.size());
     }
 
     // Full size of payload GRF buffer for this message. Buffer may be strided
@@ -276,9 +276,8 @@ public:
     int nmasks() const {
         if (is_2d()) return 1;
         int masks = ir_utils::safe_divide(type.size() * slots, mask_size());
-        if (masks > 16) {
-            ir_assert(is_block())
-                    << "Round-robin masking applies to block messages only.";
+        if (hw < ngen::HW::XeHPC && is_block() && masks > 16) {
+            // Round-robin masking, 16 bits are reused with dword granularity.
             ir_assert(masks % 16 == 0);
             masks = 16;
         }

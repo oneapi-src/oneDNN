@@ -18,6 +18,7 @@
 
 #include "gpu/jit/ir/block_2d_utils.hpp"
 #include "gpu/jit/ir/ir.hpp"
+#include "gpu/jit/ir/send_plan.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,6 +35,7 @@ std::ostream &operator<<(std::ostream &out, const send_op_t op) {
         case send_op_t::prefetch_2d: s = "prefetch_2d"; break;
         case send_op_t::store: s = "store"; break;
         case send_op_t::store_2d: s = "store_2d"; break;
+        case send_op_t::undef: s = "undef"; break;
         default: ir_error_not_expected(); s = "unknown";
     }
 
@@ -483,6 +485,15 @@ access_builder_t::access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
     , mem_type_(mem_view.type())
     , mem_walker_(
               utils::make_unique<memory_walker_t>(ir_ctx.cset(), mem_view)) {
+    if (send_hint.use_send_plan) {
+        auto sp = create_send_plan(ir_ctx.hw_cfg(), mem_view, send_hint);
+        if (sp && !sp.is_2d()) send_hint.hint_2d = send_2d_hint_t();
+        if (!sp) return;
+        reg_layout_ = sp.reg_layout();
+        reg_buf_size_ = sp.reg_buf_size();
+        stmt_ = sp.create_stmt(send_hint, mem_buf, reg_buf);
+        return;
+    }
     if (send_hint.hint_2d.enable) {
         if (try_build_2d(send_hint)) return;
     }
@@ -1103,8 +1114,17 @@ send_hint_t get_send_hint(send_op_t send_op, send_address_t send_address,
     hint.mem_type = view.type();
     hint.send_op = send_op;
     hint.send_address = send_address;
+    hint.use_send_plan = true;
     hint.cache_hint = cache_hint;
 
+    for (int i = 0; hint.use_send_plan && i < view.ntdims(); i++) {
+        auto &tdim = view.tdim(i);
+        for (int j = 0; j < tdim.nvargs(); j++)
+            if (tdim.vstride(j).is_unknown()) {
+                hint.use_send_plan = false;
+                break;
+            }
+    }
     if (fma_kind == fma_kind_t::dpas && abc_kind == abc_kind_t::a) {
         hint.prefer_dense = true;
     }
@@ -1159,6 +1179,27 @@ send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
         if (b0.block >= 128) return hint;
         hint = get_send_2d_hint(
                 send_op, view.type(), false, false, b0.block, b1.block);
+    }
+
+    // XXX: Special VNNI permute hint to use with Xa16b:bf16 layout which can't
+    // be loaded as is due to 2D send width limitations.
+    // Surface width must be >= 64 bytes. For smaller width we can apply
+    // reshape, e.g. [16a] x [16b] -> [8a] x [2a16b] to have block with larger
+    // width. Such reshape impacts width/height handling with the following
+    // implications:
+    // - Reshape is applied only for VNNI and no transpose case. This allows to
+    //   get the same GRF layout but with permuted height elements:
+    //     - Layout without reshape: 8a16b2a
+    //     - Layout with    reshape: 8a16b2a (a/height dimension is permuted)
+    // - Permutation is safe when it's done for the reduction dimension
+    //   (doesn't matter in which order elements are accumulated).
+    // - Permutation pattern must be the same between A and B tensors
+    if (use_send_plan && send_op == send_op_t::load && hint.vnni
+            && !hint.transpose && view.type().size() == 2
+            && utils::one_of(abc_kind, abc_kind_t::a, abc_kind_t::b)
+            && b0.block == 16 && (dim_t)b1.stride == 16
+            && utils::one_of(b1.block, 8, 16, 32)) {
+        hint.vnni_permute_factor = 2;
     }
 
     return hint;
