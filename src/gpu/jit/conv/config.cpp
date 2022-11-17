@@ -1775,6 +1775,9 @@ void init_prefetch(conv_config_t &cfg) {
     if (!use_prefetch) return;
 
     cfg.prefetch().set(prb.is_f32_conv() ? 2 : 3);
+    if (!prb.is_bwd_d && is_small_ic(prb) && cfg.is_dp_fma()) {
+        cfg.prefetch().set_a(false);
+    }
 }
 
 void init_allow_grf_reorder(conv_config_t &cfg) {
