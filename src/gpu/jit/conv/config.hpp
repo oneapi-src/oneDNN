@@ -791,6 +791,9 @@ public:
 
     void set(int bufs) { bufs_ = bufs; }
 
+    void set_a(bool a) { a_ = a; }
+    void set_b(bool b) { b_ = b; }
+
 private:
     int bufs_ = 0;
 };

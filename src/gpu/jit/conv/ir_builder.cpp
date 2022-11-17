@@ -1986,8 +1986,8 @@ public:
                 ap_gmem_view, ap_buf_, a_slm_buf, ap_x_view, g2s_ctx_);
         prepare_gmem_to_slm("B", cfg_.slm().b(), gemm_schedule_.b_tg_tile(),
                 bp_gmem_view, bp_buf_, b_slm_buf, bp_x_view, g2s_ctx_);
-        prepare_prefetch("A", cfg_.prefetch(), ap_gmem_view, ap_buf_);
-        prepare_prefetch("B", cfg_.prefetch(), bp_gmem_view, bp_buf_);
+        prepare_prefetch("A", cfg_.prefetch().a(), ap_gmem_view, ap_buf_);
+        prepare_prefetch("B", cfg_.prefetch().b(), bp_gmem_view, bp_buf_);
 
         if (ap_x_view.is_empty()) ap_x_view = ap_gmem_view;
         if (bp_x_view.is_empty()) bp_x_view = bp_gmem_view;
