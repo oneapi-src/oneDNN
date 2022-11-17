@@ -36,6 +36,63 @@
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb14ic8_ih640oh320kh2sh2dh0ph0_iw1024ow512kw2sw2dw0pw0n"cosmictagger.tr.fp32.tf.mb14_pvc*3"
 #seresnext50.inf.fp32.pt.mb1024_pvc
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=ABcd16a16b mb1024ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"seresnext50.inf.fp32.pt.mb1024_pvc*1"
+#mma.tr.tf32.tf.mb32
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=ABcd16a16b mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+#mma.tr.tf32.tf.mb32
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_I --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_I --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_I --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_I --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih118oh29kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic256_ih473oh118kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic128_ih2014oh503kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=FWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_D --alg=max --tag=acdb mb32ic64_ih8177oh2044kh4sh4dh0ph0_iw1ow1kw1sw1dw0pw0n"mma.tr.tf32.tf.mb32*1"
+#kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb6ic64_ih448oh224kh3sh2dh0ph1_iw336ow168kw3sw2dw0pw1n"kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6*1"
+#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb6ic64_ih448oh224kh3sh2dh0ph1_iw336ow168kw3sw2dw0pw1n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=acdb mb6ic64_ih448oh224kh3sh2dh0ph1_iw336ow168kw3sw2dw0pw1n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih253oh126kh3sh2dh0ph0_iw253ow126kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic192_ih124oh61kh3sh2dh0ph0_iw124ow61kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=aBcd16b mb1ic192_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic256_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic288_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic288_ih61oh30kh3sh2dh0ph0_iw61ow30kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic768_ih30oh30kh3sh1dh0ph1_iw30ow30kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic768_ih30oh14kh3sh2dh0ph0_iw30ow14kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic1280_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic2048_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic64_ih253oh126kh3sh2dh0ph0_iw253ow126kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic192_ih124oh61kh3sh2dh0ph0_iw124ow61kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic192_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic256_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic288_ih61oh61kh3sh1dh0ph1_iw61ow61kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic288_ih61oh30kh3sh2dh0ph0_iw61ow30kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic768_ih30oh30kh3sh1dh0ph1_iw30ow30kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic768_ih30oh14kh3sh2dh0ph0_iw30ow14kw3sw2dw0pw0n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic1280_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic2048_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb5ic64_ih224oh112kh3sh2dh0ph1_iw224ow112kw3sw2dw0pw1n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb5ic512_ih14oh1kh14sh14dh0ph0_iw14ow1kw14sw14dw0pw0n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
+#kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=acdb mb5ic64_ih224oh112kh3sh2dh0ph1_iw224ow112kw3sw2dw0pw1n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=acdb mb5ic512_ih14oh1kh14sh14dh0ph0_iw14ow1kw14sw14dw0pw0n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
 #aclnet.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic128_ih1oh1kh1sh1dh0ph0_iw500ow100kw5sw5dw0pw0n"aclnet.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih130oh65kh2sh2dh0ph0_iw102ow51kw2sw2dw0pw0n"aclnet.inf.fp16.ov.mb1*1"
@@ -265,3 +322,817 @@
 --reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih104oh52kh2sh2dh0ph0_iw104ow52kw2sw2dw0pw0n"yolo-v2-tiny-ava-sparse-30-0001.inf.int8.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic128_ih52oh26kh2sh2dh0ph0_iw52ow26kw2sw2dw0pw0n"yolo-v2-tiny-ava-sparse-30-0001.inf.int8.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih26oh13kh2sh2dh0ph0_iw26ow13kw2sw2dw0pw0n"yolo-v2-tiny-ava-sparse-30-0001.inf.int8.ov.mb1*1"
+#common-sign-language-0001_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcde16b mb1ic24_id8od4kd2sd2dd0pd0_ih56oh56kh1sh1dh0ph0_iw56ow56kw1sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcde16b mb1ic72_id4od4kd1sd1dd0pd0_ih28oh1kh28sh1dh0ph0_iw28ow1kw28sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcde16b mb1ic120_id4od4kd1sd1dd0pd0_ih28oh1kh28sh1dh0ph0_iw28ow1kw28sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b1*2"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcde16b mb1ic480_id4od4kd1sd1dd0pd0_ih14oh1kh14sh1dh0ph0_iw14ow1kw14sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcde16b mb1ic672_id4od4kd1sd1dd0pd0_ih14oh1kh14sh1dh0ph0_iw14ow1kw14sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b1*2"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcde16b mb1ic672_id4od4kd1sd1dd0pd0_ih7oh1kh7sh1dh0ph0_iw7ow1kw7sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcde16b mb1ic960_id4od4kd1sd1dd0pd0_ih7oh1kh7sh1dh0ph0_iw7ow1kw7sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b1*1"
+#common-sign-language-0001_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcde32a16b mb32ic24_id8od4kd2sd2dd0pd0_ih56oh56kh1sh1dh0ph0_iw56ow56kw1sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcde32a16b mb32ic72_id4od4kd1sd1dd0pd0_ih28oh1kh28sh1dh0ph0_iw28ow1kw28sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcde32a16b mb32ic120_id4od4kd1sd1dd0pd0_ih28oh1kh28sh1dh0ph0_iw28ow1kw28sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b32*2"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcde32a16b mb32ic480_id4od4kd1sd1dd0pd0_ih14oh1kh14sh1dh0ph0_iw14ow1kw14sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcde32a16b mb32ic672_id4od4kd1sd1dd0pd0_ih14oh1kh14sh1dh0ph0_iw14ow1kw14sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b32*2"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcde32a16b mb32ic672_id4od4kd1sd1dd0pd0_ih7oh1kh7sh1dh0ph0_iw7ow1kw7sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcde32a16b mb32ic960_id4od4kd1sd1dd0pd0_ih7oh1kh7sh1dh0ph0_iw7ow1kw7sw1dw0pw0n"common-sign-language-0001_onnx.inf.fp16.ov.b32*1"
+#denoise_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic32_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"denoise_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic48_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"denoise_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic96_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"denoise_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic160_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"denoise_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic304_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"denoise_tf.inf.fp16.ov.b1*1"
+#denoise_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic32_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"denoise_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic48_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"denoise_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic96_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"denoise_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic160_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"denoise_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic304_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"denoise_tf.inf.fp16.ov.b32*1"
+#denoise_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:3.62093:-98.1197 mb1ic32_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"denoise_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:5.87329:-606.507 mb1ic304_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"denoise_tf.inf.int8.ov.b1*1"
+#denoise_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:3.62093:-98.1197 mb32ic32_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"denoise_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:5.87329:-606.507 mb32ic304_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"denoise_tf.inf.int8.ov.b32*1"
+#densenet-121_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"densenet-121_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_caffe.inf.fp16.ov.b1*1"
+#densenet-121_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"densenet-121_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_caffe.inf.fp16.ov.b32*1"
+#densenet-121_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"densenet-121_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.27488:0.0164948 mb1ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.48004:-0.0250168 mb1ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.59637:0.000244141 mb1ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_caffe.inf.int8.ov.b1*1"
+#densenet-121_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"densenet-121_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.27488:0.0164948 mb32ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.48004:-0.0250168 mb32ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.59637:0.000244141 mb32ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_caffe.inf.int8.ov.b32*1"
+#densenet-121_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"densenet-121_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_onnx.inf.fp16.ov.b1*1"
+#densenet-121_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"densenet-121_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_onnx.inf.fp16.ov.b32*1"
+#densenet-121_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"densenet-121_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.26834:0.0195007 mb1ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.47627:-0.0186081 mb1ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.59971:0.0277557 mb1ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_onnx.inf.int8.ov.b1*1"
+#densenet-121_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"densenet-121_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.26834:0.0195007 mb32ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.47627:-0.0186081 mb32ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.59971:0.0277557 mb32ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_onnx.inf.int8.ov.b32*1"
+#densenet-121_tf2.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih114oh56kh3sh2dh0ph0_iw114ow56kw3sw2dw0pw0n"densenet-121_tf2.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_tf2.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_tf2.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_tf2.inf.fp16.ov.b1*1"
+#densenet-121_tf2.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih114oh56kh3sh2dh0ph0_iw114ow56kw3sw2dw0pw0n"densenet-121_tf2.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_tf2.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_tf2.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_tf2.inf.fp16.ov.b32*1"
+#densenet-121_tf2.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih114oh56kh3sh2dh0ph0_iw114ow56kw3sw2dw0pw0n"densenet-121_tf2.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.27023:-0.0260162 mb1ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_tf2.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.48126:0.00823975 mb1ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_tf2.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.5954:0.0308685 mb1ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_tf2.inf.int8.ov.b1*1"
+#densenet-121_tf2.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih114oh56kh3sh2dh0ph0_iw114ow56kw3sw2dw0pw0n"densenet-121_tf2.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.27023:-0.0260162 mb32ic128_ih56oh28kh2sh2dh0ph0_iw56ow28kw2sw2dw0pw0n"densenet-121_tf2.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.48126:0.00823975 mb32ic256_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"densenet-121_tf2.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.5954:0.0308685 mb32ic512_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"densenet-121_tf2.inf.int8.ov.b32*1"
+#densenet-121_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh55kh3sh2dh0ph0_iw112ow55kw3sw2dw0pw0n"densenet-121_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic128_ih55oh27kh2sh2dh0ph0_iw55ow27kw2sw2dw0pw0n"densenet-121_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic256_ih27oh13kh2sh2dh0ph0_iw27ow13kw2sw2dw0pw0n"densenet-121_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic512_ih13oh6kh2sh2dh0ph0_iw13ow6kw2sw2dw0pw0n"densenet-121_tf.inf.fp16.ov.b1*1"
+#densenet-121_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh55kh3sh2dh0ph0_iw112ow55kw3sw2dw0pw0n"densenet-121_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic128_ih55oh27kh2sh2dh0ph0_iw55ow27kw2sw2dw0pw0n"densenet-121_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic256_ih27oh13kh2sh2dh0ph0_iw27ow13kw2sw2dw0pw0n"densenet-121_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic512_ih13oh6kh2sh2dh0ph0_iw13ow6kw2sw2dw0pw0n"densenet-121_tf.inf.fp16.ov.b32*1"
+#densenet-121_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh55kh3sh2dh0ph0_iw112ow55kw3sw2dw0pw0n"densenet-121_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.29799:-0.017189 mb1ic128_ih55oh27kh2sh2dh0ph0_iw55ow27kw2sw2dw0pw0n"densenet-121_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.47489:-0.0232391 mb1ic256_ih27oh13kh2sh2dh0ph0_iw27ow13kw2sw2dw0pw0n"densenet-121_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.711:-0.0245514 mb1ic512_ih13oh6kh2sh2dh0ph0_iw13ow6kw2sw2dw0pw0n"densenet-121_tf.inf.int8.ov.b1*1"
+#densenet-121_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh55kh3sh2dh0ph0_iw112ow55kw3sw2dw0pw0n"densenet-121_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.29799:-0.017189 mb32ic128_ih55oh27kh2sh2dh0ph0_iw55ow27kw2sw2dw0pw0n"densenet-121_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.47489:-0.0232391 mb32ic256_ih27oh13kh2sh2dh0ph0_iw27ow13kw2sw2dw0pw0n"densenet-121_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.711:-0.0245514 mb32ic512_ih13oh6kh2sh2dh0ph0_iw13ow6kw2sw2dw0pw0n"densenet-121_tf.inf.int8.ov.b32*1"
+#dpn-68_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic10_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"dpn-68_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b --attr-post-ops=mul:f16:per_dim_0+add:f16:per_dim_0+relu mb1ic144_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0n"dpn-68_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b --attr-post-ops=mul:f16:per_dim_0+add:f16:per_dim_0+relu mb1ic320_ih28oh14kh1sh2dh0ph0_iw28ow14kw1sw2dw0pw0n"dpn-68_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b --attr-post-ops=mul:f16:per_dim_0+add:f16:per_dim_0+relu mb1ic704_ih14oh7kh1sh2dh0ph0_iw14ow7kw1sw2dw0pw0n"dpn-68_onnx.inf.fp16.ov.b1*1"
+#dpn-68_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic10_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"dpn-68_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b --attr-post-ops=mul:f16:per_dim_0+add:f16:per_dim_0+relu mb32ic144_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0n"dpn-68_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b --attr-post-ops=mul:f16:per_dim_0+add:f16:per_dim_0+relu mb32ic320_ih28oh14kh1sh2dh0ph0_iw28ow14kw1sw2dw0pw0n"dpn-68_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b --attr-post-ops=mul:f16:per_dim_0+add:f16:per_dim_0+relu mb32ic704_ih14oh7kh1sh2dh0ph0_iw14ow7kw1sw2dw0pw0n"dpn-68_onnx.inf.fp16.ov.b32*1"
+#east_resnet_v1_50_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih512oh256kh3sh2dh0ph0_iw960ow480kw3sw2dw0pw0n"east_resnet_v1_50_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih256oh128kh1sh2dh0ph0_iw480ow240kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih128oh64kh1sh2dh0ph0_iw240ow120kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic1024_ih64oh32kh1sh2dh0ph0_iw120ow60kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.fp16.ov.b1*1"
+#east_resnet_v1_50_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih512oh256kh3sh2dh0ph0_iw960ow480kw3sw2dw0pw0n"east_resnet_v1_50_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih256oh128kh1sh2dh0ph0_iw480ow240kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih128oh64kh1sh2dh0ph0_iw240ow120kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic1024_ih64oh32kh1sh2dh0ph0_iw120ow60kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.fp16.ov.b32*1"
+#east_resnet_v1_50_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih256oh128kh1sh2dh0ph0_iw480ow240kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih128oh64kh1sh2dh0ph0_iw240ow120kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic1024_ih64oh32kh1sh2dh0ph0_iw120ow60kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.int8.ov.b1*1"
+#east_resnet_v1_50_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih256oh128kh1sh2dh0ph0_iw480ow240kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih128oh64kh1sh2dh0ph0_iw240ow120kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic1024_ih64oh32kh1sh2dh0ph0_iw120ow60kw1sw2dw0pw0n"east_resnet_v1_50_tf.inf.int8.ov.b32*1"
+#efficientdet-d0_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih16oh8kh3sh2dh0ph0_iw16ow8kw3sw2dw0pw0n"efficientdet-d0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih8oh4kh3sh2dh0ph0_iw8ow4kw3sw2dw0pw0n"efficientdet-d0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b --attr-post-ops=mul:f16:common+add:f16:per_tensor:aBcd16b+swish:1 mb1ic64_ih64oh32kh3sh2dh0ph0_iw64ow32kw3sw2dw0pw0n"efficientdet-d0_tf.inf.fp16.ov.b1*3"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b --attr-post-ops=mul:f16:common+add:f16:per_tensor:aBcd16b+swish:1 mb1ic64_ih32oh16kh3sh2dh0ph0_iw32ow16kw3sw2dw0pw0n"efficientdet-d0_tf.inf.fp16.ov.b1*3"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b --attr-post-ops=mul:f16:common+add:f16:per_tensor:aBcd16b+swish:1 mb1ic64_ih16oh8kh3sh2dh0ph0_iw16ow8kw3sw2dw0pw0n"efficientdet-d0_tf.inf.fp16.ov.b1*3"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b --attr-post-ops=mul:f16:common+add:f16:per_tensor:aBcd16b+swish:1 mb1ic64_ih8oh4kh3sh2dh0ph0_iw8ow4kw3sw2dw0pw0n"efficientdet-d0_tf.inf.fp16.ov.b1*3"
+#efficientdet-d0_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih16oh8kh3sh2dh0ph0_iw16ow8kw3sw2dw0pw0n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih8oh4kh3sh2dh0ph0_iw8ow4kw3sw2dw0pw0n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b --attr-post-ops=linear:1.11041:-0.040535 mb1ic64_ih64oh32kh3sh2dh0ph0_iw64ow32kw3sw2dw0pw0n"efficientdet-d0_tf.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b --attr-post-ops=mul:f32:common+linear:2798:-0.0625 mb1ic64_ih32oh16kh3sh2dh0ph0_iw32ow16kw3sw2dw0pw0n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b --attr-post-ops=linear:1.33068:0.00280762 mb1ic64_ih16oh8kh3sh2dh0ph0_iw16ow8kw3sw2dw0pw0n"efficientdet-d0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b --attr-post-ops=linear:1.23714:127.994+round+linear:0.679295:-86.9498+clip:-86.9498:86.2705+add:s8:per_tensor:aBcd32b+mul:f32:common+swish:1+mul:f16:per_dim_0+add:f16:per_dim_0+linear:1:-128 mb1ic64_ih8oh4kh3sh2dh0ph0_iw8ow4kw3sw2dw0pw0n"efficientdet-d0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b --attr-post-ops=linear:1.09144:0.0185242 mb1ic64_ih64oh32kh3sh2dh0ph0_iw64ow32kw3sw2dw0pw0n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b --attr-post-ops=linear:1.15707:-0.0243683 mb1ic64_ih32oh16kh3sh2dh0ph0_iw32ow16kw3sw2dw0pw0n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b --attr-post-ops=linear:1.05509:0.00831604 mb1ic64_ih32oh16kh3sh2dh0ph0_iw32ow16kw3sw2dw0pw0n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+#faceboxes_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic48_ih256oh128kh3sh2dh0ph0_iw256ow128kw3sw2dw0pw0n"faceboxes_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic128_ih65oh32kh3sh2dh0ph0_iw65ow32kw3sw2dw0pw0n"faceboxes_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic128_ih32oh32kh3sh1dh0ph1_iw32ow32kw3sw1dw0pw1n"faceboxes_caffe.inf.fp16.ov.b1*3"
+#faceboxes_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic48_ih256oh128kh3sh2dh0ph0_iw256ow128kw3sw2dw0pw0n"faceboxes_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic128_ih65oh32kh3sh2dh0ph0_iw65ow32kw3sw2dw0pw0n"faceboxes_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic128_ih32oh32kh3sh1dh0ph1_iw32ow32kw3sw1dw0pw1n"faceboxes_caffe.inf.fp16.ov.b32*3"
+#faceboxes_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic48_ih256oh128kh3sh2dh0ph0_iw256ow128kw3sw2dw0pw0n"faceboxes_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic128_ih65oh32kh3sh2dh0ph0_iw65ow32kw3sw2dw0pw0n"faceboxes_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic128_ih32oh32kh3sh1dh0ph1_iw32ow32kw3sw1dw0pw1n"faceboxes_caffe.inf.int8.ov.b1*3"
+#faceboxes_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic48_ih256oh128kh3sh2dh0ph0_iw256ow128kw3sw2dw0pw0n"faceboxes_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic128_ih65oh32kh3sh2dh0ph0_iw65ow32kw3sw2dw0pw0n"faceboxes_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic128_ih32oh32kh3sh1dh0ph1_iw32ow32kw3sw1dw0pw1n"faceboxes_caffe.inf.int8.ov.b32*3"
+#faceboxes_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic48_ih256oh128kh3sh2dh0ph1_iw256ow128kw3sw2dw0pw1n"faceboxes_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic128_ih64oh32kh3sh2dh0ph1_iw64ow32kw3sw2dw0pw1n"faceboxes_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic128_ih32oh32kh3sh1dh0ph1_iw32ow32kw3sw1dw0pw1n"faceboxes_onnx.inf.fp16.ov.b1*3"
+#faceboxes_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic48_ih256oh128kh3sh2dh0ph1_iw256ow128kw3sw2dw0pw1n"faceboxes_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic128_ih64oh32kh3sh2dh0ph1_iw64ow32kw3sw2dw0pw1n"faceboxes_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic128_ih32oh32kh3sh1dh0ph1_iw32ow32kw3sw1dw0pw1n"faceboxes_onnx.inf.fp16.ov.b32*3"
+#faceboxes_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic48_ih256oh128kh3sh2dh0ph1_iw256ow128kw3sw2dw0pw1n"faceboxes_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic128_ih64oh32kh3sh2dh0ph1_iw64ow32kw3sw2dw0pw1n"faceboxes_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.34651 mb1ic128_ih32oh32kh3sh1dh0ph1_iw32ow32kw3sw1dw0pw1n"faceboxes_onnx.inf.int8.ov.b1*3"
+#faceboxes_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic128_ih64oh32kh3sh2dh0ph1_iw64ow32kw3sw2dw0pw1n"faceboxes_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.34651 mb32ic128_ih32oh32kh3sh1dh0ph1_iw32ow32kw3sw1dw0pw1n"faceboxes_onnx.inf.int8.ov.b32*3"
+#facenet-20180408-102900_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih77oh38kh3sh2dh0ph0_iw77ow38kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic896_ih8oh3kh3sh2dh0ph0_iw8ow3kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.fp16.ov.b1*1"
+#facenet-20180408-102900_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih77oh38kh3sh2dh0ph0_iw77ow38kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic896_ih8oh3kh3sh2dh0ph0_iw8ow3kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.fp16.ov.b32*1"
+#facenet-20180408-102900_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih77oh38kh3sh2dh0ph0_iw77ow38kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic896_ih8oh3kh3sh2dh0ph0_iw8ow3kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.int8.ov.b1*1"
+#facenet-20180408-102900_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih77oh38kh3sh2dh0ph0_iw77ow38kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic896_ih8oh3kh3sh2dh0ph0_iw8ow3kw3sw2dw0pw0n"facenet-20180408-102900_tf.inf.int8.ov.b32*1"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih300oh150kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic192_ih150oh75kh3sh2dh0ph0_iw256ow128kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic192_ih75oh75kh3sh1dh0ph1_iw128ow128kw3sw1dw0pw1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic320_ih75oh75kh3sh1dh0ph1_iw128ow128kw3sw1dw0pw1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb100ic1088_ih17oh17kh1sh1dh0ph0_iw17ow17kw1sw1dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb100ic1088_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*1"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih300oh150kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic192_ih150oh75kh3sh2dh0ph0_iw256ow128kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic192_ih75oh75kh3sh1dh0ph1_iw128ow128kw3sw1dw0pw1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic320_ih75oh75kh3sh1dh0ph1_iw128ow128kw3sw1dw0pw1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb3200ic1088_ih17oh17kh1sh1dh0ph0_iw17ow17kw1sw1dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb3200ic1088_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*1"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih300oh150kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic192_ih150oh75kh3sh2dh0ph0_iw256ow128kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.39316 mb1ic192_ih75oh75kh3sh1dh0ph1_iw128ow128kw3sw1dw0pw1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic320_ih75oh75kh3sh1dh0ph1_iw128ow128kw3sw1dw0pw1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb100ic1088_ih17oh17kh1sh1dh0ph0_iw17ow17kw1sw1dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb100ic1088_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1*1"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih300oh150kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic192_ih150oh75kh3sh2dh0ph0_iw256ow128kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.39316 mb32ic192_ih75oh75kh3sh1dh0ph1_iw128ow128kw3sw1dw0pw1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic320_ih75oh75kh3sh1dh0ph1_iw128ow128kw3sw1dw0pw1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb3200ic1088_ih17oh17kh1sh1dh0ph0_iw17ow17kw1sw1dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb3200ic1088_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*1"
+#faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih512oh256kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih256oh128kh1sh2dh0ph0_iw256ow128kw1sw2dw0pw0n"faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih128oh64kh1sh2dh0ph0_iw128ow64kw1sw2dw0pw0n"faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb300ic1024_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb300ic1024_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1*1"
+#faster_rcnn_resnet50_coco_tf2.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih512oh256kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"faster_rcnn_resnet50_coco_tf2.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:3.75105 mb300ic1024_ih28oh14kh2sh2dh0ph0_iw28ow14kw2sw2dw0pw0n"faster_rcnn_resnet50_coco_tf2.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb300ic1024_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"faster_rcnn_resnet50_coco_tf2.inf.int8.ov.b1*1"
+#faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih300oh150kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih150oh75kh1sh2dh0ph0_iw256ow128kw1sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih75oh38kh1sh2dh0ph0_iw128ow64kw1sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb100ic1024_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1*1"
+#faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih300oh150kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih150oh75kh1sh2dh0ph0_iw256ow128kw1sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih75oh38kh1sh2dh0ph0_iw128ow64kw1sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb3200ic1024_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32*1"
+#faster_rcnn_resnet50_coco_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih300oh150kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih150oh75kh1sh2dh0ph0_iw256ow128kw1sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih75oh38kh1sh2dh0ph0_iw128ow64kw1sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb100ic1024_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b1*1"
+#faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih300oh150kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih150oh75kh1sh2dh0ph0_iw256ow128kw1sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih75oh38kh1sh2dh0ph0_iw128ow64kw1sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb3200ic1024_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32*1"
+#fastseg-small_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic576_ih128oh5kh49sh16dh0ph0_iw256ow11kw49sw20dw0pw0n"fastseg-small_onnx.inf.fp16.ov.b1*1"
+#fastseg-small_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:11.69:-4.37143 mb1ic576_ih128oh5kh49sh16dh0ph0_iw256ow11kw49sw20dw0pw0n"fastseg-small_onnx.inf.int8.ov.b1*1"
+#forward-tacotron-duration-prediction_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic4096_ih166oh167kh2sh1dh0ph1_iw1ow1kw1sw1dw0pw0n"forward-tacotron-duration-prediction_onnx.inf.fp16.ov.b1*1"
+#forward-tacotron-duration-prediction_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic4096_ih166oh167kh2sh1dh0ph1_iw1ow1kw1sw1dw0pw0n"forward-tacotron-duration-prediction_onnx.inf.fp16.ov.b32*1"
+#forward-tacotron-duration-prediction_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic4096_ih166oh167kh2sh1dh0ph1_iw1ow1kw1sw1dw0pw0n"forward-tacotron-duration-prediction_onnx.inf.int8.ov.b1*1"
+#forward-tacotron-duration-prediction_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic4096_ih166oh167kh2sh1dh0ph1_iw1ow1kw1sw1dw0pw0n"forward-tacotron-duration-prediction_onnx.inf.int8.ov.b32*1"
+#googlenet-v4_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih147oh73kh3sh2dh0ph0_iw147ow73kw3sw2dw0pw0n"googlenet-v4_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic192_ih71oh35kh3sh2dh0ph0_iw71ow35kw3sw2dw0pw0n"googlenet-v4_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic384_ih35oh35kh3sh1dh0ph1_iw35ow35kw3sw1dw0pw1n"googlenet-v4_caffe.inf.fp16.ov.b1*4"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic384_ih35oh17kh3sh2dh0ph0_iw35ow17kw3sw2dw0pw0n"googlenet-v4_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic1024_ih17oh17kh3sh1dh0ph1_iw17ow17kw3sw1dw0pw1n"googlenet-v4_caffe.inf.fp16.ov.b1*7"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic1024_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"googlenet-v4_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic1536_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"googlenet-v4_caffe.inf.fp16.ov.b1*3"
+#googlenet-v4_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih147oh73kh3sh2dh0ph0_iw147ow73kw3sw2dw0pw0n"googlenet-v4_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic192_ih71oh35kh3sh2dh0ph0_iw71ow35kw3sw2dw0pw0n"googlenet-v4_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic384_ih35oh35kh3sh1dh0ph1_iw35ow35kw3sw1dw0pw1n"googlenet-v4_caffe.inf.fp16.ov.b32*4"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic384_ih35oh17kh3sh2dh0ph0_iw35ow17kw3sw2dw0pw0n"googlenet-v4_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic1024_ih17oh17kh3sh1dh0ph1_iw17ow17kw3sw1dw0pw1n"googlenet-v4_caffe.inf.fp16.ov.b32*7"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic1024_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"googlenet-v4_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic1536_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"googlenet-v4_caffe.inf.fp16.ov.b32*3"
+#googlenet-v4_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih147oh73kh3sh2dh0ph0_iw147ow73kw3sw2dw0pw0n"googlenet-v4_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic192_ih71oh35kh3sh2dh0ph0_iw71ow35kw3sw2dw0pw0n"googlenet-v4_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.24343 mb1ic384_ih35oh35kh3sh1dh0ph1_iw35ow35kw3sw1dw0pw1n"googlenet-v4_caffe.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic384_ih35oh17kh3sh2dh0ph0_iw35ow17kw3sw2dw0pw0n"googlenet-v4_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.67588 mb1ic1024_ih17oh17kh3sh1dh0ph1_iw17ow17kw3sw1dw0pw1n"googlenet-v4_caffe.inf.int8.ov.b1*7"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic1024_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"googlenet-v4_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.6768 mb1ic1536_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"googlenet-v4_caffe.inf.int8.ov.b1*3"
+#googlenet-v4_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih147oh73kh3sh2dh0ph0_iw147ow73kw3sw2dw0pw0n"googlenet-v4_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic192_ih71oh35kh3sh2dh0ph0_iw71ow35kw3sw2dw0pw0n"googlenet-v4_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.24343 mb32ic384_ih35oh35kh3sh1dh0ph1_iw35ow35kw3sw1dw0pw1n"googlenet-v4_caffe.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic384_ih35oh17kh3sh2dh0ph0_iw35ow17kw3sw2dw0pw0n"googlenet-v4_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.67588 mb32ic1024_ih17oh17kh3sh1dh0ph1_iw17ow17kw3sw1dw0pw1n"googlenet-v4_caffe.inf.int8.ov.b32*7"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic1024_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"googlenet-v4_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.6768 mb32ic1536_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"googlenet-v4_caffe.inf.int8.ov.b32*3"
+#googlenet-v4_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih147oh73kh3sh2dh0ph0_iw147ow73kw3sw2dw0pw0n"googlenet-v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic192_ih71oh35kh3sh2dh0ph0_iw71ow35kw3sw2dw0pw0n"googlenet-v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic384_ih35oh35kh3sh1dh0ph1_iw35ow35kw3sw1dw0pw1n"googlenet-v4_tf.inf.fp16.ov.b1*4"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic384_ih35oh17kh3sh2dh0ph0_iw35ow17kw3sw2dw0pw0n"googlenet-v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic1024_ih17oh17kh3sh1dh0ph1_iw17ow17kw3sw1dw0pw1n"googlenet-v4_tf.inf.fp16.ov.b1*7"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic1024_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"googlenet-v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic1536_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"googlenet-v4_tf.inf.fp16.ov.b1*3"
+#googlenet-v4_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih147oh73kh3sh2dh0ph0_iw147ow73kw3sw2dw0pw0n"googlenet-v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic192_ih71oh35kh3sh2dh0ph0_iw71ow35kw3sw2dw0pw0n"googlenet-v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic384_ih35oh35kh3sh1dh0ph1_iw35ow35kw3sw1dw0pw1n"googlenet-v4_tf.inf.fp16.ov.b32*4"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic384_ih35oh17kh3sh2dh0ph0_iw35ow17kw3sw2dw0pw0n"googlenet-v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic1024_ih17oh17kh3sh1dh0ph1_iw17ow17kw3sw1dw0pw1n"googlenet-v4_tf.inf.fp16.ov.b32*7"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic1024_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"googlenet-v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic1536_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"googlenet-v4_tf.inf.fp16.ov.b32*3"
+#googlenet-v4_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih147oh73kh3sh2dh0ph0_iw147ow73kw3sw2dw0pw0n"googlenet-v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic192_ih71oh35kh3sh2dh0ph0_iw71ow35kw3sw2dw0pw0n"googlenet-v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.23956 mb1ic384_ih35oh35kh3sh1dh0ph1_iw35ow35kw3sw1dw0pw1n"googlenet-v4_tf.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic384_ih35oh17kh3sh2dh0ph0_iw35ow17kw3sw2dw0pw0n"googlenet-v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.55782 mb1ic1024_ih17oh17kh3sh1dh0ph1_iw17ow17kw3sw1dw0pw1n"googlenet-v4_tf.inf.int8.ov.b1*7"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic1024_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"googlenet-v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.28886 mb1ic1536_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"googlenet-v4_tf.inf.int8.ov.b1*3"
+#googlenet-v4_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih147oh73kh3sh2dh0ph0_iw147ow73kw3sw2dw0pw0n"googlenet-v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic192_ih71oh35kh3sh2dh0ph0_iw71ow35kw3sw2dw0pw0n"googlenet-v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.23956 mb32ic384_ih35oh35kh3sh1dh0ph1_iw35ow35kw3sw1dw0pw1n"googlenet-v4_tf.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic384_ih35oh17kh3sh2dh0ph0_iw35ow17kw3sw2dw0pw0n"googlenet-v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.55782 mb32ic1024_ih17oh17kh3sh1dh0ph1_iw17ow17kw3sw1dw0pw1n"googlenet-v4_tf.inf.int8.ov.b32*7"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic1024_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"googlenet-v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.28886 mb32ic1536_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"googlenet-v4_tf.inf.int8.ov.b32*3"
+#hg-s8-b1-mpii_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic128_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.fp16.ov.b1*8"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.fp16.ov.b1*8"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.fp16.ov.b1*8"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih8oh4kh2sh2dh0ph0_iw8ow4kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.fp16.ov.b1*8"
+#hg-s8-b1-mpii_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic128_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.fp16.ov.b32*8"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.fp16.ov.b32*8"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.fp16.ov.b32*8"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih8oh4kh2sh2dh0ph0_iw8ow4kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.fp16.ov.b32*8"
+#hg-s8-b1-mpii_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic128_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih8oh4kh2sh2dh0ph0_iw8ow4kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.int8.ov.b1*8"
+#hg-s8-b1-mpii_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic128_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.int8.ov.b32*8"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.int8.ov.b32*8"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.int8.ov.b32*8"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih8oh4kh2sh2dh0ph0_iw8ow4kw2sw2dw0pw0n"hg-s8-b1-mpii_onnx.inf.int8.ov.b32*8"
+#instance-segmentation-security-0010_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih400oh200kh3sh2dh0ph1_iw672ow336kw3sw2dw0pw1n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+#intermediate_model_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:11.69:-4.37143 mb1ic576_ih128oh5kh49sh16dh0ph0_iw256ow11kw49sw20dw0pw0n"intermediate_model_onnx.inf.int8.ov.b1*1"
+#mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih400oh200kh3sh2dh0ph0_iw683ow342kw3sw2dw0pw1n"mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih200oh100kh1sh2dh0ph0_iw342ow171kw1sw2dw0pw0n"mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb100ic1024_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1*2"
+#mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih400oh200kh3sh2dh0ph0_iw683ow342kw3sw2dw0pw1n"mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih200oh100kh1sh2dh0ph0_iw342ow171kw1sw2dw0pw0n"mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a32b mb100ic1024_ih14oh7kh2sh2dh0ph0_iw14ow7kw2sw2dw0pw0n"mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1*2"
+#person-vehicle-bike-detection-crossroad-0078_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic32_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic128_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic256_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.fp16.ov.b1*1"
+#person-vehicle-bike-detection-crossroad-0078_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic32_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic128_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic256_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.fp16.ov.b32*1"
+#person-vehicle-bike-detection-crossroad-0078_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic32_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic128_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.8947:-0.0326538 mb1ic256_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.int8.ov.b1*1"
+#person-vehicle-bike-detection-crossroad-0078_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic32_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic128_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.8947:-0.0326538 mb32ic256_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"person-vehicle-bike-detection-crossroad-0078_caffe.inf.int8.ov.b32*1"
+#pp-ocr-rec_paddle.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic288_ih2oh1kh2sh2dh0ph0_iw320ow160kw2sw2dw0pw0n"pp-ocr-rec_paddle.inf.fp16.ov.b1*1"
+#pp-ocr-rec_paddle.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic288_ih2oh1kh2sh2dh0ph0_iw320ow160kw2sw2dw0pw0n"pp-ocr-rec_paddle.inf.fp16.ov.b32*1"
+#pp-ocr-rec_paddle.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic288_ih2oh1kh2sh2dh0ph0_iw320ow160kw2sw2dw0pw0n"pp-ocr-rec_paddle.inf.int8.ov.b1*1"
+#pp-ocr-rec_paddle.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic288_ih2oh1kh2sh2dh0ph0_iw320ow160kw2sw2dw0pw0n"pp-ocr-rec_paddle.inf.int8.ov.b32*1"
+#resnet-18_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-18_caffe.inf.fp16.ov.b1*1"
+#resnet-18_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-18_caffe.inf.fp16.ov.b32*1"
+#resnet-18_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-18_onnx.inf.fp16.ov.b1*1"
+#resnet-18_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-18_onnx.inf.fp16.ov.b32*1"
+#resnet-18_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-18_onnx.inf.int8.ov.b1*1"
+#resnet-18_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-18_onnx.inf.int8.ov.b32*1"
+#resnet-50_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0n"resnet-50_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih28oh14kh1sh2dh0ph0_iw28ow14kw1sw2dw0pw0n"resnet-50_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic1024_ih14oh7kh1sh2dh0ph0_iw14ow7kw1sw2dw0pw0n"resnet-50_caffe.inf.fp16.ov.b1*1"
+#resnet-50_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0n"resnet-50_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih28oh14kh1sh2dh0ph0_iw28ow14kw1sw2dw0pw0n"resnet-50_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic1024_ih14oh7kh1sh2dh0ph0_iw14ow7kw1sw2dw0pw0n"resnet-50_caffe.inf.fp16.ov.b32*1"
+#resnet-50_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0n"resnet-50_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih28oh14kh1sh2dh0ph0_iw28ow14kw1sw2dw0pw0n"resnet-50_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic1024_ih14oh7kh1sh2dh0ph0_iw14ow7kw1sw2dw0pw0n"resnet-50_caffe.inf.int8.ov.b1*1"
+#resnet-50_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0n"resnet-50_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih28oh14kh1sh2dh0ph0_iw28ow14kw1sw2dw0pw0n"resnet-50_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic1024_ih14oh7kh1sh2dh0ph0_iw14ow7kw1sw2dw0pw0n"resnet-50_caffe.inf.int8.ov.b32*1"
+#resnet-50_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50_onnx.inf.fp16.ov.b1*1"
+#resnet-50_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50_onnx.inf.fp16.ov.b32*1"
+#resnet-50_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50_onnx.inf.int8.ov.b1*1"
+#resnet-50_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50_onnx.inf.int8.ov.b32*1"
+#resnet-50_paddle.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50_paddle.inf.fp16.ov.b1*1"
+#resnet-50_paddle.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50_paddle.inf.fp16.ov.b32*1"
+#resnet-50_paddle.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50_paddle.inf.int8.ov.b1*1"
+#resnet-50_paddle.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50_paddle.inf.int8.ov.b32*1"
+#resnet-50-pytorch_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50-pytorch_onnx.inf.fp16.ov.b1*1"
+#resnet-50-pytorch_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50-pytorch_onnx.inf.fp16.ov.b32*1"
+#resnet-50-pytorch_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50-pytorch_onnx.inf.int8.ov.b1*1"
+#resnet-50-pytorch_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"resnet-50-pytorch_onnx.inf.int8.ov.b32*1"
+#resnet-50_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0n"resnet-50_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih28oh14kh1sh2dh0ph0_iw28ow14kw1sw2dw0pw0n"resnet-50_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic1024_ih14oh7kh1sh2dh0ph0_iw14ow7kw1sw2dw0pw0n"resnet-50_tf.inf.fp16.ov.b1*1"
+#resnet-50_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0n"resnet-50_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih28oh14kh1sh2dh0ph0_iw28ow14kw1sw2dw0pw0n"resnet-50_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic1024_ih14oh7kh1sh2dh0ph0_iw14ow7kw1sw2dw0pw0n"resnet-50_tf.inf.fp16.ov.b32*1"
+#resnet-50_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0n"resnet-50_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih28oh14kh1sh2dh0ph0_iw28ow14kw1sw2dw0pw0n"resnet-50_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic1024_ih14oh7kh1sh2dh0ph0_iw14ow7kw1sw2dw0pw0n"resnet-50_tf.inf.int8.ov.b1*1"
+#resnet-50_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-50_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih56oh28kh1sh2dh0ph0_iw56ow28kw1sw2dw0pw0n"resnet-50_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih28oh14kh1sh2dh0ph0_iw28ow14kw1sw2dw0pw0n"resnet-50_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic1024_ih14oh7kh1sh2dh0ph0_iw14ow7kw1sw2dw0pw0n"resnet-50_tf.inf.int8.ov.b32*1"
+#retinanet_tf2.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih320oh160kh3sh2dh0ph0_iw320ow160kw3sw2dw0pw0n"retinanet_tf2.inf.fp16.ov.b1*1"
+#retinanet_tf2.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih320oh160kh3sh2dh0ph0_iw320ow160kw3sw2dw0pw0n"retinanet_tf2.inf.fp16.ov.b32*1"
+#retinanet_tf2.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih320oh160kh3sh2dh0ph0_iw320ow160kw3sw2dw0pw0n"retinanet_tf2.inf.int8.ov.b1*1"
+#retinanet_tf2.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih320oh160kh3sh2dh0ph0_iw320ow160kw3sw2dw0pw0n"retinanet_tf2.inf.int8.ov.b32*1"
+#retinanet_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih667oh334kh3sh2dh0ph1_iw667ow334kw3sw2dw0pw1n"retinanet_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih334oh167kh1sh2dh0ph0_iw334ow167kw1sw2dw0pw0n"retinanet_tf.inf.fp16.ov.b1*1"
+#retinanet_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih667oh334kh3sh2dh0ph1_iw667ow334kw3sw2dw0pw1n"retinanet_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih334oh167kh1sh2dh0ph0_iw334ow167kw1sw2dw0pw0n"retinanet_tf.inf.fp16.ov.b32*1"
+#retinanet_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih667oh334kh3sh2dh0ph1_iw667ow334kw3sw2dw0pw1n"retinanet_tf.inf.int8.ov.b1*1"
+#retinanet_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih667oh334kh3sh2dh0ph1_iw667ow334kw3sw2dw0pw1n"retinanet_tf.inf.int8.ov.b32*1"
+#semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih256oh128kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic128_ih128oh64kh1sh2dh0ph0_iw256ow128kw1sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic256_ih64oh32kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic1024_ih32oh6kh6sh6dh0ph0_iw64ow6kw12sw11dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic1024_ih32oh3kh12sh11dh0ph0_iw64ow3kw22sw22dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic1024_ih32oh2kh16sh16dh0ph0_iw64ow2kw32sw32dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b1*1"
+#semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih256oh128kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic128_ih128oh64kh1sh2dh0ph0_iw256ow128kw1sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic256_ih64oh32kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic1024_ih32oh6kh6sh6dh0ph0_iw64ow6kw12sw11dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic1024_ih32oh3kh12sh11dh0ph0_iw64ow3kw22sw22dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic1024_ih32oh2kh16sh16dh0ph0_iw64ow2kw32sw32dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b32*1"
+#semantic-segmentation-adas-0001_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.00541:0.0175934 mb1ic3_ih1024oh512kh2sh2dh0ph0_iw2048ow1024kw2sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih256oh128kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic128_ih128oh64kh1sh2dh0ph0_iw256ow128kw1sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:2.15508 mb1ic256_ih64oh32kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b1*1"
+#semantic-segmentation-adas-0001_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.00541:0.0175934 mb32ic3_ih1024oh512kh2sh2dh0ph0_iw2048ow1024kw2sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih256oh128kh3sh2dh0ph0_iw512ow256kw3sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic128_ih128oh64kh1sh2dh0ph0_iw256ow128kw1sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:2.15508 mb32ic256_ih64oh32kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b32*1"
+#se-resnext-50_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_caffe.inf.fp16.ov.b1*1"
+#se-resnext-50_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_caffe.inf.fp16.ov.b32*1"
+#se-resnext-50_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_caffe.inf.int8.ov.b1*1"
+#se-resnext-50_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_caffe.inf.int8.ov.b32*1"
+#se-resnext-50_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_onnx.inf.fp16.ov.b1*1"
+#se-resnext-50_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_onnx.inf.fp16.ov.b32*1"
+#se-resnext-50_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_onnx.inf.int8.ov.b1*1"
+#se-resnext-50_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_onnx.inf.int8.ov.b32*1"
+#se-resnext-50_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_tf.inf.fp16.ov.b1*1"
+#se-resnext-50_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_tf.inf.fp16.ov.b32*1"
+#se-resnext-50_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_tf.inf.int8.ov.b1*1"
+#se-resnext-50_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"se-resnext-50_tf.inf.int8.ov.b32*1"
+#sharpen-lensblur_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic3_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic3_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic64_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic112_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic192_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic336_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic512_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic512_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b1*1"
+#sharpen-lensblur_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic3_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic3_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic64_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic112_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic192_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic336_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic512_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic512_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.fp16.ov.b32*1"
+#sharpen-lensblur_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.00545 mb1ic3_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.00548 mb1ic3_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:3.01162:-161.787 mb1ic64_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:5.35371:-469.706 mb1ic112_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:7.56752:-800.544 mb1ic192_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:6.00515:-409.455 mb1ic336_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:5.93357:-428.878 mb1ic512_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:2.21632:-219.046 mb1ic512_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b1*1"
+#sharpen-lensblur_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.00545 mb32ic3_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.00548 mb32ic3_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:3.01162:-161.787 mb32ic64_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:5.35371:-469.706 mb32ic112_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:7.56752:-800.544 mb32ic192_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:6.00515:-409.455 mb32ic336_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:5.93357:-428.878 mb32ic512_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:2.21632:-219.046 mb32ic512_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"sharpen-lensblur_tf.inf.int8.ov.b32*1"
+#sharpen-motionblur_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic3_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic3_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic64_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic112_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic192_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic336_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic512_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic512_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b1*1"
+#sharpen-motionblur_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic3_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic3_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic64_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic112_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic192_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic336_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic512_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic512_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.fp16.ov.b32*1"
+#sharpen-motionblur_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.00418 mb1ic3_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.00683 mb1ic3_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:4.12264:-47.4546 mb1ic64_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:4.36764:-133.604 mb1ic112_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:5.83285:-232.477 mb1ic192_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:7.5941:-256.575 mb1ic336_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:6.61242:-364.745 mb1ic512_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:3.2999:-207.485 mb1ic512_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b1*1"
+#sharpen-motionblur_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.00418 mb32ic3_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.00683 mb32ic3_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:4.12264:-47.4546 mb32ic64_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:4.36764:-133.604 mb32ic112_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:5.83285:-232.477 mb32ic192_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:7.5941:-256.575 mb32ic336_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:6.61242:-364.745 mb32ic512_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:3.2999:-207.485 mb32ic512_ih16oh8kh2sh2dh0ph0_iw16ow8kw2sw2dw0pw0n"sharpen-motionblur_tf.inf.int8.ov.b32*1"
+#sharpen-sharpen_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic32_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic48_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic96_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic160_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic304_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.fp16.ov.b1*1"
+#sharpen-sharpen_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic32_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic48_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic96_ih128oh64kh2sh2dh0ph0_iw128ow64kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic160_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic304_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.fp16.ov.b32*1"
+#sharpen-sharpen_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:5.1895:-156.154 mb1ic32_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:5.94116:-272.713 mb1ic48_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:9.24982:-570.968 mb1ic160_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:6.42712:-806.926 mb1ic304_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.int8.ov.b1*1"
+#sharpen-sharpen_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:5.1895:-156.154 mb32ic32_ih512oh256kh2sh2dh0ph0_iw512ow256kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:5.94116:-272.713 mb32ic48_ih256oh128kh2sh2dh0ph0_iw256ow128kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:9.24982:-570.968 mb32ic160_ih64oh32kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:6.42712:-806.926 mb32ic304_ih32oh16kh2sh2dh0ph0_iw32ow16kw2sw2dw0pw0n"sharpen-sharpen_tf.inf.int8.ov.b32*1"
+#ssd-resnet34-1200_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih600oh300kh3sh2dh0ph1_iw600ow300kw3sw2dw0pw1n"ssd-resnet34-1200_onnx.inf.fp16.ov.b1*1"
+#ssd-resnet34-1200_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih600oh300kh3sh2dh0ph1_iw600ow300kw3sw2dw0pw1n"ssd-resnet34-1200_onnx.inf.fp16.ov.b32*1"
+#ssd-resnet34-1200_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih600oh300kh3sh2dh0ph1_iw600ow300kw3sw2dw0pw1n"ssd-resnet34-1200_onnx.inf.int8.ov.b1*1"
+#ssd-resnet34-1200_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih600oh300kh3sh2dh0ph1_iw600ow300kw3sw2dw0pw1n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*1"
+#text-recognition-0012_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih32oh16kh2sh2dh0ph0_iw120ow60kw2sw2dw0pw0n"text-recognition-0012_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic128_ih16oh8kh2sh2dh0ph0_iw60ow30kw2sw2dw0pw0n"text-recognition-0012_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih8oh4kh2sh2dh0ph0_iw30ow30kw1sw1dw0pw0n"text-recognition-0012_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih4oh2kh2sh2dh0ph0_iw30ow30kw1sw1dw0pw0n"text-recognition-0012_tf.inf.fp16.ov.b32*1"
+#text-recognition-0012_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih32oh16kh2sh2dh0ph0_iw120ow60kw2sw2dw0pw0n"text-recognition-0012_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic128_ih16oh8kh2sh2dh0ph0_iw60ow30kw2sw2dw0pw0n"text-recognition-0012_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih8oh4kh2sh2dh0ph0_iw30ow30kw1sw1dw0pw0n"text-recognition-0012_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih4oh2kh2sh2dh0ph0_iw30ow30kw1sw1dw0pw0n"text-recognition-0012_tf.inf.int8.ov.b32*1"
+#topaz_video_super_resolution_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic32_ih192oh96kh2sh2dh0ph0_iw192ow96kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic64_ih96oh48kh2sh2dh0ph0_iw96ow48kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic128_ih48oh24kh2sh2dh0ph0_iw48ow24kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic48_ih192oh96kh2sh2dh0ph0_iw192ow96kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic96_ih96oh48kh2sh2dh0ph0_iw96ow48kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic192_ih48oh24kh2sh2dh0ph0_iw48ow24kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b1*1"
+#topaz_video_super_resolution_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic32_ih192oh96kh2sh2dh0ph0_iw192ow96kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic64_ih96oh48kh2sh2dh0ph0_iw96ow48kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic128_ih48oh24kh2sh2dh0ph0_iw48ow24kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic48_ih192oh96kh2sh2dh0ph0_iw192ow96kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic96_ih96oh48kh2sh2dh0ph0_iw96ow48kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=ABcd32a16b mb32ic192_ih48oh24kh2sh2dh0ph0_iw48ow24kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.fp16.ov.b32*1"
+#topaz_video_super_resolution_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.12162:-5.85246 mb1ic32_ih192oh96kh2sh2dh0ph0_iw192ow96kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.56915:-28.2482 mb1ic64_ih96oh48kh2sh2dh0ph0_iw96ow48kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:1.08002:-10.228 mb1ic128_ih48oh24kh2sh2dh0ph0_iw48ow24kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:21.6731:-1506.43 mb1ic48_ih192oh96kh2sh2dh0ph0_iw192ow96kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:12.4568:-1188.88 mb1ic96_ih96oh48kh2sh2dh0ph0_iw96ow48kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=aBcd32b --attr-post-ops=linear:2.94562:-77.2683 mb1ic192_ih48oh24kh2sh2dh0ph0_iw48ow24kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b1*1"
+#topaz_video_super_resolution_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.12162:-5.85246 mb32ic32_ih192oh96kh2sh2dh0ph0_iw192ow96kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.56915:-28.2482 mb32ic64_ih96oh48kh2sh2dh0ph0_iw96ow48kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:1.08002:-10.228 mb32ic128_ih48oh24kh2sh2dh0ph0_iw48ow24kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:21.6731:-1506.43 mb32ic48_ih192oh96kh2sh2dh0ph0_iw192ow96kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:12.4568:-1188.88 mb32ic96_ih96oh48kh2sh2dh0ph0_iw96ow48kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=avg_np --tag=ABcd32a32b --attr-post-ops=linear:2.94562:-77.2683 mb32ic192_ih48oh24kh2sh2dh0ph0_iw48ow24kw2sw2dw0pw0n"topaz_video_super_resolution_tf.inf.int8.ov.b32*1"
+#unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih368oh184kh2sh2dh0ph0_iw480ow240kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic128_ih184oh92kh2sh2dh0ph0_iw240ow120kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih92oh46kh2sh2dh0ph0_iw120ow60kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih46oh23kh2sh2dh0ph0_iw60ow30kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1*1"
+#unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih368oh184kh2sh2dh0ph0_iw480ow240kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic128_ih184oh92kh2sh2dh0ph0_iw240ow120kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih92oh46kh2sh2dh0ph0_iw120ow60kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih46oh23kh2sh2dh0ph0_iw60ow30kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32*1"
+#unet-camvid-onnx-0001_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih368oh184kh2sh2dh0ph0_iw480ow240kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic128_ih184oh92kh2sh2dh0ph0_iw240ow120kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih92oh46kh2sh2dh0ph0_iw120ow60kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih46oh23kh2sh2dh0ph0_iw60ow30kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b1*1"
+#unet-camvid-onnx-0001_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih368oh184kh2sh2dh0ph0_iw480ow240kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic128_ih184oh92kh2sh2dh0ph0_iw240ow120kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih92oh46kh2sh2dh0ph0_iw120ow60kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih46oh23kh2sh2dh0ph0_iw60ow30kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b32*1"
+#yolor_p6_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic320_ih20oh20kh13sh1dh0ph6_iw20ow20kw13sw1dw0pw6n"yolor_p6_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic320_ih20oh20kh9sh1dh0ph4_iw20ow20kw9sw1dw0pw4n"yolor_p6_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic320_ih20oh20kh5sh1dh0ph2_iw20ow20kw5sw1dw0pw2n"yolor_p6_onnx.inf.fp16.ov.b1*1"
+#yolor_p6_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic320_ih20oh20kh13sh1dh0ph6_iw20ow20kw13sw1dw0pw6n"yolor_p6_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic320_ih20oh20kh9sh1dh0ph4_iw20ow20kw9sw1dw0pw4n"yolor_p6_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic320_ih20oh20kh5sh1dh0ph2_iw20ow20kw5sw1dw0pw2n"yolor_p6_onnx.inf.fp16.ov.b32*1"
+#yolor_p6_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic320_ih20oh20kh13sh1dh0ph6_iw20ow20kw13sw1dw0pw6n"yolor_p6_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic320_ih20oh20kh9sh1dh0ph4_iw20ow20kw9sw1dw0pw4n"yolor_p6_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic320_ih20oh20kh5sh1dh0ph2_iw20ow20kw5sw1dw0pw2n"yolor_p6_onnx.inf.int8.ov.b1*1"
+#yolor_p6_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic320_ih20oh20kh13sh1dh0ph6_iw20ow20kw13sw1dw0pw6n"yolor_p6_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic320_ih20oh20kh9sh1dh0ph4_iw20ow20kw9sw1dw0pw4n"yolor_p6_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic320_ih20oh20kh5sh1dh0ph2_iw20ow20kw5sw1dw0pw2n"yolor_p6_onnx.inf.int8.ov.b32*1"
+#yolo_v3_tiny_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic16_ih416oh208kh2sh2dh0ph0_iw416ow208kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic32_ih208oh104kh2sh2dh0ph0_iw208ow104kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih104oh52kh2sh2dh0ph0_iw104ow52kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic128_ih52oh26kh2sh2dh0ph0_iw52ow26kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih26oh13kh2sh2dh0ph0_iw26ow13kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih13oh13kh2sh1dh0ph0_iw13ow13kw2sw1dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b1*1"
+#yolo_v3_tiny_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic16_ih416oh208kh2sh2dh0ph0_iw416ow208kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic32_ih208oh104kh2sh2dh0ph0_iw208ow104kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih104oh52kh2sh2dh0ph0_iw104ow52kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic128_ih52oh26kh2sh2dh0ph0_iw52ow26kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih26oh13kh2sh2dh0ph0_iw26ow13kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih13oh13kh2sh1dh0ph0_iw13ow13kw2sw1dw0pw0n"yolo_v3_tiny_onnx.inf.fp16.ov.b32*1"
+#yolo_v3_tiny_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic32_ih208oh104kh2sh2dh0ph0_iw208ow104kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih104oh52kh2sh2dh0ph0_iw104ow52kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic128_ih52oh26kh2sh2dh0ph0_iw52ow26kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih26oh13kh2sh2dh0ph0_iw26ow13kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih13oh13kh2sh1dh0ph0_iw13ow13kw2sw1dw0pw0n"yolo_v3_tiny_onnx.inf.int8.ov.b1*1"
+#yolo_v3_tiny_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic32_ih208oh104kh2sh2dh0ph0_iw208ow104kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih104oh52kh2sh2dh0ph0_iw104ow52kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic128_ih52oh26kh2sh2dh0ph0_iw52ow26kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih26oh13kh2sh2dh0ph0_iw26ow13kw2sw2dw0pw0n"yolo_v3_tiny_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih13oh13kh2sh1dh0ph0_iw13ow13kw2sw1dw0pw0n"yolo_v3_tiny_onnx.inf.int8.ov.b32*1"
+#yolo_v3_tiny_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic16_ih416oh208kh2sh2dh0ph0_iw416ow208kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic32_ih208oh104kh2sh2dh0ph0_iw208ow104kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih104oh52kh2sh2dh0ph0_iw104ow52kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic128_ih52oh26kh2sh2dh0ph0_iw52ow26kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih26oh13kh2sh2dh0ph0_iw26ow13kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih13oh13kh2sh1dh0ph0_iw13ow13kw2sw1dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b1*1"
+#yolo_v3_tiny_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic16_ih416oh208kh2sh2dh0ph0_iw416ow208kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic32_ih208oh104kh2sh2dh0ph0_iw208ow104kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic64_ih104oh52kh2sh2dh0ph0_iw104ow52kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic128_ih52oh26kh2sh2dh0ph0_iw52ow26kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih26oh13kh2sh2dh0ph0_iw26ow13kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih13oh13kh2sh1dh0ph0_iw13ow13kw2sw1dw0pw0n"yolo_v3_tiny_tf.inf.fp16.ov.b32*1"
+#yolo_v3_tiny_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic32_ih208oh104kh2sh2dh0ph0_iw208ow104kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic64_ih104oh52kh2sh2dh0ph0_iw104ow52kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic128_ih52oh26kh2sh2dh0ph0_iw52ow26kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic256_ih26oh13kh2sh2dh0ph0_iw26ow13kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih13oh13kh2sh1dh0ph0_iw13ow13kw2sw1dw0pw0n"yolo_v3_tiny_tf.inf.int8.ov.b1*1"
+#yolo_v3_tiny_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic32_ih208oh104kh2sh2dh0ph0_iw208ow104kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic64_ih104oh52kh2sh2dh0ph0_iw104ow52kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic128_ih52oh26kh2sh2dh0ph0_iw52ow26kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic256_ih26oh13kh2sh2dh0ph0_iw26ow13kw2sw2dw0pw0n"yolo_v3_tiny_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih13oh13kh2sh1dh0ph0_iw13ow13kw2sw1dw0pw0n"yolo_v3_tiny_tf.inf.int8.ov.b32*1"
+#yolo_v4_tf2.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih19oh19kh13sh1dh0ph6_iw19ow19kw13sw1dw0pw6n"yolo_v4_tf2.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih19oh19kh9sh1dh0ph4_iw19ow19kw9sw1dw0pw4n"yolo_v4_tf2.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih19oh19kh5sh1dh0ph2_iw19ow19kw5sw1dw0pw2n"yolo_v4_tf2.inf.fp16.ov.b1*1"
+#yolo_v4_tf2.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih19oh19kh13sh1dh0ph6_iw19ow19kw13sw1dw0pw6n"yolo_v4_tf2.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih19oh19kh9sh1dh0ph4_iw19ow19kw9sw1dw0pw4n"yolo_v4_tf2.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih19oh19kh5sh1dh0ph2_iw19ow19kw5sw1dw0pw2n"yolo_v4_tf2.inf.fp16.ov.b32*1"
+#yolo_v4_tf2.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih19oh19kh13sh1dh0ph6_iw19ow19kw13sw1dw0pw6n"yolo_v4_tf2.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih19oh19kh9sh1dh0ph4_iw19ow19kw9sw1dw0pw4n"yolo_v4_tf2.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih19oh19kh5sh1dh0ph2_iw19ow19kw5sw1dw0pw2n"yolo_v4_tf2.inf.int8.ov.b1*1"
+#yolo_v4_tf2.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih19oh19kh13sh1dh0ph6_iw19ow19kw13sw1dw0pw6n"yolo_v4_tf2.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih19oh19kh9sh1dh0ph4_iw19ow19kw9sw1dw0pw4n"yolo_v4_tf2.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih19oh19kh5sh1dh0ph2_iw19ow19kw5sw1dw0pw2n"yolo_v4_tf2.inf.int8.ov.b32*1"
+#yolo_v4_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih19oh19kh13sh1dh0ph6_iw19ow19kw13sw1dw0pw6n"yolo_v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih19oh19kh9sh1dh0ph4_iw19ow19kw9sw1dw0pw4n"yolo_v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic512_ih19oh19kh5sh1dh0ph2_iw19ow19kw5sw1dw0pw2n"yolo_v4_tf.inf.fp16.ov.b1*1"
+#yolo_v4_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih19oh19kh13sh1dh0ph6_iw19ow19kw13sw1dw0pw6n"yolo_v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih19oh19kh9sh1dh0ph4_iw19ow19kw9sw1dw0pw4n"yolo_v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic512_ih19oh19kh5sh1dh0ph2_iw19ow19kw5sw1dw0pw2n"yolo_v4_tf.inf.fp16.ov.b32*1"
+#yolo_v4_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih19oh19kh13sh1dh0ph6_iw19ow19kw13sw1dw0pw6n"yolo_v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih19oh19kh9sh1dh0ph4_iw19ow19kw9sw1dw0pw4n"yolo_v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=aBcd32b mb1ic512_ih19oh19kh5sh1dh0ph2_iw19ow19kw5sw1dw0pw2n"yolo_v4_tf.inf.int8.ov.b1*1"
+#yolo_v4_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih19oh19kh13sh1dh0ph6_iw19ow19kw13sw1dw0pw6n"yolo_v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih19oh19kh9sh1dh0ph4_iw19ow19kw9sw1dw0pw4n"yolo_v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8 --dir=FWD_I --alg=max --tag=ABcd32a32b mb32ic512_ih19oh19kh5sh1dh0ph2_iw19ow19kw5sw1dw0pw2n"yolo_v4_tf.inf.int8.ov.b32*1"
+#yolo_v5s_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih20oh20kh13sh1dh0ph6_iw20ow20kw13sw1dw0pw6n"yolo_v5s_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih20oh20kh9sh1dh0ph4_iw20ow20kw9sw1dw0pw4n"yolo_v5s_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic256_ih20oh20kh5sh1dh0ph2_iw20ow20kw5sw1dw0pw2n"yolo_v5s_onnx.inf.fp16.ov.b1*1"
+#yolo_v5s_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih20oh20kh13sh1dh0ph6_iw20ow20kw13sw1dw0pw6n"yolo_v5s_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih20oh20kh9sh1dh0ph4_iw20ow20kw9sw1dw0pw4n"yolo_v5s_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=ABcd32a16b mb32ic256_ih20oh20kh5sh1dh0ph2_iw20ow20kw5sw1dw0pw2n"yolo_v5s_onnx.inf.fp16.ov.b32*1"

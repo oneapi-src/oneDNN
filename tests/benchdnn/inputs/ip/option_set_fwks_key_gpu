@@ -1,3 +1,5 @@
+#resnet-50.tr.bf16.tf.mb256_pvc_nhwc
+--reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb256ic2048oc1001n"resnet-50.tr.bf16.tf.mb256_pvc_nhwc*1"
 #3dgan.tr.fp32.tf.mb256
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb256ic10648oc1n"3dgan.tr.fp32.tf.mb256*4"
 #bert.tr.bf16.tf.mb32
@@ -64,3 +66,5 @@
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb11456ic51oc32n"dcrnn.tr.fp32.tf.mb64*12"
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb11456ic54oc16n"dcrnn.tr.fp32.tf.mb64*11"
 --reset --allow-enum-tags-only=0 --cfg=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb11456ic54oc32n"dcrnn.tr.fp32.tf.mb64*11"
+#resnet-50.inf.int8.ov.mb64
+--reset --allow-enum-tags-only=0 --cfg=u8s8f32 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=add:f32:per_dim_0 mb64ic2048ih1iw1oc1001n"resnet-50.inf.int8.ov.mb64*1"

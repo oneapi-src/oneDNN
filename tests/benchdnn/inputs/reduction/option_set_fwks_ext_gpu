@@ -1,3 +1,8 @@
+#kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x64x224x168:6x64x1x1n"kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x128x112x84:6x128x1x1n"kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x256x56x42:6x256x1x1n"kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x512x28x21:6x512x1x1n"kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6*1"
 #aclnet.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x512x7x6:1x512x1x1n"aclnet.inf.fp16.ov.mb1*1"
 #anti-spoof-mn3.inf.int8.ov.mb32
@@ -63,3 +68,423 @@
 --reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"resnet_v1.inf.5_50.ov.mint8*1"
 #resnext101-32x16d-swsl.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x7x7:1x2048x1x1n"resnext101-32x16d-swsl.inf.fp16.ov.mb1*1"
+#ssd-mobilenet-v1-25.inf.int8.ov.mb1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b --attr-post-ops=linear:1.14884 1x256x4x4:1x256x1x1n"ssd-mobilenet-v1-25.inf.int8.ov.mb1*2"
+#deeplabv3_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x320x65x65:1x320x1x1n"deeplabv3_tf.inf.fp16.ov.b1*1"
+#deeplabv3_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x320x65x65:32x320x1x1n"deeplabv3_tf.inf.fp16.ov.b32*1"
+#deeplabv3_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x320x65x65:1x320x1x1n"deeplabv3_tf.inf.int8.ov.b1*1"
+#deeplabv3_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x320x65x65:32x320x1x1n"deeplabv3_tf.inf.int8.ov.b32*1"
+#densenet-121_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1024x7x7:1x1024x1x1n"densenet-121_caffe.inf.fp16.ov.b1*1"
+#densenet-121_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1024x7x7:32x1024x1x1n"densenet-121_caffe.inf.fp16.ov.b32*1"
+#densenet-121_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1024x7x7:1x1024x1x1n"densenet-121_onnx.inf.fp16.ov.b1*1"
+#densenet-121_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1024x7x7:32x1024x1x1n"densenet-121_onnx.inf.fp16.ov.b32*1"
+#densenet-121_tf2.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1024x7x7:1x1024x1x1n"densenet-121_tf2.inf.fp16.ov.b1*1"
+#densenet-121_tf2.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1024x7x7:32x1024x1x1n"densenet-121_tf2.inf.fp16.ov.b32*1"
+#densenet-121_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1024x6x6:1x1024x1x1n"densenet-121_tf.inf.fp16.ov.b1*1"
+#densenet-121_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1024x6x6:32x1024x1x1n"densenet-121_tf.inf.fp16.ov.b32*1"
+#dpn-68_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x832x7x7:1x832x1x1n"dpn-68_onnx.inf.fp16.ov.b1*1"
+#dpn-68_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x832x7x7:32x832x1x1n"dpn-68_onnx.inf.fp16.ov.b32*1"
+#dpn-68_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x832x7x7:1x832x1x1n"dpn-68_onnx.inf.int8.ov.b1*1"
+#dpn-68_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x832x7x7:32x832x1x1n"dpn-68_onnx.inf.int8.ov.b32*1"
+#efficientdet-d0_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x32x256x256:1x32x1x1n"efficientdet-d0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x96x128x128:1x96x1x1n"efficientdet-d0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x144x128x128:1x144x1x1n"efficientdet-d0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x144x64x64:1x144x1x1n"efficientdet-d0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x240x64x64:1x240x1x1n"efficientdet-d0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x240x32x32:1x240x1x1n"efficientdet-d0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x480x32x32:1x480x1x1n"efficientdet-d0_tf.inf.fp16.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x672x32x32:1x672x1x1n"efficientdet-d0_tf.inf.fp16.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x672x16x16:1x672x1x1n"efficientdet-d0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1152x16x16:1x1152x1x1n"efficientdet-d0_tf.inf.fp16.ov.b1*4"
+#efficientdet-d0_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x32x256x256:1x32x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x96x128x128:1x96x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x144x128x128:1x144x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x144x64x64:1x144x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x240x64x64:1x240x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x240x32x32:1x240x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x480x32x32:1x480x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x672x32x32:1x672x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x672x16x16:1x672x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1152x16x16:1x1152x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*4"
+#efficientnet-b0_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x32x112x112:1x32x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x96x56x56:1x96x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x144x56x56:1x144x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x144x28x28:1x144x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x240x28x28:1x240x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x240x14x14:1x240x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x480x14x14:1x480x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x672x14x14:1x672x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x672x7x7:1x672x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1152x7x7:1x1152x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1280x7x7:1x1280x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b1*1"
+#efficientnet-b0_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x32x112x112:32x32x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x96x56x56:32x96x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x144x56x56:32x144x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x144x28x28:32x144x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x240x28x28:32x240x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x240x14x14:32x240x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x480x14x14:32x480x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x672x14x14:32x672x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x672x7x7:32x672x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1152x7x7:32x1152x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1280x7x7:32x1280x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*1"
+#efficientnet-b0_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x32x112x112:1x32x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x96x56x56:1x96x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x144x56x56:1x144x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x144x28x28:1x144x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x240x28x28:1x240x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b --attr-post-ops=mul:f32:common 1x240x14x14:1x240x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x480x14x14:1x480x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x672x14x14:1x672x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x672x7x7:1x672x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1152x7x7:1x1152x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1280x7x7:1x1280x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*1"
+#efficientnet-b0_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x32x112x112:32x32x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x96x56x56:32x96x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x144x56x56:32x144x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x144x28x28:32x144x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x240x28x28:32x240x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x240x14x14:32x240x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x480x14x14:32x480x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x672x14x14:32x672x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x672x7x7:32x672x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1152x7x7:32x1152x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1280x7x7:32x1280x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*1"
+#efficientnet-b0_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x32x112x112:1x32x1x1n"efficientnet-b0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x96x56x56:1x96x1x1n"efficientnet-b0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x144x56x56:1x144x1x1n"efficientnet-b0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x144x28x28:1x144x1x1n"efficientnet-b0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x240x28x28:1x240x1x1n"efficientnet-b0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x240x14x14:1x240x1x1n"efficientnet-b0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x480x14x14:1x480x1x1n"efficientnet-b0_tf.inf.fp16.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x672x14x14:1x672x1x1n"efficientnet-b0_tf.inf.fp16.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x672x7x7:1x672x1x1n"efficientnet-b0_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1152x7x7:1x1152x1x1n"efficientnet-b0_tf.inf.fp16.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1280x7x7:1x1280x1x1n"efficientnet-b0_tf.inf.fp16.ov.b1*1"
+#efficientnet-b0_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x32x112x112:32x32x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x96x56x56:32x96x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x144x56x56:32x144x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x144x28x28:32x144x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x240x28x28:32x240x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x240x14x14:32x240x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x480x14x14:32x480x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x672x14x14:32x672x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x672x7x7:32x672x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1152x7x7:32x1152x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1280x7x7:32x1280x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*1"
+#efficientnet-b0_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x32x112x112:1x32x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x96x56x56:1x96x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x144x56x56:1x144x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x144x28x28:1x144x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x240x28x28:1x240x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b --attr-post-ops=mul:f32:common 1x240x14x14:1x240x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x480x14x14:1x480x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x672x14x14:1x672x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x672x7x7:1x672x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1152x7x7:1x1152x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1280x7x7:1x1280x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*1"
+#efficientnet-b0_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x32x112x112:32x32x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x96x56x56:32x96x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x144x56x56:32x144x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x144x28x28:32x144x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x240x28x28:32x240x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x240x14x14:32x240x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x480x14x14:32x480x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x672x14x14:32x672x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x672x7x7:32x672x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1152x7x7:32x1152x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1280x7x7:32x1280x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*1"
+#efficientnet-v2-m_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x320x30x30:1x320x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x640x30x30:1x640x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x960x30x30:1x960x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1056x30x30:1x1056x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b1*13"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1056x15x15:1x1056x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1824x15x15:1x1824x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b1*18"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x3072x15x15:1x3072x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1280x15x15:1x1280x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b1*1"
+#efficientnet-v2-m_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x320x30x30:32x320x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x640x30x30:32x640x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x960x30x30:32x960x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1056x30x30:32x1056x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b32*13"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1056x15x15:32x1056x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1824x15x15:32x1824x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b32*18"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x3072x15x15:32x3072x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1280x15x15:32x1280x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b32*1"
+#efficientnet-v2-m_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x320x30x30:1x320x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x640x30x30:1x640x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x960x30x30:1x960x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1056x30x30:1x1056x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*13"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1056x15x15:1x1056x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1824x15x15:1x1824x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*18"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x3072x15x15:1x3072x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1280x15x15:1x1280x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*1"
+#efficientnet-v2-m_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x320x30x30:32x320x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x640x30x30:32x640x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x960x30x30:32x960x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1056x30x30:32x1056x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*13"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1056x15x15:32x1056x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1824x15x15:32x1824x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*18"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x3072x15x15:32x3072x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1280x15x15:32x1280x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*1"
+#facenet-20180408-102900_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1792x3x3:1x1792x1x1n"facenet-20180408-102900_tf.inf.fp16.ov.b1*1"
+#facenet-20180408-102900_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1792x3x3:32x1792x1x1n"facenet-20180408-102900_tf.inf.fp16.ov.b32*1"
+#facenet-20180408-102900_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1792x3x3:1x1792x1x1n"facenet-20180408-102900_tf.inf.int8.ov.b1*1"
+#facenet-20180408-102900_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1792x3x3:32x1792x1x1n"facenet-20180408-102900_tf.inf.int8.ov.b32*1"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 100x1536x8x8:100x1536x1x1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*2"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 3200x1536x8x8:3200x1536x1x1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*2"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 100x1536x8x8:100x1536x1x1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1*2"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 3200x1536x8x8:3200x1536x1x1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*2"
+#faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 300x2048x4x4:300x2048x1x1n"faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1*2"
+#faster_rcnn_resnet50_coco_tf2.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 300x2048x4x4:300x2048x1x1n"faster_rcnn_resnet50_coco_tf2.inf.int8.ov.b1*2"
+#faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 100x2048x7x7:100x2048x1x1n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1*1"
+#faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 3200x2048x7x7:3200x2048x1x1n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32*1"
+#faster_rcnn_resnet50_coco_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 100x2048x7x7:100x2048x1x1n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b1*1"
+#faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 3200x2048x7x7:3200x2048x1x1n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32*1"
+#fastseg-small_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x16x256x512:1x16x1x1n"fastseg-small_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x96x128x256:1x96x1x1n"fastseg-small_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x240x128x256:1x240x1x1n"fastseg-small_onnx.inf.fp16.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x120x128x256:1x120x1x1n"fastseg-small_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x144x128x256:1x144x1x1n"fastseg-small_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x288x128x256:1x288x1x1n"fastseg-small_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x576x128x256:1x576x1x1n"fastseg-small_onnx.inf.fp16.ov.b1*2"
+#fastseg-small_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x96x128x256:1x96x1x1n"fastseg-small_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x240x128x256:1x240x1x1n"fastseg-small_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x120x128x256:1x120x1x1n"fastseg-small_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x144x128x256:1x144x1x1n"fastseg-small_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x288x128x256:1x288x1x1n"fastseg-small_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x576x128x256:1x576x1x1n"fastseg-small_onnx.inf.int8.ov.b1*2"
+#googlenet-v4_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1536x8x8:1x1536x1x1n"googlenet-v4_caffe.inf.fp16.ov.b1*1"
+#googlenet-v4_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1536x8x8:32x1536x1x1n"googlenet-v4_caffe.inf.fp16.ov.b32*1"
+#googlenet-v4_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1536x8x8:1x1536x1x1n"googlenet-v4_caffe.inf.int8.ov.b1*1"
+#googlenet-v4_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1536x8x8:32x1536x1x1n"googlenet-v4_caffe.inf.int8.ov.b32*1"
+#googlenet-v4_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1536x8x8:1x1536x1x1n"googlenet-v4_tf.inf.fp16.ov.b1*1"
+#googlenet-v4_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1536x8x8:32x1536x1x1n"googlenet-v4_tf.inf.fp16.ov.b32*1"
+#googlenet-v4_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1536x8x8:1x1536x1x1n"googlenet-v4_tf.inf.int8.ov.b1*1"
+#googlenet-v4_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1536x8x8:32x1536x1x1n"googlenet-v4_tf.inf.int8.ov.b32*1"
+#intermediate_model_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x96x128x256:1x96x1x1n"intermediate_model_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x240x128x256:1x240x1x1n"intermediate_model_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x120x128x256:1x120x1x1n"intermediate_model_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x144x128x256:1x144x1x1n"intermediate_model_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x288x128x256:1x288x1x1n"intermediate_model_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x576x128x256:1x576x1x1n"intermediate_model_onnx.inf.int8.ov.b1*2"
+#mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 100x2048x7x7:100x2048x1x1n"mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1*1"
+#mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 100x2048x7x7:100x2048x1x1n"mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1*1"
+#pp-ocr-rec_paddle.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x48x4x320:1x48x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x120x4x320:1x120x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x64x4x320:1x64x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x72x4x320:1x72x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x144x2x320:1x144x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x288x2x320:1x288x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b1*2"
+#pp-ocr-rec_paddle.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x48x4x320:32x48x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x120x4x320:32x120x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x64x4x320:32x64x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x72x4x320:32x72x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x144x2x320:32x144x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x288x2x320:32x288x1x1n"pp-ocr-rec_paddle.inf.fp16.ov.b32*2"
+#pp-ocr-rec_paddle.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x48x4x320:1x48x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x120x4x320:1x120x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x64x4x320:1x64x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x72x4x320:1x72x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x144x2x320:1x144x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x288x2x320:1x288x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*2"
+#pp-ocr-rec_paddle.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x48x4x320:32x48x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x120x4x320:32x120x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x64x4x320:32x64x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x72x4x320:32x72x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x144x2x320:32x144x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x288x2x320:32x288x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*2"
+#resnet-18_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x512x7x7:1x512x1x1n"resnet-18_caffe.inf.fp16.ov.b1*1"
+#resnet-18_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x512x7x7:32x512x1x1n"resnet-18_caffe.inf.fp16.ov.b32*1"
+#resnet-18_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x512x7x7:1x512x1x1n"resnet-18_onnx.inf.fp16.ov.b1*1"
+#resnet-18_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x512x7x7:32x512x1x1n"resnet-18_onnx.inf.fp16.ov.b32*1"
+#resnet-18_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x512x7x7:1x512x1x1n"resnet-18_onnx.inf.int8.ov.b1*1"
+#resnet-18_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x512x7x7:32x512x1x1n"resnet-18_onnx.inf.int8.ov.b32*1"
+#resnet-50_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x7x7:1x2048x1x1n"resnet-50_caffe.inf.fp16.ov.b1*1"
+#resnet-50_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x2048x7x7:32x2048x1x1n"resnet-50_caffe.inf.fp16.ov.b32*1"
+#resnet-50_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"resnet-50_caffe.inf.int8.ov.b1*1"
+#resnet-50_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x2048x7x7:32x2048x1x1n"resnet-50_caffe.inf.int8.ov.b32*1"
+#resnet-50_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x7x7:1x2048x1x1n"resnet-50_onnx.inf.fp16.ov.b1*1"
+#resnet-50_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x2048x7x7:32x2048x1x1n"resnet-50_onnx.inf.fp16.ov.b32*1"
+#resnet-50_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"resnet-50_onnx.inf.int8.ov.b1*1"
+#resnet-50_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x2048x7x7:32x2048x1x1n"resnet-50_onnx.inf.int8.ov.b32*1"
+#resnet-50_paddle.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x7x7:1x2048x1x1n"resnet-50_paddle.inf.fp16.ov.b1*1"
+#resnet-50_paddle.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x2048x7x7:32x2048x1x1n"resnet-50_paddle.inf.fp16.ov.b32*1"
+#resnet-50_paddle.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"resnet-50_paddle.inf.int8.ov.b1*1"
+#resnet-50_paddle.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x2048x7x7:32x2048x1x1n"resnet-50_paddle.inf.int8.ov.b32*1"
+#resnet-50-pytorch_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x7x7:1x2048x1x1n"resnet-50-pytorch_onnx.inf.fp16.ov.b1*1"
+#resnet-50-pytorch_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x2048x7x7:32x2048x1x1n"resnet-50-pytorch_onnx.inf.fp16.ov.b32*1"
+#resnet-50-pytorch_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"resnet-50-pytorch_onnx.inf.int8.ov.b1*1"
+#resnet-50-pytorch_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x2048x7x7:32x2048x1x1n"resnet-50-pytorch_onnx.inf.int8.ov.b32*1"
+#resnet-50_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x7x7:1x2048x1x1n"resnet-50_tf.inf.fp16.ov.b1*1"
+#resnet-50_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x2048x7x7:32x2048x1x1n"resnet-50_tf.inf.fp16.ov.b32*1"
+#resnet-50_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"resnet-50_tf.inf.int8.ov.b1*1"
+#resnet-50_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x2048x7x7:32x2048x1x1n"resnet-50_tf.inf.int8.ov.b32*1"
+#semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1024x32x64:1x1024x1x1n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b1*1"
+#semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1024x32x64:32x1024x1x1n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b32*1"
+#semantic-segmentation-adas-0001_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1024x32x64:1x1024x1x1n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b1*1"
+#semantic-segmentation-adas-0001_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1024x32x64:32x1024x1x1n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b32*1"
+#se-resnext-50_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x256x56x56:1x256x1x1n"se-resnext-50_caffe.inf.fp16.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x512x28x28:1x512x1x1n"se-resnext-50_caffe.inf.fp16.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1024x14x14:1x1024x1x1n"se-resnext-50_caffe.inf.fp16.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x7x7:1x2048x1x1n"se-resnext-50_caffe.inf.fp16.ov.b1*4"
+#se-resnext-50_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x256x56x56:32x256x1x1n"se-resnext-50_caffe.inf.fp16.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x512x28x28:32x512x1x1n"se-resnext-50_caffe.inf.fp16.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1024x14x14:32x1024x1x1n"se-resnext-50_caffe.inf.fp16.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x2048x7x7:32x2048x1x1n"se-resnext-50_caffe.inf.fp16.ov.b32*4"
+#se-resnext-50_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x256x56x56:1x256x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x512x28x28:1x512x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1024x14x14:1x1024x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*1"
+#se-resnext-50_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x256x56x56:32x256x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x512x28x28:32x512x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1024x14x14:32x1024x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x2048x7x7:32x2048x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x2048x7x7:32x2048x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*1"
+#se-resnext-50_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x256x56x56:1x256x1x1n"se-resnext-50_onnx.inf.fp16.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x512x28x28:1x512x1x1n"se-resnext-50_onnx.inf.fp16.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1024x14x14:1x1024x1x1n"se-resnext-50_onnx.inf.fp16.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x7x7:1x2048x1x1n"se-resnext-50_onnx.inf.fp16.ov.b1*4"
+#se-resnext-50_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x256x56x56:32x256x1x1n"se-resnext-50_onnx.inf.fp16.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x512x28x28:32x512x1x1n"se-resnext-50_onnx.inf.fp16.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1024x14x14:32x1024x1x1n"se-resnext-50_onnx.inf.fp16.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x2048x7x7:32x2048x1x1n"se-resnext-50_onnx.inf.fp16.ov.b32*4"
+#se-resnext-50_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x256x56x56:1x256x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x512x28x28:1x512x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1024x14x14:1x1024x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*1"
+#se-resnext-50_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x256x56x56:32x256x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x512x28x28:32x512x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1024x14x14:32x1024x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x2048x7x7:32x2048x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x2048x7x7:32x2048x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*1"
+#se-resnext-50_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x256x56x56:1x256x1x1n"se-resnext-50_tf.inf.fp16.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x512x28x28:1x512x1x1n"se-resnext-50_tf.inf.fp16.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1024x14x14:1x1024x1x1n"se-resnext-50_tf.inf.fp16.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x7x7:1x2048x1x1n"se-resnext-50_tf.inf.fp16.ov.b1*4"
+#se-resnext-50_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x256x56x56:32x256x1x1n"se-resnext-50_tf.inf.fp16.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x512x28x28:32x512x1x1n"se-resnext-50_tf.inf.fp16.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x1024x14x14:32x1024x1x1n"se-resnext-50_tf.inf.fp16.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x2048x7x7:32x2048x1x1n"se-resnext-50_tf.inf.fp16.ov.b32*4"
+#se-resnext-50_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x256x56x56:1x256x1x1n"se-resnext-50_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x512x28x28:1x512x1x1n"se-resnext-50_tf.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x1024x14x14:1x1024x1x1n"se-resnext-50_tf.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"se-resnext-50_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"se-resnext-50_tf.inf.int8.ov.b1*1"
+#se-resnext-50_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x256x56x56:32x256x1x1n"se-resnext-50_tf.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x512x28x28:32x512x1x1n"se-resnext-50_tf.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x1024x14x14:32x1024x1x1n"se-resnext-50_tf.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x2048x7x7:32x2048x1x1n"se-resnext-50_tf.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 32x2048x7x7:32x2048x1x1n"se-resnext-50_tf.inf.int8.ov.b32*1"
+#unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=sum --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x12x368x480:1x1x368x480n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1*1"
+#unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=sum --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x12x368x480:32x1x368x480n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32*1"
+#unet-camvid-onnx-0001_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=sum --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x12x368x480:1x1x368x480n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b1*1"
+#unet-camvid-onnx-0001_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=sum --p=0 --eps=0 --stag=ABcd32a16b --dtag=ABcd32a16b 32x12x368x480:32x1x368x480n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b32*1"

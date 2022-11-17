@@ -639,6 +639,91 @@
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=abcd --dtag=ABcd32a16b 1024x2048x7x7n"seresnext50.inf.fp32.pt.mb1024_pvc*2"
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd32a16b --dtag=ABcd16a16b 1024x1024x7x7n"seresnext50.inf.fp32.pt.mb1024_pvc*2"
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ba --dtag=ab 2048x1000n"seresnext50.inf.fp32.pt.mb1024_pvc*1"
+#mma.tr.tf32.tf.mb32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cbda --dtag=Abcd16a 64x1x16x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 32x64x8177x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 32x64x2044x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 64x64x1022x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 128x64x16x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 64x128x1007x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 64x128x252x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 256x128x16x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 64x256x237x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 64x256x90x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 256x256x32x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 64x256x59x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 64x256x18x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 128x256x4x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 64x128x15x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 64x128x18x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 128x128x4x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 64x128x16x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 64x128x2x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 64x64x15x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 32x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ab --dtag=ab 32x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 64x64x15x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 64x128x2x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 64x128x16x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 64x128x15x1n"mma.tr.tf32.tf.mb32*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 128x128x4x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 64x128x18x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 128x256x4x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 64x256x18x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 64x256x59x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 256x256x32x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 64x256x90x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 64x256x237x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 256x128x16x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 64x128x252x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 64x128x1007x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 128x64x16x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=acdb 64x64x1022x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=acdb --dtag=ABcd16a16b 32x64x8177x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=Abcd16a --dtag=cbda 64x1x16x1n"mma.tr.tf32.tf.mb32*1"
+#mma.tr.tf32.tf.mb32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cbda --dtag=Abcd16a 64x1x16x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 128x64x16x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 256x128x16x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 256x256x32x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 128x256x4x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 128x128x4x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=cdba --dtag=ABcd8b16a 64x128x2x1n"mma.tr.tf32.tf.mb32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 64x128x2x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 128x128x4x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 128x256x4x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 256x256x32x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 256x128x16x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd8b16a --dtag=cdba 128x64x16x1n"mma.tr.tf32.tf.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=Abcd16a --dtag=cbda 64x1x16x1n"mma.tr.tf32.tf.mb32*1"
+#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 6x64x224x168n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 6x128x112x84n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 6x256x56x42n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 6x512x28x21n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x64x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*8"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x96x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x32x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x256x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x288x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x384x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x96x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x768x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*18"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x192x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*16"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x320x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x192x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x1280x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x384x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*8"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x2048x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ba --dtag=ab 11x5n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 5x512x1x1n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
+#randomCNN.inf.fp16.gehc.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=acdb --dtag=ABcd16b16a 16x1x3x3n"randomCNN.inf.fp16.gehc.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=acdb --dtag=ABcd8b8a2b 128x16x3x3n"randomCNN.inf.fp16.gehc.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=acdb --dtag=ABcd8b8a2b 128x128x3x3n"randomCNN.inf.fp16.gehc.mb1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=acdb --dtag=ABcd8b8a2b 1x128x3x3n"randomCNN.inf.fp16.gehc.mb1*1"
 #aclnet.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x128x1x100n"aclnet.inf.fp16.ov.mb1*1"
 #anti-spoof-mn3.inf.int8.ov.mb32
@@ -738,3 +823,616 @@
 --reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x3x240x135n"wdsr.inf.fp16.ov.mb1*1"
 #wdsr-small-x4.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x3x240x135n"wdsr-small-x4.inf.fp16.ov.mb1*1"
+#began_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x128x8x8n"began_onnx.inf.fp16.ov.b1*1"
+#began_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x128x8x8n"began_onnx.inf.fp16.ov.b32*1"
+#colorization-siggraph_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x64x256x256n"colorization-siggraph_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x64x128x128n"colorization-siggraph_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x128x128x128n"colorization-siggraph_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x128x64x64n"colorization-siggraph_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x256x64x64n"colorization-siggraph_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x256x32x32n"colorization-siggraph_onnx.inf.fp16.ov.b1*1"
+#colorization-siggraph_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x64x256x256n"colorization-siggraph_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x64x128x128n"colorization-siggraph_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x128x128x128n"colorization-siggraph_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x128x64x64n"colorization-siggraph_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x256x64x64n"colorization-siggraph_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x256x32x32n"colorization-siggraph_onnx.inf.fp16.ov.b32*1"
+#colorization-siggraph_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x64x256x256n"colorization-siggraph_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abcd --dtag=aBcd32b 1x64x128x128n"colorization-siggraph_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x128x128x128n"colorization-siggraph_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abcd --dtag=aBcd32b 1x128x64x64n"colorization-siggraph_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x256x64x64n"colorization-siggraph_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abcd --dtag=aBcd32b 1x256x32x32n"colorization-siggraph_onnx.inf.int8.ov.b1*1"
+#colorization-siggraph_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=ABcd32a32b --dtag=abcd 32x64x256x256n"colorization-siggraph_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abcd --dtag=ABcd32a32b 32x64x128x128n"colorization-siggraph_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=ABcd32a32b --dtag=abcd 32x128x128x128n"colorization-siggraph_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abcd --dtag=ABcd32a32b 32x128x64x64n"colorization-siggraph_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=ABcd32a32b --dtag=abcd 32x256x64x64n"colorization-siggraph_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abcd --dtag=ABcd32a32b 32x256x32x32n"colorization-siggraph_onnx.inf.int8.ov.b32*1"
+#deeplabv3_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x21x65x65n"deeplabv3_tf.inf.fp16.ov.b1*1"
+#deeplabv3_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x21x65x65n"deeplabv3_tf.inf.fp16.ov.b32*1"
+#deeplabv3_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x21x65x65n"deeplabv3_tf.inf.int8.ov.b1*1"
+#deeplabv3_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x21x65x65n"deeplabv3_tf.inf.int8.ov.b32*1"
+#denoise_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x1x1x1n"denoise_tf.inf.fp16.ov.b1*2"
+#denoise_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 1x1x1x1n"denoise_tf.inf.fp16.ov.b32*2"
+#denoise_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=aBcd32b 1x1x1x1n"denoise_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x1x1x1n"denoise_tf.inf.int8.ov.b1*1"
+#denoise_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=ABcd32a32b 1x1x1x1n"denoise_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 1x1x1x1n"denoise_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=ABcd32a32b 32x48x256x256n"denoise_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=ABcd32a16b 32x48x128x128n"denoise_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=ABcd32a32b 32x96x128x128n"denoise_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd16a16b --dtag=ABcd32a32b 32x96x64x64n"denoise_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=ABcd32a32b 32x160x64x64n"denoise_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=ABcd32a16b 32x160x32x32n"denoise_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x464x64x64n"denoise_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x256x128x128n"denoise_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x144x256x256n"denoise_tf.inf.int8.ov.b32*1"
+#densenet-121_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x256x56x56n"densenet-121_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x1024x1x1n"densenet-121_caffe.inf.int8.ov.b1*1"
+#densenet-121_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 32x256x56x56n"densenet-121_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 32x1024x1x1n"densenet-121_caffe.inf.int8.ov.b32*1"
+#densenet-121_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1024x1x1n"densenet-121_onnx.inf.fp16.ov.b32*1"
+#densenet-121_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x256x56x56n"densenet-121_onnx.inf.int8.ov.b1*1"
+#densenet-121_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 32x256x56x56n"densenet-121_onnx.inf.int8.ov.b32*1"
+#densenet-121_tf2.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1024x1x1n"densenet-121_tf2.inf.fp16.ov.b32*1"
+#densenet-121_tf2.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x256x56x56n"densenet-121_tf2.inf.int8.ov.b1*1"
+#densenet-121_tf2.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 32x256x56x56n"densenet-121_tf2.inf.int8.ov.b32*1"
+#densenet-121_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1000x1x1n"densenet-121_tf.inf.fp16.ov.b32*1"
+#densenet-121_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x256x55x55n"densenet-121_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x1024x1x1n"densenet-121_tf.inf.int8.ov.b1*1"
+#densenet-121_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 32x256x55x55n"densenet-121_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 32x1024x1x1n"densenet-121_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1000x1x1n"densenet-121_tf.inf.int8.ov.b32*1"
+#east_resnet_v1_50_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x64x256x480n"east_resnet_v1_50_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=ABcd32a32b 32x64x256x480n"east_resnet_v1_50_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x128x256x480n"east_resnet_v1_50_tf.inf.int8.ov.b32*1"
+#ebgan_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x128x8x8n"ebgan_onnx.inf.fp16.ov.b1*1"
+#ebgan_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x128x8x8n"ebgan_onnx.inf.fp16.ov.b32*1"
+#ebgan_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abcd --dtag=aBcd32b 1x128x8x8n"ebgan_onnx.inf.int8.ov.b1*1"
+#ebgan_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abcd --dtag=ABcd32a32b 32x128x8x8n"ebgan_onnx.inf.int8.ov.b32*1"
+#efficientdet-d0_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x96x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x144x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x240x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x240x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x480x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x480x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x672x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x672x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x1152x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x1152x1x1n"efficientdet-d0_tf.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=abcd --dtag=aBcd32b 1x64x8x8n"efficientdet-d0_tf.inf.int8.ov.b1*1"
+#efficientnet-b0_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1280x1x1n"efficientnet-b0_onnx.inf.fp16.ov.b32*1"
+#efficientnet-b0_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x96x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x144x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x240x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x240x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd32b --dtag=aBcd16b 1x240x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x480x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x480x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x672x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x672x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x1152x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x1152x1x1n"efficientnet-b0_onnx.inf.int8.ov.b1*4"
+#efficientnet-b0_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x96x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x144x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x240x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x240x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x480x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x480x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x672x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x672x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x1152x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x1152x1x1n"efficientnet-b0_onnx.inf.int8.ov.b32*4"
+#efficientnet-b0_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1280x1x1n"efficientnet-b0_tf.inf.fp16.ov.b32*1"
+#efficientnet-b0_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x96x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x144x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x240x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x240x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd32b --dtag=aBcd16b 1x240x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x480x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x480x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x672x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x672x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x1152x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x1152x1x1n"efficientnet-b0_tf.inf.int8.ov.b1*4"
+#efficientnet-b0_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x96x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x144x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x240x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x240x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x480x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x480x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x672x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x672x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x1152x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x1152x1x1n"efficientnet-b0_tf.inf.int8.ov.b32*4"
+#efficientnet-v2-m_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1280x1x1n"efficientnet-v2-m_onnx.inf.fp16.ov.b32*1"
+#efficientnet-v2-m_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x320x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x320x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x640x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x640x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x960x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x960x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x1056x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*14"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x1056x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*14"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x1824x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*18"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x1824x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*18"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x3072x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x3072x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b1*4"
+#efficientnet-v2-m_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x24x240x240n"efficientnet-v2-m_onnx.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x320x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x320x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x640x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x640x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x960x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x960x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x1056x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*14"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x1056x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*14"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x1824x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*18"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x1824x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*18"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x3072x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x3072x1x1n"efficientnet-v2-m_onnx.inf.int8.ov.b32*4"
+#faceboxes_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x128x64x64n"faceboxes_onnx.inf.int8.ov.b1*1"
+#faceboxes_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd16a16b --dtag=abcd 32x24x256x256n"faceboxes_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 32x48x128x128n"faceboxes_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd16a16b --dtag=abcd 32x64x64x64n"faceboxes_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 32x128x64x64n"faceboxes_onnx.inf.int8.ov.b32*1"
+#facenet-20180408-102900_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1792x1x1n"facenet-20180408-102900_tf.inf.fp16.ov.b32*1"
+#face-recognition-resnet50-arcface_mxnet.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x512x7x7n"face-recognition-resnet50-arcface_mxnet.inf.fp16.ov.b1*1"
+#face-recognition-resnet50-arcface_mxnet.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x512x7x7n"face-recognition-resnet50-arcface_mxnet.inf.fp16.ov.b32*1"
+#face-recognition-resnet50-arcface_mxnet.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x512x7x7n"face-recognition-resnet50-arcface_mxnet.inf.int8.ov.b1*1"
+#face-recognition-resnet50-arcface_mxnet.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=ABcd32a32b --dtag=abcd 32x512x7x7n"face-recognition-resnet50-arcface_mxnet.inf.int8.ov.b32*1"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x1088x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x48x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 100x1088x17x17n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 100x1536x1x1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b1*2"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1088x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x48x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 3200x1088x17x17n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 3200x1536x1x1n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.fp16.ov.b32*2"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x1088x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x48x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b1*1"
+#faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd32a32b --dtag=ABcd16a16b 32x1088x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x1088x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=abcd 32x1088x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x48x75x128n"faster_rcnn_inception_resnet_v2_atrous_oid_v4_tf.inf.int8.ov.b32*1"
+#faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x64x64n"faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x48x64x64n"faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 300x2048x1x1n"faster_rcnn_resnet50_coco_tf2.inf.fp16.ov.b1*2"
+#faster_rcnn_resnet50_coco_tf2.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x48x64x64n"faster_rcnn_resnet50_coco_tf2.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x64x64n"faster_rcnn_resnet50_coco_tf2.inf.int8.ov.b1*1"
+#faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x1024x38x64n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x38x64n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x48x38x64n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 100x1024x14x14n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 100x2048x1x1n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b1*1"
+#faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1024x38x64n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x38x64n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x48x38x64n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 3200x1024x14x14n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 3200x2048x1x1n"faster_rcnn_resnet50_coco_tf.inf.fp16.ov.b32*1"
+#faster_rcnn_resnet50_coco_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x1024x38x64n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x48x38x64n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x38x64n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b1*1"
+#faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd32a32b --dtag=ABcd16a16b 32x1024x38x64n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x1024x38x64n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=abcd 32x1024x38x64n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x48x38x64n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x38x64n"faster_rcnn_resnet50_coco_tf.inf.int8.ov.b32*1"
+#fast-neural-style-mosaic_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x3x224x224n"fast-neural-style-mosaic_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x32x224x224n"fast-neural-style-mosaic_onnx.inf.fp16.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x32x224x224n"fast-neural-style-mosaic_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x64x112x112n"fast-neural-style-mosaic_onnx.inf.fp16.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x64x112x112n"fast-neural-style-mosaic_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x128x56x56n"fast-neural-style-mosaic_onnx.inf.fp16.ov.b1*11"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x128x56x56n"fast-neural-style-mosaic_onnx.inf.fp16.ov.b1*10"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x128x112x112n"fast-neural-style-mosaic_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x64x224x224n"fast-neural-style-mosaic_onnx.inf.fp16.ov.b1*1"
+#fast-neural-style-mosaic_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x3x224x224n"fast-neural-style-mosaic_onnx.inf.fp16.ov.b32*1"
+#fast-neural-style-mosaic_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x32x224x224n"fast-neural-style-mosaic_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x32x224x224n"fast-neural-style-mosaic_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x64x112x112n"fast-neural-style-mosaic_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x64x112x112n"fast-neural-style-mosaic_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x128x56x56n"fast-neural-style-mosaic_onnx.inf.int8.ov.b1*11"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x128x56x56n"fast-neural-style-mosaic_onnx.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abcd --dtag=aBcd32b 1x128x56x56n"fast-neural-style-mosaic_onnx.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abcd --dtag=aBcd32b 1x128x112x112n"fast-neural-style-mosaic_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x64x224x224n"fast-neural-style-mosaic_onnx.inf.int8.ov.b1*1"
+#fastseg-small_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x19x512x1024n"fastseg-small_onnx.inf.fp16.ov.b1*1"
+#fastseg-small_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x96x1x1n"fastseg-small_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x240x1x1n"fastseg-small_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x120x1x1n"fastseg-small_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x144x1x1n"fastseg-small_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x288x1x1n"fastseg-small_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x576x1x1n"fastseg-small_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x19x512x1024n"fastseg-small_onnx.inf.int8.ov.b1*1"
+#googlenet-v4_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1536x1x1n"googlenet-v4_caffe.inf.fp16.ov.b32*1"
+#googlenet-v4_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x1536x1x1n"googlenet-v4_tf.inf.fp16.ov.b32*1"
+#horizontal-text-detection-0001_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x32x6x6n"horizontal-text-detection-0001_onnx.inf.fp16.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x32x6x6n"horizontal-text-detection-0001_onnx.inf.fp16.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x32x11x11n"horizontal-text-detection-0001_onnx.inf.fp16.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x32x11x11n"horizontal-text-detection-0001_onnx.inf.fp16.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x32x22x22n"horizontal-text-detection-0001_onnx.inf.fp16.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x32x22x22n"horizontal-text-detection-0001_onnx.inf.fp16.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x32x44x44n"horizontal-text-detection-0001_onnx.inf.fp16.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x32x44x44n"horizontal-text-detection-0001_onnx.inf.fp16.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x32x88x88n"horizontal-text-detection-0001_onnx.inf.fp16.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x32x88x88n"horizontal-text-detection-0001_onnx.inf.fp16.ov.b1*6"
+#horizontal-text-detection-0001_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x32x11x11n"horizontal-text-detection-0001_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x32x11x11n"horizontal-text-detection-0001_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x32x6x6n"horizontal-text-detection-0001_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x32x6x6n"horizontal-text-detection-0001_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x32x22x22n"horizontal-text-detection-0001_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x32x22x22n"horizontal-text-detection-0001_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x32x44x44n"horizontal-text-detection-0001_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x32x44x44n"horizontal-text-detection-0001_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x32x88x88n"horizontal-text-detection-0001_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x32x88x88n"horizontal-text-detection-0001_onnx.inf.int8.ov.b1*8"
+#human-pose-estimation-3d-0001_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=ABcd32a16b 32x19x32x56n"human-pose-estimation-3d-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd16a16b --dtag=ABcd32a32b 32x19x32x56n"human-pose-estimation-3d-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd16a16b --dtag=abcd 32x19x32x56n"human-pose-estimation-3d-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=ABcd32a16b 32x38x32x56n"human-pose-estimation-3d-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd16a16b --dtag=ABcd32a32b 32x38x32x56n"human-pose-estimation-3d-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd16a16b --dtag=abcd 32x38x32x56n"human-pose-estimation-3d-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 32x57x32x56n"human-pose-estimation-3d-0001_onnx.inf.int8.ov.b32*1"
+#instance-segmentation-security-0010_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x256x200x336n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x12x200x336n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x18x100x168n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x256x100x168n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x12x100x168n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x18x50x84n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x256x50x84n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x12x50x84n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x18x25x42n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x256x25x42n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x256x13x21n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x12x13x21n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x12x25x42n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=ABcd32a32b --dtag=abcd 100x256x14x14n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*8"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 100x256x14x14n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=ABcd32a32b --dtag=abcd 100x128x14x14n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a16b 100x1x28x28n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+#intermediate_model_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x96x1x1n"intermediate_model_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x240x1x1n"intermediate_model_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x120x1x1n"intermediate_model_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x144x1x1n"intermediate_model_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x288x1x1n"intermediate_model_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=aBcd32b 1x576x1x1n"intermediate_model_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x19x512x1024n"intermediate_model_onnx.inf.int8.ov.b1*1"
+#mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x1024x100x171n"mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x100x171n"mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x48x100x171n"mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 100x1024x14x14n"mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 100x2048x1x1n"mask_rcnn_resnet50_atrous_coco_tf.inf.fp16.ov.b1*1"
+#mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x1024x100x171n"mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x48x100x171n"mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x100x171n"mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a32b 100x1024x14x14n"mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 100x1024x7x7n"mask_rcnn_resnet50_atrous_coco_tf.inf.int8.ov.b1*2"
+#mobilenet-ssd_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x1x1n"mobilenet-ssd_caffe.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x126x1x1n"mobilenet-ssd_caffe.inf.fp16.ov.b32*1"
+#mobilenet-ssd_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x1x1n"mobilenet-ssd_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x126x1x1n"mobilenet-ssd_caffe.inf.int8.ov.b32*1"
+#pp-ocr-rec_paddle.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x288x1x160n"pp-ocr-rec_paddle.inf.fp16.ov.b1*1"
+#pp-ocr-rec_paddle.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x288x1x160n"pp-ocr-rec_paddle.inf.fp16.ov.b32*1"
+#pp-ocr-rec_paddle.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x48x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x120x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x64x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x72x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x144x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x288x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x288x1x160n"pp-ocr-rec_paddle.inf.int8.ov.b1*1"
+#pp-ocr-rec_paddle.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x48x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x120x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x64x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x72x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x144x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x288x1x1n"pp-ocr-rec_paddle.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x288x1x160n"pp-ocr-rec_paddle.inf.int8.ov.b32*1"
+#resnet-18_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x512x1x1n"resnet-18_caffe.inf.fp16.ov.b32*1"
+#resnet-18_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x512x1x1n"resnet-18_onnx.inf.fp16.ov.b32*1"
+#resnet-50_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x2048x1x1n"resnet-50_caffe.inf.fp16.ov.b32*1"
+#resnet-50_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x2048x1x1n"resnet-50_onnx.inf.fp16.ov.b32*1"
+#resnet-50_paddle.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x2048x1x1n"resnet-50_paddle.inf.fp16.ov.b32*1"
+#resnet-50-pytorch_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x2048x1x1n"resnet-50-pytorch_onnx.inf.fp16.ov.b32*1"
+#retinanet_tf2.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x256x10x10n"retinanet_tf2.inf.int8.ov.b32*1"
+#semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x20x256x512n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b1*1"
+#semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x20x256x512n"semantic-segmentation-adas-0001_caffe.inf.fp16.ov.b32*1"
+#semantic-segmentation-adas-0001_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=abcd --dtag=aBcd32b 1x1024x32x64n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x20x256x512n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b1*1"
+#semantic-segmentation-adas-0001_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=abcd --dtag=ABcd32a32b 32x1024x32x64n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x20x256x512n"semantic-segmentation-adas-0001_caffe.inf.int8.ov.b32*1"
+#se-resnext-50_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x2048x1x1n"se-resnext-50_caffe.inf.fp16.ov.b32*1"
+#se-resnext-50_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x256x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x256x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x512x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x512x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x1024x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x1024x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x2048x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x2048x1x1n"se-resnext-50_caffe.inf.int8.ov.b1*3"
+#se-resnext-50_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x256x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x256x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x512x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x512x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x1024x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x1024x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x2048x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x2048x1x1n"se-resnext-50_caffe.inf.int8.ov.b32*3"
+#se-resnext-50_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x2048x1x1n"se-resnext-50_onnx.inf.fp16.ov.b32*1"
+#se-resnext-50_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x256x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x256x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x512x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x512x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x1024x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x1024x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x2048x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x2048x1x1n"se-resnext-50_onnx.inf.int8.ov.b1*3"
+#se-resnext-50_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x256x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x256x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x512x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x512x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x1024x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x1024x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x2048x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x2048x1x1n"se-resnext-50_onnx.inf.int8.ov.b32*3"
+#se-resnext-50_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x128x56x56n"se-resnext-50_tf.inf.fp16.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x256x28x28n"se-resnext-50_tf.inf.fp16.ov.b1*4"
+#se-resnext-50_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x128x56x56n"se-resnext-50_tf.inf.fp16.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x256x28x28n"se-resnext-50_tf.inf.fp16.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x2048x1x1n"se-resnext-50_tf.inf.fp16.ov.b32*1"
+#se-resnext-50_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x256x1x1n"se-resnext-50_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x256x1x1n"se-resnext-50_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x512x1x1n"se-resnext-50_tf.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x512x1x1n"se-resnext-50_tf.inf.int8.ov.b1*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x1024x1x1n"se-resnext-50_tf.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x1024x1x1n"se-resnext-50_tf.inf.int8.ov.b1*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd32b --dtag=aBcd16b 1x2048x1x1n"se-resnext-50_tf.inf.int8.ov.b1*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=aBcd16b --dtag=aBcd32b 1x2048x1x1n"se-resnext-50_tf.inf.int8.ov.b1*3"
+#se-resnext-50_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x256x1x1n"se-resnext-50_tf.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x256x1x1n"se-resnext-50_tf.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x512x1x1n"se-resnext-50_tf.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x512x1x1n"se-resnext-50_tf.inf.int8.ov.b32*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x1024x1x1n"se-resnext-50_tf.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x1024x1x1n"se-resnext-50_tf.inf.int8.ov.b32*6"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x2048x1x1n"se-resnext-50_tf.inf.int8.ov.b32*3"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x2048x1x1n"se-resnext-50_tf.inf.int8.ov.b32*3"
+#sharpen-lensblur_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x1x1x1n"sharpen-lensblur_tf.inf.fp16.ov.b1*2"
+#sharpen-lensblur_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 1x1x1x1n"sharpen-lensblur_tf.inf.fp16.ov.b32*2"
+#sharpen-lensblur_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=aBcd32b 1x1x1x1n"sharpen-lensblur_tf.inf.int8.ov.b1*2"
+#sharpen-lensblur_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=ABcd32a32b 1x1x1x1n"sharpen-lensblur_tf.inf.int8.ov.b32*2"
+#sharpen-motionblur_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x1x1x1n"sharpen-motionblur_tf.inf.fp16.ov.b1*2"
+#sharpen-motionblur_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 1x1x1x1n"sharpen-motionblur_tf.inf.fp16.ov.b32*2"
+#sharpen-motionblur_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x1x1x1n"sharpen-motionblur_tf.inf.int8.ov.b1*2"
+#sharpen-motionblur_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 1x1x1x1n"sharpen-motionblur_tf.inf.int8.ov.b32*2"
+#sharpen-sharpen_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x1x1x1n"sharpen-sharpen_tf.inf.fp16.ov.b1*2"
+#sharpen-sharpen_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 1x1x1x1n"sharpen-sharpen_tf.inf.fp16.ov.b32*2"
+#sharpen-sharpen_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=aBcd32b 1x1x1x1n"sharpen-sharpen_tf.inf.int8.ov.b1*2"
+#sharpen-sharpen_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 1x1x1x1n"sharpen-sharpen_tf.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=ABcd32a32b 32x96x128x128n"sharpen-sharpen_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd16a16b --dtag=ABcd32a32b 32x96x64x64n"sharpen-sharpen_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b --dtag=ABcd32a16b 32x256x128x128n"sharpen-sharpen_tf.inf.int8.ov.b32*1"
+#sphereface_caffe.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x512x7x6n"sphereface_caffe.inf.fp16.ov.b1*1"
+#sphereface_caffe.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x512x7x6n"sphereface_caffe.inf.fp16.ov.b32*1"
+#sphereface_caffe.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x512x7x6n"sphereface_caffe.inf.int8.ov.b1*1"
+#sphereface_caffe.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=ABcd32a32b --dtag=abcd 32x512x7x6n"sphereface_caffe.inf.int8.ov.b32*1"
+#ssdlite_mobilenet_v2_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x546x1x1n"ssdlite_mobilenet_v2_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x1x1n"ssdlite_mobilenet_v2_tf.inf.fp16.ov.b32*1"
+#ssdlite_mobilenet_v2_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x546x1x1n"ssdlite_mobilenet_v2_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x1x1n"ssdlite_mobilenet_v2_tf.inf.int8.ov.b32*1"
+#ssd_mobilenet_v1_coco_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x546x1x1n"ssd_mobilenet_v1_coco_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x1x1n"ssd_mobilenet_v1_coco_tf.inf.fp16.ov.b32*1"
+#ssd_mobilenet_v1_coco_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x546x1x1n"ssd_mobilenet_v1_coco_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x1x1n"ssd_mobilenet_v1_coco_tf.inf.int8.ov.b32*1"
+#ssd_mobilenet_v2_coco_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x546x1x1n"ssd_mobilenet_v2_coco_tf.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x1x1n"ssd_mobilenet_v2_coco_tf.inf.fp16.ov.b32*1"
+#ssd_mobilenet_v2_coco_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x546x1x1n"ssd_mobilenet_v2_coco_tf.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x1x1n"ssd_mobilenet_v2_coco_tf.inf.int8.ov.b32*1"
+#ssd-resnet34-1200_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x324x50x50n"ssd-resnet34-1200_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x16x50x50n"ssd-resnet34-1200_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x486x25x25n"ssd-resnet34-1200_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x25x25n"ssd-resnet34-1200_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x486x13x13n"ssd-resnet34-1200_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x13x13n"ssd-resnet34-1200_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x486x7x7n"ssd-resnet34-1200_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x7x7n"ssd-resnet34-1200_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x324x3x3n"ssd-resnet34-1200_onnx.inf.fp16.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x16x3x3n"ssd-resnet34-1200_onnx.inf.fp16.ov.b1*2"
+#ssd-resnet34-1200_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x324x50x50n"ssd-resnet34-1200_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x16x50x50n"ssd-resnet34-1200_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x486x25x25n"ssd-resnet34-1200_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x25x25n"ssd-resnet34-1200_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x486x13x13n"ssd-resnet34-1200_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x13x13n"ssd-resnet34-1200_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x486x7x7n"ssd-resnet34-1200_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x7x7n"ssd-resnet34-1200_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x324x3x3n"ssd-resnet34-1200_onnx.inf.fp16.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x16x3x3n"ssd-resnet34-1200_onnx.inf.fp16.ov.b32*2"
+#ssd-resnet34-1200_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x324x50x50n"ssd-resnet34-1200_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x16x50x50n"ssd-resnet34-1200_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x486x25x25n"ssd-resnet34-1200_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x25x25n"ssd-resnet34-1200_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x486x13x13n"ssd-resnet34-1200_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x13x13n"ssd-resnet34-1200_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x486x7x7n"ssd-resnet34-1200_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x24x7x7n"ssd-resnet34-1200_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x324x3x3n"ssd-resnet34-1200_onnx.inf.int8.ov.b1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x16x3x3n"ssd-resnet34-1200_onnx.inf.int8.ov.b1*2"
+#ssd-resnet34-1200_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=ABcd16a16b 32x256x150x150n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=ABcd32a32b 32x256x150x150n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x256x150x150n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd16a16b --dtag=ABcd32a16b 32x256x150x150n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x324x50x50n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x16x50x50n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x486x25x25n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x25x25n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x486x13x13n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x13x13n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x486x7x7n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x24x7x7n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x324x3x3n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x16x3x3n"ssd-resnet34-1200_onnx.inf.int8.ov.b32*2"
+#swin-tiny-patch4-window7-224_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x96x56x56n"swin-tiny-patch4-window7-224_onnx.inf.fp16.ov.b32*1"
+#text-image-super-resolution-0001_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x36x360x640n"text-image-super-resolution-0001_onnx.inf.int8.ov.b1*1"
+#text-image-super-resolution-0001_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x36x360x640n"text-image-super-resolution-0001_onnx.inf.int8.ov.b32*1"
+#text-recognition-0012_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x512x1x30n"text-recognition-0012_tf.inf.fp16.ov.b32*1"
+#topaz_video_super_resolution_tf.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x15x192x192n"topaz_video_super_resolution_tf.inf.fp16.ov.b1*1"
+#topaz_video_super_resolution_tf.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x15x192x192n"topaz_video_super_resolution_tf.inf.fp16.ov.b32*1"
+#topaz_video_super_resolution_tf.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x15x192x192n"topaz_video_super_resolution_tf.inf.int8.ov.b1*1"
+#topaz_video_super_resolution_tf.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x15x192x192n"topaz_video_super_resolution_tf.inf.int8.ov.b32*1"
+#wavernn-upsampler_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x80x366x1n"wavernn-upsampler_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x128x362x1n"wavernn-upsampler_onnx.inf.fp16.ov.b1*1"
+#wavernn-upsampler_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x80x366x1n"wavernn-upsampler_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a16b --dtag=abcd 32x128x362x1n"wavernn-upsampler_onnx.inf.fp16.ov.b32*1"
+#wavernn-upsampler_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=aBcd32b --dtag=abcd 1x80x366x1n"wavernn-upsampler_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b --dtag=abcd 1x128x362x1n"wavernn-upsampler_onnx.inf.int8.ov.b1*1"
+#wavernn-upsampler_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd32a32b --dtag=abcd 32x80x366x1n"wavernn-upsampler_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=ABcd32a32b --dtag=abcd 32x128x362x1n"wavernn-upsampler_onnx.inf.int8.ov.b32*1"
+#yolor_p6_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x12x640x640n"yolor_p6_onnx.inf.fp16.ov.b1*1"
+#yolor_p6_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x12x640x640n"yolor_p6_onnx.inf.fp16.ov.b32*1"
+#yolo_v5s_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x12x320x320n"yolo_v5s_onnx.inf.fp16.ov.b1*1"
+#yolo_v5s_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=ABcd32a16b 32x12x320x320n"yolo_v5s_onnx.inf.fp16.ov.b32*1"

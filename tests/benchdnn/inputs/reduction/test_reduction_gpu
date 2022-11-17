@@ -66,3 +66,7 @@
 3x3x4x3:3x3x1x3
 3x3x4x3:3x1x4x3
 7x6x9x2:7x6x9x1
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu
