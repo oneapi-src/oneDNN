@@ -58,6 +58,11 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
     auto &in_format = in->details_.get_format();
     auto dispatch_key = op_dispatch_key_t(
             std::vector<sc_data_format_t> {in_format, out_format_stride.first});
+    auto is_key_valid = [](const op_dispatch_key_t &key) {
+        return !(key.in_out_formats_[0].is_blocking()
+                       && key.in_out_formats_[1].is_blocking())
+                || key.in_out_formats_[0] == key.in_out_formats_[1];
+    }(dispatch_key);
     sc_op_ptr ret;
     // find reorder in map, if not insert one.
     auto tsr_it = reorder_map.find(in);
@@ -71,9 +76,11 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
             ret->attrs_.set("out_format", out_format_stride.first);
             ret->attrs_.set("out_stride", out_format_stride.second);
             // map reorder's in/out
-            if (is_graph_dynamic) {
+            if (is_graph_dynamic && is_key_valid) {
                 auto &dynamic_formats
                         = ret->get_dispatch_key_set()->get_inner_set();
+                // todo: remove internal reorder by following last tunable op
+                // output layout.
                 if (dynamic_formats.find(dispatch_key)
                         == dynamic_formats.end()) {
                     ret->get_outputs()[0]->details_.add_format_candidate(
@@ -94,7 +101,7 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
                                 graph.attrs_.get_or_else(
                                         "reorder_not_to_fuse", false)}});
         // map reorder's in/out
-        if (is_graph_dynamic) {
+        if (is_graph_dynamic && is_key_valid) {
             ret->get_dispatch_key_set()->get_inner_set().insert(dispatch_key);
         }
         ret->get_outputs()[0]->details_.add_format_candidate(
