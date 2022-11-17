@@ -201,6 +201,14 @@ std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>> create_op_map(
     return op_map;
 }
 
+sc_graph_t dynamic_shape_infer_preprocess(
+        const sc_graph_t &graph, const context_ptr &ctx) {
+    sc_graph_t copy = copy_graph(graph);
+    sc::graph_inline(copy, ctx);
+    sc::constant_optimization(copy, ctx);
+    return copy;
+}
+
 void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
         const graph_config *in_cfg, graph_config *out_cfg, int batch_size,
         int repeat, int64_t timeout, tuner_creator *tune_creator,

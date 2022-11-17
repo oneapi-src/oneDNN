@@ -67,6 +67,15 @@ get_graph_passes(const context_ptr &ctx, bool is_dynamic = false);
 
 /**
  * @param graph orginal graph
+ * @param ctx the context
+ * Return: a deep copy of the original graph that runs preprocess passes for
+ * dynamic_infer_shape
+ * */
+SC_API sc_graph_t dynamic_shape_infer_preprocess(const sc_graph_t &graph,
+        const context_ptr &ctx = get_default_context());
+
+/**
+ * @param graph orginal graph
  * @param tuner_batch the number of configs which is
  * generated from a call to get_next_config_batch(). The executor may
  * generate executables from a batch of configs in parallel.
