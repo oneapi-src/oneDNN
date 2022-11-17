@@ -383,9 +383,9 @@ void conv_ir_builder_t::init_bwd_d(gemm_schedule_t &gemm_schedule,
     // When stride optimization is enabled, stride conditions are handled by
     // continue calls in the outer loops.
     if (!cfg_.bwd_d_optimize_strided_iw()) {
-        od_mask &= (od % prb_.sd == 0);
-        oh_mask &= (oh % prb_.sh == 0);
-        ow_mask &= (ow % prb_.sw == 0);
+        if (prb_.sd != 1) od_mask &= (od % prb_.sd == 0);
+        if (prb_.sh != 1) oh_mask &= (oh % prb_.sh == 0);
+        if (prb_.sw != 1) ow_mask &= (ow % prb_.sw == 0);
     }
     dst_view.set_tdim(3, od / prb_.sd, od_mask);
     dst_view.set_tdim(4, oh / prb_.sh, oh_mask);
