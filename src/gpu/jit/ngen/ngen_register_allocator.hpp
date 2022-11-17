@@ -114,7 +114,7 @@ public:
     template <typename T>
     Subregister alloc_sub(Bundle bundle = Bundle()) { return alloc_sub(getDataType<T>(), bundle); }
 
-    FlagRegister alloc_flag();
+    FlagRegister alloc_flag(bool sub = true);
 
     // Attempted allocation. Return value is invalid if allocation failed.
     GRFRange try_alloc_range(int nregs, Bundle base_bundle = Bundle(),
@@ -125,7 +125,7 @@ public:
     template <typename T>
     Subregister try_alloc_sub(Bundle bundle = Bundle()) { return try_alloc_sub(getDataType<T>(), bundle); }
 
-    FlagRegister try_alloc_flag();
+    FlagRegister try_alloc_flag(bool sub = true);
 
     // Release a previous allocation or claim.
     void release(GRF reg);

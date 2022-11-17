@@ -188,6 +188,8 @@ void RegisterAllocator::claim_sub(int r, int o, int dw)
 void RegisterAllocator::claim(FlagRegister flag)
 {
     free_flag &= ~(1 << flag.index());
+    if (flag.getType() == DataType::ud)
+        free_flag &= ~(1 << (flag.index() + 1));
 }
 
 void RegisterAllocator::setRegisterCount(int rcount)
@@ -252,6 +254,8 @@ void RegisterAllocator::release(FlagRegister flag)
 {
     if (flag.isInvalid()) return;
     free_flag |= (1 << flag.index());
+    if (flag.getType() == DataType::ud)
+        free_flag |= (1 << (flag.index() + 1));
 }
 
 // -------------------------------------------
@@ -274,9 +278,9 @@ Subregister RegisterAllocator::alloc_sub(DataType type, Bundle bundle)
     return result;
 }
 
-FlagRegister RegisterAllocator::alloc_flag()
+FlagRegister RegisterAllocator::alloc_flag(bool sub)
 {
-    auto result = try_alloc_flag();
+    auto result = try_alloc_flag(sub);
     if (result.isInvalid())
         throw out_of_registers_exception();
     return result;
@@ -391,14 +395,24 @@ Subregister RegisterAllocator::try_alloc_sub(DataType type, Bundle bundle)
     return Subregister(GRF(r_alloc), (o_alloc << 2) / getBytes(type), type);
 }
 
-FlagRegister RegisterAllocator::try_alloc_flag()
+FlagRegister RegisterAllocator::try_alloc_flag(bool sub)
 {
     if (!free_flag) return FlagRegister();
 
-    int idx = utils::bsf(free_flag);
-    free_flag &= (free_flag - 1);               // clear lowest bit.
+    if (sub) {
+        int idx = utils::bsf(free_flag);
+        free_flag &= (free_flag - 1);               // clear lowest bit.
 
-    return FlagRegister::createFromIndex(idx);
+        return FlagRegister::createFromIndex(idx);
+    }
+    for (int r = 0; r < FlagRegister::count(hw); r++) {
+        uint8_t mask = (0b11 << 2 * r);
+        if ((free_flag & mask) == mask) {
+            free_flag &= ~mask;
+            return FlagRegister(r);
+        }
+    }
+    return FlagRegister();
 }
 
 void RegisterAllocator::dump(std::ostream &str)
