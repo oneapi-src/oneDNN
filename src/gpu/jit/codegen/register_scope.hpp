@@ -128,8 +128,8 @@ public:
         return ret;
     }
 
-    ngen::FlagRegister alloc_flag() {
-        auto ret = ra_.alloc_flag();
+    ngen::FlagRegister alloc_flag(int elems) {
+        auto ret = ra_.alloc_flag(/*sub=*/elems <= 16);
         flags_.push_back(ret);
         return ret;
     }

@@ -74,7 +74,9 @@ public:
         return ret;
     }
 
-    ngen::FlagRegister alloc_flag() { return ra.alloc_flag(); }
+    ngen::FlagRegister alloc_flag(bool sub = true) {
+        return ra.alloc_flag(sub);
+    }
 
     ngen::GRFRange try_alloc_range(int nregs,
             ngen::Bundle base_bundle = ngen::Bundle(),

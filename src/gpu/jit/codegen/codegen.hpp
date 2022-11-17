@@ -208,7 +208,7 @@ public:
                 || obj.var.type() != obj.value.type()) {
             auto &var_type = obj.var.type();
             auto var_op = (var_type.is_bool())
-                    ? ngen_operand_t(scope.alloc_flag())
+                    ? ngen_operand_t(scope.alloc_flag(var_type.elems()))
                     : ngen_operand_t(scope.alloc_reg_data(var_type));
             eval(obj.value, scope, ngen_operand_t(var_op, var_type.elems()));
             expr_binding_.bind(obj.var, var_op);
@@ -886,7 +886,7 @@ public:
             auto e_shuffle = expr_t(obj);
             ir_assert(dst_op.is_flag_register()) << e_shuffle;
             ir_assert(!dst_op.is_negated()) << e_shuffle;
-            uint16_t flag_mask = 0;
+            uint32_t flag_mask = 0;
             for (int i = elems - 1; i >= 0; i--) {
                 flag_mask <<= 1;
                 flag_mask |= (to_cpp<bool>(e_shuffle[i]) ? 1 : 0);
@@ -894,7 +894,8 @@ public:
             if (dst_op.mod().getPredCtrl() == ngen::PredCtrl::None) {
                 host_->emov(1, dst_op, ngen::Immediate(flag_mask));
             } else {
-                ir_assert(dst_op.mod().getFlagReg() == dst_op.flag_register());
+                ir_assert(dst_op.mod().getFlagReg().getARFBase()
+                        == dst_op.flag_register().getARFBase());
                 host_->and_(1, dst_op.flag_register(), dst_op.flag_register(),
                         ngen::Immediate(flag_mask));
             }
@@ -990,7 +991,8 @@ private:
         // Expression is not bound yet, allocate new storage and bind.
         ngen_operand_t op;
         if (e.type().is_bool()) {
-            op = ngen_operand_t(scope_.alloc_flag(), e.type().elems());
+            op = ngen_operand_t(
+                    scope_.alloc_flag(e.type().elems()), e.type().elems());
         } else {
             op = ngen_operand_t(
                     scope_.alloc_reg_data(e.type()), e.type().elems());
@@ -1107,7 +1109,8 @@ private:
         ngen_operand_t retn;
         auto cast = e.as<unary_op_t>().a.as_ptr<cast_t>();
         if (cast && cast->expr.type().is_bool()) {
-            ngen_operand_t flags(scope_.alloc_flag(), e.type().elems());
+            int elems = cast->expr.type().elems();
+            ngen_operand_t flags(scope_.alloc_flag(elems), e.type().elems());
             retn = alloc_dst_op(e);
             auto mod = retn.mod();
             auto ar_op = [&](ngen::InstructionModifier m, const conjunct_t &c) {
