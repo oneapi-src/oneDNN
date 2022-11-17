@@ -492,12 +492,12 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     auto read_layout = read.reg_layout();
     auto write_layout = write.reg_layout();
     allocs.push_back(
-            alloc_t::make(reg_buf, read_layout.size(), alloc_kind_t::grf));
+            alloc_t::make(reg_buf, read.reg_buf_size(), alloc_kind_t::grf));
 
     if (read_layout != write_layout) {
         auto tmp_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "tmp");
-        allocs.push_back(
-                alloc_t::make(tmp_buf, write_layout.size(), alloc_kind_t::grf));
+        allocs.push_back(alloc_t::make(
+                tmp_buf, write.reg_buf_size(), alloc_kind_t::grf));
 
         auto reorder_stmt = create_reorder_stmt(
                 read_layout, write_layout, reg_buf, tmp_buf);

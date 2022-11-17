@@ -804,9 +804,7 @@ public:
 
     const view_t &reg_view() const { return reg_view_; }
 
-    int reg_buf_size() const {
-        return utils::rnd_up(reg_layout_.size(), ir_ctx_.grf_size());
-    }
+    int reg_buf_size() const { return reg_buf_size_; }
 
     int tmp_buf_size() const { return tmp_buf_size_; }
 
@@ -820,14 +818,17 @@ public:
         auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
 
         layout_t load_layout;
+        int load_buf_size;
         stmt_t &stmt = (use_slm_ ? s2r_load_ : g2r_load_);
-        load_impl(ir_ctx_, load_layout, reg_view_, send_hint_, stmt);
+        load_impl(ir_ctx_, load_layout, load_buf_size, reg_view_, send_hint_,
+                stmt);
 
         if (post_load) {
             stmt = stmt.append(post_load(load_layout, reg_buf_, subtile_));
         }
 
         reg_layout_ = load_layout;
+        reg_buf_size_ = load_buf_size;
 
         bool changed;
         auto fma_layout = fma_helper_.convert_to_fma_friendly_layout(
@@ -846,13 +847,12 @@ public:
             reg_layout_ = fma_layout;
             reg_view_.set_tlayout(reg_layout_);
             if (!is_reorder_nop) {
+                reg_buf_size_
+                        = utils::rnd_up(fma_layout.size(), ir_ctx_.grf_size());
                 stmt = substitute(stmt, reg_buf_, tmp_buf_);
                 stmt = stmt.append(create_reorder_stmt(
                         load_layout, reg_layout_, tmp_buf_, reg_buf_));
-                int load_reg_size = int(load_layout.size());
-                load_reg_size
-                        = utils::rnd_up(load_reg_size, ir_ctx_.grf_size());
-                tmp_buf_size_ = std::max(tmp_buf_size_, load_reg_size);
+                tmp_buf_size_ = std::max(tmp_buf_size_, load_buf_size);
             }
         }
     }
@@ -883,6 +883,7 @@ private:
             load_view = view_t(load_layout);
         }
         stmt = read.stmt();
+        load_buf_size = read.reg_buf_size();
     }
 
     ir_context_t &ir_ctx_;
@@ -904,6 +905,7 @@ private:
     bool is_loaded_ = false;
     view_t reg_view_;
     layout_t reg_layout_;
+    int reg_buf_size_ = 0;
     int tmp_buf_size_ = 0;
     stmt_t s2r_load_;
     stmt_t g2r_load_;

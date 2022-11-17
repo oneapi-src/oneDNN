@@ -669,9 +669,9 @@ private:
 
     // Represents a GRF buffer and layout to store C tensor.
     struct c_stage_t {
-        c_stage_t(const layout_t &layout, const expr_t &buf,
+        c_stage_t(const layout_t &layout, int buf_size, const expr_t &buf,
                 const stmt_t &stmt = stmt_t())
-            : layout(layout), buf(buf), stmt(stmt) {}
+            : layout(layout), buf_size(buf_size), buf(buf), stmt(stmt) {}
 
         void set_next(
                 ir_context_t &ir_ctx, c_stage_t *next, bool force_reorder) {
@@ -705,10 +705,10 @@ private:
             return buf.as<ptr_t>().base;
         }
 
-        int buf_size() const {
+        int get_buf_size() const {
             ir_assert(buf.is_same(buf_base()))
                     << "Size must be queried from another stage.";
-            return int(layout.size());
+            return (buf_size == 0) ? int(layout.size()) : buf_size;
         }
 
         void prepend_stmt(const stmt_t &stmt) {
@@ -716,6 +716,7 @@ private:
         }
 
         layout_t layout;
+        int buf_size;
         expr_t buf;
         stmt_t stmt; // Statement to emit after the stage.
     };
@@ -849,16 +850,17 @@ private:
         int c_f32_stage_idx = -1;
         int c_zero_pad_stage_idx = -1;
 
-        c_stages.emplace_back(c_tile_layout, c_reg_buf); // M_x
+        c_stages.emplace_back(c_tile_layout, 0, c_reg_buf); // M_x
         if (with_post_ops) {
             c_f32_stage_idx = int(c_stages.size());
-            c_stages.emplace_back(c_fx_layout, make_c_tmp_buffer()); // R_f32
+            c_stages.emplace_back(c_fx_layout, 0, make_c_tmp_buffer()); // R_f32
         }
         if (restore_zero_padding_) {
             c_zero_pad_stage_idx = int(c_stages.size());
-            c_stages.emplace_back(c_fx_layout, make_c_tmp_buffer()); // Z_f32
+            c_stages.emplace_back(c_fx_layout, 0, make_c_tmp_buffer()); // Z_f32
         }
-        c_stages.emplace_back(r2g.reg_layout(), tmp_reg_buf, r2g.stmt()); // S_y
+        c_stages.emplace_back(r2g.reg_layout(), r2g.reg_buf_size(), tmp_reg_buf,
+                r2g.stmt()); // S_y
 
         int nstages = int(c_stages.size());
         bool is_dpasw = (cfg_.fma_kind() == fma_kind_t::dpasw);
@@ -914,7 +916,7 @@ private:
             auto &buf = s.buf_base();
             auto ret = seen.insert(buf);
             if (i == 0 || !ret.second) continue;
-            int size = utils::rnd_up(s.buf_size(), ir_ctx_.grf_size());
+            int size = utils::rnd_up(s.get_buf_size(), ir_ctx_.grf_size());
             tile_stmt = alloc_t::make(buf, size, alloc_kind_t::grf, tile_stmt);
         }
 
