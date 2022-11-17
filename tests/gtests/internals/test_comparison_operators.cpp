@@ -25,6 +25,10 @@
 namespace dnnl {
 
 namespace {
+bool compare(const dnnl::primitive_attr &lhs, const dnnl::primitive_attr &rhs) {
+    return *lhs.get() == *rhs.get();
+}
+
 bool self_compare(const dnnl::primitive_attr &attr) {
     return *attr.get() == *attr.get();
 }
@@ -39,6 +43,30 @@ bool self_compare(const T &desc) {
 #define TEST_SELF_COMPARISON(v) ASSERT_EQ(true, self_compare(v))
 
 class comparison_operators_t : public ::testing::Test {};
+
+TEST(comparison_operators_t, TestAttrScales) {
+    dnnl::primitive_attr default_attr;
+
+    const std::vector<int> supported_args
+            = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+    for (auto arg : supported_args) {
+        dnnl::primitive_attr attr;
+        attr.set_scales_mask(arg, 0);
+        ASSERT_EQ(compare(default_attr, attr), false);
+    }
+}
+
+TEST(comparison_operators_t, TestAttrZeroPoints) {
+    dnnl::primitive_attr default_attr;
+
+    const std::vector<int> supported_args
+            = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+    for (auto arg : supported_args) {
+        dnnl::primitive_attr attr;
+        attr.set_zero_points_mask(arg, 0);
+        ASSERT_EQ(compare(default_attr, attr), false);
+    }
+}
 
 TEST(comparison_operators_t, TestAttrDataQparams) {
     dnnl::primitive_attr attr;
