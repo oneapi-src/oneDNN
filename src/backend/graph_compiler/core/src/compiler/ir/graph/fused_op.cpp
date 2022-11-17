@@ -1049,10 +1049,22 @@ std::vector<int> fused_op_t::get_impl_dispatch_candidates() const {
     return {};
 }
 
+static sc_op_ptr find_input_parent(const sc_op_ptr &op) {
+    auto cur_op = op.get();
+    cur_op = cur_op->get_inputs()[0]->producer_owner_;
+    while (!(cur_op->isa<tunable_op_t>() || cur_op->isa<reduce_op_t>()
+            || cur_op->isa<reorder_op_t>())) {
+        if (cur_op->isa<input_op>()) { return cur_op->shared_from_this(); }
+        cur_op = cur_op->get_inputs()[0]->producer_owner_;
+    };
+    return nullptr;
+}
+
 void fused_op_t::update_internal_graph_format(
         const combined_op_dispatch_key_t &key) {
-    int key_idx = 0, inp_idx = 0;
+    int key_idx = 0;
     auto &node_inputs = get_inputs();
+    sc_op_ptr modified_inp;
     if (!main_op_.empty()) {
         auto &inp = main_op_.ops_[0];
         auto &inputs = inp->get_outputs();
@@ -1063,7 +1075,6 @@ void fused_op_t::update_internal_graph_format(
             inputs[i]->details_.set_format(cur_key.in_out_formats_[i]);
             node_inputs[i]->details_.set_format(cur_key.in_out_formats_[i]);
         }
-        inp_idx = inputs.size();
         auto top = main_op_.ops_[1]->dyn_cast<tunable_op_t>();
         assert(top);
         top->set_config_by_key(cur_key);
@@ -1073,6 +1084,7 @@ void fused_op_t::update_internal_graph_format(
         main_op_.ops_[1]->get_outputs()[0]->details_.set_format(out_format);
         mgr_->get_graph().ops_[0]->get_outputs()[0]->details_.set_format(
                 out_format);
+        modified_inp = mgr_->get_graph().ops_[0];
         // update impl alg
         main_op_.ops_[1]->info_.cur_impl_ = cur_key.impl_;
     }
@@ -1085,8 +1097,11 @@ void fused_op_t::update_internal_graph_format(
             // update format
             op->get_inputs()[0]->details_.set_format(
                     cur_key.in_out_formats_[0]);
-            node_inputs[inp_idx++]->details_.set_format(
-                    cur_key.in_out_formats_[0]);
+            auto inp_parent = find_input_parent(op);
+            if (inp_parent && inp_parent != modified_inp) {
+                inp_parent->get_outputs()[0]->details_.set_format(
+                        cur_key.in_out_formats_[0]);
+            }
             // update impl alg
             op->info_.cur_impl_ = cur_key.impl_;
         }

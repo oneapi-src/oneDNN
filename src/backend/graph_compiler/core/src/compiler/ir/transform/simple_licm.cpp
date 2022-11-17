@@ -78,7 +78,9 @@ public:
             can_not_parallel_ = true;
             non_parallel_loop_depth_++;
         } else {
-            COMPILE_ASSERT(!can_not_parallel_, "Parallel in non-parallel loop");
+            // if parallel for locate at non parallel for ignore that, else
+            // dispatch inside.
+            if (can_not_parallel_) { return v; }
         }
         auto newv = ir_visitor_t::visit(v);
         if (v->kind_ != for_type::PARALLEL) {

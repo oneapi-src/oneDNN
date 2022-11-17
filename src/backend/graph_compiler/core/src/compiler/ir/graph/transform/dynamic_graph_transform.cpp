@@ -46,8 +46,8 @@ void tensor_view_push_back(sc_graph_t &graph, const context_ptr &ctx) {
                             = cur_node->get_outputs()[0]->uses_[0].second;
                     int use_idx = cur_node->get_outputs()[0]->uses_[0].first;
                     if (!(next_node->isa<quantize::quantize_op_t>()
-                                || next_node->isa<
-                                        quantize::dequantize_op_t>())) {
+                                || next_node->isa<quantize::dequantize_op_t>()
+                                || next_node->isa<cast_op_t>())) {
                         break;
                     }
                     if (cur_node == node) {
