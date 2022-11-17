@@ -127,6 +127,8 @@ struct mxp_buffer_allocator {
     slice_range get_shrinked_info(const expr &buffer) const;
     // query buffer inplace and set hint for IR pass
     void query_buffer_inplace();
+    // count of buffer usage
+    int use_count(const expr &buffer) const;
 };
 
 struct outerloop_axis_binder {
