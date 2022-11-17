@@ -27,16 +27,41 @@ namespace utils = dnnl::graph::tests::unit::utils;
 namespace compiler_utils = dnnl::graph::tests::unit::compiler::utils;
 
 using ltsr_vec = std::vector<impl::logical_tensor_t>;
-static void set_mlp_dynamic_parti_ltsrs(int64_t real_batch_size,
-        ltsr_vec &parti_inputs, ltsr_vec &parti_outputs) {
-    parti_inputs[0].dims[0] = real_batch_size;
-    parti_outputs[0].dims[0] = real_batch_size;
+static void set_mha_dynamic_parti_ltsrs(std::vector<int64_t> batch_sizes,
+        std::vector<int64_t> seq_lengths, int iteration,
+        ltsr_vec &parti_inputs) {
+    parti_inputs[0].dims[0] = batch_sizes[iteration];
+    parti_inputs[0].dims[2] = seq_lengths[iteration];
+    parti_inputs[1].dims[0] = batch_sizes[iteration];
+    parti_inputs[1].dims[3] = seq_lengths[iteration];
+    parti_inputs[3].dims[0] = batch_sizes[iteration];
+    parti_inputs[3].dims[3] = seq_lengths[iteration];
+    parti_inputs[4].dims[0] = batch_sizes[iteration];
+    parti_inputs[4].dims[2] = seq_lengths[iteration];
+}
+
+static void set_distill_bert_mha_dynamic_parti_ltsrs(
+        std::vector<int64_t> batch_sizes, std::vector<int64_t> seq_lengths,
+        int iteration, ltsr_vec &parti_inputs) {
+    parti_inputs[0].dims[0] = batch_sizes[iteration];
+    parti_inputs[0].dims[2] = seq_lengths[iteration];
+    parti_inputs[1].dims[0] = batch_sizes[iteration];
+    parti_inputs[1].dims[3] = seq_lengths[iteration];
+    parti_inputs[2].dims[0] = batch_sizes[iteration];
+    parti_inputs[2].dims[3] = seq_lengths[iteration];
+    parti_inputs[4].dims[0] = batch_sizes[iteration];
+    parti_inputs[4].dims[2] = seq_lengths[iteration];
+}
+
+static void set_mlp_dynamic_parti_ltsrs(std::vector<int64_t> batch_sizes,
+        int iteration, ltsr_vec &parti_inputs) {
+    parti_inputs[0].dims[0] = batch_sizes[iteration];
 }
 
 static void compile_execution_pipeline(impl::graph_t &agraph,
         int expected_part_size,
-        std::function<void(ltsr_vec &, ltsr_vec &)> dynamic_callback
-        = nullptr) {
+        std::function<void(int, ltsr_vec &)> dynamic_callback = nullptr,
+        int total_iterations = -1) {
     auto &compiler_backend_ptr
             = impl::compiler_impl::compiler_backend_t::get_singleton();
     compiler_backend_ptr.get_partitions(agraph, impl::partition_policy::fusion);
@@ -66,55 +91,81 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
             }
         }
 
-        std::vector<const impl::logical_tensor_t *> inputs;
-        std::vector<const impl::logical_tensor_t *> outputs;
+        std::vector<const impl::logical_tensor_t *> compile_inputs;
+        std::vector<const impl::logical_tensor_t *> compile_outputs;
         for (auto &lt : partition_inputs) {
-            inputs.push_back(&lt);
+            compile_inputs.push_back(&lt);
         }
         for (auto &lt : partition_outputs) {
-            outputs.push_back(&lt);
+            compile_outputs.push_back(&lt);
         }
         impl::compiled_partition_t cp(p);
         impl::engine_t &eng = get_engine();
-        ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
-        if (dynamic_callback) {
-            dynamic_callback(partition_inputs, partition_outputs);
-        }
-        std::vector<impl::tensor_t> execution_inputs;
-        std::vector<impl::tensor_t> execution_outputs;
-        partition_outputs.clear();
-        size_t size = 0;
-        for (auto &lt : partition_inputs) {
-            size += compiler_backend_ptr.get_mem_size(lt);
-            assert(lt.ndims > 0);
-            lt_info_map[lt.id] = lt;
-        }
-        for (auto &lt : outputs) {
-            impl::logical_tensor_t compiled_output;
-            cp.query_logical_tensor(lt->id, &compiled_output);
-            size += compiler_backend_ptr.get_mem_size(compiled_output);
-            partition_outputs.push_back(compiled_output);
-            assert(compiled_output.ndims > 0);
-            lt_info_map[compiled_output.id] = compiled_output;
-        }
-        test::vector<char> data(size);
-
-        size = 0;
-        for (auto &lt : partition_inputs) {
-            impl::tensor_t placeholder(lt, &eng, data.data() + size);
-            execution_inputs.push_back(placeholder);
-            size += compiler_backend_ptr.get_mem_size(lt);
-        }
-        for (auto &lt : partition_outputs) {
-            impl::tensor_t placeholder(lt, &eng, data.data() + size);
-            execution_outputs.push_back(placeholder);
-            size += compiler_backend_ptr.get_mem_size(lt);
-        }
-
-        impl::stream_t &strm = get_stream();
-        ASSERT_EQ(cp.execute(&strm, execution_inputs, execution_outputs),
+        ASSERT_EQ(p.compile(&cp, compile_inputs, compile_outputs, &eng),
                 impl::status::success);
-        strm.wait();
+        size_t total_mem_size = 0;
+        auto execute_stage = [&](size_t size) {
+            std::vector<impl::tensor_t> execution_inputs, execution_outputs;
+            test::vector<char> data(size);
+            size = 0;
+            for (auto &lt : partition_inputs) {
+                impl::tensor_t placeholder(lt, &eng, data.data() + size);
+                execution_inputs.push_back(placeholder);
+                size += compiler_backend_ptr.get_mem_size(lt);
+            }
+            for (auto &lt : partition_outputs) {
+                impl::tensor_t placeholder(lt, &eng, data.data() + size);
+                execution_outputs.push_back(placeholder);
+                size += compiler_backend_ptr.get_mem_size(lt);
+            }
+            impl::stream_t &strm = get_stream();
+            ASSERT_EQ(cp.execute(&strm, execution_inputs, execution_outputs),
+                    impl::status::success);
+            strm.wait();
+        };
+        if (!dynamic_callback) {
+            for (auto &lt : partition_inputs) {
+                total_mem_size += compiler_backend_ptr.get_mem_size(lt);
+                assert(lt.ndims > 0);
+                lt_info_map[lt.id] = lt;
+            }
+            partition_outputs.clear();
+            for (auto &lt : compile_outputs) {
+                impl::logical_tensor_t compiled_output;
+                cp.query_logical_tensor(lt->id, &compiled_output);
+                total_mem_size
+                        += compiler_backend_ptr.get_mem_size(compiled_output);
+                partition_outputs.push_back(compiled_output);
+                assert(compiled_output.ndims > 0);
+                lt_info_map[compiled_output.id] = compiled_output;
+            }
+            execute_stage(total_mem_size);
+        } else {
+            // set concrete input shape for dynamic case
+            for (int shape_idx = 0; shape_idx < total_iterations; ++shape_idx) {
+                dynamic_callback(shape_idx, partition_inputs);
+                for (auto &lt : partition_inputs) {
+                    total_mem_size += compiler_backend_ptr.get_mem_size(lt);
+                    assert(lt.ndims > 0);
+                    lt_info_map[lt.id] = lt;
+                }
+                std::vector<const impl::logical_tensor_t *> queried_inputs;
+                std::vector<impl::logical_tensor_t *> queried_outputs;
+                for (auto &lt : partition_inputs) {
+                    queried_inputs.push_back(&lt);
+                }
+                for (auto &lt : partition_outputs) {
+                    queried_outputs.push_back(&lt);
+                }
+                cp.query_dynamic_outputs(queried_outputs, queried_inputs);
+                // caculate mem size for queried partition outputs
+                for (auto &lt : partition_outputs) {
+                    total_mem_size += compiler_backend_ptr.get_mem_size(lt);
+                    lt_info_map[lt.id] = lt;
+                }
+                execute_stage(total_mem_size);
+            }
+        }
     }
 }
 
@@ -396,7 +447,7 @@ TEST(GCGraphTest, INT8BF16MHAAlternativeCompileExecution) {
     compile_execution_pipeline(agraph, 1);
 }
 
-TEST(GCGraphTest, FP32DistillBertMHA) {
+TEST(GCGraphTest, FP32DistillBertMHACompileExecution) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(&agraph, false, false);
@@ -405,7 +456,7 @@ TEST(GCGraphTest, FP32DistillBertMHA) {
     compile_execution_pipeline(agraph, 1);
 }
 
-TEST(GCGraphTest, BF16DistillBertMHA) {
+TEST(GCGraphTest, BF16DistillBertMHACompileExecution) {
     REQUIRE_BF16_AMXBF16();
     impl::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(&agraph, true, false);
@@ -414,7 +465,7 @@ TEST(GCGraphTest, BF16DistillBertMHA) {
     compile_execution_pipeline(agraph, 1);
 }
 
-TEST(GCGraphTest, INT8BF16DistillBertMHA) {
+TEST(GCGraphTest, INT8BF16DistillBertMHACompileExecution) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(&agraph, true, true);
@@ -430,6 +481,99 @@ TEST(GCGraphTest, BF16MHAAlternativeCompileExecution) {
     agraph.build_graph();
 
     compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, FP32MHADynamicGraphCompileExecution) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    // dynamic both batchsize and sequence length
+    compiler_utils::add_MHA_subgraph_alternative(
+            &agraph, false, false, impl::op_kind::Reorder, -2, -2);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_mha_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {64, 96, 128},
+                    std::vector<int64_t> {128, 384, 384}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
+}
+
+TEST(GCGraphTest, INT8BF16MHADynamicGraphCompileExecution) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    // dynamic both batchsize and sequence length
+    compiler_utils::add_MHA_subgraph_alternative(
+            &agraph, true, true, impl::op_kind::Reorder, -2, -2);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_mha_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {64, 96, 128},
+                    std::vector<int64_t> {128, 384, 384}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
+}
+
+TEST(GCGraphTest, BF16MHADynamicGraphCompileExecution) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    // dynamic both batchsize and sequence length
+    compiler_utils::add_MHA_subgraph_alternative(
+            &agraph, true, false, impl::op_kind::Reorder, -2, -2);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_mha_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {64, 96, 128},
+                    std::vector<int64_t> {128, 384, 384}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
+}
+
+TEST(GCGraphTest, FP32DistillBertMHADynamicGraphCompileExecution) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(
+            &agraph, false, false, impl::op_kind::Reorder, -2, -2);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_distill_bert_mha_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {64, 96, 128},
+                    std::vector<int64_t> {128, 384, 384}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
+}
+
+TEST(GCGraphTest, BF16DistillBertMHADynamicGraphCompileExecution) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(
+            &agraph, true, false, impl::op_kind::Reorder, -2, -2);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_distill_bert_mha_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {64, 96, 128},
+                    std::vector<int64_t> {128, 384, 384}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
+}
+
+TEST(GCGraphTest, INT8BF16DistillBertMHADynamicGraphCompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(
+            &agraph, true, true, impl::op_kind::Reorder, -2, -2);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_distill_bert_mha_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {64, 96, 128},
+                    std::vector<int64_t> {128, 384, 384}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
 }
 
 TEST(GCGraphTest, FP32MLPCompileExecution) {
@@ -471,43 +615,49 @@ TEST(GCGraphTest, BF16MLPCompileExecution) {
 TEST(GCGraphTest, FP32MLPDynamicGraphCompileExecution) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
-    compiler_utils::add_mlp_subgraph(&agraph, false, -1, 5,
+    compiler_utils::add_mlp_subgraph(&agraph, false, -2, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
                     impl::op_kind::ReLU, impl::op_kind::Sigmoid});
     agraph.build_graph();
 
     compile_execution_pipeline(agraph, 1,
-            std::bind(set_mlp_dynamic_parti_ltsrs, static_cast<int64_t>(1),
-                    std::placeholders::_1, std::placeholders::_2));
+            std::bind(set_mlp_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {1, 64, 128}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
 }
 
 TEST(GCGraphTest, INT8MLPDynamicGraphCompileExecution) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
-    compiler_utils::add_int8_mlp_subgraph(&agraph, -1, 5,
+    compiler_utils::add_int8_mlp_subgraph(&agraph, -2, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
                     impl::op_kind::ReLU, impl::op_kind::Sigmoid});
     agraph.build_graph();
 
     compile_execution_pipeline(agraph, 1,
-            std::bind(set_mlp_dynamic_parti_ltsrs, static_cast<int64_t>(1),
-                    std::placeholders::_1, std::placeholders::_2));
+            std::bind(set_mlp_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {1, 64, 128}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
 }
 
 TEST(GCGraphTest, BF16MLPDynamicGraphCompileExecution) {
     REQUIRE_BF16_AMXBF16();
     impl::graph_t agraph;
-    compiler_utils::add_mlp_subgraph(&agraph, true, -1, 5,
+    compiler_utils::add_mlp_subgraph(&agraph, true, -2, 5,
             {479, 1024, 1024, 512, 256, 1},
             {impl::op_kind::ReLU, impl::op_kind::ReLU, impl::op_kind::ReLU,
                     impl::op_kind::ReLU, impl::op_kind::Sigmoid});
     agraph.build_graph();
 
     compile_execution_pipeline(agraph, 1,
-            std::bind(set_mlp_dynamic_parti_ltsrs, static_cast<int64_t>(1),
-                    std::placeholders::_1, std::placeholders::_2));
+            std::bind(set_mlp_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {1, 64, 128}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
 }
 
 TEST(GCGraphTest, FP32MLPTrainingGraphCompileExecution) {

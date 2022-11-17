@@ -126,7 +126,8 @@ public:
             const std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t>
                     &graph_engine,
             std::vector<sc::runtime::dynamic_tensor_t> &&dyn_inputs,
-            std::vector<sc::runtime::dynamic_tensor_t> &&dyn_outputs);
+            std::vector<sc::runtime::dynamic_tensor_t> &&dyn_outputs,
+            sc::sc_graph_t &&sc_graph);
     virtual ~compiler_compiled_partition_impl_t();
     impl::status_t execute(const impl::stream_t *astream,
             const std::vector<impl::tensor_t> &inputs,
@@ -140,6 +141,7 @@ private:
     std::shared_ptr<sc::jit_function_t> jit_func_;
     std::shared_ptr<impl::compiler_impl::compiler_graph_engine_t> graph_engine_;
     std::vector<sc::runtime::dynamic_tensor_t> dyn_inputs_, dyn_outputs_;
+    mutable sc::sc_graph_t sc_graph_;
 };
 
 } // namespace compiler_impl

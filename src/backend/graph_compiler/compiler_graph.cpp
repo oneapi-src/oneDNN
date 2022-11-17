@@ -194,6 +194,10 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
         }
     } else if (aop->get_kind() == op_kind::Rsqrt) {
         backend_attrs.set("reciprocal", true);
+    } else if (aop->get_kind() == op_kind::Reorder) {
+        // layout specified by framework would be overwritten by
+        // better layout chosen by the backend, so it's safe to set any here
+        backend_attrs.set("out_format", sc::sc_data_format_t());
     } else {
         backend_attrs = convert_op_attrs(aop->get_attributes());
     }
@@ -204,8 +208,16 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
 sc::graph_tensor_ptr compiler_graph_impl_t::convert_logical_tensor(
         const dnnl::graph::impl::logical_tensor_t &lt) {
     sc::sc_data_format_t lt_format;
+    // converting dims to GC dynamic dim
+    std::vector<int64_t> dims {lt.dims, lt.dims + lt.ndims};
+    std::transform(dims.begin(), dims.end(), dims.begin(), [](int64_t d) {
+        if (d == DNNL_GRAPH_DYNAMIC_DIM) { return sc::dimensions::dynamic_any; }
+        return d;
+    });
     std::vector<bool> visited(lt.ndims);
-    if (lt.layout_type == layout_type::strided) {
+    const impl::logical_tensor_wrapper_t ltw(lt);
+    // only strided non-dynamic case requires computation of stride
+    if (lt.layout_type == layout_type::strided && !ltw.has_dynamic_dim()) {
         std::vector<int64_t> ordered_strides {
                 lt.layout.strides, lt.layout.strides + lt.ndims};
         std::sort(ordered_strides.begin(), ordered_strides.end(),
@@ -221,13 +233,11 @@ sc::graph_tensor_ptr compiler_graph_impl_t::convert_logical_tensor(
             }
         }
         lt_format = sc::sc_data_format_t(storage_args);
-        return std::make_shared<sc::graph_tensor>(nullptr, lt_format,
-                std::vector<int64_t> {lt.dims, lt.dims + lt.ndims},
+        return std::make_shared<sc::graph_tensor>(nullptr, lt_format, dims,
                 convert_data_type(lt.data_type), ordered_strides);
     }
-    return std::make_shared<sc::graph_tensor>(nullptr, lt_format,
-            std::vector<int64_t> {lt.dims, lt.dims + lt.ndims},
-            convert_data_type(lt.data_type));
+    return std::make_shared<sc::graph_tensor>(
+            nullptr, lt_format, dims, convert_data_type(lt.data_type));
 }
 
 inline sc::sc_data_type_t compiler_graph_impl_t::convert_data_type(
