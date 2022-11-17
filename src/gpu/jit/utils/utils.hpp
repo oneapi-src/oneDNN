@@ -199,7 +199,7 @@ public:
         if (data_ == nullptr) return;
 
 #ifdef IR_ABORT_ON_ERROR
-        std::cout << data_->out.str() << "\n";
+        std::cout << data_->out.str() << std::endl;
         std::abort();
 #else
         auto err = std::runtime_error(data_->out.str());
