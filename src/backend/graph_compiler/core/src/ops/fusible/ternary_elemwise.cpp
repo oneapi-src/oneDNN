@@ -88,7 +88,8 @@ std::vector<int> select_op_t::infer_broadcast_axis(
             if (elt_dims.at(i) != bc_dims.at(i)) {
                 if (bc_dims.at(i) == 1) {
                     double_check_broadcast = true;
-                } else {
+                } else if (!is_dynamic_dim(elt_dims.at(i))
+                        && !is_dynamic_dim(bc_dims.at(i))) {
                     COMPILE_ASSERT(0,
                             "illegal elementwise operand found: "
                                     << utils::print_vector(elt_dims) << " , "
@@ -423,6 +424,24 @@ std::vector<int> select_op_t::get_bc_axis(const int l, const int r) const {
     std::vector<int> plain_axis_ = infer_broadcast_axis(l, r);
     if (plain_axis_ == std::vector<int> {-1}) return plain_axis_;
     return transform_axis_plain2blocking(info_.inputs_[l], plain_axis_);
+}
+
+shape_rl_vec select_op_t::get_dynamic_shape_relations() const {
+    shape_rl_vec ret;
+    auto &cond_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto &inp2_dims = get_inputs()[2]->details_.get_plain_dims();
+    auto &out_dims = get_outputs()[0]->details_.get_plain_dims();
+    for (size_t i = 0; i < cond_dims.size(); i++) {
+        if (is_dynamic_dim(cond_dims[i])) {
+            ret.emplace_back(cond_dims[i], inp2_dims[i]);
+        }
+    }
+    for (size_t i = 0; i < out_dims.size(); i++) {
+        if (is_dynamic_dim(out_dims[i])) {
+            ret.emplace_back(inp2_dims[i], out_dims[i]);
+        }
+    }
+    return ret;
 }
 
 void compute_block_broadcast(const std::vector<const tensor_slice *> &src,

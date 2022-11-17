@@ -411,6 +411,10 @@ expr call_reduce_op_query_format(const expr &tb, const expr &out0,
 expr call_tensor_view_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &out_format0, const expr &in_format0,
         const expr &out_size, const expr &kernel);
+expr call_select_op_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &in1, const expr &in2,
+        const expr &out_format0, const expr &in_format0, const expr &in_format1,
+        const expr &in_format2, const expr &out_size, const expr &kernel);
 expr call_fused_op_query_combined(const expr &tb, const expr &combined_keys,
         const expr &combined_algs, const expr &each_op_num_key,
         const expr &op_num, const expr &kernel);

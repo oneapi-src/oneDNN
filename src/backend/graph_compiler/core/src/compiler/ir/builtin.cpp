@@ -604,6 +604,27 @@ expr call_tensor_view_op_query_format(const expr &tb, const expr &out0,
             tb, out0, in0, out_format0, in_format0, out_size, kernel);
 }
 
+expr call_select_op_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &in1, const expr &in2,
+        const expr &out_format0, const expr &in_format0, const expr &in_format1,
+        const expr &in_format2, const expr &out_size, const expr &kernel) {
+    static func_t select_query_f = make_func("query_format_select_op",
+            {make_var(datatypes::pointer, "op_table"),
+                    make_var(datatypes::pointer, "out"),
+                    make_var(datatypes::pointer, "inp0"),
+                    make_var(datatypes::pointer, "inp1"),
+                    make_var(datatypes::pointer, "inp2"),
+                    make_var(datatypes::pointer, "out_fmt"),
+                    make_var(datatypes::pointer, "inp0_fmt"),
+                    make_var(datatypes::pointer, "inp1_fmt"),
+                    make_var(datatypes::pointer, "inp2_fmt"),
+                    make_var(datatypes::pointer, "out_size"),
+                    make_var(datatypes::pointer, "kernel")},
+            stmt(), datatypes::void_t);
+    return select_query_f(tb, out0, in0, in1, in2, out_format0, in_format0,
+            in_format1, in_format2, out_size, kernel);
+}
+
 expr call_fused_op_query_combined(const expr &tb, const expr &combined_keys,
         const expr &combined_algs, const expr &each_op_num_key,
         const expr &op_num, const expr &kernel) {
