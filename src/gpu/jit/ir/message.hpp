@@ -60,8 +60,7 @@ inline std::string to_string(send_cache_hint_t hint) {
     }
 }
 
-inline std::ostream &operator<<(
-        std::ostream &out, const send_cache_hint_t hint) {
+inline std::ostream &operator<<(std::ostream &out, send_cache_hint_t hint) {
     out << to_string(hint);
     return out;
 }
@@ -385,6 +384,10 @@ struct send_2d_hint_t {
 };
 
 struct send_hint_t {
+    send_hint_t() = default;
+    send_hint_t(const type_t &mem_type, send_op_t send_op)
+        : mem_type(mem_type), send_op(send_op), use_send_plan(true) {}
+
     send_op_t convert(const send_op_t &op) const {
         if (hint_2d.enable) {
             if (op == send_op_t::load) return send_op_t::load_2d;
@@ -394,7 +397,13 @@ struct send_hint_t {
         return op;
     }
 
+    type_t mem_type;
+    send_op_t send_op;
+    send_address_t send_address;
+    send_cache_hint_t cache_hint;
     send_2d_hint_t hint_2d;
+    bool prefer_dense = false;
+    bool use_send_plan = false;
 };
 
 // Generates loads or stores to move data between memory (global or SLM) and
@@ -461,32 +470,31 @@ private:
     stmt_t stmt_;
 };
 
-inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
-        const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
-        send_op_t send_op, send_address_t send_address,
-        send_hint_t &send_hint) {
-    return access_builder_t(ir_ctx, mem_view, mem_buf, reg_buf, send_op,
-            send_address, send_cache_hint_t::undef, send_hint);
-}
-
-inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
-        const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
-        send_op_t send_op, send_address_t send_address,
-        send_cache_hint_t send_cache_hint = send_cache_hint_t::undef) {
-    send_hint_t send_hint;
-    return access_builder_t(ir_ctx, mem_view, mem_buf, reg_buf, send_op,
-            send_address, send_cache_hint, send_hint);
-}
+send_hint_t get_send_hint(send_op_t send_op, send_address_t send_address,
+        const view_t &view,
+        send_cache_hint_t cache_hint = send_cache_hint_t::undef,
+        fma_kind_t fma_kind = fma_kind_t::unknown,
+        abc_kind_t abc_kind = abc_kind_t::undef);
 
 send_hint_t get_send_hint(const exec_config_t &exec_cfg, send_op_t send_op,
-        fma_kind_t fma_kind, abc_kind_t abc_kind, const view_t &view,
-        const gemm_schedule_t &gemm_schedule, bool allow_2d = true);
+        send_address_t send_address, fma_kind_t fma_kind, abc_kind_t abc_kind,
+        const view_t &view, const gemm_schedule_t &gemm_schedule,
+        bool allow_2d = true);
 
-inline send_hint_t get_send_hint(const exec_config_t &exec_cfg,
-        send_op_t send_op, abc_kind_t abc_kind, const view_t &view,
-        const gemm_schedule_t &gemm_schedule, bool allow_2d = true) {
-    return get_send_hint(exec_cfg, send_op, fma_kind_t::unknown, abc_kind, view,
-            gemm_schedule, allow_2d);
+inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
+        const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
+        send_hint_t &send_hint) {
+    return access_builder_t(ir_ctx, mem_view, mem_buf, reg_buf,
+            send_hint.send_op, send_hint.send_address, send_hint.cache_hint,
+            send_hint);
+}
+
+inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
+        const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
+        send_op_t send_op, send_address_t send_address,
+        send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
+    auto send_hint = get_send_hint(send_op, send_address, mem_view, cache_hint);
+    return make_access_builder(ir_ctx, mem_view, mem_buf, reg_buf, send_hint);
 }
 
 } // namespace jit

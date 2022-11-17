@@ -859,19 +859,19 @@ public:
 
 private:
     void load_impl(ir_context_t &ir_ctx, layout_t &load_layout,
-            view_t &load_view, send_hint_t &send_hint, stmt_t &stmt) const {
+            int &load_buf_size, view_t &load_view, send_hint_t &send_hint,
+            stmt_t &stmt) const {
         view_t mem_view = mem_view_;
         if (load_buffered_)
             mem_view_.try_create_buffer_view(mem_view, load_view);
 
-        send_op_t send_op = send_op_t::load;
+        send_address_t send_address
+                = use_slm_ ? send_address_t::slm : send_address_t::a64;
         send_hint = get_send_hint(ir_ctx_.exec_cfg(), send_op_t::load,
-                fma_helper_.fma_kind(), abc_kind_, mem_view, gemm_schedule_,
-                allow_2d_load_);
+                send_address, fma_helper_.fma_kind(), abc_kind_, mem_view,
+                gemm_schedule_, allow_2d_load_);
         auto read = make_access_builder(ir_ctx, mem_view,
-                use_slm_ ? slm_buf_ : mem_buf_, reg_buf_, send_op,
-                use_slm_ ? send_address_t::slm : send_address_t::a64,
-                send_hint);
+                use_slm_ ? slm_buf_ : mem_buf_, reg_buf_, send_hint);
         ir_trace() << (abc_kind_ == abc_kind_t::a ? "A" : "B")
                    << " GMEM/SLM to GRF load #" << idx_ << ":\n"
                    << read.str() << std::endl;
@@ -2311,12 +2311,13 @@ private:
         auto thr_view = x_gmem_view.split(gemm_schedule_.tg_grid());
 
         auto send_hint = get_send_hint(ir_ctx_.exec_cfg(), send_op_t::prefetch,
+                send_address_t::a64, fma_kind_t::unknown,
                 (tag[0] == 'A') ? abc_kind_t::a : abc_kind_t::b, thr_view,
                 gemm_schedule_);
 
         // GMEM prefetch.
-        auto x_prefetch = make_access_builder(ir_ctx_, thr_view, xp_buf,
-                expr_t(), send_op_t::prefetch, send_address_t::a64, send_hint);
+        auto x_prefetch = make_access_builder(
+                ir_ctx_, thr_view, xp_buf, expr_t(), send_hint);
 
         // too many prefetches degrades performance
         if (find_objects<func_call_t>(x_prefetch.stmt()).size() > 16) {
