@@ -386,11 +386,7 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
                              && (origin_ow * origin_oh) % blk != 0);
                          }),
       s_block_list.end());
-    if (ic_ * oc_ < 1024 * 1024) {
-      im_s_block_ = origin_ow * 2;
-    } else {
-      im_s_block_ = s_block_list.back();
-    }
+    im_s_block_ = s_block_list.back();
   }
   if (pads_begin.size() > 1) {
     ph_ = pads_begin[ndims_ - 4];
