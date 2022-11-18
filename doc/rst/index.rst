@@ -1,5 +1,5 @@
-oneDNN Documentation
-========================
+Intel® oneAPI Deep Neural Network Library Developer Guide and Reference
+=======================================================================
 
 .. toctree::
    :maxdepth: 1
@@ -7,6 +7,7 @@ oneDNN Documentation
    build_and_link
    programming_model
    supported_primitives
+   graph_extension
    dev_guide_examples
    performance_profiling_and_inspection
    advanced_topics

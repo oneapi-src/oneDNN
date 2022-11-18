@@ -281,7 +281,7 @@ $ cmake -DONEDNN_GPU_RUNTIME=OCL -DOPENCLROOT=/path/to/opencl/sdk ..
 ## Graph component limitations
 
 The graph component can be enabled via the build option `ONEDNN_BUILD_GRAPH`.
-But the build option doesn't work with some values of other build options.
+But the build option does not work with some values of other build options.
 Specifying the options and values simutanously in one build will lead to a CMake
 error.
 

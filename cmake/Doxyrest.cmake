@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ if (DOXYREST_FOUND)
             --frame-dir=${DOXYREST_FRAME_DIR}/cfamily
             --config=${CMAKE_CURRENT_BINARY_DIR}/doxyrest-config.lua
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/doc/rst ${DOXYREST_OUTPUT_DIR}/rst
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/doc/graph/rst ${DOXYREST_OUTPUT_DIR}/rst
         COMMAND ${CMAKE_COMMAND} -E touch ${DOXYREST_STAMP_FILE}
         WORKING_DIRECTORY ${DOXYREST_OUTPUT_DIR}
         COMMENT "Translating documentation from .xml to .rst with Doxyrest" VERBATIM)

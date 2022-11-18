@@ -120,3 +120,18 @@ The sequence of actions to create a primitive is:
    memory formats if the primitive supports it.
 
 2. Create a primitive based on the primitive descriptor obtained in step 1.
+
+## Graph Extension
+
+Graph extension is a high level abstraction in oneDNN that allows you to work
+with a computation graph instead of individual primitives. This approach allows
+you to make an operation fusion:
+
+* Transparent: the integration efforts are reduced by abstracting backend-aware
+  fusion logic.
+
+* Scalable: no integration code change is necessary to benefit from new fusion
+  patterns enabled in oneDNN.
+
+The programming model for the graph extension is detailed in the
+[graph basic concepts section](@ref dev_guide_graph_basic_concepts).
