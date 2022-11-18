@@ -1,4 +1,4 @@
-Intel® oneAPI Deep Neural Network Library Developer Guide and Reference
+oneAPI Deep Neural Network Library Developer Guide and Reference
 =======================================================================
 
 .. toctree::
