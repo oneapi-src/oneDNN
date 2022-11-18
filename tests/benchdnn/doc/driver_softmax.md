@@ -24,8 +24,9 @@ where *softmax-knobs* are:
             for details.
  - `--axis=INT` -- dimension on which operation will be performed.
             Default is `1`, corresponds to channels in logical memory layout.
- - `--attr-oscale=STRING` -- output scale primitive attribute. No oscale is
-            set by default. Refer to [attributes](knobs_attr.md) for details.
+ - `--attr-scales=STRING` -- per argument scales primitive attribute. No
+            scales are set by default. Refer to [attributes](knobs_attr.md) for
+            details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
