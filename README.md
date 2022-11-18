@@ -13,10 +13,10 @@ oneAPI Deep Neural Network Library (oneDNN)
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
 oneDNN is part of [oneAPI](https://oneapi.io).
-The library is optimized for Intel(R) Architecture Processors, Intel Processor
-Graphics and Xe Architecture graphics. oneDNN has experimental support
-for the following architectures: Arm\* 64-bit Architecture (AArch64),
-NVIDIA\* GPU, OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x), and RISC-V.
+The library is optimized for Intel(R) Architecture Processors, Intel Graphics,
+and Arm\* 64-bit Architecture (AArch64)-based processors. oneDNN has
+experimental support for the following architectures: NVIDIA\* GPU,
+OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x), and RISC-V.
 
 oneDNN is intended for deep learning applications and framework
 developers interested in improving application performance
@@ -70,17 +70,18 @@ oneDNN supports platforms based on the following architectures:
 
 > **WARNING**
 >
-> Arm 64-bit Architecture (AArch64), Power ISA (PPC64), IBMz (s390x),
-> and RISC-V (RV64) support is **experimental** with limited testing validation.
+> Power ISA (PPC64), IBMz (s390x), and RISC-V (RV64) support is
+> **experimental** with limited testing validation.
 
 The library is optimized for the following CPUs:
-* Intel Atom(R) processors (at least Intel SSE4.1 support is required)
-* Intel Core(TM) processors (at least Intel SSE4.1 support is required)
+* Intel Atom(R) processor (at least Intel SSE4.1 support is required)
+* Intel Core(TM) processor (at least Intel SSE4.1 support is required)
 * Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
-* Intel Xeon Scalable processors (formerly Skylake, Cascade Lake, Cooper
-  Lake, and Ice Lake)
-* future Intel Xeon Scalable processor (code name Sapphire Rapids)
+* Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, Cooper
+  Lake, Ice Lake, and Sapphire Rapids)
+* Intel Xeon CPU Max Series (formerly Sapphire Rapids HBM)
+* future Intel Xeon Scalable processor (code name Granite Rapids)
 
 On a CPU based on Intel 64 or on AMD64 architecture, oneDNN detects
 the instruction set architecture (ISA) at runtime and uses just-in-time (JIT)
@@ -94,8 +95,8 @@ On a CPU based on Arm AArch64 architecture, oneDNN can be built with Arm Compute
 integration. Compute Library is an open-source library for machine learning applications
 and provides AArch64 optimized implementations of core functions. This functionality currently
 requires that Compute Library is downloaded and built separately, see
-[Build from Source](https://oneapi-src.github.io/oneDNN/dev_guide_build.html). oneDNN only supports
-Compute Library versions 22.05 or later.
+[Build from Source](https://oneapi-src.github.io/oneDNN/dev_guide_build.html).
+oneDNN only supports Compute Library versions 22.08 or later.
 
 > **WARNING**
 >
@@ -109,7 +110,7 @@ The library is optimized for the following GPUs:
 * Intel Iris(R) Xe graphics (formerly DG1)
 * Intel Arc(TM) graphics (formerly Alchemist and DG2)
 * Intel Data Center GPU Flex Series (formerly Arctic Sound-M)
-* future Xe Architecture graphics (code name Ponte Vecchio)
+* Intel Data Center GPU Max Series (formerly Ponte Vecchio)
 
 ## Requirements for Building from Source
 
