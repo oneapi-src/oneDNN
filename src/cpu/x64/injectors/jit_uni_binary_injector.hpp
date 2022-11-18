@@ -82,7 +82,7 @@ bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
  * @param rhs_helper_reg - gpr register used as helper for calculations during data
  * loading phase.
  * @param rhs_addr_cache_reg - gpr register used for caching part of calculated
- * offset.
+ * offset, this register is always preserved.
  * @param preserve_gpr_helpers - determines whether gpr registers specified above
  * should be preserved (pushed to stack and poped back afterwords) between
  * compute_vector_range calls.
