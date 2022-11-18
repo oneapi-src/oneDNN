@@ -100,7 +100,7 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     size_t ndims = input_dims.size();
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
-            = attrs_.get_or_else("filter_format", std::string("XIO"));
+            = attrs_.get_or_else("weights_format", std::string("XIO"));
     auto strides = attrs_.get<sc_dims>("strides");
     bool is_same = false;
     if (attrs_.has_key("auto_pad")) {
@@ -151,11 +151,11 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     bool is_bf16 = inputs[0]->details_.dtype_ == datatypes::bf16;
     if (is_bf16) {
         COMPILE_ASSERT(inputs[1]->details_.dtype_ == datatypes::bf16,
-                "Filter shall have the same datatype as input.")
+                "weights shall have the same datatype as input.")
     }
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
-            = attrs_.get_or_else("filter_format", std::string("XIO"));
+            = attrs_.get_or_else("weights_format", std::string("XIO"));
     auto dim = inputs[0]->details_.get_plain_dims().size();
     COMPILE_ASSERT(dim == 3 || dim == 4 || dim == 5,
             "Only support conv1D, conv2D and conv3D.");
@@ -227,10 +227,10 @@ conv_bwd_data_op_t::conv_bwd_data_op_t(const std::vector<graph_tensor_ptr> &ins,
     info_.outputs_ = outs;
     attrs_ = attrs;
     op_name_ = "conv_bwd_data";
-    COMPILE_ASSERT(attrs_.has_key("output_shape"),
+    COMPILE_ASSERT(attrs_.has_key("dst_shape"),
             "conv_bwd_data currently does not support reading dynamic shape "
             "passed as one of the input.");
-    auto out_shape = attrs_.get<sc_dims>("output_shape");
+    auto out_shape = attrs_.get<sc_dims>("dst_shape");
     auto out_dtype = info_.inputs_[0]->details_.dtype_;
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
@@ -258,7 +258,7 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     bool is_bf16 = inputs[0]->details_.dtype_ == datatypes::bf16;
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
-            = attrs_.get_or_else("filter_format", std::string("XIO"));
+            = attrs_.get_or_else("weights_format", std::string("XIO"));
     auto dim = inputs[0]->details_.get_plain_dims().size();
     COMPILE_ASSERT(dim == 4 || dim == 5, "Only support conv2D and conv3D.");
     auto is_3D = (dim == 5);
@@ -291,9 +291,9 @@ void conv_bwd_data_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         output_delta = permute_output_delta->get_outputs()[0];
 
         // change output_shape attributes
-        auto output_shape = attrs_.get<sc_dims>("output_shape");
+        auto output_shape = attrs_.get<sc_dims>("dst_shape");
         permute_shape_NXC2NCX(output_shape);
-        attrs.set<sc_dims>("output_shape", output_shape);
+        attrs.set<sc_dims>("dst_shape", output_shape);
     }
     if (filter_format == "XIO") {
         auto permute_weight = graph->make("transpose", {filter}, {},
@@ -350,10 +350,10 @@ conv_bwd_weight_op_t::conv_bwd_weight_op_t(
     info_.outputs_ = outs;
     attrs_ = attrs;
     op_name_ = "conv_bwd_weight";
-    COMPILE_ASSERT(attrs_.has_key("filter_shape"),
+    COMPILE_ASSERT(attrs_.has_key("weights_shape"),
             "conv_bwd_weight currently does not support reading dynamic shape "
             "passed as one of the input.");
-    auto out_shape = attrs_.get<sc_dims>("filter_shape");
+    auto out_shape = attrs_.get<sc_dims>("weights_shape");
     auto out_dtype = info_.inputs_[0]->details_.dtype_;
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
@@ -381,7 +381,7 @@ void conv_bwd_weight_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     bool is_bf16 = inputs[0]->details_.dtype_ == datatypes::bf16;
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
-            = attrs_.get_or_else("filter_format", std::string("XIO"));
+            = attrs_.get_or_else("weights_format", std::string("XIO"));
     auto dim = inputs[0]->details_.get_plain_dims().size();
     COMPILE_ASSERT(dim == 4 || dim == 5, "Only support conv2D and conv3D.");
     auto is_3D = (dim == 5);
@@ -404,9 +404,9 @@ void conv_bwd_weight_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
 
     if (filter_format == "XIO") {
         // change filter_shape attributes
-        auto filter_shape = attrs_.get<sc_dims>("filter_shape");
+        auto filter_shape = attrs_.get<sc_dims>("weights_shape");
         permute_shape_XIO2OIX(filter_shape);
-        attrs.set<sc_dims>("filter_shape", filter_shape);
+        attrs.set<sc_dims>("weights_shape", filter_shape);
     }
 
     conv = graph->make(

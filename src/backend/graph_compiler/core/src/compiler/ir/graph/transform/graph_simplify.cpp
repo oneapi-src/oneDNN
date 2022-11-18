@@ -247,11 +247,14 @@ void redundant_binary_op_elimination(
                                     == 1
                             && in_const_op->get_constant_plain_dims()[0] == 1) {
                         size_t use_size = node->get_outputs()[0]->uses_.size();
+                        int use_idx = 0;
                         for (size_t j = 0; j < use_size; j++) {
                             sc_op_ptr next_node = node->get_outputs()[0]
-                                                          ->uses_[j]
+                                                          ->uses_.at(use_idx)
                                                           .second.get_shared();
-                            int idx = node->get_outputs()[0]->uses_[j].first;
+                            int idx = node->get_outputs()[0]
+                                              ->uses_.at(use_idx)
+                                              .first;
                             if (next_node->isa<output_op>()
                                     && node->get_inputs()[1 - i]
                                                ->producer_owner_
@@ -262,7 +265,9 @@ void redundant_binary_op_elimination(
                             } else {
                                 next_node->replace_input(
                                         idx, node->get_inputs()[1 - i]);
+                                use_idx--;
                             }
+                            use_idx++;
                         }
                         node->remove();
                         if (in_const_op->get_outputs()[0]->uses_.empty()) {
@@ -286,11 +291,14 @@ void redundant_binary_op_elimination(
                         && in_const_op->get_constant_plain_dims().size() == 1
                         && in_const_op->get_constant_plain_dims()[0] == 1) {
                     size_t use_size = node->get_outputs()[0]->uses_.size();
+                    int use_idx = 0;
                     for (size_t j = 0; j < use_size; j++) {
                         sc_op_ptr next_node = node->get_outputs()[0]
-                                                      ->uses_[j]
+                                                      ->uses_.at(use_idx)
                                                       .second.get_shared();
-                        int idx = node->get_outputs()[0]->uses_[j].first;
+                        int idx = node->get_outputs()[0]
+                                          ->uses_.at(use_idx)
+                                          .first;
                         if (next_node->isa<output_op>()
                                 && node->get_inputs()[0]
                                            ->producer_owner_->isa<input_op>()) {
@@ -299,7 +307,9 @@ void redundant_binary_op_elimination(
                         } else {
                             next_node->replace_input(
                                     idx, node->get_inputs()[0]);
+                            use_idx--;
                         }
+                        use_idx++;
                     }
                     node->remove();
                     if (in_const_op->get_outputs()[0]->uses_.empty()) {

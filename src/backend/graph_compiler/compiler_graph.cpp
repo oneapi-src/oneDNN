@@ -55,13 +55,28 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                         "batchnorm_training_backprop"},
                 {op_kind::Select, "select"}};
 
+// we convert all int64[] to int32[] except for allowlist
+static std::unordered_set<impl::op_attr_t> type_conversion_allowlist {
+        impl::op_attr::strides, impl::op_attr::pads_begin,
+        impl::op_attr::pads_end, impl::op_attr::filter_shape,
+        impl::op_attr::output_shape};
+
+static std::string attr_to_gc_attr_name(op_attr_t attr) {
+    switch (attr) {
+        case op_attr::filter_format: return "weights_format"; break;
+        case op_attr::filter_shape: return "weights_shape"; break;
+        case op_attr::output_shape: return "dst_shape"; break;
+        default: return op_t::attr2str(attr); break;
+    }
+}
+
 sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
         const std::unordered_map<impl::op_attr_t,
                 impl::utils::attribute_value_t> &attrs) {
     sc::any_map_t backend_attrs;
     for (const auto &attr : attrs) {
         auto kind = attr.second.get_kind();
-        auto name = impl::op_t::attr2str(attr.first);
+        auto name = attr_to_gc_attr_name(attr.first);
         switch (kind) {
             case attribute_kind::i: {
                 auto val = attr.second.get<int64_t>();
@@ -69,14 +84,9 @@ sc::any_map_t compiler_graph_impl_t::convert_op_attrs(
             } break;
             case attribute_kind::is: {
                 auto val = attr.second.get<std::vector<int64_t>>();
-                // we convert all int64[] to int32[] except for whitelist
-                std::unordered_set<impl::op_attr_t> type_conversion_whitelist {
-                        impl::op_attr::strides, impl::op_attr::pads_begin,
-                        impl::op_attr::pads_end, impl::op_attr::filter_shape,
-                        impl::op_attr::output_shape};
                 // TODO(yifei): generalize the logic here
-                if (type_conversion_whitelist.find(attr.first)
-                        != type_conversion_whitelist.end()) {
+                if (type_conversion_allowlist.find(attr.first)
+                        != type_conversion_allowlist.end()) {
                     backend_attrs.set(name, val);
                 } else {
                     std::vector<int> val_int32(val.begin(), val.end());

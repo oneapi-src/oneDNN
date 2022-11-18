@@ -14,21 +14,20 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <map>
 #include "../fusible_op.hpp"
 #include "../graph_op.hpp"
 #include "../pass/pass.hpp"
 #include "../visitor.hpp"
 #include "transform.hpp"
 #include <compiler/ir/graph/fused_op.hpp>
-#include <unordered_map>
 #include <unordered_set>
 
 namespace sc {
 
-static std::unordered_map<int, std::vector<sc_op_ptr>> get_merge_map(
-        sc_graph_t &graph) {
+static std::map<int, std::vector<sc_op_ptr>> get_merge_map(sc_graph_t &graph) {
     auto vis = op_visitor_t::bfs();
-    std::unordered_map<int, std::vector<sc_op_ptr>> to_merge;
+    std::map<int, std::vector<sc_op_ptr>> to_merge;
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
         if (node->attrs_.get_or_else(
                     "horizontal_merge", horizontal_merge_type::no_merge)

@@ -538,7 +538,7 @@ conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(
     : tunable_op_t("conv_bwd_data_core", ins, outs, attrs) {
     COMPILE_ASSERT(info_.inputs_.size() == 2 || info_.inputs_.size() == 3,
             "conv_bwd_data expects 2 or 3 inputs");
-    auto output_shape = attrs_.get<sc_dims>("output_shape");
+    auto output_shape = attrs_.get<sc_dims>("dst_shape");
     ndims_ = info_.inputs_[0]->details_.get_plain_dims().size();
     auto &weightdims = info_.inputs_[1]->details_.get_plain_dims();
     is_1x1_ = std::all_of(weightdims.begin() + 2, weightdims.end(),
@@ -729,7 +729,7 @@ conv_bwd_weight_core_op_t::conv_bwd_weight_core_op_t(
             "conv_bwd_weight_core expects 2 or 3 inputs");
     auto &in_data_dims = info_.inputs_[0]->details_.get_plain_dims();
     auto &in_fwd_output_dims = info_.inputs_[1]->details_.get_plain_dims();
-    auto &weight_shape = attrs_.get<sc_dims>("filter_shape");
+    auto &weight_shape = attrs_.get<sc_dims>("weights_shape");
     is_1x1_ = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
             [](int x) { return x == 1; });
     COMPILE_ASSERT(in_data_dims[0] == in_fwd_output_dims[0],
@@ -836,7 +836,7 @@ body_generator_ptr conv_bwd_weight_core_op_t::create_generator() {
     auto &pads_begin = attrs_.has_key("pads_begin")
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");
-    auto &weight_shape = attrs_.get<sc_dims>("filter_shape");
+    auto &weight_shape = attrs_.get<sc_dims>("weights_shape");
     sc_dims input_dims = info_.inputs_[0]->details_.get_plain_dims();
     if (is_1x1_) {
         if (use_nested_generator()) {

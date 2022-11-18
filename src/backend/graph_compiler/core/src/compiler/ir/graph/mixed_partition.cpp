@@ -2445,6 +2445,7 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
 static bool validate_optimized_reduce(
         const std::shared_ptr<mixed_parti_t> &parti) {
     for (auto &op : parti->ops) {
+        if (op->is_removed_) continue;
         if (auto coll = op->dyn_cast<reduce_collect_op_t>()) {
             if (coll->op_ == reduce_collect_op_t::kind::COPY) {
                 auto gt = coll->get_inputs()[0];
