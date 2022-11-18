@@ -5,8 +5,8 @@ oneAPI Deep Neural Network Library (oneDNN)
 >
 > This branch includes backward incompatible changes towards oneDNN v3.0 release:
 > * [Memory and primitive descriptors refactoring](https://github.com/oneapi-src/oneDNN/tree/rfcs/rfcs/20220608-make-opdesc-and-md-opaque)
-> * [Quantization scheme update](https://github.com/igorsafo/oneDNN/tree/rfcs/rfcs/20220201-quantization-scaling)
-> * [API cleanup](https://github.com/dzarukin/oneDNN/tree/dzarukin/rfcs/v3_cleanup/rfcs/20220815-v3.0-API-cleanup)
+> * [Quantization scheme update](https://github.com/oneapi-src/oneDNN/tree/rfcs/rfcs/20220201-quantization-scaling)
+> * [API cleanup](https://github.com/oneapi-src/oneDNN/tree/rfcs/rfcs/20220815-v3.0-API-cleanup)
 
 <img align="left" src="https://spec.oneapi.io/oneapi-logo-white-scaled.jpg" alt="oneAPI logo">
 
