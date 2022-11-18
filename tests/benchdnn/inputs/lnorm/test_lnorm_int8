@@ -6,6 +6,6 @@
      s8:s8,u8:s8,s8:u8,u8:u8
 
 --dir=FWD_I
---attr-oscale=common:128*
+--attr-scales=,src:common:128*,dst:common:0.125*,src:common:64*+dst:common:0.5*
 --flags=,CH,G,GCH
 --batch=option_set_all

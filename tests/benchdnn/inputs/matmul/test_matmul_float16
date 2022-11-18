@@ -6,15 +6,15 @@
 --runtime_dims_masks=0,2:1,1:0,3:1
 --bia_dt=undef,f32 --bia_mask=2
 
---attr-oscale=
+--attr-scales=
 --attr-post-ops=
 --batch=shapes_2d
 
---attr-oscale=common:2.25
+--attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:2.25*
 --attr-post-ops=sum
 --batch=shapes_2d
 
---attr-oscale=per_oc:2.25
+--attr-scales=src:common:0.25*+wei:per_oc:0.5*+dst:common:2.25*
 --attr-post-ops=relu
 --batch=shapes_2d
 
@@ -22,7 +22,7 @@
 --stag=ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=3:1,3:3
 --bia_dt=f16 --bia_mask=1,2,3
---attr-oscale=,common:1.25
+--attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:2.25*
 --attr-post-ops=add:f32,sum+mul:s32:per_oc+linear:2:-1
 --batch=shapes_2d
 
@@ -43,7 +43,7 @@
 --batch=shapes_3d
 
 --runtime_dims_masks=2:4,6:6,3:5,7:7
---attr-oscale=common:2.25
+--attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:2.25*
 --attr-post-ops=sum+relu+add:u8
 --batch=shapes_3d
 
@@ -57,7 +57,7 @@
 --bia_dt=undef,f32
 --bia_mask=2
 
---attr-oscale=common:2.25*,per_oc:2.25*
+--attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:2.25*
 --attr-post-ops=,sum:2+relu+mul:f32:per_oc
 --batch=shapes_2d
 

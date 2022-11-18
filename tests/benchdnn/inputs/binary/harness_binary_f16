@@ -19,9 +19,8 @@
 ## scales
 --attr-post-ops=
 --attr-scales=, \
-              src:common:0.25+src1:common:0.5, \
-              src:common:0.125, \
-              src1:common:2, \
-              src:common:0.25*+src1:common:0.5*
+              src:common:0.25*+src1:common:0.5*, \
+              src:common:0.125*, \
+              src1:common:2*
 --batch=option_set_all
 --batch=option_set_src0_bcast

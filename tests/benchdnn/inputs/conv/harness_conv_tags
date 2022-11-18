@@ -22,7 +22,3 @@
 --cfg=f32_wino
 --dir=FWD_B,BWD_D,BWD_WB
 --batch=shapes_basic
-# Inference: int8
---cfg=u8s8u8_wino
---dir=FWD_B
---batch=shapes_basic

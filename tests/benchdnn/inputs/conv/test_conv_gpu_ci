@@ -27,7 +27,7 @@
 # Inference
 --reset
 --dir=FWD_I
---attr-oscale=,common:0.25,per_oc:5,per_oc:5*
+--attr-scales=,src:common:0.25*,wei:per_oc:5*,dst:common:2*,src:common:0.25*+wei:per_oc:5*
 
 ## All inference configs
 --cfg=s8s8f32,s8s8bf16,s8s8f16,s8s8s32,s8s8s8,s8s8u8, \
@@ -42,7 +42,7 @@
 --attr-zero-points=
 --batch=shapes_basic_gpu
 --attr-post-ops=
---attr-zero-points=,src:common:2+dst:common:1,src:per_dim_1:1*+dst:per_dim_1:1*
+--attr-zero-points=,src:common:2*+dst:common:1*,src:per_dim_1:1*+dst:per_dim_1:1*
 --batch=shapes_basic_gpu
 
 # Wino

@@ -28,7 +28,7 @@
 --cfg=s8s8f32,s8s8bf16,s8s8s32,s8s8s8,s8s8u8,u8s8f32,u8s8bf16,u8s8s32,u8s8s8,u8s8u8
 --batch=shapes_ci
 
---attr-oscale=,common:0.25,per_oc:5,per_oc:5*
+--attr-scales=,src:common:0.25*,wei:per_oc:5*,dst:common:2*,src:common:0.25*+wei:per_oc:5*
 ## Direct
 --alg=direct
 --cfg=s8s8s8,u8s8s32
@@ -43,5 +43,5 @@
 --batch=shapes_ci
 
 --attr-post-ops=
---attr-zero-points=,src:common:31+dst:common:15
+--attr-zero-points=,src:common:31*+dst:common:15*
 --batch=shapes_ci

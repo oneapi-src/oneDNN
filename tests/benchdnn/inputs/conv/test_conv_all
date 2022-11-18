@@ -27,4 +27,3 @@
 --batch=test_conv_regression
 --batch=test_conv_wino_f32
 --batch=test_conv_wino_gpu
---batch=test_conv_wino_int8

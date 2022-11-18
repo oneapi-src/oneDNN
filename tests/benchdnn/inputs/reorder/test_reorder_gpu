@@ -120,7 +120,9 @@
 --ddt=u8
 --stag=abx,xba
 --dtag=abx,xba
---attr-oscale=per_dim_0:0,per_dim_1:0,per_dim_01:0
+--attr-scales=src:per_dim_0:0*+dst:per_dim_0:0*, \
+              src:per_dim_1:0*+dst:per_dim_0:0*, \
+              src:per_dim_01:0*
 3x5x7x11
 
 # data types
@@ -128,7 +130,7 @@
 --sdt=f32,s32,s8,u8,f16,bf16,f64
 --ddt=f32,s32,s8,u8,f16,bf16,f64
 
---attr-oscale=per_dim_1:0.5,per_dim_1:0.5*
+--attr-scales=src:per_dim_1:0.5*
 --stag=abx,xba
 --dtag=abx,xba
 3x5x7x11
@@ -138,7 +140,7 @@
 --sdt=f32,s32,s8,u8,f16,bf16
 --ddt=f32,s32,s8,u8,f16,bf16
 
---attr-oscale=per_dim_1:0.5,per_dim_1:0.5*
+--attr-scales=src:per_dim_1:0.5*
 --attr-post-ops=sum:0.5
 --stag=abx,xba
 --dtag=abx,xba
@@ -149,7 +151,7 @@
 --sdt=u8
 --ddt=u8
 
---attr-oscale=common:0.25,common:0.25*,per_dim_0:0.5,per_dim_0:0.5*
+--attr-scales=src:common:0.25*,src:per_dim_0:0.5*
 --stag=a
 --dtag=a
 128

@@ -30,7 +30,8 @@
 --sdt=s8,u8
 --ddt=s8,u8
 --dir=FWD_I
---attr-oscale=,common:128,common:128* --batch=shapes_2d
+--attr-scales=,src:common:128*,dst:common:0.125*,src:common:64*+dst:common:0.5*
+--batch=shapes_2d
 
 
 # Test layers of some key GPU DL Frameworks

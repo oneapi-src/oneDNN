@@ -41,7 +41,7 @@
 
 # Inference
 --dir=FWD_I
---attr-oscale=,common:0.25,per_oc:5,per_oc:5*
+--attr-scales=,src:common:0.25*,wei:per_oc:5*,dst:common:2*,src:common:0.25*+wei:per_oc:5*
 
 ## Direct
 --alg=direct
@@ -63,7 +63,7 @@
 --attr-zero-points=
 --batch=shapes_basic
 --attr-post-ops=
---attr-zero-points=,src:common:2+dst:common:1,src:per_dim_1:1*+dst:per_dim_1:1*
+--attr-zero-points=,src:common:2*+dst:common:1*,src:per_dim_1:1*+dst:per_dim_1:1*
 --batch=shapes_basic
 ### Signed input
 --cfg=s8s8s8
@@ -77,15 +77,7 @@
 --attr-zero-points=
 --batch=shapes_basic
 --attr-post-ops=
---attr-zero-points=,src:common:2+dst:common:1,src:per_dim_1:1*+dst:per_dim_1:1*
---batch=shapes_basic
-## Wino
---alg=wino
---cfg=u8s8s32_wino
---stag=any
---dtag=any
---attr-post-ops=,sum:0.5,relu,sum:0.25:1+relu:0:0:0.75
---attr-zero-points=
+--attr-zero-points=,src:common:2*+dst:common:1*,src:per_dim_1:1*+dst:per_dim_1:1*
 --batch=shapes_basic
 # BF32
 --reset

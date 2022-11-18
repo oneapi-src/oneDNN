@@ -15,5 +15,5 @@
 --dir=FWD_I
 --sdt=f32,bf16,f16,s8,u8
 --ddt=s8,u8
---attr-oscale=,common:128,common:128*
+--attr-scales=src:common:64*+dst:common:0.5*
 --batch=shapes_ci

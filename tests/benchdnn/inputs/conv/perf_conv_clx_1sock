@@ -33,10 +33,3 @@
 
 --mb=0,26,52,104
 --batch=set_perf_cpu_large_mb
-
-## int8
---cfg=u8s8u8_wino
---dir=FWD_D
-
---mb=0,26,52,104
---batch=set_perf_cpu_large_mb

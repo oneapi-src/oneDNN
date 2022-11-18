@@ -7,7 +7,7 @@
 --runtime_dims_masks=0,1:0
 --bia_dt=undef,f32,u8 --bia_mask=2
 
---attr-oscale=common:2.25*,per_oc:2.25*
+--attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:2.25*
 --attr-post-ops=,sum,relu
 --batch=shapes_2d
 
@@ -20,13 +20,13 @@
 --runtime_dims_masks=0,2:1
 --bia_dt=undef,f32,u8 --bia_mask=2
 
---attr-oscale=common:2.25*
---attr-zero-points=src:common:1+wei:common:-1+dst:common:2
+--attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:2.25*
+--attr-zero-points=src:common:1*+wei:common:-1*+dst:common:2*
 --attr-post-ops=sum,sum:1.5:2
 --batch=shapes_2d
 
 --skip-impl= # TODO: remove when optimized version is added
---attr-zero-points=src:per_dim_1:1*+wei:common:-1*+dst:common:-2
+--attr-zero-points=src:per_dim_1:1*+wei:common:-1*+dst:common:-2*
 --attr-post-ops=linear:2:1
 --batch=shapes_2d
 
@@ -38,8 +38,8 @@
 --cfg=u8s8s8
 --runtime_dims_masks=0
 --bia_dt=undef
---attr-oscale=common:1
---attr-zero-points=src:common:-5, \
-                   src:common:-2*+wei:common:128+dst:common:-129
+--attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:1*
+--attr-zero-points=src:common:-5*, \
+                   src:common:-2*+wei:common:128*+dst:common:-129*
 --attr-post-ops=
 --batch=shapes_2d
