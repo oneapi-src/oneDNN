@@ -492,20 +492,25 @@ void jit_uni_binary_injector_t<isa, Vmm>::compute_vector_range(
                                             : should_preserve_w_or_oc_offset_conversion_regs
                                                     ? std::initializer_list<
                                                             Xbyak::Reg64>(
-                                                            {host_->rax,
+                                                            {rhs_arg_static_params_
+                                                                            .rhs_addr_cache_reg,
+                                                                    host_->rax,
                                                                     host_->rdx,
                                                                     host_->r8})
                                                     : should_preserve_mb_sp_offset_conversion_regs
                                                             ? std::initializer_list<
-                                                                    Xbyak::Reg64>({host_->rax,
+                                                                    Xbyak::Reg64>({rhs_arg_static_params_
+                                                                                           .rhs_addr_cache_reg,
+                                                                    host_->rax,
                                                                     host_->rdx,
                                                                     host_->r8,
                                                                     host_->r9})
                                                             : use_offset_conversions
                                                                     ? std::initializer_list<
-                                                                            Xbyak::Reg64>(
-                                                                            {host_->rax,
-                                                                                    host_->rdx})
+                                                                            Xbyak::Reg64>({rhs_arg_static_params_
+                                                                                                   .rhs_addr_cache_reg,
+                                                                            host_->rax,
+                                                                            host_->rdx})
                                                                     : std::initializer_list<
                                                                             Xbyak::Reg64>()),
             (rhs_arg_static_params_.preserve_vmm_helper && dt_helper_vmm_needed
