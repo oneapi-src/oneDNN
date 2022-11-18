@@ -157,7 +157,7 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
                             reorder_op->get_outputs(), {},
                             {{"shape", shape},
                                     {"format", sc_data_format_t::NSC()},
-                                    {"expand_dim", {}}});
+                                    {"expand_dim", std::vector<int> {}}});
                     op->replace_input(0, view->get_outputs()[0]);
                     vis.update_state_for_visited(reorder_op);
                     vis.update_state_for_visited(view);
@@ -173,7 +173,7 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
                             reorder_op->get_outputs(), {},
                             {{"shape", shape},
                                     {"format", sc_data_format_t::KCS()},
-                                    {"expand_dim", {}}});
+                                    {"expand_dim", std::vector<int> {}}});
                     op->replace_input(1, view->get_outputs()[0]);
                     vis.update_state_for_visited(reorder_op);
                     vis.update_state_for_visited(view);
@@ -199,7 +199,8 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
                             reorder_op->get_outputs(), {},
                             {{"shape", origin_out->details_.get_plain_dims()},
                                     {"format", sc_data_format_t::NHWC()},
-                                    {"expand_dim", {}}, {"push_back", true}});
+                                    {"expand_dim", std::vector<int> {}},
+                                    {"push_back", true}});
                     origin_out->replace_with(view->get_outputs()[0]);
                     view->get_dispatch_key_set() = op->get_dispatch_key_set();
                     vis.update_state_for_visited(reorder_op);
@@ -361,7 +362,8 @@ void push_back_tensor_view(sc_graph_t &graph, const context_ptr &ctx) {
                                         {{"shape", shape},
                                                 {"format",
                                                         details.get_format()},
-                                                {"expand_dim", {}}});
+                                                {"expand_dim",
+                                                        std::vector<int> {}}});
                                 cur_node->replace_input(other_use_idx,
                                         new_view->get_outputs()[0]);
                                 vis.update_state_for_visited(new_view);
