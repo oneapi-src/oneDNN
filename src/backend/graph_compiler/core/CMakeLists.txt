@@ -279,6 +279,7 @@ if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED" OR MSVC)
         ${DNNL_PATH}/src/cpu/x64/cpu_isa_traits.cpp
         ${DNNL_PATH}/src/cpu/x64/jit_avx512_core_bf16cvt.cpp
         ${DNNL_PATH}/src/cpu/x64/amx_tile_configure.[ch]pp
+        ${DNNL_PATH}/src/cpu/x64/jit_uni_convert_xf16.[ch]pp
         ${DNNL_PATH}/src/cpu/jit_utils/jit_utils.cpp
         ${DNNL_PATH}/src/cpu/platform.[ch]pp
         ${DNNL_PATH}/src/cpu/bfloat16.cpp
@@ -293,6 +294,7 @@ if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED" OR MSVC)
         ${DNNL_PATH}/src/common/memory.cpp
         ${DNNL_PATH}/src/common/memory_zero_pad.cpp
         ${DNNL_PATH}/src/common/memory_desc_wrapper.cpp
+        ${DNNL_PATH}/src/common/memory_desc.[ch]pp
         ${DNNL_PATH}/src/common/dnnl_thread.cpp
     )
     add_library(dnnl_brgemm ${DNNL_SOURCES})

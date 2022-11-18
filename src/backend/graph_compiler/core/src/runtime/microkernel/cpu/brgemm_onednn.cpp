@@ -24,9 +24,11 @@
 #include "brgemm_common.hpp"
 #include "kernel_timer.hpp"
 #include "microkernel.hpp"
+#include <common/memory_desc.hpp>
 #include <cpu/x64/amx_tile_configure.hpp>
 #include <cpu/x64/brgemm/brgemm.hpp>
 #include <cpu/x64/brgemm/brgemm_types.hpp>
+#include <cpu/x64/cpu_isa_traits.hpp>
 #include <runtime/config.hpp>
 #include <runtime/context.hpp>
 #include <runtime/data_type.hpp>
@@ -127,9 +129,8 @@ static brgemm_attr_t get_dnnl_brgemm_attrs(const attrs_setting_t &attrs) {
     return dnnl_attrs;
 }
 
-static dnnl_memory_desc_t get_dst_default_md(int M, int N, int dtype) {
-    dnnl_memory_desc_t md;
-    memset(&md, 0, sizeof(md));
+static dnnl_memory_desc get_dst_default_md(int M, int N, int dtype) {
+    dnnl_memory_desc md = {};
     md.ndims = 2;
     md.dims[0] = static_cast<dnnl_dim_t>(M);
     md.dims[1] = static_cast<dnnl_dim_t>(N);
@@ -169,7 +170,7 @@ static dnnl::impl::post_ops_t get_dnnl_postops_setting(
                     op.elt_op_.beta_);
         } else if (alg >= alg_kind_t::binary_begin
                 && alg <= alg_kind_t::binary_end) {
-            dnnl_memory_desc_t bin_md = get_dst_default_md(op.bin_op_.shape_[0],
+            dnnl_memory_desc bin_md = get_dst_default_md(op.bin_op_.shape_[0],
                     op.bin_op_.shape_[1], static_cast<int>(op.bin_op_.dtype_));
             status = dnnl_postops.append_binary(
                     static_cast<dnnl_alg_kind_t>(alg), &bin_md);
@@ -406,7 +407,7 @@ struct brg_desc_safe_t {
         auto choose_isa_type = [&]() {
             auto fallback_isa = (int)dtype_size == 2
                     ? avx512_core_bf16
-                    : (int)dtype_size == 1 ? avx512_core_vnni : isa_any;
+                    : (int)dtype_size == 1 ? avx512_core_vnni : isa_undef;
             if (dnnl_dtypeA != dnnl_f32 && (arg.K < (4 / (int)dtype_size)))
                 return fallback_isa;
             int max_rd_block = dnnl_dtypeA == dnnl_bf16
@@ -414,7 +415,7 @@ struct brg_desc_safe_t {
                     : (dnnl_dtypeA == dnnl_s8 || dnnl_dtypeA == dnnl_u8) ? 64
                                                                          : -1;
             // when no need for amx:
-            if (max_rd_block == -1) { return isa_any; }
+            if (max_rd_block == -1) { return isa_undef; }
             int dtype_block = max_rd_block == 32 ? 2 : 4;
             int rd_block = dtype_block;
             for (int i = max_rd_block; i > 0; i -= dtype_block) {
@@ -429,7 +430,7 @@ struct brg_desc_safe_t {
             // it runs on vnni, which has less constraints
             if (rdb > 0 && rdb_tail > 0) { return fallback_isa; }
             if (rdb_tail % dtype_block) { return fallback_isa; }
-            return isa_any;
+            return isa_undef;
         };
         cpu_isa_t isa_type = choose_isa_type();
 
@@ -485,7 +486,7 @@ struct brg_desc_safe_t {
             status = dnnl_pattr.set_post_ops(dnnl_postops_setting);
             assert(status == dnnl::impl::status::success);
             // currently we output f32 for all input types.
-            dnnl_memory_desc_t dnnl_dst_md = get_dst_default_md(
+            dnnl_memory_desc dnnl_dst_md = get_dst_default_md(
                     arg.M, arg.N, static_cast<int>(sc_dtype::F32));
             dnnl_dst_md.data_type = dnnl_out_dtype;
 
