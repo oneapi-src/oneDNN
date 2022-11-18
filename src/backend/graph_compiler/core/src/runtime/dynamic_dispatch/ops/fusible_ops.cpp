@@ -366,20 +366,23 @@ extern "C" void infer_shape_select_op(
         void *out, void *in0, void *in1, void *in2) {
     runtime::dynamic_tensor_t *out_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *in0_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in0);
     runtime::dynamic_tensor_t *in1_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(in1);
     runtime::dynamic_tensor_t *in2_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(in2);
-    bool dims_equal = in1_dyn_tsr->ndims_ == in2_dyn_tsr->ndims_;
-    assert(dims_equal || in2_dyn_tsr->ndims_ == 1);
-    out_dyn_tsr->ndims_ = in1_dyn_tsr->ndims_;
-    for (int i = 0; i < in1_dyn_tsr->ndims_; i++) {
-        if (dims_equal) {
-            out_dyn_tsr->dims_[i]
-                    = std::max(in1_dyn_tsr->dims_[i], in2_dyn_tsr->dims_[i]);
-        } else {
-            out_dyn_tsr->dims_[i] = in1_dyn_tsr->dims_[i];
-        }
+    assert(in1_dyn_tsr->ndims_ == 1 && in1_dyn_tsr->dims_[0] == 1);
+    int lhs_ndims = in0_dyn_tsr->ndims_;
+    int rhs_ndims = in2_dyn_tsr->ndims_;
+    int max_ndims = std::max(lhs_ndims, rhs_ndims);
+    int lhs_offset = max_ndims - lhs_ndims;
+    int rhs_offset = max_ndims - rhs_ndims;
+    out_dyn_tsr->ndims_ = max_ndims;
+    for (int i = 0; i < max_ndims; i++) {
+        int lhs = i >= lhs_offset ? in0_dyn_tsr->dims_[i - lhs_offset] : 1;
+        int rhs = i >= rhs_offset ? in2_dyn_tsr->dims_[i - rhs_offset] : 1;
+        out_dyn_tsr->dims_[i] = std::max(lhs, rhs);
     }
 }
 

@@ -22,6 +22,7 @@
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
+#include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <ops/managed_matmul_core.hpp>
 #include <ops/matmul_core.hpp>
@@ -134,6 +135,13 @@ SC_API void dynamic_infer_shape_by_graph(sc_graph_t &graph,
             infer_shape_tensor_view_op(out, in, input_plain_dims.data(),
                     static_cast<int>(input_plain_dims.size()), new_shape.data(),
                     static_cast<int>(new_shape.size()));
+            print_shapes(node->op_name_, out);
+        } else if (node->isa<select_op_t>()) {
+            auto *in0 = get_or_create_dyn_tsr(node->get_inputs()[0]);
+            auto *in1 = get_or_create_dyn_tsr(node->get_inputs()[1]);
+            auto *in2 = get_or_create_dyn_tsr(node->get_inputs()[2]);
+            auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
+            infer_shape_select_op(out, in0, in1, in2);
             print_shapes(node->op_name_, out);
         } else {
             COMPILE_ASSERT(false,
