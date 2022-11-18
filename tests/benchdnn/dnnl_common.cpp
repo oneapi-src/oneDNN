@@ -548,10 +548,14 @@ void skip_unimplemented_data_type(
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     using namespace dnnl::impl::cpu::platform;
     // bf16 is supported on AVX512-CORE+
-    const bool has_bf16_support
-            = is_gpu() || (is_cpu() && has_data_type_support(dnnl_bf16));
+    const bool has_bf16_support = is_gpu()
+            || (is_cpu() && has_data_type_support(dnnl_bf16)
+                    && IMPLICATION(!(dir & FLAG_INF),
+                            has_training_support(dnnl_bf16)));
     const bool has_f16_support = (is_gpu() && (dir & FLAG_FWD))
-            || (is_cpu() && has_data_type_support(dnnl_f16));
+            || (is_cpu() && has_data_type_support(dnnl_f16)
+                    && IMPLICATION(
+                            !(dir & FLAG_INF), has_training_support(dnnl_f16)));
 
 #else
     const bool has_bf16_support = is_gpu();
