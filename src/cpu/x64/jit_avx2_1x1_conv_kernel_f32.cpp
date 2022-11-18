@@ -563,8 +563,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_diff_bias_loop(int load_loop_blk) {
 void jit_avx2_1x1_conv_kernel_f32::generate() {
     preamble();
 
-    if (jcp.with_binary || (jcp.with_bias && jcp.prop_kind == backward_weights))
-        sub(rsp, stack_space_needed);
+    sub(rsp, stack_space_needed);
 
     if (jcp.with_binary) {
         const auto zeroed_reg = r15;
@@ -668,8 +667,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate() {
 
     L(load_loop_blk_end);
 
-    if (jcp.with_binary || (jcp.with_bias && jcp.prop_kind == backward_weights))
-        add(rsp, stack_space_needed);
+    add(rsp, stack_space_needed);
 
     postamble();
 
