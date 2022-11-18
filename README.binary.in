@@ -4,8 +4,7 @@ oneAPI Deep Neural Network Library (oneDNN)
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
 oneDNN is part of oneAPI (https://oneapi.io).
-The library is optimized for Intel(R) Architecture Processors, Intel Processor
-Graphics and Xe Architecture graphics.
+The library is optimized for Intel(R) Architecture Processors and Intel Graphics.
 
 oneDNN is intended for deep learning applications and framework
 developers interested in improving application performance
@@ -31,13 +30,14 @@ System Requirements
 oneDNN supports systems based on Intel 64 or AMD64 architectures.
 
 The library is optimized for the following CPUs:
-* Intel Atom(R) processors (at least Intel SSE4.1 support is required)
-* Intel Core(TM) processors (at least Intel SSE4.1 support is required)
+* Intel Atom(R) processor (at least Intel SSE4.1 support is required)
+* Intel Core(TM) processor (at least Intel SSE4.1 support is required)
 * Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
-* Intel Xeon Scalable processors (formerly Skylake, Cascade Lake, Cooper
-  Lake, and Ice Lake)
-* future Intel Xeon Scalable processor (code name Sapphire Rapids)
+* Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, Cooper
+  Lake, Ice Lake, and Sapphire Rapids)
+* Intel Xeon CPU Max Series (formerly Sapphire Rapids HBM)
+* future Intel Xeon Scalable processor (code name Granite Rapids)
 
 oneDNN detects the instruction set architecture (ISA) at runtime and uses
 just-in-time (JIT) code generation to deploy the code optimized
@@ -51,7 +51,7 @@ The library is optimized for the following GPUs:
 * Intel Iris(R) Xe graphics (formerly DG1)
 * Intel Arc(TM) graphics (formerly Alchemist and DG2)
 * Intel Data Center GPU Flex Series (formerly Arctic Sound-M)
-* future Xe Architecture graphics (code name Ponte Vecchio)
+* Intel Data Center GPU Max Series (formerly Ponte Vecchio)
 
 ## Linux
 
@@ -108,7 +108,7 @@ Support
 -------
 
 Please submit your questions, feature requests, and bug reports on the
-GitHub issues page (https://github.com/oneapi-src/oneDNN/issues/new/choose).
+GitHub issues page (https://github.com/oneapi-src/oneDNN/issues).
 
 You may reach out to project maintainers privately at
 dnnl.maintainers@intel.com.
