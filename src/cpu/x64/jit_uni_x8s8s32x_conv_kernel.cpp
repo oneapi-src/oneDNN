@@ -908,8 +908,8 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
         if (jcp.signed_input) {
             --idx; // due to extra register used for compensations
         }
-        assert(IMPLICATION(
-                !is_zero_point, idx == ker_max_reg - ker_dw_reg_base_idx));
+        assert(IMPLICATION(!jcp.dst_scale && !is_zero_point,
+                idx == ker_max_reg - ker_dw_reg_base_idx));
     }
 
     if (!jcp.is_depthwise && (!jcp.has_vnni)) {
