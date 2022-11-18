@@ -235,8 +235,15 @@
 3x16x32x3x2x4 5x32x16x2x3x4 4x11x17x2x2x3
 
 # Dimension size is small but doesn't evenly divide vector size
+--reset
 --stag=acdeb --dtag=ABcde16a16b 32x6x28x28x33_n"vector_size_not_evenly_divided_by_dim_size"
 --stag=bca --dtag=Abc16a 6x2x3_n"vector_size_not_evenly_divided_by_dim_size"
+
+# f64 swizzle
+--reset
+--sdt=f64 --ddt=f64
+--stag=abcd --dtag=acdb
+1x2x2x1_n"f64_swizzle"
 
 --batch=harness_reorder_cross_engine_gpu
 
