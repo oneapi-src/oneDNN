@@ -252,6 +252,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     int dst_stride_bytes = dst_stride * dst_type_size;
     bool dst_b = ngen_is_b(dst_type);
     bool dst_d = ngen_is_dw(dst_type);
+    bool dst_q = ngen_is_qw(dst_type);
     bool dst_f = (dst_type == ngen::DataType::f);
     bool dst_hf = (dst_type == ngen::DataType::hf);
     bool dst_bf = (dst_type == ngen::DataType::bf);
@@ -259,6 +260,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     bool dst_xf = dst_bf || dst_f || dst_hf || dst_df;
     bool src_b = ngen_is_b(src_type);
     bool src_d = ngen_is_dw(src_type);
+    bool src_q = ngen_is_qw(src_type);
     bool src_f = (src_type == ngen::DataType::f);
     bool src_hf = (src_type == ngen::DataType::hf);
     bool src_bf = (src_type == ngen::DataType::bf);
@@ -279,6 +281,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
         // Max supported stride is 4.
         if (src_stride > 4 || dst_stride > 4) step = 1;
+
+        // Qword does not appear to support swizzling.
+        if (src_q && dst_q && src_stride != dst_stride) step = 1;
 
         return step;
     };
