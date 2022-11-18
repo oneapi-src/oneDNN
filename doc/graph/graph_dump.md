@@ -13,11 +13,11 @@ The graph dumping feature only works when `ONEDNN_BUILD_GRAPH` is ON.
 
 ## Run-Time Controls
 
-When the feature is enabled at build time, users can use an environment variable
-`ONEDNN_GRAPH_DUMP` to control the serialization level. This option accepts
-setting flags. These flags can be combined together to make the library dumping
-different files. For example, the below setting will generate files containing
-library graph and subgraphs in each partition.
+When the feature is enabled at build time, the environment variable
+`ONEDNN_GRAPH_DUMP` can be used to control the serialization level. This option
+accepts setting flags. These flags can be combined together to make the library
+dumping different files. For example, the below setting will generate files
+containing library graph and subgraphs in each partition.
 
 | Variable                  | Flags            | Description
 | :---                      | :---             |:---
