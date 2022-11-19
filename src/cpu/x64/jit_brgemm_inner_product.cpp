@@ -298,7 +298,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     // not create parallel section at all. We do not limit num_threads
     // for 1 < work_amount < dnnl_get_max_threads() case to avoid potential
     // overhead on spawning different number of OMP threads from layer to layer.
-    const int num_threads = (work_amount == 1 ? 1 : jbgp.nthr);
+    const int num_threads
+            = work_amount == 1 && jbgp.nthr_ic_b <= 1 ? 1 : jbgp.nthr;
     parallel(num_threads, [&](const int ithr, const int nthr) {
         int nthr_ic {1}, nthr_oc_mb {1}, ithr_ic {0}, ithr_oc_mb {0};
         bool ok = init_thr_groups(
@@ -541,7 +542,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
 
     const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
     const int work_amount = jbgp.nb_ic * os_chunks;
-    const int num_threads = (work_amount == 1 ? 1 : jbgp.nthr);
+    const int num_threads
+            = work_amount == 1 && jbgp.nthr_oc_b <= 1 ? 1 : jbgp.nthr;
 
     const auto get_weights_ptr = [&](int icb, int ocb) {
         int fwd_ic_block
