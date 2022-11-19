@@ -508,23 +508,24 @@ struct jit_bnorm_t : public jit_generator {
 
     void fwd_process_relu_avx2(Vmm vdst, int offt) {
         Reg64 reg_store_mask = reg_diff_scale;
-        shr(reg_soff, bit_shift());
+        Reg64 reg_soff_loc = jbp_->is_nspc_ ? reg_soff_nspc : reg_soff;
+        shr(reg_soff_loc, bit_shift());
         vcmpps(vtmp, vzero, vdst, _cmp_lt_os);
         vmovmskps(reg_store_mask, vtmp);
-        mov(ptr[reg_ws + reg_soff + offt / (1 << bit_shift())],
+        mov(ptr[reg_ws + reg_soff_loc + offt / (1 << bit_shift())],
                 reg_store_mask.cvt8());
         vblendvps(vdst, vzero, vdst, vtmp);
-        shl(reg_soff, bit_shift());
+        shl(reg_soff_loc, bit_shift());
     }
 
     void fwd_process_relu_avx512_common(Vmm vdst, int offt = 0) {
-        shr(jbp_->is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
+        Reg64 reg_soff_loc = jbp_->is_nspc_ ? reg_soff_nspc : reg_soff;
+        shr(reg_soff_loc, bit_shift());
         vcmpps(kstore_mask, vzero, vdst, _cmp_lt_os);
-        kmovw(ptr[reg_ws + (jbp_->is_nspc_ ? reg_soff_nspc : reg_soff)
-                      + offt / (1 << bit_shift())],
+        kmovw(ptr[reg_ws + reg_soff_loc + offt / (1 << bit_shift())],
                 kstore_mask);
         vblendmps(vdst | kstore_mask, vzero, vdst);
-        shl(jbp_->is_nspc_ ? reg_soff_nspc : reg_soff, bit_shift());
+        shl(reg_soff_loc, bit_shift());
     }
 
     void fwd_process_relu_alpha(Vmm vmm_dst) {
@@ -1057,6 +1058,8 @@ struct jit_bnorm_t : public jit_generator {
                     } else if (with_relu) { // --flags=R
                         if (isa == avx512_core)
                             fwd_process_relu_avx512_common(vdata, offt);
+                        else if (isa == avx2)
+                            fwd_process_relu_avx2(vdata, offt);
                         else
                             assert(false);
                     }
@@ -2371,7 +2374,13 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
                     nCw16c, nChw16c, nCdhw16c, nc, nwc, nhwc, ndhwc))
             return status::unimplemented;
     } else if (isa == avx2 && one_of(src_md()->data_type, bf16, f16)) {
-        if (is_training() || !src_d.matches_one_of_tag(nc, nwc, nhwc, ndhwc))
+        // no support for training or blocked layouts for avx2_vnni_2
+        if (is_training() || src_d.matches_one_of_tag(nc, nwc, nhwc, ndhwc))
+            return status::unimplemented;
+    } else if (isa == avx2) {
+        // full support
+        if (!src_d.matches_one_of_tag(
+                    nCw8c, nChw8c, nCdhw8c, nc, nwc, nhwc, ndhwc))
             return status::unimplemented;
     } else {
         if (!src_d.matches_one_of_tag(nCw8c, nChw8c, nCdhw8c))
