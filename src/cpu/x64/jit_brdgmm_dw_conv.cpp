@@ -75,8 +75,7 @@ cpu_isa_t get_supported_isa(
         bool is_f32, bool is_int8, bool is_bf16, bool is_f16) {
     std::vector<cpu_isa_t> isa_list;
     if (is_f32) {
-        // Note: Temporarily disabling avx2 support until performance study.
-        isa_list = {avx512_core /*, avx2*/};
+        isa_list = {avx512_core, avx2};
     } else if (is_int8) {
         isa_list = {avx512_core_vnni};
     } else if (is_bf16) {
