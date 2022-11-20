@@ -15,6 +15,9 @@
 *******************************************************************************/
 
 #include <altivec.h>
+#ifdef bool
+#undef bool
+#endif
 #include "cpu/simple_q10n.hpp"
 
 namespace dnnl {

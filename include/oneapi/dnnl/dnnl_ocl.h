@@ -28,6 +28,9 @@
 #endif
 
 #include <CL/cl.h>
+#if defined( __VEC__ ) && defined(bool)
+#undef bool
+#endif
 /// @endcond
 
 #ifdef __cplusplus
