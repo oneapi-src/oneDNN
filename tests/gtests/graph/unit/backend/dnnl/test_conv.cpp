@@ -328,7 +328,7 @@ TEST(Execute, ConvtransposeWithGroups) {
     test::vector<float> src {1.0, 2.0, 3.0, 4.0};
     test::vector<float> weight {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0,
             0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
-    test::vector<float> ref_dst {1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0};
+    test::vector<float> ref_dst {3.0, 0.0, 3.0, 0.0, 7.0, 0.0, 7.0, 0.0};
     test::vector<float> dst(ref_dst.size(), 0);
     graph::op_t convtranspose_op(graph::op_kind::ConvTranspose);
     convtranspose_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
@@ -338,7 +338,7 @@ TEST(Execute, ConvtransposeWithGroups) {
     convtranspose_op.set_attr<int64_t>(graph::op_attr::groups, 2);
     convtranspose_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
     convtranspose_op.set_attr<std::string>(
-            graph::op_attr::weights_format, "OIX");
+            graph::op_attr::weights_format, "IOX");
 
     // prepare logical tensor
     graph::logical_tensor_t src_lt = utils::logical_tensor_init(
@@ -2733,7 +2733,7 @@ TEST(ExecuteSubgraphInt8, Conv1dConv2dConv3d) {
 
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
 
         graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, nd)
@@ -2901,7 +2901,7 @@ static inline void quantized_conv2d_eltwise(
 
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
 
         graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
@@ -3114,7 +3114,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumRelu) {
 
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
 
         graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
@@ -3335,7 +3335,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxc) {
 
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
         dqweight_node.set_attr<int64_t>(
                 graph::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
 
@@ -3563,7 +3563,7 @@ TEST(ExecuteSubgraphInt8, Conv1d2d3dX8s8f32) {
         SET_Q_DQ_DATA_ATTR(dqdata_node)
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
         graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, nd)
 
@@ -3722,7 +3722,7 @@ TEST(ExecuteSubgraphInt8, Conv2dReluX8s8f32) {
 
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
 
         graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
@@ -3895,7 +3895,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluX8s8f32) {
 
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
 
         graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
@@ -4105,7 +4105,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluNxcX8s8f32) {
 
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
         dqweight_node.set_attr<int64_t>(
                 graph::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
 
@@ -4321,7 +4321,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumMulNxcX8s8f32) {
 
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
         dqweight_node.set_attr<int64_t>(
                 graph::op_attr::axis, wei_qtype == "per_tensor" ? 0 : 3);
 
@@ -4511,7 +4511,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
 
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
 
         graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
@@ -4536,7 +4536,7 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluGetInplacePair) {
 
         graph::op_t dqweight_node2(
                 11, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node2)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node2, 0)
 
         graph::op_t conv_node2(12, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node2, 2)
@@ -5838,11 +5838,11 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumRelu) {
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
         graph::op_t qweight_node(2, graph::op_kind::Quantize, "qweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(qweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(qweight_node, 0)
 
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
 
         graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
@@ -6079,11 +6079,11 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
         SET_Q_DQ_DATA_ATTR(dqdata_node)
 
         graph::op_t qweight_node(2, graph::op_kind::Quantize, "qweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(qweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(qweight_node, 0)
 
         graph::op_t dqweight_node(
                 3, graph::op_kind::Dequantize, "dqweight_node");
-        SET_Q_DQ_WEIGHT_ATTR(dqweight_node)
+        SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 0)
 
         graph::op_t conv_node(4, graph::op_kind::Convolution, "conv_node");
         SET_CONV_ATTR(conv_node, 2)
