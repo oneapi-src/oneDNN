@@ -170,9 +170,9 @@ struct logical_tensor_wrapper_t {
     std::vector<dim_t> get_weight_spatial_dims(
             const std::string &format) const {
         std::vector<dim_t> spatial_dims = vdims();
-        if (format == "OIX") {
+        if (format == "OIX" || format == "IOX") {
             spatial_dims.erase(spatial_dims.begin(), spatial_dims.begin() + 2);
-        } else if (format == "XIO") {
+        } else if (format == "XIO" || format == "XOI") {
             spatial_dims.erase(spatial_dims.end() - 2, spatial_dims.end());
         } else {
             // For code completeness - return an empty vector in this case
@@ -201,6 +201,10 @@ struct logical_tensor_wrapper_t {
             return dims()[1];
         } else if (format == "XIO") {
             return dims()[ndims() - 2];
+        } else if (format == "IOX") {
+            return dims()[0];
+        } else if (format == "XOI") {
+            return dims()[ndims() - 1];
         } else {
             // For code completeness
             return DNNL_GRAPH_UNKNOWN_DIM;
@@ -212,6 +216,10 @@ struct logical_tensor_wrapper_t {
             return dims()[0];
         } else if (format == "XIO") {
             return dims()[ndims() - 1];
+        } else if (format == "IOX") {
+            return dims()[1];
+        } else if (format == "XOI") {
+            return dims()[ndims() - 2];
         } else {
             // For code completeness
             return DNNL_GRAPH_UNKNOWN_DIM;

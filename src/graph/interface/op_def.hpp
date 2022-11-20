@@ -410,7 +410,7 @@ DNNL_GRAPH_OP_SCHEMA(ConvTranspose, 1,
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_convtranspose_output_shape)
-                .SET_CONV_COMMON_ATTRS)
+                .SET_CONVTRANSPOSE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackwardData, 1,
         op_schema_t()
@@ -426,7 +426,7 @@ DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackwardData, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
                         infer_convtranspose_bprop_data_output_shape)
-                .SET_CONV_COMMON_ATTRS)
+                .SET_CONVTRANSPOSE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackwardWeights, 1,
         op_schema_t()
@@ -452,7 +452,7 @@ DNNL_GRAPH_OP_SCHEMA(ConvTransposeBackwardWeights, 1,
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})
-                .SET_CONV_COMMON_ATTRS)
+                .SET_CONVTRANSPOSE_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(Divide, 1,
         op_schema_t()
