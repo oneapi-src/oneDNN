@@ -1460,7 +1460,7 @@ status_t expand_convtranspose_scales(std::shared_ptr<subgraph_t> &sg) {
             int64_t group = op->get_attr<int64_t>(op_attr::groups);
             if (dq_src_scales.size() < dq_wei_scales.size() && group > 1) {
                 // Currently for ConvTranspose, the output channel in weight tensor
-                // (OC/g, IC, H, W) is not equal to the one in output tensor
+                // (IC, OC/g, H, W) is not equal to the one in output tensor
                 // (N, OC, H, W) if `groups` > 1, so the size of weight's
                 // per-channel scale is not the same as the output channel in output
                 // tensor, here we will broadcast scales from `OC/g` to `OC`.
@@ -1494,7 +1494,7 @@ status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             // input permute
             auto in_ndims
                     = cur_op->get_input_value(0)->get_logical_tensor().ndims;
-            auto in_perm = get_nxc2ncx_permutation(in_ndims);
+            auto in_perm = get_permutation(in_ndims, "NXC", "NCX");
 
             op_ptr in_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             in_perm_op->set_attr<std::vector<int64_t>>(
@@ -1504,7 +1504,7 @@ status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             // output permute
             auto out_ndims
                     = cur_op->get_output_value(0)->get_logical_tensor().ndims;
-            auto out_perm = get_ncx2nxc_permutation(out_ndims);
+            auto out_perm = get_permutation(out_ndims, "NCX", "NXC");
 
             op_ptr out_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             out_perm_op->set_attr<std::vector<int64_t>>(
@@ -1522,7 +1522,7 @@ status_t conv_bwd_data_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         if (need_permute_1) {
             auto wei_ndims
                     = cur_op->get_input_value(1)->get_logical_tensor().ndims;
-            auto wei_perm = get_xio2oix_permutation(wei_ndims);
+            auto wei_perm = get_permutation(wei_ndims, "XIO", "OIX");
 
             op_ptr perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             perm_op->set_attr<std::vector<int64_t>>(
@@ -1572,14 +1572,14 @@ status_t conv_bwd_weights_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                 : false;
         bool need_permute_1 = cur_op->has_attr(op_attr::weights_format)
                 ? (cur_op->get_attr<std::string>(op_attr::weights_format)
-                        == "XIO")
+                        != "OIX")
                 : false;
 
         if (need_permute_0) {
             // input permute
             auto in0_ndims
                     = cur_op->get_input_value(0)->get_logical_tensor().ndims;
-            auto in0_perm = get_nxc2ncx_permutation(in0_ndims);
+            auto in0_perm = get_permutation(in0_ndims, "NXC", "NCX");
 
             op_ptr in0_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             in0_perm_op->set_attr<std::vector<int64_t>>(
@@ -1588,7 +1588,7 @@ status_t conv_bwd_weights_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
             auto in1_ndims
                     = cur_op->get_input_value(1)->get_logical_tensor().ndims;
-            auto in1_perm = get_nxc2ncx_permutation(in1_ndims);
+            auto in1_perm = get_permutation(in1_ndims, "NXC", "NCX");
 
             op_ptr in1_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             in1_perm_op->set_attr<std::vector<int64_t>>(
@@ -1601,7 +1601,10 @@ status_t conv_bwd_weights_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         if (need_permute_1) {
             auto out_ndims
                     = cur_op->get_output_value(0)->get_logical_tensor().ndims;
-            auto out_perm = get_oix2xio_permutation(out_ndims);
+            std::string filter_format
+                    = cur_op->get_attr<std::string>(op_attr::weights_format);
+            std::vector<int64_t> out_perm
+                    = get_permutation(out_ndims, "OIX", filter_format);
 
             op_ptr out_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             out_perm_op->set_attr<std::vector<int64_t>>(
@@ -1612,7 +1615,7 @@ status_t conv_bwd_weights_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                     = cur_op->get_attr<std::vector<int64_t>>(
                             op_attr::weights_shape);
             const auto filter_shape_as_oix
-                    = canonicalize(filter_shape_attr, "XIO");
+                    = canonicalize(filter_shape_attr, filter_format);
             cur_op->set_attr<dims>(op_attr::weights_shape, filter_shape_as_oix);
             cur_op->set_attr<std::string>(op_attr::weights_format, "OIX");
         }
@@ -1651,7 +1654,7 @@ status_t pool_fwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             // src permute
             auto in0_ndims
                     = cur_op->get_input_value(0)->get_logical_tensor().ndims;
-            auto in0_perm = get_nxc2ncx_permutation(in0_ndims);
+            auto in0_perm = get_permutation(in0_ndims, "NXC", "NCX");
 
             op_ptr in0_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             in0_perm_op->set_attr<std::vector<int64_t>>(
@@ -1661,7 +1664,7 @@ status_t pool_fwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             // dst permute
             auto out0_ndims
                     = cur_op->get_output_value(0)->get_logical_tensor().ndims;
-            auto out0_perm = get_ncx2nxc_permutation(out0_ndims);
+            auto out0_perm = get_permutation(out0_ndims, "NCX", "NXC");
 
             op_ptr out0_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             out0_perm_op->set_attr<std::vector<int64_t>>(
@@ -1691,7 +1694,7 @@ status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             // diff_dst permute
             auto in0_ndims
                     = cur_op->get_input_value(0)->get_logical_tensor().ndims;
-            auto in0_perm = get_nxc2ncx_permutation(in0_ndims);
+            auto in0_perm = get_permutation(in0_ndims, "NXC", "NCX");
 
             op_ptr in0_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             in0_perm_op->set_attr<std::vector<int64_t>>(
@@ -1703,7 +1706,7 @@ status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                 auto src_ndims = cur_op->get_input_value(2)
                                          ->get_logical_tensor()
                                          .ndims;
-                auto src_perm = get_nxc2ncx_permutation(src_ndims);
+                auto src_perm = get_permutation(src_ndims, "NXC", "NCX");
 
                 op_ptr src_perm_op
                         = std::make_shared<op_t>(op_kind::dnnl_permute);
@@ -1715,7 +1718,7 @@ status_t pool_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             // diff_src permute
             auto out0_ndims
                     = cur_op->get_output_value(0)->get_logical_tensor().ndims;
-            auto out0_perm = get_ncx2nxc_permutation(out0_ndims);
+            auto out0_perm = get_permutation(out0_ndims, "NCX", "NXC");
 
             op_ptr out_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             out_perm_op->set_attr<std::vector<int64_t>>(
@@ -2125,7 +2128,7 @@ status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             // input0 permute
             auto in0_ndims
                     = cur_op->get_input_value(0)->get_logical_tensor().ndims;
-            auto in0_perm = get_nxc2ncx_permutation(in0_ndims);
+            auto in0_perm = get_permutation(in0_ndims, "NXC", "NCX");
 
             op_ptr in_perm_op_0 = std::make_shared<op_t>(op_kind::dnnl_permute);
             in_perm_op_0->set_attr<std::vector<int64_t>>(
@@ -2135,7 +2138,7 @@ status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             // input1 permute
             auto in1_ndims
                     = cur_op->get_input_value(1)->get_logical_tensor().ndims;
-            auto in1_perm = get_nxc2ncx_permutation(in1_ndims);
+            auto in1_perm = get_permutation(in1_ndims, "NXC", "NCX");
 
             op_ptr in_perm_op_1 = std::make_shared<op_t>(op_kind::dnnl_permute);
             in_perm_op_1->set_attr<std::vector<int64_t>>(
@@ -2145,7 +2148,7 @@ status_t batchnorm_bwd_canonicalization(std::shared_ptr<subgraph_t> &sg) {
             // output permute
             auto out_ndims
                     = cur_op->get_output_value(0)->get_logical_tensor().ndims;
-            auto out_perm = get_ncx2nxc_permutation(out_ndims);
+            auto out_perm = get_permutation(out_ndims, "NCX", "NXC");
 
             op_ptr out_perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             out_perm_op->set_attr<std::vector<int64_t>>(

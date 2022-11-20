@@ -50,7 +50,7 @@ status_t insert_permute_for_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
         const bool need_permute_src = op->has_attr(op_attr::data_format)
                 && op->get_attr<std::string>(op_attr::data_format) == "NXC";
         const bool need_permute_wei = op->has_attr(op_attr::weights_format)
-                && op->get_attr<std::string>(op_attr::weights_format) == "XIO";
+                && op->get_attr<std::string>(op_attr::weights_format) != "OIX";
         // conv + depthwise case
         bool need_permute_post_dw_conv_wei = false;
         const op_t *post_dw_conv = nullptr;
@@ -101,18 +101,20 @@ status_t insert_permute_for_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
             std::vector<int64_t> perm;
             if (i == 0 && need_permute_src) {
                 // optionally permute src
-                perm = get_nxc2ncx_permutation(ndims);
+                perm = get_permutation(ndims, "NXC", "NCX");
             } else if (i == 1 && need_permute_wei) {
                 // optionally permute weight
-                perm = get_xio2oix_permutation(ndims);
+                std::string filter_format
+                        = op->get_attr<std::string>(op_attr::weights_format);
+                perm = get_permutation(ndims, filter_format, "OIX");
             } else if (i == dw_conv_index && need_permute_post_dw_conv_wei) {
-                perm = get_xio2oix_permutation(ndims);
+                perm = get_permutation(ndims, "XIO", "OIX");
             } else if (i >= op->num_inputs() - num_post_binary_ops
                                     - with_runtime_dst_scales
                                     - with_runtime_dst_points
                     && need_permute_src) {
                 // optionally permute post-binary/post-sum inputs
-                perm = get_nxc2ncx_permutation(ndims);
+                perm = get_permutation(ndims, "NXC", "NCX");
             }
 
             if (!perm.empty()) {
@@ -133,7 +135,7 @@ status_t insert_permute_for_conv_or_deconv(std::shared_ptr<subgraph_t> &sg) {
         // permute output back to NXC
         if (need_permute_src) {
             auto ndims = op->get_output_value(0)->get_logical_tensor().ndims;
-            auto perm = get_ncx2nxc_permutation(ndims);
+            auto perm = get_permutation(ndims, "NCX", "NXC");
             op_ptr perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             perm_op->set_attr<std::vector<int64_t>>(op_attr::permutation, perm);
             rewriter.insert_op_after(perm_op, op, 0);
@@ -174,7 +176,7 @@ status_t insert_permute_for_op_only_require_data_format(
         // permute explicitly defined inputs
         for (auto idx : in_indices) {
             auto ndims = op->get_input_value(idx)->get_logical_tensor().ndims;
-            auto perm = get_nxc2ncx_permutation(ndims);
+            auto perm = get_permutation(ndims, "NXC", "NCX");
             op_ptr perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             perm_op->set_attr<std::vector<int64_t>>(op_attr::permutation, perm);
             rewriter.insert_op_before(perm_op, op, idx);
@@ -194,7 +196,7 @@ status_t insert_permute_for_op_only_require_data_format(
             const size_t idx = pops[n]->get_unfused_input_indices()[0];
 
             auto ndims = op->get_input_value(idx)->get_logical_tensor().ndims;
-            auto perm = get_nxc2ncx_permutation(ndims);
+            auto perm = get_permutation(ndims, "NXC", "NCX");
             op_ptr perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             perm_op->set_attr<std::vector<int64_t>>(op_attr::permutation, perm);
             rewriter.insert_op_before(perm_op, op, idx);
@@ -203,7 +205,7 @@ status_t insert_permute_for_op_only_require_data_format(
         // permute explicitly defined output back to NXC
         for (auto idx : out_indices) {
             auto ndims = op->get_output_value(idx)->get_logical_tensor().ndims;
-            auto perm = get_ncx2nxc_permutation(ndims);
+            auto perm = get_permutation(ndims, "NCX", "NXC");
             op_ptr perm_op = std::make_shared<op_t>(op_kind::dnnl_permute);
             perm_op->set_attr<std::vector<int64_t>>(op_attr::permutation, perm);
             rewriter.insert_op_after(perm_op, op, idx);
@@ -239,14 +241,14 @@ status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg) {
         const int64_t new_axis = 1;
         cur_op->set_attr(op_attr::axis, new_axis);
         op_ptr perm_src_op = std::make_shared<op_t>(op_kind::dnnl_permute);
-        auto src_perm = get_nxc2ncx_permutation(src.ndims());
+        auto src_perm = get_permutation(src.ndims(), "NXC", "NCX");
         perm_src_op->set_attr<std::vector<int64_t>>(
                 op_attr::permutation, src_perm);
         rewriter.insert_op_before(perm_src_op, cur_op, 0);
 
         // permute output back to NXC
         op_ptr perm_dst_op = std::make_shared<op_t>(op_kind::dnnl_permute);
-        auto dst_perm = get_ncx2nxc_permutation(dst.ndims());
+        auto dst_perm = get_permutation(dst.ndims(), "NCX", "NXC");
         perm_dst_op->set_attr<std::vector<int64_t>>(
                 op_attr::permutation, dst_perm);
         rewriter.insert_op_after(perm_dst_op, cur_op, 0);
