@@ -6143,6 +6143,10 @@ TEST(ExecuteSubgraphInt8, QuantWeiConv2dSumS8Relu) {
     for_(const auto &g : groups)
     for_(const auto with_bias : with_biases)
     for (const auto &wei_qtype : weight_qtypes) {
+        // skip on gpu for unsupported per_channel group conv
+        if (engine.kind() == impl::engine_kind::gpu
+                && wei_qtype == "per_channel" && g == 4)
+            continue;
         // prepare fp32 data
         int64_t in_channel = 8, out_channel = 8;
         int64_t kernel_size = 3;
