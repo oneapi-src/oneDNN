@@ -120,6 +120,8 @@ bool send_t::is_supported() const {
     if (is_scattered() && !is_atomic() && !type.is_byte() && !type.is_qword())
         return false;
 
+    if (type.is_byte() && type.elems() > 4) return false;
+
     if (is_scattered() && !is_atomic()
             && !utils::one_of(type.elems(), 1, 2, 4, 8))
         return false;
