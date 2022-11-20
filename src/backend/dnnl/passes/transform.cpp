@@ -290,8 +290,6 @@ status_t convert_to_runtime_src_scales(std::shared_ptr<subgraph_t> &sg) {
 
 impl::status_t convert_to_runtime_src_zero_points(
         std::shared_ptr<subgraph_t> &sg) {
-    if (sg->get_engine_kind() != impl::engine_kind::cpu)
-        return impl::status::success;
     std::set<op_t *> visited;
     std::vector<op_t *> zp_ops;
 
@@ -347,8 +345,6 @@ impl::status_t convert_to_runtime_src_zero_points(
 
 impl::status_t convert_to_runtime_dst_zero_points(
         std::shared_ptr<subgraph_t> &sg) {
-    if (sg->get_engine_kind() != impl::engine_kind::cpu)
-        return impl::status::success;
     std::set<op_t *> visited;
     std::vector<op_t *> zp_ops;
 
@@ -2739,8 +2735,6 @@ impl::status_t fuse_typecast_to_mul_scales(std::shared_ptr<subgraph_t> &sg) {
 }
 
 impl::status_t convert_runtime_mul_scales(std::shared_ptr<subgraph_t> &sg) {
-    if (sg->get_engine_kind() != impl::engine_kind::cpu)
-        return impl::status::success;
     std::vector<op_t *> mul_scales;
     std::set<op_t *> visited;
     for (const auto &cur_op : sg->get_ops()) {
@@ -2788,8 +2782,6 @@ impl::status_t convert_runtime_mul_scales(std::shared_ptr<subgraph_t> &sg) {
 }
 
 impl::status_t convert_runtime_zero_points(std::shared_ptr<subgraph_t> &sg) {
-    if (sg->get_engine_kind() != impl::engine_kind::cpu)
-        return impl::status::success;
     std::vector<op_t *> zps;
     std::set<op_t *> visited;
     for (const auto &cur_op : sg->get_ops()) {
