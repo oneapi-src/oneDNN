@@ -1,9 +1,10 @@
-# Maximum {#dev_guide_op_maximum}
+Maximum {#dev_guide_op_maximum}
+===============================
 
 ## General
 
-Maximum operation performs element-wise maximum operation with two given tensors applying
-multi-directional broadcast rules.
+Maximum operation performs element-wise maximum operation with two given tensors
+applying multi-directional broadcast rules.
 
   \f[ \dst(\overline{x})) = max(\src\_0(\overline{x}), \src\_1(\overline{x})) \f]
 

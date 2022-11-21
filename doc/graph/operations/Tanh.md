@@ -1,4 +1,5 @@
-# Tanh {#dev_guide_op_tanh}
+Tanh {#dev_guide_op_tanh}
+=========================
 
 ## General
 

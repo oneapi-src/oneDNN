@@ -1,4 +1,5 @@
-# AvgPool {#dev_guide_op_avgpool}
+AvgPool {#dev_guide_op_avgpool}
+===============================
 
 ## General
 

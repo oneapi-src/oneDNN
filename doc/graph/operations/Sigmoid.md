@@ -1,4 +1,5 @@
-# Sigmoid {#dev_guide_op_sigmoid}
+Sigmoid {#dev_guide_op_sigmoid}
+===============================
 
 ## General
 

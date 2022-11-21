@@ -1,4 +1,5 @@
-# GELU {#dev_guide_op_gelu}
+GELU {#dev_guide_op_gelu}
+=========================
 
 ## General
 

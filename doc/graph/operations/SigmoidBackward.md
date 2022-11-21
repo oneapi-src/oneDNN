@@ -1,4 +1,5 @@
-# SigmoidBackward {#dev_guide_op_sigmoidbackward}
+SigmoidBackward {#dev_guide_op_sigmoidbackward}
+===============================================
 
 ## General
 

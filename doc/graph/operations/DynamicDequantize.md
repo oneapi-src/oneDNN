@@ -1,4 +1,5 @@
-# DynamicDequantize {#dev_guide_op_dynamicdequantize}
+DynamicDequantize {#dev_guide_op_dynamicdequantize}
+===================================================
 
 ## General
 

@@ -1,4 +1,5 @@
-# MaxPool {#dev_guide_op_maxpool}
+MaxPool {#dev_guide_op_maxpool}
+===============================
 
 ## General
 

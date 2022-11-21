@@ -1,4 +1,5 @@
-# Mish {#dev_guide_op_mish}
+Mish {#dev_guide_op_mish}
+=========================
 
 ## General
 

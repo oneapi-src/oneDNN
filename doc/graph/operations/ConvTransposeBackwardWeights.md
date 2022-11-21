@@ -1,4 +1,5 @@
-# ConvTransposeBackwardWeights {#dev_guide_op_convtransposebackwardweights}
+ConvTransposeBackwardWeights {#dev_guide_op_convtransposebackwardweights}
+=========================================================================
 
 ## General
 

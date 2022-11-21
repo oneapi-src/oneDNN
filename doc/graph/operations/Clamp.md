@@ -1,4 +1,5 @@
-# Clamp {#dev_guide_op_clamp}
+Clamp {#dev_guide_op_clamp}
+===========================
 
 ## General
  

@@ -1,4 +1,5 @@
-# Low Precision {#dev_guide_graph_low_precision}
+Low Precision {#dev_guide_graph_low_precision}
+==============================================
 
 oneDNN Graph provides low precision support with int8 (signed/unsigned 8-bit
 integer), bf16 and f16 data types. oneDNN Graph API expects the computation

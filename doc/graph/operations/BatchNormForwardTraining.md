@@ -1,4 +1,5 @@
-# BatchNormForwardTraining {#dev_guide_op_batchnormforwardtraining}
+BatchNormForwardTraining {#dev_guide_op_batchnormforwardtraining}
+=================================================================
 
 ## General
 

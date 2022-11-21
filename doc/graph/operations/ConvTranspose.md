@@ -1,4 +1,5 @@
-# ConvTranspose {#dev_guide_op_convtranspose}
+ConvTranspose {#dev_guide_op_convtranspose}
+===========================================
 
 ## General
 

@@ -1,4 +1,5 @@
-# ReduceSum{#dev_guide_op_reducesum}
+ReduceSum{#dev_guide_op_reducesum}
+==================================
 
 ## General
 

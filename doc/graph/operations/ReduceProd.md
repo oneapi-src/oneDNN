@@ -1,4 +1,5 @@
-# ReduceProd{#dev_guide_op_reduceprod}
+ReduceProd{#dev_guide_op_reduceprod}
+====================================
 
 ## General
 

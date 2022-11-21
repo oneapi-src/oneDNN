@@ -1,4 +1,5 @@
-# Square {#dev_guide_op_square}
+Square {#dev_guide_op_square}
+=============================
 
 ## General
 

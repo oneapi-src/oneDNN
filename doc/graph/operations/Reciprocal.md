@@ -1,4 +1,5 @@
-# Reciprocal{#dev_guide_op_reciprocal}
+Reciprocal{#dev_guide_op_reciprocal}
+====================================
 
 ## General
 

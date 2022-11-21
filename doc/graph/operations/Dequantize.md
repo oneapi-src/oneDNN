@@ -1,4 +1,5 @@
-# Dequantize {#dev_guide_op_dequantize}
+Dequantize {#dev_guide_op_dequantize}
+=====================================
 
 ## General
 

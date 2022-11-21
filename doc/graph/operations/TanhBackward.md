@@ -1,4 +1,5 @@
-# TanhBackward {#dev_guide_op_tanhbackward}
+TanhBackward {#dev_guide_op_tanhbackward}
+=========================================
 
 ## General
 

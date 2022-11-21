@@ -1,4 +1,5 @@
-# Concat {#dev_guide_op_concat}
+Concat {#dev_guide_op_concat}
+=============================
 
 ## General
 

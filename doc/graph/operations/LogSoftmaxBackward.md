@@ -1,4 +1,5 @@
-# LogSoftmaxBackward {#dev_guide_op_logsoftmaxbackward}
+LogSoftmaxBackward {#dev_guide_op_logsoftmaxbackward}
+=====================================================
 
 ## General
 

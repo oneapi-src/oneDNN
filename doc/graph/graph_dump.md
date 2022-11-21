@@ -1,4 +1,5 @@
-# Graph Dump {#dev_guide_graph_dump}
+Graph Dump {#dev_guide_graph_dump}
+==================================
 
 oneDNN supports dumping the computation graph constructed with graph API. The
 dumped graph can be used for visualization and performance benchmark.

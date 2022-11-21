@@ -1,4 +1,5 @@
-# SoftPlusBackward {#dev_guide_op_softplusbackward}
+SoftPlusBackward {#dev_guide_op_softplusbackward}
+=================================================
 
 ## General
 

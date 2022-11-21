@@ -1,4 +1,5 @@
-# ReduceMean{#dev_guide_op_reducemean}
+ReduceMean{#dev_guide_op_reducemean}
+====================================
 
 ## General
 

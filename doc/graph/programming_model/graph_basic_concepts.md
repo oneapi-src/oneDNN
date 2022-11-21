@@ -1,4 +1,5 @@
-# Basic Concepts {#dev_guide_graph_basic_concepts}
+Basic Concepts {#dev_guide_graph_basic_concepts}
+================================================
 
 ## Introduction
 

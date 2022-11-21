@@ -1,4 +1,5 @@
-# Convolution {#dev_guide_op_convolution}
+Convolution {#dev_guide_op_convolution}
+=======================================
 
 ## General
 

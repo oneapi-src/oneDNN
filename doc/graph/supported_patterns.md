@@ -1,4 +1,5 @@
-# Supported Fusion Patterns {#dev_guide_graph_fusion_patterns}
+Supported Fusion Patterns {#dev_guide_graph_fusion_patterns}
+============================================================
 
 ## Fusion Patterns
 

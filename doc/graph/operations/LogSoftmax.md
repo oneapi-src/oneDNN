@@ -1,4 +1,5 @@
-# LogSoftmax {#dev_guide_op_logsoftmax}
+LogSoftmax {#dev_guide_op_logsoftmax}
+=====================================
 
 ## General
 

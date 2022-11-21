@@ -1,4 +1,5 @@
-# Log {#dev_guide_op_log}
+Log {#dev_guide_op_log}
+=======================
 
 ## General
 

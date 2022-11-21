@@ -1,4 +1,5 @@
-# Divide {#dev_guide_op_divide}
+Divide {#dev_guide_op_divide}
+=============================
 
 ## General
 

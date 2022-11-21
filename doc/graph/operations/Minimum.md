@@ -1,4 +1,5 @@
-# Minimum{#dev_guide_op_minimum}
+Minimum{#dev_guide_op_minimum}
+==============================
 
 ## General
 

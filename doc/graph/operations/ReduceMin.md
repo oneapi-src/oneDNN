@@ -1,4 +1,5 @@
-# ReduceMin{#dev_guide_op_reducemin}
+ReduceMin{#dev_guide_op_reducemin}
+==================================
 
 ## General
 

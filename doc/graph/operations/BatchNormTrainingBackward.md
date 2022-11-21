@@ -1,4 +1,5 @@
-# BatchNormTrainingBackward {#dev_guide_op_batchnormtrainingbackward}
+BatchNormTrainingBackward {#dev_guide_op_batchnormtrainingbackward}
+===================================================================
 
 ## General
 

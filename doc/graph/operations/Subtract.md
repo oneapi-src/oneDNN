@@ -1,4 +1,5 @@
-# Subtract {#dev_guide_op_subtract}
+Subtract {#dev_guide_op_subtract}
+=================================
 
 ## General
 

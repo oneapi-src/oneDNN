@@ -1,4 +1,5 @@
-# Multiply{#dev_guide_op_multiply}
+Multiply{#dev_guide_op_multiply}
+================================
 
 ## General
 
