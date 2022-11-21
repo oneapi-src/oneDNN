@@ -29,8 +29,10 @@ namespace ops {
 
 static void permute_shape_NXC2NCX(sc_dims &shape) {
     size_t ndims = shape.size();
+    COMPILE_ASSERT(
+            ndims >= 2, "permute_shape_NXC2NCX requires shape.size() >= 2.")
     sc_dim channel = shape[ndims - 1];
-    for (size_t i = 1; i < ndims - 1; ++i) {
+    for (size_t i = ndims - 2; i >= 1; --i) {
         shape[i + 1] = shape[i];
     }
     shape[1] = channel;
@@ -38,6 +40,8 @@ static void permute_shape_NXC2NCX(sc_dims &shape) {
 
 static void permute_shape_NCX2NXC(sc_dims &shape) {
     size_t ndims = shape.size();
+    COMPILE_ASSERT(
+            ndims >= 2, "permute_shape_NCX2NXC requires shape.size() >= 2.")
     sc_dim channel = shape[1];
     for (size_t i = 1; i < ndims - 1; ++i) {
         shape[i] = shape[i + 1];
@@ -47,6 +51,8 @@ static void permute_shape_NCX2NXC(sc_dims &shape) {
 
 static void permute_shape_XIO2OIX(sc_dims &shape) {
     size_t ndims = shape.size();
+    COMPILE_ASSERT(
+            ndims >= 2, "permute_shape_XIO2OIX requires shape.size() >= 2.")
     sc_dim out_channel = shape[ndims - 1];
     sc_dim in_channel = shape[ndims - 2];
     for (size_t i = 0; i < ndims - 2; ++i) {
