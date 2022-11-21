@@ -1,4 +1,5 @@
-# SoftPlus {#dev_guide_op_softplus}
+SoftPlus {#dev_guide_op_softplus}
+=================================
 
 ## General
 

@@ -1,4 +1,5 @@
-# BatchNormInference {#dev_guide_op_batchnorminference}
+BatchNormInference {#dev_guide_op_batchnorminference}
+=====================================================
 
 ## General
 

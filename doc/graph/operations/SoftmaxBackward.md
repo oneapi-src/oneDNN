@@ -1,4 +1,5 @@
-# SoftmaxBackward {#dev_guide_op_softmaxbackward}
+SoftmaxBackward {#dev_guide_op_softmaxbackward}
+===============================================
 
 ## General
 

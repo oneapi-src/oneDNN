@@ -1,4 +1,5 @@
-# Quantize {#dev_guide_op_quantize}
+Quantize {#dev_guide_op_quantize}
+=================================
 
 ## General
 

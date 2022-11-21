@@ -1,4 +1,5 @@
-# SquaredDifference {#dev_guide_op_squareddifference}
+SquaredDifference {#dev_guide_op_squareddifference}
+===================================================
 
 ## General
 

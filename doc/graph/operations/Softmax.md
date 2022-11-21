@@ -1,4 +1,5 @@
-# Softmax {#dev_guide_op_softmax}
+Softmax {#dev_guide_op_softmax}
+===============================
 
 ## General
 

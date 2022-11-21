@@ -1,4 +1,5 @@
-# BiasAdd {#dev_guide_op_biasadd}
+BiasAdd {#dev_guide_op_biasadd}
+===============================
 
 ## General
 

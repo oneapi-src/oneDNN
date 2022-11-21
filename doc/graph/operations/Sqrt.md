@@ -1,4 +1,5 @@
-# Sqrt {#dev_guide_op_sqrt}
+Sqrt {#dev_guide_op_sqrt}
+=========================
 
 ## General
 

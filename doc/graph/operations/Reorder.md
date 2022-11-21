@@ -1,4 +1,5 @@
-# Reorder {#dev_guide_op_reorder}
+Reorder {#dev_guide_op_reorder}
+===============================
 
 ## General
 

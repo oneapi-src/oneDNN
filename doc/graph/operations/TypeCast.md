@@ -1,4 +1,5 @@
-# TypeCast {#dev_guide_op_typecast}
+TypeCast {#dev_guide_op_typecast}
+=================================
 
 ## General
 

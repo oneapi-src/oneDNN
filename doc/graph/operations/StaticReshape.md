@@ -1,4 +1,5 @@
-# StaticReshape {#dev_guide_op_staticreshape}
+StaticReshape {#dev_guide_op_staticreshape}
+===========================================
 
 ## General
 

@@ -1,4 +1,5 @@
-# LayerNorm {#dev_guide_op_layernorm}
+LayerNorm {#dev_guide_op_layernorm}
+===================================
 
 ## General
 

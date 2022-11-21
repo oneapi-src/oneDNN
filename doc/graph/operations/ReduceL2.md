@@ -1,4 +1,5 @@
-# ReduceL2{#dev_guide_op_reducel2}
+ReduceL2{#dev_guide_op_reducel2}
+================================
 
 ## General
 

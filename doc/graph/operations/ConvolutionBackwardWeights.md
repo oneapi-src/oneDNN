@@ -1,4 +1,5 @@
-# ConvolutionBackwardWeights {#dev_guide_op_convolutionbackwardweights}
+ConvolutionBackwardWeights {#dev_guide_op_convolutionbackwardweights}
+=====================================================================
 
 ## General
 

@@ -1,4 +1,5 @@
-# StaticTranspose {#dev_guide_op_statictranspose}
+StaticTranspose {#dev_guide_op_statictranspose}
+===============================================
 
 ## General
 

@@ -1,4 +1,5 @@
-# MatMul {#dev_guide_op_matmul}
+MatMul {#dev_guide_op_matmul}
+=============================
 
 ## General
 

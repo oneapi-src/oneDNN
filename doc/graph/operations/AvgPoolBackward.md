@@ -1,4 +1,5 @@
-# AvgPoolBackward {#dev_guide_op_avgpoolbackward}
+AvgPoolBackward {#dev_guide_op_avgpoolbackward}
+===============================================
 
 ## General
 

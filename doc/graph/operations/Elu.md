@@ -1,4 +1,5 @@
-# Elu {#dev_guide_op_elu}
+Elu {#dev_guide_op_elu}
+=======================
 
 ## General
 

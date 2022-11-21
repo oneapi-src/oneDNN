@@ -1,4 +1,5 @@
-# DynamicQuantize {#dev_guide_op_dynamicquantize}
+DynamicQuantize {#dev_guide_op_dynamicquantize}
+===============================================
 
 ## General
 

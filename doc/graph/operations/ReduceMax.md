@@ -1,4 +1,5 @@
-# ReduceMax{#dev_guide_op_reducemax}
+ReduceMax{#dev_guide_op_reducemax}
+==================================
 
 ## General
 
