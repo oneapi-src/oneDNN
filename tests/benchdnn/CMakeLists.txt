@@ -209,6 +209,11 @@ function(register_benchdnn_graph_test engine bench_mode test_file)
         message(FATAL_ERROR "Incorrect use of function")
     endif()
 
+    # TODO(xxx): save time for gpu ci.
+    if (engine STREQUAL "gpu")
+        return()
+    endif()
+
     if (bench_mode STREQUAL "P" OR bench_mode STREQUAL "p")
         set(TEST_NAME_PREFIX "test_perf")
     # Todo enable correctness check mode later
