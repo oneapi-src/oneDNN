@@ -152,8 +152,9 @@ enum class status {
 /// @addtogroup dnnl_graph_api_allocator Allocator
 ///
 /// Definitions of allocator which is used to acquire memory resources in
-/// partition compilation and execution. SYCL allocator (#make_allocator) should
-/// be used for SYCL runtime and host allocator should be used for non-SYCL.
+/// partition compilation and execution. SYCL allocator
+/// (#dnnl::graph::sycl_interop::make_allocator) should be used for SYCL runtime
+/// and host allocator should be used for non-SYCL.
 ///
 /// @{
 
@@ -303,7 +304,7 @@ public:
     /// @param tid Logical tensor ID.
     /// @param dtype Elements data type.
     /// @param ndims Number of dimensions. -1 means unknown (see
-    ///     #DNNL_GRAPH_UNKNOWN_NDIM) and 0 means a scalar tensor.
+    ///     #DNNL_GRAPH_UNKNOWN_NDIMS) and 0 means a scalar tensor.
     /// @param ltype Layout type.
     /// @param ptype Property type.
     logical_tensor(size_t tid, data_type dtype, int32_t ndims,

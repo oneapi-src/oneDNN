@@ -496,7 +496,6 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_eltwise(dnnl_post_ops_t post_ops,
 ///
 /// @param post_ops Post-ops.
 /// @param index Index of the elementwise post-op.
-/// @param scale Output scaling factor.
 /// @param alg_kind Output elementwise algorithm kind.
 /// @param alpha Output alpha parameter for the elementwise algorithm.
 /// @param beta Output beta parameter for the elementwise algorithm.

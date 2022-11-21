@@ -62,7 +62,7 @@ dnnl_status_t DNNL_API dnnl_threadpool_interop_stream_get_threadpool(
 /// Sets the maximum concurrency assumed by oneDNN when outside a
 /// parallel call.
 ///
-/// @param max_concurrency. The maximum concurrency assumed by oneDNN
+/// @param max_concurrency The maximum concurrency assumed by oneDNN
 /// when outside a parallel call. This is a threadlocal setting.
 /// @returns #dnnl_success on success and a status describing the
 /// error otherwise.
@@ -72,7 +72,7 @@ dnnl_status_t DNNL_API dnnl_threadpool_interop_set_max_concurrency(
 /// Gets the maximum concurrency assumed by oneDNN when outside a
 /// parallel call.
 ///
-/// @param max_concurrency. The maximum concurrency assumed by oneDNN
+/// @param max_concurrency The maximum concurrency assumed by oneDNN
 /// when outside a parallel call. This is a threadlocal setting.
 /// @returns #dnnl_success on success and a status describing the
 /// error otherwise.
