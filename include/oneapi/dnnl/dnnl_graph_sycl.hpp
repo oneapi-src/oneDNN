@@ -66,7 +66,7 @@ inline allocator make_allocator(dnnl_graph_sycl_allocate_f sycl_malloc,
     return allocator(c_allocator);
 }
 
-inline dnnl::engine make_engine_with_allocator(const sycl::device &adevice,
+inline engine make_engine_with_allocator(const sycl::device &adevice,
         const sycl::context &acontext, const allocator &alloc) {
     dnnl_engine_t c_engine;
     error::wrap_c_api(
@@ -74,7 +74,7 @@ inline dnnl::engine make_engine_with_allocator(const sycl::device &adevice,
                     static_cast<const void *>(&adevice),
                     static_cast<const void *>(&acontext), alloc.get()),
             "could not make an engine with allocator");
-    return dnnl::engine(c_engine);
+    return engine(c_engine);
 }
 
 /// Executes a compiled partition in a specified stream and returns a SYCL

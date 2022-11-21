@@ -35,6 +35,15 @@
 namespace dnnl {
 namespace graph {
 
+/// @cond DO_NOT_DOCUMENT_THIS
+
+// Alias for common engine and stream API.
+using engine = dnnl::engine;
+using stream = dnnl::stream;
+using fpmath_mode = dnnl::fpmath_mode;
+
+/// @endcond
+
 /// @addtogroup dnnl_graph_api_utils Utilities
 /// Utility types and definitions
 /// @{
@@ -181,14 +190,14 @@ public:
 /// @{
 
 /// This API is a supplement for existing onednn engine API.
-inline dnnl::engine make_engine_with_allocator(
-        dnnl::engine::kind kind, size_t index, const allocator &alloc) {
+inline engine make_engine_with_allocator(
+        engine::kind kind, size_t index, const allocator &alloc) {
     dnnl_engine_t c_engine;
     error::wrap_c_api(
             dnnl_graph_make_engine_with_allocator(&c_engine,
                     static_cast<dnnl_engine_kind_t>(kind), index, alloc.get()),
             "could not make an engine with allocator");
-    return dnnl::engine(c_engine);
+    return engine(c_engine);
 }
 
 /// @} dnnl_graph_api_engine
@@ -658,7 +667,7 @@ public:
     /// @param astream Stream object to run over.
     /// @param inputs A list of input tensors.
     /// @param outputs A list of output tensors.
-    void execute(dnnl::stream &astream, const std::vector<tensor> &inputs,
+    void execute(stream &astream, const std::vector<tensor> &inputs,
             const std::vector<tensor> &outputs) const {
         std::vector<const_dnnl_graph_tensor_t> c_inputs;
         c_inputs.reserve(inputs.size());
@@ -1303,7 +1312,7 @@ public:
     /// Constructs a graph with an engine kind.
     ///
     /// @param engine_kind Engine kind.
-    graph(dnnl::engine::kind engine_kind) {
+    graph(engine::kind engine_kind) {
         dnnl_graph_graph_t g = nullptr;
         error::wrap_c_api(
                 dnnl_graph_graph_create(&g, convert_to_c(engine_kind)),
@@ -1317,7 +1326,7 @@ public:
     ///
     /// @param engine_kind Engine kind.
     /// @param mode Floating-point math mode.
-    graph(dnnl::engine::kind engine_kind, dnnl::fpmath_mode mode) {
+    graph(engine::kind engine_kind, fpmath_mode mode) {
         dnnl_graph_graph_t g = nullptr;
         error::wrap_c_api(
                 dnnl_graph_graph_create_with_fpmath_mode(
@@ -1408,11 +1417,11 @@ public:
     }
 
 private:
-    static dnnl_fpmath_mode_t convert_to_c(dnnl::fpmath_mode mode) {
+    static dnnl_fpmath_mode_t convert_to_c(fpmath_mode mode) {
         return static_cast<dnnl_fpmath_mode_t>(mode);
     }
 
-    static dnnl_engine_kind_t convert_to_c(dnnl::engine::kind akind) {
+    static dnnl_engine_kind_t convert_to_c(engine::kind akind) {
         return static_cast<dnnl_engine_kind_t>(akind);
     }
 };
