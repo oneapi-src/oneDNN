@@ -361,7 +361,10 @@ shape_rl_vec tensor_view_op_t::get_dynamic_shape_relations() const {
     auto out_dims = get_outputs()[0]->details_.get_plain_dims();
     shape_rl_vec ret;
     for (auto &it : rl_axis_pair) {
-        ret.emplace_back(in_dims[it.first], out_dims[it.second]);
+        if (is_dynamic_dim(in_dims[it.first])
+                || is_dynamic_dim(out_dims[it.second])) {
+            ret.emplace_back(in_dims[it.first], out_dims[it.second]);
+        }
     }
     return ret;
 }
