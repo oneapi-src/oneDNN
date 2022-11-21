@@ -16,6 +16,7 @@
 
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_ENV_VARS_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_ENV_VARS_HPP
+#include <util/def.hpp>
 
 namespace sc {
 
