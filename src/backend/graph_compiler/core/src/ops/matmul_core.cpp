@@ -220,194 +220,204 @@ void matmul_core_op_t::query_format(context_ptr ctx,
     for (auto &m_b : m_blk_candidates) { // M
         for (auto &n_b : blk_candidates) { // N
             for (auto &k_b : blk_candidates) { // K
-                for (auto isp : is_padding) { // is_padding
-                    for (auto out_plain :
-                            is_output_plain) { // output plain, always
-                        // false in dynamic
-                        if (is_dynamic_dim(M_block)
-                                || is_dynamic_dim(N_block)) {
-                            if (is_dynamic_dim(M_block)) {
-                                A_m_blk = C_m_blk = m_b;
-                                COMPILE_ASSERT(!constant_A,
-                                        "if M is dynamic, input A should not "
-                                        "be constant!");
-                            } else {
-                                A_m_blk = C_m_blk = M_block;
-                            }
-                            if (is_dynamic_dim(N_block)) {
-                                B_n_blk = C_n_blk = n_b;
-                                COMPILE_ASSERT(!constant_B,
-                                        "if N is dynamic, input B should not "
-                                        "be constant!");
-                            } else {
-                                B_n_blk = C_n_blk = N_block;
-                            }
-                        }
-                        if (is_dynamic_dim(K_block)) {
-                            A_k_blk = B_k_blk = k_b;
-                            COMPILE_ASSERT(!constant_A && !constant_B,
-                                    "if K is dynamic, input A and B should not "
-                                    "be constant!");
-                        }
-                        // process A
-                        if (constant_A || block_A || isp
-                                || (A_dims.size() > 2
-                                        && !A_format.is_plain()) // follow
-                                // original
-                                // logic
-                                || (!dynamic && A_format.is_blocking())
-                                || (!is_dynamic_dim(M) && M % M_block)
-                                || (!is_dynamic_dim(K) && K % K_block)) {
-                            // should be blocking
-                            if (A_dims.size() == 2) {
-                                ret_A_format = sc_data_format_t::MKmk(
-                                        A_m_blk, A_k_blk);
-                            } else {
-                                // regular ND*ND matmul (non-batch
-                                // format) whether constant and no
-                                // transA
-                                if (A_format.blocks_[0] != A_m_blk
-                                        || A_format.blocks_[1] != A_k_blk) {
-                                    ret_A_format = sc_data_format_t(
-                                            sc_data_format_kind_t::
-                                                    get_2dblocking_by_dims(
-                                                            A_dims.size()),
-                                            {A_m_blk, A_k_blk});
+                for (auto A_isp : is_padding) { // A is_padding
+                    for (auto B_isp : is_padding) { // B is_padding
+                        for (auto out_plain :
+                                is_output_plain) { // output plain, always
+                            // false in dynamic
+                            if (is_dynamic_dim(M_block)
+                                    || is_dynamic_dim(N_block)) {
+                                if (is_dynamic_dim(M_block)) {
+                                    A_m_blk = C_m_blk = m_b;
+                                    COMPILE_ASSERT(!constant_A,
+                                            "if M is dynamic, input A should "
+                                            "not "
+                                            "be constant!");
                                 } else {
-                                    ret_A_format = A_format;
+                                    A_m_blk = C_m_blk = M_block;
+                                }
+                                if (is_dynamic_dim(N_block)) {
+                                    B_n_blk = C_n_blk = n_b;
+                                    COMPILE_ASSERT(!constant_B,
+                                            "if N is dynamic, input B should "
+                                            "not "
+                                            "be constant!");
+                                } else {
+                                    B_n_blk = C_n_blk = N_block;
                                 }
                             }
-                        } else {
-                            // static or dynamic with no padding
-                            if (A_dims.size() == 2) {
-                                ret_A_format = sc_data_format_t::MK();
-                            } else {
-                                // regular ND*ND matmul (non-batch
-                                // format)
-                                ret_A_format = A_format;
+                            if (is_dynamic_dim(K_block)) {
+                                A_k_blk = B_k_blk = k_b;
+                                COMPILE_ASSERT(!constant_A && !constant_B,
+                                        "if K is dynamic, input A and B should "
+                                        "not "
+                                        "be constant!");
                             }
-                        }
-                        // process B
-                        if (utils::is_one_of(
-                                    B_dtype, datatypes::u8, datatypes::s8)) {
-                            if (B_dims.size() == 2) {
-                                ret_B_format = sc_data_format_t::NKkn4k(
-                                        B_k_blk, B_n_blk);
-                            } else {
-                                ret_B_format = sc_data_format_t(
-                                        sc_data_format_kind_t::
-                                                get_2dblocking_by_dims(
-                                                        B_dims.size(), true,
-                                                        true),
-                                        {B_k_blk, B_n_blk, 4});
-                            }
-                        } else if (B_dtype == datatypes::bf16) {
-                            if (B_dims.size() == 2) {
-                                ret_B_format = sc_data_format_t::NKkn2k(
-                                        B_k_blk, B_n_blk);
-                            } else {
-                                ret_B_format = sc_data_format_t(
-                                        sc_data_format_kind_t::
-                                                get_2dblocking_by_dims(
-                                                        B_dims.size(), true,
-                                                        true),
-                                        {B_k_blk, B_n_blk, 2});
-                            }
-                        } else {
-                            if (constant_B || block_B || isp
-                                    || (B_dims.size() > 2
-                                            && !B_format.is_plain())
-                                    || (!dynamic && B_format.is_blocking())
-                                    || (!is_dynamic_dim(K) && K % K_block)
-                                    || (!is_dynamic_dim(N) && N % N_block)) {
+                            // process A
+                            if (constant_A || block_A || A_isp
+                                    || (A_dims.size() > 2
+                                            && !A_format.is_plain()) // follow
+                                    // original
+                                    // logic
+                                    || (!dynamic && A_format.is_blocking())
+                                    || (!is_dynamic_dim(M) && M % M_block)
+                                    || (!is_dynamic_dim(K) && K % K_block)) {
                                 // should be blocking
-                                if (B_dims.size() == 2) {
-                                    ret_B_format = sc_data_format_t::NKkn(
-                                            B_k_blk, B_n_blk);
+                                if (A_dims.size() == 2) {
+                                    ret_A_format = sc_data_format_t::MKmk(
+                                            A_m_blk, A_k_blk);
                                 } else {
                                     // regular ND*ND matmul (non-batch
                                     // format) whether constant and no
                                     // transA
-                                    if (B_format.blocks_[0] != B_k_blk
-                                            || B_format.blocks_[1] != B_n_blk) {
-                                        ret_B_format = sc_data_format_t(
+                                    if (A_format.blocks_[0] != A_m_blk
+                                            || A_format.blocks_[1] != A_k_blk) {
+                                        ret_A_format = sc_data_format_t(
                                                 sc_data_format_kind_t::
                                                         get_2dblocking_by_dims(
-                                                                B_dims.size(),
-                                                                true),
-                                                {B_k_blk, B_n_blk});
+                                                                A_dims.size()),
+                                                {A_m_blk, A_k_blk});
                                     } else {
-                                        ret_B_format = B_format;
+                                        ret_A_format = A_format;
                                     }
                                 }
                             } else {
                                 // static or dynamic with no padding
-                                if (B_dims.size() == 2) {
-                                    ret_B_format = sc_data_format_t::KN();
+                                if (A_dims.size() == 2) {
+                                    ret_A_format = sc_data_format_t::MK();
                                 } else {
                                     // regular ND*ND matmul (non-batch
                                     // format)
-                                    ret_B_format = B_format;
+                                    ret_A_format = A_format;
                                 }
                             }
-                        }
-                        // process C
-                        if (((!constant_A && !constant_B && !dynamic
-                                     && M % M_block == 0 && N % N_block == 0)
-                                    || (dynamic && !isp))
-                                && out_plain) {
-                            if (C_dims.size() == 2) {
-                                ret_C_format = sc_data_format_t::MK();
+                            // process B
+                            if (utils::is_one_of(B_dtype, datatypes::u8,
+                                        datatypes::s8)) {
+                                if (B_dims.size() == 2) {
+                                    ret_B_format = sc_data_format_t::NKkn4k(
+                                            B_k_blk, B_n_blk);
+                                } else {
+                                    ret_B_format = sc_data_format_t(
+                                            sc_data_format_kind_t::
+                                                    get_2dblocking_by_dims(
+                                                            B_dims.size(), true,
+                                                            true),
+                                            {B_k_blk, B_n_blk, 4});
+                                }
+                            } else if (B_dtype == datatypes::bf16) {
+                                if (B_dims.size() == 2) {
+                                    ret_B_format = sc_data_format_t::NKkn2k(
+                                            B_k_blk, B_n_blk);
+                                } else {
+                                    ret_B_format = sc_data_format_t(
+                                            sc_data_format_kind_t::
+                                                    get_2dblocking_by_dims(
+                                                            B_dims.size(), true,
+                                                            true),
+                                            {B_k_blk, B_n_blk, 2});
+                                }
                             } else {
-                                // regular ND*ND matmul (non-batch
-                                // format)
-                                ret_C_format
-                                        = sc_data_format_t::get_plain_by_dims(
-                                                C_dims.size());
+                                auto B_format_kind = sc_data_format_kind_t::
+                                        get_2dblocking_by_dims(
+                                                B_dims.size(), true);
+                                if (constant_B || block_B || B_isp
+                                        || (B_dims.size() > 2
+                                                && !B_format.is_plain())
+                                        || (!dynamic && B_format.is_blocking())
+                                        || (!is_dynamic_dim(K) && K % K_block)
+                                        || (!is_dynamic_dim(N)
+                                                && N % N_block)) {
+                                    // should be blocking
+                                    if (B_dims.size() == 2) {
+                                        ret_B_format = sc_data_format_t::NKkn(
+                                                B_k_blk, B_n_blk);
+                                    } else {
+                                        // regular ND*ND matmul (non-batch
+                                        // format) whether constant and no
+                                        // transA
+                                        if (B_format.blocks_[0] != B_k_blk
+                                                || B_format.blocks_[1]
+                                                        != B_n_blk) {
+                                            ret_B_format = sc_data_format_t(
+                                                    B_format_kind,
+                                                    {B_k_blk, B_n_blk});
+                                        } else {
+                                            ret_B_format = B_format;
+                                        }
+                                    }
+                                } else {
+                                    // static or dynamic with no padding
+                                    if (B_dims.size() == 2) {
+                                        ret_B_format = sc_data_format_t::KN();
+                                    } else {
+                                        // regular ND*ND matmul (non-batch
+                                        // format)
+                                        ret_B_format = B_format;
+                                    }
+                                }
                             }
-                        } else {
-                            if (C_dims.size() == 2) {
-                                ret_C_format = sc_data_format_t::MKmk(
-                                        C_m_blk, C_n_blk);
+                            // process C
+                            if (((!constant_A && !constant_B && !dynamic
+                                         && M % M_block == 0
+                                         && N % N_block == 0)
+                                        || (dynamic && !A_isp && !B_isp))
+                                    && out_plain) {
+                                if (C_dims.size() == 2) {
+                                    ret_C_format = sc_data_format_t::MK();
+                                } else {
+                                    // regular ND*ND matmul (non-batch
+                                    // format)
+                                    ret_C_format = sc_data_format_t::
+                                            get_plain_by_dims(C_dims.size());
+                                }
                             } else {
-                                // regular ND*ND matmul (non-batch
-                                // format)
-                                ret_C_format = sc_data_format_t(
-                                        sc_data_format_kind_t::
-                                                get_2dblocking_by_dims(
-                                                        C_dims.size()),
-                                        {C_m_blk, C_n_blk});
+                                if (C_dims.size() == 2) {
+                                    ret_C_format = sc_data_format_t::MKmk(
+                                            C_m_blk, C_n_blk);
+                                } else {
+                                    // regular ND*ND matmul (non-batch
+                                    // format)
+                                    ret_C_format = sc_data_format_t(
+                                            sc_data_format_kind_t::
+                                                    get_2dblocking_by_dims(
+                                                            C_dims.size()),
+                                            {C_m_blk, C_n_blk});
+                                }
                             }
-                        }
-                        std::vector<std::vector<sc_dim>> var_block
-                                = {{A_m_blk, A_k_blk}, {B_k_blk, B_n_blk},
-                                        {C_m_blk, C_n_blk}};
-                        std::vector<sc_data_format_t> ret_formats
-                                = {ret_A_format, ret_B_format, ret_C_format};
-                        if (dynamic) {
-                            op_dispatch_key_t ret_key(var_block, ret_formats);
-                            cur_dispatch_key_set.set_.insert(ret_key);
-                        }
-                        if (cur_format_set.find(ret_formats)
-                                == cur_format_set.end()) {
-                            in_formats[0].emplace_back(ret_A_format);
-                            in_formats[1].emplace_back(ret_B_format);
-                            out_formats[0].emplace_back(ret_C_format);
-                            cur_format_set.insert(ret_formats);
-                        }
-                        // reset default cfg to first candidate in
-                        // dynamic for try mode in fuse op pass.
-                        if (first && dynamic) {
-                            tcfg.M_block = C_m_blk;
-                            tcfg.N_block = C_n_blk;
-                            tcfg.K_block = std::min(A_k_blk, B_k_blk);
-                            first = false;
-                        }
+                            std::vector<std::vector<sc_dim>> var_block
+                                    = {{A_m_blk, A_k_blk}, {B_k_blk, B_n_blk},
+                                            {C_m_blk, C_n_blk}};
+                            std::vector<sc_data_format_t> ret_formats = {
+                                    ret_A_format, ret_B_format, ret_C_format};
+                            if (dynamic) {
+                                op_dispatch_key_t ret_key(
+                                        var_block, ret_formats);
+                                cur_dispatch_key_set.set_.insert(ret_key);
+                            }
+                            if (cur_format_set.find(ret_formats)
+                                    == cur_format_set.end()) {
+                                in_formats[0].emplace_back(ret_A_format);
+                                in_formats[1].emplace_back(ret_B_format);
+                                out_formats[0].emplace_back(ret_C_format);
+                                cur_format_set.insert(ret_formats);
+                            }
+                            // reset default cfg to first candidate in
+                            // dynamic for try mode in fuse op pass.
+                            if (first && dynamic) {
+                                tcfg.M_block = C_m_blk;
+                                tcfg.N_block = C_n_blk;
+                                tcfg.K_block = std::min(A_k_blk, B_k_blk);
+                                first = false;
+                            }
 
-                        // break output plain if op is dynamic
-                        if (dynamic) { break; }
+                            // break output plain if op is dynamic
+                            if (dynamic) { break; }
+                        }
+                        // break is B padding loop if it is static
+                        if (!dynamic) { break; }
                     }
-                    // break is padding loop if it is static
+                    // break is A padding loop if it is static
                     if (!dynamic) { break; }
                 }
                 // break the k loop if it is static

@@ -1794,7 +1794,6 @@ static void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
     std::vector<stmt_c> cur_list;
     stmt cur, body;
     bool is_padding = false;
-    auto plain_product = math_utils::get_dims_product(plain_dims);
     int inp_a_step = dtype == datatypes::f32 ? trans_lanes : trans_lanes_bf16;
     int inp_b_step = trans_lanes;
     if ((!is_dynamic
