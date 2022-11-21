@@ -2998,7 +2998,6 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// Returns parameters of an elementwise post-op.
     ///
     /// @param index Index of the post-op.
-    /// @param scale Output scaling factor.
     /// @param aalgorithm Output elementwise algorithm kind.
     /// @param alpha Output alpha parameter for the elementwise algorithm.
     /// @param beta Output beta parameter for the elementwise algorithm.
