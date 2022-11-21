@@ -234,7 +234,11 @@ class logical_tensor {
     dnnl_graph_logical_tensor_t data;
 
 public:
-    using dims_t = std::vector<dnnl_dim_t>;
+    /// Integer type for representing dimension sizes and indices.
+    using dim = dnnl_dim_t;
+    /// Vector of dimensions. Implementations are free to force a limit on the
+    /// vector's length.
+    using dims = std::vector<dim>;
 
     /// Data Type
     enum class data_type {
@@ -337,7 +341,7 @@ public:
     /// @param ltype Layout type. If it's strided, the strides field in the
     ///     output logical tensor will be deduced accordingly.
     /// @param ptype Property type.
-    logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
+    logical_tensor(size_t tid, data_type dtype, const dims &adims,
             layout_type ltype, property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
         // if dimension size equals to 0, it's a scalar
@@ -368,8 +372,8 @@ public:
     ///     the stride of the dimension is unknown. The library currently
     ///      doesn't support other negative stride values.
     /// @param ptype Property type.
-    logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
-            const dims_t &strides, property_type ptype = property_type::undef) {
+    logical_tensor(size_t tid, data_type dtype, const dims &adims,
+            const dims &strides, property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
         // TODO(lvtao): check the size of adims and strides.
         // They should be same.
@@ -392,7 +396,7 @@ public:
     ///     zero-dimension tensor.
     /// @param lid Opaque layout id.
     /// @param ptype Property type
-    logical_tensor(size_t tid, data_type dtype, const dims_t &adims, size_t lid,
+    logical_tensor(size_t tid, data_type dtype, const dims &adims, size_t lid,
             property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
 
@@ -419,7 +423,7 @@ public:
     /// Returns dimensions of a logical tensor.
     ///
     /// @returns A vector describing the size of each dimension.
-    dims_t get_dims() const {
+    dims get_dims() const {
         if (data.ndims < 0) {
             error::wrap_c_api(dnnl_invalid_arguments,
                     "cannot return dims when ndims < 0");
@@ -473,7 +477,7 @@ public:
     /// raised.
     ///
     /// @returns A vector describing the stride size of each dimension.
-    dims_t get_strides() const {
+    dims get_strides() const {
         if (get_layout_type() != layout_type::strided) {
             error::wrap_c_api(
                     dnnl_invalid_arguments, "layout type should be strided");
@@ -548,8 +552,6 @@ private:
 /// A tensor object
 class tensor : public tensor_handle {
 public:
-    using dims_t = std::vector<dnnl_dim_t>;
-
     /// Default constructor. Constructs an empty object.
     tensor() = default;
 
