@@ -208,7 +208,8 @@ private:
 class cast_op_t : public unary_elementwise_op_impl_t {
 public:
     DECLARE_COMPUTE_ELEMENT();
-
+    std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
+    get_inplace_map() override;
     cast_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     cast_op_t(graph_tensor_ptr v, sc_data_type_t out_dtype,
