@@ -84,5 +84,4 @@ endif()
 
 add_subdirectory(cpp)
 add_subdirectory(benchdnn)
-add_subdirectory(benchdnn_graph)
 add_subdirectory(demo)
