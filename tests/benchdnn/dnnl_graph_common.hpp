@@ -256,6 +256,8 @@ dnnl::graph::compiled_partition compile_partition(const func_t &init_pd_func,
                 res->timer_map.par_compl_timer(), par, inputs, outputs, engine);
 
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> user_prim;
+        measure_prim_create(res->timer_map.prim_create_timer(), user_prim,
+                init_pd_func, prb, res);
     }
 
     return cp;

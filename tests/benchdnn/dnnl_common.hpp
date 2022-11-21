@@ -349,6 +349,64 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res);
 bool should_stop(const timer::timer_t &t);
 bool should_stop_ctime(const timer::timer_t &ct);
 
+template <typename func_t, typename prb_t>
+int measure_prim_create(timer::timer_t &ct,
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
+        const func_t &init_pd_func, const prb_t *prb, res_t *res,
+        dir_t dir = FLAG_FWD, const_dnnl_primitive_desc_t hint = nullptr) {
+    dnnl_primitive_t prim_ {};
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pd;
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
+
+#ifdef DNNL_USE_RT_OBJECTS_IN_PRIMITIVE_CACHE
+    engine_t engine(get_test_engine());
+#else
+    engine_t engine(engine_tgt_kind);
+#endif
+    init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint);
+    auto status = init_pd_func(init_pd_args);
+
+    if (!init_pd_args.pd) status = dnnl_invalid_arguments;
+    SAFE((status == dnnl_success ? OK : FAIL), WARN);
+    DNN_SAFE(dnnl_primitive_create(&prim_, init_pd_args.pd), WARN);
+
+    pd.reset(init_pd_args.pd);
+    prim.reset(prim_);
+#endif
+
+    ct.reset();
+    while (true) {
+        ct.start();
+        // The second (if the cache is enabled) primitive creation using
+        // the global test engine.
+        init_pd_args_t<prb_t> init_pd_args(
+                res, get_test_engine(), prb, dir, hint);
+        status = init_pd_func(init_pd_args);
+
+        if (!init_pd_args.pd) status = dnnl_invalid_arguments;
+        SAFE((status == dnnl_success ? OK : FAIL), WARN);
+
+        // This primitive is expected to come from the cache.
+        DNN_SAFE(dnnl_primitive_create(&prim_, init_pd_args.pd), WARN);
+        ct.stamp();
+        if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+
+        pd.reset(init_pd_args.pd);
+        prim.reset(prim_);
+
+        SAFE(check_pd_cache(pd), WARN);
+        SAFE(check_primitive_cache(prim), WARN);
+
+        // Collect memory footprint for a given primitive descriptor.
+        SAFE(get_memory_footprint(pd, res), WARN);
+
+        user_prim.reset(prim.release());
+        if (should_stop_ctime(ct)) break;
+    }
+    return OK;
+}
+
 void skip_start(res_t *res);
 void skip_unimplemented_data_type(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res);
