@@ -373,14 +373,6 @@ void finalize() {
     finalize_tbb();
 }
 
-inline bool should_stop(const timer::timer_t &t) {
-    const bool stop = false
-            || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-            || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
-                    && t.times() >= min_times_per_prb);
-    return stop;
-}
-
 inline int measure_perf_individual(timer::timer_t &t, dnnl_stream_t stream,
         perf_function_t &perf_func, std::vector<dnnl_exec_arg_t> &dnnl_args) {
     t.reset();

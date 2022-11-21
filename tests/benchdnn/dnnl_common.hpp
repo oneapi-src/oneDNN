@@ -346,6 +346,14 @@ int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
 int check_mem_size(const_dnnl_memory_desc_t md, res_t *res);
 int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res);
 
+inline bool should_stop(const timer::timer_t &t) {
+    const bool stop = false
+            || (fix_times_per_prb && t.times() >= fix_times_per_prb)
+            || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
+                    && t.times() >= min_times_per_prb);
+    return stop;
+}
+
 void skip_start(res_t *res);
 void skip_unimplemented_data_type(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res);
