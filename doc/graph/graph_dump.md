@@ -26,15 +26,15 @@ containing library graph and subgraphs in each partition.
 |                           | graph            | Library graph
 |                           | subgraph         | Library subgraph contained in a partition
 
-```bash
+~~~bash
 ONEDNN_GRAPH_DUMP=graph,subgraph ./application
-```
+~~~
 
 This may produce graph JSON files as follows:
 
-```markdown
+~~~bash
 onednn_graph_verbose,info,serialize graph to a json file graph-100001.json
 onednn_graph_verbose,info,serialize graph to a json file graph-100001-partitioning.json
 onednn_graph_verbose,info,serialize graph to a json file graph-100002-1313609102600373579.json
 onednn_graph_verbose,info,serialize graph to a json file graph-100003-12829238476173481280.json
-```
+~~~
