@@ -155,7 +155,9 @@ struct ip_convolution_fwd_t : public primitive_t {
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         pd_t(const pd_t &other)
-            : cpu_convolution_fwd_pd_t(other), ip_pd_(other.ip_pd_->clone()) {}
+            : cpu_convolution_fwd_pd_t(other)
+            , ip_pd_(other.ip_pd_->clone())
+            , name_(other.name_) {}
 
         ~pd_t() = default;
 
