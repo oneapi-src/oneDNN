@@ -33,8 +33,8 @@ TEST(APITensor, CreateWithShape) {
     dnnl::engine eng {dnnl::engine::kind::cpu, 0};
 
     // 0D
-    logical_tensor lt_0 {id, data_type::f32, logical_tensor::dims_t {},
-            layout_type::strided};
+    logical_tensor lt_0 {
+            id, data_type::f32, logical_tensor::dims {}, layout_type::strided};
     int n0 = 0;
     void *handle0 = &n0;
     tensor t_0 {lt_0, eng, handle0};
@@ -42,8 +42,8 @@ TEST(APITensor, CreateWithShape) {
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
 
     // 1D
-    logical_tensor lt_1 {id, data_type::f32, logical_tensor::dims_t {3},
-            layout_type::strided};
+    logical_tensor lt_1 {
+            id, data_type::f32, logical_tensor::dims {3}, layout_type::strided};
     std::vector<float> n1 {0, 1, 2};
     void *handle1 = n1.data();
     tensor t_1 {lt_1, eng, handle1};
@@ -51,7 +51,7 @@ TEST(APITensor, CreateWithShape) {
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
 
     // 2D
-    logical_tensor lt_2 {id, data_type::f32, logical_tensor::dims_t {3, 4},
+    logical_tensor lt_2 {id, data_type::f32, logical_tensor::dims {3, 4},
             layout_type::strided};
     std::vector<float> n2;
     n2.resize(3 * 4);
@@ -61,7 +61,7 @@ TEST(APITensor, CreateWithShape) {
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
 
     // 3D
-    logical_tensor lt_3 {id, data_type::f32, logical_tensor::dims_t {3, 4, 5},
+    logical_tensor lt_3 {id, data_type::f32, logical_tensor::dims {3, 4, 5},
             layout_type::strided};
     std::vector<float> n3;
     n3.resize(3 * 4 * 5);
@@ -71,8 +71,8 @@ TEST(APITensor, CreateWithShape) {
     ASSERT_EQ(t_0.get_engine().get_kind(), eng.get_kind());
 
     // 4D
-    logical_tensor lt_4 {id, data_type::f32,
-            logical_tensor::dims_t {3, 4, 5, 6}, layout_type::strided};
+    logical_tensor lt_4 {id, data_type::f32, logical_tensor::dims {3, 4, 5, 6},
+            layout_type::strided};
     std::vector<float> n4;
     n4.resize(3 * 4 * 5 * 6);
     void *handle4 = n4.data();

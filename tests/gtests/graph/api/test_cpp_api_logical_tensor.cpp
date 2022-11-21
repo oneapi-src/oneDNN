@@ -36,14 +36,14 @@ TEST(APILogicalTensor, CreateWithShape) {
     const size_t id = 123;
 
     // 0D
-    logical_tensor lt_0 {id, data_type::f32, logical_tensor::dims_t {},
-            layout_type::strided};
+    logical_tensor lt_0 {
+            id, data_type::f32, logical_tensor::dims {}, layout_type::strided};
     ASSERT_EQ(lt_0.get_id(), id);
     ASSERT_EQ(lt_0.get_dims().size(), 0U);
 
     // 1D
-    logical_tensor lt_1 {id, data_type::f32, logical_tensor::dims_t {3},
-            layout_type::strided};
+    logical_tensor lt_1 {
+            id, data_type::f32, logical_tensor::dims {3}, layout_type::strided};
     ASSERT_EQ(lt_1.get_id(), id);
     ASSERT_EQ(lt_1.get_dims().size(), 1U);
 
@@ -75,7 +75,7 @@ TEST(APILogicalTensor, CreateWithStrides) {
     ASSERT_EQ(lt_0.get_dims().size(), 0U);
 
     // 1D
-    logical_tensor lt_1 {id, data_type::f32, {3}, logical_tensor::dims_t {1}};
+    logical_tensor lt_1 {id, data_type::f32, {3}, logical_tensor::dims {1}};
     ASSERT_EQ(lt_1.get_id(), id);
     ASSERT_EQ(lt_1.get_dims().size(), 1U);
     ASSERT_EQ(lt_1.get_dims()[0], 3);
@@ -171,21 +171,21 @@ TEST(APILogicalTensor, CompareLayoutAndDataType) {
     using data_type = logical_tensor::data_type;
     using layout_type = logical_tensor::layout_type;
 
-    logical_tensor lt0 {0, data_type::f32, logical_tensor::dims_t {1, 2, 3},
+    logical_tensor lt0 {0, data_type::f32, logical_tensor::dims {1, 2, 3},
             layout_type::strided};
-    logical_tensor lt1 {0, data_type::f32, logical_tensor::dims_t {1, 2, 3},
+    logical_tensor lt1 {0, data_type::f32, logical_tensor::dims {1, 2, 3},
             layout_type::strided};
     ASSERT_EQ(lt0.is_equal(lt1), true);
 
-    logical_tensor lt4 {1, data_type::f32, logical_tensor::dims_t {1, 2, 3},
+    logical_tensor lt4 {1, data_type::f32, logical_tensor::dims {1, 2, 3},
             layout_type::strided};
-    logical_tensor lt5 {1, data_type::bf16, logical_tensor::dims_t {1, 2, 3},
+    logical_tensor lt5 {1, data_type::bf16, logical_tensor::dims {1, 2, 3},
             layout_type::strided};
     ASSERT_EQ(lt4.is_equal(lt5), false);
 
-    logical_tensor lt6 {2, data_type::f32, logical_tensor::dims_t {1, 2, 3},
+    logical_tensor lt6 {2, data_type::f32, logical_tensor::dims {1, 2, 3},
             layout_type::strided};
-    logical_tensor lt7 {2, data_type::f32, logical_tensor::dims_t {3, 2, 1},
+    logical_tensor lt7 {2, data_type::f32, logical_tensor::dims {3, 2, 1},
             layout_type::strided};
     ASSERT_EQ(lt6.is_equal(lt7), false);
 }
