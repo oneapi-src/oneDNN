@@ -389,6 +389,18 @@ expr squared_root_op_t::compute_element(expr in) {
     return builder::make_sqrt(in);
 }
 
+std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
+cast_op_t::get_inplace_map() {
+    // if out size == in size, we can do inplace. Otherwise, we can't
+    COMPILE_ASSERT(info_.outputs_.size() == 1 && info_.inputs_.size() == 1,
+            "bad number of in/outs for cast op");
+    if (utils::get_sizeof_type(info_.outputs_[0]->details_.dtype_)
+            == utils::get_sizeof_type(info_.inputs_[0]->details_.dtype_)) {
+        return unary_elementwise_op_impl_t::get_inplace_map();
+    }
+    return {};
+}
+
 cast_op_t::cast_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
     : unary_elementwise_op_impl_t("cast", ins, outs, attrs) {
