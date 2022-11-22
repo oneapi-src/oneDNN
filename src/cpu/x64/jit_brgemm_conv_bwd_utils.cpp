@@ -64,12 +64,12 @@ bool is_amx(cpu_isa_t isa) {
 }
 
 bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
-        const memory_desc_wrapper &dst_d, bool enable_postops) {
+        const memory_desc_wrapper &dst_d, bool is_deconv) {
     using namespace injector;
 
     const auto &post_ops = attr.post_ops_;
 
-    if (post_ops.len() > 0 && !enable_postops) return false;
+    if (post_ops.len() > 0 && !is_deconv) return false;
 
     return injector::post_ops_ok(post_ops_ok_args_t(jcp.isa,
             {sum, eltwise, binary}, post_ops, &dst_d,
@@ -1259,7 +1259,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &diff_dst_md,
         memory_desc_t &weights_md, memory_desc_t &diff_src_md,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads,
-        bool enable_postops) {
+        bool is_deconv) {
     using namespace prop_kind;
 
     brg_blocking_t::L1 = platform::get_per_core_cache_size(1);
@@ -1391,7 +1391,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.acc_dsz = types::data_type_size(jcp.acc_dt);
     jcp.bia_dsz = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
 
-    if (!post_ops_ok(jcp, attr, diff_src_d, enable_postops))
+    if (!post_ops_ok(jcp, attr, diff_src_d, is_deconv))
         return status::unimplemented;
 
     jcp.simd_w = cpu_isa_traits<avx512_core>::vlen / jcp.src_dsz;
@@ -1412,9 +1412,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.with_binary = binary_ind != -1;
 
     jcp.src_zero_point
-            = get_zp_type(attr, DNNL_ARG_DIFF_DST) != brgemm_broadcast_t::none;
+            = get_zp_type(attr, is_deconv ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST)
+            != brgemm_broadcast_t::none;
     jcp.dst_zero_point
-            = get_zp_type(attr, DNNL_ARG_DIFF_SRC) != brgemm_broadcast_t::none;
+            = get_zp_type(attr, is_deconv ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC)
+            != brgemm_broadcast_t::none;
 
     const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
     if (has_zero_points || jcp.s8s8_avx512) return status::unimplemented;
@@ -1444,14 +1446,14 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &diff_dst_md,
         memory_desc_t &weights_md, memory_desc_t &diff_src_md,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads,
-        bool enable_postops) {
+        bool is_deconv) {
 
     using namespace prop_kind;
 
     if (!mayiuse(isa)) return status::unimplemented;
 
     CHECK(init_jcp(jcp, isa, cd, diff_dst_md, weights_md, diff_src_md, bias_md,
-            attr, nthreads, enable_postops));
+            attr, nthreads, is_deconv));
 
     const memory_desc_wrapper diff_dst_d(&diff_dst_md);
     const memory_desc_wrapper weights_d(&weights_md);

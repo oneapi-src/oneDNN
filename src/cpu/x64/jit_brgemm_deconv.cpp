@@ -119,20 +119,25 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     using namespace format_tag;
     using smask_t = primitive_attr_t::skip_mask_t;
     const deconvolution_desc_t *fwd_deconv_d = desc();
+    const auto src_type = fwd_deconv_d->src_desc.data_type;
+    const auto dst_type = fwd_deconv_d->dst_desc.data_type;
+
+    auto skip_mask = smask_t::post_ops | smask_t::sum_dt;
+    if (utils::one_of(src_type, s8, u8))
+        skip_mask |= smask_t::scales_runtime | smask_t::zero_points_runtime;
 
     const bool ok = is_fwd()
             && (desc()->alg_kind & alg_kind::deconvolution_direct)
-            && IMPLICATION(fwd_deconv_d->src_desc.data_type == f16,
-                    isa == avx512_core_amx_fp16)
-            && attr()->has_default_values(smask_t::scales_runtime
-                    | smask_t::post_ops | smask_t::zero_points_runtime)
+            && IMPLICATION(src_type == f16, isa == avx512_core_amx_fp16)
+            && attr()->has_default_values(skip_mask, dst_type)
+            && attr()->post_ops_.check_sum_consistent_dt(dst_type)
             && attr_scales_ok() && post_ops_ok() && zero_points_ok()
             && !has_zero_dim_memory();
     if (!ok) return status::unimplemented;
 
     convolution_desc_t conv_d = convolution_desc_t();
 
-    assert(fwd_deconv_d->src_desc.data_type != data_type::undef);
+    assert(src_type != data_type::undef);
 
     const int ndims_spatial = fwd_deconv_d->dst_desc.ndims - 2;
     for (int i = 0; i < ndims_spatial; i++) {
@@ -147,10 +152,10 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     if (has_strides_) {
         CHECK(bwd_conv_desc_create(fwd_deconv_d, &conv_d));
         // try creating bwd conv prim desc
-        constexpr bool enable_postops
-                = true; // postops are enabled only for deconv (used only in strided version)
-        using bwd_conv_str_pd_t = typename brgemm_convolution_bwd_strided_t<isa,
-                enable_postops>::pd_t;
+        constexpr bool is_deconv
+                = true; // flag used to enable post-ops and properly disable zero-points
+        using bwd_conv_str_pd_t =
+                typename brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t;
         CHECK(primitive_desc_t::create<bwd_conv_str_pd_t>(&pd,
                 reinterpret_cast<const op_desc_t *>(&conv_d), attr(), engine,
                 nullptr));
