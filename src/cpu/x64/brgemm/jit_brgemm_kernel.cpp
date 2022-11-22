@@ -1717,9 +1717,12 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
         else if (brg.is_bf16)
             vdpbf16ps(v1, v2, v3);
         else if (brg.is_int8) {
-            if (brg.has_vnni)
+            if (brg.isa_impl == avx2_vnni_2 && brg.dt_a == data_type::s8)
+                vpdpbssd(v1, v3, v2);
+            else if (brg.has_vnni)
                 vpdpbusd(v1, v3, v2,
-                        isa == avx2_vnni ? VexEncoding : EvexEncoding);
+                        is_superset(isa, avx512_core) ? EvexEncoding
+                                                      : VexEncoding);
             else {
                 vpmaddubsw(int8_dot_product_temp(), v3, v2);
                 vpmaddwd(int8_dot_product_temp(), int8_dot_product_temp(),
