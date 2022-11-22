@@ -753,6 +753,7 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     bool allow_dst_reorder = false;
     bool src_abx = matches_tag(src_md, "abx");
     bool src_axb = matches_tag(src_md, "axb");
+    if (src_abx) allow_src_reorder = true;
     if ((src_abx || src_axb) && (prb.is_fwd || prb.is_bwd_w)
             && is_small_ic_g1) {
         allow_src_reorder = true;
