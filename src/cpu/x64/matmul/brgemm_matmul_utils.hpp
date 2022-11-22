@@ -264,6 +264,8 @@ struct brgemm_matmul_conf_utils_t {
 
     inline bool is_any_B_layout() const { return B_any_layout; }
 
+    inline cpu_isa_t get_isa() const { return isa_; }
+
     status_t set_or_check_B_tag(
             memory_desc_t &B_md, bool init_n_tag = true) const;
     status_t update_and_check_B_tag(memory_desc_t &B_md, int n_blk_size) const;
@@ -287,6 +289,7 @@ private:
             blocked_32n_B_layout_tag, blocked_16n_B_layout_tag;
     const bool blocked_B_layouts_allowed;
     const bool n_blk_fixed;
+    const cpu_isa_t isa_;
 };
 
 void init_aux_values(brgemm_matmul_conf_t &bgmmc,

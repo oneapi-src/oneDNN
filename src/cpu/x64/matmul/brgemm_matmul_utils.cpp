@@ -119,13 +119,14 @@ status_t check_isa_with_datatype(
     const bool ok = IMPLICATION(bm_conf_utils.is_f32(),
                             isa == avx512_core || bm_conf_utils.is_bf32())
             && IMPLICATION(bm_conf_utils.is_int8(),
-                    one_of(isa, avx512_core_amx, avx512_core_vnni))
+                    one_of(isa, avx512_core_amx, avx512_core_vnni, avx2_vnni_2,
+                            avx2_vnni))
             && IMPLICATION(bm_conf_utils.is_bf16(),
                     one_of(isa, avx512_core_amx, avx512_core_bf16))
             && IMPLICATION(bm_conf_utils.is_f16(),
                     one_of(isa, avx512_core_amx_fp16, avx512_core_fp16))
             && IMPLICATION(bm_conf_utils.is_int8_with_bf16_dst(),
-                    mayiuse(avx512_core_vnni));
+                    is_superset(isa, avx512_core_vnni) || isa == avx2_vnni_2);
     return ok ? status::success : status::unimplemented;
 }
 
@@ -160,7 +161,8 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
     , blocked_B_layouts_allowed(!utils::one_of(format_tag::undef,
               blocked_64n_B_layout_tag, blocked_48n_B_layout_tag,
               blocked_32n_B_layout_tag, blocked_16n_B_layout_tag))
-    , n_blk_fixed((!B_any_layout) && blocked_B_layouts_allowed) {
+    , n_blk_fixed((!B_any_layout) && blocked_B_layouts_allowed)
+    , isa_(isa) {
     assert(int8_dt || bf16_dt || f16_dt || f32_dt || bf32_dt);
 }
 
@@ -702,6 +704,63 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
     return best_imbalance;
 }
 
+float compute_blocking_heuristic_avx2(brgemm_matmul_conf_t &bgmmc,
+        const brgemm_matmul_conf_utils_t &bm_conf_utils,
+        const matmul_avx512_blocking_params_t::matmul_params_t &matmul,
+        matmul_avx512_blocking_params_t &best_blocking) {
+
+    const int nthr = bgmmc.nthr;
+
+    const int max_m_blk = nstl::min(/*64*/ 256, matmul.M);
+    int min_m_blk = nstl::min(32, matmul.M); // max_m_blk
+
+    int n_blk = bgmmc.N_blk;
+    const int n_chunks = div_up(matmul.N, n_blk);
+    const int max_n_chunks = bgmmc.use_buffer_a ? 16 : 1;
+    const int n_chunks_start = nstl::min(max_n_chunks, n_chunks);
+
+    int default_k_blk = 1024;
+    int k_blk = nstl::min(matmul.K, default_k_blk);
+    int start_nthr_k = 1;
+
+    // for cases with low parallel work, reduce 'min_m_blk' to
+    // increase potential parallelization balance.
+    const size_t max_parallel = matmul.batch * n_chunks;
+    const bool low_parallel_work = static_cast<size_t>(nthr) > max_parallel;
+    if (low_parallel_work) {
+
+        min_m_blk = nstl::min(matmul.M, 16);
+
+        bool low_spatial_work = matmul.M <= 40;
+        if (low_spatial_work) {
+
+            // Reduce n_blk size to increase parallel space
+            // note: over reduction of n_blk size on 2d shapes when n_chunks == 1
+            // showed significant performance degradation
+            if (!bm_conf_utils.check_n_blk_fixed()
+                    && IMPLICATION(n_chunks == 1, bgmmc.batch_ndims > 0))
+                n_blk = nstl::min(matmul.N, 32);
+        }
+    }
+
+    float best_imbalance = 1.f; // reduce
+    for_(int nthr_k = start_nthr_k; nthr_k >= 1; --nthr_k)
+    for_(int n_chunk_size = n_chunks_start; n_chunk_size >= 1; --n_chunk_size)
+    for (int m_blk = max_m_blk; m_blk >= min_m_blk; --m_blk) {
+
+        matmul_avx512_blocking_params_t cur_params(matmul, nthr);
+        cur_params.update_params(
+                1, m_blk, n_chunk_size, n_blk, 1, k_blk, nthr_k);
+
+        float cur_imbalance = cur_params.get_imbalance();
+        if (cur_imbalance < best_imbalance) {
+            best_imbalance = cur_imbalance;
+            best_blocking = cur_params;
+        }
+    }
+    return best_imbalance;
+}
+
 status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         const brgemm_matmul_conf_utils_t &bm_conf_utils) {
 
@@ -743,7 +802,7 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
 
         best_blocking.update_configuration(bgmmc);
 
-    } else {
+    } else if (is_superset(bm_conf_utils.get_isa(), avx512_core)) {
         // TODO:
         // *) adjust K_BLK using 'rnd_up(bgmmc.K, bgmmc.required_k_granularity)'
         //    for non-f32 datatypes.
@@ -792,6 +851,20 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         if (best_imbalance == 1.f) return status::unimplemented;
 
         best_blocking.update_configuration(bgmmc);
+    } else {
+        assert(one_of(bm_conf_utils.get_isa(), avx2_vnni, avx2_vnni_2));
+
+        const matmul_avx512_blocking_params_t::matmul_params_t matmul(
+                bgmmc.M, bgmmc.N, bgmmc.K, bgmmc.batch);
+
+        matmul_avx512_blocking_params_t best_blocking(matmul, bgmmc.nthr);
+
+        const float best_imbalance = compute_blocking_heuristic_avx2(
+                bgmmc, bm_conf_utils, matmul, best_blocking);
+
+        if (best_imbalance == 1.f) return status::unimplemented;
+
+        best_blocking.update_configuration(bgmmc);
     }
 
     return status::success;
@@ -817,7 +890,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.with_bias = mmd.bias_desc.format_kind != format_kind::undef;
     bgmmc.bia_dt = bgmmc.with_bias ? mmd.bias_desc.data_type : data_type::undef;
     bgmmc.s8s8_compensation_required
-            = isa == avx512_core_vnni && bgmmc.src_dt == s8;
+            = bgmmc.src_dt == s8 && one_of(isa, avx512_core_vnni, avx2_vnni);
     bgmmc.ndims = dst_d.ndims();
 
     brgemm_matmul_conf_utils_t bm_conf_utils(bgmmc, isa, attr,

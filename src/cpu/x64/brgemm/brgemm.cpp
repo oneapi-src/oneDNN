@@ -261,12 +261,14 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     brg->dt_d = dt_d;
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
-    if (!IMPLICATION(
-                brg->is_int8 && brg->dt_d == bf16, mayiuse(avx512_core_vnni)))
+    if (!IMPLICATION(brg->is_int8 && brg->dt_d == bf16,
+                is_superset(brg->isa_impl, avx512_core_vnni)
+                        || brg->isa_impl == avx2_vnni_2))
         return status::unimplemented;
 
     if (brg->is_int8 && brg->dt_d == bf16)
-        brg->is_bf16_emu = !mayiuse(avx512_core_bf16);
+        brg->is_bf16_emu
+                = !(mayiuse(avx512_core_bf16) || brg->isa_impl == avx2_vnni_2);
 
     // Rerun blocking heuristic due to reduced zmm register count
     if (brg->is_bf16_emu && brg->is_dgmm) CHECK(brdgmm_blocking(brg));

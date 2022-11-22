@@ -140,8 +140,8 @@ void set_isa_impl(brgemm_t *brg) {
     } else if (brg->is_int8) {
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_amx),
                 avx512_core_amx, is_isa_ok(avx512_core_vnni), avx512_core_vnni,
-                is_isa_ok(avx512_core), avx512_core, is_isa_ok(avx2_vnni),
-                avx2_vnni);
+                is_isa_ok(avx512_core), avx512_core, is_isa_ok(avx2_vnni_2),
+                avx2_vnni_2, is_isa_ok(avx2_vnni), avx2_vnni);
     }
 }
 
@@ -771,8 +771,8 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
             || is_superset(brg->isa_impl, avx2_vnni_2);
 
     set_brg_vmm(brg); // TODO: Investigate if it is really needed here.
-    brg->req_s8s8_compensation
-            = brg->is_int8 && !brg->is_int8_tmm && brg->dt_a == data_type::s8;
+    brg->req_s8s8_compensation = brg->is_int8 && !brg->is_int8_tmm
+            && (brg->isa_impl != avx2_vnni_2) && brg->dt_a == data_type::s8;
 
     brg->LDA = (brg->is_row_major()) ? static_cast<int>(LDA)
                                      : static_cast<int>(LDB);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 * Copyright 2021 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,6 +53,8 @@ constexpr impl_list_item_t impl_list[] = REG_MATMUL_P({
         CPU_INSTANCE(gemm_bf16_matmul_t<f32>)
         CPU_INSTANCE(gemm_bf16_matmul_t<bf16>)
         CPU_INSTANCE_AVX512(brgemm_matmul_t<avx512_core_vnni>)
+        CPU_INSTANCE_AVX2(brgemm_matmul_t<avx2_vnni_2>)
+        CPU_INSTANCE_AVX2(brgemm_matmul_t<avx2_vnni>)
         CPU_INSTANCE(gemm_x8s8s32x_matmul_t)
         CPU_INSTANCE_AVX512(brgemm_matmul_t<avx512_core_fp16>)
         CPU_INSTANCE(ref_matmul_t)
