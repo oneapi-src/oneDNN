@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ else()
         PROPERTIES COMPILE_FLAGS "${OPT_LEVEL}")
 endif()
 
-set(OBJ_LIB ${DNNL_LIBRARY_NAME}_cpu_x64)
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_cpu_x64)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)

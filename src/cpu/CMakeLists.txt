@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2021 Intel Corporation
+# Copyright 2019-2023 Intel Corporation
 # Copyright 2020 Arm Ltd. and affiliates
 # Copyright 2021 FUJITSU LIMITED
 #
@@ -99,7 +99,7 @@ if(DNNL_WITH_SYCL)
         PROPERTIES COMPILE_FLAGS "-O0")
 endif()
 
-set(OBJ_LIB ${DNNL_LIBRARY_NAME}_cpu)
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_cpu)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)

@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2022 Intel Corporation
+# Copyright 2022-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 
-set(OBJ_LIB ${DNNL_LIBRARY_NAME}_sycl_amd)
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_sycl_amd)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 
 
@@ -31,4 +31,4 @@ add_library(${OBJ_LIB}_interface INTERFACE)
 target_link_libraries(${OBJ_LIB}_interface INTERFACE rocBLAS::rocBLAS MIOpen::MIOpen)
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS $<TARGET_OBJECTS:${OBJ_LIB}>)
 
-set(${DNNL_LIBRARY_NAME}_INTERFACE ${${DNNL_LIBRARY_NAME}_INTERFACE} ${OBJ_LIB}_interface PARENT_SCOPE)
+set(${LIB_PACKAGE_NAME}_INTERFACE ${${LIB_PACKAGE_NAME}_INTERFACE} ${OBJ_LIB}_interface PARENT_SCOPE)

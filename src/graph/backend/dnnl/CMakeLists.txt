@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2022 Intel Corporation
+# Copyright 2021-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STRE
         PROPERTIES COMPILE_FLAGS "/bigobj")
 endif()
 
-set(OBJ_LIB ${DNNL_LIBRARY_NAME}_graph_backend_dnnl)
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_graph_backend_dnnl)
 add_library(${OBJ_LIB} OBJECT ${HEADERS} ${SOURCES})
 
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS

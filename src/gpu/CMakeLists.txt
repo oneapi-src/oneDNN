@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2022 Intel Corporation
+# Copyright 2020-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ add_definitions_with_host_compiler(-DNGEN_NEO_INTERFACE)
 add_definitions_with_host_compiler(-DNGEN_NO_OP_NAMES)
 add_definitions_with_host_compiler(-DNGEN_WINDOWS_COMPAT)
 
-set(OBJ_LIB ${DNNL_LIBRARY_NAME}_gpu)
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
@@ -40,10 +40,10 @@ endif()
 
 if(DNNL_SYCL_CUDA)
     add_subdirectory(nvidia)
-    # Pass ${DNNL_LIBRARY_NAME}_INTERFACE to upper level for proper linking
-    set(${DNNL_LIBRARY_NAME}_INTERFACE "${${DNNL_LIBRARY_NAME}_INTERFACE}" PARENT_SCOPE)
+    # Pass ${LIB_PACKAGE_NAME}_INTERFACE to upper level for proper linking
+    set(${LIB_PACKAGE_NAME}_INTERFACE "${${LIB_PACKAGE_NAME}_INTERFACE}" PARENT_SCOPE)
 endif()
 if(DNNL_SYCL_HIP)
     add_subdirectory(amd)
-    set(${DNNL_LIBRARY_NAME}_INTERFACE "${${DNNL_LIBRARY_NAME}_INTERFACE}" PARENT_SCOPE)
+    set(${LIB_PACKAGE_NAME}_INTERFACE "${${LIB_PACKAGE_NAME}_INTERFACE}" PARENT_SCOPE)
 endif()

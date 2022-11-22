@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2022 Intel Corporation
+# Copyright 2019-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-set(TARGET_NAME ${DNNL_LIBRARY_NAME}_sycl)
+set(TARGET_NAME ${LIB_PACKAGE_NAME}_sycl)
 file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
@@ -32,7 +32,7 @@ if(DNNL_CPU_RUNTIME STREQUAL "NONE")
             )
 endif()
 
-set(OBJ_LIB ${DNNL_LIBRARY_NAME}_sycl)
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_sycl)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
