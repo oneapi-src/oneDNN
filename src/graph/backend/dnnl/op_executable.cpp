@@ -1315,7 +1315,7 @@ softmax_bwd_executable_t::desc_t softmax_bwd_executable_t::create_desc(
     auto dst_lt = op->get_input_value(1)->get_logical_tensor();
     dst_lt.data_type = diff_src_lt.data_type;
     auto dst = make_dnnl_memory_desc(dst_lt);
-    dnnl::memory::desc src = dst;
+    const dnnl::memory::desc &src = dst;
 
     const dnnl::algorithm algo
             = op->get_kind() == dnnl_impl::op_kind::dnnl_logsoftmax_bwd
