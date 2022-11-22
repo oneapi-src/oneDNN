@@ -739,9 +739,9 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
 
     // If src/dst is nhwc then set the other one with any to nhwc too (except
     // 1st convolution).
-    bool is_small_ic_non_dw = is_small_ic(prb) && prb.g == 1;
-    bool is_small_oc_non_dw = is_small_oc(prb) && prb.g == 1;
-    bool propagate_nhwc = (matches_tag(src_md, "axb") && !is_small_ic_non_dw)
+    bool is_small_ic_g1 = is_small_ic(prb) && prb.g == 1;
+    bool is_small_oc_g1 = is_small_oc(prb) && prb.g == 1;
+    bool propagate_nhwc = (matches_tag(src_md, "axb") && !is_small_ic_g1)
             || matches_tag(dst_md, "axb");
     if (propagate_nhwc) {
         set_default_format(src_md, "axb");
@@ -758,7 +758,7 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     bool src_abx = matches_tag(src_md, "abx");
     bool src_axb = matches_tag(src_md, "axb");
     if ((src_abx || src_axb) && (prb.is_fwd || prb.is_bwd_w)
-            && is_small_ic_non_dw) {
+            && is_small_ic_g1) {
         allow_src_reorder = true;
     }
 
@@ -771,10 +771,10 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     }
 
     // Prefer nhwc for small-channel inputs.
-    if (user_src_tag.empty() && prb.is_fwd && is_small_ic_non_dw) {
+    if (user_src_tag.empty() && prb.is_fwd && is_small_ic_g1) {
         if (!matches_tag(src_md, src_tag)) user_src_tag = "axb";
     }
-    if (user_dst_tag.empty() && prb.is_bwd_d && is_small_oc_non_dw) {
+    if (user_dst_tag.empty() && prb.is_bwd_d && is_small_oc_g1) {
         if (!matches_tag(dst_md, dst_tag)) user_dst_tag = "axb";
     }
 
