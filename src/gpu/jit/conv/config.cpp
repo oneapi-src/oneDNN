@@ -849,6 +849,7 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     bool allow_dst_reorder = false;
     bool src_abx = matches_tag(src_md, "abx");
     bool src_axb = matches_tag(src_md, "axb");
+    if (src_abx) allow_src_reorder = true;
     if ((src_abx || src_axb) && (is_fwd || is_bwd_w) && is_small_ic_g1) {
         allow_src_reorder = true;
     }
