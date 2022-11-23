@@ -215,11 +215,8 @@ struct acl_inner_product_fwd_t : public primitive_t {
                 }
             }
 
-            // Fast math mode
-            auto math_mode = get_fpmath_mode();
-            bool is_fastmath_enabled = utils::one_of(
-                    math_mode, fpmath_mode::bf16, fpmath_mode::any);
-            aip.fc_info.enable_fast_math = is_fastmath_enabled;
+            aip.fc_info.enable_fast_math = utils::one_of(
+                    attr()->fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
 
             CHECK(post_ops.init(engine, attr_.post_ops_, dst_md_,
                     aip.fc_info.activation_info));

@@ -41,8 +41,8 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper bia_d(&bias_md);
 
-    auto math_mode = get_fpmath_mode();
-    acp.fast_math = one_of(math_mode, fpmath_mode::bf16, fpmath_mode::any);
+    acp.fast_math
+            = one_of(attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
 
     // Compute Library currently supports forward propagation only
     const prop_kind_t prop_kind = cd.prop_kind;
