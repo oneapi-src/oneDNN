@@ -5,7 +5,7 @@
 Check out the branch from oneDNN repository and update the third party modules.
 
 ~~~sh
-git clone https://github.com/oneapi-src/oneDNN.git --branch dev-graph --recursive
+git clone https://github.com/oneapi-src/oneDNN.git --branch dev-graph-beta-3 --recursive
 ~~~
 
 ## Build the Library
