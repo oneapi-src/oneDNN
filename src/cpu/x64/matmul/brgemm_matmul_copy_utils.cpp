@@ -983,9 +983,12 @@ protected:
     using reg64_t = const Xbyak::Reg64;
     using reg32_t = const Xbyak::Reg32;
 
+    static constexpr bool is_ymm_ = std::is_same<Vmm, Xbyak::Ymm>::value;
     static constexpr int k_blk_step_ = 4;
     static constexpr int n_blk_step_ = 64;
     static constexpr int blk_sz_ = 6;
+    static constexpr int comp_acc_idx_ = is_ymm_ ? 13 : 25;
+    static constexpr int simd_w_ = vreg_traits<Vmm>::vlen;
 
     const dim_t src_stride_;
     const dim_t tr_src_stride_;
@@ -1006,14 +1009,17 @@ protected:
     reg64_t regq_tmp = r14;
     reg64_t imm_addr64 = r15;
 
+    // ZMM stuff
     Vmm vreg_idx_lo_256 = Vmm(26);
     Vmm vreg_idx_hi_256 = Vmm(27);
     Vmm vreg_idx_lo_128 = Vmm(28);
     Vmm vreg_idx_hi_128 = Vmm(29);
-    Vmm vmm_comp_mul = Vmm(30);
-    Vmm vmm_zero = Vmm(31);
 
-    Vmm get_comp_acc(int i) { return Vmm(25 - i); }
+    // Shared
+    Vmm vmm_comp_mul = Vmm(is_ymm_ ? 14 : 30);
+    Vmm vmm_zero = Vmm(is_ymm_ ? 15 : 31);
+
+    Vmm get_comp_acc(int i) { return Vmm(comp_acc_idx_ - i); }
     Vmm get_vmm_zp_comp_res(int i) { return get_comp_acc(i); }
     Vmm get_vmm_oscale_comp_res(int i) { return Vmm(i); }
 
@@ -1023,9 +1029,10 @@ protected:
     }
 
     inline Vmm get_vmm(int blk, int idx) {
-        assert(idx >= 0 && idx < blk_sz_ && blk >= 0);
+        if (idx < 0 || idx >= isa_num_vregs(is_ymm_ ? avx2 : avx512_core))
+            assert(!"idx > vregs");
+        assert(IMPLICATION(!is_ymm_, idx < blk_sz_ && blk >= 0));
         auto reg_idx = blk_sz_ * blk + idx;
-        assert(reg_idx >= 0 && reg_idx < 32);
         return Vmm(reg_idx);
     }
     inline void load(int blk, int i, bool is_tail) {}
@@ -1050,6 +1057,7 @@ inline void jit_brgemm_matmul_copy_b_int8_t<Zmm>::kmovq(Opmask k, size_t q) {
 }
 
 template struct jit_brgemm_matmul_copy_b_int8_t<Zmm>;
+template struct jit_brgemm_matmul_copy_b_int8_t<Ymm>;
 
 struct jit_amx_brgemm_matmul_copy_b_int8_t
     : public jit_brgemm_matmul_copy_b_int8_t<Xbyak::Zmm> {
@@ -1287,11 +1295,113 @@ private:
     }
 };
 
+struct jit_avx2_vnni_brgemm_matmul_copy_b_int8_t
+    : public jit_brgemm_matmul_copy_b_int8_t<Xbyak::Ymm> {
+
+    jit_avx2_vnni_brgemm_matmul_copy_b_int8_t(const brgemm_matmul_conf_t *conf)
+        : jit_brgemm_matmul_copy_b_int8_t<Xbyak::Ymm>(conf) {}
+
+private:
+    static constexpr int perm2i128_l
+            = 0x20; // dst[127:0]=src1_low_128; dst[128:255]=src2_low_128
+    static constexpr int perm2i128_h
+            = 0x31; // dst[127:0]=src1_hi_128; dst[128:255]=src2_hi_128
+
+    Xbyak::Ymm get_ymm(int idx) { return get_vmm(0, idx); }
+
+    void load_ymm(int ymm_idx, size_t offset, bool is_tail, size_t tail_sz) {
+        Xbyak::Ymm vmm_src = Xbyak::Ymm(ymm_idx);
+        if (is_tail) {
+            load_bytes(vmm_src, reg_src, offset, tail_sz);
+        } else
+            uni_vmovups(vmm_src, ptr[reg_src + offset]);
+    }
+
+    void copy_4x64_vnni(int nrows, int ncolumns) override {
+        const bool is_tail = ncolumns < n_blk_step_;
+        const int k_end = div_up(nrows, k_blk_step_);
+        for_(int k = 0; k < k_end; k++)
+        for (int pass = 0; pass < 2; ++pass) {
+            assert(one_of(pass, 0, 1));
+            const dim_t tr_src_off_base = k * tr_src_stride_;
+            const int set_1_tr_src_offset
+                    = tr_src_off_base + pass * 2 * n_blk_step_;
+            const int row_start = k * k_blk_step_;
+            const int row_end = nstl::min(row_start + k_blk_step_, nrows);
+            for (int i = row_start; i < rnd_up(row_end, k_blk_step_); i++) {
+                const bool do_load = i < row_end
+                        && IMPLICATION(pass == 1, ncolumns >= simd_w_);
+                if (do_load) {
+                    const bool do_tail = is_tail
+                            && IMPLICATION(pass == 0, ncolumns < simd_w_);
+                    load_ymm(i % 4, i * src_stride_ + pass * simd_w_, do_tail,
+                            ncolumns - pass * simd_w_);
+                } else {
+                    const auto src_ymm_1 = get_ymm(i % 4);
+                    uni_vpxor(src_ymm_1, src_ymm_1, src_ymm_1);
+                }
+            }
+
+            vpunpcklbw(get_ymm(4), get_ymm(0), get_ymm(1));
+            vpunpckhbw(get_ymm(5), get_ymm(0), get_ymm(1));
+            vpunpcklbw(get_ymm(0), get_ymm(2), get_ymm(3));
+            vpunpckhbw(get_ymm(1), get_ymm(2), get_ymm(3));
+
+            vpunpcklwd(get_ymm(2), get_ymm(4), get_ymm(0));
+            vpunpckhwd(get_ymm(3), get_ymm(4), get_ymm(0));
+            vpunpcklwd(get_ymm(4), get_ymm(5), get_ymm(1));
+            vpunpckhwd(get_ymm(5), get_ymm(5), get_ymm(1));
+
+            auto get_accum
+                    = [&](int idx) { return get_comp_acc(idx + pass * 4); };
+
+            if (IMPLICATION(
+                        pass == 1, ncolumns > 32)) { // check against {0, 32}
+                vperm2i128(get_ymm(0), get_ymm(2), get_ymm(3), perm2i128_l);
+                vperm2i128(get_ymm(1), get_ymm(4), get_ymm(5), perm2i128_l);
+                uni_vmovups(ptr[reg_tr_src + set_1_tr_src_offset], get_ymm(0));
+                uni_vmovups(ptr[reg_tr_src + set_1_tr_src_offset + simd_w_],
+                        get_ymm(1));
+                if (do_compute_compensation_) {
+                    vpdpbusd(get_accum(0), vmm_comp_mul, get_ymm(0),
+                            VexEncoding);
+                    vpdpbusd(get_accum(1), vmm_comp_mul, get_ymm(1),
+                            VexEncoding);
+                }
+            } else if (conf_->wei_n_blk > 32) {
+                uni_vmovups(ptr[reg_tr_src + set_1_tr_src_offset], vmm_zero);
+                uni_vmovups(ptr[reg_tr_src + set_1_tr_src_offset + simd_w_],
+                        vmm_zero);
+            }
+
+            const int set_2_tr_src_offset = set_1_tr_src_offset + n_blk_step_;
+            const int upper_check = 16 + pass * 32; // check against {16, 48}
+            if (ncolumns > upper_check) {
+                vperm2i128(get_ymm(2), get_ymm(2), get_ymm(3), perm2i128_h);
+                vperm2i128(get_ymm(3), get_ymm(4), get_ymm(5), perm2i128_h);
+                uni_vmovups(ptr[reg_tr_src + set_2_tr_src_offset], get_ymm(2));
+                uni_vmovups(ptr[reg_tr_src + set_2_tr_src_offset + simd_w_],
+                        get_ymm(3));
+                if (do_compute_compensation_) {
+                    vpdpbusd(get_accum(2), vmm_comp_mul, get_ymm(2),
+                            VexEncoding);
+                    vpdpbusd(get_accum(3), vmm_comp_mul, get_ymm(3),
+                            VexEncoding);
+                }
+            } else if (conf_->wei_n_blk > upper_check) {
+                uni_vmovups(ptr[reg_tr_src + set_2_tr_src_offset], vmm_zero);
+                uni_vmovups(ptr[reg_tr_src + set_2_tr_src_offset + simd_w_],
+                        vmm_zero);
+            }
+        }
+    }
+};
+
 template <typename Vmm>
 void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
     preamble();
 
-    vpxord(vmm_zero, vmm_zero, vmm_zero);
+    uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
     mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
@@ -1300,11 +1410,11 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
     init_permute();
 
     if (do_compute_compensation_) {
-        int n_iters = div_up(conf_->wei_n_blk, 16);
+        int n_iters = div_up(conf_->wei_n_blk, 16) * (is_ymm_ ? 2 : 1);
         for (int i = 0; i < n_iters; i++)
-            vpxord(get_comp_acc(i), get_comp_acc(i), get_comp_acc(i));
+            uni_vpxor(get_comp_acc(i), get_comp_acc(i), get_comp_acc(i));
         mov(imm_addr64, 1);
-        vpbroadcastb(vmm_comp_mul, imm_addr64.cvt8());
+        uni_vpbroadcastb(vmm_comp_mul, imm_addr64.cvt8());
     }
 
     auto compute_K_loop = [=](bool is_N_tail) {
@@ -1370,86 +1480,113 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
         assert(IMPLICATION(req_zp_comp,
                 conf_->src_zp_type == brgemm_broadcast_t::per_tensor));
 
-        // copy 'comp_acc' into s8s8_comp accumulator
-        if (req_s8s8_comp) {
-            for (int i = 0; i < n_iters; i++)
-                vmovups(get_vmm_oscale_comp_res(i), get_comp_acc(i));
-        }
-
-        Label skip_acc, store;
         if (req_s8s8_comp)
             mov(reg_comp_ptr, ptr[param1 + GET_OFF(compensation_ptr)]);
         if (req_zp_comp)
             mov(reg_zp_comp_ptr, ptr[param1 + GET_OFF(zp_a_compensation_ptr)]);
-
         mov(reg_K_start, ptr[param1 + GET_OFF(current_K_start)]);
-        cmp(reg_K_start, 0);
-        je(skip_acc, T_NEAR);
-        if (req_s8s8_comp) {
-            for (int i = 0; i < n_iters; i++) {
-                const auto zmm_acc = get_comp_acc(i);
-                const auto zmm_res = get_vmm_oscale_comp_res(i);
-                const auto addr = EVEX_compress_addr(reg_comp_ptr, i * 64);
-                vpaddd(zmm_res, zmm_acc, addr);
+
+        // YMM Note: 16 vmm registers would be needed, so only compute by halves
+        const bool do_outer_unroll = req_s8s8_comp;
+        const int outer_unroll = is_ymm_ && do_outer_unroll ? 2 : 1;
+        const int inner_unroll = is_ymm_ && (!do_outer_unroll) ? 2 : 1;
+        for (int out_ur = 0; out_ur < outer_unroll; ++out_ur) {
+
+            // copy 'comp_acc' into s8s8_comp accumulator
+            if (req_s8s8_comp) {
+                for (int i = 0; i < n_iters; i++) {
+                    const int accum_idx = i + out_ur * n_iters;
+                    uni_vmovups(get_vmm_oscale_comp_res(i),
+                            get_comp_acc(accum_idx));
+                }
             }
-        }
 
-        if (req_zp_comp) {
-            for (int i = 0; i < n_iters; i++) {
-                const auto zmm_acc = get_comp_acc(i);
-                const auto zmm_res = get_vmm_zp_comp_res(i);
-                const auto addr = EVEX_compress_addr(reg_zp_comp_ptr, i * 64);
-                vpaddd(zmm_res, zmm_acc, addr);
+            Label skip_acc, store;
+            cmp(reg_K_start, 0);
+            je(skip_acc, T_NEAR);
+            if (req_s8s8_comp) {
+                for (int i = 0; i < n_iters; i++) {
+                    const int idx = i + out_ur * n_iters;
+                    const auto vmm_acc = get_comp_acc(idx);
+                    const auto vmm_res = get_vmm_oscale_comp_res(i);
+                    const auto addr = !is_ymm_
+                            ? EVEX_compress_addr(reg_comp_ptr, idx * simd_w_)
+                            : ptr[reg_comp_ptr + idx * simd_w_];
+                    uni_vpaddd(vmm_res, vmm_acc, addr);
+                }
             }
-        }
 
-        L(skip_acc);
-        cmp(reg_K_start, rnd_up(conf_->K, conf_->K_blk) - conf_->K_blk);
-        jl(store, T_NEAR);
-
-        if (req_s8s8_comp) {
-            mov(imm_addr64, 0xffffffff);
-            const auto zmm_all_bits_1 = vmm_comp_mul;
-            vpbroadcastd(zmm_all_bits_1, imm_addr64.cvt32());
-            mov(imm_addr64, 0x1);
-            const auto zmm_one_s32 = vmm_zero;
-            vpbroadcastd(zmm_one_s32, imm_addr64.cvt32());
-
-            for (int i = 0; i < n_iters; i++) {
-                const auto zmm_res = get_vmm_oscale_comp_res(i);
-                // multiply by 128
-                vpslld(zmm_res, zmm_res, 7);
-                // change sign
-                vpandnq(zmm_res, zmm_res, zmm_all_bits_1);
-                vpaddd(zmm_res, zmm_res, zmm_one_s32);
+            if (req_zp_comp) {
+                for_(int i = 0; i < n_iters; i++)
+                for (int in_ur = 0; in_ur < inner_unroll; ++in_ur) {
+                    const int idx = i * inner_unroll + in_ur + out_ur * n_iters;
+                    const auto vmm_acc = get_comp_acc(idx);
+                    const auto vmm_res = get_vmm_zp_comp_res(idx);
+                    const auto addr = !is_ymm_
+                            ? EVEX_compress_addr(reg_zp_comp_ptr, idx * simd_w_)
+                            : ptr[reg_zp_comp_ptr + idx * simd_w_];
+                    uni_vpaddd(vmm_res, vmm_acc, addr);
+                }
             }
-        }
 
-        if (req_zp_comp) {
-            mov(reg_zp_a_neg_val_ptr,
-                    ptr[param1 + GET_OFF(zp_a_neg_value_ptr)]);
-            const auto zmm_zp_a_neg_val = vreg_idx_hi_128;
-            vbroadcastss(zmm_zp_a_neg_val, ptr[reg_zp_a_neg_val_ptr]);
+            L(skip_acc);
+            cmp(reg_K_start, rnd_up(conf_->K, conf_->K_blk) - conf_->K_blk);
+            jl(store, T_NEAR);
 
-            for (int i = 0; i < n_iters; i++) {
-                const auto zmm_res = get_vmm_zp_comp_res(i);
-                vpmulld(zmm_res, zmm_res, zmm_zp_a_neg_val);
+            if (req_s8s8_comp) {
+                mov(imm_addr64, 0xffffffff);
+                const auto vmm_all_bits_1 = vmm_comp_mul;
+                uni_vpbroadcastd(vmm_all_bits_1, imm_addr64.cvt32());
+                mov(imm_addr64, 0x1);
+                const auto vmm_one_s32 = vmm_zero;
+                uni_vpbroadcastd(vmm_one_s32, imm_addr64.cvt32());
+
+                for (int i = 0; i < n_iters; i++) {
+                    const auto vmm_res = get_vmm_oscale_comp_res(i);
+                    // multiply by 128
+                    uni_vpslld(vmm_res, vmm_res, 7);
+                    // change sign
+                    uni_vpandnd(vmm_res, vmm_res, vmm_all_bits_1);
+                    uni_vpaddd(vmm_res, vmm_res, vmm_one_s32);
+                }
             }
-        }
 
-        L(store);
-        if (req_s8s8_comp) {
-            for (int i = 0; i < n_iters; i++) {
-                const auto zmm_res = get_vmm_oscale_comp_res(i);
-                const auto addr = EVEX_compress_addr(reg_comp_ptr, i * 64);
-                vmovups(addr, zmm_res);
+            if (req_zp_comp) {
+                mov(reg_zp_a_neg_val_ptr,
+                        ptr[param1 + GET_OFF(zp_a_neg_value_ptr)]);
+                const auto vmm_zp_a_neg_val = vmm_zero;
+                uni_vbroadcastss(vmm_zp_a_neg_val, ptr[reg_zp_a_neg_val_ptr]);
+
+                for_(int i = 0; i < n_iters; i++)
+                for (int in_ur = 0; in_ur < inner_unroll; ++in_ur) {
+                    const int idx = i * inner_unroll + in_ur + out_ur * n_iters;
+                    const auto vmm_res = get_vmm_zp_comp_res(idx);
+                    uni_vpmulld(vmm_res, vmm_res, vmm_zp_a_neg_val);
+                }
             }
-        }
-        if (req_zp_comp) {
-            for (int i = 0; i < n_iters; i++) {
-                const auto zmm_res = get_vmm_zp_comp_res(i);
-                const auto addr = EVEX_compress_addr(reg_zp_comp_ptr, i * 64);
-                vmovups(addr, zmm_res);
+
+            L(store);
+            if (req_s8s8_comp) {
+                for (int i = 0; i < n_iters; i++) {
+                    const auto vmm_res = get_vmm_oscale_comp_res(i);
+                    const int idx_offset = i + out_ur * n_iters;
+                    const auto addr = !is_ymm_
+                            ? EVEX_compress_addr(
+                                    reg_comp_ptr, idx_offset * simd_w_)
+                            : ptr[reg_comp_ptr + idx_offset * simd_w_];
+                    uni_vmovups(addr, vmm_res);
+                }
+            }
+            if (req_zp_comp) {
+                for_(int i = 0; i < n_iters; i++)
+                for (int in_ur = 0; in_ur < inner_unroll; ++in_ur) {
+                    const int idx = i * inner_unroll + in_ur + out_ur * n_iters;
+                    const auto vmm_res = get_vmm_zp_comp_res(idx);
+                    const auto addr = !is_ymm_
+                            ? EVEX_compress_addr(reg_zp_comp_ptr, idx * simd_w_)
+                            : ptr[reg_zp_comp_ptr + idx * simd_w_];
+                    uni_vmovups(addr, vmm_res);
+                }
             }
         }
     }
@@ -2333,9 +2470,14 @@ status_t create_brgemm_matmul_copy_b(
             if (mayiuse(avx512_core_amx))
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_amx_brgemm_matmul_copy_b_int8_t(conf)));
-            else
+            else if (is_superset(conf->isa, avx512_core))
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_avx512_core_brgemm_matmul_copy_b_int8_t(conf)));
+            else {
+                assert(one_of(conf->isa, avx2_vnni, avx2_vnni_2));
+                CHECK(safe_ptr_assign(copy_ker,
+                        new jit_avx2_vnni_brgemm_matmul_copy_b_int8_t(conf)));
+            }
         }
     }
 
