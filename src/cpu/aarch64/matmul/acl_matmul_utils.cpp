@@ -86,10 +86,8 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     amp.dst_info = arm_compute::TensorInfo(
             arm_compute::TensorShape(N, M, 1, dst_batch), 1, acl_dst_data_t);
 
-    // Fast-math mode
-    auto math_mode = get_fpmath_mode();
-    bool is_fastmath_enabled
-            = utils::one_of(math_mode, fpmath_mode::bf16, fpmath_mode::any);
+    bool is_fastmath_enabled = utils::one_of(
+            attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
     amp.gemm_info.set_fast_math(is_fastmath_enabled);
 
     // Set alpha (output scaling)
