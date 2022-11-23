@@ -103,9 +103,8 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
     if (status != status::success) return status;
 
     if (dt_int_ok) {
-        ok &= IMPLICATION(a_zp_, !packed_b()) && IMPLICATION(b_zp_, !packed_a())
-                && IMPLICATION(
-                        c_zp_, !attr()->zero_points_.defined(DNNL_ARG_DST));
+        ok &= IMPLICATION(a_zp_, !packed_b())
+                && IMPLICATION(b_zp_, !packed_a());
 
         int cmask_a = 0, cmask_b = 0, cmask_c = 0;
         attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &cmask_b);

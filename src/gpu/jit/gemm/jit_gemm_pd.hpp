@@ -84,13 +84,16 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
         if (!ok) return status::unimplemented;
 
         // If scales are present, convert them and any bias to binary post-ops.
+        // Also convert bias to binary post-op if dst zp are present.
         const auto *wei_scales = &attr()->scales_.get(DNNL_ARG_WEIGHTS);
         const auto *src_scales = &attr()->scales_.get(DNNL_ARG_SRC);
         const auto *c_scales = &attr()->scales_.get(DNNL_ARG_DST);
 
         bias_via_binary_ = (desc()->bias_type() != data_type::undef)
                 && (!wei_scales->has_default_values()
-                        || !src_scales->has_default_values());
+                        || !src_scales->has_default_values()
+                        || !attr()->zero_points_.has_default_values(
+                                DNNL_ARG_DST));
         if (bias_via_binary_) {
             auto status = post_ops_.prepend_binary(binary_add, &d->bias_desc);
             if (status != status::success) return status;
