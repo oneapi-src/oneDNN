@@ -77,10 +77,9 @@ double evaluateSCore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
     auto capacity = dp.hwThreadCapacity;
     auto capacity1 = dp.hwMinThreadsToFill;
 
-    if (e.driverInfo.kParallel) {
+    if (e.driverInfo.kParallel)
         kthread = aux.k0;
-        if (e.driverInfo.kParallelLocal) kthread /= e.driverInfo.wg[LoopK];
-    } else if (e.driverInfo.kParallelLocal) {
+    else if (e.driverInfo.kParallelLocal) {
         kthread = alignUp(
                 divUp(k, e.driverInfo.wg[LoopK]), e.driverInfo.unroll[LoopK]);
         kthread = std::max<decltype(kthread)>(
@@ -140,16 +139,20 @@ double evaluateS(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         int wgCountK2
                 = std::max(1, int(2 * dp.hwThreadCapacity / dp.threadCount));
 
-        int k0_1 = alignUp(divUp(dp.sizes.k, wgCountK1),
-                e.driverInfo.unroll[LoopK] * e.driverInfo.wg[LoopK]);
-        int k0_2 = alignUp(divUp(dp.sizes.k, wgCountK2),
-                e.driverInfo.unroll[LoopK] * e.driverInfo.wg[LoopK]);
+        int k0_1
+                = alignUp(divUp(dp.sizes.k, wgCountK1 * e.driverInfo.wg[LoopK]),
+                        e.driverInfo.unroll[LoopK]);
+        int k0_2
+                = alignUp(divUp(dp.sizes.k, wgCountK2 * e.driverInfo.wg[LoopK]),
+                        e.driverInfo.unroll[LoopK]);
 
         k0_1 = std::max(k0_1, 1);
         k0_2 = std::max(k0_2, 1);
 
-        wgCountK1 = std::max<int>(1, divUp(dp.sizes.k, k0_1));
-        wgCountK2 = std::max<int>(1, divUp(dp.sizes.k, k0_2));
+        wgCountK1 = std::max<int>(
+                1, divUp(dp.sizes.k, k0_1 * e.driverInfo.wg[LoopK]));
+        wgCountK2 = std::max<int>(
+                1, divUp(dp.sizes.k, k0_2 * e.driverInfo.wg[LoopK]));
 
         auto dp1 = dp;
         dp1.wgCountK = wgCountK1;
