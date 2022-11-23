@@ -1873,7 +1873,7 @@ public:
     /// @param op An operation to be added.
     /// @param allow_exception A flag indicating whether the method is allowed
     ///     to throw an exception if it fails to add the op to the graph.
-    /// @returns #success or a status describing the error otherwise.
+    /// @return @ref status::success or a status describing the error otherwise.
     status add_op(const op &op, bool allow_exception = true) {
         dnnl_graph_status_t ret = dnnl_graph_add_op(get(), op.get());
 
