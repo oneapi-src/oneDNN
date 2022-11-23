@@ -173,16 +173,6 @@ protected:
                 {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst},
                         {DNNL_ARG_WORKSPACE, workspace}});
         strm.wait();
-
-        // test in-place mode on forward
-        if (p.src_tag == p.dst_tag && p.src_dt == p.dst_dt) {
-            // TODO: add a copy of memory and result comparison with previous
-            // dst output.
-            lrn.execute(strm,
-                    {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, src},
-                            {DNNL_ARG_WORKSPACE, workspace}});
-            strm.wait();
-        }
     }
 
     void Backward(algorithm aalgorithm) {
@@ -260,15 +250,6 @@ protected:
                         {DNNL_ARG_DIFF_SRC, diff_src},
                         {DNNL_ARG_WORKSPACE, workspace}});
         strm.wait();
-
-        // test in-place mode
-        if (p.dst_tag == p.diff_src_tag && p.dst_dt == p.diff_src_dt) {
-            lrn.execute(strm,
-                    {{DNNL_ARG_SRC, src}, {DNNL_ARG_DIFF_DST, diff_dst},
-                            {DNNL_ARG_DIFF_SRC, diff_dst},
-                            {DNNL_ARG_WORKSPACE, workspace}});
-            strm.wait();
-        }
     }
 
     void Test() {
