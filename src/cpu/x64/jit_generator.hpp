@@ -470,6 +470,24 @@ public:
         vmovdqu32(x, addr);
     }
 
+    void uni_vmovdqu16(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
+        if (is_valid_isa(avx512_core))
+            vmovdqu16(addr, x);
+        else if (is_valid_isa(avx))
+            vmovups(addr, x);
+        else
+            movups(addr, x);
+    }
+
+    void uni_vmovdqu16(const Xbyak::Xmm &x, const Xbyak::Address &addr) {
+        if (is_valid_isa(avx512_core))
+            vmovdqu16(x, addr);
+        else if (is_valid_isa(avx))
+            vmovups(x, addr);
+        else
+            movups(x, addr);
+    }
+
     void uni_vmovups(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
         if (is_valid_isa(avx))
             vmovups(addr, x);
@@ -1547,6 +1565,34 @@ public:
 
     void uni_vcvtdq2ps(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
         vcvtdq2ps(x, op);
+    }
+
+    void uni_vcvtph2psx(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
+        assert(is_valid_isa(avx2));
+        if (is_valid_isa(avx512_core_fp16))
+            vcvtph2psx(x, op);
+        else if (is_valid_isa(avx2)) {
+            assert(IMPLICATION(op.isMEM(), !op.getAddress().isBroadcast()));
+            vcvtph2ps(x, op);
+        }
+    }
+
+    void uni_vcvtps2phx(const Xbyak::Xmm &x, const Xbyak::Address &addr) {
+        assert(is_valid_isa(avx512_core_fp16));
+        vcvtps2phx(x, addr);
+    }
+
+    void uni_vcvtps2phx(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
+        assert(is_valid_isa(avx2));
+        vcvtps2ph(addr, x, _op_mxcsr);
+    }
+
+    void uni_vcvtps2phx(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2) {
+        assert(is_valid_isa(avx2));
+        if (is_valid_isa(avx512_core_fp16))
+            vcvtps2phx(x1, x2);
+        else if (is_valid_isa(avx2))
+            vcvtps2ph(x1, x2, _op_mxcsr);
     }
 
     void uni_vmovmskps(const Xbyak::Reg &x1, const Xbyak::Xmm &x2) {

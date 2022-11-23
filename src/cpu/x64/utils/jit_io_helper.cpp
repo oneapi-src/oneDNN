@@ -92,8 +92,8 @@ jit_io_helper_t<Vmm>::jit_io_helper_t(jit_generator *host, const cpu_isa_t &isa,
     : host_(host)
     , isa_(isa)
     , data_type_(data_type)
-    , bf16_supported_(is_superset(isa, avx512_core))
-    , f16_supported_(is_superset(isa, avx512_core_fp16))
+    , bf16_supported_(is_data_type_supported(data_type::bf16))
+    , f16_supported_(is_data_type_supported(data_type::f16))
     , bf16_emu_(nullptr)
     , io_conf_(io_conf)
     , tail_conf_(tail_conf)
@@ -112,6 +112,7 @@ jit_io_helper_t<Vmm>::jit_io_helper_t(jit_generator *host, const cpu_isa_t &isa,
 
     assert(utils::one_of(data_type_, data_type::f16, data_type::bf16,
                    data_type::f32, data_type::s8, data_type::u8, data_type::s32)
+            && is_data_type_supported(data_type_)
             && "Supported data types f16, bf16, f32, s8, u8, s32");
 
     /*
@@ -136,6 +137,22 @@ jit_io_helper_t<Vmm>::jit_io_helper_t(jit_generator *host, const cpu_isa_t &isa,
 
 template <typename Vmm>
 jit_io_helper_t<Vmm>::~jit_io_helper_t() = default;
+
+template <typename Vmm>
+bool jit_io_helper_t<Vmm>::is_data_type_supported(const data_type_t dt) {
+    switch (dt) {
+        case data_type::f32:
+        case data_type::s32:
+        case data_type::u8:
+        case data_type::s8: return true;
+        case data_type::bf16:
+            return is_superset(isa_, avx512_core) || isa_ == avx2_vnni_2;
+        case data_type::f16:
+            return is_superset(isa_, avx512_core_fp16) || isa_ == avx2_vnni_2;
+        default: assert(!"Unsupported data type");
+    }
+    return false;
+}
 
 template <typename Vmm>
 void jit_io_helper_t<Vmm>::init_bf16() {
@@ -198,6 +215,18 @@ void jit_io_helper_t<Vmm>::prepare_i8_data_to_store(const Vmm &i8_vmm) {
     else
         host_->uni_vpackuswb(i8_vmm, i8_vmm,
                 Vmm(saturation_conf_->vreg_zero_saturation_idx_));
+}
+
+template <typename Vmm>
+void jit_io_helper_t<Vmm>::prepare_xf16_data_to_store(const Vmm &vmm) {
+    assert(!is_superset(isa_, avx512_core));
+    const auto &cvt_lower_vmm =
+            typename vreg_traits<Vmm>::Vmm_lower_t(vmm.getIdx());
+
+    if (data_type_ == data_type::bf16)
+        host_->vcvtneps2bf16(cvt_lower_vmm, vmm, Xbyak::VexEncoding);
+    else
+        host_->uni_vcvtps2phx(cvt_lower_vmm, vmm);
 }
 
 template <>
@@ -504,9 +533,12 @@ void jit_io_helper_t<Vmm>::load(const Xbyak::Address &src_addr,
             : dst_raw_vmm;
 
     const bool is_i8 = utils::one_of(data_type_, data_type::s8, data_type::u8);
-    const bool is_tail_load_for_i8_supported = is_avx512;
+    const bool is_xf16
+            = utils::one_of(data_type_, data_type::bf16, data_type::f16);
+    const bool is_tail_load_supported = is_avx512;
     const bool can_load_byte_by_byte = tail
-            && (isa_ == sse41 || (!is_tail_load_for_i8_supported && is_i8));
+            && (isa_ == sse41
+                    || (!is_tail_load_supported && (is_i8 || is_xf16)));
 
     if (can_load_byte_by_byte) {
         load_byte_by_byte(src_addr, dst_vmm, tail_conf_->tail_size_);
@@ -523,21 +555,18 @@ void jit_io_helper_t<Vmm>::load(const Xbyak::Address &src_addr,
     }
 }
 
+template <>
+void jit_io_helper_t<Xbyak::Zmm>::load_byte_by_byte(
+        const Xbyak::Address &src_addr, const Xbyak::Zmm &dst_vmm,
+        const int load_size) {
+    assert("Load byte by byte is not supported for Zmms.");
+}
+
 template <typename Vmm>
 void jit_io_helper_t<Vmm>::load_byte_by_byte(const Xbyak::Address &src_addr,
         const Vmm &dst_vmm, const int load_size) {
-    assert((dst_vmm.isYMM() || dst_vmm.isXMM())
-            && "Load byte by byte is not supported for Zmms.");
-
-    if (dst_vmm.isYMM()) {
-        const Xbyak::Ymm dst_ymm(dst_vmm.getIdx());
-        host_->uni_vxorps(dst_ymm, dst_ymm, dst_ymm);
-        host_->load_data(data_type_, dst_ymm, src_addr, load_size);
-    } else if (dst_vmm.isXMM()) {
-        const Xbyak::Xmm dst_xmm(dst_vmm.getIdx());
-        host_->uni_vxorps(dst_xmm, dst_xmm, dst_xmm);
-        host_->load_data(data_type_, dst_xmm, src_addr, load_size);
-    }
+    host_->uni_vxorps(dst_vmm, dst_vmm, dst_vmm);
+    host_->load_data(data_type_, dst_vmm, src_addr, load_size);
 
     if (utils::one_of(data_type_, data_type::s32, data_type::s8, data_type::u8))
         convert_to_f32(dst_vmm, dst_vmm, data_type::s32);
@@ -577,7 +606,7 @@ template <typename Vmm>
 void jit_io_helper_t<Vmm>::load_f16(
         const Xbyak::Address &src_addr, const Vmm &dst_vmm) {
     assert(f16_supported_ && "Unsupported data type.");
-    host_->vcvtph2psx(dst_vmm, src_addr);
+    host_->uni_vcvtph2psx(dst_vmm, src_addr);
 }
 
 template <typename Vmm>
@@ -589,6 +618,40 @@ void jit_io_helper_t<Vmm>::load_i8(
         host_->uni_vpmovzxbd(dst_vmm, src_addr);
 
     convert_to_f32(dst_vmm, dst_vmm, data_type::s32);
+}
+
+template <typename Vmm>
+void jit_io_helper_t<Vmm>::load_two_simdw_xf16(const Xbyak::Address &src_addr,
+        const Vmm &dst_even_vmm, const Vmm &dst_odd_vmm) {
+    // The outputs are in odd/even interleaved layouts
+    // now only support bf16/f16 w/o tail on AVX2_VNNI_2
+    assert(utils::one_of(data_type_, data_type::bf16, data_type::f16)
+            && isa_ == avx2_vnni_2 && "Unsupported data type.");
+
+    if (data_type_ == data_type::bf16) {
+        host_->vcvtneebf162ps(dst_even_vmm, src_addr);
+        host_->vcvtneobf162ps(dst_odd_vmm, src_addr);
+    } else {
+        host_->vcvtneeph2ps(dst_even_vmm, src_addr);
+        host_->vcvtneoph2ps(dst_odd_vmm, src_addr);
+    }
+}
+
+template <typename Vmm>
+void jit_io_helper_t<Vmm>::merge_interleaved_to_plain(
+        const Vmm &vmm_even, const Vmm &vmm_odd, const Vmm &vmm_aux0) {
+    // Merge inputs in odd/even interleaved layouts to plain layouts
+    assert(vmm_even.isYMM() && vmm_odd.isYMM()
+            && "Merge interleaved to plain only supports Ymms");
+    Xbyak::Ymm ymm_even = Xbyak::Ymm(vmm_even.getIdx());
+    Xbyak::Ymm ymm_odd = Xbyak::Ymm(vmm_odd.getIdx());
+    Xbyak::Ymm ymm_aux0 = Xbyak::Ymm(vmm_aux0.getIdx());
+    Xbyak::Ymm ymm_aux1 = Xbyak::Ymm(vmm_odd.getIdx());
+
+    host_->vpunpckldq(ymm_aux0, ymm_even, ymm_odd);
+    host_->vpunpckhdq(ymm_aux1, ymm_even, ymm_odd);
+    host_->vperm2i128(ymm_even, ymm_aux0, ymm_aux1, 0x20);
+    host_->vperm2i128(ymm_odd, ymm_aux0, ymm_aux1, 0x31);
 }
 
 template <typename Vmm>
@@ -608,10 +671,14 @@ void jit_io_helper_t<Vmm>::store(const Vmm &src_raw_vmm,
             ? (src_raw_vmm | tail_conf_->tail_opmask_)
             : src_raw_vmm;
 
+    const bool is_store_tail_supported = is_avx512;
     const bool is_i8 = utils::one_of(data_type_, data_type::s8, data_type::u8);
-    const bool is_store_tail_for_i8_supported = is_avx512;
+    const bool is_xf16
+            = utils::one_of(data_type_, data_type::bf16, data_type::f16);
+
     const bool can_store_byte_by_byte = tail
-            && (isa_ == sse41 || (!is_store_tail_for_i8_supported && is_i8));
+            && (isa_ == sse41
+                    || (!is_store_tail_supported && (is_i8 || is_xf16)));
 
     if (data_type_ == data_type::s32 || is_i8) saturate(src_raw_vmm);
 
@@ -641,22 +708,25 @@ void jit_io_helper_t<Vmm>::saturate(const Vmm &vmm) {
     host_->uni_vcvtps2dq(vmm, vmm);
 }
 
+template <>
+void jit_io_helper_t<Xbyak::Zmm>::store_byte_by_byte(const Xbyak::Zmm &src_zmm,
+        const Xbyak::Address &dst_addr, const int store_size) {
+    assert("Store byte by byte is not supported for Zmms.");
+}
+
 template <typename Vmm>
 void jit_io_helper_t<Vmm>::store_byte_by_byte(const Vmm &src_vmm,
         const Xbyak::Address &dst_addr, const int store_size) {
-    assert((src_vmm.isYMM() || src_vmm.isXMM())
-            && "Store byte by byte is not supported for Zmms.");
-
     const bool is_i8 = utils::one_of(data_type_, data_type::s8, data_type::u8);
-    if (is_i8) prepare_i8_data_to_store(src_vmm);
+    const bool is_xf16
+            = utils::one_of(data_type_, data_type::bf16, data_type::f16);
+    const auto &cvt_lower_vmm =
+            typename vreg_traits<Vmm>::Vmm_lower_t(src_vmm.getIdx());
 
-    if (src_vmm.isYMM()) {
-        const Xbyak::Ymm src_ymm(src_vmm.getIdx());
-        host_->store_bytes(src_ymm, dst_addr, store_size);
-    } else if (src_vmm.isXMM()) {
-        const Xbyak::Xmm src_xmm(src_vmm.getIdx());
-        host_->store_bytes(src_xmm, dst_addr, store_size);
-    }
+    if (is_i8) prepare_i8_data_to_store(src_vmm);
+    if (is_xf16) prepare_xf16_data_to_store(src_vmm);
+
+    host_->store_bytes(is_xf16 ? cvt_lower_vmm : src_vmm, dst_addr, store_size);
 }
 
 template <typename Vmm>
@@ -678,25 +748,20 @@ void jit_io_helper_t<Vmm>::store_bf16(
     assert((src_vmm.isZMM() || src_vmm.isYMM())
             && "Store operation for bf16 is not supported for Xmms.");
 
-    static constexpr bool is_zmm = std::is_same<Vmm, Xbyak::Zmm>::value;
-    static constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
+    const auto &cvt_lower_vmm =
+            typename vreg_traits<Vmm>::Vmm_lower_t(src_vmm.getIdx());
 
-    const Vmm src_raw_vmm(src_vmm.getIdx());
-    const Xbyak::Ymm src_ymm(src_vmm.getIdx());
-    const Xbyak::Xmm src_xmm(src_vmm.getIdx());
-    const Xbyak::Xmm &src = is_zmm ? src_ymm : src_xmm;
-    if (bf16_emu_) {
-        if (is_zmm)
-            bf16_emu_->vcvtneps2bf16(src_ymm, src_raw_vmm);
-        else if (is_ymm)
-            bf16_emu_->vcvtneps2bf16(src_xmm, src_raw_vmm);
-    } else
-        host_->vcvtneps2bf16(src, src_raw_vmm);
+    if (bf16_emu_)
+        bf16_emu_->vcvtneps2bf16(cvt_lower_vmm, src_vmm);
+    else
+        host_->vcvtneps2bf16(cvt_lower_vmm, src_vmm,
+                mayiuse(avx512_core) ? Xbyak::EvexEncoding
+                                     : Xbyak::VexEncoding);
 
     if (io_conf_.nt_stores_enabled_)
-        host_->uni_vmovntps(dst_addr, src);
+        host_->uni_vmovntps(dst_addr, cvt_lower_vmm);
     else
-        host_->vmovdqu16(dst_addr, src);
+        host_->uni_vmovdqu16(dst_addr, cvt_lower_vmm);
 }
 
 template <typename Vmm>
@@ -705,19 +770,16 @@ void jit_io_helper_t<Vmm>::store_f16(
     assert(f16_supported_ && "Unsupported data type.");
     assert((src_vmm.isZMM() || src_vmm.isYMM())
             && "Store operation for f16 is not supported for Xmms.");
-    static constexpr bool is_zmm = std::is_same<Vmm, Xbyak::Zmm>::value;
 
-    const Vmm src_raw_vmm(src_vmm.getIdx());
-    const Xbyak::Ymm src_ymm(src_vmm.getIdx());
-    const Xbyak::Xmm src_xmm(src_vmm.getIdx());
-    const Xbyak::Xmm &src = is_zmm ? src_ymm : src_xmm;
+    const auto &cvt_lower_vmm =
+            typename vreg_traits<Vmm>::Vmm_lower_t(src_vmm.getIdx());
 
-    host_->vcvtps2ph(src, src_raw_vmm, host_->_op_mxcsr);
+    host_->uni_vcvtps2phx(cvt_lower_vmm, src_vmm);
 
     if (io_conf_.nt_stores_enabled_)
-        host_->uni_vmovntps(dst_addr, src);
+        host_->uni_vmovntps(dst_addr, cvt_lower_vmm);
     else
-        host_->vmovdqu16(dst_addr, src);
+        host_->uni_vmovdqu16(dst_addr, cvt_lower_vmm);
 }
 
 template <typename Vmm>
@@ -792,7 +854,7 @@ void jit_io_helper_t<Vmm>::broadcast(
             break;
         case data_type::f16:
             assert(f16_supported_ && "Unsupported data type.");
-            host_->vcvtph2psx(dst_vmm, host_->ptr_b[src_addr.getRegExp()]);
+            host_->uni_vcvtph2psx(dst_vmm, host_->ptr_b[src_addr.getRegExp()]);
             break;
         case data_type::s32: {
             if (is_superset(isa_, avx512_core)) {

@@ -161,14 +161,23 @@ public:
             const bool tail);
     void store(const Vmm &src_vmm, const Xbyak::Address &dst_addr,
             const bool tail);
+    // Load odd and even data into two registers with ne_convert instructions
+    // Then we can call merge_interleaved_to_plain() to merge them into
+    // plain layouts when needed
+    void load_two_simdw_xf16(const Xbyak::Address &src_addr,
+            const Vmm &dst_even_vmm, const Vmm &dst_odd_vmm);
+    void merge_interleaved_to_plain(
+            const Vmm &vmm_even, const Vmm &vmm_odd, const Vmm &vmm_aux0);
 
 private:
+    bool is_data_type_supported(const data_type_t dt);
     void prepare_opmask(const std::size_t how_many_bits_to_set,
             const Xbyak::Reg64 &reg_tmp, const Xbyak::Opmask &mask);
     void prepare_vmm_mask(const std::size_t how_many_bits_to_set,
             const std::size_t simd_w, const Xbyak::Reg64 &reg_tmp,
             const Vmm &mask);
     void prepare_i8_data_to_store(const Vmm &i8_vmm);
+    void prepare_xf16_data_to_store(const Vmm &vmm);
     // Emulates the behavior of vgatherdps for architectures
     // that do not support this instruction.
     void emu_gather(const Xbyak::Reg64 &src_reg, const Vmm &indices_vmm,
