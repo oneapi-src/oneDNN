@@ -389,7 +389,7 @@ void sycl_get_started_tutorial(engine::kind ekind) {
     strm.wait();
     // clang-format on
 
-    /// @page sycl_get_started_cpp Getting started on GPU with SYCL extensions API
+    /// @page sycl_get_started_cpp
 }
 
 int main(int argc, char **argv) {
