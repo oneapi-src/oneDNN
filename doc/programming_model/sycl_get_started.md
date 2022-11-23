@@ -2,7 +2,7 @@
 
 @warning This tutorial is deprecated due to the programming model changes and
 will be removed soon, please refer to
-[sycl_simple_pattern.cpp](../../examples/cpp/src/sycl_simple_pattern.cpp) for
+[sycl_get_started.cpp](../../examples/cpp/sycl_get_started.cpp) for
 latest version.
 
 This is an example to demonstrate how to build a simple graph and run on CPU/GPU
@@ -18,9 +18,6 @@ In this example, you will learn the below things about oneDNN Graph.
 **Note**: currently, oneDNN Graph has limited support for direct programming
 model. For example, users need to know how many inputs/outputs of a self-defined
 pattern or partition.
-
-The full example code can be found at
-[sycl_get_started.cpp](../../examples/cpp/src/sycl_get_started.cpp).
 
 ## Public headers
 
@@ -47,7 +44,7 @@ In this section, firstly we will build a graph containing the pattern like
 determined by backend.
 
 To create a graph,
-[`dnnl::graph::engine::kind`](../../include/oneapi/dnnl/dnnl_graph.hpp#L102) is
+[`dnnl::graph::engine::kind`](../../include/oneapi/dnnl/dnnl_graph.hpp#L259) is
 needed because the returned partitions may vary on different devices.
 
 ~~~cpp
@@ -56,7 +53,7 @@ graph g(engine_kind);
 
 To build a graph, the connection relationship of different ops must be known. In
 oneDNN Graph, the `id` of
-[`dnnl::graph::logical_tensor`](../../include/oneapi/dnnl/dnnl_graph.hpp#L290)
+[`dnnl::graph::logical_tensor`](../../include/oneapi/dnnl/dnnl_graph.hpp#L365)
 is used to express such relationship. Besides that, a logical tensor describes
 the metadata of a tensor, like element data type, number of dimensions, size for
 each dimension (shape), layout, and the total size of the data.
@@ -114,7 +111,7 @@ g.add_op(conv1_bias_add);
 ~~~
 
 Then by calling
-[`get_partitions()`](../../include/oneapi/dnnl/dnnl_graph.hpp#L1287), users can
+[`get_partitions()`](../../include/oneapi/dnnl/dnnl_graph.hpp#L1894), users can
 get several partitions. In this example, there should be two partitions:
 `conv0+relu0` and `conv1+relu1`.
 
@@ -135,8 +132,8 @@ sycl::queue q = (engine_kind == engine::kind::gpu) ? sycl::queue(gpu_selector {}
 ~~~
 
 Based on the above `sycl::queue`, users can create a
-[dnnl::graph::allocator](../../include/oneapi/dnnl/dnnl_graph.hpp#L45) and
-[dnnl::graph::engine](../../include/oneapi/dnnl/dnnl_graph.hpp#L97). Here,
+[dnnl::graph::allocator](../../include/oneapi/dnnl/dnnl_graph.hpp#L215) and
+[dnnl::graph::engine](../../include/oneapi/dnnl/dnnl_graph.hpp#L254). Here,
 `sycl_malloc_wrapper` and `sycl_free_wrapper` are call-back functions and also
 provided by frameworks.
 
@@ -179,7 +176,7 @@ auto cp1 = partitions[1].compile({relu0_dst_desc_plain, conv1_weight_desc_plain,
 ### Execute the compiled partitions
 
 In oneDNN Graph, a
-[dnnl::grap::stream](../../include/oneapi/dnnl/dnnl_graph.hpp#L239) is the
+[dnnl::grap::stream](../../include/oneapi/dnnl/dnnl_graph.hpp#L318) is the
 logical abstraction for execution units. It is created on top of oneDNN Graph
 engine. For SYCL device, it also contains an opencl queue.
 
@@ -190,7 +187,7 @@ auto strm = sycl_interop::make_stream(eng, q);
 Since this example is to show how to run on a SYCL device, users need to prepare
 SYCL memory buffer firstly. In the real world, these buffers are probably
 already prepared by frameworks. Here, we use
-[`malloc_shared`](https://docs.oneapi.com/versions/latest/dpcpp/iface/usm-malloc.html#sycl-malloc-shared)
+[`malloc_shared`](https://oneapi-src.github.io/DPCPP_Reference/iface/usm-malloc.html#sycl-malloc-shared)
 to request USM buffers which is an interface provided by DPCPP.
 
 ~~~cpp
@@ -204,7 +201,7 @@ auto relu1_dst_data = (float *)malloc_shared(static_cast<size_t>(product(dst1_di
 ~~~
 
 Before the execution, users also need to bind the logical tensor and memory
-buffer to [dnnl::graph::tensor](../../include/oneapi/dnnl/dnnl_graph.hpp#L542).
+buffer to [dnnl::graph::tensor](../../include/oneapi/dnnl/dnnl_graph.hpp#L678).
 
 ~~~cpp
 tensor conv0_src(conv0_src_desc_plain, eng, conv0_src_data);
