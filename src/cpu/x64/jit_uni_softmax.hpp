@@ -78,16 +78,19 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                     && utils::one_of(dst_dt, f32, bf16, f16, s8, u8)
                     // s8/u8 are temporary limitations due to priorities
                     && IMPLICATION(
-                            (utils::one_of(bf16, src_dt, dst_dt)
-                                    || utils::one_of(s8, src_dt, dst_dt)
+                            (utils::one_of(s8, src_dt, dst_dt)
                                     || utils::one_of(u8, src_dt, dst_dt)),
                             is_superset(isa, avx512_core))
-                    // for f16 we reuse avx512_core just to avoid additional
-                    // instantiation. Possible because we do not currently
-                    // support post-ops for this primitive
+                    && IMPLICATION(utils::one_of(bf16, src_dt, dst_dt),
+                            (is_superset(isa, avx512_core)
+                                    || (isa == avx2 && mayiuse(avx2_vnni_2))))
+                    // for f16 we reuse avx512_core/avx2 just to avoid
+                    // additional instantiation. Possible because we do not
+                    // currently support post-ops for this primitive
                     && IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
-                            is_superset(isa, avx512_core)
+                            (is_superset(isa, avx512_core)
                                     && mayiuse(avx512_core_fp16))
+                                    || (isa == avx2 && mayiuse(avx2_vnni_2)))
                     && attr()->has_default_values(skip_mask_t::scales_runtime)
                     && attr_scales_ok()
                     && set_default_formats() == status::success;
@@ -96,6 +99,13 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             ok = memory_desc_wrapper(src_md()).similar_to(
                          memory_desc_wrapper(dst_md()), true, false, 0)
                     && is_dense(); // not dense impl can be easily done
+            if (!ok) return status::unimplemented;
+
+            // AVX2 only supports xf16 on plain layout now
+            ok = IMPLICATION(isa == avx2 && mayiuse(avx2_vnni_2)
+                            && (utils::one_of(bf16, src_dt, dst_dt)
+                                    || utils::one_of(f16, src_dt, dst_dt)),
+                    memory_desc_wrapper(src_md()).is_plain());
             if (!ok) return status::unimplemented;
 
             nthr_ = dnnl_get_max_threads();

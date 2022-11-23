@@ -108,6 +108,7 @@ struct jit_softmax_t : public jit_generator {
 
     bool is_bf16_ = false;
     bool is_f16_ = false;
+    bool is_avx2_ne_xf16_ = false;
     bool is_softmax_ = pd_->is_softmax();
     bool is_logsoftmax_ = pd_->is_logsoftmax();
     bool axis_is_blocked_;
@@ -150,6 +151,10 @@ struct jit_softmax_t : public jit_generator {
                     : is_reuse_avx2 ? avx2_vnni_2 : isa;
         } else
             return isa;
+    }
+
+    bool is_data_type_xf16(data_type_t dt) {
+        return utils::one_of(dt, data_type::bf16, data_type::f16);
     }
 
     void compute_predefined_variables() {
@@ -363,7 +368,39 @@ struct jit_softmax_t : public jit_generator {
         io_[dt]->store(src_vmm, addr, tail && !axis_is_blocked_);
     }
 
+    // Use ne_convert instruction to load xf16 even/odd elements from memory
+    void accumulate_avx2_ne_xf16_vmax() {
+        // flush to -FLT_MAX before accumulation
+        uni_vmovups(vmax, vneg_flt_max);
+
+        axis_loop([&](int unroll, bool tail = false) {
+            for (int i = 0; i < unroll; i += 2) {
+                const bool can_load_two_simdw = unroll - i >= 2;
+                Vmm vreg_tmp_src_even = Vmm(i + 1);
+                Vmm vreg_tmp_src_odd = Vmm(i + 2);
+                vtmp = Vmm(i + 3);
+                if (can_load_two_simdw) {
+                    io_[src_d_.data_type()]->load_two_simdw_xf16(
+                            src_ptr(src_axis_stride_ * i), vreg_tmp_src_even,
+                            vreg_tmp_src_odd);
+                } else
+                    io_[src_d_.data_type()]->load(src_ptr(src_axis_stride_ * i),
+                            vreg_tmp_src_even, tail);
+                uni_vmaxps_maybe_tail(vmax, vreg_tmp_src_even, vtmp, tail);
+                if (can_load_two_simdw)
+                    uni_vmaxps_maybe_tail(vmax, vreg_tmp_src_odd, vtmp, tail);
+            }
+        });
+
+        get_horizontal_op(vmax, vtmp = vsum, op_t::max);
+    }
+
     void accumulate_vmax() {
+        if (is_avx2_ne_xf16_ && is_data_type_xf16(src_d_.data_type())) {
+            accumulate_avx2_ne_xf16_vmax();
+            return;
+        }
+
         // flush to -FLT_MAX before accumulation
         uni_vmovups(vmax, vneg_flt_max);
 
@@ -386,7 +423,55 @@ struct jit_softmax_t : public jit_generator {
         get_horizontal_op(vmax, vtmp = vsum, op_t::max);
     }
 
+    // Use ne_convert instruction to load xf16 even/odd elements from memory
+    void accumulate_avx2_ne_xf16_vsum() {
+        // Initialize saturation vector register
+        io_.init_saturate_f32({dst_d_.data_type()});
+
+        uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
+
+        axis_loop([&](int unroll, bool tail = false) {
+            for (int i = 0; i < unroll; i += 2) {
+                const bool can_load_two_simdw = unroll - i >= 2;
+                Vmm vreg_tmp_src_even = Vmm(i + 1);
+                Vmm vreg_tmp_src_odd = Vmm(i + 2);
+                vtmp = Vmm(i + 3);
+                if (can_load_two_simdw) {
+                    io_[src_d_.data_type()]->load_two_simdw_xf16(
+                            src_ptr(src_axis_stride_ * i), vreg_tmp_src_even,
+                            vreg_tmp_src_odd);
+                    io_[src_d_.data_type()]->merge_interleaved_to_plain(
+                            vreg_tmp_src_even, vreg_tmp_src_odd, vtmp);
+                } else
+                    io_[src_d_.data_type()]->load(src_ptr(src_axis_stride_ * i),
+                            vreg_tmp_src_even, tail);
+                for (int i_odd = 0; i_odd < 2 && i_odd + i < unroll; i_odd++) {
+                    const auto vreg_tmp_src
+                            = i_odd ? vreg_tmp_src_odd : vreg_tmp_src_even;
+                    uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
+                    if (is_logsoftmax_) // store before applying exp
+                        store(dst_ptr(dst_axis_stride_ * (i + i_odd)),
+                                vreg_tmp_src, dst_d_.data_type(), tail);
+                    exp_injector_->compute_vector(vreg_tmp_src.getIdx());
+                    uni_vaddps_maybe_tail(vsum, vreg_tmp_src, vtmp, tail);
+                    if (is_softmax_) // store after applying exp
+                        store(dst_ptr(dst_axis_stride_ * (i + i_odd)),
+                                vreg_tmp_src, dst_d_.data_type(), tail);
+                }
+            }
+        });
+
+        get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
+        if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp = vmax);
+        if (is_logsoftmax_) log_injector_->compute_vector(vsum.getIdx());
+    }
+
     void accumulate_vsum() {
+        if (is_avx2_ne_xf16_ && is_data_type_xf16(src_d_.data_type())) {
+            accumulate_avx2_ne_xf16_vsum();
+            return;
+        }
+
         // Initialize saturation vector register
         io_.init_saturate_f32({dst_d_.data_type()});
 
@@ -425,7 +510,44 @@ struct jit_softmax_t : public jit_generator {
         if (is_logsoftmax_) log_injector_->compute_vector(vsum.getIdx());
     }
 
+    // Use ne_convert instruction to load xf16 even/odd elements from memory
+    void compute_avx2_ne_xf16_dst() {
+        axis_loop([&](int unroll, bool tail = false) {
+            for (int i = 0; i < unroll; i += 2) {
+                const bool can_load_two_simdw = unroll - i >= 2;
+                Vmm vreg_tmp_src_even = Vmm(i + 1);
+                Vmm vreg_tmp_src_odd = Vmm(i + 2);
+                vtmp = Vmm(i + 3);
+                if (can_load_two_simdw) {
+                    io_[dst_d_.data_type()]->load_two_simdw_xf16(
+                            dst_ptr(dst_axis_stride_ * i), vreg_tmp_src_even,
+                            vreg_tmp_src_odd);
+                    io_[dst_d_.data_type()]->merge_interleaved_to_plain(
+                            vreg_tmp_src_even, vreg_tmp_src_odd, vtmp);
+                } else
+                    io_[dst_d_.data_type()]->load(dst_ptr(dst_axis_stride_ * i),
+                            vreg_tmp_src_even, tail);
+                for (int i_odd = 0; i_odd < 2 && i_odd + i < unroll; i_odd++) {
+                    const auto vreg_tmp_src
+                            = i_odd ? vreg_tmp_src_odd : vreg_tmp_src_even;
+                    if (is_softmax_)
+                        uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
+                    if (is_logsoftmax_)
+                        uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
+
+                    store(dst_ptr(dst_axis_stride_ * (i + i_odd)), vreg_tmp_src,
+                            dst_d_.data_type(), tail);
+                }
+            }
+        });
+    }
+
     void compute_dst() {
+        if (is_avx2_ne_xf16_ && is_data_type_xf16(dst_d_.data_type())) {
+            compute_avx2_ne_xf16_dst();
+            return;
+        }
+
         axis_loop([&](int unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
@@ -555,6 +677,8 @@ struct jit_softmax_t : public jit_generator {
         is_f16_ = utils::one_of(
                 data_type::f16, src_d_.data_type(), dst_d_.data_type());
         simd_w_ = vlen / sizeof(float); // bf16 works on ymms
+        is_avx2_ne_xf16_
+                = isa == avx2 && mayiuse(avx2_vnni_2) && (is_bf16_ || is_f16_);
         axis_simd_full_ = pd_->axis_size() / simd_w_;
         axis_simd_tail_ = pd_->axis_size() % simd_w_;
         need_scratchpad_ = utils::one_of(
