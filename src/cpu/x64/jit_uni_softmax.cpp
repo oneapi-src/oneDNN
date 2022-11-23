@@ -30,6 +30,7 @@
 
 #include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_uni_softmax.hpp"
+#include "cpu/x64/utils/jit_io_helper.hpp"
 
 #if defined(__INTEL_COMPILER) && (__INTEL_COMPILER < 1900)
 // Intel Compilers 17.x and 18.x do not like that diff_src_ptr() is only used
@@ -47,7 +48,7 @@ namespace x64 {
 using namespace Xbyak;
 
 template <cpu_isa_t isa>
-struct jit_softmax_base_t : public jit_generator {
+struct jit_softmax_t : public jit_generator {
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
         const void *src, *dst, *diff_dst; // src dubs as diff_src
@@ -66,8 +67,8 @@ struct jit_softmax_base_t : public jit_generator {
 
     const softmax_pd_t *pd_;
     const memory_desc_wrapper src_d_, dst_d_, diff_dst_d_;
+    io::jit_io_multi_dt_helper_t<Vmm> io_;
 
-    virtual void operator()(const call_params_t *p) = 0;
     std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> exp_injector_;
     std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> log_injector_;
 
@@ -102,6 +103,7 @@ struct jit_softmax_base_t : public jit_generator {
     Vmm vmax = Vmm(isa == avx512_core ? 31 : 15);
     Vmm vsbr = vsum; // must be not equal to vmax
     Vmm vzero = Vmm(isa == avx512_core ? 21 : 11);
+    Vmm vcvt_vmm = Vmm(isa == avx512_core ? 22 : 10);
     Vmm vsaturation_ubound = vneg_flt_max;
 
     bool is_bf16_ = false;
@@ -124,9 +126,33 @@ struct jit_softmax_base_t : public jit_generator {
     size_t dst_axis_stride_;
     size_t diff_dst_axis_stride_;
 
+    const int bf16_emu_zmm_1_idx_ = 23;
+    const int bf16_emu_zmm_2_idx_ = 24;
+    const int bf16_emu_zmm_3_idx_ = 25;
+    const int bf16_emu_zmm_4_idx_ = 26;
+    const int tail_opmask_idx_ = 2;
+
+    Opmask tail_opmask = Opmask(tail_opmask_idx_);
+
+    void operator()(const call_params_t *p) {
+        return jit_generator::operator()(p);
+    }
+
+    cpu_isa_t get_io_isa() {
+        // reusing avx512_core instantiation for xf16 on AVX512_CORE+
+        // reusing avx2 instantiation for xf16 on AVX2_VNNI_2
+        const bool is_reuse_avx512_core = isa == avx512_core
+                && (mayiuse(avx512_core_bf16) || mayiuse(avx512_core_fp16));
+        const bool is_reuse_avx2 = isa == avx2 && mayiuse(avx2_vnni_2);
+        if (is_bf16_ || is_f16_) {
+            return is_reuse_avx512_core
+                    ? is_f16_ ? avx512_core_fp16 : avx512_core_bf16
+                    : is_reuse_avx2 ? avx2_vnni_2 : isa;
+        } else
+            return isa;
+    }
+
     void compute_predefined_variables() {
-        axis_simd_full_ = pd_->axis_size() / simd_w_;
-        axis_simd_tail_ = pd_->axis_size() % simd_w_;
         n_loops_ = axis_simd_full_ / unroll_regs_;
         loop_tail_ = axis_simd_full_ - n_loops_ * unroll_regs_;
         process_n_elems_ = compute_process_n_elems(dst_d_);
@@ -202,6 +228,27 @@ struct jit_softmax_base_t : public jit_generator {
             uni_vaddps(v, v, vtmp);
     }
 
+    void get_horizontal_op(const Vmm &vsrc, const Vmm &vtmp, op_t op) {
+        const Zmm &zsrc = Zmm(vsrc.getIdx());
+        const Zmm &ztmp = Zmm(vtmp.getIdx());
+        const Ymm &ysrc = Ymm(vsrc.getIdx());
+        const Ymm &ytmp = Ymm(vtmp.getIdx());
+
+        if (is_superset(isa, avx512_core)) {
+            vshuff32x4(ztmp, zsrc, zsrc, 0x4E); // 256-bit shuffle
+            perform_op(vsrc, vtmp, op);
+            vshuff32x4(ztmp, zsrc, zsrc, 0xB1); // 128/256-bit shuffle
+            perform_op(vsrc, vtmp, op);
+        } else if (is_superset(isa, avx2)) {
+            vperm2f128(ytmp, ysrc, ysrc, 0x1); // 128/256-bit shuffle
+            perform_op(vsrc, vtmp, op);
+        }
+        uni_vshufps(vtmp, vsrc, vsrc, 0x4E); // 64/128-bit shuffle
+        perform_op(vsrc, vtmp, op);
+        uni_vshufps(vtmp, vsrc, vsrc, 0xB1); // 32/64-bit shuffle
+        perform_op(vsrc, vtmp, op);
+    }
+
     template <typename body_t>
     void axis_loop(body_t body) {
         Label main_loop, tail_loop, tail_axis;
@@ -255,14 +302,206 @@ struct jit_softmax_base_t : public jit_generator {
         }
     }
 
-    virtual void prepare_tail_mask() = 0;
-    virtual void get_horizontal_op(const Vmm &v, const Vmm &vtmp, op_t op) = 0;
-    virtual void accumulate_vmax() = 0;
-    virtual void accumulate_vsum() = 0;
-    virtual void compute_dst() = 0;
-    virtual void initialization_hook() {}
-    virtual void accumulate_vsbr() {}
-    virtual void compute_diff_src() {}
+    void uni_vaddps_maybe_tail(
+            const Vmm &v1, const Vmm &v2, const Vmm &vtmp, const bool tail) {
+        if (tail) {
+            if (is_superset(isa, avx512_core)) {
+                uni_vaddps(v1 | tail_opmask, v1, v2);
+            } else {
+                uni_vpxor(vtmp, vtmp, vtmp);
+                uni_vblendvps(vtmp, vtmp, v2, tail_vmask);
+                uni_vaddps(v1, v1, vtmp);
+            }
+        } else
+            uni_vaddps(v1, v1, v2);
+    }
+
+    void uni_vmaxps_maybe_tail(
+            const Vmm &v1, const Vmm &v2, const Vmm &vtmp, const bool tail) {
+        if (tail) {
+            if (is_superset(isa, avx512_core)) {
+                uni_vmaxps(v1 | tail_opmask, v1, v2);
+            } else if (is_superset(isa, avx)) {
+                uni_vblendvps(v2, vneg_flt_max, v2, tail_vmask);
+                uni_vmaxps(v1, v1, v2);
+            } else {
+                uni_vmovups(vtmp, v2);
+                uni_vmovups(v2, vneg_flt_max);
+                uni_vblendvps(v2, v2, vtmp, tail_vmask);
+                uni_vmaxps(v1, v1, v2);
+            }
+        } else
+            uni_vmaxps(v1, v1, v2);
+    }
+
+    void store(const Address &addr, const Vmm &vmm, data_type_t dt,
+            bool tail = false) {
+        // Use temporary register in storing when convertion is needed
+        // Or we need to restore data back to fp32 since we apply exp after
+        // storing and data should be fp32
+        const bool need_restore = is_logsoftmax_ && dt != data_type::f32;
+        Vmm src_vmm = vmm;
+
+        if (tail && axis_is_blocked_) {
+            if (is_superset(isa, avx512_core)
+                    && utils::one_of(dt, data_type::f32, data_type::bf16,
+                            data_type::f16)) {
+                src_vmm = vzero | tail_opmask;
+                uni_vxorps(vzero, vzero, vzero);
+                uni_vmovups(src_vmm, vmm);
+                src_vmm = vzero;
+            } else {
+                uni_vpxor(vzero, vzero, vzero);
+                uni_vblendvps(vzero, vzero, src_vmm, tail_vmask);
+                src_vmm = vzero;
+            }
+        } else if (need_restore) {
+            uni_vmovups(vcvt_vmm, vmm);
+            src_vmm = vcvt_vmm;
+        }
+
+        io_[dt]->store(src_vmm, addr, tail && !axis_is_blocked_);
+    }
+
+    void accumulate_vmax() {
+        // flush to -FLT_MAX before accumulation
+        uni_vmovups(vmax, vneg_flt_max);
+
+        axis_loop([&](int unroll, bool tail = false) {
+            for (int i = 0; i < unroll; i++) {
+                Vmm vreg_tmp_src = Vmm(i + 1);
+                vtmp = Vmm(i + 2);
+                // do maxps directly from memory on f32 avx2 for performance purpose
+                if (!tail && isa == avx2
+                        && src_d_.data_type() == data_type::f32) {
+                    uni_vmaxps(vmax, vmax, src_ptr(src_axis_stride_ * i));
+                } else {
+                    io_[src_d_.data_type()]->load(
+                            src_ptr(src_axis_stride_ * i), vreg_tmp_src, tail);
+                    uni_vmaxps_maybe_tail(vmax, vreg_tmp_src, vtmp, tail);
+                }
+            }
+        });
+
+        get_horizontal_op(vmax, vtmp = vsum, op_t::max);
+    }
+
+    void accumulate_vsum() {
+        // Initialize saturation vector register
+        io_.init_saturate_f32({dst_d_.data_type()});
+
+        uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
+
+        axis_loop([&](int unroll, bool tail = false) {
+            for (int i = 0; i < unroll; i++) {
+                Vmm vreg_tmp_src = Vmm(i + 1);
+                vtmp = Vmm(i + 2);
+                io_[src_d_.data_type()]->load(
+                        src_ptr(src_axis_stride_ * i), vreg_tmp_src, tail);
+                uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
+                if (is_logsoftmax_) { // store before applying exp
+                    if (need_scratchpad_)
+                        store(interim_ptr(interim_axis_stride_ * i),
+                                vreg_tmp_src, data_type::f32, tail);
+                    else
+                        store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
+                                dst_d_.data_type(), tail);
+                }
+                exp_injector_->compute_vector(vreg_tmp_src.getIdx());
+                uni_vaddps_maybe_tail(vsum, vreg_tmp_src, vtmp, tail);
+                if (is_softmax_) { // store after applying exp
+                    if (need_scratchpad_)
+                        store(interim_ptr(interim_axis_stride_ * i),
+                                vreg_tmp_src, data_type::f32, tail);
+                    else
+                        store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
+                                dst_d_.data_type(), tail);
+                }
+            }
+        });
+
+        get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
+        if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp = vmax);
+        if (is_logsoftmax_) log_injector_->compute_vector(vsum.getIdx());
+    }
+
+    void compute_dst() {
+        axis_loop([&](int unroll, bool tail = false) {
+            for (int i = 0; i < unroll; i++) {
+                Vmm vreg_tmp_src = Vmm(i + 1);
+                if (need_scratchpad_)
+                    io_[data_type::f32]->load(
+                            interim_ptr(interim_axis_stride_ * i), vreg_tmp_src,
+                            tail);
+                else
+                    io_[dst_d_.data_type()]->load(
+                            dst_ptr(dst_axis_stride_ * i), vreg_tmp_src, tail);
+
+                if (is_softmax_) uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
+                if (is_logsoftmax_)
+                    uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
+
+                if (is_superset(isa, avx512_core)) {
+                    Vmm vscale = vmax;
+                    uni_vmovups(vscale, ptr[reg_src_scales]);
+                    uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
+                    // Reserved spot for post-ops injector
+                    uni_vmovups(vscale, ptr[reg_dst_scales]);
+                    uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
+                }
+                store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
+                        dst_d_.data_type(), tail);
+            }
+        });
+    }
+
+    void accumulate_vsbr() {
+        uni_vpxor(vsbr, vsbr, vsbr); // flush to zero before accumulation
+
+        axis_loop([&](int unroll, bool tail = false) {
+            for (int i = 0; i < unroll; i++) {
+                Vmm vreg_tmp_dst = Vmm(i * 2 + 1);
+                Vmm vreg_tmp_diff_dst = Vmm(i * 2 + 2);
+                io_[diff_dst_d_.data_type()]->load(
+                        diff_dst_ptr(diff_dst_axis_stride_ * i),
+                        vreg_tmp_diff_dst, tail);
+                if (is_softmax_) {
+                    io_[dst_d_.data_type()]->load(
+                            dst_ptr(dst_axis_stride_ * i), vreg_tmp_dst, tail);
+                    uni_vmulps(
+                            vreg_tmp_diff_dst, vreg_tmp_diff_dst, vreg_tmp_dst);
+                }
+                uni_vaddps(vsbr, vsbr, vreg_tmp_diff_dst);
+            }
+        });
+
+        get_horizontal_op(vsbr, vtmp = vmax, op_t::sum);
+    }
+
+    void compute_diff_src() {
+        axis_loop([&](int unroll, bool tail = false) {
+            for (int i = 0; i < unroll; i++) {
+                Vmm vreg_tmp_dst = Vmm(i * 2 + 1);
+                Vmm vreg_tmp_diff_dst = Vmm(i * 2 + 2);
+                io_[dst_d_.data_type()]->load(
+                        dst_ptr(dst_axis_stride_ * i), vreg_tmp_dst, tail);
+                io_[diff_dst_d_.data_type()]->load(
+                        diff_dst_ptr(diff_dst_axis_stride_ * i),
+                        vreg_tmp_diff_dst, tail);
+                if (is_softmax_) {
+                    uni_vsubps(vreg_tmp_diff_dst, vreg_tmp_diff_dst, vsbr);
+                    uni_vmulps(
+                            vreg_tmp_diff_dst, vreg_tmp_dst, vreg_tmp_diff_dst);
+                }
+                if (is_logsoftmax_) {
+                    exp_injector_->compute_vector(vreg_tmp_dst.getIdx());
+                    uni_vfnmadd231ps(vreg_tmp_diff_dst, vreg_tmp_dst, vsbr);
+                }
+                store(diff_src_ptr(src_axis_stride_ * i), vreg_tmp_diff_dst,
+                        src_d_.data_type(), tail);
+            }
+        });
+    }
 
     void forward() {
         accumulate_vmax();
@@ -291,10 +530,10 @@ struct jit_softmax_base_t : public jit_generator {
 
         compute_predefined_variables();
         preamble();
-        initialization_hook();
+        io_.init_bf16();
         if (exp_injector_) exp_injector_->load_table_addr();
         if (log_injector_) log_injector_->load_table_addr();
-        if (axis_simd_tail_) prepare_tail_mask();
+        if (axis_simd_tail_) io_.prepare_tail_mask();
         load_common_params();
         if (pd_->is_fwd())
             forward();
@@ -305,7 +544,7 @@ struct jit_softmax_base_t : public jit_generator {
         if (log_injector_) log_injector_->prepare_table();
     }
 
-    jit_softmax_base_t(const softmax_pd_t *pd)
+    jit_softmax_t(const softmax_pd_t *pd)
         : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
         , pd_(pd)
         , src_d_(pd_->is_fwd() ? pd_->src_md() : pd_->diff_src_md())
@@ -316,536 +555,25 @@ struct jit_softmax_base_t : public jit_generator {
         is_f16_ = utils::one_of(
                 data_type::f16, src_d_.data_type(), dst_d_.data_type());
         simd_w_ = vlen / sizeof(float); // bf16 works on ymms
+        axis_simd_full_ = pd_->axis_size() / simd_w_;
+        axis_simd_tail_ = pd_->axis_size() % simd_w_;
         need_scratchpad_ = utils::one_of(
                 dst_d_.data_type(), data_type::u8, data_type::s8);
+
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
+                tail_opmask_idx_, tail_vmask.getIdx(), reg_tmp);
+        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1_idx_,
+                bf16_emu_zmm_2_idx_, bf16_emu_zmm_3_idx_, reg_tmp,
+                bf16_emu_zmm_4_idx_);
+        io::io_saturation_conf_t io_saturation_conf(
+                vzero.getIdx(), vsaturation_ubound.getIdx(), reg_tmp);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, get_io_isa(),
+                {src_d_.data_type(), dst_d_.data_type(),
+                        data_type::f32 /* stats */},
+                io_conf, io_tail_conf, io_bf16_conf,
+                {{dst_d_.data_type(), io_saturation_conf}});
     }
-};
-
-template <cpu_isa_t isa>
-struct jit_softmax_t;
-
-template <>
-struct jit_softmax_t<avx512_core> : public jit_softmax_base_t<avx512_core> {
-    std::unique_ptr<bf16_emulation_t> bf16_emu_ = nullptr;
-    Ymm bf16_cvt_ymm = Ymm(22);
-    Zmm bf16_emu_zmm_1 = Zmm(23);
-    Zmm bf16_emu_zmm_2 = Zmm(24);
-    Zmm bf16_emu_zmm_3 = Zmm(25);
-    Zmm bf16_emu_zmm_4 = Zmm(26);
-    Zmm bf16_emu_zmm_5 = Zmm(27);
-    Reg64 bf16_emu_gpr = reg_tmp;
-
-    Opmask tail_opmask = Opmask(2);
-
-    void store(const Address &addr, const Vmm &vmm, data_type_t dt,
-            bool tail = false) {
-        auto effective_addr = addr;
-        Vmm src_vmm = vmm;
-
-        if (tail) {
-            if (utils::one_of(
-                        dt, data_type::f32, data_type::bf16, data_type::f16)) {
-                if (axis_is_blocked_) {
-                    src_vmm = vzero | tail_opmask;
-                    uni_vxorps(vzero, vzero, vzero);
-                    uni_vmovups(src_vmm, vmm);
-                    src_vmm = vzero;
-                    effective_addr = addr;
-                } else {
-                    effective_addr = addr | tail_opmask;
-                }
-            } else { // int8 store instructions assume mask on register
-                src_vmm = src_vmm | tail_opmask;
-            }
-        }
-
-        switch (dt) {
-            case data_type::f32: uni_vmovups(effective_addr, src_vmm); break;
-            case data_type::bf16:
-                if (bf16_emu_)
-                    bf16_emu_->vcvtneps2bf16(bf16_cvt_ymm, src_vmm);
-                else
-                    vcvtneps2bf16(bf16_cvt_ymm, src_vmm);
-                vmovdqu16(effective_addr, bf16_cvt_ymm);
-                break;
-            case data_type::f16:
-                vcvtps2ph(effective_addr, src_vmm, _op_mxcsr);
-                break;
-            case data_type::u8:
-                uni_vxorps(vzero, vzero, vzero); // since vzero might be spoiled
-                saturate_f32(vmm, vzero, vsaturation_ubound, data_type::u8);
-                vcvtps2dq(vmm, vmm);
-                vpmovusdb(effective_addr, src_vmm);
-                // Need to restore data back to fp32 since we apply exp after
-                // storing and data should be fp32.
-                if (is_logsoftmax_) vcvtdq2ps(vmm, vmm);
-                break;
-            case data_type::s8:
-                saturate_f32(vmm, vzero, vsaturation_ubound, data_type::s8);
-                vcvtps2dq(vmm, vmm);
-                vpmovsdb(effective_addr, src_vmm);
-                // Need to restore data back to fp32 since we apply exp after
-                // storing and data should be fp32.
-                if (is_logsoftmax_) vcvtdq2ps(vmm, vmm);
-                break;
-            default: assert(!"unsupported"); break;
-        }
-    };
-
-    void load(const Vmm &vmm, const Address &addr, data_type_t dt,
-            bool tail = false) {
-        auto effective_vmm = vmm;
-        if (tail) effective_vmm = vmm | tail_opmask | T_z;
-
-        switch (dt) {
-            case data_type::f32: uni_vmovups(effective_vmm, addr); break;
-            case data_type::bf16:
-                vpmovzxwd(effective_vmm, addr);
-                vpslld(effective_vmm, effective_vmm, 0x10);
-                break;
-            case data_type::f16: vcvtph2psx(effective_vmm, addr); break;
-            case data_type::u8:
-                vpmovzxbd(effective_vmm, addr);
-                vcvtdq2ps(effective_vmm, effective_vmm);
-                break;
-            case data_type::s8:
-                vpmovsxbd(effective_vmm, addr);
-                vcvtdq2ps(effective_vmm, effective_vmm);
-                break;
-            default: assert(!"unsupported"); break;
-        }
-    };
-
-    void prepare_tail_mask() override {
-        const int mask_f32 = (1 << axis_simd_tail_) - 1;
-        Reg32 regw_tmp = reg_tmp.cvt32();
-        mov(regw_tmp, mask_f32);
-        kmovw(tail_opmask, regw_tmp);
-    }
-
-    void get_horizontal_op(const Vmm &v, const Vmm &vtmp, op_t op) override {
-        vshuff32x4(vtmp, v, v, 0x4E); // 256-bit shuffle
-        perform_op(v, vtmp, op);
-        vshuff32x4(vtmp, v, v, 0xB1); // 128/256-bit shuffle
-        perform_op(v, vtmp, op);
-        vshufps(vtmp, v, v, 0x4E); // 64/128-bit shuffle
-        perform_op(v, vtmp, op);
-        vshufps(vtmp, v, v, 0xB1); // 32/64-bit shuffle
-        perform_op(v, vtmp, op);
-    }
-
-    void accumulate_vmax() override {
-        // flush to -FLT_MAX before accumulation
-        uni_vmovups(vmax, vneg_flt_max);
-
-        axis_loop([&](int unroll, bool tail = false) {
-            for (int i = 0; i < unroll; i++) {
-                Vmm vreg_tmp_src = Vmm(i + 1);
-                load(vreg_tmp_src, src_ptr(src_axis_stride_ * i),
-                        src_d_.data_type(), tail);
-                if (tail)
-                    uni_vmaxps(vmax | tail_opmask, vmax, vreg_tmp_src);
-                else
-                    uni_vmaxps(vmax, vmax, vreg_tmp_src);
-            }
-        });
-
-        get_horizontal_op(vmax, vtmp = vsum, op_t::max);
-    }
-
-    void accumulate_vsum() override {
-        // Initialize saturation vector register
-        if (utils::one_of(dst_d_.data_type(), data_type::u8, data_type::s8)) {
-            init_saturate_f32(vzero, vsaturation_ubound, reg_tmp,
-                    data_type::f32, dst_d_.data_type());
-        }
-
-        uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
-
-        axis_loop([&](int unroll, bool tail = false) {
-            for (int i = 0; i < unroll; i++) {
-                Vmm vreg_tmp_src = Vmm(i + 1);
-                load(vreg_tmp_src, src_ptr(src_axis_stride_ * i),
-                        src_d_.data_type(), tail);
-                uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                if (is_logsoftmax_) { // store before applying exp
-                    if (need_scratchpad_) {
-                        store(interim_ptr(interim_axis_stride_ * i),
-                                vreg_tmp_src, data_type::f32, tail);
-                    } else {
-                        store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
-                                dst_d_.data_type(), tail);
-                    }
-                }
-                exp_injector_->compute_vector(vreg_tmp_src.getIdx());
-                if (tail)
-                    uni_vaddps(vsum | tail_opmask, vsum, vreg_tmp_src);
-                else
-                    uni_vaddps(vsum, vsum, vreg_tmp_src);
-                if (is_softmax_) { // store after applying exp
-                    if (need_scratchpad_) {
-                        store(interim_ptr(interim_axis_stride_ * i),
-                                vreg_tmp_src, data_type::f32, tail);
-                    } else {
-                        store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
-                                dst_d_.data_type(), tail);
-                    }
-                }
-            }
-        });
-
-        get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
-        if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp = vmax);
-        if (is_logsoftmax_) log_injector_->compute_vector(vsum.getIdx());
-    }
-
-    void compute_dst() override {
-        axis_loop([&](int unroll, bool tail = false) {
-            for (int i = 0; i < unroll; i++) {
-                Vmm vreg_tmp_src = Vmm(i + 1);
-                if (need_scratchpad_) {
-                    load(vreg_tmp_src, interim_ptr(interim_axis_stride_ * i),
-                            data_type::f32, tail);
-                } else {
-                    load(vreg_tmp_src, dst_ptr(dst_axis_stride_ * i),
-                            dst_d_.data_type(), tail);
-                }
-
-                if (is_softmax_) {
-                    uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
-                }
-                if (is_logsoftmax_) {
-                    uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
-                }
-
-                Vmm vscale = vmax;
-                uni_vmovups(vscale, ptr[reg_src_scales]);
-                uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
-                // Reserved spot for post-ops injector.
-                uni_vmovups(vscale, ptr[reg_dst_scales]);
-                uni_vmulps(vreg_tmp_src, vreg_tmp_src, vscale);
-                store(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src,
-                        dst_d_.data_type(), tail);
-            }
-        });
-    }
-
-    void accumulate_vsbr() override {
-        uni_vpxor(vsbr, vsbr, vsbr); // flush to zero before accumulation
-
-        axis_loop([&](int unroll, bool tail = false) {
-            for (int i = 0; i < unroll; i++) {
-                Vmm vreg_tmp_dst = Vmm(i * 2 + 1);
-                Vmm vreg_tmp_diff_dst = Vmm(i * 2 + 2);
-                load(vreg_tmp_diff_dst, diff_dst_ptr(diff_dst_axis_stride_ * i),
-                        diff_dst_d_.data_type(), tail);
-                if (is_softmax_) {
-                    load(vreg_tmp_dst, dst_ptr(dst_axis_stride_ * i),
-                            dst_d_.data_type(), tail);
-                    uni_vmulps(
-                            vreg_tmp_diff_dst, vreg_tmp_diff_dst, vreg_tmp_dst);
-                }
-                uni_vaddps(vsbr, vsbr, vreg_tmp_diff_dst);
-            }
-        });
-
-        get_horizontal_op(vsbr, vtmp = vmax, op_t::sum);
-    }
-
-    void compute_diff_src() override {
-        axis_loop([&](int unroll, bool tail = false) {
-            for (int i = 0; i < unroll; i++) {
-                Vmm vreg_tmp_dst = Vmm(i * 2 + 1);
-                Vmm vreg_tmp_diff_dst = Vmm(i * 2 + 2);
-                load(vreg_tmp_dst, dst_ptr(dst_axis_stride_ * i),
-                        dst_d_.data_type(), tail);
-                load(vreg_tmp_diff_dst, diff_dst_ptr(diff_dst_axis_stride_ * i),
-                        diff_dst_d_.data_type(), tail);
-                if (is_softmax_) {
-                    vsubps(vreg_tmp_diff_dst, vreg_tmp_diff_dst, vsbr);
-                    vmulps(vreg_tmp_diff_dst, vreg_tmp_dst, vreg_tmp_diff_dst);
-                }
-                if (is_logsoftmax_) {
-                    exp_injector_->compute_vector(vreg_tmp_dst.getIdx());
-                    uni_vfnmadd231ps(vreg_tmp_diff_dst, vreg_tmp_dst, vsbr);
-                }
-                store(diff_src_ptr(src_axis_stride_ * i), vreg_tmp_diff_dst,
-                        src_d_.data_type(), tail);
-            }
-        });
-    }
-
-    void initialization_hook() override {
-        if (bf16_emu_) bf16_emu_->init_vcvtneps2bf16();
-    }
-
-    jit_softmax_t(const softmax_pd_t *pd) : jit_softmax_base_t(pd) {
-        if (is_bf16_ && !mayiuse(avx512_core_bf16))
-            bf16_emu_.reset(new bf16_emulation_t(this, bf16_emu_zmm_1,
-                    bf16_emu_zmm_2, bf16_emu_zmm_3, bf16_emu_gpr,
-                    bf16_emu_zmm_4, bf16_emu_zmm_5));
-    }
-
-    void operator()(const call_params_t *p) override {
-        return jit_generator::operator()(p);
-    }
-};
-
-template <>
-struct jit_softmax_t<avx2> : public jit_softmax_base_t<avx2> {
-    Vmm tail_vmask = Vmm(0);
-
-    void prepare_tail_mask() override {
-        static const uint32_t mask_f32[14]
-                = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
-                        0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0, 0};
-        mov(reg_tmp, reinterpret_cast<size_t>(&mask_f32[7 - axis_simd_tail_]));
-        vmovups(tail_vmask, ptr[reg_tmp]);
-    }
-
-    void get_horizontal_op(const Vmm &v, const Vmm &vtmp, op_t op) override {
-        vperm2f128(vtmp, v, v, 0x1); // 128/256-bit shuffle
-        perform_op(v, vtmp, op);
-        vshufps(vtmp, v, v, 0x4E); // 64/128-bit shuffle
-        perform_op(v, vtmp, op);
-        vshufps(vtmp, v, v, 0xB1); // 32/64-bit shuffle
-        perform_op(v, vtmp, op);
-    }
-
-    void accumulate_vmax() override {
-        // flush to -FLT_MAX before accumulation
-        uni_vmovups(vmax, vneg_flt_max);
-
-        axis_loop([&](int unroll, bool tail = false) {
-            for (int i = 0; i < unroll; i++) {
-                if (!tail)
-                    uni_vmaxps(vmax, vmax, src_ptr(src_axis_stride_ * i));
-                else {
-                    vtmp = Vmm(i + 1);
-                    uni_vmovups_tail(
-                            vtmp, tail_vmask, src_ptr(src_axis_stride_ * i));
-                    uni_vblendvps(vtmp, vneg_flt_max, vtmp, tail_vmask);
-                    uni_vmaxps(vmax, vmax, vtmp);
-                }
-            }
-        });
-
-        get_horizontal_op(vmax, vtmp = vsum, op_t::max);
-    }
-
-    void accumulate_vsum() override {
-        uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
-
-        axis_loop([&](int unroll, bool tail = false) {
-            for (int i = 0; i < unroll; i++) {
-                Vmm vreg_tmp_src = Vmm(i + 1);
-                if (!tail) {
-                    uni_vmovups(vreg_tmp_src, src_ptr(src_axis_stride_ * i));
-                    uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                    if (is_logsoftmax_) // store before applying exp
-                        uni_vmovups(
-                                dst_ptr(dst_axis_stride_ * i), vreg_tmp_src);
-                    exp_injector_->compute_vector(vreg_tmp_src.getIdx());
-                    uni_vaddps(vsum, vsum, vreg_tmp_src);
-                    if (is_softmax_) // store after applying exp
-                        uni_vmovups(
-                                dst_ptr(dst_axis_stride_ * i), vreg_tmp_src);
-                } else {
-                    uni_vmovups_tail(vreg_tmp_src, tail_vmask,
-                            src_ptr(src_axis_stride_ * i));
-                    uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                    if (is_logsoftmax_) // store before applying exp
-                        uni_vmovups_tail(dst_ptr(dst_axis_stride_ * i),
-                                tail_vmask, vreg_tmp_src);
-                    exp_injector_->compute_vector(vreg_tmp_src.getIdx());
-                    vtmp = Vmm(vreg_tmp_src.getIdx() + 1);
-                    uni_vpxor(vtmp, vtmp, vtmp);
-                    uni_vblendvps(vtmp, vtmp, vreg_tmp_src, tail_vmask);
-                    uni_vaddps(vsum, vsum, vtmp);
-                    if (is_softmax_) // store after applying exp
-                        uni_vmovups_tail(dst_ptr(dst_axis_stride_ * i),
-                                tail_vmask, vreg_tmp_src);
-                }
-            }
-        });
-
-        get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
-        if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp = vmax);
-        if (is_logsoftmax_) log_injector_->compute_vector(vsum.getIdx());
-    }
-
-    void compute_dst() override {
-        axis_loop([&](int unroll, bool tail = false) {
-            for (int i = 0; i < unroll; i++) {
-                Vmm vreg_tmp_src = Vmm(i + 1);
-                if (!tail) {
-                    if (is_softmax_)
-                        uni_vmulps(vreg_tmp_src, vsum,
-                                dst_ptr(dst_axis_stride_ * i));
-                    if (is_logsoftmax_) {
-                        uni_vmovups(
-                                vreg_tmp_src, dst_ptr(dst_axis_stride_ * i));
-                        uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
-                    }
-                    uni_vmovups(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src);
-                } else {
-                    uni_vmovups_tail(vreg_tmp_src, tail_vmask,
-                            dst_ptr(dst_axis_stride_ * i));
-                    if (is_softmax_)
-                        uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
-                    if (is_logsoftmax_)
-                        uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
-
-                    if (axis_is_blocked_) {
-                        uni_vxorps(vzero, vzero, vzero);
-                        uni_vblendvps(vzero, vzero, vreg_tmp_src, tail_vmask);
-                        uni_vmovups(dst_ptr(dst_axis_stride_ * i), vzero);
-                    } else {
-                        uni_vmovups_tail(dst_ptr(dst_axis_stride_ * i),
-                                tail_vmask, vreg_tmp_src);
-                    }
-                }
-            }
-        });
-    }
-
-    void operator()(const call_params_t *p) override {
-        return jit_generator::operator()(p);
-    }
-
-    jit_softmax_t(const softmax_pd_t *pd) : jit_softmax_base_t(pd) {}
-};
-
-template <>
-struct jit_softmax_t<sse41> : public jit_softmax_base_t<sse41> {
-    Vmm tail_vmask = Vmm(0);
-
-    void prepare_tail_mask() override {
-        static const uint32_t mask_f32[4] = {0xffffffff, 0, 0, 0};
-        mov(reg_tmp, reinterpret_cast<size_t>(mask_f32));
-        movups(tail_vmask, ptr[reg_tmp]);
-    }
-
-    void get_horizontal_op(const Vmm &v, const Vmm &vtmp, op_t op) override {
-        uni_vmovups(vtmp, v);
-        shufps(vtmp, vtmp, 0x4E); // 64/128-bit shuffle
-        perform_op(v, vtmp, op);
-        uni_vmovups(vtmp, v);
-        shufps(vtmp, vtmp, 0xB1); // 32/64-bit shuffle
-        perform_op(v, vtmp, op);
-    }
-
-    void accumulate_vmax() override {
-        // flush to -FLT_MAX before accumulation
-        uni_vmovups(vmax, vneg_flt_max);
-
-        axis_loop([&](int unroll, bool tail = false) {
-            for (int i = 0; i < unroll; i++) {
-                Vmm vreg_tmp_src = Vmm(i + 1);
-                if (!tail) {
-                    // SIGSEGV on unaligned addr if do maxps directly on memory
-                    uni_vmovups(vreg_tmp_src, src_ptr(src_axis_stride_ * i));
-                    uni_vmaxps(vmax, vmax, vreg_tmp_src);
-                } else {
-                    vtmp = Vmm(vreg_tmp_src.getIdx()
-                            + 1); // next after vreg_tmp_src
-
-                    for (size_t j = 0; j < axis_simd_tail_; j++) {
-                        uni_vmovups(vreg_tmp_src, vneg_flt_max);
-                        uni_vmovss(vtmp,
-                                src_ptr(src_axis_stride_ * i
-                                        + src_d_.data_type_size() * j));
-                        uni_vblendvps(
-                                vreg_tmp_src, vreg_tmp_src, vtmp, tail_vmask);
-                        uni_vmaxps(vmax, vmax, vreg_tmp_src);
-                    }
-                }
-            }
-        });
-
-        get_horizontal_op(vmax, vtmp = vsum, op_t::max);
-    }
-
-    void accumulate_vsum() override {
-        uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
-
-        axis_loop([&](int unroll, bool tail = false) {
-            for (int i = 0; i < unroll; i++) {
-                Vmm vreg_tmp_src = Vmm(i + 1);
-                if (!tail) {
-                    uni_vmovups(vreg_tmp_src, src_ptr(src_axis_stride_ * i));
-                    uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                    if (is_logsoftmax_) // store before applying exp
-                        uni_vmovups(
-                                dst_ptr(dst_axis_stride_ * i), vreg_tmp_src);
-                    exp_injector_->compute_vector(vreg_tmp_src.getIdx());
-                    uni_vaddps(vsum, vsum, vreg_tmp_src);
-                    if (is_softmax_) // store after applying exp
-                        uni_vmovups(
-                                dst_ptr(dst_axis_stride_ * i), vreg_tmp_src);
-                } else {
-                    vtmp = Vmm(vreg_tmp_src.getIdx() + 1);
-                    for (size_t j = 0; j < axis_simd_tail_; j++) {
-                        uni_vmovss(vreg_tmp_src,
-                                src_ptr(src_axis_stride_ * i
-                                        + src_d_.data_type_size() * j));
-                        uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                        if (is_logsoftmax_) // store before applying exp
-                            uni_vmovss(dst_ptr(dst_axis_stride_ * i
-                                               + dst_d_.data_type_size() * j),
-                                    vreg_tmp_src);
-                        exp_injector_->compute_vector(vreg_tmp_src.getIdx());
-                        uni_vpxor(vtmp, vtmp, vtmp);
-                        uni_vblendvps(vtmp, vtmp, vreg_tmp_src, tail_vmask);
-                        uni_vaddps(vsum, vsum, vtmp);
-                        if (is_softmax_) // store after applying exp
-                            uni_vmovss(dst_ptr(dst_axis_stride_ * i
-                                               + dst_d_.data_type_size() * j),
-                                    vreg_tmp_src);
-                    }
-                }
-            }
-        });
-
-        get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
-        if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp = vmax);
-        if (is_logsoftmax_) log_injector_->compute_vector(vsum.getIdx());
-    }
-
-    void compute_dst() override {
-        axis_loop([&](int unroll, bool tail = false) {
-            for (int i = 0; i < unroll; i++) {
-                Vmm vreg_tmp_src = Vmm(i + 1);
-                if (!tail) {
-                    uni_vmovups(vreg_tmp_src, dst_ptr(dst_axis_stride_ * i));
-                    if (is_softmax_)
-                        uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
-                    if (is_logsoftmax_)
-                        uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
-                    uni_vmovups(dst_ptr(dst_axis_stride_ * i), vreg_tmp_src);
-                } else {
-                    for (size_t j = 0; j < axis_simd_tail_; j++) {
-                        uni_vmovss(vreg_tmp_src,
-                                dst_ptr(dst_axis_stride_ * i
-                                        + dst_d_.data_type_size() * j));
-                        if (is_softmax_)
-                            uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
-                        if (is_logsoftmax_)
-                            uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
-                        uni_vmovss(dst_ptr(dst_axis_stride_ * i
-                                           + dst_d_.data_type_size() * j),
-                                vreg_tmp_src);
-                    }
-                }
-            }
-        });
-    }
-
-    void operator()(const call_params_t *p) override {
-        return jit_generator::operator()(p);
-    }
-
-    jit_softmax_t(const softmax_pd_t *pd) : jit_softmax_base_t(pd) {}
 };
 
 template <cpu_isa_t isa>
