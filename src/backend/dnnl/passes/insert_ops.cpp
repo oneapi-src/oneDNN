@@ -634,7 +634,6 @@ impl::status_t insert_runtime_u8_to_s8_for_matmul(
                     *const_data_op, 0, const_data_dst_lt, true);
             const_data_dst_value->set_data_type(impl::data_type::s32);
             const_data_dst_value->set_layout_type(impl::layout_type::strided);
-            const_data_dst_value->set_property(impl::property_type::constant);
             const_data_dst_value->set_strides({1});
             const_data_op->add_output(const_data_dst_value);
 
