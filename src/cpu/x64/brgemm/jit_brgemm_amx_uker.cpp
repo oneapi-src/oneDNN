@@ -297,13 +297,13 @@ private:
         return Xbyak::Zmm(31 - (bd % ils_bd_step_));
     }
 
-    Xbyak::Zmm zmm_bias(int ldb) {
+    Xbyak::Zmm zmm_bias(int ldb) const {
         assert(ldb < 5);
         // zmm10 - zmm14
         return Xbyak::Zmm(10 + ldb);
     }
 
-    Xbyak::Zmm zmm_scales(int ldb) {
+    Xbyak::Zmm zmm_scales(int ldb) const {
         assert(ldb < 5);
         assert(ils_bd_step_ < 10);
         // zmm15 - zmm19
