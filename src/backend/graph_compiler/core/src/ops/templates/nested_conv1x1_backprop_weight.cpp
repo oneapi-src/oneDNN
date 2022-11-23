@@ -101,21 +101,15 @@ config_ptr gen_nested_conv1x1_backprop_weight_t::get_default_config(
     // the shape weight on small shape.
     float new_cost = (1024 + BS * i / num_threads + IC / i)
       * (num_brgemm + 8 * i) / num_core;
-    if (new_cost < cost && IC / im_ic_block % i == 0
-      && BS / im_bs_block % (num_threads / i) == 0) {
+    if (new_cost < cost) {
       split_ic = i;
       cost = new_cost;
     }
   }
   cfg.bs_threads = std::min(BS / im_bs_block, num_threads / split_ic);
   cfg.ic_threads = std::min(IC / im_ic_block, split_ic);
-  // avoid (OC / im_oc_block) % oc_threads != 0
-  auto valid_splits_oc = get_splits(OC / im_oc_block);
-  for (auto split : valid_splits_oc) {
-    if (split <= num_threads / cfg.bs_threads / cfg.ic_threads) {
-      cfg.oc_threads = std::max(cfg.oc_threads, split);
-    }
-  }
+  cfg.oc_threads
+    = std::min(OC / im_oc_block, num_threads / cfg.bs_threads / cfg.ic_threads);
 
   // Config single core
   cfg.oc_num_blocks = OC / cfg.oc_threads / im_oc_block / 16 >= 1

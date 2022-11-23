@@ -65,41 +65,25 @@ config_ptr gen_nested_convNXN_bwd_weight_t::get_default_config(
   int OC_space = OC / im_oc_block_;
   int BS_space = BS / im_bs_block_;
 
-  float cost = std::numeric_limits<float>::max();
-  int max_threads_utillized = 0;
-  // the best default config following 2 herustics
-  // 1. utilize the most number of threads
-  // 2. distribute threads to result in balanced sub blocks
-  for (int bs_threads = 1; bs_threads <= num_threads; bs_threads++) {
-    if (BS_space % bs_threads != 0) continue;
-    int num_BS_block = utils::divide_and_ceil(BS_space, bs_threads);
-    for (int ic_threads = 1; ic_threads <= num_threads / bs_threads;
-         ic_threads++) {
-      if (IC_space % ic_threads != 0) continue;
-      int num_IC_block = utils::divide_and_ceil(IC_space, ic_threads);
-      for (int oc_threads = 1;
-           oc_threads <= num_threads / bs_threads / ic_threads; oc_threads++) {
-        if (OC_space % oc_threads != 0) continue;
-        int num_OC_block = utils::divide_and_ceil(OC_space, oc_threads);
-        if (bs_threads * ic_threads * oc_threads >= max_threads_utillized) {
-          cost = bs_threads * ic_threads * oc_threads == max_threads_utillized
-            ? cost
-            : std::numeric_limits<float>::max(); // reset cost if max_threads
-                                                 // increase
-          max_threads_utillized = bs_threads * ic_threads * oc_threads;
-          float avg = (num_BS_block + num_IC_block + num_OC_block) / 3;
-          float cur_cost = (num_BS_block - avg) * (num_BS_block - avg)
-            + (num_IC_block - avg) * (num_IC_block - avg)
-            + (num_OC_block - avg) * (num_OC_block - avg);
-          if (cur_cost < cost) {
-            cost = cur_cost;
-            cfg.ic_threads = ic_threads;
-            cfg.oc_threads = oc_threads;
-            cfg.bs_threads = bs_threads;
-          }
-        }
-      }
+  int common_factor = std::cbrt(IC_space * OC_space * BS_space / num_threads);
+  for (int i = common_factor; i > 0; --i) {
+    if (IC_space % i == 0 && OC_space % i == 0 && BS_space % i == 0) {
+      cfg.ic_threads = IC_space / i;
+      cfg.bs_threads = BS_space / i;
+      break;
     }
+  }
+
+  if (num_threads >= cfg.ic_threads * cfg.bs_threads) {
+    cfg.oc_threads = num_threads / cfg.ic_threads / cfg.bs_threads;
+  } else {
+    int reduction_fatcor = cfg.ic_threads * cfg.bs_threads / num_threads;
+    if (cfg.ic_threads / reduction_fatcor < 1) {
+      cfg.bs_threads = cfg.bs_threads / reduction_fatcor;
+    } else {
+      cfg.ic_threads = cfg.ic_threads / reduction_fatcor;
+    }
+    cfg.oc_threads = num_threads / cfg.ic_threads / cfg.bs_threads;
   }
 
   cfg.oc_num_blocks

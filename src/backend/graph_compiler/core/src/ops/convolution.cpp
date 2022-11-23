@@ -620,10 +620,9 @@ bool conv_bwd_data_core_op_t::use_nested_generator() {
         int stride_w = stride.back();
         if (OW * stride_w != IW) { return false; }
         // we need to check whether we can fully utilize all threads
-        // int possible_parallel_space = BS * IH * (IC / im_ic_block);
+        int possible_parallel_space = BS * IH * (IC / im_ic_block);
         // TODO(yifei): loosen the restriction here
-        // avoid the possibility that BS < bs_threads
-        if (BS < num_threads) { return false; }
+        if (BS == 1 || possible_parallel_space < num_threads) { return false; }
         return true;
     }
     return false;

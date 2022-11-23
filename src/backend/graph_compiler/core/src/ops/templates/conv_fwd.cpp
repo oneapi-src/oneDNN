@@ -231,7 +231,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     cfg.tile_os = cfg.tile_q;
     auto os_choices = get_os_blocks(ow_, adj_os_);
     std::sort(os_choices.begin(), os_choices.end());
-    if (ow_ <= 32 && ow_ % 16 != 0) {
+    if (ow_ < 28 && ow_ % 16 != 0) {
       for (unsigned i = os_choices.size() - 1; i >= 0; i--) {
         if (nthreads <= adj_os_ / os_choices[i] * mb_) {
           cfg.tile_os = os_choices[i];
@@ -293,6 +293,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
                     utils::divide_and_ceil(ic_, im_ic_block_), ic_threads)
       * im_ic_block_;
   }
+
   return std::move(ret);
 }
 
@@ -1246,6 +1247,27 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
             LDC, 1 /*useless*/, 1 /*useless*/, kh_ * kw_ * C_num_block,
             get_input_dtype(), get_weight_dtype(), brg_attrs, os_mask, o_o,
             os / config.tile_os);
+          auto os_num_block = os / config.tile_os;
+          if (fusion && !pack_rows) {
+            fusion->create_output_fusion_anchor({tensor_slice(output,
+              blocking_output_
+                ? slice_range {{n, 1}, {k_o, 1},
+                  {o_o * config.tile_os / ow_, 1},
+                  {o_o * config.tile_os % ow_, config.tile_os},
+                  {0, config.K_block}}
+                : slice_range {{n, 1}, {o_o * config.tile_os / ow_, 1},
+                  {o_o * config.tile_os % ow_, config.tile_os},
+                  {k_o * config.K_block, config.K_block}})});
+          } else if (fusion && oh_ % os_num_block == 0) {
+            fusion->create_output_fusion_anchor({tensor_slice(output,
+              blocking_output_
+                ? slice_range {{n, 1}, {k_o, 1},
+                  {o_o * (oh_ / os_num_block), (oh_ / os_num_block)}, {0, ow_},
+                  {0, config.K_block}}
+                : slice_range {{n, 1},
+                  {o_o * (oh_ / os_num_block), (oh_ / os_num_block)}, {0, ow_},
+                  {k_o * config.K_block, config.K_block}})});
+          }
         }
         if (fusion) {
           // Note: slice tensor might across multi-rows with non-rectangular
