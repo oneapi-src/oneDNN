@@ -203,7 +203,8 @@ int fill_scales(
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             int pow2 = gen(int_seed);
-            const float gen_val = pow2 < 0 ? (1.f / (1 << pow2)) : (1 << pow2);
+            int pow2_shift = 1 << std::abs(pow2);
+            const float gen_val = pow2 < 0 ? (1.f / pow2_shift) : pow2_shift;
             const float fixed_val = scales.scale;
             const float val = nelems == 1 ? fixed_val : gen_val;
             mem_fp.set_elem(idx, val);
