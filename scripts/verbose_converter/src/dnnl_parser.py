@@ -185,18 +185,14 @@ class LogParser:
                                 break
                     return postops
 
-                def convert_oscale(value):
-                    oscale = {'mask': '0', 'value': None}
-                    return convert_structure_to_ir_seq(oscale, value)
-
                 def convert_scales(value):
                     res = {}
                     scales = value.split('+')
                     for s in scales:
-                        scale = {'mask': '0', 'value': None}
                         arg = s[:s.find(':')]
                         s_wo_arg = s[s.find(':')+1:]
-                        res[arg] = convert_structure_to_ir_seq(scale, s_wo_arg)
+                        scale_dict = {'mask': '0'}
+                        res[arg] = convert_structure_to_ir_seq(scale_dict, s_wo_arg)
                     return res
 
                 def convert_zero_points(value):
@@ -205,7 +201,7 @@ class LogParser:
                     for zp in zp_value:
                         arg = zp[:zp.find(':')]
                         zp_value_wo_arg = zp[zp.find(':')+1:]
-                        zp_dict = {'mask': '0', 'value': None}
+                        zp_dict = {'mask': '0'}
                         res[arg] = convert_structure_to_ir_seq(zp_dict, zp_value_wo_arg)
                     return res
 
@@ -217,7 +213,6 @@ class LogParser:
 
                 converters = {
                     'attr-post-ops': convert_post_ops,
-                    'attr-oscale': convert_oscale,
                     'attr-scales': convert_scales,
                     'attr-zero-points': convert_zero_points,
                     'attr-scratchpad': convert_scratchpad_mode,
