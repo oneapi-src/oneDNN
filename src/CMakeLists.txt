@@ -112,6 +112,10 @@ if(UNIX)
     endif()
 endif()
 
+if(DNNL_XBYAK_NO_EXCEPTION)
+    add_definitions_with_host_compiler(-DDNNL_XBYAK_NO_EXCEPTION)
+endif()
+
 macro(enable_conditional_compilation4 target)
     if(COMMAND ie_mark_target_as_cc)
         ie_mark_target_as_cc(${target})

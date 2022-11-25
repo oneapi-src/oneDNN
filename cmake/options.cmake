@@ -387,3 +387,6 @@ option(DNNL_AARCH64_USE_ACL "Enables use of AArch64 optimised functions
     This is only supported on AArch64 builds and assumes there is a
     functioning Compute Library build available at the location specified by the
     environment variable ACL_ROOT_DIR." OFF)
+
+option(DNNL_XBYAK_NO_EXCEPTION
+    "Enables XBYAK_NO_EXCEPTION" ON) # enabled by default
