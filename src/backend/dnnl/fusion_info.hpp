@@ -86,7 +86,7 @@ class fusion_info_t {
 
         void to_post_binary() {
             assertm(scale_ == 1.0f && zp_ == 0,
-                    "post bianry cannot support scale and zp!");
+                    "post binary cannot support scale and zp!");
             is_post_sum_ = false;
         }
 
