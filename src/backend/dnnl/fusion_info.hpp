@@ -84,6 +84,12 @@ class fusion_info_t {
             return op_->get_kind() == op_kind::dnnl_binary && !is_post_sum_;
         }
 
+        void to_post_binary() {
+            assertm(scale_ == 1.0f && zp_ == 0,
+                    "post bianry cannot support scale and zp!");
+            is_post_sum_ = false;
+        }
+
     private:
         std::shared_ptr<impl::op_t> op_;
         // used to represent post-eltwise and post-sum's scale

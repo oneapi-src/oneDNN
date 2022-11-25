@@ -139,20 +139,34 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                 // post-sum
                 float scale = pop->get_scale();
                 int32_t zp = pop->get_zp();
-                dnnl::memory::data_type sum_dt = dnnl::memory::data_type::undef;
-                if (op->get_kind() == op_kind::dnnl_convolution) {
-                    const auto psrc_dt = op->get_input_value(extra_inputs[0])
-                                                 ->get_logical_tensor()
-                                                 .data_type;
-                    const auto dst_dt = op->get_output_value(0)
-                                                ->get_logical_tensor()
-                                                .data_type;
+                const auto psrc_dt = op->get_input_value(extra_inputs[0])
+                                             ->get_logical_tensor()
+                                             .data_type;
+                const auto dst_dt = op->get_output_value(0)
+                                            ->get_logical_tensor()
+                                            .data_type;
+                // note that onednn doesn't support float post-sum with u8/s8
+                // dst. use post-binary for such case instead.
+                if (impl::utils::one_of(
+                            dst_dt, impl::data_type::u8, impl::data_type::s8)
+                        && impl::utils::one_of(psrc_dt, impl::data_type::f32,
+                                impl::data_type::bf16)
+                        && scale == 1.f && zp == 0) {
+                    auto input = op->get_input_value(extra_inputs[0]);
+                    auto md = make_dnnl_memory_desc(
+                            input->get_logical_tensor());
+                    dnnl_pops.append_binary(dnnl::algorithm::binary_add, md);
+                    op->remove_attr(op_attr::with_sum);
+                    pop->to_post_binary();
+                } else {
+                    dnnl::memory::data_type sum_dt
+                            = dnnl::memory::data_type::undef;
                     if (psrc_dt == impl::data_type::s8
                             && dst_dt == impl::data_type::u8) {
                         sum_dt = dnnl::memory::data_type::s8;
                     }
+                    dnnl_pops.append_sum(scale, zp, sum_dt);
                 }
-                dnnl_pops.append_sum(scale, zp, sum_dt);
             } else {
                 // post-binary
                 assertm(extra_inputs.size() == 1,
