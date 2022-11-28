@@ -260,11 +260,15 @@ struct brgemm_t {
 
     // Tile register decomposition
     int get_bd_block2() const noexcept {
-        return (bdb_tail) ? bd_block2 + 1 : bd_block2;
+        auto res = (bdb <= bd_block2) ? bdb : (bd_block2 + (bdb_tail ? 1 : 0));
+        return res;
     }
+
     int get_ld_block2() const noexcept {
-        return (ldb_tail) ? ld_block2 + 1 : ld_block2;
+        auto res = (ldb <= ld_block2) ? ldb : (ld_block2 + (ldb_tail ? 1 : 0));
+        return res;
     }
+
     int get_num_C_tiles() const noexcept {
         return get_bd_block2() * get_ld_block2();
     }
