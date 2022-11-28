@@ -75,24 +75,6 @@ struct ref_matmul_t : public primitive_t {
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
         }
-
-    private:
-        // scales for f32/bf16 is a way to support alpha multiplication.
-        bool attr_scales_ok() {
-            const std::vector<int> supported_args
-                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-            bool ok = attr()->scales_.has_default_values(supported_args);
-            for (int arg : supported_args) {
-                const auto &mask = attr()->scales_.get(arg).mask_;
-                if (arg == DNNL_ARG_WEIGHTS)
-                    ok = ok
-                            && (mask == 0
-                                    || mask == (1 << (dst_md()->ndims - 1)));
-                else
-                    ok = ok && (mask == 0);
-            }
-            return ok;
-        }
     };
 
     ref_matmul_t(const pd_t *apd) : primitive_t(apd) {}

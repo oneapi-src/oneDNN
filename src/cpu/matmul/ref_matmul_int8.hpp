@@ -64,22 +64,6 @@ struct ref_matmul_int8_t : public primitive_t {
         }
 
     private:
-        bool attr_scales_ok() {
-            const std::vector<int> supported_args
-                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-            bool ok = attr()->scales_.has_default_values(supported_args);
-            for (int arg : supported_args) {
-                const auto &mask = attr()->scales_.get(arg).mask_;
-                if (arg == DNNL_ARG_WEIGHTS)
-                    ok = ok
-                            && (mask == 0
-                                    || mask == (1 << (dst_md()->ndims - 1)));
-                else
-                    ok = ok && (mask == 0);
-            }
-            return ok;
-        }
-
         bool attr_zero_points_ok() const {
             int mask_src = 0, mask_wei = 0, mask_dst = 0;
             attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src);

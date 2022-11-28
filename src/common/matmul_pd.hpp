@@ -122,6 +122,19 @@ struct matmul_pd_t : public primitive_desc_t {
         return dims[n_dims - 1] == N();
     }
 
+    bool attr_scales_ok(const std::vector<int> &supported_args
+            = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
+        bool ok = attr()->scales_.has_default_values(supported_args);
+        for (int arg : supported_args) {
+            const auto &mask = attr()->scales_.get(arg).mask_;
+            if (arg == DNNL_ARG_WEIGHTS)
+                ok = ok && (mask == 0 || mask == (1 << (dst_md()->ndims - 1)));
+            else
+                ok = ok && (mask == 0);
+        }
+        return ok;
+    }
+
 protected:
     matmul_desc_t desc_;
 
