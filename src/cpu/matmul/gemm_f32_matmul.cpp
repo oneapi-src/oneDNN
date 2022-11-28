@@ -92,23 +92,12 @@ static bool should_gemm_execute_sum_po(
 
 status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     auto check_attr_scales = [&]() -> bool {
-        using namespace data_type;
-        const std::vector<int> supported_args
-                = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-        bool ok = attr()->scales_.has_default_values(supported_args);
-        for (int arg : supported_args) {
-            const auto &mask = attr()->scales_.get(arg).mask_;
-            if (arg == DNNL_ARG_WEIGHTS)
-                ok = ok && (mask == 0 || mask == (1 << (dst_md()->ndims - 1)));
-            else
-                ok = ok && (mask == 0);
-        }
-
+        bool ok = attr_scales_ok();
         if (!attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
                 && !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()
                 && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ != 0) {
             // This case requires scratchpad with unknown size
-            if (N() == DNNL_RUNTIME_DIM_VAL) return false;
+            if (N() == DNNL_RUNTIME_DIM_VAL) ok = false;
         }
         return ok;
     };
