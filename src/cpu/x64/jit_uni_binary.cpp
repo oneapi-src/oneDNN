@@ -270,10 +270,8 @@ bool jit_uni_binary_t::pd_t::alg_preserves_zero() const {
 }
 
 bool jit_uni_binary_t::pd_t::check_scales_mask() const {
-    for (const auto &s : attr()->scales_.scales_) {
-        if (s.second.mask_ != 0) return false;
-    }
-    return true;
+    const std::vector<int> supported_args = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
+    return attr_scales_ok(supported_args);
 }
 
 bool jit_uni_binary_t::pd_t::is_bcast_pattern(const dims_t &bcast_dims,
