@@ -26,6 +26,7 @@
 #include "fusion_data.hpp"
 #include "fusion_mgr.hpp"
 #include "visitor.hpp"
+#include <compiler/ir/transform/tensor_shrink.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -67,6 +68,18 @@ public:
     }
 
     expr visit_impl(tensor v) override {
+        // visit and update user-defined tsr
+        if (v->attr_
+                && v->attr_->has_key(tensor_shrinker_attrs::should_shrink)) {
+            auto &shrink_info = v->attr_->get<tensor_shrinker_t::shrink_info_t>(
+                    tensor_shrinker_attrs::should_shrink);
+            std::vector<expr> _new_expr;
+            ir_inplace_visitor_t::dispatch_expr_vector(
+                    shrink_info.base_, _new_expr);
+            ir_inplace_visitor_t::dispatch_expr_vector(
+                    shrink_info.shape_, _new_expr);
+        }
+
         auto itr = expr_map_.find(v);
         if (itr != expr_map_.end()) {
             changed_ = true;

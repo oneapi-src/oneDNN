@@ -49,6 +49,7 @@ transpose_op_t::transpose_op_t(const std::vector<graph_tensor_ptr> &ins,
     info_.outputs_ = outs;
     assert(info_.inputs_.size() == 1);
     assert(order_.size() == info_.inputs_[0]->details_.get_plain_dims().size());
+    auto out_format = attrs.get_or_else("out_format", sc_data_format_t());
     if (info_.outputs_.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this));
         auto in_dims = info_.inputs_[0]->details_.get_plain_dims();
@@ -58,6 +59,7 @@ transpose_op_t::transpose_op_t(const std::vector<graph_tensor_ptr> &ins,
         }
         info_.outputs_[0]->details_.set_plain_dims(out_dims);
         info_.outputs_[0]->details_.dtype_ = ins[0]->details_.dtype_;
+        info_.outputs_[0]->details_.set_format(out_format);
     }
     attrs_ = attrs;
     op_name_ = "transpose";
