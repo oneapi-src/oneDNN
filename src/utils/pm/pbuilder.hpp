@@ -25,6 +25,7 @@
 #include <unordered_set>
 
 #include "interface/c_types_map.hpp"
+#include "interface/op_schema.hpp"
 
 namespace dnnl {
 namespace graph {
@@ -34,10 +35,7 @@ namespace pm {
 class pb_op_t;
 class pb_node_t;
 class pb_graph_t;
-// Helper types
-// VARIADIC_INPUT_NUM means the num of inputs will be depend on the op
-// Using a large enough number to represent this.
-#define VARIADIC_INPUT_NUM 64
+
 using iport_t = size_t;
 using oport_t = size_t;
 using producer_t = std::pair<pb_node_t *, oport_t>;

@@ -186,7 +186,7 @@ bool node_inputs_matcher_t::match_non_commutative_inputs() {
 }
 
 bool node_inputs_matcher_t::match_variadic_inputs() {
-    assertm(op_->num_inputs() < VARIADIC_INPUT_NUM,
+    assertm(op_->num_inputs() <= VARIADIC_INPUT_NUM,
             "variadic input num should be larger than actual op's num of "
             "inputs");
     for (size_t i = 0; i < node_inputs_.size(); ++i) {

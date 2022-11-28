@@ -38,6 +38,8 @@ namespace dnnl {
 namespace graph {
 namespace impl {
 
+#define VARIADIC_INPUT_NUM 128
+
 using opset_version = size_t;
 using shape_infer_fn = std::function<status_t(op_t *,
         std::vector<logical_tensor_t *> &, std::vector<logical_tensor_t *> &)>;
