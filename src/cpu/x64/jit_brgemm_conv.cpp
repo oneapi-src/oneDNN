@@ -210,8 +210,10 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     for (int i = 0; i < M_end; i++) {
         auto vM = i + 1;
         // init only needed brgemm descriptors
-        if (one_of(jcp_.exec_type, exec_trans, exec_vpad) && vM != jcp_.M
-                && vM != jcp_.M_tail)
+        if ((one_of(jcp_.exec_type, exec_trans, exec_vpad)
+                    || (jcp_.exec_type == exec_base && jcp_.l_pad == 0
+                            && jcp_.r_pad == 0))
+                && vM != jcp_.M && vM != jcp_.M_tail)
             continue;
         for (int bs = 0; bs <= jcp_.max_batch; bs++) {
             if (batchsizes[bs] == -1) continue;
