@@ -175,6 +175,19 @@ protected:
         : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd) {}
+
+    bool attr_scales_ok(const std::vector<int> &supported_args
+            = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
+        bool ok = attr()->scales_.has_default_values(supported_args);
+        for (int arg : supported_args) {
+            const auto &mask = attr()->scales_.get(arg).mask_;
+            if (arg == DNNL_ARG_WEIGHTS)
+                ok = ok && (mask == 0 || mask == (1 << (int)with_groups()));
+            else
+                ok = ok && (mask == 0);
+        }
+        return ok;
+    }
 };
 
 struct deconvolution_fwd_pd_t : public deconvolution_pd_t {

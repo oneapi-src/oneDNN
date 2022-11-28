@@ -279,17 +279,10 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
 
     jcp.has_vnni = mayiuse(avx512_core_vnni);
 
-    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    const int wei_scales_per_oc = 1 << (int)with_groups;
-    jcp.is_oc_scale = wei_scales.mask_ == wei_scales_per_oc;
+    jcp.is_oc_scale = wei_scales.mask_ != 0;
     jcp.dst_scale = !dst_scales.has_default_values();
-
-    // only common and per-oc-channel scales are supported
-    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_scales_per_oc)
-            && utils::everyone_is(src_scales.mask_, dst_scales.mask_, 0);
-    if (!scales_ok) return status::unimplemented;
 
     jcp.dst_dt = dst_d.data_type();
     jcp.bia_dt = jcp.with_bias ? bias_d.data_type() : data_type::undef;

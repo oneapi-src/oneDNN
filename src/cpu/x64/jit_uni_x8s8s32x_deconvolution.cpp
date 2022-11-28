@@ -250,19 +250,12 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
     const int sum_ind = p.find(primitive_kind::sum);
     jcp.with_sum = sum_ind != -1;
 
-    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    const int wei_scales_per_oc = 1 << (int)with_groups;
-    jcp.is_oc_scale = wei_scales.mask_ == wei_scales_per_oc;
+    jcp.is_oc_scale = wei_scales.mask_ != 0;
     jcp.dst_scale = !dst_scales.has_default_values();
 
     jcp.post_ops = p;
-
-    // only common and per-oc-channel scales are supported
-    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_scales_per_oc)
-            && utils::everyone_is(src_scales.mask_, dst_scales.mask_, 0);
-    if (!scales_ok) return status::unimplemented;
 
     jcp.dst_dt = dst_d.data_type();
     jcp.bia_dt = jcp.with_bias ? bias_d.data_type() : data_type::undef;
@@ -1386,7 +1379,8 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::pd_t::init(
             && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
             && desc()->accum_data_type == s32
             && attr()->has_default_values(skip_mask_t::scales_runtime
-                    | skip_mask_t::post_ops | skip_mask_t::zero_points_runtime);
+                    | skip_mask_t::post_ops | skip_mask_t::zero_points_runtime)
+            && attr_scales_ok();
     if (!ok) return status::unimplemented;
 
     CHECK(jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(jcp_, *desc(),
