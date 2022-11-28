@@ -66,7 +66,7 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
         for (int arg : supported_args) {
             const auto &mask = attr()->scales_.get(arg).mask_;
             if (arg == DNNL_ARG_WEIGHTS)
-                ok = ok && (mask == 0 || mask == (dst_md()->ndims - 1));
+                ok = ok && (mask == 0 || mask == (1 << (dst_md()->ndims - 1)));
             else
                 ok = ok && (mask == 0);
         }
