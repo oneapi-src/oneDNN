@@ -124,10 +124,11 @@ int64_t location_manager::stack_push(
             gen_.vmovss(gen_.dword[gen_.rsp], to_xmm(reg));
         } break;
         // simd 64-bit/ 8-byte
+        case cpu_data_type::uint_16_x4:
         case cpu_data_type::sint_32_x2:
         case cpu_data_type::float_32_x2: {
             gen_.sub(gen_.rsp, slot_size);
-            gen_.vmovups(gen_.qword[gen_.rsp], to_xmm(reg));
+            gen_.vmovq(gen_.qword[gen_.rsp], to_xmm(reg));
         } break;
         // simd 128-bit/ 16-byte
         case cpu_data_type::uint_8_x16:
@@ -246,10 +247,11 @@ int64_t location_manager::stack_pop(
             gen_.add(gen_.rsp, slot_size);
         } break;
         // simd 64-bit/ 8-byte
+        case cpu_data_type::uint_16_x4:
         case cpu_data_type::sint_32_x2:
         case cpu_data_type::float_32_x2: {
             auto reg_xmm = to_xmm(reg);
-            gen_.vmovups(reg_xmm, gen_.qword[gen_.rsp]);
+            gen_.vmovq(reg_xmm, gen_.qword[gen_.rsp]);
             gen_.add(gen_.rsp, slot_size);
         } break;
         // simd 128-bit/ 16-byte
@@ -911,6 +913,7 @@ const Xbyak::AddressFrame *location_manager::get_address_frame(
         // simd 32-bit/ 4-byte
         case cpu_data_type::float_32: return &(gen_.dword);
         // simd 64-bit/ 8-byte
+        case cpu_data_type::uint_16_x4: return &(gen_.qword);
         case cpu_data_type::sint_32_x2: return &(gen_.qword);
         case cpu_data_type::float_32_x2: return &(gen_.qword);
         // simd 128-bit/ 16-byte
@@ -1274,6 +1277,7 @@ expr_location location_manager::convert_virtual_reg(const expr_c &v) {
             return expr_location::make_reg(to_xmm(reg), cpu_dtype);
         }
         // simd 64-bit/ 8-byte
+        case cpu_data_type::uint_16_x4:
         case cpu_data_type::sint_32_x2:
         case cpu_data_type::float_32_x2: {
             return expr_location::make_reg(to_xmm(reg), cpu_dtype);

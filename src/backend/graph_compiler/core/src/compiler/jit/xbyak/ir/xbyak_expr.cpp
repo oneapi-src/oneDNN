@@ -118,6 +118,8 @@ static handler_table register_handlers() {
     REGISTER_INTRIN("X86_DIV", x86, div, undefined, _4A_);
     REGISTER_INTRIN("X86_MOD", x86, mod, undefined, _4A_);
 
+    REGISTER_INTRIN("X86_NEG", x86, neg, undefined, _1A_);
+
     REGISTER_INTRIN("X86_CMP_SET", x86, cmp_set, directed_dst_mem, _3A_);
 
     //---------------

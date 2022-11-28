@@ -44,8 +44,9 @@ namespace sc_xbyak {
  *   way to ensure that the memory allocated for the JIT'ed code has the
  *   same lifespan as this xbyak_jit_module.
  */
-class xbyak_jit_module : public jit_module,
-                         public std::enable_shared_from_this<xbyak_jit_module> {
+class SC_INTERNAL_API xbyak_jit_module
+    : public jit_module,
+      public std::enable_shared_from_this<xbyak_jit_module> {
 public:
     virtual ~xbyak_jit_module() = default;
 

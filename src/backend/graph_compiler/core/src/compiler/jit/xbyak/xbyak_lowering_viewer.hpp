@@ -187,6 +187,7 @@ private:
             const x86_64::cpu_data_type &cpu_dtype);
 
     // avx operations
+    void handle_avx_movq(const operand &op_dst, const operand &op_src);
     void handle_avx_movss(const operand &op_dst, const operand &op_src);
     void handle_avx_movps(const operand &op_dst, const operand &op_src);
 
@@ -199,9 +200,11 @@ private:
     void handle_avx_div(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_shl(const operand &op_dst, const operand &op_lhs,
-            const operand &op_sft, const x86_64::cpu_data_type &cpu_dtype);
+            const operand &op_sft, const x86_64::cpu_data_type &cpu_dtype,
+            bool variable);
     void handle_avx_shr(const operand &op_dst, const operand &op_lhs,
-            const operand &op_sft, const x86_64::cpu_data_type &cpu_dtype);
+            const operand &op_sft, const x86_64::cpu_data_type &cpu_dtype,
+            bool variable);
     void handle_avx_max(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_abs(const operand &op_lhs, const operand &op_rhs,

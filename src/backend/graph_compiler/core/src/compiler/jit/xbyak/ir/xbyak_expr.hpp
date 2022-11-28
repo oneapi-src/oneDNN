@@ -81,6 +81,7 @@ enum class xbyak_intrin_type {
     min,
     max,
     abs,
+    neg,
     bit_or,
     bit_and,
     bit_xor,

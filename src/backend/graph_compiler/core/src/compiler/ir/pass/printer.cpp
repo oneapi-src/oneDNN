@@ -119,7 +119,7 @@ void ir_printer_t::view(call_c v) {
     } else {
         auto theexpr = std::dynamic_pointer_cast<expr_base>(v->func_);
         assert(theexpr);
-        do_dispatch(theexpr.get());
+        do_dispatch(expr(theexpr));
     }
     os_ << '(';
     if (!v->args_.empty()) {

@@ -191,7 +191,10 @@ private:
                 }
             } break;
             case sc_expr_type::call: {
-                update_liveness(v.static_as<call>()->args_, index);
+                auto val = v.static_as<call>();
+                auto func = std::dynamic_pointer_cast<expr_base>(val->func_);
+                if (func) { update_liveness({expr(func)}, index); }
+                update_liveness(val->args_, index);
             } break;
             case sc_expr_type::tensorptr: {
                 auto val = v.static_as<tensorptr>();

@@ -65,6 +65,8 @@ cpu_data_type get_cpu_data_type(sc_data_type_t t) {
         }
     } else if (t.lanes_ == 4) {
         switch (e) {
+            case sc_data_etype::BF16: return cpu_data_type::uint_16_x4;
+            case sc_data_etype::U16: return cpu_data_type::uint_16_x4;
             case sc_data_etype::U32: return cpu_data_type::uint_32_x4;
             case sc_data_etype::S32: return cpu_data_type::sint_32_x4;
             case sc_data_etype::F32: return cpu_data_type::float_32_x4;

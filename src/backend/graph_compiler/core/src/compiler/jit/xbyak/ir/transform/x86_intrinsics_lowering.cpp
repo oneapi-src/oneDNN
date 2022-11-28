@@ -186,7 +186,7 @@ public:
             case intrin_type::abs: {
                 transform(dst, {intrin->args_[0]},
                         dst->dtype_, //
-                        transform_disabled("abs"),
+                        transform_x86_abs(),
                         transform_intrin(xbyak_intrin_type::abs));
             } break;
             case intrin_type::shl: {
@@ -491,6 +491,13 @@ public:
         };
     }
 
+    transform_func transform_x86_abs() {
+        return [this](const expr &dst, array_ref<expr> src,
+                       sc_data_type_t dtype, xbyak_intrin_isa isa) {
+            transform_x86_abs(dst, src[0]);
+        };
+    }
+
     transform_func transform_x86_shift(xbyak_intrin_type intrin) {
         return [this, intrin](const expr &dst, array_ref<expr> src,
                        sc_data_type_t dtype, xbyak_intrin_isa isa) {
@@ -576,6 +583,27 @@ public:
         // dst = min/max(rhs)
         auto tmp = load_when_imm(rhs, "__imm_tmp_var");
         transform_intrin(dst, {tmp}, intrin, xbyak_intrin_isa::x86);
+    }
+
+    void transform_x86_abs(const expr &dst, const expr &src) {
+        auto dtype = src->dtype_;
+        assert(utils::is_one_of(dtype, datatypes::s8, datatypes::s32));
+        // x86 conditional move only accepts cmovcc(r, r/m)
+        auto rax = make_physical_reg(dtype, x86_64::regs::rax);
+        add_defination(rax, linkage::local);
+        // rax = src
+        add_assignment(rax, src);
+        // neg(rax)
+        add_assignment(rax,
+                make_xbyak_intrin(dtype, {}, xbyak_intrin_type::neg,
+                        xbyak_intrin_isa::x86));
+        // if(SF != OF) rax = src
+        add_assignment(rax,
+                make_xbyak_intrin(dtype, {src}, xbyak_intrin_type::cmov,
+                        xbyak_intrin_isa::x86,
+                        xbyak_intrin_modifier(xbyak_condition::lt)));
+        // dst = rax
+        add_assignment(dst, rax);
     }
 
     void transform_x86_mod_div(const expr &dst, const expr &lhs,

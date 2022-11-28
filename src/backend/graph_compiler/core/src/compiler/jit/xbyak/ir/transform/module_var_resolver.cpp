@@ -48,7 +48,8 @@ public:
 
     expr_c dispatch(expr_c v) override {
         if (module_vars_.find(v) != module_vars_.end()) {
-            return module_vars_[v];
+            auto new_expr = module_vars_[v];
+            return copy_attr(*v, std::move(new_expr));
         } else {
             return ir_visitor_t::dispatch(std::move(v));
         }
