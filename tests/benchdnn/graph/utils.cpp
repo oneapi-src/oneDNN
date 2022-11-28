@@ -195,8 +195,8 @@ void skip_unimplemented_data_type(
             = is_gpu() || (is_cpu() && has_data_type_support(dnnl_bf16));
     const bool has_f16_support = (is_gpu() && (dir & FLAG_FWD))
             || (is_cpu() && has_data_type_support(dnnl_f16)
-                    && !dnnl::is_superset(dnnl::get_effective_cpu_isa(),
-                            dnnl::cpu_isa::avx512_core_fp16));
+                    && !dnnl::is_superset(dnnl_get_effective_cpu_isa(),
+                            dnnl_cpu_isa_avx512_core_fp16));
 #else
     const bool has_bf16_support = is_gpu();
     const bool has_f16_support = is_gpu() && (dir & FLAG_FWD);
