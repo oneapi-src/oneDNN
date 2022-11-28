@@ -906,16 +906,10 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
     // miniumum size of load dim chunk for work distribution within threads
     jcp.nb_load_chunk = 1;
 
-    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    const int wei_mask_per_oc = 1 << (int)with_groups;
-    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
+    jcp.is_oc_scale = wei_scales.mask_ != 0;
     jcp.dst_scale = !dst_scales.has_default_values();
-
-    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
-            && everyone_is(src_scales.mask_, dst_scales.mask_, 0);
-    if (!scales_ok) return status::unimplemented;
 
     jcp.wei_adj_scale
             = (weights_d.extra().flags & memory_extra_flags::scale_adjust)

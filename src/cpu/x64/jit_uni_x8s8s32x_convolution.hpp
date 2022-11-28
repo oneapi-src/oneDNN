@@ -62,7 +62,8 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
                             dst_md(0)->data_type)
                     && attr()->post_ops_.check_sum_consistent_dt(
                             dst_md(0)->data_type)
-                    && !has_zero_dim_memory() && zero_points_ok();
+                    && !has_zero_dim_memory() && attr_scales_ok()
+                    && zero_points_ok();
             if (!args_ok) return status::unimplemented;
 
             CHECK(jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jcp_, *desc(),

@@ -260,6 +260,19 @@ protected:
             ok = ok && invariant_bia_md()->data_type == bia_dt;
         return ok;
     }
+
+    bool attr_scales_ok(const std::vector<int> &supported_args
+            = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
+        bool ok = attr()->scales_.has_default_values(supported_args);
+        for (int arg : supported_args) {
+            const auto &mask = attr()->scales_.get(arg).mask_;
+            if (arg == DNNL_ARG_WEIGHTS)
+                ok = ok && (mask == 0 || mask == (1 << (int)with_groups()));
+            else
+                ok = ok && (mask == 0);
+        }
+        return ok;
+    }
 };
 
 struct convolution_fwd_pd_t : public convolution_pd_t {

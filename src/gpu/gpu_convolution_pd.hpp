@@ -32,24 +32,6 @@ struct gpu_convolution_fwd_pd_t : public convolution_fwd_pd_t {
     using convolution_fwd_pd_t::convolution_fwd_pd_t;
 
 protected:
-    bool arg_scales_ok() const {
-        std::vector<int> supported_args
-                = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-        if (!attr()->scales_.has_default_values(supported_args)) return false;
-        for (int arg : supported_args) {
-            auto &scales = attr()->scales_.get(arg);
-            if (scales.has_default_values()) continue;
-            int mask = scales.mask_;
-            if (arg == DNNL_ARG_WEIGHTS) {
-                if (!utils::one_of(mask, 0, 1 << (int)with_groups()))
-                    return false;
-            } else {
-                if (mask != 0) return false;
-            }
-        }
-        return true;
-    }
-
     // TODO: consider either moving this method to primitive_conf.hpp or making
     //       it static, or removing the 'attr' argument accessible via attr()
     bool zero_points_ok(const primitive_attr_t *attr) const {
@@ -71,26 +53,6 @@ struct gpu_convolution_bwd_data_pd_t : public convolution_bwd_data_pd_t {
     using convolution_bwd_data_pd_t::convolution_bwd_data_pd_t;
 
 protected:
-    bool arg_scales_ok() const {
-        std::vector<int> supported_args
-                = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-        if (!attr()->scales_.has_default_values(supported_args)) return false;
-        for (int arg : supported_args) {
-            auto &scales = attr()->scales_.get(arg);
-            if (scales.has_default_values()) continue;
-            int mask = scales.mask_;
-            if (arg == DNNL_ARG_WEIGHTS) {
-                // XXX: per_oc for BWD_D is treated as per_ic assuming it's
-                // called from deconvolution.
-                if (!utils::one_of(mask, 0, 1 << (int)with_groups()))
-                    return false;
-            } else {
-                if (mask != 0) return false;
-            }
-        }
-        return true;
-    }
-
     // TODO: consider either moving this method to primitive_conf.hpp or making
     //       it static, or removing the 'attr' argument accessible via attr()
     bool zero_points_ok(const primitive_attr_t *attr) const {
