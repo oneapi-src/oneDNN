@@ -191,15 +191,11 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
 
     const auto &src_scales = attr_.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr_.scales_.get(DNNL_ARG_WEIGHTS);
-    const auto &dst_scales = attr_.scales_.get(DNNL_ARG_DST);
     jcp.with_scale = !src_scales.has_default_values()
             || !wei_scales.has_default_values();
-    const int wei_mask_per_oc = 1 << (int)with_groups;
-    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
+    jcp.is_oc_scale = wei_scales.mask_ != 0;
 
-    // only common and per-oc-channel scales are supported
-    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
-            && src_scales.mask_ == 0 && dst_scales.has_default_values();
+    const bool scales_ok = attr_scales_ok({DNNL_ARG_SRC, DNNL_ARG_WEIGHTS});
     if (!scales_ok) return status::unimplemented;
 
     // strd is only feasible for 1D (i.e., height dim is one)

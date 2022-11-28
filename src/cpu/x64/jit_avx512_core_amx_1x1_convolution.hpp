@@ -71,7 +71,8 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
             bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && (is_bf16_convolution || is_int8_convolution)
-                    && !has_zero_dim_memory() && zero_points_ok();
+                    && !has_zero_dim_memory() && attr_scales_ok()
+                    && zero_points_ok();
             if (!ok) return status::unimplemented;
 
             CHECK(jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jcp_, *desc(),

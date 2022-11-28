@@ -57,7 +57,7 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_type)
                     && attr()->post_ops_.check_sum_consistent_dt(dst_type)
-                    && scales_mask_ok() && zero_points_ok() && post_ops_ok()
+                    && attr_scales_ok() && zero_points_ok() && post_ops_ok()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
         }
@@ -70,21 +70,6 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
                     ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
-
-        bool scales_mask_ok() const {
-            using namespace data_type;
-            const std::vector<int> supported_args
-                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-            bool ok = attr()->scales_.has_default_values(supported_args);
-            for (int arg : supported_args) {
-                const auto &mask = attr()->scales_.get(arg).mask_;
-                if (arg == DNNL_ARG_WEIGHTS)
-                    ok = ok && (mask == 0 || mask == (1 << (int)with_groups()));
-                else
-                    ok = ok && (mask == 0);
-            }
-            return ok;
         }
 
         bool zero_points_ok() const {
@@ -140,7 +125,7 @@ struct ref_convolution_int8_bwd_data_t : public primitive_t {
                     && set_default_formats()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::scales_runtime)
-                    && scales_mask_ok();
+                    && attr_scales_ok();
 
             return ok ? status::success : status::unimplemented;
         }
@@ -153,21 +138,6 @@ struct ref_convolution_int8_bwd_data_t : public primitive_t {
                     ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
-
-        bool scales_mask_ok() const {
-            using namespace data_type;
-            const std::vector<int> supported_args
-                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-            bool ok = attr()->scales_.has_default_values(supported_args);
-            for (int arg : supported_args) {
-                const auto &mask = attr()->scales_.get(arg).mask_;
-                if (arg == DNNL_ARG_WEIGHTS)
-                    ok = ok && (mask == 0 || mask == (1 << (int)with_groups()));
-                else
-                    ok = ok && (mask == 0);
-            }
-            return ok;
         }
     };
 

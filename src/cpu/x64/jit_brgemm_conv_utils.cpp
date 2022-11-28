@@ -2076,16 +2076,9 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
-    const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
     jcp.with_scales = !src_scales.has_default_values()
             || !wei_scales.has_default_values();
-    const int wei_mask_per_oc = 1 << (int)with_groups;
-    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
-
-    // only common and per-oc-channel scales are supported
-    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
-            && src_scales.mask_ == 0 && dst_scales.has_default_values();
-    if (!scales_ok) return status::unimplemented;
+    jcp.is_oc_scale = wei_scales.mask_ != 0;
 
     jcp.buffer_size = jcp.LDC * jcp.M;
 
@@ -2317,16 +2310,9 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
-    const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
     jcp.with_scales = !src_scales.has_default_values()
             || !wei_scales.has_default_values();
-    const int wei_mask_per_oc = 1 << (int)with_groups;
-    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
-
-    // only common and per-oc-channel scales are supported
-    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
-            && src_scales.mask_ == 0 && dst_scales.has_default_values();
-    if (!scales_ok) return status::unimplemented;
+    jcp.is_oc_scale = wei_scales.mask_ != 0;
 
     // no inp buffer or brgemm_vpad for 1x1
     constexpr int align_size = platform::get_cache_line_size();

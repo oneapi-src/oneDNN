@@ -69,7 +69,7 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                                     | skip_mask_t::sum_dt,
                             dst_type)
                     && attr()->post_ops_.check_sum_consistent_dt(dst_type)
-                    && scales_mask_ok() && zero_points_valid(attr());
+                    && attr_scales_ok() && zero_points_valid(attr());
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -83,22 +83,6 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
         }
 
         conv_gemm_conf_t jcp_;
-
-    protected:
-        bool scales_mask_ok() const {
-            using namespace data_type;
-            const std::vector<int> supported_args
-                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-            bool ok = attr()->scales_.has_default_values(supported_args);
-            for (int arg : supported_args) {
-                const auto &mask = attr()->scales_.get(arg).mask_;
-                if (arg == DNNL_ARG_WEIGHTS)
-                    ok = ok && (mask == 0 || mask == (1 << (int)with_groups()));
-                else
-                    ok = ok && (mask == 0);
-            }
-            return ok;
-        }
     };
 
     gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}

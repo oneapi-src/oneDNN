@@ -1305,17 +1305,11 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
     jcp.signed_input = src_d.data_type() == data_type::s8;
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
 
-    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
 
-    const int wei_mask_per_oc = 1 << (int)with_groups;
-    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
+    jcp.is_oc_scale = wei_scales.mask_ != 0;
     jcp.dst_scale = !dst_scales.has_default_values();
-
-    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
-            && everyone_is(src_scales.mask_, dst_scales.mask_, 0);
-    if (!scales_ok) return status::unimplemented;
 
     const auto zp = attr.zero_points_;
     jcp.dst_zero_point = !zp.has_default_values(DNNL_ARG_DST);

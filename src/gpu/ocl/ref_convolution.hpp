@@ -76,7 +76,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                     && attr_.set_default_formats(dst_md(0)) == status::success
                     && post_ops_with_binary_ok(
                             attr(), dst_md()->data_type, 5, 0xffff)
-                    && zero_points_ok(attr()) && arg_scales_ok()
+                    && attr_scales_ok() && zero_points_ok(attr())
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(src_md_.data_type, s8, u8));
             if (!ok) return status::unimplemented;
@@ -144,7 +144,7 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(
                             attr(), dst_md()->data_type, ndims())
-                    && zero_points_ok(attr()) && arg_scales_ok()
+                    && attr_scales_ok() && zero_points_ok(attr())
                     && IMPLICATION(utils::one_of(f64, diff_src_md()->data_type,
                                            dst_md()->data_type),
                             compute_engine->mayiuse(

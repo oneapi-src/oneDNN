@@ -2626,18 +2626,10 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.wsp_buffer_size = (size_t)jcp.nb_oh_blocking * jcp.nb_oc_blocking
             * jcp.full_tile_width * jcp.oc_block;
 
-    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    const int wei_mask_per_oc = 1 << (int)with_groups;
-    jcp.is_oc_scale = wei_scales.mask_ == wei_mask_per_oc;
+    jcp.is_oc_scale = wei_scales.mask_ != 0;
     jcp.dst_scale = !dst_scales.has_default_values();
-
-    // only common src & dst scales are supported
-    // only common and per-oc-channel weight scales are supported
-    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_oc)
-            && everyone_is(src_scales.mask_, dst_scales.mask_, 0);
-    if (!scales_ok) return status::unimplemented;
 
     // Note: currently unsupported, results in seg-fault
     const int l_pad_output = nstl::min(jcp.ow, div_up(jcp.l_pad, jcp.stride_w));
@@ -3926,18 +3918,10 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.wsp_buffer_size = (size_t)jcp.nb_ih_blocking * jcp.nb_ic_blocking
             * jcp.full_tile_width * jcp.ic_block;
 
-    const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    const int wei_mask_per_ic = 1 << (int)with_groups;
-    jcp.is_ic_scale = wei_scales.mask_ == wei_mask_per_ic;
+    jcp.is_ic_scale = wei_scales.mask_ != 0;
     jcp.dst_scale = !dst_scales.has_default_values();
-
-    // only common src & dst scales are supported
-    // only common and per-oc-channel weight scales are supported
-    const bool scales_ok = one_of(wei_scales.mask_, 0, wei_mask_per_ic)
-            && everyone_is(src_scales.mask_, dst_scales.mask_, 0);
-    if (!scales_ok) return status::unimplemented;
 
     return status::success;
 }
