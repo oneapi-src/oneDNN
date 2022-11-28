@@ -1810,7 +1810,7 @@ void init_allow_grf_reorder(conv_config_t &cfg) {
             cfg.set_allow_a_grf_reorder(true);
         }
     }
-    if (cfg.send_2d_nhwc()) cfg.set_allow_a_grf_reorder(true);
+    if (cfg.send_2d_nhwc() && (!prb.is_fwd)) cfg.set_allow_a_grf_reorder(true);
 
     bool a_is_small_c = (prb.is_fwd || prb.is_bwd_w) ? is_small_ic(prb)
                                                      : is_small_oc(prb);
