@@ -71,8 +71,9 @@ typedef enum {
 } brgemm_kernel_prefetching_t;
 
 typedef enum {
+    brgemm_innermost_undef = -1,
     brgemm_bd_loop_innermost = 0,
-    brgemm_ld_loop_innermost,
+    brgemm_ld_loop_innermost = 1,
 } brgemm_kernel_innermost_loop_t;
 
 typedef enum {
@@ -136,6 +137,13 @@ struct DNNL_API brgemm_attr_t {
 
     brgemm_kernel_hint_nt_t hint_load_nt_A {brgemm_hint_nt_undef};
     brgemm_kernel_hint_nt_t hint_load_nt_B {brgemm_hint_nt_undef};
+    // this variable is used in tile decomposition heuristics
+    // to calculate "effective" K value which may be different from just
+    // K * batch_size for non-1x1 convolutions due to data overlap
+    float K_koef = 1.f;
+    // this flag may be used to omit some actions on calling from blocking
+    // in convolutions init_conf
+    bool test_call = false;
 };
 
 struct brgemm_batch_element_t {
@@ -237,6 +245,7 @@ struct brgemm_t {
     brgemm_broadcast_t zp_type_a = brgemm_broadcast_t::none;
     brgemm_broadcast_t zp_type_b = brgemm_broadcast_t::none;
     brgemm_broadcast_t zp_type_c = brgemm_broadcast_t::none;
+    brgemm_kernel_innermost_loop_t innermost_loop = brgemm_ld_loop_innermost;
 
     int is_oc_scale = 0;
 

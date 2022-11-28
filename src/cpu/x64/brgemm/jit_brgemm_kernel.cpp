@@ -1637,16 +1637,14 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel_amx(int bd_block2,
             maybe_tileloadd_nt(Tmm(brg.get_A_tensor(bdb, is_bdb_tail)),
                     reg_aux_A, rdb * rdb_A_offset() + A_offset(bdb, 0, true),
                     reg_stride_lda,
-                    brg.brgattr.hint_innermost_loop
-                            == brgemm_bd_loop_innermost);
+                    brg.innermost_loop == brgemm_bd_loop_innermost);
         }
         for (int ldb = 0; ldb < ld_block2; ldb++) {
             const int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
             maybe_tileloadd_nt(Tmm(brg.get_B_tensor(idx, is_ld_tail)),
                     reg_aux_B, rdb * rdb_B_offset() + B_offset(ldb, 0, true),
                     reg_stride_ldb,
-                    brg.brgattr.hint_innermost_loop
-                            == brgemm_ld_loop_innermost);
+                    brg.innermost_loop == brgemm_ld_loop_innermost);
             for (int bdb = 0; bdb < bd_block2; bdb++) {
                 tdpbxxd(Tmm(brg.get_C_tensor(
                                 bdb, idx, is_bdb_tail, is_ld_tail)),

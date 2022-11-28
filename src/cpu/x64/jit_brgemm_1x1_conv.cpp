@@ -114,7 +114,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         brgattr.max_bs = jcp_.gemm_batch_size;
         brgattr.hint_innermost_loop = jcp_.brgemm_bd_loop_innermost
                 ? brgemm_bd_loop_innermost
-                : brgemm_ld_loop_innermost;
+                : brgemm_innermost_undef;
         brgattr.max_top_vpad = jcp_.max_vpad;
         brgattr.max_bottom_vpad = jcp_.max_vpad;
 

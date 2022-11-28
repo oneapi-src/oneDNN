@@ -252,7 +252,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                 brgattr.max_bs = bs;
                 brgattr.hint_innermost_loop = jcp_.brgemm_bd_loop_innermost
                         ? brgemm_bd_loop_innermost
-                        : brgemm_ld_loop_innermost;
+                        : brgemm_innermost_undef;
                 if (jcp_.amx_tile_load_xx) {
                     // assuming 2x2 decomposition in amx brgemm kernel
                     // and overlap of input by kw
@@ -281,6 +281,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                     brgattr.max_bottom_vpad = jcp_.max_vpad;
                 }
                 brgattr.fpmath_mode = attr()->fpmath_mode_;
+                brgattr.K_koef = KH;
 
                 // if need post_ops and there are no intermediate calculations
                 // (like ic_chunks > 1 or blocking by kernel) we don't need

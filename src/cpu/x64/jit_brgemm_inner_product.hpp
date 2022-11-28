@@ -120,7 +120,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.ic;
                     brgattr.hint_expected_B_size = jbgp_.oc * jbgp_.ic;
                     brgattr.hint_expected_C_size = jbgp_.mb * jbgp_.oc;
-                    brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
+                    brgattr.hint_innermost_loop = brgemm_innermost_undef;
                     brgattr.use_uker = jbgp_.use_uker;
                     brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;
@@ -286,7 +286,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                     brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.oc;
                     brgattr.hint_expected_B_size = jbgp_.oc * jbgp_.ic;
                     brgattr.hint_expected_C_size = jbgp_.mb * jbgp_.ic;
-                    brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
+                    brgattr.hint_innermost_loop = brgemm_innermost_undef;
                     brgattr.use_uker = jbgp_.use_uker;
                     brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;
@@ -452,7 +452,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                     brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.ic;
                     brgattr.hint_expected_B_size = jbgp_.mb * jbgp_.oc;
                     brgattr.hint_expected_C_size = jbgp_.ic * jbgp_.oc;
-                    brgattr.hint_innermost_loop = brgemm_ld_loop_innermost;
+                    brgattr.hint_innermost_loop = brgemm_innermost_undef;
                     brgattr.use_uker = jbgp_.use_uker;
                     brgattr.use_interleave_stores = jbgp_.use_interleave_stores;
                     brgattr.hint_prefetching = jbgp_.hint_prefetching;

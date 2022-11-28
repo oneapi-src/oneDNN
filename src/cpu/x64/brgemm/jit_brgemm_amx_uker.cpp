@@ -468,12 +468,12 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_output(
     size_t lidx = 0;
     size_t bd_idx = 0;
     size_t ld_idx = 0;
-    if (brg.brgattr.hint_innermost_loop == brgemm_ld_loop_innermost) {
+    if (brg.innermost_loop == brgemm_ld_loop_innermost) {
         lidx = bi.bdi.idx * imap_.ldis.size() + bi.ldi.idx;
         lidx += shift;
         bd_idx = lidx / imap_.ldis.size();
         ld_idx = lidx % imap_.ldis.size();
-    } else if (brg.brgattr.hint_innermost_loop == brgemm_bd_loop_innermost) {
+    } else if (brg.innermost_loop == brgemm_bd_loop_innermost) {
         lidx = bi.ldi.idx * imap_.bdis.size() + bi.bdi.idx;
         lidx += shift;
         ld_idx = lidx / imap_.bdis.size();
@@ -1806,9 +1806,9 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::ldb_loop_body(brgemm_iteration_t &bi) {
-    if (brg.brgattr.hint_innermost_loop == brgemm_bd_loop_innermost)
+    if (brg.innermost_loop == brgemm_bd_loop_innermost)
         bdb_loop(bi);
-    else if (brg.brgattr.hint_innermost_loop == brgemm_ld_loop_innermost)
+    else if (brg.innermost_loop == brgemm_ld_loop_innermost)
         bs_loop(bi);
     else
         assert(!"Unknown loop order!");
@@ -1825,9 +1825,9 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::bdb_loop_body(brgemm_iteration_t &bi) {
-    if (brg.brgattr.hint_innermost_loop == brgemm_ld_loop_innermost)
+    if (brg.innermost_loop == brgemm_ld_loop_innermost)
         ldb_loop(bi);
-    else if (brg.brgattr.hint_innermost_loop == brgemm_bd_loop_innermost)
+    else if (brg.innermost_loop == brgemm_bd_loop_innermost)
         bs_loop(bi);
     else
         assert(!"Unknown loop order!");
@@ -1842,9 +1842,9 @@ void jit_brgemm_amx_uker_base_t::bdb_loop(brgemm_iteration_t &bi) {
 
 void jit_brgemm_amx_uker_base_t::top_loop(brgemm_iteration_t &bi) {
     init(bi);
-    if (brg.brgattr.hint_innermost_loop == brgemm_ld_loop_innermost)
+    if (brg.innermost_loop == brgemm_ld_loop_innermost)
         bdb_loop(bi);
-    else if (brg.brgattr.hint_innermost_loop == brgemm_bd_loop_innermost)
+    else if (brg.innermost_loop == brgemm_bd_loop_innermost)
         ldb_loop(bi);
     else
         assert(!"Unknown loop order!");

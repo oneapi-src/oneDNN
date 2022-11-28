@@ -392,7 +392,8 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
                     || brgattr.hint_ld_block != 0 || brgattr.hint_ld_block2 != 0
                     || brgattr.hint_load_nt_A != brgemm_hint_nt_undef
                     || brgattr.hint_load_nt_B != brgemm_hint_nt_undef);
-    if (brg->is_bf16_tmm || hint_blocking_set || brgattr.bd_mask_level
+    if (brgattr.use_uker || brg->is_bf16_tmm || hint_blocking_set
+            || brgattr.bd_mask_level
             || brgattr.fpmath_mode != fpmath_mode::strict) {
         if (brg->is_dgmm)
             CHECK(brdgmm_blocking(brg));
@@ -419,6 +420,8 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
     brg->prfA = brgattr.hint_prfA;
     brg->prfB = brgattr.hint_prfB;
     brg->prfC = brgattr.hint_prfC;
+    if (brgattr.hint_innermost_loop != brgemm_innermost_undef)
+        brg->innermost_loop = brgattr.hint_innermost_loop;
 
     if (brgattr.hint_prefetching == brgemm_kernel_prefetching_t::brgemm_prf1
             && brg->prfC.dist1 < 0)
@@ -534,7 +537,6 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
 
     const auto Br = (brg.typesize_C != 0) ? Ac / brg.typesize_C : 0;
 
-    if (brg.ldb_tail && (brg.ld_block2 > 1)) return status::unimplemented;
     if (brg.get_num_A_tiles() + brg.get_num_B_tiles()
                     + brg.get_bd_block2() * brg.get_ld_block2()
             > brgemm_t::AMX_TILES_NUM)
