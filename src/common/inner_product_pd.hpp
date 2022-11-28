@@ -190,6 +190,19 @@ protected:
             ok = ok && invariant_bia_md()->data_type == bia_dt;
         return ok;
     }
+
+    bool attr_scales_ok(const std::vector<int> &supported_args
+            = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
+        bool ok = attr()->scales_.has_default_values(supported_args);
+        for (auto arg : supported_args) {
+            int mask = attr()->scales_.get(arg).mask_;
+            if (arg == DNNL_ARG_WEIGHTS)
+                ok = ok && (mask == 0 || mask == (1 << 0));
+            else
+                ok = ok && (mask == 0);
+        }
+        return ok;
+    }
 };
 
 struct inner_product_fwd_pd_t : public inner_product_pd_t {
