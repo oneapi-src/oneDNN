@@ -59,25 +59,9 @@ struct ref_inner_product_int8_fwd_t : public primitive_t {
                     && attr()->has_default_values(smask_t::scales_runtime
                             | smask_t::post_ops | smask_t::sum_dt)
                     && attr()->post_ops_.check_sum_consistent_dt(dst_type)
-                    && arg_scales_mask_ok()
+                    && attr_scales_ok()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
-        }
-
-    private:
-        bool arg_scales_mask_ok() const {
-            const std::vector<int> supported_args
-                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-            bool ok = attr()->scales_.has_default_values(supported_args);
-
-            for (auto arg : supported_args) {
-                int mask = attr()->scales_.get(arg).mask_;
-                if (arg == DNNL_ARG_WEIGHTS)
-                    ok = ok && (mask == 0 || mask == (1 << 0));
-                else
-                    ok = ok && (mask == 0);
-            }
-            return ok;
         }
     };
 

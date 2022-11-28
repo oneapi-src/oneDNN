@@ -143,16 +143,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
 
         bool arg_scales_ok() const {
             std::vector<int> supported_args = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS};
-            bool ok = true;
-            ok = ok && attr()->scales_.has_default_values(supported_args);
-            for (int arg : supported_args) {
-                const auto &mask = attr()->scales_.get(arg).mask_;
-                if (arg == DNNL_ARG_WEIGHTS)
-                    ok = ok && (mask == 0 || mask == (1 << 0));
-                else
-                    ok = ok && (mask == 0);
-            }
-            return ok;
+            return attr_scales_ok(supported_args);
         }
 
         int get_brg_kernel_idx(bool is_bs_tail, bool do_initialization,

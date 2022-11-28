@@ -87,7 +87,7 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
                     && attr_.set_default_formats(dst_md(0)) == status::success
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(src_md_.data_type, s8, u8)
-                                    && arg_scales_ok())
+                                    && attr_scales_ok())
                     && IMPLICATION(desc()->src_desc.data_type == f16,
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16));
@@ -101,25 +101,6 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
 
         inner_product_conf_t conf;
         offsets_t off;
-
-    private:
-        bool arg_scales_ok() const {
-            std::vector<int> supported_args
-                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-            if (!attr()->scales_.has_default_values(supported_args))
-                return false;
-            for (int arg : supported_args) {
-                auto &scales = attr()->scales_.get(arg);
-                if (scales.has_default_values()) continue;
-                int mask = scales.mask_;
-                if (arg == DNNL_ARG_WEIGHTS) {
-                    if (!utils::one_of(mask, 0, 1 << 0)) return false;
-                } else {
-                    if (mask != 0) return false;
-                }
-            }
-            return true;
-        }
     };
 
     status_t init(engine_t *engine) override {
