@@ -259,7 +259,8 @@ struct jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
                     && desc()->accum_data_type == s32
                     && attr()->has_default_values(skip_mask_t::scales_runtime
                             | skip_mask_t::post_ops
-                            | skip_mask_t::zero_points_runtime);
+                            | skip_mask_t::zero_points_runtime)
+                    && attr_scales_ok();
             if (!ok) return status::unimplemented;
 
             CHECK(_jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(jcp_,

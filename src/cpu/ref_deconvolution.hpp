@@ -169,7 +169,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                             alg_kind::deconvolution_winograd)
                     && attr()->has_default_values(smask_t::scales_runtime
                             | smask_t::post_ops | smask_t::zero_points_runtime)
-                    && scales_mask_ok() && post_ops_ok() && zero_points_ok();
+                    && attr_scales_ok() && post_ops_ok() && zero_points_ok();
             if (!ok) return status::unimplemented;
 
             CHECK(init_convolution(engine));
@@ -229,21 +229,6 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             if (!attr()->zero_points_.has_default_values(DNNL_ARG_SRC)) {
                 scratchpad.book<int32_t>(key_deconv_zp, OC() * G());
             }
-        }
-
-        bool scales_mask_ok() const {
-            using namespace data_type;
-            const std::vector<int> supported_args
-                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-            bool ok = attr()->scales_.has_default_values(supported_args);
-            for (int arg : supported_args) {
-                const auto &mask = attr()->scales_.get(arg).mask_;
-                if (arg == DNNL_ARG_WEIGHTS)
-                    ok = ok && (mask == 0 || mask == (1 << (int)with_groups()));
-                else
-                    ok = ok && (mask == 0);
-            }
-            return ok;
         }
 
         bool post_ops_ok() const {
