@@ -78,10 +78,9 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
         status_t init_conf();
 
         bool check_scales_mask() const {
-            for (const auto &s : attr()->scales_.scales_) {
-                if (s.second.mask_ != 0) return false;
-            }
-            return true;
+            const std::vector<int> supported_args
+                    = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
+            return attr_scales_ok(supported_args);
         }
 
         bool post_ops_ok() const {
