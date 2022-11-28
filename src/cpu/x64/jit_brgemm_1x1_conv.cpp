@@ -126,7 +126,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
         brgattr.wary_tail_read = false;
         brgattr.use_uker = jcp_.use_uker;
-        brgattr.use_interleave_stores = brgattr.use_uker;
+        brgattr.use_interleave_stores = jcp_.use_interleave_stores;
         brgattr.hint_prefetching = jcp_.hint_prefetching;
         brgattr.fpmath_mode = attr()->fpmath_mode_;
         // if post-ops are required and there are no intermediate calculations

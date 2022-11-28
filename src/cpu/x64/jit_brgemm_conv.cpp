@@ -281,7 +281,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
                     brgattr.max_bottom_vpad = jcp_.max_vpad;
                 }
                 brgattr.fpmath_mode = attr()->fpmath_mode_;
-                brgattr.K_koef = KH;
+                brgattr.K_koef = (float)bs / KW;
 
                 // if need post_ops and there are no intermediate calculations
                 // (like ic_chunks > 1 or blocking by kernel) we don't need

@@ -2082,6 +2082,12 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     }
     if (try_exec_base && try_exec_type_res == false) {
         jcp.exec_type = exec_base;
+        if (is_amx(isa) && jcp.ow < (8 * 1024)) {
+            jcp.use_uker = true;
+            jcp.use_interleave_stores = true;
+            jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf1;
+        }
+
         try_exec_type_res = try_exec_type();
     }
 
@@ -2321,11 +2327,13 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (is_amx(isa)) {
         // heuristic for small mb
-        const bool is_small_mb = jcp.mb == 1 && jcp.ic * jcp.oh <= 28 * 1024
-                && jcp.oc * jcp.oh <= 14 * 1024;
+        const bool is_small_mb = nthreads > 1 && jcp.mb == 1
+                && jcp.ic * jcp.oh <= 28 * 1024 && jcp.oc * jcp.oh <= 14 * 1024;
+        MAYBE_UNUSED(is_small_mb);
         // non-unrolled kernel does not support bf32, only dispatch unrolled
         // kernel for now
         jcp.use_uker = jcp.is_bf32 || !is_small_mb;
+        jcp.use_interleave_stores = true;
     }
 
     // TODO: heuristic to dispatch BF32 BRGeMM
