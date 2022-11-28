@@ -396,6 +396,22 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
 
     const auto call_brgemm = [=](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      bool do_postops) {
+        // NOTE: avoid some costly tile reconfigurations here by keeping track
+        //       of the previous brg kernel tile configuration palette
+        // TODO: adjust harness to avoid even more tile reconfigurations
+        if (is_amx) {
+            const int curr_palette_idx = brg_kernel_palette_idx_[brg_idx];
+            if (curr_palette_idx != *last_palette_idx) {
+                if (*last_palette_idx == -1
+                        || std::memcmp(brg_kernel_palette_[curr_palette_idx].p,
+                                   brg_kernel_palette_[*last_palette_idx].p,
+                                   AMX_PALETTE_SIZE)
+                                != 0)
+                    amx_tile_configure(brg_kernel_palette_[curr_palette_idx].p);
+                *last_palette_idx = curr_palette_idx;
+            }
+        }
+
         for (int k = 0; k < n_ic_blocks; k++) {
             const auto ic_off = (ic_block_s + k) * jcp.ic_block;
             const auto src_ic = ic_off;
@@ -406,17 +422,6 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
             brg_batch[k].ptr.B = ptr_B;
             brg_batch[k].vvpad.top = 0;
             brg_batch[k].vvpad.bottom = 0;
-        }
-
-        // NOTE: avoid some costly tile reconfigurations here by keeping track
-        //       of the previous brg kernel tile configuration palette
-        // TODO: adjust harness to avoid even more tile reconfigurations
-        if (is_amx) {
-            const int curr_palette_idx = brg_kernel_palette_idx_[brg_idx];
-            if (curr_palette_idx != *last_palette_idx) {
-                amx_tile_configure(brg_kernel_palette_[curr_palette_idx].p);
-                *last_palette_idx = curr_palette_idx;
-            }
         }
 
         const brgemm_kernel_t *brg_ker = brg_kernels_[brg_idx].get();

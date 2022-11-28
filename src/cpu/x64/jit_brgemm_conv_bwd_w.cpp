@@ -319,7 +319,7 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
     int oc_b_start = 0, oc_b_end = 0, oc_b_work = 0;
     int ic_b_start = 0, ic_b_end = 0, ic_b_work = 0;
 
-    S_t cur_palette;
+    int cur_brg_idx = -1;
     brgemm_batch_element_t *__restrict brg_batch;
     char *wsp_tile;
     const exec_ctx_t &exec_ctx;
@@ -402,7 +402,6 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
         }
         ic_b_work = ic_b_end - ic_b_start;
 
-        std::memset(cur_palette.a, 0, AMX_PALETTE_SIZE);
         brgemm_batch_element_t *const __restrict brg_batch_global
                 = (jcp.brg_type == brgemm_strd)
                 ? nullptr
@@ -777,12 +776,13 @@ void brgemm_convolution_bwd_weights_t::call_brgemm_kernel(
     assert(brg_ker != nullptr);
 
     // TODO: avoid costly tile reconfigurations
-    if (std::memcmp(btc.cur_palette.a, brg_kernel_palettes_[brg_idx].a,
-                AMX_PALETTE_SIZE)
-            != 0) {
-        amx_tile_configure(brg_kernel_palettes_[brg_idx].a);
-        std::memcpy(btc.cur_palette.a, brg_kernel_palettes_[brg_idx].a,
-                AMX_PALETTE_SIZE);
+    if (btc.cur_brg_idx != brg_idx) {
+        if (btc.cur_brg_idx == -1
+                || std::memcmp(brg_kernel_palettes_[btc.cur_brg_idx].a,
+                           brg_kernel_palettes_[brg_idx].a, AMX_PALETTE_SIZE)
+                        != 0)
+            amx_tile_configure(brg_kernel_palettes_[brg_idx].a);
+        btc.cur_brg_idx = brg_idx;
     }
 
     brgemm_kernel_execute(brg_ker, batch_size, btc.brg_batch, ptr_C,

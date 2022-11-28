@@ -855,7 +855,7 @@ struct brgemm_convolution_fwd_t<isa, use_inversion>::brgemm_thread_ctx_t {
     brgemm_batch_element_t *__restrict brg_batch;
     char *c_buffer;
     char *wsp_tile;
-    S_t cur_palette;
+    int cur_brg_idx = -1;
     int g, n, ocb;
     int od, odb, oh, ohb, owb;
     int icc;
@@ -864,6 +864,21 @@ struct brgemm_convolution_fwd_t<isa, use_inversion>::brgemm_thread_ctx_t {
     int32_t *src_zp_comp_ptr;
     int32_t *dst_zp_vals;
     int32_t *s8s8_comp_ptr;
+    void maybe_tile_configure(bool is_amx,
+            const std::vector<brgemm_convolution_fwd_t::S_t>
+                    &brg_kernel_palettes,
+            int brg_ker_idx) {
+        // TODO: avoid costly tile reconfigurations
+        if (!is_amx) return;
+        if (brg_ker_idx == cur_brg_idx) return;
+        // TODO: more accurately estimate the costs of memcmp and tile configuration
+        if (cur_brg_idx == -1
+                || std::memcmp(brg_kernel_palettes[brg_ker_idx].a,
+                           brg_kernel_palettes[cur_brg_idx].a, AMX_PALETTE_SIZE)
+                        != 0)
+            amx_tile_configure(brg_kernel_palettes[brg_ker_idx].a);
+        cur_brg_idx = brg_ker_idx;
+    }
 };
 
 template <cpu_isa_t isa, bool use_inversion>
@@ -984,7 +999,6 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
 
         brgemm_thread_ctx_t btc(
                 brgemm_ctx, ithr, brg_batch, c_buffer, wsp_tile);
-        std::memset(btc.cur_palette.a, 0, AMX_PALETTE_SIZE);
 
         int last_n = -1;
         int last_g = -1;
@@ -1216,17 +1230,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::call_brgemm_kernel(
 
     const auto brg_ker = brg_kernels_[brg_idx].get();
     assert(brg_ker != nullptr);
-
-    // TODO: avoid costly tile reconfigurations
-    if (is_amx) {
-        if (std::memcmp(btc.cur_palette.a, brg_kernel_palettes_[brg_idx].a,
-                    AMX_PALETTE_SIZE)
-                != 0) {
-            amx_tile_configure(brg_kernel_palettes_[brg_idx].a);
-            std::memcpy(btc.cur_palette.a, brg_kernel_palettes_[brg_idx].a,
-                    AMX_PALETTE_SIZE);
-        }
-    }
 
     const auto do_only_pass_comp = !do_postops && jcp.src_zero_point
             && (jcp.req_brg_comp_pad || jcp.max_vpad > 0);
@@ -1463,6 +1466,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
                                      int32_t *src_zp, int32_t *s8s8_comp,
                                      bool do_postops, bool do_only_comp) {
         if (k_l <= 0) return;
+        btc.maybe_tile_configure(is_amx, brg_kernel_palettes_, brg_idx);
 
         for (int i_icb = 0; i_icb < n_ic_blocks; i_icb++) {
             const auto ic_off = (ic_block_s + i_icb) * jcp.ic_block;
@@ -1669,6 +1673,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      bool do_postops) {
         if (k_l <= 0) return;
+        btc.maybe_tile_configure(is_amx, brg_kernel_palettes_, brg_idx);
 
         const auto kh_ee = jcp.kh_sets > 1 ? kh_b + 1 : kh_e;
         const auto kw_e = jcp.kw_sets > 1 ? 1 : KW;
@@ -1826,6 +1831,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      int32_t *src_zp, int32_t *s8s8_comp,
                                      bool do_postops) {
+        btc.maybe_tile_configure(is_amx, brg_kernel_palettes_, brg_idx);
+
         for (int i_icb = 0; i_icb < n_ic_blocks; i_icb++) {
             const auto ic_off = (ic_block_s + i_icb) * jcp.ic_block;
             const auto src_ic = ic_off;

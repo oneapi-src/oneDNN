@@ -216,7 +216,7 @@ private:
             brg_kernels_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_copy_to_coarse_t> copy_src_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
-    char brg_kernel_palettes_[brgemm_inner_product_utils::
+    alignas(64) char brg_kernel_palettes_[brgemm_inner_product_utils::
                     max_num_brg_kernels_ip][AMX_PALETTE_SIZE];
 };
 
@@ -385,7 +385,7 @@ private:
     std::unique_ptr<jit_brgemm_copy_to_coarse_t> copy_diff_dst_kernel_;
     std::unique_ptr<jit_brgemm_trans_wei_t> trans_B_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
-    char brg_kernel_palettes_[brgemm_inner_product_utils::
+    alignas(64) char brg_kernel_palettes_[brgemm_inner_product_utils::
                     max_num_brg_kernels_ip][AMX_PALETTE_SIZE];
 };
 
@@ -587,7 +587,7 @@ private:
             const int icb, int oc_size, int ic_size,
             bool is_reduction = false) const;
 
-    char brg_kernel_palettes_[brgemm_inner_product_utils::
+    alignas(64) char brg_kernel_palettes_[brgemm_inner_product_utils::
                     max_num_brg_kernels_ip][AMX_PALETTE_SIZE];
     dim_t get_wei_offset(int ocb, int icb) const;
     char *get_wei_acc_ptr(const thread_info_t *ti, int ocb, int icb,
