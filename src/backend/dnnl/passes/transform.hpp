@@ -46,18 +46,6 @@ impl::status_t fuse_to_shuffle(std::shared_ptr<subgraph_t> &sg);
 impl::status_t replace_quant_data_with_binary_post_op(
         std::shared_ptr<subgraph_t> &sg);
 
-// fold the output scales of int8 conv/deconv/matmul/reorder+add pattern into
-// the input scales of add:
-///
-/// conv/deconv/matmul/reorder         conv/deconv/matmul/reorder
-///           |                                   |
-///     mul_scales0 mul_scales1   -->        mul_scales0 *    mul_scales1 *
-///            \   /                          mul_scales2      mul_scales2
-///             add                                      \   /
-///              |                                        add
-///         mul_scales2                                    |
-impl::status_t fold_sum_scales(std::shared_ptr<subgraph_t> &sg);
-
 impl::status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg);
 
 impl::status_t fuse_src_zero_points(std::shared_ptr<subgraph_t> &sg);
