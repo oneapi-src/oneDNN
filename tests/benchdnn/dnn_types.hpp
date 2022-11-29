@@ -162,8 +162,18 @@ struct attr_t {
         int operator[](int arg) const { return get(arg).value; }
         bool runtime(int arg) const { return get(arg).runtime; }
 
-        bool is_def(int arg) const { return get(arg).is_def(); }
-        bool is_def() const { return points.empty(); }
+        bool is_def(int arg) const {
+            return points.empty() || get(arg).is_def();
+        }
+        bool is_def() const {
+            if (points.empty()) return true;
+
+            bool def = true;
+            for (const auto &e : points) {
+                def = def && is_def(e.first);
+            }
+            return def;
+        }
 
         void set(int arg, policy_t policy, int value, bool runtime) {
             set(arg, entry_t(policy, value, runtime));
@@ -199,6 +209,8 @@ struct attr_t {
             return scales.empty() || get(arg).is_def();
         }
         bool is_def() const {
+            if (scales.empty()) return true;
+
             bool def = true;
             for (const auto &e : scales) {
                 def = def && is_def(e.first);
