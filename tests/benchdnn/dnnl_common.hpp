@@ -709,7 +709,7 @@ bool check_md_consistency_with_tag(
 memory_kind_ext_t str2memory_kind(const char *str);
 
 float reorder_rescale_factor();
-dims_t md2dims(const dnnl_memory_desc_t &md);
+dims_t md2dims(const_dnnl_memory_desc_t md);
 
 // Function adjusts data type if fpmath mode is present or sum_dt is different
 // from destination_dt. It is used in `cfg` objects that regulate filling.

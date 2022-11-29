@@ -30,7 +30,7 @@
 
 namespace compare {
 
-static void dump_point_values(const dnnl_memory_desc_t &md, data_kind_t kind,
+static void dump_point_values(const_dnnl_memory_desc_t md, data_kind_t kind,
         int64_t l_offset, float exp_f32, float exp, float got, float diff,
         float rel_diff) {
     std::stringstream ss;

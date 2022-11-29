@@ -1134,7 +1134,7 @@ float reorder_rescale_factor() {
     return factor;
 }
 
-dims_t md2dims(const dnnl_memory_desc_t &md) {
+dims_t md2dims(const_dnnl_memory_desc_t md) {
     auto ndims = query_md_ndims(md);
     dims_t dims(ndims, 0);
     for (int d = 0; d < ndims; ++d)
