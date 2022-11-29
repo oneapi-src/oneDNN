@@ -400,8 +400,8 @@ status_t combined_reduction_t::execute_combined(const exec_ctx_t &ctx) const {
     const auto &conf = pd()->conf;
 
     status_t status = status::success;
-    for (size_t i = 0; i < kernels.size(); i++) {
-        auto &kernel = kernels[i];
+    for (size_t i = 0; i < kernels_.size(); i++) {
+        auto &kernel = kernels_[i];
         auto &phase = conf.phases[i];
         auto nd_range = phase.nd_range;
 
@@ -414,7 +414,7 @@ status_t combined_reduction_t::execute_combined(const exec_ctx_t &ctx) const {
             reduction_arg_list.set(0, *sp_reduce[(i - 1) % 2]);
         }
 
-        if (i == kernels.size() - 1) {
+        if (i == kernels_.size() - 1) {
             reduction_arg_list.set(1, dst);
         } else {
             reduction_arg_list.set(1, *sp_reduce[i % 2]);

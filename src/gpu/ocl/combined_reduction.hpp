@@ -17,17 +17,10 @@
 #ifndef GPU_combined_REDUCTION_HPP
 #define GPU_combined_REDUCTION_HPP
 
-#include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "common/type_helpers.hpp"
-#include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reduction_pd.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
-
-#include <iostream>
 
 namespace dnnl {
 namespace impl {
@@ -75,7 +68,7 @@ struct combined_reduction_t : public gpu_primitive_t {
             status = create_kernel(
                     engine, &kernel, "combined_reduce", kernel_ctx);
             CHECK(status);
-            kernels.push_back(kernel);
+            kernels_.push_back(kernel);
         }
 
         return status::success;
@@ -89,7 +82,7 @@ private:
     status_t execute_combined(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::vector<compute::kernel_t> kernels;
+    std::vector<compute::kernel_t> kernels_;
 };
 
 } // namespace ocl
