@@ -150,6 +150,8 @@ bool has_training_support(data_type_t data_type) {
         case data_type::f16:
 #if DNNL_X64
             return x64::mayiuse(x64::avx512_core_fp16);
+#elif DNNL_AARCH64_USE_ACL
+            return arm_compute::CPUInfo::get().has_fp16();
 #else
             return false;
 #endif
