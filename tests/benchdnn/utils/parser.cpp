@@ -536,15 +536,18 @@ bool parse_ctx(std::vector<thr_ctx_t> &ctx,
         const std::string &option_name) {
     const std::string name_in_help
             = (option_name == "ctx-init") ? "initialization." : "execution.";
-    const std::string help = 
-            "MAX_CONCURENCY[:CORE_TYPE[:THREADS_PER_CORE]] (Default:"
-            "`auto:auto:auto`)\n Specifies the threading context "
-            "used during primitive " + name_in_help +
-            "\nMAX_CONCURRENCY is the maximum number of threads."
-            "\nCORE_TYPE enables to select big (value 0) or small cores "
-            "(value 1) for hybrid CPUs (TBB runtime only)."
-            "\nTHREADS_PER_CORE allows to enable/disable hyper-threading "
-            "(TBB runtime only).";
+    const std::string help
+            = std::string(
+                      "MAX_CONCURENCY[:CORE_TYPE[:THREADS_PER_CORE]] "
+                      "(Default:`auto:auto:auto`)\n    Specifies the threading "
+                      "context used during primitive ")
+            + name_in_help
+            + std::string(
+                    "\n    MAX_CONCURRENCY is the maximum number of threads.\n "
+                    "   CORE_TYPE enables to select big (value 0) or small "
+                    "cores (value 1) for hybrid CPUs (TBB runtime only).\n    "
+                    "THREADS_PER_CORE allows to enable/disable hyper-threading "
+                    "(TBB runtime only).\n");
 
     auto str2ctx = [&option_name](const char *str) {
         thr_ctx_t result = default_thr_ctx;
