@@ -161,15 +161,19 @@ struct ref_deconvolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace format_tag;
+            using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
+            auto skip_mask = smask_t::post_ops;
+            if (utils::one_of(desc()->src_desc.data_type, s8, u8))
+                skip_mask |= smask_t::scales_runtime
+                        | smask_t::zero_points_runtime;
 
             const bool ok = is_fwd()
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::deconvolution_direct,
                             alg_kind::deconvolution_winograd)
-                    && attr()->has_default_values(smask_t::scales_runtime
-                            | smask_t::post_ops | smask_t::zero_points_runtime)
-                    && attr_scales_ok() && post_ops_ok() && zero_points_ok();
+                    && attr()->has_default_values(skip_mask) && attr_scales_ok()
+                    && post_ops_ok() && zero_points_ok();
             if (!ok) return status::unimplemented;
 
             CHECK(init_convolution(engine));
