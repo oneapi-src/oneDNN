@@ -113,6 +113,7 @@ static int convert_axis(int64_t axis, int64_t dim) {
 sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
         const std::vector<sc::graph_tensor_ptr> &producer_lt,
         const std::vector<sc::graph_tensor_ptr> &consumer_lt) {
+    if (!is_supported_op(aop->get_kind())) { return nullptr; }
     sc::any_map_t backend_attrs;
     std::unordered_map<impl::op_attr_t, impl::utils::attribute_value_t> attrs
             = aop->get_attributes();
