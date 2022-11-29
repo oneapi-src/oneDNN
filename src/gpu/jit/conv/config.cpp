@@ -1793,29 +1793,21 @@ void init_prefetch(conv_config_t &cfg) {
     }
 }
 
-void init_allow_grf_reorder(conv_config_t &cfg) {
+void init_allow_a_grf_reorder(conv_config_t &cfg) {
+    if (cfg.allow_a_grf_reorder_param().is_overridden()) return;
     const auto &prb = cfg.prb();
-    cfg.set_allow_a_grf_reorder(!prb.matches_user_types());
-    cfg.set_allow_b_grf_reorder(!prb.matches_user_types());
-
-    bool is_mad = !cfg.is_dp_fma();
-    if (is_mad && prb.is_s32_accumulator()) {
-        cfg.set_allow_a_grf_reorder(true);
-        cfg.set_allow_b_grf_reorder(true);
-        return;
-    }
-
-    if (is_mad && prb.b_data_type == data_type::bf16) {
-        cfg.set_allow_b_grf_reorder(true);
-        return;
-    }
-
     bool use_a_2d_send = can_use_a_2d_send(cfg);
-    bool use_b_2d_send = can_use_b_2d_send(cfg);
     bool is_a_grf_blocked
             = (cfg.a_layout().compute().innermost_block_layout().size()
                             % cfg.grf_size()
                     == 0);
+    bool is_mad = !cfg.is_dp_fma();
+    cfg.set_allow_a_grf_reorder(!prb.matches_user_types());
+    if (is_mad && prb.is_s32_accumulator()) {
+        cfg.set_allow_a_grf_reorder(true);
+        return;
+    }
+    if (is_mad && prb.b_data_type == data_type::bf16) { return; }
     if ((prb.is_fwd || prb.is_bwd_d) && !use_a_2d_send && !is_a_grf_blocked) {
         const char *dim_name = (prb.is_fwd ? "ic" : "oc");
         int dim = (prb.is_fwd ? prb.ic : prb.oc);
@@ -1832,10 +1824,25 @@ void init_allow_grf_reorder(conv_config_t &cfg) {
     if (cfg.is_dp_fma() && !prb.is_dw && a_is_small_c) {
         cfg.set_allow_a_grf_reorder(true);
     }
+    if (prb.is_bwd_w && cfg.is_dp_fma()) { cfg.set_allow_a_grf_reorder(true); }
+}
 
-    if (prb.is_bwd_w && cfg.is_dp_fma()) {
-        cfg.set_allow_a_grf_reorder(true);
-        if (!use_b_2d_send) cfg.set_allow_b_grf_reorder(true);
+void init_allow_b_grf_reorder(conv_config_t &cfg) {
+    if (cfg.allow_b_grf_reorder_param().is_overridden()) return;
+    const auto &prb = cfg.prb();
+    bool use_b_2d_send = can_use_b_2d_send(cfg);
+    bool is_mad = !cfg.is_dp_fma();
+    cfg.set_allow_b_grf_reorder(!prb.matches_user_types());
+    if (is_mad && prb.is_s32_accumulator()) {
+        cfg.set_allow_b_grf_reorder(true);
+        return;
+    }
+    if (is_mad && prb.b_data_type == data_type::bf16) {
+        cfg.set_allow_b_grf_reorder(true);
+        return;
+    }
+    if (prb.is_bwd_w && cfg.is_dp_fma() && !use_b_2d_send) {
+        cfg.set_allow_b_grf_reorder(true);
     }
 }
 
@@ -2050,7 +2057,8 @@ status_t try_init_cfg(conv_config_t &cfg) {
     init_unroll(cfg);
     init_slm(cfg);
     init_prefetch(cfg);
-    init_allow_grf_reorder(cfg);
+    init_allow_a_grf_reorder(cfg);
+    init_allow_b_grf_reorder(cfg);
     init_allow_slm_tg_slicing(cfg);
     init_reduce_b(cfg);
     init_assign_sbids(cfg);
