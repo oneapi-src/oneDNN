@@ -95,8 +95,12 @@ TEST_F(attr_quantization_test_t, TestBinary) {
     CHECK_OK(binary::primitive_desc(eng, algorithm::binary_add, md, md, md));
 
     for (auto arg : {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1, DNNL_ARG_DST}) {
-        CHECK_OK(binary::primitive_desc(eng, algorithm::binary_add, md, md, md,
-                gen_attr_with_scales(arg)));
+        if (arg == DNNL_ARG_DST)
+            CHECK_UNIMPL(binary::primitive_desc(eng, algorithm::binary_add, md,
+                    md, md, gen_attr_with_scales(arg)));
+        else
+            CHECK_OK(binary::primitive_desc(eng, algorithm::binary_add, md, md,
+                    md, gen_attr_with_scales(arg)));
         CHECK_UNIMPL(binary::primitive_desc(
                 eng, algorithm::binary_add, md, md, md, gen_attr_with_zp(arg)));
     }
@@ -130,14 +134,90 @@ TEST_F(attr_quantization_test_t, TestConv) {
             {1, 1}, {1, 1}, gen_attr_with_scales()));
 
     for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-        if ((src_md.get_data_type() == data_type::s8
-                    || src_md.get_data_type() == data_type::u8)
-                && (arg == DNNL_ARG_SRC || arg == DNNL_ARG_DST)) {
-            CHECK_OK(convolution_forward::primitive_desc(eng,
+        if (src_md.get_data_type() == data_type::s8
+                || src_md.get_data_type() == data_type::u8) {
+            if (arg == DNNL_ARG_SRC || arg == DNNL_ARG_DST) {
+                CHECK_OK(convolution_forward::primitive_desc(eng,
+                        prop_kind::forward, algorithm::convolution_direct,
+                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                        gen_attr_with_zp(arg)));
+                CHECK_OK(convolution_forward::primitive_desc(eng,
+                        prop_kind::forward, algorithm::convolution_direct,
+                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                        gen_attr_with_scales(arg, 0)));
+            } else {
+                CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
+                        prop_kind::forward, algorithm::convolution_direct,
+                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                        gen_attr_with_zp(arg)));
+                CHECK_OK(convolution_forward::primitive_desc(eng,
+                        prop_kind::forward, algorithm::convolution_direct,
+                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                        gen_attr_with_scales(arg, 0)));
+                CHECK_OK(convolution_forward::primitive_desc(eng,
+                        prop_kind::forward, algorithm::convolution_direct,
+                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                        gen_attr_with_scales(arg, 1 << 0)));
+            }
+        } else {
+            CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::convolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_scales(arg)));
+            CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::convolution_direct, src_md,
                     wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
                     gen_attr_with_zp(arg)));
+        }
+    }
+}
+
+TEST_F(attr_quantization_test_t, TestConvGroup) {
+    // Datatype u8 is not supported in the Nvidia backend
+    SKIP_IF_CUDA(true, "Unsupported datatype for CUDA");
+    const int g = 2;
+    memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
+    memory::desc wei_md {{g, 32 / g, 16 / g, 3, 3}, data_type::s8, tag::any};
+    memory::desc dst_md {{1, 32, 7, 7}, data_type::s32, tag::any};
+
+    CHECK_OK(convolution_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::convolution_direct, src_md, wei_md, dst_md, {1, 1},
+            {1, 1}, {1, 1}));
+    CHECK_OK(convolution_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::convolution_direct, src_md, wei_md, dst_md, {1, 1},
+            {1, 1}, {1, 1}, gen_attr_with_scales()));
+
+    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+        if (src_md.get_data_type() == data_type::s8
+                || src_md.get_data_type() == data_type::u8) {
+            if (arg == DNNL_ARG_SRC || arg == DNNL_ARG_DST) {
+                CHECK_OK(convolution_forward::primitive_desc(eng,
+                        prop_kind::forward, algorithm::convolution_direct,
+                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                        gen_attr_with_zp(arg)));
+                CHECK_OK(convolution_forward::primitive_desc(eng,
+                        prop_kind::forward, algorithm::convolution_direct,
+                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                        gen_attr_with_scales(arg, 0)));
+            } else {
+                CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
+                        prop_kind::forward, algorithm::convolution_direct,
+                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                        gen_attr_with_zp(arg)));
+                CHECK_OK(convolution_forward::primitive_desc(eng,
+                        prop_kind::forward, algorithm::convolution_direct,
+                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                        gen_attr_with_scales(arg, 0)));
+                CHECK_OK(convolution_forward::primitive_desc(eng,
+                        prop_kind::forward, algorithm::convolution_direct,
+                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                        gen_attr_with_scales(arg, 1 << 1)));
+            }
         } else {
+            CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::convolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_scales(arg)));
             CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::convolution_direct, src_md,
                     wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
@@ -147,18 +227,93 @@ TEST_F(attr_quantization_test_t, TestConv) {
 }
 
 TEST_F(attr_quantization_test_t, TestDeconv) {
-    memory::desc src_md {{1, 16, 7, 7}, data_type::f32, tag::any};
-    memory::desc wei_md {{32, 16, 3, 3}, data_type::f32, tag::any};
-    memory::desc dst_md {{1, 32, 7, 7}, data_type::f32, tag::any};
+    memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
+    memory::desc wei_md {{32, 16, 3, 3}, data_type::s8, tag::any};
+    memory::desc dst_md {{1, 32, 7, 7}, data_type::s8, tag::any};
     CHECK_OK(deconvolution_forward::primitive_desc(eng, prop_kind::forward,
             algorithm::deconvolution_direct, src_md, wei_md, dst_md, {1, 1},
             {1, 1}, {1, 1}, gen_attr_with_scales()));
 
-    for (auto arg :
-            {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
-        CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng,
-                prop_kind::forward, algorithm::deconvolution_direct, src_md,
-                wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}, gen_attr_with_zp(arg)));
+    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+        if (arg == DNNL_ARG_SRC || arg == DNNL_ARG_DST) {
+            // scales: common mask
+            CHECK_OK(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_scales(arg)));
+            // zpoints: common mask
+            CHECK_OK(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_zp(arg)));
+        } else {
+            // scales: common mask
+            CHECK_OK(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_scales(arg, 0)));
+            // scales: per_oc mask
+            CHECK_OK(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_scales(arg, 1 << 0)));
+            // scales: unsupported mask
+            CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_scales(arg, 1 << 1)));
+            // zpoints: common mask
+            CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_zp(arg)));
+        }
+    }
+}
+
+TEST_F(attr_quantization_test_t, TestDeconvGroup) {
+    const int g = 2;
+    memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
+    memory::desc wei_md {{g, 32 / g, 16 / g, 3, 3}, data_type::s8, tag::any};
+    memory::desc dst_md {{1, 32, 7, 7}, data_type::s8, tag::any};
+    CHECK_OK(deconvolution_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::deconvolution_direct, src_md, wei_md, dst_md, {1, 1},
+            {1, 1}, {1, 1}, gen_attr_with_scales()));
+
+    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+        if (arg == DNNL_ARG_SRC || arg == DNNL_ARG_DST) {
+            // scales: common mask
+            CHECK_OK(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_scales(arg)));
+            // zpoints: common mask
+            CHECK_OK(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_zp(arg)));
+        } else {
+            // scales: common mask
+            CHECK_OK(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_scales(arg, 0)));
+            // scales: per_oc mask
+            CHECK_OK(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_scales(arg, 1 << 1)));
+            // scales: unsupported mask
+            CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_scales(arg, 1 << 2)));
+            // zpoints: common mask
+            CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng,
+                    prop_kind::forward, algorithm::deconvolution_direct, src_md,
+                    wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                    gen_attr_with_zp(arg)));
+        }
     }
 }
 
