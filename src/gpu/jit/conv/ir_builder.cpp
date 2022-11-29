@@ -1738,8 +1738,9 @@ private:
                     parts.emplace_back(store_t::make(acc[i * 2 + 1], 0,
                             b * shuffle_t::make_broadcast(zp0, vs32.elems())));
                 };
-                //XXX: workaround synchronization issue
-                if (!is_scalar) parts.emplace_back(funcs::barrier());
+                // XXX: workaround synchronization issue
+                if (!is_scalar && !cfg_.slm())
+                    parts.emplace_back(funcs::barrier());
 
                 if (is_scalar && m_blk == m_blk_x2) apply_scalar();
                 if (m_blk_x2 != m_blk) {
