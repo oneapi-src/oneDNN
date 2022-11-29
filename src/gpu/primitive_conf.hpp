@@ -632,6 +632,7 @@ struct reduction_conf_t {
     float eps;
     dim_t src_dims[MAX_NDIMS], reduce_dims[MAX_NDIMS], dst_dims[MAX_NDIMS];
     bool is_reduction_dim[MAX_NDIMS];
+    int hwd_reduction_size, hwd_size;
     data_type_t src_type, dst_type;
     memory_desc_info_t src_md_info, dst_md_info;
     compute::dispatch_t dispatch;

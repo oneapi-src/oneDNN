@@ -28,8 +28,8 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
-        INSTANCE(ocl::gen9_reduction_t)
         INSTANCE(ocl::combined_reduction_t)
+        INSTANCE(ocl::gen9_reduction_t)
         INSTANCE(ocl::ref_reduction_t)
         nullptr,
 });

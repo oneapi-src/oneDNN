@@ -85,15 +85,116 @@ std::pair<int, int> get_initial_n_split(const int n, const bool is_n_reduced) {
     return std::make_pair(initial_n_chunk_size, initial_n_chunks_num);
 }
 
+// Used by other implementations to check if the given problem can use the
+// gen9 implementation without creating a new pd
+bool gen9_reduction_t::is_compatible(const memory_desc_wrapper &src_mdw,
+        const memory_desc_wrapper &dst_mdw, reduction_conf_t *conf) {
+    const int ndims = src_mdw.ndims();
+    const dnnl_dim_t *src_dims = src_mdw.md_->dims;
+    const dnnl_dim_t *dst_dims = dst_mdw.md_->dims;
+
+    using namespace dnnl::impl::format_tag;
+    const bool is_nhwc = (src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
+            != format_tag::undef);
+
+    // Last blocked dim is C and it has blockSize size
+    auto is_c_blocked_by
+            = [](const memory_desc_wrapper &mdw, const int blockSize) {
+                  const blocking_desc_t &blk = mdw.blocking_desc();
+                  if (blk.inner_nblks == 0) return false;
+                  return (blk.inner_idxs[blk.inner_nblks - 1] == 1)
+                          && (blk.inner_blks[blk.inner_nblks - 1] == blockSize);
+              };
+
+    // plain layouts: NHWC, src C must be divisible by 16.
+    if (is_nhwc) {
+        int c = src_dims[1];
+        if (c % 16 != 0) { return false; }
+        if (src_dims[0] != dst_dims[0]) { return false; }
+        if (src_dims[1] != dst_dims[1]) { return false; }
+    } else {
+        // blocked layouts: src C must have blocks of 16 or 32
+        if (!(is_c_blocked_by(src_mdw, 16) || is_c_blocked_by(src_mdw, 32)))
+            return false;
+    }
+
+    int src_n_block_size, src_c_block_size;
+    int dst_n_block_size, dst_c_block_size;
+    std::tie(src_n_block_size, src_c_block_size) = get_n_c_block_sizes(src_mdw);
+    std::tie(dst_n_block_size, dst_c_block_size) = get_n_c_block_sizes(dst_mdw);
+
+    // src/dst blocking must match
+    if (src_n_block_size != dst_n_block_size
+            || src_c_block_size != dst_c_block_size
+            || src_mdw.blocking_desc().inner_nblks
+                    != dst_mdw.blocking_desc().inner_nblks)
+        return false;
+
+    // Either 0th/1st dims blocked or just 1st dim blocked
+    if ((src_n_block_size == 1 && src_mdw.blocking_desc().inner_nblks > 1)
+            || src_mdw.blocking_desc().inner_nblks > 2) {
+        return false;
+    }
+
+    int div = 1;
+    int hwd_size = 1;
+    int hwd_reduction_size = 1;
+    dims_t reduce_dims;
+    bool is_reduction_dim[MAX_NDIMS];
+    for (int d = 0; d < ndims; d++) {
+        reduce_dims[d] = dim_t {1};
+        is_reduction_dim[d] = src_dims[d] != dst_dims[d];
+
+        if (is_reduction_dim[d]) {
+            reduce_dims[d] = src_dims[d];
+            div *= reduce_dims[d];
+        }
+        if (d >= 2) {
+            hwd_size *= src_dims[d];
+            hwd_reduction_size *= reduce_dims[d];
+        }
+    }
+
+    // If any spatial dims are reduced, they all have to be.
+    if (hwd_size != hwd_reduction_size && hwd_reduction_size > 1) {
+        return false;
+    }
+
+    // full padded C must be a multiple of 16 -- redundant due to blocking?
+    int sub_group_size = 16;
+    const auto &src_padded_dims = src_mdw.padded_dims();
+    if (src_padded_dims[1] % sub_group_size != 0) return false;
+
+    // If supplied with conf, save side effects/relevant variables
+    if (conf != nullptr) {
+        conf->n_block_size = src_n_block_size;
+        conf->c_block_size = is_nhwc ? src_dims[1] : src_c_block_size;
+        conf->div = div;
+        conf->hwd_reduction_size = hwd_reduction_size;
+        conf->hwd_size = hwd_size;
+        conf->sub_group_size = sub_group_size;
+        for (int d = 0; d < ndims; d++) {
+            conf->src_dims[d] = src_dims[d];
+            conf->dst_dims[d] = dst_dims[d];
+            conf->is_reduction_dim[d] = is_reduction_dim[d];
+            conf->reduce_dims[d] = reduce_dims[d];
+        }
+    }
+
+    return true;
+}
+
 status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     const reduction_pd_t *pd = this;
 
     const memory_desc_wrapper src_mdw(pd->src_md());
     const memory_desc_wrapper dst_mdw(pd->dst_md());
 
+    if (!is_compatible(src_mdw, dst_mdw, &conf)) {
+        return status::unimplemented;
+    }
+
     const int ndims = src_mdw.ndims();
-    const dnnl_dim_t *src_dims = src_mdw.md_->dims;
-    const dnnl_dim_t *dst_dims = dst_mdw.md_->dims;
     const compute::compute_engine_t *compute_engine
             = utils::downcast<compute::compute_engine_t *>(engine);
     const int num_threads = compute_engine->device_info()->hw_threads();
@@ -107,85 +208,6 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
     conf.power = pd->desc()->p;
     conf.eps = pd->desc()->eps;
     conf.dispatch = compute_engine->create_dispatch(src_mdw.md_);
-
-    // Last blocked dim is C and it has blockSize size
-    auto is_c_blocked_by
-            = [](const memory_desc_wrapper &mdw, const int blockSize) {
-                  const blocking_desc_t &blk = mdw.blocking_desc();
-                  if (blk.inner_nblks == 0) return false;
-                  return (blk.inner_idxs[blk.inner_nblks - 1] == 1)
-                          && (blk.inner_blks[blk.inner_nblks - 1] == blockSize);
-              };
-
-    using namespace dnnl::impl::format_tag;
-    const bool is_nhwc = (src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
-            != format_tag::undef);
-
-    // plain layouts: NHWC, src C must be divisible by 16.
-    if (is_nhwc) {
-        int c = src_dims[1];
-        if (c % 16 != 0) { return status::unimplemented; }
-        if (src_dims[0] != dst_dims[0]) { return status::unimplemented; }
-        if (src_dims[1] != dst_dims[1]) { return status::unimplemented; }
-    } else {
-        // blocked layouts: src C must have blocks of 16 or 32
-        if (!(is_c_blocked_by(src_mdw, 16) || is_c_blocked_by(src_mdw, 32)))
-            return status::unimplemented;
-    }
-
-    int src_n_block_size, src_c_block_size;
-    int dst_n_block_size, dst_c_block_size;
-    std::tie(src_n_block_size, src_c_block_size) = get_n_c_block_sizes(src_mdw);
-    std::tie(dst_n_block_size, dst_c_block_size) = get_n_c_block_sizes(dst_mdw);
-
-    // src/dst blocking must match
-    if (src_n_block_size != dst_n_block_size
-            || src_c_block_size != dst_c_block_size
-            || src_mdw.blocking_desc().inner_nblks
-                    != dst_mdw.blocking_desc().inner_nblks)
-        return status::unimplemented;
-
-    conf.n_block_size = src_n_block_size;
-    conf.c_block_size = src_c_block_size;
-    if (is_nhwc) { conf.c_block_size = src_dims[1]; }
-
-    // Either 0th/1st dims blocked or just 1st dim blocked
-    if ((conf.n_block_size == 1 && src_mdw.blocking_desc().inner_nblks > 1)
-            || src_mdw.blocking_desc().inner_nblks > 2) {
-        return status::unimplemented;
-    }
-
-    conf.div = 1;
-    int hwd_size = 1;
-    int hwd_reduction_size = 1;
-    for (int d = 0; d < ndims; d++) {
-        conf.src_dims[d] = src_dims[d];
-        conf.reduce_dims[d] = conf.dst_dims[d] = dim_t {1};
-        conf.is_reduction_dim[d] = conf.src_dims[d] != dst_dims[d];
-
-        if (conf.is_reduction_dim[d]) {
-            conf.reduce_dims[d] = conf.src_dims[d];
-            conf.div *= conf.reduce_dims[d];
-        } else {
-            conf.dst_dims[d] = conf.src_dims[d];
-        }
-        if (d >= 2) {
-            hwd_size *= conf.src_dims[d];
-            hwd_reduction_size *= conf.reduce_dims[d];
-        }
-    }
-
-    // If any spatial dims are reduced, they all have to be.
-    if (hwd_size != hwd_reduction_size && hwd_reduction_size > 1) {
-        return status::unimplemented;
-    }
-
-    // full padded C must be a multiple of 16 -- redundant due to blocking?
-    conf.sub_group_size = 16;
-    const auto &src_padded_dims = src_mdw.padded_dims();
-    if (src_padded_dims[1] % conf.sub_group_size != 0) {
-        return status_t::dnnl_unimplemented;
-    }
 
     // number of C chunks in dim 1
     conf.initial_c_chunks
@@ -212,12 +234,12 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
                 * get_wi_per_hwd();
     };
 
-    if (hwd_reduction_size == 1) {
+    if (conf.hwd_reduction_size == 1) {
         conf.initial_hwd_chunk_size = 1;
         // If there is no HWD reduction use vectors only to read whole C block
         conf.vector_size = conf.initial_c_chunks;
-        conf.initial_hwd_dim = hwd_size;
-        conf.final_hwd_dim = hwd_size;
+        conf.initial_hwd_dim = conf.hwd_size;
+        conf.final_hwd_dim = conf.hwd_size;
         conf.final_hwd_chunk_size = 1;
     } else {
         // Start with such constant and try to adjust that with heuristics
@@ -227,7 +249,7 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
         } else {
             conf.vector_size = 8;
         }
-        conf.initial_hwd_dim = hwd_reduction_size;
+        conf.initial_hwd_dim = conf.hwd_reduction_size;
 
         // Experimentally selected values
         constexpr int min_elems_per_wi = 64;
@@ -253,6 +275,7 @@ status_t gen9_reduction_t::pd_t::init_conf(engine_t *engine) {
         conf.final_hwd_chunk_size = conf.final_hwd_dim;
     }
 
+    const auto &src_padded_dims = src_mdw.padded_dims();
     conf.final_c_dim = conf.is_reduction_dim[1]
             ? src_padded_dims[1] / (conf.sub_group_size * conf.initial_c_chunks)
             : conf.src_dims[1];

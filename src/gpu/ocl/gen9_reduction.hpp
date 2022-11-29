@@ -98,6 +98,8 @@ struct gen9_reduction_t : public gpu_primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_gen9(ctx);
     }
+    static bool is_compatible(const memory_desc_wrapper &src_mdw,
+            const memory_desc_wrapper &dst_mdw, reduction_conf_t *conf);
 
 private:
     status_t execute_gen9(const exec_ctx_t &ctx) const;

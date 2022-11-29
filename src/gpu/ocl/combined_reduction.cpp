@@ -16,6 +16,7 @@
 
 #include "gpu/ocl/combined_reduction.hpp"
 #include "common/scratchpad.hpp"
+#include "gpu/ocl/gen9_reduction.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -158,6 +159,18 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
         }
     }
 
+    // If this shape is sparse, use a different
+    // implementation (unless it's ref, use this anyway)
+    constexpr float required_density = 1.0f / 16;
+    const int padded_elems
+            = utils::array_product(src_mdw.padded_dims(), src_mdw.ndims());
+    const int nelems = utils::array_product(src_mdw.dims(), src_mdw.ndims());
+    if ((float)nelems / padded_elems < required_density) {
+        // Use gen9 if possible
+        if (gen9_reduction_t::is_compatible(src_mdw, dst_mdw, nullptr)) {
+            return status::unimplemented;
+        }
+    }
 
     // Convert plain/blocking dim structure to singular extended structure
     layout_t src_ext(src_mdw);
