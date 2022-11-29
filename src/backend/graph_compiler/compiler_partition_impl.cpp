@@ -214,6 +214,7 @@ impl::status_t compiler_partition_impl_t::compile(
             // translate op
             sc::sc_op_ptr ret;
             ret = sub_graph.make_backend_op(cur_op, producer_lt, consumer_lt);
+            if (!ret) { return impl::status::unimplemented; }
             // translate output value
             for (size_t i = 0; i < cur_op->get_output_values().size(); i++) {
                 auto &out_value = cur_op->get_output_values()[i];

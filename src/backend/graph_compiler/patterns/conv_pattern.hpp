@@ -578,7 +578,7 @@ pm::pb_op_t *convolutional_bottleneck_training_forward(
     pm::pb_op_t *dst2 = conv_bn_relu(pgraph, dst1, false, is_bf16);
     pm::pb_op_t *dst3 = conv_bn_relu(pgraph, nullptr, false, is_bf16);
     auto bottleneck_add = pgraph->append_op(impl::op_kind::Add,
-            {in_edge(0, dst2, 0), in_edge(0, dst3, 0)}, "bottleneck_add");
+            {in_edge(0, dst2, 0), in_edge(1, dst3, 0)}, "bottleneck_add");
     auto relu = pgraph->append_op(
             impl::op_kind::ReLU, {in_edge(0, bottleneck_add, 0)}, "relu_last");
     return relu;

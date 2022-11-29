@@ -899,3 +899,61 @@ TEST(GCPatternTests, BF16ConvolutionalBottleneckPattern) {
     ASSERT_EQ(partitions[0]->get_inputs().size(), 9U);
     ASSERT_EQ(partitions[0]->get_outputs().size(), 1U);
 }
+
+TEST(GCPatternTests, FP32ConvolutionalBottleneckTrainingPattern) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_convolutional_bottleneck_training_subgraph(
+            &agraph, id_gen, {1, 64, 56, 56},
+            {{256, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass_fwd = get_pass(
+            compiler_backend_ptr, "f32_convolutional_bottleneck_forward");
+    pass::pass_base_ptr apass_bwd = get_pass(
+            compiler_backend_ptr, "f32_convolutional_bottleneck_backward_v1");
+
+    apass_fwd->run(agraph);
+    apass_bwd->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 2U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 12U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 21U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 23U);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 16U);
+    ASSERT_EQ(partitions[1]->get_inputs().size(), 25U);
+    ASSERT_EQ(partitions[1]->get_outputs().size(), 13U);
+}
+
+TEST(GCPatternTests, FP32IdenticalBottleneckTrainingPattern) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
+            id_gen, {1, 64, 56, 56},
+            {{64, 64, 1, 1}, {64, 64, 3, 3}, {64, 64, 1, 1}});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass_fwd = get_pass(
+            compiler_backend_ptr, "f32_identical_bottleneck_forward");
+    pass::pass_base_ptr apass_bwd = get_pass(
+            compiler_backend_ptr, "f32_identical_bottleneck_backward_v1");
+
+    apass_fwd->run(agraph);
+    apass_bwd->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 2U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 10U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 16U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 18U);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 13U);
+    ASSERT_EQ(partitions[1]->get_inputs().size(), 20U);
+    ASSERT_EQ(partitions[1]->get_outputs().size(), 10U);
+}
