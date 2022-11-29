@@ -372,9 +372,10 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
                     bf16_emu_scratch, bf16_emu_reserv_4, bf16_emu_reserv_4);
 
         const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
-        // per_oc: conv: 1 << 0, 1 << 1 (with groups)
+        // per_oc: conv: 1 << 0, (1 << 1) + (1 << 0) (with groups)
         // per_oc: ip: 1 << 0
-        is_oc_scale_ = utils::one_of(wei_scales.mask_, 1 << 0, 1 << 1);
+        is_oc_scale_
+                = utils::one_of(wei_scales.mask_, 1 << 0, (1 << 1) + (1 << 0));
 
         LDD_ = brg.LDD;
         inp_dt_ = brg.dt_c;
