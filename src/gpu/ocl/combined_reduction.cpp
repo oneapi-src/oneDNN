@@ -23,6 +23,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+using extended_dims_t = dim_t[2 * DNNL_MAX_NDIMS];
+
 static reduction_phase_t init_phase(int start, int end, int num_reductions,
         data_type_t src_type, data_type_t dst_type,
         compute::nd_range_t nd_range) {
@@ -56,43 +58,90 @@ void combined_reduction_t::pd_t::init_scratchpad() {
     }
 }
 
+// Represents the memory layout of memory_desc_wrapper, where plain and blocked dims
+// each get their own full dimension. I.E. aBc16b would have ndims=4: 3 plain plus
+// one blocked.
+struct layout_t {
+public:
+    layout_t(const memory_desc_wrapper &mdw) {
+        const dim_t *dims = mdw.dims();
+        const dim_t *padded_dims = mdw.dims();
+        const blocking_desc_t &blk = mdw.blocking_desc();
+        const dim_t *strides = blk.strides;
+        const int plain_ndims = mdw.ndims();
+
+        m_ndims = plain_ndims + blk.inner_nblks;
+
+        for (int i = 0; i < plain_ndims; i++) {
+            dim_t src_stride = strides[i];
+            dim_t dim_idx = i;
+            for (int j = 0; j < i; j++) {
+                if (src_stride > strides[perm_[j]]) {
+                    // Insert this stride/idx into ordering
+                    src_stride = strides[perm_[j]];
+                    nstl::swap(perm_[j], dim_idx);
+                    nstl::swap(strides_[j], src_stride);
+                }
+            }
+            perm_[i] = dim_idx;
+            strides_[i] = src_stride;
+        }
+        for (int i = 0; i < plain_ndims; i++) {
+            dims_[i] = dims[i];
+            padded_dims_[i] = padded_dims[i];
+        }
+        // Incorporate inner blocks into permutations/strides
+        int inner_elems = 1;
+        for (int i = blk.inner_nblks - 1; i >= 0; --i) {
+            perm_[i + plain_ndims] = plain_ndims + i;
+            strides_[i + plain_ndims] = inner_elems;
+            inner_elems *= blk.inner_blks[i];
+
+            // Split up blocked dims into different components
+            // (loses some information about padding)
+            padded_dims_[i + plain_ndims] = blk.inner_blks[i];
+            padded_dims_[blk.inner_idxs[i]] = utils::div_up(
+                    padded_dims_[blk.inner_idxs[i]], blk.inner_blks[i]);
+            dims_[i + plain_ndims]
+                    = std::min(dims_[blk.inner_idxs[i]], blk.inner_blks[i]);
+            dims_[blk.inner_idxs[i]] = utils::div_up(
+                    dims_[blk.inner_idxs[i]], blk.inner_blks[i]);
+        }
+    }
+
+    inline int ndims() const { return m_ndims; }
+    inline dim_t *perm() { return perm_; }
+    inline dim_t *strides() { return strides_; }
+    inline dim_t *dims() { return dims_; }
+    inline dim_t *padded_dims() { return padded_dims_; }
+
+private:
+    int m_ndims;
+    extended_dims_t perm_, strides_;
+    extended_dims_t dims_, padded_dims_;
+};
+
 status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     // To start, check for compatibility
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());
     const int ndims = src_mdw.ndims();
+    const dim_t *src_dims = src_mdw.dims();
+    const dim_t *dst_dims = dst_mdw.dims();
 
-    const dnnl_dim_t *src_dims = src_mdw.dims();
-    const blocking_desc_t &blk = src_mdw.blocking_desc();
-
-    const dnnl_dim_t *dst_dims = dst_mdw.dims();
-    const blocking_desc_t &dst_blk = dst_mdw.blocking_desc();
-
-    const compute::compute_engine_t *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(engine);
-
-    // Require same src/dst blocking
-    if (blk.inner_nblks != dst_blk.inner_nblks) { // Same number of blocks
-        return status::unimplemented;
+    dims_t is_dim_reduced;
+    for (int i = 0; i < ndims; i++) {
+        is_dim_reduced[i] = src_dims[i] != dst_dims[i];
     }
 
-    for (int i = 0; i < blk.inner_nblks; i++) {
-        if (blk.inner_idxs[i]
-                != dst_blk.inner_idxs[i]) { // Same blocking permutation
-            return status::unimplemented;
-        }
-        if (blk.inner_blks[i] != dst_blk.inner_blks[i]) { // Same blocking sizes
-            return status::unimplemented;
-        }
-    }
-
-    // Zero padding is not implemented when dim is reduced
+    // Zero padding is not supported when dim is reduced
     // Or when doing an LP/P alg (not zero-preserving)
+    const blocking_desc_t &dst_blk = dst_mdw.blocking_desc();
     using namespace alg_kind;
-    for (int i = 0; i < blk.inner_nblks; i++) {
+    for (int i = 0; i < dst_blk.inner_nblks; i++) {
         // Needs zero padding
-        if (dst_mdw.padded_dims()[blk.inner_idxs[i]]
-                != dst_mdw.dims()[blk.inner_idxs[i]]) {
+        if (dst_mdw.padded_dims()[dst_blk.inner_idxs[i]]
+                != dst_mdw.dims()[dst_blk.inner_idxs[i]]) {
             // non-zero-preserving alg
             switch (desc()->alg_kind) {
                 case reduction_norm_lp_max:
@@ -103,126 +152,76 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
                 default: break;
             }
             // Dim reduced
-            if (dst_mdw.dims()[blk.inner_idxs[i]]
-                    != src_mdw.dims()[blk.inner_idxs[i]]) {
+            if (is_dim_reduced[dst_blk.inner_idxs[i]]) {
                 return status::unimplemented;
             }
         }
     }
 
-    // Determine ordering of dims by stride
-    dims_t dim_perm = {0}, dst_perm = {0};
-    for (int i = 0; i < ndims; i++) {
-        // Src
-        dim_t stride = blk.strides[i];
-        int dim_idx = i;
-        for (int j = 0; j < i; j++) {
-            if (stride > blk.strides[dim_perm[j]]) {
-                // Insert this stride/idx into dim_perms
-                stride = blk.strides[dim_perm[j]];
-                int tmp_perm = dim_perm[j];
-                dim_perm[j] = dim_idx;
-                dim_idx = tmp_perm;
-            }
+
+    // Convert plain/blocking dim structure to singular extended structure
+    layout_t src_ext(src_mdw);
+    layout_t dst_ext(dst_mdw);
+
+    // Requirement: src/dst have same dim ordering
+    if (src_ext.ndims() != dst_ext.ndims()) return status::unimplemented;
+    if (!utils::array_cmp(src_ext.perm(), dst_ext.perm(), src_ext.ndims())) {
+        return status::unimplemented;
+    }
+
+    // Requirement: each dim must remain unchanged (src=dst) or be completely reduced (src!=1, dst=1)
+    dim_t *src_ext_dims = src_ext.dims();
+    dim_t *dst_ext_dims = dst_ext.dims();
+    dim_t *src_ext_padded_dims = src_ext.padded_dims();
+    dim_t *dst_ext_padded_dims = dst_ext.padded_dims();
+    bool ext_reduced_dim[2 * DNNL_MAX_NDIMS];
+    for (int i = 0; i < src_ext.ndims(); i++) {
+        if (src_ext_dims[i] == dst_ext_dims[i]) {
+            ext_reduced_dim[i] = false;
+            continue;
         }
-        dim_perm[i] = dim_idx;
+        if (dst_ext_dims[i] != 1) return status::unimplemented;
+        ext_reduced_dim[i] = true;
+    }
 
-        // Same for dst
-        stride = dst_blk.strides[i];
-        dim_idx = i;
-        for (int j = 0; j < i; j++) {
-            if (stride > dst_blk.strides[dst_perm[j]]) {
-                // Insert this stride/idx into dim_perms
-                stride = dst_blk.strides[dst_perm[j]];
-                int tmp_perm = dst_perm[j];
-                dst_perm[j] = dim_idx;
-                dim_idx = tmp_perm;
-            }
+    // Same for padded dims (can't change blocking structure)
+    for (int i = 0; i < src_ext.ndims(); i++) {
+        if (src_ext_padded_dims[i] == dst_ext_padded_dims[i]) continue;
+        if (dst_ext_padded_dims[i] != 1) return status::unimplemented;
+    }
+
+    const compute::compute_engine_t *compute_engine
+            = utils::downcast<compute::compute_engine_t *>(engine);
+
+    // Split the extended dims into 3 sets of dims: outer, inner, and reduction
+    int separate_ndims[3] = {0};
+    extended_dims_t src_sep_dims[3];
+    dim_t *ext_perm = src_ext.perm();
+    int state = 0; // 0=outer, 1=reduction, 2=inner
+    for (int i = 0; i < src_ext.ndims(); i++) {
+        // If in outer dims and reduced, move to reduced dims
+        // If in reduced dims and not reduced, move to inner dims
+        if ((state == 0 && ext_reduced_dim[ext_perm[i]])
+                || (state == 1 && !ext_reduced_dim[ext_perm[i]])) {
+            state += 1;
         }
-        dst_perm[i] = dim_idx;
-    }
-
-    dims_t block_sizes, dst_blocks;
-    src_mdw.compute_blocks(block_sizes);
-    dst_mdw.compute_blocks(dst_blocks);
-    // Determine extended (plain+blocked) dim structure
-    dim_t extended_dim_order[2 * MAX_NDIMS], extended_dst_order[2 * MAX_NDIMS];
-    dim_t extended_dim_size[2 * MAX_NDIMS];
-    const int num_comp_dims = ndims + blk.inner_nblks;
-    for (int i = 0; i < ndims; i++) { // plain
-        extended_dim_order[i] = dim_perm[i];
-        extended_dim_size[i]
-                = src_mdw.padded_dims()[dim_perm[i]] / block_sizes[dim_perm[i]];
-        extended_dst_order[i] = dst_perm[i];
-    }
-    for (int i = 0; i < blk.inner_nblks; i++) { // blocked
-        extended_dim_order[i + ndims] = blk.inner_idxs[i];
-        extended_dim_size[i + ndims] = blk.inner_blks[i];
-        extended_dst_order[i + ndims] = dst_blk.inner_idxs[i];
-    }
-
-    // Only allow same src/dst format tags and permutations
-    // TODO: Relax src/dst format matching
-    for (int i = 0; i < num_comp_dims; i++) {
-        if (extended_dim_order[i] != extended_dst_order[i]) {
+        // If in inner dims and reduced, unimplemented
+        if (state == 2 && ext_reduced_dim[ext_perm[i]]) {
             return status::unimplemented;
         }
+        src_sep_dims[state][separate_ndims[state]]
+                = src_ext.padded_dims()[src_ext.perm()[i]];
+        separate_ndims[state] += 1;
     }
 
-    // Convert composite structure to reduced dims
-    dim_t extended_reduced_dims[2 * MAX_NDIMS];
-    for (int i = 0; i < num_comp_dims; i++) {
-        extended_reduced_dims[i] = (src_dims[extended_dim_order[i]]
-                                           != dst_dims[extended_dim_order[i]])
-                ? 1
-                : 0;
-    }
-
-    // Finally, the check: Make sure all reduced dims are sequential
-    // i.e. extended_reduced_dims has no 10...1 pattern
-    for (int i = 0; i < num_comp_dims - 2; i++) {
-        if (extended_reduced_dims[i] == 0
-                || extended_reduced_dims[i + 1] == 1) {
-            continue;
-        }
-        // Now we have the 10 pattern -- look for all 0's to the right
-        for (int j = i + 1; j < num_comp_dims; j++) {
-            if (extended_reduced_dims[j] == 1) { return status::unimplemented; }
-        }
-        break;
-    }
-
-    // Get information about composite outer/reduced/inner dimensions
-    int num_outer_dims = 0, num_reduced_dims = 0, num_inner_dims = 0;
-    bool left_side = true;
-    for (int i = 0; i < num_comp_dims; i++) {
-        if (extended_reduced_dims[i] == 1) {
-            left_side = false;
-            num_reduced_dims += 1;
-            continue;
-        }
-
-        if (left_side) {
-            num_outer_dims += 1;
-        } else {
-            num_inner_dims += 1;
-        }
-    }
-
-    // Compute composite dim sizes
-    int outer_dim_size = 1;
-    for (int i = 0; i < num_outer_dims; i++) {
-        outer_dim_size *= extended_dim_size[i];
-    }
-    int reduced_dim_size = 1;
-    for (int i = 0; i < num_reduced_dims; i++) {
-        reduced_dim_size *= extended_dim_size[i + num_outer_dims];
-    }
-    int inner_dim_size = 1;
-    for (int i = 0; i < num_inner_dims; i++) {
-        inner_dim_size
-                *= extended_dim_size[i + num_outer_dims + num_reduced_dims];
-    }
+    // Combine each separate dim to a single composite one
+    dim_t composite_dims[3] = {1};
+    composite_dims[0]
+            = utils::array_product(src_sep_dims[0], separate_ndims[0]);
+    composite_dims[1]
+            = utils::array_product(src_sep_dims[1], separate_ndims[1]);
+    composite_dims[2]
+            = utils::array_product(src_sep_dims[2], separate_ndims[2]);
 
     // Set up conf variables that don't change between phases
     conf.ndims = ndims;
@@ -230,9 +229,9 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     conf.power = desc()->p;
     conf.eps = desc()->eps;
 
-    conf.div = reduced_dim_size;
-    conf.outer_dim_size = outer_dim_size;
-    conf.inner_dim_size = inner_dim_size;
+    conf.outer_dim_size = composite_dims[0];
+    conf.div = composite_dims[1];
+    conf.inner_dim_size = composite_dims[2];
 
     conf.attr_info = attr_info_t::create(attr());
 
@@ -257,7 +256,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
 
     // Pad the inner dim to a multiple of subgroup size
-    conf.inner_dim_per_sg = std::min(reduced_dim_size,
+    conf.inner_dim_per_sg = std::min((int)composite_dims[1],
             std::max(1, conf.sub_group_size / conf.inner_dim_size));
     conf.gws_inner_dim_size = utils::rnd_up(
             conf.inner_dim_per_sg * conf.inner_dim_size, conf.sub_group_size);
@@ -271,6 +270,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     // 1. Parallelized across work items in a subgroup: reduce by num_horizontal_reductions
     // 2. Between work items in a subgroup: reduce by conf.inner_dim_per_sg
     // The minimum possible reduction per subgroup is conf.inner_dim_per_sg
+    int reduced_dim_size = composite_dims[1];
     while (reduced_dim_size > 1) {
         data_type_t src_data_type = types::default_accum_data_type(
                 src_mdw.data_type(), data_type::undef);
@@ -354,6 +354,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
 
     conf.phases.back().is_final = true;
     conf.phases.back().dst_type = dst_mdw.data_type();
+
     return status::success;
 }
 
@@ -420,6 +421,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     }
 
     kernel_ctx.define_int("UNROLL_AMOUNT", std::min(sg_reduction_per_wi, 8));
+
     def_data_type(kernel_ctx, phase.src_type, "SRC");
     def_data_type(kernel_ctx, phase.dst_type, "DST");
 
