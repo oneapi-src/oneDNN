@@ -11,7 +11,10 @@ where *graph-knobs* are:
             individual test case. The option doesn't take an effect for
             operations that don't support `mb` concept. The default is `0`.
  - `--in-shapes=ID:SHAPE[+ID:SHAPE]` -- override a shape of graph input tensor
-            with `ID` in a graph with `SHAPE` values. Multiple inputs may be
+            with `ID` in a graph with `SHAPE` values. `SHAPE` as 
+            `[DIM0_VALUE0-DIM0_VALUE1-DIM0_VALUE2]xDIM1x...`. The `[ ]` delimiter 
+            means tensor `ID` has dynamic shape on `DIM0`, and there 3 real values 
+            will be given at execution phase one-by-one. Multiple inputs may be
             specified using `+` delimeter. If both `--mb` and `--in-shapes` were
             set, the `--mb` takes precedence over `--in-shapes`. The shape of
             internal tensor and graph output tensor will be inferred by graph

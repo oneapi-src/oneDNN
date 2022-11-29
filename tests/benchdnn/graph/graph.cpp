@@ -71,8 +71,30 @@ std::string case_to_str(const std::string json_file,
     return s.str();
 }
 
+void get_combination(const std::vector<std::vector<int64_t>> &candidate,
+        std::vector<std::vector<int64_t>> &combination) {
+    if (candidate.size() == 1) {
+        for (auto i : candidate[0]) {
+            combination.push_back({i});
+        }
+    } else if (candidate.size() == 2) {
+        for (auto i : candidate[0]) {
+            for (auto j : candidate[1]) {
+                combination.push_back({i, j});
+            }
+        }
+    } else {
+        BENCHDNN_PRINT(
+                1, "Size %zd is out of limitations!\n", candidate.size());
+    }
+}
+
 int doit(const prb_t *prb, res_t *res) {
     deserialized_graph dg = prb->dg;
+    bool has_dynamic_dim = dg.has_dynamic_dim;
+    std::map<size_t, std::vector<std::vector<int64_t>>> real_shape_candidates
+            = dg.dynamic_dims;
+
     auto ograph = dg.to_graph(prb->fpmath_mode);
     const auto partitions = ograph.get_partitions();
     if (partitions.empty()) {
@@ -115,7 +137,12 @@ int doit(const prb_t *prb, res_t *res) {
 
     // mapping from id to tensors
     tensor_map tm;
-
+    // mapping from logical tensor id to output tensors
+    // used to the connection relationship between partitions (e.g partition 0's
+    // output tensor is fed into partition 1)
+    std::unordered_map<size_t, tensor> global_outputs_ts_map;
+    // manage the lifetime of memory buffers binded to those input/output tensors
+    std::vector<std::shared_ptr<void>> data_buffers;
     // mapping from id to queried logical tensor from compiled partition
     // used to record the logical tensors that are previously enabled with ANY layout
     std::unordered_map<size_t, logical_tensor> id_to_queried_logical_tensors;
@@ -139,17 +166,132 @@ int doit(const prb_t *prb, res_t *res) {
             record_queried_logical_tensors(partitions[i].get_out_ports(),
                     c_partitions.back(), id_to_queried_logical_tensors);
 
-            // Creating tensors and allocating memory buffer
-            std::vector<tensor> input_ts = tm.construct_and_initialize_tensors(
-                    inputs, c_partitions.back(), eng, 128);
-            std::vector<tensor> output_ts = tm.construct_and_initialize_tensors(
-                    outputs, c_partitions.back(), eng, 0);
-            tensors_in.emplace_back(input_ts);
-            tensors_out.emplace_back(output_ts);
+            if (has_dynamic_dim
+                    && eng.get_kind() == dnnl::graph::engine::kind::cpu) {
+                // when no candidate is given (e.g. no '--in-shapes' is given),
+                // set dynamic dim value as 1
+                if (real_shape_candidates.size() == 0) {
+                    // for mlp --in-shapes:0:[1]x13
+                    // for mha --in-shapes:0:[1]x16x[1]x64
+                    for (const auto &in : inputs) {
+                        std::vector<std::vector<int64_t>> default_one;
+                        auto exec_dims = in.get_dims();
+                        for (auto dim : exec_dims) {
+                            if (dim == -2) { default_one.push_back({1}); }
+                        }
+                        real_shape_candidates.emplace(in.get_id(), default_one);
+                        default_one.clear();
+                    }
+                }
+
+                // NOTE: limitation#1: every id have the same numbers of dynamic dims:
+                // 0:[2]x[64-128]x1024, 3:[2]x[64-128]x1024, 13:[2]x1x1x[64-128], 6:[2]x[64-128]x1024
+                // all have two dynamic dims: {{2}, {64,128}}
+                // get real case dynamic dims combination {{2,64}, {2,128}}
+                std::vector<std::vector<int64_t>> combination;
+                get_combination(real_shape_candidates[0], combination);
+
+                // group all id with dynamic dims
+                std::vector<size_t> dynamic_ids;
+                for (auto itr = real_shape_candidates.begin();
+                        itr != real_shape_candidates.end(); ++itr) {
+                    dynamic_ids.push_back(itr->first);
+                }
+
+                for (const auto &combi : combination) {
+                    // create tensors_in & tensors_out
+                    std::vector<tensor> input_ts, output_ts;
+
+                    input_ts.reserve(inputs.size());
+                    output_ts.reserve(outputs.size());
+                    for (const auto &in : inputs) {
+                        size_t id = in.get_id();
+                        auto exec_dims = in.get_dims();
+                        int tag = -1;
+                        for (auto &dim : exec_dims) {
+                            if (dim == -2) { dim = combi[++tag]; }
+                        }
+                        logical_tensor exec_in {id, in.get_data_type(),
+                                exec_dims, in.get_layout_type(),
+                                in.get_property_type()};
+                        if (exec_in.get_layout_type()
+                                == logical_tensor::layout_type::any) {
+                            BENCHDNN_PRINT(0,
+                                    "Layout %d is unsupported for compiler "
+                                    "backend!\n",
+                                    1);
+                            res->state = UNIMPLEMENTED;
+                            return OK;
+                        }
+                        size_t mem_size = exec_in.get_mem_size();
+                        // check if the input is an output of another partition
+                        auto pos = global_outputs_ts_map.find(id);
+                        if (pos != global_outputs_ts_map.end()) {
+                            input_ts.push_back(pos->second);
+                            continue;
+                        }
+                        // memory allocation
+                        data_buffers.push_back({});
+                        data_buffers.back().reset(
+                                malloc(mem_size), cpu_deletor {});
+                        input_ts.push_back(tensor {
+                                exec_in, eng, data_buffers.back().get()});
+                    }
+                    tensors_in.emplace_back(input_ts);
+                    // NOTE: imitation#2: how about the dynamic info for output,
+                    // which can not be infered from '--in-shapes'
+                    for (const auto &out : outputs) {
+                        auto exec_dims = out.get_dims();
+                        int tag = -1;
+                        for (auto &dim : exec_dims) {
+                            if (dim == -2) { dim = combi[++tag]; }
+                        }
+                        logical_tensor exec_out {out.get_id(),
+                                out.get_data_type(), exec_dims,
+                                out.get_layout_type(), out.get_property_type()};
+                        size_t mem_size = exec_out.get_mem_size();
+                        // memory allocate
+                        data_buffers.push_back({});
+                        data_buffers.back().reset(
+                                malloc(mem_size), cpu_deletor {});
+                        output_ts.push_back(tensor {
+                                exec_out, eng, data_buffers.back().get()});
+                        global_outputs_ts_map[exec_out.get_id()]
+                                = output_ts.back();
+                    }
+                    tensors_out.emplace_back(output_ts);
+                }
+            } else {
+                // static shape
+                // Creating tensors and allocating memory buffer
+                std::vector<tensor> input_ts
+                        = tm.construct_and_initialize_tensors(
+                                inputs, c_partitions.back(), eng, 128);
+                std::vector<tensor> output_ts
+                        = tm.construct_and_initialize_tensors(
+                                outputs, c_partitions.back(), eng, 0);
+                tensors_in.emplace_back(input_ts);
+                tensors_out.emplace_back(output_ts);
+            }
         } else {
             BENCHDNN_PRINT(1, "Partition %zd is unsupported!\n", i);
             res->state = UNIMPLEMENTED;
             return OK;
+        }
+    }
+
+    // for dynamic shape, compiled_partition should make copies for all real shape
+    // candidates
+    size_t real_inputs = tensors_in.size();
+    size_t cp_size = c_partitions.size();
+
+    assert(real_inputs == tensors_out.size());
+
+    if (has_dynamic_dim && eng.get_kind() == dnnl::graph::engine::kind::cpu) {
+        if (cp_size < real_inputs) {
+            for (size_t i = 0; i < real_inputs - cp_size; ++i) {
+                c_partitions.push_back(c_partitions.back());
+            }
         }
     }
 
