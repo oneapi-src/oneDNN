@@ -912,7 +912,6 @@ dnnl_primitive_attr_t create_dnnl_attr(
                 const auto &e = attr_args.get(arg_name);
                 // Only RT scales are supported.
                 SAFE_V(e.runtime ? OK : FAIL);
-                // Only common policy is supported in the library at this point
                 int mask = e.mask;
 
                 DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(

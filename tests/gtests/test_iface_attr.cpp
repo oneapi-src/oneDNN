@@ -526,7 +526,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetAttr) {
     attr_s.set_scales_mask(DNNL_ARG_SRC_0, 0);
     attr_os.set_scales_mask(DNNL_ARG_DST, 0);
     attr_dw.set_scales_mask(
-            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, 1 << 1);
+            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, (1 << 1) + (1 << 0));
     attr_dw.set_post_ops(ops);
 
     memory::desc dat_md {{512, 512, 3, 3}, dt, memory::format_tag::nchw};

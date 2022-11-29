@@ -211,6 +211,10 @@ TEST_F(attr_quantization_test_t, TestConvGroup) {
                 CHECK_OK(convolution_forward::primitive_desc(eng,
                         prop_kind::forward, algorithm::convolution_direct,
                         src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                        gen_attr_with_scales(arg, (1 << 1) + (1 << 0))));
+                CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
+                        prop_kind::forward, algorithm::convolution_direct,
+                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
                         gen_attr_with_scales(arg, 1 << 1)));
             }
         } else {
@@ -302,12 +306,12 @@ TEST_F(attr_quantization_test_t, TestDeconvGroup) {
             CHECK_OK(deconvolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::deconvolution_direct, src_md,
                     wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
-                    gen_attr_with_scales(arg, 1 << 1)));
+                    gen_attr_with_scales(arg, (1 << 1) + (1 << 0))));
             // scales: unsupported mask
             CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::deconvolution_direct, src_md,
                     wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
-                    gen_attr_with_scales(arg, 1 << 2)));
+                    gen_attr_with_scales(arg, 1 << 1)));
             // zpoints: common mask
             CHECK_UNIMPL(deconvolution_forward::primitive_desc(eng,
                     prop_kind::forward, algorithm::deconvolution_direct, src_md,
