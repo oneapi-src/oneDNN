@@ -50,6 +50,7 @@ public:
     sc_op_ptr get_data_compensation(sc_graph_t &g);
     sc_op_ptr get_weight_compensation(sc_graph_t &g);
     sc_op_ptr get_constant_compensation(sc_graph_t &g);
+    bool use_nested_conv_fwd_generator();
     sc_dims get_bwise_fuse_shrink_dims() override;
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
     void collect_shrinked_axis_map(

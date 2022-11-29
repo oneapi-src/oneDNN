@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include "convolution.hpp"
 #include "templates/conv1x1_backprop_data.hpp"
 #include "templates/conv1x1_backprop_weight.hpp"
 #include "templates/convNxN_backprop_data.hpp"
@@ -28,6 +29,7 @@
 #include "templates/nested_conv1x1_backprop_weight.hpp"
 #include "templates/nested_convNxN_backprop_data.hpp"
 #include "templates/nested_convNxN_backprop_weight.hpp"
+#include "templates/nested_conv_fwd.hpp"
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/graph/pass/pass.hpp>
@@ -340,6 +342,23 @@ conv_fwd_core_op_t::conv_fwd_core_op_t(const std::vector<graph_tensor_ptr> &ins,
                 data_dtype, weight_dtype, info_.outputs_[0]->details_.dtype_);
     }
 }
+bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
+    bool use_nested = attrs_.get_or_else("use_nested", true);
+    if (!use_nested) { return false; }
+    const sc_dims &pads_begin = attrs_.has_key("pads_begin")
+            ? attrs_.get<sc_dims>("pads_begin")
+            : attrs_.get<sc_dims>("paddings");
+    const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
+    auto has_pad = std::any_of(
+            pads_begin.begin(), pads_begin.end(), [](int x) { return x > 0; });
+    auto is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
+            [](int x) { return x == 1; });
+    auto is_int8 = utils::is_one_of(
+            info_.inputs_[0]->details_.dtype_, datatypes::u8, datatypes::s8);
+    // Only support conv 3x3 with os blocking currently
+    auto use_nested_conv = ndims_ == 4 && !has_pad && !is_1x1 && is_int8;
+    return use_nested_conv;
+}
 
 body_generator_ptr conv_fwd_core_op_t::create_generator() {
     auto &stride = attrs_.get<sc_dims>("strides");
@@ -352,13 +371,20 @@ body_generator_ptr conv_fwd_core_op_t::create_generator() {
     COMPILE_ASSERT(pads_begin == pads_end,
             "Current conv_fwd generator logic only supports symmetric "
             "padding.");
-    auto ret = utils::make_unique<gen_conv_fwd_t>(this, stride, pads_begin,
-            graph::extract_detail_from_tensors(get_inputs()),
-            graph::extract_detail_from_tensors(get_outputs()));
-    if (attrs_.get_or_else("inverse_filter", false)) {
-        ret->inverse_filter_ = true;
+
+    if (use_nested_conv_fwd_generator()) {
+        return utils::make_unique<gen_nested_conv_fwd_t>(this, stride,
+                pads_begin, graph::extract_detail_from_tensors(get_inputs()),
+                graph::extract_detail_from_tensors(get_outputs()));
+    } else {
+        auto ret = utils::make_unique<gen_conv_fwd_t>(this, stride, pads_begin,
+                graph::extract_detail_from_tensors(get_inputs()),
+                graph::extract_detail_from_tensors(get_outputs()));
+        if (attrs_.get_or_else("inverse_filter", false)) {
+            ret->inverse_filter_ = true;
+        }
+        return std::move(ret);
     }
-    return std::move(ret);
 }
 
 float conv_fwd_core_op_t::get_gflop() {
@@ -369,22 +395,38 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
         std::vector<std::vector<format_stride_pair>> &supported_ins,
         std::vector<std::vector<format_stride_pair>> &supported_outs) {
     std::vector<std::vector<sc_data_format_t>> in_formats, out_formats;
+
     COMPILE_ASSERT(info_.inputs_.size() == 2,
             "conv expects 2 inputs, but got " << info_.inputs_.size()
                                               << " inputs.");
     ndims_ = info_.inputs_[0]->details_.get_plain_dims().size();
-    auto body_gen = create_generator();
-    auto gen = static_cast<gen_conv_fwd_t *>(body_gen.get());
+
+    // nested os blocking conv 3x3 works when is_use_amx is true
+    if (!is_use_amx(ctx)) { attrs_.set("use_nested", false); }
     if (!config_data_) {
         config_data_ = create_generator()->get_default_config(ctx);
     }
-    const conv_fwd_config_t &tcfg = *config_data_.get_as<conv_fwd_config_t>();
-    in_formats.reserve(2);
-    int C_block = tcfg.C_block;
-    int K_block = tcfg.K_block;
-    if (gen->use_conv1d) {
-        C_block = gen->im_ic_block_;
-        K_block = gen->im_oc_block_;
+    int C_block = 1;
+    int K_block = 1;
+
+    if (use_nested_conv_fwd_generator()) {
+        const nested_conv_fwd_config_t &tcfg
+                = *config_data_.get_as<nested_conv_fwd_config_t>();
+        in_formats.reserve(2);
+        C_block = tcfg.im_ic_block;
+        K_block = tcfg.im_oc_block;
+    } else {
+        const conv_fwd_config_t &tcfg
+                = *config_data_.get_as<conv_fwd_config_t>();
+        auto body_gen = create_generator();
+        auto gen = static_cast<gen_conv_fwd_t *>(body_gen.get());
+        in_formats.reserve(2);
+        C_block = tcfg.C_block;
+        K_block = tcfg.K_block;
+        if (gen->use_conv1d) {
+            C_block = gen->im_ic_block_;
+            K_block = gen->im_oc_block_;
+        }
     }
 
     const bool is_3d = ndims_ == 5;

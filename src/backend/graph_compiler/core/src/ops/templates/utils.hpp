@@ -30,6 +30,8 @@
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <runtime/trace.hpp>
 #include <unordered_set>
+#include <util/utils.hpp>
+
 namespace sc {
 namespace ops {
 template <typename T>
@@ -174,6 +176,50 @@ inline expr get_balance211_length(
   n_start
     = builder::make_select(idx <= T1, idx * n1, T1 * n1 + (idx - T1) * n2);
   return builder::make_select(idx < T1, n1, n2);
+}
+
+inline std::vector<int> get_os_blocks(const int ow, const int adj_os) {
+  std::vector<int> factors = sc::utils::get_factors(ow);
+  std::vector<int> os_factors = sc::utils::get_blocks(adj_os, 16);
+  factors.insert(factors.end(), os_factors.begin(), os_factors.end());
+  std::unordered_set<int> unique_factors(factors.begin(), factors.end());
+  factors.assign(unique_factors.begin(), unique_factors.end());
+  std::sort(factors.begin(), factors.end());
+  return factors;
+}
+
+inline int block_split(
+  const int &total_size, const int &num, int &block, int &tail_block) {
+  block = sc::utils::divide_and_ceil(total_size, num);
+  tail_block = total_size % block;
+  if (tail_block == 0) { tail_block = block; }
+  int used_threads = sc::utils::divide_and_ceil(total_size, block);
+  return used_threads;
+}
+
+inline int get_lanes(
+  const context_ptr &ctx, const int C_block, const sc_data_type_t &dtype) {
+  int lanes = 1;
+  if (utils::is_one_of(dtype, datatypes::s8, datatypes::u8)) {
+    if (C_block / 64 && C_block % 64 == 0) {
+      lanes = vectorize_step(ctx, dtype.type_code_, 64);
+    } else if (C_block / 32 && C_block % 32 == 0) {
+      lanes = vectorize_step(ctx, dtype.type_code_, 32);
+    } else if (C_block / 16 && C_block % 16 == 0) {
+      lanes = vectorize_step(ctx, dtype.type_code_, 16);
+    }
+  } else if (dtype == datatypes::bf16) {
+    if (C_block / 32 && C_block % 32 == 0) {
+      lanes = vectorize_step(ctx, dtype.type_code_, 32);
+    } else if (C_block / 16 && C_block % 16 == 0) {
+      lanes = vectorize_step(ctx, dtype.type_code_, 16);
+    }
+  } else {
+    if (C_block / 16 && C_block % 16 == 0) {
+      lanes = vectorize_step(ctx, dtype.type_code_, 16);
+    }
+  }
+  return lanes;
 }
 
 } // namespace ops

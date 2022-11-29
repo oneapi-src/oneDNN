@@ -55,49 +55,6 @@ SC_CLASS_END();
 // clang-format on
 
 namespace ops {
-static inline std::vector<int> get_os_blocks(const int ow, const int adj_os) {
-  std::vector<int> factors = utils::get_factors(ow);
-  std::vector<int> os_factors = utils::get_blocks(adj_os, 16);
-  factors.insert(factors.end(), os_factors.begin(), os_factors.end());
-  std::unordered_set<int> unique_factors(factors.begin(), factors.end());
-  factors.assign(unique_factors.begin(), unique_factors.end());
-  std::sort(factors.begin(), factors.end());
-  return factors;
-}
-
-static int block_split(
-  const int &total_size, const int &num, int &block, int &tail_block) {
-  block = utils::divide_and_ceil(total_size, num);
-  tail_block = total_size % block;
-  if (tail_block == 0) { tail_block = block; }
-  int used_threads = utils::divide_and_ceil(total_size, block);
-  return used_threads;
-}
-
-static int get_lanes(
-  const context_ptr &ctx, const int C_block, const sc_data_type_t &dtype) {
-  int lanes = 1;
-  if (utils::is_one_of(dtype, datatypes::s8, datatypes::u8)) {
-    if (C_block / 64 && C_block % 64 == 0) {
-      lanes = vectorize_step(ctx, dtype.type_code_, 64);
-    } else if (C_block / 32 && C_block % 32 == 0) {
-      lanes = vectorize_step(ctx, dtype.type_code_, 32);
-    } else if (C_block / 16 && C_block % 16 == 0) {
-      lanes = vectorize_step(ctx, dtype.type_code_, 16);
-    }
-  } else if (dtype == datatypes::bf16) {
-    if (C_block / 32 && C_block % 32 == 0) {
-      lanes = vectorize_step(ctx, dtype.type_code_, 32);
-    } else if (C_block / 16 && C_block % 16 == 0) {
-      lanes = vectorize_step(ctx, dtype.type_code_, 16);
-    }
-  } else {
-    if (C_block / 16 && C_block % 16 == 0) {
-      lanes = vectorize_step(ctx, dtype.type_code_, 16);
-    }
-  }
-  return lanes;
-}
 
 void gen_conv_fwd_t::validate_conv_fwd_default_config(
   const context_ptr &ctx, conv_fwd_config_t &cfg) const {
@@ -1230,7 +1187,8 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
 
           const auto hint_A_size
             = config.tile_os * config.C_block * kh_ * kw_ * C_num_block;
-          const auto hint_B_size = config.K_block * config.C_block * kh_ * kw_;
+          const auto hint_B_size
+            = config.K_block * config.C_block * kh_ * kw_ * C_num_block;
           // note, the actual C_size is <= tile_os if pack_rows=true
           const auto hint_C_size = config.tile_os * config.K_block;
           sc_brgemm_attrs_t brg_attrs {
@@ -1315,7 +1273,7 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
               const auto hint_A_size
                 = config.tile_q * config.C_block * kh_ * kw_ * C_num_block;
               const auto hint_B_size
-                = config.K_block * config.C_block * kh_ * kw_;
+                = config.K_block * config.C_block * kh_ * kw_ * C_num_block;
               const auto hint_C_size = config.tile_q * config.K_block;
               sc_brgemm_attrs_t brg_attrs {
                 {brgemm::attr_key::max_bs, kh_ * kw_ * C_num_block},
