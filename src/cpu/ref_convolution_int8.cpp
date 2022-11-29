@@ -35,7 +35,7 @@ namespace {
 void dequantize(float &d, dim_t g, dim_t C, dim_t c, const float *wei_scales,
         bool with_groups, int wei_mask, const float *src_scales) {
     // scale_idx_mult = 1 for per_channel scales and 0, otherwise
-    const int wei_scale_idx_mult = wei_mask == (1 << (int)with_groups);
+    const int wei_scale_idx_mult = wei_mask != 0;
     float scale = 1.0f;
     if (src_scales) scale *= src_scales[0];
     if (wei_scales) scale *= wei_scales[(g * C + c) * wei_scale_idx_mult];

@@ -948,9 +948,8 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_config_t &hw_cfg) {
         int mask = attr->scales_.get(arg).mask_;
         // XXX: per_oc for BWD_D is treated as per_ic assuming it's called from
         // deconvolution.
-        int c_idx = prb.with_groups;
         if (arg == DNNL_ARG_WEIGHTS) {
-            if (!utils::one_of(mask, 0, 1 << c_idx)) return false;
+            if (!utils::one_of(mask, 0, prb.with_groups ? 3 : 1)) return false;
         } else {
             if (mask != 0) return false;
         }

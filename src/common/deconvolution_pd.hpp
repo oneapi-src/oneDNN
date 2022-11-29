@@ -182,7 +182,7 @@ protected:
         for (int arg : supported_args) {
             const auto &mask = attr()->scales_.get(arg).mask_;
             if (arg == DNNL_ARG_WEIGHTS)
-                ok = ok && (mask == 0 || mask == (1 << (int)with_groups()));
+                ok = ok && (mask == 0 || mask == (with_groups() ? 3 : 1));
             else
                 ok = ok && (mask == 0);
         }
