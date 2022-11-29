@@ -48,8 +48,8 @@ public:
     static void compute_blocks(const exec_config_t &exec_cfg,
             const layout_t &src, const layout_t &dst,
             std::vector<int> &iter_blocks, std::vector<int> &loop_blocks,
-            std::vector<int> &tg_blocks, int max_iter_tile_bytes = 0,
-            int max_thr_tile_bytes = 0);
+            std::vector<int> &tg_blocks, dim_t max_iter_tile_bytes = 0,
+            dim_t max_thr_tile_bytes = 0);
 
     static void compute_blocks(const exec_config_t &exec_cfg,
             const layout_t &src, const layout_t &dst,
@@ -70,7 +70,7 @@ private:
             const std::vector<int> &loop_blocks,
             const std::vector<int> &tg_blocks);
 
-    static int max_tile_size(const hw_config_t &hw_cfg, const layout_t &dst,
+    static dim_t max_tile_size(const hw_config_t &hw_cfg, const layout_t &dst,
             const layout_t &src) {
         // XeHPC is fine with 2048 bytes, XeHPG and below can fit 2048 bytes if
         // reorder is a simple copy.
