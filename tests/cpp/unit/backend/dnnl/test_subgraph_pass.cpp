@@ -2169,3 +2169,131 @@ TEST(SubgraphPass, CombineBinaryPostOpScales) {
     ASSERT_EQ(impl::dnnl_impl::fuse_post_ops(subgraph), impl::status::success);
     ASSERT_EQ(subgraph->num_ops(), 2U);
 }
+
+TEST(SubgraphPass, MarkAsBiasAdd) {
+    impl::engine_t &engine = get_engine();
+    dnnl::engine p_engine = impl::dnnl_impl::make_dnnl_engine(engine);
+    int64_t in_channel = 8, out_channel = 8;
+    int64_t kernel_size = 3;
+
+#define type_list std::string, std::vector<int64_t>, bool
+    std::vector<std::tuple<type_list>> vec {
+            std::make_tuple<type_list>("NCX", {110}, false),
+            std::make_tuple<type_list>("NXC", {1}, true),
+            std::make_tuple<type_list>("NCX", {1}, true),
+            std::make_tuple<type_list>("NXC", {out_channel}, true),
+            std::make_tuple<type_list>("NXC", {1, 1, out_channel}, true),
+            std::make_tuple<type_list>("NCX", {out_channel, 110, 110}, false),
+            std::make_tuple<type_list>("NCX", {out_channel, 1, 1}, true),
+            std::make_tuple<type_list>("NXC", {110, 1}, false),
+    };
+#undef type_list
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    for (auto &item : vec) {
+        std::string data_format = std::get<0>(item);
+        auto add_other_shape = std::get<1>(item);
+        auto result = std::get<2>(item);
+
+        std::vector<int64_t> src_shape = data_format == "NCX"
+                ? std::vector<int64_t> {1, in_channel, 112, 112}
+                : std::vector<int64_t> {1, 112, 112, in_channel};
+
+        std::vector<int64_t> weight_shape {
+                out_channel, in_channel, kernel_size, kernel_size};
+
+        std::vector<int64_t> dst_shape = data_format == "NCX"
+                ? std::vector<int64_t> {1, out_channel, 110, 110}
+                : std::vector<int64_t> {1, out_channel, 110, 110};
+
+        graph_t agraph;
+        op_t dequant1 {0, Dequantize, "dequant"};
+        dequant1.set_attr(op_attr::scales, scales);
+        dequant1.set_attr(op_attr::zps, zps);
+
+        op_t dequant2 {1, Dequantize, "dequant"};
+        dequant2.set_attr(op_attr::scales, scales);
+        dequant2.set_attr(op_attr::zps, zps);
+
+        op_t dequant3 {2, Dequantize, "dequant"};
+        dequant3.set_attr(op_attr::scales, scales);
+        dequant3.set_attr(op_attr::zps, zps);
+
+        op_t conv {3, Convolution, "conv"};
+        set_conv_common_attr(conv);
+        conv.set_attr<std::string>(op_attr::data_format, data_format);
+        conv.set_attr<std::string>(op_attr::filter_format, "OIX");
+
+        op_t add {5, Add, "add"};
+        op_t relu {6, ReLU, "relu"};
+
+        op_t quant {7, Quantize, "quant"};
+        quant.set_attr(op_attr::scales, scales);
+        quant.set_attr(op_attr::zps, zps);
+
+        logical_tensor_t int8_data
+                = logical_tensor_init(0, src_shape, data_type::u8);
+        logical_tensor_t fp32_data
+                = logical_tensor_init(1, src_shape, data_type::f32);
+        dequant1.add_input(int8_data);
+        dequant1.add_output(fp32_data);
+
+        logical_tensor_t s8_weight
+                = logical_tensor_init(2, weight_shape, data_type::s8);
+        logical_tensor_t fp32_weight
+                = logical_tensor_init(3, weight_shape, data_type::f32);
+        dequant2.add_input(s8_weight);
+        dequant2.add_output(fp32_weight);
+
+        logical_tensor_t int8_other
+                = logical_tensor_init(4, add_other_shape, data_type::u8);
+        logical_tensor_t fp32_other
+                = logical_tensor_init(5, add_other_shape, data_type::f32);
+        dequant3.add_input(int8_other);
+        dequant3.add_output(fp32_other);
+
+        logical_tensor_t fp32_conv_out
+                = logical_tensor_init(7, dst_shape, data_type::f32);
+        conv.add_input(fp32_data);
+        conv.add_input(fp32_weight);
+        conv.add_output(fp32_conv_out);
+
+        logical_tensor_t fp32_add_out
+                = logical_tensor_init(8, dst_shape, data_type::f32);
+        add.add_input(fp32_conv_out);
+        add.add_input(fp32_other);
+        add.add_output(fp32_add_out);
+
+        logical_tensor_t fp32_relu_out
+                = logical_tensor_init(9, dst_shape, data_type::f32);
+        relu.add_input(fp32_add_out);
+        relu.add_output(fp32_relu_out);
+
+        logical_tensor_t int8_out
+                = logical_tensor_init(10, dst_shape, data_type::u8);
+        quant.add_input(fp32_relu_out);
+        quant.add_output(int8_out);
+
+        ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant3), status::success);
+        ASSERT_EQ(agraph.add_op(&conv), status::success);
+        ASSERT_EQ(agraph.add_op(&add), status::success);
+        ASSERT_EQ(agraph.add_op(&relu), status::success);
+        ASSERT_EQ(agraph.add_op(&quant), status::success);
+        agraph.build_graph();
+
+        auto subgraph = std::make_shared<impl::dnnl_impl::subgraph_t>(
+                agraph.get_ops(), p_engine, impl::fpmath_mode::any,
+                /* reset_layout */ false, false);
+        ASSERT_EQ(impl::dnnl_impl::lower_down(subgraph), impl::status::success);
+        ASSERT_EQ(impl::dnnl_impl::mark_as_bias_add(subgraph),
+                impl::status::success);
+        for (auto &op : agraph.get_ops()) {
+            if (op->get_kind() == dnnl_impl::op_kind::dnnl_convolution) {
+                ASSERT_EQ(op->get_attr<bool>(dnnl_impl::op_attr::with_bias),
+                        result);
+            }
+        }
+    }
+}

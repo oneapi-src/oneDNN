@@ -273,7 +273,7 @@ public:
         pass_pipeline_t pipeline(vis);
 
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-
+        BACKEND_DNNL_ADD_PASS(pipeline, mark_as_bias_add);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
         if (!quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, insert_bn_folding);

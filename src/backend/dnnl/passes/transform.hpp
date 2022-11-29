@@ -223,6 +223,9 @@ impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg);
 // - add_zps
 impl::status_t fold_sub_zps_add_zps(std::shared_ptr<subgraph_t> &sg);
 
+// This pass will mark the appropriate add after conv as bias_add
+impl::status_t mark_as_bias_add(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph

@@ -3548,6 +3548,103 @@ impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
     return impl::status::success;
 }
 
+// Only channel dim is same, the func will mark is_bias_add of add op as
+// true (work), Otherwise, the subgraph won't be changed/rewrited (won't work).
+// The func will work well for Conv and ConvTranspose, currently ConvTranspose
+// is not required
+// input shape: [32,16,16,16](NCX) and [16], the func won't work
+// input shape: [32,16,16,16](NXC) and [16], the func will work
+// input shape: [32,10,7,5](NCX) and [1,1,7,1], the func won't work
+// input shape: [32,10,7,5](NCX) and [1,10,1,1], the func will work
+impl::status_t mark_as_bias_add(std::shared_ptr<subgraph_t> &sg) {
+    subgraph_rewriter_t rewriter(sg);
+    std::set<op_t *> pre_visited;
+
+    const auto &can_fuse = [](const impl::dims &d1, impl::dim_t channel_index,
+                                   const impl::dims &d2) -> bool {
+        if (d2.size() == 1 && d2[0] == 1) return true;
+
+        if (d1[channel_index] != static_cast<int64_t>(impl::utils::prod(d2))) {
+            return false;
+        }
+        size_t valid_dim_num = 0;
+        std::for_each(d2.begin(), d2.end(), [&valid_dim_num](impl::dim_t dim) {
+            valid_dim_num += (dim == 1 ? 0 : 1);
+        });
+
+        if (valid_dim_num > 1) return false;
+        impl::dim_t d2_channel_index = d2.size() - (d1.size() - channel_index);
+        if (d2_channel_index < 0) return false;
+        return d2[d2_channel_index] == d1[channel_index];
+    };
+
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_binary
+                || pre_visited.count(cur_op.get()) != 0
+                || !cur_op->has_attr(op_attr::alg_kind)
+                || cur_op->get_attr<int64_t>(op_attr::alg_kind)
+                        != static_cast<int64_t>(dnnl::algorithm::binary_add)
+                || (cur_op->has_attr(op_attr::is_bias_add)
+                        && cur_op->get_attr<bool>(op_attr::is_bias_add)))
+            continue;
+
+        size_t src_index = 0;
+        size_t post_src_index = 0;
+        if (cur_op->get_input_value(0)->has_producer()
+                && cur_op->get_input_value(0)->get_producer().get_kind()
+                        == op_kind::dnnl_convolution) {
+            src_index = 0;
+            post_src_index = 1;
+        } else if (cur_op->get_input_value(1)->has_producer()
+                && cur_op->get_input_value(1)->get_producer().get_kind()
+                        == op_kind::dnnl_convolution) {
+            src_index = 1;
+            post_src_index = 0;
+        } else {
+            continue;
+        }
+
+        auto &prv_op = cur_op->get_input_value(src_index)->get_producer();
+        if (prv_op.num_inputs() > 2) continue;
+
+        auto src = cur_op->get_input_value(src_index)->get_logical_tensor();
+        auto post_src
+                = cur_op->get_input_value(post_src_index)->get_logical_tensor();
+
+        auto src_lt = impl::logical_tensor_wrapper_t(src);
+        const auto &src_lt_dims = src_lt.vdims();
+
+        auto post_src_lt = impl::logical_tensor_wrapper_t(post_src);
+        const auto &post_src_lt_dims = post_src_lt.vdims();
+
+        const auto &data_format = prv_op.has_attr(op_attr::data_format)
+                ? prv_op.get_attr<std::string>(op_attr::data_format)
+                : "NCX";
+        const auto channel_num = src_lt.get_src_c(data_format);
+
+        if (!can_fuse(src_lt_dims,
+                    data_format == "NCX" ? 1 : src_lt_dims.size() - 1,
+                    post_src_lt_dims))
+            continue;
+
+        cur_op->set_attr<bool>(op_attr::is_bias_add, true);
+        pre_visited.insert(cur_op.get());
+        if (post_src_index == 0) {
+            // swap src0 and src1 value
+            cur_op->swap_input_values(0, 1);
+        }
+        if (post_src_lt_dims.size() == 1 && post_src_lt_dims[0] == 1) continue;
+
+        auto reshape_op = std::make_shared<op_t>(op_kind::dnnl_reshape);
+        reshape_op->set_attr<bool>(impl::op_attr::special_zero, false);
+        reshape_op->set_attr<std::vector<int64_t>>(
+                impl::op_attr::shape, {channel_num});
+        rewriter.insert_op_before(reshape_op, cur_op, 1);
+    }
+    rewriter.run();
+    return infer_shape(sg);
+}
+
 } // namespace dnnl_impl
 } // namespace impl
 } // namespace graph
