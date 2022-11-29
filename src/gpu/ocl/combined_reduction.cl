@@ -80,8 +80,8 @@
 #endif
 
 #define _SRC_OFF(outer, reduction, inner) \
-    (outer) * REDUCTION_SIZE *INNER_DIM_SIZE + (reduction)*INNER_DIM_SIZE \
-            + (inner)
+    (outer) * REDUCTION_START_SIZE *INNER_DIM_SIZE \
+            + (reduction)*INNER_DIM_SIZE + (inner)
 
 #define _DST_OFF(outer, reduction_chunk, inner) \
     (outer) * INNER_DIM_SIZE *REDUCTION_END_SIZE \
@@ -103,22 +103,22 @@ __kernel void combined_reduce(
     // Break out components that change within each subgroup
     const int inner_idx = inner % INNER_DIM_SIZE;
     const int red_off = inner / INNER_DIM_SIZE;
-    const int reduction_idx
-            = reduction_chunk * REDUCTIONS_PER_WI * INNER_DIMS_PER_WI + red_off;
+    const int reduction_idx = reduction_chunk * REDUCTION_SIZE + red_off;
 
     // outer idx needs no sg adjusting
     const int reduction_idx_start = reduction_idx - red_off;
     const int inner_idx_start = inner - get_sub_group_local_id();
 
     // Deal with padded inner dims
-    if (inner / INNER_DIMS_PER_WI >= INNER_DIM_SIZE) { return; }
+    if (inner >= INNER_DIMS_PER_WI * INNER_DIM_SIZE) return;
 
     const int dst_off
             = _DST_OFF(outer_idx, reduction_chunk + red_off, inner_idx);
     DEF_ACC_DATA_T acc = INIT_ACC;
 
+    __attribute__((opencl_unroll_hint(UNROLL_AMOUNT))) // attr:no-format
     for (int off = 0; off < REDUCTIONS_PER_WI
-            && off * INNER_DIMS_PER_WI + reduction_idx < REDUCTION_SIZE;
+            && off * INNER_DIMS_PER_WI + reduction_idx < REDUCTION_START_SIZE;
             off++) {
         // Load
 #if WITH_BLOCK_READ
@@ -131,14 +131,13 @@ __kernel void combined_reduce(
                 outer_idx, off * INNER_DIMS_PER_WI + reduction_idx, inner_idx);
         const SRC_DATA_T src_val = src[src_off];
 #endif
-
         // Accumulate
-        const DEF_ACC_DATA_T prev = acc;
         acc = ACCUMULATE(acc, TO_DEF_ACC_DATA_T(src_val));
     }
+
     // Potentially accumulate within the subgroup too
     // TODO: Change to tree-based reduce to help large INNER_DIMS_PER_WI cases
-    for (int i = 1; i < INNER_DIMS_PER_WI; i++) {
+    unroll_for(int i = 1; i < INNER_DIMS_PER_WI; i++) {
         const DEF_ACC_DATA_T other
                 = intel_sub_group_shuffle_down(acc, INIT_ACC, INNER_DIM_SIZE);
         if (get_sub_group_local_id() < INNER_DIM_SIZE) {

@@ -25,7 +25,7 @@ namespace ocl {
 
 static reduction_phase_t init_phase(int start, int end, int num_reductions,
         data_type_t src_type, data_type_t dst_type,
-        compute::nd_range_t nd_range, bool is_final, bool is_first) {
+        compute::nd_range_t nd_range) {
     reduction_phase_t phase;
     phase.initial_size = start;
     phase.reduction_size = num_reductions;
@@ -35,8 +35,8 @@ static reduction_phase_t init_phase(int start, int end, int num_reductions,
     phase.src_type = src_type;
     phase.dst_type = dst_type;
     phase.nd_range = nd_range;
-    phase.is_final = is_final;
-    phase.is_first = is_first;
+    phase.is_first = false;
+    phase.is_final = false;
     return phase;
 }
 
@@ -239,7 +239,22 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     // Heuristics based on testing on PVC
     conf.sub_group_size = compute_engine->device_info()->max_subgroup_size();
 
-    const int target_reduction_size = 8;
+    // Each phase will attempt to perform this many horizontal reductions
+    int target_horiz_reductions = 16;
+    // Increase work per wi past target so we spawn less than max_subgroups subgroups
+    const int max_subgroups = 1024;
+    // If there are fewer than this many horizontal reductions,
+    // perform all remaining reductions in a single phase
+    const int single_phase_threshold = 40;
+
+    // LP algs require more flops, so they should do fewer reductions
+    switch (conf.alg) {
+        case reduction_norm_lp_max:
+        case reduction_norm_lp_sum:
+        case reduction_norm_lp_power_p_max:
+        case reduction_norm_lp_power_p_sum: target_horiz_reductions = 4;
+        default: break;
+    }
 
     // Pad the inner dim to a multiple of subgroup size
     conf.inner_dim_per_sg = std::min(reduced_dim_size,
@@ -247,39 +262,66 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     conf.gws_inner_dim_size = utils::rnd_up(
             conf.inner_dim_per_sg * conf.inner_dim_size, conf.sub_group_size);
 
-    while (reduced_dim_size > 1) {
-        data_type_t src_data_type;
-        bool is_first;
-        if (reduced_dim_size == conf.div) {
-            src_data_type = src_mdw.data_type();
-            is_first = true;
-        } else {
-            src_data_type = types::default_accum_data_type(
-                    src_mdw.data_type(), data_type::undef);
-            is_first = false;
-        }
+    const int sg_per_inner_dim
+            = utils::div_up(conf.inner_dim_size, conf.sub_group_size);
+    const int writes_per_sg
+            = std::min(conf.inner_dim_size, conf.sub_group_size);
 
-        // Compute the number of phases left
+    // Each phase actually consists of 2 stages:
+    // 1. Parallelized across work items in a subgroup: reduce by num_horizontal_reductions
+    // 2. Between work items in a subgroup: reduce by conf.inner_dim_per_sg
+    // The minimum possible reduction per subgroup is conf.inner_dim_per_sg
+    while (reduced_dim_size > 1) {
+        data_type_t src_data_type = types::default_accum_data_type(
+                src_mdw.data_type(), data_type::undef);
+        data_type_t dst_data_type = types::default_accum_data_type(
+                src_mdw.data_type(), data_type::undef);
+
+        // Heuristic:
+        // Keep horizontal reductions at the target:
+        int reduction_size = target_horiz_reductions * conf.inner_dim_per_sg;
+
+        // Except when:
+        // 1) total horizontal_reductions < minimum: reduce everything (another phase isn't worth it)
         const int horiz_reductions
                 = utils::div_up(reduced_dim_size, conf.inner_dim_per_sg);
-        const int num_remaining_phases = std::floor(
-                std::log(horiz_reductions) / std::log(target_reduction_size));
-        const int red_per_phase
-                = std::pow(reduced_dim_size, 1.0f / num_remaining_phases);
-
-        int reduction_size;
-        bool is_final;
-        data_type_t dst_data_type;
-        if (num_remaining_phases > 1) {
-            reduction_size = red_per_phase;
-            is_final = false;
-            dst_data_type = types::default_accum_data_type(
-                    src_mdw.data_type(), data_type::undef);
-        } else {
+        if (horiz_reductions <= single_phase_threshold) {
             reduction_size = reduced_dim_size;
-            is_final = true;
-            dst_data_type = dst_mdw.data_type();
         }
+
+        // 2) total subgroups > max: increase reduction since some parallelism is lost due to high dispatching
+        int reduction_end = utils::div_up(reduced_dim_size, reduction_size);
+        int num_dst_elems
+                = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
+        int num_subgroups = utils::div_up(num_dst_elems, writes_per_sg);
+
+        // Outer dims are independent, so base this heuristic on "subgroups per outer dim"
+        if (num_subgroups
+                > max_subgroups * conf.outer_dim_size * sg_per_inner_dim) {
+            reduction_size *= (float)num_subgroups
+                    / (max_subgroups * conf.outer_dim_size * sg_per_inner_dim);
+
+            reduction_end = utils::div_up(reduced_dim_size, reduction_size);
+            num_dst_elems
+                    = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
+            num_subgroups = utils::div_up(num_dst_elems, writes_per_sg);
+        }
+        // End Heuristic
+
+        // Clamp reduction size according to 2-phase kernel
+        reduction_size = std::min(reduced_dim_size,
+                std::max(conf.inner_dim_per_sg, reduction_size));
+
+        reduction_end = utils::div_up(reduced_dim_size, reduction_size);
+
+        // Shrink reduction_size without changing the final shape
+        // ex: div_up(41,16)=3, div_up(41,3)=14 - only 14 reductions needed, not 16
+        reduction_size = utils::div_up(reduced_dim_size, reduction_end);
+        reduction_size = utils::rnd_up(reduction_size, conf.inner_dim_per_sg);
+
+        num_dst_elems
+                = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
+        num_subgroups = utils::div_up(num_dst_elems, writes_per_sg);
 
         const int phase_start = reduced_dim_size;
         const int phase_reductions = reduction_size;
@@ -287,27 +329,31 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
 
         // Set scratchpad sizes
         const int phase_num = (int)conf.phases.size();
-        if (!is_final && phase_num < 2) {
-            conf.sp_size[phase_num]
-                    = conf.outer_dim_size * phase_end * conf.inner_dim_size;
-        }
+        if (phase_num < 2) conf.sp_size[phase_num] = num_dst_elems;
 
         compute::dispatch_t dispatch = compute_engine->create_dispatch();
         size_t gws[3] = {1, 1, 1}, lws[3] = {1, 1, 1};
-        gws[0] *= outer_dim_size * conf.gws_inner_dim_size * phase_end;
+        gws[0] = num_subgroups * conf.sub_group_size;
 
         // Set lws + pad gws simultaneously
         // - lws multiple of sub_group_size
         // - gws multiple of lws
-        lws[0] = utils::rnd_up(std::min((int)gws[0], 256), conf.sub_group_size);
+        lws[0] = conf.sub_group_size;
         gws[0] = utils::rnd_up(gws[0], lws[0]);
         compute::nd_range_t nd_range(gws, lws);
 
         conf.phases.push_back(init_phase(phase_start, phase_end,
-                phase_reductions, src_data_type, dst_data_type, nd_range,
-                is_final, is_first));
+                phase_reductions, src_data_type, dst_data_type, nd_range));
+
         reduced_dim_size = phase_end;
     }
+
+    // Set variables that matter for first/last phases
+    conf.phases.front().is_first = true;
+    conf.phases.front().src_type = src_mdw.data_type();
+
+    conf.phases.back().is_final = true;
+    conf.phases.back().dst_type = dst_mdw.data_type();
     return status::success;
 }
 
@@ -326,7 +372,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("INNER_DIMS_PER_WI", conf.inner_dim_per_sg);
 
     kernel_ctx.define_int("REDUCTION_END_SIZE", phase.final_size);
-    kernel_ctx.define_int("REDUCTION_SIZE", phase.initial_size);
+    kernel_ctx.define_int("REDUCTION_START_SIZE", phase.initial_size);
     kernel_ctx.define_int("REDUCTION_CHUNK_SIZE", phase.num_reduction_chunks);
     kernel_ctx.define_int("OUTER_DIM_STRIDE",
             phase.num_reduction_chunks * conf.gws_inner_dim_size);
@@ -338,23 +384,19 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("POWER", conf.power);
     kernel_ctx.define_float("EPS", conf.eps);
 
+    kernel_ctx.define_int("REDUCTION_SIZE", phase.reduction_size);
     int sg_reduction_per_wi
             = utils::div_up(phase.reduction_size, conf.inner_dim_per_sg);
     sg_reduction_per_wi = std::min(conf.div, sg_reduction_per_wi);
-    kernel_ctx.define_int("REDUCTIONS_PER_WI",
-            sg_reduction_per_wi); // Can change between phases
+    kernel_ctx.define_int("REDUCTIONS_PER_WI", sg_reduction_per_wi);
     kernel_ctx.define_int("IS_FINAL", phase.is_final);
     kernel_ctx.define_int("IS_FIRST", phase.is_first);
 
     // Block loading is supported when inner dims are a multiple of 4 bytes
-    if ((types::data_type_size(phase.src_type) * conf.inner_dim_size
-                * conf.inner_dim_per_sg)
-                    % 4
-            == 0) {
-        kernel_ctx.define_int("WITH_BLOCK_READ", 1);
-    } else {
-        kernel_ctx.define_int("WITH_BLOCK_READ", 0);
-    }
+    const size_t src_dt_size = types::data_type_size(phase.src_type);
+    const size_t read_bytes
+            = src_dt_size * conf.inner_dim_size * conf.inner_dim_per_sg;
+    kernel_ctx.define_int("WITH_BLOCK_READ", (read_bytes % 4 == 0) ? 1 : 0);
 
     switch (conf.alg) {
         case reduction_max: kernel_ctx.define_int("IS_MAX", 1); break;
@@ -377,6 +419,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         default: return status::invalid_arguments;
     }
 
+    kernel_ctx.define_int("UNROLL_AMOUNT", std::min(sg_reduction_per_wi, 8));
     def_data_type(kernel_ctx, phase.src_type, "SRC");
     def_data_type(kernel_ctx, phase.dst_type, "DST");
 
