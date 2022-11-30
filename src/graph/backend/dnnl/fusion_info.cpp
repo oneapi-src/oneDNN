@@ -73,21 +73,28 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                 int64_t axis = in_scales_op->get_attr<int64_t>(op_attr::axis);
                 std::string qtype
                         = in_scales_op->get_attr<std::string>(op_attr::qtype);
-                if (impl::utils::one_of(op->get_kind(),
-                            op_kind::dnnl_convolution,
-                            op_kind::dnnl_convtranspose)
-                        && in_scales_indices == 1) {
-                    axis = 0;
-                    if (op->get_input_value(1)->has_producer()
-                            && op->get_input_op(1)->get_kind()
-                                    == op_kind::dnnl_to_group) {
-                        const auto &to_group = op->get_input_op(1);
-                        if (to_group->get_attr<int64_t>(op_attr::groups) > 1) {
-                            axis += 1;
+                if (qtype == "per_tensor") {
+                    mask = 0;
+                } else {
+                    if (impl::utils::one_of(op->get_kind(),
+                                op_kind::dnnl_convolution,
+                                op_kind::dnnl_convtranspose)
+                            && in_scales_indices == 1) {
+                        bool with_groups = false;
+                        if (op->get_input_value(1)->has_producer()
+                                && op->get_input_op(1)->get_kind()
+                                        == op_kind::dnnl_to_group) {
+                            const auto &to_group = op->get_input_op(1);
+                            if (to_group->get_attr<int64_t>(op_attr::groups)
+                                    > 1) {
+                                with_groups = true;
+                            }
                         }
+                        mask = with_groups ? 3 : 1;
+                    } else {
+                        mask = 1 << axis;
                     }
                 }
-                mask = qtype == "per_tensor" ? 0 : 1 << axis;
             }
             attr.set_scales_mask(
                     in_scales_indices == 0 ? DNNL_ARG_SRC : DNNL_ARG_WEIGHTS,
