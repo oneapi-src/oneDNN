@@ -200,6 +200,9 @@ constexpr const char *layer_name = "temp.name";
 // op marked with not_redundant will not be removed in horizontal same op
 // elimination
 constexpr const char *not_redundant = "temp.not_redundant";
+// Fusible op marked inplace_optimized will be directly inplaced and will not
+// call compute_block
+constexpr const char *inplace_optimized = "temp.inplace_optimized";
 }; // namespace op_attr_key
 
 class sc_graph_t;

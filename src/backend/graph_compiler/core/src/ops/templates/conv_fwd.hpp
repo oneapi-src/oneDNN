@@ -144,7 +144,8 @@ public:
   int pd_ = 0, ph_ = 0, pw_ = 0;
   int actual_os_ = 0, adj_os_ = 0;
   int num_elems_skip_per_ow_ = 0;
-  int im_oc_block_, im_ic_block_, im_s_block_;
+  int default_im_block_ = 64;
+  mutable int im_oc_block_, im_ic_block_, im_s_block_;
   bool try_os_blocking_ = false;
   bool is_1x1_conv_ = false;
   bool is_3d_ = false;

@@ -175,9 +175,7 @@ void fusible_op_t::append_mixed_partition(mixed_parti_t *parti) {
     // update output buffer info after inner anchor created
     parti->buf_alloc_.update_output_buffer_info(this);
 
-    if (!parti->empty() && attrs_.get_or_else("temp.inplace_padding", false)) {
-        return;
-    }
+    if (attrs_.get_or_else(op_attr_key::inplace_optimized, false)) { return; }
 
     commit_into_anchor(parti);
 }

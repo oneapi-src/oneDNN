@@ -1221,8 +1221,8 @@ void reduce_collect_op_t::compute_block(context_ptr ctx,
                             std::vector<expr::lvalue_proxy_t> &out) -> stmt {
             indexing out_nd = out[0].get().checked_as<indexing>();
             //  add the axis to indexing node
-            out_nd->idx_.insert(
-                    out_nd->idx_.begin(), builtin::get_thread_id_func()());
+            out_nd->idx_.front()
+                    = out_nd->idx_.front() + builtin::get_thread_id_func()();
             return builder::make_assign_unattached(out[0], out[0] + in[0]);
         };
         compute_vectorized_op(get_owner_graph(), inputs, *dst[0], info_,

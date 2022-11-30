@@ -160,7 +160,7 @@ expr tensor_ptr(const expr &tens, const std::vector<expr> &idx,
     COMPILE_ASSERT(tens.isa<tensor>() || tens.isa<tensorptr>(),
             "tensor_ptr only accepts a tensor or tensorptr, got: " << tens);
     const std::vector<expr> *real_shape;
-    if (is_slice) {
+    if (is_slice && shape.empty()) {
         if (tens.isa<tensor>()) {
             real_shape = &tens.static_as<tensor>()->dims_;
         } else {
