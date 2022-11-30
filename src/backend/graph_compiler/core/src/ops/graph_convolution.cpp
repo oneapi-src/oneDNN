@@ -67,29 +67,21 @@ sc_dims conv_fwd_op_t::infer_out_dims(sc_graph_t &owner_graph,
         const sc_dims &input_dims, const sc_dims &filter_dims,
         const sc_dims &pads_begin, const sc_dims &pads_end,
         const sc_dims &strides, const std::string &data_format,
-        const std::string &filter_format, bool is_same) {
+        const std::string &filter_format) {
     // logic besides conv_fwd_core_op_t::infer_out_dims will not be affected by
     // dynamic shape
-    sc_dims output_dims = input_dims;
-    int ndims = input_dims.size();
-    int channel_axis = data_format == "NCX" ? 1 : ndims - 1;
-    int K = filter_format == "XIO" ? filter_dims[ndims - 1] : filter_dims[0];
-    output_dims[channel_axis] = K;
     sc_dims input_dims_copy = input_dims;
     sc_dims filter_dims_copy = filter_dims;
-    if (!is_same) {
-        if (data_format == "NXC") { permute_shape_NXC2NCX(input_dims_copy); }
-        if (filter_format == "XIO") { permute_shape_XIO2OIX(filter_dims_copy); }
-        // TODO(xxx): fix the logic here
-        // the logic here will infer a 1st set of new unknown dim axis in output
-        // the conv_fwd_core in get_graph_impl will do the same inferring again
-        // which will introduce 2nd set of unknown dim axis
-        // needs to add mapping between these 2 set of unknown axis
-        output_dims = conv_fwd_core_op_t::infer_out_dims(owner_graph,
-                input_dims_copy, filter_dims_copy, pads_begin, pads_end,
-                strides);
-        if (data_format == "NXC") { permute_shape_NCX2NXC(output_dims); }
-    }
+    if (data_format == "NXC") { permute_shape_NXC2NCX(input_dims_copy); }
+    if (filter_format == "XIO") { permute_shape_XIO2OIX(filter_dims_copy); }
+    // TODO(xxx): fix the logic here
+    // the logic here will infer a 1st set of new unknown dim axis in output
+    // the conv_fwd_core in get_graph_impl will do the same inferring again
+    // which will introduce 2nd set of unknown dim axis
+    // needs to add mapping between these 2 set of unknown axis
+    sc_dims output_dims = conv_fwd_core_op_t::infer_out_dims(owner_graph,
+            input_dims_copy, filter_dims_copy, pads_begin, pads_end, strides);
+    if (data_format == "NXC") { permute_shape_NCX2NXC(output_dims); }
     return output_dims;
 }
 
@@ -109,28 +101,38 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
     auto strides = attrs_.get<sc_dims>("strides");
-    bool is_same = false;
     if (attrs_.has_key("auto_pad")) {
         auto pad_type = attrs_.get<std::string>("auto_pad");
         if (pad_type == "VALID") {
             attrs_.set<sc_dims>("pads_begin", sc_dims(ndims - 2, 0));
             attrs_.set<sc_dims>("pads_end", sc_dims(ndims - 2, 0));
         } else if (pad_type == "SAME_UPPER" || pad_type == "SAME_LOWER") {
-            // pass the infer_auto_pad logic here to conv_fwd_core
-            is_same = true;
+            // we must infer_auto_pad here instead of passing the infer_auto_pad
+            // logic to conv_fwd_core after lowering, because infer_out_dims
+            // below depends on pads_begin and pads_end
+            sc_dims input_dims_copy = input_dims;
+            sc_dims filter_dims_copy = filter_dims;
+            if (data_format == "NXC") {
+                permute_shape_NXC2NCX(input_dims_copy);
+            }
+            if (filter_format == "XIO") {
+                permute_shape_XIO2OIX(filter_dims_copy);
+            }
+            conv_fwd_core_op_t::infer_auto_pad(get_owner_graph(),
+                    input_dims_copy, filter_dims_copy, strides, attrs_,
+                    pad_type == "SAME_UPPER");
         }
     }
-    sc_dims pads_begin, pads_end;
     COMPILE_ASSERT(attrs_.has_key("pads_begin") && attrs_.has_key("pads_end"),
             "pads_begin and pads_end info must be set for convolution op");
-    if (!is_same) {
-        // if not auto_pad, use pads related attributes
-        pads_begin = attrs_.get<sc_dims>("pads_begin");
-        pads_end = attrs_.get<sc_dims>("pads_end");
-    }
-    auto expected_out_shape = infer_out_dims(get_owner_graph(), input_dims,
-            filter_dims, pads_begin, pads_end, strides, data_format,
-            filter_format, is_same);
+    // use pads related attributes
+    sc_dims pads_begin = attrs_.get<sc_dims>("pads_begin");
+    sc_dims pads_end = attrs_.get<sc_dims>("pads_end");
+    // we must infer_out_dims even when pad_type is SAME_UPPER or SAME_LOWER,
+    // because output shape will be different from inputs shape when stride > 1
+    auto expected_out_shape
+            = infer_out_dims(get_owner_graph(), input_dims, filter_dims,
+                    pads_begin, pads_end, strides, data_format, filter_format);
     auto out_dtype = info_.inputs_[0]->details_.dtype_;
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(

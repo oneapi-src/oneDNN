@@ -41,6 +41,9 @@ public:
             const sc_dims &input_dims, const sc_dims &weight_dims,
             const sc_dims &pads_begin, const sc_dims &pads_end,
             const sc_dims &stride, const any_map_t &attrs = {});
+    static void infer_auto_pad(sc_graph_t &owner_graph,
+            const sc_dims &input_dims, const sc_dims &weight_dims,
+            const sc_dims &stride, any_map_t &attrs, bool is_same_upper);
     sc_data_type_t infer_out_dtype(const sc_data_type_t &input_dtype,
             const sc_data_type_t &weight_dtype);
     void check_dtypes(const sc_data_type_t &data_dtype,

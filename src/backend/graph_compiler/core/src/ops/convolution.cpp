@@ -40,6 +40,7 @@
 #include <runtime/config.hpp>
 #include <unordered_map>
 #include <util/reflection.hpp>
+#include <util/simple_math.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
@@ -232,16 +233,17 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
     return out_dims;
 }
 
-static void infer_auto_pad(sc_graph_t &owner_graph, const sc_dims &input_dims,
-        const sc_dims &weight_dims, const sc_dims &stride, any_map_t &attrs,
-        bool is_same_upper) {
+void conv_fwd_core_op_t::infer_auto_pad(sc_graph_t &owner_graph,
+        const sc_dims &input_dims, const sc_dims &weight_dims,
+        const sc_dims &stride, any_map_t &attrs, bool is_same_upper) {
     int ndims = input_dims.size();
     sc_dims stride_dims(ndims - 2, stride[0]);
     if (stride.size() > 1) { stride_dims = stride; }
     sc_dims pads_begin(ndims - 2, 0);
     sc_dims pads_end(ndims - 2, 0);
-    auto calc_total_padding
-            = [](int i, int k, int o, int s) { return (o - 1) * s + k - i; };
+    auto calc_total_padding = [](int i, int k, int o, int s) {
+        return std::max((o - 1) * s + k - i, 0);
+    };
     for (int i = 2; i < ndims; ++i) {
         if (is_dynamic_dim(input_dims[i]) || is_dynamic_dim(weight_dims[i])
                 || is_dynamic_dim(stride_dims[i - 2])) {
@@ -249,8 +251,10 @@ static void infer_auto_pad(sc_graph_t &owner_graph, const sc_dims &input_dims,
             pads_begin[i - 2] = owner_graph.get_next_dynamic_placeholder();
             pads_end[i - 2] = owner_graph.get_next_dynamic_placeholder();
         } else {
+            sc_dim output_dim
+                    = utils::divide_and_ceil(input_dims[i], stride_dims[i - 2]);
             sc_dim total_pad = calc_total_padding(input_dims[i], weight_dims[i],
-                    input_dims[i], stride_dims[i - 2]);
+                    output_dim, stride_dims[i - 2]);
             if (total_pad % 2 == 0) {
                 pads_begin[i - 2] = pads_end[i - 2] = total_pad / 2;
             } else {
@@ -593,8 +597,8 @@ conv_bwd_data_core_op_t::conv_bwd_data_core_op_t(
             attrs_.set<sc_dims>("pads_end", sc_dims(ndims_ - 2, 0));
         } else if (pad_type == "SAME_UPPER" || pad_type == "SAME_LOWER") {
             // output spatial dims are equal to input spatial dims
-            infer_auto_pad(get_owner_graph(), output_shape, weightdims, strides,
-                    attrs_, pad_type == "SAME_UPPER");
+            conv_fwd_core_op_t::infer_auto_pad(get_owner_graph(), output_shape,
+                    weightdims, strides, attrs_, pad_type == "SAME_UPPER");
         }
         attrs_.set<std::string>("auto_pad", "none");
     }
@@ -790,8 +794,8 @@ conv_bwd_weight_core_op_t::conv_bwd_weight_core_op_t(
             attrs_.set<sc_dims>("pads_end", sc_dims(ndims_ - 2, 0));
         } else if (pad_type == "SAME_UPPER" || pad_type == "SAME_LOWER") {
             // output spatial dims are equal to input spatial dims
-            infer_auto_pad(get_owner_graph(), in_data_dims, weight_shape,
-                    strides, attrs_, pad_type == "SAME_UPPER");
+            conv_fwd_core_op_t::infer_auto_pad(get_owner_graph(), in_data_dims,
+                    weight_shape, strides, attrs_, pad_type == "SAME_UPPER");
         }
         attrs_.set<std::string>("auto_pad", "none");
     }

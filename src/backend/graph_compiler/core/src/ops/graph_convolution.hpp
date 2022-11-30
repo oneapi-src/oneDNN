@@ -42,7 +42,7 @@ public:
             const sc_dims &input_dims, const sc_dims &filter_dims,
             const sc_dims &pads_begin, const sc_dims &pads_end,
             const sc_dims &strides, const std::string &data_format,
-            const std::string &filter_format, bool is_same);
+            const std::string &filter_format);
 };
 
 class conv_bwd_data_op_t : public configurable_graph_op_t,
