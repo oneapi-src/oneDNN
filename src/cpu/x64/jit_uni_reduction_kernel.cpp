@@ -263,7 +263,48 @@ void jit_uni_reduction_kernel_t<isa, Vmm>::reduce_vmm_to_scalar(
 }
 
 template <cpu_isa_t isa, typename Vmm>
-void jit_uni_reduction_kernel_t<isa, Vmm>::reduce() {
+void jit_uni_reduction_kernel_t<isa, Vmm>::reduce_ne_convert_xf16() {
+    Label label_work_begin, label_work_tail_begin, label_work_tail_end;
+
+    L(label_work_begin);
+    {
+        cmp(reg_work_, 2);
+        jl(label_work_tail_begin);
+        io_load_.load_two_simdw_xf16(ptr[reg_src_], vmm_tmp1_, vmm_tmp2_);
+
+        compute_op_(vmm_acc_, vmm_tmp1_);
+        compute_op_(vmm_acc_, vmm_tmp2_);
+
+        add(reg_src_, 2 * simd_w_ * conf_.src_dt_size);
+
+        sub(reg_work_, 2);
+        jmp(label_work_begin);
+    }
+
+    L(label_work_tail_begin);
+    {
+        cmp(reg_work_, 0);
+        je(label_work_tail_end);
+        io_load_.load(ptr[reg_src_], vmm_tmp1_, false);
+        compute_op_(vmm_acc_, vmm_tmp1_);
+
+        add(reg_src_, simd_w_ * conf_.src_dt_size);
+
+        dec(reg_work_);
+        jmp(label_work_tail_begin);
+    }
+    L(label_work_tail_end);
+
+    if (load_tail_size_) {
+        io_load_.load(ptr[reg_src_], vmm_tmp1_, true);
+        reduce_vmm_to_scalar(
+                vmm_tmp1_, vmm_tmp2_, vmm_tmp3_, vmm_tmp4_, load_tail_size_);
+        compute_scalar_op_(Xmm(vmm_acc_.getIdx()), Xmm(vmm_tmp1_.getIdx()));
+    }
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::reduce_base() {
     Label label_work_begin, label_work_end;
 
     L(label_work_begin);
@@ -286,6 +327,15 @@ void jit_uni_reduction_kernel_t<isa, Vmm>::reduce() {
                 vmm_tmp1_, vmm_tmp2_, vmm_tmp3_, vmm_tmp4_, load_tail_size_);
         compute_scalar_op_(Xmm(vmm_acc_.getIdx()), Xmm(vmm_tmp1_.getIdx()));
     }
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_reduction_kernel_t<isa, Vmm>::reduce() {
+    if (utils::one_of(conf_.src_type, data_type::bf16, data_type::f16)
+            && isa == avx2_vnni_2)
+        reduce_ne_convert_xf16();
+    else
+        reduce_base();
 }
 
 template <cpu_isa_t isa, typename Vmm>
@@ -381,6 +431,8 @@ void jit_uni_reduction_kernel_t<isa, Vmm>::generate() {
 template struct jit_uni_reduction_kernel_t<avx512_core_fp16>;
 template struct jit_uni_reduction_kernel_t<avx512_core_bf16>;
 template struct jit_uni_reduction_kernel_t<avx512_core>;
+template struct jit_uni_reduction_kernel_t<avx2_vnni_2>;
+template struct jit_uni_reduction_kernel_t<avx2_vnni_2, Xbyak::Xmm>;
 template struct jit_uni_reduction_kernel_t<avx2>;
 template struct jit_uni_reduction_kernel_t<avx2, Xbyak::Xmm>;
 template struct jit_uni_reduction_kernel_t<avx>;

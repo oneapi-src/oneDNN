@@ -2462,6 +2462,7 @@ template struct jit_uni_eltwise_injector_f32<avx512_core>;
 template struct jit_uni_eltwise_injector_f32<avx512_core, Ymm>;
 template struct jit_uni_eltwise_injector_f32<avx512_core, Xmm>;
 template struct jit_uni_eltwise_injector_f32<avx2_vnni_2>;
+template struct jit_uni_eltwise_injector_f32<avx2_vnni_2, Xmm>;
 template struct jit_uni_eltwise_injector_f32<avx2>;
 template struct jit_uni_eltwise_injector_f32<avx2, Xmm>;
 template struct jit_uni_eltwise_injector_f32<avx>;

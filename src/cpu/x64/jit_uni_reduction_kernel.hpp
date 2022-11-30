@@ -82,6 +82,8 @@ private:
             = number_of_f32_in_zmm_);
 
     void reduce();
+    void reduce_base();
+    void reduce_ne_convert_xf16();
 
     void load_params();
     void apply_sum(const int data_idx);
