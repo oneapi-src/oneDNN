@@ -476,7 +476,7 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     static constexpr int bench_iterations = 1;
 
     int sp, sp_block, nb_sp;
-    static int last_ic_block_size;
+    static thread_local int last_ic_block_size;
 
     void get_from_jcp(const jit_brgemm_conv_conf_t &jcp) { *this = jcp; }
     void save_to_jcp(jit_brgemm_conv_conf_t &jcp) const { jcp = *this; }
@@ -547,7 +547,7 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
 unsigned brg_blocking_t::L1;
 unsigned brg_blocking_t::L2;
 unsigned brg_blocking_t::L3;
-int brg_blocking_t::last_ic_block_size;
+thread_local int brg_blocking_t::last_ic_block_size;
 
 float brg_blocking_t::io_k(dim_t src, dim_t wei, dim_t dst, float n, float pk,
         bool is_broadcast, bool is_shared) const {
