@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "compiler/ir/graph/fusible_op.hpp"
+#include "compiler/ir/graph/pass/pass.hpp"
 #include "convolution.hpp"
 #include "graph_convolution.hpp"
 #include <ops/templates/utils.hpp>
@@ -172,15 +173,21 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     if (data_format == "NXC") {
         auto permute_input = graph->make("transpose", {input}, {},
                 {{"order",
-                        is_3D ? std::vector<int> {0, 4, 1, 2, 3}
-                              : std::vector<int> {0, 3, 1, 2}}});
+                         is_3D ? std::vector<int> {0, 4, 1, 2, 3}
+                               : std::vector<int> {0, 3, 1, 2}},
+                        {"out_format",
+                                is_3D ? sc_data_format_t::NCDHW()
+                                      : sc_data_format_t::NCHW()}});
         input = permute_input->get_outputs()[0];
     }
     if (filter_format == "XIO") {
         auto permute_weight = graph->make("transpose", {filter}, {},
                 {{"order",
-                        is_3D ? std::vector<int> {4, 3, 0, 1, 2}
-                              : std::vector<int> {3, 2, 0, 1}}});
+                         is_3D ? std::vector<int> {4, 3, 0, 1, 2}
+                               : std::vector<int> {3, 2, 0, 1}},
+                        {"out_format",
+                                is_3D ? sc_data_format_t::KCDRS()
+                                      : sc_data_format_t::KCRS()}});
         filter = permute_weight->get_outputs()[0];
     }
 
@@ -195,9 +202,13 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         // need to permute NCX to NXC
         conv = graph->make("transpose", conv->get_outputs(), {},
                 {{"order",
-                        is_3D ? std::vector<int> {0, 2, 3, 4, 1}
-                              : std::vector<int> {0, 2, 3, 1}}});
+                         is_3D ? std::vector<int> {0, 2, 3, 4, 1}
+                               : std::vector<int> {0, 2, 3, 1}},
+                        {"out_format",
+                                is_3D ? sc_data_format_t::NDHWC()
+                                      : sc_data_format_t::NHWC()}});
     }
+
     // add bias
     if (info_.inputs_.size() == 3) {
         COMPILE_ASSERT(inputs[2]->details_.get_plain_dims().size() == 1,
