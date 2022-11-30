@@ -1258,6 +1258,16 @@ public:
         return ret;
     }
 
+    int prb_iter_ndims(char bmnk) const {
+        int ret = 0;
+        for (auto &kv : cfg_.iter_dims().get()) {
+            if (to_bmnk(kv.first) != bmnk) continue;
+            if (kv.second == 1) continue;
+            ret++;
+        }
+        return ret;
+    }
+
     int thread_group_dim(char bmnk) const {
         int ret = 1;
         for (auto &kv : cfg_.thread_group_dims().get()) {
