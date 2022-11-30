@@ -74,6 +74,27 @@ static int block_split(
   return used_threads;
 }
 
+static int get_im_s_block(const context_ptr &ctx, const int &os,
+  const int &default_block, const int &im_oc_block,
+  const sc::any_map_t &attrs) {
+  auto ret = default_block;
+  auto origin_ow = dim2unsigned(attrs.get_or_else("origin_ow", sc_dim(os)));
+  auto origin_oh = dim2unsigned(attrs.get_or_else("origin_oh", sc_dim(1)));
+  auto s_default_block = default_block;
+  if (origin_ow > 14) {
+    auto L1_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(1);
+    s_default_block = L1_cache_size / im_oc_block;
+  }
+  auto s_block_list = utils::get_blocks(os, 1, s_default_block);
+  s_block_list.erase(std::remove_if(s_block_list.begin(), s_block_list.end(),
+                       [&](int blk) {
+                         return (blk % (origin_ow * origin_oh) != 0
+                           && (origin_ow * origin_oh) % blk != 0);
+                       }),
+    s_block_list.end());
+  return s_block_list.back();
+}
+
 static int get_lanes(
   const context_ptr &ctx, const int C_block, const sc_data_type_t &dtype) {
   int lanes = 1;
@@ -255,6 +276,8 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   if (use_conv1d) {
     const int num_threads = runtime_config_t::get().get_num_threads();
     auto thread_split = get_splits(num_threads);
+    im_s_block_
+      = get_im_s_block(ctx, oh_ * ow_, default_im_block_, im_oc_block_, attrs_);
     auto closest_split = [](int x, std::vector<int> splits) {
       int close_num = splits[0];
       for (auto split : splits) {
@@ -364,31 +387,17 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   bool is_int8
     = utils::is_one_of(get_input_dtype(), datatypes::u8, datatypes::s8);
   bool is_bf16 = get_input_dtype() == datatypes::bf16;
-  auto dtype_block = is_int8 ? 4 : (is_bf16 ? 2 : 1);
-  if (owner) { attrs_ = owner->attrs_; }
-  auto default_block = dtype_block * 64;
-  if (ic_ * oc_ < 512 * 512) { default_block /= 2; }
-  const int num_threads = runtime_config_t::get().get_num_threads();
-  if (mb_ == 1 && num_threads == 4) { default_block = 64; }
-  auto s_default_block = default_block;
 
-  im_oc_block_ = utils::get_blocks(oc_, 1, default_block).back();
-  im_ic_block_ = utils::get_blocks(ic_, 1, default_block).back();
-  im_s_block_ = utils::get_blocks(ow_ * oh_, 1, s_default_block).back();
-  if (owner && is_1d_) {
-    // add constraint for os_block to ensure correctness
-    // TODO(zhicong): relax the constraint to have more choice for im_s_block
-    auto origin_ow = dim2unsigned(attrs_.get_or_else("origin_ow", sc_dim(ow_)));
-    auto origin_oh = dim2unsigned(attrs_.get_or_else("origin_oh", sc_dim(oh_)));
-    auto s_block_list = utils::get_blocks(ow_ * oh_, 1, s_default_block);
-    s_block_list.erase(std::remove_if(s_block_list.begin(), s_block_list.end(),
-                         [&](int blk) {
-                           return (blk % (origin_ow * origin_oh) != 0
-                             && (origin_ow * origin_oh) % blk != 0);
-                         }),
-      s_block_list.end());
-    im_s_block_ = s_block_list.back();
-  }
+  auto dtype_block = is_int8 ? 4 : (is_bf16 ? 2 : 1);
+  const int num_threads = runtime_config_t::get().get_num_threads();
+  if (owner) { attrs_ = owner->attrs_; }
+  default_im_block_ = dtype_block * 64;
+  if (ic_ * oc_ < 512 * 512) { default_im_block_ /= 2; }
+  if (mb_ == 1 && num_threads == 4) { default_im_block_ = 64; }
+  im_oc_block_ = utils::get_blocks(oc_, 1, default_im_block_).back();
+  im_ic_block_ = utils::get_blocks(ic_, 1, default_im_block_).back();
+  im_s_block_ = utils::get_blocks(ow_ * oh_, 1, default_im_block_).back();
+
   if (pads_begin.size() > 1) {
     ph_ = pads_begin[ndims_ - 4];
     pw_ = pads_begin[ndims_ - 3];
@@ -479,7 +488,8 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
   int ic_block = config.C_block;
   int im_oc_block = im_oc_block_;
   int im_ic_block = im_ic_block_;
-  int im_s_block = im_s_block_;
+  int im_s_block
+    = get_im_s_block(ctx, oh_ * ow_, default_im_block_, im_oc_block_, attrs_);
   if (oc_block % im_oc_block != 0) { oc_block = im_oc_block; }
   COMPILE_ASSERT(oc_block % im_oc_block == 0,
     "oc_block % im_oc_block != 0, config is invalid")
@@ -785,10 +795,6 @@ void gen_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
         std::vector<std::pair<expr, expr>> {{pbs, 1UL}, {0, os_}, {0, oc_}})});
     }
   }
-
-  // lpbs->fuse(lpoc)->fuse(lps)->fuse(lpic); // parallel loop
-  // lobs->fuse(los)->fuse(looc)->fuse(loic)->fuse(lioc)->fuse(lis); // single
-  // thread loop
   loops = {lpbs, lps, lpoc, lpic};
 }
 

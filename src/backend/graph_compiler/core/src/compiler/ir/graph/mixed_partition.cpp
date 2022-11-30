@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include "mixed_partition.hpp"
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -21,7 +22,6 @@
 #include <utility>
 #include "fusible_op.hpp"
 #include "graph_op.hpp"
-#include "mixed_partition.hpp"
 #include "pass/pass.hpp"
 #include "transform/transform.hpp"
 #include "utils.hpp"
@@ -33,6 +33,7 @@
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/index_flatten.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/ir/transform/scope_flatten.hpp>
@@ -166,11 +167,27 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
         auto out = op->get_outputs()[0];
         auto ins = op->get_inputs()[0];
         auto old_input = g2b_map_.get(ins);
-        if (old_input.isa<tensor>()) {
-            op->attrs_.set<bool>("temp.inplace_padding", true);
+        if (old_input.isa<tensor>()
+                || (old_input.isa<tensorptr>()
+                        && ins->producer_owner_->isa<tensor_view_op_t>()
+                        && ins->uses_.size() == 1)) {
+            op->attrs_.set<bool>(op_attr_key::inplace_optimized, true);
+            auto pad_op = op->dyn_cast<padding_op_t>();
             auto new_input = builder::tensor_ptr(g2b_map_.get(out),
-                    op->dyn_cast<padding_op_t>()->get_padding_offsets_exprs(),
-                    {}, true);
+                    pad_op->get_padding_offsets_exprs(),
+                    pad_op->get_inputs()[0]->details_.get_blocking_dims_expr(
+                            graph),
+                    true);
+            if (old_input.isa<tensorptr>()) {
+                auto parent_tsr = get_real_tensor(old_input);
+                auto shape = parent_tsr->dims_;
+                new_input = builder::tensor_ptr(new_input,
+                        std::vector<expr>(
+                                new_input.static_as<tensorptr>()->shape_.size(),
+                                0),
+                        shape, false);
+                old_input = parent_tsr;
+            }
             std::unordered_map<expr, expr> buffer_map
                     = {{old_input, new_input}};
             // IR replace

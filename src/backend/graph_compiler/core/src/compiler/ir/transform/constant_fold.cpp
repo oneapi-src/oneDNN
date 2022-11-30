@@ -745,6 +745,7 @@ using namespace constant_folding;
  * a (+ - * && ||) 0/false
  * a (* / % && ||) 1/true
  * a (- / % && || max min > >= < <= == !=) a
+ * a * nb / b => a * n
  * */
 class constant_fold_t : public ir_consistent_visitor_t {
 public:
@@ -907,6 +908,22 @@ public:
                                     1.0f, parent->dtype_);
                             return true;
                         default: assert(0 && "Bad type"); return false;
+                    }
+                }
+                // a * nb / b => a * n
+                if (lhs->node_type_ == sc_expr_type::mul && !lhs.isa<constant>()
+                        && rhs.isa<constant>()) {
+                    auto v = get_operand_from_binary(lhs);
+                    if (v.second.isa<constant>()) {
+                        int64_t rc
+                                = get_const_as_int(rhs.static_as<constant_c>());
+                        int64_t lc = get_const_as_int(
+                                v.second.static_as<constant_c>());
+                        if (lc % rc == 0) {
+                            uint64_t folded_const = lc / rc;
+                            parent = v.first * expr(folded_const);
+                            return true;
+                        }
                     }
                 }
                 break;

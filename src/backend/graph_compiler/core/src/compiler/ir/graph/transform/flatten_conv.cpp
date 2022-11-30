@@ -51,8 +51,6 @@ bool conv1d_should_flatten(const sc_dims &weight_shape, const sc_dims &strides,
         // TODO(zhicong): improve f32/bf16 training fwd config
         res = false;
     }
-    // TODO(zhicong): improve stage1 performance
-    if (weight_shape[0] <= 64 || weight_shape[1] <= 64) { res = false; }
     return res;
 }
 

@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
+#include "index_flatten.hpp"
 #include <utility>
-#include <unordered_map>
-
 #include <vector>
 #include "../builder.hpp"
 #include "../util_module_passes.hpp"
 #include "../visitor.hpp"
-#include "index_flatten.hpp"
+#include "./constant_fold.hpp"
 #include <compiler/ir/pass_dep_util.hpp>
+#include <unordered_map>
 
 namespace sc {
 
@@ -64,6 +64,8 @@ static bool process_indexing(ir_visitor_t *ths, tensor_c &tsr,
     return changed;
 }
 
+sc_dims get_expr_to_dims(const std::vector<expr> &dims);
+
 static const std::vector<expr> *get_base_shape(const expr_c &ex) {
     if (ex.isa<tensor>()) { return &ex.static_as<tensor>()->dims_; }
     COMPILE_ASSERT(ex.isa<tensorptr>(), "Expecting tensorptr, got: " << ex);
@@ -97,6 +99,87 @@ static std::vector<expr> get_base_stride(const expr_c &ex) {
     }
 }
 
+static bool is_const_expr_vector(const std::vector<expr> &vec) {
+    return std::all_of(vec.begin(), vec.end(), [](const expr &x) {
+        return do_cast_and_fold(x).isa<constant_c>();
+    });
+}
+
+/* process indexing on tptr(slice=false) with base = tptr(slice=true)
+   A = tensor[H,W,C]
+   B = tensorptr(A,[0,1,1,0], [H-1,W-1,C], is_slice=true)
+   C = tensorptr(B, [0,0,0,0], [S,C], is_slice=false) // S = (H-1) * (W-1)
+   indexing C[s,c]
+   let flatten_idx = s * C + c;
+   flatten(C[s,c]) = flatten(B) + (flatten_idx / C / (W-1) % (H-1) * W * C +
+                        flatten_idx / C % (W-1) * C + flatten_idx % C)
+
+   if shape are const, we could know C = C, S = (H-1)*(W-1) and the computation
+   could be simplied to
+   flatten(C[s,c]) = flatten(C) + (s / (W-1) % (H-1) * W *
+                        C + s % (W-1) * C + c)
+*/
+static void process_slice_reshape_indexing(ir_visitor_t *ths,
+        const std::vector<expr> &old_dims, const std::vector<expr> &slice_shape,
+        const std::vector<expr> &parent_stride, const std::vector<expr> &idx,
+        std::vector<expr_c> &newidx) {
+    ths->dispatch_expr_vector(idx, newidx);
+    assert(!idx.empty());
+    bool is_shape_all_const = is_const_expr_vector(slice_shape);
+    is_shape_all_const &= is_const_expr_vector(parent_stride);
+    is_shape_all_const &= is_const_expr_vector(old_dims);
+    if (is_shape_all_const) {
+        // if shape is all const, the computation could be simplified according
+        // to shape
+        expr flattened = 0;
+        auto stride = get_dense_stride(old_dims);
+        auto slice_const_shape = get_expr_to_dims(slice_shape);
+        auto real_shape = get_expr_to_dims(old_dims);
+        auto slice_dense_stride
+                = get_expr_to_dims(get_dense_stride(slice_shape));
+
+        auto acc_shape = 1;
+        int acc_idx = real_shape.size() - 1;
+        expr flatten_remain = 0UL;
+        for (auto i = (int)slice_const_shape.size() - 1; i >= 0; i--) {
+            while (acc_shape % slice_const_shape[i] != 0 && acc_idx >= 0) {
+                flatten_remain
+                        = idx[acc_idx] * stride[acc_idx] + flatten_remain;
+                acc_shape *= real_shape[acc_idx];
+                acc_idx--;
+            }
+            if (acc_shape == slice_const_shape[i]) {
+                flattened = flatten_remain
+                                / expr((uint64_t)slice_dense_stride[i])
+                                * parent_stride[i]
+                        + flattened;
+                flatten_remain = 0UL;
+                acc_shape = 1;
+            } else {
+                flattened = flatten_remain
+                                / expr((uint64_t)slice_dense_stride[i])
+                                % (uint64_t)slice_const_shape[i]
+                                * parent_stride[i]
+                        + flattened;
+                acc_shape /= slice_const_shape[i];
+            }
+        }
+        newidx = std::vector<expr_c> {std::move(flattened)};
+    } else {
+        std::vector<expr_c> flatten_idx;
+        process_indexing(
+                ths, old_dims, get_dense_stride(old_dims), idx, flatten_idx);
+        auto flatten_remain = flatten_idx.back();
+        expr flattened = 0UL;
+        for (auto i = (int)slice_shape.size() - 1; i >= 0; i--) {
+            flattened = (flatten_remain % slice_shape[i]) * parent_stride[i]
+                    + flattened;
+            flatten_remain = flatten_remain / slice_shape[i];
+        }
+        newidx = std::vector<expr_c> {std::move(flattened)};
+    }
+}
+
 class index_flatten_t : public ir_consistent_visitor_t {
 public:
     using ir_consistent_visitor_t::dispatch;
@@ -117,19 +200,28 @@ public:
         } else {
             // indexing on a tensor_ptr
             tensorptr_c oldptr = v->ptr_.checked_as<tensorptr_c>();
-            // first, flatten the indices using tensor_ptr's dimensions
+            if (!oldptr->is_slice_ && oldptr->base_->ptr_.isa<tensorptr>()
+                    && oldptr->base_->ptr_.static_as<tensorptr>()->is_slice_) {
+                auto old_parent_ptr
+                        = oldptr->base_->ptr_.static_as<tensorptr_c>();
+                auto base_shape = oldptr->shape_;
+                auto slice_shape = old_parent_ptr->shape_;
+                auto parent_stride = get_base_stride(old_parent_ptr);
+                process_slice_reshape_indexing(this, base_shape, slice_shape,
+                        parent_stride, v->idx_, newidx);
+            } else {
+                const std::vector<expr> *shape = get_base_shape(oldptr);
+                const std::vector<expr> stride = get_base_stride(oldptr);
+                // 1D input might not have shape info
+                assert(oldptr->base_->idx_.size() == 1 || !shape->empty());
+                // flatten the indices using the reshaped dimensions
+                process_indexing(this, *shape, stride, v->idx_, newidx);
+            }
+            // flatten the indices using tensor_ptr's dimensions
             // then, add the flattened 1D index with the flattened 1D offset
             // of the base tensor_ptr
             auto ptr = dispatch(v->ptr_).checked_as<tensorptr_c>();
             assert(ptr->base_->idx_.size() == 1);
-            const std::vector<expr> *shape = get_base_shape(oldptr);
-            const std::vector<expr> stride = get_base_stride(oldptr);
-            // 1D input might not have shape info
-            assert(oldptr->base_->idx_.size() == 1 || !shape->empty());
-
-            // flatten the indices using the reshaped dimensions
-            process_indexing(this, *shape, stride, v->idx_, newidx);
-
             return copy_attr(*v,
                     builder::make_indexing(ptr->base_->ptr_,
                             builder::make_add(ptr->base_->idx_[0], newidx[0]),

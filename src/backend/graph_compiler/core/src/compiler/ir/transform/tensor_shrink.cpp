@@ -284,8 +284,9 @@ public:
                 // remake tensorptr
                 if (idx_changed) {
                     const auto &tptr = new_ptr.static_as<tensorptr>();
-                    new_ptr = builder::tensor_ptr(tptr->base_->ptr_,
-                            new_cld_idx, tptr->shape_, tptr->is_slice_);
+                    new_ptr = copy_attr(*new_ptr,
+                            builder::tensor_ptr(tptr->base_->ptr_, new_cld_idx,
+                                    tptr->shape_, tptr->is_slice_));
                 }
             }
             if (changed) {
