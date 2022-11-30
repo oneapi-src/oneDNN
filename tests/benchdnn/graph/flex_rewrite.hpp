@@ -26,7 +26,9 @@
 
 #include "deserialize.hpp"
 #include "utils.hpp"
-
+#define DYNAMIC_INDICATOR "-2"
+#define DYNAMIC_RIGHT ']'
+#define DYNAMIC_LEFT '['
 namespace graph {
 
 struct flex_rewrite {
@@ -710,7 +712,121 @@ struct flex_rewrite {
         }
     }
 
+    bool has_dynamic_flag(const deserialized_graph &dgraph) {
+        bool flag_in_shape = false;
+        for (auto &aop : dgraph.ops_) {
+            for (auto &lt : aop.in_lts_) {
+                if (std::find(lt.shape_.begin(), lt.shape_.end(),
+                            std::stoi(DYNAMIC_INDICATOR))
+                        != lt.shape_.end()) {
+                    flag_in_shape = true;
+                    break;
+                }
+            }
+            if (flag_in_shape) { break; }
+        }
+        return flag_in_shape;
+    }
+
+    bool has_brackets(const std::map<size_t, std::string> &shapes) {
+        std::map<size_t, std::string>::const_iterator itr;
+        itr = shapes.begin();
+        std::size_t posi;
+        for (; itr != in_shapes.end(); ++itr) {
+            posi = itr->second.find(DYNAMIC_LEFT);
+            if (posi != std::string::npos) { return true; }
+        }
+        return false;
+    }
+
+    void dynamic_case(deserialized_graph &dgraph) {
+        if (has_dynamic_flag(dgraph)) { dgraph.has_dynamic_dim = true; }
+        if (has_brackets(in_shapes)) { dgraph.has_dynamic_dim = true; }
+    }
+
+    // extract brackets index
+    // "[2-3]x[64-128]x1024x3" -> {<0,4>, <6,13>}
+    std::vector<std::pair<size_t, size_t>> find_brackets(
+            const std::string &shape) {
+        std::vector<std::pair<size_t, size_t>> res;
+
+        size_t left = 0;
+        size_t right = 0;
+        for (std::size_t i = 0; i < shape.length(); ++i) {
+            if (shape[i] == DYNAMIC_LEFT) { left = i; }
+            if (shape[i] == DYNAMIC_RIGHT) {
+                right = i;
+                res.push_back(std::make_pair(left, right));
+            }
+        }
+        return res;
+    }
+
+    // extract dynamic dims from cml
+    // "[2-32-128]x200", 0, 9 -> {2,32,128}
+    std::vector<int64_t> extract_dyn_val(
+            const std::string str, size_t start, size_t end) {
+        std::size_t l_ptr = start;
+        std::size_t r_ptr = start;
+
+        std::vector<int64_t> res;
+        while (true) {
+            if (!std::isdigit(str[l_ptr]) && !std::isdigit(str[r_ptr])) {
+                l_ptr++;
+                r_ptr++;
+            } else if (std::isdigit(str[l_ptr]) && !std::isdigit(str[r_ptr])) {
+                res.push_back(std::stoi(str.substr(l_ptr, r_ptr - l_ptr)));
+                r_ptr++;
+                if (r_ptr >= end) { break; }
+                l_ptr = r_ptr;
+            } else if (std::isdigit(str[l_ptr]) && std::isdigit(str[r_ptr])) {
+                r_ptr++;
+            }
+        }
+        return res;
+    }
+
+    void parse_dynamic_info(deserialized_graph &dgraph) {
+        // if in_shape contains '[ ]', construct dgraph.dynamic_dims:
+        // {0:[2-4][64-128], 3:[2-4][64-128], 13:[2-4][64-128],6:[2-4][64-128]}
+        if (!(in_shapes.size() == 1 && in_shapes[0] == "default")
+                && has_brackets(in_shapes)) {
+            std::map<size_t, std::string>::iterator itr = in_shapes.begin();
+            std::vector<std::pair<size_t, size_t>> brackets;
+            for (; itr != in_shapes.end(); ++itr) {
+                std::vector<std::vector<int64_t>> candidates;
+                brackets = find_brackets(itr->second);
+
+                for (auto &p : brackets) {
+                    candidates.push_back(
+                            extract_dyn_val(itr->second, p.first, p.second));
+                }
+                dgraph.dynamic_dims.emplace(itr->first, candidates);
+            }
+
+            // replace '[ ]' with '-2'
+            itr = in_shapes.begin();
+            for (; itr != in_shapes.end(); ++itr) {
+                brackets = find_brackets(itr->second);
+                std::vector<std::pair<size_t, size_t>>::reverse_iterator ritr;
+                ritr = brackets.rbegin();
+                // replace all '[ ]' in this shape
+                for (; ritr != brackets.rend(); ++ritr) {
+                    size_t brackets_length = ritr->second - ritr->first + 1;
+                    itr->second.replace(
+                            ritr->first, brackets_length, DYNAMIC_INDICATOR);
+                }
+            }
+        } else if (!(in_shapes.size() == 1 && in_shapes[0] == "default")
+                && !has_brackets(in_shapes)) {
+            dgraph.has_dynamic_dim = false;
+        }
+    }
+
     void input_shape_rewrite(deserialized_graph &dgraph) {
+        dynamic_case(dgraph);
+        if (dgraph.has_dynamic_dim) { parse_dynamic_info(dgraph); }
+
         for (auto &aop : dgraph.ops_) {
             for (auto &lt : aop.in_lts_) {
                 size_t ndims = lt.shape_.size();

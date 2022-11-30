@@ -246,6 +246,12 @@ struct deserialized_graph {
             "SqrtBackprop", "Square", "Tanh", "TanhBackprop"};
     std::vector<std::string> op_kind_without_mb {"MatMul"};
 
+    // inshapes dims: static or dynamic, static by default
+    bool has_dynamic_dim = false;
+    // true dim values for dynamic in_shape
+    // {op_id: { dim0{2,4}, dim2{64,128} }
+    std::map<size_t, std::vector<std::vector<int64_t>>> dynamic_dims;
+
     void load(const std::string &pass_config_json) {
         std::ifstream fs(pass_config_json.c_str());
         BENCHDNN_PRINT(
