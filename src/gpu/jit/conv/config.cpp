@@ -2000,6 +2000,7 @@ bool try_reduce_grf_usage(conv_config_t &cfg) {
         // XXX: avoid layout mismatch for B loads
         if (cfg.hw() >= ngen::HW::XeHPC && prb.is_bwd_w)
             max_b_subtiles = std::min(2, max_b_subtiles);
+        if (h.prb_iter_ndims('n') > 1) max_b_subtiles = 1;
         while (cfg.subtiles().b() < max_b_subtiles) {
             cfg.subtiles().set_b(cfg.subtiles().b() * 2);
             int est_regs = estimate_register_count(cfg);
@@ -2010,6 +2011,7 @@ bool try_reduce_grf_usage(conv_config_t &cfg) {
         int m_iter_blk = h.iter_dim('m');
         int max_a_subtiles = std::min((cfg.slm().a() ? 4 : 2), m_iter_blk / 8);
         if (cfg.subtiles().b() > 1) max_a_subtiles = 1;
+        if (h.prb_iter_ndims('m') > 1) max_a_subtiles = 1;
         while (cfg.subtiles().a() < max_a_subtiles) {
             cfg.subtiles().set_a(cfg.subtiles().a() * 2);
             int est_regs = estimate_register_count(cfg);
