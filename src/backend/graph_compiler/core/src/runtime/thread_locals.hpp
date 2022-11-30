@@ -56,7 +56,7 @@ struct thread_local_buffer_t {
         bool is_main_thread_ = false;
         trace_manager_t trace_;
     };
-    bool in_managed_thread_pool_;
+    bool in_managed_thread_pool_ = false;
     engine_t *engine_ = nullptr;
     amx_buffer_t amx_buffer_;
 

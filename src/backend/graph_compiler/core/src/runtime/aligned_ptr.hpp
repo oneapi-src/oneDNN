@@ -80,6 +80,7 @@ struct raii_ptr_t : protected generic_ptr_base_t {
     }
 
     raii_ptr_t &operator=(raii_ptr_t &&other) {
+        if (&other == this) { return *this; }
         if (ptr_) { Policy::dealloc(ptr_, size_); }
         ptr_ = other.ptr_;
         other.ptr_ = nullptr;

@@ -1537,7 +1537,8 @@ static void try_align_parti_outer_loops(mixed_parti_t *A, mixed_parti_t *B) {
 
     auto outermost_loop_A_range = get_loops_range(outer_loops_A[0]),
          outermost_loop_B_range = get_loops_range(outer_loops_B[0]);
-    if (outermost_loop_A_range == outermost_loop_B_range) {
+    if (outermost_loop_A_range == 0 || outermost_loop_B_range == 0
+            || outermost_loop_A_range == outermost_loop_B_range) {
         return;
     } else if (outermost_loop_A_range <= outermost_loop_B_range) {
         B->try_split_outermost_loop(outermost_loop_A_range);

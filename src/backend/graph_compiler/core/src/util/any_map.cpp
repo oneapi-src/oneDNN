@@ -23,6 +23,7 @@ static_assert(sizeof(any_t) == 64, "Expecting sizeof(any_t)==64");
 
 namespace utils {
 reflection::general_ref_t any_to_general_ref(const any_t &v) {
+    COMPILE_ASSERT(!v.empty(), "any_to_general_ref meets empty any value");
     auto ty = reflection::get_type_by_rtti(v.type_code());
     COMPILE_ASSERT(ty,
             "Cannot find the type in reflection for any_t: "

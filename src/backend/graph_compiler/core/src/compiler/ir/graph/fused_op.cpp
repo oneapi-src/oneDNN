@@ -1554,9 +1554,10 @@ std::vector<int> mixed_fuse_op_t::query_prefetch(const context_ptr &ctx,
 void mixed_fuse_op_t::generate_prefetcher_body_for_tensor(
         const context_ptr &ctx, const std::vector<expr> &func_args,
         const std::vector<expr> &ins, const std::vector<int> &indices) {
-    auto found_op = find_prefetch_op(sub_graph_);
-    assert(found_op);
-    found_op->generate_prefetcher_body_for_tensor(ctx, func_args, ins, indices);
+    if (auto found_op = find_prefetch_op(sub_graph_)) {
+        found_op->generate_prefetcher_body_for_tensor(
+                ctx, func_args, ins, indices);
+    }
 }
 
 void mixed_fuse_op_t::schedule_loops(const stmt &body) {

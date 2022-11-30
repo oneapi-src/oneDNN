@@ -16,6 +16,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
+#include <util/null_check.hpp>
+
 namespace sc {
 extern "C" void *sc_global_aligned_alloc(size_t sz, size_t align);
 extern "C" void sc_global_aligned_free(void *ptr, size_t align);
@@ -30,6 +32,7 @@ extern "C" void query_combined_fused_op(void *table, uint64_t **combined_keys,
     runtime::dispatch_key *final_query_keys
             = static_cast<runtime::dispatch_key *>(
                     sc_global_aligned_alloc(sz, 64));
+    SC_ABORT_IF_NULL(final_query_keys);
     runtime::dispatch_key **combined_dispatch_keys
             = reinterpret_cast<runtime::dispatch_key **>(combined_keys);
     int offset = 0;

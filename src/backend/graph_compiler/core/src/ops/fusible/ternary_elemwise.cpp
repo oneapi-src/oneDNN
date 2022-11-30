@@ -195,7 +195,9 @@ select_op_t::select_op_t(const std::vector<graph_tensor_ptr> &ins,
 select_op_t::select_op_t(graph_tensor_ptr cond, graph_tensor_ptr then,
         graph_tensor_ptr els, int inplace)
     : select_op_t({std::move(cond), std::move(then), std::move(els)}, {},
-            {{"inplace", inplace}}) {}
+            {{"inplace", inplace}}) {
+    inplace_ = inplace;
+}
 
 int select_op_t::get_broadcast_input(const int l, const int r) const {
     const sc_dims &lhs_dims = info_.inputs_[l]->details_.get_plain_dims();

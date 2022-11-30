@@ -95,10 +95,10 @@ public:
     IRBuilder<> builder_;
     std::unique_ptr<Module> module_;
     std::unique_ptr<DIBuilder> dbuilder_;
-    DICompileUnit *dbg_cu_;
+    DICompileUnit *dbg_cu_ = nullptr;
     std::vector<DIScope *> dbg_scopes_;
-    Function *current_func_;
-    Value *current_val_;
+    Function *current_func_ = nullptr;
+    Value *current_val_ = nullptr;
     // the **pointer** of local var in a function
     std::unordered_map<expr_c, Value *> var_ptr_in_func_;
     // tensor to <alias scope, noalias>

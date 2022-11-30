@@ -49,7 +49,7 @@ protected:
     // input op => the index of tensor slice in src of commit(...)
     std::unordered_map<sc_op *, int> output_idx_map_;
     // the maximum anchor id fusion manager use
-    int max_anchor_;
+    int max_anchor_ = -1;
     std::vector<fuse_anchor_t> fanchor_list_;
     // fusion manager will manager the sorted ops by rules
     std::vector<sc_op_ptr> sorted_ops_;

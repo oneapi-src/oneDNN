@@ -69,8 +69,9 @@ static void transed_matmul(const std::shared_ptr<sc_graph_t> &graph,
         const graph_tensor_ptr &ins1, graph_tensor_ptr &trans0,
         graph_tensor_ptr &trans1) {
     if (attrs.get_or_else("transpose_a", false)) {
-        auto original_dims = ins0->details_.get_plain_dims();
+        auto &original_dims = ins0->details_.get_plain_dims();
         sc_dims transed_plain_dims(original_dims.begin(), original_dims.end());
+        COMPILE_ASSERT(transed_plain_dims.size() >= 2, "Bad input shape");
         std::swap(transed_plain_dims[transed_plain_dims.size() - 1],
                 transed_plain_dims[transed_plain_dims.size() - 2]);
         std::vector<int> order(transed_plain_dims.size());

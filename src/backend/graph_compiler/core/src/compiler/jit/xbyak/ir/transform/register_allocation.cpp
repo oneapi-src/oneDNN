@@ -698,14 +698,15 @@ private:
         none,
         store,
         load_store,
-    } resolve_dst_;
+    } resolve_dst_
+            = resolve_dst::none;
 
-    bool dst_is_mem_;
+    bool dst_is_mem_ = false;
 
     bool alloc_local_;
     bool is_local_scope_;
 
-    stmt_index_t cur_index_;
+    stmt_index_t cur_index_ = 0;
 
     static int32_t temp_index_;
 };

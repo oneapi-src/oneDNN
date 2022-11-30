@@ -58,7 +58,7 @@ private:
     std::shared_ptr<virtual_slots_map_t> virtual_slots_map_;
 
     constexpr static int index_width_ = 6;
-    int indent_;
+    int indent_ = 0;
 
     std::stringstream ss_;
 };

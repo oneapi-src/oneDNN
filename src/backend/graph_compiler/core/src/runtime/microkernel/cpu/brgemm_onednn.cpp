@@ -37,6 +37,7 @@
 #include <runtime/thread_locals.hpp>
 #include <unordered_map>
 #include <util/hash_utils.hpp>
+#include <util/null_check.hpp>
 #include <util/os.hpp>
 
 using namespace dnnl::impl::cpu::x64;
@@ -303,6 +304,7 @@ struct palette_ptr_t {
 
     palette_ptr_t(const char *copied) {
         ptr_ = (char *)aligned_alloc(64, PALETTE_SIZE);
+        SC_ABORT_IF_NULL(ptr_);
         memcpy(ptr_, copied, PALETTE_SIZE);
     }
 
@@ -310,6 +312,8 @@ struct palette_ptr_t {
         ptr_ = other.ptr_;
         other.ptr_ = nullptr;
     }
+
+    palette_ptr_t &operator=(palette_ptr_t &&other) = delete;
 
     ~palette_ptr_t() {
         if (ptr_) { aligned_free(ptr_); }
@@ -390,6 +394,7 @@ struct brg_desc_safe_t {
             return &itr->second;
         }
         arg_ptr = (brg_arg_t *)(aligned_alloc(64, arg_sz));
+        SC_ABORT_IF_NULL(arg_ptr);
         new (arg_ptr) brg_arg_t {alpha, beta, LDA, LDB, LDC, M, N, K, stride_a,
                 stride_b, brg_type, dtypeA, dtypeB,
                 reinterpret_cast<const attrs_setting_t *>(attrs_setting),
@@ -451,7 +456,7 @@ struct brg_desc_safe_t {
                 std::make_pair(new_itr.first->first, found_kernel));
 
         // set brgemm attrs
-        if (attrs_setting != nullptr || bd_mask != nullptr) {
+        if (attrs_setting != nullptr) {
             brgemm_attr_t dnnl_brg_attrs = get_dnnl_brgemm_attrs(
                     *reinterpret_cast<const attrs_setting_t *>(attrs_setting));
             dnnl_brg_attrs.bd_mask = bd_mask;

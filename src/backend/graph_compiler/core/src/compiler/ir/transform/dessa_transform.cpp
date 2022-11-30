@@ -315,9 +315,9 @@ static void process_phi(
         // first check if this phi depends on a value in for-loop
         const stmt_base_t *cur_for = find_parent_for(cur);
         bool is_loop_phi = phi->is_loop_phi_;
-        if (!cur_for) { assert(!is_loop_phi); }
 
         if (is_loop_phi) {
+            COMPILE_ASSERT(cur_for, "Cannot find parent for-loop for loop phi");
             // the phi is a loop-phi
             data.shadow_phi_var_ = builder::make_var(
                     thevar->dtype_, thevar->name_ + "_shadow");

@@ -106,8 +106,6 @@ private:
 
     stack_frame_model sf_model_;
 
-    stmt_index_t current_index_;
-
     // During the JIT-translation of a function, this indicates the beginning
     // of the function's epilogue code.
     Xbyak::Label l_func_epilogue_;

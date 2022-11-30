@@ -332,6 +332,7 @@ public:
 
     // keep this overload function to make compiler happy
     any_t &operator=(any_t &&v) {
+        if (this == &v) return *this;
         move_from_any(std::move(v));
         return *this;
     }

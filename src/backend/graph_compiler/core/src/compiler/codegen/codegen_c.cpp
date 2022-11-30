@@ -491,45 +491,45 @@ void codegen_c_vis::view(intrin_call_c v) {
 }
 
 void codegen_c_vis::view(add_c v) {
-    return print_binary(v, " + ");
+    print_binary(v, " + ");
 }
 void codegen_c_vis::view(sub_c v) {
-    return print_binary(v, " - ");
+    print_binary(v, " - ");
 }
 void codegen_c_vis::view(mul_c v) {
-    return print_binary(v, " * ");
+    print_binary(v, " * ");
 }
 void codegen_c_vis::view(div_c v) {
-    return print_binary(v, " / ");
+    print_binary(v, " / ");
 }
 void codegen_c_vis::view(mod_c v) {
-    return print_binary(v, " % ");
+    print_binary(v, " % ");
 }
 
 void codegen_c_vis::view(cmp_eq_c v) {
-    return print_binary(v, " == ");
+    print_binary(v, " == ");
 }
 void codegen_c_vis::view(cmp_lt_c v) {
-    return print_binary(v, " < ");
+    print_binary(v, " < ");
 }
 void codegen_c_vis::view(cmp_le_c v) {
-    return print_binary(v, " <= ");
+    print_binary(v, " <= ");
 }
 void codegen_c_vis::view(cmp_gt_c v) {
-    return print_binary(v, " > ");
+    print_binary(v, " > ");
 }
 void codegen_c_vis::view(cmp_ge_c v) {
-    return print_binary(v, " >= ");
+    print_binary(v, " >= ");
 }
 void codegen_c_vis::view(cmp_ne_c v) {
-    return print_binary(v, " != ");
+    print_binary(v, " != ");
 }
 
 void codegen_c_vis::view(logic_and_c v) {
-    return print_binary(v, " && ");
+    print_binary(v, " && ");
 }
 void codegen_c_vis::view(logic_or_c v) {
-    return print_binary(v, " || ");
+    print_binary(v, " || ");
 }
 
 void codegen_c_vis::view(logic_not_c v) {

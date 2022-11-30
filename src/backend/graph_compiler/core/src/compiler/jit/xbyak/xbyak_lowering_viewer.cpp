@@ -329,10 +329,7 @@ void xbyak_lowering_viewer::handle_local_definition(
 stmt_c xbyak_lowering_viewer::dispatch(stmt_c v) {
     stmt_c vv;
     auto &stmt_data = GET_STMT_DATA(v);
-    if (!stmt_data.optimized_out_) {
-        current_index_ = stmt_data.index_;
-        vv = ir_viewer_t::dispatch(std::move(v));
-    }
+    if (!stmt_data.optimized_out_) { vv = ir_viewer_t::dispatch(std::move(v)); }
     location_manager_->expire(stmt_data.index_);
     return vv;
 }

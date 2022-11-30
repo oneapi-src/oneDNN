@@ -27,8 +27,8 @@ namespace sc {
 namespace ops {
 
 struct conv_fwd_config_t {
-  int K_block;
-  int C_block;
+  int K_block = 0;
+  int C_block = 0;
   int tile_d = 1;
   int tile_p = 1;
   int tile_q = 1;

@@ -280,11 +280,12 @@ class value_numbering_mutator_t : public ssa_visitor_t {
                         // We found the duplication at the point of "b=a+1", and
                         // we need to move "g=a+1" before the "if". We need to
                         // first find the "if" node in the shared_parent
-                        const structural_result_t *second_level;
+                        const structural_result_t *second_level = nullptr;
                         get_vn_result(shared_parent)
                                 .parent_info_.is_parent_of(old_info, addresser_,
                                         false, true, &second_level);
-                        assert(second_level);
+                        COMPILE_ASSERT(second_level,
+                                "expecting second_level being not null");
                         auto &the_seq = *scope.cur_seq_to_insert_;
                         // get the point in shared parent to insert the def
                         // before

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,6 +67,38 @@ void read_all_from_fd(int fd, std::string &str) {
     }
 }
 
+struct posix_spawn_file_actions_helper_t {
+    posix_spawn_file_actions_t child_fd_actions;
+    bool success;
+    posix_spawn_file_actions_helper_t() {
+        if (auto retv = posix_spawn_file_actions_init(&child_fd_actions)) {
+            perror("posix_spawn_file_actions_init");
+            success = false;
+        } else {
+            success = true;
+        }
+    }
+    ~posix_spawn_file_actions_helper_t() {
+        if (success) { posix_spawn_file_actions_destroy(&child_fd_actions); }
+    }
+};
+
+struct posix_spawnattr_helper_t {
+    posix_spawnattr_t attr;
+    bool success;
+    posix_spawnattr_helper_t() {
+        if (auto retv = posix_spawnattr_init(&attr)) {
+            perror("posix_spawn_file_actions_init");
+            success = false;
+        } else {
+            success = true;
+        }
+    }
+    ~posix_spawnattr_helper_t() {
+        if (success) { posix_spawnattr_destroy(&attr); }
+    }
+};
+
 bool create_process_and_await(const std::string &program,
         const std::vector<std::string> &args, int &exit_code,
         const std::string *rstdin, std::string *rstdout, std::string *rstderr) {
@@ -100,12 +132,10 @@ bool create_process_and_await(const std::string &program,
     }
 
     pid_t pid;
-    posix_spawn_file_actions_t child_fd_actions;
-    posix_spawnattr_t attr;
-    if (auto retv = posix_spawn_file_actions_init(&child_fd_actions)) {
-        perror("posix_spawn_file_actions_init");
-        return false;
-    }
+    posix_spawn_file_actions_helper_t child_fd_actions_helper;
+    if (!child_fd_actions_helper.success) { return false; }
+    posix_spawn_file_actions_t &child_fd_actions
+            = child_fd_actions_helper.child_fd_actions;
 
 #define ADD_ACTION(action, ...) \
     if (auto retv = posix_spawn_file_actions_add##action( \
@@ -128,10 +158,9 @@ bool create_process_and_await(const std::string &program,
         ADD_ACTION(close, stderrpipefd[0]);
     }
 
-    if (auto vret = posix_spawnattr_init(&attr)) {
-        perror("posix_spawnattr_init");
-        return false;
-    }
+    posix_spawnattr_helper_t attr_helper;
+    if (!attr_helper.success) { return false; }
+    posix_spawnattr_t &attr = attr_helper.attr;
     if (auto vret = posix_spawnattr_setflags(&attr, POSIX_SPAWN_USEVFORK)) {
         perror("posix_spawnattr_setflags");
         return false;
@@ -143,8 +172,6 @@ bool create_process_and_await(const std::string &program,
         return false;
     }
 
-    posix_spawnattr_destroy(&attr);
-    posix_spawn_file_actions_destroy(&child_fd_actions);
     if (rstdin) {
         close(stdinpipefd[0]);
         if (write(stdinpipefd[1], rstdin->c_str(), rstdin->size())

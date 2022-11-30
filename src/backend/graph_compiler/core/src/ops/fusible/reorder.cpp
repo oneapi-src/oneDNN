@@ -2485,7 +2485,7 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
 
             } else { // vnni reorder + transpose
                 tmp_out_indexes[out_n_axis[1]] = tmp_out_indexes[out_n_axis[1]]
-                        + static_cast<uint64_t>(i * 4);
+                        + static_cast<uint64_t>(i) * 4;
             }
             auto assign = builder::make_assign_unattached(
                     builder::make_indexing(
@@ -2601,7 +2601,7 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
 
             } else { // vnni reorder + transpose
                 tmp_out_indexes[out_n_axis[1]] = tmp_out_indexes[out_n_axis[1]]
-                        + static_cast<uint64_t>(i * 4);
+                        + static_cast<uint64_t>(i) * 4;
             }
 
             auto assign = builder::make_assign_unattached(

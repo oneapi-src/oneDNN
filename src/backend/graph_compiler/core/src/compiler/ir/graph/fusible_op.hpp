@@ -247,9 +247,9 @@ private:
 struct vectorized_info_t {
     // the last valid axis to vectorized, skip invalid dims whose length equals
     // to 1, the default is last dim for most conditions
-    int axis;
+    int axis = -1;
     // vectorized lanes
-    uint32_t lanes;
+    uint32_t lanes = 0;
 };
 
 class binary_elementwise_op_t : public fusible_op_t,

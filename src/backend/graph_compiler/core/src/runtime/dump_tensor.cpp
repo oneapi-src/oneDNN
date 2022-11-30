@@ -137,6 +137,7 @@ extern "C" void sc_dump_tensor(void *tsr, const char *name, const char *shape,
             shape = shape_str.c_str();
         }
         FILE *of = fopen(outpath.c_str(), "wb");
+        if (!of) { return; }
         // numpy array version 1.0
         const char numpy_magic[] = "\x93NUMPY\x01\x00";
         fwrite(numpy_magic, sizeof(numpy_magic) - 1, 1, of);

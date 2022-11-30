@@ -169,7 +169,10 @@ struct xbyak_intrin_modifier {
     expr cond_mask_;
     bool zero_mask_;
     bool enabled_;
-    xbyak_intrin_modifier() : enabled_(false) {}
+    xbyak_intrin_modifier()
+        : cond_code_(xbyak_condition::none)
+        , zero_mask_(false)
+        , enabled_(false) {}
     xbyak_intrin_modifier(xbyak_condition cond)
         : cond_code_(cond), zero_mask_(false), enabled_(true) {}
     xbyak_intrin_modifier(expr cond, bool zero = false)

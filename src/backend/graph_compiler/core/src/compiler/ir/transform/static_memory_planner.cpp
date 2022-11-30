@@ -409,6 +409,7 @@ struct memory_state {
             // target size), inplacing has no benifits, skip
             return nullptr;
         }
+        if (!victim) { return nullptr; }
         assert(!victim->free_);
 
         victim->last_freed_tick_ = tick_;
