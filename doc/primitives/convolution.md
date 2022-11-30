@@ -15,6 +15,9 @@ only for 2D spatial data which are straightforward to generalize to cases of
 higher and lower dimensions. Variable names follow the standard
 @ref dev_guide_conventions.
 
+@note Mathematical operation commonly called "convolution" in the context of deep
+learning workloads is actually cross-correlation.
+
 Let \src, \weights and \dst be \f$N \times IC \times IH \times
 IW\f$, \f$OC \times IC \times KH \times KW\f$, and \f$N \times OC \times OH
 \times OW\f$ tensors respectively. Let \bias be a 1D tensor with \f$OC\f$
