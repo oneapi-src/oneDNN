@@ -134,7 +134,7 @@ void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers) {
 }
 } // namespace runtime
 
-SC_INTERNAL_API void generate_trace_file() {
+SC_API void generate_trace_file() {
     sc::release_runtime_memory(nullptr);
 }
 

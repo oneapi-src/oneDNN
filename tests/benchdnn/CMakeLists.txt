@@ -34,6 +34,7 @@ include_directories_with_host_compiler(
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/src/utils/
     ${PROJECT_SOURCE_DIR}/tests/
+    ${PROJECT_SOURCE_DIR}/src/backend/graph_compiler/core/src
     )
 
 if(BENCHDNN_USE_RDPMC)

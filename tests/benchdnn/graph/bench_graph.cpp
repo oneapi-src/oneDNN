@@ -21,6 +21,8 @@
 #include "parser.hpp"
 #include "utils/parser.hpp"
 
+#include "runtime/trace.hpp"
+
 namespace graph {
 
 void check_correctness(const settings_t &s) {
@@ -45,6 +47,7 @@ void check_correctness(const settings_t &s) {
             pr.report(&res, pstr);
         }
     }
+    sc::generate_trace_file();
 }
 
 int bench(int argc, char **argv) {

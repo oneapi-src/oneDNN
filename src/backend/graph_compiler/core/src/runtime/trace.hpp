@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 
+#include "util/def.hpp"
+
 namespace sc {
 namespace runtime {
 
@@ -38,6 +40,7 @@ struct trace_manager_t {
 void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers);
 
 } // namespace runtime
+SC_API void generate_trace_file();
 int register_traced_func(const std::string &name);
 } // namespace sc
 
