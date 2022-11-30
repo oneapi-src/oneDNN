@@ -62,6 +62,11 @@ struct source_pos {
  * @param os the output stream
  */
 void print_ir_and_annotate_source_pos(const ir_module_t &v, std::ostream &os);
+void print_ir_and_annotate_source_pos(const func_c &v, std::ostream &os);
+
+// printing the IR and print the position of "v". Useful for debugging
+void print_ir_and_annotate_position_in_source(
+        const func_c &scope, const node_base *v, std::ostream &os);
 
 } // namespace sc
 

@@ -209,6 +209,8 @@ struct SC_INTERNAL_API compiler_configs_t {
     std::string jit_cc_options_;
     std::vector<std::string> cpu_jit_flags_;
     std::string temp_dir_;
+    bool diagnose_ = false;
+    bool printer_print_address_ = false;
     bool print_pass_time_;
     bool print_pass_result_;
     bool jit_profile_;

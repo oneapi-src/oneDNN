@@ -63,6 +63,9 @@ void ir_printer_t::view(cast_c v) {
 }
 void ir_printer_t::view(var_c v) {
     os_ << v->name_;
+    if (utils::compiler_configs_t::get().printer_print_address_) {
+        os_ << '_' << (void *)v.get();
+    }
 }
 
 #define GEN_BINARY(CLASS, OP) \
@@ -143,6 +146,9 @@ void ir_printer_t::view(call_c v) {
 
 void ir_printer_t::view(tensor_c v) {
     os_ << v->name_;
+    if (utils::compiler_configs_t::get().printer_print_address_) {
+        os_ << '_' << (void *)v.get();
+    }
 }
 
 void ir_printer_t::view(tensorptr_c v) {
@@ -409,6 +415,35 @@ public:
 void print_ir_and_annotate_source_pos(const ir_module_t &v, std::ostream &os) {
     ir_track_pos_printer_t p {os};
     p.do_dispatch(v);
+}
+
+void print_ir_and_annotate_source_pos(const func_c &v, std::ostream &os) {
+    ir_track_pos_printer_t p {os};
+    p.do_dispatch(v);
+}
+
+void print_ir_and_annotate_position_in_source(
+        const func_c &scope, const node_base *v, std::ostream &os) {
+    std::stringstream ss;
+    ir_track_pos_printer_t p {ss};
+    p.do_dispatch(scope);
+    auto src = ss.str();
+    os << src;
+    if (v->attr_) {
+        auto pos = v->attr_->get_or_null<source_pos>("source_pos");
+        if (pos) {
+            os << "\n===================\nat line:col (" << pos->line_ << ':'
+               << pos->pos_ << ')' << '\n';
+            auto lines = utils::string_split(src, "\n");
+            if (pos->line_ - 1UL < lines.size()) {
+                os << "  " << lines[pos->line_ - 1UL] << '\n';
+                for (int i = 0; i < pos->pos_ + 2; i++) {
+                    os << ' ';
+                }
+                os << "^^^\n";
+            }
+        }
+    }
 }
 
 } // namespace sc
