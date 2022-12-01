@@ -428,6 +428,9 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
     using kernel_t = gen_gemm_kernel_t;
     using kd_t = gen_gemm_xe_systolic_kernel_desc_t;
 
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    int stepping = compute_engine->device_info()->stepping_id();
+
     const auto d = pd()->desc();
 
     auto a_type = d->a_type();
@@ -446,8 +449,8 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
 
     kd_t kd_full;
 
-    auto status = kd_full.select_kernel(arch_, eu_count_, pd()->with_batch(),
-            pd()->packed_c(), pd()->with_a_zero_points(),
+    auto status = kd_full.select_kernel(arch_, stepping, eu_count_,
+            pd()->with_batch(), pd()->packed_c(), pd()->with_a_zero_points(),
             pd()->with_b_zero_points(), pd()->with_c_zero_points(),
             pd()->with_bias(), pd()->alpha(), pd()->beta(), *post_ops, a_type,
             b_type, c_type, co_type, acc_type, d->m(), d->n(), d->k(),
@@ -481,7 +484,7 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
 
                 kd_t kd;
 
-                auto status = kd.select_kernel(arch_, eu_count_,
+                auto status = kd.select_kernel(arch_, stepping, eu_count_,
                         pd()->with_batch(), pd()->packed_c(),
                         pd()->with_a_zero_points(), pd()->with_b_zero_points(),
                         this_c_offset, pd()->with_bias(), pd()->alpha(),

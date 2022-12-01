@@ -307,9 +307,9 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 }
 
 status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
-        compute::gpu_arch_t arch, int eu_count, int batch_dims, bool packed_c,
-        bool a_offset, bool b_offset, bool c_offset, bool bias, float alpha,
-        float beta, const post_ops_t &post_ops, data_type_t a_type,
+        compute::gpu_arch_t arch, int stepping, int eu_count, int batch_dims,
+        bool packed_c, bool a_offset, bool b_offset, bool c_offset, bool bias,
+        float alpha, float beta, const post_ops_t &post_ops, data_type_t a_type,
         data_type_t b_type, data_type_t c_type, data_type_t co_type,
         data_type_t acc_type, dim_t m, dim_t n, dim_t k, dim_t batch,
         int unroll_m, int unroll_n, bool alt) {
@@ -318,6 +318,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
 
     arch_ = arch;
     hw_ = convert_dnnl_arch_to_hw(arch);
+    stepping_ = stepping;
     m_ = m;
     n_ = n;
     k_ = k;

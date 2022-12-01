@@ -121,7 +121,7 @@ struct gen_gemm_nocopy_kernel_desc_t : public gen_gemm_kernel_desc_t {
 };
 
 struct gen_gemm_xe_systolic_kernel_desc_t : public gen_gemm_kernel_desc_t {
-    status_t select_kernel(compute::gpu_arch_t arch, int eu_count,
+    status_t select_kernel(compute::gpu_arch_t arch, int stepping, int eu_count,
             int batch_dims, bool packed_c, bool a_offset, bool b_offset,
             bool c_offset, bool bias, float alpha, float beta,
             const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
