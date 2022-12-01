@@ -234,8 +234,8 @@
 #pointnet.tr.fp32.pt.mb16
 --reset --allow-enum-tags-only=0 --dt=f32 --flags=CH --dir=FWD_D --tag=ab mb16ic512n"pointnet.tr.fp32.pt.mb16*1"
 --reset --allow-enum-tags-only=0 --dt=f32 --flags=CH --dir=FWD_D --tag=ab mb16ic256n"pointnet.tr.fp32.pt.mb16*1"
-#kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --dt=f16 --flags=GCH --dir=FWD_I --tag=ab mb1ic2n"kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+#img-preprocessing-dirtylens.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --dt=f16 --flags=GCH --dir=FWD_I --tag=ab mb1ic2n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
 #maskrcnn.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --dt=f16 --flags=GCHR --dir=FWD_D --tag=acdb mb1ic64ih416iw672n"maskrcnn.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --dt=f16 --flags=GCHR --dir=FWD_D --tag=acdb mb1ic64ih208iw336n"maskrcnn.inf.fp16.ov.mb1*6"

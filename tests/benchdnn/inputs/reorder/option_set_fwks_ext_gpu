@@ -705,9 +705,9 @@
 --reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abcd --dtag=ABcd32a32b 32x160x192x192n"imagesr-giga.inf.int8.ov.mb32*1"
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x96x192x192n"imagesr-giga.inf.int8.ov.mb32*1"
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ABcd16a16b --dtag=ABcd32a32b 32x72x384x384n"imagesr-giga.inf.int8.ov.mb32*1"
-#kuaishou-defocusv4.inf.int8.ov.mb32
---reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd32a32b --dtag=abcd 32x512x8x8n"kuaishou-defocusv4.inf.int8.ov.mb32*1"
---reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 32x512x1x1n"kuaishou-defocusv4.inf.int8.ov.mb32*1"
+#defocusv4.inf.int8.ov.mb32
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd32a32b --dtag=abcd 32x512x8x8n"defocusv4.inf.int8.ov.mb32*1"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=abcd --dtag=ABcd32a32b 32x512x1x1n"defocusv4.inf.int8.ov.mb32*1"
 #modnet_webcam_portrait_matting.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b --dtag=abcd 1x16x256x256n"modnet_webcam_portrait_matting.inf.fp16.ov.mb1*8"
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x35x256x256n"modnet_webcam_portrait_matting.inf.fp16.ov.mb1*1"

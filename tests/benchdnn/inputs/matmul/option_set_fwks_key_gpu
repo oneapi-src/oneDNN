@@ -381,22 +381,22 @@
 --reset --allow-enum-tags-only=0 --cfg=f32 --stag=ab --wtag=ba --dtag=ab 32x128:128x128:32x128n"mma.tr.fp32.tf.mb32*3"
 --reset --allow-enum-tags-only=0 --cfg=f32 --stag=ba --wtag=ab --dtag=ab 1856x32:32x128:1856x128n"mma.tr.fp32.tf.mb32*3"
 --reset --allow-enum-tags-only=0 --cfg=f32 --stag=ab --wtag=ba --dtag=ab 32x128:128x1856:32x1856n"mma.tr.fp32.tf.mb32*3"
-#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=0 --stag=ab --wtag=ab --dtag=ab 6x960:960x1:6x1n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
-#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=0 --stag=ab --wtag=ba --dtag=ab 6x960:960x1:6x1n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
-#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x2048:2048x11:1x11n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ab --dtag=ab 1x11:11x5:1x5n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
-#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x2048:2048x11:1x11n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x11:11x5:1x5n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
-#kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x16:16x2:1x2n"kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
-#kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 5x512:512x2:5x2n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
-#kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 5x512:512x2:5x2n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
+#img-preprocessing-blocky.inf.fp16.pt.mb6
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=0 --stag=ab --wtag=ab --dtag=ab 6x960:960x1:6x1n"img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+#img-preprocessing-blocky.inf.fp16.pt.mb6
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=0 --stag=ab --wtag=ba --dtag=ab 6x960:960x1:6x1n"img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+#img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x2048:2048x11:1x11n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ab --dtag=ab 1x11:11x5:1x5n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x2048:2048x11:1x11n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x11:11x5:1x5n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#img-preprocessing-dirtylens.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x16:16x2:1x2n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+#img-preprocessing-noise.inf.fp16.pt.mb5
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 5x512:512x2:5x2n"img-preprocessing-noise.inf.fp16.pt.mb5*1"
+#img-preprocessing-noise.inf.fp16.pt.mb5
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 5x512:512x2:5x2n"img-preprocessing-noise.inf.fp16.pt.mb5*1"
 #resnet-50.inf.int8.pt.mb1024
 --reset --allow-enum-tags-only=0 --cfg=f32 --stag=ab --wtag=ab --dtag=ab --attr-post-ops=sum 1024x2048:2048x1000:1024x1000n"resnet-50.inf.int8.pt.mb1024*1"
 #resnet-50.inf.int8.tf.mb1024
