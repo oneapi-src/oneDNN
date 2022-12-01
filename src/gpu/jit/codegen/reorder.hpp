@@ -179,8 +179,10 @@ bool try_emit_batched_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
     const int grf_size = ngen::GRF::bytes(hw);
     op_plan_t plan = grf_size;
-    auto tmp = lex_scope.alloc_reg_buf_data(
-            utils::div_up(int(batch * sizeof(uint32_t)), grf_size));
+    int tmp_regs = utils::div_up(int(batch * sizeof(uint32_t)), grf_size);
+    auto tmp_range = lex_scope.try_alloc_range(tmp_regs);
+    if (tmp_range.isInvalid()) return false;
+    reg_buf_data_t tmp(reg_buf_t(hw, tmp_range));
     using inst_mod_t = ngen::InstructionModifier;
     using reg_data_t = ngen::RegData;
     auto mov = [&](inst_mod_t mod, reg_data_t dst, reg_data_t src) {
