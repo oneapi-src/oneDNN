@@ -38,9 +38,14 @@ using namespace memory_tracking::names;
 using namespace data_type;
 using namespace Xbyak;
 
-cpu_isa_t get_io_isa(cpu_isa_t isa, bool has_f16) {
-    // re-using avx512_core instantiation for f16
-    return has_f16 && is_superset(isa, avx512_core) ? avx512_core_fp16 : isa;
+cpu_isa_t get_io_isa(cpu_isa_t isa, bool has_f16, bool has_bf16) {
+    // re-using avx512_core instantiation for xf16
+    if (is_superset(isa, avx512_core) && (has_f16 || has_bf16))
+        return has_f16
+                ? avx512_core_fp16
+                : mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
+    else
+        return isa;
 }
 
 template <cpu_isa_t isa>
@@ -93,7 +98,8 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
         io::io_saturation_conf_t io_saturation_conf(
                 vmm_zero.getIdx(), vmm_saturation_ubound.getIdx(), reg_tmp);
         const auto io_isa = get_io_isa(isa,
-                utils::one_of(f16, src_d_.data_type(), dst_d_.data_type()));
+                utils::one_of(f16, src_d_.data_type(), dst_d_.data_type()),
+                utils::one_of(bf16, src_d_.data_type(), dst_d_.data_type()));
         io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, io_isa,
                 {src_d_.data_type(), dst_d_.data_type(), f32 /* stats */},
                 io_conf, io_tail_conf, io_bf16_conf,
@@ -524,7 +530,8 @@ struct jit_diff_ss_kernel_t : diff_ss_kernel_t, public jit_generator {
                 bf16_emu_zmm_2_idx, bf16_emu_zmm_3_idx, reg_tmp,
                 bf16_emu_zmm_4_idx);
         const auto io_isa = get_io_isa(isa,
-                utils::one_of(f16, src_d_.data_type(), d_dst_d_.data_type()));
+                utils::one_of(f16, src_d_.data_type(), d_dst_d_.data_type()),
+                utils::one_of(bf16, src_d_.data_type(), d_dst_d_.data_type()));
         io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, io_isa,
                 {src_d_.data_type(), d_dst_d_.data_type(), f32 /* stats */},
                 io_conf, io_tail_conf, io_bf16_conf);
@@ -717,6 +724,8 @@ struct jit_diff_data_base_kernel_t : diff_data_kernel_t, public jit_generator {
                 bf16_emu_zmm_4_idx);
         const auto io_isa = get_io_isa(isa,
                 utils::one_of(f16, src_d_.data_type(), d_dst_d_.data_type(),
+                        d_src_d_.data_type()),
+                utils::one_of(bf16, src_d_.data_type(), d_dst_d_.data_type(),
                         d_src_d_.data_type()));
         io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, io_isa,
                 {src_d_.data_type(), d_dst_d_.data_type(), d_src_d_.data_type(),
