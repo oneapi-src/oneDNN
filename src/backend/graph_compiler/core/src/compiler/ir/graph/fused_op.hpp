@@ -162,11 +162,13 @@ class mixed_fuse_op_t : public graph_op_t,
                         public op_traits::may_inplace_t {
 public:
     mixed_fuse_op_t(const std::string &name,
-            const std::shared_ptr<mixed_parti_t> &parti,
-            const sc_graph_t &graph, const std::vector<graph_tensor_ptr> &ins,
+            const std::vector<std::shared_ptr<mixed_parti_t>> &parti_list,
+            const ir_module_ptr &mod, const sc_graph_t &graph,
+            const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     sc_graph_t sub_graph_;
-    std::shared_ptr<mixed_parti_t> parti_;
+    std::vector<std::shared_ptr<mixed_parti_t>> parti_list_;
+    ir_module_ptr mod_;
     ir_module_ptr get_func(context_ptr ctx) override;
     void get_graph_impl(std::shared_ptr<sc_graph_t> &) override;
     void schedule_loops(const stmt &body);

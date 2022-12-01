@@ -797,13 +797,6 @@ expr tensor_detail_to_ir_tensor(sc_graph_t &graph, const std::string &name,
     return tsr;
 }
 
-expr tensor_detail_to_ir_tensor(sc_graph_t &graph, const std::string &name,
-        const graph_tensor_ptr &gt, gt2buf_map &g2b_map) {
-    if (!g2b_map.haskey(gt))
-        g2b_map.get(gt) = tensor_detail_to_ir_tensor(graph, name, gt->details_);
-    return g2b_map.get(gt);
-}
-
 std::vector<expr> tensor_detail_to_ir_tensor(sc_graph_t &graph,
         const std::string &name_prefix,
         const std::vector<logical_tensor_t> &tsrs) {
@@ -824,19 +817,6 @@ std::vector<expr> tensor_detail_to_ir_tensor(sc_graph_t &graph,
     for (size_t i = 0; i < tsrs.size(); i++) {
         ret.emplace_back(tensor_detail_to_ir_tensor(
                 graph, name_prefix + std::to_string(i), tsrs[i]->details_));
-    }
-    return ret;
-}
-
-std::vector<expr> tensor_detail_to_ir_tensor(sc_graph_t &graph,
-        const std::string &name_prefix,
-        const std::vector<graph_tensor_ptr> &tsrs, gt2buf_map &g2b_map) {
-    std::vector<expr> ret;
-    ret.reserve(tsrs.size());
-    for (size_t i = 0; i < tsrs.size(); i++) {
-        auto ir_tsr = tensor_detail_to_ir_tensor(
-                graph, name_prefix + std::to_string(i), tsrs[i], g2b_map);
-        ret.emplace_back(ir_tsr);
     }
     return ret;
 }

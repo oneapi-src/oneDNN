@@ -98,9 +98,10 @@ func_t tunable_op_t::get_func(mixed_parti_t *parti,
                                       : nullptr);
     // bind outer_loop with axis
     if (!loops.empty() && (loops[0].get())
-            && loops[0]->attr().has_key("loop_axis_hint")) {
-        auto bd_axis = loops[0]->attr().get<bound_axis>("loop_axis_hint");
-        loops[0]->attr().remove("loop_axis_hint");
+            && loops[0]->attr().has_key(stmt_attr_key::loop_axis_hint)) {
+        auto bd_axis = loops[0]->attr().get<bound_axis>(
+                stmt_attr_key::loop_axis_hint);
+        loops[0]->attr().remove(stmt_attr_key::loop_axis_hint);
         // init axis binder
         parti->ax_binder_.init(get_outputs()[0], bd_axis);
     }

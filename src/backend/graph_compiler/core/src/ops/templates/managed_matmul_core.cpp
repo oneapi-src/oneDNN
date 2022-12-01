@@ -1809,7 +1809,7 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   }
   mloop->attr()[stmt_attr_key::parallel_merge_loop_granularity] = iim_block_;
 
-  mloop->attr()["loop_axis_hint"]
+  mloop->attr()[stmt_attr_key::loop_axis_hint]
     = (K_split_num == 1) ? bound_axis {{0}, {1}, {-1}} : bound_axis {{0}, {1}};
   loops = {mloop};
   return true;

@@ -20,12 +20,13 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include "cost_model.hpp"
 #include "fused_op.hpp"
 #include "fusible_op.hpp"
+#include "fusion_cost_model.hpp"
 #include "fusion_data.hpp"
 #include "fusion_mgr.hpp"
 #include "visitor.hpp"
+#include <compiler/ir/transform/static_memory_planner.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <unordered_map>
@@ -104,6 +105,11 @@ struct mxp_buffer_allocator {
 
     mixed_parti_t *binded_mxp_;
 
+    mxp_buffer_allocator(mixed_parti_t *parti) { binded_mxp_ = parti; }
+
+    std::vector<memory_optim::memory_alloc_trace_t>
+            mem_trace_; // memory allocation trace
+
     // support inplace logic, allocate buffer including either tensor or
     // tensorptr
     void allocate_buffer(sc_op *op);
@@ -113,8 +119,10 @@ struct mxp_buffer_allocator {
     void update_input_buffer_info(sc_op *op);
     // update output buffer info
     void update_output_buffer_info(sc_op *op);
+    // define tensor
+    void declare_tensor() const;
     // set shrink info
-    void declare_and_shrink_tensor();
+    void set_shrink_info() const;
     /** merge two buffer allocator
      * @param common_anchor_pair: the common anchor overlapped when two
      * partition merged. `first` comes from this partition, and `second` comes
@@ -134,6 +142,12 @@ struct mxp_buffer_allocator {
     void replace_buffer(graph_tensor *gt, expr &new_buffer);
     // calculate total allocated buffer size
     size_t get_total_allocated_buffer_size() const;
+    // get real mem trace, taking consider of tensor shrink and ignore cut
+    // buffer except for those in `keep_cut_set`
+    std::vector<memory_optim::memory_alloc_trace_t> get_real_mem_trace(
+            const std::unordered_set<graph_tensor *> &keep_cut_set = {}) const;
+    // calculate real buffer usage size, taking consider of buffer schedule
+    size_t get_real_buffer_usage() const;
     // get real anchor for the specfic buffer
     fuse_anchor_map_ptr get_real_anchor_for_buffer(const expr &buffer) const;
     // get shrinked info for buffer
@@ -146,11 +160,12 @@ struct mxp_buffer_allocator {
 
 struct outerloop_axis_binder {
     bound_axis_map bd_ax_map_;
-    graph_tensor_ptr base_gt_;
+    graph_tensor_ptr base_gt_ = nullptr;
     bound_axis init_axis_;
 
     // init ax_binder
     void init(const graph_tensor_ptr &base_gt, const bound_axis &axis) {
+        if (base_gt_) return;
         base_gt_ = base_gt;
         init_axis_ = axis;
     }
@@ -208,12 +223,12 @@ struct mixed_parti_t : fusion_partition_t {
     // fuse_anchor_map struct.
     std::vector<fuse_anchor_map_ptr> fanchors_;
     // manage graph tensor to real tensor mapping
-    mxp_buffer_allocator buf_alloc_;
+    mxp_buffer_allocator buf_alloc_ = mxp_buffer_allocator(this);
     // record the anchor to op mapping
     std::unordered_map<sc_op *, fuse_anchor_map_ptr> op_anchor_map_;
 
     // Cost Model
-    cost_model cost_;
+    fusion_cost_model cost_ = fusion_cost_model(this);
 
     using ptr = std::shared_ptr<mixed_parti_t>;
 
@@ -249,7 +264,7 @@ struct mixed_parti_t : fusion_partition_t {
     mixed_parti_t(const context_ptr &ctx, const sc_op_ptr &op,
             const dep_mat_ptr &dep_m);
 
-    bool is_ok_to_add(sc_op *op, const op_dep_matrix_t &g);
+    bool is_ok_to_add(sc_op *op);
 
     void add(const sc_op_ptr &op);
 
@@ -271,7 +286,7 @@ struct mixed_parti_t : fusion_partition_t {
     // get outer loops of which body(stmts) contains only one stmt or two with
     // the second one is empty fanchor
     std::vector<for_loop> get_outer_loops(
-            fuse_anchor_map_ptr fanchor = nullptr);
+            fuse_anchor_map_ptr fanchor = nullptr) const;
 
     void try_split_outermost_loop(int64_t block);
 
@@ -311,28 +326,38 @@ struct mixed_parti_t : fusion_partition_t {
 
     // judge whether the given graph tensor node is the input of the whole
     // partition
-    bool is_parti_inp(const graph_tensor_ptr &gt);
-    bool is_parti_inp(const graph_tensor *gt);
+    bool is_parti_inp(const graph_tensor_ptr &gt) const;
+    bool is_parti_inp(const graph_tensor *gt) const;
 
     // judge whether the given graph tensor node is the output of the whole
     // partition
-    bool is_parti_out(const graph_tensor_ptr &gt);
-    bool is_parti_out(const graph_tensor *gt);
+    bool is_parti_out(const graph_tensor_ptr &gt) const;
+    bool is_parti_out(const graph_tensor *gt) const;
 
-    bool is_parti_cut(const graph_tensor_ptr &gt) {
+    bool is_parti_cut(const graph_tensor_ptr &gt) const {
         return is_parti_inp(gt) || is_parti_out(gt);
     }
-    bool is_parti_cut(const graph_tensor *gt) {
+    bool is_parti_cut(const graph_tensor *gt) const {
         return is_parti_inp(gt) || is_parti_out(gt);
     }
 
     // count op number with given type
     template <typename T>
-    size_t count_op_with_type() const;
+    size_t count_op_with_type() const {
+        if (merged_to) { return get_root()->count_op_with_type<T>(); }
+        size_t cnt = 0;
+        for (auto &op : ops) {
+            if (op->isa<T>()) cnt++;
+        }
+        return cnt;
+    }
 
     // query partition whether contains op with given type
     template <typename T>
-    bool contain_op_with_type() const;
+    bool contain_op_with_type() const {
+        if (merged_to) { return get_root()->contain_op_with_type<T>(); }
+        return (count_op_with_type<T>() != 0);
+    }
 
     // query partition whether contains op with conv type
     bool is_conv_workload() const;
@@ -351,12 +376,32 @@ struct mixed_parti_t : fusion_partition_t {
     float evaluate_perf();
 };
 
+enum class parti_merge_kind : int {
+    vertical = 0,
+    horizontal = 1,
+    parallel = 2,
+};
+
 void extract_anchor_from_fmgr_to_parti(fusion_manager *fmgr,
         mixed_parti_t *parti, std::vector<expr> ir_tsrs,
         std::vector<graph_tensor_ptr> gtsrs,
         const fuse_anchor_map_ptr &parent_fanchor = nullptr);
 
 void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti);
+
+std::vector<memory_optim::memory_alloc_trace_t> merge_mem_trace(
+        const std::vector<memory_optim::memory_alloc_trace_t> &mem_trace1,
+        const std::vector<memory_optim::memory_alloc_trace_t> &mem_trace2,
+        const std::unordered_map<expr, expr> &buffer_map);
+
+std::vector<memory_optim::memory_alloc_trace_t> merge_real_mem_trace(
+        const mxp_buffer_allocator &alloc1, const mxp_buffer_allocator &alloc2);
+
+size_t get_buffer_usage_from_trace(
+        const std::vector<memory_optim::memory_alloc_trace_t> &mem_trace,
+        const context_ptr &ctx);
+
+bool need_optimize_loop_order_for_ops(const mixed_parti_t *parti);
 
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph);
 

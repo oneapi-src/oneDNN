@@ -1447,22 +1447,31 @@ batchwise_fused_op_t::batchwise_fused_op_t(const std::string &name,
 }
 
 mixed_fuse_op_t::mixed_fuse_op_t(const std::string &name,
-        const std::shared_ptr<mixed_parti_t> &parti, const sc_graph_t &graph,
+        const std::vector<mixed_parti_t::ptr> &parti_list,
+        const ir_module_ptr &mod, const sc_graph_t &graph,
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     info_.inputs_ = ins;
     info_.outputs_ = outs;
-    parti_ = parti;
+    parti_list_ = parti_list;
+    mod_ = mod;
     sub_graph_ = copy_graph(graph);
     op_name_ = name;
     attrs_ = attrs;
 }
 
 ir_module_ptr mixed_fuse_op_t::get_func(context_ptr ctx) {
-    auto func = parti_->func_;
+    // if mod_ is not empty, usually when redo occurs in partition stage.
+    if (mod_) return mod_;
+    COMPILE_ASSERT(parti_list_.size() == 1,
+            "partition size is expected for 1, but got " << parti_list_.size())
+    auto func = parti_list_[0]->func_;
     func->name_ += "_" + std::to_string(logical_op_id_);
     func->decl_->name_ += "_" + std::to_string(logical_op_id_);
     schedule_loops(func->body_);
+    // push return to the end of body
+    auto ret = builder::make_returns_unattached(true);
+    func->body_.checked_as<stmts>()->seq_.emplace_back(ret);
     auto modu = std::make_shared<ir_module_t>(ctx);
     modu->add_func({func});
     modu->set_entry_func_idx(0);

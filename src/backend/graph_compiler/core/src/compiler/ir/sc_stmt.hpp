@@ -70,6 +70,9 @@ constexpr const char *parallel_merge_loop_granularity
 // Boolean. If true, there is no need to insert one pre barrier, please ensure
 // data dependency first when enable this flag.
 constexpr const char *no_post_barrier = "no_post_barrier";
+
+// Bound_axis. Give the hint of axis binding for loop
+constexpr const char *loop_axis_hint = "loop_axis_hint";
 }; // namespace stmt_attr_key
 
 std::ostream &operator<<(std::ostream &os, sc_stmt_type val);

@@ -1161,7 +1161,7 @@ void infer_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
                     ret_o.emplace_back(-1);
                 }
             }
-            if (wei_axis.empty()) wei_axis.emplace_back(ret_w);
+            wei_axis.emplace_back(ret_w);
             out_axis.emplace_back(ret_o);
         }
     }

@@ -27,8 +27,6 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
-#include <compiler/ir/transform/auto_cast.hpp>
-#include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <runtime/config.hpp>
 #include <util/utils.hpp>
@@ -92,34 +90,6 @@ reduce_min_op_t::reduce_min_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
     : reduce_op_t(ins, outs,
             add_key(attrs, static_cast<int>(reduce_operator::min))) {}
-
-bool slice_full_on_axis(
-        const sc_dims &dim, slice_range ranges, const std::vector<int> &axis) {
-    for (auto &ax : axis) {
-        auto first = do_cast_and_fold(ranges[ax].first);
-        auto second = do_cast_and_fold(ranges[ax].second);
-        // slice range length should equal to dims
-        if (second.isa<constant>()
-                && get_const_as_int(second.checked_as<constant>()) != dim[ax]) {
-            return false;
-        }
-        if (!first.isa<constant>()) {
-            if (first->node_type_ == sc_expr_type::mul) {
-                auto rv = constant_folding::get_operand_from_binary(first)
-                                  .second;
-                // {i * block, block} case where `block_size==dims[i]`
-                if (rv.isa<constant>()
-                        && get_const_as_int(rv.static_as<constant>())
-                                == dim[ax])
-                    continue;
-            }
-            return false;
-        } else if (get_const_as_int(first.static_as<constant>()) != 0) {
-            return false;
-        }
-    }
-    return true;
-}
 
 // compute the output data format after reduction given the plain reduction
 // axis

@@ -114,9 +114,11 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
     }
 
     // bind outer_loop with axis
-    if (!loops.empty() && loops[0]->attr().has_key("loop_axis_hint")) {
-        auto bd_axis = loops[0]->attr().get<bound_axis>("loop_axis_hint");
-        loops[0]->attr().remove("loop_axis_hint");
+    if (!loops.empty()
+            && loops[0]->attr().has_key(stmt_attr_key::loop_axis_hint)) {
+        auto bd_axis = loops[0]->attr().get<bound_axis>(
+                stmt_attr_key::loop_axis_hint);
+        loops[0]->attr().remove(stmt_attr_key::loop_axis_hint);
         // init axis binder
         parti->ax_binder_.init(use_output_mode ? get_outputs()[base_idx]
                                                : get_inputs()[base_idx],

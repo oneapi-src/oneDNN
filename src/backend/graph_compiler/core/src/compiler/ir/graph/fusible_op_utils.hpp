@@ -48,6 +48,7 @@ std::unordered_map<int, bound_axis> search_known_bound_axis(
 void set_unknown_axis_binding(sc_op *cur,
         const std::unordered_map<int, bound_axis> &known_axis_map,
         bound_axis_map &bdax_map);
+void call_output_user_axis_binding(sc_op *cur, bound_axis_map &bdax_map);
 
 void identical_infer_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);
 void identical_pre_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);
@@ -139,7 +140,6 @@ cmp_res cmp_slice_range(const slice_range_list &left_slice_range_list,
 // pass for tensor sequential access analysis in future
 static constexpr size_t workload_penalty_coefficient = 16UL;
 
-float evaluate_loop_parallel_balance(const sc_dims &loop_ranges);
 float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops);
 expr cast_to_s32(const expr &in);
 } // namespace sc

@@ -343,7 +343,7 @@ bool outer_loop_generator_t::generate(context_ptr ctx, const void *config,
         bound_axis bd_axis(loop_axis.size());
         std::transform(loop_axis.begin(), loop_axis.end(), bd_axis.begin(),
                 [](const int &ax) { return std::vector<int> {ax}; });
-        loops[0]->attr()["loop_axis_hint"] = bd_axis;
+        loops[0]->attr()[stmt_attr_key::loop_axis_hint] = bd_axis;
     }
 
     cur_tsr_slice[loop_axis[0]]

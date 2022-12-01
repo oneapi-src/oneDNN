@@ -839,7 +839,7 @@ bool gen_matmul_core_t::generate(context_ptr ctx,
   for (size_t i = 0; i < out_tensors_[0].get_plain_dims().size(); i++) {
     bd_axis.emplace_back(std::vector<int> {static_cast<int>(i)});
   }
-  loops[0]->attr()["loop_axis_hint"] = bd_axis;
+  loops[0]->attr()[stmt_attr_key::loop_axis_hint] = bd_axis;
 
   return true;
 }

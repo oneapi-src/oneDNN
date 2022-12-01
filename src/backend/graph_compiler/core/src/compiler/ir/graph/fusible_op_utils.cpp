@@ -577,8 +577,20 @@ std::unordered_map<int, bound_axis> search_known_bound_axis(
         }
     }
     COMPILE_ASSERT(!known_axis_map.empty(),
-            "No binded input axis found for " << cur->op_name_)
+            "No binded input axis found for " << cur->op_name_
+                                              << cur->logical_op_id_)
     return known_axis_map;
+}
+
+void call_output_user_axis_binding(sc_op *cur, bound_axis_map &bdax_map) {
+    for (auto &out : cur->get_outputs()) {
+        for (auto &user : out->uses_) {
+            if (auto bd_op = user.second->dyn_cast<
+                             op_traits::mixed_partition_acceptable>()) {
+                bd_op->infer_binding_axis(bdax_map);
+            }
+        }
+    }
 }
 
 void set_unknown_axis_binding(sc_op *cur,
@@ -591,21 +603,18 @@ void set_unknown_axis_binding(sc_op *cur,
         auto &inp_axis = bdax_map.get(input);
         if (inp_axis.empty()) {
             inp_axis = known_axis_map.find(i)->second;
-            if (auto inp_op = input->producer_owner_->dyn_cast<
+            auto producer = input->producer_owner_;
+            if (producer->isa<input_op>()) continue;
+            if (auto inp_op = producer->dyn_cast<
                               op_traits::mixed_partition_acceptable>()) {
                 inp_op->pre_binding_axis(bdax_map);
+                // in avoid of more than one users cases
+                call_output_user_axis_binding(producer, bdax_map);
             }
         }
     }
     // call output
-    for (auto &out : cur->get_outputs()) {
-        for (auto &user : out->uses_) {
-            if (auto bd_op = user.second->dyn_cast<
-                             op_traits::mixed_partition_acceptable>()) {
-                bd_op->infer_binding_axis(bdax_map);
-            }
-        }
-    }
+    call_output_user_axis_binding(cur, bdax_map);
 }
 
 std::vector<int> transform_axis_plain2blocking(
@@ -765,15 +774,6 @@ expr transform_tptr2stsr(const expr &tptr) {
             t->name_ + "_strd", tp->shape_, t->strides_, t->elem_dtype_);
 }
 
-float evaluate_loop_parallel_balance(const sc_dims &loop_ranges) {
-    sc_dim prod = get_dims_product(loop_ranges);
-    if (prod == 1) return 0.f;
-    const int run_threads = runtime_config_t::get().get_num_threads();
-    bool parallelism = (prod / run_threads > 8)
-            || (prod % run_threads == 0 && prod >= run_threads);
-    return parallelism ? 1.0f : ((prod % run_threads) / float(run_threads));
-}
-
 float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops) {
     sc_dims loop_ranges;
     for (auto &loop : loops) {
@@ -788,7 +788,41 @@ float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops) {
             loop_ranges.emplace_back(end - begin);
         }
     }
-    return evaluate_loop_parallel_balance(loop_ranges);
+
+    sc_dim prod = get_dims_product(loop_ranges);
+    if (prod == 1) return 0.f;
+    const int run_threads = runtime_config_t::get().get_num_threads();
+    bool parallelism = (prod / run_threads > 8)
+            || (prod % run_threads == 0 && prod >= run_threads);
+    return parallelism ? 1.0f : ((prod % run_threads) / float(run_threads));
+}
+
+bool slice_full_on_axis(
+        const sc_dims &dim, slice_range ranges, const std::vector<int> &axis) {
+    for (auto &ax : axis) {
+        auto first = do_cast_and_fold(ranges[ax].first);
+        auto second = do_cast_and_fold(ranges[ax].second);
+        // slice range length should equal to dims
+        if (second.isa<constant>()
+                && get_const_as_int(second.checked_as<constant>()) != dim[ax]) {
+            return false;
+        }
+        if (!first.isa<constant>()) {
+            if (first->node_type_ == sc_expr_type::mul) {
+                auto rv = constant_folding::get_operand_from_binary(first)
+                                  .second;
+                // {i * block, block} case where `block_size==dims[i]`
+                if (rv.isa<constant>()
+                        && get_const_as_int(rv.static_as<constant>())
+                                == dim[ax])
+                    continue;
+            }
+            return false;
+        } else if (get_const_as_int(first.static_as<constant>()) != 0) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool slice_divisible_on_axis(
