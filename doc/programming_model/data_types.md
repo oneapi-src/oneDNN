@@ -53,7 +53,7 @@ The following formula governs the datatypes
 dynamic during a primitive computation:
 
 \f[
-\operatorname{convert_{dst\_dt}} ( \operatorname{dst\_zero\_point_{f32}} + \operatorname{postops_{f32}} (\operatorname{oscale_{f32}} * \operatorname{convert_{f32}} (\operatorname{Op}(\operatorname{src_{src\_dt}}), \operatorname{weights_{wei\_dt}}, ...)))
+\operatorname{convert_{dst\_dt}} ( \operatorname{dst\_zero\_point_{f32}} + \operatorname{postops_{f32}} (\operatorname{oscale_{f32}} * \operatorname{convert_{f32}} (\operatorname{Op}(\operatorname{src_{src\_dt}}, \operatorname{weights_{wei\_dt}}, ...))))
 \f]
 
 The `Op` output datatype depends on the datatype of its inputs:
@@ -69,7 +69,7 @@ No downconversions are allowed by default, but can be enabled using
 the floating-point math controls described in @ref
 dev_guide_attributes_fpmath_mode.
 
-### floating-point environment
+### Floating-point environment
 oneDNN floating-point computation behavior is controlled by the
 floating-point environment as defined by the C and C++ standards, in
 the fenv.h header. In particular, the floating-point environment can control:

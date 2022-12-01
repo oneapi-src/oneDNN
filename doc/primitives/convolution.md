@@ -220,33 +220,26 @@ post-ops are supported:
 
 | Propagation | Type      | Operation                                                    | Description                                                                   | Restrictions                                                           |
 | :--         | :--       | :--                                                          | :--                                                                           | :--                                                                    |
-| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of convolution by given scale factor(s)                     | int8 convolutions only                                                 |
-| forward     | attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points)    | Sets zero point(s) for the corresponding tensors                              | int8 convolutions only                                                 |
+| forward     | attribute | [Scale](@ref dnnl::primitive_attr::set_scales_mask) | Scales the result of convolution by given scale factor(s)                     | int8 convolutions only                                                 |
+| forward     | attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points_mask)    | Sets zero point(s) for the corresponding tensors                              | int8 convolutions only                                                 |
 | forward     | post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |                                                                        |
 | forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                                                                        |
 | forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)                 | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions                                    |
 | forward     | post-op   | [Depthwise](@ref dnnl::post_ops::append_dw)                  | Applies a @ref dnnl_api_convolution operation to the result                   | See [a separate section](@ref dev_guide_attributes_post_ops_depthwise) |
 
-To facilitate dynamic quantization, the primitive supports run-time output
-scales. That means a user could configure attributes with output scales set to
-the #DNNL_RUNTIME_F32_VAL wildcard value instead of the actual scales,
-if the scales are not known at the primitive descriptor creation stage.
-In this case, the user must provide the scales as an additional input memory
-object with argument `DNNL_ARG_ATTR_OUTPUT_SCALES` during the execution stage.
-
-Similarly to run-time output scales, the primitive supports run-time zero
-points. The wildcard value for zero points is #DNNL_RUNTIME_S32_VAL. The
-following masks are supported by the primitive:
+The following masks are supported by the primitive:
 - 0, which applies one zero point value to an entire tensor, and
 - 2, which applies a zero point value per each element in a `IC` or `OC`
   dimension for `DNNL_ARG_SRC` or `DNNL_ARG_DST` arguments respectively.
 
-During the execution stage, the corresponding memory object must be passed as an
-argument with its index set to
-(`DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_${MEMORY_INDEX}`). Possible
-`${MEMORY_INDEX}` values are `DNNL_ARG_SRC` and `DNNL_ARG_DST`.
-- For instance, a source tensor zero points memory argument would be passed with
-  index (`DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC`).
+When scales and/or zero-points masks are specified, the user must
+provide the corresponding scales and/or zero-points as additional
+input memory objects with argument `DNNL_ARG_ATTR_SCALES |
+DNNL_ARG_${MEMORY_INDEX}` or `DNNL_ARG_ATTR_ZERO_POINTS |
+DNNL_ARG_${MEMORY_INDEX}` during the execution stage.  For instance, a
+source tensor zero points memory argument would be passed with index
+(`DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC`).
+
 
 @note The library does not prevent using post-ops in training, but note that
 not all post-ops are feasible for training usage. For instance, using ReLU
@@ -262,12 +255,6 @@ following sequences deploy optimized code:
 | :--                            | :--
 | f32, bf16 and f16 convolution  | eltwise, sum, sum -> eltwise
 | int8 convolution               | eltwise, sum, sum -> eltwise, eltwise -> sum
-
-The attributes and post-ops take effect in the following sequence:
-- Source zero point attribute,
-- Output scale attribute,
-- Post-ops, in the order they were attached,
-- Destination zero point attribute.
 
 The operations during attributes and post-ops applying are done in single
 precision floating point data type. The conversion to the actual destination

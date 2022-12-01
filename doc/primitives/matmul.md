@@ -132,31 +132,24 @@ The following attributes and post-ops are supported:
 
 | Type      | Operation                                                     | Description                                                                   | Restrictions                        |
 | :--       | :--                                                           | :--                                                                           | :--                                 |
-| Attribute | [Output scales](@ref dnnl::primitive_attr::set_output_scales) | Scales the result by given scale factor(s)                                    |                                     |
-| Attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points)     | Sets zero point(s) for the corresponding tensors                              | Int8 computations only              |
+| Attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask) | Scales the result by given scale factor(s)                                    |                                     |
+| Attribute | [Zero-points](@ref dnnl::primitive_attr::set_zero_points_mask)     | Sets zero point(s) for the corresponding tensors                              | Int8 computations only              |
 | Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)                | Applies an @ref dnnl_api_eltwise operation to the result                      |                                     |
 | Post-op   | [Sum](@ref dnnl::post_ops::append_sum)                        | Adds the operation result to the destination tensor instead of overwriting it |                                     |
 | Post-op   | [Binary](@ref dnnl::post_ops::append_binary)                  | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions |
 
-To facilitate dynamic quantization, the primitive supports run-time output
-scales. That means a user could configure attributes with output scales set to
-the #DNNL_RUNTIME_F32_VAL wildcard value instead of the actual scales,
-if the scales are not known at the primitive descriptor creation stage.
-In this case, the user must provide the scales as an additional input memory
-object with argument `DNNL_ARG_ATTR_OUTPUT_SCALES` during the execution stage.
+The following masks are supported by the primitive:
+- 0, which applies one scale / zero point value to an entire tensor, and
+- 2, which applies a scale value per column along the
+  `n`dimension for `DNNL_ARG_WEIGHTS`.
 
-Similarly to run-time output scales, the primitive supports run-time zero
-points. The wildcard value for zero points is #DNNL_RUNTIME_S32_VAL. The
-following masks are supported by the primitive:
-- 0, which applies one zero point value to an entire tensor, and
-- 2, which applies a zero point value per each element in a `k` or `n` dimension
-  for `DNNL_ARG_SRC` or `DNNL_ARG_DST` arguments respectively.
-
-During the execution stage, the corresponding memory object needs to be passed
-in the argument with index set to
-(`DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_${MEMORY_INDEX}`).
-- For instance, source tensor zero points memory argument would be passed with
-  index (`DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC`).
+When scales and/or zero-points masks are specified, the user must
+provide the corresponding scales and/or zero-points as additional
+input memory objects with argument `DNNL_ARG_ATTR_SCALES |
+DNNL_ARG_${MEMORY_INDEX}` or `DNNL_ARG_ATTR_ZERO_POINTS |
+DNNL_ARG_${MEMORY_INDEX}` during the execution stage. For instance, a
+source tensor zero points memory argument would be passed with index
+(`DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC`).
 
 @note Please check tutorials below to see run-time attributes in use.
 

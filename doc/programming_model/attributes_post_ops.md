@@ -165,10 +165,8 @@ API:
 
 For better readability, below we assume a 2D convolution and use the following
 notations:
-
-  `conv_1x1` Convolution with weights spatial=1 i.e., `kh` = `kw` = 1.
-
-  `conv_dw` Depthwise convolution with weights spatial=3 i.e., `kh` = `kw` = 3,
+- `conv_1x1` Convolution with weights spatial=1 i.e., `kh` = `kw` = 1.
+- `conv_dw` Depthwise convolution with weights spatial=3 i.e., `kh` = `kw` = 3,
   `g` = `oc` = `ic` and `pad_l` = `pad_r` = {1, 1}.
 
 The Depthwise post-op replaces
@@ -341,10 +339,8 @@ This pattern is pretty common for the CNN topologies of the ResNet family.
 
 ~~~cpp
 dnnl::post_ops po;
-po.append_sum(
-        /* scale = */ 1.f);
+po.append_sum();
 po.append_eltwise(
-        /* scale     = */ 1.f,
         /* alg kind  = */ dnnl::algorithm::eltwise_relu,
         /* neg slope = */ 0.f,
         /* unused for relu */ 0.f);
@@ -367,26 +363,25 @@ This will lead to the following primitive behavior:
 
 This is a hypothetical example that illustrates the sequence of operations
 applied.  We also set all the scales to values other than 1.0 and use @ref
-dnnl::primitive_attr::set_output_scales which will be covered in @ref
+dnnl::primitive_attr::set_scales_mask which will be covered in @ref
 dev_guide_attributes_quantization.
 
 ~~~cpp
 dnnl::post_ops po;
 po.append_eltwise(
-        /* scale     = */ s_tanh,
         /* alg kind  = */ dnnl::algorithm::eltwise_tanh,
         /* unused for tanh */ 0.f,
         /* unused for tanh */ 0.f);
-po.append_sum(
-        /* scale     = */ s_sum);
+po.append_sum();
 po.append_eltwise(
-        /* scale     = */ s_linear,
-        /* alg kind  = */ dnnl::algorithm::eltwise_linear,
-        /* scale     = */ alpha,
-        /* shift     = */ beta);
+        /* alg kind     = */ dnnl::algorithm::eltwise_linear,
+        /* linear scale = */ alpha,
+        /* linear shift = */ beta);
 
 dnnl::primitive_attr attr;
-attr.set_output_scales(0, {s_conv});
+attr.set_scales_mask(DNNL_ARG_SRC, 0);
+attr.set_scales_mask(DNNL_ARG_WEIGHTS, 0);
+attr.set_scales_mask(DNNL_ARG_DST, 0);
 attr.set_post_ops(po);
 
 convolution_forward::primitive_desc(conv_d, attr, engine);
@@ -423,7 +418,6 @@ An example of fusing depthwise convolution with 1x1 convolution in MobileNet.
 dnnl::post_ops po;
 
 po.append_eltwise(
-        /* scale     = */ 1.f,
         /* alg kind  = */ dnnl::algorithm::eltwise_relu,
         /* neg slope = */ 0.f,
         /* unused for relu */ 0.f);
@@ -434,18 +428,16 @@ po.append_dw(
         /* depthwise destination data type = */ dnnl::memory::data_type::u8,
         /* kernel size of fused depthwise convolution = */ kernel,
         /* stride size of fused depthwise convolution = */ stride,
-        /* padding size of fused depthwise convolution = */ padding,
-        /* mask for output scales of depthwise output = */ mask,
-        /* output scales for depthwise output = */ scales_depthwise)
+        /* padding size of fused depthwise convolution = */ padding)
 
 po.append_eltwise(
-        /* scale     = */ 1.f,
         /* alg kind  = */ dnnl::algorithm::eltwise_relu,
         /* neg slope = */ 0.f,
         /* unused for relu */ 0.f);
 
 dnnl::primitive_attr attr;
-attr.set_output_scales(0, {output_scales_1x1_conv});
+attr.set_scales_mask(DNNL_ARG_DST, 0);
+attr.set_scales_mask(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST, 0);
 attr.set_post_ops(po);
 
 auto cpd = convolution_forward::primitive_desc(conv_1x1, attr, engine);
@@ -491,7 +483,6 @@ dnnl::post_ops po;
 
 /* Append eltwise post-op prior the binary post-op */
 po.append_eltwise(
-        /* scale     = */ 1.f,
         /* alg kind  = */ dnnl::algorithm::eltwise_relu,
         /* neg slope = */ 0.f,
         /* unused for relu */ 0.f);

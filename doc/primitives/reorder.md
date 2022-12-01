@@ -90,7 +90,7 @@ The reorder primitive support the following attributes and post-ops:
 | Attributes / Post-ops                                       | Meaning
 | :--                                                         | :--
 | [Scales](@ref dnnl::primitive_attr::set_scales_mask)        | Scales the corresponding tensor by the given scale factor(s)
-| [Zero points](@ref dnnl::primitive_attr::set_zero_points)   | Sets zero point(s) for the corresponding tensors
+| [Zero points](@ref dnnl::primitive_attr::set_zero_points_mask)   | Sets zero point(s) for the corresponding tensors
 | [Sum post-op](@ref dnnl::post_ops::append_sum)              | Instead of copy the data accumulate it to the previous data
 
 For instance, the following pseudo-code
@@ -117,7 +117,7 @@ would lead to the following operation:
 @note
     * The intermediate operations are being done using single precision
       floating point data type.
-    * \alpha must be passed during execution runtime as a separate memory
+    * \f$\alpha\f$ must be passed during execution runtime as a separate memory
       argument. Using \src scale argument will lead to multiplication of tensor
       values by a scale value. Using \dst scale argument will lead to division
       of tensor values by a scale value.
@@ -133,7 +133,6 @@ would lead to the following operation:
 3. **GPU**
    - Only tensors of 6 or fewer dimensions are supported.
    - Runtime dimensions are not supported.
-   - Runtime output scales are not supported.
 
 ## Performance Tips
 
