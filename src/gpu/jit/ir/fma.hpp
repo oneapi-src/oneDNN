@@ -246,15 +246,10 @@ public:
     }
     static int get_simd_size(
             ngen::HW hw, const type_t &a, const type_t &b, const type_t &c) {
-        int max_exec_size_bytes = get_max_exec_size_bytes(hw);
         int max_size = max_exec_size;
-        if (max_exec_size_bytes / a.size() < max_size)
-            max_size = max_exec_size_bytes / a.size();
-        if (max_exec_size_bytes / b.size() < max_size)
-            max_size = max_exec_size_bytes / b.size();
-        if (max_exec_size_bytes / c.size() < max_size)
-            max_size = max_exec_size_bytes / c.size();
-        return max_size;
+        int max_exec_size_bytes = get_max_exec_size_bytes(hw);
+        int max_type_size = std::max(a.size(), std::max(b.size(), c.size()));
+        return std::min(max_size, max_exec_size_bytes / max_type_size);
     }
     int get_exec_size() const { return exec_size; }
 
