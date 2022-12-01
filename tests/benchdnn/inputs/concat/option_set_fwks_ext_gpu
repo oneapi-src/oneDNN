@@ -33,26 +33,26 @@
 --reset --allow-enum-tags-only=0 --sdt=bf16 --ddt=bf16 --stag=acdeb:aBcde16b --dtag=aBcde16b --axis=1 2x128x32x32x32:2x128x32x32x32n"unet-3d.tr.bf16.tf.mb2_pvc*1"
 --reset --allow-enum-tags-only=0 --sdt=bf16 --ddt=bf16 --stag=acdeb:aBcde16b --dtag=aBcde16b --axis=1 2x64x64x64x64:2x64x64x64x64n"unet-3d.tr.bf16.tf.mb2_pvc*1"
 --reset --allow-enum-tags-only=0 --sdt=bf16 --ddt=bf16 --stag=acdeb:aBcde16b --dtag=aBcde16b --axis=1 2x32x128x128x128:2x32x128x128x128n"unet-3d.tr.bf16.tf.mb2_pvc*1"
-#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ab:ab:ab:ab --dtag=ab --axis=1 6x64:6x128:6x256:6x512n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
-#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ab:ab:ab:ab --dtag=ab --axis=1 6x64:6x128:6x256:6x512n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
-#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x32x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x64x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*2"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x384x30x30:1x96x30x30:1x288x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x192x30x30:1x192x30x30:1x192x30x30:1x192x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x192x14x14:1x768x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd --dtag=abcd --axis=1 1x384x14x14:1x384x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x768x14x14:1x768x14x14:1x192x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*2"
-#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x32x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x64x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*2"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x384x30x30:1x96x30x30:1x288x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x192x30x30:1x192x30x30:1x192x30x30:1x192x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x192x14x14:1x768x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd --dtag=abcd --axis=1 1x384x14x14:1x384x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x768x14x14:1x768x14x14:1x192x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*2"
+#img-preprocessing-blocky.inf.fp16.pt.mb6
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ab:ab:ab:ab --dtag=ab --axis=1 6x64:6x128:6x256:6x512n"img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+#img-preprocessing-blocky.inf.fp16.pt.mb6
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ab:ab:ab:ab --dtag=ab --axis=1 6x64:6x128:6x256:6x512n"img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+#img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x32x61x61n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x64x61x61n"img-preprocessing-blur.inf.fp16.pt.mb1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x384x30x30:1x96x30x30:1x288x30x30n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x192x30x30:1x192x30x30:1x192x30x30:1x192x30x30n"img-preprocessing-blur.inf.fp16.pt.mb1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x192x14x14:1x768x14x14n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd --dtag=abcd --axis=1 1x384x14x14:1x384x14x14n"img-preprocessing-blur.inf.fp16.pt.mb1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x768x14x14:1x768x14x14:1x192x14x14n"img-preprocessing-blur.inf.fp16.pt.mb1*2"
+#img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x32x61x61n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x64x61x61n"img-preprocessing-blur.inf.fp16.pt.mb1*2"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x384x30x30:1x96x30x30:1x288x30x30n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x192x30x30:1x192x30x30:1x192x30x30:1x192x30x30n"img-preprocessing-blur.inf.fp16.pt.mb1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x192x14x14:1x768x14x14n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd --dtag=abcd --axis=1 1x384x14x14:1x384x14x14n"img-preprocessing-blur.inf.fp16.pt.mb1*4"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x768x14x14:1x768x14x14:1x192x14x14n"img-preprocessing-blur.inf.fp16.pt.mb1*2"
 #denoise.inf.int8.ov.mb32
 --reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=ABcd32a32b:ABcd32a32b --dtag=ABcd32a32b --axis=1 32x512x32x32:32x304x32x32n"denoise.inf.int8.ov.mb32*1"
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ABcd32a32b:ABcd32a32b --dtag=ABcd32a32b --axis=1 32x304x64x64:32x160x64x64n"denoise.inf.int8.ov.mb32*1"

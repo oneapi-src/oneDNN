@@ -120,9 +120,9 @@
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic768_ih17oh8kh3sh2dh0ph0_iw17ow8kw3sw2dw0pw0n"inception.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic1280_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"inception.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic2048_ih8oh8kh3sh1dh0ph1_iw8ow8kw3sw1dw0pw1n"inception.inf.fp16.ov.mb1*1"
-#kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic2_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic16_ih7oh1kh7sh2dh0ph0_iw7ow1kw7sw2dw0pw0n"kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+#img-preprocessing-dirtylens.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=abcd mb1ic2_ih112oh56kh3sh2dh0ph1_iw112ow56kw3sw2dw0pw1n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_p --tag=abcd mb1ic16_ih7oh1kh7sh2dh0ph0_iw7ow1kw7sw2dw0pw0n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
 #resnet-18.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=max --tag=aBcd16b mb1ic64_ih112oh56kh3sh2dh0ph0_iw112ow56kw3sw2dw0pw0n"resnet-18.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --alg=avg_np --tag=aBcd16b mb1ic512_ih7oh1kh7sh1dh0ph0_iw7ow1kw7sw1dw0pw0n"resnet-18.inf.fp16.ov.mb1*1"

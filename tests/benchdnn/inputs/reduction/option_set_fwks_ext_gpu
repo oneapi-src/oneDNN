@@ -1,8 +1,8 @@
-#kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x64x224x168:6x64x1x1n"kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x128x112x84:6x128x1x1n"kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x256x56x42:6x256x1x1n"kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x512x28x21:6x512x1x1n"kuaishou-img-preprocessing-blocky.inf.fp16.ov.mb6*1"
+#img-preprocessing-blocky.inf.fp16.ov.mb6
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x64x224x168:6x64x1x1n"img-preprocessing-blocky.inf.fp16.ov.mb6*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x128x112x84:6x128x1x1n"img-preprocessing-blocky.inf.fp16.ov.mb6*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x256x56x42:6x256x1x1n"img-preprocessing-blocky.inf.fp16.ov.mb6*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 6x512x28x21:6x512x1x1n"img-preprocessing-blocky.inf.fp16.ov.mb6*1"
 #aclnet.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x512x7x6:1x512x1x1n"aclnet.inf.fp16.ov.mb1*1"
 #anti-spoof-mn3.inf.int8.ov.mb32
@@ -29,12 +29,12 @@
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1280x7x7:1x1280x1x1n"image-retrieval-0001.inf.fp16.ov.mb1*1"
 #inceptionv3-int8-onnx-0001.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x8x8:1x2048x1x1n"inceptionv3-int8-onnx-0001.inf.fp16.ov.mb1*1"
-#kuaishou-blur.inf.fp16.ov.mb1
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x14x14:1x2048x1x1n"kuaishou-blur.inf.fp16.ov.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=sum --p=0 --eps=0 --stag=abcd --dtag=abcd 1x5x1x1:1x1x1x1n"kuaishou-blur.inf.fp16.ov.mb1*1"
-#kuaishou-blur.inf.int8.ov.mb1
---reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x14x14:1x2048x1x1n"kuaishou-blur.inf.int8.ov.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=sum --p=0 --eps=0 --stag=abcd --dtag=abcd 1x5x1x1:1x1x1x1n"kuaishou-blur.inf.int8.ov.mb1*1"
+#blur.inf.fp16.ov.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x14x14:1x2048x1x1n"blur.inf.fp16.ov.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=sum --p=0 --eps=0 --stag=abcd --dtag=abcd 1x5x1x1:1x1x1x1n"blur.inf.fp16.ov.mb1*1"
+#blur.inf.int8.ov.mb1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x14x14:1x2048x1x1n"blur.inf.int8.ov.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=sum --p=0 --eps=0 --stag=abcd --dtag=abcd 1x5x1x1:1x1x1x1n"blur.inf.int8.ov.mb1*1"
 #modnet_webcam_portrait_matting.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x1280x16x16:1x1280x1x1n"modnet_webcam_portrait_matting.inf.fp16.ov.mb1*1"
 #octave-resnet-101-0.inf.125.ov.mfp16

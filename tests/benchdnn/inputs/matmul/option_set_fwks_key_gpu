@@ -500,8 +500,8 @@
 --reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 128x768:768x768:128x768n"bert-base-uncased.inf.int8.ov.mb1*12"
 --reset --allow-enum-tags-only=0 --cfg=s8s8f32 --bia_dt=f32 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 128x768:768x3072:128x3072n"bert-base-uncased.inf.int8.ov.mb1*12"
 --reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:62.5625:-0.0625 12x128x128:12x128x64:12x128x64n"bert-base-uncased.inf.int8.ov.mb1*4"
-#kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x16:16x2:1x2n"kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+#img-preprocessing-dirtylens.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x16:16x2:1x2n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
 #resnet-50.inf.int8.pt.mb1024
 --reset --allow-enum-tags-only=0 --cfg=f32 --stag=ab --wtag=ab --dtag=ab --attr-post-ops=sum 1024x2048:2048x1000:1024x1000n"resnet-50.inf.int8.pt.mb1024*1"
 #resnet-50.inf.int8.tf.mb1024

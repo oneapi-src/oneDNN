@@ -193,7 +193,7 @@ conv_config_lookup_table_t::conv_config_lookup_table_t() {
     // wdsr
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic128ih240iw135oc32oh240ow135kh3kw3ph1pw1", "fsp=1");
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic32ih240iw135oc128oh240ow135kh3kw3ph1pw1", "fsp=1");
-    // kuaishou noisy 
+    //  noisy 
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic128ih56oc128oh56kh3ph1 post_ops=*", "fsp=1");
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic128ih56oc256oh28kh1sh2ph0", "fsp=1");
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic128ih56oc256oh28kh3sh2ph1", "fsp=1");
@@ -203,11 +203,11 @@ conv_config_lookup_table_t::conv_config_lookup_table_t() {
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic64ih112oc128oh56kh1sh2ph0", "fsp=1");
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic64ih112oc128oh56kh3sh2ph1", "fsp=1");
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic64ih112oc64oh112kh3ph1", "fsp=1");
-    // kuaishou block 
+    //  block 
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic512ih28iw21oc512oh28ow21kh3kw3ph1pw1 post_ops=*", "fsp=1");
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic256ih56iw42oc256oh56ow42kh3kw3ph1pw1 post_ops=*", "fsp=1");
     add("hw=xehpg dir=fwd cfg=f16f16f16 mb=1+ desc=ic3ih896iw672oc64oh448ow336kh7kw7sh2sw2ph3pw3", "fsp=1");
-    // kuaishou blur
+    //  blur
     //
     add("hw=xehpg dir=fwd cfg=x8x8x8 mb=1+ desc=ic768iw900oc160ow900kw1pw0", "fsp=1");
     add("hw=xehpg dir=fwd cfg=x8x8x8 mb=1+ desc=ic768iw900oc192ow900kw1pw0", "fsp=1");

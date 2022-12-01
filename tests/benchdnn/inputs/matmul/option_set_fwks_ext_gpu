@@ -152,20 +152,20 @@
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --stag=abc --wtag=acb --dtag=abc 256x2048x2048:256x2048x96:256x2048x96n"gpt3p6b.tr.bf16.deepspeed.s13_pvc*30"
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --stag=ba --wtag=ab --dtag=ab 9216x16384:16384x3072:9216x3072n"gpt3p6b.tr.bf16.deepspeed.s13_pvc*30"
 --reset --allow-enum-tags-only=0 --cfg=bf16bf16bf16 --stag=ab --wtag=ab --dtag=ab 16384x9216:9216x3072:16384x3072n"gpt3p6b.tr.bf16.deepspeed.s13_pvc*30"
-#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=0 --stag=ab --wtag=ab --dtag=ab 6x960:960x1:6x1n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
-#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=0 --stag=ab --wtag=ba --dtag=ab 6x960:960x1:6x1n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
-#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x2048:2048x11:1x11n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ab --dtag=ab 1x11:11x5:1x5n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
-#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x2048:2048x11:1x11n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x11:11x5:1x5n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
-#kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 5x512:512x2:5x2n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
-#kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5
---reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 5x512:512x2:5x2n"kuaishou-img-preprocessing-noise.inf.fp16.pt.mb5*1"
+#img-preprocessing-blocky.inf.fp16.pt.mb6
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=0 --stag=ab --wtag=ab --dtag=ab 6x960:960x1:6x1n"img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+#img-preprocessing-blocky.inf.fp16.pt.mb6
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=0 --stag=ab --wtag=ba --dtag=ab 6x960:960x1:6x1n"img-preprocessing-blocky.inf.fp16.pt.mb6*1"
+#img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x2048:2048x11:1x11n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ab --dtag=ab 1x11:11x5:1x5n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x2048:2048x11:1x11n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x11:11x5:1x5n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#img-preprocessing-noise.inf.fp16.pt.mb5
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 5x512:512x2:5x2n"img-preprocessing-noise.inf.fp16.pt.mb5*1"
+#img-preprocessing-noise.inf.fp16.pt.mb5
+--reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 5x512:512x2:5x2n"img-preprocessing-noise.inf.fp16.pt.mb5*1"
 #bert-base-cased_onnx.inf.fp16.ov.b32
 --reset --allow-enum-tags-only=0 --cfg=f16 --stag=abc --wtag=abc --dtag=abc 384x128x128:384x128x64:384x128x64n"bert-base-cased_onnx.inf.fp16.ov.b32*12"
 #bert-base-cased_paddle.inf.fp16.ov.b32
