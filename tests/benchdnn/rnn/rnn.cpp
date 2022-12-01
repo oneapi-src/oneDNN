@@ -209,6 +209,7 @@ int fill_memory(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         bool flip_sign = false) {
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
+
     assert(mem_dt.nelems() == mem_fp.nelems());
 
     // For non-int8 RNN the data is filled according to cfg directly.
@@ -330,6 +331,9 @@ int fill_memory(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
 int fill_activation(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
+    const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return OK;
+
     // In general, we mostly want to use positive values to avoid
     // cancellation from happening during computation.  The only case
     // where we actually want negative values to appear is for 1 layer
@@ -346,6 +350,9 @@ int fill_activation(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
 int fill_src_iter_c(const prb_t &prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         const_dnnl_primitive_attr_t attr = nullptr) {
+    const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return OK;
+
     const bool special_case = prb.prop == dnnl_backward && prb.skip_nonlinear;
     if (!special_case)
         return fill_memory(prb, SRC_ITER_C, mem_dt, mem_fp, attr);
@@ -421,6 +428,7 @@ int fill_weights(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
+
     const dt_conf_t::entry_t &c = prb.cfg[kind];
 
     assert(kind == WEIGHTS_PROJECTION ? mem_fp.ndims() == 4
@@ -476,6 +484,9 @@ int fill_weights(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
 int fill_bias(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
+    const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return OK;
+
     // To reduce likelihood of cancellation happening in bwd by bias,
     // (especially for GRU), we want diff_bias to be sparse
     const auto &dims = mem_fp.dims();
