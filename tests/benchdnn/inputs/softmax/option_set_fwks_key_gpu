@@ -19,10 +19,10 @@
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=acb --dtag=acb --axis=0 --alg=softmax_accurate 2x3x15000n"pointnet-atlas.tr.fp32.pt.mb4*1"
 #pointnet.tr.fp32.pt.mb16
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=acb --dtag=acb --axis=1 --alg=softmax_accurate 16x5x15000n"pointnet.tr.fp32.pt.mb16*1"
-#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --dir=FWD_D --stag=ab --dtag=ab --axis=1 1x5n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
-#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --dir=FWD_D --stag=ab --dtag=ab --axis=1 1x5n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --dir=FWD_D --stag=ab --dtag=ab --axis=1 1x5n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
+#img-preprocessing-blur.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --dir=FWD_D --stag=ab --dtag=ab --axis=1 1x5n"img-preprocessing-blur.inf.fp16.pt.mb1*1"
 #resnet-50.inf.int8.tf.mb1024
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=ab --dtag=ab --axis=1 --alg=softmax_accurate 1024x1001n"resnet-50.inf.int8.tf.mb1024*1"
 #maskrcnn.inf.fp16.ov.mb1
