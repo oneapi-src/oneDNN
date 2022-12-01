@@ -47,8 +47,8 @@ static int prepare_fwd_with_stats(const prb_t *prb, const dnn_mem_t &src,
 
         const float sc_value = 1 << (c % 7);
         const float sh_value = ((c % 3) - 1) * sc_value;
-        sc.set_elem(c, use_sc ? sc_value : 1.0f);
-        sh.set_elem(c, use_sh ? sh_value : 0.0f);
+        if (use_sc) sc.set_elem(c, sc_value);
+        if (use_sh) sh.set_elem(c, sh_value);
     });
 
     benchdnn_parallel_nd(prb->ic, prb->mb, prb->id, prb->ih, prb->iw,
@@ -179,8 +179,8 @@ static int prepare_fwd_no_stats(const prb_t *prb, const dnn_mem_t &src,
 
         const float sc_value = 1.f / 8 * (1 << (c % 7));
         const float sh_value = ((c % 3) - 1) * sc_value / 64;
-        ((float *)sc)[c] = use_sc ? sc_value : 1.0f;
-        ((float *)sh)[c] = use_sh ? sh_value : 0.0f;
+        if (use_sc) sc.set_elem(c, sc_value);
+        if (use_sh) sh.set_elem(c, sh_value);
     });
 
     return OK;
