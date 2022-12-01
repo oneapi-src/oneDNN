@@ -105,10 +105,10 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
                             dst_md()->data_type, f32, bf16, f16, s8, u8)
                     && IMPLICATION(utils::one_of(bf16, src_md()->data_type,
                                            dst_md()->data_type),
-                            mayiuse(avx512_core))
+                            mayiuse(avx512_core) || mayiuse(avx2_vnni_2))
                     && IMPLICATION(utils::one_of(f16, src_md()->data_type,
                                            dst_md()->data_type),
-                            mayiuse(avx512_core_fp16))
+                            mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2))
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type()
                     && attr()->has_default_values(skip_mask_t::scales_runtime)

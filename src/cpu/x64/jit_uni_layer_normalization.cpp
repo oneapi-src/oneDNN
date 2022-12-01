@@ -40,10 +40,13 @@ using namespace Xbyak;
 
 cpu_isa_t get_io_isa(cpu_isa_t isa, bool has_f16, bool has_bf16) {
     // re-using avx512_core instantiation for xf16
-    if (is_superset(isa, avx512_core) && (has_f16 || has_bf16))
-        return has_f16
-                ? avx512_core_fp16
-                : mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
+    // re-using avx2 instantiation for xf16
+    if (has_f16 || has_bf16)
+        return is_superset(isa, avx512_core)
+                ? (has_f16 ? avx512_core_fp16
+                           : mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                                       : avx512_core)
+                : avx2_vnni_2;
     else
         return isa;
 }
@@ -87,7 +90,10 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
         , use_shift_(pd_->use_shift())
         , save_stats_(pd_->is_training())
         , calculate_stats_(!pd_->stats_are_src())
-        , eps_(pd_->desc()->layer_norm_epsilon) {
+        , eps_(pd_->desc()->layer_norm_epsilon)
+        , has_ne_convert_src_xf16_(isa == avx2 && mayiuse(avx2_vnni_2)
+                  && utils::one_of(src_d_.data_type(), data_type::f16,
+                          data_type::bf16)) {
 
         io::io_conf_t io_conf;
         io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
@@ -137,6 +143,7 @@ protected:
     const bool save_stats_;
     const bool calculate_stats_;
     const float eps_;
+    const bool has_ne_convert_src_xf16_;
 
     const Reg64 reg_param = abi_param1;
     const Reg64 reg_src = rdx;
@@ -167,6 +174,8 @@ protected:
     const Vmm vmm_dst = Vmm(14);
     const Vmm vmm_tmp = Vmm(15);
     const Xmm xmm_tmp = Xmm(15);
+    const Vmm vmm_dst_even = vmm_dst;
+    const Vmm vmm_dst_odd = Vmm(3); // In unroll range, safe for dst compute
 
     const int bf16_emu_zmm_1_idx = 28;
     const int bf16_emu_zmm_2_idx = 29;
@@ -198,8 +207,91 @@ protected:
         return vmmword[reg_shift + offt * sizeof(float)];
     }
 
-    virtual void compute_var() = 0;
     virtual void reduce(Vmm vmm_src, Vmm vmm_tmp) = 0;
+
+    void uni_vsubps_maybe_tail(const Vmm &x1, const Vmm &x2, const bool tail) {
+        // Need to preserve zeros after subtract for correct answer.
+        if (!tail)
+            uni_vsubps(x1, x1, x2);
+        else {
+            if (is_superset(isa, avx512_core))
+                uni_vsubps(x1 | Opmask(tail_opmask_idx) | T_z, x1, x2);
+            else if (is_superset(isa, sse41)) {
+                // We need to call tail version once, it's fine to use vmm_tmp
+                uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
+                uni_vblendvps(vmm_tmp, vmm_tmp, x2, vmm_tail_mask);
+                uni_vsubps(x1, x1, vmm_tmp);
+            }
+        }
+    }
+
+    template <typename F>
+    void compute_ne_convert_xf16(Vmm vmm_stat, F op) {
+        bool need_tail = false;
+        int base_idx = 1; // Preserve `0` for tail on AVX2.
+
+        uni_vpxor(Vmm(base_idx), Vmm(base_idx), Vmm(base_idx));
+        if (axis_simd_full_ > 0) {
+            const int unroll
+                    = axis_simd_full_ >= unroll_factor_ ? unroll_factor_ : 1;
+            assert(math::is_pow2(unroll));
+
+            for (int i = base_idx + 1; i < base_idx + unroll; i++)
+                uni_vpxor(Vmm(i), Vmm(i), Vmm(i));
+
+            // unrolled loop
+            for (int i = 0; i < axis_simd_full_ / unroll; i++)
+                for (int j = base_idx; j < base_idx + unroll; j += 2) {
+                    const bool can_load_two_simdw = base_idx + unroll - j >= 2;
+                    if (!can_load_two_simdw)
+                        io_[src_d_.data_type()]->load(
+                                src_ptr((i * unroll + j - base_idx) * simd_w_),
+                                Vmm(j + unroll), need_tail);
+                    else
+                        io_[src_d_.data_type()]->load_two_simdw_xf16(
+                                src_ptr((i * unroll + j - base_idx) * simd_w_),
+                                Vmm(j + unroll), Vmm(j + 1 + unroll));
+                    op(Vmm(j), Vmm(j + unroll), need_tail);
+                    if (can_load_two_simdw)
+                        op(Vmm(j + 1), Vmm(j + 1 + unroll), need_tail);
+                }
+
+            int n = unroll;
+            while (n > 1) {
+                for (int j = base_idx; j < base_idx + n / 2; j++)
+                    uni_vaddps(Vmm(j), Vmm(j), Vmm(j + n / 2));
+                n = n / 2;
+            }
+
+            // unrolled loop remainder
+            for (int i = utils::rnd_dn(axis_simd_full_, unroll);
+                    i < axis_simd_full_; i += 2) {
+                const bool can_load_two_simdw = axis_simd_full_ - i >= 2;
+                if (!can_load_two_simdw)
+                    io_[src_d_.data_type()]->load(
+                            src_ptr(i * simd_w_), Vmm(base_idx + 1), need_tail);
+                else
+                    io_[src_d_.data_type()]->load_two_simdw_xf16(
+                            src_ptr(i * simd_w_), Vmm(base_idx + 1),
+                            Vmm(base_idx + 2));
+                op(Vmm(base_idx), Vmm(base_idx + 1), need_tail);
+                if (can_load_two_simdw)
+                    op(Vmm(base_idx), Vmm(base_idx + 2), need_tail);
+            }
+        }
+
+        if (axis_simd_tail_ > 0) {
+            need_tail = true;
+            // vector remainder
+            io_[src_d_.data_type()]->load(src_ptr(axis_simd_full_ * simd_w_),
+                    Vmm(base_idx + 1), need_tail);
+            op(Vmm(base_idx), Vmm(base_idx + 1), need_tail);
+        }
+
+        reduce(Vmm(base_idx), Vmm(base_idx + 1));
+        uni_vdivps(Vmm(base_idx), Vmm(base_idx), vmm_c, vmm_tmp);
+        uni_vmovups(vmm_stat, Vmm(base_idx));
+    }
 
     template <typename F>
     void compute(Vmm vmm_stat, F op) {
@@ -255,13 +347,64 @@ protected:
     }
 
     void compute_mean() {
-        compute(vmm_mean, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
-            uni_vaddps(vmm_dst, vmm_dst, vmm_src);
-        });
+        if (has_ne_convert_src_xf16_)
+            compute_ne_convert_xf16(
+                    vmm_mean, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
+                        uni_vaddps(vmm_dst, vmm_dst, vmm_src);
+                    });
+        else
+            compute(vmm_mean, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
+                uni_vaddps(vmm_dst, vmm_dst, vmm_src);
+            });
         if (save_stats_) uni_vmovss(ptr[reg_mean], Xmm(vmm_mean.getIdx()));
     }
 
-    void calculate_dst(size_t offt_elems, bool tail = false) {
+    void compute_var() {
+        if (has_ne_convert_src_xf16_)
+            compute_ne_convert_xf16(vmm_inv_sqrtvar,
+                    [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
+                        uni_vsubps_maybe_tail(vmm_src, vmm_mean, need_tail);
+                        uni_vfmadd231ps(vmm_dst, vmm_src, vmm_src);
+                    });
+        else
+            compute(vmm_inv_sqrtvar,
+                    [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
+                        uni_vsubps_maybe_tail(vmm_src, vmm_mean, need_tail);
+                        uni_vfmadd231ps(vmm_dst, vmm_src, vmm_src);
+                    });
+        if (save_stats_)
+            uni_vmovss(ptr[reg_var], Xmm(vmm_inv_sqrtvar.getIdx()));
+    }
+
+    void calculate_ne_convert_xf16_dst_body(
+            size_t offt_elems, bool tail = false) {
+        io_[src_d_.data_type()]->load_two_simdw_xf16(
+                src_ptr(offt_elems), vmm_dst_even, vmm_dst_odd);
+        io_[src_d_.data_type()]->merge_interleaved_to_plain(
+                vmm_dst_even, vmm_dst_odd, vmm_tmp);
+        for (int j = 0; j < 2; j++) {
+            const auto vmm_dst = j == 0 ? vmm_dst_even : vmm_dst_odd;
+            if (use_scale_)
+                io_[f32]->load(
+                        scale_ptr(offt_elems + j * simd_w_), vmm_scale, tail);
+            if (use_shift_)
+                io_[f32]->load(
+                        shift_ptr(offt_elems + j * simd_w_), vmm_shift, tail);
+            uni_vsubps(vmm_dst, vmm_dst, vmm_mean);
+            uni_vmulps(vmm_dst, vmm_dst, vmm_inv_sqrtvar);
+            if (use_scale_ && use_shift_)
+                uni_vfmadd213ps(vmm_dst, vmm_scale, vmm_shift);
+            else {
+                if (use_scale_) uni_vmulps(vmm_dst, vmm_dst, vmm_scale);
+                if (use_shift_) uni_vaddps(vmm_dst, vmm_dst, vmm_shift);
+            }
+            uni_vmulps(vmm_dst, vmm_dst, vmm_combined_scales);
+            io_[dst_d_.data_type()]->store(
+                    vmm_dst, dst_ptr(offt_elems + j * simd_w_), tail);
+        }
+    }
+
+    void calculate_dst_body(size_t offt_elems, bool tail = false) {
         if (use_scale_) {
             io_[f32]->load(scale_ptr(offt_elems), vmm_scale, tail);
         }
@@ -279,6 +422,23 @@ protected:
         }
         uni_vmulps(vmm_dst, vmm_dst, vmm_combined_scales);
         io_[dst_d_.data_type()]->store(vmm_dst, dst_ptr(offt_elems), tail);
+    }
+
+    void calculate_dst() {
+        if (has_ne_convert_src_xf16_) {
+            for (int i = 0; i < axis_simd_full_; i += 2) {
+                const bool can_load_two_simdw = axis_simd_full_ - i >= 2;
+                if (can_load_two_simdw)
+                    calculate_ne_convert_xf16_dst_body(i * simd_w_);
+                else
+                    calculate_dst_body(i * simd_w_);
+            }
+        } else {
+            for (int i = 0; i < axis_simd_full_; i++)
+                calculate_dst_body(i * simd_w_);
+        }
+        if (axis_simd_tail_)
+            calculate_dst_body(axis_simd_full_ * simd_w_, true);
     }
 
     void generate() override {
@@ -350,9 +510,7 @@ protected:
             io_.init_saturate_f32({dst_d_.data_type()});
 
             // calculate dst
-            for (int i = 0; i < axis_simd_full_; i++)
-                calculate_dst(i * simd_w_);
-            if (axis_simd_tail_) calculate_dst(axis_simd_full_ * simd_w_, true);
+            calculate_dst();
 
             add(reg_src, c_src_size);
             add(reg_dst, c_dst_size);
@@ -375,20 +533,6 @@ struct jit_stat_and_data_kernel_t<avx512_core>
 
     using jit_stat_and_data_base_kernel_t::jit_stat_and_data_base_kernel_t;
 
-    void compute_var() override {
-        compute(vmm_inv_sqrtvar, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
-            // Need to preserve zeros after subtract for correct answer.
-            if (!need_tail)
-                uni_vsubps(vmm_src, vmm_src, vmm_mean);
-            else
-                uni_vsubps(vmm_src | Opmask(tail_opmask_idx) | T_z, vmm_src,
-                        vmm_mean);
-            uni_vfmadd231ps(vmm_dst, vmm_src, vmm_src);
-        });
-        if (save_stats_)
-            uni_vmovss(ptr[reg_var], Xmm(vmm_inv_sqrtvar.getIdx()));
-    }
-
     void reduce(Vmm vmm_src, Vmm vmm_tmp) override {
         vshuff32x4(vmm_tmp, vmm_src, vmm_src, 0x4E); // 256-bit shuffle
         vaddps(vmm_src, vmm_src, vmm_tmp);
@@ -407,23 +551,6 @@ struct jit_stat_and_data_kernel_t<avx2>
 
     using jit_stat_and_data_base_kernel_t::jit_stat_and_data_base_kernel_t;
 
-    void compute_var() override {
-        compute(vmm_inv_sqrtvar, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
-            // Need to preserve zeros after subtract for correct answer.
-            if (!need_tail)
-                uni_vsubps(vmm_src, vmm_src, vmm_mean);
-            else {
-                // We need to call tail version once, it's fine to use `vmm_tmp`
-                uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
-                uni_vblendvps(vmm_tmp, vmm_tmp, vmm_mean, vmm_tail_mask);
-                uni_vsubps(vmm_src, vmm_src, vmm_tmp);
-            }
-            uni_vfmadd231ps(vmm_dst, vmm_src, vmm_src);
-        });
-        if (save_stats_)
-            uni_vmovss(ptr[reg_var], Xmm(vmm_inv_sqrtvar.getIdx()));
-    }
-
     void reduce(Vmm vmm_src, Vmm vmm_tmp) override {
         vperm2f128(vmm_tmp, vmm_src, vmm_src, 0x1); // 128/256-bit shuffle
         vaddps(vmm_src, vmm_src, vmm_tmp);
@@ -439,23 +566,6 @@ struct jit_stat_and_data_kernel_t<sse41>
     : jit_stat_and_data_base_kernel_t<sse41> {
 
     using jit_stat_and_data_base_kernel_t::jit_stat_and_data_base_kernel_t;
-
-    void compute_var() override {
-        compute(vmm_inv_sqrtvar, [&](Vmm vmm_dst, Vmm vmm_src, bool need_tail) {
-            // Need to preserve zeros after subtract for correct answer.
-            if (!need_tail)
-                uni_vsubps(vmm_src, vmm_src, vmm_mean);
-            else {
-                // We need to call tail version once, it's fine to use `vmm_tmp`
-                uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
-                uni_vblendvps(vmm_tmp, vmm_tmp, vmm_mean, vmm_tail_mask);
-                uni_vsubps(vmm_src, vmm_src, vmm_tmp);
-            }
-            uni_vfmadd231ps(vmm_dst, vmm_src, vmm_src);
-        });
-        if (save_stats_)
-            uni_vmovss(ptr[reg_var], Xmm(vmm_inv_sqrtvar.getIdx()));
-    }
 
     void reduce(Vmm vmm_src, Vmm vmm_tmp) override {
         uni_vmovups(vmm_tmp, vmm_src);
