@@ -420,8 +420,7 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     bool force_blocking = test_format == "NCHWc" || test_format == "NCDHWc"
             || test_format == "NCSc";
     bool use_channel_last
-            = ((!is_weight_constant) && channel_last_support && !force_blocking)
-            || force_channel_last;
+            = (channel_last_support && !force_blocking) || force_channel_last;
     // data layout
     if (use_channel_last) {
         in_formats.push_back({is_3d ? sc_data_format_t::NDHWC()
