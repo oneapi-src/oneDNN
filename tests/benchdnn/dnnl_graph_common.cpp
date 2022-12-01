@@ -754,6 +754,10 @@ inline int measure_perf_individual(timer::timer_t &t,
         dnnl::graph::stream &stream, std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
+    for (size_t i = 0; i < 10; ++i) {
+        BENCHDNNEXT_SAFE(
+                perf_func_v[0](stream, inputs_v[0], outputs_v[0]), WARN);
+    }
     t.reset();
     while (true) {
         auto sz = perf_func_v.size();
