@@ -21,6 +21,8 @@
 #include "common/memory_desc_wrapper.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/binary_injector_utils.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -73,10 +75,36 @@ struct matmul_helper_t {
 
     dim_t ldc() const { return dst_md_.blocking_desc().strides[ndims() - 2]; }
 
+    bool use_single_gemm_call_optimization(const post_ops_t &post_ops) {
+        using namespace binary_injector_utils;
+        bool is_binary_po_per_oc;
+        bool is_binary_po_per_oc_sp;
+        bool is_binary_po_channel_bcast;
+        std::tie(is_binary_po_per_oc, is_binary_po_per_oc_sp,
+                is_binary_po_channel_bcast)
+                = bcast_strategies_present_tup(post_ops.entry_, dst_md_,
+                        broadcasting_strategy_t::per_oc,
+                        broadcasting_strategy_t::per_oc_spatial,
+                        broadcasting_strategy_t::per_mb_spatial);
+
+        const bool can_use_po_with_fused_batch = !is_binary_po_channel_bcast
+                && IMPLICATION(is_binary_po_per_oc || is_binary_po_per_oc_sp,
+                        ndims() == 2);
+
+        // single GeMM call can be made, avoid parallelization over GeMM calls
+        return can_use_po_with_fused_batch && can_fuse_src_batch_dims();
+    }
+
+private:
+    mdw_t src_md_;
+    mdw_t weights_md_;
+    mdw_t dst_md_;
+
     // TODO similar optimization is also possible for wei batch fusion.
     bool can_fuse_src_batch_dims() const {
         /* Note:
-            We can fuse src batch dims so that a single GeMM can be used iff
+            We can fuse src batch dims so that a single GeMM can be used if
+            0. always for batch = 1 case
             1. src is not transposed
             2. wei batch dims are all 1's
             3. The strides in batch dims are trivial (allowing permutations).
@@ -91,19 +119,18 @@ struct matmul_helper_t {
 
             A single GeMM call can be used instead with m = a*d*c*b*m
         */
+        // Note 0:
+        if (batch() == 1) return true;
+
         // Note 1:
         if (transA() == 'T') return false;
 
-        const int n_dims = ndims();
-        const int batch_ndims = n_dims - 2;
-        if (batch_ndims == 0) return true;
-
         // Note 2:
-        if (utils::array_product(weights_md_.dims(), batch_ndims) != 1)
-            return false;
+        if (wei_batch() != 1) return false;
 
         // determine batch dims layout
         dims_t src_strides;
+        const int batch_ndims = ndims() - 2;
         utils::array_copy(
                 src_strides, src_md_.blocking_desc().strides, batch_ndims);
 
@@ -137,11 +164,6 @@ struct matmul_helper_t {
 
         return true;
     }
-
-private:
-    mdw_t src_md_;
-    mdw_t weights_md_;
-    mdw_t dst_md_;
 };
 
 } // namespace matmul
