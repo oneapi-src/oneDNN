@@ -113,39 +113,41 @@ hardware (see @ref dev_guide_data_types).
 
 ### Attributes
 
-Scaling factors can be configured using **primitive attributes**. It is also
-possible to specify fused post-ops. All primitives support the attributes, but
-not all combinations of parameters are supported. In the case of an unsupported
-combination, the library returns an error.
+Scaling factors and zero-points can be configured using [primitive
+attributes](@ref dev_guide_attributes_quantization). It is also
+possible to specify fused post-ops. All primitives support the
+attributes, but not all combinations of parameters are supported. In
+the case of an unsupported combination, the library returns an error.
 
-In oneDNN, the scaling factor is applied to the output of a primitive.
+In oneDNN, the scaling factor are applied to each memory object of a primitive.
 Moreover, to perform input transformations (for example, source, bias, and
 weights), oneDNN performs quantizing and dequantizing of data for int8 using
 the **reorder primitive**.
 
-oneDNN has two formats for defining the output scaling factor. Depending
-on the configuration set by the scaling mask, either the output is scaled
-uniformly across all the dimensions (_mask = 0_) or a set of scaling values is
-applied to specific dimensions, as explained below:
+oneDNN has two formats for defining the quantization
+parameters. Depending on the configuration set by the scaling and
+zero-point masks, either the memory object is either scaled/shifted
+uniformly across all the dimensions (_mask = 0_) or a set of scaling
+values is applied to specific dimensions, as explained below:
 
 * A *single floating point value* shared across the tensor
 ![Single-value scaling format](./images/img_singlescalar.png)
-* An array of floating point values each corresponding to a specific output
-  channel ![Multi-value scaling format](./images/img_multiscalar.png)
+* An array of floating point values each corresponding to a specific
+  dimension or set of dimensions ![Multi-value scaling format](./images/img_multiscalar.png)
 
-The **mask** parameter determines the dimension to which the scales array is
-applied. The \f$i\f$-th bit of the mask selects the dimension
-\f$D_i\f$ of an \f$n\f$-dimensional output tensor \f$T[D_0, \ldots,
-D_{n-1}]\f$. For example:
+The **mask** parameter determines the dimension to which the scale or
+zero-point array is applied. The \f$i\f$-th bit of the mask selects
+the dimension \f$D_i\f$ of an \f$n\f$-dimensional tensor
+\f$T[D_0, \ldots, D_{n-1}]\f$. For example:
 
-+ The single-scale format always has mask = 0.
++ The single scale/zero-point format always has mask = 0.
 
 + For a 5-dimensional tensor \f$T[G_0, O_1, I_2, H_3, W_4]\f$ where the
   indices correspond to the positions of bits in the mask:
 
-  + A \f$mask = 2 = 2^1\f$ selects the output channel for scaling.
+  + A scale \f$mask = 2 = 2^1\f$ selects the output channel for scaling.
 
-  + A \f$mask = 3 = 2^1 | 2^0\f$ selects the group and output channels.
+  + A scale \f$mask = 3 = 2^1 | 2^0\f$ selects the group and output channels.
 
 Fused [post-ops](@ref dev_guide_attributes_post_ops) allow chaining
 computations. Note that the resulting output value from post-ops is always

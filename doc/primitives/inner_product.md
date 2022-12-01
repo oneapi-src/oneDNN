@@ -128,17 +128,21 @@ The following post-ops are supported by inner product primitives:
 
 | Propagation | Type      | Operation                                                    | Description                                                                   | Restrictions                        |
 | :--         | :--       | :--                                                          | :--                                                                           | :--                                 |
-| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of inner product by given scale factor(s)                   | int8 inner products only            |
+| forward     | attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask) | Scales the result of inner product by given scale factor(s)                   | int8 inner products only            |
 | forward     | post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |                                     |
 | forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                                     |
 | forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)                 | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions |
 
-To facilitate dynamic quantization, the primitive supports run-time output
-scales. That means a user could configure attributes with output scales set to
-the #DNNL_RUNTIME_F32_VAL wildcard value instead of the actual scales,
-if the scales are not known at the primitive descriptor creation stage.
-In this case, the user must provide the scales as an additional input memory
-object with argument `DNNL_ARG_ATTR_OUTPUT_SCALES` during the execution stage.
+The following masks are supported by the primitive:
+- 0, which applies one scale value to an entire tensor, and
+- 1, which applies a scale value per output channel for
+  `DNNL_ARG_WEIGHTS` argument.
+
+When scales masks are specified, the user must provide the
+corresponding scales as additional input memory objects with argument
+`DNNL_ARG_ATTR_SCALES | DNNL_ARG_${MEMORY_INDEX}` during the execution
+stage.
+
 
 ## Implementation Limitations
 

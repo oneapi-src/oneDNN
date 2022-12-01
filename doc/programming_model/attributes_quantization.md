@@ -16,76 +16,123 @@ Related materials:
 
 The primary quantization model that the library assumes is the following:
 \f[
-    x_{f32}[:] = scale_{f32} \cdot (x_{int8}[:] - 0_{x\_int8})
+    x_{f32}[:] = scale_{x} \cdot (x_{int8}[:] - zp_{x})
 \f]
 
-where \f$scale_{f32}\f$ is a *scaling factor* that is somehow known in advance
-and \f$[:]\f$ is used to denote elementwise application of the formula to the
-arrays. Typically, the process of obtaining these scale factors is called the
-*calibration*. This might be counter-intuitive, but the library cannot compute
-any of the scale factors at run-time dynamically. Hence, the model is
-sometimes called a *static* quantization model. The main rationale to support
-only *static* quantization out-of-the-box is higher performance. To use
-*dynamic* quantization:
-1. Compute the result in higher precision, like #dnnl::memory::data_type::s32.
-2. Find the required characteristics, like min and max values, and derive
-   the scale factor.
-3. Re-quantize to the lower precision data type.
+where \f$scale_{x}\f$ is a *scaling factor* in float format,
+\f$zp_{x}\f$ is the *zero point* in int32 format, and
+\f$[:]\f$ is used to denote elementwise application of the formula
+to the arrays. In order to provide best performance, oneDNN does not
+compute those scaling factors and zero-points as part of primitive
+computation. Those should be computed and provided by the user.
 
-It is also worth mentioning that the library supports fixed zero position.
-For most of the primitives, real zero value is mapped to zero for quantized
-values; that is, \f$0_{x\_int8} = 0\f$. For example, this is the only model that
-@ref dev_guide_convolution and @ref dev_guide_inner_product currently support.
-The @ref dev_guide_rnn primitives have limited support of shifted zero (for
-details, refer to the corresponding section in @ref dev_guide_rnn).
+These quantization parameters can either be computed ahead of time
+using calibration tools (*static* quantization) or at runtime based on
+the actual minimum and maximum values of a tensor (*dynamic*
+quantization). Either method can be used in conjuction with oneDNN, as
+the quantization parameters are passed to the oneDNN primitives at
+execution time.
 
-For the rest of this guide, we will assume that \f$0_{x\_int8} = 0\f$.
+To support int8 quantization, primitives should be created and
+executed as follow:
+
+- during primitive descriptor creation, if one or multiple inputs are
+  int8 (signed or not), then the primitive will behave as a quantized
+  integer operation.
+- still during primitive descriptor creation, the dimensionality of
+  the scaling factors and zero-point should be provided using masks
+  (e.g. one scale per tensor, one scale per channel, ...).
+- finally, during primitive execution, the user must provide the
+  actual quantization parameters as arguments to the execute function.
+  Scales are `f32` values, and zero-points are `s32` values.
+
+For performance reasons, each primitive implementation typically
+supports only a subset of quantization parameter masks. For example,
+convolution typically supports per-tensor or per-channel scales (no
+zero-point) for weights, and per-tensor scaling factor and zero-points
+for activation.
+
+This guide does not cover how the appropriate scaling factor can be found.
+Refer to the materials in the [Introduction](@ref dgaq_intro).
+
+### Numerical behavior
+
+Primitive implementations are allowed to convert int8 inputs to wider
+datatypes (e.g. int16 or int32), as those conversions do not impact
+accuracy.
+
+During execution, primitives implementations avoid integer overflows
+and maintain integer accuracy by using wider datatypes (e.g. int32)
+for intermediate values and accumulators. Those are then converted as
+necessary before the result is written to the output memory objects.
+During that conversion, implementations typically saturate in case of
+underflow/overflow (e.g. when converting `s32` to int8).
 
 @warning
 Depending on the architecture, the behavior of int8 computations might slightly
 vary. For more details, refer to @ref dev_guide_int8_computations.
 
-This guide does not cover how the appropriate scaling factor can be found.
-Refer to the materials in the [Introduction](@ref dgaq_intro).
+When multiple operations are fused in a single primitive using the
+[post ops attribute](@ref dev_guide_attributes_post_ops), those are assumed to be
+computed in f32 precision. As a result the destination quantization
+parameters are applied after the post-ops as follow:
+
+\f[
+   \dst[:] = post\_ops(OP(src[:], weights[:], ...)) / scale_{\dst} + zp_{\dst}
+
+\f]
+
+Quantizing/dequantizing values between post-operations can still be
+achieved using one of [eltwise](@ref
+dev_guide_attributes_post_ops_eltwise), [binary](@ref
+dev_guide_attributes_post_ops_binary), or the scale parameter of the
+appropriate post-operation.
+
 
 ### Example: Convolution Quantization Workflow
 
 Consider a convolution without bias. The tensors are represented as:
 
-- \f$\src_{f32}[:] = scale_{\src} \cdot \src_{int8}[:]\f$
+- \f$\src_{f32}[:] = scale_{\src} \cdot (\src_{int8}[:] - zp_{\src})\f$
 - \f$\weights_{f32}[:] = scale_{\weights} \cdot \weights_{int8}[:]\f$
-- \f$\dst_{f32}[:] = scale_{\dst} \cdot \dst_{int8}[:]\f$
+- \f$\dst_{f32}[:] = scale_{\dst} \cdot (\dst_{int8}[:] - zp_{\dst})\f$
 
 Here the \f$\src_{f32}, \weights_{f32}, \dst_{f32}\f$ are not
-computed at all, the whole work happens with INT8 tensors.
-As mentioned above, we also somehow know all the scaling factors:
-\f$scale_{\src}, scale_{\weights}, scale_{\dst}\f$.
+computed at all, the whole work happens with int8 tensors.So the task
+is to compute the \f$\dst_{int8}\f$ tensor, using the \f$\src_{int8}\f$,
+\f$\weights_{int8}\f$ tensors passed at execution time, as well as the
+corresponding quantization parameters `scale_{\src}, scale_{\weights},
+scale_{\dst}` and `zero_point{\src},
+zero_point_{\dst}`. Mathematically, the computations are:
 
-So the task is to compute the \f$\dst_{int8}\f$ tensor.
-
-Mathematically, the computations are straightforward:
 \f[
-    \dst_{int8}[:] =
-        downconvert\_f32\_to\_int8(
-            output\_scale \cdot
-            conv_{s32}(\src_{int8}, \weights_{int8})
-        ),
+   \dst_{int8}[:] =
+      \operatorname{f32\_to\_int8}(
+         scale_{\src} \cdot scale_{\weights} \cdot
+         \operatorname{s32\_to\_f32}(conv_{s32}(\src_{int8}, \weights_{int8})
+	   - zp_{\src} \cdot comp_{s32}) / scale_{\dst}
+           + zp_{\dst} )
 \f]
 
 where
-- \f$output\_scale := \frac{scale_{\src} \cdot scale_{\weights}}{scale_{\dst}}\f$;
-- \f$conv_{s32}\f$ is just a regular convolution which takes source and
-  weights with INT8 data type and compute the result in INT32 data type (INT32
-  is chosen to avoid overflows during the computations);
-- \f$downconvert\_f32\_to\_s8()\f$ converts an `f32` value to `s8` with
-  potential saturation if the values are out of the range of the INT8 data type.
 
-Note that in order to perform the operation, one does not need to know the
-exact scaling factors for all the tensors; it is enough to know only the
-\f$output\_scale\f$. The library utilizes this fact: a user needs to provide
-only this one extra parameter to the convolution primitive (see the
-[Output Scaling Attribute](@ref dev_guide_attributes_quantization_output_scale)
-section below).
+- \f$\operatorname{conv}_{s32}\f$ is just a regular convolution which takes source and
+  weights with int8 data type and compute the result in int32 data type (int32
+  is chosen to avoid overflows during the computations);
+
+- \f$comp_{s32}\f$ is a compensation term to account for
+  `\src` non-zero zero-point. This term is computed by the oneDNN
+  library and can typically be pre-computed ahead of time, for example
+  during weights reorder.
+
+- \f$\operatorname{f32\_to\_s8}()\f$ converts an `f32` value to `s8` with
+  potential saturation if the values are out of the range of the int8 data
+  type.
+
+- \f$\operatorname{s32\_to\_f32}()\f$ converts an `int8` value to
+  `f32` with potential rounding. This conversion is typically
+  necessary to apply `f32` scaling factors.
+
 
 ### Per-Channel Scaling
 
@@ -99,43 +146,35 @@ of the computations. It seems impossible to implement the same trick for the
 input channels, since that would require re-quantization for every input
 data point.
 
-Let \f$\alpha\f$ denote scales:
-- \f$\src_{f32}(n, ic, ih, iw) = \alpha_{\src} \cdot \src_{int8}(n, ic, ih, iw)\f$
-- \f$\weights_{f32}(oc, ic, kh, kw) =
-    \alpha_{\weights}(oc) \cdot \weights_{int8}(oc, ic, kh, kw)\f$
+- \f$\src_{f32}(n, ic, ih, iw) = scale_{\src} \cdot \src_{int8}(n, ic, ih, iw)\f$
+
+- \f$\weights_{f32}(oc, ic, kh, kw) = scale_{\weights}(oc) \cdot \weights_{int8}(oc, ic, kh, kw)\f$
+
 - \f$\dst_{f32}(n, oc, oh, ow) = scale_{\dst} \cdot \dst_{int8}(n, oc, oh, ow)\f$
 
-Note that now the weights' scaling factor depends on the \f$oc\f$.
+Note that now the weights' scaling factor depends on \f$oc\f$.
 
 To compute the \f$\dst_{int8}\f$ we need to perform the following:
 
 \f[
+
     \dst_{int8}(n, oc, oh, ow) =
-        downconvert\_f32\_to\_int8(
-            output\_scale(oc) \cdot
+        \operatorname{f32\_to\_int8}(
+            \frac{scale_{\src} \cdot scale_{\weights}(oc)}{scale_{\dst}} \cdot
             conv_{s32}(\src_{int8}, \weights_{int8})|_{(n, oc, oh, ow)}
-        ),
+        ).
 \f]
 
-where
-- \f$output\_scale(oc) :=
-    \frac{\alpha_{\src} \cdot \alpha_{\weights}(oc)}{\alpha_{\dst}}\f$.
-
-It is worth mentioning that the user is responsible for preparing quantized
-weights accordingly. oneDNN provides reorders that can perform per-channel
-scaling:
+The user is responsible for preparing quantized weights accordingly. To do that,
+oneDNN provides reorders that can perform per-channel scaling:
 
 \f[
+
     \weights_{int8}(oc, ic, kh, kw) =
-        downconvert\_f32\_to\_int8(
-            output\_scale(oc) \cdot
-            \weights_{f32}(oc, ic, kh, kw)
-        ),
+        \operatorname{f32\_to\_int8}(
+            \weights_{f32}(oc, ic, kh, kw) / scale_{weights}(oc)
+        ).
 \f]
-
-where
-- \f$output\_scale(oc) := \frac{1}{\alpha_{\weights}(oc_{})}\f$.
-
 
 ## API
 
@@ -172,18 +211,15 @@ to the
 [attributes error handling section](@ref dev_guide_attributes_error_handling).
 
 API:
-- C: @ref dnnl_primitive_attr_set_output_scales
-- C++: @ref dnnl::primitive_attr::set_output_scales
+- C: @ref dnnl_primitive_attr_set_scales_mask
+- C++: @ref dnnl::primitive_attr::set_scales_mask
 
-Primitives support output scales only when the data type of computation is an
-integer.  
+Primitives support scales only when the data type of computation is an
+integer.
 
 The parameters (C++ API for simplicity):
 ~~~cpp
-void dnnl::primitive_attr::set_output_scales(
-        int mask,
-        const std::vector<float> &scales
-        );
+void dnnl::primitive_attr::set_scales_mask(int arg, int mask);
 ~~~
 
 In the simplest case, when there is only one common scale the attribute changes
@@ -211,143 +247,106 @@ Then the mask should be set to:
 and the number of scales should be:
 - `scales.size()` = \f$\prod\limits_{d_i}D_{d_i}\f$.
 
-#### Example 1: weights quantization with per-output-channel-and-group scaling
+#### Example 1: weights quantization with per-output-channel scaling
 
 ~~~cpp
-// weights dimensions
-const int G, OC, IC, KH, KW;
+   // weights dimensions
+   const int OC, IC, KH, KW;
 
-// original f32 weights in user's format
-dnnl::memory::desc wei_user_f32_md(
-        {G, OC/G, IC/G, KH, KW},            // dims
-        dnnl::memory::data_type::f32,     // the data originally in f32
-        dnnl::memory::format_tag::hwigo   // the memory format a user uses
-        );
+   // original f32 weights in plain format
+   dnnl::memory::desc wei_plain_f32_md(
+           {OC, IC, KH, KW},                 // dims
+           dnnl::memory::data_type::f32,     // the data originally in f32
+           dnnl::memory::format_tag::hwigo   // the plain memory format
+           );
 
-// the scaling factors for quantized weights
-// An unique scale for each group and output-channel.
-std::vector<float> wei_scales(G * OC/G) = {...};
+   // the scaling factors for quantized weights
+   // An unique scale for each output-channel.
+   std::vector<float> wei_scales(OC) = { /* values */ };
+   dnnl::memory();
 
-// ...
+   // int8 convolution primitive descriptor
+   dnnl::convolution_forward::primitive_desc conv_pd(/* see the next example */);
 
-// int8 convolution primitive descriptor (will create it in the next example)
-dnnl::convolution_forward::primitive_desc conv_pd(...);
+   // query the convolution weights memory descriptor
+   dnnl::memory::desc wei_conv_s8_md = conv_pd.weights_desc();
 
+   // prepare the attributes for the reorder
+   dnnl::primitive_attr attr;
+   const int quantization_mask = 0
+       | (1 << 0);  // scale per  OC dimension, which is the dim #0
+   attr.set_scales_mask(DNNL_ARG_DST, quantization_mask);
 
-// query the convolution weights memory descriptor
-dnnl::memory::desc wei_conv_s8_md = conv_pd.weights_desc();
-
-// prepare the inverse of the scales (f32 = scale * int8 --> int8 = 1/scale * f32)
-std::vector<float> inv_wei_scales(wei_scales.size());
-for (size_t i = 0; i < wei_scales.size(); ++i)
-    inv_wei_scales[i] = 1.f / wei_scales[i];
-
-// prepare the attributes for the reorder
-dnnl::primitive_attr attr;
-const int mask = 0
-    | (1 << 0)  // scale per  G dimension, which is the dim #0
-    | (1 << 1); // scale per OC dimension, which is the dim #1
-attr.set_output_scales(mask, inv_wei_scales);
-
-// create reorder that would perform:
-//   wei_s8(g, oc, ic, kh, kw) <- 1/scale(g, oc) * wei_f32(g, oc, ic, kh, kw)
-// including the data format transformation.
-auto wei_reorder_pd = dnnl::reorder::primitive_desc(
-        wei_user_f32_md, engine, // source
-        wei_conv_s8_md, engine, // destination,
-        attr);
-auto wei_reorder = dnnl::reorder(wei_reorder_pd);
+   // create reorder that would perform:
+   //   wei_s8(oc, ic, kh, kw) <- wei_f32(oc, ic, kh, kw) / scale(oc)
+   // including the data format conversion.
+   auto wei_reorder_pd = dnnl::reorder::primitive_desc(
+           wei_plain_f32_md, engine, // source
+           wei_conv_s8_md, engine, // destination,
+           attr);
+   auto wei_reorder = dnnl::reorder(wei_reorder_pd);
 
 // ...
 ~~~
 
 #### Example 2: convolution with groups, with per-output-channel quantization
 
-This example is complementary to the previous example (which should ideally
-be the first one). Let's say we want to have an INT8 convolution with
-per-output channel scaling.
+This example is complementary to the previous example (which should ideally be
+the first one). Let's say we want to create an int8 convolution with per-output
+channel scaling.
 
 ~~~cpp
-const float src_scale; // src_f32[:] = src_scale * src_s8[:]
-const float dst_scale; // dst_f32[:] = dst_scale * dst_s8[:]
+   const float src_scale; // src_f32[:] = src_scale * src_s8[:]
+   const float dst_scale; // dst_f32[:] = dst_scale * dst_s8[:]
 
-// the scaling factors for quantized weights (as declared above)
-// An unique scale for each group and output-channel.
-std::vector<float> wei_scales(G * OC/G) = {...};
+   // the scaling factors for quantized weights (as declared above)
+   // An unique scale for each group and output-channel.
+   std::vector<float> wei_scales(OC) = {...};
 
 
-// Src, weights, and dst memory descriptors for convolution,
-// with memory format tag == any to allow a convolution implementation
-// to chose the appropriate memory format
+   // Src, weights, and dst memory descriptors for convolution,
+   // with memory format tag == any to allow a convolution implementation
+   // to chose the appropriate memory format
 
-dnnl::memory::desc src_conv_s8_any_md(
-        {BATCH, IC, IH, IW},            // dims
-        dnnl::memory::data_type::s8,  // the data originally in s8
-        dnnl::memory::format_tag::any // let convolution to choose
-        );
+   dnnl::memory::desc src_conv_s8_any_md(
+           {BATCH, IC, IH, IW},          // dims
+           dnnl::memory::data_type::s8,  // the data originally in s8
+           dnnl::memory::format_tag::any // let convolution to choose
+           );
 
-dnnl::memory::desc wei_conv_s8_any_md(
-        {G, OC/G, IC/G, KH, KW},        // dims
-        dnnl::memory::data_type::s8,  // the data originally in s8
-        dnnl::memory::format_tag::any // let convolution to choose
-        );
+   dnnl::memory::desc wei_conv_s8_any_md(
+           {OC, IC, KH, KW},             // dims
+           dnnl::memory::data_type::s8,  // the data originally in s8
+           dnnl::memory::format_tag::any // let convolution to choose
+           );
 
-dnnl::memory::desc dst_conv_s8_any_md(...);  // ditto
+   dnnl::memory::desc dst_conv_s8_any_md(...);  // ditto
 
-// prepare the attributes for the convolution
-dnnl::primitive_attr attr;
-const int mask = 0
-    | (1 << 1); // scale per OC dimension, which is the dim #1 on dst tensor:
-                // (BATCH, OC, OH, OW)
-                //    0     1   2   3
-std::vector<float> conv_output_scales(G * OC/G);
-for (int g_oc = 0; G * OC/G; ++g_oc)
-    conv_output_scales[g_oc] = src_scale * wei_scales(g_oc) / dst_scale;
-attr.set_output_scales(mask, conv_output_scales);
+   // prepare the attributes for the convolution
+   dnnl::primitive_attr attr;
+   const int data_mask = 0; // scale and zero-point per tensor for source and destination
+   const int wei_mask = 0
+       | (1 << 1); // scale per OC dimension, which is the dim #0 on weights tensor:
+                   // (   OC, IC, KH, KW)
+                   //      0   1   2   3
 
-// create a convolution primitive descriptor with the scaling factors
-dnnl::convolution_forward::primitive_desc conv_pd(
-        engine,
-        dnnl::prop_kind::forward_inference,
-        dnnl::algorithm::convolution_direct,
-        src_conv_s8_any_md,                     // what's important is that
-        wei_conv_s8_any_md,                     // we specified that we want
-        dst_conv_s8_any_md,                     // computations in s8
-        strides, padding_l, padding_r,
-        attr // the attributes contain the output scaling
-        );
+   attr.set_scales_mask(DNNL_ARG_SRC, data_mask);
+   attr.set_zero_points_mask(DNNL_ARG_SRC, data_mask);
+
+   attr.set_scales_mask(DNNL_ARG_WEIGHTS, wei_mask);
+
+   attr.set_scales_mask(DNNL_ARG_DST, data_mask);
+   attr.set_zero_points_mask(DNNL_ARG_DST, data_mask);
+
+   // create a convolution primitive descriptor
+   auto conv_pd = dnnl::convolution_forward::primitive_desc(
+           dnnl::prop_kind::forward_inference,
+           dnnl::algorithm::convolution_direct,
+           src_conv_s8_any_md,                     // what's important is that
+           wei_conv_s8_any_md,                     // we specified that we want
+           dst_conv_s8_any_md,                     // computations in s8
+           strides, padding_l, padding_r,
+           dnnl::padding_kind::zero
+           attr);   // the attributes describe the quantization flow
 // ...
 ~~~
-
-#### Interplay of output scales with post-ops
-
-In general, the [post-ops](@ref dev_guide_attributes_post_ops) are independent
-from the output scales. The output scales are applied to the result first; then
-post-ops will take effect.
-
-For details, refer to the
-[Tanh -> Sum -> ScaleShift](@ref dev_guide_attributes_post_ops_with_scales)
-example.
-
-That has an implication on the scaling factors passed to the library, however.
-Consider the following example of a convolution with \f$\tanh\f$ post-op:
-
-\f[
-    \dst_{s8}[:] =
-        \frac{1}{scale_{\dst}}
-        \cdot
-        \tanh(
-                scale_{\src}
-                \cdot
-                scale_{\weights}
-                \cdot
-                conv_{s32}(\src_{s8}, wei_{s8})
-        )
-\f]
-
-As you can see:
-- The convolution output scales are now
-  \f$conv\_output\_scale = scale_{\src} \cdot scale_{\weights}\f$,
-  i.e. there is no division by \f$scale_{\dst}\f$;
-- And the post-ops scale for \f$\tanh\f$ is set to
-  \f$scale\_tanh\_post\_op = \frac{1}{scale_{\dst}}\f$.

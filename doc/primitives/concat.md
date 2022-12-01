@@ -62,7 +62,7 @@ meaning associated with any logical dimensions.
 
 | Type      | Operation                                       | Description                                                                    | Restrictions
 | :--       | :--                                             | :--                                                                            | :--
-| Attribute | [Scales](@ref dnnl::primitive_attr::set_scales) | Scales the corresponding input tensor by the given scale factor(s).            | Only one scale per tensor is supported. Input tensors only. |
+| Attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask) | Scales the corresponding input tensor by the given scale factor(s).            | Only one scale per tensor is supported. Input tensors only. |
 
 ## Implementation Limitations
 
