@@ -189,11 +189,9 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const int nthr = pd()->nthr_;
 
     const gemm_based::params_t &params = pd()->params();
-    const bool can_fuse_src_batch_dims = pd()->has_runtime_dims_or_strides()
-            ? helper.can_fuse_src_batch_dims()
-            : params.can_fuse_src_batch_dims_;
-    const dim_t acc_stride = gemm_based::get_scratchpad_size(
-            batch, M, N, can_fuse_src_batch_dims, nthr);
+    const bool use_single_gemm_call = pd()->has_runtime_dims_or_strides()
+            ? helper.use_single_gemm_call_optimization(po)
+            : params.use_single_gemm_call_optimization_;
     bool dst_is_acc = params.dst_is_acc_;
     acc_data_t *acc = dst_is_acc
             ? (acc_data_t *)dst
@@ -202,9 +200,10 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     // case: dynamic sizes
     bool need_free_acc = false;
     if (acc == nullptr) {
-        acc = (acc_data_t *)malloc(sizeof(acc_data_t) * acc_stride
-                        * ((can_fuse_src_batch_dims || batch == 1) ? 1 : nthr),
-                64);
+        const size_t buf_elements = gemm_based::get_scratchpad_num_elements(
+                batch, M, N, use_single_gemm_call, nthr);
+        acc = (acc_data_t *)malloc(sizeof(acc_data_t) * buf_elements, 64);
+
         if (acc == nullptr) return status::out_of_memory;
         need_free_acc = true;
     }
@@ -216,24 +215,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
             = this->pd()->attr()->output_scales_.mask_ == (1 << (ndims - 1));
 
     std::atomic<status_t> st(status::success);
-    // use parallel over batch when binary po with channel bcast
-    // (except batch == 1)
-    bool is_binary_po_per_oc;
-    bool is_binary_po_per_oc_sp;
-    bool is_binary_po_channel_bcast;
-    std::tie(is_binary_po_per_oc, is_binary_po_per_oc_sp,
-            is_binary_po_channel_bcast)
-            = bcast_strategies_present_tup(po.entry_, pd()->dst_md(),
-                    broadcasting_strategy_t::per_oc,
-                    broadcasting_strategy_t::per_oc_spatial,
-                    broadcasting_strategy_t::per_mb_spatial);
-    // if batched, parralel over batch for per_mb_sp and per_oc binary
-    // post-op broadcast
-    const bool can_use_po_with_fused_batch = !is_binary_po_channel_bcast
-            && IMPLICATION(
-                    is_binary_po_per_oc || is_binary_po_per_oc_sp, ndims == 2);
-    const bool parallel_over_batch = batch > 1 && !can_fuse_src_batch_dims;
-    if (IMPLICATION(can_use_po_with_fused_batch, parallel_over_batch)) {
+    if (!use_single_gemm_call) {
         const int src_mask
                 = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
         const int wei_mask
@@ -243,6 +225,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                 : types::data_type_size(pd()->weights_md(1)->data_type);
         const size_t work_amount = (size_t)batch * M * N;
         const size_t work_per_batch = (size_t)M * N;
+        const dim_t acc_stride = gemm_based::get_scratchpad_block_elements(
+                batch, M, N, use_single_gemm_call, nthr);
 
         // NOTE: inside lambda, type cast variables captured by reference using
         // either c-like "(type)var" or functional "type(var)" notation in order
