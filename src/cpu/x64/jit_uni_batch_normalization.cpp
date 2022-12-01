@@ -2375,7 +2375,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
             return status::unimplemented;
     } else if (isa == avx2 && one_of(src_md()->data_type, bf16, f16)) {
         // no support for training or blocked layouts for avx2_vnni_2
-        if (is_training() || src_d.matches_one_of_tag(nc, nwc, nhwc, ndhwc))
+        if (is_training() || !src_d.matches_one_of_tag(nc, nwc, nhwc, ndhwc))
             return status::unimplemented;
     } else if (isa == avx2) {
         // full support
