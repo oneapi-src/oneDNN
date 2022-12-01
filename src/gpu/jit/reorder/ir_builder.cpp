@@ -32,6 +32,8 @@
 #include "gpu/jit/ir/reorder.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 #include "gpu/jit/pass/pass.hpp"
+#include "gpu/jit/utils/iterator.hpp"
+#include "gpu/jit/utils/range.hpp"
 #include "gpu/jit/utils/trace.hpp"
 
 namespace dnnl {
@@ -302,12 +304,12 @@ void reorder_ir_builder_t::compute_grid(const layout_t &src,
 }
 
 compute::nd_range_t reorder_ir_builder_t::nd_range(
-        const exec_config_t &exec_cfg, const layout_t &src,
-        const layout_t &dst) {
+        const exec_config_t &exec_cfg, layout_t src, layout_t dst) {
     const int simd = exec_cfg.simd();
     std::vector<int> iter_blocks;
     std::vector<int> loop_blocks;
     std::vector<int> tg_blocks;
+    normalize_reorder_layouts(src, dst);
     compute_blocks(exec_cfg, src, dst, iter_blocks, loop_blocks, tg_blocks);
     grid_info_t kernel_grid;
     grid_info_t tg_grid;
@@ -324,6 +326,217 @@ compute::nd_range_t reorder_ir_builder_t::nd_range(
         }
     }
     return compute::nd_range_t(global.data(), local.data());
+}
+
+struct normalization_stage_t {
+    int idx;
+    block_t curr, last;
+    std::array<dim_t, 2> tile;
+
+    bool is_dense() const { return curr.stride == last.stride * last.block; }
+
+    bool blocks_match(const block_t &l, const block_t &r) const {
+        return l.dim_idx == r.dim_idx && l.block == r.block;
+    }
+
+    bool operator==(const normalization_stage_t &o) const {
+        return curr.dim_idx == o.curr.dim_idx && blocks_match(last, o.last)
+                && tile[0] == o.tile[0] && tile[1] == o.tile[1];
+    }
+
+    dim_t elems() const { return tile[0]; }
+
+    normalization_stage_t() = default;
+    normalization_stage_t(int idx, const block_t &curr, const block_t &last,
+            std::vector<dim_t> tile)
+        : idx(idx)
+        , curr(curr)
+        , last(last)
+        , tile({tile[curr.dim_idx], tile[last.dim_idx]}) {}
+};
+
+struct layout_normalization_t {
+    using blocks_t = std::vector<block_t>;
+    using block_iterator_t = typename blocks_t::const_iterator;
+    using stage_t = normalization_stage_t;
+
+    struct iterator_t {
+        bool operator==(const iterator_t &o) const { return curr_ == o.curr_; }
+        bool operator!=(const iterator_t &o) const { return !operator==(o); }
+        stage_t operator*() const { return {idx_, *curr_, *last_, tile_}; }
+        iterator_t &operator++() {
+            if (curr_ == end_) return *this;
+            auto blk = *last_;
+            tile_[blk.dim_idx] *= blk.block;
+            last_ = curr_;
+            ++curr_;
+            ++idx_;
+            return *this;
+        }
+
+        iterator_t(int ndims, block_iterator_t it, block_iterator_t end)
+            : curr_(it == end ? end : it + 1)
+            , last_(it)
+            , end_(end)
+            , idx_(0)
+            , tile_(ndims, 1) {}
+
+    private:
+        block_iterator_t curr_, last_, end_;
+        int idx_;
+        std::vector<dim_t> tile_;
+    };
+
+    int ndims() const { return ndims_; }
+    const blocks_t &blocks() const { return blocks_; }
+
+    bool empty() const { return begin() == end(); }
+    bool contains_dim(int dim_idx) const {
+        for (auto &blk : blocks_)
+            if (blk.dim_idx == dim_idx) return true;
+        return false;
+    }
+
+    void merge(std::vector<int> merges) {
+        if (empty()) {
+            if (blocks_.empty()) blocks_.emplace_back(0, 1, 1);
+            return;
+        }
+
+        std::sort(merges.begin(), merges.end());
+        auto merge_it = merges.begin();
+        auto merge_end = merges.end();
+        std::vector<block_t> blocks;
+        block_t last = (*begin()).last;
+        for (auto s : *this) {
+            if (merge_it != merge_end && *merge_it == s.idx) {
+                s.curr.block *= last.block;
+                s.curr.stride = last.stride;
+                ++merge_it;
+            } else
+                blocks.push_back(last);
+            last = s.curr;
+        }
+        blocks.push_back(last);
+        blocks_ = blocks;
+    }
+
+    void reindex(int ndims, std::vector<int> map) {
+        ndims_ = ndims;
+        for (auto &blk : blocks_)
+            blk.dim_idx = map[blk.dim_idx];
+    }
+
+    layout_t layout() const {
+        return {type_, ndims_, offset_, blocks_, /*do_normalize=*/false};
+    }
+
+    iterator_t begin() const {
+        return {ndims_, blocks_.begin(), blocks_.end()};
+    }
+    iterator_t end() const { return {ndims_, blocks_.end(), blocks_.end()}; }
+
+    layout_normalization_t(
+            const layout_t &layout, const std::vector<bool> &dim_empty)
+        : type_(layout.type())
+        , ndims_(layout.ndims())
+        , offset_(layout.offset())
+        , blocks_(normalized_blocks(layout, dim_empty)) {}
+
+private:
+    static std::vector<block_t> normalized_blocks(
+            const layout_t &layout, std::vector<bool> dim_empty) {
+        std::vector<block_t> normalized_blocks;
+        for (auto &eb : layout.enumerated_blocks()) {
+            auto &blk = eb.second;
+            if (blk.block != 1
+                    || (layout.is_outermost(eb) && !dim_empty[blk.dim_idx])) {
+                if (normalized_blocks.empty()
+                        || normalized_blocks.back().dim_idx != blk.dim_idx) {
+                    normalized_blocks.push_back(blk);
+                    dim_empty[blk.dim_idx] = true;
+                } else {
+                    normalized_blocks.back().block *= blk.block;
+                }
+            }
+        }
+        return normalized_blocks;
+    }
+
+    type_t type_;
+    int ndims_;
+    expr_t offset_;
+    blocks_t blocks_;
+};
+
+// Given two layouts, finds an equivalent pair of simpler layouts by attempting
+// to combine consecutive blocks that appear in both layouts at the same level
+// of nesting for the dimensions to which the blocks belong. E.g.,
+//
+//             1.          2.
+// 16a16b16c ---> 256a16c ---> 256a16b
+// 16c16a16b ---> 16c256a ---> 16b256a
+//
+// 1. The consecutive blocks 16a16b are repeated. For the first layout it
+//    appears with an inner tile 1x1x16, and 1x1x1 for the second. Because the
+//    ab-subtile is 1x1 for both and  the inner block (16b) is the same for
+//    both, we can combine these blocks.
+// 2. The b dimension no longer appears, so we can remove it from the layout and
+//    re-index the dimensions so that the new layouts are 2D.
+void reorder_ir_builder_t::normalize_reorder_layouts(layout_t &a, layout_t &b) {
+    int ndims = a.ndims();
+    auto cmp = [](const normalization_stage_t &a,
+                       const normalization_stage_t &b) {
+        return a.elems() <= b.elems();
+    };
+    auto dim_blocks = [](int dim_idx) {
+        return [=](const normalization_stage_t &s) {
+            return s.curr.dim_idx == dim_idx;
+        };
+    };
+    auto matching_inner_tile
+            = [](const std::array<normalization_stage_t, 2> &p) {
+                  return p[0].is_dense() && p[1].is_dense() && p[0] == p[1];
+              };
+
+    std::vector<bool> empty_dimension(ndims, true);
+    for (auto &blk : a.blocks())
+        if (blk.block != 1) empty_dimension[blk.dim_idx] = false;
+    for (auto &blk : b.blocks())
+        if (blk.block != 1) empty_dimension[blk.dim_idx] = false;
+
+    layout_normalization_t a_normalization {a, empty_dimension};
+    layout_normalization_t b_normalization {b, empty_dimension};
+
+    std::vector<int> a_merges;
+    std::vector<int> b_merges;
+    // Find pairs of consecutive blocks which can be combined
+    for (int i = 0; i < ndims; ++i) {
+        auto dim_i_blocks = dim_blocks(i);
+        auto a_stages = a_normalization | filter(dim_i_blocks);
+        auto b_stages = b_normalization | filter(dim_i_blocks);
+        auto stage_pairs
+                = merge(a_stages, b_stages, cmp) | filter(matching_inner_tile);
+        for (auto p : stage_pairs) {
+            a_merges.push_back(p[0].idx);
+            b_merges.push_back(p[1].idx);
+        }
+    }
+    a_normalization.merge(a_merges);
+    b_normalization.merge(b_merges);
+
+    // Find dimensions present in either normalized layout and construct map of
+    // new dimension indices
+    int curr_dim = 0;
+    std::vector<int> dim_map(ndims);
+    for (int i = 0; i < ndims; ++i)
+        if (a_normalization.contains_dim(i) || b_normalization.contains_dim(i))
+            dim_map[i] = curr_dim++;
+    a_normalization.reindex(curr_dim, dim_map);
+    b_normalization.reindex(curr_dim, dim_map);
+
+    a = a_normalization.layout();
+    b = b_normalization.layout();
 }
 
 void reorder_ir_builder_t::build() {

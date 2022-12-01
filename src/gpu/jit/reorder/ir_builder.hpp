@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ public:
         , exec_cfg_(exec_cfg)
         , src_layout_(src_layout)
         , dst_layout_(dst_layout) {
+        normalize_reorder_layouts(src_layout_, dst_layout_);
         build();
     }
 
@@ -61,8 +62,8 @@ public:
             const std::vector<int> &tg_blocks, grid_info_t &kernel_grid,
             grid_info_t &tg_grid, std::vector<int> *dim2grid = nullptr);
 
-    static compute::nd_range_t nd_range(const exec_config_t &exec_cfg,
-            const layout_t &src, const layout_t &dst);
+    static compute::nd_range_t nd_range(
+            const exec_config_t &exec_cfg, layout_t src, layout_t dst);
 
 private:
     void build() override;
@@ -70,6 +71,7 @@ private:
             const std::vector<int> &loop_blocks,
             const std::vector<int> &tg_blocks);
 
+    static void normalize_reorder_layouts(layout_t &a, layout_t &b);
     static dim_t max_tile_size(const hw_config_t &hw_cfg, const layout_t &dst,
             const layout_t &src) {
         // XeHPC is fine with 2048 bytes, XeHPG and below can fit 2048 bytes if
