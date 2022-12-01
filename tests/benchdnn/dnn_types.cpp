@@ -1296,7 +1296,7 @@ int check_tag(const std::string &tag_, bool check_enum_tags_only) {
 
 void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,
         int arg, bool opposite_scale) {
-    if (attr.scales.is_def()) return;
+    if (attr.scales.is_def(arg)) return;
 
     const auto &e = attr.scales.get(arg);
     if (!e.is_def()) {

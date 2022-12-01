@@ -195,7 +195,9 @@ struct attr_t {
             return s == scales.end() ? scale_t() : s->second;
         }
 
-        bool is_def(int arg) const { return get(arg).is_def(); }
+        bool is_def(int arg) const {
+            return scales.empty() || get(arg).is_def();
+        }
         bool is_def() const {
             bool def = true;
             for (const auto &e : scales) {
