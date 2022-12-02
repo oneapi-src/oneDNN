@@ -198,9 +198,21 @@ public:
     }
 
 private:
+    static bool has_padding(const memory_desc_t &md) {
+        const auto &dims = md.dims;
+        const auto &padded_dims = md.padded_dims;
+        for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
+            if (dims[i] != padded_dims[i]) return true;
+        }
+        return false;
+    }
+
     bool init_need_to_restore_zero_padding() const {
         auto *pd = prb_->conv_pd;
         auto *attr = prb_->attr;
+
+        if (!has_padding(prb_->c_md())) return false;
+
         if (prb_->with_bias) return true;
         for (int i = 0; i < attr->post_ops_.len(); i++) {
             auto &po = attr->post_ops_.entry_[i];
