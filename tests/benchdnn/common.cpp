@@ -141,8 +141,8 @@ void parse_result(res_t &res, const char *pstr) {
     }
 
     bs.tests++;
-    assert(bs.tests == (bs.passed + bs.skipped + bs.mistrusted + bs.failed)
-            || bs.tests == bs.listed);
+    assert(bs.tests
+            == bs.passed + bs.skipped + bs.mistrusted + bs.failed + bs.listed);
 
     if (is_bench_mode(PERF)) {
         using bt = timer::timer_t;
