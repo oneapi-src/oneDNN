@@ -496,19 +496,23 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
 
     auto read_layout = read.reg_layout();
     auto write_layout = write.reg_layout();
-    allocs.push_back(
-            alloc_t::make(reg_buf, read.reg_buf_size(), alloc_kind_t::grf));
+    int read_buf_size = read.reg_buf_size();
+    int write_buf_size = write.reg_buf_size();
+    int reg_buf_size = std::max(read_buf_size, write_buf_size);
 
     if (read_layout != write_layout) {
         auto tmp_buf = ir_ctx.create_tmp_var(type_t::byte_ptr(), "tmp");
-        allocs.push_back(alloc_t::make(
-                tmp_buf, write.reg_buf_size(), alloc_kind_t::grf));
+        reg_buf_size = read_buf_size;
+        allocs.push_back(
+                alloc_t::make(tmp_buf, write_buf_size, alloc_kind_t::grf));
 
         auto reorder_stmt = create_reorder_stmt(
                 read_layout, write_layout, reg_buf, tmp_buf);
         write_stmt = substitute(write_stmt, reg_buf, tmp_buf);
         write_stmt = reorder_stmt.append(write_stmt);
     }
+
+    allocs.push_back(alloc_t::make(reg_buf, reg_buf_size, alloc_kind_t::grf));
 
     stmt_ = stmt_t();
     stmt_ = stmt_.append(read_stmt);
