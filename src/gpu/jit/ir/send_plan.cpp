@@ -1095,24 +1095,6 @@ struct layout_2d_wrapper_t {
     const layout_t &l;
 };
 
-bool can_use_block(const hw_config_t &hw_cfg, int inner_bytes, int total_bytes,
-        const send_hint_t &hint) {
-    if (hint.send_op == send_op_t::atomic_fadd) return false;
-    if (inner_bytes % hw_cfg.grf_size() == 0) return true;
-
-    int oword_size = 16;
-    if (inner_bytes % oword_size == 0 && inner_bytes == total_bytes) {
-        int grf_size = hw_cfg.grf_size();
-        uint32_t owords = inner_bytes / oword_size;
-        uint32_t owords_per_grf = grf_size / oword_size;
-        uint32_t sub_grf_mask = (owords_per_grf - 1);
-        // At most one sub-GRF tail message can be supported.
-        if (ngen::utils::popcnt(owords & sub_grf_mask) > 1) return false;
-        return true;
-    }
-    return false;
-}
-
 class view_info_t {
 public:
     view_info_t(const hw_config_t &hw_cfg, const view_t &view,
@@ -1209,6 +1191,44 @@ private:
 
     send_2d_params_t try_init_2d() const;
 
+    bool block_alignment_ok(
+            const layout_t &layout, int inner_idx, int inner_bytes) const {
+        int align = std::min(32, ir_utils::max_pow2_divisor(inner_bytes));
+        if (hw_cfg_.hw() >= ngen::HW::XeHPC) align = 8;
+
+        // Check base address.
+        auto base_mod
+                = mod_info_.get_modulus(view().tlayout(), mod_info_.vmods());
+        if (!base_mod.is_divisible(align) != 0) return false;
+
+        // Check outer strides.
+        for (int i = inner_idx; i < layout.nblocks(); i++) {
+            auto &b = layout.blocks()[i];
+            dim_t stride_bytes = (dim_t)b.stride * layout.type().size();
+            if (stride_bytes % align != 0) return false;
+        }
+        return true;
+    }
+
+    bool can_use_block(const layout_t &vlayout, int inner_idx, int inner_bytes,
+            int total_bytes, const send_hint_t &hint) const {
+        if (hint.send_op == send_op_t::atomic_fadd) return false;
+        if (!block_alignment_ok(vlayout, inner_idx, inner_bytes)) return false;
+        if (inner_bytes % hw_cfg_.grf_size() == 0) return true;
+
+        int oword_size = 16;
+        if (inner_bytes % oword_size == 0 && inner_bytes == total_bytes) {
+            int grf_size = hw_cfg_.grf_size();
+            uint32_t owords = inner_bytes / oword_size;
+            uint32_t owords_per_grf = grf_size / oword_size;
+            uint32_t sub_grf_mask = (owords_per_grf - 1);
+            // At most one sub-GRF tail message can be supported.
+            if (ngen::utils::popcnt(owords & sub_grf_mask) > 1) return false;
+            return true;
+        }
+        return false;
+    }
+
     void init_send_kind() {
         send_2d_params_ = try_init_2d();
         if (!send_2d_params_.is_empty()) {
@@ -1225,7 +1245,8 @@ private:
         for (int i = 0; i < inner_idx_; i++) {
             inner_bytes *= (int)blocks[i].block;
         }
-        if (can_use_block(hw_cfg_, inner_bytes, total_bytes, send_hint_)) {
+        if (can_use_block(vlayout_, inner_idx_, inner_bytes, total_bytes,
+                    send_hint_)) {
             send_kind_ = send_kind_t::block;
         } else {
             send_kind_ = send_kind_t::scattered;
