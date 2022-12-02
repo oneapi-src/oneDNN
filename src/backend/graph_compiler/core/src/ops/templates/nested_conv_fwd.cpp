@@ -67,28 +67,16 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
   if (use_nested_2d_) {
     const int num_threads = runtime_config_t::get().get_num_threads();
     auto thread_split = get_splits(num_threads);
-
-    auto closest_split = [](int x, std::vector<int> splits) {
-      int close_num = splits[0];
-      for (auto split : splits) {
-        if (x > split) {
-          close_num = split;
-          break;
-        }
-      }
-      return close_num;
-    };
-
-    cfg.bs_threads
-      = mb_ >= num_threads ? num_threads : closest_split(mb_, thread_split);
+    cfg.bs_threads = mb_ > num_threads || (mb_ == num_threads && oc_ < 128)
+      ? num_threads
+      : *(std::find_if(thread_split.rbegin(), thread_split.rend(),
+        [&](int split) { return split == 1 || split < mb_; }));
     cfg.oc_threads = num_threads / cfg.bs_threads;
     cfg.h_threads = 1;
     cfg.w_threads = 1;
-
-    if (try_os_blocking_) { cfg.w_threads = 1; }
     auto ic_threads = 1;
     cfg.im_oc_block = utils::get_blocks(oc_, 1, 128).back();
-    cfg.im_ic_block = utils::get_blocks(ic_, 1, 256).back();
+    cfg.im_ic_block = utils::get_blocks(ic_, 1, 128).back();
 
     cfg.im_h_block = 1;
     cfg.im_w_block = ow_;
@@ -97,12 +85,27 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
     cfg.w_block = ow_;
 
     if (cfg.oc_threads != 1) {
-      int im_oc_blocks = oc_ / cfg.im_oc_block;
-      if (im_oc_blocks % cfg.oc_threads != 0) {
-        cfg.im_oc_block
-          = closest_split(oc_ / cfg.oc_threads, utils::get_blocks(oc_));
-      } else {
-        cfg.im_oc_block = oc_ / cfg.oc_threads;
+      int im_oc_num_block = oc_ / cfg.im_oc_block;
+      if (im_oc_num_block % cfg.oc_threads != 0) {
+        auto get_suitable_block
+          = [](int total, int original_block, const std::vector<int> &splits,
+              int threads) {
+              int suitable_block = original_block;
+              for (auto split : splits) {
+                int num_block = total / split;
+                if (num_block % threads == 0) {
+                  if ((total / suitable_block) % threads != 0
+                    || std::abs(original_block - split)
+                      < std::abs(original_block - suitable_block))
+                    suitable_block = split;
+                }
+              }
+              return suitable_block;
+            };
+        // Get a suitable im_oc_block when im_oc_num_block can't be evenly
+        // distributed
+        cfg.im_oc_block = get_suitable_block(
+          oc_, cfg.im_oc_block, get_splits(oc_), cfg.oc_threads);
       }
     }
 
@@ -125,12 +128,14 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
         cfg.im_w_block = utils::get_blocks(ow_, 1, 256).back();
         if (oc_ >= 512) {
           cfg.bs_threads = 1;
+          cfg.h_threads = 1;
           cfg.w_threads = 1;
           cfg.oc_threads = num_threads;
         } else {
           cfg.bs_threads = 1;
-          cfg.oc_threads = num_threads / 2;
-          cfg.w_threads = num_threads / 2;
+          cfg.oc_threads = 1;
+          cfg.h_threads = num_threads;
+          cfg.w_threads = 1;
         }
         cfg.im_oc_block = std::min(
           utils::get_blocks(oc_, 1, 128).back(), oc_ / cfg.oc_threads);
@@ -142,6 +147,11 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
       pack_rows = (cfg.im_w_block > 0 && ow_ % cfg.im_w_block != 0);
       if (!pack_rows) {
         cfg.im_h_block = 1;
+        cfg.h_block = cfg.h_threads == 1
+          ? oh_
+          : (utils::divide_and_ceil(
+               utils::divide_and_ceil(oh_, cfg.im_h_block), cfg.h_threads)
+            * cfg.im_h_block);
         cfg.w_block = cfg.w_threads == 1
           ? ow_
           : (utils::divide_and_ceil(
@@ -281,12 +291,13 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
   int lanes = get_lanes(ctx, config.im_ic_block, get_input_dtype());
   if (config.pack_input == 1 && (sd_ > 1 || sh_ > 1 || sw_ > 1)) {
     for_loop ln, lk, ld, lp;
+    auto mb_expr = input.checked_as<tensor>()->dims_[0];
     if (blocking_input_) {
       // NCHWc
       auto im_c_num_block = ic_ / config.im_ic_block;
       _tensor_(input_tmp, get_input_dtype(),
-        {mb_, im_c_num_block, oh_, ow_, config.im_ic_block});
-      _named_for_(ln, n, 0, mb_, 1, for_type::PARALLEL) {
+        {mb_expr, im_c_num_block, oh_, ow_, config.im_ic_block});
+      _named_for_(ln, n, 0, mb_expr, 1, for_type::PARALLEL) {
         _named_for_(lk, c_o, 0, im_c_num_block) {
           _named_for_(lp, p, 0, oh_) {
             _for_(q, 0, ow_) {
@@ -305,8 +316,8 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
       }
       input1 = input_tmp.static_as<tensor>();
     } else {
-      _tensor_(input_tmp, get_input_dtype(), {mb_, oh_, ow_, ic_});
-      _named_for_(ln, n, 0, mb_, 1, for_type::PARALLEL) {
+      _tensor_(input_tmp, get_input_dtype(), {mb_expr, oh_, ow_, ic_});
+      _named_for_(ln, n, 0, mb_expr, 1, for_type::PARALLEL) {
         _named_for_(lp, p, 0, oh_) {
           _for_(q, 0, ow_) {
             _for_(c_i, 0, ic_, (int)lanes) {
@@ -1812,7 +1823,6 @@ bool gen_nested_conv_fwd_t::generate(context_ptr ctx,
   expr os_acc_size = expr();
   if (pack_rows) {
     os = adj_os_;
-    int os_num_block = os / im_s_block;
     int adj_ow = ow_ + num_elems_skip_per_ow_;
     os_mask.resize(os);
     for (int i = 0; i < os; ++i) {
@@ -1823,7 +1833,7 @@ bool gen_nested_conv_fwd_t::generate(context_ptr ctx,
       }
     }
 
-    int im_os_num_block = im_s_block;
+    int im_os_num_block = os / im_s_block;
     _tensor_(conv_os_acc_size, datatypes::s32, {im_os_num_block});
     int acc_size = 0;
     int blk_size = 0;
