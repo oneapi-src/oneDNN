@@ -17,13 +17,15 @@
 #ifndef GPU_JIT_UTILS_TRACE_HPP
 #define GPU_JIT_UTILS_TRACE_HPP
 
-#include "gpu/jit/ir/ir.hpp"
 #include "gpu/jit/utils/utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
+
+class stmt_t;
+class ir_context_t;
 
 // Trace for debugging purposes.
 #ifdef GEN_CONV_PROFILE
