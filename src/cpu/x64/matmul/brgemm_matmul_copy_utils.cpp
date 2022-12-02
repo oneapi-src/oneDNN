@@ -122,7 +122,6 @@ private:
     void load_tail(int k_tail, size_t offset) {}
     void store_tail(int k_tail, size_t offset) {}
     void reduce_compensation_across_accumulators(int num_accumulators);
-    void copy_row(int ncolumns);
     void copy_K_loop(bool is_K_tail, bool is_first_K_iter, bool is_last_K_iter);
     void copy_M_loop(bool is_K_tail, bool is_first_K_iter, bool is_last_K_iter);
     void generate() override;
