@@ -403,6 +403,7 @@ struct send_hint_t {
     send_2d_hint_t hint_2d;
     bool prefer_dense = false;
     bool use_send_plan = false;
+    bool try_legacy = true;
 };
 
 // Generates loads or stores to move data between memory (global or SLM) and

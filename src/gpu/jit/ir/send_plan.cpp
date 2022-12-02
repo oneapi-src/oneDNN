@@ -1810,7 +1810,8 @@ public:
             const expr_t &reg_buf) const {
         stmt_t ret;
         for (auto &g : send_groups_) {
-            bool try_legacy = (g.hw < ngen::HW::XeHPC) && g.is_block();
+            bool try_legacy = hint.try_legacy && (g.hw < ngen::HW::XeHPC)
+                    && g.is_block();
             std::vector<stmt_t> calls;
             std::vector<send_info_t> send_infos;
             auto base_mem_off = add(addr_base_, g.addr_inc, g.slots);
