@@ -438,7 +438,7 @@ public:
 
 private:
     void build();
-    bool try_build(const layout_t &try_layout);
+    bool try_build(const layout_t &try_layout, memory_walker_t &mem_walker);
     bool try_build_2d(send_hint_t &send_hint);
     bool fixup_send_2d_params(const type_t &send_type, bool vnni,
             bool transpose, bool use_xy, int &W, int &H, int &P, int &w, int &h,
@@ -448,7 +448,8 @@ private:
             int w_idx, int h_idx, expr_t &mask) const;
 
     std::vector<layout_t> candidate_payload_layouts() const;
-    stmt_t create_send_stmt(const send_t &send);
+    stmt_t create_send_stmt(
+            const send_t &send, const memory_walker_t &memory_walker);
     int grf_size() const { return ngen::GRF::bytes(ir_ctx_->hw_cfg().hw()); }
 
     ir_context_t *ir_ctx_ = nullptr;
@@ -461,7 +462,6 @@ private:
 
     type_t mem_type_;
 
-    std::unique_ptr<memory_walker_t> mem_walker_;
     std::unique_ptr<layout_walker_t> reg_layout_walker_;
 
     layout_t reg_layout_;

@@ -482,9 +482,7 @@ access_builder_t::access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
     , send_op_(send_op)
     , send_address_(send_address)
     , send_cache_hint_(send_cache_hint)
-    , mem_type_(mem_view.type())
-    , mem_walker_(
-              utils::make_unique<memory_walker_t>(ir_ctx.cset(), mem_view)) {
+    , mem_type_(mem_view.type()) {
     if (send_hint.use_send_plan) {
         auto sp = create_send_plan(ir_ctx.hw_cfg(), mem_view, send_hint);
         if (sp && !sp.is_2d()) send_hint.hint_2d = send_2d_hint_t();
@@ -506,9 +504,10 @@ access_builder_t::~access_builder_t() = default;
 
 void access_builder_t::build() {
     bool ok = false;
+    memory_walker_t mem_walker(ir_ctx_->cset(), mem_view_);
     for (auto &l : candidate_payload_layouts()) {
         // Try to find send decomposition with the given GRF payload layout.
-        if (try_build(l)) {
+        if (try_build(l, mem_walker)) {
             ok = true;
             break;
         }
@@ -895,7 +894,8 @@ bool access_builder_t::check_2d_mask(const tensor_t &tile,
     return false;
 }
 
-bool access_builder_t::try_build(const layout_t &try_layout) {
+bool access_builder_t::try_build(
+        const layout_t &try_layout, memory_walker_t &mem_walker) {
     auto &try_layout_blocks = try_layout.blocks();
     int reg_stride
             = (try_layout_blocks.empty() ? 0
@@ -905,10 +905,10 @@ bool access_builder_t::try_build(const layout_t &try_layout) {
     reg_layout_walker_
             = utils::make_unique<layout_walker_t>(try_layout, grf_size());
     stmt_ = stmt_t();
-    mem_walker_->reset();
+    mem_walker.reset();
     // Iterate through the memory view, greedily select messages according to
     // the sorted message list.
-    while (mem_walker_->has_next()) {
+    while (mem_walker.has_next()) {
         func_t _send;
         for (auto &_s : send_list) {
             auto &s = _s.as<send_t>();
@@ -919,7 +919,7 @@ bool access_builder_t::try_build(const layout_t &try_layout) {
             int payload_stride = s.payload_type_stride();
             int access_size = s.access_size();
             int access_elems = access_size / mem_type_.size();
-            bool is_last_chunk = mem_walker_->remaining_size() <= access_size;
+            bool is_last_chunk = mem_walker.remaining_size() <= access_size;
 
             if (reg_stride != 1 || payload_stride != slot_size) {
                 // Detected strided GRF layout or strided payload. In this
@@ -940,14 +940,14 @@ bool access_builder_t::try_build(const layout_t &try_layout) {
             }
 
             // Check if slots are contiguous and aligned.
-            if (!mem_walker_->check_region(0, s.slots, slot_size, alignment))
+            if (!mem_walker.check_region(0, s.slots, slot_size, alignment))
                 continue;
 
             // Check mask requirements.
             // XXX: Postpone mask check for prefetch until during send call
             // generation. If the mask cannot be generated, skip the prefetch.
             if (!s.is_prefetch()
-                    && !mem_walker_->check_mask_size(
+                    && !mem_walker.check_mask_size(
                             0, access_size, s.mask_size(), nmasks))
                 continue;
 
@@ -958,12 +958,12 @@ bool access_builder_t::try_build(const layout_t &try_layout) {
         if (_send.is_empty()) return false;
 
         auto &send = _send.as<send_t>();
-        auto send_stmt = create_send_stmt(send);
+        auto send_stmt = create_send_stmt(send, mem_walker);
         send_stmt = try_promote_to_lsc(send_stmt);
         stmt_ = stmt_.append(send_stmt);
 
         reg_layout_walker_->advance(send.access_size() / mem_type_.size());
-        mem_walker_->advance(send.access_size());
+        mem_walker.advance(send.access_size());
     }
     reg_layout_ = try_layout;
     return true;
@@ -986,7 +986,8 @@ std::vector<layout_t> access_builder_t::candidate_payload_layouts() const {
     return ret;
 }
 
-stmt_t access_builder_t::create_send_stmt(const send_t &send) {
+stmt_t access_builder_t::create_send_stmt(
+        const send_t &send, const memory_walker_t &mem_walker) {
     std::vector<expr_t> off_vec;
     // Try to detect a common base and const vector offset to reduce further
     // arithmetic.
@@ -997,7 +998,7 @@ stmt_t access_builder_t::create_send_stmt(const send_t &send) {
     for (int i = 0; i < send.slots; i++) {
         expr_t off_base;
         int off_const;
-        auto off = mem_walker_->get_offset(
+        auto off = mem_walker.get_offset(
                 i * send.type.size(), off_base, off_const);
         if (off_base0.is_empty()) {
             off_base0 = off_base;
@@ -1017,7 +1018,7 @@ stmt_t access_builder_t::create_send_stmt(const send_t &send) {
                 + shuffle_t::make(off_const_vec);
     }
     bool allow_fail = send.is_prefetch();
-    auto _mask = mem_walker_->get_mask(
+    auto _mask = mem_walker.get_mask(
             0, send.access_size(), send.mask_size(), send.nmasks(), allow_fail);
     if (_mask.is_empty()) return stmt_t();
 
