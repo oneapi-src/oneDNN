@@ -48,14 +48,6 @@ struct brgemm_deconvolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine);
 
-        bool output_scales_mask_ok() const {
-            using namespace data_type;
-            const auto &mask = attr()->output_scales_.mask_;
-            return IMPLICATION(!utils::one_of(src_md()->data_type, s8, u8),
-                           attr()->output_scales_.has_default_values())
-                    && (mask == 0 || mask == 1 << 1);
-        }
-
         bool post_ops_ok() const {
             return attr()->post_ops_.find(primitive_kind::convolution) == -1;
         }
