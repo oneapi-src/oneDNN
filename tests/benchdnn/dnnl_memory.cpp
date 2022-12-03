@@ -396,6 +396,17 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dnn_mem_t::init_md(int ndims,
     return md;
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dnn_mem_t::init_csr_md(int ndims,
+        const dnnl_dims_t dims, dnnl_data_type_t data_type, dnnl_dim_t nnz,
+        dnnl_data_type_t indices_dt, dnnl_data_type_t pointers_dt) {
+    dnnl_memory_desc_t md {};
+    DNN_SAFE_V(dnnl_memory_desc_create_with_csr_encoding(
+            &md, ndims, dims, data_type, nnz, indices_dt, pointers_dt));
+    return md;
+}
+#endif
+
 int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
 #ifdef DNNL_WITH_SYCL
     if (handle_info.is_host_ptr) {
