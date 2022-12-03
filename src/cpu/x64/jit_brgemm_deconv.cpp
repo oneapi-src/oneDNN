@@ -124,9 +124,9 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             && (desc()->alg_kind & alg_kind::deconvolution_direct)
             && IMPLICATION(fwd_deconv_d->src_desc.data_type == f16,
                     isa == avx512_core_amx_fp16)
-            && attr()->has_default_values(smask_t::oscale_runtime
+            && attr()->has_default_values(smask_t::scales_runtime
                     | smask_t::post_ops | smask_t::zero_points_runtime)
-            && output_scales_mask_ok() && post_ops_ok() && zero_points_ok()
+            && attr_scales_ok() && post_ops_ok() && zero_points_ok()
             && !has_zero_dim_memory();
     if (!ok) return status::unimplemented;
 
