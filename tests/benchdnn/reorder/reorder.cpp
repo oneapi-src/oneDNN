@@ -34,73 +34,38 @@
 
 namespace reorder {
 
-// Filling for integers is different due to problematic int -> float conversion.
-// And it doesn't require many different points to be tested.
-int fill_memory_int(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_mem(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
     const auto conf = prb->get_conf(kind);
 
-    for (int64_t idx = 0; idx < mem_fp.nelems(); ++idx) {
-        const float gen[4] = {
-                conf->max, // saturate to max of output data type
-                conf->min, // saturate to min of output data type
-                0,
-                16,
-        };
+    const float gen[] = {
+            conf->max, // saturate to max
+            conf->min, // saturate to min
+            0.f,
+            0.25f,
+            0.5f,
+            1.f,
+            1.5f,
+            2.f,
+            16.f,
+            64.f,
+    };
+    const auto table_size = sizeof(gen) / sizeof(gen[0]);
 
-        const int64_t rng = kind == SRC ? (idx % 4) : ((idx * 5 / 4) % 4);
+    benchdnn_parallel_nd(nelems, [&](int64_t i) {
+        const int64_t table_idx = kind == SRC
+                ? (i % table_size)
+                : ((i * (table_size + 1) / table_size) % table_size);
         mem_fp.set_elem(
-                idx, round_to_nearest_representable(conf->dt, gen[rng]));
-    }
+                i, round_to_nearest_representable(conf->dt, gen[table_idx]));
+    });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
+
     return OK;
-}
-
-int fill_memory_fp(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp) {
-    const auto conf = prb->get_conf(kind);
-    const auto &src_scales = prb->attr.scales.get(DNNL_ARG_FROM);
-    const auto &dst_scales = prb->attr.scales.get(DNNL_ARG_TO);
-    const int src_scale_mask = attr_t::get_default_mask(src_scales.policy);
-    const int dst_scale_mask = attr_t::get_default_mask(dst_scales.policy);
-
-    for (int64_t idx = 0; idx < mem_fp.nelems(); ++idx) {
-        float src_scale = 1.f, dst_scale = 1.f;
-        if (!src_scales.is_def()) {
-            int64_t src_mask_idx = mem_fp.get_scale_idx(idx, src_scale_mask);
-            src_scale = prb->src_scales[src_mask_idx];
-        }
-        if (!dst_scales.is_def()) {
-            int64_t dst_mask_idx = mem_fp.get_scale_idx(idx, dst_scale_mask);
-            dst_scale = prb->dst_scales[dst_mask_idx];
-        }
-        const float scale = src_scale / dst_scale;
-
-        const float gen[7] = {
-                conf->max, // saturate to max of output data type
-                conf->min, // saturate to min of output data type
-                1.6f, // rounding check
-                0.2f, // saturate to 0
-                1.f / scale, // exact multiplication check
-                2.f,
-                scale,
-        };
-
-        const int64_t rng = kind == SRC ? (idx % 7) : ((idx * 8 / 7) % 7);
-        mem_fp.set_elem(
-                idx, round_to_nearest_representable(conf->dt, gen[rng]));
-    }
-
-    SAFE(mem_dt.reorder(mem_fp), WARN);
-    return OK;
-}
-
-int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp) {
-    const auto dt = kind == SRC ? prb->sdt : prb->ddt;
-    if (is_integral_dt(dt)) return fill_memory_int(prb, kind, mem_dt, mem_fp);
-    return fill_memory_fp(prb, kind, mem_dt, mem_fp);
 }
 
 int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
@@ -345,13 +310,9 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
-    const bool has_s32 = prb->sdt == dnnl_s32 || prb->ddt == dnnl_s32;
-    const bool has_s8 = prb->sdt == dnnl_s8 || prb->ddt == dnnl_s8;
-    const bool has_u8 = prb->sdt == dnnl_u8 || prb->ddt == dnnl_u8;
-    // For u8 4/7 inputs becomes 0, for s32/s8 3/7 inputs becomes 0;
-    const float zero_trust_percent
-            = has_u8 ? 58.f : (has_s32 || has_s8) ? 43.f : 30.f;
-    cmp.set_zero_trust_percent(zero_trust_percent);
+    // This value can be exact without scales. Scales may affect the value.
+    // Avoid any scales logic involved until needed.
+    cmp.set_zero_trust_percent(80.f);
 
     // Additional check to avoid false-positive result from f32->s32 conversion
     // in case of sum post-op on GPU happening when two max_dt values
@@ -404,11 +365,11 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t dst_dt(dst_md, dst_engine);
 
-    SAFE(fill_memory(prb, SRC, src_dt, src_fp), WARN);
+    SAFE(fill_mem(prb, SRC, src_dt, src_fp), WARN);
 
     const bool has_sum
             = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0;
-    if (has_sum) { SAFE(fill_memory(prb, DST, dst_dt, dst_fp), WARN); }
+    if (has_sum) { SAFE(fill_mem(prb, DST, dst_dt, dst_fp), WARN); }
 
     const int src_mask = attr_t::get_default_mask(
             prb->attr.scales.get(DNNL_ARG_SRC).policy);
