@@ -171,6 +171,16 @@ bool parse_tag(std::vector<std::string> &tag,
         const std::vector<std::string> &def_tag, const char *str,
         const std::string &option_name = "tag");
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+bool parse_encoding(std::vector<dnnl_sparse_encoding_t> &encoding,
+        const std::vector<dnnl_sparse_encoding_t> &def_encoding,
+        const char *str, const std::string &option_name = "encoding");
+
+bool parse_sparsity(std::vector<float> &sparsity,
+        const std::vector<float> &def_sparsity, const char *str,
+        const std::string &option_name = "sparsity");
+#endif
+
 bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
         const std::vector<std::vector<std::string>> &def_tag, const char *str,
         const std::string &option_name = "stag");

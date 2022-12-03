@@ -122,6 +122,33 @@ bool parse_tag(std::vector<std::string> &tag,
     return true;
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+bool parse_encoding(std::vector<dnnl_sparse_encoding_t> &encoding,
+        const std::vector<dnnl_sparse_encoding_t> &def_encoding,
+        const char *str, const std::string &option_name /* = "encoding"*/) {
+    static const std::string help
+            = "ENCODING    (Default: `undef`)\n Specifies memory sparse "
+              "encoding `ENCODING` for source, weights, or destination.\n    "
+              "Valid `ENCODING` values can be found at "
+            + doc_url + "knobs_encoding.md\n";
+
+    return parse_vector_option(encoding, def_encoding, str2sparse_encoding, str,
+            option_name, help);
+}
+
+bool parse_sparsity(std::vector<float> &sparsity,
+        const std::vector<float> &def_sparsity, const char *str,
+        const std::string &option_name /* = "sparsity"*/) {
+    static const std::string help
+            = "SPARSITY    (Default: `0.9`)\n    Specifies sparsity of a "
+              "sparse tensor. Sparsity equal to one means all values are "
+              "zeros, sparsity of 0 means all values are non-zeros.\n";
+
+    return parse_vector_option(
+            sparsity, def_sparsity, atof, str, option_name, help);
+}
+#endif
+
 bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
         const std::vector<std::vector<std::string>> &def_tag, const char *str,
         const std::string &option_name /* = "stag"*/) {
