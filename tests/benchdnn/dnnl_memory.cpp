@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -431,14 +431,15 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
             auto dev = dnnl::sycl_interop::get_device(eng);
             auto ctx = dnnl::sycl_interop::get_context(eng);
             if (memory_kind == memory_kind_ext_t::usm_device) {
-                data_ = ::sycl::malloc_device(sz, dev, ctx);
+                data_.push_back(::sycl::malloc_device(sz, dev, ctx));
             } else {
-                data_ = ::sycl::malloc_shared(sz, dev, ctx);
+                data_.push_back(::sycl::malloc_shared(sz, dev, ctx));
             }
-            DNN_SAFE((sz > 0 && !data_) ? dnnl_out_of_memory : dnnl_success,
+            assert(data_.size() == 1);
+            DNN_SAFE((sz > 0 && !data_[0]) ? dnnl_out_of_memory : dnnl_success,
                     CRIT);
             DNN_SAFE(dnnl_sycl_interop_memory_create(&m_padded_, md_padded,
-                             engine_, dnnl_sycl_interop_usm, data_),
+                             engine_, dnnl_sycl_interop_usm, data_[0]),
                     CRIT);
             SAFE(init_memory(&m_, md_, m_padded_), CRIT);
             break;
@@ -487,14 +488,17 @@ int dnn_mem_t::initialize_memory_create_opencl(
             is_data_owner_ = true;
             size_t sz = dnnl_memory_desc_get_size(md_padded);
             if (memory_kind == memory_kind_ext_t::usm_device) {
-                data_ = dnnl::impl::gpu::ocl::usm::malloc_device(engine_, sz);
+                data_.push_back(
+                        dnnl::impl::gpu::ocl::usm::malloc_device(engine_, sz));
             } else {
-                data_ = dnnl::impl::gpu::ocl::usm::malloc_shared(engine_, sz);
+                data_.push_back(
+                        dnnl::impl::gpu::ocl::usm::malloc_shared(engine_, sz));
             }
-            DNN_SAFE((sz > 0 && !data_) ? dnnl_out_of_memory : dnnl_success,
+            assert(data_.size() == 1);
+            DNN_SAFE((sz > 0 && !data_[0]) ? dnnl_out_of_memory : dnnl_success,
                     CRIT);
             DNN_SAFE(dnnl_ocl_interop_memory_create(&m_padded_, md_padded,
-                             engine_, dnnl_ocl_interop_usm, data_),
+                             engine_, dnnl_ocl_interop_usm, data_[0]),
                     CRIT);
             SAFE(init_memory(&m_, md_, m_padded_), CRIT);
             break;
@@ -522,18 +526,45 @@ int dnn_mem_t::initialize_memory_create(const handle_info_t &handle_info) {
         // Allocate memory for native runtime directly.
         is_data_owner_ = true;
         const size_t alignment = 2 * 1024 * 1024;
-        size_t sz = dnnl_memory_desc_get_size(md_);
-        data_ = zmalloc(sz, alignment);
-        DNN_SAFE(!data_ ? dnnl_out_of_memory : dnnl_success, CRIT);
-        DNN_SAFE(dnnl_memory_create(&m_, md_, engine_, data_), CRIT);
+
+        const int nhandles = query_md_num_handles(md_);
+        for (int i = 0; i < nhandles; i++) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            size_t sz = dnnl_memory_desc_get_size_v2(md_, i);
+#else
+            size_t sz = dnnl_memory_desc_get_size(md_);
+#endif
+            data_.push_back(zmalloc(sz, alignment));
+        }
+        if (std::any_of(
+                    data_.cbegin(), data_.cend(), [](void *p) { return !p; })) {
+            for (void *p : data_)
+                zfree(p);
+            DNN_SAFE(dnnl_out_of_memory, CRIT);
+        }
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        DNN_SAFE(dnnl_memory_create_v2(
+                         &m_, md_, engine_, (int)data_.size(), data_.data()),
+                CRIT);
+#else
+        DNN_SAFE(dnnl_memory_create(&m_, md_, engine_, data_[0]), CRIT);
+#endif
+
     } else if (is_sycl) {
         SAFE(initialize_memory_create_sycl(handle_info), CRIT);
     } else if (is_opencl) {
         SAFE(initialize_memory_create_opencl(handle_info), CRIT);
     } else {
         is_data_owner_ = false;
-        data_ = nullptr;
-        DNN_SAFE(dnnl_memory_create(&m_, md_, engine_, handle_info.ptr), CRIT);
+        const int nhandles = query_md_num_handles(md_);
+        std::vector<void *> handles(nhandles, handle_info.ptr);
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        DNN_SAFE(dnnl_memory_create_v2(&m_, md_, engine_, (int)handles.size(),
+                         handles.data()),
+                CRIT);
+#else
+        DNN_SAFE(dnnl_memory_create(&m_, md_, engine_, handles[0]), CRIT);
+#endif
     }
     return OK;
 }
@@ -565,14 +596,16 @@ int dnn_mem_t::initialize(
     return OK;
 }
 
-static int cleanup_sycl(const dnnl_engine_t &engine, void *data) {
+static int cleanup_sycl(
+        const dnnl_engine_t &engine, const std::vector<void *> &data) {
 #ifdef DNNL_WITH_SYCL
     switch (memory_kind) {
         case memory_kind_ext_t::usm_device:
         case memory_kind_ext_t::usm_shared: {
             auto eng = dnnl::engine(engine, true);
             auto ctx = dnnl::sycl_interop::get_context(eng);
-            ::sycl::free(data, ctx);
+            for (void *p : data)
+                ::sycl::free(p, ctx);
             break;
         }
         default: break;
@@ -581,12 +614,14 @@ static int cleanup_sycl(const dnnl_engine_t &engine, void *data) {
     return OK;
 }
 
-static int cleanup_opencl(const dnnl_engine_t &engine, void *data) {
+static int cleanup_opencl(
+        const dnnl_engine_t &engine, const std::vector<void *> &data) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     switch (memory_kind) {
         case memory_kind_ext_t::usm_device:
         case memory_kind_ext_t::usm_shared:
-            dnnl::impl::gpu::ocl::usm::free(engine, data);
+            for (void *p : data)
+                dnnl::impl::gpu::ocl::usm::free(engine, p);
             break;
         default: break;
     }
@@ -605,7 +640,8 @@ int dnn_mem_t::cleanup() {
         } else if (is_opencl_engine(engine_)) {
             SAFE(cleanup_opencl(engine_, data_), CRIT);
         } else {
-            zfree(data_);
+            for (void *p : data_)
+                zfree(p);
         }
     }
     DNN_SAFE(dnnl_memory_destroy(m_padded_), CRIT);

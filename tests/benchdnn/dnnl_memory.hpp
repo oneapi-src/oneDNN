@@ -67,7 +67,7 @@ struct dnn_mem_t {
         md_ = rhs.md_;
         m_ = rhs.m_;
         m_padded_ = rhs.m_padded_;
-        data_ = rhs.data_;
+        data_ = std::move(rhs.data_);
         is_data_owner_ = rhs.is_data_owner_;
         active_ = rhs.active_;
         engine_kind_ = rhs.engine_kind_;
@@ -187,7 +187,7 @@ struct dnn_mem_t {
     bool is_canary_protected_ = false;
 
 private:
-    void *data_ = NULL;
+    std::vector<void *> data_;
     bool is_data_owner_ = false;
     bool active_ = false;
 

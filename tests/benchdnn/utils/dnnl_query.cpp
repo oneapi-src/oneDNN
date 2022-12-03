@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,6 +99,17 @@ dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine) {
     dnnl_engine_kind_t engine_kind = dnnl_any_engine;
     dnnl_engine_get_kind(engine, &engine_kind);
     return engine_kind;
+}
+
+int query_md_num_handles(const_dnnl_memory_desc_t md) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    int nhandles = 0;
+    if (!md) return nhandles;
+    dnnl_memory_desc_query(md, dnnl_query_num_handles_s32, &nhandles);
+    return nhandles;
+#else
+    return 1;
+#endif
 }
 
 int query_md_ndims(const_dnnl_memory_desc_t md) {
