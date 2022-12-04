@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -160,7 +160,7 @@ private:
     bool with_binary_no_bcast_ = false;
     bool prepare_post_ops_registers_once_ = false;
 
-    char *bd_mask_buffer_ptr_ = nullptr;
+    const char *bd_mask_buffer_ptr_ = nullptr;
     std::vector<size_t> adj_bd_mask_buffer_;
     size_t *adj_bd_mask_buffer_ptr_ = nullptr;
     std::vector<size_t> skipped_bd_mask_buffer_;
@@ -431,18 +431,14 @@ private:
         return store_by_vectors;
     }
 
-    size_t A_offset(int bdb) const noexcept;
-
-    size_t B_offset(int ldb) const noexcept;
+    size_t A_offset(const brgemm_iteration_t &bi, int bdb) const noexcept;
+    size_t B_offset(const brgemm_iteration_t &bi, int ldb) const noexcept;
     size_t C_offset(int bd, int ldb) const noexcept;
     size_t C_block_offset(int bd, int ldb) const noexcept;
     size_t D_offset(int bd, int ldb) const noexcept;
 
     size_t lda() const noexcept;
     size_t ldb() const noexcept;
-    size_t rdb_A_offset(const brgemm_iteration_t &bi) const noexcept;
-    size_t rdb_B_offset(const brgemm_iteration_t &bi) const noexcept;
-    size_t ldb_B_offset(const brgemm_iteration_t &bi) const noexcept;
 
     size_t bias_offset(int ldb) const noexcept;
 
@@ -556,12 +552,32 @@ int jit_brgemm_amx_uker_base_t::skipped_bd_mask(int inp_bd) noexcept {
         return skipped_bd_mask_buffer_ptr_[inp_bd];
 }
 
-size_t jit_brgemm_amx_uker_base_t::A_offset(int bdb) const noexcept {
-    return bdb * LDA2_size_;
+size_t jit_brgemm_amx_uker_base_t::A_offset(
+        const brgemm_iteration_t &bi, int bdb) const noexcept {
+    const auto bs_offs = (brg.type == brgemm_static_offs)
+            ? brg.brgattr.static_offsets[bi.bsi.idx].offset.A
+            : 0;
+    auto rd_block = bi.rdi.block(0);
+    if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
+    return bi.rdi.pos(0) * rd_block * brg.typesize_A
+            + bi.bdi.pos(bdb) * LDA2_size_ + bs_offs;
 }
 
-size_t jit_brgemm_amx_uker_base_t::B_offset(int ldb) const noexcept {
-    return (brg.is_blocked ? 1 : brg.rd_step) * ldb * ld_block_B_size_;
+size_t jit_brgemm_amx_uker_base_t::B_offset(
+        const brgemm_iteration_t &bi, int ldb) const noexcept {
+    const auto bs_offs = (brg.type == brgemm_static_offs)
+            ? brg.brgattr.static_offsets[bi.bsi.idx].offset.B
+            : 0;
+
+    auto rd_block = bi.rdi.block(0);
+    if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
+    const auto rdb_B_offset = bi.rdi.pos(0) * rd_block * LDB_size_;
+
+    const auto ldb_B_offset = bi.ldi.pos(0) * ld_block_B_size_ * brg.ld_step;
+
+    return rdb_B_offset + ldb_B_offset
+            + (brg.is_blocked ? 1 : brg.rd_step) * ldb * ld_block_B_size_
+            + bs_offs;
 }
 
 size_t jit_brgemm_amx_uker_base_t::C_offset(int bd, int ldb) const noexcept {
@@ -583,25 +599,6 @@ size_t jit_brgemm_amx_uker_base_t::lda() const noexcept {
 
 size_t jit_brgemm_amx_uker_base_t::ldb() const noexcept {
     return LDB_size_ * brg.rd_step;
-}
-
-size_t jit_brgemm_amx_uker_base_t::rdb_A_offset(
-        const brgemm_iteration_t &bi) const noexcept {
-    auto rd_block = bi.rdi.block(0);
-    if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
-    return bi.rdi.pos(0) * rd_block * brg.typesize_A;
-}
-
-size_t jit_brgemm_amx_uker_base_t::rdb_B_offset(
-        const brgemm_iteration_t &bi) const noexcept {
-    auto rd_block = bi.rdi.block(0);
-    if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
-    return bi.rdi.pos(0) * rd_block * LDB_size_;
-}
-
-size_t jit_brgemm_amx_uker_base_t::ldb_B_offset(
-        const brgemm_iteration_t &bi) const noexcept {
-    return bi.ldi.pos(0) * ld_block_B_size_ * brg.ld_step;
 }
 
 size_t jit_brgemm_amx_uker_base_t::bias_offset(int ldb) const noexcept {
@@ -979,16 +976,13 @@ void jit_brgemm_amx_uker_base_t::prefetch_A(brgemm_iteration_t &bi,
             ? tot_vecs
             : nstl::min(pfo_vecs_per_store, tot_vecs - prf.vec);
 
-    const auto rdb_A_off = rdb_A_offset(pfo_bi);
-
     for (int iv = 0; iv < nvecs && prf.vec < tot_vecs; iv++) {
         const auto bdb = prf.vec / pfo_bi.bdi.block(0);
         const auto bd = prf.vec % pfo_bi.bdi.block(0);
-        const auto bd_inp_bdb = pfo_bi.bdi.pos(bdb);
 
         //TODO: looks like we have to prefetch in each bs separately
         const auto ptr_A = EVEX_compress_addr(
-                reg_aux_A, A_offset(bd_inp_bdb) + bd * LDA_size_ + rdb_A_off);
+                reg_aux_A, A_offset(pfo_bi, bdb) + bd * LDA_size_);
         uni_prefetch(ptr_A, prf.pft);
         prf.vec++;
     }
@@ -1006,15 +1000,13 @@ void jit_brgemm_amx_uker_base_t::prefetch_B(brgemm_iteration_t &bi,
             : nstl::min(pfo_vecs_per_store, tot_vecs - prf.vec);
 
     // TODO: check these addressing for correctness
-    const auto rdb_B_off = rdb_B_offset(pfo_bi) + ldb_B_offset(pfo_bi);
-
     for (int iv = 0; iv < nvecs && prf.vec < tot_vecs; iv++) {
 
         const auto ldb = prf.vec / pfo_bi.rdi.block(0);
         const auto rb = prf.vec % pfo_bi.rdi.block(0);
         //TODO: looks like we have to prefetch in each bs separately
         const auto ptr_B = EVEX_compress_addr(
-                reg_aux_B, B_offset(ldb) + rdb_B_off + rb * LDB_size_);
+                reg_aux_B, B_offset(pfo_bi, ldb) + rb * LDB_size_);
 
         uni_prefetch(ptr_B, prf.pft);
         prf.vec++;
@@ -1375,36 +1367,78 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::set_A_B_matrices(int bs) {
-    assert(brg.type == brgemm_addr);
+    if (one_of(brg.type, brgemm_static_offs)) return;
+    assert(one_of(brg.type, brgemm_addr, brgemm_offs));
     if (brg.brgattr.max_bs == 1) return;
     auto batch_offset = (size_t)bs * sizeof(brgemm_batch_element_t);
-    if (brg.layout == brgemm_row_major) {
-        mov(reg_aux_A,
-                EVEX_compress_addr(reg_addr_batch,
-                        batch_offset + GET_OFF_BATCH_ELEMENT(ptr.A)));
-        mov(reg_aux_B,
-                EVEX_compress_addr(reg_addr_batch,
-                        batch_offset + GET_OFF_BATCH_ELEMENT(ptr.B)));
-    } else {
-        mov(reg_aux_A,
-                EVEX_compress_addr(reg_addr_batch,
-                        batch_offset + GET_OFF_BATCH_ELEMENT(ptr.B)));
-        mov(reg_aux_B,
-                EVEX_compress_addr(reg_addr_batch,
-                        batch_offset + GET_OFF_BATCH_ELEMENT(ptr.A)));
+    if (brg.type == brgemm_addr) {
+        if (brg.layout == brgemm_row_major) {
+            mov(reg_aux_A,
+                    EVEX_compress_addr(reg_addr_batch,
+                            batch_offset + GET_OFF_BATCH_ELEMENT(ptr.A)));
+            mov(reg_aux_B,
+                    EVEX_compress_addr(reg_addr_batch,
+                            batch_offset + GET_OFF_BATCH_ELEMENT(ptr.B)));
+        } else {
+            mov(reg_aux_A,
+                    EVEX_compress_addr(reg_addr_batch,
+                            batch_offset + GET_OFF_BATCH_ELEMENT(ptr.B)));
+            mov(reg_aux_B,
+                    EVEX_compress_addr(reg_addr_batch,
+                            batch_offset + GET_OFF_BATCH_ELEMENT(ptr.A)));
+        }
+    } else if (brg.type == brgemm_offs) {
+        if (brg.layout == brgemm_row_major) {
+            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_A)]);
+            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_B)]);
+            add(reg_aux_A,
+                    EVEX_compress_addr(reg_addr_batch,
+                            batch_offset + GET_OFF_BATCH_ELEMENT(offset.A)));
+            add(reg_aux_B,
+                    EVEX_compress_addr(reg_addr_batch,
+                            batch_offset + GET_OFF_BATCH_ELEMENT(offset.B)));
+        } else {
+            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_B)]);
+            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_A)]);
+            add(reg_aux_A,
+                    EVEX_compress_addr(reg_addr_batch,
+                            batch_offset + GET_OFF_BATCH_ELEMENT(offset.B)));
+            add(reg_aux_B,
+                    EVEX_compress_addr(reg_addr_batch,
+                            batch_offset + GET_OFF_BATCH_ELEMENT(offset.A)));
+        }
     }
 }
 
 void jit_brgemm_amx_uker_base_t::set_A_B_matrices() {
-    assert(brg.type == brgemm_addr);
+    if (one_of(brg.type, brgemm_static_offs)) return;
+    assert(one_of(brg.type, brgemm_addr, brgemm_offs));
     assert(brg.brgattr.var_bs);
 
-    if (brg.layout == brgemm_row_major) {
-        mov(reg_aux_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
-        mov(reg_aux_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
-    } else {
-        mov(reg_aux_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
-        mov(reg_aux_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
+    if (brg.type == brgemm_addr) {
+        if (brg.layout == brgemm_row_major) {
+            mov(reg_aux_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
+            mov(reg_aux_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
+        } else {
+            mov(reg_aux_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
+            mov(reg_aux_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
+        }
+    } else if (brg.type == brgemm_offs) {
+        if (brg.layout == brgemm_row_major) {
+            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_A)]);
+            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_B)]);
+            add(reg_aux_A,
+                    ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.A)]);
+            add(reg_aux_B,
+                    ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.B)]);
+        } else {
+            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_B)]);
+            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_A)]);
+            add(reg_aux_A,
+                    ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.B)]);
+            add(reg_aux_B,
+                    ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.A)]);
+        }
     }
 }
 
@@ -1697,17 +1731,12 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(brgemm_iteration_t &bi) {
     else
         mov(reg_stride_ld_block, LDC_size_);
 
-    const auto rdb_A_off = rdb_A_offset(bi);
-    const auto rdb_B_off = rdb_B_offset(bi) + ldb_B_offset(bi);
-
     for (int bdb = 0; bdb < bi.bdi.block2(); bdb++) {
-        const auto bd_inp_bdb = bi.bdi.pos(bdb);
-        maybe_tileloadd_nt(bi, matrix_kind_t::matrix_A, bdb,
-                rdb_A_off + A_offset(bd_inp_bdb));
+        maybe_tileloadd_nt(bi, matrix_kind_t::matrix_A, bdb, A_offset(bi, bdb));
         for (int ldb = 0; ldb < bi.ldi.block2(); ldb++) {
             if (bdb == 0)
-                maybe_tileloadd_nt(bi, matrix_kind_t::matrix_B, ldb,
-                        rdb_B_off + B_offset(ldb));
+                maybe_tileloadd_nt(
+                        bi, matrix_kind_t::matrix_B, ldb, B_offset(bi, ldb));
             if (ldb == 0) {
                 if (bdb > 0)
                     tdpbxxd(bi, bdb - 1, bi.ldi.block2() - 1, do_pre_tilestore,
@@ -1940,21 +1969,40 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
 void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
     was_prev_bi_ = false;
 
-    if (brg.brgattr.max_bs == 1) {
+    if (brg.type == brgemm_static_offs) {
         if (brg.layout == brgemm_row_major) {
-            mov(reg_aux_A,
-                    EVEX_compress_addr(
-                            reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.A)));
-            mov(reg_aux_B,
-                    EVEX_compress_addr(
-                            reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.B)));
+            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_A)]);
+            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_B)]);
         } else {
-            mov(reg_aux_A,
-                    EVEX_compress_addr(
-                            reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.B)));
-            mov(reg_aux_B,
-                    EVEX_compress_addr(
-                            reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.A)));
+            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_B)]);
+            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_A)]);
+        }
+    } else if (brg.brgattr.max_bs == 1) {
+        assert(one_of(brg.type, brgemm_addr, brgemm_offs));
+        if (brg.type == brgemm_addr) {
+            if (brg.layout == brgemm_row_major) {
+                mov(reg_aux_A,
+                        EVEX_compress_addr(
+                                reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.A)));
+                mov(reg_aux_B,
+                        EVEX_compress_addr(
+                                reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.B)));
+            } else {
+                mov(reg_aux_A,
+                        EVEX_compress_addr(
+                                reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.B)));
+                mov(reg_aux_B,
+                        EVEX_compress_addr(
+                                reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.A)));
+            }
+        } else if (brg.type == brgemm_offs) {
+            if (brg.layout == brgemm_row_major) {
+                mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_A)]);
+                mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_B)]);
+            } else {
+                mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_B)]);
+                mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_A)]);
+            }
         }
     }
 

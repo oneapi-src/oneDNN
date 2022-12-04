@@ -442,6 +442,7 @@ status_t brgemm_kernel_create(
     *brg_kernel = nullptr;
 
     if (brg.is_dgmm) {
+        if (brg.type == brgemm_static_offs) return status::unimplemented;
 #define CASE(isa) \
     case isa: \
         CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel, \
@@ -462,6 +463,7 @@ status_t brgemm_kernel_create(
         CHECK(safe_ptr_assign<brgemm_kernel_t>(
                 *brg_kernel, new brgemm_amx_uker_t(brg)));
     } else {
+        if (brg.type == brgemm_static_offs) return status::unimplemented;
         if (brg.is_tmm) {
             if (brg.is_f16_tmm) {
                 CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,

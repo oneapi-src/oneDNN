@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -180,7 +180,8 @@ void DNNL_API brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 /// @param addr_A Pointer to first matrix A in the batch
 /// @param addr_B Pointer to first matrix B in the batch
 /// @param batch Array of batch elements containing offsets to matrices A,B
-///     and virtual padding for matrix A
+///     and virtual padding for matrix A. This parameter is ignored when
+///     using fixed offsets.
 /// @param ptr_C Pointer to destination matrix C
 /// @param scratch Scratchpad memory needed in several scenarios:
 ///     * Where: AMX+ hardware; When: always; For: buffer for tiles store.
@@ -229,7 +230,8 @@ void DNNL_API brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel,
 /// @param addr_A Pointer to first matrix A in the batch
 /// @param addr_B Pointer to first matrix B in the batch
 /// @param batch Array of batch elements containing offsets to matrices A,B
-///     and virtual padding for matrices A
+///     and virtual padding for matrices A. This parameter is ignored when
+///     using fixed offsets.
 /// @param ptr_C Pointer to destination matrix C
 /// @param ptr_D Pointer to destination matrix D
 /// @param post_ops_data Specifies tensors and data used in post processing

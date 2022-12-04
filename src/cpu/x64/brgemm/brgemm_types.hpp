@@ -34,6 +34,8 @@ typedef enum {
     brgemm_offs = 2,
     // Base address and fixed stride between matrices.
     brgemm_strd = 3,
+    // Base address and static array of fixed offsets.
+    brgemm_static_offs = 4,
 } brgemm_batch_kind_t;
 
 // The type defines the storage format of matrix
@@ -87,6 +89,33 @@ struct brgemm_prf_t {
     int dist2 = -1;
 };
 
+struct brgemm_batch_element_t {
+    brgemm_batch_element_t() {
+        ptr.A = ptr.B = nullptr;
+        vvpad.top = vvpad.bottom = 0;
+    }
+    union {
+        struct {
+            const void *A;
+            const void *B;
+        } ptr;
+        struct {
+            dim_t A;
+            dim_t B;
+        } offset;
+    };
+    union {
+        struct {
+            dim_t top;
+            dim_t bottom;
+        } vvpad;
+        struct {
+            dim_t left;
+            dim_t right;
+        } hvpad;
+    };
+};
+
 struct DNNL_API brgemm_attr_t {
     brgemm_attr_t();
     // if unrolled kernel is used (use_uker == true)
@@ -106,7 +135,10 @@ struct DNNL_API brgemm_attr_t {
     bool generate_skip_accumulation;
     // bd_mask is char array in which each element is a boolean value that
     // determines whether to write this row to the result matrix or skip
-    char *bd_mask;
+    const char *bd_mask;
+    // static_offsets is a static array of fixed offsets used for
+    // brgemm_static_offs batch kind
+    const brgemm_batch_element_t *static_offsets;
     // Value of bd_mask_level specifies how bd_mask is used in brgemm kernel
     // 0 – bd_mask is not used
     // 1 – bd_mask is used on storing stage only
@@ -144,33 +176,6 @@ struct DNNL_API brgemm_attr_t {
     // this flag may be used to omit some actions on calling from blocking
     // in convolutions init_conf
     bool test_call = false;
-};
-
-struct brgemm_batch_element_t {
-    brgemm_batch_element_t() {
-        ptr.A = ptr.B = nullptr;
-        vvpad.top = vvpad.bottom = 0;
-    }
-    union {
-        struct {
-            const void *A;
-            const void *B;
-        } ptr;
-        struct {
-            dim_t A;
-            dim_t B;
-        } offset;
-    };
-    union {
-        struct {
-            dim_t top;
-            dim_t bottom;
-        } vvpad;
-        struct {
-            dim_t left;
-            dim_t right;
-        } hvpad;
-    };
 };
 
 struct brgemm_t {
