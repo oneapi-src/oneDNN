@@ -289,7 +289,8 @@ protected:
             task->set_reuse_stream(i % 3 == 0);
             task->set_reuse_primitive(i % 5 == 0);
 
-            task->create();
+            catch_expected_failures(
+                    [=]() { task->create(); }, false, dnnl_success);
             tasks_.emplace_back(task);
         }
 
