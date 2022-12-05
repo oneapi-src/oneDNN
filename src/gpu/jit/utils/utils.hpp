@@ -17,6 +17,7 @@
 #ifndef GPU_JIT_UTILS_UTILS_HPP
 #define GPU_JIT_UTILS_UTILS_HPP
 
+#include <algorithm>
 #include <cctype>
 #include <functional>
 #include <iomanip>
