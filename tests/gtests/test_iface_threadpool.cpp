@@ -36,7 +36,7 @@ void test_threadpool_maxconcurrency_st(dnnl_status_t &res) {
     for (auto m : multipliers) {
         dnnl_status_t st = dnnl_success;
 
-        int expected = tid * m % 21;
+        int expected = tid * m % 29;
         st = dnnl_threadpool_interop_set_max_concurrency(expected);
         if (st != dnnl_success) {
             res = st;
