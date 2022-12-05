@@ -270,9 +270,10 @@ protected:
         dst_desc = std::make_shared<memory::desc>(
                 dst_dims, data_type, p.src_format);
 
+        expected_factors.resize(src_desc->get_ndims() - 2);
         for (int i = 0; i < src_desc->get_ndims() - 2; i++) {
-            expected_factors.push_back((double)dst_desc->get_dims()[2 + i]
-                    / src_desc->get_dims()[2 + i]);
+            expected_factors[i] = (double)dst_desc->get_dims()[2 + i]
+                    / src_desc->get_dims()[2 + i];
         }
 
         Forward();
