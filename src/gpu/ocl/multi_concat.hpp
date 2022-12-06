@@ -48,7 +48,9 @@ struct multi_concat_t : public gpu_primitive_t {
         }
 
         status_t init(engine_t *engine) {
-            if (max_batch_size() == 0) return status::unimplemented;
+            bool ok = max_batch_size() != 0 && attr()->has_default_values()
+                    && set_default_params() == status::success;
+            if (!ok) return status::unimplemented;
 
             auto n_batches = utils::div_up(n_inputs(), max_batch_size());
             concat_pds_.resize(n_batches);
