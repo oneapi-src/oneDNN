@@ -12,7 +12,7 @@ SoftPlus operation applies following formula on every element of \src tensor
 
 Attribute Name | Description | Value Type | Supported Values | Required or Optional
 -- | -- | -- | -- | --
-[beta](@ref dnnl::graph::op::attr::beta) | Value for the SoftPlus formulation. | s64 | Arbitrary s64 value (`1` in default) | Optional
+[beta](@ref dnnl::graph::op::attr::beta) | Value for the SoftPlus formulation. | f32 | Arbitrary f32 value (`1.f` by default) | Optional
 
 ## Execution arguments
 
