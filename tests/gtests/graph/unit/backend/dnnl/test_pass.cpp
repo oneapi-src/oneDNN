@@ -14304,7 +14304,7 @@ TEST(Pass, FailToFuseInt8ConcatDifferentScales) {
 TEST(Pass, SingleSoftPlusForwardAndBackwardPass) {
     std::vector<std::pair<op_kind_t, std::string>> op_infos {
             {SoftPlus, "softplus"}, {SoftPlusBackward, "softplus_bw"}};
-    std::vector<int64_t> beta_values {-3, -1, 0, 1, 3};
+    std::vector<float> beta_values {-3.f, -1.f, 0.f, 1.f, 3.f};
     for_(const auto &op_info : op_infos)
     for (auto beta : beta_values) {
         const auto &op_name = op_info.second;
