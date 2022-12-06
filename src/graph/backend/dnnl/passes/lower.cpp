@@ -138,7 +138,7 @@ static status_t eltwise_bwd_handler(
 static status_t softplus_handler(
         const std::shared_ptr<op_t> &op, subgraph_rewriter_t &rewriter) {
     op_ptr new_op;
-    const auto beta = op->get_attr<int64_t>(op_attr::beta);
+    const auto beta = op->get_attr<float>(op_attr::beta);
     const auto algo = dnnl::algorithm::eltwise_soft_relu;
     if (op->get_kind() == graph::op_kind::SoftPlus) {
         new_op = std::make_shared<op_t>(op_kind::dnnl_eltwise);
@@ -148,7 +148,7 @@ static status_t softplus_handler(
         new_op->set_attr(op_attr::use_dst, false);
     }
     new_op->set_attr<int64_t>(op_attr::alg_kind, static_cast<int64_t>(algo));
-    new_op->set_attr<float>(op_attr::alpha, static_cast<float>(beta));
+    new_op->set_attr<float>(op_attr::alpha, beta);
 
     rewriter.replace_op(op, new_op);
     insert_empty_scratchpad(new_op);
