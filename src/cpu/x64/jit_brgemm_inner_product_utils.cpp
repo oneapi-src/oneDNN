@@ -43,10 +43,9 @@ int get_brg_kernel_index(const jit_brgemm_primitive_conf_t &jbgp,
 
 int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
         bool is_adjustment) {
-    const bool is_amx_int8
-            = jbgp.isa == avx512_core_amx && one_of(jbgp.wei_dt, s8, u8);
-    const bool is_amx_xf16 = is_superset(jbgp.isa, avx512_core_amx)
-            && one_of(jbgp.wei_dt, bf16, f16);
+    const bool is_amx_int8 = jbgp.is_amx && one_of(jbgp.wei_dt, s8, u8);
+    const bool is_xf16 = one_of(jbgp.wei_dt, bf16, f16) || jbgp.is_bf32;
+    const bool is_amx_xf16 = jbgp.is_amx && is_xf16;
     const bool is_avx512_bf16 = jbgp.isa == avx512_core_bf16;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const bool is_bf32 = jbgp.is_bf32;
@@ -468,12 +467,11 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 }
 
 status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
-    const bool is_amx_xf16
-            = is_superset(jbgp.isa, avx512_core_amx) && !jbgp.is_bf32;
+    jbgp.is_amx = is_superset(jbgp.isa, avx512_core_amx);
+    const bool is_amx_xf16 = jbgp.is_amx && !jbgp.is_bf32;
     const bool is_avx512_bf16 = jbgp.isa == avx512_core_bf16;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const bool is_bf16 = everyone_is(bf16, jbgp.wei_dt, jbgp.dst_dt);
-    jbgp.is_amx = is_amx_xf16;
 
     constexpr int amx_xf16_granularity = 2;
     jbgp.use_buffer_a = is_amx_xf16 && jbgp.oc % amx_xf16_granularity != 0;
@@ -784,11 +782,10 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
 }
 
 status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
-    const bool is_amx_xf16
-            = is_superset(jbgp.isa, avx512_core_amx) && !jbgp.is_bf32;
+    jbgp.is_amx = is_superset(jbgp.isa, avx512_core_amx);
+    const bool is_amx_xf16 = jbgp.is_amx && !jbgp.is_bf32;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const bool has_weights_buffer = jbgp.wei_dt != jbgp.acc_dt;
-    jbgp.is_amx = is_amx_xf16;
 
     const int amx_xf16_row = 64;
     const bool big_ic_blk_ok
