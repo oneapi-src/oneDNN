@@ -4660,6 +4660,14 @@ bool gemm_kernel_generator_t<hw>::assignMasks(
     return true;
 }
 
+// Assign a single mask to all blocks in a layout.
+void assignUniformMask(vector<RegisterBlock> &layout, FlagRegister flag) {
+    for (auto &block : layout) {
+        if (block.flag) stub(); /* Already has a flag? */
+        block.flag = flag;
+    }
+}
+
 // Output code for loading a mask into a flag register.
 template <HW hw>
 void gemm_kernel_generator_t<hw>::loadMask(MaskAssignment assignment,
@@ -8141,6 +8149,20 @@ bool gemm_kernel_generator_t<hw>::gemmBody(
             cmp(1 | eq | state.flagAP, y0, 0);
             or_(1 | state.flagAP, flags, flags, FlagStoreSums);
         }
+    }
+
+    // Out-of-bounds panel checks.
+    bool panelCheck = strategy.panelCheck && strategy.lateExit();
+    if (panelCheck && isPacked(problem.A.layout)
+            && strategy.remHandling[LoopM] != RemainderHandling::Ignore) {
+        state.panelMaskA = state.raVFlag.alloc();
+        cmp(16 | gt | state.panelMaskA, state.remainders[LoopM], 0);
+    }
+
+    if (panelCheck && isPacked(problem.B.layout)
+            && strategy.remHandling[LoopN] != RemainderHandling::Ignore) {
+        state.panelMaskB = state.raVFlag.alloc();
+        cmp(16 | gt | state.panelMaskB, state.remainders[LoopN], 0);
     }
 
     // Release variables that are no longer needed.
@@ -13530,6 +13552,18 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
     if (!success) return false;
 
     loadMasks(masks, state.remainders, strategy, state);
+
+    // Apply panel masks, if defined, to all A/B blocks.
+    if (state.panelMaskA.isValid()) {
+        assignUniformMask(strategy.slmA ? state.Ai_layout : state.A_layout,
+                state.panelMaskA);
+        assignUniformMask(state.Ap_layout, state.panelMaskA);
+    }
+    if (state.panelMaskB.isValid()) {
+        assignUniformMask(strategy.slmB ? state.Bi_layout : state.B_layout,
+                state.panelMaskB);
+        assignUniformMask(state.Bp_layout, state.panelMaskB);
+    }
 
     // Temporary: move add64 out of the way (later: general cramming).
     if (state.add64.isValid()) {

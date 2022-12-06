@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -988,6 +988,7 @@ struct GEMMStrategy : public CommonStrategy {
     bool xParallel = false; // TRSM: parallelize in x dimension.
     bool checkBeta1
             = false; // If true, check for beta = 1 and handle specially.
+    bool panelCheck = false; // If true, check for out-of-bounds panel reads.
     std::vector<MatrixAddressingStrategy>
             binary; // Strategies for binary postop data
 
@@ -1195,6 +1196,7 @@ struct GEMMState : public CommonState {
     MatrixAddressingStrategy Ai_strategy, Bi_strategy;
     MatrixAddressingStrategy Ao_strategy, Bo_strategy;
     MatrixAddressingStrategy Cext_strategy;
+    ngen::FlagRegister panelMaskA, panelMaskB;
     int8_t tokenBarrierFence[2];
     ngen::InstructionModifier modBarrierFence[2];
     bool barrierReady = false;
