@@ -276,8 +276,6 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
 
     const int sg_per_inner_dim
             = utils::div_up(conf.inner_dim_size, conf.sub_group_size);
-    const int writes_per_sg
-            = std::min(conf.inner_dim_size, conf.sub_group_size);
 
     // Each phase actually consists of 2 stages:
     // 1. Parallelized across work items in a subgroup: reduce by num_horizontal_reductions
@@ -306,7 +304,8 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
         int reduction_end = utils::div_up(reduced_dim_size, reduction_size);
         int num_dst_elems
                 = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
-        int num_subgroups = utils::div_up(num_dst_elems, writes_per_sg);
+        int num_subgroups = utils::div_up(
+                (long)num_dst_elems * sg_per_inner_dim, conf.inner_dim_size);
 
         // Outer dims are independent, so base this heuristic on "subgroups per outer dim"
         if (num_subgroups
@@ -317,7 +316,9 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
             reduction_end = utils::div_up(reduced_dim_size, reduction_size);
             num_dst_elems
                     = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
-            num_subgroups = utils::div_up(num_dst_elems, writes_per_sg);
+            num_subgroups
+                    = utils::div_up((long)num_dst_elems * sg_per_inner_dim,
+                            conf.inner_dim_size);
         }
         // End Heuristic
 
@@ -334,7 +335,8 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
 
         num_dst_elems
                 = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
-        num_subgroups = utils::div_up(num_dst_elems, writes_per_sg);
+        num_subgroups = utils::div_up(
+                (long)num_dst_elems * sg_per_inner_dim, conf.inner_dim_size);
 
         const int phase_start = reduced_dim_size;
         const int phase_reductions = reduction_size;
