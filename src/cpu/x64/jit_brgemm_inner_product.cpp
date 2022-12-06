@@ -1240,7 +1240,7 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
             = ti->scratchpad.template get<brgemm_batch_element_t>(
                     key_brgemm_primitive_batch);
 
-    const bool is_bf16 = jbgp.wei_dt == bf16;
+    const bool is_bf16 = jbgp.wei_dt == bf16 || jbgp.is_bf32;
     const bool is_amx_bf16 = is_bf16 && isa == avx512_core_amx;
     char *wsp_tile_global = (is_amx_bf16) ? ti->wsp_tile_base : nullptr;
     int os_chunks = utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking);
