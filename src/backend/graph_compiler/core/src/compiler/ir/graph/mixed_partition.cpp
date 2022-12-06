@@ -214,7 +214,9 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
         if (old_input.isa<tensor>()
                 || (old_input.isa<tensorptr>()
                         && ins->producer_owner_->isa<tensor_view_op_t>()
-                        && ins->uses_.size() == 1)) {
+                        && ins->uses_.size() == 1
+                        && utils::is_one_of(old_input->dtype_,
+                                sc_data_type_t::u8(), sc_data_type_t::s8()))) {
             op->attrs_.set<bool>(op_attr_key::inplace_optimized, true);
             auto pad_op = op->dyn_cast<padding_op_t>();
             auto new_input = builder::tensor_ptr(g2b_map_.get(out),
@@ -2774,7 +2776,12 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                     && input_tsr_set.find(in) == input_tsr_set.end()) {
                 // if the input is not included in the parti, make an input
                 // node
-                sub_graph.make_input({new_graph_in.back()});
+                auto new_input_op = sub_graph.make_input({new_graph_in.back()});
+                // inherit constant attr for input if necessary
+                if (in->producer_owner_->attrs_.has_key("constant")) {
+                    new_input_op->attrs_.set("constant",
+                            in->producer_owner_->attrs_.get<int>("constant"));
+                }
                 // add the input in the args of the fused op in orig sub_graph
                 fused_op_in.emplace_back(in);
                 input_tsr_set.insert(in);
