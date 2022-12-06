@@ -3965,10 +3965,8 @@ TEST(OpSchema, SoftPlusDefaultAttribute) {
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
-    const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>(op_attr::beta, &ival);
-    int64_t int_value {1};
-    EXPECT_EQ(*ival, int_value);
+    float ival = tmp_op.get_attr<float>(op_attr::beta);
+    EXPECT_EQ(ival, 1.f);
 }
 
 TEST(OpSchema, SoftPlusBackwardDefaultAttribute) {
@@ -3979,10 +3977,8 @@ TEST(OpSchema, SoftPlusBackwardDefaultAttribute) {
     EXPECT_TRUE(opm != nullptr);
     opm->set_default_attribute(&tmp_op);
 
-    const int64_t *ival {nullptr};
-    tmp_op.get_attr<int64_t>(op_attr::beta, &ival);
-    int64_t int_value {1};
-    EXPECT_EQ(*ival, int_value);
+    float ival = tmp_op.get_attr<float>(op_attr::beta);
+    EXPECT_EQ(ival, 1.f);
 }
 
 TEST(OpSchema, SqrtBackwardDefaultAttribute) {

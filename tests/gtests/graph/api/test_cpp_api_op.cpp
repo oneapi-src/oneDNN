@@ -193,3 +193,22 @@ TEST(APIOp, ShallowCopy) {
 
     ASSERT_EQ(conv.get(), conv_1.get());
 }
+
+TEST(APIOp, SoftPlusAttr) {
+    using namespace dnnl::graph;
+    const size_t id = 123;
+    op softplus {id, op::kind::SoftPlus, "softplus"};
+    softplus.set_attr<float>(op::attr::beta, 2.f);
+
+    logical_tensor in {0, logical_tensor::data_type::f32,
+            logical_tensor::layout_type::strided};
+    logical_tensor out {1, logical_tensor::data_type::f32,
+            logical_tensor::layout_type::strided};
+
+    softplus.add_input({in});
+    softplus.add_output({out});
+
+    graph g(engine::kind::cpu);
+    g.add_op(softplus);
+    g.finalize();
+}

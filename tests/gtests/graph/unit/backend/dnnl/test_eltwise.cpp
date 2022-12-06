@@ -392,14 +392,14 @@ TEST(Execute, SoftPlus) {
             40, 0, 0.449667, 0.104465, 44.317};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
-    const std::map<graph::op_attr_t, int64_t> attrs_data_case1 {
-            {graph::op_attr::beta, -1}};
-    const std::map<graph::op_attr_t, int64_t> attrs_data_case2 {
-            {graph::op_attr::beta, 1}};
-    const std::map<graph::op_attr_t, int64_t> attrs_data_case3 {
-            {graph::op_attr::beta, -2}};
-    const std::map<graph::op_attr_t, int64_t> attrs_data_case4 {
-            {graph::op_attr::beta, 2}};
+    const std::map<graph::op_attr_t, float> attrs_data_case1 {
+            {graph::op_attr::beta, -1.f}};
+    const std::map<graph::op_attr_t, float> attrs_data_case2 {
+            {graph::op_attr::beta, 1.f}};
+    const std::map<graph::op_attr_t, float> attrs_data_case3 {
+            {graph::op_attr::beta, -2.f}};
+    const std::map<graph::op_attr_t, float> attrs_data_case4 {
+            {graph::op_attr::beta, 2.f}};
 
     test_eltwise_common(src, ref_dst_case1, dims, graph::op_kind::SoftPlus,
             "softplus", attrs_data_case1);
@@ -426,14 +426,14 @@ TEST(Execute, SoftPlusBackward) {
             -0.0269537, 70, 0, 0.447293, -0.0412833, 88.5838};
 
     dnnl::impl::graph::dims dims {1, 3, 3};
-    const std::map<graph::op_attr_t, int64_t> attrs_data_case1 {
-            {graph::op_attr::beta, -1}};
-    const std::map<graph::op_attr_t, int64_t> attrs_data_case2 {
-            {graph::op_attr::beta, 1}};
-    const std::map<graph::op_attr_t, int64_t> attrs_data_case3 {
-            {graph::op_attr::beta, -2}};
-    const std::map<graph::op_attr_t, int64_t> attrs_data_case4 {
-            {graph::op_attr::beta, 2}};
+    const std::map<graph::op_attr_t, float> attrs_data_case1 {
+            {graph::op_attr::beta, -1.f}};
+    const std::map<graph::op_attr_t, float> attrs_data_case2 {
+            {graph::op_attr::beta, 1.f}};
+    const std::map<graph::op_attr_t, float> attrs_data_case3 {
+            {graph::op_attr::beta, -2.f}};
+    const std::map<graph::op_attr_t, float> attrs_data_case4 {
+            {graph::op_attr::beta, 2.f}};
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src_case1, dims,
             graph::op_kind::SoftPlusBackward, "softplus_bw", attrs_data_case1);
