@@ -988,6 +988,7 @@ struct GEMMStrategy : public CommonStrategy {
     bool xParallel = false; // TRSM: parallelize in x dimension.
     bool checkBeta1
             = false; // If true, check for beta = 1 and handle specially.
+    bool panelCheck = false; // If true, check for out-of-bounds panel reads.
     std::vector<MatrixAddressingStrategy>
             binary; // Strategies for binary postop data
 
@@ -1195,6 +1196,7 @@ struct GEMMState : public CommonState {
     MatrixAddressingStrategy Ai_strategy, Bi_strategy;
     MatrixAddressingStrategy Ao_strategy, Bo_strategy;
     MatrixAddressingStrategy Cext_strategy;
+    ngen::FlagRegister panelMaskA, panelMaskB;
     int8_t tokenBarrierFence[2];
     ngen::InstructionModifier modBarrierFence[2];
     bool barrierReady = false;

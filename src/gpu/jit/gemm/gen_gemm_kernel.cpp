@@ -59,6 +59,8 @@ status_t gen_gemm_kernel_desc_t::finalize() {
     strategy_.unroll[LoopM] = entry_->driverInfo.unroll[LoopM];
     strategy_.unroll[LoopN] = entry_->driverInfo.unroll[LoopN];
     parseStrategy(entry_->strategy, hw_, problem_, strategy_);
+    if (isPacked(problem_.A.layout) || isPacked(problem_.B.layout))
+        strategy_.panelCheck |= (hw_ >= ngen::HW::XeHPC);
     adjustStrategy(hw_, problem_, strategy_);
 
     // Always use variable beta for global k-parallel kernels.

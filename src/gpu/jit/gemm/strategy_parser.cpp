@@ -279,6 +279,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.B.padded = strategy.B_prefetch.padded = true;
         } else if (mod == "pc")
             strategy.C.padded = strategy.C_prefetch.padded = true;
+        else if (mod == "up")
+            strategy.panelCheck = true;
         else if (mod == "mnk") {
             strategy.loopOrder[0] = LoopM;
             strategy.loopOrder[1] = LoopN;
@@ -472,6 +474,14 @@ void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy) {
     if (strategy.prefetchC && !isBlock2D(strategy.C_prefetch.accessType))
         strategy.remHandling[LoopM] = strategy.remHandling[LoopN]
                 = RemainderHandling::Split;
+
+    // ... and always use split remainder handling on later GPUs when panel checks are active.
+    if (strategy.panelCheck && strategy.lateExit() && hw >= HW::XeHP) {
+        if (isPacked(problem.A.layout))
+            strategy.remHandling[LoopM] = RemainderHandling::Split;
+        if (isPacked(problem.B.layout))
+            strategy.remHandling[LoopN] = RemainderHandling::Split;
+    }
 }
 
 } // namespace jit
