@@ -73,7 +73,7 @@ struct dnn_mem_t {
         engine_kind_ = rhs.engine_kind_;
         engine_ = rhs.engine_;
         is_mapped_ = (bool)rhs.is_mapped_;
-        mapped_ptr_ = rhs.mapped_ptr_;
+        mapped_ptrs_ = std::move(rhs.mapped_ptrs_);
 
         rhs.active_ = false;
         return *this;
@@ -101,7 +101,7 @@ struct dnn_mem_t {
     int ndims() const;
     const dnnl_dims_t &dims() const;
     const dnnl_dims_t &padded_dims() const;
-    dnnl_data_type_t dt() const;
+    dnnl_data_type_t dt(int buffer_index = 0) const;
     const dnnl_dims_t &padded_offsets() const;
     dnnl_dim_t offset0() const;
     dnnl_format_kind_t format_kind() const;
@@ -117,13 +117,20 @@ struct dnn_mem_t {
     template <typename T>
     explicit operator T *() const {
         assert(is_mapped_);
-        return static_cast<T *>(mapped_ptr_);
+        // Always return 0th ptr.
+        return static_cast<T *>(get_mapped_pointer<T>(0));
+    }
+
+    template <typename T>
+    T *get_mapped_pointer(int index = 0) const {
+        assert(is_mapped_);
+        return static_cast<T *>(mapped_ptrs_[index]);
     }
 
     explicit operator bool() const { return active_; }
 
-    float get_elem(int64_t idx) const;
-    void set_elem(int64_t idx, float value) const;
+    float get_elem(int64_t idx, int buffer_index = 0) const;
+    void set_elem(int64_t idx, float value, int buffer_index = 0) const;
 
     int64_t get_scale_idx(
             int64_t data_idx, int scale_mask, const int ndims) const {
@@ -201,7 +208,7 @@ private:
     dnnl_engine_t engine_ = NULL;
 
     mutable bool is_mapped_ = false;
-    mutable void *mapped_ptr_ = NULL;
+    mutable std::vector<void *> mapped_ptrs_;
 
     int initialize_memory_create_sycl(const handle_info_t &handle_info);
     int initialize_memory_create_opencl(const handle_info_t &handle_info);

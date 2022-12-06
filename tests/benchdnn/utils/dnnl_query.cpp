@@ -105,7 +105,7 @@ int query_md_num_handles(const_dnnl_memory_desc_t md) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     int nhandles = 0;
     if (!md) return nhandles;
-    dnnl_memory_desc_query(md, dnnl_query_num_handles_s32, &nhandles);
+    dnnl_memory_desc_query_v2(md, dnnl_query_num_handles_s32, 0, &nhandles);
     return nhandles;
 #else
     return 1;
@@ -134,10 +134,15 @@ dnnl_dim_t query_md_submemory_offset(const_dnnl_memory_desc_t md) {
     return submemory_offset;
 }
 
-dnnl_data_type_t query_md_data_type(const_dnnl_memory_desc_t md) {
+dnnl_data_type_t query_md_data_type(
+        const_dnnl_memory_desc_t md, int buffer_index) {
     dnnl_data_type_t dt = dnnl_data_type_undef;
     if (!md) return dt;
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    dnnl_memory_desc_query_v2(md, dnnl_query_data_type, buffer_index, &dt);
+#else
     dnnl_memory_desc_query(md, dnnl_query_data_type, &dt);
+#endif
     return dt;
 }
 

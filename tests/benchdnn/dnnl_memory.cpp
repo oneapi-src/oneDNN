@@ -169,10 +169,11 @@ size_t dnn_mem_t::sizeof_dt() const {
     return dnnl_data_type_size(dt());
 }
 
-float dnn_mem_t::get_elem(int64_t idx) const {
-    void *data = (void *)*this;
+float dnn_mem_t::get_elem(int64_t idx, int buffer_index) const {
+    void *data = get_mapped_pointer<void>(buffer_index);
     float elem = 0.0;
-    switch (dt()) {
+
+    switch (dt(buffer_index)) {
         case dnnl_s8: elem = static_cast<int8_t *>(data)[idx]; break;
         case dnnl_u8: elem = static_cast<uint8_t *>(data)[idx]; break;
         case dnnl_s32: elem = static_cast<int32_t *>(data)[idx]; break;
@@ -185,9 +186,10 @@ float dnn_mem_t::get_elem(int64_t idx) const {
     return elem;
 }
 
-void dnn_mem_t::set_elem(int64_t idx, float value) const {
-    void *data = (void *)*this;
-    switch (dt()) {
+void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
+    void *data = get_mapped_pointer<void>(buffer_index);
+
+    switch (dt(buffer_index)) {
         case dnnl_s8: ((int8_t *)data)[idx] = value; break;
         case dnnl_u8: ((uint8_t *)data)[idx] = value; break;
         case dnnl_s32: ((int32_t *)data)[idx] = value; break;
@@ -247,7 +249,25 @@ void dnn_mem_t::map() const {
 
     if (!m_) return;
     auto mem = m_padded_ ? m_padded_ : m_;
-    DNN_SAFE_V(dnnl_memory_map_data(mem, &mapped_ptr_));
+    const int nhandles = query_md_num_handles(md_);
+    mapped_ptrs_.resize(nhandles);
+    for (int i = 0; i < nhandles; i++) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        auto st = dnnl_memory_map_data_v2(mem, &mapped_ptrs_[i], i);
+#else
+        auto st = dnnl_memory_map_data(mem, &mapped_ptrs_[i]);
+#endif
+        if (st != dnnl_success) {
+            for (int j = 0; j < i; j++) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+                DNN_SAFE_V(dnnl_memory_unmap_data_v2(mem, mapped_ptrs_[i], i));
+#else
+                DNN_SAFE_V(dnnl_memory_unmap_data(mem, mapped_ptrs_[i]));
+#endif
+            }
+            DNN_SAFE_V(st);
+        }
+    }
 }
 
 void dnn_mem_t::unmap() const {
@@ -256,8 +276,15 @@ void dnn_mem_t::unmap() const {
 
     if (!m_) return;
     auto mem = m_padded_ ? m_padded_ : m_;
-    DNN_SAFE_V(dnnl_memory_unmap_data(mem, mapped_ptr_));
-    mapped_ptr_ = nullptr;
+    const int nhandles = query_md_num_handles(md_);
+    for (int i = 0; i < nhandles; i++) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        DNN_SAFE_V(dnnl_memory_unmap_data_v2(mem, mapped_ptrs_[i], i));
+#else
+        DNN_SAFE_V(dnnl_memory_unmap_data(mem, mapped_ptrs_[i]));
+#endif
+        mapped_ptrs_[i] = nullptr;
+    }
 }
 
 void dnn_mem_t::memset(int value, size_t size) const {
@@ -588,16 +615,23 @@ int dnn_mem_t::initialize(
 
     SAFE(initialize_memory_create(handle_info), CRIT);
 
-    size_t sz = dnnl_memory_desc_get_size(md_);
-    if (is_canary_protected_) sz = pad_memory_size(sz, engine_kind_);
-
-    // Do not fill a memory if its size is zero. Moreover, memset expects
-    // defined pointer, nullptr is not allowed.
-    if (sz != 0 && handle_info.is_allocate()) {
-        // Fill memory with a magic number (NAN for fp data types) to catch
-        // possible uninitialized access.
+    if (handle_info.is_allocate()) {
         map();
-        ::memset(mapped_ptr_, dnnl_mem_default_value, sz);
+        for (int i = 0; i < (int)mapped_ptrs_.size(); i++) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            size_t sz = dnnl_memory_desc_get_size_v2(md_, i);
+#else
+            size_t sz = dnnl_memory_desc_get_size(md_);
+#endif
+            if (is_canary_protected_) sz = pad_memory_size(sz, engine_kind_);
+            // Do not fill a memory if its size is zero. Moreover, memset expects
+            // defined pointer, nullptr is not allowed.
+            if (sz != 0) {
+                // Fill memory with a magic number (NAN for fp data types) to catch
+                // possible uninitialized access.
+                ::memset(mapped_ptrs_[i], dnnl_mem_default_value, sz);
+            }
+        }
         unmap();
     }
 
@@ -679,8 +713,8 @@ const dnnl_dims_t &dnn_mem_t::padded_dims() const {
     return query_md_padded_dims(md_);
 }
 
-dnnl_data_type_t dnn_mem_t::dt() const {
-    return query_md_data_type(md_);
+dnnl_data_type_t dnn_mem_t::dt(int buffer_index) const {
+    return query_md_data_type(md_, buffer_index);
 }
 
 const dnnl_dims_t &dnn_mem_t::padded_offsets() const {
