@@ -316,8 +316,7 @@ namespace impl {
 namespace threadpool_utils {
 
 namespace {
-static thread_local dnnl::threadpool_interop::threadpool_iface
-        *active_threadpool
+thread_local dnnl::threadpool_interop::threadpool_iface *active_threadpool
         = nullptr;
 }
 
