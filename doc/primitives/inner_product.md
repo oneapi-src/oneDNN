@@ -104,21 +104,18 @@ primitive parameters. When using `any` it is necessary to first create an
 inner product primitive descriptor and then query it for the actual data and
 weight memory objects formats.
 
-The table below shows the combinations for which **plain** memory formats the
+The table below shows the combinations of memory formats the
 inner product primitive is optimized for. For the destination tensor (which is
 always \f$N \times C\f$) the memory format is always
 #dnnl::memory::format_tag::nc (#dnnl::memory::format_tag::ab).
 
-| Spatial | Source / Weights logical tensor | Implementation optimized for memory formats
-| :--     | :--                             | :--
-| 0D      | NC / OI                         | #dnnl_nc (#dnnl_ab) / #dnnl_oi (#dnnl_ab)
-| 0D      | NC / OI                         | #dnnl_nc (#dnnl_ab) / #dnnl_io (#dnnl_ba)
-| 1D      | NCW / OIW                       | #dnnl_ncw (#dnnl_abc) / #dnnl_oiw (#dnnl_abc)
-| 1D      | NCW / OIW                       | #dnnl_nwc (#dnnl_acb) / #dnnl_wio (#dnnl_cba)
-| 2D      | NCHW / OIHW                     | #dnnl_nchw (#dnnl_abcd) / #dnnl_oihw (#dnnl_abcd)
-| 2D      | NCHW / OIHW                     | #dnnl_nhwc (#dnnl_acdb) / #dnnl_hwio (#dnnl_cdba)
-| 3D      | NCDHW / OIDHW                   | #dnnl_ncdhw (#dnnl_abcde) / #dnnl_oidhw (#dnnl_abcde)
-| 3D      | NCDHW / OIDHW                   | #dnnl_ndhwc (#dnnl_acdeb) / #dnnl_dhwio (#dnnl_cdeba)
+| Source / Destination                         | Weights                                      | Limitations
+| :--                                          | :--                                          | :--
+| `any`                                        | `any`                                        | N/A
+| #dnnl_nc, #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | `any`                                        | N/A
+| #dnnl_nc, #dnnl_ncw, #dnnl_nchw, #dnnl_ncdhw | `any`                                        | N/A
+| #dnnl_nc, #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | #dnnl_io, #dnnl_wio, #dnnl_hwio, #dnnl_dhwio | N/A
+| #dnnl_nc, #dnnl_ncw, #dnnl_nchw, #dnnl_ncdhw | #dnnl_oi, #dnnl_oiw, #dnnl_oihw, #dnnl_oidhw | N/A
 
 ### Post-Ops and Attributes
 

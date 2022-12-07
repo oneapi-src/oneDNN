@@ -193,23 +193,15 @@ descriptor and then query it for the actual data and weight memory objects
 formats.
 
 While convolution primitives can be created with memory formats specified
-explicitly, the performance is likely to be suboptimal.
+explicitly, the performance may be suboptimal. The table below shows
+the combinations of memory formats the convolution primitive is optimized for.
 
-The table below shows the combinations for which **plain** memory formats
-the convolution primitive is optimized for.
-
-| Spatial    | Convolution Type | Data / Weights logical tensor | Implementation optimized for memory formats
-| :--        | :--              | :--                           | :--
-| 1D, 2D, 3D |                  | `any`                         | *optimized*
-| 1D         | f32, bf16        | NCW / OIW, GOIW               | #dnnl_ncw (#dnnl_abc) / #dnnl_oiw (#dnnl_abc), #dnnl_goiw (#dnnl_abcd)
-| 1D         | \"               | \"                            | #dnnl_nwc (#dnnl_acb) / #dnnl_wio (#dnnl_cba), #dnnl_wigo (#dnnl_dcab)
-| 1D         | int8             | NCW / OIW                     | #dnnl_nwc (#dnnl_acb) / #dnnl_wio (#dnnl_cba)
-| 2D         | f32, bf16        | NCHW / OIHW, GOIHW            | #dnnl_nchw (#dnnl_abcd) / #dnnl_oihw (#dnnl_abcd), #dnnl_goihw (#dnnl_abcde)
-| 2D         | \"               | \"                            | #dnnl_nhwc (#dnnl_acdb) / #dnnl_hwio (#dnnl_cdba), #dnnl_hwigo (#dnnl_decab)
-| 2D         | int8             | NCHW / OIHW, GOIHW            | #dnnl_nhwc (#dnnl_acdb) / #dnnl_hwio (#dnnl_cdba), #dnnl_hwigo (#dnnl_decab)
-| 3D         | f32, bf16        | NCDHW / OIDHW, GOIDHW         | #dnnl_ncdhw (#dnnl_abcde) / #dnnl_oidhw (#dnnl_abcde), #dnnl_goidhw (#dnnl_abcdef)
-| 3D         | \"               | \"                            | #dnnl_ndhwc (#dnnl_acdeb) / #dnnl_dhwio (#dnnl_cdeba), #dnnl_dhwigo (#dnnl_defcab)
-| 3D         | int8             | NCDHW / OIDHW                 | #dnnl_ndhwc (#dnnl_acdeb) / #dnnl_dhwio (#dnnl_cdeba)
+| Source / Destination               | Weights                            | Limitations
+| :--                                | :--                                | :--
+| `any`                              | `any`                              | N/A
+| #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | `any`                              | N/A
+| #dnnl_nwc, #dnnl_nhwc, #dnnl_ndhwc | #dnnl_wio, #dnnl_hwio, #dnnl_dhwio | Only on GPUs with Xe-HPC architecture only
+| #dnnl_ncw, #dnnl_nchw, #dnnl_ncdhw | `any`                              | Only on CPU
 
 ### Post-ops and Attributes
 
@@ -387,6 +379,8 @@ Intel(R) Advanced Vector Extensions 512 (Intel(R) AVX-512) support and
 Intel Deep Learning Boost (Intel DL Boost)
 under the following conditions:
 
+- Source, weights and destination data type is f32
+
 - Data and weights memory formats are defined by the convolution primitive
   (user passes `any` as the data format).
 
@@ -394,8 +388,6 @@ under the following conditions:
 
 - The weights shape is 3x3, there are no groups, dilation or strides
   (\f$KH = KW = 3\f$, \f$SH = SW = 1\f$, and \f$DH = DW = 0\f$).
-
-- The data type is f32 or f16.
 
 The Winograd convolution algorithm implementation additionally chooses tile
 size based on the problem shape and
@@ -447,14 +439,10 @@ the convolution.)
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
-2. Check [Winograd Convolution](@ref dg_winograd_conv) section above for its
-   limitations including hardware support.
+2. See [Winograd Convolution](@ref dg_winograd_conv) section for limitations
+of Winograd algorithm implementations.
 
-3. **CPU**
-   - Only f32 data type is supported for \src, \weights and \dst
-   - Backward by data convolution with bias is not supported
-
-4. **GPU**
+3. **GPU**
    - Depthwise post-op is not supported
 
 ## Performance Tips
