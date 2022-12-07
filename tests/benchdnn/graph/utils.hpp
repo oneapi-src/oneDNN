@@ -28,6 +28,8 @@
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
 #ifdef DNNL_GRAPH_WITH_SYCL
+#include "oneapi/dnnl/dnnl_graph_sycl.hpp"
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 #if __has_include(<sycl/sycl.hpp>)
 #include <sycl/sycl.hpp>
 #elif __has_include(<CL/sycl.hpp>)
@@ -169,6 +171,22 @@ private:
 template <typename T>
 void compare_data(T *dst, T *ref, size_t size, float rtol = 1e-5f,
         float atol = 1e-6f, bool equal_nan = false);
+
+// Engine used to run oneDNN fusion patterns for testing.
+const dnnl::graph::engine &get_test_engine();
+
+#if DNNL_GRAPH_WITH_SYCL
+struct scratchpad_mm_mgr {
+    void *sycl_alloc_mm(
+            size_t size, size_t alignment, const void *dev, const void *ctx);
+    void sycl_free_mm(
+            void *ptr, const void *device, const void *context, void *event);
+
+private:
+    std::unordered_multimap<size_t, std::shared_ptr<void>> map_size_ptr_;
+    std::unordered_set<void *> free_ptr_;
+};
+#endif // DNNL_GRAPH_WITH_SYCL
 
 } // namespace graph
 #endif

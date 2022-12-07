@@ -128,7 +128,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    engine eng = benchdnnext::get_test_engine();
+    engine eng = get_test_engine();
 
     /// mark the output logical tensors of partition as ANY layout enabled
     std::unordered_set<size_t> id_to_set_any_layout;
