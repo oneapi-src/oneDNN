@@ -1774,6 +1774,66 @@ TEST(LayoutPropagation, Transpose) {
     ASSERT_EQ(md_stride, out_stride);
 }
 
+TEST(LayoutPropagation, F16MatMul) {
+    impl::engine_t &g_eng = get_engine();
+    SKIP_IF(g_eng.kind() != impl::engine_kind::gpu,
+            "Skip fp16 test for non-GPU device.");
+    dnnl::engine p_eng = impl::dnnl_impl::make_dnnl_engine(g_eng);
+    graph_t agraph;
+    op_t matmul {0, MatMul, "matmul"};
+
+    dims src_shape {64, 1024};
+    logical_tensor_t src = logical_tensor_init(0, src_shape, data_type::f16);
+    logical_tensor_t weights
+            = logical_tensor_init(1, {1024, 1024}, data_type::f16);
+    logical_tensor_t dst = logical_tensor_init(
+            2, src_shape, data_type::f16, layout_type::any);
+    matmul.add_input(src);
+    matmul.add_input(weights);
+    matmul.add_output(dst);
+
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+
+    agraph.build_graph();
+
+    pass::pass_base_ptr apass = get_pass("matmul_pass");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 2U);
+
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            agraph.get_partitions()[0]->get_ops(), p_eng,
+            impl::fpmath_mode::strict, true, true);
+
+    std::vector<logical_tensor_t> inputs = {src, weights};
+    std::vector<logical_tensor_t> outputs = {dst};
+
+    dnnl_impl::set_given_inputs_outputs(subgraph, inputs, outputs);
+
+    dnnl_impl::pass_pipeline_t pipeline(
+            dnnl_impl::subgraph_visualizer_t(), true, false);
+    dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
+    ASSERT_EQ(pipeline.run(subgraph), impl::status::success);
+
+    ASSERT_EQ(subgraph->infer_shape(), impl::status::success);
+
+    ASSERT_EQ(dnnl_impl::layout_propagation(subgraph), impl::status::success);
+
+    // plain layout will be used to create matmul primitive, the check need to
+    // be removed once supports block layout
+    auto out_lt
+            = subgraph->get_ops()[0]->get_output_value(0)->get_logical_tensor();
+    ASSERT_EQ(out_lt.layout_type, impl::layout_type::strided);
+    auto out_md = dnnl_impl::make_dnnl_memory_desc(out_lt);
+    ASSERT_EQ(out_md.dims(), src_shape);
+    std::vector<int64_t> out_stride {1024, 1};
+    const auto md_stride
+            = std::vector<int64_t>(out_md.data.format_desc.blocking.strides,
+                    out_md.data.format_desc.blocking.strides + 2);
+    ASSERT_EQ(md_stride, out_stride);
+}
+
 TEST(SubgraphPass, FuseTypecastBeforeFusePostops) {
     impl::engine_t &engine = get_engine();
 
