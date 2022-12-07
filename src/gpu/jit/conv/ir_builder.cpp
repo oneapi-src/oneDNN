@@ -1537,7 +1537,7 @@ private:
                 (!is_mad) ? (prb_.is_fwd) ? prb_.ic : prb_.oc : prb_.g);
         const int c_blk = (channels < 32) ? channels : 32;
         const int k_blk = ((channels > 4)) ? 32 / c_blk : 1;
-        const int m_blk = cfg_.simd();
+        const int m_blk = cfg_.vec_size();
 
         const type_t s_type = is_mad ? a_view.type() : type_t::s32();
         const type_t i_type = type_t::s32();
