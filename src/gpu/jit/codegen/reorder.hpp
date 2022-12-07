@@ -470,7 +470,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             const auto align_boundary = grf_size / 2;
             bool aligned = d.getByteOffset() % align_boundary == 0
                     && s.getByteOffset() == 0;
-            if (esize > 1 && dst_stride == 1 && !aligned) {
+            if (esize > 1 && !aligned) {
                 auto t = tmp.subregister(s.getByteOffset(), tmp_type);
                 plan(mov, esize, t(tmp_stride), s(src_stride));
                 plan(mov, esize, d.w()(dst_stride), t.w()(tmp_stride));
