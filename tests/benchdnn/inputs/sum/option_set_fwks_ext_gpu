@@ -94,3 +94,5 @@
 #wide_and_deep.tr.fp32.tf.mb262144_pvc
 --reset --allow-enum-tags-only=0 --sdt=f32:f32:f32:f32:f32:f32:f32:f32:f32:f32:f32:f32:f32:f32:f32 --ddt=f32 --stag=ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab:ab --dtag=ab 262144x1n"wide_and_deep.tr.fp32.tf.mb262144_pvc*1"
 --reset --allow-enum-tags-only=0 --sdt=f32:f32:f32:f32 --ddt=f32 --stag=ab:ab:ab:ab --dtag=ab 262144x1n"wide_and_deep.tr.fp32.tf.mb262144_pvc*1"
+#mma.tr.tf32.tf.mb32
+--reset --allow-enum-tags-only=0 --sdt=f32:f32:f32 --ddt=f32 --stag=abcd:abcd:abcd --dtag=abcd 32x29x1x64n"mma.tr.tf32.tf.mb32*1"

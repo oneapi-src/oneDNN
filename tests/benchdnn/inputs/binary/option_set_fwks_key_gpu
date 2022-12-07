@@ -273,17 +273,11 @@
 --reset --allow-enum-tags-only=0 --sdt=f32:f32 --ddt=f32 --alg=add --stag=ABcde16a16b:ABcde16a16b --dtag=ABcde16a16b 16x32x17x33x33:16x32x17x33x33n"ffn.tr.fp32.tf.mb16*8"
 #ffn.tr.bf16.tf.mb16
 --reset --allow-enum-tags-only=0 --sdt=bf16:bf16 --ddt=bf16 --alg=add --stag=abcde:abcde --dtag=abcde 16x17x33x33x32:16x17x33x33x32n"ffn.tr.bf16.tf.mb16*8"
-#mma.tr.bf16.tf.mb32
---reset --allow-enum-tags-only=0 --sdt=f32:f32 --ddt=f32 --alg=sub --stag=ab:ab --dtag=ab 32x3:32x3n"mma.tr.bf16.tf.mb32*1"
---reset --allow-enum-tags-only=0 --sdt=f32:f32 --ddt=f32 --alg=mul --stag=ab:ab --dtag=ab 32x3:32x3n"mma.tr.bf16.tf.mb32*1"
-#mma.tr.fp32.tf.mb32
---reset --allow-enum-tags-only=0 --sdt=f32:f32 --ddt=f32 --alg=sub --stag=ab:ab --dtag=ab 32x3:32x3n"mma.tr.fp32.tf.mb32*1"
---reset --allow-enum-tags-only=0 --sdt=f32:f32 --ddt=f32 --alg=mul --stag=ab:ab --dtag=ab 32x3:32x3n"mma.tr.fp32.tf.mb32*1"
-#kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --sdt=f16:f16 --ddt=f16 --alg=add --stag=abcd:abcd --dtag=abcd 1x2x56x56:1x2x56x56n"kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16:f16 --ddt=f16 --alg=add --stag=abcd:abcd --dtag=abcd 1x4x28x28:1x4x28x28n"kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16:f16 --ddt=f16 --alg=add --stag=abcd:abcd --dtag=abcd 1x8x14x14:1x8x14x14n"kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16:f16 --ddt=f16 --alg=add --stag=abcd:abcd --dtag=abcd 1x16x7x7:1x16x7x7n"kuaishou-img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+#img-preprocessing-dirtylens.inf.fp16.pt.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16:f16 --ddt=f16 --alg=add --stag=abcd:abcd --dtag=abcd 1x2x56x56:1x2x56x56n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16:f16 --ddt=f16 --alg=add --stag=abcd:abcd --dtag=abcd 1x4x28x28:1x4x28x28n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16:f16 --ddt=f16 --alg=add --stag=abcd:abcd --dtag=abcd 1x8x14x14:1x8x14x14n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=f16:f16 --ddt=f16 --alg=add --stag=abcd:abcd --dtag=abcd 1x16x7x7:1x16x7x7n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
 #rcan.inf.fp16.pt.mb1
 --reset --allow-enum-tags-only=0 --sdt=f16:f16 --ddt=f16 --alg=add --stag=aBcd16b:aBcd16b --dtag=aBcd16b 1x64x360x640:1x64x360x640n"rcan.inf.fp16.pt.mb1*6"
 #se-resnext50.inf.fp16.pt.mb1

@@ -912,7 +912,6 @@ dnnl_primitive_attr_t create_dnnl_attr(
                 const auto &e = attr_args.get(arg_name);
                 // Only RT scales are supported.
                 SAFE_V(e.runtime ? OK : FAIL);
-                // Only common policy is supported in the library at this point
                 int mask = e.mask;
 
                 DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
@@ -1296,7 +1295,7 @@ int check_tag(const std::string &tag_, bool check_enum_tags_only) {
 
 void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,
         int arg, bool opposite_scale) {
-    if (attr.scales.is_def()) return;
+    if (attr.scales.is_def(arg)) return;
 
     const auto &e = attr.scales.get(arg);
     if (!e.is_def()) {

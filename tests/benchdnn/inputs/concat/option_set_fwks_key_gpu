@@ -41,30 +41,6 @@
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=abc:abc --dtag=abc --axis=1 23x36x72:23x36x72n"adorym.tr.fp32.pt.mb23*8"
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=abc:abc --dtag=abc --axis=2 23x72x36:23x72x36n"adorym.tr.fp32.pt.mb23*8"
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=abcd:abcd --dtag=abcd --axis=0 1x23x72x72:1x23x72x72n"adorym.tr.fp32.pt.mb23*2"
-#mma.tr.bf16.tf.mb32
---reset --allow-enum-tags-only=0 --sdt=bf16 --ddt=bf16 --stag=ab:ab:ab --dtag=ab --axis=1 32x1:32x1:32x1n"mma.tr.bf16.tf.mb32*1"
-#mma.tr.fp32.tf.mb32
---reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=ab:ab:ab --dtag=ab --axis=1 32x1:32x1:32x1n"mma.tr.fp32.tf.mb32*1"
-#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ab:ab:ab:ab --dtag=ab --axis=1 6x64:6x128:6x256:6x512n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
-#kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=ab:ab:ab:ab --dtag=ab --axis=1 6x64:6x128:6x256:6x512n"kuaishou-img-preprocessing-blocky.inf.fp16.pt.mb6*1"
-#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x32x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x64x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*2"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x384x30x30:1x96x30x30:1x288x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x192x30x30:1x192x30x30:1x192x30x30:1x192x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x192x14x14:1x768x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd --dtag=abcd --axis=1 1x384x14x14:1x384x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x768x14x14:1x768x14x14:1x192x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*2"
-#kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x32x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x64x61x61:1x64x61x61:1x96x61x61:1x64x61x61n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*2"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x384x30x30:1x96x30x30:1x288x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x192x30x30:1x192x30x30:1x192x30x30:1x192x30x30n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x192x14x14:1x768x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*1"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd --dtag=abcd --axis=1 1x384x14x14:1x384x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*4"
---reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd:abcd:abcd:abcd --dtag=abcd --axis=1 1x320x14x14:1x768x14x14:1x768x14x14:1x192x14x14n"kuaishou-img-preprocessing-blur.inf.fp16.pt.mb1*2"
 #topaz-denoise.inf.int8.ov.mb1
 --reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --stag=aBcd32b:aBcd32b --dtag=aBcd32b --axis=1 1x48x512x512:1x32x512x512n"topaz-denoise.inf.int8.ov.mb1*1"
 #yolo.inf.fp16.ov.mb1
@@ -110,6 +86,8 @@
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=abc:abc:abc:abc --dtag=abc --axis=2 64x507x1:64x507x1:64x507x1:64x507x1n"yolo.inf.int8.pt.mb64*1"
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=abcd:abcd:abcd --dtag=abcd --axis=1 64x8112x1x4:64x2028x1x4:64x507x1x4n"yolo.inf.int8.pt.mb64*1"
 --reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --stag=abc:abc:abc --dtag=abc --axis=1 64x8112x80:64x2028x80:64x507x80n"yolo.inf.int8.pt.mb64*1"
+#yolo.inf.fp16.ov.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b:aBcd16b:aBcd16b:aBcd16b --dtag=aBcd16b --axis=1 1x384x20x20:1x384x20x20:1x384x20x20:1x384x20x20n"yolo.inf.fp16.ov.mb1*1"
 #ssd-mobilenet.inf.int8.pt.mb512
 --reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abc:abc:abc:abc:abc:abc --dtag=abc --axis=1 512x2166x21:512x600x21:512x150x21:512x54x21:512x24x21:512x6x21n"ssd-mobilenet.inf.int8.pt.mb512*1"
 --reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=abc:abc:abc:abc:abc:abc --dtag=abc --axis=1 512x2166x4:512x600x4:512x150x4:512x54x4:512x24x4:512x6x4n"ssd-mobilenet.inf.int8.pt.mb512*1"

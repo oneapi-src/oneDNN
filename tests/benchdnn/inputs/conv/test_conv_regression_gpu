@@ -35,3 +35,5 @@ g8mb1ic8ih200iw340oc8oh200ow340kh3kw3ph1pw1
 g16mb1ic16ih200iw340oc16oh100ow170kh3kw3sh2sw2ph0pw0
 g8mb1ic8id120ih200iw340oc8od120oh200ow340kd3kh3kw3pd1ph1pw1
 g16mb1ic16id120ih200iw340oc16od60oh100ow170kd3kh3kw3sd2sh2sw2pd0ph0pw0
+
+--reset --attr-fpmath=tf32 --dir=BWD_W --stag=axb --dtag=axb mb16ic8id5oc8od3kd5pd1

@@ -1,0 +1,6 @@
+#resnet-50.inf.fp16.ov.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x7x7:1x2048x1x1n"resnet-50.inf.fp16.ov.mb1*1"
+#resnet-50.inf.int8.ov.mb1
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b 1x2048x7x7:1x2048x1x1n"resnet-50.inf.int8.ov.mb1*1"
+#resnet-50.inf.int8.ov.mb64
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f32 --alg=mean --p=0 --eps=0 --stag=ABcd32a32b --dtag=ABcd32a32b 64x2048x7x7:64x2048x1x1n"resnet-50.inf.int8.ov.mb64*1"

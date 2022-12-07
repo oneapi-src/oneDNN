@@ -58,3 +58,7 @@
 7x64:1x1
 15x16:1x1
 128x128:1x1
+
+# discordant shapes
+2x8x33:2x1x33
+2x8x17:2x1x17
