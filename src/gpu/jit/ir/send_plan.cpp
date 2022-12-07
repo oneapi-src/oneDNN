@@ -546,7 +546,7 @@ bool has_vidx_mask(const std::vector<mask_desc_t> &mask_descs, int idx,
         }
         if (dim * block >= tdim.block()) {
             factor = ir_utils::safe_divide(tdim.block(), dim);
-            ir_assert(block % factor == 0);
+            factor = math::gcd(factor, block);
             return true;
         }
     }
