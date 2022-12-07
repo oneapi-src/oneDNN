@@ -2,7 +2,8 @@
 --reset
 --dir=FWD_D
 --cfg=u8s8s8,s8s8s8
---attr-scales=src:common:5*+wei:common:5*+dst:common:5*
+--attr-scales=src:common:1*+wei:common:1*+dst:common:1*,src:common:5*+wei:common:5*+dst:common:5*
+--attr-zero-points=,src:common:0*+dst:common:0*
 --batch=shapes_2d
 
 # int8 tests - with groups

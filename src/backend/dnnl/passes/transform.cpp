@@ -255,6 +255,7 @@ status_t convert_to_runtime_src_scales(std::shared_ptr<subgraph_t> &sg) {
                 "scale_op should have only one output value.");
         auto out_val = cur_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
+        if (consumers.empty()) continue;
         if (!impl::utils::one_of(consumers[0].get_op().get_kind(),
                     op_kind::dnnl_matmul, op_kind::dnnl_convolution,
                     op_kind::dnnl_convtranspose, op_kind::dnnl_reorder))
@@ -494,32 +495,32 @@ impl::status_t fold_sub_zps_add_zps(std::shared_ptr<subgraph_t> &sg) {
 
         subgraph_rewriter_t rewriter(sg);
         for (auto &folding_ops : folding_groups) {
-            auto base_op = folding_ops.first;
-            auto next_op = folding_ops.second;
+            auto previous_op = folding_ops.first;
+            auto base_op = folding_ops.second;
 
             // update the scales
+            const auto &zps_previous
+                    = previous_op->get_attr<std::vector<int64_t>>(op_attr::zps);
             const auto &zps_base
                     = base_op->get_attr<std::vector<int64_t>>(op_attr::zps);
-            const auto &zps_next
-                    = next_op->get_attr<std::vector<int64_t>>(op_attr::zps);
             std::vector<int64_t> new_zps(
-                    std::max(zps_base.size(), zps_next.size()), 0);
+                    std::max(zps_previous.size(), zps_base.size()), 0);
             // per-channel -> per-tensor
-            if (zps_base.size() > zps_next.size()) {
+            if (zps_base.size() > zps_previous.size()) {
                 for (size_t i = 0; i < new_zps.size(); ++i)
-                    new_zps[i] = zps_base[i] - zps_next[0];
+                    new_zps[i] = zps_base[i] - zps_previous[0];
             } else {
                 for (size_t i = 0; i < new_zps.size(); ++i)
-                    new_zps[i] = zps_base[0] - zps_next[i];
+                    new_zps[i] = zps_base[0] - zps_previous[i];
                 // set attrs
                 base_op->set_attr<int64_t>(op_attr::axis,
-                        next_op->get_attr<int64_t>(op_attr::axis));
+                        previous_op->get_attr<int64_t>(op_attr::axis));
                 base_op->set_attr<std::string>(op_attr::qtype,
-                        next_op->get_attr<std::string>(op_attr::qtype));
+                        previous_op->get_attr<std::string>(op_attr::qtype));
             }
             base_op->set_attr<std::vector<int64_t>>(op_attr::zps, new_zps);
 
-            rewriter.fuse_op_to_predecessor(next_op->shared_from_this(), 0);
+            rewriter.fuse_op_to_predecessor(previous_op->shared_from_this(), 0);
         }
         rewriter.run();
         return true;
@@ -1088,7 +1089,7 @@ status_t fuse_src_scales(std::shared_ptr<subgraph_t> &sg) {
                 "scale_op should have only one output value.");
         auto out_val = scale_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
-
+        if (consumers.empty()) continue;
         if (!impl::utils::one_of(consumers[0].get_op().get_kind(),
                     op_kind::dnnl_matmul, op_kind::dnnl_convolution,
                     op_kind::dnnl_convtranspose, op_kind::dnnl_reorder))
@@ -3208,6 +3209,15 @@ impl::status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg) {
 
 impl::status_t remove_quant_data_with_no_effect(
         std::shared_ptr<subgraph_t> &sg) {
+    auto is_dequantize = [](const op_ptr &op) {
+        value_ptr quant_data_out_val = op->get_output_value(0);
+        value_ptr quant_data_in_val = op->get_input_value(0);
+        return op->get_kind() == op_kind::dnnl_sub_zps
+                || (op->get_kind() == op_kind::dnnl_mul_scales
+                        && quant_data_in_val->get_logical_tensor().data_type
+                                != quant_data_out_val->get_logical_tensor()
+                                           .data_type);
+    };
     std::vector<op_ptr> quant_data_ops;
     for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() == op_kind::dnnl_mul_scales
@@ -3243,14 +3253,14 @@ impl::status_t remove_quant_data_with_no_effect(
             // post logical tensor should be retained
             value_ptr quant_data_out_val = quant_data_op->get_output_value(0);
             value_ptr quant_data_in_val = quant_data_op->get_input_value(0);
-            if (quant_data_in_val->has_producer()) {
+            if (is_dequantize(quant_data_op)) {
+                assertm(!quant_data_out_val->get_consumers().empty(),
+                        "dequantize op should have successor op");
+                rewriter.fuse_op_to_successor(quant_data_op);
+            } else {
                 quant_data_in_val->get_producer().connect_output(
                         quant_data_in_val->get_offset(), quant_data_out_val);
                 rewriter.to_remove(quant_data_op);
-            } else {
-                assertm(!quant_data_out_val->get_consumers().empty(),
-                        "single op can't be removed");
-                rewriter.fuse_op_to_successor(quant_data_op);
             }
         }
     }

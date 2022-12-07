@@ -472,6 +472,71 @@ TEST(Execute, Int8Resnet50Stage2Block) {
     strm.wait();
 }
 
+TEST(Execute, Int8Resnet50Stage2BlockWithZeroZps) {
+    impl::engine_t &eng = get_engine();
+    impl::stream_t &strm = get_stream();
+
+    utils::id_generator id_gen;
+    impl::graph_t g(eng.kind());
+    int64_t zps_postbinary = eng.kind() == impl::engine_kind::gpu ? 0 : 78;
+    utils::construct_int8_resnet50_stage2_block(
+            &g, id_gen, 3, false, false, 1 / 255.f, 0, zps_postbinary);
+    g.build_graph();
+
+    ASSERT_EQ(g.get_ops().size(), 72U);
+
+    impl::pass::pass_base_ptr apass = get_pass("int8_resnet50_stage_2_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    impl::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 28U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const impl::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, impl::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    impl::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
+
+    using ltw = impl::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<impl::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(*lt, &eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : outputs) {
+        impl::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<float>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, &eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(&strm, inputs_ts, outputs_ts), impl::status::success);
+    strm.wait();
+}
+
 TEST(Execute, Int8Resnet50Stage2BlockWithQuantWei) {
     impl::engine_t &eng = get_engine();
     impl::stream_t &strm = get_stream();
