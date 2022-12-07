@@ -173,17 +173,17 @@
 #bert-large-uncased-whole-word-masking-squad-0001_onnx.inf.fp16.ov.b32
 --reset --allow-enum-tags-only=0 --cfg=f16 --stag=abc --wtag=abc --dtag=abc 512x384x384:512x384x64:512x384x64n"bert-large-uncased-whole-word-masking-squad-0001_onnx.inf.fp16.ov.b32*24"
 #bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:101.5:-0.0625 512x384x384:512x384x64:512x384x64n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*12"
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:109.062 512x384x384:512x384x64:512x384x64n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*11"
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:81 512x384x384:512x384x64:512x384x64n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:2:1 512x384x384:512x384x64:512x384x64n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*12"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:2:1 512x384x384:512x384x64:512x384x64n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*11"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:2:1 512x384x384:512x384x64:512x384x64n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*1"
 #gpt-2_onnx.inf.fp16.ov.b1
 --reset --allow-enum-tags-only=0 --cfg=f16 --stag=abc --wtag=abc --dtag=abc 12x1024x1024:12x1024x64:12x1024x64n"gpt-2_onnx.inf.fp16.ov.b1*12"
 #gpt-2_onnx.inf.int8.ov.b1
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:82.125 12x1024x1024:12x1024x64:12x1024x64n"gpt-2_onnx.inf.int8.ov.b1*7"
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:34.3438:-0.0625 12x1024x1024:12x1024x64:12x1024x64n"gpt-2_onnx.inf.int8.ov.b1*5"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:2:1 12x1024x1024:12x1024x64:12x1024x64n"gpt-2_onnx.inf.int8.ov.b1*7"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:2:1 12x1024x1024:12x1024x64:12x1024x64n"gpt-2_onnx.inf.int8.ov.b1*5"
 #mobilebert_onnx.inf.fp16.ov.b32
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:19.0938 128x384x384:128x384x32:128x384x32n"mobilebert_onnx.inf.fp16.ov.b32*12"
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:6.80469:-0.0625 128x384x384:128x384x32:128x384x32n"mobilebert_onnx.inf.fp16.ov.b32*12"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:2:1 128x384x384:128x384x32:128x384x32n"mobilebert_onnx.inf.fp16.ov.b32*12"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:2:1 128x384x384:128x384x32:128x384x32n"mobilebert_onnx.inf.fp16.ov.b32*12"
 #roberta-base-mrpc_onnx.inf.fp16.ov.b32
 --reset --allow-enum-tags-only=0 --cfg=f16 --stag=abc --wtag=abc --dtag=abc 384x128x128:384x128x64:384x128x64n"roberta-base-mrpc_onnx.inf.fp16.ov.b32*12"
 #swin-tiny-patch4-window7-224_onnx.inf.fp16.ov.b32

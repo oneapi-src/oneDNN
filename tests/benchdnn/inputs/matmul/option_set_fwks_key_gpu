@@ -485,21 +485,21 @@
 --reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 128x768:768x9:128x9n"bert-base-ner.inf.fp16.ov.mb1*1"
 #bert-base-ner.inf.int8.ov.mb1
 --reset --allow-enum-tags-only=0 --cfg=u8s8f16 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0 128x768:768x768:128x768n"bert-base-ner.inf.int8.ov.mb1*23"
---reset --allow-enum-tags-only=0 --cfg=u8s8s8 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0+linear:19.0781:-0.0625 128x768:768x768:128x768n"bert-base-ner.inf.int8.ov.mb1*6"
+--reset --allow-enum-tags-only=0 --cfg=u8s8s8 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0+linear:2:1 128x768:768x768:128x768n"bert-base-ner.inf.int8.ov.mb1*6"
 --reset --allow-enum-tags-only=0 --cfg=u8s8f16 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0+add:f16:per_dim_1:ab 128x768:768x768:128x768n"bert-base-ner.inf.int8.ov.mb1*12"
---reset --allow-enum-tags-only=0 --cfg=u8s8u8 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0+gelu_tanh+linear:33.5:6 128x768:768x3072:128x3072n"bert-base-ner.inf.int8.ov.mb1*3"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0+gelu_tanh+linear:2:1 128x768:768x3072:128x3072n"bert-base-ner.inf.int8.ov.mb1*3"
 --reset --allow-enum-tags-only=0 --cfg=u8s8f16 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0+add:f16:per_dim_1:ab 128x3072:3072x768:128x768n"bert-base-ner.inf.int8.ov.mb1*12"
---reset --allow-enum-tags-only=0 --cfg=u8s8u8 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0+gelu_tanh+linear:5.87891:0.999023 128x768:768x3072:128x3072n"bert-base-ner.inf.int8.ov.mb1*9"
---reset --allow-enum-tags-only=0 --cfg=u8s8s8 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0+linear:17.7031 128x768:768x768:128x768n"bert-base-ner.inf.int8.ov.mb1*6"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0+gelu_tanh+linear:2:1 128x768:768x3072:128x3072n"bert-base-ner.inf.int8.ov.mb1*9"
+--reset --allow-enum-tags-only=0 --cfg=u8s8s8 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0+linear:2:1 128x768:768x768:128x768n"bert-base-ner.inf.int8.ov.mb1*6"
 --reset --allow-enum-tags-only=0 --cfg=u8s8f16 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_0 128x768:768x9:128x9n"bert-base-ner.inf.int8.ov.mb1*1"
 #bert-base-uncased.inf.int8.ov.mb1
 --reset --allow-enum-tags-only=0 --cfg=u8s8f16 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0 128x2:2x768:128x768n"bert-base-uncased.inf.int8.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --cfg=s8s8f16 --bia_dt=f32 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=add:f32:per_dim_0 128x768:768x768:128x768n"bert-base-uncased.inf.int8.ov.mb1*24"
 --reset --allow-enum-tags-only=0 --cfg=s8s8s8 --bia_dt=f32 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 128x768:768x768:128x768n"bert-base-uncased.inf.int8.ov.mb1*12"
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:47.5 12x128x128:12x128x64:12x128x64n"bert-base-uncased.inf.int8.ov.mb1*8"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:2:1 12x128x128:12x128x64:12x128x64n"bert-base-uncased.inf.int8.ov.mb1*8"
 --reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 128x768:768x768:128x768n"bert-base-uncased.inf.int8.ov.mb1*12"
 --reset --allow-enum-tags-only=0 --cfg=s8s8f32 --bia_dt=f32 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 128x768:768x3072:128x3072n"bert-base-uncased.inf.int8.ov.mb1*12"
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:62.5625:-0.0625 12x128x128:12x128x64:12x128x64n"bert-base-uncased.inf.int8.ov.mb1*4"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --stag=abc --wtag=abc --dtag=abc --attr-post-ops=linear:2:1 12x128x128:12x128x64:12x128x64n"bert-base-uncased.inf.int8.ov.mb1*4"
 #img-preprocessing-dirtylens.inf.fp16.pt.mb1
 --reset --allow-enum-tags-only=0 --cfg=f16 --bia_dt=f16 --bia_mask=2 --stag=ab --wtag=ba --dtag=ab 1x16:16x2:1x2n"img-preprocessing-dirtylens.inf.fp16.pt.mb1*1"
 #resnet-50.inf.int8.pt.mb1024
