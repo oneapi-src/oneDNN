@@ -64,7 +64,8 @@ static int get_im_s_block(const context_ptr &ctx, const int &os,
   auto s_default_block = default_block;
   if (origin_ow > 14) {
     auto L1_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(1);
-    s_default_block = L1_cache_size / im_oc_block;
+    // not use L1_cache too full
+    s_default_block = L1_cache_size / 4 / im_oc_block;
   }
   auto s_block_list = utils::get_blocks(os, 1, s_default_block);
   s_block_list.erase(std::remove_if(s_block_list.begin(), s_block_list.end(),
@@ -242,7 +243,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
       return close_num;
     };
     cfg.bs_threads
-      = mb_ > num_threads ? num_threads : closest_split(mb_, thread_split);
+      = mb_ >= num_threads ? num_threads : closest_split(mb_, thread_split);
     cfg.s_threads = num_threads / cfg.bs_threads;
     cfg.oc_threads = 1;
     if (mb_ == 1 && oc_ % 32 == 0 && num_threads == 4) {

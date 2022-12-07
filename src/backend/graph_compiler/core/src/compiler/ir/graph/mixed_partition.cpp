@@ -215,7 +215,8 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                 || (old_input.isa<tensorptr>()
                         && ins->producer_owner_->isa<tensor_view_op_t>()
                         && ins->uses_.size() == 1
-                        && utils::is_one_of(old_input->dtype_,
+                        && utils::is_one_of(
+                                old_input.static_as<tensorptr>()->base_->dtype_,
                                 sc_data_type_t::u8(), sc_data_type_t::s8()))) {
             op->attrs_.set<bool>(op_attr_key::inplace_optimized, true);
             auto pad_op = op->dyn_cast<padding_op_t>();
