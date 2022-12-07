@@ -307,32 +307,36 @@ GEN_BINARY(logic_c);
 GEN_BINARY(cmp_c);
 
 void codegen_c_vis::trinary_func_codegen_c(
-        const intrin_call_c &node, const char *funcname) {
+        const std::vector<expr> &args, const char *funcname) {
+    COMPILE_ASSERT(args.size() == 3,
+            "Invalid arg size: " << args.size() << ", should be 3");
     auto &os = *this->os;
     os << funcname << "(";
-    dispatch(node->args_[0]);
+    dispatch(args[0]);
     os << ", ";
-    dispatch(node->args_[1]);
+    dispatch(args[1]);
     os << ", ";
-    dispatch(node->args_[2]);
+    dispatch(args[2]);
     os << ')';
 }
 
 void codegen_c_vis::binary_func_codegen_c(
-        const intrin_call_c &node, const char *funcname) {
+        const std::vector<expr> &args, const char *funcname) {
+    COMPILE_ASSERT(args.size() == 2,
+            "Invalid arg size: " << args.size() << ", should be 3");
     auto &os = *this->os;
     os << funcname << '(';
-    dispatch(node->args_[0]);
+    dispatch(args[0]);
     os << ", ";
-    dispatch(node->args_[1]);
+    dispatch(args[1]);
     os << ')';
 }
 
 void codegen_c_vis::unary_func_codegen_c(
-        const intrin_call_c &node, const char *funcname) {
+        const expr &arg, const char *funcname) {
     auto &os = *this->os;
     os << funcname << '(';
-    dispatch(node->args_[0]);
+    dispatch(arg);
     os << ')';
 }
 
@@ -349,28 +353,44 @@ static const char *prefetch_names[]
 
 void codegen_c_vis::view(intrin_call_c v) {
     switch (v->type_) {
-        case intrin_type::min: binary_func_codegen_c(v, "sc_min"); break;
-        case intrin_type::max: binary_func_codegen_c(v, "sc_max"); break;
-        case intrin_type::abs: unary_func_codegen_c(v, "sc_abs"); break;
-        case intrin_type::round: unary_func_codegen_c(v, "sc_round"); break;
-        case intrin_type::floor: unary_func_codegen_c(v, "sc_floor"); break;
-        case intrin_type::ceil: unary_func_codegen_c(v, "sc_ceil"); break;
-        case intrin_type::exp: unary_func_codegen_c(v, "sc_exp"); break;
-        case intrin_type::sqrt: unary_func_codegen_c(v, "sc_sqrt"); break;
-        case intrin_type::rsqrt: unary_func_codegen_c(v, "sc_rsqrt"); break;
+        case intrin_type::min: binary_func_codegen_c(v->args_, "sc_min"); break;
+        case intrin_type::max: binary_func_codegen_c(v->args_, "sc_max"); break;
+        case intrin_type::abs:
+            unary_func_codegen_c(v->args_[0], "sc_abs");
+            break;
+        case intrin_type::round:
+            unary_func_codegen_c(v->args_[0], "sc_round");
+            break;
+        case intrin_type::floor:
+            unary_func_codegen_c(v->args_[0], "sc_floor");
+            break;
+        case intrin_type::ceil:
+            unary_func_codegen_c(v->args_[0], "sc_ceil");
+            break;
+        case intrin_type::exp:
+            unary_func_codegen_c(v->args_[0], "sc_exp");
+            break;
+        case intrin_type::sqrt:
+            unary_func_codegen_c(v->args_[0], "sc_sqrt");
+            break;
+        case intrin_type::rsqrt:
+            unary_func_codegen_c(v->args_[0], "sc_rsqrt");
+            break;
         case intrin_type::reduce_add:
-            unary_func_codegen_c(v, "sc_reduce_add");
+            unary_func_codegen_c(v->args_[0], "sc_reduce_add");
             break;
         case intrin_type::reduce_mul:
-            unary_func_codegen_c(v, "sc_reduce_mul");
+            unary_func_codegen_c(v->args_[0], "sc_reduce_mul");
             break;
         case intrin_type::reduce_max:
-            unary_func_codegen_c(v, "sc_reduce_max");
+            unary_func_codegen_c(v->args_[0], "sc_reduce_max");
             break;
         case intrin_type::reduce_min:
-            unary_func_codegen_c(v, "sc_reduce_min");
+            unary_func_codegen_c(v->args_[0], "sc_reduce_min");
             break;
-        case intrin_type::fmadd: trinary_func_codegen_c(v, "sc_fmadd"); break;
+        case intrin_type::fmadd:
+            trinary_func_codegen_c(v->args_, "sc_fmadd");
+            break;
         case intrin_type::unpack_low:
             *os << "sc_unpack_low(";
             dispatch(v->args_[0]);
@@ -484,7 +504,7 @@ void codegen_c_vis::view(intrin_call_c v) {
             *os << ')';
             break;
         case intrin_type::permutex2var:
-            trinary_func_codegen_c(v, "sc_permutex2var");
+            trinary_func_codegen_c(v->args_, "sc_permutex2var");
             break;
         default: assert(0 && "Unknown intrinsic!"); break;
     }

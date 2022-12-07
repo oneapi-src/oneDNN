@@ -55,21 +55,36 @@ std::unique_ptr<jit_engine_t> jit_engine_t::make(const context_ptr &ctx) {
 }
 
 void jit_engine_t::set_target_machine(
-        jit_kind kind, runtime::target_machine_t &tm) {
+        jit_kind kind, scflags_t &sc_flags, runtime::target_machine_t &tm) {
     switch (kind) {
         case jit_kind::cfake:
 #if SC_CFAKE_JIT_ENABLED == 0
             return;
 #else
+        {
+            auto flags = cfake_jit::get_compiler_flags();
+            if (flags.fAVX512AMXBF16 && flags.fAVX512AMXTILE
+                    && flags.fAVX512AMXINT8) {
+                sc_flags.jit_support_amx_intrinsics_ = true;
+            } else {
+                sc_flags.jit_support_amx_intrinsics_ = false;
+            }
             return cfake_jit::set_target_machine(tm);
+        }
 #endif
 
         case jit_kind::llvm:
 #if SC_LLVM_BACKEND <= 8
             tm.cpu_flags_.fAVX512BF16 = false;
 #endif
+#if SC_LLVM_BACKEND >= 11
+            sc_flags.jit_support_amx_intrinsics_ = true;
+#else
+            sc_flags.jit_support_amx_intrinsics_ = false;
+#endif
             return;
         case jit_kind::xbyak:
+            sc_flags.jit_support_amx_intrinsics_ = true;
             return sc_xbyak::xbyak_jit_engine::set_target_machine(tm);
         default: assert(0 && "Bad JIT type"); break;
     }

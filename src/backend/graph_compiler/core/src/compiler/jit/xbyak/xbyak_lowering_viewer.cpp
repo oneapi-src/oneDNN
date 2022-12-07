@@ -1092,6 +1092,12 @@ void xbyak_lowering_viewer::handle_reinterpret(
                 handle_x86_mov(op_dst, op_src);
             }
         } break;
+        case 8: { // 64-bit
+            COMPILE_ASSERT(!is_simd_data(dtype_dst) && !is_simd_data(dtype_src),
+                    FUNC_INFO << "Invalid type: " << dtype_dst << " <- "
+                              << dtype_src);
+            handle_x86_mov(op_dst, op_src);
+        } break;
         case 16: { // 128-bit xmm
             handle_avx_movps(op_dst, op_src);
         } break;
@@ -2111,7 +2117,9 @@ void xbyak_lowering_viewer::view(stmts_c v) {
 }
 
 void xbyak_lowering_viewer::view(evaluate_c v) {
-    if (v->value_.isa<call>()) { handle_operations(expr_c(), v->value_); }
+    if (v->value_.isa<call>() || v->value_.isa<low_level_intrin>()) {
+        handle_operations(expr_c(), v->value_);
+    }
 }
 
 void xbyak_lowering_viewer::view(assign_c v) {

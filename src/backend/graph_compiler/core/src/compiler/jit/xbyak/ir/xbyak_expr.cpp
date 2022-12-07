@@ -51,9 +51,11 @@ struct xbyak_intrinsic_handler_t {
 #define _3A_ 2 // three address intrinsic
 #define _4A_ 3 // four address intrinsic
 
-#define TO_INDEX(X) static_cast<size_t>(X)
-#define ISA_NUM TO_INDEX(xbyak_intrin_isa::NUM_ISAS)
-#define INTRIN_NUM TO_INDEX(xbyak_intrin_type::NUM_INTRINSICS)
+#define TO_INDEX(X, B) (static_cast<size_t>(X) - static_cast<int>(B))
+#define ISA_TO_INDEX(X) TO_INDEX(X, 0)
+#define INTRIN_TO_INDEX(X) TO_INDEX(X, low_level_intrin_type::NUM_INTRINSICS)
+#define ISA_NUM TO_INDEX(xbyak_intrin_isa::NUM_ISAS, 0)
+#define INTRIN_NUM INTRIN_TO_INDEX(xbyak_intrin_type::NUM_INTRINSICS)
 
 #define REGISTER_INTRIN(NAME, ISA, INTRIN, FORMAT, INPUT) \
     struct ISA##INTRIN##_handler_t : public xbyak_intrinsic_handler_t { \
@@ -64,8 +66,8 @@ struct xbyak_intrinsic_handler_t {
             node.format_ = intrin_format_; \
         } \
     }; \
-    intrin_handlers[TO_INDEX(xbyak_intrin_isa::ISA)] \
-                   [TO_INDEX(xbyak_intrin_type::INTRIN)] \
+    intrin_handlers[ISA_TO_INDEX(xbyak_intrin_isa::ISA)] \
+                   [INTRIN_TO_INDEX(xbyak_intrin_type::INTRIN)] \
             = utils::make_unique<ISA##INTRIN##_handler_t>();
 
 using handler_table
@@ -191,10 +193,10 @@ static handler_table xbyak_handlers = register_handlers();
 
 xbyak_intrinsic_handler_t &get_xbyak_intrin_handler(
         xbyak_intrin_isa isa, int64_t intrin) {
-    auto &handler = xbyak_handlers[TO_INDEX(isa)][TO_INDEX(intrin)];
+    auto &handler = xbyak_handlers[ISA_TO_INDEX(isa)][INTRIN_TO_INDEX(intrin)];
     COMPILE_ASSERT(handler,
-            "Invalid isa-intrin code: " << TO_INDEX(isa) << " - "
-                                        << TO_INDEX(intrin));
+            "Invalid isa-intrin code: " << ISA_TO_INDEX(isa) << " - "
+                                        << INTRIN_TO_INDEX(intrin));
     return *handler;
 }
 

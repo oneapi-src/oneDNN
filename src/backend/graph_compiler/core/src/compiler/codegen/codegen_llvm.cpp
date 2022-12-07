@@ -374,6 +374,7 @@ public:
     func_c dispatch(func_c v) override {
         var_ptr_in_func_.clear();
         tsr_to_alias_scope_.clear();
+        if (utils::string_startswith(v->name_, "_should_inline_")) { return v; }
         if (!v->body_.defined()) { return v; }
         auto F = get_or_create_func(v);
         BasicBlock *BB = BasicBlock::Create(context_, "entry", F);
@@ -564,11 +565,12 @@ public:
                 }
             } break;
             default:
-                COMPILE_ASSERT(v->dtype_ == datatypes::pointer
-                                && v->value_.size() == 1UL
-                                && v->value_[0].s64 == 0,
-                        "Unexpected type for LLVM. Expecting nullptr.");
-                vals.push_back(Constant::getNullValue(llvm_base_type));
+                COMPILE_ASSERT(v->dtype_ == datatypes::pointer,
+                        "Unexpected type for LLVM. Expecting pointer.");
+                for (auto &val : v->value_) {
+                    vals.push_back(ConstantExpr::getIntToPtr(
+                            builder_.getInt64(val.u64), llvm_base_type));
+                }
                 break;
         }
         if (vals.size() != v->dtype_.lanes_) {

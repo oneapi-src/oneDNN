@@ -16,6 +16,7 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_CODEGEN_CODEGEN_C_INTERNAL_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_CODEGEN_CODEGEN_C_INTERNAL_HPP
 
+#include <vector>
 #include "../ir/util_module_passes.hpp"
 #include "../ir/viewer.hpp"
 
@@ -33,9 +34,10 @@ protected:
     bool is_static;
     ostream &print_param(const expr &v);
     void trinary_func_codegen_c(
-            const intrin_call_c &node, const char *funcname);
-    void binary_func_codegen_c(const intrin_call_c &node, const char *funcname);
-    void unary_func_codegen_c(const intrin_call_c &node, const char *funcname);
+            const std::vector<expr> &args, const char *funcname);
+    void binary_func_codegen_c(
+            const std::vector<expr> &args, const char *funcname);
+    void unary_func_codegen_c(const expr &arg, const char *funcname);
 
 public:
     virtual ostream &print_cpp_var_def(const var &v);

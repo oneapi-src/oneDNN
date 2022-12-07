@@ -28,11 +28,13 @@
 namespace sc {
 namespace sc_xbyak {
 
-#define GET_STMT_DATA(STMT) (STMT)->temp_data().get<xbyak_stmt_data_t>()
+#define GET_STMT_DATA(STMT) \
+    (STMT)->temp_data().get<::sc::sc_xbyak::xbyak_stmt_data_t>()
 #define GET_STMT_INDEX(STMT) GET_STMT_DATA(STMT).index_
 #define GET_STMT_INIT_INDEX(STMT) GET_STMT_DATA(STMT).init_index_
 
-#define GET_EXPR_DATA(EXPR) (EXPR)->temp_data().get<xbyak_expr_data_t>()
+#define GET_EXPR_DATA(EXPR) \
+    (EXPR)->temp_data().get<::sc::sc_xbyak::xbyak_expr_data_t>()
 #define GET_PHYSICAL_REG(EXPR) GET_EXPR_DATA(EXPR).physical_reg_
 #define GET_VIRTUAL_REG(EXPR) GET_EXPR_DATA(EXPR).virtual_reg_
 #define GET_LIVE_RANGE(EXPR) GET_EXPR_DATA(EXPR).virtual_reg_.live_range_
@@ -62,10 +64,14 @@ struct xbyak_expr_data_t {
 };
 
 /**
- * Low-level intrinsic type
+ * Xbyak low-level intrinsic type
+ * The begining numbers are reserved for low_level_intrin
  * */
 enum class xbyak_intrin_type {
-    call_arg = 0, // special intrin to represent call arg location (reg/stack)
+    call_arg = static_cast<int>(
+            low_level_intrin_type::NUM_INTRINSICS), // special intrin to
+    // represent call arg
+    // location (reg/stack)
     sign_ext, // special intrin to represent CWD/CDQ/CQO/XOR before div/idiv
     mask_mov, // special intrin to represent avx512 zero masked move
     test, // special intrin to represent x86 bool logical compare

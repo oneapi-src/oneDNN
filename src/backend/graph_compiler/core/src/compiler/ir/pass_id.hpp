@@ -36,6 +36,7 @@ enum pass_id {
     tensor_inplace,
     target_specific_lowering_cpu,
     kernel_lowering_cpu,
+    builtin_microkernel_generate_cpu,
     closurizer_cpu,
     module_globals_resolver,
 

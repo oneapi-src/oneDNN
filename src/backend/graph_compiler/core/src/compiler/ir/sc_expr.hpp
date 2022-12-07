@@ -1425,6 +1425,10 @@ public:
 };
 SC_DEFINE_EXPR_NODE_PTR(func_addr)
 
+enum class low_level_intrin_type {
+    NUM_INTRINSICS,
+};
+
 /**
  * The low-level-intrinsic node
  * @param intrin the intrinsic

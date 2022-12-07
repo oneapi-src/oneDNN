@@ -24,6 +24,7 @@
 #include <compiler/ir/sc_function.hpp>
 #include <compiler/jit/jit.hpp>
 #include <runtime/generic_val.hpp>
+#include <runtime/target_machine.hpp>
 
 namespace sc {
 
@@ -63,7 +64,6 @@ public:
         opt_level_ = context_->flags_.backend_opt_level;
         debug_info_ = opt_level_ <= 1 || context_->flags_.debug_info_;
     }
-    std::string command_ = "g++";
     unsigned opt_level_;
     bool debug_info_;
 
@@ -76,7 +76,9 @@ public:
             const_ir_module_ptr module, bool generate_wrapper) override;
     std::shared_ptr<jit_module> make_jit_module(const std::string &inpath,
             const std::string &outpath, statics_table_t &&globals,
-            bool has_generic_wrapper, bool managed_thread_pool);
+            bool has_generic_wrapper, bool managed_thread_pool) const;
+    static const runtime::cpu_flags_t &get_compiler_flags();
+    static std::string &get_compiler_command();
     static void set_target_machine(runtime::target_machine_t &tm);
 };
 

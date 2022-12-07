@@ -53,7 +53,8 @@ inline constexpr sc_data_etype get_pointer_element(sc_data_etype type_code) {
 } // namespace etypes
 /// Data type specification. Can be scalar or vector
 /// The rows_ field indicates dtype is a tile, where cols = lanes / rows
-/// tile dtype is used in AMX scenarios with limited usage
+/// Currently tile dtype is used in AMX-based microkernel scenarios with limited
+/// usage
 ///
 /// NOTE: The \c lanes_ & rows_ field is not meaningful when \c type_code_ is
 /// UNDEF or VOID_T.

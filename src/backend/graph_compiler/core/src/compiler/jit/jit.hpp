@@ -187,7 +187,7 @@ public:
     // many flags as possible the JIT can support in the user given target
     // machine
     static void set_target_machine(
-            jit_kind kind, runtime::target_machine_t &tm);
+            jit_kind kind, scflags_t &sc_flags, runtime::target_machine_t &tm);
 };
 } // namespace sc
 

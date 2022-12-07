@@ -27,8 +27,8 @@
 #include <compiler/jit/jit.hpp>
 #include <compiler/jit/symbol_resolver.hpp>
 #include <runtime/config.hpp>
+#include <runtime/env_vars.hpp>
 #include <runtime/memorypool.hpp> // to get the path of the runtime library
-#include <runtime/target_machine.hpp>
 #include <unordered_map>
 #include <util/scoped_timer.hpp>
 #include <util/string_utils.hpp>
@@ -74,7 +74,7 @@ cfake_jit_module_t::~cfake_jit_module_t() {
 std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         const std::string &inpath, const std::string &outpath,
         statics_table_t &&globals, bool has_generic_wrapper,
-        bool managed_thread_pool) {
+        bool managed_thread_pool) const {
     auto timer = SC_SCOPED_TIMER_INFO("pass.time.cfake_jit", "");
     auto &home_path = utils::get_sc_home_path();
     if (home_path.empty()) {
@@ -85,8 +85,9 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         if (f.is_open()) std::cerr << f.rdbuf();
     }
     const std::string home_inc = home_path + "/src";
+    const std::string &command = cfake_jit::get_compiler_command();
     // Mandatory compiler options...
-    std::vector<std::string> option = {command_, "-I", home_inc, "-o", outpath,
+    std::vector<std::string> option = {command, "-I", home_inc, "-o", outpath,
             inpath, "-shared", "-fPIC", "-std=c++11", "-DSC_JIT_SOURCE=1"};
 #if SC_PROFILING == 1
     option.emplace_back("-g");
@@ -131,7 +132,7 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
 
     int exit_status;
     bool success
-            = utils::create_process_and_await(command_, option, exit_status);
+            = utils::create_process_and_await(command, option, exit_status);
     void *compiled_module = nullptr;
     if (success) {
         if (exit_status) {
@@ -254,8 +255,9 @@ constexpr uintptr_t myoffsetof(TF T::*fld) {
 }
 #define foffset(F) myoffsetof(&cpu_flags_t::F)
 
-static std::unordered_map<std::string, uintptr_t> get_compiler_flag_map() {
-    std::unordered_map<std::string, uintptr_t> ret = {
+static const std::unordered_map<std::string, uintptr_t> &
+get_compiler_flag_map() {
+    static std::unordered_map<std::string, uintptr_t> ret = {
             {"__MMX__", foffset(fMMX)},
             {"__x86_64__", foffset(fx64)},
             {"__ABM__", foffset(fABM)},
@@ -291,6 +293,10 @@ static std::unordered_map<std::string, uintptr_t> get_compiler_flag_map() {
             {"__AVX512IFMA__", foffset(fAVX512IFMA)},
             {"__AVX512VBMI__", foffset(fAVX512VBMI)},
             {"__AVX512BF16__", foffset(fAVX512BF16)},
+
+            {"__AMX_BF16__", foffset(fAVX512AMXBF16)},
+            {"__AMX_INT8__", foffset(fAVX512AMXTILE)},
+            {"__AMX_TILE__", foffset(fAVX512AMXINT8)},
     };
     return ret;
 }
@@ -299,15 +305,16 @@ static bool &get_flag_field(cpu_flags_t &flg, uintptr_t diff) {
     return *(bool *)((char *)&flg + diff);
 }
 
-static cpu_flags_t get_compiler_flags(
-        const std::unordered_map<std::string, uintptr_t> &flagmap) {
+static cpu_flags_t do_get_compiler_flags() {
     cpu_flags_t ret;
-    std::vector<std::string> option
-            = {"g++", "-march=native", "-dM", "-E", "-x", "c++", "-"};
+    const auto &flagmap = get_compiler_flag_map();
+    std::vector<std::string> option = {cfake_jit::get_compiler_command(),
+            "-march=native", "-dM", "-E", "-x", "c++", "-"};
     int exit_status;
     std::string rstdout, rstdin; // empty input
-    bool success = utils::create_process_and_await(
-            "g++", option, exit_status, &rstdin, &rstdout);
+    bool success
+            = utils::create_process_and_await(cfake_jit::get_compiler_command(),
+                    option, exit_status, &rstdin, &rstdout);
     if (success && !exit_status) {
         for (auto &v : utils::string_split(rstdout, " ")) {
             if (!v.empty() && v[0] == '_') {
@@ -325,14 +332,19 @@ static cpu_flags_t get_compiler_flags(
     return ret;
 }
 
-void cfake_jit::set_target_machine(target_machine_t &tm) {
-    static auto flg_map = get_compiler_flag_map();
-    auto impl = []() {
-        auto compiler_flg = get_compiler_flags(flg_map);
-        return compiler_flg;
-    };
+const cpu_flags_t &cfake_jit::get_compiler_flags() {
+    static auto flags = do_get_compiler_flags();
+    return flags;
+}
 
-    static cpu_flags_t f = impl();
+std::string &cfake_jit::get_compiler_command() {
+    static std::string cmd = []() { return std::string("g++"); }();
+    return cmd;
+}
+
+void cfake_jit::set_target_machine(target_machine_t &tm) {
+    auto flg_map = get_compiler_flag_map();
+    auto f = get_compiler_flags();
     f.dataCacheLevels_ = tm.cpu_flags_.dataCacheLevels_;
     f.dataCacheSize_ = tm.cpu_flags_.dataCacheSize_;
     for (auto &itr : flg_map) {

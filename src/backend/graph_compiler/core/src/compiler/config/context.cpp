@@ -16,6 +16,7 @@
 #include <immintrin.h>
 #include <utility>
 #include "context.hpp"
+#include <compiler/jit/cfake/cfake_jit.hpp>
 #include <compiler/jit/jit.hpp>
 #include <cpu/x64/cpu_isa_traits.hpp>
 #include <runtime/config.hpp>
@@ -80,8 +81,9 @@ context_ptr get_default_context() {
                 }
             }
         }
+
         flags.jit_kind_ = jit;
-        jit_engine_t::set_target_machine(jit, tm);
+        jit_engine_t::set_target_machine(jit, flags, tm);
         set_runtime_target_machine(tm);
         std::string tracep = sc::utils::getenv_string(env_names[SC_TRACE]);
         if (!tracep.empty() && tracep != "0") {
