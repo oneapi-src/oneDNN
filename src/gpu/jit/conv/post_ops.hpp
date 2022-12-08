@@ -71,8 +71,8 @@ public:
                     // Convert o/i weights mask to src/dst.
                     // XXX: per_oc for BWD_D is treated as per_ic assuming it's called from
                     // deconvolution.
-                    int c_idx = prb_->with_groups;
-                    ir_assert(utils::one_of(mask, 0, 1 << c_idx));
+                    ir_assert(
+                            utils::one_of(mask, 0, prb_->with_groups ? 3 : 1));
                     if (mask != 0) mask = (1 << 1);
                 } else {
                     ir_assert(mask == 0);
