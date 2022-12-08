@@ -27,55 +27,26 @@
 using namespace dnnl::graph;
 using namespace sycl;
 
-struct api_engine_params {
-    dnnl::engine::kind eng_kind_;
-};
-
-class api_engine : public ::testing::TestWithParam<api_engine_params> {
-public:
-    void create_with_sycl() {
-        auto param = ::testing::TestWithParam<api_engine_params>::GetParam();
-        dnnl::engine::kind kind = param.eng_kind_;
-
-        std::unique_ptr<device> sycl_dev;
-        std::unique_ptr<context> sycl_ctx;
-
-        auto platform_list = platform::get_platforms();
-        for (const auto &plt : platform_list) {
-            std::string plat_name
-                    = plt.get_info<::sycl::info::platform::name>();
-            bool valid_plat = plat_name.find("OpenCL") != std::string::npos
-                    || plat_name.find("Level-Zero") != std::string::npos;
-            if (!valid_plat) continue;
-            auto device_list = plt.get_devices();
-            for (const auto &dev : device_list) {
-                if ((kind == dnnl::engine::kind::gpu && dev.is_gpu())
-                        || (kind == dnnl::engine::kind::cpu && dev.is_cpu())) {
-                    sycl_dev.reset(new device(dev));
-                    sycl_ctx.reset(new context(*sycl_dev));
-
-                    allocator alloc = dnnl::graph::sycl_interop::make_allocator(
-                            dnnl::graph::testing::sycl_malloc_wrapper,
-                            dnnl::graph::testing::sycl_free_wrapper);
-                    dnnl::engine e = dnnl::graph::sycl_interop::
-                            make_engine_with_allocator(
-                                    *sycl_dev, *sycl_ctx, alloc);
-                }
-            }
-        }
-    }
-};
-
-TEST_P(api_engine, create_with_sycl) {
-    create_with_sycl();
-}
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-INSTANTIATE_TEST_SUITE_P(api_engine_gpu, api_engine,
-        ::testing::Values(api_engine_params {dnnl::engine::kind::gpu}));
+#ifdef DNNL_WITH_SYCL
+TEST(api_engine, create_with_sycl) {
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    SKIP_IF(api_test_engine_kind == dnnl_cpu,
+            "skip sycl api test for native cpu runtime.");
 #endif
+    dnnl::engine::kind ekind
+            = static_cast<dnnl::engine::kind>(api_test_engine_kind);
 
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-INSTANTIATE_TEST_SUITE_P(api_engine_cpu, api_engine,
-        ::testing::Values(api_engine_params {dnnl::engine::kind::cpu}));
+    queue q = (ekind == dnnl::engine::kind::gpu)
+            ? queue(dnnl::impl::sycl::compat::gpu_selector_v,
+                    property::queue::in_order {})
+            : queue(dnnl::impl::sycl::compat::cpu_selector_v,
+                    property::queue::in_order {});
+
+    allocator alloc = dnnl::graph::sycl_interop::make_allocator(
+            dnnl::graph::testing::sycl_malloc_wrapper,
+            dnnl::graph::testing::sycl_free_wrapper);
+    dnnl::engine e = dnnl::graph::sycl_interop::make_engine_with_allocator(
+            q.get_device(), q.get_context(), alloc);
+    ASSERT_EQ(e.get_kind(), ekind);
+}
 #endif
