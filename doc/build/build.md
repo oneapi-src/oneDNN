@@ -56,9 +56,10 @@ make -j
 
 #### Intel oneAPI DPC++/C++ Compiler with SYCL runtime
 
-- Set up the environment for Intel oneAPI DPC++/C++ Compiler. For 
-Intel oneAPI Base Toolkit distribution installed to the default location, you can do
-this using the `setvars.sh` script:
+- Set up the environment for Intel oneAPI DPC++/C++ Compiler
+  using the `setvars.sh` script. The command below assumes you installed to the
+  default folder. If you customized the installation folder, setvars.sh (Linux/macOS)
+  is in your custom folder:
 ~~~sh
 source /opt/intel/oneapi/setvars.sh
 ~~~
@@ -157,9 +158,10 @@ Microsoft Visual Studio IDE.
 
 #### Intel oneAPI DPC++/C++ Compiler with SYCL Runtime
 
-- Set up the environment for Intel oneAPI DPC++/C++ Compiler. For
-Intel oneAPI Base Toolkit distribution installed to default location you can do
-this using `setvars.bat` script
+- Set up the environment for Intel oneAPI DPC++/C++ Compiler
+  using the `setvars.bat` script. The command below assumes you installed to the
+  default folder. If you customized the installation folder, setvars.bat
+  is in your custom folder:
 ~~~bat
 "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
 ~~~
