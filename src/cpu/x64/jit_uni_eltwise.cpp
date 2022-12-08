@@ -25,6 +25,7 @@
 
 #include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_uni_eltwise.hpp"
+#include "cpu/x64/utils/jit_io_helper.hpp"
 
 #define GET_OFF(field) offsetof(jit_args_t, field)
 
@@ -58,119 +59,100 @@ protected:
     bool is_bf16() const { return data_type() == data_type::bf16; }
     bool is_f16() const { return data_type() == data_type::f16; }
     int dtype_size() const { return types::data_type_size(data_type()); }
+    cpu_isa_t get_io_isa(cpu_isa_t isa) const {
+        // reusing avx512_core instantiation for bf16
+        return is_bf16() && is_superset(isa, avx512_core)
+                        && mayiuse(avx512_core_bf16)
+                ? avx512_core_bf16
+                : isa;
+    }
 };
 
 // jit kernels
 namespace {
-
-struct jit_bf16_injector_t {
-    jit_bf16_injector_t(
-            jit_generator *host, Opmask k_tail_mask, bf16_emulation_t *emu)
-        : h(host), k_tail_mask_(k_tail_mask), emu_(emu) {}
-
-    void prepare_mask() {
-        Reg64 reg_tmp = h->r14;
-        h->sub(h->rsp, 8); // sizeof(Reg64)
-        h->mov(h->ptr[h->rsp], reg_tmp);
-        h->mov(reg_tmp.cvt32(), 0x1);
-        h->kmovd(k_tail_mask_, reg_tmp.cvt32());
-        h->mov(reg_tmp, h->ptr[h->rsp]);
-        h->add(h->rsp, 8);
-    }
-
-    void load_bf16_cvt_to_f32(size_t idx, Reg64 reg_src, bool is_tail = false,
-            size_t offset = 0) {
-        Zmm zmm_f32 = Zmm(idx);
-        zmm_f32 = is_tail ? zmm_f32 | k_tail_mask_ | Xbyak::util::T_z : zmm_f32;
-        h->vpmovzxwd(zmm_f32, h->ptr[reg_src + offset]);
-        h->vpslld(zmm_f32, zmm_f32, 16);
-    }
-
-    void cvt_f32_to_bf16_store(int step, size_t idx, Reg64 reg_dst,
-            bool is_tail = false, size_t offset = 0) {
-        assert(step >= 1 && step <= 2
-                && IMPLICATION(step == 2, is_tail == false));
-        if (step == 2 && !is_tail) {
-            Ymm ymm_bf16_0 = Ymm(idx);
-            Ymm ymm_bf16_1 = Ymm(idx + 1);
-            Zmm zmm_f32_0 = Zmm(idx);
-            Zmm zmm_f32_1 = Zmm(idx + 1);
-            if (emu_) {
-                emu_->vcvtneps2bf16(ymm_bf16_0, zmm_f32_0);
-                emu_->vcvtneps2bf16(ymm_bf16_1, zmm_f32_1);
-                h->vinserti64x4(zmm_f32_0, zmm_f32_0, ymm_bf16_1, 1);
-                h->vmovups(h->ptr[reg_dst + offset], zmm_f32_0);
-            } else {
-                h->vcvtne2ps2bf16(zmm_f32_1, zmm_f32_1, zmm_f32_0);
-                h->vmovups(h->ptr[reg_dst + offset], zmm_f32_1);
-            }
-        } else {
-            Ymm ymm_bf16 = Ymm(idx);
-            Zmm zmm_f32 = Zmm(idx);
-            if (emu_)
-                emu_->vcvtneps2bf16(ymm_bf16, zmm_f32);
-            else
-                h->vcvtneps2bf16(ymm_bf16, zmm_f32);
-            if (!is_tail)
-                h->vmovdqu16(h->ptr[reg_dst + offset], ymm_bf16);
-            else
-                h->vmovdqu16(h->ptr[reg_dst + offset] | k_tail_mask_, ymm_bf16);
-        }
-    }
-
-private:
-    jit_generator *const h;
-    Xbyak::Opmask k_tail_mask_;
-    bf16_emulation_t *const emu_;
-};
-
 template <cpu_isa_t isa>
 struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_kernel)
 
     jit_uni_kernel_t(const eltwise_pd_t *pd)
-        : jit_uni_eltwise_kernel(pd, jit_name()) {
-        if (is_bf16()) {
-            if (!mayiuse(avx512_core_bf16))
-                bf16_emu_.reset(new bf16_emulation_t(this, bf16_emu_reserv_1,
-                        bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
-                        bf16_emu_reserv_5));
-            bf16_injector_.reset(new jit_bf16_injector_t(
-                    this, k_tail_mask, bf16_emu_.get()));
-        }
+        : jit_uni_eltwise_kernel(pd, jit_name())
+        , vlen_(is_bf16() || is_f16() ? cpu_isa_traits<isa>::vlen / 2
+                                      : cpu_isa_traits<isa>::vlen)
+        , simd_w_(vlen_ / dtype_size())
+        , is_fwd_(pd_->is_fwd()) {
 
         const auto &desc = *pd_->desc();
         // there's no auxiliary vregs on fwd path
-        const bool is_fwd = pd_->is_fwd();
-        const bool save_state = is_fwd ? false : true;
+        const bool save_state = is_fwd_ ? false : true;
         eltwise_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
                 desc.alg_kind, desc.alpha, desc.beta, 1.f, save_state,
-                reg_injector_table, injector_mask, is_fwd, pd_->use_dst()));
+                reg_injector_table, injector_mask, is_fwd_, pd_->use_dst()));
+        io::io_conf_t io_conf;
+        io::io_tail_conf_t io_tail_conf(simd_w_, tail_size_, tail_opmask_idx_,
+                vmm_tail_mask.getIdx(), reg_tmp);
+        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1_idx_,
+                bf16_emu_zmm_2_idx_, bf16_emu_zmm_3_idx_, reg_tmp,
+                bf16_emu_zmm_4_idx_);
+        io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, get_io_isa(isa),
+                {data_type()}, io_conf, io_tail_conf, io_bf16_conf);
+    }
+
+    void compute_dst(const bool tail) {
+        io_[data_type()]->load(ptr[reg_src], vmm_src, tail);
+        eltwise_injector_->compute_vector(vmm_src.getIdx());
+        if (!is_fwd_) {
+            io_[data_type()]->load(ptr[reg_diff_dst], vmm_diff_dst, tail);
+            uni_vmulps(vmm_src, vmm_src, vmm_diff_dst);
+        }
+        io_[data_type()]->store(vmm_src, ptr[reg_dst], tail);
+    }
+
+    void compute() {
+        Label vectorized_loop_start, reminder_loop_start, loop_end;
+
+        cmp(reg_work_amount, simd_w_);
+        jl(reminder_loop_start, T_NEAR);
+
+        L(vectorized_loop_start);
+        {
+            compute_dst(false);
+            add(reg_src, vlen_);
+            add(reg_dst, vlen_);
+            if (!is_fwd_) add(reg_diff_dst, vlen_);
+
+            sub(reg_work_amount, simd_w_);
+            cmp(reg_work_amount, simd_w_);
+            jge(vectorized_loop_start, T_NEAR);
+        }
+
+        L(reminder_loop_start);
+        {
+            cmp(reg_work_amount, 0);
+            jle(loop_end, T_NEAR);
+
+            compute_dst(true);
+            add(reg_src, dtype_size());
+            add(reg_dst, dtype_size());
+            if (!is_fwd_) add(reg_diff_dst, dtype_size());
+
+            dec(reg_work_amount);
+            jmp(reminder_loop_start, T_NEAR);
+        }
+        L(loop_end);
     }
 
     void generate() override {
-        const bool is_fwd = pd_->is_fwd();
         preamble();
 
-        if (is_bf16()) {
-            bf16_injector_->prepare_mask();
-            if (!mayiuse(avx512_core_bf16)) bf16_emu_->init_vcvtneps2bf16();
-        }
+        io_.prepare_tail_mask();
+        if (is_bf16()) io_.init_bf16();
 
         Reg64 param = abi_param1;
         mov(reg_src, ptr[param + GET_OFF(src)]);
         mov(reg_dst, ptr[param + GET_OFF(dst)]);
-        if (!is_fwd) mov(reg_diff_dst, ptr[param + GET_OFF(diff_dst)]);
+        if (!is_fwd_) mov(reg_diff_dst, ptr[param + GET_OFF(diff_dst)]);
         mov(reg_work_amount, ptr[param + GET_OFF(work_amount)]);
         eltwise_injector_->load_table_addr();
-
-        Label reminder_loop_start, reminder_loop_end;
-        Label vectorized_loop_start, vectorized_loop_end;
-
-        cmp(reg_work_amount, simd_w());
-        jl(reminder_loop_start, T_NEAR);
-
-        L(vectorized_loop_start);
 
         // TODO: consider improving.
         // This piece of code is responsible for the preserve_zero function
@@ -182,87 +164,7 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
         // there's a restriction on certain blocked layouts, when this behavior
         // can be relevantly easy controlled, this will cost much from code
         // perspective and will complicate the compute logic significantly.
-        if (is_bf16()) {
-            bf16_injector_->load_bf16_cvt_to_f32(vmm_src.getIdx(), reg_src);
-            eltwise_injector_->compute_vector(vmm_src.getIdx());
-            if (!is_fwd) {
-                bf16_injector_->load_bf16_cvt_to_f32(
-                        vmm_diff_dst.getIdx(), reg_diff_dst);
-                uni_vmulps(vmm_src, vmm_src, vmm_diff_dst);
-            }
-            bf16_injector_->cvt_f32_to_bf16_store(1, vmm_src.getIdx(), reg_dst);
-        } else if (is_f16()) {
-            vcvtph2psx(vmm_src, ptr[reg_src]);
-            eltwise_injector_->compute_vector(vmm_src.getIdx());
-            if (!is_fwd) {
-                vcvtph2psx(vmm_diff_dst, ptr[reg_diff_dst]);
-                uni_vmulps(vmm_src, vmm_src, vmm_diff_dst);
-            }
-            vcvtps2ph(ptr[reg_dst], vmm_src, _op_mxcsr);
-        } else {
-            uni_vmovups(vmm_src, ptr[reg_src]);
-            eltwise_injector_->compute_vector(vmm_src.getIdx());
-            if (!is_fwd) {
-                uni_vmovups(vmm_diff_dst, ptr[reg_diff_dst]);
-                uni_vmulps(vmm_src, vmm_src, vmm_diff_dst);
-            }
-            uni_vmovups(ptr[reg_dst], vmm_src);
-        }
-
-        const auto shift = vlen();
-        add(reg_src, shift);
-        add(reg_dst, shift);
-        if (!is_fwd) add(reg_diff_dst, shift);
-
-        sub(reg_work_amount, simd_w());
-        cmp(reg_work_amount, simd_w());
-        jge(vectorized_loop_start, T_NEAR);
-
-        L(vectorized_loop_end);
-
-        L(reminder_loop_start);
-
-        cmp(reg_work_amount, 0);
-        jle(reminder_loop_end, T_NEAR);
-        if (is_bf16()) {
-            bf16_injector_->load_bf16_cvt_to_f32(
-                    vmm_src.getIdx(), reg_src, true);
-            eltwise_injector_->compute_vector(vmm_src.getIdx());
-            if (!is_fwd) {
-                bf16_injector_->load_bf16_cvt_to_f32(
-                        vmm_diff_dst.getIdx(), reg_diff_dst, true);
-                uni_vmulps(vmm_src, vmm_src, vmm_diff_dst);
-            }
-            bf16_injector_->cvt_f32_to_bf16_store(
-                    1, vmm_src.getIdx(), reg_dst, true);
-        } else if (is_f16()) {
-            vxorps(xmm_src, xmm_src, xmm_src);
-            vcvtsh2ss(xmm_src, xmm_src, ptr[reg_src]);
-            eltwise_injector_->compute_vector(vmm_src.getIdx());
-            if (!is_fwd) {
-                vxorps(xmm_diff_dst, xmm_diff_dst, xmm_diff_dst);
-                vcvtsh2ss(xmm_diff_dst, xmm_diff_dst, ptr[reg_diff_dst]);
-                uni_vmulps(xmm_src, xmm_src, xmm_diff_dst);
-            }
-            vcvtss2sh(xmm_src, xmm_src, xmm_src);
-            vmovsh(ptr[reg_dst], xmm_src);
-        } else {
-            uni_vmovss(xmm_src, ptr[reg_src]);
-            eltwise_injector_->compute_vector(xmm_src.getIdx());
-            if (!is_fwd) {
-                uni_vmovss(xmm_diff_dst, ptr[reg_diff_dst]);
-                uni_vmulps(xmm_src, xmm_src, xmm_diff_dst);
-            }
-            uni_vmovss(ptr[reg_dst], xmm_src);
-        }
-        add(reg_src, dtype_size());
-        add(reg_dst, dtype_size());
-        if (!is_fwd) add(reg_diff_dst, dtype_size());
-
-        dec(reg_work_amount);
-        jmp(reminder_loop_start, T_NEAR);
-
-        L(reminder_loop_end);
+        compute();
 
         postamble();
 
@@ -272,11 +174,10 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
 private:
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    int vlen() {
-        int vlen = cpu_isa_traits<isa>::vlen;
-        return is_bf16() || is_f16() ? vlen / 2 : vlen;
-    }
-    int simd_w() { return vlen() / dtype_size(); }
+    const int vlen_;
+    const int simd_w_;
+    const bool is_fwd_;
+    const int tail_size_ = 1;
 
     Reg64 reg_src = rax;
     Reg64 reg_dst = r8;
@@ -284,26 +185,22 @@ private:
     Reg64 reg_diff_dst = r10;
     Reg64 reg_work_amount = rsi;
     Reg64 imm_addr64 = rbx;
+    Reg64 reg_tmp = r14;
 
     Opmask injector_mask = Opmask(1);
 
-    Xmm xmm_src = Xmm(1);
     Vmm vmm_src = Vmm(1);
-    Xmm xmm_diff_dst = Xmm(2);
     Vmm vmm_diff_dst = Vmm(2);
+    Vmm vmm_tail_mask = Vmm(6);
     std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> eltwise_injector_;
+    io::jit_io_multi_dt_helper_t<Vmm> io_;
 
     /* bf16 support */
-    Zmm bf16_emu_reserv_1 = Zmm(26);
-    Zmm bf16_emu_reserv_2 = Zmm(27);
-    Zmm bf16_emu_reserv_3 = Zmm(28);
-    Reg64 bf16_emu_scratch = r14;
-    Zmm bf16_emu_reserv_5 = Zmm(29);
-
-    Opmask k_tail_mask = k6;
-
-    std::unique_ptr<jit_bf16_injector_t> bf16_injector_;
-    std::unique_ptr<bf16_emulation_t> bf16_emu_;
+    const int bf16_emu_zmm_1_idx_ = 26;
+    const int bf16_emu_zmm_2_idx_ = 27;
+    const int bf16_emu_zmm_3_idx_ = 28;
+    const int bf16_emu_zmm_4_idx_ = 29;
+    const int tail_opmask_idx_ = 6;
 };
 
 } // namespace
