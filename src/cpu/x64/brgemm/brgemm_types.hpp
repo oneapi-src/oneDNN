@@ -66,20 +66,20 @@ typedef enum {
 
 typedef enum {
     brgemm_prf_default = 1,
-    brgemm_prf1 = 2,
-    brgemm_prf2 = 3,
+    brgemm_prf1,
+    brgemm_prf2,
 } brgemm_kernel_prefetching_t;
 
 typedef enum {
-    brgemm_innermost_undef = -1,
-    brgemm_bd_loop_innermost = 0,
-    brgemm_ld_loop_innermost = 1,
+    brgemm_innermost_undef = 0,
+    brgemm_bd_loop_innermost,
+    brgemm_ld_loop_innermost,
 } brgemm_kernel_innermost_loop_t;
 
 typedef enum {
-    brgemm_hint_nt_undef = -1,
-    brgemm_hint_nt_false = 0,
-    brgemm_hint_nt_true = 1,
+    brgemm_hint_nt_undef = 0,
+    brgemm_hint_nt_false,
+    brgemm_hint_nt_true,
 } brgemm_kernel_hint_nt_t;
 
 struct brgemm_prf_t {
