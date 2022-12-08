@@ -101,6 +101,22 @@ dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine) {
     return engine_kind;
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+dnnl_sparse_encoding_t query_md_sparse_encoding(const_dnnl_memory_desc_t md) {
+    dnnl_sparse_encoding_t encoding = dnnl_sparse_encoding_undef;
+    if (!md) return encoding;
+    dnnl_memory_desc_query(md, dnnl_query_sparse_encoding, &encoding);
+    return encoding;
+}
+
+dnnl_dim_t query_md_nnz(const_dnnl_memory_desc_t md) {
+    dnnl_dim_t nnz = 0;
+    if (!md) return nnz;
+    dnnl_memory_desc_query(md, dnnl_query_nnz_s64, &nnz);
+    return nnz;
+}
+#endif
+
 int query_md_num_handles(const_dnnl_memory_desc_t md) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     int nhandles = 0;
