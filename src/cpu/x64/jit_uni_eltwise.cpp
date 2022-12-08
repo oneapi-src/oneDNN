@@ -107,7 +107,53 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
         io_[data_type()]->store(vmm_src, ptr[reg_dst], tail);
     }
 
+    void compute_two_simdw_xf16_dst(const bool tail) {
+        io_[data_type()]->load_two_simdw_xf16(
+                ptr[reg_src], vmm_src_even, vmm_src_odd);
+        io_[data_type()]->merge_interleaved_to_plain(
+                vmm_src_even, vmm_src_odd, vmm_tmp);
+        if (!is_fwd_) {
+            io_[data_type()]->load_two_simdw_xf16(
+                    ptr[reg_diff_dst], vmm_diff_dst_even, vmm_diff_dst_odd);
+            io_[data_type()]->merge_interleaved_to_plain(
+                    vmm_diff_dst_even, vmm_diff_dst_odd, vmm_tmp);
+        }
+        for (int i = 0; i < 2; ++i) {
+            const auto vsrc = i == 0 ? vmm_src_even : vmm_src_odd;
+            const auto vdiff_dst
+                    = i == 0 ? vmm_diff_dst_even : vmm_diff_dst_odd;
+            eltwise_injector_->compute_vector(vsrc.getIdx());
+            if (!is_fwd_) uni_vmulps(vsrc, vsrc, vdiff_dst);
+            io_[data_type()]->store(vsrc, ptr[reg_dst + i * vlen_], tail);
+        }
+    }
+
+    void compute_two_simdw_xf16() {
+        Label loop_start, loop_end;
+
+        cmp(reg_work_amount, 2 * simd_w_);
+        jl(loop_end, T_NEAR);
+
+        L(loop_start);
+        {
+            compute_two_simdw_xf16_dst(false);
+            add(reg_src, 2 * vlen_);
+            add(reg_dst, 2 * vlen_);
+            if (!is_fwd_) add(reg_diff_dst, 2 * vlen_);
+
+            sub(reg_work_amount, 2 * simd_w_);
+            cmp(reg_work_amount, 2 * simd_w_);
+            jge(loop_start, T_NEAR);
+        }
+        L(loop_end);
+    }
+
     void compute() {
+        // Compute two simdw at once in vectorized loop first
+        // when ne_convert instructions is available for xf16
+        if (isa == avx2_vnni_2 && (is_bf16() || is_f16()))
+            compute_two_simdw_xf16();
+
         Label vectorized_loop_start, reminder_loop_start, loop_end;
 
         cmp(reg_work_amount, simd_w_);
@@ -191,7 +237,12 @@ private:
 
     Vmm vmm_src = Vmm(1);
     Vmm vmm_diff_dst = Vmm(2);
+    Vmm vmm_tmp = Vmm(3);
     Vmm vmm_tail_mask = Vmm(6);
+    Vmm vmm_src_even = vmm_src;
+    Vmm vmm_src_odd = Vmm(7);
+    Vmm vmm_diff_dst_even = vmm_diff_dst;
+    Vmm vmm_diff_dst_odd = Vmm(8);
     std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> eltwise_injector_;
     io::jit_io_multi_dt_helper_t<Vmm> io_;
 
@@ -215,9 +266,9 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             && utils::everyone_is(
                     d_type, src_md()->data_type, dst_md()->data_type)
             && IMPLICATION(src_md()->data_type == data_type::bf16,
-                    mayiuse(avx512_core))
+                    mayiuse(avx512_core) || mayiuse(avx2_vnni_2))
             && IMPLICATION(src_md()->data_type == data_type::f16,
-                    mayiuse(avx512_core_fp16))
+                    mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2))
             && !has_zero_dim_memory() && src_d.is_dense(true)
             && eltwise_injector::is_supported(isa, desc_.alg_kind)
             // refer to a comment in jit_uni_kernel why this is needed
@@ -349,6 +400,8 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::execute(
 template struct jit_uni_eltwise_fwd_t<sse41, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx2, data_type::f32>;
+template struct jit_uni_eltwise_fwd_t<avx2_vnni_2, data_type::bf16>;
+template struct jit_uni_eltwise_fwd_t<avx2_vnni_2, data_type::f16>;
 template struct jit_uni_eltwise_fwd_t<avx512_core, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx512_core, data_type::bf16>;
 template struct jit_uni_eltwise_fwd_t<avx512_core_fp16, data_type::f16>;
