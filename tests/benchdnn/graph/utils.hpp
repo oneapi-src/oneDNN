@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -181,6 +181,14 @@ void fill_buffer(sycl::queue &q, void *usm_buffer, size_t length, dtype value) {
     q.parallel_for<init_kernel<dtype>>(sycl::range<1>(length), ker).wait();
 }
 #endif
+
+void change_format_to_ncx(dims_t &dims);
+
+template <typename First, typename... Rest>
+void change_format_to_ncx(First &first, Rest &...rest) {
+    change_format_to_ncx(first);
+    change_format_to_ncx(rest...);
+}
 
 } // namespace graph
 #endif

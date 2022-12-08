@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -163,6 +163,74 @@ op deserialized_op::create() const {
     }
 
     return aop;
+}
+
+bool deserialized_op::get_attr_string(
+        std::string &attr, const std::string &attr_name) const {
+    auto it = attrs_.find(attr_name);
+    if (it == attrs_.end()) return false;
+    return attr = it->second.str_value_, true;
+}
+
+bool deserialized_op::get_attr_bool(
+        bool &attr, const std::string &attr_name) const {
+    auto it = attrs_.find(attr_name);
+    if (it == attrs_.end()) return false;
+    return attr = it->second.bool_value_, true;
+}
+
+bool deserialized_op::get_attr_f32(
+        float &attr, const std::string &attr_name) const {
+    auto it = attrs_.find(attr_name);
+    if (it == attrs_.end()) return false;
+    return attr = it->second.f32_value_, true;
+}
+
+bool deserialized_op::get_attr_s64(
+        int64_t &attr, const std::string &attr_name) const {
+    auto it = attrs_.find(attr_name);
+    if (it == attrs_.end()) return false;
+    return attr = it->second.s64_value_, true;
+}
+
+bool deserialized_op::get_attr_f32_vector(
+        std::vector<float> &attr, const std::string &attr_name) const {
+    auto it = attrs_.find(attr_name);
+    if (it == attrs_.end()) return false;
+    return attr = it->second.f32_vector_, true;
+}
+
+bool deserialized_op::get_attr_s64_vector(
+        std::vector<int64_t> &attr, const std::string &attr_name) const {
+    auto it = attrs_.find(attr_name);
+    if (it == attrs_.end()) return false;
+    return attr = it->second.s64_vector_, true;
+}
+
+bool deserialized_op::has_NXC_format() const {
+    std::string data_format;
+    if (get_attr_string(data_format, "data_format")) {
+        return data_format == "NXC";
+    } else {
+        // these op has default data format nxc, as data_format is optional
+        // attribute, if not found, use default data format: nxc
+        static const std::unordered_set<std::string> op_has_dflt_nxc_attr {
+                "AvgPool", "AvgPoolBackward", "BatchNormForwardTraining",
+                "BatchNormInference", "BatchNormTrainingBackward", "BiasAdd",
+                "BiasAddBackward", "Convolution", "ConvolutionBackwardData",
+                "ConvolutionBackwardWeights", "ConvTranspose",
+                "ConvTransposeBackwardData", "ConvTransposeBackwardWeights",
+                "Interpolate", "InterpolateBackward", "MaxPool",
+                "MaxPoolBackward", "PReLU", "PReLUBackward"};
+        return op_has_dflt_nxc_attr.find(name_) != op_has_dflt_nxc_attr.end();
+    }
+}
+
+logical_tensor::dims deserialized_op::get_NCX_shape(
+        size_t idx, bool input) const {
+    auto src_dims = input ? in_lts_.at(idx).shape_ : out_lts_.at(idx).shape_;
+    if (has_NXC_format()) { change_format_to_ncx(src_dims); }
+    return src_dims;
 }
 
 void deserialized_graph::load(const std::string &pass_config_json) {

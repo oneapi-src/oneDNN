@@ -578,4 +578,11 @@ dnnl::graph::logical_tensor::dims memory_tag2strides(
     return strides;
 }
 
+void change_format_to_ncx(dims_t &dims) {
+    // change format from nxc to ncx
+    const auto ndims = static_cast<int>(dims.size());
+    dims.insert(dims.begin() + 1, dims[ndims - 1]);
+    dims.erase(dims.end() - 1);
+}
+
 } // namespace graph

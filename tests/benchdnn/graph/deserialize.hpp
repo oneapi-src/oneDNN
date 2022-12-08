@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,6 +71,24 @@ struct deserialized_op {
     op create() const;
 
     void load(utils::json::json_reader_t *reader);
+
+    bool get_attr_string(std::string &attr, const std::string &attr_name) const;
+
+    bool get_attr_bool(bool &attr, const std::string &attr_name) const;
+
+    bool get_attr_f32(float &attr, const std::string &attr_name) const;
+
+    bool get_attr_s64(int64_t &attr, const std::string &attr_name) const;
+
+    bool get_attr_f32_vector(
+            std::vector<float> &attr, const std::string &attr_name) const;
+
+    bool get_attr_s64_vector(
+            std::vector<int64_t> &attr, const std::string &attr_name) const;
+
+    bool has_NXC_format() const;
+
+    logical_tensor::dims get_NCX_shape(size_t idx, bool input) const;
 };
 
 struct deserialized_graph {

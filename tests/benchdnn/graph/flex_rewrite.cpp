@@ -18,6 +18,7 @@
 #include <sstream>
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
+#include "utils/fill.hpp"
 
 #include "flex_rewrite.hpp"
 #include "parser.hpp"
@@ -782,34 +783,40 @@ void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
         if (aop.kind_ != "Dequantize" && aop.kind_ != "Quantize") continue;
 
         auto &attr = aop.attrs_;
-        if (attr.find("scales") != attr.end() && attr.find("zps") != attr.end()
-                && attr.find("qtype") != attr.end()
-                && attr["qtype"].str_value_ == "per_channel") {
-            auto pre_scales = attr["scales"].f32_vector_;
-            auto pre_zps = attr["zps"].s64_vector_;
-            int64_t axis = 1;
-            auto ndims = aop.in_lts_.front().shape_.size();
-            if (attr.find("axis") != attr.end()) {
-                axis = (attr["axis"].s64_value_ + ndims) % ndims;
-            }
-            size_t scales_num = aop.in_lts_.front().shape_[axis];
-            std::vector<float> scales;
-            std::vector<int64_t> zps;
-            for (size_t i = 0; i < scales_num; i++) {
-                if (i < pre_scales.size()) {
-                    scales.push_back(pre_scales[i]);
-                } else {
-                    scales.push_back(pre_scales[0]);
-                }
-                if (i < pre_zps.size()) {
-                    zps.push_back(pre_zps[i]);
-                } else {
-                    zps.push_back(0);
-                }
-            }
-            aop.attrs_["scales"].f32_vector_ = scales;
-            aop.attrs_["zps"].s64_vector_ = zps;
+        if (attr.find("scales") == attr.end() || attr.find("zps") == attr.end()
+                || attr.find("qtype") == attr.end()
+                || attr["qtype"].str_value_ != "per_channel")
+            continue;
+
+        auto pre_scales = attr["scales"].f32_vector_;
+        auto pre_zps = attr["zps"].s64_vector_;
+        int64_t axis = 1;
+        auto ndims = aop.in_lts_.front().shape_.size();
+        if (attr.find("axis") != attr.end()) {
+            axis = (attr["axis"].s64_value_ + ndims) % ndims;
         }
+        const int64_t scales_zp_dim = aop.in_lts_.front().shape_[axis];
+        std::vector<float> scales(scales_zp_dim, pre_scales[0]);
+
+        attr_t::arg_scales_t::entry_t e(policy_t::PER_OC);
+        const dnnl_dims_t scales_dims {scales_zp_dim};
+        const auto scales_md
+                = dnn_mem_t::init_md(1, scales_dims, dnnl_f32, tag::abx);
+        dnn_mem_t scales_mem(
+                scales_md, get_cpu_engine(), {false, scales.data()});
+        dnn_mem_t dummy;
+        fill_scales(e, dummy, scales_mem);
+
+        std::vector<int64_t> zps;
+        for (int64_t i = 0; i < scales_zp_dim; i++) {
+            if (static_cast<size_t>(i) < pre_zps.size()) {
+                zps.push_back(pre_zps[i]);
+            } else {
+                zps.push_back(0);
+            }
+        }
+        aop.attrs_["scales"].f32_vector_ = scales;
+        aop.attrs_["zps"].s64_vector_ = zps;
     }
 }
 
