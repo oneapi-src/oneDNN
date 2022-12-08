@@ -131,6 +131,7 @@ struct cudnn_matmul_t : public primitive_t {
 
         // Only single-element scale is supported
         output_scale_ = new float;
+        output_scale_[0] = 1.f;
 
         const bool with_bias = matmul_impl_->with_bias();
         const bool has_runtime_args = matmul_impl_->has_runtime_params();
