@@ -185,7 +185,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
-int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_mem(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp);
 int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
         dnn_mem_t &s8_comp, dnn_mem_t &zp_comp);

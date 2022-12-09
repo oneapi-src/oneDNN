@@ -437,7 +437,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     auto dst_dt = make_dnn_mem(outs[0], (prb->dtag).c_str());
 
     //TODO: need to extend for post ops
-    SAFE(fill_memory(prb, SRC, src_dt, src_fp), WARN);
+    SAFE(fill_mem(prb, SRC, src_dt, src_fp), WARN);
     SAFE(src_dt.reorder(src_fp), WARN);
 
     dnn_mem_t scales_dt, zps_dt;
