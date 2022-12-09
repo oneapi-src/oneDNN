@@ -80,13 +80,16 @@ struct thr_ctx_t {
 #error "src/common/dnnl_thread.hpp" has an unexpected header guard
 #endif
 
+#ifdef TBB_INTERFACE_VERSION
 // tbb constraints on core type appear in 2021.2
 // tbb constraints on max_concurrency appear in 2020
 // we check only for 2021.2 to enable thread context knobs
-#ifdef TBB_INTERFACE_VERSION
 #define DNNL_TBB_CONSTRAINTS_ENABLED (TBB_INTERFACE_VERSION >= 12020)
+// API to do explicit finalization was introduced in 2021.6.
+#define DNNL_TBB_NEED_EXPLICIT_FINALIZE (TBB_INTERFACE_VERSION >= 12060)
 #else
 #define DNNL_TBB_CONSTRAINTS_ENABLED 0
+#define DNNL_TBB_NEED_EXPLICIT_FINALIZE 0
 #endif
 
 #define DNNL_TBB_THREADING_WITH_CONSTRAINTS \
@@ -316,6 +319,21 @@ auto execute_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &...args)
 
 #else
 #error __FILE__"(" __LINE__ ")" "unsupported threading runtime!"
+#endif
+
+// TBB runtime may crash when it is used under CTest. This is a known TBB
+// limitation that can be worked around by doing explicit finalization.
+// The API to do that was introduced in 2021.6.0. When using an older TBB
+// runtime the crash may still happen.
+#if DNNL_TBB_NEED_EXPLICIT_FINALIZE
+#include "tbb/global_control.h"
+inline void finalize_tbb() {
+    oneapi::tbb::task_scheduler_handle handle
+            = oneapi::tbb::task_scheduler_handle {oneapi::tbb::attach {}};
+    oneapi::tbb::finalize(handle);
+}
+#else
+inline void finalize_tbb() {};
 #endif
 
 #undef ALIAS_TO_RUN_IN_THR_CTX
