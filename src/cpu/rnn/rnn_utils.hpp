@@ -653,6 +653,9 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     else if (utils::everyone_is(data_type::bf16, src_layer_d.data_type(),
                      dst_layer_d.data_type(), weights_layer_d.data_type())) {
         if (!platform::has_data_type_support(data_type::bf16)) return false;
+#if DNNL_X64
+        if (!x64::mayiuse(x64::avx512_core)) return false;
+#endif
         rnn.dt_conf = all_bf16;
     } else if (dst_layer_d.data_type() == data_type::u8) {
         if (IMPLICATION(
