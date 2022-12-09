@@ -165,7 +165,8 @@ struct scoped_tp_deactivation_t {
 } // namespace dnnl
 #endif
 
-// These are free functions to allow running a function in a given threading context.
+// These are free functions to allow running a function in a given threading
+// context.
 // A threading context is defined by:
 // - number of threads
 // - type of cores (TBB only)
@@ -221,6 +222,42 @@ RUN_IN_THR_CTX(execute_in_thr_ctx)
 #undef RUN_IN_THR_CTX
 
 #elif DNNL_TBB_THREADING_WITH_CONSTRAINTS
+
+// XXX: Some compilers cannot expand a parameter pack when it is
+// used inside a lambda function. E.g. `[&]{ return f(args...); }`
+// will cause the aforementioned issue. The workaround is to convert
+// the parameter pack into a tuple, then convert it to a parameter pack again
+// and then expand it in the regular way. This way the compiler can digest
+// the code.
+// The return type is not deduced due to the same issue. The solution for
+// that is to assume that the return type is always integer and convert the
+// return value to `dnnl_status_t` if necessary.
+template <typename T>
+constexpr size_t get_number_args() {
+    return std::tuple_size<typename std::remove_reference<T>::type> {};
+}
+
+template <size_t i, typename R>
+struct params_pack_helper_t {
+    template <typename F, typename T, typename... Args_t>
+    static R expand_and_call(F &&f, T &packed_args, Args_t &... unpacked_args) {
+        constexpr size_t cnt = (i == SIZE_MAX)
+                ? get_number_args<decltype(packed_args)>()
+                : i;
+        constexpr size_t idx = get_number_args<decltype(packed_args)>() - cnt;
+        return (R)params_pack_helper_t<cnt - 1, R>::expand_and_call(
+                f, packed_args, unpacked_args..., std::get<idx>(packed_args));
+    }
+};
+
+template <typename R>
+struct params_pack_helper_t<0, R> {
+    template <typename F, typename T, typename... Args_t>
+    static R expand_and_call(F &&f, T &packed_args, Args_t &... unpacked_args) {
+        return (R)f(unpacked_args...);
+    }
+};
+
 #include "oneapi/tbb/info.h"
 #define RUN_IN_THR_CTX(name) \
     template <typename F, typename... Args_t> \
@@ -245,7 +282,11 @@ RUN_IN_THR_CTX(execute_in_thr_ctx)
                         .set_core_type(core_type) \
                         .set_max_threads_per_core(ctx.nthr_per_core) \
                         .set_max_concurrency(ctx.max_concurrency)}; \
-        return arena.execute([&] { return f(args...); }); \
+        auto packed_args = std::make_tuple(std::ref(args)...); \
+        return (decltype(f(args...)))arena.execute([&] { \
+            return params_pack_helper_t<SIZE_MAX, int>::expand_and_call( \
+                    f, packed_args); \
+        }); \
     }
 
 RUN_IN_THR_CTX(create_in_thr_ctx)
