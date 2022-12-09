@@ -90,6 +90,17 @@ if(DNNL_CPU_SYCL)
     endforeach()
 endif()
 
+# Do not build C examples for TBB threading runtime because
+# TBB doesn't provide C API to do explicit finalization.
+if (DNNL_CPU_RUNTIME STREQUAL "TBB" OR DNNL_CPU_SYCL)
+    foreach(f ${sources})
+        get_filename_component(fname ${f} NAME)
+        if(${fname} MATCHES ".*\\.c$")
+            list(REMOVE_ITEM sources "${f}")
+        endif()
+    endforeach()
+endif()
+
 foreach(src ${sources})
     file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR} ${src})
     string(REGEX REPLACE "[/_\\.]" "-" example_name ${src_rel_path})
