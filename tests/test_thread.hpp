@@ -60,6 +60,26 @@ struct thr_ctx_t {
     void *get_interop_obj() const;
 };
 
+// This hack renames the namespaces used by threading functions for
+// threadpool-related functions so that the calls to dnnl::impl::parallel*()
+// from the test use a special testing threadpool.
+//
+// At the same time, the calls to dnnl::impl::parallel*() from within the
+// library continue using the library version of these functions.
+#define threadpool_utils testing_threadpool_utils
+#include "src/common/dnnl_thread.hpp"
+#undef threadpool_utils
+
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+// Restore the original DNNL_CPU_THREADING_RUNTIME value.
+#undef DNNL_CPU_THREADING_RUNTIME
+#define DNNL_CPU_THREADING_RUNTIME DNNL_RUNTIME_SEQ
+#endif
+
+#ifndef COMMON_DNNL_THREAD_HPP
+#error "src/common/dnnl_thread.hpp" has an unexpected header guard
+#endif
+
 // tbb constraints on core type appear in 2021.2
 // tbb constraints on max_concurrency appear in 2020
 // we check only for 2021.2 to enable thread context knobs
@@ -98,26 +118,6 @@ std::ostream &operator<<(std::ostream &os, const thr_ctx_t &ctx);
             exit(1); \
         } \
     } while (0)
-
-// This hack renames the namespaces used by threading functions for
-// threadpool-related functions so that the calls to dnnl::impl::parallel*()
-// from the test use a special testing threadpool.
-//
-// At the same time, the calls to dnnl::impl::parallel*() from within the
-// library continue using the library version of these functions.
-#define threadpool_utils testing_threadpool_utils
-#include "src/common/dnnl_thread.hpp"
-#undef threadpool_utils
-
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
-// Restore the original DNNL_CPU_THREADING_RUNTIME value.
-#undef DNNL_CPU_THREADING_RUNTIME
-#define DNNL_CPU_THREADING_RUNTIME DNNL_RUNTIME_SEQ
-#endif
-
-#ifndef COMMON_DNNL_THREAD_HPP
-#error "src/common/dnnl_thread.hpp" has an unexpected header guard
-#endif
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
