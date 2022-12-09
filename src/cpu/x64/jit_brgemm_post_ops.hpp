@@ -740,15 +740,14 @@ private:
             }
         }
 
-        const bool dt_requires_saturation = utils::one_of(
-                brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
+        const bool dt_requires_saturation = types::is_integral_dt(out_dt_);
 
         const reg64_t reg_tmp_gpr = rax;
         auto vmm_lbound = vmm_tmp(0);
         auto vmm_ubound = vmm_tmp(1);
         if (dt_requires_saturation) {
             init_saturate_f32(vmm_lbound, vmm_ubound, reg_tmp_gpr,
-                    data_type::f32, brg.dt_d);
+                    data_type::f32, out_dt_);
         }
 
         if (brg.is_bf16_emu) bf16_emu_->init_vcvtneps2bf16();
@@ -762,35 +761,40 @@ private:
             const size_t offset = out_typesize_ * (m * LDD_ + n * brg.ld_block);
             const auto addr = ptr[aux_reg_out + offset];
 
-            if (utils::one_of(out_dt_, data_type::bf16, data_type::f16)) {
+            if (dt_requires_saturation) {
+                saturate_f32(vmm, vmm_lbound, vmm_ubound, out_dt_);
+                vcvtps2dq(vmm, vmm);
+            }
+
+            if (is_superset(isa, avx512_core)) {
+                auto vmm_masked = maybe_mask(vmm, tail > 0, true, k_mask);
                 Vmm_lower_t vmm_low = Vmm_lower_t(vmm.getIdx());
-                if (brg.alpha != 0 || (sum_idx != -1 && brg.beta != 0)) {
-                    if (brg.is_f16)
+                auto vmm_low_masked
+                        = maybe_mask(vmm_low, tail > 0, true, k_mask);
+                switch (out_dt_) {
+                    case data_type::f32:
+                    case data_type::s32: uni_vmovups(addr, vmm_masked); break;
+                    case data_type::bf16: // TODO - clean
+                        if (brg.is_bf16_emu) {
+                            bf16_emu_->vcvtneps2bf16(vmm_low, vmm);
+                            vmovdqu16(addr, vmm_low_masked);
+                        } else {
+                            vcvtneps2bf16(vmm_low, vmm);
+                            vmovdqu16(addr, vmm_low_masked);
+                        }
+                        break;
+                    case data_type::f16:
                         vcvtps2ph(vmm_low, vmm, _op_mxcsr);
-                    else if (brg.is_bf16_emu)
-                        bf16_emu_->vcvtneps2bf16(vmm_low, vmm);
-                    else
-                        vcvtneps2bf16(vmm_low, vmm);
+                        vmovdqu16(addr, vmm_low_masked);
+                        break;
+                    case data_type::s8: vpmovsdb(addr, vmm_masked); break;
+                    case data_type::u8: vpmovusdb(addr, vmm_masked); break;
+                    default: assert(!"unknown dst_dt");
                 }
-                vmm_low = maybe_mask(vmm_low, tail > 0, true, k_mask);
-                vmovdqu16(addr, vmm_low);
             } else {
-                if (brg.alpha != 0 || (sum_idx != -1 && brg.beta != 0)) {
-                    saturate_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
-                    if (out_dt_ != data_type::f32) vcvtps2dq(vmm, vmm);
-                }
-                if (IMPLICATION(tail > 0, isa_has_masks(isa))) {
-                    vmm = maybe_mask(vmm, tail > 0, true, k_mask);
-                    switch (out_dt_) {
-                        case data_type::f32:
-                        case data_type::s32: vmovups(addr, vmm); break;
-                        case data_type::s8: vpmovsdb(addr, vmm); break;
-                        case data_type::u8: vpmovusdb(addr, vmm); break;
-                        default: assert(!"unknown dst_dt");
-                    }
-                } else {
-                    store_data(out_dt_, vmm, aux_reg_out, offset, tail);
-                }
+                const int simd_w = vreg_traits<Vmm>::vlen / sizeof(float);
+                const int nelems = tail > 0 ? tail : simd_w;
+                store_data(out_dt_, vmm, aux_reg_out, offset, nelems);
             }
         }
     }
