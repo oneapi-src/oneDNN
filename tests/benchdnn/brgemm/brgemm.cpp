@@ -142,21 +142,7 @@ std::string prepare_wei_format_string(
     // `dt` affects the choice of last inner block (for VNNI-friendliness).
     // `n` affects the choice of B block.
     std::string wtag("BA16a");
-    switch (n) {
-        case 64: wtag += "64b"; break;
-        case 48: wtag += "48b"; break;
-        case 32: wtag += "32b"; break;
-        default:
-            if (n <= 16)
-                wtag += "16b";
-            else {
-                if (n % 16 != 0) {
-                    wtag += std::to_string(n) + "b";
-                } else
-                    wtag += std::to_string(16 * div_up(n, 16)) + "b";
-            }
-            break;
-    }
+    wtag += std::to_string(n) + "b";
     if (is_vnni_layout) {
         switch (dt) {
             case dnnl_f32: break;
