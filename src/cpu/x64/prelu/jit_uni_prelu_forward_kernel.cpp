@@ -78,7 +78,8 @@ jit_uni_prelu_forward_kernel_t<Vmm>::jit_uni_prelu_forward_kernel_t(
                     : 3u)
     , saturation_needed_(utils::one_of(
               dst_dt_, data_type::u8, data_type::s8, data_type::s32))
-    , tail_vmm_mask_(tail_size_ && is_subset(isa, avx2) ? reserve_vmm() : 0)
+    , tail_vmm_mask_(
+              tail_size_ && is_subset(isa, avx2_vnni_2) ? reserve_vmm() : 0)
     , vmm_zeros_(reserve_vmm())
     , dst_saturate_ubound_(saturation_needed_ ? reserve_vmm() : 0)
     , weights_const_vmm_(utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
@@ -207,7 +208,64 @@ void jit_uni_prelu_forward_kernel_t<Xbyak::Zmm>::uni_vfmadd132ps(
 }
 
 template <typename Vmm>
-void jit_uni_prelu_forward_kernel_t<Vmm>::compute_dst(
+void jit_uni_prelu_forward_kernel_t<Vmm>::compute_ne_convert_xf16_dst_body(
+        size_t unrolling_factor, bool tail) {
+    static constexpr size_t max_idx = 0;
+    static constexpr size_t min_idx = 1;
+    static constexpr size_t src_idx = 2;
+    static constexpr size_t weights_idx = 3;
+    const auto vtmp = vmm_zeros_;
+
+    for (size_t ur_group_base = 0; ur_group_base < unrolling_factor;
+            ur_group_base += 2) {
+        const Vmm src_vmm_even {get_compute_vmm(src_idx, ur_group_base)};
+        const Vmm src_vmm_odd {get_compute_vmm(src_idx, ur_group_base + 1)};
+
+        const auto offset_base = ur_group_base * simd_w_;
+        const auto can_load_two_simdw = unrolling_factor - ur_group_base >= 2;
+        if (can_load_two_simdw) {
+            io_.at(src_dt_)->load_two_simdw_xf16(
+                    data_ptr(DNNL_ARG_SRC, offset_base), src_vmm_even,
+                    src_vmm_odd);
+            io_.at(src_dt_)->merge_interleaved_to_plain(
+                    src_vmm_even, src_vmm_odd, vtmp);
+            uni_vxorps(vtmp, vtmp, vtmp);
+        } else
+            io_.at(src_dt_)->load(
+                    data_ptr(DNNL_ARG_SRC, offset_base), src_vmm_even, tail);
+        for (int i = 0; i < 2 && i + ur_group_base < unrolling_factor; ++i) {
+            const size_t unroll_group = ur_group_base + i;
+            const Vmm src_vmm = i == 0 ? src_vmm_even : src_vmm_odd;
+            const Vmm max_vmm {get_compute_vmm(max_idx, unroll_group)};
+            const Vmm min_vmm {get_compute_vmm(min_idx, unroll_group)};
+            const Vmm weights_vmm {get_compute_vmm(weights_idx, unroll_group)};
+            const auto offset = offset_base + i * simd_w_;
+
+            uni_vmaxps(max_vmm, vmm_zeros_, src_vmm);
+            uni_vminps(min_vmm, vmm_zeros_, src_vmm);
+            const auto &dst_vmm = min_vmm;
+
+            const Xbyak::Address weights_addr
+                    = data_ptr(DNNL_ARG_WEIGHTS, offset);
+            if (can_load_wei_from_addr_directly(tail)) {
+                uni_vfmadd132ps(dst_vmm, max_vmm, weights_addr, tail);
+            } else {
+                const Vmm weights_operand
+                        = get_or_load_weights(weights_addr, weights_vmm, tail);
+                uni_vfmadd132ps(dst_vmm, max_vmm, weights_operand, tail);
+            }
+
+            io_.at(dst_dt_)->store(
+                    dst_vmm, data_ptr(DNNL_ARG_DST, offset), tail);
+            if (dst_tail_block_ && tail)
+                prelu::apply_zero_padding(this, tail_size_, dst_dt_,
+                        dst_tail_block_, reg_dst_, &reg_offset_);
+        }
+    }
+}
+
+template <typename Vmm>
+void jit_uni_prelu_forward_kernel_t<Vmm>::compute_dst_body(
         size_t unrolling_factor, bool tail) {
     static constexpr size_t max_idx = 0;
     static constexpr size_t min_idx = 1;
@@ -241,6 +299,16 @@ void jit_uni_prelu_forward_kernel_t<Vmm>::compute_dst(
             prelu::apply_zero_padding(this, tail_size_, dst_dt_,
                     dst_tail_block_, reg_dst_, &reg_offset_);
     }
+}
+
+template <typename Vmm>
+void jit_uni_prelu_forward_kernel_t<Vmm>::compute_dst(
+        size_t unrolling_factor, bool tail) {
+    if (utils::one_of(src_dt_, data_type::bf16, data_type::f16)
+            && prelu::get_supported_isa() == avx2_vnni_2 && !tail)
+        compute_ne_convert_xf16_dst_body(unrolling_factor, tail);
+    else
+        compute_dst_body(unrolling_factor, tail);
 }
 
 jit_prelu_forward_kernel_t *jit_prelu_forward_kernel_t::create(

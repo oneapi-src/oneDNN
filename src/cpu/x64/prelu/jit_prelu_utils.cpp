@@ -34,13 +34,14 @@ cpu_isa_t get_supported_isa() {
         return avx512_core_bf16;
     else if (mayiuse(avx512_core))
         return avx512_core;
+    else if (mayiuse(avx2_vnni_2))
+        return avx2_vnni_2;
     else if (mayiuse(avx2))
         return avx2;
     else if (mayiuse(avx))
         return avx;
     else if (mayiuse(sse41))
         return sse41;
-
     return isa_undef;
 }
 
@@ -51,6 +52,8 @@ static int get_vlen(const cpu_isa_t &isa) noexcept {
         return cpu_isa_traits<avx512_core_bf16>::vlen;
     else if (isa == avx512_core)
         return cpu_isa_traits<avx512_core>::vlen;
+    else if (isa == avx2_vnni_2)
+        return cpu_isa_traits<avx2_vnni_2>::vlen;
     else if (isa == avx2)
         return cpu_isa_traits<avx2>::vlen;
     else if (isa == avx)
@@ -65,6 +68,8 @@ int get_n_vregs(const cpu_isa_t &isa) noexcept {
         return cpu_isa_traits<avx512_core_bf16>::n_vregs;
     else if (isa == avx512_core)
         return cpu_isa_traits<avx512_core>::n_vregs;
+    else if (isa == avx2_vnni_2)
+        return cpu_isa_traits<avx2_vnni_2>::n_vregs;
     else if (isa == avx2)
         return cpu_isa_traits<avx2>::n_vregs;
     else if (isa == avx)
@@ -172,16 +177,16 @@ bcast get_bcast_type(
 }
 
 bool dt_supported(const std::set<data_type_t> &tensor_data_types) noexcept {
-
-    const bool is_avx512_core = mayiuse(avx512_core);
-    const bool is_avx512_core_fp16 = mayiuse(avx512_core_fp16);
+    const bool is_bf16_supported = mayiuse(avx512_core) || mayiuse(avx2_vnni_2);
+    const bool is_f16_supported
+            = mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2);
 
     auto is_dt_ok = [&](data_type_t dt) {
         return utils::one_of(dt, data_type::bf16, data_type::f16,
                        data_type::f32, data_type::s32, data_type::u8,
                        data_type::s8)
-                && IMPLICATION(dt == data_type::bf16, is_avx512_core)
-                && IMPLICATION(dt == data_type::f16, is_avx512_core_fp16);
+                && IMPLICATION(dt == data_type::bf16, is_bf16_supported)
+                && IMPLICATION(dt == data_type::f16, is_f16_supported);
     };
 
     for (auto dt : tensor_data_types)

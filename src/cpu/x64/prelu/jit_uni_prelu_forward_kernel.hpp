@@ -81,6 +81,8 @@ private:
     void compute_dst(size_t unrolling_factor, bool tail) override;
     bool can_load_wei_from_addr_directly(bool tail) const noexcept;
 
+    void compute_dst_body(size_t unrolling_factor, bool tail);
+    void compute_ne_convert_xf16_dst_body(size_t unrolling_factor, bool tail);
     Vmm get_or_load_weights(
             const Xbyak::Address &src_addr, const Vmm &dst_vmm, bool tail);
     void uni_vfmadd132ps(
