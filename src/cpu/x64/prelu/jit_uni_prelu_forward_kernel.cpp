@@ -148,35 +148,9 @@ bool jit_uni_prelu_forward_kernel_t<
     return false;
 }
 
-template <>
-Xbyak::Zmm jit_uni_prelu_forward_kernel_t<Xbyak::Zmm>::get_or_load_weights(
-        const Xbyak::Address &src_addr, const Xbyak::Zmm &weights_vmm,
-        bool tail) {
-    if (utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
-                prelu::bcast::per_oc_blocked))
-        return weights_const_vmm_;
-
-    io_.at(wei_dt_)->load(src_addr, weights_vmm, tail);
-    return weights_vmm;
-}
-
-template <>
-Xbyak::Ymm jit_uni_prelu_forward_kernel_t<Xbyak::Ymm>::get_or_load_weights(
-        const Xbyak::Address &src_addr, const Xbyak::Ymm &weights_vmm,
-        bool tail) {
-    if (utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
-                prelu::bcast::per_oc_blocked))
-        return weights_const_vmm_;
-
-    io_.at(wei_dt_)->load(src_addr, weights_vmm, tail);
-    return weights_vmm;
-}
-
-template <>
-Xbyak::Xmm jit_uni_prelu_forward_kernel_t<Xbyak::Xmm>::get_or_load_weights(
-        const Xbyak::Address &src_addr, const Xbyak::Xmm &weights_vmm,
-        bool tail) {
-
+template <typename Vmm>
+Vmm jit_uni_prelu_forward_kernel_t<Vmm>::get_or_load_weights(
+        const Xbyak::Address &src_addr, const Vmm &weights_vmm, bool tail) {
     if (utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
                 prelu::bcast::per_oc_blocked))
         return weights_const_vmm_;
