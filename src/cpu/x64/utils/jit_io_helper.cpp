@@ -849,12 +849,20 @@ void jit_io_helper_t<Vmm>::broadcast(
         case data_type::f32: host_->uni_vbroadcastss(dst_vmm, src_addr); break;
         case data_type::bf16:
             assert(bf16_supported_ && "Unsupported data type.");
-            host_->vpbroadcastw(dst_vmm, src_addr);
-            convert_to_f32(dst_vmm, dst_vmm, data_type_);
+            if (is_superset(isa_, avx2_vnni_2))
+                host_->vbcstnebf162ps(dst_vmm, src_addr);
+            else {
+                host_->vpbroadcastw(dst_vmm, src_addr);
+                convert_to_f32(dst_vmm, dst_vmm, data_type_);
+            }
             break;
         case data_type::f16:
             assert(f16_supported_ && "Unsupported data type.");
-            host_->uni_vcvtph2psx(dst_vmm, host_->ptr_b[src_addr.getRegExp()]);
+            if (is_superset(isa_, avx2_vnni_2))
+                host_->vbcstnesh2ps(dst_vmm, src_addr);
+            else
+                host_->uni_vcvtph2psx(
+                        dst_vmm, host_->ptr_b[src_addr.getRegExp()]);
             break;
         case data_type::s32: {
             if (is_superset(isa_, avx512_core)) {
