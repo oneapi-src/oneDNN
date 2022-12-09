@@ -482,6 +482,7 @@ int main(int argc, char **argv) {
 
     std::cout << "Example " << (exit_code ? "failed" : "passed") << " on "
               << engine_kind2str_upper(engine_kind) << "." << std::endl;
+    finalize();
     return exit_code;
 }
 // [Main]

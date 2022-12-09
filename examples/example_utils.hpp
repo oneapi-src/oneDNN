@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,6 +56,26 @@
 #define PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(n)
 #endif
 
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
+#include "tbb/version.h"
+#if defined(TBB_INTERFACE_VERSION) && (TBB_INTERFACE_VERSION >= 12060)
+#include "tbb/global_control.h"
+#define DNNL_TBB_NEED_EXPLICIT_FINALIZE
+#endif
+#endif
+
+// TBB runtime may crash when it is used under CTest. This is a known TBB
+// limitation that can be worked around by doing explicit finalization.
+// The API to do that was introduced in 2021.6.0. When using an older TBB
+// runtime the crash may still happen.
+inline void finalize() {
+#ifdef DNNL_TBB_NEED_EXPLICIT_FINALIZE
+    tbb::task_scheduler_handle handle
+            = tbb::task_scheduler_handle {tbb::attach {}};
+    tbb::finalize(handle);
+#endif
+}
+
 dnnl::engine::kind validate_engine_kind(dnnl::engine::kind akind) {
     // Checking if a GPU exists on the machine
     if (akind == dnnl::engine::kind::gpu) {
@@ -110,6 +130,7 @@ inline int handle_example_errors(
 
     std::cout << "Example " << (exit_code ? "failed" : "passed") << " on "
               << engine_kind_str << "." << std::endl;
+    finalize();
     return exit_code;
 }
 
