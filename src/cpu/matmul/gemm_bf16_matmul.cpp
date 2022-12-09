@@ -55,6 +55,9 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
             && desc()->accum_data_type == acc_type
             && dst_md()->data_type == dst_type
             && platform::has_data_type_support(data_type::bf16) && check_bias()
+#if DNNL_X64
+            && x64::mayiuse(x64::avx512_core)
+#endif
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::scales_runtime
                     | primitive_attr_t::skip_mask_t::post_ops)
