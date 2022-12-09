@@ -455,11 +455,12 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     if (src_f && dst_hf) {
         int step = get_step();
         const auto tmp_type = dst_type;
-        const int tmp_stride = 2;
-        const int reg_size = step * tmp_stride * dst_type_size;
+        const int reg_size = step * 2 * src_stride * dst_type_size;
         const int nregs = utils::div_up(reg_size, grf_size);
-        auto tmp = lex_scope.alloc_reg_buf_data(nregs);
+        auto tmp1 = lex_scope.alloc_reg_buf_data(nregs);
+        auto tmp2 = lex_scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
+            int tmp_stride = 2;
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
             int esize = step;
@@ -467,16 +468,27 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
 
-            const auto align_boundary = grf_size / 2;
-            bool aligned = d.getByteOffset() % align_boundary == 0
-                    && s.getByteOffset() == 0;
-            if (esize > 1 && !aligned) {
-                auto t = tmp.subregister(s.getByteOffset(), tmp_type);
-                plan(mov, esize, t(tmp_stride), s(src_stride));
-                plan(mov, esize, d.w()(dst_stride), t.w()(tmp_stride));
+            if (esize == 1
+                    || (d.getByteOffset() == s.getByteOffset()
+                            && 2 * src_stride == dst_stride)) {
+                plan(mov, esize, d(dst_stride), s(src_stride));
                 continue;
             }
-            plan(mov, esize, d(dst_stride), s(src_stride));
+
+            const auto align_boundary = grf_size / 2;
+            auto tmp_offset = 2 * dst_type_size
+                    * (d.getOffset() % (align_boundary / 2));
+            auto t1 = tmp1.subregister(s.getByteOffset(), tmp_type);
+            plan(mov, esize, t1(2 * src_stride), s(src_stride));
+            if (dst_stride == 1
+                    && (s.getByteOffset() != tmp_offset || src_stride != 1)) {
+                // Packed word dst needs specially aligned and strided src
+                auto t2 = tmp2.subregister(tmp_offset, tmp_type);
+                plan(mov, esize, t2.w()(tmp_stride), t1.w()(2 * src_stride));
+                t1 = t2;
+            } else
+                tmp_stride = 2 * src_stride;
+            plan(mov, esize, d.w()(dst_stride), t1.w()(tmp_stride));
         }
         return;
     }
@@ -485,8 +497,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     if (dst_f && src_hf) {
         int step = get_step();
         const auto tmp_type = src_type;
-        const int tmp_stride = 2;
-        const int reg_size = step * tmp_stride * src_type_size;
+        const int reg_size = step * 2 * dst_stride * src_type_size;
         const int nregs = utils::div_up(reg_size, grf_size);
         auto tmp = lex_scope.alloc_reg_buf_data(nregs);
         for (int i = 0; i < width; i += step) {
@@ -497,16 +508,17 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
 
-            const auto align_boundary = grf_size / 2;
-            bool aligned = s.getByteOffset() % align_boundary == 0
-                    && d.getByteOffset() == 0;
-            if (esize > 1 && src_stride == 1 && !aligned) {
+            int tmp_stride = 2 * dst_stride;
+            if (esize > 1
+                    && (s.getByteOffset() != d.getByteOffset()
+                            || src_stride != 2 * dst_stride)) {
                 auto t = tmp.subregister(d.getByteOffset(), tmp_type);
                 plan(mov, esize, t.w()(tmp_stride), s.w()(src_stride));
-                plan(mov, esize, d(dst_stride), t(tmp_stride));
-                continue;
-            }
-            plan(mov, esize, d(dst_stride), s(src_stride));
+                s = t;
+            } else
+                tmp_stride = src_stride;
+
+            plan(mov, esize, d(dst_stride), s(tmp_stride));
         }
         return;
     }
