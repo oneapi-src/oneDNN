@@ -228,6 +228,15 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    auto is_xf16 = [](dnnl_data_type_t dt) {
+        return dt == dnnl_bf16 || dt == dnnl_f16;
+    };
+    if (!IMPLICATION(is_xf16(prb->bia_dt) || is_xf16(prb->dst_dt()),
+                dnnl::mayiuse(dnnl_cpu_isa_avx512_core)
+                        || is_xf16(prb->wei_dt()))) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
     skip_unimplemented_data_type(
             {prb->src_dt(), prb->wei_dt(), prb->bia_dt, prb->dst_dt()},
             prb->dir, res);
