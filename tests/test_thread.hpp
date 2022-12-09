@@ -267,11 +267,11 @@ struct params_pack_helper_t<0, R> {
                 core_types(); /* sorted by the relative strength       */ \
 \
         if ((ctx.core_type != default_thr_ctx.core_type) \
-                && (ctx.core_type >= core_types.size())) \
+                && ((size_t)ctx.core_type >= core_types.size())) \
             printf("WARNING: TBB smallest core has index %lu. Using this " \
                    "instead of %d.\n", \
                     core_types.size() - 1, ctx.core_type); \
-        size_t core_type_id = ctx.core_type < core_types.size() \
+        size_t core_type_id = (size_t)ctx.core_type < core_types.size() \
                 ? ctx.core_type \
                 : core_types.size() - 1; \
         static auto core_type = ctx.core_type == tbb::task_arena::automatic \
