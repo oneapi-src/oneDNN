@@ -370,6 +370,7 @@ void get_gpu_profiling_info(uint64_t &nsec, double &freq, int mode) {
 
 void finalize() {
     reset_gpu_profiling();
+    finalize_tbb();
 }
 
 inline bool should_stop(const timer::timer_t &t) {
