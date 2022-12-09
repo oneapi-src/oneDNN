@@ -422,6 +422,7 @@ TEST(Execute, ConcatEmptyInput) {
 TEST(ExecuteSubgraphInt8, ConcatWithManyInputs) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu, "skip on gpu");
 
     const int64_t channels = 2;
     const int64_t n_inputs = VARIADIC_INPUT_NUM;
