@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
         printf("total compute_ref: sum(s):%.2f\n", compute_ref_time_s);
     }
 
-    reset_gpu_profiling();
+    finalize();
 
     return !!benchdnn_stat.failed;
 }
