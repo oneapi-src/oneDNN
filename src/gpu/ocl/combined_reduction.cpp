@@ -347,14 +347,12 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("IS_FIRST", phase.is_first);
 
     // Block loading is supported when inner dims are a multiple of 4 bytes
-    if ((types::data_type_size(phase.src_type) * conf.inner_dim_size
-                * conf.inner_dim_per_sg)
-                    % 4
-            == 0) {
-        kernel_ctx.define_int("WITH_BLOCK_READ", 1);
-    } else {
-        kernel_ctx.define_int("WITH_BLOCK_READ", 0);
-    }
+    const size_t src_dt_size = types::data_type_size(phase.src_type);
+    const int nelems_per_sg = conf.inner_dim_size * conf.inner_dim_per_sg;
+    const size_t read_bytes = src_dt_size * nelems_per_sg;
+    const bool use_block_reads = (read_bytes % 4 == 0)
+            && (phase.initial_size % nelems_per_sg == 0);
+    kernel_ctx.define_int("WITH_BLOCK_READ", use_block_reads ? 1 : 0);
 
     switch (conf.alg) {
         case reduction_max: kernel_ctx.define_int("IS_MAX", 1); break;
