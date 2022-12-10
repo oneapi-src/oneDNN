@@ -322,16 +322,16 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
         }
         // End Heuristic
 
-        // Clamp reduction size according to 2-phase kernel
-        reduction_size = std::min(reduced_dim_size,
-                std::max(conf.inner_dim_per_sg, reduction_size));
-
         reduction_end = utils::div_up(reduced_dim_size, reduction_size);
 
         // Shrink reduction_size without changing the final shape
         // ex: div_up(41,16)=3, div_up(41,3)=14 - only 14 reductions needed, not 16
         reduction_size = utils::div_up(reduced_dim_size, reduction_end);
         reduction_size = utils::rnd_up(reduction_size, conf.inner_dim_per_sg);
+
+        // Clamp reduction size according to 2-phase kernel
+        reduction_size = std::min(reduced_dim_size,
+                std::max(conf.inner_dim_per_sg, reduction_size));
 
         num_dst_elems
                 = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
@@ -410,9 +410,11 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     // Block loading is supported when inner dims are a multiple of 4 bytes
     const size_t src_dt_size = types::data_type_size(phase.src_type);
-    const size_t read_bytes
-            = src_dt_size * conf.inner_dim_size * conf.inner_dim_per_sg;
-    kernel_ctx.define_int("WITH_BLOCK_READ", (read_bytes % 4 == 0) ? 1 : 0);
+    const int nelems_per_sg = conf.inner_dim_size * conf.inner_dim_per_sg;
+    const size_t read_bytes = src_dt_size * nelems_per_sg;
+    const bool use_block_reads = (read_bytes % 4 == 0)
+            && (phase.initial_size % nelems_per_sg == 0);
+    kernel_ctx.define_int("WITH_BLOCK_READ", use_block_reads ? 1 : 0);
 
     switch (conf.alg) {
         case reduction_max: kernel_ctx.define_int("IS_MAX", 1); break;
