@@ -134,7 +134,7 @@ std::vector<format_tag_t> get_desired_weights_tag(
                 pick(n_sp_dims, OI16i32o, OIw16i32o, OIhw16i32o, OIdhw16i32o),
                 pick(n_sp_dims, OI16i16o, OIw16i16o, OIhw16i16o, OIdhw16i16o)};
     } else if (is_xf16) {
-        if (is_superset(jbgp.isa, avx512_core_amx)) {
+        if (jbgp.is_amx) {
             return {pick(n_sp_dims, OI16i64o2i, OIw16i64o2i, OIhw16i64o2i,
                             OIdhw16i64o2i),
                     pick(n_sp_dims, OI16i32o2i, OIw16i32o2i, OIhw16i32o2i,
@@ -150,7 +150,7 @@ std::vector<format_tag_t> get_desired_weights_tag(
                             OIdhw8i16o2i)};
         }
     } else if (jbgp.wei_dt == data_type::s8) {
-        if (jbgp.isa == avx512_core_amx) {
+        if (jbgp.is_amx) {
             return {pick(n_sp_dims, OI16i64o4i, OIw16i64o4i, OIhw16i64o4i,
                             OIdhw16i64o4i),
                     pick(n_sp_dims, OI16i32o4i, OIw16i32o4i, OIhw16i32o4i,
@@ -172,8 +172,7 @@ std::vector<format_tag_t> get_desired_weights_tag(
 
 int get_oc_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust) {
     const bool amx_xf16_bwd_d_noadjust = !try_to_adjust
-            && jbgp.prop_kind == backward_data
-            && is_superset(jbgp.isa, avx512_core_amx) && !jbgp.is_bf32;
+            && jbgp.prop_kind == backward_data && jbgp.is_amx && !jbgp.is_bf32;
     if (amx_xf16_bwd_d_noadjust) {
         constexpr int amx_xf16_row = 64;
         return amx_xf16_row;
@@ -211,9 +210,7 @@ int ip_fwd_get_nb_oc_blocking(
 }
 
 bool ip_fwd_adjust_thread_balance(const jit_brgemm_primitive_conf_t &jbgp) {
-    if (IMPLICATION(jbgp.is_wei_layout_any,
-                !is_superset(jbgp.isa, avx512_core_amx)))
-        return false;
+    if (IMPLICATION(jbgp.is_wei_layout_any, !jbgp.is_amx)) return false;
 
     int os_chunks = div_up(jbgp.os, get_os_block(jbgp, true, false));
 
@@ -233,8 +230,7 @@ bool ip_fwd_adjust_thread_balance(const jit_brgemm_primitive_conf_t &jbgp) {
 }
 
 int ip_fwd_get_adjusted_oc_block(const jit_brgemm_primitive_conf_t &jbgp) {
-    const bool is_amx_xf16
-            = is_superset(jbgp.isa, avx512_core_amx) && !jbgp.is_bf32;
+    const bool is_amx_xf16 = jbgp.is_amx && !jbgp.is_bf32;
 
     // we can't change block size on forward and weights update (external)
     // if layout is set by user, for backward data it can be choosen different
@@ -287,13 +283,11 @@ bool post_ops_ok(jit_brgemm_primitive_conf_t &jbgp,
 
 status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d) {
-    const bool is_amx_int8
-            = jbgp.isa == avx512_core_amx && one_of(jbgp.wei_dt, s8, u8);
-    const bool is_amx_xf16 = is_superset(jbgp.isa, avx512_core_amx)
-            && one_of(jbgp.wei_dt, bf16, f16) && !jbgp.is_bf32;
+    const bool is_amx_int8 = jbgp.is_amx && one_of(jbgp.wei_dt, s8, u8);
+    const bool is_amx_xf16
+            = jbgp.is_amx && one_of(jbgp.wei_dt, bf16, f16) && !jbgp.is_bf32;
     const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
-    jbgp.is_amx = is_superset(jbgp.isa, avx512_core_amx);
     const auto &p = attr.post_ops_;
     jbgp.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
@@ -467,7 +461,6 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 }
 
 status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
-    jbgp.is_amx = is_superset(jbgp.isa, avx512_core_amx);
     const bool is_amx_xf16 = jbgp.is_amx && !jbgp.is_bf32;
     const bool is_avx512_bf16 = jbgp.isa == avx512_core_bf16;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
@@ -782,7 +775,6 @@ void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
 }
 
 status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
-    jbgp.is_amx = is_superset(jbgp.isa, avx512_core_amx);
     const bool is_amx_xf16 = jbgp.is_amx && !jbgp.is_bf32;
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const bool has_weights_buffer = jbgp.wei_dt != jbgp.acc_dt;
@@ -918,6 +910,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     jbgp = zero<decltype(jbgp)>();
     jbgp.ndims = ndims;
     jbgp.isa = isa;
+    jbgp.is_amx = is_superset(jbgp.isa, avx512_core_amx);
     jbgp.prop_kind = ipd.prop_kind;
     jbgp.ngroups = 1;
     jbgp.mb = src_d.dims()[0];
@@ -978,8 +971,8 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
                     everyone_is(f16, jbgp.src_dt, jbgp.dst_dt)
                             && jbgp.wei_dt == f32);
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
-    jbgp.is_bf32 = is_f32 && attr.fpmath_mode_ == fpmath_mode::bf16
-            && isa == avx512_core_amx;
+    jbgp.is_bf32
+            = is_f32 && attr.fpmath_mode_ == fpmath_mode::bf16 && jbgp.is_amx;
 
     if (!IMPLICATION(is_int8,
                 one_of(isa, avx512_core_vnni, avx512_core_bf16,
@@ -1004,8 +997,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
         jbgp.acc_dt = f32;
 
     // Dispatch small shapes to VNNI for better performance
-    const bool is_amx_int8
-            = jbgp.isa == avx512_core_amx && one_of(jbgp.wei_dt, s8, u8);
+    const bool is_amx_int8 = jbgp.is_amx && one_of(jbgp.wei_dt, s8, u8);
     const auto amx_row
             = static_cast<int32_t>(data_type_vnni_granularity(jbgp.src_dt))
             * jbgp.simd_w;
