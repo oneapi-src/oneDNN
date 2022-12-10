@@ -86,7 +86,10 @@ protected:
     std::vector<data_type> inner_product_data_types;
 
     void SetUp() override {
-        for (auto dt : {data_type::f32, data_type::bf16}) {
+        for (auto dt : {data_type::f32, data_type::bf16, data_type::f16}) {
+            SKIP_IF(unsupported_prop_kind(prop_kind::forward_training, dt),
+                    "Engine does not support this prop kind with these data "
+                    "types");
             if (!unsupported_data_type(dt))
                 inner_product_data_types.push_back(dt);
         }

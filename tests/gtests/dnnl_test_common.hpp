@@ -185,6 +185,33 @@ inline bool unsupported_data_type(
 }
 #endif
 
+inline bool unsupported_prop_kind(
+        dnnl::prop_kind pk, memory::data_type dt, const dnnl::engine &eng) {
+    bool supported = !unsupported_data_type(dt, eng);
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    dnnl::engine::kind kind = eng.get_kind();
+    if (supported && kind == dnnl::engine::kind::cpu)
+        supported = IMPLICATION(pk != dnnl::prop_kind::forward_inference,
+                dnnl::impl::cpu::platform::has_training_support(
+                        memory::convert_to_c(dt)));
+#endif
+    return !supported;
+}
+
+#ifdef DNNL_TEST_WITH_ENGINE_PARAM
+inline bool unsupported_prop_kind(dnnl::prop_kind pk, memory::data_type dt) {
+    return unsupported_prop_kind(pk, dt, get_test_engine());
+}
+
+template <typename... Rest>
+inline bool unsupported_prop_kind(
+        dnnl::prop_kind pk, memory::data_type first_dt, Rest... rest_dts) {
+    bool rval = unsupported_prop_kind(pk, first_dt, get_test_engine());
+    if (rval) return rval;
+    return unsupported_prop_kind(pk, rest_dts...);
+}
+#endif
+
 template <typename data_t>
 struct data_traits {};
 template <>

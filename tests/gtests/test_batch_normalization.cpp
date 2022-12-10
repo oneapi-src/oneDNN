@@ -81,6 +81,9 @@ protected:
     }
 
     void Forward(prop_kind pk, normalization_flags flags) {
+        SKIP_IF(unsupported_prop_kind(pk, p.src_dt, p.dst_dt),
+                "Engine does not support this prop kind with this data types");
+
         // batch_normalization specific types and values
         using pd_t = batch_normalization_forward::primitive_desc;
 
@@ -195,6 +198,8 @@ protected:
     }
 
     void Backward(prop_kind pk, normalization_flags flags) {
+        SKIP_IF(unsupported_prop_kind(pk, p.src_dt, p.diff_src_dt, p.dst_dt),
+                "Engine does not support this prop kind with this data types");
         // batch_normalization specific types and values
         using pd_t = batch_normalization_backward::primitive_desc;
         using hint_pd_t = batch_normalization_forward::primitive_desc;
