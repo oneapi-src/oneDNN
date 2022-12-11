@@ -113,7 +113,7 @@ struct isa_info_t {
             case avx512_core_amx_fp16:
                 return "Intel AVX-512 with float16, Intel DL Boost and "
                        "bfloat16 support and Intel AMX with bfloat16, float16 "
-                       "and 8-bit integer support ";
+                       "and 8-bit integer support (preview support)";
             case avx512_core_amx:
                 return "Intel AVX-512 with float16, Intel DL Boost and "
                        "bfloat16 support and Intel AMX with bfloat16 and 8-bit "

@@ -2485,6 +2485,7 @@ typedef enum {
 
     /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and
     /// Intel AMX with 8-bit integer, bfloat16 and float16 support
+    /// (preview support)
     dnnl_cpu_isa_avx512_core_amx_fp16 = 0x1fef,
 } dnnl_cpu_isa_t;
 
