@@ -1230,9 +1230,11 @@ public:
         if (is_top_level) {
             auto cur_scope = stmts_to_scope_itr->second;
             if (total_list_[cur_scope]) {
-                base_list_[cur_scope] = builder::make_tensor(
+                auto rescheduled_tsr = builder::make_tensor(
                         "__rescheduled_" + std::to_string(cur_scope),
                         {total_list_[cur_scope]}, datatypes::s8);
+                rescheduled_tsr->attr()[attr_keys::can_be_scheduled] = true;
+                base_list_[cur_scope] = rescheduled_tsr;
             }
         }
         auto ret = ir_visitor_t::visit(v);

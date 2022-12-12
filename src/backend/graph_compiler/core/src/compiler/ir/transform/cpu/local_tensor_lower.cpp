@@ -14,11 +14,16 @@
  * limitations under the License.
  *******************************************************************************/
 #include "local_tensor_lower.hpp"
+#include <memory>
+#include <utility>
 #include <vector>
 #include <compiler/ir/easy_build.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
+#include <compiler/ir/transform/buffer_schedule.hpp>
+#include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/ir/visitor.hpp>
+#include <unordered_set>
 #include <util/utils.hpp>
 
 namespace sc {
@@ -66,18 +71,30 @@ public:
     // the defined tensor stack. The first dimension is for nested stmts. The
     // second is for ordering the tensors defined in the same scope
     std::vector<std::vector<expr>> defined_tsr_;
-
+    std::vector<std::shared_ptr<alias_info::alias_set_t>> alias_sets_;
     // not interested in expr
     expr_c dispatch(expr_c v) override { return v; }
 
     stmt_c visit(define_c v) override {
-        if (!v->var_.isa<tensor>() || v->linkage_ != linkage::local
-                || v->init_.defined()) {
+        if (!v->var_.isa<tensor>() || v->linkage_ != linkage::local) {
             return v;
         }
         // only interested in local tensors
         auto tsr = v->var_.static_as<tensor>();
-
+        if (v->init_.defined()) {
+            if (v->init_.isa<tensorptr>()) {
+                auto attr = v->init_.static_as<tensorptr>()
+                                    ->base_->ptr_->attr_.get();
+                if (attr
+                        && attr->get_or_else(
+                                attr_keys::can_be_scheduled, false)) {
+                    auto alias_set
+                            = alias_info::get_or_create_alias_info(*v->var_);
+                    alias_sets_.emplace_back(alias_set->get_alias_set());
+                }
+            }
+            return v;
+        }
         COMPILE_ASSERT(
                 tsr->dims_.size() == 1, "tensor_lower_impl needs 1D tensors");
         // check if it is staticaly-shaped and shape is small
@@ -160,7 +177,12 @@ func_c local_tensor_lowering_cpu_t::operator()(func_c m) {
                     << m);
     impl.cur_rtl_ctx_ = m->params_.front();
     impl.threshold_ = size_threshold_;
-    return impl.dispatch(m);
+    auto ret = impl.dispatch(m);
+    if (!impl.alias_sets_.empty()) {
+        std::const_pointer_cast<func_base>(ret)->attr()["alias_sets"]
+                = std::move(impl.alias_sets_);
+    }
+    return ret;
 }
 
 } // namespace sc
