@@ -248,6 +248,7 @@
 1x2x2x1_n"f64_swizzle"
 
 --batch=harness_reorder_cross_engine_gpu
+--batch=harness_conv_reorders_gpu
 
 # Test layers of some key GPU DL Frameworks
 --reset
