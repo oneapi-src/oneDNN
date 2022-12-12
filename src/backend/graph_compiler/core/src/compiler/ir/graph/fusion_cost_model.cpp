@@ -50,6 +50,7 @@ fusion_cost_model::fusion_cost_model(mixed_parti_t *parti) {
 
 float fusion_cost_model::evaluate() {
     float new_scores = 0;
+    if (!enable_) return new_scores;
     for (auto &eval : evaluators_) {
         new_scores += eval.first * eval.second(binded_mxp_);
     }

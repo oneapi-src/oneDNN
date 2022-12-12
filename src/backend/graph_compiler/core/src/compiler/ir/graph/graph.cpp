@@ -426,6 +426,7 @@ void sc_op::remove() {
     }
     info_.inputs_.clear();
     info_.outputs_.clear();
+    attrs_.as_map().clear();
     is_removed_ = true;
 }
 

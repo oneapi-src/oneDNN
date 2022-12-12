@@ -43,6 +43,8 @@ static void do_horizontal_merge(
     std::vector<graph_tensor_ptr> merged_ins, merged_outs;
     std::vector<sc_op_ptr> copied_ops;
     std::string name;
+    horizontal_ops_idx_list ops_idx_list;
+
     for (auto &op : merge_list) {
         auto ins = op->get_inputs();
         auto outs = op->get_outputs();
@@ -62,13 +64,12 @@ static void do_horizontal_merge(
             outs_idx.push_back(static_cast<int>(merged_outs.size()));
             merged_outs.push_back(out);
         }
-        op->attrs_["op_ins_idx"] = ins_idx;
-        op->attrs_["op_outs_idx"] = outs_idx;
-
+        ops_idx_list.emplace_back(
+                std::make_pair(op, std::make_tuple(ins_idx, outs_idx)));
         name += op->op_name_ + "_";
     }
     auto merged_op = std::make_shared<horizontal_fused_op_t>(
-            "horizontal_fused_" + name, merge_list, merged_ins, merged_outs,
+            "horizontal_fused_" + name, ops_idx_list, merged_ins, merged_outs,
             any_map_t());
     graph.add(merged_op);
     size_t output_offset = 0;

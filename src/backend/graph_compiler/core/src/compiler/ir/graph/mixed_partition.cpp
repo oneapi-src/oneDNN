@@ -142,7 +142,6 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
 
     for (auto &out : op->get_outputs()) {
         if (out->attrs_.get_or_else(mixed_partition_hint::no_inplace, false)) {
-            out->attrs_.remove(mixed_partition_hint::no_inplace);
             continue;
         }
         // query input
@@ -1364,7 +1363,7 @@ static bool check_parti_forked(mixed_parti_t *A, mixed_parti_t *B) {
 static int check_parti_loop_axis_binding(
         mixed_parti_t *A, mixed_parti_t *B, int check_loop_size) {
     // skip conv workload until all conv ops implement axis binding infer
-    if (A->is_conv_workload() || B->is_conv_workload()) {
+    if (A->contain_convolution() || B->contain_convolution()) {
         // limit to at most one outer loop (batch-dimension)
         return std::min(1, check_loop_size);
     }
@@ -1725,12 +1724,12 @@ static void try_align_parti_outer_loops(mixed_parti_t *A, mixed_parti_t *B) {
 }
 
 // check brgemm pre-op fusion
-static bool try_merge_brgemm_and_preop_parti(
-        mixed_parti_t *A, mixed_parti_t *B, bool check_connection = true) {
+static bool try_merge_brgemm_and_preop_parti(mixed_parti_t *A, mixed_parti_t *B,
+        const sc_op_ptr &joint_op = nullptr) {
     A = A->get_root(), B = B->get_root();
     if (A == B) return false;
     if (!A->func_.get() || !B->func_.get()) return false;
-    if (check_connection && !check_parti_connectionship(A, B)) return false;
+    if (!joint_op && !check_parti_connectionship(A, B)) return false;
     if (check_parti_ring_risk(A, B)) return false;
     auto dep_flag = check_parti_dep(A, B);
     if (dep_flag == parti_dep::inter_dep) return false;
@@ -1818,14 +1817,7 @@ static bool try_merge_brgemm_and_preop_parti(
     }
 
     // erase joint op in op_anchor_map
-    for (auto iter = brgemm_parti->op_anchor_map_.begin();
-            iter != brgemm_parti->op_anchor_map_.end();) {
-        if (!brgemm_parti->contains(iter->first)) {
-            iter = brgemm_parti->op_anchor_map_.erase(iter);
-        } else {
-            iter++;
-        }
-    }
+    brgemm_parti->op_anchor_map_.erase(joint_op.get());
 
     /* * * * * * * * * * * * * * * * *
      * Step 3: Merge op_
@@ -1848,13 +1840,13 @@ static bool try_merge_brgemm_and_preop_parti(
     return true;
 }
 
-static bool try_merge_mixed_parti_vertically(
-        mixed_parti_t *A, mixed_parti_t *B, bool check_connection = true) {
+static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
+        const sc_op_ptr &joint_op = nullptr) {
     A = A->get_root(), B = B->get_root();
     if (A == B) return false;
     if (!A->func_.get() || !B->func_.get()) return false;
-    if (check_connection && !check_parti_connectionship(A, B)) return false;
-    if (check_connection && check_parti_ring_risk(A, B)) return false;
+    if (!joint_op && !check_parti_connectionship(A, B)) return false;
+    if (!joint_op && check_parti_ring_risk(A, B)) return false;
     auto dep_flag = check_parti_dep(A, B);
     // if two partition inter-depends each other, could not merge them
     if (dep_flag == parti_dep::inter_dep) return false;
@@ -1990,14 +1982,7 @@ static bool try_merge_mixed_parti_vertically(
             parti_be_merged->op_anchor_map_.end());
 
     // erase joint op in op_anchor_map
-    for (auto iter = pa_to_merge->op_anchor_map_.begin();
-            iter != pa_to_merge->op_anchor_map_.end();) {
-        if (!pa_to_merge->contains(iter->first)) {
-            iter = pa_to_merge->op_anchor_map_.erase(iter);
-        } else {
-            iter++;
-        }
-    }
+    pa_to_merge->op_anchor_map_.erase(joint_op.get());
 
     /* * * * * * * * * * * * * * * * *
      * Step 6: Merge op_
@@ -2030,19 +2015,17 @@ static bool try_merge_mixed_parti_vertically(
     return true;
 }
 
-/**
- * @param check_connection: if the value is False, the connection ship should be
- * ensured by joint op.
- * */
-void mixed_parti_t::merge(const ptr &other) {
-    if (!try_merge_brgemm_and_preop_parti(this, other.get(), false)) {
-        try_merge_mixed_parti_vertically(this, other.get(), false);
+static void try_merge_mixed_parti_with_joint_op(const mixed_parti_t::ptr &A,
+        const mixed_parti_t::ptr &B, const sc_op_ptr &joint_op) {
+    if (!try_merge_brgemm_and_preop_parti(A.get(), B.get(), joint_op)) {
+        try_merge_mixed_parti_vertically(A.get(), B.get(), joint_op);
     }
 }
 
 mixed_parti_t::mixed_parti_t(
         const context_ptr &ctx, const sc_op_ptr &op, const dep_mat_ptr &dep_m)
     : dep_m_(dep_m), ctx_(ctx) {
+    if (op->get_owner_graph().is_dynamic()) cost_.disable();
     if (!op->isa<constant_op_t>() && !op->isa<tensor_view_op_t>()) {
         SC_MODULE_INFO << "================  create new partition: "
                        << op->op_name_ << "_" << op->logical_op_id_
@@ -2054,7 +2037,6 @@ mixed_parti_t::mixed_parti_t(
     }
     ops.insert(op);
     committed_ops_.emplace_back(op);
-    if (op->get_owner_graph().is_dynamic()) cost_.disable();
 }
 
 bool mixed_parti_t::is_ok_to_add(sc_op *op) {
@@ -2067,13 +2049,12 @@ bool mixed_parti_t::is_ok_to_add(sc_op *op) {
                           "dependency ring risk";
         return false;
     }
-    // currently, disable tunable op commit into parallel for_loop.
-    if (op->isa<tunable_op_t>()
-            && contain_op_with_type<ops::managed_matmul_core_op_t>())
+    // TODO(yunfei): when all tunable ops completely refactored to managed
+    // threads mode, remove this if.
+    if (op->isa<tunable_op_t>() && contain_nested_parallel_for()) {
         return false;
-    if (auto reo = op->dyn_cast<reorder_op_t>()) {
-        if (reo->get_inputs()[0]->uses_.size() > 1) return false;
     }
+    // search suitable anchor for op
     auto mixed_op = op->dyn_cast<op_traits::mixed_partition_acceptable>();
     mixed_op->search_anchor(this);
     if (!ready_for_op(op)) {
@@ -2356,10 +2337,16 @@ bool mixed_parti_t::is_parti_out(const graph_tensor_ptr &gt) const {
     return is_parti_out(gt.get());
 }
 
-bool mixed_parti_t::is_conv_workload() const {
+bool mixed_parti_t::contain_convolution() const {
     return contain_op_with_type<ops::conv_fwd_core_op_t>()
             || contain_op_with_type<ops::conv_bwd_data_core_op_t>()
             || contain_op_with_type<ops::conv_bwd_weight_core_op_t>();
+}
+
+bool mixed_parti_t::contain_nested_parallel_for() const {
+    auto outer_loops = get_outer_loops();
+    if (outer_loops.empty()) return false;
+    return outer_loops.front()->num_threads_ > 0;
 }
 
 bool mixed_parti_t::contain_tunable_op() const {
@@ -2394,61 +2381,76 @@ float mixed_parti_t::evaluate_perf() {
     return cost_.evaluate();
 }
 
-static bool check_partition(const mixed_parti_t::ptr &parti,
-        std::unordered_set<sc_op_ptr> &retry_ops) {
-    auto run_threads = runtime_config_t::get().get_num_threads();
-    if (!parti || parti->ops.empty() || parti->ops.size() < 2) return true;
-    bool legal = true;
+static std::unordered_set<mixed_parti_t::ptr> collect_non_const_parti(
+        const std::vector<mixed_parti_t::ptr> &op_2_partition) {
+    std::unordered_set<mixed_parti_t::ptr> parti_set;
+    for (auto &parti : op_2_partition) {
+        // auto skip const parti
+        if (!parti
+                || (parti->ops.size() == 1
+                        && parti->committed_ops_[0]->attrs_.get_or_else(
+                                   "constant", const_kind::not_const)
+                                != const_kind::not_const))
+            continue;
+        parti_set.insert(parti);
+    }
+    return parti_set;
+}
+
+static bool check_repartition(const mixed_parti_t::ptr &parti) {
+    if (!parti || parti->ops.size() < 2) return false;
     // check tensorview in edge of partition
-    for (auto &op : parti->ops) {
-        if (op->isa<tensor_view_op_t>()) {
-            if ((parti->is_parti_out(op->get_outputs()[0])
-                        && parti->buf_alloc_.g2b_map_.get(op->get_outputs()[0])
-                                   .isa<tensorptr>())
-                    || parti->is_parti_inp(op->get_inputs()[0])) {
-                op->attrs_[op_attr_key::no_fuse] = true;
-                retry_ops.insert(op);
-                legal = false;
-            }
-        }
-    }
-    // check reorder in partition which includes reduce op but exclude
-    // tunable op
-    if (std::all_of(parti->ops.begin(), parti->ops.end(),
-                [](const sc_op_ptr &op) { return !op->isa<tunable_op_t>(); })
-            && std::any_of(parti->ops.begin(), parti->ops.end(),
-                    [](const sc_op_ptr &op) { return op->isa<reduce_op_t>(); })
-            && std::any_of(parti->ops.begin(), parti->ops.end(),
-                    [](const sc_op_ptr &op) {
-                        return op->isa<movement_op_t>();
-                    })) {
-        bool forced_reorder_axis = false;
-        std::unordered_set<sc_op_ptr> movement_op_set;
-        for (auto &op : parti->ops) {
-            if (auto rd_op = op->dyn_cast<reduce_op_t>()) {
-                int outer_rd_axis_size = 1;
-                auto reduce_axis = rd_op->get_rd_axis();
-                auto shape
-                        = rd_op->get_inputs()[0]->details_.get_blocking_dims();
-                for (int i = 0; i < *reduce_axis.begin(); i++) {
-                    outer_rd_axis_size *= shape[i];
+    bool repartition = false;
+    // check buffer is tensorptr
+    auto check_parti_out_tptr = [&repartition, &parti](
+                                        const graph_tensor_ptr &out) {
+        auto producer = out->producer_owner_;
+        COMPILE_ASSERT(parti->buf_alloc_.g2b_map_.haskey(out),
+                "No buffer allocated found for output "
+                "of " << producer->op_name_
+                      << producer->logical_op_id_)
+        if (parti->buf_alloc_.g2b_map_.get(out).isa<tensorptr>()) {
+            if (producer->isa<tensor_view_op_t>()) {
+                auto tv_op = producer;
+                graph_tensor *tv_inp;
+                while (tv_op->isa<tensor_view_op_t>()) {
+                    tv_op->attrs_[op_attr_key::no_fuse] = true;
+                    tv_inp = tv_op->get_inputs()[0].get();
+                    tv_op = tv_inp->producer_owner_;
                 }
-                if (outer_rd_axis_size < run_threads)
-                    forced_reorder_axis = true;
-            } else if (op->isa<movement_op_t>()) {
-                movement_op_set.insert(op);
+                if (parti->buf_alloc_.g2b_map_.get(tv_inp).isa<tensorptr>()) {
+                    tv_inp->attrs_[mixed_partition_hint::no_inplace] = true;
+                }
+            } else {
+                out->attrs_[mixed_partition_hint::no_inplace] = true;
+            }
+            repartition = true;
+        }
+    };
+    for (auto &op : parti->ops) {
+        // 1. check partition output buffer should not be tensoptr
+        for (auto &out : op->get_outputs()) {
+            if (parti->is_parti_out(out)) check_parti_out_tptr(out);
+        }
+        // 2. check reorder
+        if (auto reo = op->isa<reorder_op_t>()) {
+            if (!op->dyn_cast<reorder_op_t>()->support_output_loop()
+                    || op->get_inputs()[0]->uses_.size() == 1) {
+                continue;
+            }
+            auto tunable_users = search_tuneop_linearly(op);
+            // mark this kind of reorder to do pre-op fusion during
+            // repartition stage
+            if (tunable_users && !parti->contains(tunable_users.get())) {
+                op->attrs_[op_attr_key::break_pre_fuse] = true;
+                repartition = true;
+                // the input of this reorder will be the new output of
+                // partition, check tptr in advance to reduce repartition times
+                check_parti_out_tptr(op->get_inputs()[0]);
             }
         }
-        if (forced_reorder_axis) {
-            std::for_each(movement_op_set.begin(), movement_op_set.end(),
-                    [&retry_ops, &legal](const sc_op_ptr &op) {
-                        op->attrs_[op_attr_key::no_fuse] = true;
-                        retry_ops.insert(op);
-                        legal = false;
-                    });
-        }
     }
-    return legal;
+    return repartition;
 }
 
 static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
@@ -2459,8 +2461,13 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
             = op_visitor_t::dfs_topology_speculative_sort(g.ops_.size());
     visitor.visit_graph(g, [&](const sc_op_ptr &op) {
         if (op->isa<input_op>() || op->isa<output_op>()
-                || op->attrs_.get_or_else(op_attr_key::no_fuse, false))
+                || op->attrs_.get_or_else(op_attr_key::no_fuse, false)) {
+            if (op->attrs_.get_or_else(op_attr_key::no_fuse, false)) {
+                SC_MODULE_INFO << op->op_name_ << "_" << op->logical_op_id_
+                               << " is marked as no fuse\n";
+            }
             return;
+        }
 
         mixed_parti_t::ptr parent_partition = nullptr;
         if (!op->attrs_.get_or_else(op_attr_key::break_pre_fuse, false)) {
@@ -2488,13 +2495,12 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
                                 ->search_anchor(cur_in_partition.get());
                         if (parent_partition->ready_for_op(op.get())
                                 && cur_in_partition->ready_for_op(op.get())) {
-                            // the difference between later partition merge is
-                            // that current merge need to check partition
-                            // connection to ensure legality.
+                            // the difference between later partition merge with
+                            // joint op is that current merge need to check
+                            // partition connection to ensure legality.
                             try_merge_brgemm_and_preop_parti(
                                     parent_partition.get(),
-                                    cur_in_partition.get(),
-                                    /*check connection*/ true);
+                                    cur_in_partition.get(), nullptr);
                         }
                     }
                 }
@@ -2516,12 +2522,15 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
                     if (parent_partition) {
                         // support matmul to fuse m_o axis
                         if (op->isa<tunable_op_t>()) {
-                            cur_in_partition->merge(parent_partition);
+                            try_merge_mixed_parti_with_joint_op(
+                                    cur_in_partition, parent_partition, op);
                         } else {
                             if (parent_partition->contain_tunable_op()) {
-                                cur_in_partition->merge(parent_partition);
+                                try_merge_mixed_parti_with_joint_op(
+                                        cur_in_partition, parent_partition, op);
                             } else {
-                                parent_partition->merge(cur_in_partition);
+                                try_merge_mixed_parti_with_joint_op(
+                                        parent_partition, cur_in_partition, op);
                             }
                         }
                         parent_partition
@@ -2531,8 +2540,19 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
                     } else {
                         parent_partition = cur_in_partition;
                     }
+                } else if (in->producer_owner_->attrs_.get_or_else(
+                                   op_attr_key::break_post_fuse, false)) {
+                    SC_MODULE_INFO << op->op_name_ << "_" << op->logical_op_id_
+                                   << " is failed to add partition due to "
+                                   << in->producer_owner_->op_name_ << "_"
+                                   << in->producer_owner_->logical_op_id_
+                                   << " is marked as break post fuse";
                 }
             }
+        } else {
+            SC_MODULE_INFO << op->op_name_ << "_" << op->logical_op_id_
+                           << " is failed to add partition due to it is marked "
+                              "as break pre fuse";
         }
         if (!parent_partition) {
             parent_partition = std::make_shared<mixed_parti_t>(
@@ -2543,24 +2563,28 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
         op_2_partition[op->logical_op_id_] = parent_partition;
     });
 
-    // legalize
-    std::unordered_set<sc_op_ptr> retry_ops;
-    for (auto &parti : op_2_partition) {
-        if (!check_partition(parti, retry_ops)) {
-            SC_MODULE_INFO
-                    << "partition: " << parti->func_->name_
-                    << " will do repartition due to illegal pattern detected";
-        }
-    }
-    if (!retry_ops.empty()) return false;
-
     for (auto &parti : op_2_partition) {
         if (parti) {
             parti = std::static_pointer_cast<mixed_parti_t>(
                     parti->get_root()->shared_from_this());
         }
     }
-    return true;
+
+    // collect parti set
+    auto parti_set = collect_non_const_parti(op_2_partition);
+    // assign checker
+    auto checker = &check_repartition;
+    // validate partition
+    bool repartition = false;
+    std::for_each(parti_set.begin(), parti_set.end(),
+            [&checker, &repartition](const mixed_parti_t::ptr &parti) {
+                if ((*checker)(parti)) repartition = true;
+            });
+    if (repartition) {
+        SC_MODULE_INFO << "================ Repartition the whole graph "
+                          "================";
+    }
+    return !repartition;
 }
 
 static bool validate_optimized_reduce(
@@ -2614,8 +2638,6 @@ static bool try_optimize_reduce(const mixed_parti_t *parti, sc_graph_t &g) {
         return false;
 
     bool redo = false;
-    auto ctx = parti->ctx_;
-
     auto split_rd_op = [&redo](const context_ptr &ctx, sc_graph_t &g,
                                sc_op *op) {
         COMPILE_ASSERT(op->isa<op_traits::maybe_split_optimized_t>(),
@@ -2624,11 +2646,13 @@ static bool try_optimize_reduce(const mixed_parti_t *parti, sc_graph_t &g) {
         redo = true;
     };
 
+    auto ctx = parti->ctx_;
+    auto ops = g.ops_;
+
     if (parti->contain_op_with_type<tunable_op_t>()) {
         std::unordered_set<op_traits::maybe_split_optimized_t *>
                 splited_reduce_set;
         std::unordered_set<sc_op_ptr> tunable_op_set;
-        auto ops = g.ops_;
         for (auto &op : ops) {
             if (op->isa<tunable_op_t>()) { tunable_op_set.insert(op); }
         }
@@ -2675,11 +2699,42 @@ static bool try_optimize_reduce(const mixed_parti_t *parti, sc_graph_t &g) {
                     }
                     if (red_op->can_split_op()) { split_rd_op(ctx, g, op); }
                 });
-    } else if (runtime_config_t::get().get_num_threads() == 1) {
-        auto old_ops = g.ops_;
-        for (auto &op : old_ops) {
-            if (auto rd = op->dyn_cast<reduce_op_t>()) {
-                if (rd->can_split_op()) { split_rd_op(ctx, g, op.get()); }
+    } else {
+        auto run_threads = runtime_config_t::get().get_num_threads();
+        if (run_threads == 1) {
+            for (auto &op : ops) {
+                if (auto rd = op->dyn_cast<reduce_op_t>()) {
+                    if (rd->can_split_op()) { split_rd_op(ctx, g, op.get()); }
+                }
+            }
+        } else {
+            // check reorder in partition which includes reduce op but exclude
+            // tunable op
+            if (parti->contain_op_with_type<movement_op_t>()) {
+                bool forced_reorder_axis = false;
+                std::unordered_set<sc_op_ptr> movement_op_set;
+                for (auto &op : ops) {
+                    if (auto rd_op = op->dyn_cast<reduce_op_t>()) {
+                        int outer_rd_axis_size = 1;
+                        auto reduce_axis = rd_op->get_rd_axis();
+                        auto shape = rd_op->get_inputs()[0]
+                                             ->details_.get_blocking_dims();
+                        for (int i = 0; i < *reduce_axis.begin(); i++) {
+                            outer_rd_axis_size *= shape[i];
+                        }
+                        if (outer_rd_axis_size < run_threads)
+                            forced_reorder_axis = true;
+                    } else if (op->isa<movement_op_t>()) {
+                        movement_op_set.insert(op);
+                    }
+                }
+                if (forced_reorder_axis) {
+                    redo = true;
+                    std::for_each(movement_op_set.begin(),
+                            movement_op_set.end(), [](const sc_op_ptr &op) {
+                                op->attrs_[op_attr_key::no_fuse] = true;
+                            });
+                }
             }
         }
     }
@@ -2733,6 +2788,10 @@ static std::string get_parti_prefix(const mixed_parti_t &parti) {
     return prefix;
 }
 
+inline bool is_retried_graph(sc_graph_t &g) {
+    return g.attrs_.get_or_else(mixed_partition_hint::retried_graph, false);
+}
+
 /**
  * Copies the partition to the graph in new sub graph.
  * @param graph
@@ -2753,19 +2812,18 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
     // the mapping for original LT in original ops to fuse => the LT in the
     // sub_graph.
     std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> orig_2_graph;
-    // the mapping for the LT in the sub_graph  => original LT in original ops
-    // to fuse.
-    std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> graph_2_orig;
-
     auto get_or_create_graph_tsr = [&](const graph_tensor_ptr &orig_lr) {
         auto itr = orig_2_graph.find(orig_lr);
         if (itr != orig_2_graph.end()) { return itr->second; }
         auto ret = std::make_shared<graph_tensor>(nullptr, orig_lr->details_);
         orig_2_graph.insert(std::make_pair(orig_lr, ret));
-        graph_2_orig.insert(std::make_pair(ret, orig_lr));
+        // remove hint attr if necessary
+        if (orig_lr->attrs_.get_or_else(
+                    mixed_partition_hint::no_inplace, false)) {
+            orig_lr->attrs_.remove(mixed_partition_hint::no_inplace);
+        }
         return ret;
     };
-    bool redo_flag = false;
     auto visitor = op_visitor_t::dfs_topology_sort(g.ops_.size());
     std::unordered_set<graph_tensor_ptr> input_tsr_set;
     visitor.visit_graph(g, [&](const sc_op_ptr &op) {
@@ -2813,10 +2871,6 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                                                    << op->logical_op_id_
                                                    << " outputs")
                 auto out_buffer = parti.buf_alloc_.g2b_map_.get(out);
-                if (out_buffer.isa<tensorptr>()) {
-                    redo_flag = true;
-                    outtsr->attrs_[mixed_partition_hint::no_inplace] = true;
-                }
                 // if outbuffer is already reused, set attr on output op
                 if (parti.buf_alloc_.use_count(out_buffer) > 1) {
                     new_out_op->attrs_.set("buffer_already_reused", true);
@@ -2836,23 +2890,31 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
     // prepare for redo fall-back case
     auto copied_grpah = copy_graph(sub_graph);
 
-    // try to optimize partition with sub graph
-    redo_flag |= try_optimize_parti(partition.get(), sub_graph);
+    // only need to optimize one time
+    bool can_optimize = false;
+    if (!is_retried_graph(g)) {
+        // try to optimize partition with copied graph
+        can_optimize |= try_optimize_parti(partition.get(), copied_grpah);
+    }
 
-    // currently, only redo one time
-    if (redo_flag
-            && (!g.attrs_.get_or_else(
-                    mixed_partition_hint::retried_graph, false))) {
-        sub_graph.attrs_[mixed_partition_hint::retried_graph] = true;
-        SC_MODULE_INFO << "Redo mixed partition for current pattern: "
+    if (can_optimize) {
+        copied_grpah.attrs_[mixed_partition_hint::retried_graph] = true;
+        SC_MODULE_INFO << "Optimizing mixed partition for current pattern: "
                        << partition->func_->name_;
         // redo mixed partition with setting hint
-        do_mixed_partition(ctx, sub_graph);
+        do_mixed_partition(ctx, copied_grpah);
         bool fall_back = false;
         std::vector<mixed_parti_t::ptr> parti_list;
         std::string mx_op_name;
+        // TODO(yunfei): when completely switched to new fusion manager, it
+        // should be unexpected and can be removed
+        bool standalone_op_exist = false;
         // redo validation stage
-        for (auto &op : sub_graph.ops_) {
+        for (auto &op : copied_grpah.ops_) {
+            if (op->isa<input_op>() || op->isa<output_op>()
+                    || op->isa<constant_op_t>())
+                continue;
+            if (!mx_op_name.empty()) mx_op_name += "_";
             if (auto mx_op = op->dyn_cast<mixed_fuse_op_t>()) {
                 COMPILE_ASSERT(mx_op->parti_list_.size() == 1,
                         "Unexpected partition size found: "
@@ -2867,26 +2929,29 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
                 }
                 parti_list.emplace_back(mx_op->parti_list_[0]);
                 mx_op_name += get_graph_name(mx_op->sub_graph_);
+            } else {
+                if (!op->isa<tensor_view_op_t>()) standalone_op_exist = true;
+                // it is possible that no mixed op found after partition redo
+                mx_op_name += op->op_name_;
             }
         }
         if (!fall_back) {
-            if (parti_list.size() == 1) {
+            if (parti_list.size() == 1 && !standalone_op_exist) {
                 mx_op_name = get_parti_prefix(*parti_list[0]) + mx_op_name;
             } else {
-                mx_op_name = std::to_string(parti_list.size()) + "partitions_"
-                        + mx_op_name;
+                mx_op_name = "partitions_" + mx_op_name;
             }
-            std::vector<sc_op_ptr> lower_args(sub_graph.get_output_ops());
-            auto input_ops = sub_graph.get_input_ops();
+            std::vector<sc_op_ptr> lower_args(copied_grpah.get_output_ops());
+            auto input_ops = copied_grpah.get_input_ops();
             lower_args.insert(
                     lower_args.end(), input_ops.begin(), input_ops.end());
-            auto modu = lower_graph(ctx, sub_graph, lower_args);
+            auto modu = lower_graph(ctx, copied_grpah, lower_args);
             auto main_func = modu->get_entry_func();
             main_func->name_ = mx_op_name;
             main_func->decl_->name_ = mx_op_name;
-            sub_graph.attrs_.remove(mixed_partition_hint::retried_graph);
+            copied_grpah.attrs_.remove(mixed_partition_hint::retried_graph);
             return std::make_shared<mixed_fuse_op_t>(mx_op_name, parti_list,
-                    modu, sub_graph,
+                    modu, copied_grpah,
                     /*ins*/ fused_op_in,
                     /*outs*/
                     fused_op_out, any_map_t {});
@@ -2931,7 +2996,7 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
     SC_MODULE_INFO << parti.func_;
 
     auto fused_op = std::make_shared<mixed_fuse_op_t>(op_name,
-            std::vector<mixed_parti_t::ptr> {partition}, nullptr, copied_grpah,
+            std::vector<mixed_parti_t::ptr> {partition}, nullptr, sub_graph,
             /*ins*/ fused_op_in,
             /*outs*/
             fused_op_out, any_map_t {});
@@ -2999,16 +3064,7 @@ static void vertical_crossover(
 
 static void crossover_partition(std::vector<mixed_parti_t::ptr> &op_2_partition,
         const std::vector<crossover_alg> &algs) {
-    std::unordered_set<mixed_parti_t::ptr> parti_set;
-    for (auto &parti : op_2_partition) {
-        // auto skip const parti
-        if (parti && parti->ops.size() == 1
-                && parti->committed_ops_[0]->attrs_.get_or_else(
-                           "constant", const_kind::not_const)
-                        != const_kind::not_const)
-            continue;
-        parti_set.insert(parti);
-    }
+    auto parti_set = collect_non_const_parti(op_2_partition);
     std::vector<mixed_parti_t::ptr> parti_vec {
             parti_set.begin(), parti_set.end()};
     for (auto &al : algs) {
@@ -3027,8 +3083,8 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
     auto op_size = graph.ops_.size();
     // mapping from op id => partition
     std::vector<mixed_parti_t::ptr> op_2_partition;
-
-    constexpr int maxiter = 10;
+    // set max iter times
+    constexpr int maxiter = 3;
     for (int i = 0; i < maxiter; i++) {
         op_2_partition.clear();
         op_2_partition.resize(op_size);
@@ -3075,13 +3131,7 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
             if (itr != tsr_replace_map.end()) { in = itr->second; }
         }
         graph.add(fused_op);
-        // remove the original op mapping tag
-        auto fused_op_ptr = fused_op->dyn_cast<::sc::mixed_fuse_op_t>();
-        for (auto &op : fused_op_ptr->sub_graph_.ops_) {
-            if (op->attrs_.has_key(mixed_partition_hint::sub_graph_ptr)) {
-                op->attrs_.remove(mixed_partition_hint::sub_graph_ptr);
-            }
-        }
+
         for (auto &op : partition->ops) {
             op->remove();
         }

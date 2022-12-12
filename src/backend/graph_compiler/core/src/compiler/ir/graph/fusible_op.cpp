@@ -84,11 +84,12 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
     if (attrs_.has_key(mixed_partition_hint::sub_graph_ptr)) {
         fmgr.bind_graph(
                 attrs_.get<sc_graph_t *>(mixed_partition_hint::sub_graph_ptr));
-        attrs_.remove(mixed_partition_hint::sub_graph_ptr);
     }
     bool status = gen.generate(parti->ctx_, nullptr, &fmgr, ins, outs, loops);
 
-    COMPILE_ASSERT(status, "generate outer loops failed, please check");
+    COMPILE_ASSERT(status,
+            "generate outer loops failed for "
+                    << op_name_ << "_" << logical_op_id_ << ", please check");
     auto body = bld.pop_scope();
     parti->func_ = builder::make_func(std::string(""), std::vector<expr> {},
             std::move(body), datatypes::boolean);
@@ -108,6 +109,13 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
         auto last_anchor = parti->fanchors_.back();
         parti->fanchors_.clear();
         parti->fanchors_ = {last_anchor};
+        // clear invalid IR
+        auto parent_scope = last_anchor->get_parent_scope();
+        for (auto iter = parent_scope->seq_.begin();
+                iter < parent_scope->seq_.end(); iter++) {
+            if ((*iter).ptr_same(last_anchor->anchor_position_)) continue;
+            parent_scope->seq_.erase(iter);
+        }
     } else {
         parti->clear_fanchor(parti->fanchors_.back());
         parti->fanchors_.pop_back();

@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include "graph_op.hpp"
@@ -131,14 +132,16 @@ public:
     std::vector<int> get_impl_dispatch_candidates() const override;
 };
 
+using horizontal_ops_idx_list = std::vector<
+        std::pair<sc_op_ptr, std::tuple<std::vector<int>, std::vector<int>>>>;
+
 class horizontal_fused_op_t : public graph_op_t {
 public:
     horizontal_fused_op_t(const std::string &name,
-            const std::vector<sc_op_ptr> &ops_to_merge,
+            const horizontal_ops_idx_list &ops_idx_list,
             const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
-
-    std::vector<sc_op_ptr> ops_to_merge_;
+    horizontal_ops_idx_list ops_idx_list_;
     ir_module_ptr get_func(context_ptr ctx) override;
     void get_graph_impl(std::shared_ptr<sc_graph_t> &graph) override;
     void schedule_loops(const stmt &body);

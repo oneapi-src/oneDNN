@@ -258,8 +258,8 @@ struct mixed_parti_t : fusion_partition_t {
      * 5. replace expr iter/tensor/tensorptr in `func_`, `buf_alloc_` and
      * `fanchors_`.
      * 6. call base class `merge` method to do disjoint-set merge.
+     * void merge(const ptr &other);
      * */
-    void merge(const ptr &other);
 
     mixed_parti_t(const context_ptr &ctx, const sc_op_ptr &op,
             const dep_mat_ptr &dep_m);
@@ -360,7 +360,10 @@ struct mixed_parti_t : fusion_partition_t {
     }
 
     // query partition whether contains op with conv type
-    bool is_conv_workload() const;
+    bool contain_convolution() const;
+
+    // query partition whether contains nested parallel for
+    bool contain_nested_parallel_for() const;
 
     // query partition whether contains tunable op
     bool contain_tunable_op() const;

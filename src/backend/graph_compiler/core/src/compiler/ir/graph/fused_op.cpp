@@ -1340,10 +1340,10 @@ void horizontal_fused_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
 }
 
 horizontal_fused_op_t::horizontal_fused_op_t(const std::string &name,
-        const std::vector<sc_op_ptr> &ops_to_merge,
+        const horizontal_ops_idx_list &ops_idx_list,
         const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-    : ops_to_merge_(ops_to_merge) {
+    : ops_idx_list_(ops_idx_list) {
     info_.inputs_ = ins;
     info_.outputs_ = outs;
     op_name_ = name;
@@ -1405,9 +1405,10 @@ ir_module_ptr horizontal_fused_op_t::get_func(context_ptr ctx) {
     func_inliner_t inliner;
     builder::ir_builder_t bld;
     bld.push_scope();
-    for (auto &op : ops_to_merge_) {
-        auto &ins_idx = op->attrs_.get<std::vector<int>>("op_ins_idx");
-        auto &outs_idx = op->attrs_.get<std::vector<int>>("op_outs_idx");
+    for (auto &ops_idx_pair : ops_idx_list_) {
+        auto op = ops_idx_pair.first;
+        std::vector<int> ins_idx, outs_idx;
+        std::tie(ins_idx, outs_idx) = ops_idx_pair.second;
         op->info_.inputs_ = select_graph_tensor_by_idx(info_.inputs_, ins_idx);
         op->info_.outputs_
                 = select_graph_tensor_by_idx(info_.outputs_, outs_idx);
