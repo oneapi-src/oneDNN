@@ -115,7 +115,7 @@ private:
             char *result_ptr, const char *reduce_ptr, size_t size) const;
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_matmul];
-    alignas(64) char brg_kernel_palettes_[max_num_brg_kernels_matmul][64];
+    char brg_kernel_palettes_[max_num_brg_kernels_matmul][64];
     std::unique_ptr<jit_brgemm_matmul_copy_b_t> copy_B_kernel_;
     std::unique_ptr<jit_brgemm_matmul_copy_a_t> copy_A_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_f32_;

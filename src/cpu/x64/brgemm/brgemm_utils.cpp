@@ -464,7 +464,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
                     && (brg->bcast_dim % brg->bd_block == 0
                             && brg->brgattr.bd_mask_level == 0));
             bool ldb_tail_16 = (brg->load_dim % 16 != 0);
-            if (everyone_is(0, bdb_block_tail, ldb_tail_16)) {
+            if (everyone_is(false, bdb_block_tail, ldb_tail_16)) {
                 // try to use 1x(4|5) or (4|5)x1 decomposition for specific
                 // range of K
                 auto upper_K5 = (L1 - 5 * 1024) / (5 * 16);

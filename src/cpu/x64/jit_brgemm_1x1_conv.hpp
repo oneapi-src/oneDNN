@@ -141,7 +141,7 @@ private:
     struct amx_palette_t {
         char p[AMX_PALETTE_SIZE];
     };
-    alignas(64) std::vector<amx_palette_t> brg_kernel_palette_;
+    std::vector<amx_palette_t> brg_kernel_palette_;
     int brg_kernel_palette_idx_[16];
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_rtus_kernel_t>

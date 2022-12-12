@@ -183,7 +183,7 @@ private:
     struct S_t {
         char a[AMX_PALETTE_SIZE];
     };
-    alignas(64) std::vector<S_t> brg_kernel_palettes_;
+    std::vector<S_t> brg_kernel_palettes_;
 
     status_t add_brg_kernel(int bs, int M, int i_N, int i_K, int i_init);
     void call_brgemm_kernel(
