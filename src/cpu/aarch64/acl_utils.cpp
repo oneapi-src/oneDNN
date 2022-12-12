@@ -98,7 +98,7 @@ status_t convert_to_acl_act(alg_kind_t eltwise_alg, float alpha, float beta,
             act_info = ActivationLayerInfo(act_func::LOGISTIC, alpha, beta);
             break;
         case eltwise_clip:
-            // OneDNN uses alpha in CLIP as lower bound and beta as upper bound.
+            // oneDNN uses alpha in CLIP as lower bound and beta as upper bound.
             // Compute Library uses beta as lower bound and alpha as upper in
             // the equivalent function LU_BOUNDED_RELU.
             // Switching order of alpha and beta makes the two equivalent.
