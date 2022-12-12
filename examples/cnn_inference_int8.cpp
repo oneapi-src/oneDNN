@@ -66,17 +66,10 @@ void simple_net_int8(engine::kind engine_kind) {
     std::vector<float> weight_scales = {2.0f};
     std::vector<float> dst_scales = {0.55f};
 
-    // Choose channel-wise scaling factors for convolution
-    std::vector<float> conv_scales(384);
-    const int scales_half = 384 / 2;
-    std::fill(conv_scales.begin(), conv_scales.begin() + scales_half, 0.3f);
-    std::fill(conv_scales.begin() + scales_half + 1, conv_scales.end(), 0.8f);
     //[Choose scaling factors]
 
     /// The *source, weights, bias* and *destination* datasets use the single-scale
-    /// format with mask set to '0', while the *output* from the convolution
-    /// (conv_scales) will use the array format where mask = 2 corresponding
-    /// to the output dimension.
+    /// format with mask set to '0'.
     /// @snippet cnn_inference_int8.cpp Set scaling mask
     //[Set scaling mask]
     const int src_mask = 0;
