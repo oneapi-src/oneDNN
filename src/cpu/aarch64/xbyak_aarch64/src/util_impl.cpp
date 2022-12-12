@@ -52,17 +52,25 @@ void Cpu::setCacheHierarchy() {
     }
   } else {
     /**
-     * @ToDo Get chache information by `sysconf`
+     * @ToDo Get cache information by `sysconf`
      * for the case thd dictionary is unavailable.
      */
+
+// _SC_LEVEL<L>_DCACHE_SIZE macros are not defined on macOS.
+#if defined(__APPLE__)
+#define GET_CACHE_SIZE(ID) 0
+#else
+#define GET_CACHE_SIZE(ID) sysconf(ID)
+#endif
+
 #define XBYAK_AARCH64_CACHE_SIZE(LEVEL, SIZE, ID, CORES, VAL)                                                                                                                                                                                                                                              \
-  cache_size = sysconf(ID);                                                                                                                                                                                                                                                                                \
+  cache_size = GET_CACHE_SIZE(ID);                                                                                                                                                                                                                                                                         \
   VAL[LEVEL] = cache_size ? (cache_size / (CORES)) : ((SIZE) / (CORES));
 
     uint32_t cache_size;
 
     /* If `sysconf` returns zero as cache sizes, 32KiB, 1MiB, 0 and 0 is set as
-       1st, 2nd, 3rd and 4th level cache sizes. 2nd cahce is assumed as sharing cache. */
+       1st, 2nd, 3rd and 4th level cache sizes. 2nd cache is assumed as sharing cache. */
     XBYAK_AARCH64_CACHE_SIZE(0, 1024 * 32, _SC_LEVEL1_DCACHE_SIZE, 1, coresSharingDataCache_);
     XBYAK_AARCH64_CACHE_SIZE(1, 1024 * 1024, _SC_LEVEL2_CACHE_SIZE, 1, coresSharingDataCache_);
     XBYAK_AARCH64_CACHE_SIZE(2, 0, _SC_LEVEL3_CACHE_SIZE, 1, coresSharingDataCache_);
