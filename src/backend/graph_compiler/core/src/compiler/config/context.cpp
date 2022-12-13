@@ -169,8 +169,17 @@ context_ptr get_default_context() {
                         || tm.cpu_flags_.fAVX512AMXINT8);
         // todo: this env var is for linux kernels that under 5.15, current left
         // here for compatibility
-        if (sc::utils::getenv_string("DNNL_MAX_CPU_ISA") == "AVX512_CORE_AMX") {
-            flags.brgemm_use_amx_ = true;
+        std::string dnnl_isa = sc::utils::getenv_string("DNNL_MAX_CPU_ISA");
+        std::string onednn_isa = sc::utils::getenv_string("ONEDNN_MAX_CPU_ISA");
+        // DNNL_MAX_CPU_ISA and ONEDNN_MAX_CPU_ISA can not be set at same time.
+        assert(dnnl_isa.empty() || onednn_isa.empty());
+        std::string &brgemm_isa = onednn_isa.empty() ? dnnl_isa : onednn_isa;
+        if (!brgemm_isa.empty()) {
+            if (brgemm_isa == "AVX512_CORE_AMX") {
+                flags.brgemm_use_amx_ = true;
+            } else {
+                flags.brgemm_use_amx_ = false;
+            }
         }
 
         return std::make_shared<context_t>(flags, std::move(tm));
