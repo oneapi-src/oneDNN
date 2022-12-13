@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2019-2022 Intel Corporation
 * Copyright 2022 FUJITSU LIMITED
+* Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -261,7 +262,8 @@ bool jit_uni_binary_t::pd_t::check_scales_mask() const {
     for (const auto &s : attr()->scales_.scales_) {
         if (s.second.mask_ != 0) return false;
     }
-    return true;
+    const std::vector<int> supported_args = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
+    return attr_scales_ok(supported_args);
 }
 
 bool jit_uni_binary_t::pd_t::is_bcast_pattern(const dims_t &bcast_dims,
