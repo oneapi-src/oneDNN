@@ -43,6 +43,69 @@ static void check_within(
     }
 }
 
+// The function reset some cpu flags by DNNL_MAX_CPU_ISA/ONEDNN_MAX_CPU_ISA, cpu
+// flags will take the intersection of compiler/target machine/onednn env
+// variable/os.
+static void reset_cpu_flags_by_dnnl_envs(runtime::target_machine_t &tm) {
+    std::string dnnl_isa = sc::utils::getenv_string("DNNL_MAX_CPU_ISA");
+    std::string onednn_isa = sc::utils::getenv_string("ONEDNN_MAX_CPU_ISA");
+    // DNNL_MAX_CPU_ISA and ONEDNN_MAX_CPU_ISA can not be set at same time.
+    assert(dnnl_isa.empty() || onednn_isa.empty());
+    std::string &max_isa = onednn_isa.empty() ? dnnl_isa : onednn_isa;
+    if (!max_isa.empty()) {
+        // copy here for recover if env is invalid
+        auto old_cpu_flags = tm.cpu_flags_;
+        do {
+            // amx fp16
+            if (max_isa == "AVX512_CORE_AMX_FP16") { break; }
+            // amx
+            if (max_isa == "AVX512_CORE_AMX") { break; }
+            tm.cpu_flags_.fAVX512AMXTILE = false;
+            tm.cpu_flags_.fAVX512AMXINT8 = false;
+            tm.cpu_flags_.fAVX512AMXBF16 = false;
+            // avx512 fp16
+            if (max_isa == "AVX512_CORE_FP16") { break; }
+            // avx512 bf16
+            if (max_isa == "AVX512_CORE_BF16") { break; }
+            tm.cpu_flags_.fAVX512BF16 = false;
+            // avx512 vnni
+            if (max_isa == "AVX512_CORE_VNNI") { break; }
+            tm.cpu_flags_.fAVX512VNNI = false;
+            // avx512 core
+            if (max_isa == "AVX512_CORE") { break; }
+            tm.cpu_flags_.fAVX512F = false;
+            tm.cpu_flags_.fAVX512BW = false;
+            tm.cpu_flags_.fAVX512VL = false;
+            tm.cpu_flags_.fAVX512DQ = false;
+            // avx vnni 2
+            if (max_isa == "AVX2_VNNI_2") { break; }
+            // avx vnni
+            if (max_isa == "AVX2_VNNI") { break; }
+            // avx2
+            if (max_isa == "AVX2") { break; }
+            tm.cpu_flags_.fAVX2 = false;
+            // avx
+            if (max_isa == "AVX") { break; }
+            tm.cpu_flags_.fAVX = false;
+            // sse41
+            if (max_isa == "SSE41") { break; }
+
+            // unsupport
+            SC_MODULE_WARN << "Unsupported ONEDNN/DNNL ISA type: " << max_isa;
+
+            // use old cpu flags
+            tm.cpu_flags_ = old_cpu_flags;
+        } while (false);
+    }
+    // double check amx by syscall
+    if (tm.cpu_flags_.fAVX512AMXTILE
+            && !dnnl::impl::cpu::x64::amx::is_available()) {
+        tm.cpu_flags_.fAVX512AMXTILE = false;
+        tm.cpu_flags_.fAVX512AMXINT8 = false;
+        tm.cpu_flags_.fAVX512AMXBF16 = false;
+    }
+}
+
 template <typename T>
 static void parse_value(const char *name, T &v) {
     auto strv = sc::utils::getenv_string(name);
@@ -164,23 +227,11 @@ context_ptr get_default_context() {
             flags.boundary_check_ = true;
             SC_MODULE_WARN << "Enabled boundary check";
         };
+
+        reset_cpu_flags_by_dnnl_envs(tm);
         flags.brgemm_use_amx_ = tm.cpu_flags_.fAVX512AMXTILE
                 && (tm.cpu_flags_.fAVX512AMXBF16
                         || tm.cpu_flags_.fAVX512AMXINT8);
-        // todo: this env var is for linux kernels that under 5.15, current left
-        // here for compatibility
-        std::string dnnl_isa = sc::utils::getenv_string("DNNL_MAX_CPU_ISA");
-        std::string onednn_isa = sc::utils::getenv_string("ONEDNN_MAX_CPU_ISA");
-        // DNNL_MAX_CPU_ISA and ONEDNN_MAX_CPU_ISA can not be set at same time.
-        assert(dnnl_isa.empty() || onednn_isa.empty());
-        std::string &brgemm_isa = onednn_isa.empty() ? dnnl_isa : onednn_isa;
-        if (!brgemm_isa.empty()) {
-            if (brgemm_isa == "AVX512_CORE_AMX") {
-                flags.brgemm_use_amx_ = true;
-            } else {
-                flags.brgemm_use_amx_ = false;
-            }
-        }
 
         return std::make_shared<context_t>(flags, std::move(tm));
     }();
