@@ -157,7 +157,10 @@ struct prb_t : public prb_vdims_t {
             assert(ld[1] >= n);
             return ld[1];
         }
-        return n;
+        // weights are blocked by at least 16b, so this is needed to avoid
+        // explicitly setting ldb for tail n in input files and command line
+        const int64_t min_n = 16;
+        return MAX2(min_n, n);
     }
     int64_t get_ldc(bool use_dst_as_acc) const {
         if (use_dst_as_acc) return get_ldd();
