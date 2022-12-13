@@ -210,25 +210,27 @@ cl_platform_id get_ocl_platform(engine_t *engine) {
 status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,
         cl_kernel ocl_kernel, cl_uint idx, bool allow_undef) {
     char s_type[16];
-    OCL_CHECK(clGetKernelArgInfo(ocl_kernel, idx, CL_KERNEL_ARG_TYPE_NAME,
-            sizeof(s_type), s_type, nullptr));
+    auto cl_status = clGetKernelArgInfo(ocl_kernel, idx,
+            CL_KERNEL_ARG_TYPE_NAME, sizeof(s_type), s_type, nullptr);
+    if (cl_status == CL_SUCCESS) {
 #define CASE(x) \
     if (!strcmp(STRINGIFY(x), s_type)) { \
         *type = compute::scalar_type_t::_##x; \
         return status::success; \
     }
-    CASE(char)
-    CASE(float)
-    CASE(half)
-    CASE(int)
-    CASE(long)
-    CASE(short)
-    CASE(uchar)
-    CASE(uint)
-    CASE(ulong)
-    CASE(ushort)
-    CASE(zero_pad_mask_t)
+        CASE(char)
+        CASE(float)
+        CASE(half)
+        CASE(int)
+        CASE(long)
+        CASE(short)
+        CASE(uchar)
+        CASE(uint)
+        CASE(ulong)
+        CASE(ushort)
+        CASE(zero_pad_mask_t)
 #undef CASE
+    }
 
     if (allow_undef) {
         *type = compute::scalar_type_t::undef;
