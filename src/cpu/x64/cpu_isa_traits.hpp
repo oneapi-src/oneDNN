@@ -121,7 +121,8 @@ enum cpu_isa_t : unsigned {
     avx512_core_amx = avx512_core_fp16 | amx_int8 | amx_bf16,
     avx512_core_amx_fp16 = avx512_core_amx | amx_fp16,
     // NOTES: 1. isa_all by default has no isa specific hints
-    isa_all = ~0u & ~cpu_isa_hints_utils::hints_mask,
+    //        2. avx2_vnni_2 is under preview support and turned off by default
+    isa_all = ~0u & ~avx_vnni_2_bit & ~cpu_isa_hints_utils::hints_mask,
 };
 
 enum class cpu_isa_cmp_t {

@@ -132,7 +132,7 @@ struct isa_info_t {
                        "extensions";
             case avx2_vnni_2:
                 return "Intel AVX2 with Intel DL Boost, float16 and bfloat16 "
-                       "support";
+                       "support (preview support)";
             case avx2_vnni: return "Intel AVX2 with Intel DL Boost";
             case avx2: return "Intel AVX2";
             case avx: return "Intel AVX";
