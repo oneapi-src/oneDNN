@@ -143,20 +143,46 @@ status_t gen9_global_pooling_fwd_t::pd_t::init_kernel_ctx(
     return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
 }
 
+void gen9_global_pooling_fwd_t::pd_t::init_scratchpad() {
+    auto scratchpad = scratchpad_registry().registrar();
+    size_t size = utils::array_product(
+            conf.dst_md_info.padded_dims, conf.dst_md_info.ndims);
+    scratchpad.book(memory_tracking::names::key_pool_reduction, size,
+            types::data_type_size(data_type::f32), OCL_BUFFER_ALIGNMENT);
+
+    scratchpad.book(memory_tracking::names::key_nested,
+            reduction_pd_->scratchpad_registry());
+}
+
 status_t gen9_global_pooling_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
-    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
-    auto &ws = CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE);
+    if (!reduction_p_) {
+        auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+        auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+        auto &ws = CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE);
 
-    compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, src);
-    arg_list.set(1, ws);
-    arg_list.set(2, dst);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, src);
+        arg_list.set(1, ws);
+        arg_list.set(2, dst);
 
-    auto nd_range = pd()->conf.dispatch.nd_range();
+        auto nd_range = pd()->conf.dispatch.nd_range();
 
-    return parallel_for(ctx, nd_range, kernel_, arg_list);
+        return parallel_for(ctx, nd_range, kernel_, arg_list);
+    } else {
+
+        exec_args_t reduction_args;
+        reduction_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_SRC);
+        reduction_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DST);
+        exec_ctx_t reduction_ctx(ctx, std::move(reduction_args));
+
+        nested_scratchpad_t ns(
+                ctx, memory_tracking::names::key_nested, reduction_p_);
+        reduction_ctx.set_scratchpad_grantor(ns.grantor());
+
+        // Executing the reduction kernel
+        return reduction_p_->execute(reduction_ctx);
+    }
 }
 
 status_t gen9_global_pooling_bwd_t::pd_t::init_conf(engine_t *engine) {

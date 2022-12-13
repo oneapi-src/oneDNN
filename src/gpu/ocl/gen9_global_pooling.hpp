@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
+#include "common/reduction_pd.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_pooling_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
@@ -54,6 +55,8 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
                             pooling_avg_exclude_padding)
                     && (utils::everyone_is(data_type::f32, src_md()->data_type,
                                 dst_md()->data_type)
+                            || utils::everyone_is(data_type::f16,
+                                    src_md()->data_type, dst_md()->data_type)
                             || utils::everyone_is(data_type::bf16,
                                     src_md()->data_type, dst_md()->data_type))
                     && attr()->has_default_values();
@@ -63,12 +66,42 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
             if (desc()->alg_kind == pooling_max && is_training)
                 init_default_ws(s32);
 
-            return init_conf(engine);
+            CHECK(init_conf(engine));
+            CHECK(init_reduction(engine));
+            init_scratchpad();
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
+        void init_scratchpad();
+
+        status_t init_reduction(engine_t *engine) {
+            using namespace alg_kind;
+
+            reduction_desc_t rdesc;
+            memory_desc_t red_src_mem_desc(*src_md(0));
+            red_src_mem_desc.data_type = src_md()->data_type;
+            reduction_desc_init(&rdesc,
+                    desc()->alg_kind == pooling_max
+                            ? dnnl_alg_kind_t::dnnl_reduction_max
+                            : dnnl_alg_kind_t::dnnl_reduction_mean,
+                    &red_src_mem_desc, dst_md(0), 0, 0);
+            primitive_attr_t reduction_attr(*attr());
+            if (!reduction_attr.is_initialized()) return status::out_of_memory;
+            primitive_desc_iterator_t it(
+                    engine, (op_desc_t *)&rdesc, &reduction_attr, nullptr);
+            if (!it.is_initialized()) return status::invalid_arguments;
+            reduction_pd_ = *(++it);
+            if (reduction_pd_)
+                return status::success;
+            else {
+                return status::invalid_arguments;
+            }
+        }
+
+        std::shared_ptr<primitive_desc_t> reduction_pd_;
         pool_conf_t conf;
         offsets_t off;
     };
@@ -78,9 +111,18 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
+        using namespace alg_kind;
+        // TODO: max-pooling requires workspace to track indices for training config.
+        if (pd()->desc()->alg_kind != pooling_max) {
+            if (create_nested_primitive(
+                        reduction_p_, pd()->reduction_pd_, engine)
+                    == status::success) {
+                return status::success;
+            }
+        }
+        // fallback
         create_kernel(engine, &kernel_, "gen9_global_pooling_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
-
         return status::success;
     }
 
@@ -92,6 +134,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
+    std::shared_ptr<primitive_t> reduction_p_;
 };
 
 struct gen9_global_pooling_bwd_t : public gpu_primitive_t {
