@@ -238,8 +238,8 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
     // borrowed fanchor map
     std::unordered_map<graph_tensor_ptr, std::shared_ptr<fuse_anchor_map_t>>
             borrowed_fanchor_map_;
-    // content inferred under current fusion anchor scope, includes op and
-    // anchor
+    // content-to-number mapping under current fusion anchor scope, includes
+    // either op and anchor
     std::unordered_map<anchor_content_t, size_t, op_or_fuse_anchor_map_hasher,
             op_or_fuse_anchor_map_cmper>
             content_number_map_;
@@ -267,15 +267,39 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
         }
     }
 
+    // get all contents inside fusion anchor
+    std::vector<anchor_content_t> get_contents() const {
+        std::vector<anchor_content_t> ret;
+        for (auto &mp : content_number_map_) {
+            ret.emplace_back(mp.first);
+        }
+        return ret;
+    }
+
+    // append list of contents by the given number id
+    void append_contents(
+            std::vector<anchor_content_t> contents, size_t num_id) {
+        for (auto &content : contents) {
+            content_number_map_.insert(std::make_pair(content, num_id));
+        }
+    }
+
+    // append content including either fusion anchor or sc op
     void append_content(anchor_content_t content) {
-        content_number_map_.insert(
-                std::make_pair(content, content_number_map_.size()));
+        std::vector<anchor_content_t> contents;
+        // if content is fusion anchor, need to append all of its contents
+        if (auto fanchor = content.as_or_null<fuse_anchor_map_t *>()) {
+            contents = (*fanchor)->get_contents();
+        }
+        contents.emplace_back(content);
+        append_contents(contents, content_number_map_.size());
+
         // recursively attach to parent anchor
         auto root = this;
         while (root->parent_) {
             auto num_id = root->parent_->content_number_map_[root];
             root = root->parent_.get();
-            root->content_number_map_.insert(std::make_pair(content, num_id));
+            root->append_contents(contents, num_id);
         }
     }
 
