@@ -188,6 +188,7 @@ void record_queried_logical_tensors(
 }
 
 int doit(const prb_t *prb, res_t *res) {
+    if (bench_mode == LIST) return res->state = LISTED, OK;
     const auto &dg = prb->dg;
     auto ograph = dg.to_graph(prb->fpmath_mode);
     DNN_GRAPH_SAFE(ograph.finalize(), WARN);
