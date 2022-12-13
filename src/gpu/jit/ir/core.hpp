@@ -1079,8 +1079,8 @@ public:
     }
 
     bool is_bool_vec_u16() const {
-        if (is_bool_vec(expr.type()) && is_u16_scalar(type)) return true;
-        if (is_bool_vec(type) && is_u16_scalar(expr.type())) return true;
+        if (is_bool_vec(expr.type()) && is_u16_or_u32_scalar(type)) return true;
+        if (is_bool_vec(type) && is_u16_or_u32_scalar(expr.type())) return true;
         return false;
     }
 
@@ -1102,8 +1102,8 @@ private:
         return type.is_bool() && type.elems() > 1;
     }
 
-    static bool is_u16_scalar(const type_t &type) {
-        return type.is_u16() && type.is_scalar();
+    static bool is_u16_or_u32_scalar(const type_t &type) {
+        return (type.is_u16() || type.is_u32()) && type.is_scalar();
     }
 };
 

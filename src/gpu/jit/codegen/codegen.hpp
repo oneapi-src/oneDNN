@@ -776,18 +776,17 @@ public:
                     auto b_is_var = has_and_only(obj.b);
                     auto a = b_is_var ? obj.b : obj.a;
                     auto b = b_is_var ? obj.a : obj.b;
+                    auto flag_type = obj.type.elems() == 16
+                            ? ngen::DataType::uw
+                            : ngen::DataType::ud;
                     if (a_is_var && b_is_var) {
-                        auto tmp0 = ngen_operand_t(scope_.alloc_reg_data(to_ir(
-                                                           ngen::DataType::uw)),
-                                1);
-                        auto tmp1 = ngen_operand_t(scope_.alloc_reg_data(to_ir(
-                                                           ngen::DataType::uw)),
-                                1);
+                        auto tmp0 = ngen_operand_t(
+                                scope_.alloc_reg_data(to_ir(flag_type)), 1);
+                        auto tmp1 = ngen_operand_t(
+                                scope_.alloc_reg_data(to_ir(flag_type)), 1);
 
                         auto tmp_dst = ngen_operand_t(
-                                scope_.alloc_reg_data(
-                                        to_ir(ngen::DataType::uw)),
-                                1);
+                                scope_.alloc_reg_data(to_ir(flag_type)), 1);
                         auto src0_op = eval(obj.a, tmp0);
 
                         auto src1_op = eval(obj.b, tmp1);
@@ -795,18 +794,13 @@ public:
                         host_->eand(1, tmp_dst, src0_op, src1_op);
                         host_->emov(1, dst_op, tmp_dst);
                     } else if (a_is_var || b_is_var) {
+                        auto tmp1 = ngen_operand_t(
+                                scope_.alloc_reg_data(to_ir(flag_type)), 1);
 
-                        auto tmp1 = ngen_operand_t(scope_.alloc_reg_data(to_ir(
-                                                           ngen::DataType::uw)),
-                                1);
-
-                        auto tmp0 = ngen_operand_t(scope_.alloc_reg_data(to_ir(
-                                                           ngen::DataType::uw)),
-                                1);
+                        auto tmp0 = ngen_operand_t(
+                                scope_.alloc_reg_data(to_ir(flag_type)), 1);
                         auto tmp_dst = ngen_operand_t(
-                                scope_.alloc_reg_data(
-                                        to_ir(ngen::DataType::uw)),
-                                1);
+                                scope_.alloc_reg_data(to_ir(flag_type)), 1);
                         auto src0_op = eval(a, tmp0);
                         eval(b, ngen_operand_t(dst_op, mod));
 
@@ -819,7 +813,6 @@ public:
                                 ngen_operand_t(dst_op,
                                         mod | dst_op.flag_register_mod()));
                     }
-
                     break;
                 }
                 // else fall through to the default label.
@@ -954,7 +947,8 @@ public:
             auto dst_op = alloc_dst_op(obj);
             auto e_shuffle = expr_t(obj);
             ir_assert(dst_op.is_flag_register()
-                    || dst_op.type() == ngen::DataType::uw)
+                    || dst_op.type() == ngen::DataType::uw
+                    || dst_op.type() == ngen::DataType::ud)
                     << e_shuffle;
             ir_assert(!dst_op.is_negated()) << e_shuffle;
             uint32_t flag_mask = 0;

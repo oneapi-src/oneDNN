@@ -357,7 +357,8 @@ public:
                 emov(mod, dst.reg_data(), src0.reg_buf_data().reg_data());
             } else if (src0.is_immediate()) {
                 emov(mod, dst.reg_data(), src0.immediate());
-            } else if (dst.type() == ngen::DataType::uw) {
+            } else if (dst.type() == ngen::DataType::uw
+                    || dst.type() == ngen::DataType::ud) {
                 emov(mod, dst.reg_data(), src0.flag_register());
                 if (src0.is_negated()) {
                     not_(mod, dst.reg_data(), dst.reg_data());
