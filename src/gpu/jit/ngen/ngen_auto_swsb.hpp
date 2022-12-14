@@ -330,7 +330,7 @@ inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = t
         else
             mask |= PipeMaskI;
 
-        if (!(mask & PipeMaskL)) {
+        if ((hw < HW::XeHPC) && !(mask & PipeMaskL)) {
             if ((insn.src0Typecode() & lmask) == lmask)
                 mask = PipeMaskL;
             else if ((insn.src1Typecode() & lmask) == lmask)

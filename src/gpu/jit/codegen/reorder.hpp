@@ -444,9 +444,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto d = dst.subregister(i, esize, dst_stride_bytes);
             auto t = tmp.subregister(s.getByteOffset(), tmp_type);
             plan(mov, esize, t(tmp_stride), s(src_stride));
-            // df -> f uses the float pipe. Override ngen setting the long pipe.
-            auto mod_with_pipe = esize | ngen::SWSB<float>(1);
-            plan(mov, mod_with_pipe, d.d()(dst_stride), t.d()(tmp_stride));
+            plan(mov, esize, d.d()(dst_stride), t.d()(tmp_stride));
         }
         return;
     }
