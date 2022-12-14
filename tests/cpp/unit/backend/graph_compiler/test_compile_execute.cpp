@@ -725,6 +725,24 @@ TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution) {
     compile_execution_pipeline(agraph, 2);
 }
 
+TEST(GCGraphTest, FP32MHATrainingGraphCompileExecution2) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_training_subgraph(&agraph, false, true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 2);
+}
+
+TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution2) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_training_subgraph(&agraph, true, true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 2);
+}
+
 TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution) {
     REQUIRE_AVX512();
     REQUIRE_SINGLE_THREAD();
