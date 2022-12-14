@@ -91,12 +91,13 @@ protected:
 
     void SetUp() override {
         for (auto dt : {data_type::f32, data_type::bf16, data_type::f16}) {
-#if DNNL_X64
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE && DNNL_X64
             // training for xf16 is currently only supported on avx512_core[+]
             static const auto isa = get_effective_cpu_isa();
             static const bool has_avx512_core
                     = dnnl::is_superset(isa, cpu_isa::avx512_core);
             if (dt != data_type::f32 && !has_avx512_core) continue;
+#endif
 #endif
             if (!unsupported_data_type(dt))
                 inner_product_data_types.push_back(dt);
