@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ protected:
     dim_t stride_h_ = 0;
     dim_t stride_w_ = 0;
     dim_t inner_stride_ = 0;
+    dim_t tail_size_ = 0;
 };
 
 struct simple_resampling_fwd_t : public primitive_t {
