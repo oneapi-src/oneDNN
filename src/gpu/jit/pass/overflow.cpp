@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -113,6 +113,7 @@ public:
         bool ok = true;
         if (!obj.var.type().is_int()) ok = false;
         if (ok && obj.value.is_empty()) ok = false;
+        if (ok && obj.value.type().is_bool()) ok = false;
         if (ok && bound_finder_.has_var(obj.var)) ok = false;
 
         if (ok) {
@@ -138,7 +139,8 @@ public:
         expr_t value = mutate(obj.value);
         stmt_t body = mutate(obj.body);
         if (value.is_same(obj.value) && body.is_same(obj.body)) return obj;
-        if (!value.is_empty() && value.type() != obj.value.type()) {
+        if (!value.is_empty() && !value.type().is_bool()
+                && value.type() != obj.value.type()) {
             auto old_var = var;
             var = ir_ctx_.create_tmp_var(
                     value.type(), old_var.as<var_t>().name);
