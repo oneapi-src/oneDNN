@@ -93,7 +93,7 @@ void mxp_buffer_allocator::allocate_buffer(sc_op *op) {
                         && g2b_map_.get(in)
                                    .static_as<tensor>()
                                    ->init_value_)); // TODO(XXX): inplace inited
-                // tensor
+        // tensor
     };
 
     for (auto &out : op->get_outputs()) {
