@@ -134,6 +134,17 @@ compiler_configs_t &compiler_configs_t::get() {
     return cfg;
 }
 
+const std::string &compiler_configs_t::get_temp_dir_path() {
+    const std::string &temp_dir = compiler_configs_t::get().temp_dir_;
+    if (temp_dir.empty()) {
+        COMPILE_ASSERT(0,
+                "Current SC_TEMP_DIR can not be writen as temp directory, "
+                "please make your writable temp directory and use with "
+                "SC_TEMP_DIR=/path/to/temp");
+    }
+    return temp_dir;
+}
+
 using namespace env_key;
 compiler_configs_t::compiler_configs_t() {
     print_gen_code_ = utils::getenv_int(env_names[SC_PRINT_GENCODE], 0);
@@ -150,19 +161,13 @@ compiler_configs_t::compiler_configs_t() {
             utils::getenv_string(env_names[SC_CPU_JIT_FLAGS]), " ");
     temp_dir_ = utils::getenv_string(env_names[SC_TEMP_DIR]);
     if (temp_dir_.empty()) { temp_dir_ = "/tmp"; }
+    int access_ret = 0;
 #ifndef _WIN32
-    int access_ret = access(temp_dir_.c_str(), W_OK);
-    COMPILE_ASSERT(access_ret == 0,
-            temp_dir_ << " can not be writen as temp directory, please make "
-                         "your writable temp directory and use with "
-                         "SC_TEMP_DIR=/path/to/temp");
+    access_ret = access(temp_dir_.c_str(), W_OK);
 #else
-    int access_ret = _access(temp_dir_.c_str(), 2);
-    SC_WARN << temp_dir_
-            << "can not be writen as temp directory, please make "
-               "your writable temp directory and use with "
-               "SC_TEMP_DIR=/path/to/temp";
+    access_ret = _access(temp_dir_.c_str(), 2);
 #endif
+    if (access_ret != 0) { temp_dir_.clear(); }
 
     print_pass_time_ = utils::getenv_int(env_names[SC_PRINT_PASS_TIME], 0);
     print_pass_result_ = utils::getenv_int(env_names[SC_PRINT_PASS_RESULT], 0);

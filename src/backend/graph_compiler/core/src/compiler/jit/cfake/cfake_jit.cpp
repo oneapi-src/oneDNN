@@ -194,7 +194,7 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
     // want to have just one "." character in the name. Otherwise it
     // seems to get confused and the saved intermediate files lack the
     // unique_name part.
-    const auto &tmpdir = utils::compiler_configs_t::get().temp_dir_;
+    const auto &tmpdir = utils::compiler_configs_t::get_temp_dir_path();
     std::string outpath = tmpdir + "/cfake_jit_module-" + unique_name + ".so";
     std::string inpath = tmpdir + "/cfake_jit_module-" + unique_name + ".cpp";
 
