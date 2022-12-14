@@ -1342,8 +1342,9 @@ inline void get_int8_MHA_subgraph_varients(impl::graph_t *agraph,
 }
 
 inline void add_MHA_training_subgraph(impl::graph_t *agraph,
-        bool use_bf16 = false, int batch_size = 128, int seq_len = 384,
-        int num_head = 16, int head_dim = 1024) {
+        bool use_bf16 = false, bool has_mul_from_select = false,
+        int batch_size = 128, int seq_len = 384, int num_head = 16,
+        int head_dim = 1024) {
     auto dtype = use_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
     size_t logical_tensor_idx = 0;
     size_t op_idx = 0;
@@ -1389,7 +1390,8 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
     fscore_div_out = utils::logical_tensor_init(
             logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
 
-    impl::logical_tensor_t fscore_add_out, softmax_out, dropout, dropout_out;
+    impl::logical_tensor_t fscore_add_out, softmax_out, dropout, dropout_out,
+            select, select_out;
     fscore_add_out = utils::logical_tensor_init(
             logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
     softmax_out = utils::logical_tensor_init(
@@ -1397,6 +1399,10 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
     dropout = utils::logical_tensor_init(
             logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
     dropout_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+    select = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+    select_out = utils::logical_tensor_init(
             logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
 
     impl::logical_tensor_t value_transpose_out;
@@ -1441,8 +1447,13 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
     mul_dropout.add_input(dropout);
     mul_dropout.add_output(dropout_out);
 
+    impl::op_t mul_select {op_idx++, impl::op_kind::Multiply, "mul_select"};
+    mul_select.add_input(dropout_out);
+    mul_select.add_input(select);
+    mul_select.add_output(select_out);
+
     impl::op_t matmul_v {op_idx++, impl::op_kind::MatMul, "matmul_v"};
-    matmul_v.add_input(dropout_out);
+    matmul_v.add_input(has_mul_from_select ? select_out : dropout_out);
     matmul_v.add_input(value_transpose_out);
     matmul_v.add_output(matmul_v_out);
 
@@ -1467,6 +1478,7 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
     agraph->add_op(&fscore_add);
     agraph->add_op(&softmax);
     agraph->add_op(&mul_dropout);
+    if (has_mul_from_select) { agraph->add_op(&mul_select); }
     agraph->add_op(&matmul_v);
     agraph->add_op(&transpose_output);
     agraph->add_op(&reshape_output);
@@ -1492,6 +1504,10 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
 
     impl::logical_tensor_t bmm_v_grad_data;
     bmm_v_grad_data = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t select_grad;
+    select_grad = utils::logical_tensor_init(
             logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
 
     impl::logical_tensor_t dropout_grad;
@@ -1548,9 +1564,15 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
     grad_dropout.add_input(value_transpose);
     grad_dropout.add_output(bmm_v_grad_data);
 
+    impl::op_t grad_select {op_idx++, impl::op_kind::Multiply, "grad_select"};
+    grad_select.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
+    grad_select.add_input(bmm_v_grad_data);
+    grad_select.add_input(select);
+    grad_select.add_output(select_grad);
+
     impl::op_t mul {op_idx++, impl::op_kind::Multiply, "mul"};
     mul.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
-    mul.add_input(bmm_v_grad_data);
+    mul.add_input(has_mul_from_select ? select_grad : bmm_v_grad_data);
     mul.add_input(dropout);
     mul.add_output(dropout_grad);
 
@@ -1594,6 +1616,7 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
     agraph->add_op(&transpose_bwd);
     agraph->add_op(&grad_v);
     agraph->add_op(&grad_dropout);
+    if (has_mul_from_select) { agraph->add_op(&grad_select); };
     agraph->add_op(&mul);
     agraph->add_op(&mul_2);
     agraph->add_op(&reduce_sum);

@@ -705,6 +705,32 @@ TEST(GCPatternTests, FP32MHATrainingPattern) {
     ASSERT_EQ(partitions[1]->get_outputs().size(), 3U);
 }
 
+TEST(GCPatternTests, FP32MHATrainingPattern2) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_training_subgraph(&agraph, false, true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+
+    pass::pass_base_ptr fwd_apass
+            = get_pass(compiler_backend_ptr, "fp32_mha_forward_pattern");
+    pass::pass_base_ptr bwd_apass
+            = get_pass(compiler_backend_ptr, "fp32_mha_backward_pattern");
+    fwd_apass->run(agraph);
+    bwd_apass->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 2U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 9U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 7U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 3U);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 12U);
+    ASSERT_EQ(partitions[1]->get_inputs().size(), 9U);
+    ASSERT_EQ(partitions[1]->get_outputs().size(), 3U);
+}
+
 TEST(GCPatternTests, BF16MHATrainingPattern) {
     REQUIRE_BF16_AMXBF16();
     impl::graph_t agraph;
@@ -727,6 +753,31 @@ TEST(GCPatternTests, BF16MHATrainingPattern) {
     ASSERT_EQ(partitions[0]->get_outputs().size(), 3U);
     ASSERT_EQ(partitions[1]->get_ops().size(), 11U);
     ASSERT_EQ(partitions[1]->get_inputs().size(), 8U);
+    ASSERT_EQ(partitions[1]->get_outputs().size(), 3U);
+}
+
+TEST(GCPatternTests, BF16MHATrainingPattern2) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_training_subgraph(&agraph, true, true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr fwd_apass
+            = get_pass(compiler_backend_ptr, "bf16_mha_forward_pattern");
+    pass::pass_base_ptr bwd_apass
+            = get_pass(compiler_backend_ptr, "bf16_mha_backward_pattern");
+    fwd_apass->run(agraph);
+    bwd_apass->run(agraph);
+
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 2U);
+    ASSERT_EQ(partitions[0]->get_ops().size(), 9U);
+    ASSERT_EQ(partitions[0]->get_inputs().size(), 7U);
+    ASSERT_EQ(partitions[0]->get_outputs().size(), 3U);
+    ASSERT_EQ(partitions[1]->get_ops().size(), 12U);
+    ASSERT_EQ(partitions[1]->get_inputs().size(), 9U);
     ASSERT_EQ(partitions[1]->get_outputs().size(), 3U);
 }
 
