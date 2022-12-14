@@ -1034,6 +1034,8 @@ status_t init_simd(conv_config_t &cfg) {
 }
 
 status_t init_vec_size(conv_config_t &cfg) {
+    if (cfg.exec_cfg_param().is_overridden("vec")) return status::success;
+
     const auto &prb = cfg.prb();
     int vec_size = cfg.simd();
     if (cfg.fma_kind() == fma_kind_t::mad) {

@@ -631,6 +631,7 @@ public:
 
     bool accept_key(const std::string &key) const override {
         if (key == "simd") return true;
+        if (key == "vec") return true;
         return false;
     }
 
@@ -638,6 +639,8 @@ public:
             const std::string &key, const std::string &value) override {
         if (key == "simd") {
             value_.set_simd(std::stoi(value));
+        } else if (key == "vec") {
+            value_.set_vec_size(std::stoi(value));
         } else {
             ir_error_not_expected() << key;
         }
