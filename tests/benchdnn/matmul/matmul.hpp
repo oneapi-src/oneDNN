@@ -246,7 +246,7 @@ struct cfg_t : public base_cfg_t {
         }
     }
 
-    const cfg_entry_t::cfg_map_t &get_cfg_map(data_kind_t kind) const;
+    cfg_entry_t::cfg_map_t get_cfg_map(data_kind_t kind) const override;
 
     float get_density(const density_args_t &density_args) const override;
 };
