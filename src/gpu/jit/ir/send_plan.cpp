@@ -246,31 +246,40 @@ public:
 
     explicit modulus_t(int64_t value) : lg2_(to_lg2(std::abs(value))) {}
 
-    int64_t n() const { return (int64_t)1 << lg2_; }
+    int64_t n() const { return is_zero() ? 0 : (int64_t)1 << lg2_; }
 
     bool is_divisible(int64_t div) const { return n() % div == 0; }
 
+    bool is_zero() const { return lg2_ == lg2_zero_; }
+
+    modulus_t &set_zero() {
+        lg2_ = lg2_zero_;
+        return *this;
+    }
+
     modulus_t &operator+=(const modulus_t &b) {
+        if (is_zero() && b.is_zero()) return set_zero();
         lg2_ = std::min(lg2_, b.lg2_);
         return *this;
     }
 
     modulus_t &operator*=(const modulus_t &b) {
+        if (is_zero() || b.is_zero()) return set_zero();
         lg2_ += b.lg2_;
+        lg2_ = std::min((int)max_lg2_, lg2_);
         return *this;
     }
 
     modulus_t &operator%=(int64_t b) {
+        if (is_zero()) return set_zero();
         auto b_lg2 = to_lg2(b);
-        if (math::is_pow2(b) && lg2_ >= b_lg2) {
-            lg2_ = to_lg2(0);
-        } else {
-            lg2_ = std::min(lg2_, b_lg2);
-        }
+        if (math::is_pow2(b) && lg2_ >= b_lg2) return set_zero();
+        lg2_ = std::min(lg2_, b_lg2);
         return *this;
     }
 
     modulus_t &operator/=(int64_t b) {
+        if (is_zero()) return set_zero();
         auto b_lg2 = to_lg2(b);
         if (math::is_pow2(b) && lg2_ >= b_lg2) {
             lg2_ -= b_lg2;
@@ -291,13 +300,14 @@ public:
 private:
     static int to_lg2(int64_t v) {
         ir_assert(v >= 0);
-        if (v == 0) return max_lg2_;
+        if (v == 0) return lg2_zero_;
         return std::min((int)max_lg2_, ngen::utils::bsf(v));
     }
 
     int lg2_;
     // 2^20 is enough for all alignment restrictions.
     static const int max_lg2_ = 20;
+    static const int lg2_zero_ = max_lg2_ + 1;
 };
 
 std::ostream &operator<<(std::ostream &out, const modulus_t &modulus) {
@@ -1185,7 +1195,8 @@ private:
         mod_info_ = mod_info_t(view_, tdims_);
         std::vector<modulus_t> vmods(view_.nvdims());
         for (int i = 0; i < view_.nvdims(); i++)
-            vmods[i] = modulus_t(view_.vdims()[i]);
+            vmods[i] = modulus_t(
+                    is_zero(view_.vstart()[i]) ? 0 : view_.vdims()[i]);
         mod_info_.set_vmods(vmods);
     }
 
