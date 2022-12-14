@@ -1,0 +1,101 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "POOL_0",
+      "kind": "MaxPool",
+      "attrs": {
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            2,
+            2
+          ]
+        },
+        "kernel": {
+          "type": "s64[]",
+          "value": [
+            3,
+            3
+          ]
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1
+          ]
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0
+          ]
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "rounding_type": {
+          "type": "string",
+          "value": "floor"
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            1,
+            64,
+            600,
+            600
+          ],
+          "stride": [
+            23040000,
+            360000,
+            600,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            1,
+            64,
+            300,
+            300
+          ],
+          "stride": [
+            5760000,
+            90000,
+            300,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

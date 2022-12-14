@@ -1,0 +1,209 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "ELTWISE_0",
+      "kind": "ReLUBackward",
+      "attrs": {
+        "use_dst": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f16",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f16",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "f16",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "BNORM_0",
+      "kind": "BatchNormTrainingBackward",
+      "attrs": {
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "epsilon": {
+          "type": "f32",
+          "value": 0.0625
+        }
+      },
+      "inputs": [
+        {
+          "id": 2,
+          "dtype": "f16",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 3,
+          "dtype": "f16",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 4,
+          "dtype": "f32",
+          "shape": [
+            32
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 5,
+          "dtype": "f32",
+          "shape": [
+            32
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 6,
+          "dtype": "f32",
+          "shape": [
+            32
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 7,
+          "dtype": "f16",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 8,
+          "dtype": "f32",
+          "shape": [
+            32
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 9,
+          "dtype": "f32",
+          "shape": [
+            32
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "DEQUANTIZE_0",
+      "kind": "DynamicDequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_channel"
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "s8",
+          "shape": [
+            2,
+            64,
+            3,
+            3
+          ],
+          "stride": [
+            576,
+            9,
+            3,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            64
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            2,
+            64,
+            3,
+            3
+          ],
+          "stride": [
+            576,
+            9,
+            3,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}
