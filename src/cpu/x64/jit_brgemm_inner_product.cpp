@@ -326,6 +326,16 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
         const int icc_work = icc_end - icc_start;
 
+        enum loop_order {
+            osc_occ_icc_osb_ocb,
+            osc_occ_osb_ocb_icc,
+        };
+        enum loop_order order = osc_occ_osb_ocb_icc;
+
+        // Use ocb as inner-most loop for f32, if buffer is not required.
+        const bool ocb_inner_most = is_f32 && !jbgp.is_bf32 && !jbgp.use_buffer;
+        if (ocb_inner_most) order = osc_occ_icc_osb_ocb;
+
         int prev_ker_idx = -1;
         maybe_tile_configure(
                 is_amx, brg_kernel_palettes_, base_brg_ker_idx, prev_ker_idx);
@@ -345,15 +355,16 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             int loop_start = 0, loop_end = icc_work * osb_work * ocb_work;
             int icc = 0, osb = 0, ocb = 0;
 
-            // If buffer is required, then inner-most loop will be over icc_work
-            const bool ocb_inner_most
-                    = is_f32 && !(jbgp.is_bf32 || jbgp.use_buffer);
-            if (ocb_inner_most)
-                nd_iterator_init(
-                        0, icc, icc_work, osb, osb_work, ocb, ocb_work);
-            else
-                nd_iterator_init(
-                        0, osb, osb_work, ocb, ocb_work, icc, icc_work);
+            switch (order) {
+                case osc_occ_icc_osb_ocb:
+                    nd_iterator_init(
+                            0, icc, icc_work, osb, osb_work, ocb, ocb_work);
+                    break;
+                case osc_occ_osb_ocb_icc:
+                    nd_iterator_init(
+                            0, osb, osb_work, ocb, ocb_work, icc, icc_work);
+                    break;
+            }
 
             while (loop_start < loop_end) {
                 const int n = (osb + osb_s) * jbgp.os_block;
@@ -364,16 +375,25 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                         cur_icc == icc_start, osb, copy_buffer_a, prev_ker_idx);
 
                 ++loop_start;
-                if (ocb_inner_most)
-                    nd_iterator_step(
-                            icc, icc_work, osb, osb_work, ocb, ocb_work);
-                else
-                    nd_iterator_step(
-                            osb, osb_work, ocb, ocb_work, icc, icc_work);
+                switch (order) {
+                    case osc_occ_icc_osb_ocb:
+                        nd_iterator_step(
+                                icc, icc_work, osb, osb_work, ocb, ocb_work);
+                        break;
+                    case osc_occ_osb_ocb_icc:
+                        nd_iterator_step(
+                                osb, osb_work, ocb, ocb_work, icc, icc_work);
+                        break;
+                }
             }
 
             ++start;
-            nd_iterator_step(osc, os_chunks, occ, oc_chunks);
+            switch (order) {
+                case osc_occ_icc_osb_ocb:
+                case osc_occ_osb_ocb_icc:
+                    nd_iterator_step(osc, os_chunks, occ, oc_chunks);
+                    break;
+            }
         }
         if (is_amx) amx_tile_release();
     });
