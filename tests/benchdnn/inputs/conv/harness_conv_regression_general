@@ -323,3 +323,10 @@ mb1ic8iw9973oc256ow9973kw9pw2n"brgconv_compensation_bdb_tail"
 mb1_ic1oc1_ih1kh1ph1_iw1kw1_n"brgemm_conv_comp_pad:1"
 --cfg=u8s8u8 --attr-zero-points=src0:common:1*
 g3mb2_ic6oc96_ih12oh8kh1sh2dh1ph2_iw11ow7kw4sw1dw1pw1_n"brgemm_conv_comp_pad:2"
+
+# test correct creation of post_op jit kernel for sum+elem-wise operation
+--reset
+--dir=FWD_I --cfg=u8s8f32
+--stag=acdb --wtag=any --dtag=acdb
+--attr-post-ops=sum:0.00518924+eltwise_relu
+mb1_ic5oc5_ih12oh7kh1sh2dh0ph1_iw12ow4kw7sw2dw0pw1_n"brgemm_post-op-jit_elemwise-op"
