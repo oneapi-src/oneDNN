@@ -72,7 +72,7 @@ inline void finalize() {
 #ifdef DNNL_TBB_NEED_EXPLICIT_FINALIZE
     tbb::task_scheduler_handle handle
             = tbb::task_scheduler_handle {tbb::attach {}};
-    tbb::finalize(handle);
+    tbb::finalize(handle, std::nothrow);
 #endif
 }
 
