@@ -1793,7 +1793,9 @@ const_ir_module_ptr llvm_generator_pass::operator()(const_ir_module_ptr f) {
     auto passes = get_default_precodegen_passes(f->ctx_, gen_wrapper_);
     auto mod = run_precodegen_passes(passes, f);
     std::string unique_name;
-    const auto &tmpdir = utils::compiler_configs_t::get().temp_dir_;
+    const auto &tmpdir = f->ctx_->flags_.debug_info_
+            ? utils::compiler_configs_t::get_temp_dir_path()
+            : "";
     if (f->ctx_->flags_.debug_info_) {
         std::string file_name;
         file_name = "llvm_jit-" + utils::get_unique_name_for_file() + ".gcir";

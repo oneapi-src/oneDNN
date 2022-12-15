@@ -208,7 +208,6 @@ struct SC_INTERNAL_API compiler_configs_t {
     bool keep_gen_code_;
     std::string jit_cc_options_;
     std::vector<std::string> cpu_jit_flags_;
-    std::string temp_dir_;
     bool diagnose_ = false;
     bool printer_print_address_ = false;
     bool print_pass_time_;
@@ -216,9 +215,12 @@ struct SC_INTERNAL_API compiler_configs_t {
     bool jit_profile_;
 
     static compiler_configs_t &get();
+    static const std::string &get_temp_dir_path();
 
 private:
     compiler_configs_t();
+    // set to private to prevent use without permission check
+    std::string temp_dir_;
 };
 
 } // namespace utils
