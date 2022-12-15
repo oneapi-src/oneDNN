@@ -1,0 +1,79 @@
+/******************************************************************************
+* Copyright (c), 2022, KNS Group LLC (YADRO).
+* All Rights Reserved.
+*
+* This software contains the intellectual property of YADRO
+* or is licensed to YADRO from third parties.  Use of this
+* software and the intellectual property contained therein is expressly
+* limited to the terms and conditions of the License Agreement under which
+* it is provided by YADRO.
+*******************************************************************************/
+
+#ifndef RV64_NCHW_POOLING_HPP
+#define RV64_NCHW_POOLING_HPP
+
+#include "cpu/cpu_pooling_pd.hpp"
+#include "cpu/primitive_attr_postops.hpp"
+
+namespace dnnl {
+namespace impl {
+namespace cpu {
+namespace rv64 {
+
+template <data_type_t d_type>
+struct riscv_nchw_pooling_fwd_t : public primitive_t {
+    struct pd_t : public cpu_pooling_fwd_pd_t {
+        using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
+
+        DECLARE_COMMON_PD_T_("RISCV64GCV", riscv_nchw_pooling_fwd_t)
+
+        status_t init(engine_t *engine) {
+            UNUSED(engine);
+
+            const format_tag_t desired_fmt_tag = utils::pick(ndims() - 3,
+                    format_tag::ncw, format_tag::nchw, format_tag::ncdhw);
+
+            const bool is_training
+                    = desc_.prop_kind == prop_kind::forward_training;
+
+            const bool ok = is_fwd()
+                    && utils::one_of(desc()->alg_kind, alg_kind::pooling_max)
+                    && memory_desc_wrapper(dst_md()).is_dense(false)
+                    && utils::everyone_is(
+                            d_type, src_md()->data_type, dst_md()->data_type)
+                    && platform::has_data_type_support(d_type)
+                    && !has_zero_dim_memory() && !is_dilated()
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, d_type)
+                    && set_default_params() == status::success
+                    && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
+                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag)
+                    && attr_.set_default_formats(dst_md(0)) == status::success
+                    && attr()->post_ops_.len() == 0 && !is_training;
+
+            if (!ok) return status::unimplemented;
+
+            return status::success;
+        }
+    };
+
+    riscv_nchw_pooling_fwd_t(const pd_t *apd);
+
+    using data_t = typename prec_traits<d_type>::type;
+
+    status_t execute(const exec_ctx_t &ctx) const override {
+        return execute_forward(ctx);
+    }
+
+private:
+    status_t execute_forward(const exec_ctx_t &ctx) const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    const ref_post_ops_t ref_post_ops_;
+};
+
+} // namespace rv64
+} // namespace cpu
+} // namespace impl
+} // namespace dnnl
+
+#endif
