@@ -138,7 +138,6 @@ protected:
         if (context_) { clReleaseContext(context_); }
     }
 
-protected:
     status_t init_device_info() override;
     status_t init_device_info(const std::vector<uint8_t> &cache_blob) override;
 
