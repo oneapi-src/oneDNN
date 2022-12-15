@@ -277,10 +277,10 @@ struct params_pack_helper_t<0, R> {
         size_t core_type_id = (size_t)ctx.core_type < core_types.size() \
                 ? ctx.core_type \
                 : core_types.size() - 1; \
-        static auto core_type = ctx.core_type == tbb::task_arena::automatic \
+        auto core_type = ctx.core_type == tbb::task_arena::automatic \
                 ? tbb::task_arena::automatic \
                 : core_types[core_type_id]; \
-        static auto arena = tbb::task_arena { \
+        auto arena = tbb::task_arena { \
                 tbb::task_arena::constraints {} \
                         .set_core_type(core_type) \
                         .set_max_threads_per_core(ctx.nthr_per_core) \
