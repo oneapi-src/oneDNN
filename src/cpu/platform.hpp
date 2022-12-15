@@ -85,6 +85,15 @@
 #define DNNL_S390X_ONLY(...) Z_CONDITIONAL_DO(DNNL_S390X_ONLY, __VA_ARGS__)
 #define DNNL_AARCH64_ONLY(...) Z_CONDITIONAL_DO(DNNL_AARCH64, __VA_ARGS__)
 
+// Using RISC-V implementations optimized with RVV is optional for RISC-V build
+// and can be enabled with the DNNL_RISCV_USE_RVV CMake option.
+// If disabled, generic reference implementations will be used.
+#if defined(DNNL_RV64) && defined(DNNL_RISCV_USE_RVV)
+#define DNNL_RV64GCV_ONLY(...) __VA_ARGS__
+#else
+#define DNNL_RV64GCV_ONLY(...)
+#endif
+
 // Negation of the helper macros above
 #define DNNL_NON_X64_ONLY(...) Z_CONDITIONAL_DO(Z_NOT(DNNL_X64), __VA_ARGS__)
 

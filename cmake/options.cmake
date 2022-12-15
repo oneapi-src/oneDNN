@@ -347,3 +347,9 @@ option(DNNL_AARCH64_USE_ACL "Enables use of AArch64 optimised functions
     This is only supported on AArch64 builds and assumes there is a
     functioning Compute Library build available at the location specified by the
     environment variable ACL_ROOT_DIR." OFF)
+
+
+# ==============================================
+# RISC-V optimizations with RVV intrinsics
+# ==============================================
+option(DNNL_RISCV_USE_RVV "Enables use of RISC-V implementations optimized with RVV" OFF)
