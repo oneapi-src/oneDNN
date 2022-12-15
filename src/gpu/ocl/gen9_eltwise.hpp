@@ -101,7 +101,7 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
         return create_kernel(engine, kernel_, "gen9_eltwise_fwd", pd()->conf);
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward_dense(ctx);
     }
 
@@ -156,7 +156,7 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
         return create_kernel(engine, kernel_, "gen9_eltwise_bwd", pd()->conf);
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_dense(ctx);
     }
 
