@@ -400,7 +400,7 @@ inline void ELFCodeGenerator<hw>::getBinaryHWInfo(const std::vector<uint8_t> &bi
                     switch (start->type) {
                         case Note::Type::ProductFamily: {
                             auto decodedHW = npack::decodeProductFamily(static_cast<npack::ProductFamily>(*actualPayload));
-                            if (decodedHW != HW::Unknown)
+                            if (decodedHW >= HW::Gen12LP)
                                 outHW = decodedHW;
                             break;
                         }
@@ -417,7 +417,7 @@ inline void ELFCodeGenerator<hw>::getBinaryHWInfo(const std::vector<uint8_t> &bi
                     }
                 }
                 start = reinterpret_cast<const Note *>(
-                    rstart + offsetof(Note, payload)
+                    rstart + offsetof(Note, name)
                            + utils::alignup_pow2(start->nameSize, 4)
                            + utils::alignup_pow2(start->descSize, 4)
                 );
