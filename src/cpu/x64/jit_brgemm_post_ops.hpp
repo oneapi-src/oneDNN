@@ -307,7 +307,7 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
             const binary_injector::static_params_t bsp {this->param1, rhs_sp};
 
             const bool save_state = (brg.alpha != 0) && jcp.with_eltwise;
-            const auto &reserved_eltwise_gpr = rax;
+            const auto &reserved_eltwise_gpr = reg_reserved_eltwise;
             const auto reserved_eltwise_maskr = Xbyak::Opmask(1);
 
             const eltwise_injector::static_params_t esp {
@@ -364,6 +364,7 @@ private:
     using reg64_t = const Xbyak::Reg64;
 
     // Register decomposition
+    const reg64_t reg_reserved_eltwise = rax;
     const reg64_t param1 = abi_param1;
     const reg64_t reg_in = r15;
     const reg64_t reg_out = r14;
@@ -387,6 +388,7 @@ private:
     const reg64_t aux_reg_s8s8_comp = rbx;
     const reg64_t reg_zp_a_val = rbx;
     const reg64_t reg_apply_comp = rbx;
+    const reg64_t reg_tmp = abi_not_param1;
 
     constexpr static int reg_zp_c_values_offs_ = 0;
     constexpr static int aux_reg_zp_c_values_offs_ = 8;
@@ -403,7 +405,7 @@ private:
     Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(24);
     Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(25);
     Xbyak::Zmm bf16_emu_reserv_4 = Xbyak::Zmm(26);
-    reg64_t bf16_emu_scratch = rax;
+    reg64_t bf16_emu_scratch = reg_tmp;
 
     Xbyak::Opmask k_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
@@ -668,7 +670,7 @@ private:
         const bool dt_requires_saturation = utils::one_of(
                 brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
 
-        const reg64_t reg_tmp_gpr = rax;
+        const reg64_t reg_tmp_gpr = reg_tmp;
         auto zmm_lbound = Xbyak::Zmm(31);
         auto zmm_ubound = Xbyak::Zmm(30);
         if (dt_requires_saturation) {
@@ -845,7 +847,7 @@ private:
         const auto full_mask = size_t {0xffffffffffffffff};
         const auto tail_mask = size_t((1 << nb_tail) - 1);
 
-        reg64_t reg_mask = rax;
+        reg64_t reg_mask = reg_tmp;
 
         mov(reg_mask, full_mask);
         kmovq(k_full_mask, reg_mask);
