@@ -335,7 +335,8 @@ public:
         auto hoisted_mask = hoist_mask(mask);
         if (hoisted_mask.is_same(mask)) return ir_mutator_t::_mutate(obj);
 
-        ir_assert(hoisted_mask.type().is_u16()) << hoisted_mask;
+        ir_assert(hoisted_mask.type().is_u16() || hoisted_mask.type().is_u32())
+                << hoisted_mask;
 
         send_t::arg_mask(new_args) = cast(hoisted_mask, mask.type());
         return func_call_t::make(obj.func, new_args, obj.attr);
@@ -382,7 +383,6 @@ private:
     expr_t hoist_mask(const expr_t &e) {
         ir_assert(e.type().is_bool()) << e;
 
-        if (e.type().elems() > 16) return e;
         if (is_const(e) || is_shuffle_const(e)) return e;
 
         // Can't hoist a mask containing loop vars.
@@ -399,7 +399,8 @@ private:
         auto it = hoisted_masks_.find(e_expanded);
         if (it != hoisted_masks_.end()) return it->second;
 
-        auto var = ir_ctx_.create_tmp_var(type_t::u16());
+        auto var = ir_ctx_.create_tmp_var(
+                type_t::u(std::max(e.type().elems(), 16)));
         hoisted_masks_.emplace(e_expanded, var);
 
         return var;
@@ -450,7 +451,8 @@ private:
             if (it != ops.end()) return it->second;
 
             if (can_hoist(_e)) {
-                auto var = ir_ctx_.create_tmp_var(type_t::u16());
+                auto var = ir_ctx_.create_tmp_var(
+                        type_t::u(std::max(e.type().elems(), 16)));
                 ops.emplace(_e, var);
                 current_hoist_size_ += utils::rnd_up(
                         var.type().size(), reg_allocator_t::granularity);
