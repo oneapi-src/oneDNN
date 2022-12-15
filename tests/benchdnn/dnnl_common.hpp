@@ -731,6 +731,8 @@ int execute_and_wait(
         dnnl_primitive_t prim, const args_t &args, res_t *res = nullptr);
 
 void reset_gpu_profiling();
+void finalize();
+
 int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
         args_t &args);
 int measure_perf(
