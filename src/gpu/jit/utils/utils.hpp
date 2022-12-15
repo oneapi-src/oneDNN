@@ -197,9 +197,8 @@ bool contains(const std::vector<T> &vec, const U &u) {
 
 class error_stream_t {
 public:
-    error_stream_t(const char *file, int line, const char *assert_msg) {
-        data_ = new data_t(file, line, assert_msg);
-    }
+    error_stream_t(const char *file, int line, const char *assert_msg)
+        : data_(new data_t(file, line, assert_msg)) {}
 
     // This is to be able use a steam object in short-circuit evaluation with
     // booleans, see below.
