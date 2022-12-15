@@ -330,7 +330,7 @@ auto execute_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &...args)
 inline void finalize_tbb() {
     oneapi::tbb::task_scheduler_handle handle
             = oneapi::tbb::task_scheduler_handle {oneapi::tbb::attach {}};
-    oneapi::tbb::finalize(handle);
+    oneapi::tbb::finalize(handle, std::nothrow);
 }
 #else
 inline void finalize_tbb() {};
