@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ stmt_t hoist_exprs(const stmt_t &s, ir_context_t &ir_ctx, int reserved_regs);
 // sub-masks which are initialized independently. This allows reusing those
 // sub-masks for other masks.
 stmt_t hoist_send_masks(const stmt_t &s, ir_context_t &ir_ctx,
-        const stmt_label_t &label, bool split_by_and);
+        const stmt_label_t &label, bool split_by_and, int reserved_regs);
 
 } // namespace jit
 } // namespace gpu

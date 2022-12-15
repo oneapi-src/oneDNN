@@ -311,9 +311,13 @@ stmt_t hoist_exprs(const stmt_t &s, ir_context_t &ir_ctx, int reserved_regs) {
 
 class hoist_send_masks_mutator_t : public ir_mutator_t {
 public:
-    hoist_send_masks_mutator_t(
-            ir_context_t &ir_ctx, const stmt_label_t &label, bool split_by_and)
-        : ir_ctx_(ir_ctx), label_(label), split_by_and_(split_by_and) {}
+    hoist_send_masks_mutator_t(ir_context_t &ir_ctx, const stmt_label_t &label,
+            bool split_by_and,
+            int max_hoist_size = std::numeric_limits<int>::max())
+        : ir_ctx_(ir_ctx)
+        , label_(label)
+        , split_by_and_(split_by_and)
+        , max_hoist_size_(max_hoist_size) {}
 
     object_t _mutate(const for_t &obj) override {
         loop_deps_.insert(obj.var);
@@ -371,6 +375,10 @@ private:
         return loop_deps_.count(v) != 0;
     }
 
+    bool can_hoist(const expr_t &expr) {
+        return expr.type().size() <= max_hoist_size_ - current_hoist_size_;
+    }
+
     expr_t hoist_mask(const expr_t &e) {
         ir_assert(e.type().is_bool()) << e;
 
@@ -383,7 +391,7 @@ private:
             if (is_loop_dependency(v)) return e;
         }
 
-        auto e_expanded = expand(e, vars);
+        auto e_expanded = simplify(expand(e, vars));
 
         // Can't hoist a mask containing loads.
         if (!find_objects<load_t>(e_expanded).empty()) return e;
@@ -437,17 +445,24 @@ private:
             const expr_t &e, object_eq_map_t<expr_t, expr_t> &ops) {
         auto *binary_op = e.as_ptr<binary_op_t>();
         if (!binary_op || binary_op->op_kind != op_kind_t::_and) {
-            auto it = ops.find(e);
+            auto _e = simplify(e);
+            auto it = ops.find(_e);
             if (it != ops.end()) return it->second;
 
-            auto var = ir_ctx_.create_tmp_var(type_t::u16());
-            ops.emplace(e, var);
-            return var;
+            if (can_hoist(_e)) {
+                auto var = ir_ctx_.create_tmp_var(type_t::u16());
+                ops.emplace(_e, var);
+                current_hoist_size_ += utils::rnd_up(
+                        var.type().size(), reg_allocator_t::granularity);
+                return var;
+            } else {
+                return _e;
+            }
         }
-
         auto a = split_by_and_ops(binary_op->a, ops);
         auto b = split_by_and_ops(binary_op->b, ops);
-        return binary_op_t::make(op_kind_t::_and, a, b);
+        if (a.type() != b.type()) a = cast(a, b.type());
+        return binary_op_t::make(binary_op->op_kind, a, b);
     }
 
     bool in_stmt_group = false;
@@ -458,14 +473,30 @@ private:
     ir_context_t &ir_ctx_;
     stmt_label_t label_;
     bool split_by_and_;
+    int max_hoist_size_;
+    int current_hoist_size_ = 0;
 };
 
 stmt_t hoist_send_masks(const stmt_t &s, ir_context_t &ir_ctx,
-        const stmt_label_t &label, bool split_by_and) {
+        const stmt_label_t &label, bool split_by_and, int reserved_regs) {
     trace_start();
-    hoist_send_masks_mutator_t mutator(ir_ctx, label, split_by_and);
+    int grf_size = ir_ctx.hw_cfg().grf_size();
+    int available_regs = ir_ctx.exec_cfg().regs() - reserved_regs;
+    int memory_usage_limit = available_regs * grf_size;
 
-    auto ret = mutator.mutate(s);
+    auto ret
+            = hoist_send_masks_mutator_t(ir_ctx, label, split_by_and).mutate(s);
+
+    int memory_usage = get_peak_regs(ret, grf_size) * grf_size;
+    if (memory_usage >= memory_usage_limit) {
+        // Pessimistically hoist expressions. Does not identify and account for
+        // hoists which do not change memory usage.
+        int memory_usage_original = get_peak_regs(s, grf_size) * grf_size;
+        ret = hoist_send_masks_mutator_t(ir_ctx, label, split_by_and,
+                memory_usage_limit - memory_usage_original)
+                      .mutate(s);
+    }
+
     trace_pass("hoist_send_masks", ret, ir_ctx);
     return ret;
 }

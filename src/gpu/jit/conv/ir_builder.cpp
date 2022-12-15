@@ -3182,7 +3182,8 @@ void conv_ir_builder_t::build() {
     stmt_ = split_wide_stores(stmt_, ir_ctx);
     stmt_ = lift_alloc(stmt_, ir_ctx, cfg_.pipeline().reuse_headers());
     stmt_ = lift_send_2d_header_store(stmt_, ir_ctx);
-    stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::c_store(), false);
+    stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::c_store(), false,
+            cfg_.reserved_regs());
     stmt_ = split_shuffle(stmt_, ir_ctx);
     stmt_ = fixup_if_conditions(stmt_, ir_ctx);
     stmt_ = fix_int32_overflow(stmt_, ir_ctx);
@@ -3196,7 +3197,8 @@ void conv_ir_builder_t::build() {
         stmt_ = update_loops_for_unrolling(stmt_, ir_ctx);
         stmt_ = inject_unrolling(stmt_, ir_ctx, cfg_, cb.ab_slm_size());
     }
-    stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::compute_loop(), true);
+    stmt_ = hoist_send_masks(stmt_, ir_ctx, stmt_label_t::compute_loop(), true,
+            cfg_.reserved_regs());
     stmt_ = unroll_loops(stmt_, ir_ctx);
     stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = maybe_strip_prefetches(stmt_, ir_ctx, cfg_.reserved_regs());
