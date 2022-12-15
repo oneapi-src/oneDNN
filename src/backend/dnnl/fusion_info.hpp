@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,9 +60,8 @@ class fusion_info_t {
             : op_(op)
             , scale_(scale)
             , zp_(zp)
-            , unfused_input_indices_(extra_input_indices)
-            , is_post_sum_(true) {};
-        // for post-binary and post-conv
+            , unfused_input_indices_(extra_input_indices) {};
+        // for post-conv
         meta_op_t(const op_ptr &op,
                 const std::vector<size_t> &extra_input_indices)
             : op_(op), unfused_input_indices_(extra_input_indices) {};
@@ -82,6 +81,8 @@ class fusion_info_t {
         bool is_post_binary() const {
             return op_->get_kind() == op_kind::dnnl_binary && !is_post_sum_;
         }
+
+        void set_post_sum() { is_post_sum_ = true; }
 
     private:
         std::shared_ptr<impl::op_t> op_;
@@ -139,13 +140,6 @@ public:
         post_ops_.emplace_back(std::make_shared<meta_op_t>(op, scale));
     }
 
-    void append_post_sum(const op_ptr &op,
-            const std::vector<size_t> &extra_input_indices, float scale = 1.0f,
-            int32_t zp = 0) {
-        post_ops_.emplace_back(std::make_shared<meta_op_t>(
-                op, extra_input_indices, scale, zp));
-    }
-
     // the extra input means the unfused input that has been added to the fused
     // op, like the following case, we fuse a binary mul into the conv, the src1
     // of mul op is unfused, and it becomes the 3rd input of conv. So the extra
@@ -157,10 +151,11 @@ public:
     //         \   /                 |
     //          mul
     //           |
-    void append_post_binary(
-            const op_ptr &op, const std::vector<size_t> &extra_input_indices) {
-        post_ops_.emplace_back(
-                std::make_shared<meta_op_t>(op, extra_input_indices));
+    void append_post_binary(const op_ptr &op,
+            const std::vector<size_t> &extra_input_indices, float scale = 1.0f,
+            int32_t zp = 0) {
+        post_ops_.emplace_back(std::make_shared<meta_op_t>(
+                op, extra_input_indices, scale, zp));
     }
 
     // the meaning of extra input is same as that in append_post_binary function

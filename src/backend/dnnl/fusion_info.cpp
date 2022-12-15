@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -103,34 +103,50 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                     fused_op->get_attr<int64_t>(op_attr::alg_kind));
             dnnl_pops.append_eltwise(scale, alg, alpha, beta);
         } else if (fused_op_kind == op_kind::dnnl_binary) {
+            const auto alg = static_cast<dnnl::algorithm>(
+                    fused_op->get_attr<int64_t>(op_attr::alg_kind));
             const auto &extra_inputs = pop->get_unfused_input_indices();
-            if (pop->is_post_sum()) {
-                // post-sum
-                float scale = pop->get_scale();
-                int32_t zp = pop->get_zp();
+            float scale = pop->get_scale();
+            int32_t zp = pop->get_zp();
+            const auto psrc = op->get_input_value(extra_inputs[0])
+                                      ->get_logical_tensor();
+            const auto dst = op->get_output_value(0)->get_logical_tensor();
+            // check if can use post-sum, otherwise use binary post ops
+            // algorithm should be binary_add
+            bool is_post_sum = alg == dnnl::algorithm::binary_add;
+            // base_op should not be eltwise or pool
+            is_post_sum = is_post_sum
+                    && !impl::utils::one_of(op->get_kind(),
+                            op_kind::dnnl_eltwise, op_kind::dnnl_pool);
+            // only support one post-sum
+            is_post_sum = is_post_sum
+                    && !(op->has_attr(op_attr::with_sum)
+                            && op->get_attr<bool>(op_attr::with_sum));
+            // post src and dst should have the same shape
+            is_post_sum = is_post_sum
+                    && impl::logical_tensor_wrapper_t(dst).vdims()
+                            == impl::logical_tensor_wrapper_t(psrc).vdims();
+            // dst should have equal or larger memory size than post src
+            is_post_sum = is_post_sum
+                    && (psrc.data_type == dst.data_type
+                            || impl::utils::one_of(psrc.data_type,
+                                    impl::data_type::u8, impl::data_type::s8));
+            if (is_post_sum) {
+                pop->set_post_sum();
+                op->set_attr<bool>(op_attr::with_sum, true);
                 dnnl::memory::data_type sum_dt = dnnl::memory::data_type::undef;
-                if (op->get_kind() == op_kind::dnnl_convolution) {
-                    const auto psrc_dt = op->get_input_value(extra_inputs[0])
-                                                 ->get_logical_tensor()
-                                                 .data_type;
-                    const auto dst_dt = op->get_output_value(0)
-                                                ->get_logical_tensor()
-                                                .data_type;
-                    if (psrc_dt == impl::data_type::s8
-                            && dst_dt == impl::data_type::u8) {
-                        sum_dt = dnnl::memory::data_type::s8;
-                    }
+                if (psrc.data_type == impl::data_type::s8
+                        && dst.data_type == impl::data_type::u8) {
+                    sum_dt = dnnl::memory::data_type::s8;
                 }
                 dnnl_pops.append_sum(scale, zp, sum_dt);
             } else {
                 // post-binary
                 assertm(extra_inputs.size() == 1,
                         "post-binary only has 1 extra input");
-                size_t src1_idx = extra_inputs[0];
-                auto input = op->get_input_value(src1_idx);
-                auto md = make_dnnl_memory_desc(input->get_logical_tensor());
-                const auto alg = static_cast<dnnl::algorithm>(
-                        fused_op->get_attr<int64_t>(op_attr::alg_kind));
+                assertm(scale == 1.f && zp == 0,
+                        "post-binary doesn't support input scale and zp");
+                auto md = make_dnnl_memory_desc(psrc);
                 dnnl_pops.append_binary(alg, md);
             }
         } else if (fused_op_kind == op_kind::dnnl_convolution) {
