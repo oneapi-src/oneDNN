@@ -183,7 +183,7 @@ inline GfxCoreFamily encodeGfxCoreFamily(HW hw)
     switch (hw) {
         case HW::Gen9:    return GfxCoreFamily::Gen9;
         case HW::Gen10:   return GfxCoreFamily::Gen10;
-        case HW::Gen11:   return GfxCoreFamily::Gen11LP;
+        case HW::Gen11:   return GfxCoreFamily::Gen11;
         case HW::Gen12LP: return GfxCoreFamily::Gen12LP;
         case HW::XeHP:    return GfxCoreFamily::XeHP;
         case HW::XeHPG:   return GfxCoreFamily::XeHPG;
