@@ -98,7 +98,6 @@ protected:
                     = dnnl::is_superset(isa, cpu_isa::avx512_core);
             if (dt != data_type::f32 && !has_avx512_core) continue;
 #endif
-#endif
             if (!unsupported_data_type(dt))
                 inner_product_data_types.push_back(dt);
         }
