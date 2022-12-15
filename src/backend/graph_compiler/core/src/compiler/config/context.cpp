@@ -91,7 +91,7 @@ static void reset_cpu_flags_by_dnnl_envs(runtime::target_machine_t &tm) {
             if (max_isa == "SSE41") { break; }
 
             // unsupport
-            SC_MODULE_WARN << "Unsupported ONEDNN/DNNL ISA type: " << max_isa;
+            SC_MODULE_WARN << "Unsupported ISA type: " << max_isa;
 
             // use old cpu flags
             tm.cpu_flags_ = old_cpu_flags;
