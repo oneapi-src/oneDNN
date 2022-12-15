@@ -77,6 +77,9 @@ struct jit_brgemm_primitive_conf_t {
     int num_gemm_kernels;
     int nthr, nthr_mb, nthr_oc_b, nthr_ic_b;
 
+    // Use kernels and blocking for small os that consume less bandwidth.
+    bool use_small_os_kernels = false;
+
     cpu_isa_t isa;
     bool ip_bwd_d_global_b_transpose;
     bool use_uker;

@@ -31,6 +31,14 @@ using namespace data_type;
 
 namespace brgemm_inner_product_utils {
 
+// Returns amount of work on a thread for 1d partition non-reduction dimension
+// when using parallel reduction.
+int work_1d(int nthrs, int nthr_k, int n_chunks, int n_reduction_blocks) {
+    int rd_work = div_up(n_reduction_blocks, nthr_k);
+    int nthr_other = nthrs / nthr_k;
+    return rd_work * div_up(n_chunks, nthr_other);
+}
+
 int get_brg_kernel_index(const jit_brgemm_primitive_conf_t &jbgp,
         bool is_bs_tail, bool do_initialization, bool is_M_tail, bool is_N_tail,
         bool is_K_tail) {
@@ -119,6 +127,9 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
     }
     if (os_block == 1) os_block = nstl::min(jbgp.os, max_os_block);
 
+    // Use large os-block to reduce bandwidth requirement.
+    if (jbgp.use_small_os_kernels) os_block = jbgp.os;
+
     return os_block;
 }
 
@@ -185,13 +196,21 @@ int get_oc_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust) {
         else
             return 16;
     } else {
+        int oc_block = 0;
         if (jbgp.oc >= 64) {
-            return 64;
+            oc_block = 64;
         } else if (jbgp.oc >= 32) {
-            return 32;
+            oc_block = 32;
         } else {
-            return 16;
+            oc_block = 16;
         }
+
+        // Use smaller oc-block to reduce bandwidth requirement for weights and
+        // increase parallelism, since no threading will be done in
+        // os-direction.
+        if (jbgp.use_small_os_kernels) oc_block = 32;
+
+        return oc_block;
     }
 }
 
@@ -233,7 +252,7 @@ int ip_fwd_get_adjusted_oc_block(const jit_brgemm_primitive_conf_t &jbgp) {
     const bool is_amx_xf16 = jbgp.is_amx && !jbgp.is_bf32;
 
     // we can't change block size on forward and weights update (external)
-    // if layout is set by user, for backward data it can be choosen different
+    // if layout is set by user, for backward data it can be chosen different
     // from external in this case because copy routine
     const bool not_adjustable_oc_block_size
             = !jbgp.is_wei_layout_any && jbgp.prop_kind != backward_data;
@@ -334,8 +353,9 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 
     // NOTE: comment about is_gigantic_shape is in get_os_block()
     const bool is_gigantic_shape = jbgp.oc >= 4096 && jbgp.os >= 512;
-    const int num_work_to_parallel = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking)
-            * div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+    const int oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
+    const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+    const int num_work_to_parallel = oc_chunks * os_chunks;
 
     // TODO: although the below heuristic produces good performance for fp32,
     // num_work_to_parallel needs to compared with nthr (instead of nb_ic)
@@ -373,12 +393,39 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     } else if (!jbgp.use_buffer_a && use_parallel_ic_reduction) {
         const int min_chunk_sz = 16;
         const int num_min_chunk_sz = div_up(jbgp.nb_ic, min_chunk_sz);
-        float reduce_work = 0.5f * num_min_chunk_sz * jbgp.nb_os
-                + (float)num_min_chunk_sz / jbgp.nb_oc + 0.5f;
-        const int reduce_thr_groups = jbgp.nb_ic >= 1024 ? 8 : 4;
-        jbgp.nthr_ic_b
-                = saturate(1, nstl::min(reduce_thr_groups, num_min_chunk_sz),
-                        int(reduce_work));
+        int reduce_work = int(0.5f * num_min_chunk_sz * jbgp.nb_os
+                + (float)num_min_chunk_sz / jbgp.nb_oc + 0.5f);
+        const int reduce_thr_groups
+                = nstl::min(jbgp.nb_ic >= 1024 ? 8 : 4, num_min_chunk_sz);
+
+        if (is_f32) {
+            // Don't sacrifice reduction threads if other dimension will
+            // not benefit.
+            int nthr_other = jbgp.nthr / reduce_work;
+            if (reduce_work < reduce_thr_groups && nthr_other <= 1) {
+                reduce_work = reduce_thr_groups;
+            }
+        }
+
+        jbgp.nthr_ic_b = saturate(1, reduce_thr_groups, reduce_work);
+
+        bool is_1d_oc = os_chunks == 1 && oc_chunks > 1;
+        bool is_1d_os = oc_chunks == 1 && os_chunks > 1;
+        bool is_1d = is_1d_oc || is_1d_os;
+        if (is_f32 && is_1d && jbgp.nthr_ic_b > 1) {
+            int n_chunks = is_1d_oc ? oc_chunks : os_chunks;
+            int nthr_1 = jbgp.nthr_ic_b;
+            int nthr_2 = nthr_1 - 1;
+            int nthr_other = jbgp.nthr / nthr_2;
+
+            int work_1 = work_1d(jbgp.nthr, nthr_1, n_chunks, jbgp.nb_ic);
+            int work_2 = work_1d(jbgp.nthr, nthr_2, n_chunks, jbgp.nb_ic);
+
+            // Sacrifice a thread in reduce dimension if work amount will be
+            // reduce on the thread with most work.
+            if (work_1 >= work_2 && nthr_other > 1) jbgp.nthr_ic_b--;
+        }
+
         jbgp.nthr_ic_b = nstl::min(jbgp.nthr_ic_b, jbgp.nthr);
         if (jbgp.nthr_ic_b > 1) {
             jbgp.nb_ic_blocking = div_up(jbgp.nb_ic, jbgp.nthr_ic_b);
@@ -429,6 +476,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
             }
         }
     }
+
     jbgp.use_buffer = (IMPLICATION(jbgp.dst_dt == jbgp.acc_dt, jbgp.with_sum))
             || (jbgp.nthr_ic_b > 1);
 
@@ -522,8 +570,9 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
         }
 
     jbgp.nthr_oc_b = 1;
-    const int num_work_to_parallel = div_up(jbgp.nb_ic, jbgp.nb_ic_blocking)
-            * div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+    const int ic_chunks = div_up(jbgp.nb_ic, jbgp.nb_ic_blocking);
+    const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+    const int num_work_to_parallel = ic_chunks * os_chunks;
     // Use oc reduction if we have
     //   * very large output channels
     //   * small work amount available to each thread
@@ -531,16 +580,44 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
                 || jbgp.oc > (is_bf16 || jbgp.is_bf32 ? 4096 : 1024))) {
         const int min_chunck_sz = (is_avx512_bf16) ? 32 : 16;
         const int num_min_chunk_sz = div_up(jbgp.nb_oc, min_chunck_sz);
-        float reduce_work = 0.5f * num_min_chunk_sz * jbgp.nb_os
-                + (float)num_min_chunk_sz / jbgp.nb_ic + 0.5f;
+        int reduce_work = int(0.5f * num_min_chunk_sz * jbgp.nb_os
+                + (float)num_min_chunk_sz / jbgp.nb_ic + 0.5f);
 
         // optimization for transformer_lt on CPX/SKX
         const int max_nthr_oc_b
-                = (!is_amx_xf16 && !jbgp.is_bf32 && jbgp.oc > 32000)
-                ? jbgp.nthr / 2
-                : 4;
-        jbgp.nthr_oc_b = saturate(1, nstl::min(max_nthr_oc_b, num_min_chunk_sz),
-                int(reduce_work));
+                = nstl::min((!is_amx_xf16 && !jbgp.is_bf32 && jbgp.oc > 32000)
+                                ? jbgp.nthr / 2
+                                : 4,
+                        num_min_chunk_sz);
+
+        if (is_f32) {
+            // Don't sacrifice reduction threads if other dimension will
+            // not benefit.
+            int nthr_other = jbgp.nthr / reduce_work;
+            if (reduce_work < max_nthr_oc_b && nthr_other <= 1) {
+                reduce_work = max_nthr_oc_b;
+            }
+        }
+
+        jbgp.nthr_oc_b = saturate(1, max_nthr_oc_b, reduce_work);
+
+        bool is_1d_ic = os_chunks == 1 && ic_chunks > 1;
+        bool is_1d_os = ic_chunks == 1 && os_chunks > 1;
+        bool is_1d = is_1d_ic || is_1d_os;
+        if (is_f32 && is_1d && jbgp.nthr_oc_b > 1) {
+            int n_chunks = is_1d_ic ? ic_chunks : os_chunks;
+            int nthr_1 = jbgp.nthr_oc_b;
+            int nthr_2 = nthr_1 - 1;
+            int nthr_other = jbgp.nthr / nthr_2;
+
+            int work_1 = work_1d(jbgp.nthr, nthr_1, n_chunks, jbgp.nb_oc);
+            int work_2 = work_1d(jbgp.nthr, nthr_2, n_chunks, jbgp.nb_oc);
+
+            // Sacrifice a thread in reduce dimension if work amount will be
+            // reduce on the thread with most work.
+            if (work_1 >= work_2 && nthr_other > 1) jbgp.nthr_oc_b--;
+        }
+
         jbgp.nthr_oc_b = nstl::min(jbgp.nthr_oc_b, jbgp.nthr);
         if (jbgp.nthr_oc_b > 1) {
             jbgp.nb_oc_blocking = div_up(jbgp.nb_oc, jbgp.nthr_oc_b);
@@ -1059,6 +1136,16 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
 
     jbgp.brg_type = brgemm_addr;
     jbgp.nthr = nthreads;
+
+    // Use blocking and kernels that reduce bandwidth requirement for small os
+    // sizes.
+    // TODO: Evaluate for other precisions, testing only done for f32.
+    bool small_os = jbgp.os <= 80;
+
+    // If os is tiny, less than # registers for broadcast in kernel, we only
+    // read the weights once in the kernel.
+    small_os &= jbgp.os > 6;
+    jbgp.use_small_os_kernels = is_f32 && small_os && jbgp.oc % 32 == 0;
 
     jbgp.use_uker = true;
     jbgp.use_interleave_stores = jbgp.use_uker;
