@@ -89,6 +89,7 @@ private:
     const reg64_t aux_reg_ddst = r12;
     const reg64_t reg_k_iter = r11;
     const reg64_t reg_flag = r10;
+    const reg64_t reg_mask = rax;
 
     Xbyak::Opmask k_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
@@ -255,7 +256,6 @@ private:
 
         const auto full_mask = size_t {0xffffffffffffffff};
         const auto tail_mask = size_t((1 << nb_tail) - 1);
-        reg64_t reg_mask = rax;
 
         mov(reg_mask, full_mask);
         kmovq(k_full_mask, reg_mask);
