@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2022 Intel Corporation
+# Copyright 2017-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -169,7 +169,7 @@ foreach(driver ${all_drivers})
     if(DNNL_TEST_SET GREATER DNNL_TEST_SET_CI)
         ## Filter out gpu, large cpu and invalid inputs from cpu
         foreach(test_file ${test_files_large_cpu} ${test_files_gpu_ci}
-                ${test_files_gpu} ${test_files_ci} "test_conv_all;")
+            ${test_files_gpu} ${test_files_ci} "test_conv_all;" "test_graph_all")
             string(REPLACE "${test_file}" "" test_files_cpu "${test_files_cpu}")
         endforeach()
 
