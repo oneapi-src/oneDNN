@@ -57,7 +57,9 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
             is_blocked = (src_d.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c)
                     != format_tag::undef);
 
-            bool ok = is_fwd() && axis_size() % buffer_size == 0
+            bool ok = is_fwd()
+                    && IMPLICATION(
+                            (is_blocked || is_nhwc), axis_size() == buffer_size)
                     && !memory_desc_ndims_ok(src_md(), dst_md())
                     && axis() == src_d.ndims() - 1
                     && (src_d.is_plain() || is_blocked || is_nhwc)

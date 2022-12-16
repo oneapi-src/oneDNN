@@ -27,7 +27,8 @@
             DATA_TO_BLOCK8(prefix, FLOAT_TO_DATA8(prefix, val)))
 
 #define VECT_SIZE 8
-#define NUM_BUF (SOFTMAX_AXIS_SIZE / SUB_GROUP_SIZE / VECT_SIZE)
+#define SV (SUB_GROUP_SIZE * VECT_SIZE)
+#define NUM_BUF ((SOFTMAX_AXIS_SIZE + SV - 1) / SV)
 
 #if IS_FWD
 
@@ -123,16 +124,25 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 
     src += data_off;
 
-    for (int k = 0; k < NUM_BUF; ++k) {
+    for (int k = 0; k < NUM_BUF - 1; ++k) {
         d[k] = LOAD_FLOAT8(SRC, &src[k * VECT_SIZE * SUB_GROUP_SIZE]);
         for (int i = 0; i < VECT_SIZE; ++i) {
+            max_ = max(d[k][i], max_);
+        }
+    }
+    {
+        int k = NUM_BUF - 1;
+        for (int i = 0; i < VECT_SIZE; ++i) {
+            int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
+                    + get_sub_group_local_id();
+            d[k][i] = (off < SOFTMAX_AXIS_SIZE ? src[off] : -FLT_MAX);
             max_ = max(d[k][i], max_);
         }
     }
 
     max_ = sub_group_reduce_max(max_);
 
-    for (int k = 0; k < NUM_BUF; ++k) {
+    for (int k = 0; k < NUM_BUF - 1; ++k) {
 #if LOGSOFTMAX
         for (int i = 0; i < VECT_SIZE; ++i)
             denom_ += exp(d[k][i] - max_);
@@ -140,6 +150,24 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         d[k] = exp(d[k] - max_);
         for (int i = 0; i < VECT_SIZE; ++i)
             denom_ += d[k][i];
+#endif
+    }
+
+    {
+        int k = NUM_BUF - 1;
+#if LOGSOFTMAX
+        for (int i = 0; i < VECT_SIZE; ++i) {
+            int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
+                    + get_sub_group_local_id();
+            if (off < SOFTMAX_AXIS_SIZE) denom_ += exp(d[k][i] - max_);
+        }
+#else
+        d[k] = exp(d[k] - max_);
+        for (int i = 0; i < VECT_SIZE; ++i) {
+            int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
+                    + get_sub_group_local_id();
+            if (off < SOFTMAX_AXIS_SIZE) denom_ += d[k][i];
+        }
 #endif
     }
 
@@ -152,13 +180,27 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #endif
 
     dst += data_off;
-    for (int k = 0; k < NUM_BUF; ++k) {
+    for (int k = 0; k < NUM_BUF - 1; ++k) {
 #if LOGSOFTMAX
         d[k] = d[k] - max_ - denom_;
 #else
         d[k] = d[k] * denom_;
 #endif
         STORE_FLOAT8(DST, &dst[k * VECT_SIZE * SUB_GROUP_SIZE], scale * d[k]);
+    }
+
+    {
+        int k = NUM_BUF - 1;
+#if LOGSOFTMAX
+        d[k] = d[k] - max_ - denom_;
+#else
+        d[k] = d[k] * denom_;
+#endif
+        for (int i = 0; i < VECT_SIZE; i++) {
+            int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
+                    + get_sub_group_local_id();
+            if (off < SOFTMAX_AXIS_SIZE) dst[off] = scale * d[k][i];
+        }
     }
 #endif
 }
