@@ -818,9 +818,11 @@ int get_max_slots(ngen::HW hw, const send_params_t &send_params) {
     return 16;
 }
 
-int get_max_block_size(ngen::HW hw) {
+int get_max_block_size(ngen::HW hw, const send_params_t &params) {
     if (hw >= ngen::HW::XeHPC) return 512;
-    return 256;
+    return params.send_address == send_address_t::slm && hw <= ngen::HW::XeLP
+            ? 128
+            : 256;
 }
 
 class split_bounds_t {
@@ -962,7 +964,7 @@ struct send_group_t {
         std::vector<func_t> ret;
         bool is_lsc = (hw >= ngen::HW::XeHPG);
         if (is_block()) {
-            int cur_size = get_max_block_size(hw);
+            int cur_size = get_max_block_size(hw, send_params);
             for (int i = 0; i < type_size; i += cur_size) {
                 cur_size = std::min(cur_size, type_size - i);
                 cur_size = utils::rnd_down_pow2(cur_size);

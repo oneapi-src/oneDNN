@@ -109,8 +109,8 @@ int device_info_t::max_slm_size(gpu_arch_t gpu_arch) {
     int slm_size = 0; // SLM size per SS or DSS.
     switch (gpu_arch) {
         case gpu::compute::gpu_arch_t::gen9:
-        case gpu::compute::gpu_arch_t::gen11: slm_size = (1 << 16); break;
-        case gpu::compute::gpu_arch_t::xe_lp:
+        case gpu::compute::gpu_arch_t::gen11:
+        case gpu::compute::gpu_arch_t::xe_lp: slm_size = (1 << 16); break;
         case gpu::compute::gpu_arch_t::xe_hp:
         case gpu::compute::gpu_arch_t::xe_hpc:
         case gpu::compute::gpu_arch_t::xe_hpg: slm_size = (1 << 17); break;
