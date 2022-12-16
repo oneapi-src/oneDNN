@@ -351,6 +351,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         res->state = SKIPPED;
         res->reason = CASE_NOT_SUPPORTED;
     }
+    // int8 only supports forward s8 w/ global stats
+    const bool u8_not_ok = prb->dt == dnnl_u8;
+    const bool s8_not_ok = prb->dt == dnnl_s8
+            && ((prb->dir & FLAG_BWD) || (prb->flags & GLOB_STATS) == 0);
+    if (s8_not_ok || u8_not_ok) {
+        res->state = SKIPPED;
+        res->reason = CASE_NOT_SUPPORTED;
+    }
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
