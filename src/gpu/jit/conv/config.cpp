@@ -860,9 +860,7 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
 }
 
 bool hw_ok(const hw_config_t &hw_cfg) {
-    // Disable pre-XeHP until performance parity is reached with OpenCL
-    // kernels.
-    if (hw_cfg.hw() < ngen::HW::XeHP) return false;
+    if (hw_cfg.hw() < ngen::HW::Gen9) return false;
     return true;
 }
 
