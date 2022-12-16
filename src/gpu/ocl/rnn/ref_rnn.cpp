@@ -388,13 +388,17 @@ status_t _ref_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
     int arch_ld = is_xe_hpc ? 128 : 64;
     if (src_layer_md_.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(src_layer_md_, tnc));
-    if (weights_layer_md_.format_kind == format_kind::any)
+    if (weights_layer_md_.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(weights_layer_md_, ldgoi));
+        CHECK(rnn_utils::set_good_strides(arch_ld, weights_layer_md_, ldgoi));
+    }
     if (dst_layer_md_.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(dst_layer_md_, tnc));
 
-    if (weights_iter_md_.format_kind == format_kind::any)
+    if (weights_iter_md_.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(weights_iter_md_, ldgoi));
+        CHECK(rnn_utils::set_good_strides(arch_ld, weights_iter_md_, ldgoi));
+    }
 
     if (diff_src_layer_md_.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(diff_src_layer_md_, tnc));
@@ -537,11 +541,6 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         case (prop_kind::forward): break;
         case (prop_kind::backward):
             ok = ok && utils::one_of(this->desc()->prop_kind, backward);
-            ok = ok
-                    && memory_desc_matches_one_of_tag(
-                            this->weights_layer_md_, ldgoi)
-                    && memory_desc_matches_one_of_tag(
-                            this->weights_iter_md_, ldgoi);
             break;
         default: ok = false;
     }
