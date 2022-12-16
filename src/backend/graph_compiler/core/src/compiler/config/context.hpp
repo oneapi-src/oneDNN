@@ -62,7 +62,7 @@ struct scflags_t {
     bool xbyak_jit_pause_after_codegen_ = false;
     bool jit_support_amx_intrinsics_
             = false; // whether jit supports directly generating amx intrinsics
-    // instead of using dnnl
+            // instead of using dnnl
 };
 
 struct context_t {

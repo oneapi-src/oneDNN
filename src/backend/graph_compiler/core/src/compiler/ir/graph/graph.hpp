@@ -418,7 +418,7 @@ public:
             const any_map_t &attrs);
 
     template <typename T, typename... Args>
-    std::shared_ptr<T> make(Args &&... args) {
+    std::shared_ptr<T> make(Args &&...args) {
         static_assert(!(std::is_same<T, input_op>::value),
                 "output_op should go to specialized function");
         static_assert(!(std::is_same<T, output_op>::value),

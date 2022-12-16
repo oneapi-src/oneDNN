@@ -410,13 +410,12 @@ struct brg_desc_safe_t {
         // todo: this type assignment is caused by lack of tail processing
         // in oneDNN (src/cpu/x64/brgemm/brgemm.cpp:305)
         auto choose_isa_type = [&]() {
-            auto fallback_isa = (int)dtype_size == 2
-                    ? avx512_core_bf16
-                    : (int)dtype_size == 1 ? avx512_core_vnni : isa_undef;
+            auto fallback_isa = (int)dtype_size == 2 ? avx512_core_bf16
+                    : (int)dtype_size == 1           ? avx512_core_vnni
+                                                     : isa_undef;
             if (dnnl_dtypeA != dnnl_f32 && (arg.K < (4 / (int)dtype_size)))
                 return fallback_isa;
-            int max_rd_block = dnnl_dtypeA == dnnl_bf16
-                    ? 32
+            int max_rd_block = dnnl_dtypeA == dnnl_bf16                  ? 32
                     : (dnnl_dtypeA == dnnl_s8 || dnnl_dtypeA == dnnl_u8) ? 64
                                                                          : -1;
             // when no need for amx:

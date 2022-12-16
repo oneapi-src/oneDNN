@@ -253,8 +253,8 @@ public:
      * Removes the const-qualifier of T, like const_cast
      * @return The casted node_ptr
      * */
-    node_ptr<typename std::remove_const<T>::type, Base> remove_const() const
-            noexcept {
+    node_ptr<typename std::remove_const<T>::type, Base>
+    remove_const() const noexcept {
         return node_ptr<typename std::remove_const<T>::type, Base>(impl);
     }
 
@@ -635,7 +635,7 @@ public:
  * @return a node_ptr of T
  * */
 template <typename T, typename... Args>
-node_ptr<T, expr_base> make_expr(Args &&... args) {
+node_ptr<T, expr_base> make_expr(Args &&...args) {
     std::shared_ptr<T> ptr = std::make_shared<T>(std::forward<Args>(args)...);
     return node_ptr<T, expr_base>(std::move(ptr));
 }

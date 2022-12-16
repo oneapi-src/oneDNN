@@ -59,10 +59,6 @@ constexpr const char *reduce_root_loop = "reduce_root_loop";
 // is a special unroll factor, and it unrolls all iterations of the loop
 constexpr const char *unroll_loop = "unroll_loop";
 
-// Boolean. If true, for_loop_node_t will be merged by parallel, currently only
-// available for parallel loop with `thread_num > 1`
-constexpr const char *parallel_merge_loop = "parallel_merge_loop";
-
 // int. Indicate the partition granularity (default =1)
 constexpr const char *parallel_merge_loop_granularity
         = "parallel_merge_loop_granularity";
@@ -563,7 +559,7 @@ using for_loop_c = node_ptr<const for_loop_node_t, stmt_base_t>;
  * @return a node_ptr of T
  * */
 template <typename T, typename... Args>
-node_ptr<T, stmt_base_t> make_stmt(Args &&... args) {
+node_ptr<T, stmt_base_t> make_stmt(Args &&...args) {
     std::shared_ptr<T> ptr = std::make_shared<T>(std::forward<Args>(args)...);
     return node_ptr<T, stmt_base_t>(std::move(ptr));
 }

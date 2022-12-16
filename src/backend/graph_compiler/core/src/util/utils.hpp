@@ -59,7 +59,7 @@ constexpr bool is_one_of(T value, T first, Args... args) {
 
 // Copied from onednn utils.hpp
 template <typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args &&... args) {
+std::unique_ptr<T> make_unique(Args &&...args) {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
@@ -72,7 +72,7 @@ template <int idx, typename T>
 void bind_vector_to_args(const std::vector<T> &v) {}
 
 template <int idx = 0, typename T, typename T2, typename... Args>
-void bind_vector_to_args(const std::vector<T> &v, T2 &out1, Args &... args) {
+void bind_vector_to_args(const std::vector<T> &v, T2 &out1, Args &...args) {
     bind_assigner_t<T2, T>::assign(out1, v[idx]);
     bind_vector_to_args<idx + 1>(v, args...);
 }
@@ -81,13 +81,13 @@ template <typename T>
 void args_to_vector(std::vector<T> &v) {}
 
 template <typename T, typename T2, typename... Args>
-void args_to_vector(std::vector<T> &v, T2 &&out1, Args &&... args) {
+void args_to_vector(std::vector<T> &v, T2 &&out1, Args &&...args) {
     v.emplace_back(std::forward<T2>(out1));
     args_to_vector(v, std::move(args)...);
 }
 
 template <typename T, typename... Args>
-std::vector<T> args_to_vector(Args &&... args) {
+std::vector<T> args_to_vector(Args &&...args) {
     std::vector<T> ret;
     args_to_vector(ret, std::move(args)...);
     return std::move(ret);

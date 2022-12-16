@@ -121,16 +121,23 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
         parti->fanchors_.pop_back();
     }
 
-    // bind outer_loop with axis
+    // bind outer loops with axis hint
     if (!loops.empty()
             && loops[0]->attr().has_key(stmt_attr_key::loop_axis_hint)) {
         auto bd_axis = loops[0]->attr().get<bound_axis>(
                 stmt_attr_key::loop_axis_hint);
         loops[0]->attr().remove(stmt_attr_key::loop_axis_hint);
+        // binding axis from outer loop generator is blocking format, need to
+        // transform them into plain format.
+        bound_axis plain_bd_axis(bd_axis.size());
+        auto base_gt = use_output_mode ? get_outputs()[base_idx]
+                                       : get_inputs()[base_idx];
+        std::transform(bd_axis.begin(), bd_axis.end(), plain_bd_axis.begin(),
+                [&base_gt](const std::vector<int> &ax) {
+                    return transform_axis_blocking2plain(base_gt->details_, ax);
+                });
         // init axis binder
-        parti->ax_binder_.init(use_output_mode ? get_outputs()[base_idx]
-                                               : get_inputs()[base_idx],
-                bd_axis);
+        parti->ax_binder_.init(base_gt, plain_bd_axis);
     }
 }
 

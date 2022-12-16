@@ -461,7 +461,7 @@ static size_t check_size_equals(const T &v0) {
 }
 
 template <typename T, typename... Args>
-static size_t check_size_equals(const T &v0, const Args &... args) {
+static size_t check_size_equals(const T &v0, const Args &...args) {
     auto ret = check_size_equals(args...);
     if (v0.size() == 1UL) { return ret; }
     if (ret == 1UL) { return v0.size(); }
@@ -490,7 +490,7 @@ FirstArg first_arg_helper(R (*)(FirstArg, A...));
 
 template <typename FuncT, typename... Args>
 static std::vector<union_val> execute_on_values_impl(
-        FuncT func, const Args &... args) {
+        FuncT func, const Args &...args) {
     using FirstArg = decltype(first_arg_helper(func));
     size_t sz = check_size_equals(args...);
     std::vector<union_val> ret;
@@ -509,7 +509,7 @@ static std::vector<union_val> execute_on_values_impl(
 
 template <typename FuncT, typename... Args>
 static std::vector<union_val> execute_on_values(
-        FuncT func, const Args &... args) {
+        FuncT func, const Args &...args) {
     // the FuncT can be a lambda.
     // the +func trick converts the func to a function pointer
     return execute_on_values_impl(+func, args...);

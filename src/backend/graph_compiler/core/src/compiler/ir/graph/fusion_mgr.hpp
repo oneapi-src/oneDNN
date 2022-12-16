@@ -103,7 +103,7 @@ public:
     int get_output_idx(sc_op *) const;
 
     template <typename T, typename... Args>
-    std::shared_ptr<T> make(Args &&... args) {
+    std::shared_ptr<T> make(Args &&...args) {
         static_assert(!(std::is_same<T, input_op>::value),
                 "input_op should go to specialized function");
         static_assert(!(std::is_same<T, output_op>::value),
@@ -118,7 +118,7 @@ public:
     // todo: remove and use standard graph::make
     template <typename T, typename... Args>
     std::shared_ptr<T> make(
-            const std::vector<graph_tensor_ptr> &vec, Args &&... args) {
+            const std::vector<graph_tensor_ptr> &vec, Args &&...args) {
         auto ret = std::make_shared<T>(vec, std::forward<Args>(args)...);
         graph_.add(ret);
         return ret;

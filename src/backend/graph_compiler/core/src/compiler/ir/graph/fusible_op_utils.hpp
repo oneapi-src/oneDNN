@@ -48,7 +48,6 @@ std::unordered_map<int, bound_axis> search_known_bound_axis(
 void set_unknown_axis_binding(sc_op *cur,
         const std::unordered_map<int, bound_axis> &known_axis_map,
         bound_axis_map &bdax_map);
-void call_output_user_axis_binding(sc_op *cur, bound_axis_map &bdax_map);
 
 void identical_infer_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);
 void identical_pre_binding_axis(fusible_op_t *cur, bound_axis_map &bdax_map);

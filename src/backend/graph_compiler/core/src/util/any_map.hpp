@@ -289,7 +289,7 @@ public:
      * `match(...)` is a function, which will be called when no type is matched.
      * */
     template <typename T, typename T1, typename... Args>
-    bool match(T defaults, T1 func1, Args &&... args) const {
+    bool match(T defaults, T1 func1, Args &&...args) const {
         using MatchedT = any_detail::first_argument<T1>;
         if (isa<MatchedT>()) {
             func1(get<MatchedT>());

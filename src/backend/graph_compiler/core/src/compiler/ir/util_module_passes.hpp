@@ -35,7 +35,7 @@ public:
     // makes a module_function_pass_t from a function_pass_t
     // T should be a function_pass_t class
     template <typename T, typename... Args>
-    static module_pass_ptr make(Args &&... args) {
+    static module_pass_ptr make(Args &&...args) {
         return utils::make_unique<module_function_pass_t>(
                 utils::make_unique<T>(std::forward<Args>(args)...));
     }
@@ -49,7 +49,7 @@ public:
     sequential_module_pass_t(std::vector<module_pass_ptr> &&passes);
     sequential_module_pass_t(sequential_module_pass_t &&other);
     template <typename... Args>
-    sequential_module_pass_t(Args &&... args) {
+    sequential_module_pass_t(Args &&...args) {
         utils::args_to_vector<module_pass_ptr>(passes_, std::move(args)...);
     }
     const_ir_module_ptr operator()(const_ir_module_ptr f) override;

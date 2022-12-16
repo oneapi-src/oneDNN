@@ -171,34 +171,38 @@ sc_dims conv_fwd_core_op_t::infer_out_dims(sc_graph_t &owner_graph,
                     << weight_dims.size() << "D.");
     COMPILE_ASSERT(
             is_3d ? utils::is_one_of(static_cast<int>(pads_begin.size()), 1, 3)
-                  : is_1d ? utils::is_one_of(
-                            static_cast<int>(pads_begin.size()), 1, 1)
-                          : utils::is_one_of(
-                                  static_cast<int>(pads_begin.size()), 1, 2),
+                    : is_1d ? utils::is_one_of(
+                              static_cast<int>(pads_begin.size()), 1, 1)
+                            : utils::is_one_of(
+                                    static_cast<int>(pads_begin.size()), 1, 2),
             "wrong pads_begin dims, should be 1D or 2D for 2D conv, and 1D or "
             "3D for 3D conv, but got "
                     << pads_begin.size() << "D for in " << (is_3d ? 3 : 2)
                     << "D conv.");
     COMPILE_ASSERT(is_3d
                     ? utils::is_one_of(static_cast<int>(pads_end.size()), 1, 3)
-                    : is_1d ? utils::is_one_of(
-                              static_cast<int>(pads_end.size()), 1, 1)
-                            : utils::is_one_of(
-                                    static_cast<int>(pads_end.size()), 1, 2),
+                    : is_1d
+                    ? utils::is_one_of(static_cast<int>(pads_end.size()), 1, 1)
+                    : utils::is_one_of(static_cast<int>(pads_end.size()), 1, 2),
             "wrong pads_end dims, should be 1D or 2D for 2D conv, and 1D or 3D "
             "for 3D conv, but got "
                     << pads_end.size() << "D for in "
-                    << (is_3d ? 3 : is_1d ? 1 : 2) << "D conv.");
+                    << (is_3d                  ? 3
+                                       : is_1d ? 1
+                                               : 2)
+                    << "D conv.");
     COMPILE_ASSERT(is_3d
                     ? utils::is_one_of(static_cast<int>(stride.size()), 1, 3)
-                    : is_1d ? utils::is_one_of(
-                              static_cast<int>(stride.size()), 1, 2)
-                            : utils::is_one_of(
-                                    static_cast<int>(stride.size()), 1, 2),
+                    : is_1d
+                    ? utils::is_one_of(static_cast<int>(stride.size()), 1, 2)
+                    : utils::is_one_of(static_cast<int>(stride.size()), 1, 2),
             "wrong stride dims, should be 1D or 2D for 2D conv, and 1D or 3D "
             "for 3D conv, but got "
                     << stride.size() << "D for in "
-                    << (is_3d ? 3 : is_1d ? 1 : 2) << "D conv.");
+                    << (is_3d                  ? 3
+                                       : is_1d ? 1
+                                               : 2)
+                    << "D conv.");
     sc_dims pads_begin_dims(ndims - 2, pads_begin[0]);
     if (pads_begin.size() > 1) { pads_begin_dims = pads_begin; }
     sc_dims pads_end_dims(ndims - 2, pads_end[0]);
@@ -471,42 +475,42 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     // data layout
     if (use_channel_last) {
         in_formats.push_back({is_3d ? sc_data_format_t::NDHWC()
-                                    : is_1d ? sc_data_format_t::NSC()
-                                            : sc_data_format_t::NHWC()});
+                        : is_1d     ? sc_data_format_t::NSC()
+                                    : sc_data_format_t::NHWC()});
     } else {
-        in_formats.push_back(
-                {is_3d ? sc_data_format_t::NCDHWc(C_block)
-                       : is_1d ? sc_data_format_t::NSC()
-                               : sc_data_format_t::NCHWc(C_block)});
+        in_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(C_block)
+                        : is_1d     ? sc_data_format_t::NSC()
+                                    : sc_data_format_t::NCHWc(C_block)});
     }
 
     // weight layout
     if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)
             && wei_dtype == datatypes::s8) {
-        in_formats.push_back(
-                {is_3d ? sc_data_format_t::KCDRSck4c(C_block, K_block)
-                       : is_1d ? sc_data_format_t::KCSck4c(C_block, K_block)
-                               : sc_data_format_t::KCRSck4c(C_block, K_block)});
+        in_formats.push_back({is_3d
+                        ? sc_data_format_t::KCDRSck4c(C_block, K_block)
+                        : is_1d
+                        ? sc_data_format_t::KCSck4c(C_block, K_block)
+                        : sc_data_format_t::KCRSck4c(C_block, K_block)});
     } else if (src_dtype == datatypes::bf16 && wei_dtype == datatypes::bf16) {
-        in_formats.push_back(
-                {is_3d ? sc_data_format_t::KCDRSck2c(C_block, K_block)
-                       : is_1d ? sc_data_format_t::KCSck2c(C_block, K_block)
-                               : sc_data_format_t::KCRSck2c(C_block, K_block)});
+        in_formats.push_back({is_3d
+                        ? sc_data_format_t::KCDRSck2c(C_block, K_block)
+                        : is_1d
+                        ? sc_data_format_t::KCSck2c(C_block, K_block)
+                        : sc_data_format_t::KCRSck2c(C_block, K_block)});
     } else {
-        in_formats.push_back(
-                {is_3d ? sc_data_format_t::KCDRSck(C_block, K_block)
-                       : is_1d ? sc_data_format_t::KCSck(C_block, K_block)
-                               : sc_data_format_t::KCRSck(C_block, K_block)});
+        in_formats.push_back({is_3d
+                        ? sc_data_format_t::KCDRSck(C_block, K_block)
+                        : is_1d ? sc_data_format_t::KCSck(C_block, K_block)
+                                : sc_data_format_t::KCRSck(C_block, K_block)});
     }
     if (use_channel_last) {
         out_formats.push_back({is_3d ? sc_data_format_t::NDHWC()
-                                     : is_1d ? sc_data_format_t::NSC()
-                                             : sc_data_format_t::NHWC()});
+                        : is_1d      ? sc_data_format_t::NSC()
+                                     : sc_data_format_t::NHWC()});
     } else {
-        out_formats.push_back(
-                {is_3d ? sc_data_format_t::NCDHWc(K_block)
-                       : is_1d ? sc_data_format_t::NSC()
-                               : sc_data_format_t::NCHWc(K_block)});
+        out_formats.push_back({is_3d ? sc_data_format_t::NCDHWc(K_block)
+                        : is_1d      ? sc_data_format_t::NSC()
+                                     : sc_data_format_t::NCHWc(K_block)});
     }
     format_to_dense_format_stride_pair(
             in_formats, out_formats, supported_ins, supported_outs);
@@ -555,9 +559,9 @@ sc_dims conv_fwd_core_op_t::get_bwise_fuse_shrink_dims() {
     auto weight_dims = get_inputs()[1]->details_.get_plain_dims();
     auto data_dims = get_inputs()[0]->details_.get_plain_dims();
     auto out_dims = get_outputs()[0]->details_.get_plain_dims();
-    const int dtype_sz = get_inputs()[1]->details_.dtype_ == datatypes::f32
-            ? 4
-            : get_inputs()[1]->details_.dtype_ == datatypes::bf16 ? 2 : 1;
+    const int dtype_sz = get_inputs()[1]->details_.dtype_ == datatypes::f32 ? 4
+            : get_inputs()[1]->details_.dtype_ == datatypes::bf16           ? 2
+                                                                            : 1;
     const int weight_size_byte = weight_dims[0] * weight_dims[1]
             * weight_dims[2] * weight_dims[3] * dtype_sz;
     const int data_size_byte

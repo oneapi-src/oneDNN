@@ -354,9 +354,9 @@ void gen_nested_conv1x1_backprop_data_t::
                   ? std::vector<expr> {n_start_idx / im_ic_block_,
                     k_start_idx / im_oc_block_ / 2, 0, 0, 0, 0, 0}
                   : !tb.get_format().is_blocking()
-                    ? std::vector<expr> {k_start_idx, n_start_idx, 0, 0}
-                    : std::vector<expr> {n_start_idx / im_ic_block_,
-                      k_start_idx / im_oc_block_, 0, 0, 0, 0};
+                  ? std::vector<expr> {k_start_idx, n_start_idx, 0, 0}
+                  : std::vector<expr> {n_start_idx / im_ic_block_,
+                    k_start_idx / im_oc_block_, 0, 0, 0, 0};
                 std::vector<expr> cidx
                   = {bs_start_idx, m_start_idx / ori_W * stride_h,
                     m_start_idx % ori_W * stride_w * ori_W, n_start_idx};
@@ -674,9 +674,7 @@ bool gen_nested_conv1x1_backprop_data_t::generate(context_ptr ctx,
   } else {
     return false; // TODO(zhangyan): support reduction on OC axis
   }
-  if (BS_split_num * S_split_num == num_threads) {
-    bsloop->attr()[stmt_attr_key::parallel_merge_loop] = true;
-  }
+
   loops = {};
   return true;
 }

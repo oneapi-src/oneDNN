@@ -30,7 +30,7 @@ public:
     sequential_function_pass_t(sequential_function_pass_t &&other);
     func_c operator()(func_c f) override;
     template <typename... Args>
-    sequential_function_pass_t(Args &&... args) {
+    sequential_function_pass_t(Args &&...args) {
         utils::args_to_vector<function_pass_ptr>(passes_, std::move(args)...);
     }
 };

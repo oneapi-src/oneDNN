@@ -1800,13 +1800,6 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
     }
   }
 
-  if ((in_tensors_[1].get_format() == sc_data_format_t::MK())
-    && B_dtype == datatypes::bf16) {
-    // avoid merging bwd_weight in mlp
-    mloop->attr()[stmt_attr_key::parallel_merge_loop] = false;
-  } else {
-    mloop->attr()[stmt_attr_key::parallel_merge_loop] = true;
-  }
   mloop->attr()[stmt_attr_key::parallel_merge_loop_granularity] = iim_block_;
 
   mloop->attr()[stmt_attr_key::loop_axis_hint]
