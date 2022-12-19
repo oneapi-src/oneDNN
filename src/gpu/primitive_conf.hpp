@@ -620,7 +620,7 @@ struct reduction_phase_t {
     data_type_t src_type, dst_type;
     compute::nd_range_t nd_range;
     compute::kernel_t kernel;
-    int reduction_size, initial_size, final_size;
+    dim_t reduction_size, initial_size, final_size;
     int num_reduction_chunks;
     bool is_final, is_first;
 };
@@ -652,9 +652,9 @@ struct reduction_conf_t {
     compute::dispatch_t finalize_dispatch;
 
     // Used by combined implementation
-    int outer_dim_size, inner_dim_size, gws_inner_dim_size;
+    dim_t outer_dim_size, inner_dim_size, gws_inner_dim_size;
     std::vector<reduction_phase_t> phases;
-    int inner_dim_per_sg;
+    dim_t inner_dim_per_sg;
     size_t sp_size[2];
 };
 

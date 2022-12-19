@@ -26,8 +26,8 @@ namespace ocl {
 
 using extended_dims_t = dim_t[2 * DNNL_MAX_NDIMS];
 
-static reduction_phase_t init_phase(int start, int end, int num_reductions,
-        data_type_t src_type, data_type_t dst_type,
+static reduction_phase_t init_phase(dim_t start, dim_t end,
+        dim_t num_reductions, data_type_t src_type, data_type_t dst_type,
         compute::nd_range_t nd_range) {
     reduction_phase_t phase;
     phase.initial_size = start;
@@ -269,19 +269,19 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
 
     // Pad the inner dim to a multiple of subgroup size
-    conf.inner_dim_per_sg = std::min((int)composite_dims[1],
-            std::max(1, conf.sub_group_size / conf.inner_dim_size));
+    conf.inner_dim_per_sg = std::min(composite_dims[1],
+            std::max((dim_t)1, conf.sub_group_size / conf.inner_dim_size));
     conf.gws_inner_dim_size = utils::rnd_up(
             conf.inner_dim_per_sg * conf.inner_dim_size, conf.sub_group_size);
 
-    const int sg_per_inner_dim
+    const dim_t sg_per_inner_dim
             = utils::div_up(conf.inner_dim_size, conf.sub_group_size);
 
     // Each phase actually consists of 2 stages:
     // 1. Parallelized across work items in a subgroup: reduce by num_horizontal_reductions
     // 2. Between work items in a subgroup: reduce by conf.inner_dim_per_sg
     // The minimum possible reduction per subgroup is conf.inner_dim_per_sg
-    int reduced_dim_size = composite_dims[1];
+    dim_t reduced_dim_size = composite_dims[1];
     while (reduced_dim_size > 1) {
         data_type_t src_data_type = types::default_accum_data_type(
                 src_mdw.data_type(), data_type::undef);
@@ -290,22 +290,22 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
 
         // Heuristic:
         // Keep horizontal reductions at the target:
-        int reduction_size = target_horiz_reductions * conf.inner_dim_per_sg;
+        dim_t reduction_size = target_horiz_reductions * conf.inner_dim_per_sg;
 
         // Except when:
         // 1) total horizontal_reductions < minimum: reduce everything (another phase isn't worth it)
-        const int horiz_reductions
+        const dim_t horiz_reductions
                 = utils::div_up(reduced_dim_size, conf.inner_dim_per_sg);
         if (horiz_reductions <= single_phase_threshold) {
             reduction_size = reduced_dim_size;
         }
 
         // 2) total subgroups > max: increase reduction since some parallelism is lost due to high dispatching
-        int reduction_end = utils::div_up(reduced_dim_size, reduction_size);
-        int num_dst_elems
+        dim_t reduction_end = utils::div_up(reduced_dim_size, reduction_size);
+        dim_t num_dst_elems
                 = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
         int num_subgroups = utils::div_up(
-                (long)num_dst_elems * sg_per_inner_dim, conf.inner_dim_size);
+                num_dst_elems * sg_per_inner_dim, conf.inner_dim_size);
 
         // Outer dims are independent, so base this heuristic on "subgroups per outer dim"
         if (num_subgroups
@@ -316,9 +316,8 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
             reduction_end = utils::div_up(reduced_dim_size, reduction_size);
             num_dst_elems
                     = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
-            num_subgroups
-                    = utils::div_up((long)num_dst_elems * sg_per_inner_dim,
-                            conf.inner_dim_size);
+            num_subgroups = utils::div_up(
+                    num_dst_elems * sg_per_inner_dim, conf.inner_dim_size);
         }
         // End Heuristic
 
@@ -336,14 +335,14 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
         num_dst_elems
                 = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
         num_subgroups = utils::div_up(
-                (long)num_dst_elems * sg_per_inner_dim, conf.inner_dim_size);
+                num_dst_elems * sg_per_inner_dim, conf.inner_dim_size);
 
-        const int phase_start = reduced_dim_size;
-        const int phase_reductions = reduction_size;
-        const int phase_end = utils::div_up(phase_start, phase_reductions);
+        const dim_t phase_start = reduced_dim_size;
+        const dim_t phase_reductions = reduction_size;
+        const dim_t phase_end = utils::div_up(phase_start, phase_reductions);
 
         // Set scratchpad sizes
-        const int phase_num = (int)conf.phases.size();
+        const int phase_num = static_cast<int>(conf.phases.size());
         if (phase_num < 2) conf.sp_size[phase_num] = num_dst_elems;
 
         compute::dispatch_t dispatch = compute_engine->create_dispatch();
