@@ -84,12 +84,14 @@ struct tensor_usage_analysis_result_t {
             const std::unordered_map<alias_info::tensor_alias_identity_t *,
                     expr_c> &alias_map,
             const std::function<void(const expr_c &)> &func) const {
-        for (auto aid : alias_id_->get_alias_set()->set_) {
-            auto other_alias_id = aid.lock();
-            COMPILE_ASSERT(
-                    other_alias_id, "Bad weakptr for tensor_alias_identity_t");
-            auto itr = alias_map.find(other_alias_id.get());
-            if (itr != alias_map.end()) { func(itr->second); }
+        for (auto &cliq : alias_id_->alias_cliques_) {
+            for (auto aid : cliq->set_) {
+                auto other_alias_id = aid.lock();
+                COMPILE_ASSERT(other_alias_id,
+                        "Bad weakptr for tensor_alias_identity_t");
+                auto itr = alias_map.find(other_alias_id.get());
+                if (itr != alias_map.end()) { func(itr->second); }
+            }
         }
     }
 };

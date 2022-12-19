@@ -101,10 +101,12 @@ public:
     Value *current_val_ = nullptr;
     // the **pointer** of local var in a function
     std::unordered_map<expr_c, Value *> var_ptr_in_func_;
+    using vec_metadata = SmallVector<Metadata *, 4>;
     // tensor to <alias scope, noalias>
     std::unordered_map<expr_c, std::pair<MDNode *, MDNode *> *>
             tsr_to_alias_scope_;
-    std::unordered_map<alias_info::alias_set_t *, std::pair<MDNode *, MDNode *>>
+    std::unordered_map<alias_info::tensor_alias_identity_t *,
+            std::pair<MDNode *, MDNode *>>
             alias_set_to_alias_scope_;
     std::unordered_map<std::string, Function *> name_to_func_;
     bool is_lvalue_mode_ = false;
@@ -373,6 +375,51 @@ public:
         }
     }
 
+    void prepare_alias_metadata(
+            const std::vector<alias_info::tensor_alias_identity_t *> &tensors,
+            MDNode *alias_domain, MDBuilder &MDB) {
+        std::unordered_set<std::shared_ptr<alias_info::alias_set_t>> cliques;
+        int64_t new_tensor_id = -1;
+        for (auto &aid : tensors) {
+            if (aid->alias_cliques_.empty()) {
+                auto new_clique = std::make_shared<alias_info::alias_set_t>();
+                aid->add_to_clique(new_clique);
+                new_clique->id_ = new_tensor_id;
+                new_tensor_id--;
+            }
+            cliques.insert(
+                    aid->alias_cliques_.begin(), aid->alias_cliques_.end());
+        }
+        std::vector<std::shared_ptr<alias_info::alias_set_t>> cliques_sorted {
+                cliques.begin(), cliques.end()};
+        std::sort(cliques_sorted.begin(), cliques_sorted.end(),
+                [](const std::shared_ptr<alias_info::alias_set_t> &v1,
+                        const std::shared_ptr<alias_info::alias_set_t> &v2) {
+                    return v1->id_ < v2->id_;
+                });
+        std::unordered_map<alias_info::alias_set_t *, MDNode *> clique_to_MD;
+        for (auto &clique : cliques_sorted) {
+            MDNode *scope = MDB.createAnonymousAliasScope(
+                    alias_domain, std::to_string(clique->id_));
+            clique_to_MD[clique.get()] = scope;
+        }
+        for (auto &aid : tensors) {
+            auto shared_aid = aid->shared_from_this();
+            vec_metadata alias_scope;
+            vec_metadata noalias_scope;
+            for (auto &clique : cliques_sorted) {
+                if (clique->set_.has(shared_aid)) {
+                    alias_scope.emplace_back(clique_to_MD[clique.get()]);
+                } else {
+                    noalias_scope.emplace_back(clique_to_MD[clique.get()]);
+                }
+            }
+            alias_set_to_alias_scope_[aid]
+                    = {MDNode::get(context_, alias_scope),
+                            MDNode::get(context_, noalias_scope)};
+        }
+    }
+
     func_c dispatch(func_c v) override {
         var_ptr_in_func_.clear();
         tsr_to_alias_scope_.clear();
@@ -414,31 +461,12 @@ public:
         F->addFnAttr("no-frame-pointer-elim", "true");
         F->addFnAttr("frame-pointer", "all");
         bool has_alias = false;
-        MDBuilder MDB(context_);
-        MDNode *alias_domain = nullptr;
-        auto add_alias_group = [&alias_domain, &v, &MDB, this](
-                                       alias_info::alias_set_t *alias_set,
-                                       const std::string &tsrname)
-                -> std::pair<MDNode *, MDNode *> * {
-            if (!alias_domain) {
-                alias_domain = MDB.createAnonymousAliasScopeDomain(v->name_);
-            }
-            auto itr = alias_set_to_alias_scope_.find(alias_set);
-            if (itr == alias_set_to_alias_scope_.end()) {
-                MDNode *scope
-                        = MDB.createAnonymousAliasScope(alias_domain, tsrname);
-                auto &ret = (alias_set_to_alias_scope_[alias_set]
-                        = std::make_pair(scope, nullptr));
-                return &ret;
-            }
-            return &itr->second;
-        };
+
         for (size_t i = 0; i < v->params_.size(); i++) {
             if (v->params_[i].isa<tensor>()) {
                 auto ainfo = alias_info::get_alias_info(*v->params_[i]);
                 if (ainfo && !ainfo->has_no_alias()) {
-                    add_alias_group(ainfo->get_alias_set().get(),
-                            v->params_[i].static_as<tensor>()->name_);
+                    has_alias = true;
                 } else {
                     F->addParamAttr(i, llvm::Attribute::AttrKind::NoAlias);
                 }
@@ -447,59 +475,42 @@ public:
                 F->addParamAttr(i, llvm::Attribute::AttrKind::NonNull);
             }
         }
+        using alias_id_vec = std::vector<
+                std::shared_ptr<alias_info::tensor_alias_identity_t>>;
+        std::vector<alias_info::tensor_alias_identity_t *> alias_ids;
         if (v->attr_) {
             if (auto local_tsr_alias_set
-                    = v->attr_->get_or_null<std::vector<
-                              std::shared_ptr<alias_info::alias_set_t>>>(
-                            "alias_sets")) {
-                int cnt = 0;
-                for (auto &aset : *local_tsr_alias_set) {
-                    add_alias_group(aset.get(), std::to_string(cnt++));
+                    = v->attr_->get_or_null<alias_id_vec>("alias_sets")) {
+                has_alias = true;
+                alias_ids.reserve(local_tsr_alias_set->size());
+                for (auto &v : *local_tsr_alias_set) {
+                    alias_ids.push_back(v.get());
                 }
             }
         }
 
         // if has custom alias info, need to construct alias scope/noalias for
         // LLVM each alias scope are exclusive to each other
-        if (alias_domain) {
+        if (has_alias) {
+            MDBuilder MDB(context_);
+            MDNode *alias_domain
+                    = MDB.createAnonymousAliasScopeDomain(v->name_);
+
             for (size_t i = 0; i < v->params_.size(); i++) {
                 if (v->params_[i].isa<tensor>()) {
                     auto ainfo = alias_info::get_or_create_alias_info(
                             *v->params_[i]);
-                    // need to add alias set for tensors with "NoAlias"
-                    // attribute
-                    auto llvm_alias
-                            = add_alias_group(ainfo->get_alias_set().get(),
-                                    v->params_[i].static_as<tensor>()->name_);
-                    tsr_to_alias_scope_[v->params_[i]] = llvm_alias;
+                    alias_ids.push_back(ainfo.get());
                 }
             }
-            // each alias scope is in noalias of others
-            for (auto &kv : alias_set_to_alias_scope_) {
-                auto cur_scope = kv.second.first;
-                std::unordered_set<Metadata *> map_scopes;
-                for (auto &kv2 : alias_set_to_alias_scope_) {
-                    auto other_scope = kv2.second.first;
-                    if (other_scope != cur_scope)
-                        map_scopes.insert(other_scope);
+            prepare_alias_metadata(alias_ids, alias_domain, MDB);
+            for (size_t i = 0; i < v->params_.size(); i++) {
+                if (v->params_[i].isa<tensor>()) {
+                    auto ainfo = alias_info::get_or_create_alias_info(
+                            *v->params_[i]);
+                    tsr_to_alias_scope_[v->params_[i]]
+                            = &(alias_set_to_alias_scope_[ainfo.get()]);
                 }
-                SmallVector<Metadata *, 4> vec {
-                        map_scopes.begin(), map_scopes.end()};
-                // sort the map to make it stable for unit test
-                std::sort(
-                        vec.begin(), vec.end(), [](Metadata *&a, Metadata *&b) {
-                            auto name_a = llvm::dyn_cast<MDNode>(a)
-                                                  ->getOperand(2)
-                                                  .get();
-                            auto name_b = llvm::dyn_cast<MDNode>(b)
-                                                  ->getOperand(2)
-                                                  .get();
-                            return llvm::dyn_cast<MDString>(name_a)->getString()
-                                    < llvm::dyn_cast<MDString>(name_b)
-                                              ->getString();
-                        });
-                // construct no-alias set, which is all other scopes
-                kv.second.second = MDNode::get(context_, vec);
             }
         }
         bool is_low_level = v->attr_
@@ -857,12 +868,11 @@ public:
         }
         auto itr = tsr_to_alias_scope_.find(tsr);
         if (itr != tsr_to_alias_scope_.end()) {
-            SmallVector<Metadata *, 4> scope {itr->second->first};
             // alias.scope metadata.
             inst->setMetadata(LLVMContext::MD_alias_scope,
                     MDNode::concatenate(
                             inst->getMetadata(LLVMContext::MD_alias_scope),
-                            MDNode::get(inst->getContext(), scope)));
+                            itr->second->first));
 
             // noalias metadata.
             inst->setMetadata(LLVMContext::MD_noalias,
@@ -1683,8 +1693,7 @@ public:
         } else if (v->var_.isa<tensor>()) {
             tensor t = v->var_.static_as<tensor>();
             if (auto alias_info = alias_info::get_alias_info(*t)) {
-                auto alias_itr = alias_set_to_alias_scope_.find(
-                        alias_info->get_alias_set().get());
+                auto alias_itr = alias_set_to_alias_scope_.find(alias_info);
                 if (alias_itr != alias_set_to_alias_scope_.end()) {
                     tsr_to_alias_scope_[t] = &alias_itr->second;
                 }

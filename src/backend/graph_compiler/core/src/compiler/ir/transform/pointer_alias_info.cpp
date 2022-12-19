@@ -24,34 +24,19 @@ namespace sc {
 
 namespace alias_info {
 
-const std::shared_ptr<alias_set_t> &tensor_alias_identity_t::get_alias_set() {
-    if (alias_set_) { return alias_set_; }
-    alias_set_ = std::make_shared<alias_set_t>();
-    alias_set_->set_.insert(shared_from_this());
-    return alias_set_;
-}
-
 bool tensor_alias_identity_t::has_no_alias() const {
-    if (!alias_set_) return true;
-    assert(alias_set_->set_.size() >= 1UL);
-    return alias_set_->set_.size() == 1;
+    if (alias_cliques_.empty()) return true;
+    for (auto &v : alias_cliques_) {
+        assert(v->set_.size() >= 1UL);
+        if (v->set_.size() > 1) { return false; }
+    }
+    return true;
 }
 
-void tensor_alias_identity_t::add_alias(
-        const std::shared_ptr<tensor_alias_identity_t> &v) {
-    // hold a reference of the alias shared ptr
-    auto other_set = v->get_alias_set();
-    get_alias_set();
-    if (other_set == this->alias_set_) { return; }
-    for (auto ptr : other_set->set_) {
-        auto identity = ptr.lock();
-        COMPILE_ASSERT(
-                identity, "shared ptr of tensor_alias_identity_t expired.");
-        // merge the alias set
-        this->alias_set_->set_.insert(identity);
-        // reset the alias set it belongs to
-        identity->alias_set_ = this->alias_set_;
-    }
+void tensor_alias_identity_t::add_to_clique(
+        const std::shared_ptr<alias_set_t> &v) {
+    v->set_.insert(shared_from_this());
+    alias_cliques_.emplace_back(v);
 }
 
 tensor_alias_identity_t *get_alias_info(const expr_base &v) {
@@ -72,6 +57,16 @@ std::shared_ptr<tensor_alias_identity_t> get_or_create_alias_info(
     }
     return attr.get<std::shared_ptr<tensor_alias_identity_t>>(
             attr_keys::pointer_alias);
+}
+
+std::shared_ptr<alias_set_t> alias_set_t::copy() const {
+    auto cur_clique = std::make_shared<alias_info::alias_set_t>(*this);
+    for (auto p : set_) {
+        auto aid = p.lock();
+        COMPILE_ASSERT(aid, "weak ptr expired");
+        aid->add_to_clique(cur_clique);
+    }
+    return cur_clique;
 }
 
 } // namespace alias_info

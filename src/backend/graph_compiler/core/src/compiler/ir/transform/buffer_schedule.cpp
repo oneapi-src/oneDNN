@@ -1100,7 +1100,7 @@ static std::vector<size_t> schedule_tensor_memory_planner(
             // that there is pointer alias in arguments
             if (callsite) {
                 expr arg;
-                std::shared_ptr<alias_info::tensor_alias_identity_t> aliasinfo;
+                auto aliasinfo = std::make_shared<alias_info::alias_set_t>();
                 // first step, find the first usage of tensor p in the call
                 for (size_t pidx = 0; pidx < callsite->tensors_passed_.size();
                         pidx++) {
@@ -1109,12 +1109,8 @@ static std::vector<size_t> schedule_tensor_memory_planner(
                         auto cur_aliasinfo
                                 = alias_info::get_or_create_alias_info(
                                         *cur_arg);
-                        if (!arg.defined()) {
-                            arg = cur_arg;
-                            aliasinfo = cur_aliasinfo;
-                        } else {
-                            aliasinfo->add_alias(cur_aliasinfo);
-                        }
+                        if (!arg.defined()) { arg = cur_arg; }
+                        cur_aliasinfo->add_to_clique(aliasinfo);
                     }
                 }
                 assert(arg.defined());
@@ -1128,7 +1124,7 @@ static std::vector<size_t> schedule_tensor_memory_planner(
                             auto cur_aliasinfo
                                     = alias_info::get_or_create_alias_info(
                                             *cur_arg);
-                            aliasinfo->add_alias(cur_aliasinfo);
+                            cur_aliasinfo->add_to_clique(aliasinfo);
                         }
                     }
                 }

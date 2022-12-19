@@ -66,6 +66,10 @@ struct weakptr_hashset_t {
         return iterator {impl_.find(v.lock().get())};
     }
 
+    bool has(const std::weak_ptr<T> &v) const {
+        return impl_.find(v.lock().get()) != impl_.end();
+    }
+
     void merge(const weakptr_hashset_t<T> &other) {
         impl_.insert(other.impl_.begin(), other.impl_.end());
     }
@@ -76,6 +80,8 @@ struct weakptr_hashset_t {
     }
 
     void insert(const std::shared_ptr<T> &v) { impl_[v.get()] = v; }
+
+    void erase(const std::weak_ptr<T> &v) { impl_.erase(v.lock().get()); }
 
     weakptr_hashset_t() = default;
     weakptr_hashset_t(std::initializer_list<std::weak_ptr<T>> initv) {

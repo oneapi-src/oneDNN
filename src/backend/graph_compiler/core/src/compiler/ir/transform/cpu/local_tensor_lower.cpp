@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include "local_tensor_lower.hpp"
+#include <algorithm>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -23,10 +24,12 @@
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/ir/visitor.hpp>
+#include <unordered_map>
 #include <unordered_set>
 #include <util/utils.hpp>
 
 namespace sc {
+SC_MODULE(pass.local_tensor_lower);
 
 SC_DECL_PASS_INFO(local_tensor_lowering_cpu,
         SC_PASS_DEPENDS_ON(constant_folder, buffer_scheduler, tensor_init,
@@ -63,6 +66,43 @@ func_t get_cpu_temp_free_func(bool is_thread_local) {
     return is_thread_local ? f_local : f_global;
 }
 
+namespace local_tsr_lower {
+// record the base tensor and the offset of a tensor after buffer-scheduling
+struct tensor_base_offset_t {
+    expr base_;
+    int64_t start_offset_;
+    int64_t end_offset_; // inclusive offset
+};
+
+bool tensor_less_than_by_name(const expr &v1, const expr &v2) {
+    return v1.checked_as<tensor>()->name_ < v2.checked_as<tensor>()->name_;
+}
+
+// the "trace" for our pass to scan the positions in the base tensor to decide
+// which tensors are alias
+struct tensor_trace_t {
+    expr tsr_;
+    int64_t offset_;
+    bool is_end_;
+    bool operator<(const tensor_trace_t &v) const {
+        if (offset_ < v.offset_) { return true; }
+        if (offset_ > v.offset_) { return false; }
+        // offset == v.offset_
+        if (is_end_ != v.is_end_) {
+            // let "start" trace < "end" trace to let them overlap
+            // if is_end, then v.is_end_ is false, and we should let v< *this
+            return !is_end_;
+        }
+        // offset == v.offset_ && is_end_ == v.is_end_
+        // the same position trace, sort by tensor name
+        return tensor_less_than_by_name(tsr_, v.tsr_);
+    }
+};
+
+} // namespace local_tsr_lower
+
+using namespace local_tsr_lower;
+
 class tensor_lower_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
@@ -71,9 +111,21 @@ public:
     // the defined tensor stack. The first dimension is for nested stmts. The
     // second is for ordering the tensors defined in the same scope
     std::vector<std::vector<expr>> defined_tsr_;
-    std::vector<std::shared_ptr<alias_info::alias_set_t>> alias_sets_;
+    // tensor -> [base, start_offset, end_offset]
+    std::unordered_map<expr, tensor_base_offset_t> scheduled_tensor_position_;
+    // the ordered tensors in scheduled_tensor_position_
+    std::vector<expr> scheduled_tensors_;
+    // tenosr -> hoisted base tensor in outer loop
+    std::unordered_map<expr, expr> hoisted_tensor_map_;
     // not interested in expr
     expr_c dispatch(expr_c v) override { return v; }
+
+    int64_t get_tensor_size(const tensor &tsr) {
+        COMPILE_ASSERT(tsr->dims_.size() == 1 && tsr->dims_[0].isa<constant>(),
+                "Expecting 1D constant sized tensor");
+        return get_const_as_int(tsr->dims_[0].static_as<constant>())
+                * (int64_t)utils::get_sizeof_type(tsr->elem_dtype_);
+    }
 
     stmt_c visit(define_c v) override {
         if (!v->var_.isa<tensor>() || v->linkage_ != linkage::local) {
@@ -83,14 +135,42 @@ public:
         auto tsr = v->var_.static_as<tensor>();
         if (v->init_.defined()) {
             if (v->init_.isa<tensorptr>()) {
-                auto attr = v->init_.static_as<tensorptr>()
-                                    ->base_->ptr_->attr_.get();
+                auto tptr = v->init_.static_as<tensorptr>();
+                auto attr = tptr->base_->ptr_->attr_.get();
                 if (attr
                         && attr->get_or_else(
                                 attr_keys::can_be_scheduled, false)) {
-                    auto alias_set
-                            = alias_info::get_or_create_alias_info(*v->var_);
-                    alias_sets_.emplace_back(alias_set->get_alias_set());
+                    auto base = tptr->base_->ptr_;
+                    COMPILE_ASSERT(tptr->base_->idx_.size() == 1
+                                    && tptr->base_->idx_[0].isa<constant>(),
+                            "Expecting 1D constant sized tensor");
+                    auto offset = get_const_as_int(
+                            tptr->base_->idx_[0].static_as<constant>());
+                    COMPILE_ASSERT(tsr->dims_.size() == 1
+                                    && tsr->dims_[0].isa<constant>(),
+                            "Expecting 1D constant sized tensor");
+                    auto tsr_size = get_tensor_size(tsr);
+                    COMPILE_ASSERT(tsr_size > 0, "Bad size of tensor");
+                    // recursively find the base tensor
+                    for (;;) {
+                        auto itr = scheduled_tensor_position_.find(base);
+                        if (itr != scheduled_tensor_position_.end()) {
+                            base = itr->second.base_;
+                            offset += itr->second.start_offset_;
+                        } else {
+                            break;
+                        }
+                    }
+                    scheduled_tensor_position_.insert(std::make_pair(tsr,
+                            tensor_base_offset_t {
+                                    base, offset, offset + tsr_size - 1}));
+                    scheduled_tensors_.emplace_back(tsr);
+                } else if (attr && attr->get_or_else("hoisted", false)) {
+                    // the tensor is a tensor based on a hoisted tensor
+                    COMPILE_ASSERT(tptr->base_->ptr_.isa<tensor>()
+                                    && !tptr->base_->ptr_.ptr_same(tsr),
+                            "Expecting a tensor on the base of hoisted tensor");
+                    hoisted_tensor_map_[tsr] = tptr->base_->ptr_;
                 }
             }
             return v;
@@ -165,6 +245,134 @@ public:
     }
 };
 
+static std::vector<std::shared_ptr<alias_info::tensor_alias_identity_t>>
+mark_alias_for_scheduled_tensors(
+        const std::unordered_map<expr, tensor_base_offset_t>
+                &scheduled_tensor_position,
+        const std::unordered_map<expr, expr> &hoisted_tensor_map,
+        const std::vector<expr> &scheduled_tensors) {
+    if (scheduled_tensor_position.empty()) return {};
+    std::vector<std::shared_ptr<alias_info::tensor_alias_identity_t>> ret;
+    std::unordered_map<expr, std::vector<tensor_trace_t>> base_tsr_to_traces;
+    for (auto &kv : scheduled_tensor_position) {
+        auto &tsr = kv.first;
+        auto &base_info = kv.second;
+        base_tsr_to_traces[base_info.base_].emplace_back(
+                tensor_trace_t {tsr, base_info.start_offset_, false});
+        base_tsr_to_traces[base_info.base_].emplace_back(
+                tensor_trace_t {tsr, base_info.end_offset_, true});
+        ret.emplace_back(alias_info::get_or_create_alias_info(*tsr));
+    }
+    // sort the base tensors by name to have stable result
+    using pair_expr_vec_trace = std::pair<expr, std::vector<tensor_trace_t> *>;
+    std::vector<pair_expr_vec_trace> sorted_base_tsr_to_traces;
+    sorted_base_tsr_to_traces.reserve(base_tsr_to_traces.size());
+    for (auto &kv : base_tsr_to_traces) {
+        sorted_base_tsr_to_traces.emplace_back(kv.first, &kv.second);
+    }
+    std::sort(sorted_base_tsr_to_traces.begin(),
+            sorted_base_tsr_to_traces.end(),
+            [](const pair_expr_vec_trace &v1, const pair_expr_vec_trace &v2) {
+                return tensor_less_than_by_name(v1.first, v2.first);
+            });
+    int64_t clique_id = 1;
+    for (auto &kv : sorted_base_tsr_to_traces) {
+        auto &base = kv.first;
+        auto &traces = *kv.second;
+        if (traces.empty()) { continue; }
+        // the traces are sorted by offset, then by is_end, then by tensor name
+        std::sort(traces.begin(), traces.end());
+        // the algorithm:
+        // think there is a cursor pointing to an offset of the base tensor. We
+        // move the cursor from 0 offset to max offset of the tensor. The traces
+        // marks the start and end of scheduled tensors and are sorted by the
+        // offset. So when the cursor points to an offset, we can know which
+        // tensors contain the position.
+
+        // the set of tensors that contain the current cursor
+        alias_info::alias_set_t cur_alias;
+        std::shared_ptr<alias_info::alias_set_t> cur_clique;
+        for (auto &trace : traces) {
+            auto alias_id = alias_info::get_or_create_alias_info(*trace.tsr_);
+            if (!trace.is_end_) {
+                if (!cur_clique) {
+                    cur_clique = cur_alias.copy();
+                    cur_clique->id_ = clique_id;
+                    clique_id++;
+                }
+                cur_alias.set_.insert(alias_id);
+                alias_id->add_to_clique(cur_clique);
+            } else {
+                cur_alias.set_.erase(alias_id);
+                // a tensor leaves the clique, need to make a new clique when
+                // another tensor joins
+                cur_clique = nullptr;
+            }
+        }
+    }
+
+    // if scheduled tensor is based on a hoisted tensor, it should have same
+    // alias with the hoisted base. Recurisvely find the hoisted base
+    std::vector<std::pair<alias_info::tensor_alias_identity_t *,
+            alias_info::alias_set_t *>>
+            to_add_hoisted_alias;
+    // the vector to_add_hoisted_alias is to remember which scheduled tensor
+    // need to copy which alias set of a base hoisted tensor
+    for (auto &tsr : scheduled_tensors) {
+        auto itr = scheduled_tensor_position.find(tsr);
+        auto &base_info = itr->second;
+        auto aid_tsr = alias_info::get_or_create_alias_info(*tsr);
+        expr base = base_info.base_;
+        for (;;) {
+            auto itr = hoisted_tensor_map.find(base);
+            if (itr != hoisted_tensor_map.end()) {
+                auto hoisted = itr->second;
+                auto sche_itr = scheduled_tensor_position.find(hoisted);
+                if (sche_itr != scheduled_tensor_position.end()) {
+                    if (auto aid_base = alias_info::get_alias_info(*hoisted)) {
+                        // the tensor "tsr" is based on hoisted tensor "base"
+                        // and "tsr" should have same aliases of "base"
+                        for (auto &aset : aid_base->alias_cliques_) {
+                            if (!aset->set_.has(aid_tsr)) {
+                                to_add_hoisted_alias.emplace_back(
+                                        aid_tsr.get(), aset.get());
+                            }
+                        }
+                    }
+                    auto &hoisted_base_info = sche_itr->second;
+                    base = hoisted_base_info.base_;
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+    for (auto &kv : to_add_hoisted_alias) {
+        auto &aid_tsr = kv.first;
+        auto &aset = kv.second;
+        auto cli_copy = aset->copy();
+        aid_tsr->add_to_clique(cli_copy);
+        cli_copy->id_ = clique_id;
+        clique_id++;
+    }
+    // output to INFO log
+    if (auto sc_stream_temp
+            = ::sc::runtime::get_info_logging_stream(__sc_module_name)) {
+        for (auto &kv : scheduled_tensor_position) {
+            (*sc_stream_temp.stream_) << kv.first << ':';
+            if (auto aid = alias_info::get_alias_info(*kv.first)) {
+                for (auto &aset : aid->alias_cliques_) {
+                    (*sc_stream_temp.stream_) << aset->id_ << ',';
+                }
+            }
+            (*sc_stream_temp.stream_) << '\n';
+        }
+    }
+    return ret;
+}
+
 func_c local_tensor_lowering_cpu_t::operator()(func_c m) {
     if (m->attr_ && m->attr_->get_or_else(function_attrs::low_level, false)) {
         return m;
@@ -178,9 +386,12 @@ func_c local_tensor_lowering_cpu_t::operator()(func_c m) {
     impl.cur_rtl_ctx_ = m->params_.front();
     impl.threshold_ = size_threshold_;
     auto ret = impl.dispatch(m);
-    if (!impl.alias_sets_.empty()) {
+    if (!impl.scheduled_tensor_position_.empty()) {
+        auto alias_ids = mark_alias_for_scheduled_tensors(
+                impl.scheduled_tensor_position_, impl.hoisted_tensor_map_,
+                impl.scheduled_tensors_);
         std::const_pointer_cast<func_base>(ret)->attr()["alias_sets"]
-                = std::move(impl.alias_sets_);
+                = std::move(alias_ids);
     }
     return ret;
 }
