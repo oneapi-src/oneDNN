@@ -3203,7 +3203,6 @@ void conv_ir_builder_t::build() {
     stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = maybe_strip_prefetches(stmt_, ir_ctx, cfg_.reserved_regs());
     stmt_ = optimize_alloc_let(stmt_, ir_ctx);
-    stmt_ = remove_spurious_send_mask_cast(stmt_, ir_ctx);
 
     stmt_ = optimize_peephole(stmt_, ir_ctx);
     stmt_ = optimize_barrier(stmt_, ir_ctx);
