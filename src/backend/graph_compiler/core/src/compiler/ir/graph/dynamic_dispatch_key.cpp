@@ -18,6 +18,7 @@
 #include <set>
 #include <vector>
 #include "dynamic_dispatch_key.hpp"
+#include "dynamic_utils.hpp"
 #include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/sc_data_format.hpp>
@@ -131,37 +132,72 @@ bool dispatch_key_cmper_t::operator()(
 }
 
 combined_dispatch_key_set_t::combined_dispatch_key_set_t(
-        const std::vector<std::shared_ptr<dispatch_key_set_base_t>> &inputs) {
+        const std::vector<sc_op_ptr> &inputs, const sc_op_ptr &modified_inp) {
     if (!inputs.empty()) {
-        auto len_key = inputs.size();
-        auto num_keys = UINT64_C(1);
-        std::vector<size_t> accum_size;
-        accum_size.reserve(len_key);
-        for (size_t i = len_key; i > 0; i--) {
-            accum_size.emplace_back(num_keys);
-            num_keys = num_keys * inputs[i - 1]->size();
-        }
-        std::reverse(accum_size.begin(), accum_size.end());
-        if (num_keys > DISPATCH_KEY_MAX_THRESHOLD) {
-            SC_MODULE_WARN << "Number of dispatch key set " << num_keys
-                           << " has exceeded threshold "
-                           << DISPATCH_KEY_MAX_THRESHOLD;
-        }
-        size_t cur_idx = 0;
-        while (cur_idx < num_keys) {
-            combined_op_dispatch_key_t cur_combined_key;
-            cur_combined_key.reserve(len_key);
-            for (size_t i = 0; i < len_key; i++) {
-                size_t offset = cur_idx;
-                if (i) { offset = offset % accum_size[i - 1]; }
-                offset = offset / accum_size[i];
-                auto it = inputs[i]->get_inner_set().begin();
-                std::advance(it, offset);
-                cur_combined_key.emplace_back(*it);
+        auto dispatch_sets = get_dispatch_set_vec_from_ops(inputs);
+        internal_construct(dispatch_sets, inputs, modified_inp);
+    }
+}
+
+combined_dispatch_key_set_t::combined_dispatch_key_set_t(
+        const std::vector<dispatch_set_ptr> &dispatch_sets) {
+    if (!dispatch_sets.empty()) { internal_construct(dispatch_sets); }
+}
+
+void combined_dispatch_key_set_t::internal_construct(
+        const std::vector<dispatch_set_ptr> &dispatch_sets,
+        const std::vector<sc_op_ptr> &inputs, const sc_op_ptr &modified_inp) {
+    op_layout_link_vec_t op_link_relations;
+    auto len_key = dispatch_sets.size();
+    size_t num_keys = 1;
+    std::vector<size_t> accum_size;
+    accum_size.reserve(len_key);
+    for (size_t i = len_key; i > 0; i--) {
+        accum_size.emplace_back(num_keys);
+        num_keys = num_keys * dispatch_sets[i - 1]->size();
+    }
+    // no need to dispatch
+    if (num_keys == 0) { return; }
+    if (!inputs.empty()) {
+        op_link_relations = get_op_layout_link_relationships(
+                inputs, dispatch_sets, modified_inp);
+    }
+    std::reverse(accum_size.begin(), accum_size.end());
+    for (size_t cur_idx = 0; cur_idx < num_keys; cur_idx++) {
+        combined_op_dispatch_key_t cur_combined_key;
+        cur_combined_key.reserve(len_key);
+        for (size_t i = 0; i < len_key; i++) {
+            size_t offset = cur_idx;
+            if (i) { offset = offset % accum_size[i - 1]; }
+            offset = offset / accum_size[i];
+            auto it = dispatch_sets[i]->get_inner_set().begin();
+            std::advance(it, offset);
+            bool is_valid = true;
+            if (!op_link_relations.empty()) {
+                for (size_t j = 0; j < op_link_relations[i].size(); j++) {
+                    auto &link_pair = op_link_relations[i][j];
+                    if (link_pair.first != no_link_idx
+                            && !is_linked_layout(it->in_out_formats_[j],
+                                    cur_combined_key[link_pair.first]
+                                            .in_out_formats_
+                                                    [link_pair.second])) {
+                        is_valid = false;
+                        break;
+                    }
+                }
             }
-            set_.insert(cur_combined_key);
-            cur_idx++;
+            if (!is_valid) { break; }
+            cur_combined_key.emplace_back(*it);
         }
+        if (cur_combined_key.size() == len_key) {
+            set_.insert(cur_combined_key);
+        }
+    }
+    COMPILE_ASSERT(!set_.empty(), "Empty linked combined dispatch key set!");
+    if (set_.size() > DISPATCH_KEY_MAX_THRESHOLD) {
+        SC_MODULE_WARN << "Number of dispatch key set " << set_.size()
+                       << " has exceeded threshold "
+                       << DISPATCH_KEY_MAX_THRESHOLD;
     }
 }
 

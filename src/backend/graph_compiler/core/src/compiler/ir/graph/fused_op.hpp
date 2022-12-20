@@ -119,12 +119,11 @@ public:
     // dynamic related
     virtual const dispatch_set_ptr &get_dispatch_key_set() const override;
     virtual dispatch_set_ptr &get_dispatch_key_set() override;
-    // Return vector of dispatch key set of inner ops like tunable op/reorder
-    // op(dispatch alg). total_key_num is the pointer to number of input/output
-    // dispatch key inside(option). The return value is mainly used for combined
-    // dispatch key construction.
-    virtual std::vector<dispatch_set_ptr> get_inner_dispatch_key_sets(
-            int *total_key_num);
+    // Return vector of inner ops who has effective dispatch keys like tunable
+    // op/reorder op(dispatch alg). total_key_num is the pointer to number of
+    // input/output dispatch key inside(optional). The return value is mainly
+    // used for combined dispatch key construction.
+    virtual std::vector<sc_op_ptr> get_inner_dispatch_ops(int *total_key_num);
     void update_internal_graph_format(const combined_op_dispatch_key_t &key);
     ir_module_ptr get_dynamic_query_func(const context_ptr &ctx);
     // return the impl alg candidates vector, element is int(not enum) because

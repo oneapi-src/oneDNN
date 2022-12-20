@@ -112,9 +112,20 @@ struct dispatch_key_set_t : public dispatch_key_set_base_t {
 struct combined_dispatch_key_set_t : public dispatch_key_set_base_t {
     using inner_set_t = std::set<combined_op_dispatch_key_t,
             combined_dispatch_key_cmper_t>;
+    // modified inp is for compatibility of fused op as its internal tuanble op
+    // and fusible op are in seperate graphs.
+    combined_dispatch_key_set_t(
+            const std::vector<std::shared_ptr<sc_op>> &inputs,
+            const std::shared_ptr<sc_op> &modified_inp = nullptr);
     combined_dispatch_key_set_t(
             const std::vector<std::shared_ptr<dispatch_key_set_base_t>>
-                    &inputs);
+                    &dispatch_sets);
+    void internal_construct(
+            const std::vector<std::shared_ptr<dispatch_key_set_base_t>>
+                    &dispatch_sets,
+            const std::vector<std::shared_ptr<sc_op>> &inputs
+            = std::vector<std::shared_ptr<sc_op>>(),
+            const std::shared_ptr<sc_op> &modified_inp = nullptr);
     size_t size() const override { return set_.size(); }
     void for_each_key_process(
             const std::function<void(const op_dispatch_key_base_t *)> &callback)

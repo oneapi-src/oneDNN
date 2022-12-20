@@ -688,18 +688,19 @@ const dispatch_set_ptr &fused_op_t::get_dispatch_key_set() const {
 dispatch_set_ptr &fused_op_t::get_dispatch_key_set() {
     if (!info_.dispatch_key_set_) {
         int dummy_num;
+        sc_op_ptr modified_inp;
+        if (!main_op_.empty()) { modified_inp = mgr_->get_graph().ops_[0]; }
         info_.dispatch_key_set_ = std::make_shared<combined_dispatch_key_set_t>(
-                get_inner_dispatch_key_sets(&dummy_num));
+                get_inner_dispatch_ops(&dummy_num), modified_inp);
     }
     return info_.dispatch_key_set_;
 }
 
-std::vector<dispatch_set_ptr> fused_op_t::get_inner_dispatch_key_sets(
-        int *total_key_num) {
-    std::vector<dispatch_set_ptr> ret;
+std::vector<sc_op_ptr> fused_op_t::get_inner_dispatch_ops(int *total_key_num) {
+    std::vector<sc_op_ptr> ret;
     if (total_key_num) { *total_key_num = 0; }
     if (!main_op_.empty()) {
-        ret.emplace_back(main_op_.ops_[1]->get_dispatch_key_set());
+        ret.emplace_back(main_op_.ops_[1]);
         if (total_key_num) {
             *total_key_num
                     += static_cast<int>(main_op_.ops_[1]->get_inputs().size()
@@ -708,7 +709,7 @@ std::vector<dispatch_set_ptr> fused_op_t::get_inner_dispatch_key_sets(
     }
     for (auto &op : mgr_->get_graph().ops_) {
         if (op->isa<reorder_op_t>()) {
-            ret.emplace_back(op->get_dispatch_key_set());
+            ret.emplace_back(op);
             if (total_key_num) {
                 *total_key_num += static_cast<int>(
                         op->get_inputs().size() + op->get_outputs().size());
@@ -749,8 +750,8 @@ ir_module_ptr fused_op_t::get_dynamic_query_func(const context_ptr &ctx) {
 
     // construct combined tensors for final query.
     int total_key_num = 0;
-    int dispatch_op_num = static_cast<int>(
-            get_inner_dispatch_key_sets(&total_key_num).size());
+    int dispatch_op_num
+            = static_cast<int>(get_inner_dispatch_ops(&total_key_num).size());
     int cur_op_idx = 0, cur_key_idx = 0;
     std::vector<int> each_op_num_keys(dispatch_op_num, 0);
     auto main_table_name
@@ -1058,17 +1059,6 @@ std::vector<int> fused_op_t::get_impl_dispatch_candidates() const {
     return {};
 }
 
-static sc_op_ptr find_input_parent(const sc_op_ptr &op) {
-    auto cur_op = op.get();
-    cur_op = cur_op->get_inputs()[0]->producer_owner_;
-    while (!(cur_op->isa<tunable_op_t>() || cur_op->isa<reduce_op_t>()
-            || cur_op->isa<reorder_op_t>())) {
-        if (cur_op->isa<input_op>()) { return cur_op->shared_from_this(); }
-        cur_op = cur_op->get_inputs()[0]->producer_owner_;
-    };
-    return nullptr;
-}
-
 void fused_op_t::update_internal_graph_format(
         const combined_op_dispatch_key_t &key) {
     int key_idx = 0;
@@ -1106,10 +1096,13 @@ void fused_op_t::update_internal_graph_format(
             // update format
             op->get_inputs()[0]->details_.set_format(
                     cur_key.in_out_formats_[0]);
-            auto inp_parent = find_input_parent(op);
-            if (inp_parent && inp_parent != modified_inp) {
-                inp_parent->get_outputs()[0]->details_.set_format(
-                        cur_key.in_out_formats_[0]);
+            if (cur_key.in_out_formats_[0].is_blocking()) {
+                auto inp_parent
+                        = find_parent_dispatch_node(op->get_inputs()[0]);
+                if (inp_parent->isa<input_op>() && inp_parent != modified_inp) {
+                    inp_parent->get_outputs()[0]->details_.set_format(
+                            cur_key.in_out_formats_[0]);
+                }
             }
             // update impl alg
             op->info_.cur_impl_ = cur_key.impl_;

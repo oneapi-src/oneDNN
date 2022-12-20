@@ -18,6 +18,7 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_GRAPH_DYNAMIC_UTILS_HPP
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include <unordered_map>
 
@@ -26,7 +27,10 @@
 #include <util/def.hpp>
 namespace sc {
 class sc_op;
+struct graph_tensor;
 struct op_dispatch_key_base_t;
+struct dispatch_key_set_base_t;
+struct sc_data_format_t;
 // op tables used in ir_module
 struct op_dispatch_tables_t {
     // format table:
@@ -51,10 +55,36 @@ void initialize_format_table_with_op(
 void add_dispatch_symbol_to_kernel_table(op_dispatch_tables_ptr &tb,
         const op_dispatch_key_base_t *keys, const std::string &func_name);
 bool can_op_be_dispatched(const std::shared_ptr<sc_op> &op);
+std::vector<std::shared_ptr<dispatch_key_set_base_t>>
+get_dispatch_set_vec_from_ops(const std::vector<std::shared_ptr<sc_op>> &ops);
+
+// find the parent node who could be dispatched related to current op, parent
+// node could be tuanble op/reorder op/input op.
+std::shared_ptr<sc_op> find_parent_dispatch_node(
+        const std::shared_ptr<graph_tensor> &in);
+
+constexpr const int no_link_idx = -1;
+using op_layout_link_vec_t = std::vector<std::vector<std::pair<int, int>>>;
+// The first dim is the op index who has effective dispatch keys inside fused
+// op, the second dim is op's in/out format index, the value is linked op index
+// and linked op in/out format index pair.
+op_layout_link_vec_t get_op_layout_link_relationships(
+        const std::vector<std::shared_ptr<sc_op>> &ops,
+        const std::vector<std::shared_ptr<dispatch_key_set_base_t>>
+                &dispatch_keys,
+        const std::shared_ptr<sc_op> &modified_inp);
+// Judge whether the two input layout could be linked. The linked means the
+// graph is in the valid status of layout. For example, pattern like "reorder +
+// matmul", the output layout of reorder should be equal to the input layout of
+// matmul. And blocking factor =1 is prepared for binary elementwise op with
+// broadcast semantic. For example, MKmk(32, 16) and MKmk(1, 16) are linked,
+// while MKmk(32,16) and MKmk(1, 32) not.
+bool is_linked_layout(
+        const sc_data_format_t &layout1, const sc_data_format_t &layout2);
+
 namespace runtime {
 struct dynamic_tensor_t;
 }
-struct graph_tensor;
 SC_API runtime::dynamic_tensor_t convert_graph_tensor_to_dynamic_tensor(
         const std::shared_ptr<graph_tensor> &in, void *data_ptr = nullptr,
         sc_dim *shape_ptr = nullptr);
