@@ -153,12 +153,13 @@ expr make_select_by_mask(const expr &lhs_vec, const expr &cur_index,
 
 expr generate_mask_var_by_step(stmt &mask_def, const expr &cur_step,
         int32_t step, const expr &sup_condition) {
+    // notice: cur_step must be s32
     sc_data_type_t var_dtype;
     uint64_t init_value;
     switch (step) {
         case 4: {
             var_dtype = datatypes::u8;
-            init_value = std::numeric_limits<uint8_t>::max();
+            init_value = 15;
             break;
         }
         case 8: {

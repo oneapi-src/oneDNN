@@ -888,18 +888,22 @@ public:
         return inst;
     }
 
-    Value *convert_mask(const expr &in) {
+    Value *convert_mask(const expr &in, const bool is_int4 = false) {
+        // true means mask must have 4 bits. Otherwise, it is always false.
         auto mask = generate_expr(in);
         auto &dtype = in->dtype_;
         if (dtype.lanes_ == 1 && !dtype.is_etype(sc_data_etype::BOOLEAN)) {
             auto ty_int1 = builder_.getInt1Ty();
-            auto bit_len = utils::get_sizeof_type(dtype) * 8;
+            auto bit_len = is_int4 ? 4 : utils::get_sizeof_type(dtype) * 8;
             auto mask_ty =
 #if SC_LLVM_BACKEND > 10
                     VectorType::get(ty_int1, bit_len, false);
 #else
                     VectorType::get(ty_int1, bit_len);
 #endif
+            if (is_int4) {
+                mask = builder_.CreateTrunc(mask, builder_.getIntNTy(4));
+            }
             mask = builder_.CreateBitCast(mask, mask_ty);
         }
         return mask;
@@ -926,7 +930,15 @@ public:
             bool is_volatile = (v->ptr_->attr_
                     && v->ptr_->attr_->get_or_else("volatile", false));
             if (v->mask_.defined()) {
-                auto *mask = convert_mask(v->mask_);
+                Value *mask;
+                auto bit_len = utils::get_sizeof_type(v->mask_->dtype_) * 8;
+                if (v->dtype_.lanes_ != bit_len) {
+                    COMPILE_ASSERT(v->dtype_.lanes_ == 4,
+                            "Currently only 8bit -> 4bit is supported.");
+                    mask = convert_mask(v->mask_, true);
+                } else {
+                    mask = convert_mask(v->mask_);
+                }
                 auto znode = make_expr<constant_node>(0UL, v->dtype_);
                 auto zero = generate_expr(znode);
 #if SC_LLVM_BACKEND > 10
@@ -1591,7 +1603,17 @@ public:
         if (v->value_->dtype_.lanes_ > 1 && v->var_.isa<indexing>()) {
             // assigning to tensor
             if (v->var_.static_as<indexing>()->mask_.defined()) {
-                auto *mask = convert_mask(v->var_.static_as<indexing>()->mask_);
+                Value *mask;
+                auto v_index = v->var_.static_as<indexing>();
+                auto bit_len
+                        = utils::get_sizeof_type(v_index->mask_->dtype_) * 8;
+                if (v_index->dtype_.lanes_ != bit_len) {
+                    COMPILE_ASSERT(v_index->dtype_.lanes_ == 4,
+                            "Currently only 8bit -> 4bit is supported.");
+                    mask = convert_mask(v_index->mask_, true);
+                } else {
+                    mask = convert_mask(v_index->mask_);
+                }
 #if SC_LLVM_BACKEND > 10
                 set_alias(builder_.CreateMaskedStore(
                                   val, ptr, SC_LLVM_ALIGN(1), mask),

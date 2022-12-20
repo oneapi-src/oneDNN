@@ -1218,7 +1218,7 @@ void compute_reorder_block2stride(sc_graph_t &graph, const context_ptr &ctx,
     expr mask;
     stmt mask_def;
     if (!no_padding && can_vectorize) {
-        // mask = min(max(0, last_dim_len - last_dim_idx),
+        // mask = min(max(0, last_dim_len - last_dim_idx),step)
         // To choose [0 ~ step] mask
         auto cur_step = builder::make_min(
                 builder::make_max(builder::make_constant(0), last_axis_offset),
@@ -1376,7 +1376,7 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
         expr mask;
         stmt mask_def;
         if (!no_padding && can_vectorize) {
-            // mask = min(max(0, last_dim_len - last_dim_idx),
+            // mask = min(max(0, last_dim_len - last_dim_idx),step)
             // To choose [0 ~ step] mask
             auto cur_step = builder::make_min(
                     builder::make_max(
@@ -2196,6 +2196,26 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     return true;
 }
 
+static void vnni_mask_othercondition_offset(const bool &is_vnni_reorder,
+        const sc_dims &plain_dims, std::vector<expr> &tmp_in_indexes,
+        sc_graph_t &graph, std::vector<int> &inp_n_axis,
+        std::vector<int> &inp_k_axis, expr &last_axis_offset,
+        expr &other_axis_condition) {
+    other_axis_condition = true;
+    int last_orig_dim
+            = is_vnni_reorder ? plain_dims.size() - 1 : plain_dims.size() - 2;
+    int other_orig_dim
+            = is_vnni_reorder ? plain_dims.size() - 2 : plain_dims.size() - 1;
+    int tmp_in_last_dim = is_vnni_reorder ? inp_n_axis[0] : inp_k_axis[0];
+    int tmp_in_other_dim = is_vnni_reorder ? inp_k_axis[0] : inp_n_axis[0];
+
+    last_axis_offset = cast_to_s32(graph.dim_to_expr(plain_dims[last_orig_dim])
+            - tmp_in_indexes[tmp_in_last_dim]);
+    other_axis_condition = other_axis_condition
+            && tmp_in_indexes[tmp_in_other_dim]
+                    < graph.dim_to_expr(plain_dims[other_orig_dim]);
+}
+
 static void do_vnni_reorder_avx512f(std::vector<stmt_c> &cur_list,
         std::vector<expr> &rows, sc_data_type_t &rows_dtype) {
     // reorder on a kernel of 4x16(u8/s8) or 4x8(bf16)
@@ -2267,7 +2287,7 @@ static void do_vnni_reorder_avx512f(std::vector<stmt_c> &cur_list,
 
 static void do_vnni_reorder(std::vector<stmt_c> &cur_list,
         std::vector<expr> &rows, sc_data_type_t &rows_dtype,
-        const bool &is_vnni_reorder) {
+        const bool is_vnni_reorder) {
     bool is_bf16 = rows_dtype.type_code_ == sc_data_etype::BF16;
     // reorder on a kernel of 4x16(u8/s8) or 4x8(bf16)
     // registers to perform reorder, should reinterpret data to f32 due to
@@ -2541,7 +2561,8 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                 last_axis_offset, other_axis_condition);
         std::vector<expr> in_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, input_format);
-
+        expr cur_step_var;
+        stmt cur_step_var_assign;
         // load data to register
         for (int i = 0; i < step; i++) {
             auto tmp_in_indexes = in_indexes;
@@ -2552,13 +2573,42 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                 tmp_in_indexes[inp_k_axis[0]] = tmp_in_indexes[inp_k_axis[0]]
                         + static_cast<uint64_t>(i);
             }
-
+            expr mask;
+            stmt mask_def;
+            int real_step = is_bf16 ? 8 : 16;
+            if (is_padding) {
+                vnni_mask_othercondition_offset(is_vnni_reorder, plain_dims,
+                        tmp_in_indexes, graph, inp_n_axis, inp_k_axis,
+                        last_axis_offset, other_axis_condition);
+                // The cur_step corresponding to each step is the same,
+                // so we only need to count the first time and others
+                // can be reused.
+                if (i == 0) {
+                    // mask = min(max(0, last_dim_len -
+                    // last_dim_idx),real_step) To choose [0 ~
+                    // step] mask
+                    auto cur_step = builder::make_min(
+                            builder::make_max(builder::make_constant(0),
+                                    last_axis_offset),
+                            real_step);
+                    cur_step_var = builder::make_var(
+                            sc_data_type_t::s32(1), "cur_step_var");
+                    cur_step_var_assign
+                            = builder::make_var_tensor_def_unattached(
+                                    cur_step_var, linkage::local, cur_step);
+                    cur_list.emplace_back(cur_step_var_assign);
+                }
+                // mask = other_dims_condition ? mask : 0;
+                mask = generate_mask_var_by_step(mask_def, cur_step_var,
+                        real_step, other_axis_condition);
+                cur_list.emplace_back(mask_def);
+            }
             auto assign = builder::make_assign_unattached(rows[i],
                     // here, use src.tptr instead of input is aimed to
                     // avoid input is tensor_view_op. Otherwise, it will
                     // throw illegal exception in tensor_shrink
                     builder::make_indexing(
-                            src.tptr_, tmp_in_indexes, is_bf16 ? 8 : 16));
+                            src.tptr_, tmp_in_indexes, is_bf16 ? 8 : 16, mask));
             assign->attr()[op_traits::workload_computable_t::workload_number]
                     = wkld;
             cur_list.emplace_back(assign);
@@ -2570,7 +2620,6 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         } else {
             do_vnni_reorder_avx512f(cur_list, rows, rows_dtype);
         }
-
         // store data from register
         for (int i = 0; i < step; i++) {
             auto tmp_out_indexes = out_indexes;
@@ -2611,127 +2660,6 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             cur_list.emplace_back(assign);
         }
         stmt cur = builder::make_stmts_unattached(cur_list);
-
-        // padding case
-        if (is_padding) {
-            // create iter variable and output index for padding case
-            for (size_t i = 0; i < output_blocking_dims_expr.size(); i++) {
-                out_indexes_2.emplace_back(iter_vars[i] + dst.get_offset()[i]);
-                if (!is_vnni_reorder) { // vnni transpose
-                    if (static_cast<int>(i) == out_n_axis[1]
-                            || static_cast<int>(i) == out_k_axis[1]
-                            || static_cast<int>(i) == out_k_axis[2]) {
-                        iter_vars_2.emplace_back(
-                                builder::make_var(datatypes::index,
-                                        std::string("_fuseiter")
-                                                + fusion_create_idx()));
-                        out_indexes_2.back()
-                                = out_indexes_2.back() + iter_vars_2.back();
-                    }
-                } else { // vnni reorder
-                    if (static_cast<int>(i) == out_n_axis[1]
-                            || static_cast<int>(i) == out_k_axis[2]
-                            || (static_cast<int>(i) == out_k_axis[1]
-                                    && is_bf16)) {
-                        iter_vars_2.emplace_back(
-                                builder::make_var(datatypes::index,
-                                        std::string("_fuseiter")
-                                                + fusion_create_idx()));
-                        out_indexes_2.back()
-                                = out_indexes_2.back() + iter_vars_2.back();
-                    }
-                }
-            }
-
-            std::vector<stmt_c> cur_list_pad;
-            // build padding if else case
-            {
-                expr cond = true;
-                expr last_axis_offset, other_axis_condition;
-                auto padding = builder::make_stmts_unattached(
-                        {builder::make_assign_unattached(
-                                builder::make_indexing(
-                                        output, out_indexes_2, 1),
-                                builder::make_constant({0UL},
-                                        sc_data_type_t(dtype.type_code_, 1)))});
-                std::vector<expr> tmp_in_indexes_2
-                        = get_reorder_block2plain_indexes(graph, out_indexes_2,
-                                output_format, plain_dims, cond,
-                                last_axis_offset, other_axis_condition);
-                std::vector<expr> in_indexes_2
-                        = get_reorder_stride2stride_indexes(tmp_in_indexes_2,
-                                input_format.to_plain(), input_format,
-                                plain_dims);
-                auto assign_tail = builder::make_stmts_unattached(
-                        {builder::make_assign_unattached(
-                                builder::make_indexing(
-                                        output, out_indexes_2, 1),
-                                builder::make_indexing(
-                                        input, in_indexes_2, 1))});
-                auto cur = builder::make_if_else_unattached(
-                        cond, assign_tail, padding);
-                cur_list_pad.emplace_back(cur);
-            }
-            stmt pad_cur = builder::make_stmts_unattached(cur_list_pad);
-
-            // build padding for loop
-            for (auto iter_v = 0UL; iter_v < iter_vars_2.size(); iter_v++) {
-                auto iter_end = output_blocking_dims_expr
-                        [output_blocking_dims_expr.size() - iter_v - 1];
-                if (!is_vnni_reorder) { // NK->NKkn2k
-                    if (iter_v == 2 || iter_v == 1) {
-                        iter_end = 4;
-                    } else if (iter_v == 0) {
-                        iter_end = is_bf16 ? 2 : 4;
-                    }
-                } else { // KN->NKkn2k
-                    if (iter_v == 1) {
-                        iter_end = is_bf16 ? 8 : 16;
-                    } else if ((is_bf16 && iter_v == 0) || iter_v == 2) {
-                        iter_end = is_bf16 ? 2 : 4;
-                    }
-                }
-                pad_cur = make_stmt<for_loop_node_t>(
-                        std::move(iter_vars_2.at(
-                                iter_vars_2.size() - 1 - iter_v)),
-                        expr(0), iter_end, expr(static_cast<int>(1)),
-                        std::move(pad_cur), true, for_type::NORMAL);
-                pad_cur = builder::make_stmts_unattached({pad_cur});
-            }
-
-            // calculate vnni condition
-            vnni_condition = true;
-            for (int i = static_cast<int>(output_blocking_dims_expr.size()) - 1;
-                    i >= 0; i--) {
-                auto temp_cond = (iter_vars.at(i) + dst.get_offset()[i]
-                        < dst.get_shape()[i]);
-                if (!is_vnni_reorder) { // vnni transpose
-                    if (i == out_n_axis[1] || i == out_k_axis[1]) {
-                        temp_cond = (iter_vars.at(i) + dst.get_offset()[i] + 4
-                                            - 1)
-                                < dst.get_shape()[i];
-                    } else if (i == out_k_axis[2]) {
-                        temp_cond = (iter_vars.at(i) + dst.get_offset()[i]
-                                            + (is_bf16 ? 2 : 4) - 1)
-                                < dst.get_shape()[i];
-                    }
-                } else { // vnni reorder
-                    if (i == out_n_axis[1]) {
-                        temp_cond = (iter_vars.at(i) + dst.get_offset()[i]
-                                            + (is_bf16 ? 8 : 16) - 1)
-                                < dst.get_shape()[i];
-                    } else if ((is_bf16 && i == out_k_axis[1])
-                            || i == out_k_axis[2]) {
-                        temp_cond = (iter_vars.at(i) + dst.get_offset()[i]
-                                            + (is_bf16 ? 2 : 4) - 1)
-                                < dst.get_shape()[i];
-                    }
-                }
-                vnni_condition = vnni_condition && temp_cond;
-            }
-            cur = builder::make_if_else_unattached(
-                    vnni_condition, cur, pad_cur);
-        }
         stmt body;
 
         expr iter_end;

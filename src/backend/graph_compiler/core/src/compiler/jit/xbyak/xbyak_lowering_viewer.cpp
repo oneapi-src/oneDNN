@@ -955,7 +955,8 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
         handle_x86_mov(op_out, op_in);
     } else if (out_dtype == datatypes::generic && in_dtype == datatypes::s32) {
         handle_x86_mov(op_out, op_in);
-    } else if (out_dtype == datatypes::u32 && in_dtype == datatypes::index) {
+    } else if ((out_dtype == datatypes::u32 || out_dtype == datatypes::u16)
+            && in_dtype == datatypes::index) {
         handle_x86_mov(op_out, op_in);
     } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::u32)
             && (in_dtype == datatypes::u32 || in_dtype == datatypes::s32)) {
@@ -968,7 +969,8 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
         XBYAK_GEN(movzx, X86_R_RM, op_out, op_in); // zero extension
     } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::s8) {
         XBYAK_GEN(movsx, X86_R_RM, op_out, op_in); // sign extension
-    } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::u8) {
+    } else if ((out_dtype == datatypes::s32 || out_dtype == datatypes::index)
+            && in_dtype == datatypes::u8) {
         XBYAK_GEN(movzx, X86_R_RM, op_out, op_in); // zero extension
     } else if (out_dtype == datatypes::f32 && in_dtype == datatypes::generic) {
         XBYAK_GEN(vmovd, AVX_XMR32_XMR32, op_out, op_in);
@@ -996,7 +998,8 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
         COMPILE_ASSERT(profile_.target_machine_.cpu_flags_.fAVX512BF16,
                 "Need AVX512_BF16 support.");
         XBYAK_GEN(vcvtneps2bf16, AVX_X_XM, op_out, op_in);
-    } else if (out_dtype == sc_data_type_t::boolean(8)
+    } else if ((out_dtype == sc_data_type_t::boolean(8)
+                       || out_dtype == sc_data_type_t::boolean(4))
             && scalar_bit(in_dtype) >= 8) {
         XBYAK_GEN(kmovb, AVX_KMR32_KMR32, op_out, op_in);
     } else if (out_dtype == sc_data_type_t::boolean(16)
@@ -1906,11 +1909,13 @@ void xbyak_lowering_viewer::handle_avx_mask_mov(const operand &op_dst,
         } break;
         case cpu_data_type::uint_32_x8:
         case cpu_data_type::uint_32_x16:
+        case cpu_data_type::sint_32_x4:
         case cpu_data_type::sint_32_x8:
         case cpu_data_type::sint_32_x16: {
             XBYAK_GEN(vmovdqu32, AVX_XM_XM, //
                     op_dst.set_evex(op_cond, zero), op_src);
         } break;
+        case cpu_data_type::float_32_x4:
         case cpu_data_type::float_32_x8:
         case cpu_data_type::float_32_x16: {
             XBYAK_GEN(vmovups, AVX_XM_XM, //
