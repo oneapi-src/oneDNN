@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Arm Ltd. and affiliates
+* Copyright 2021-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ struct acl_matmul_t : public primitive_t {
                               weights_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(data_type::f16);
             bool ok = utils::one_of(true, is_fp32_ok, is_fp16_ok)
-                    && !has_zero_dim_memory()
+                    && !has_zero_dim_memory() && set_default_formats()
                     && attr()->has_default_values(
                             smask_t::oscale | smask_t::post_ops)
                     && attr_oscale_ok() && !has_runtime_dims_or_strides();
