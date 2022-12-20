@@ -251,6 +251,11 @@ public:
     // attach to the input tensors when it is needed
     void replace_uses_with_and_remove(const sc_op_ptr &replacer);
 
+    /**
+     * Checks whether any output tensor of this op is the output of the graph.
+     */
+    bool has_graph_output() const;
+
     // the op is single output and the output is single used
     bool is_single_output_single_use();
 

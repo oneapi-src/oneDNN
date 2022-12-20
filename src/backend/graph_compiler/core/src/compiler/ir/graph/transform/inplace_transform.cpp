@@ -23,15 +23,11 @@ void tensor_view_to_copy(sc_graph_t &graph) {
     std::vector<size_t> idxes = {};
     for (size_t i = 0; i < graph.ops_.size(); i++) {
         auto &op = graph.ops_[i];
-        if (op->isa<tensor_view_op_t>()) {
-            // input_op - tensor_view - output_op
-            if (op->get_inputs()[0]->producer_owner_->isa<input_op>()
-                    && op->get_outputs()[0]->uses_.size() == 1
-                    && op->get_outputs()[0]
-                               ->uses_[0]
-                               .second->isa<output_op>()) {
-                idxes.push_back(i);
-            }
+        // input_op - tensor_view - output_op
+        if (op->isa<tensor_view_op_t>()
+                && op->get_inputs()[0]->producer_owner_->isa<input_op>()
+                && op->has_graph_output()) {
+            idxes.push_back(i);
         }
     }
     for (auto &idx : idxes) {

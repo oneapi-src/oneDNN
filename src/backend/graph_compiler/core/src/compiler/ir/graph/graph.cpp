@@ -393,6 +393,15 @@ void sc_op::replace_uses_with_and_remove(const sc_op_ptr &replacer) {
     remove();
 }
 
+bool sc_op::has_graph_output() const {
+    for (const auto &output : info_.outputs_) {
+        for (const auto &use_node : output->uses_) {
+            if (use_node.second->isa<output_op>()) { return true; }
+        }
+    }
+    return false;
+}
+
 bool sc_op::is_single_output_single_use() {
     return info_.outputs_.size() == 1 && info_.outputs_[0]->uses_.size() == 1;
 }
