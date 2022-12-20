@@ -970,7 +970,10 @@ dnnl_primitive_attr_t create_dnnl_attr(
                 int wei_mask = attr_t::get_default_mask(
                         wei_policy, DNNL_ARG_WEIGHTS);
                 // dw conv always has group dim
-                if (wei_mask) wei_mask = 1 << wei_mask;
+                if (wei_mask > 0) {
+                    assert(wei_mask == 1);
+                    wei_mask = 3;
+                }
                 if (e.convolution.wei_scale.runtime)
                     DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(dnnl_attr,
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
