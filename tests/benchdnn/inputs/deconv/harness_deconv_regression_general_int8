@@ -17,3 +17,6 @@
 
 #grouped deconv oc_tail with zero-point
 --reset --cfg=u8s8s32 --attr-zero-points=dst:common:15*+src:common:31* g1ic15iw5oc3ow5kw3pw1n"groups_1d_deconv_zp"
+
+#strided 1x1 with negative (right) padding
+--reset --cfg=u8s8f32 ic16id5oc16od9kd1sd2pd0n"deconv_strided_1x1_negative_padding"
