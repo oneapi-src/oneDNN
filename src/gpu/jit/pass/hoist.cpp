@@ -143,7 +143,7 @@ private:
         std::vector<stmt_t> lets;
     };
 
-    bool can_hoist(const expr_t &expr) {
+    bool can_hoist(const expr_t &expr) const {
         return expr.type().size() <= max_hoist_size_ - current_hoist_size_;
     }
 
@@ -259,6 +259,8 @@ private:
     bool is_invariant(const expr_t &e, const expr_t &var) const {
         if (contains_object(e, var)) return false;
         if (!find_objects<load_t>(e).empty()) return false;
+        if (e.is_empty()) return true;
+        if (!can_hoist(e)) return false;
 
         // Check value if this is a let variable.
         auto it = let_vars_.find(e);
