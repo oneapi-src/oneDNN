@@ -108,6 +108,34 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
         }
 
         const memory_desc_t *arg_md(int index = 0) const override {
+            // Binary post-op:
+            // format_tag::any should be supported here since output dst_md
+            // may be different from the intermediate one and they should be
+            // initialized and queried separately.
+            if (index >= DNNL_ARG_ATTR_MULTIPLE_POST_OP(0)
+                    && index < DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                               post_ops_t::post_ops_limit)) {
+                const auto &po = attr()->post_ops_;
+                auto dw_idx = po.find(primitive_kind::convolution);
+                for (int idx = 0; idx < po.len(); ++idx) {
+                    if (index
+                            != (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                    | DNNL_ARG_SRC_1))
+                        continue;
+
+                    if (dw_idx > idx)
+                        return &op_pds_.front()
+                                        ->attr()
+                                        ->post_ops_.entry_[idx]
+                                        .binary.src1_desc;
+                    else
+                        return &op_pds_.back()
+                                        ->attr()
+                                        ->post_ops_.entry_[idx - (dw_idx + 1)]
+                                        .binary.src1_desc;
+                }
+            }
+
             switch (index) { // for now
                 case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS:
                     return op_pds_.back()->weights_md(0);
@@ -221,6 +249,8 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 arg_cache.append_ctx_arg(DNNL_ARG_BIAS);
             arg_cache.append_inout_arg(DNNL_ARG_DST, inout_sp_offset_end,
                     root_pd->dst_md(), false);
+            // Initialize binary post_op.
+            CHECK(attr_1x1.set_default_formats(root_pd->dst_md()));
             for (int idx = 0; idx < attr_1x1.post_ops_.len(); ++idx) {
                 if (attr_1x1.post_ops_.contain(primitive_kind::binary, idx))
                     arg_cache.append_ctx_arg(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
@@ -291,6 +321,8 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 if (op->weights_md(1)->data_type != data_type::undef)
                     arg_cache.append_ctx_arg(DNNL_ARG_BIAS,
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+                // Initialize binary post_op.
+                CHECK(attr_dw.set_default_formats(op->dst_md()));
                 for (int idx = 0; idx < attr_dw.post_ops_.len(); ++idx) {
                     if (attr_dw.post_ops_.contain(primitive_kind::binary, idx))
                         arg_cache.append_ctx_arg(
