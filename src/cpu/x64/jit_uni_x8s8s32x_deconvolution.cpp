@@ -811,6 +811,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::kh_loop(int ur_w,
         mov(reg_ki_, ptr[param1_ + GET_OFF(kd_padding)]);
 
         if ((signed_input_or_src_zp) || (jcp_.dilate_d >= jcp_.id)
+                || (jcp_.kd < jcp_.stride_d)
                 || ((!signed_input_or_src_zp)
                         && ((min(jcp_.f_pad, jcp_.back_pad) < 0)
                                 || ((jcp_.kd - 1) * (jcp_.dilate_d + 1)
@@ -848,6 +849,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::kh_loop(int ur_w,
     mov(reg_kh_, ptr[param1_ + GET_OFF(kh_padding)]);
 
     if ((signed_input_or_src_zp) || (jcp_.dilate_h >= jcp_.ih)
+            || (jcp_.kh < jcp_.stride_h)
             || ((!signed_input_or_src_zp)
                     && ((min(jcp_.t_pad, jcp_.b_pad) < 0)
                             || ((jcp_.kh - 1) * (jcp_.dilate_h + 1)
