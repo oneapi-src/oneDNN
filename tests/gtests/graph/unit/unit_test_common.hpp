@@ -63,6 +63,8 @@ class TestAllocator {
 public:
     typedef T value_type;
 
+    TestAllocator() noexcept = default;
+
     T *allocate(size_t num_elements) {
         namespace graph = dnnl::impl::graph;
         if (get_test_engine_kind() == graph::engine_kind::cpu) {
@@ -108,6 +110,19 @@ public:
         }
     }
 
+    template <class U>
+    TestAllocator(const TestAllocator<U> &) noexcept {}
+
+    template <class U>
+    bool operator==(const TestAllocator<U> &rhs) noexcept {
+        return true;
+    }
+
+    template <class U>
+    bool operator!=(const TestAllocator<U> &rhs) noexcept {
+        return !this->operator==(rhs);
+    }
+
     template <typename U>
     struct rebind {
         using other = TestAllocator<U>;
@@ -122,16 +137,6 @@ private:
     ::sycl::context ctx_;
 #endif
 };
-
-template <class T, class U>
-bool operator==(const TestAllocator<T> &, const TestAllocator<U> &) {
-    return true;
-}
-
-template <class T, class U>
-bool operator!=(const TestAllocator<T> &, const TestAllocator<U> &) {
-    return false;
-}
 
 template <typename T>
 #ifdef DNNL_WITH_SYCL
