@@ -57,7 +57,7 @@ struct cudnn_matmul_t : public primitive_t {
             bool ok = blocking_ok()
                     && attr()->has_default_values(
                             smask_t::oscale_runtime | smask_t::post_ops)
-                    && attr_oscale_ok() && attr_post_ops_ok()
+                    && attr_oscale_ok() && attr_post_ops_ok(attr())
                     && set_default_formats()
                     && (f32_case || f16_case || s8_case)
                     && IMPLICATION(with_bias(),
@@ -88,26 +88,6 @@ struct cudnn_matmul_t : public primitive_t {
         bool attr_oscale_ok() const {
             const auto &oscale = attr()->output_scales_;
             return oscale.mask_ == 0;
-        }
-
-        bool attr_post_ops_ok() const {
-            using namespace primitive_kind;
-            const auto &p = attr()->post_ops_;
-            const int eltwise_idx = p.find(eltwise);
-            if (eltwise_idx != -1) {
-                using namespace alg_kind;
-                const bool ok = utils::one_of(p.entry_[eltwise_idx].eltwise.alg,
-                        eltwise_relu, eltwise_tanh, eltwise_elu,
-                        eltwise_logistic);
-                if (!ok) return false;
-            }
-
-            switch (p.len()) {
-                case 0: return true;
-                case 1: return p.contain(sum, 0) || p.contain(eltwise, 0);
-                case 2: return p.contain(sum, 0) && p.contain(eltwise, 1);
-                default: return false;
-            }
         }
 
         bool blocking_ok() const {

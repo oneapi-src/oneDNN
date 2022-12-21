@@ -25,7 +25,9 @@
 
 #include "dnnl_sycl.hpp"
 
+#include "common/c_types_map.hpp"
 #include "common/engine.hpp"
+#include "common/primitive_attr.hpp"
 #include "common/z_magic.hpp"
 
 #include "sycl/sycl_utils.hpp"
@@ -532,6 +534,8 @@ static status_t create_and_set_conv_descriptor(
 
     return status::success;
 }
+
+bool attr_post_ops_ok(const primitive_attr_t *attr);
 
 } // namespace nvidia
 } // namespace gpu

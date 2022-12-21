@@ -54,7 +54,7 @@ struct cudnn_convolution_fwd_t : public primitive_t {
             bool ok = utils::one_of(desc()->prop_kind,
                     prop_kind::forward_training, prop_kind::forward_inference);
             ok = ok && attr()->has_default_values(attr_skip_mask);
-            ok = ok && post_ops_ok(attr());
+            ok = ok && attr_post_ops_ok(attr());
             ok = ok
                     && (utils::everyone_is(f32, src_md_.data_type,
                                 weights_md_.data_type, dst_md_.data_type)
@@ -122,26 +122,6 @@ struct cudnn_convolution_fwd_t : public primitive_t {
                         : utils::pick(ndims() - 3, oiw, oihw, oidhw);
                 return set_default_formats_common(dat_tag, wei_tag, dat_tag);
             }
-        }
-
-        bool post_ops_ok(const primitive_attr_t *attr) const {
-            const auto &p = attr->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
-            auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false); };
-
-            switch (p.len()) {
-                case 0: return true; // no post_ops
-                case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-                case 2:
-                    if (src_md_.data_type == dnnl_s8 && is_eltwise(0)
-                            && is_sum(1))
-                        return true;
-                    return (is_sum(0) && is_eltwise(1));
-                default: return false;
-            }
-
-            return false;
         }
 
         bool check_s8_configuration() const {

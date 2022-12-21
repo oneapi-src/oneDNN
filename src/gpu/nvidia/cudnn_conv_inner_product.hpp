@@ -79,7 +79,7 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                     && blocking_ok(with_eltwise(), use_fused_path_for_blocking)
                     && IMPLICATION(with_bias(), memory_format_ok(weights_md(1)))
                     && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_ok(attr())
+                    && attr_post_ops_ok(attr())
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             utils::one_of(src_md_.data_type, s8)
                                     && attr()->output_scales_.mask_ == 0);
@@ -92,22 +92,6 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             auto st = inner_product_impl_->init(engine, this, with_relu(),
                     with_eltwise(), with_sum(), use_fused_path_for_blocking);
             return st;
-        }
-        bool post_ops_ok(const primitive_attr_t *attr) const {
-            const auto &p = attr->post_ops_;
-
-            auto is_eltwise
-                    = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
-            auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false); };
-
-            switch (p.len()) {
-                case 0: return true; // no post_ops
-                case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-                case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-                default: return false;
-            }
-
-            return false;
         }
         bool with_eltwise() const {
             return attr()->post_ops_.find(primitive_kind::eltwise) != -1;

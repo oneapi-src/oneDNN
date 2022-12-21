@@ -172,16 +172,14 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             using namespace prop_kind;
             using namespace data_type;
 
-            assert(engine->kind() == engine_kind::gpu);
-            bool ok = true && is_fwd()
-                    && (set_default_params() == status::success);
+            bool ok = is_fwd() && (set_default_params() == status::success);
             if (!ok) return status::unimplemented;
             if (has_zero_dim_memory()) return status::success;
             bool gemm_compatible
                     = gemm_consitency_check(src_md(), weights_md(), dst_md());
-            bool need_reorder = (gemm_compatible
-                            ? false
-                            : reorder_check(src_md(), weights_md(), dst_md()));
+            bool need_reorder = IMPLICATION(!gemm_compatible,
+                    reorder_check(src_md(), weights_md(), dst_md()));
+
             using sm_t = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = sm_t::oscale_runtime | sm_t::post_ops;
 
@@ -202,7 +200,7 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                             utils::one_of(src_md_.data_type, s8)
                                     && attr()->output_scales_.mask_ == 0)
                     && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_ok(attr())
+                    && attr_post_ops_ok(attr())
                     && dense_check(src_md(), weights_md(), dst_md())
                     && (gemm_compatible || need_reorder);
             if (!ok) return status::unimplemented;
@@ -211,23 +209,6 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                     new cudnn_gemm_inner_product_fwd_impl_t());
             return inner_product_impl_->init(engine, this, with_eltwise,
                     with_eltwise, with_sum, need_reorder);
-        }
-
-        bool post_ops_ok(const primitive_attr_t *attr) const {
-            const auto &p = attr->post_ops_;
-
-            auto is_eltwise
-                    = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
-            auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false); };
-
-            switch (p.len()) {
-                case 0: return true; // no post_ops
-                case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-                case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-                default: return false;
-            }
-
-            return false;
         }
 
         status_t set_default_params() {
