@@ -69,8 +69,8 @@ public:
         return cuda_gpu_engine_impl_list_t::get_sum_implementation_list();
     }
 
-    void activate_stream_cudnn(stream_t *stream);
-    void activate_stream_cublas(stream_t *stream);
+    void activate_stream_cudnn(CUstream cuda_stream);
+    void activate_stream_cublas(CUstream cuda_stream);
 
     const impl_list_item_t *get_implementation_list(
             const op_desc_t *) const override;

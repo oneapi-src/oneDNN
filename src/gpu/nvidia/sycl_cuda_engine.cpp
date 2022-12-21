@@ -153,29 +153,23 @@ device_id_t sycl_cuda_engine_t::device_id() const {
             static_cast<uint64_t>(0));
 }
 
-void sycl_cuda_engine_t::activate_stream_cublas(stream_t *stream) {
+void sycl_cuda_engine_t::activate_stream_cublas(CUstream cuda_stream) {
     cuda_sycl_scoped_context_handler_t sc(*this);
-    auto cuda_stream = utils::downcast<sycl_cuda_stream_t *>(stream);
-    auto streamId = cuda_stream->get_underlying_stream();
-    assert(context() == cuda_stream->queue().get_context());
     cudaStream_t current_stream_id = nullptr;
     auto cublas_handle = get_cublas_handle();
     CUBLAS_EXECUTE_FUNC(cublasGetStream, *cublas_handle, &current_stream_id);
-    if (current_stream_id != streamId) {
-        CUBLAS_EXECUTE_FUNC(cublasSetStream, *cublas_handle, streamId);
+    if (current_stream_id != cuda_stream) {
+        CUBLAS_EXECUTE_FUNC(cublasSetStream, *cublas_handle, cuda_stream);
     }
 }
 
-void sycl_cuda_engine_t::activate_stream_cudnn(stream_t *stream) {
+void sycl_cuda_engine_t::activate_stream_cudnn(CUstream cuda_stream) {
     cuda_sycl_scoped_context_handler_t sc(*this);
-    auto cuda_stream = utils::downcast<sycl_cuda_stream_t *>(stream);
-    auto streamId = cuda_stream->get_underlying_stream();
-    assert(context() == cuda_stream->queue().get_context());
     cudaStream_t current_stream_id = nullptr;
     auto cudnn_handle = get_cudnn_handle();
     CUDNN_EXECUTE_FUNC(cudnnGetStream, *cudnn_handle, &current_stream_id);
-    if (current_stream_id != streamId) {
-        CUDNN_EXECUTE_FUNC(cudnnSetStream, *cudnn_handle, streamId);
+    if (current_stream_id != cuda_stream) {
+        CUDNN_EXECUTE_FUNC(cudnnSetStream, *cudnn_handle, cuda_stream);
     }
 }
 

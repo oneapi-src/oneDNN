@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,15 +25,19 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-cublasHandle_t &sycl_cuda_stream_t::get_cublas_handle() {
+cublasHandle_t &sycl_cuda_stream_t::get_cublas_handle(CUstream cuda_stream) {
+    if (!cuda_stream) cuda_stream = get_underlying_stream();
     auto e = utils::downcast<sycl_cuda_engine_t *>(engine());
-    e->activate_stream_cublas(this);
+    assert(e->context() == queue().get_context());
+    e->activate_stream_cublas(cuda_stream);
     return *(e->get_cublas_handle());
 }
 
-cudnnHandle_t &sycl_cuda_stream_t::get_cudnn_handle() {
+cudnnHandle_t &sycl_cuda_stream_t::get_cudnn_handle(CUstream cuda_stream) {
+    if (!cuda_stream) cuda_stream = get_underlying_stream();
     auto e = utils::downcast<sycl_cuda_engine_t *>(engine());
-    e->activate_stream_cudnn(this);
+    assert(e->context() == queue().get_context());
+    e->activate_stream_cudnn(cuda_stream);
     return *(e->get_cudnn_handle());
 }
 // the sycl_cuda_stream_t will not own this. it is an observer pointer

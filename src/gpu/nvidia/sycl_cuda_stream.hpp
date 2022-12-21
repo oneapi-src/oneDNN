@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,8 +33,8 @@ namespace nvidia {
 class sycl_cuda_stream_t : public dnnl::impl::sycl::sycl_stream_t {
 public:
     using base_t = dnnl::impl::sycl::sycl_stream_t;
-    cublasHandle_t &get_cublas_handle();
-    cudnnHandle_t &get_cudnn_handle();
+    cublasHandle_t &get_cublas_handle(CUstream cuda_stream = nullptr);
+    cudnnHandle_t &get_cudnn_handle(CUstream cuda_stream = nullptr);
 
     static status_t create_stream(
             stream_t **stream, engine_t *engine, unsigned flags) {

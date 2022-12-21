@@ -50,8 +50,13 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
-            auto cudnn_handle = cuda_stream->get_cudnn_handle();
-            auto cublas_handle = cuda_stream->get_cublas_handle();
+            // SYCL out-of-order queue encapsulates multiple CUstream objects.
+            // Every query of the CUstream object can return any of those
+            // therefore we need to make sure that we activate both cuDNN and
+            // cuBLAS handles for the same CUstream object.
+            auto native_stream = cuda_stream->get_underlying_stream();
+            auto cublas_handle = cuda_stream->get_cublas_handle(native_stream);
+            auto cudnn_handle = cuda_stream->get_cudnn_handle(native_stream);
 
             std::vector<void *> args;
 
@@ -88,8 +93,13 @@ status_t cudnn_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
-            auto cudnn_handle = cuda_stream->get_cudnn_handle();
-            auto cublas_handle = cuda_stream->get_cublas_handle();
+            // SYCL out-of-order queue encapsulates multiple CUstream objects.
+            // Every query of the CUstream object can return any of those
+            // therefore we need to make sure that we activate both cuDNN and
+            // cuBLAS handles for the same CUstream object.
+            auto native_stream = cuda_stream->get_underlying_stream();
+            auto cublas_handle = cuda_stream->get_cublas_handle(native_stream);
+            auto cudnn_handle = cuda_stream->get_cudnn_handle(native_stream);
 
             std::vector<void *> args;
 
@@ -144,8 +154,13 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
-            auto cudnn_handle = cuda_stream->get_cudnn_handle();
-            auto cublas_handle = cuda_stream->get_cublas_handle();
+            // SYCL out-of-order queue encapsulates multiple CUstream objects.
+            // Every query of the CUstream object can return any of those
+            // therefore we need to make sure that we activate both cuDNN and
+            // cuBLAS handles for the same CUstream object.
+            auto native_stream = cuda_stream->get_underlying_stream();
+            auto cublas_handle = cuda_stream->get_cublas_handle(native_stream);
+            auto cudnn_handle = cuda_stream->get_cudnn_handle(native_stream);
             std::vector<void *> args;
 
             args.push_back(arg_src.get_native_pointer(ih));
