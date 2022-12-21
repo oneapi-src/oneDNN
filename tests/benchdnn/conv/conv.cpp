@@ -323,8 +323,9 @@ int fill_dst(
     // Change mem dt to sum dt, so we can save sum data properly.
     if (diff_sum_dst_types) { mem_dt.set_dt(sum_dt); }
 
-    fill_dst_with_params(prb, mem_dt, mem_fp, sum_dt, c.f_sparsity, f_min,
-            f_max, c.f_base, c.f_step, res);
+    SAFE(fill_dst_with_params(prb, mem_dt, mem_fp, sum_dt, c.f_sparsity, f_min,
+                 f_max, c.f_base, c.f_step, res),
+            WARN);
 
     // Return dst data type back.
     if (diff_sum_dst_types) { mem_dt.set_dt(dst_dt); }
