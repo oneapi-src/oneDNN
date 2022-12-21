@@ -32,25 +32,32 @@ SC_DECL_PASS_INFO(tensor_shrinker, SC_PASS_DEPENDS_ON(interface_generalizer),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
+static bool should_shrink(const expr &e) {
+    return e->attr_ && e->attr_->has_key(tensor_shrinker_attrs::should_shrink);
+}
+
 // check tensor node attr
 static bool is_tensor_and_should_shrink(const expr &e) {
-    return e.isa<tensor>()
-            && e->attr().has_key(tensor_shrinker_attrs::should_shrink);
+    return e.isa<tensor>() && should_shrink(e);
 }
+
 // check tensorptr node attr
 static bool is_tensorptr_and_should_shrink(const expr &e) {
-    return e.isa<tensorptr>() && e.static_as<tensorptr>()->base_.defined()
-            && e.static_as<tensorptr>()->base_->ptr_.isa<tensor>()
-            && is_tensor_and_should_shrink(
-                    e.static_as<tensorptr>()->base_->ptr_.static_as<tensor>());
+    return e.cast<tensorptr>()
+            .map([](const tensorptr &v) { return v->base_; })
+            .map([](const indexing &v) { return v->ptr_.as<tensor>(); })
+            .filter(should_shrink)
+            .has_value();
 }
 static bool is_reshaped_and_should_shrink(const expr &e) {
-    return e.isa<tensorptr>() && !e.static_as<tensorptr>()->is_slice_
-            && e.static_as<tensorptr>()->base_.defined()
-            && e.static_as<tensorptr>()->base_->ptr_.isa<tensor>()
-            && e->attr().has_key(tensor_shrinker_attrs::should_shrink)
-            && e.static_as<tensorptr>()->base_->ptr_->attr().has_key(
-                    tensor_shrinker_attrs::should_shrink);
+    return e.cast<tensorptr>()
+            .filter([](const tensorptr &v) {
+                return !v->is_slice_ && should_shrink(v);
+            })
+            .map([](const tensorptr &v) { return v->base_; })
+            .map([](const indexing &base) { return base->ptr_.as<tensor>(); })
+            .filter(should_shrink)
+            .has_value();
 }
 
 static constexpr const char *temp_shrink_tag = "tensor_shrinker.def";

@@ -32,6 +32,7 @@
 #include <util/leak_detector.hpp>
 #endif
 #include "ir_node_names.hpp"
+#include <util/optional.hpp>
 #include <util/utils.hpp>
 
 namespace sc {
@@ -76,6 +77,19 @@ struct is_base_of_t {
 
 template <typename T, typename Base>
 class node_ptr;
+
+namespace optional_impl {
+template <typename T, typename Base>
+struct optional_base<node_ptr<T, Base>> {
+    using cur_type_t = node_ptr<T, Base>;
+    void init_as_empty(void *v) { new (v) cur_type_t(); }
+    void set_has_value(void *v) {}
+    bool has_value_impl(const void *v) const {
+        return reinterpret_cast<const cur_type_t *>(v)->defined();
+    }
+};
+
+} // namespace optional_impl
 
 /**
  * The smart pointer for statement nodes, expression node and etc.
@@ -239,6 +253,18 @@ public:
         } else {
             return node_ptr<typename T2::type, Base>();
         }
+    }
+
+    /**
+     * @brief Try to downcast to a subclass pointer. If not successful, return
+     * an empty optional
+     *
+     * @tparam T2 a subclass pointer type
+     * @return optional<node_ptr<typename T2::type, Base>>
+     */
+    template <typename T2>
+    optional<node_ptr<typename T2::type, Base>> cast() const {
+        return as<T2>();
     }
 
     /**
