@@ -9,7 +9,7 @@
     --attr-zero-points=ARG:POLICY:ZEROPOINT[*][+...]
     --attr-post-ops=SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]
                     ELTWISE[:ALPHA[:BETA[:SCALE]]]
-                    DW:KkSsPp[:DST_DT[:OUTPUTSCALE]]
+                    DW:KkSsPp[:DST_DT[:WEI_SCALE[:DST_SCALE]]]
                     BINARY:DT[:POLICY[:TAG]]
                     PRELU[:POLICY]
 ```
@@ -128,11 +128,15 @@ when output tensor has integer data type.
 
 `DW:KkSsPp` post operation kind appends depthwise convolution with kernel size
 of `k`, stride size of `s`, and left padding size of `p`.
-These kinds are applicable only for convolution operation with kernel size of 1
-as of now. They support optional argument `DST_DT`, which defines destination
-tensor data type. Refer to [data types](knobs_dt.md) for details. Optional
-argument `OUTPUTSCALE` defines the semantics of output scale as for
-`--attr-oscale` with the same syntax. It requires `DST_DT` to be specified.
+These kinds are only applicable for 1x1 2D-spatial main convolution operation.
+They support optional argument `DST_DT`, which defines destination
+tensor data type. Refer to [data types](knobs_dt.md) for details.
+Optional argument `WEI_SCALE` defines the semantics of fused depthwise weights
+scale(s) same as for `--attr-scales` with the same syntax except argument is not
+expected. It requires `DST_DT` to be specified.
+Optional argument `DST_SCALE` defines the semantics of fused depthwise
+destination scale same as for `--attr-scales` with the same syntax except
+argument is not expected. It requires `WEI_SCALE` to be specified.
 
 `BINARY` post operation kind applies one of supported binary algorithms to the
 operation result and then stores it. It requires mandatory argument of `DT`
