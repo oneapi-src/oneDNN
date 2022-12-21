@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -254,6 +254,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             check_input_dtype<impl::data_type::f32>);
                     auto select = pgraph->append_op(impl::op_kind::Select,
                             {in_edge(2, matmul_qk, 0)}, "select");
+                    select->append_decision_function(check_select);
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             {in_edge(0, select, 0)}, "softmax");
                     auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
@@ -798,6 +799,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             check_input_dtype<impl::data_type::bf16>);
                     auto select = pgraph->append_op(impl::op_kind::Select,
                             {in_edge(2, matmul_qk, 0)}, "select");
+                    select->append_decision_function(check_select);
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             {in_edge(0, select, 0)}, "softmax");
                     auto matmul_v = pgraph->append_op(impl::op_kind::MatMul,
@@ -1465,6 +1467,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto fscore_select = pgraph->append_op(
                             impl::op_kind::Select, {in_edge(2, matmul_qk, 0)},
                             "fscore_select");
+                    fscore_select->append_decision_function(check_select);
                     auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
                             {in_edge(0, fscore_select, 0)}, "softmax");
                     auto cast_softmax_fp32 = pgraph->append_op(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1627,7 +1627,7 @@ inline void add_MHA_training_subgraph(impl::graph_t *agraph,
 }
 
 inline void add_distill_bert_MHA(impl::graph_t *agraph, bool use_bf16 = false,
-        bool use_int8 = false,
+        bool use_int8 = false, bool is_select_input_0d = false,
         impl::op_kind_t output_op_kind = impl::op_kind::Reorder,
         int batch_size = 224, int seq_len = 128, int num_head = 12,
         int head_dim = 768) {
@@ -1687,8 +1687,10 @@ inline void add_distill_bert_MHA(impl::graph_t *agraph, bool use_bf16 = false,
             EXTENDED_ATTENTION_MASK_SHAPE, impl::data_type::boolean);
 
     impl::logical_tensor_t fscore_scale, select_out;
-    fscore_scale = utils::logical_tensor_init(
-            logical_tensor_idx++, CONST_SHAPE, dtype);
+    fscore_scale = is_select_input_0d
+            ? utils::logical_tensor_init(logical_tensor_idx++, {}, dtype)
+            : utils::logical_tensor_init(
+                    logical_tensor_idx++, CONST_SHAPE, dtype);
     select_out = utils::logical_tensor_init(
             logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
 

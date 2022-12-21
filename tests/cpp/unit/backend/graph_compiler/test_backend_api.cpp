@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ namespace utils = dnnl::graph::tests::unit::utils;
 namespace compiler_utils = dnnl::graph::tests::unit::compiler::utils;
 
 TEST(GCBackendApi, GetMemSize) {
-    impl::logical_tensor_t a, b, c, d;
+    impl::logical_tensor_t a, b, c, d, e;
     const std::vector<impl::dim_t> a_dim {1, 4, 3};
     const std::vector<impl::dim_t> b_dim {32, 16, 64, 64};
     const std::vector<impl::dim_t> c_dim {32};
@@ -41,6 +41,8 @@ TEST(GCBackendApi, GetMemSize) {
             2, c_dim, impl::data_type::f32, impl::layout_type::strided);
     d = utils::logical_tensor_init(
             3, d_dim, impl::data_type::s32, impl::layout_type::strided);
+    e = utils::logical_tensor_init(
+            4, {}, impl::data_type::f32, impl::layout_type::strided);
 
     auto &compiler_backend_ptr
             = impl::compiler_impl::compiler_backend_t::get_singleton();
@@ -49,10 +51,12 @@ TEST(GCBackendApi, GetMemSize) {
     size_t b_mem_res = utils::product(b_dim) * sizeof(signed char);
     size_t c_mem_res = utils::product(c_dim) * sizeof(float);
     size_t d_mem_res = utils::product(d_dim) * sizeof(int32_t);
+    size_t e_mem_res = sizeof(float);
     ASSERT_EQ(compiler_backend_ptr.get_mem_size(a), a_mem_res);
     ASSERT_EQ(compiler_backend_ptr.get_mem_size(b), b_mem_res);
     ASSERT_EQ(compiler_backend_ptr.get_mem_size(c), c_mem_res);
     ASSERT_EQ(compiler_backend_ptr.get_mem_size(d), d_mem_res);
+    ASSERT_EQ(compiler_backend_ptr.get_mem_size(e), e_mem_res);
 }
 
 TEST(GCBackendApi, CompilerBackendRegistration) {

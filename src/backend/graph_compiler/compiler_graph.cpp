@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -219,6 +219,10 @@ sc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
 sc::graph_tensor_ptr compiler_graph_impl_t::convert_logical_tensor(
         const dnnl::graph::impl::logical_tensor_t &lt) {
     sc::sc_data_format_t lt_format;
+    if (lt.ndims == 0) {
+        return std::make_shared<sc::graph_tensor>(nullptr, lt_format,
+                std::vector<int64_t> {1}, convert_data_type(lt.data_type));
+    }
     // converting dims to GC dynamic dim
     std::vector<int64_t> dims {lt.dims, lt.dims + lt.ndims};
     std::transform(dims.begin(), dims.end(), dims.begin(), [](int64_t d) {

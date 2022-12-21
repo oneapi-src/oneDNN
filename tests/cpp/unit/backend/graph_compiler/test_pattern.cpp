@@ -244,6 +244,57 @@ TEST(GCPatternTests, INT8BF16DistillBertMHAPattern) {
     ASSERT_EQ(partition_outputs.size(), 1U);
 }
 
+TEST(GCPatternTests, INT8BF16DistillBertMHAPattern2) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, true, true, true);
+    agraph.build_graph();
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass = get_pass(
+            compiler_backend_ptr, "int8_bf16_distill_bert_mha_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1U);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 18U);
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+}
+
+// create a case where select op's input does not meet
+// the constriant specified in the pattern
+TEST(GCPatternTests, INT8BF16DistillBertMHAPatternFailureCase) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, true, true, true);
+    for (auto &op : agraph.get_ops()) {
+        if (op->get_kind() == impl::op_kind::Select) {
+            auto if_value = op->get_input_value(1);
+            auto else_value = op->get_input_value(2);
+            // set if to be the same shape as else
+            auto else_lt = else_value->get_logical_tensor();
+            else_lt.id = if_value->get_logical_tensor().id;
+            if_value->set_logical_tensor(else_lt);
+        }
+    }
+    agraph.build_graph();
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass = get_pass(
+            compiler_backend_ptr, "int8_bf16_distill_bert_mha_pattern");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 0U);
+}
+
 // test fp32 MHA pattern (no reshape)
 TEST(GCPatternTests, FP32MHAPatternOptionalReshape) {
     REQUIRE_AVX512();
@@ -902,7 +953,7 @@ TEST(GCPatternTests, BF16IdenticalBottleneckPattern) {
 }
 
 TEST(GCPatternTests, INT8ConvolutionalBottleneckPattern) {
-    REQUIRE_AVX512();
+    REQUIRE_VNNI_AMXINT8();
     REQUIRE_SINGLE_THREAD();
     utils::id_generator id_gen;
     impl::graph_t agraph;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ namespace compiler_impl {
 
 size_t compiler_backend_t::get_mem_size(const logical_tensor_t &lt) const {
     assert(lt.layout_type == layout_type::strided);
-    if (lt.ndims == 0) return 0;
+    // for 0-d tensor (scalar), mem_size is by default 1
     size_t mem_size = 1;
     for (int32_t i = 0; i < lt.ndims; ++i) {
         mem_size *= lt.dims[i];

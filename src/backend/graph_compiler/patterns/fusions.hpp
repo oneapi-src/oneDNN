@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,9 +80,10 @@ bool check_conv_attrs(op_t *op) {
 bool check_select(op_t *op) {
     auto inputs = op->get_input_values();
     if (inputs.size() != 3) return false;
-    // input[1]'s shape shall be {1}
-    if (inputs[1]->get_logical_tensor().ndims == 1
-            && inputs[1]->get_logical_tensor().dims[0] == 1)
+    // input[1]'s shape shall be either {1} or a 0-dim tensor
+    if (inputs[1]->get_logical_tensor().ndims == 0
+            || (inputs[1]->get_logical_tensor().ndims == 1
+                    && inputs[1]->get_logical_tensor().dims[0] == 1))
         return true;
     return false;
 }

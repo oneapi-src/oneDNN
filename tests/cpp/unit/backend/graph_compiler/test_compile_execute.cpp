@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -126,7 +126,7 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
         if (!dynamic_callback) {
             for (auto &lt : partition_inputs) {
                 total_mem_size += compiler_backend_ptr.get_mem_size(lt);
-                assert(lt.ndims > 0);
+                assert(lt.ndims > -1);
                 lt_info_map[lt.id] = lt;
             }
             partition_outputs.clear();
@@ -136,7 +136,7 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
                 total_mem_size
                         += compiler_backend_ptr.get_mem_size(compiled_output);
                 partition_outputs.push_back(compiled_output);
-                assert(compiled_output.ndims > 0);
+                assert(compiled_output.ndims > -1);
                 lt_info_map[compiled_output.id] = compiled_output;
             }
             execute_stage(total_mem_size);
@@ -146,7 +146,7 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
                 dynamic_callback(shape_idx, partition_inputs);
                 for (auto &lt : partition_inputs) {
                     total_mem_size += compiler_backend_ptr.get_mem_size(lt);
-                    assert(lt.ndims > 0);
+                    assert(lt.ndims > -1);
                     lt_info_map[lt.id] = lt;
                 }
                 std::vector<const impl::logical_tensor_t *> queried_inputs;
@@ -198,7 +198,7 @@ TEST(GCGraphTest, FP32MHACompileExecution3) {
 }
 
 // test ITEX pattern ends with StaticReshape
-TEST(GCGraphTest, INT8BF16MHACompileExecution4) {
+TEST(GCGraphTest, FP32MHACompileExecution4) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
     compiler_utils::add_MHA_subgraph_alternative(
@@ -474,6 +474,33 @@ TEST(GCGraphTest, INT8BF16DistillBertMHACompileExecution) {
     compile_execution_pipeline(agraph, 1);
 }
 
+TEST(GCGraphTest, FP32DistillBertMHACompileExecution2) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, false, false, true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16DistillBertMHACompileExecution2) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, true, false, true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BF16DistillBertMHACompileExecution2) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_distill_bert_MHA(&agraph, true, true, true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
 TEST(GCGraphTest, BF16MHAAlternativeCompileExecution) {
     REQUIRE_BF16_AMXBF16();
     impl::graph_t agraph;
@@ -500,7 +527,7 @@ TEST(GCGraphTest, FP32MHADynamicGraphCompileExecution) {
 }
 
 TEST(GCGraphTest, INT8BF16MHADynamicGraphCompileExecution) {
-    REQUIRE_BF16_AMXBF16();
+    REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
     // dynamic both batchsize and sequence length
     compiler_utils::add_MHA_subgraph_alternative(
@@ -535,7 +562,7 @@ TEST(GCGraphTest, FP32DistillBertMHADynamicGraphCompileExecution) {
     REQUIRE_AVX512();
     impl::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(
-            &agraph, false, false, impl::op_kind::Reorder, -2, -2);
+            &agraph, false, false, false, impl::op_kind::Reorder, -2, -2);
     agraph.build_graph();
 
     compile_execution_pipeline(agraph, 1,
@@ -550,7 +577,7 @@ TEST(GCGraphTest, BF16DistillBertMHADynamicGraphCompileExecution) {
     REQUIRE_BF16_AMXBF16();
     impl::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(
-            &agraph, true, false, impl::op_kind::Reorder, -2, -2);
+            &agraph, true, false, false, impl::op_kind::Reorder, -2, -2);
     agraph.build_graph();
 
     compile_execution_pipeline(agraph, 1,
@@ -565,7 +592,7 @@ TEST(GCGraphTest, INT8BF16DistillBertMHADynamicGraphCompileExecution) {
     REQUIRE_VNNI_AMXINT8();
     impl::graph_t agraph;
     compiler_utils::add_distill_bert_MHA(
-            &agraph, true, true, impl::op_kind::Reorder, -2, -2);
+            &agraph, true, true, false, impl::op_kind::Reorder, -2, -2);
     agraph.build_graph();
 
     compile_execution_pipeline(agraph, 1,
