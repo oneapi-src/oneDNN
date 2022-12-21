@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -352,24 +352,36 @@ public:
         }
         ir_error_not_expected();
     }
-    void override_set(const std::string &key, const std::string &value) {
-        is_overridden_[key] = true;
+    void override_set(
+            const std::string &key, const std::string &value, bool is_env) {
+        key_states_[key] = is_env ? key_state_t::env_overridden
+                                  : key_state_t::overridden;
         set_from_str(key, value);
     }
-
-    bool is_overridden() const {
-        if (is_overridden_.empty()) return false;
-        return is_overridden(short_name());
-    }
-
+    bool is_overridden() const { return is_overridden(short_name()); }
+    bool is_env_overridden() const { return is_env_overridden(short_name()); }
     bool is_overridden(const std::string &key) const {
-        auto it = is_overridden_.find(key);
-        if (it == is_overridden_.end()) return false;
-        return it->second;
+        return is_overridden_impl(key, /*only_env=*/false);
+    }
+    bool is_env_overridden(const std::string &key) const {
+        return is_overridden_impl(key, /*only_env=*/true);
     }
 
 private:
-    std::unordered_map<std::string, bool> is_overridden_;
+    enum class key_state_t {
+        overridden,
+        env_overridden,
+    };
+
+    bool is_overridden_impl(const std::string &key, bool only_env) const {
+        auto it = key_states_.find(key);
+        if (it == key_states_.end()) return false;
+        if (only_env) return it->second == key_state_t::env_overridden;
+        return utils::one_of(it->second, key_state_t::overridden,
+                key_state_t::env_overridden);
+    }
+
+    std::unordered_map<std::string, key_state_t> key_states_;
 };
 
 template <typename T>
@@ -1096,7 +1108,7 @@ public:
 #undef DECL_PARAM
 #undef DECL_PARAM2
 
-    void override_set(const std::string &s);
+    void override_set(const std::string &s, bool is_env);
 
     std::string str() const;
 

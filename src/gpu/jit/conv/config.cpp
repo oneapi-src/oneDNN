@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -997,13 +997,13 @@ const memory_desc_t *output_md(const convolution_pd_t *pd) {
 void maybe_override_from_lookup_table(conv_config_t &cfg) {
     static conv_config_lookup_table_t table;
     auto *s_params = table.find(cfg);
-    if (s_params) cfg.override_set(s_params);
+    if (s_params) cfg.override_set(s_params, /*is_env=*/false);
 }
 
 void maybe_override_from_env(conv_config_t &cfg) {
     auto cfg_env = ir_utils::getenv_str("cfg", "");
     if (cfg_env.empty()) return;
-    cfg.override_set(cfg_env.c_str());
+    cfg.override_set(cfg_env.c_str(), /*is_env=*/true);
 }
 
 void maybe_override(conv_config_t &cfg) {
@@ -2152,7 +2152,7 @@ status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd) {
     return ok ? status::success : status::runtime_error;
 }
 
-void conv_config_t::override_set(const std::string &s) {
+void conv_config_t::override_set(const std::string &s, bool is_env) {
     std::vector<param_t *> params;
     for (auto &gp : get_params_)
         params.push_back(gp(this));
@@ -2167,7 +2167,7 @@ void conv_config_t::override_set(const std::string &s) {
             if (p->accept_key(key)) {
                 ir_info() << "Override " << p->name() << ": " << key << "="
                           << value << std::endl;
-                p->override_set(key, value);
+                p->override_set(key, value, is_env);
                 found = true;
                 break;
             }
