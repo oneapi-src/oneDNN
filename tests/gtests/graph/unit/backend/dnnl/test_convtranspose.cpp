@@ -1247,7 +1247,8 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
             cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
         strm->wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine->kind() == graph::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -1467,7 +1468,8 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
             cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
         strm->wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine->kind() == graph::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -1670,7 +1672,8 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTranspose1d2d3dEltwise) {
             cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
         strm->wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine->kind() == graph::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -1826,7 +1829,8 @@ TEST(ExecuteSubgraphInt8, X8X8F32ConvTransposeSwish) {
         cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_f32_case2_ts});
         strm->wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine->kind() == graph::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -2076,7 +2080,8 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dAdd) {
                     {dst_s8_case2_ts});
         strm->wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni)
+        if (engine->kind() == graph::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         else
@@ -2271,7 +2276,8 @@ TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3dBinary) {
                 {dst_s8_case2_ts});
         strm->wait();
 
-        if (isa < dnnl_cpu_isa_avx512_core_vnni) {
+        if (engine->kind() == graph::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni) {
             ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
                     /*atol*/ 1.f));
         } else
