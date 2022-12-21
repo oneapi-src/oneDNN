@@ -275,6 +275,10 @@ static void mark_range_for_const(const expr_c &v, bool fast) {
             && !v->get_temp_data().isa<constant_fold_analysis_result_t>()) {
         auto cate = get_type_category_nothrow(v->dtype_);
         if (cate != CATE_OTHER) {
+            // TODO(niuxiaoguang): find out why value_ is empty
+            // COMPILE_ASSERT(!v.static_as<constant>()->value_.empty(),
+            //         "constant node value empty: " << v);
+            if (v.static_as<constant>()->value_.empty()) { return; }
             auto constv = v.static_as<constant>()->value_.front();
             v->temp_data() = constant_fold_analysis_result_t {
                     const_range_t {cate, constv, constv}};

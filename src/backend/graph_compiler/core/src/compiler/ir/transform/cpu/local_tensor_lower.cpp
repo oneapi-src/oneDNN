@@ -137,7 +137,13 @@ public:
             if (v->init_.isa<tensorptr>()) {
                 auto tptr = v->init_.static_as<tensorptr>();
                 auto attr = tptr->base_->ptr_->attr_.get();
-                if (attr
+                if (attr && attr->get_or_else("hoisted", false)) {
+                    // the tensor is a tensor based on a hoisted tensor
+                    COMPILE_ASSERT(tptr->base_->ptr_.isa<tensor>()
+                                    && !tptr->base_->ptr_.ptr_same(tsr),
+                            "Expecting a tensor on the base of hoisted tensor");
+                    hoisted_tensor_map_[tsr] = tptr->base_->ptr_;
+                } else if (attr
                         && attr->get_or_else(
                                 attr_keys::can_be_scheduled, false)) {
                     auto base = tptr->base_->ptr_;
@@ -165,12 +171,6 @@ public:
                             tensor_base_offset_t {
                                     base, offset, offset + tsr_size - 1}));
                     scheduled_tensors_.emplace_back(tsr);
-                } else if (attr && attr->get_or_else("hoisted", false)) {
-                    // the tensor is a tensor based on a hoisted tensor
-                    COMPILE_ASSERT(tptr->base_->ptr_.isa<tensor>()
-                                    && !tptr->base_->ptr_.ptr_same(tsr),
-                            "Expecting a tensor on the base of hoisted tensor");
-                    hoisted_tensor_map_[tsr] = tptr->base_->ptr_;
                 }
             }
             return v;

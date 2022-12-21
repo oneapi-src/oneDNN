@@ -28,8 +28,7 @@
 namespace sc {
 
 SC_DECL_PASS_INFO(parallel_workload_dispatcher,
-        SC_PASS_DEPENDS_ON(
-                tensor_init, constant_folder, nested_parallel_flattener),
+        SC_PASS_DEPENDS_ON(tensor_init, constant_folder),
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 

@@ -32,8 +32,8 @@ SC_MODULE(pass.index2var)
 namespace sc {
 
 SC_DECL_PASS_INFO(index2var,
-        SC_PASS_DEPENDS_ON(
-                constant_folder, ir_simplifier, validator, index_flattener),
+        SC_PASS_DEPENDS_ON(constant_folder, ir_simplifier, validator,
+                index_flattener, parallel_workload_dispatcher),
         SC_PASS_REQUIRE_STATE(FUNC_INLINED), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE(IR_SIMPLIFIED));
 

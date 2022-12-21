@@ -1280,83 +1280,83 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
           }
           if (M_block_size == M_ib_block_size
             && N_block_size == N_ib_block_size) {
-            _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-              if (out_tensors_[0].get_format().is_blocking()) {
-                fusion->create_output_fusion_anchor({tensor_slice(C,
-                  {{m_idx / expr(iim_block_), M_block_size / iim_block_},
-                    {n_idx / expr(iin_block_), N_block_size / iin_block_},
-                    {0, iim_block_}, {0, iin_block_}})});
-              } else {
-                fusion->create_output_fusion_anchor({tensor_slice(
-                  C, {{m_idx, M_block_size}, {n_idx, N_block_size}})});
-              }
+            // _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+            if (out_tensors_[0].get_format().is_blocking()) {
+              fusion->create_output_fusion_anchor({tensor_slice(C,
+                {{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                  {n_idx / expr(iin_block_), N_block_size / iin_block_},
+                  {0, iim_block_}, {0, iin_block_}})});
+            } else {
+              fusion->create_output_fusion_anchor({tensor_slice(
+                C, {{m_idx, M_block_size}, {n_idx, N_block_size}})});
             }
+            // }
           } else if (M_block_size == M_ib_block_size) {
             // differnt length on N
-            _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-              mm_multi_slice.pop_back();
-              mm_multi_slice.pop_back();
-              assert(mm_multi_slice.size() == 2);
-              auto gen_iter_anchor = [&]() {
-                builder::ir_builder_t bd_helper;
-                bd_helper.push_scope();
-                _var_init_(middle_anchor_iter, datatypes::index, UINT64_C(0));
-                _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(0); }
-                _else_ { middle_anchor_iter = UINT64_C(1); }
-                auto scope_helper = bd_helper.pop_scope();
-                return std::make_pair(middle_anchor_iter, scope_helper);
-              };
-              expr middle_anchor_iter;
-              stmt scope_helper;
-              std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
-              fusion->create_iterated_fusion_anchor(
-                middle_anchor_iter, C, mm_multi_slice, scope_helper);
-            }
+            // _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+            mm_multi_slice.pop_back();
+            mm_multi_slice.pop_back();
+            assert(mm_multi_slice.size() == 2);
+            auto gen_iter_anchor = [&]() {
+              builder::ir_builder_t bd_helper;
+              bd_helper.push_scope();
+              _var_init_(middle_anchor_iter, datatypes::index, UINT64_C(0));
+              _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(0); }
+              _else_ { middle_anchor_iter = UINT64_C(1); }
+              auto scope_helper = bd_helper.pop_scope();
+              return std::make_pair(middle_anchor_iter, scope_helper);
+            };
+            expr middle_anchor_iter;
+            stmt scope_helper;
+            std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
+            fusion->create_iterated_fusion_anchor(
+              middle_anchor_iter, C, mm_multi_slice, scope_helper);
+            // }
           } else if (N_block_size == N_ib_block_size) {
             // different length on M
-            _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-              mm_multi_slice.pop_back();
-              mm_multi_slice.erase(mm_multi_slice.begin() + 1);
-              assert(mm_multi_slice.size() == 2);
-              auto gen_iter_anchor = [&]() {
-                builder::ir_builder_t bd_helper;
-                bd_helper.push_scope();
-                _var_init_(middle_anchor_iter, datatypes::index, UINT64_C(0));
-                _if_(m_s < M_blk_num) { middle_anchor_iter = UINT64_C(0); }
-                _else_ { middle_anchor_iter = UINT64_C(1); }
-                auto scope_helper = bd_helper.pop_scope();
-                return std::make_pair(middle_anchor_iter, scope_helper);
-              };
-              expr middle_anchor_iter;
-              stmt scope_helper;
-              std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
-              fusion->create_iterated_fusion_anchor(
-                middle_anchor_iter, C, mm_multi_slice, scope_helper);
-            }
+            // _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+            mm_multi_slice.pop_back();
+            mm_multi_slice.erase(mm_multi_slice.begin() + 1);
+            assert(mm_multi_slice.size() == 2);
+            auto gen_iter_anchor = [&]() {
+              builder::ir_builder_t bd_helper;
+              bd_helper.push_scope();
+              _var_init_(middle_anchor_iter, datatypes::index, UINT64_C(0));
+              _if_(m_s < M_blk_num) { middle_anchor_iter = UINT64_C(0); }
+              _else_ { middle_anchor_iter = UINT64_C(1); }
+              auto scope_helper = bd_helper.pop_scope();
+              return std::make_pair(middle_anchor_iter, scope_helper);
+            };
+            expr middle_anchor_iter;
+            stmt scope_helper;
+            std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
+            fusion->create_iterated_fusion_anchor(
+              middle_anchor_iter, C, mm_multi_slice, scope_helper);
+            // }
           } else {
             // different length on both M and N
-            _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-              auto gen_iter_anchor = [&]() {
-                builder::ir_builder_t bd_helper;
-                bd_helper.push_scope();
-                _var_init_(middle_anchor_iter, datatypes::index, UINT64_C(0));
-                _if_(m_s < M_blk_num) {
-                  _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(0); }
-                  _else_ { middle_anchor_iter = UINT64_C(1); }
-                }
-                _else_ {
-                  _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(2); }
-                  _else_ { middle_anchor_iter = UINT64_C(3); }
-                }
-                auto scope_helper = bd_helper.pop_scope();
-                return std::make_pair(middle_anchor_iter, scope_helper);
-              };
-              expr middle_anchor_iter;
-              stmt scope_helper;
-              std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
-              fusion->create_iterated_fusion_anchor(
-                middle_anchor_iter, C, mm_multi_slice, scope_helper);
-            }
+            // _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+            auto gen_iter_anchor = [&]() {
+              builder::ir_builder_t bd_helper;
+              bd_helper.push_scope();
+              _var_init_(middle_anchor_iter, datatypes::index, UINT64_C(0));
+              _if_(m_s < M_blk_num) {
+                _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(0); }
+                _else_ { middle_anchor_iter = UINT64_C(1); }
+              }
+              _else_ {
+                _if_(n_s < N_blk_num) { middle_anchor_iter = UINT64_C(2); }
+                _else_ { middle_anchor_iter = UINT64_C(3); }
+              }
+              auto scope_helper = bd_helper.pop_scope();
+              return std::make_pair(middle_anchor_iter, scope_helper);
+            };
+            expr middle_anchor_iter;
+            stmt scope_helper;
+            std::tie(middle_anchor_iter, scope_helper) = gen_iter_anchor();
+            fusion->create_iterated_fusion_anchor(
+              middle_anchor_iter, C, mm_multi_slice, scope_helper);
+            // }
           }
         }
       }
@@ -1609,49 +1609,49 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             for_type::PARALLEL, K_split_num) { //
             expr lm = lm_ln / N_single_thr_num_block;
             expr ln = lm_ln % N_single_thr_num_block;
-            _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-              builtin::mem_zero(
-                tensor_ptr(
-                  C, {m_idx / iim_block_ + lm, n_idx / iin_block_ + ln, 0, 0}),
-                iim_block_ * iin_block_, out_dtype);
-              _for_(lks, 0, K_real_split, 1) {
-                _for_(lmo, 0, iim_block_) {
-                  _for_(lno, 0, iin_block_, lanes) {
-                    C[span_t({m_idx / iim_block_ + lm, n_idx / iin_block_ + ln,
-                               lmo, lno},
-                      lanes)]
-                      = builder::make_add(
-                        C[span_t({m_idx / iim_block_ + lm,
-                                   n_idx / iin_block_ + ln, lmo, lno},
-                          lanes)],
-                        out_tmp_buf[span_t({lks, lm, ln, lmo, lno}, lanes)]);
-                  }
+            // _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+            builtin::mem_zero(
+              tensor_ptr(
+                C, {m_idx / iim_block_ + lm, n_idx / iin_block_ + ln, 0, 0}),
+              iim_block_ * iin_block_, out_dtype);
+            _for_(lks, 0, K_real_split, 1) {
+              _for_(lmo, 0, iim_block_) {
+                _for_(lno, 0, iin_block_, lanes) {
+                  C[span_t({m_idx / iim_block_ + lm, n_idx / iin_block_ + ln,
+                             lmo, lno},
+                    lanes)]
+                    = builder::make_add(
+                      C[span_t({m_idx / iim_block_ + lm,
+                                 n_idx / iin_block_ + ln, lmo, lno},
+                        lanes)],
+                      out_tmp_buf[span_t({lks, lm, ln, lmo, lno}, lanes)]);
                 }
               }
-              if (fusion) {
-                fusion->create_output_fusion_anchor({tensor_slice(C,
-                  {{m_idx / expr(iim_block_) + lm, 1},
-                    {n_idx / expr(iin_block_) + ln, 1}, {0, expr(iim_block_)},
-                    {0, expr(iin_block_)}})});
-              }
             }
+            if (fusion) {
+              fusion->create_output_fusion_anchor({tensor_slice(C,
+                {{m_idx / expr(iim_block_) + lm, 1},
+                  {n_idx / expr(iin_block_) + ln, 1}, {0, expr(iim_block_)},
+                  {0, expr(iin_block_)}})});
+            }
+            // }
           }
         } else {
           trace_guard_t tg(ctx, "plain_post_reduce");
-          _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-            builtin::dnnl_brgemm_init(tensor_ptr(C, {m_idx, n_idx}),
-              M_single_thr_size, N_single_thr_size, N, out_dtype, 0);
-          }
+          // _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+          builtin::dnnl_brgemm_init(tensor_ptr(C, {m_idx, n_idx}),
+            M_single_thr_size, N_single_thr_size, N, out_dtype, 0);
+          // }
           _for_(lm_ln, 0, M_single_thr_size * N_single_thr_size, lanes,
             for_type::PARALLEL, K_split_num) {
             expr lm = lm_ln / N_single_thr_size;
             expr ln = lm_ln % N_single_thr_size;
             _for_(lks, 0, K_real_split, 1) {
-              _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-                C[span_t({m_idx + lm, n_idx + ln}, lanes)] = builder::make_add(
-                  C[span_t({m_idx + lm, n_idx + ln}, lanes)],
+              // _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+              C[span_t({m_idx + lm, n_idx + ln}, lanes)]
+                = builder::make_add(C[span_t({m_idx + lm, n_idx + ln}, lanes)],
                   out_tmp_buf[span_t({lks, lm, ln}, lanes)]);
-              }
+              // }
             }
           }
           if (fusion) {
@@ -1674,83 +1674,83 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
             }
             if (M_block_size == M_ib_block_size
               && N_block_size == N_ib_block_size) {
-              _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-                if (out_tensors_[0].get_format().is_blocking()) {
-                  fusion->create_output_fusion_anchor({tensor_slice(C,
-                    {{m_idx / expr(iim_block_), M_block_size / iim_block_},
-                      {n_idx / expr(iin_block_), N_block_size / iin_block_},
-                      {0, iim_block_}, {0, iin_block_}})});
-                } else {
-                  fusion->create_output_fusion_anchor({tensor_slice(
-                    C, {{m_idx, M_block_size}, {n_idx, N_block_size}})});
-                }
+              // _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+              if (out_tensors_[0].get_format().is_blocking()) {
+                fusion->create_output_fusion_anchor({tensor_slice(C,
+                  {{m_idx / expr(iim_block_), M_block_size / iim_block_},
+                    {n_idx / expr(iin_block_), N_block_size / iin_block_},
+                    {0, iim_block_}, {0, iin_block_}})});
+              } else {
+                fusion->create_output_fusion_anchor({tensor_slice(
+                  C, {{m_idx, M_block_size}, {n_idx, N_block_size}})});
               }
+              // }
             } else if (M_block_size == M_ib_block_size) {
               // differnt length on N
-              _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-                mm_multi_slice.pop_back();
-                mm_multi_slice.pop_back();
-                assert(mm_multi_slice.size() == 2);
-                auto gen_iter_anchor = [&]() {
-                  builder::ir_builder_t bd_helper;
-                  bd_helper.push_scope();
-                  _var_init_(inner_anchor_iter, datatypes::index, UINT64_C(0));
-                  _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(0); }
-                  _else_ { inner_anchor_iter = UINT64_C(1); }
-                  auto scope_helper = bd_helper.pop_scope();
-                  return std::make_pair(inner_anchor_iter, scope_helper);
-                };
-                expr inner_anchor_iter;
-                stmt scope_helper;
-                std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
-                fusion->create_iterated_fusion_anchor(
-                  inner_anchor_iter, C, mm_multi_slice, scope_helper);
-              }
+              // _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+              mm_multi_slice.pop_back();
+              mm_multi_slice.pop_back();
+              assert(mm_multi_slice.size() == 2);
+              auto gen_iter_anchor = [&]() {
+                builder::ir_builder_t bd_helper;
+                bd_helper.push_scope();
+                _var_init_(inner_anchor_iter, datatypes::index, UINT64_C(0));
+                _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(0); }
+                _else_ { inner_anchor_iter = UINT64_C(1); }
+                auto scope_helper = bd_helper.pop_scope();
+                return std::make_pair(inner_anchor_iter, scope_helper);
+              };
+              expr inner_anchor_iter;
+              stmt scope_helper;
+              std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
+              fusion->create_iterated_fusion_anchor(
+                inner_anchor_iter, C, mm_multi_slice, scope_helper);
+              // }
             } else if (N_block_size == N_ib_block_size) {
               // different length on M
-              _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-                mm_multi_slice.pop_back();
-                mm_multi_slice.erase(mm_multi_slice.begin() + 1);
-                assert(mm_multi_slice.size() == 2);
-                auto gen_iter_anchor = [&]() {
-                  builder::ir_builder_t bd_helper;
-                  bd_helper.push_scope();
-                  _var_init_(inner_anchor_iter, datatypes::index, UINT64_C(0));
-                  _if_(m_s < M_blk_num) { inner_anchor_iter = UINT64_C(0); }
-                  _else_ { inner_anchor_iter = UINT64_C(1); }
-                  auto scope_helper = bd_helper.pop_scope();
-                  return std::make_pair(inner_anchor_iter, scope_helper);
-                };
-                expr inner_anchor_iter;
-                stmt scope_helper;
-                std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
-                fusion->create_iterated_fusion_anchor(
-                  inner_anchor_iter, C, mm_multi_slice, scope_helper);
-              }
+              // _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+              mm_multi_slice.pop_back();
+              mm_multi_slice.erase(mm_multi_slice.begin() + 1);
+              assert(mm_multi_slice.size() == 2);
+              auto gen_iter_anchor = [&]() {
+                builder::ir_builder_t bd_helper;
+                bd_helper.push_scope();
+                _var_init_(inner_anchor_iter, datatypes::index, UINT64_C(0));
+                _if_(m_s < M_blk_num) { inner_anchor_iter = UINT64_C(0); }
+                _else_ { inner_anchor_iter = UINT64_C(1); }
+                auto scope_helper = bd_helper.pop_scope();
+                return std::make_pair(inner_anchor_iter, scope_helper);
+              };
+              expr inner_anchor_iter;
+              stmt scope_helper;
+              std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
+              fusion->create_iterated_fusion_anchor(
+                inner_anchor_iter, C, mm_multi_slice, scope_helper);
+              // }
             } else {
               // different length on both M and N
-              _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
-                auto gen_iter_anchor = [&]() {
-                  builder::ir_builder_t bd_helper;
-                  bd_helper.push_scope();
-                  _var_init_(inner_anchor_iter, datatypes::index, UINT64_C(0));
-                  _if_(m_s < M_blk_num) {
-                    _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(0); }
-                    _else_ { inner_anchor_iter = UINT64_C(1); }
-                  }
-                  _else_ {
-                    _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(2); }
-                    _else_ { inner_anchor_iter = UINT64_C(3); }
-                  }
-                  auto scope_helper = bd_helper.pop_scope();
-                  return std::make_pair(inner_anchor_iter, scope_helper);
-                };
-                expr inner_anchor_iter;
-                stmt scope_helper;
-                std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
-                fusion->create_iterated_fusion_anchor(
-                  inner_anchor_iter, C, mm_multi_slice, scope_helper);
-              }
+              // _if_(m_idx < (uint64_t)M && n_idx < (uint64_t)N) {
+              auto gen_iter_anchor = [&]() {
+                builder::ir_builder_t bd_helper;
+                bd_helper.push_scope();
+                _var_init_(inner_anchor_iter, datatypes::index, UINT64_C(0));
+                _if_(m_s < M_blk_num) {
+                  _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(0); }
+                  _else_ { inner_anchor_iter = UINT64_C(1); }
+                }
+                _else_ {
+                  _if_(n_s < N_blk_num) { inner_anchor_iter = UINT64_C(2); }
+                  _else_ { inner_anchor_iter = UINT64_C(3); }
+                }
+                auto scope_helper = bd_helper.pop_scope();
+                return std::make_pair(inner_anchor_iter, scope_helper);
+              };
+              expr inner_anchor_iter;
+              stmt scope_helper;
+              std::tie(inner_anchor_iter, scope_helper) = gen_iter_anchor();
+              fusion->create_iterated_fusion_anchor(
+                inner_anchor_iter, C, mm_multi_slice, scope_helper);
+              // }
             }
           }
         }
@@ -1801,6 +1801,8 @@ bool gen_managed_matmul_core_t::generate(context_ptr ctx,
   }
 
   mloop->attr()[stmt_attr_key::parallel_merge_loop_granularity] = iim_block_;
+  mloop->attr()[stmt_attr_key::parallel_loop_balanced]
+    = M_block_size == M_ib_block_size;
 
   mloop->attr()[stmt_attr_key::loop_axis_hint]
     = (K_split_num == 1) ? bound_axis {{0}, {1}, {-1}} : bound_axis {{0}, {1}};

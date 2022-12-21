@@ -1373,6 +1373,233 @@ static int check_parti_loop_axis_binding(
     return A->ax_binder_.align_with(B->ax_binder_, check_loop_size);
 }
 
+static void merge_parti_impl(mixed_parti_t *pa_to_merge,
+        mixed_parti_t *parti_be_merged, size_t merged_loop_size,
+        const sc_op_ptr &joint_op = nullptr) {
+    // evaluate two partition by cost model
+    float score_target = pa_to_merge->evaluate_perf(),
+          score_append = parti_be_merged->evaluate_perf();
+
+    auto outer_loops_to_merge = pa_to_merge->get_outer_loops(),
+         outer_loops_be_merged = parti_be_merged->get_outer_loops();
+    auto outer_loops_merged_target = outer_loops_to_merge[merged_loop_size - 1];
+    auto outer_loops_merged_append
+            = outer_loops_be_merged[merged_loop_size - 1];
+    auto max_to_merge_anchor_map
+            = pa_to_merge->get_anchor_inside_loop(outer_loops_merged_target);
+    auto max_be_merged_anchor_map = parti_be_merged->get_anchor_inside_loop(
+            outer_loops_merged_append);
+    // var and tensor replace map
+    std::unordered_map<expr, expr> expr_map, buffer_map;
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 2: Merge fanchor_
+     * * * * * * * * * * * * * * * * */
+    // erase inferred but not allocated gt
+    for (auto &to_merge_anchor_map : pa_to_merge->fanchors_) {
+        for (auto iter = to_merge_anchor_map->fsmap_.datamap_.begin();
+                iter != to_merge_anchor_map->fsmap_.datamap_.end();) {
+            if (!pa_to_merge->buf_alloc_.g2b_map_.haskey(iter->first)) {
+                iter = to_merge_anchor_map->fsmap_.datamap_.erase(iter);
+            } else {
+                iter++;
+            }
+        }
+    }
+
+    for (auto &be_merged_anchor_map : parti_be_merged->fanchors_) {
+        for (auto iter = be_merged_anchor_map->fsmap_.datamap_.begin();
+                iter != be_merged_anchor_map->fsmap_.datamap_.end();) {
+            if (!parti_be_merged->buf_alloc_.g2b_map_.haskey(iter->first)) {
+                iter = be_merged_anchor_map->fsmap_.datamap_.erase(iter);
+            } else {
+                iter++;
+            }
+        }
+    }
+
+    // merge outer loop anchor
+    std::unordered_set<fuse_anchor_map_ptr> be_merged_anchor_masks;
+    for (size_t i = 0; i < merged_loop_size; i++) {
+        expr_map[outer_loops_be_merged[i]->var_]
+                = outer_loops_to_merge[i]->var_;
+        auto be_merged_anchor_map = parti_be_merged->get_anchor_inside_loop(
+                     outer_loops_be_merged[i]),
+             to_merge_anchor_map
+                = pa_to_merge->get_anchor_inside_loop(outer_loops_to_merge[i]);
+        if (be_merged_anchor_map) {
+            be_merged_anchor_masks.insert(be_merged_anchor_map);
+            if (to_merge_anchor_map) {
+                to_merge_anchor_map->merge(be_merged_anchor_map);
+            }
+        }
+    }
+
+    // append inner loop anchor
+    for (auto &be_merged_anchor_map : parti_be_merged->fanchors_) {
+        if (be_merged_anchor_masks.find(be_merged_anchor_map)
+                != be_merged_anchor_masks.end())
+            continue;
+        if (max_to_merge_anchor_map) {
+            be_merged_anchor_map->attach_parent_anchor(
+                    max_to_merge_anchor_map, max_be_merged_anchor_map);
+        }
+        pa_to_merge->append_fusion_anchor(be_merged_anchor_map);
+    }
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 3: Merge buf_alloc_
+     * * * * * * * * * * * * * * * * */
+    pa_to_merge->buf_alloc_.merge(parti_be_merged->buf_alloc_, buffer_map,
+            std::make_pair(max_to_merge_anchor_map, max_be_merged_anchor_map));
+
+    /* * * * * * * * * * * * * * * * * *
+     * Step 4: Replace expr involving:
+     *  1. func->body
+     *  2. fanchor->fsmap->slice_range
+     * * * * * * * * * * * * * * * * * */
+    expr_map.insert(buffer_map.begin(), buffer_map.end());
+    // create mxp inplace replacer
+    mxp_replacer_t expr_reper(expr_map);
+    // 1. func->body
+    expr_reper.replace_func(pa_to_merge->func_);
+    // 2. fanchor->fsmap->slice_range
+    expr_reper.replace_anchor(pa_to_merge->fanchors_);
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 5: Merge op_anchor_map_
+     * * * * * * * * * * * * * * * * */
+    pa_to_merge->op_anchor_map_.insert(parti_be_merged->op_anchor_map_.begin(),
+            parti_be_merged->op_anchor_map_.end());
+
+    // erase joint op in op_anchor_map
+    pa_to_merge->op_anchor_map_.erase(joint_op.get());
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 6: Merge op_
+     * * * * * * * * * * * * * * * * */
+    // call base merge
+    // move 'ops' from src to target and set 'merged_to' of src to be target
+    pa_to_merge->fusion_partition_t::merge(
+            static_cast<fusion_partition_t *>(parti_be_merged)
+                    ->shared_from_this());
+
+    // Merge commited ops
+    pa_to_merge->committed_ops_.insert(pa_to_merge->committed_ops_.end(),
+            parti_be_merged->committed_ops_.begin(),
+            parti_be_merged->committed_ops_.end());
+
+    // clear merged parti
+    parti_be_merged->clear();
+
+    float score_C = pa_to_merge->evaluate_perf();
+    if (score_C < std::max(score_target, score_append)) {
+        SC_MODULE_WARN << "Merging these two partition may cause performance "
+                          "drop, no fall-back strategy found";
+    }
+}
+
+static size_t get_great_common_loop_size(const std::vector<for_loop> &loop_A,
+        const std::vector<for_loop> &loop_B) {
+    // great common size
+    auto gcs = std::min(loop_A.size(), loop_B.size());
+
+    size_t merged_loop_size = 0;
+    for (; merged_loop_size < gcs; merged_loop_size++) {
+        if (!(loop_A[merged_loop_size]->iter_begin_.isa<constant_c>()
+                    && loop_A[merged_loop_size]->iter_end_.isa<constant_c>()
+                    && loop_A[merged_loop_size]->step_.isa<constant_c>()
+                    && loop_B[merged_loop_size]->iter_begin_.isa<constant_c>()
+                    && loop_B[merged_loop_size]->iter_end_.isa<constant_c>()
+                    && loop_B[merged_loop_size]->step_.isa<constant_c>())) {
+            return 0;
+        }
+        auto A_begin = get_expr_as_int(loop_A[merged_loop_size]->iter_begin_),
+             A_end = get_expr_as_int(loop_A[merged_loop_size]->iter_end_),
+             A_step = get_expr_as_int(loop_A[merged_loop_size]->step_),
+             B_begin = get_expr_as_int(loop_B[merged_loop_size]->iter_begin_),
+             B_end = get_expr_as_int(loop_B[merged_loop_size]->iter_end_),
+             B_step = get_expr_as_int(loop_B[merged_loop_size]->step_);
+        auto A_num_threads = loop_A[merged_loop_size]->num_threads_,
+             B_num_threads = loop_B[merged_loop_size]->num_threads_;
+        if (A_begin != B_begin || A_end != B_end || A_step != B_step
+                || A_num_threads != B_num_threads)
+            break;
+    }
+    return merged_loop_size;
+}
+
+static bool try_merge_mixed_parti_parallel_inners(
+        mixed_parti_t *pa_to_merge, mixed_parti_t *parti_be_merged) {
+    auto outer_loops_to_merge = pa_to_merge->get_outer_loops(),
+         outer_loops_be_merged = parti_be_merged->get_outer_loops();
+
+    if (outer_loops_to_merge.empty() || outer_loops_be_merged.empty())
+        return false;
+
+    auto merged_loop_size = get_great_common_loop_size(
+            outer_loops_to_merge, outer_loops_be_merged);
+    if (!merged_loop_size) return false; // no outer loop can be merged
+
+    // validate axis binding
+    merged_loop_size = check_parti_loop_axis_binding(
+            parti_be_merged, pa_to_merge, merged_loop_size);
+    SC_MODULE_INFO << "After axis binding, num loops to merge: "
+                   << merged_loop_size;
+    if (!merged_loop_size) return false; // no outer loop can be merged
+
+    // change the loop var name of the first for.
+    // first for: for m_s, for n_s. second for: for m_s_o, m_s_i, n_s.
+    // merge directly: for m_s, for n_s, for n_s.
+    // add suffix and merge: for m_s_0, for n_s_0, for n_s.
+    for (size_t i = 0; i < merged_loop_size; ++i) {
+        std::string &varname
+                = outer_loops_to_merge[i]->var_.static_as<var>()->name_;
+        varname += "_0";
+    }
+
+    SC_MODULE_INFO << "parallel merging two partition:";
+    SC_MODULE_INFO << pa_to_merge->func_;
+    SC_MODULE_INFO << parti_be_merged->func_;
+
+    /* * * * * * * * * * * * * * * * *
+     * Step 1: Merge func_
+     * * * * * * * * * * * * * * * * */
+    auto outer_loops_merged_target = outer_loops_to_merge[merged_loop_size - 1];
+    auto outer_loops_merged_append
+            = outer_loops_be_merged[merged_loop_size - 1];
+
+    auto max_to_merge_anchor_map
+            = pa_to_merge->get_anchor_inside_loop(outer_loops_merged_target);
+    auto max_be_merged_anchor_map = parti_be_merged->get_anchor_inside_loop(
+            outer_loops_merged_append);
+    if (!max_to_merge_anchor_map) {
+        auto s = builder::make_stmts_unattached({}).checked_as<stmts>();
+        add_parent_node(s, outer_loops_merged_target->body_);
+        outer_loops_merged_target->body_.checked_as<stmts>()->seq_.emplace_back(
+                s);
+        // dummy fsmap, the tensor belongs to this scope will not be shrinked
+        fslice_map fsmap;
+        max_to_merge_anchor_map = std::make_shared<fuse_anchor_map_t>(s, fsmap);
+        pa_to_merge->append_fusion_anchor(max_to_merge_anchor_map);
+    }
+    if (max_be_merged_anchor_map) {
+        max_to_merge_anchor_map->merge(max_be_merged_anchor_map);
+    }
+    max_to_merge_anchor_map->fuse_anchor_map_t::commit_stmt(
+            outer_loops_merged_append->body_);
+
+    pa_to_merge->func_->name_
+            += "_parallel_merge_" + parti_be_merged->func_->name_;
+
+    merge_parti_impl(pa_to_merge, parti_be_merged, merged_loop_size);
+
+    SC_MODULE_INFO << "parallel merging result:";
+    SC_MODULE_INFO << pa_to_merge->func_;
+
+    return true;
+}
+
 static bool try_merge_mixed_parti_parallel(mixed_parti_t *A, mixed_parti_t *B) {
     A = A->get_root(), B = B->get_root();
     if (A == B) return false;
@@ -1386,6 +1613,9 @@ static bool try_merge_mixed_parti_parallel(mixed_parti_t *A, mixed_parti_t *B) {
 
     auto append_parti = (dep == parti_dep::l_dep_r) ? A : B,
          target_parti = (dep == parti_dep::l_dep_r) ? B : A;
+    SC_MODULE_INFO << "Start try_merge_mixed_parti_parallel: "
+                   << "Target: " << target_parti->func_->name_
+                   << ", Append: " << append_parti->func_->name_;
 
     auto outer_loops_target = target_parti->get_outer_loops(),
          outer_loops_append = append_parti->get_outer_loops();
@@ -1401,9 +1631,9 @@ static bool try_merge_mixed_parti_parallel(mixed_parti_t *A, mixed_parti_t *B) {
                     && (outermost_loop_append->num_threads_ > 0))) {
         return false;
     }
-    // check axis binding.
-    if (!check_parti_loop_axis_binding(append_parti, target_parti,
-                1 /*due to current parallel merge only for outer most loop*/)) {
+
+    // check axis binding on the outmost axis
+    if (!check_parti_loop_axis_binding(append_parti, target_parti, 1)) {
         return false;
     }
     // cannot do parallel merge when loop split granularity are different
@@ -1426,110 +1656,91 @@ static bool try_merge_mixed_parti_parallel(mixed_parti_t *A, mixed_parti_t *B) {
              append_begin = get_expr_as_int(outermost_loop_append->iter_begin_),
              append_end = get_expr_as_int(outermost_loop_append->iter_end_),
              append_step = get_expr_as_int(outermost_loop_append->step_);
-        auto target_thread = outermost_loop_target->num_threads_,
-             append_thread = outermost_loop_append->num_threads_;
-        if (!(target_begin == append_begin && target_end == append_end
-                    && target_step == append_step
-                    && target_thread == append_thread))
+        // start and step must be the same
+        if (!(target_begin == append_begin && target_step == append_step)) {
             return false;
-    } else {
-        return false;
-    }
-
-    // cannot do parallel merge when loop split granularity are different
-    if (outermost_loop_target->attr().get_or_else(
-                stmt_attr_key::parallel_merge_loop_granularity, 1)
-            != outermost_loop_append->attr().get_or_else(
-                    stmt_attr_key::parallel_merge_loop_granularity, 1)) {
-        return false;
-    }
-
-    SC_MODULE_INFO << "parallel merging two partition:";
-    SC_MODULE_INFO << target_parti->func_;
-    SC_MODULE_INFO << append_parti->func_;
-
-    // remove barrier if necessary
-    if (dep == parti_dep::no_dep) {
-        auto last_loop = get_last_loop_in_body(outermost_loop_target->body_);
-        if (last_loop.defined()) {
-            last_loop->attr()[stmt_attr_key::no_post_barrier] = true;
         }
+        if (target_end
+                != append_end) { // if the end is not same, then we try to split
+            // the first on num_threads_ to merge, but we
+            // require num_iters == num_threads
+            if (append_parti->contain_convolution()
+                    || target_parti->contain_convolution()) {
+                // currently do not support split num_threads_ on conv
+                return false;
+            }
+
+            if (target_begin != 0 || target_step != 1 || append_begin != 0
+                    || append_step != 1) {
+                // Only support begin is 0 and step is 1
+                return false;
+            }
+            if (target_end == outermost_loop_target->num_threads_
+                    && append_end == outermost_loop_append->num_threads_) {
+                // For the two fors, same start, same step, different end =>
+                // different num_iters.
+                // For each for, num_iters == num_threads. So We split the for
+                // on num_threads.
+                // can not split the outermost loop in imbalanced cases
+                if (!outermost_loop_target->attr().get_or_else(
+                            stmt_attr_key::parallel_loop_balanced, true)
+                        || !outermost_loop_append->attr().get_or_else(
+                                stmt_attr_key::parallel_loop_balanced, true)) {
+                    SC_MODULE_INFO << "The outermost loop is imbalanced, can "
+                                      "not be split";
+                    return false;
+                }
+                if (outermost_loop_target->num_threads_
+                                > outermost_loop_append->num_threads_
+                        && outermost_loop_target->num_threads_
+                                        % outermost_loop_append->num_threads_
+                                == 0) {
+                    if (outermost_loop_append->num_threads_ == 1) {
+                        // in this case, after split, outermost_loop_target
+                        // num_threads will be 1
+                        return false;
+                    }
+                    int64_t num_groups = outermost_loop_target->num_threads_
+                            / outermost_loop_append->num_threads_;
+                    target_parti->try_split_outermost_loop_on_num_threads(
+                            num_groups);
+                    return try_merge_mixed_parti_parallel_inners(
+                            target_parti, append_parti);
+                } else if (outermost_loop_append->num_threads_
+                                > outermost_loop_target->num_threads_
+                        && outermost_loop_append->num_threads_
+                                        % outermost_loop_target->num_threads_
+                                == 0) {
+                    if (outermost_loop_target->num_threads_ == 1) {
+                        // in this case, after split, outermost_loop_append
+                        // num_threads will be 1
+                        return false;
+                    }
+                    int64_t num_groups = outermost_loop_append->num_threads_
+                            / outermost_loop_target->num_threads_;
+                    append_parti->try_split_outermost_loop_on_num_threads(
+                            num_groups);
+                    return try_merge_mixed_parti_parallel_inners(
+                            target_parti, append_parti);
+                } else {
+                    return false;
+                }
+            } else { // do not support num_iters != num_threads case for now
+                return false;
+            }
+        } else { // the two fors have same (start, end, step)
+            // if num_threads are the same, merge them directly
+            if (outermost_loop_target->num_threads_
+                    == outermost_loop_append->num_threads_) {
+                return try_merge_mixed_parti_parallel_inners(
+                        target_parti, append_parti);
+            } else {
+                return false;
+            }
+        }
+    } else { // if (start, end, step) is not constant
+        return false;
     }
-
-    /* * * * * * * * * * * * * * * * *
-     * Step 1: Merge func_
-     * * * * * * * * * * * * * * * * */
-    std::unordered_map<expr, expr> expr_map;
-    expr_map[outermost_loop_append->var_] = outermost_loop_target->var_;
-
-    auto common_fanchor
-            = target_parti->get_anchor_inside_loop(outermost_loop_target);
-    auto common_other_fanchor
-            = append_parti->get_anchor_inside_loop(outermost_loop_append);
-    // create common anchor if necessary
-    if (!common_fanchor) {
-        auto s = builder::make_stmts_unattached({}).checked_as<stmts>();
-        add_parent_node(s, outermost_loop_target);
-        outermost_loop_target->body_.checked_as<stmts>()->seq_.emplace_back(s);
-        // dummy fsmap, the tensor belongs to this scope will not be shrinked
-        fslice_map fsmap;
-        common_fanchor = std::make_shared<fuse_anchor_map_t>(s, fsmap);
-        target_parti->append_fusion_anchor(common_fanchor);
-    } else if (common_other_fanchor) {
-        common_fanchor->merge(common_other_fanchor);
-    }
-
-    common_fanchor->fuse_anchor_map_t::commit_stmt(
-            outermost_loop_append->body_);
-
-    /* * * * * * * * * * * * * * * * *
-     * Step 2: Merge fanchor_
-     * * * * * * * * * * * * * * * * */
-    target_parti->append_fusion_anchor(append_parti->fanchors_);
-
-    /* * * * * * * * * * * * * * * * *
-     * Step 3: Merge buffer_
-     * * * * * * * * * * * * * * * * */
-    std::unordered_map<expr, expr> buffer_map;
-    target_parti->buf_alloc_.merge(append_parti->buf_alloc_, buffer_map,
-            std::make_pair(common_fanchor, common_other_fanchor));
-
-    /* * * * * * * * * * * * * * * * *
-     * Step 4: Replace expr
-     * * * * * * * * * * * * * * * * */
-    expr_map.insert(buffer_map.begin(), buffer_map.end());
-    mxp_replacer_t expr_reper(expr_map);
-    // 1. func->body
-    expr_reper.replace_func(target_parti->func_);
-    // 2. fanchor->fsmap->slice_range
-    expr_reper.replace_anchor(target_parti->fanchors_);
-
-    /* * * * * * * * * * * * * * * * *
-     * Step 5: Merge op_anchor_map_
-     * * * * * * * * * * * * * * * * */
-    target_parti->op_anchor_map_.insert(append_parti->op_anchor_map_.begin(),
-            append_parti->op_anchor_map_.end());
-
-    // call base merge
-    target_parti->fusion_partition_t::merge(
-            static_cast<fusion_partition_t *>(append_parti)
-                    ->shared_from_this());
-
-    // Merge commited ops
-    target_parti->committed_ops_.insert(target_parti->committed_ops_.end(),
-            append_parti->committed_ops_.begin(),
-            append_parti->committed_ops_.end());
-
-    target_parti->func_->name_
-            += "_parallel_merge_" + append_parti->func_->name_;
-
-    SC_MODULE_INFO << "parallel merging result:";
-    SC_MODULE_INFO << target_parti->func_;
-
-    // clear merged parti
-    append_parti->clear();
-
-    return true;
 }
 
 static bool try_merge_mixed_parti_horizontally(
@@ -1639,7 +1850,7 @@ static bool try_merge_mixed_parti_horizontally(
     auto_caster_t ac;
     for (size_t i = 1; i < loops.size(); i++) {
         loops[0]->parallel_merge(body, loops[i]);
-        add_parent_node(loops[i]->body_, loops[0]);
+        add_parent_node(loops[i]->body_, loops[0]->body_);
         loops[0]->iter_end_ = cf(ac(loops[0]->iter_end_)).remove_const();
     }
 
@@ -1676,33 +1887,6 @@ static sc_dim get_loops_range_prod(const std::vector<for_loop> &loops) {
         prod_res *= get_loops_range(l);
     }
     return prod_res;
-}
-
-static size_t get_great_common_loop_size(const std::vector<for_loop> &loop_A,
-        const std::vector<for_loop> &loop_B) {
-    // great common size
-    auto gcs = std::min(loop_A.size(), loop_B.size());
-
-    size_t merged_loop_size = 0;
-    for (; merged_loop_size < gcs; merged_loop_size++) {
-        if (!(loop_A[merged_loop_size]->iter_begin_.isa<constant_c>()
-                    && loop_A[merged_loop_size]->iter_end_.isa<constant_c>()
-                    && loop_A[merged_loop_size]->step_.isa<constant_c>()
-                    && loop_B[merged_loop_size]->iter_begin_.isa<constant_c>()
-                    && loop_B[merged_loop_size]->iter_end_.isa<constant_c>()
-                    && loop_B[merged_loop_size]->step_.isa<constant_c>())) {
-            return 0;
-        }
-        auto A_begin = get_expr_as_int(loop_A[merged_loop_size]->iter_begin_),
-             A_end = get_expr_as_int(loop_A[merged_loop_size]->iter_end_),
-             A_step = get_expr_as_int(loop_A[merged_loop_size]->step_),
-             B_begin = get_expr_as_int(loop_B[merged_loop_size]->iter_begin_),
-             B_end = get_expr_as_int(loop_B[merged_loop_size]->iter_end_),
-             be_merge_step = get_expr_as_int(loop_B[merged_loop_size]->step_);
-        if (A_begin != B_begin || A_end != B_end || A_step != be_merge_step)
-            break;
-    }
-    return merged_loop_size;
 }
 
 static void try_align_parti_outer_loops(mixed_parti_t *A, mixed_parti_t *B) {
@@ -1874,9 +2058,6 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
                 parti_be_merged, merged_loop_size, parti_merge_kind::vertical))
         return false;
 
-    // evaluate two partition by cost model
-    float score_A = A->evaluate_perf(), score_B = B->evaluate_perf();
-
     SC_MODULE_INFO << "merging two partition:";
     SC_MODULE_INFO << A->func_;
     SC_MODULE_INFO << B->func_;
@@ -1898,119 +2079,12 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
         return false;
     }
 
-    // var and tensor replace map
-    std::unordered_map<expr, expr> expr_map, buffer_map;
-
-    /* * * * * * * * * * * * * * * * *
-     * Step 2: Merge fanchor_
-     * * * * * * * * * * * * * * * * */
-    // erase inferred but not allocated gt
-    for (auto &to_merge_anchor_map : pa_to_merge->fanchors_) {
-        for (auto iter = to_merge_anchor_map->fsmap_.datamap_.begin();
-                iter != to_merge_anchor_map->fsmap_.datamap_.end();) {
-            if (!pa_to_merge->buf_alloc_.g2b_map_.haskey(iter->first)) {
-                iter = to_merge_anchor_map->fsmap_.datamap_.erase(iter);
-            } else {
-                iter++;
-            }
-        }
-    }
-
-    for (auto &be_merged_anchor_map : parti_be_merged->fanchors_) {
-        for (auto iter = be_merged_anchor_map->fsmap_.datamap_.begin();
-                iter != be_merged_anchor_map->fsmap_.datamap_.end();) {
-            if (!parti_be_merged->buf_alloc_.g2b_map_.haskey(iter->first)) {
-                iter = be_merged_anchor_map->fsmap_.datamap_.erase(iter);
-            } else {
-                iter++;
-            }
-        }
-    }
-
-    // merge outer loop anchor
-    std::unordered_set<fuse_anchor_map_ptr> be_merged_anchor_masks;
-    for (size_t i = 0; i < merged_loop_size; i++) {
-        expr_map[outer_loops_be_merged[i]->var_]
-                = outer_loops_to_merge[i]->var_;
-        auto be_merged_anchor_map = parti_be_merged->get_anchor_inside_loop(
-                     outer_loops_be_merged[i]),
-             to_merge_anchor_map
-                = pa_to_merge->get_anchor_inside_loop(outer_loops_to_merge[i]);
-        if (be_merged_anchor_map) {
-            be_merged_anchor_masks.insert(be_merged_anchor_map);
-            if (to_merge_anchor_map) {
-                to_merge_anchor_map->merge(be_merged_anchor_map);
-            }
-        }
-    }
-
-    // append inner loop anchor
-    for (auto &be_merged_anchor_map : parti_be_merged->fanchors_) {
-        if (be_merged_anchor_masks.find(be_merged_anchor_map)
-                != be_merged_anchor_masks.end())
-            continue;
-        if (max_to_merge_anchor_map) {
-            be_merged_anchor_map->attach_parent_anchor(
-                    max_to_merge_anchor_map, max_be_merged_anchor_map);
-        }
-        pa_to_merge->append_fusion_anchor(be_merged_anchor_map);
-    }
-
-    /* * * * * * * * * * * * * * * * *
-     * Step 3: Merge buf_alloc_
-     * * * * * * * * * * * * * * * * */
-    pa_to_merge->buf_alloc_.merge(parti_be_merged->buf_alloc_, buffer_map,
-            std::make_pair(max_to_merge_anchor_map, max_be_merged_anchor_map));
-
-    /* * * * * * * * * * * * * * * * * *
-     * Step 4: Replace expr involving:
-     *  1. func->body
-     *  2. fanchor->fsmap->slice_range
-     * * * * * * * * * * * * * * * * * */
-    expr_map.insert(buffer_map.begin(), buffer_map.end());
-    // create mxp inplace replacer
-    mxp_replacer_t expr_reper(expr_map);
-    // 1. func->body
-    expr_reper.replace_func(pa_to_merge->func_);
-    // 2. fanchor->fsmap->slice_range
-    expr_reper.replace_anchor(pa_to_merge->fanchors_);
-
-    /* * * * * * * * * * * * * * * * *
-     * Step 5: Merge op_anchor_map_
-     * * * * * * * * * * * * * * * * */
-    pa_to_merge->op_anchor_map_.insert(parti_be_merged->op_anchor_map_.begin(),
-            parti_be_merged->op_anchor_map_.end());
-
-    // erase joint op in op_anchor_map
-    pa_to_merge->op_anchor_map_.erase(joint_op.get());
-
-    /* * * * * * * * * * * * * * * * *
-     * Step 6: Merge op_
-     * * * * * * * * * * * * * * * * */
-    // call base merge
-    pa_to_merge->fusion_partition_t::merge(
-            static_cast<fusion_partition_t *>(parti_be_merged)
-                    ->shared_from_this());
-
-    // Merge commited ops
-    pa_to_merge->committed_ops_.insert(pa_to_merge->committed_ops_.end(),
-            parti_be_merged->committed_ops_.begin(),
-            parti_be_merged->committed_ops_.end());
-
     pa_to_merge->func_->name_ += "_merge_" + parti_be_merged->func_->name_;
+
+    merge_parti_impl(pa_to_merge, parti_be_merged, merged_loop_size, joint_op);
 
     SC_MODULE_INFO << "Merging result:";
     SC_MODULE_INFO << pa_to_merge->func_;
-
-    // clear merged parti
-    parti_be_merged->clear();
-
-    float score_C = pa_to_merge->evaluate_perf();
-
-    if (score_C < std::max(score_A, score_B)) {
-        SC_MODULE_WARN << "Merging these two partition may cause performance "
-                          "drop, no fall-back strategy found";
-    }
 
     return true;
 }
@@ -2279,6 +2353,21 @@ for_loop mixed_parti_t::get_next_inner_loop_with_anchor(
     return for_loop();
 }
 
+void mixed_parti_t::try_split_outermost_loop_on_num_threads(
+        int64_t num_groups) {
+    auto outer_loops = get_outer_loops();
+    if (outer_loops.empty()) return;
+    auto outermost_loop = outer_loops[0];
+
+    std::unordered_map<expr, expr> remap;
+    // change IR and record replace map
+    outermost_loop->split_on_num_threads(num_groups, &remap);
+    mxp_replacer_t expr_reper(remap);
+    // split outer loop axis binder
+    ax_binder_.split_init_axis(0);
+    expr_reper.replace_anchor(fanchors_);
+}
+
 void mixed_parti_t::try_split_outermost_loop(int64_t block) {
     auto outer_loops = get_outer_loops();
     if (outer_loops.empty()) return;
@@ -2381,10 +2470,12 @@ float mixed_parti_t::evaluate_perf() {
     return cost_.evaluate();
 }
 
-static std::unordered_set<mixed_parti_t::ptr> collect_non_const_parti(
+static std::vector<mixed_parti_t::ptr> collect_non_const_parti(
         const std::vector<mixed_parti_t::ptr> &op_2_partition) {
     std::unordered_set<mixed_parti_t::ptr> parti_set;
+    std::vector<mixed_parti_t::ptr> parti_vec;
     for (auto &parti : op_2_partition) {
+        if (parti_set.count(parti)) { continue; }
         // auto skip const parti
         if (!parti
                 || (parti->ops.size() == 1
@@ -2393,8 +2484,9 @@ static std::unordered_set<mixed_parti_t::ptr> collect_non_const_parti(
                                 != const_kind::not_const))
             continue;
         parti_set.insert(parti);
+        parti_vec.push_back(parti);
     }
-    return parti_set;
+    return parti_vec;
 }
 
 static bool check_repartition(const mixed_parti_t::ptr &parti) {
@@ -3064,9 +3156,8 @@ static void vertical_crossover(
 
 static void crossover_partition(std::vector<mixed_parti_t::ptr> &op_2_partition,
         const std::vector<crossover_alg> &algs) {
-    auto parti_set = collect_non_const_parti(op_2_partition);
-    std::vector<mixed_parti_t::ptr> parti_vec {
-            parti_set.begin(), parti_set.end()};
+    std::vector<mixed_parti_t::ptr> parti_vec
+            = collect_non_const_parti(op_2_partition);
     for (auto &al : algs) {
         al(parti_vec);
     }

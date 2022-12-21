@@ -441,6 +441,11 @@ expr make_write_struct(const expr_c &in, const expr_c &field,
                     {intrin_attr::struct_field, field_name}});
 }
 
+expr make_get_group_id(uint64_t par_for_level_id) {
+    return make_expr<intrin_call_node>(intrin_type::get_group_id,
+            std::vector<expr> {par_for_level_id}, any_map_t());
+}
+
 GEN_BINARY(add);
 GEN_BINARY(sub);
 GEN_BINARY(mul);

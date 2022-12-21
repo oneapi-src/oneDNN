@@ -333,6 +333,23 @@ struct prefetch_handler_t : public intrinsic_handler_t {
     prefetch_handler_t() : intrinsic_handler_t("prefetch") {}
 };
 
+struct get_group_id_handler_t : public intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 1);
+        node.dtype_ = datatypes::u32;
+    }
+    get_group_id_handler_t() : intrinsic_handler_t("get_group_id") {}
+};
+
+struct get_group_thread_id_handler_t : public intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        assert(node.args_.size() == 1);
+        node.dtype_ = datatypes::u32;
+    }
+    get_group_thread_id_handler_t()
+        : intrinsic_handler_t("get_group_thread_id") {}
+};
+
 namespace brgemm_args {
 sc_data_type_t arg_types[NUM_FULL_ARGS_STRIDE] = {
         datatypes::pointer, // A (overloaded)
@@ -398,44 +415,47 @@ sc_data_type_t list_arg_types[NUM_FULL_ARGS_LIST] = {
 };
 } // namespace brgemm_args
 
-static std::unique_ptr<intrinsic_handler_t> handlers[]
-        = {utils::make_unique<min_handler_t>(),
-                utils::make_unique<max_handler_t>(),
-                utils::make_unique<abs_handler_t>(),
-                utils::make_unique<round_handler_t>(),
-                utils::make_unique<floor_handler_t>(),
-                utils::make_unique<ceil_handler_t>(),
-                utils::make_unique<exp_handler_t>(),
-                utils::make_unique<sqrt_handler_t>(),
-                utils::make_unique<rsqrt_handler_t>(),
-                utils::make_unique<reduce_add_handler_t>(),
-                utils::make_unique<reduce_mul_handler_t>(),
-                utils::make_unique<reduce_max_handler_t>(),
-                utils::make_unique<reduce_min_handler_t>(),
-                utils::make_unique<fmadd_handler_t>(),
-                utils::make_unique<unpack_low_handler_t>(),
-                utils::make_unique<unpack_high_handler_t>(),
-                utils::make_unique<shuffle_handler_t>(),
-                utils::make_unique<permute_handler_t>(),
-                utils::make_unique<int_and_handler_t>(),
-                utils::make_unique<int_or_handler_t>(),
-                utils::make_unique<int_xor_handler_t>(),
-                utils::make_unique<reinterpret_handler_t>(),
-                utils::make_unique<broadcast_handler_t>(),
-                utils::make_unique<isnan_handler_t>(),
-                utils::make_unique<saturated_cast_handler_t>(),
-                utils::make_unique<round_and_cast_handler_t>(),
-                utils::make_unique<shl_handler_t>(),
-                utils::make_unique<shr_handler_t>(),
-                utils::make_unique<permutex2var_handler_t>(),
-                utils::make_unique<read_struct_handler_t>(),
-                utils::make_unique<write_struct_handler_t>(),
-                utils::make_unique<set_thread_idle_func_handler_t>(),
-                utils::make_unique<prefetch_handler_t>(),
-                utils::make_unique<brgemm_handler_t>(
-                        brgemm_args::NUM_FULL_ARGS_STRIDE, "brgemm"),
-                utils::make_unique<brgemm_handler_t>(
-                        brgemm_args::NUM_FULL_ARGS_LIST, "list_brgemm")};
+static std::unique_ptr<intrinsic_handler_t> handlers[] = {
+        utils::make_unique<min_handler_t>(),
+        utils::make_unique<max_handler_t>(),
+        utils::make_unique<abs_handler_t>(),
+        utils::make_unique<round_handler_t>(),
+        utils::make_unique<floor_handler_t>(),
+        utils::make_unique<ceil_handler_t>(),
+        utils::make_unique<exp_handler_t>(),
+        utils::make_unique<sqrt_handler_t>(),
+        utils::make_unique<rsqrt_handler_t>(),
+        utils::make_unique<reduce_add_handler_t>(),
+        utils::make_unique<reduce_mul_handler_t>(),
+        utils::make_unique<reduce_max_handler_t>(),
+        utils::make_unique<reduce_min_handler_t>(),
+        utils::make_unique<fmadd_handler_t>(),
+        utils::make_unique<unpack_low_handler_t>(),
+        utils::make_unique<unpack_high_handler_t>(),
+        utils::make_unique<shuffle_handler_t>(),
+        utils::make_unique<permute_handler_t>(),
+        utils::make_unique<int_and_handler_t>(),
+        utils::make_unique<int_or_handler_t>(),
+        utils::make_unique<int_xor_handler_t>(),
+        utils::make_unique<reinterpret_handler_t>(),
+        utils::make_unique<broadcast_handler_t>(),
+        utils::make_unique<isnan_handler_t>(),
+        utils::make_unique<saturated_cast_handler_t>(),
+        utils::make_unique<round_and_cast_handler_t>(),
+        utils::make_unique<shl_handler_t>(),
+        utils::make_unique<shr_handler_t>(),
+        utils::make_unique<permutex2var_handler_t>(),
+        utils::make_unique<read_struct_handler_t>(),
+        utils::make_unique<write_struct_handler_t>(),
+        utils::make_unique<set_thread_idle_func_handler_t>(),
+        utils::make_unique<prefetch_handler_t>(),
+        utils::make_unique<get_group_id_handler_t>(),
+        utils::make_unique<get_group_thread_id_handler_t>(),
+        utils::make_unique<brgemm_handler_t>(
+                brgemm_args::NUM_FULL_ARGS_STRIDE, "brgemm"),
+        utils::make_unique<brgemm_handler_t>(
+                brgemm_args::NUM_FULL_ARGS_LIST, "list_brgemm"),
+};
 
 static_assert(sizeof(handlers) / sizeof(handlers[0])
                 == int(intrin_type::NUM_INTRINSICS),

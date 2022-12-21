@@ -59,6 +59,9 @@ constexpr const char *reduce_root_loop = "reduce_root_loop";
 // is a special unroll factor, and it unrolls all iterations of the loop
 constexpr const char *unroll_loop = "unroll_loop";
 
+// Boolean. Wether parallel for_loop_node_t is balanced
+constexpr const char *parallel_loop_balanced = "parallel_loop_balanced";
+
 // int. Indicate the partition granularity (default =1)
 constexpr const char *parallel_merge_loop_granularity
         = "parallel_merge_loop_granularity";
@@ -345,6 +348,34 @@ public:
      * @return the for_loop node_ptr of the inner loop
      * */
     ptr_type split(int64_t block,
+            std::unordered_map<expr, expr> *expr_remap = nullptr);
+
+    /**
+     * Change the original loop's end and num_threads
+     * for i in (0, end, 1) parallel (num_threads)
+     *   op1(i)
+     * where num_iters == end == num_threads
+     * ===>
+     * for i in (0, num_threads / num_groups, 1)
+     *     parallel (num_threads / num_groups)
+     *   for j in (0, num_groups, 1) parallel (num_groups)
+     *     iter = i * num_groups + j
+     *       op1(iter)
+     * Example:
+     * for i in (0, 16, 1) parallel (16) {
+     *   op(i)
+     * }
+     * with num_groups = 2:
+     * for i in (0, 8, 1) parallel (8) {
+     *   for j in (0, 2, 1) parallel (2) {
+     *     op(i * 2 + j)
+     *   }
+     * }
+     *
+     * @param num_groups the num_threads_ of inner loop
+     * @return the for_loop node_ptr of the inner loop
+     * */
+    ptr_type split_on_num_threads(int64_t num_groups,
             std::unordered_map<expr, expr> *expr_remap = nullptr);
 
     /**

@@ -277,6 +277,41 @@ void for_loop_node_t::unroll(uint64_t factor, const stmt &parent) {
     }
 }
 
+static for_loop build_inner_for(for_loop_node_t *ths, int64_t min,
+        int64_t block, std::unordered_map<expr, expr> *expr_remap) {
+    // make new variables
+    var varptr = ths->var_.checked_as<var>();
+    // remake a new var to replace old one. Call "remake" to avoid infinite
+    // recursion in var_inplace_replacer after fuse():
+    // cause: in fuse(), v => v / 123, we use v / 123 multiple times
+    // in split, we inplace change (v * 123) => (v * 321 + 1) / 123, but (v *
+    // 123) is used many times, we will recursively replace (v * 321 + 1) / 123
+    // => ((v * 321 + 1) * 321 + 1) / 123
+    // thus we need to remake v
+    ths->var_ = ths->var_->remake();
+    std::string &varname = ths->var_.static_as<var>()->name_;
+    std::string oldname = std::move(varname);
+    varname = oldname + "_0outer";
+
+    var vin = make_expr<var_node>(ths->var_->dtype_, oldname + "_0inner");
+
+    // old iter variable is mapped to outer * block + inner
+    expr remapped
+            = ths->var_ * make_expr<constant_node>(block, ths->var_->dtype_)
+            + vin;
+    if (min != 0) {
+        remapped = remapped + make_expr<constant_node>(min, ths->var_->dtype_);
+    }
+    std::unordered_map<var_node *, expr> remap = {{varptr.get(), remapped}};
+    if (expr_remap) { expr_remap->insert(std::make_pair(varptr, remapped)); }
+    var_inplace_replacer_t pass(&remap);
+    pass.dispatch_impl(ths->body_);
+
+    // make inner loop
+    auto inner_for = make_const_for(vin, 0, block, std::move(ths->body_));
+    return inner_for;
+}
+
 for_loop for_loop_node_t::split(
         int64_t block, std::unordered_map<expr, expr> *expr_remap) {
     COMPILE_ASSERT(isvalid(), "Transforming an invalid for-loop");
@@ -289,39 +324,42 @@ for_loop for_loop_node_t::split(
                     << " should be divisible of and larger than the block size "
                     << block);
     int64_t outer_len = loop_len / block;
-    // make new variables
-    var varptr = var_.checked_as<var>();
-    // remake a new var to replace old one. Call "remake" to avoid infinite
-    // recursion in var_inplace_replacer after fuse():
-    // cause: in fuse(), v => v / 123, we use v / 123 multiple times
-    // in split, we inplace change (v * 123) => (v * 321 + 1) / 123, but (v *
-    // 123) is used many times, we will recursively replace (v * 321 + 1) / 123
-    // => ((v * 321 + 1) * 321 + 1) / 123
-    // thus we need to remake v
-    var_ = var_->remake();
-    std::string &varname = var_.static_as<var>()->name_;
-    std::string oldname = std::move(varname);
-    varname = oldname + "_0outer";
 
     // set outer loop
     iter_begin_ = make_expr<constant_node>(int64_t(0), var_->dtype_);
     iter_end_ = make_expr<constant_node>(outer_len, var_->dtype_);
 
-    var vin = make_expr<var_node>(var_->dtype_, oldname + "_0inner");
-    // old iter variable is mapped to outer * block + inner
-    expr remapped = var_ * make_expr<constant_node>(block, var_->dtype_) + vin;
-    if (min != 0) {
-        remapped = remapped + make_expr<constant_node>(min, var_->dtype_);
-    }
-    std::unordered_map<var_node *, expr> remap = {{varptr.get(), remapped}};
-    if (expr_remap) { expr_remap->insert(std::make_pair(varptr, remapped)); }
-    var_inplace_replacer_t pass(&remap);
-    pass.dispatch_impl(body_);
+    auto inner_for = build_inner_for(this, min, block, expr_remap);
 
-    // make inner loop
-    auto innner_for = make_const_for(vin, 0, block, std::move(body_));
-    body_ = make_stmt<stmts_node_t>(std::vector<stmt>({innner_for}));
-    return innner_for;
+    body_ = make_stmt<stmts_node_t>(std::vector<stmt>({inner_for}));
+    return inner_for;
+}
+
+for_loop for_loop_node_t::split_on_num_threads(
+        int64_t num_groups, std::unordered_map<expr, expr> *expr_remap) {
+    COMPILE_ASSERT(isvalid(), "Transforming an invalid for-loop");
+    int64_t min, max, step;
+    get_constant_from_for_loop(this, min, max, step);
+    COMPILE_ASSERT(
+            min == 0 && step == 1, "Only support begin is 0 and step is 1")
+    COMPILE_ASSERT(max == num_threads_, "Only support num_iters == num_threads")
+    int64_t ori_num_threads = num_threads_;
+    COMPILE_ASSERT(ori_num_threads % num_groups == 0,
+            "The num_threads " << ori_num_threads
+                               << " should be divisible by num_groups "
+                               << num_groups);
+    num_threads_ = ori_num_threads / num_groups;
+    iter_end_ = make_expr<constant_node>(uint64_t(num_threads_), var_->dtype_);
+
+    auto inner_for = build_inner_for(this, min, num_groups, expr_remap);
+    inner_for->num_threads_ = num_groups;
+    inner_for->kind_ = for_type::PARALLEL;
+    if (attr_ && attr_->has_key(stmt_attr_key::parallel_loop_balanced)) {
+        inner_for->attr()[stmt_attr_key::parallel_loop_balanced]
+                = attr()[stmt_attr_key::parallel_loop_balanced];
+    }
+    body_ = make_stmt<stmts_node_t>(std::vector<stmt>({inner_for}));
+    return inner_for;
 }
 
 for_loop get_inner_for_loop(const for_loop_node_t *f) {

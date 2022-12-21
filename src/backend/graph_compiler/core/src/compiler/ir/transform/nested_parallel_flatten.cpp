@@ -31,11 +31,14 @@
 
 namespace sc {
 
-SC_DECL_PASS_INFO(nested_parallel_flattener, SC_PASS_DEPENDS_ON(validator),
+SC_DECL_PASS_INFO(nested_parallel_flattener,
+        SC_PASS_DEPENDS_ON(validator, buffer_rescheduling_tensor_hoisting),
         SC_PASS_REQUIRE_STATE(CONST_FOLDED, IR_SIMPLIFIED),
         SC_PASS_REQUIRE_NOT_STATE(), SC_PASS_SET_STATE(),
         SC_PASS_UNSET_STATE(CONST_FOLDED, IR_SIMPLIFIED));
 
+// In this pass, we do and only do nested parallel flattening.
+// Tensor hoisting is already done in buffer_rescheduling_tensor_hoisting pass.
 class nested_parallel_flatten_impl_t : public ir_visitor_t {
     struct parallel_info_t {
         int num_groups_;
@@ -48,8 +51,6 @@ class nested_parallel_flatten_impl_t : public ir_visitor_t {
     };
 
     std::vector<parallel_info_t> info_;
-    std::vector<stmt> outof_parallel_defs_;
-    std::unordered_map<expr, std::pair<expr, expr>> outof_parallel_map_;
     std::vector<stmt> *top_level_parallel_seq_ = nullptr;
     int runtime_threads_ = runtime_config_t::get().get_num_threads();
     int count_ = 0;
@@ -60,18 +61,6 @@ class nested_parallel_flatten_impl_t : public ir_visitor_t {
 
 public:
     using ir_visitor_t::dispatch;
-
-    // replace with new indexing.
-    expr_c visit(indexing_c v) override {
-        auto it = outof_parallel_map_.find(v->ptr_);
-        if (it != outof_parallel_map_.end()) {
-            assert(v->idx_.size() == 1);
-            return builder::make_indexing(it->second.first,
-                    {it->second.second + v->idx_[0]}, v->dtype_.lanes_,
-                    v->mask_);
-        }
-        return v;
-    }
 
     std::string make_name(const char *n) {
         std::string name = n;
@@ -197,10 +186,8 @@ void work() {
         }
     }
 }
-
 =====================================
 to:
-
 void work() {
     barrier bar1[4]; // 1 is group level. 4 is the thread number of first group,
                      // each bar sync 16 threads
@@ -337,6 +324,9 @@ void work() {
                 new_body->seq_.insert(new_body->seq_.end(), body->seq_.begin(),
                         body->seq_.end());
                 single_thread_body = stmts();
+            } else if (old_body[i].isa<define_c>()) {
+                new_body->seq_.emplace_back(
+                        dispatch(old_body[i]).remove_const());
             } else {
                 cannot_parallel_ = true;
                 if (threads_per_group > 1) {
@@ -366,66 +356,6 @@ void work() {
         if (need_post_barrier) { gen_call_to_barrier(&seq); }
 
         info_.pop_back();
-    }
-
-    /* Currently only for tensor defined between nested parallel. The tensor out
-     of parallel has number of outer parallel loop copies of origin. */
-    stmt_c visit(define_c v) override {
-        // not to transform
-        if (info_.empty() || info_.back().threads_per_group_ <= 1
-                || v->var_.isa<var>() || v->init_.defined()) {
-            return ir_visitor_t::visit(v);
-        }
-        // this pass occures after index flatten.
-        // number of copies
-        auto num_of_copies = runtime_threads_ / info_.back().threads_per_group_;
-        expr_c shape = num_of_copies;
-        std::string *name;
-        sc_data_type_t elem_dtype;
-        address_space addspace = address_space::automatic;
-        expr offset_idx;
-
-        auto tsr = v->var_.static_as<tensor>();
-        assert(tsr->dims_.size() == 1 && tsr->strides_.size() == 1);
-        shape = do_cast_and_fold(
-                builder::make_mul(num_of_copies, tsr->dims_[0]));
-        name = &tsr->name_;
-        elem_dtype = tsr->elem_dtype_;
-        if (elem_dtype.lanes_ > 1) { return ir_visitor_t::visit(v); }
-
-        addspace = tsr->address_space_;
-        auto accu_idx = info_.back().num_groups_;
-        offset_idx = info_.back().group_id_;
-        for (auto it = info_.rbegin() + 1; it != info_.rend(); it++) {
-            offset_idx = offset_idx + it->group_id_ * accu_idx;
-            accu_idx = accu_idx * it->num_groups_;
-        }
-        offset_idx = do_cast_and_fold(
-                builder::make_mul(offset_idx, tsr->dims_[0]));
-        std::shared_ptr<static_data_t> new_data_init(nullptr);
-        if (tsr->init_value_) {
-            auto size = tsr->init_value_->size_;
-            if (size == 0) {
-                new_data_init = tensor_node::get_zero_tensor_initializer();
-            } else {
-                std::unique_ptr<char[]> ddata(new char[size * num_of_copies]);
-                for (int i = 0; i < num_of_copies; i++) {
-                    memcpy(ddata.get() + i * size, tsr->init_value_->data_,
-                            size);
-                }
-                new_data_init = std::make_shared<static_data_t>(
-                        ddata.get(), size * num_of_copies);
-            }
-        }
-        auto new_tsr
-                = builder::make_tensor(std::string("outof_parallel_") + *name,
-                        {shape}, elem_dtype, addspace, new_data_init);
-        auto new_def = builder::make_var_tensor_def_unattached(new_tsr);
-
-        outof_parallel_map_.insert(
-                std::make_pair(v->var_, std::make_pair(new_tsr, offset_idx)));
-        outof_parallel_defs_.emplace_back(new_def);
-        return builder::make_stmts_unattached({});
     }
 
     stmt_c visit(for_loop_c v) override {
@@ -469,13 +399,9 @@ void work() {
                         body_lv1, true, for_type::PARALLEL);
                 transform_loop(
                         v, num_threads, body_lv1->seq_, tid0, false, false);
-                body_lv0->seq_.insert(body_lv0->seq_.end(),
-                        outof_parallel_defs_.begin(),
-                        outof_parallel_defs_.end());
                 body_lv0->seq_.emplace_back(for_lv1);
                 top_level_parallel_seq_ = nullptr;
                 cannot_parallel_ = false;
-                outof_parallel_defs_.clear();
                 return body_lv0;
             } else {
                 // not first level parallel
@@ -516,6 +442,20 @@ void work() {
             return v;
         } else {
             return copy_attr(*v, builder::make_stmts_unattached(newseq));
+        }
+    }
+
+    expr_c visit(intrin_call_c v) override {
+        if (v->type_ == intrin_type::get_group_id) {
+            uint64_t level_id
+                    = get_const_as_int(v->args_[0].checked_as<constant_c>());
+            COMPILE_ASSERT(
+                    level_id < info_.size(), "Level of group out of range");
+            return info_[level_id].group_id_;
+        } else if (v->type_ == intrin_type::get_group_thread_id) {
+            COMPILE_ASSERT(false, "Not used now");
+        } else {
+            return ir_visitor_t::visit(v);
         }
     }
 };

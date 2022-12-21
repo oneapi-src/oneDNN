@@ -1362,6 +1362,9 @@ enum class intrin_type {
     // intrin_attrs_["locality"]. It should be an int from 0 to 3, ranging from
     // very local to cache (0, or _MM_HINT_T0) to not local (3)
     prefetch,
+    // used in nested parallel flattening
+    get_group_id,
+    get_group_thread_id,
     // Below are micro-kernels, which should be lower to function call before
     // codegen
     brgemm,

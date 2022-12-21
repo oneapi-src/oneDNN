@@ -289,6 +289,7 @@ struct mixed_parti_t : fusion_partition_t {
             fuse_anchor_map_ptr fanchor = nullptr) const;
 
     void try_split_outermost_loop(int64_t block);
+    void try_split_outermost_loop_on_num_threads(int64_t num_groups);
 
     // return op whether in op_anchor_map_
     bool ready_for_op(sc_op *op) const;
