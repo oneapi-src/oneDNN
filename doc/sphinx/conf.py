@@ -76,6 +76,7 @@ imgmath_latex_preamble = '''\\usepackage[T1]{fontenc}
 \\usepackage{textgreek}
 \\newcommand{\\src}{\\operatorname{src}}
 \\newcommand{\\srclayer}{\\operatorname{src\\_layer}}
+\\newcommand{\\srclayerattention}{\\operatorname{src\\_layer\\_attention}}
 \\newcommand{\\srciter}{\\operatorname{src\\_iter}}
 \\newcommand{\\srciterc}{\\operatorname{src\\_iter\\_c}}
 \\newcommand{\\weights}{\\operatorname{weights}}
@@ -90,6 +91,7 @@ imgmath_latex_preamble = '''\\usepackage[T1]{fontenc}
 \\newcommand{\\dstiterc}{\\operatorname{dst\\_iter\\_c}}
 \\newcommand{\\diffsrc}{\\operatorname{diff\\_src}}
 \\newcommand{\\diffsrclayer}{\\operatorname{diff\\_src\\_layer}}
+\\newcommand{\\diffsrclayerattention}{\\operatorname{diff\\_src\\_layer\\_attention}}
 \\newcommand{\\diffsrciter}{\\operatorname{diff\\_src\\_iter}}
 \\newcommand{\\diffsrciterc}{\\operatorname{diff\\_src\\_iter\\_c}}
 \\newcommand{\\diffweights}{\\operatorname{diff\\_weights}}
@@ -136,6 +138,7 @@ mathjax3_config = {
     'macros': {
         'src': '\\operatorname{src}',
         'srclayer': '\\operatorname{src\\_layer}',
+        'srclayerattention': '\\operatorname{src\\_layer\\_attention}',
         'srciter': '\\operatorname{src\\_iter}',
         'srciterc': '\\operatorname{src\\_iter\\_c}',
         'weights': '\\operatorname{weights}',
@@ -150,6 +153,7 @@ mathjax3_config = {
         'dstiterc': '\\operatorname{dst\\_iter\\_c}',
         'diffsrc': '\\operatorname{diff\\_src}',
         'diffsrclayer': '\\operatorname{diff\\_src\\_layer}',
+        'diffsrclayerattention': '\\operatorname{diff\\_src\\_layer\\_attention}',
         'diffsrciter': '\\operatorname{diff\\_src\\_iter}',
         'diffsrciterc': '\\operatorname{diff\\_src\\_iter\\_c}',
         'diffweights': '\\operatorname{diff\\_weights}',

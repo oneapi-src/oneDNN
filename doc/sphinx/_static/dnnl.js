@@ -3,6 +3,7 @@ window.MathJax = {
 	macros: {
 	    src: '\\operatorname{src}',
 	    srclayer: '\\operatorname{src\\_layer}',
+	    srclayerattention: '\\operatorname{src\\_layer\\_attention}',
 	    srciter: '\\operatorname{src\\_iter}',
 	    srciterc: '\\operatorname{src\\_iter\\_c}',
 	    weights: '\\operatorname{weights}',
@@ -17,6 +18,7 @@ window.MathJax = {
 	    dstiterc: '\\operatorname{dst\\_iter\\_c}',
 	    diffsrc: '\\operatorname{diff\\_src}',
 	    diffsrclayer: '\\operatorname{diff\\_src\\_layer}',
+	    diffsrclayerattention: '\\operatorname{diff\\_src\\_layer\\_attention}',
 	    diffsrciter: '\\operatorname{diff\\_src\\_iter}',
 	    diffsrciterc: '\\operatorname{diff\\_src\\_iter\\_c}',
 	    diffweights: '\\operatorname{diff\\_weights}',
