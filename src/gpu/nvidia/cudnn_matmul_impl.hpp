@@ -191,16 +191,7 @@ struct cudnn_matmul_impl_t {
             const memory_desc_wrapper weights_d,
             const memory_desc_wrapper dst_d) {
 
-        if (isbatched_) {
-            // Check that user didn't provide broadcast case. See pd_t::init()
-            // for details.
-            const auto src_batch = src_d.dims()[0];
-            const auto wei_batch = weights_d.dims()[0];
-            if (src_batch != wei_batch) return status::runtime_error;
-
-            batch_count_ = dst_d.dims()[0];
-        }
-
+        if (isbatched_) batch_count_ = dst_d.dims()[0];
         const dim_t M = dst_d.dims()[isbatched_ + 1];
         const dim_t N = dst_d.dims()[isbatched_ + 0];
         const dim_t K = src_d.dims()[isbatched_ + 1];
@@ -244,6 +235,12 @@ struct cudnn_matmul_impl_t {
                                                                     : ldb_ * K_;
             stride_c_ = (transC_ == cublasOperation_t::CUBLAS_OP_N) ? ldc_ * N_
                                                                     : ldc_ * M_;
+
+            // Enable broadcast semantics.
+            if (src_d.dims()[0] > weights_d.dims()[0])
+                stride_a_ = 0;
+            else if (src_d.dims()[0] < weights_d.dims()[0])
+                stride_b_ = 0;
         }
 
         return status::success;
