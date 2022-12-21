@@ -925,6 +925,139 @@ TEST(operator_kernel, convtranspose_swish) {
     }
 }
 
+TEST(ExecuteSubgraphInt8, GroupConvTransposeWeightOC1) {
+    using dims = graph::dnnl_impl::dims;
+
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
+    SKIP_IF(engine->kind() == graph::engine_kind::gpu,
+            "Skip group convtranspose on GPU");
+
+    size_t nd = 2;
+    int64_t g = 17;
+    std::string wei_qtype = "per_channel";
+    std::string src_qtype = "symmetric";
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+
+    // prepare data
+    int64_t in_channel = 17, out_channel = 17;
+    int64_t kernel_size = 3;
+    std::vector<int64_t> src_shape = {2, in_channel, 5, 5};
+    std::vector<int64_t> weight_shape
+            = {in_channel, out_channel / g, kernel_size, kernel_size};
+    std::vector<int64_t> dst_shape = {2, out_channel, 7, 7};
+
+    test::vector<uint8_t> src_u8_data(product(src_shape));
+    test::vector<int8_t> weight_s8_data(product(weight_shape));
+    test::vector<int8_t> case1_out_data(product(dst_shape));
+    test::vector<int8_t> case2_out_data(product(dst_shape));
+
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+    std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
+    std::generate(src_u8_data.begin(), src_u8_data.end(),
+            [&]() { return static_cast<uint8_t>(u8_distribution(generator)); });
+    std::generate(weight_s8_data.begin(), weight_s8_data.end(),
+            [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
+
+    float scale_src = 1 / 255.f; // map to 0~255
+    float scale_out = 1.f;
+    int64_t zp_src = 0;
+    int64_t zp_out = 0;
+
+    std::vector<float> scale_wei(1, 1 / 127.f);
+    std::vector<int64_t> zp_wei(1, 0);
+
+    graph::op_t dqdata_node(1, graph::op_kind::Dequantize, "dqdata_node");
+    SET_Q_DQ_DATA_ATTR(dqdata_node)
+
+    graph::op_t dqweight_node(3, graph::op_kind::Dequantize, "dqweight_node");
+    SET_Q_DQ_WEIGHT_ATTR(dqweight_node, 1)
+
+    graph::op_t convtranspose_node(
+            4, graph::op_kind::ConvTranspose, "convtranspose_node");
+    SET_CONVTRANSPOSE_ATTR(convtranspose_node, nd)
+
+    graph::op_t qout_node(5, graph::op_kind::Quantize, "qout_node");
+    SET_Q_DQ_OUT_ATTR(qout_node)
+
+    graph::logical_tensor_t src_u8
+            = utils::logical_tensor_init(1, src_shape, graph::data_type::u8);
+    graph::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(2, src_shape, graph::data_type::f32);
+    graph::logical_tensor_t weight_s8
+            = utils::logical_tensor_init(4, weight_shape, graph::data_type::s8);
+    graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+            5, weight_shape, graph::data_type::f32);
+    graph::logical_tensor_t dst_f32
+            = utils::logical_tensor_init(7, dst_shape, graph::data_type::f32);
+    graph::logical_tensor_t dst_s8
+            = utils::logical_tensor_init(8, dst_shape, graph::data_type::s8);
+
+    dqdata_node.add_input(src_u8);
+    dqdata_node.add_output(src_f32_dq);
+
+    dqweight_node.add_input(weight_s8);
+    dqweight_node.add_output(weight_f32_dq);
+
+    convtranspose_node.add_input(src_f32_dq);
+    convtranspose_node.add_input(weight_f32_dq);
+    convtranspose_node.add_output(dst_f32);
+
+    qout_node.add_input(dst_f32);
+    qout_node.add_output(dst_s8);
+
+    graph::graph_t agraph(engine->kind());
+    agraph.add_op(&dqdata_node);
+    agraph.add_op(&dqweight_node);
+    agraph.add_op(&convtranspose_node);
+    agraph.add_op(&qout_node);
+    agraph.finalize();
+
+    graph::tensor_t src_u8_ts(src_u8, engine, src_u8_data.data());
+    graph::tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data.data());
+    graph::tensor_t dst_s8_ts(dst_s8, engine, case1_out_data.data());
+    graph::tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data.data());
+
+    // -------------------------case 1----------------------------------
+    ASSERT_EQ(run_graph(agraph, {src_u8_ts, weight_s8_ts}, {dst_s8_ts}, *engine,
+                      *strm),
+            graph::status::success);
+
+    // -------------------------case 2----------------------------------
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine->kind() == graph::engine_kind::gpu
+                            ? "int8_convtranspose_post_ops_fusion_gpu"
+                            : "int8_convtranspose_post_ops_fusion_cpu");
+    ASSERT_TRUE(apass != nullptr);
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
+    auto part = agraph.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    graph::compiled_partition_t cp(p);
+
+    std::vector<const graph::logical_tensor_t *> lt_ins {&src_u8, &weight_s8};
+    std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
+
+    p.compile(&cp, lt_ins, lt_outs, engine);
+
+    cp.execute(strm, {src_u8_ts, weight_s8_ts}, {dst_s8_case2_ts});
+    strm->wait();
+
+    if (engine->kind() == graph::engine_kind::cpu
+            && isa < dnnl_cpu_isa_avx512_core_vnni)
+        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                /*atol*/ 1.f));
+    else
+        ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                /*atol*/ 1.f));
+}
+
 TEST(ExecuteSubgraphInt8, ConvTranspose1d2d3d) {
     using dims = graph::dnnl_impl::dims;
 
