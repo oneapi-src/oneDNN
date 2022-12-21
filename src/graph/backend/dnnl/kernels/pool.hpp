@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,6 +106,8 @@ public:
             BACKEND_DNNL_ADD_PASS(pipeline, defer_src_zps_for_pool);
             BACKEND_DNNL_ADD_PASS(pipeline, combine_binary_post_op_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
+            BACKEND_DNNL_ADD_PASS(pipeline, fold_sub_zps_add_zps);
             BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
             BACKEND_DNNL_ADD_PASS(
                     pipeline, replace_quant_data_with_binary_post_op);

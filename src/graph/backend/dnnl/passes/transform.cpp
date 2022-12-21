@@ -461,6 +461,73 @@ status_t fold_mul_scales(std::shared_ptr<subgraph_t> &sg) {
     return status::success;
 }
 
+impl::status_t fold_sub_zps_add_zps(std::shared_ptr<subgraph_t> &sg) {
+    // lambda function to fold the consecutive zps ops
+    auto fold_zps_func = [&]() {
+        std::vector<std::pair<op_t *, op_t *>> folding_groups;
+        std::set<op_t *> visited;
+        for (const auto &cur_op : sg->get_ops()) {
+            if (cur_op->get_kind() != op_kind::dnnl_sub_zps
+                    || visited.count(cur_op.get()) != 0)
+                continue;
+
+            assertm(cur_op->num_outputs() == 1,
+                    "cur_op should have only one output value.");
+            auto out_val = cur_op->get_output_values()[0];
+            auto consumers = out_val->get_consumers();
+            if (consumers.empty()) continue;
+
+            auto &consumer_op = consumers[0].get_op();
+            if (consumer_op.get_kind() != op_kind::dnnl_add_zps) continue;
+
+            folding_groups.emplace_back(
+                    std::pair<op_t *, op_t *> {cur_op.get(), &consumer_op});
+            visited.insert(cur_op.get());
+            visited.insert(&consumer_op);
+        }
+
+        if (folding_groups.empty()) return false;
+
+        subgraph_rewriter_t rewriter(sg);
+        for (auto &folding_ops : folding_groups) {
+            auto base_op = folding_ops.first;
+            auto next_op = folding_ops.second;
+
+            // update the scales
+            const auto &zps_base
+                    = base_op->get_attr<std::vector<int64_t>>(op_attr::zps);
+            const auto &zps_next
+                    = next_op->get_attr<std::vector<int64_t>>(op_attr::zps);
+            std::vector<int64_t> new_zps(
+                    std::max(zps_base.size(), zps_next.size()), 0);
+            // per-channel -> per-tensor
+            if (zps_base.size() > zps_next.size()) {
+                for (size_t i = 0; i < new_zps.size(); ++i)
+                    new_zps[i] = zps_base[i] - zps_next[0];
+            } else {
+                for (size_t i = 0; i < new_zps.size(); ++i)
+                    new_zps[i] = zps_base[0] - zps_next[i];
+                // set attrs
+                base_op->set_attr<int64_t>(op_attr::axis,
+                        next_op->get_attr<int64_t>(op_attr::axis));
+                base_op->set_attr<std::string>(op_attr::qtype,
+                        next_op->get_attr<std::string>(op_attr::qtype));
+            }
+            base_op->set_attr<std::vector<int64_t>>(op_attr::zps, new_zps);
+
+            rewriter.fuse_op_to_predecessor(next_op->shared_from_this(), 0);
+        }
+        rewriter.run();
+        return true;
+    };
+
+    bool changed = true;
+    do {
+        changed = fold_zps_func();
+    } while (changed);
+    return impl::status::success;
+}
+
 status_t fold_sum_scales(std::shared_ptr<subgraph_t> &sg) {
     std::set<op_t *> visited;
     subgraph_rewriter_t rewriter(sg);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -195,6 +195,10 @@ impl::status_t lift_up_typecast(std::shared_ptr<subgraph_t> &sg);
 // This pass will compute matmul with the dst layout of following transpose if
 // the operator after transpose need a dense layout
 impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg);
+
+// This pass will fold add_zps into the previous sub_zps with new_zps = sub_zps
+// - add_zps
+impl::status_t fold_sub_zps_add_zps(std::shared_ptr<subgraph_t> &sg);
 
 status_t convert_to_runtime_src_zero_points(std::shared_ptr<subgraph_t> &sg);
 
