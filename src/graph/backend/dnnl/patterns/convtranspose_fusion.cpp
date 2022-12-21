@@ -96,17 +96,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                     "conv");
 
                     // Optional bias_add
-                    auto popt_bias_graph
-                            = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op_t *pbias = popt_graph->append_op(
-                            graph::op_kind::BiasAdd, "pbias");
-                    pbias->append_decision_function(
-                            check_producer_input_num<2>);
-                    popt_bias_graph->create_input_port(0, pbias, 0);
-                    popt_bias_graph->create_output_port(0, pbias, 0);
-                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
-                            in_edges_t {in_edge(0, pconvtranspose, 0)},
-                            "popt_bias");
+                    auto popt_bias
+                            = optional_bias_add(pgraph, pconvtranspose, false);
 
                     auto pint8_binary_graph = std::make_shared<pb_graph_t>(
                             "pint8_binary_graph");
@@ -205,17 +196,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                                     "conv");
 
                     // Optional bias_add
-                    auto popt_bias_graph
-                            = std::make_shared<pb_graph_t>("poptional_bias");
-                    pm::pb_op_t *pbias = popt_graph->append_op(
-                            graph::op_kind::BiasAdd, "pbias");
-                    pbias->append_decision_function(
-                            check_producer_input_num<2>);
-                    popt_bias_graph->create_input_port(0, pbias, 0);
-                    popt_bias_graph->create_output_port(0, pbias, 0);
-                    auto popt_bias = pgraph->append_optional(popt_bias_graph,
-                            in_edges_t {in_edge(0, pconvtranspose, 0)},
-                            "popt_bias");
+                    auto popt_bias
+                            = optional_bias_add(pgraph, pconvtranspose, false);
 
                     auto pint8_binary_graph = std::make_shared<pb_graph_t>(
                             "pint8_binary_graph");
@@ -286,17 +268,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             graph::op_kind::ConvTranspose, "convtranspose");
 
                     // optional biasadd
-                    auto biasadd_subgraph
-                            = std::make_shared<pb_graph_t>("biasadd_subgraph");
-                    auto biasadd = biasadd_subgraph->append_op(
-                            graph::op_kind::BiasAdd, "biasadd");
-                    biasadd->append_decision_function(
-                            check_producer_input_num<2>);
-                    biasadd_subgraph->create_input_port(0, biasadd, 0);
-                    biasadd_subgraph->create_output_port(0, biasadd, 0);
                     auto optional_biasadd
-                            = pgraph->append_optional(biasadd_subgraph,
-                                    {in_edge(0, convtranspose, 0)}, "biasadd");
+                            = optional_bias_add(pgraph, convtranspose, false);
 
                     auto post_ops = std::make_shared<pb_graph_t>("post_ops");
                     auto alternation = post_ops->append_alternation(
