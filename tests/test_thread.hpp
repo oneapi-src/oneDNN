@@ -271,9 +271,9 @@ struct params_pack_helper_t<0, R> {
 \
         if ((ctx.core_type != default_thr_ctx.core_type) \
                 && ((size_t)ctx.core_type >= core_types.size())) \
-            printf("WARNING: TBB smallest core has index %lu. Using this " \
+            printf("WARNING: TBB smallest core has index %d. Using this " \
                    "instead of %d.\n", \
-                    core_types.size() - 1, ctx.core_type); \
+                    (int)core_types.size() - 1, ctx.core_type); \
         size_t core_type_id = (size_t)ctx.core_type < core_types.size() \
                 ? ctx.core_type \
                 : core_types.size() - 1; \
