@@ -3316,7 +3316,11 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddAddBF16U8s8bf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
+    // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
+    SKIP_IF(engine.kind() == impl::engine_kind::gpu,
+            "skip on gpu for unsupported mixed int8-bf16 matmul with runtime "
+            "zero points");
+
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -3631,7 +3635,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddU8s8u8MixBf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -3774,7 +3777,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddU8s8u8MixBf16) {
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
+            = get_pass(engine.kind() == impl::engine_kind::gpu
+                            ? "int8_bf16_matmul_post_ops_fusion_gpu"
+                            : "int8_bf16_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -3956,7 +3961,6 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddGeluU8s8u8MixBf16) {
     impl::engine_t &engine = get_engine();
     impl::stream_t &strm = get_stream();
 
-    if (engine.kind() == impl::engine_kind::gpu) return;
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -4106,7 +4110,9 @@ TEST(ExecuteSubgraphInt8, MatmulBiasaddGeluU8s8u8MixBf16) {
     g.build_graph();
 
     impl::pass::pass_base_ptr apass
-            = get_pass("int8_bf16_matmul_post_ops_fusion_cpu");
+            = get_pass(engine.kind() == impl::engine_kind::gpu
+                            ? "int8_bf16_matmul_post_ops_fusion_gpu"
+                            : "int8_bf16_matmul_post_ops_fusion_cpu");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
