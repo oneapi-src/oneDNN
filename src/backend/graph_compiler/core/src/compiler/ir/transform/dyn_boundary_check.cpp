@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 #include "auto_cast.hpp"
+#include "buffer_schedule.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
@@ -106,6 +107,14 @@ public:
         // fix-me(jingze): do not check the indexing in shapes and strides of
         // tensor.
         return v;
+    }
+
+    expr_c visit(tensorptr_c v) override {
+        auto attr = v->base_->ptr_->attr_.get();
+        if (attr && attr->get_or_else(attr_keys::can_be_scheduled, false)) {
+            return v;
+        }
+        return ir_visitor_t::visit(v);
     }
 
     expr_c visit(indexing_c v) override {
