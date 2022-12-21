@@ -19,15 +19,15 @@ Attribute Name | Description | Value Type |Supported Values | Required or Option
 used, `scales` will be ignored.
 
 @note 
-    The attribute `coordinate_transformation_mode` is the name of transformation
-    mode in string format.\n
-    Here `scale[x]` is `dst_shape[x]/src_shape[x]` and `x_resized` is a
-    coordinate in axis `x`,for any axis `x` from the src axis.\n
-    For `half_pixel`: the coordinate in the original tensor axis `x` is
-    calculated as `((x_resized + 0.5) / scale[x]) - 0.5`.\n
-    For `align_corners`: the coordinate in the original tensor axis `x` is
-    calculated as 0 if `dst_shape[x] == 1` else  `x_resized * (src_shape[x] - 1)
-    / (dst_shape[x] - 1)`.\n
+The attribute `coordinate_transformation_mode` is the name of transformation
+mode in string format.\n
+Here `scale[x]` is `dst_shape[x]/src_shape[x]` and `x_resized` is a
+coordinate in axis `x`,for any axis `x` from the src axis.\n
+For `half_pixel`: the coordinate in the original tensor axis `x` is
+calculated as `((x_resized + 0.5) / scale[x]) - 0.5`.\n
+For `align_corners`: the coordinate in the original tensor axis `x` is
+calculated as 0 if `dst_shape[x] == 1` else  `x_resized * (src_shape[x] - 1)
+/ (dst_shape[x] - 1)`.
 
 ## Execution arguments
 
@@ -43,9 +43,9 @@ Index | Argument Name | Required or Optional
 2|`sizes`       | Optional
 
 @note 
-    `src` is original input tensor of Interpolate op.\n
-    `diff_dst` is the gradient tensor with respect to the dst.\n
-    `sizes` is a 1D tensor describing output shape for spatial axes. 
+`src` is original input tensor of Interpolate op.\n
+`diff_dst` is the gradient tensor with respect to the dst.\n
+`sizes` is a 1D tensor describing output shape for spatial axes.
 
 ### Outputs
 
