@@ -423,7 +423,7 @@ struct nc_block_t {
     static nc_block_t get_default_blocking(type_t type, bool is_dw, int n,
             int c, int g, bool is_input, bool is_small_c,
             int min_block_size = 0, bool nc_order = true,
-            bool force_default_c_blk = false) {
+            bool channel_match = false, bool force_default_c_blk = false) {
         bool is_small_c_input
                 = (type.size() <= 2 && is_input && g == 1 && is_small_c);
         auto default_c_blk = type.size() == 1 ? 32 : 16;
@@ -431,6 +431,7 @@ struct nc_block_t {
             if (force_default_c_blk) return default_c_blk;
             // Special case for small input channel shapes with dpas.
             if (is_small_c_input) {
+                if (c == 1 && n == 1 && channel_match) return 0;
                 int packed_dword_elems = 4 / type.size();
                 return std::max(packed_dword_elems, utils::rnd_up_pow2(c));
             }
@@ -670,15 +671,16 @@ void init_data_tags(const conv_config_t &cfg, bool allow_src_reorder,
             && allow_src_reorder && prb.mb >= 16;
     int min_block_size = is_bwd_w_message_opt ? 128 : 0;
     bool nc_order = is_bwd_w_message_opt ? false : true;
+    bool channel_match = prb.ic == prb.oc;
 
     nc_block_t src_blk = nc_block_t::get_default_blocking(src_compute_type,
             prb.is_dw, prb.mb, prb.ic, prb.g, prb.is_fwd || prb.is_bwd_w,
-            is_small_ic(prb), min_block_size, nc_order);
+            is_small_ic(prb), min_block_size, nc_order, channel_match);
     // TODO: Force use of default_c_blk for bwd_w with bias due to reduction
     // limitation to register granularity
     nc_block_t dst_blk = nc_block_t::get_default_blocking(dst_compute_type,
             prb.is_dw, prb.mb, prb.oc, prb.g, prb.is_bwd_d || prb.is_bwd_w,
-            is_small_oc(prb), 0, true,
+            is_small_oc(prb), 0, true, channel_match,
             prb.is_bwd_w && prb.with_bias && prb.g == 1);
 
     auto wei_blk = goi_block_t::get_default_blocking(wei_compute_type,
