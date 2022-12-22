@@ -26,6 +26,23 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
+namespace {
+// `dims` should fit into uint16_t, when all `strides` are ones,
+// otherwise `cudnnTransformTensor` returns `CUDNN_STATUS_NOT_SUPPORTED`
+// at execution.
+status_t check_dims_and_strides(const int dims[DNNL_MAX_NDIMS],
+        const int strides[DNNL_MAX_NDIMS], int ndims) {
+    for (int d = 0; d < ndims; d++) {
+        if (strides[d] != 1) return status::success;
+    }
+    for (int d = 0; d < ndims; d++) {
+        if (dims[d] > nstl::numeric_limits<uint16_t>::max())
+            return status::unimplemented;
+    }
+    return status::success;
+}
+} // namespace
+
 struct cudnn_reorder_generic_t {
 public:
     virtual status_t init(const reorder_pd_t *pd) = 0;
@@ -94,12 +111,6 @@ public:
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetTensorNdDescriptorEx, dst_desc_,
                 dst_format_, dst_data_type_, ndims_, dims_));
 
-        // dims should fit into uint16_t, otherwise cudnnTransformTensor returns
-        // CUDNN_STATUS_NOT_SUPPORTED at execution
-        for (int d = 0; d < ndims_; d++) {
-            if (dims_[d] > nstl::numeric_limits<uint16_t>::max())
-                return status::unimplemented;
-        }
         return status::success;
     }
 
@@ -164,12 +175,7 @@ public:
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnSetTensorNdDescriptor, dst_desc_,
                 dst_data_type_, ndims_, dims_, dst_strides_));
 
-        // dims should fit into uint16_t, otherwise cudnnTransformTensor returns
-        // CUDNN_STATUS_NOT_SUPPORTED at execution
-        for (int d = 0; d < ndims_; d++) {
-            if (dims_[d] > nstl::numeric_limits<uint16_t>::max())
-                return status::unimplemented;
-        }
+        CHECK(check_dims_and_strides(dims_, src_strides_, ndims_));
         return status::success;
     }
 
