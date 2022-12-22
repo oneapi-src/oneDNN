@@ -192,5 +192,15 @@ TEST(LruCompiledPartitionCache, Method) {
 #endif
 }
 
+TEST(CompiledPartition, InvalidArguments) {
+    namespace graph = dnnl::impl::graph;
+
+    graph::partition_t pti;
+    std::vector<const graph::logical_tensor_t *> inputs;
+    std::vector<const graph::logical_tensor_t *> outputs;
+    ASSERT_EQ(graph::status::invalid_arguments,
+            pti.compile(nullptr, inputs, outputs, nullptr));
+}
+
 } // namespace graph
 } // namespace dnnl

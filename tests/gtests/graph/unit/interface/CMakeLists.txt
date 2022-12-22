@@ -27,6 +27,7 @@ add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_shape_infer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_type_constraint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_shape_infer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
 )
 

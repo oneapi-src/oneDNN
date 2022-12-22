@@ -19,6 +19,8 @@
 #include "interface/c_types_map.hpp"
 #include "interface/shape_infer.hpp"
 
+#include "backend/dnnl/common.hpp"
+
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
 
@@ -102,6 +104,8 @@ TEST(ShapeInfer, InvalidShapeForMatmul) {
 }
 
 TEST(ShapeInfer, InvalidShapeForConv) {
+    using dims = graph::dnnl_impl::dims;
+
     graph::op_t conv_op {0, graph::op_kind::Convolution, std::string("conv")};
     conv_op.set_attr<dims>(graph::op_attr::strides, dims {1, 1});
     conv_op.set_attr<dims>(graph::op_attr::dilations, dims {1, 1});

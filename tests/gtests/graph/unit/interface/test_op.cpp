@@ -378,3 +378,12 @@ TEST(Op, KindString) {
     ASSERT_EQ(op_t::kind2str(op_kind::MatMul), "MatMul");
     ASSERT_EQ(op_t::kind2str(op_kind::LastSymbol), "LastSymbol");
 }
+
+TEST(Op, ReSetAttributeValue) {
+    using namespace dnnl::impl::graph;
+
+    op_t matmul {0, op_kind::MatMul, std::string("matmul")};
+    matmul.set_attr<bool>(op_attr::transpose_a, true);
+    graph::utils::attribute_value_t a;
+    ASSERT_NO_THROW(matmul.set_attr(graph::op_attr::transpose_a, a));
+}

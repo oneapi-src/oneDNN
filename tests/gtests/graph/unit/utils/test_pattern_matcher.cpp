@@ -20,6 +20,7 @@
 
 #include "interface/graph.hpp"
 #include "utils/pm/nested_matcher.hpp"
+#include "utils/pm/pass_base.hpp"
 
 #include "graph/unit/utils.hpp"
 
@@ -2500,4 +2501,37 @@ TEST(PatternMatcher, AlternativeCommutative) {
     std::vector<op_t *> fusion_ops;
     EXPECT_TRUE(match_pattern(agraph.get_ops()[0].get(), graphp, fusion_ops));
     EXPECT_EQ(fusion_ops.size(), 4U);
+}
+
+TEST(PatternMatcher, CreateOutputPort) {
+    auto post_subgraph = std::make_shared<pb_graph_t>("post_subgraph");
+    std::vector<graph::op_kind_t> unary_binary
+            = {graph::op_kind::Abs, graph::op_kind::Clamp};
+    auto alternative_post_op = post_subgraph->append_alternation(
+            unary_binary, "alternative_post_op");
+    ASSERT_NO_THROW(alternative_post_op->allow_internal_inputs());
+    ASSERT_TRUE(post_subgraph->create_input_port(0, alternative_post_op, 0));
+    ASSERT_TRUE(post_subgraph->create_output_port(1, alternative_post_op, 0));
+}
+
+TEST(PatternMatcher, CreateInputPort) {
+    auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
+    std::vector<graph::op_kind_t> unary_binary
+            = {graph::op_kind::GELU, graph::op_kind::HardSwish};
+    auto palt = alt_graph->append_alternation(unary_binary, "palt");
+    ASSERT_NO_THROW(palt->allow_internal_inputs());
+    ASSERT_TRUE(alt_graph->create_input_port(0, palt, 0));
+    ASSERT_FALSE(alt_graph->create_input_port(0, palt, 0));
+}
+
+TEST(PatternMatcher, GraphNodeName) {
+    auto alt_graph = std::make_shared<pb_graph_t>("alt_graph");
+    std::shared_ptr<pb_node_t> node_ptr = alt_graph;
+    ASSERT_NO_THROW(auto node_str = node_ptr->get_name());
+}
+
+TEST(PatternMatcher, GraphRun) {
+    graph::pass::pass_base a;
+    graph::graph_t agraph;
+    ASSERT_EQ(a.run(agraph), graph::status::success);
 }

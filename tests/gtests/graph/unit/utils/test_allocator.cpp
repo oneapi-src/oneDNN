@@ -33,23 +33,25 @@ TEST(Alloctor, SyclAlloctorMallocAndFree) {
     if (engine.kind() == graph::engine_kind::cpu) {
 #ifdef DNNL_GRAPH_CPU_SYCL
         void *p = nullptr;
+        ::sycl::event e;
         ASSERT_NO_THROW(
                 p = graph::utils::sycl_allocator_t::malloc(1024,
                         graph::utils::sycl_allocator_t::DEFAULT_ALIGNMENT,
                         &engine.sycl_device(), &engine.sycl_context()));
         ASSERT_NO_THROW(graph::utils::sycl_allocator_t::free(
-                p, &engine.sycl_device(), &engine.sycl_context(), nullptr));
+                p, &engine.sycl_device(), &engine.sycl_context(), &e));
 #endif
 
     } else if (engine.kind() == graph::engine_kind::gpu) {
 #ifdef DNNL_GRAPH_GPU_SYCL
         void *p = nullptr;
+        ::sycl::event e;
         ASSERT_NO_THROW(
                 p = graph::utils::sycl_allocator_t::malloc(1024,
                         graph::utils::sycl_allocator_t::DEFAULT_ALIGNMENT,
                         &engine.sycl_device(), &engine.sycl_context()));
         ASSERT_NO_THROW(graph::utils::sycl_allocator_t::free(
-                p, &engine.sycl_device(), &engine.sycl_context(), nullptr));
+                p, &engine.sycl_device(), &engine.sycl_context(), &e));
 #endif
     }
 }

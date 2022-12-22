@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,4 +49,5 @@ TEST(LogicalTensor, ImplicitEqualLayout) {
             graph::data_type::f32, graph::layout_type::strided);
 
     ASSERT_TRUE(ltw(lt1).has_same_layout_as(ltw(lt2)));
+    ASSERT_TRUE(ltw(lt2).has_same_layout_as(ltw(lt1)));
 }
