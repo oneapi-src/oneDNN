@@ -59,6 +59,18 @@ bool check_input_dtype(op_t *op) {
     return true;
 }
 
+template <data_type_t DTYPE, size_t N>
+bool check_input_dtype_from_offset(op_t *op) {
+    if (N >= op->num_inputs()) return true;
+    for (size_t i = N; i < op->num_inputs(); ++i) {
+        const logical_tensor_t &iport
+                = op->get_input_value(i)->get_logical_tensor();
+        if (iport.data_type != DTYPE) return false;
+    }
+
+    return true;
+}
+
 template <data_type_t DTYPE>
 bool check_output_dtype(op_t *op) {
     for (size_t i = 0; i < op->num_outputs(); ++i) {

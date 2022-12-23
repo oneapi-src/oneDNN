@@ -4801,6 +4801,7 @@ struct single_op_params_t {
     size_t output_num;
     graph::data_type_t data_type;
     size_t partition_num;
+    std::vector<graph::op_attr_t> float_attrs;
 };
 
 class test_single_op_pass_t
@@ -4812,6 +4813,9 @@ public:
 
         graph_t agraph;
         op_t aop {0, params.op_kind, "aop"};
+        for (const auto &attr : params.float_attrs) {
+            aop.set_attr(attr, 0.1f);
+        }
 
         std::vector<logical_tensor_t> lts = create_logical_tensors(
                 params.input_num + params.output_num, params.data_type);
@@ -4843,8 +4847,31 @@ INSTANTIATE_TEST_SUITE_P(Test_Single_Op_Pass, test_single_op_pass_t,
                                   graph::data_type::f32, 1},
                 single_op_params_t {
                         graph::op_kind::Round, 1, 1, graph::data_type::bf16, 0},
-                single_op_params_t {graph::op_kind::Round, 1, 1,
-                        graph::data_type::f16, 0}));
+                single_op_params_t {
+                        graph::op_kind::Round, 1, 1, graph::data_type::f16, 0},
+                single_op_params_t {graph::op_kind::BatchNormInference, 5, 1,
+                        graph::data_type::f32, 1, {graph::op_attr::epsilon}},
+                single_op_params_t {graph::op_kind::BatchNormInference, 5, 1,
+                        graph::data_type::bf16, 0, {graph::op_attr::epsilon}},
+                single_op_params_t {graph::op_kind::BatchNormForwardTraining, 5,
+                        5, graph::data_type::f32, 1, {graph::op_attr::epsilon}},
+                single_op_params_t {graph::op_kind::BatchNormForwardTraining, 5,
+                        5, graph::data_type::bf16, 0,
+                        {graph::op_attr::epsilon}},
+                single_op_params_t {graph::op_kind::BatchNormTrainingBackward,
+                        5, 3, graph::data_type::f32, 1,
+                        {graph::op_attr::epsilon}},
+                single_op_params_t {graph::op_kind::BatchNormTrainingBackward,
+                        5, 3, graph::data_type::bf16, 0,
+                        {graph::op_attr::epsilon}},
+                single_op_params_t {graph::op_kind::LayerNorm, 3, 3,
+                        graph::data_type::f32, 1},
+                single_op_params_t {graph::op_kind::LayerNorm, 3, 3,
+                        graph::data_type::bf16, 0},
+                single_op_params_t {graph::op_kind::LayerNormBackward, 6, 3,
+                        graph::data_type::f32, 1},
+                single_op_params_t {graph::op_kind::LayerNormBackward, 6, 3,
+                        graph::data_type::bf16, 0}));
 
 TEST(Pass, ConvSingleOpReplacement) {
     graph_t agraph;
@@ -12396,8 +12423,8 @@ TEST(PassSystem, FuseLayernormTypecast) {
     op_t typecast {1, TypeCast, "typecast"};
 
     logical_tensor_t src = logical_tensor_init(0, data_type::bf16);
-    logical_tensor_t scale = logical_tensor_init(1, data_type::bf16);
-    logical_tensor_t shift = logical_tensor_init(2, data_type::bf16);
+    logical_tensor_t scale = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t shift = logical_tensor_init(2, data_type::f32);
     logical_tensor_t layernorm_dst = logical_tensor_init(3, data_type::bf16);
 
     layernorm.add_input(src);
@@ -12498,8 +12525,8 @@ TEST(PassSystem, FuseLayernormTypecastQuantize) {
     quant.set_attr(op_attr::zps, zps);
 
     logical_tensor_t src = logical_tensor_init(0, data_type::bf16);
-    logical_tensor_t scale_lt = logical_tensor_init(1, data_type::bf16);
-    logical_tensor_t shift_lt = logical_tensor_init(2, data_type::bf16);
+    logical_tensor_t scale_lt = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t shift_lt = logical_tensor_init(2, data_type::f32);
     logical_tensor_t layernorm_dst = logical_tensor_init(3, data_type::bf16);
     layernorm.add_input(src);
     layernorm.add_input(scale_lt);

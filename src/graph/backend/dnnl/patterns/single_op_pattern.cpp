@@ -51,8 +51,21 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(avg_pool_pass, AvgPool, float_pooling_fwd, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         avg_pool_bw_pass, AvgPoolBackward, pooling_bwd_t, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(bias_add_pass, BiasAdd, binary_t, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        bn_pass, BatchNormInference, batchnorm_fwd_t, 8.f)
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_pass)
+        .set_priority(8.f)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *p_batchnorm = pgraph->append_op(
+                            graph::op_kind::BatchNormInference);
+                    p_batchnorm->append_decision_function(
+                            check_input_dtype_from_offset<graph::data_type::f32,
+                                    1>);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<batchnorm_fwd_t>();
+        });
 
 #define BATCHNORM_INPUT_NUM_CHECK(n1, n2) \
     append_decision_function([](op_t *graph_op) -> bool { \
@@ -73,6 +86,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_fw_train_pass)
                     graph::utils::pm::pb_op_t *p_batchnorm_fwd_training
                             = pgraph->append_op(
                                     graph::op_kind::BatchNormForwardTraining);
+                    p_batchnorm_fwd_training->append_decision_function(
+                            check_input_dtype_from_offset<graph::data_type::f32,
+                                    1>);
                     p_batchnorm_fwd_training->BATCHNORM_INPUT_NUM_CHECK(3, 5);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
@@ -87,15 +103,46 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bw_pass)
                     graph::utils::pm::pb_op_t *p_batchnorm_backprop
                             = pgraph->append_op(
                                     graph::op_kind::BatchNormTrainingBackward);
+                    p_batchnorm_backprop->append_decision_function(
+                            check_input_dtype_from_offset<graph::data_type::f32,
+                                    2>);
                     p_batchnorm_backprop->BATCHNORM_OUTPUT_NUM_CHECK(1, 3);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<batchnorm_bwd_t>();
         });
 
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(ln_pass, LayerNorm, layernorm_fwd_t, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(
-        ln_bw_pass, LayerNormBackward, layernorm_bwd_t, 8.f)
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, ln_pass)
+        .set_priority(8.f)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *p_layernorm
+                            = pgraph->append_op(graph::op_kind::LayerNorm);
+                    p_layernorm->append_decision_function(
+                            check_input_dtype_from_offset<graph::data_type::f32,
+                                    1>);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<layernorm_fwd_t>();
+        });
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, ln_bw_pass)
+        .set_priority(8.f)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *p_layernorm_bwd
+                            = pgraph->append_op(
+                                    graph::op_kind::LayerNormBackward);
+                    p_layernorm_bwd->append_decision_function(
+                            check_input_dtype_from_offset<graph::data_type::f32,
+                                    2>);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<layernorm_bwd_t>();
+        });
+
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(clamp_pass, Clamp, float_eltwise_fwd, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         clamp_bw_pass, ClampBackward, eltwise_bwd_t, 8.f)

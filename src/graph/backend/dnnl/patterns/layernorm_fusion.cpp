@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,7 +60,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *layernorm_base
                             = pgraph->append_op(graph::op_kind::LayerNorm);
-
+                    layernorm_base->append_decision_function(
+                            check_input_dtype_from_offset<impl::data_type::f32,
+                                    1>);
                     // Alt0: Typecast + Quantize
                     auto ptcq_graph
                             = std::make_shared<pb_graph_t>("ptcq_graph");

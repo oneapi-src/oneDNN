@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -406,9 +406,9 @@ TEST(ExecuteSubgraphInt8, LayernormTypecastQuant) {
     graph::logical_tensor_t src = utils::logical_tensor_init(
             0, layernorm_shape, graph::data_type::bf16);
     graph::logical_tensor_t scale_lt = utils::logical_tensor_init(
-            1, scale_lt_shape, graph::data_type::bf16);
+            1, scale_lt_shape, graph::data_type::f32);
     graph::logical_tensor_t shift_lt = utils::logical_tensor_init(
-            2, shift_lt_shape, graph::data_type::bf16);
+            2, shift_lt_shape, graph::data_type::f32);
 
     graph::logical_tensor_t layernorm_dst = utils::logical_tensor_init(
             3, layernorm_shape, graph::data_type::bf16);

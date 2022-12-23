@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,6 +42,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_relu_fusion)
                             std::vector<graph::op_kind_t> {
                                     graph::op_kind::BatchNormInference,
                                     graph::op_kind::BatchNormForwardTraining});
+                    bn->append_decision_function(
+                            check_input_dtype_from_offset<impl::data_type::f32,
+                                    1>);
                     pgraph->append_op(
                             graph::op_kind::ReLU, {in_edge(0, bn, 0)});
                 })
@@ -65,6 +68,9 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, bn_bwd_relu_bwd_fusion)
                     auto bn_bwd = pgraph->append_op(
                             graph::op_kind::BatchNormTrainingBackward,
                             {in_edge(0, relu_bwd, 0)});
+                    bn_bwd->append_decision_function(
+                            check_input_dtype_from_offset<impl::data_type::f32,
+                                    2>);
                     bn_bwd->BATCHNORM_OUTPUT_NUM_CHECK(1, 3);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
