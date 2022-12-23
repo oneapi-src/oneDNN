@@ -47,7 +47,6 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(single_op_pass)
 // register passes with dnnl backend support
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(abs_pass, Abs, float_eltwise_fwd, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(abs_bw_pass, AbsBackward, eltwise_bwd_t, 8.f)
-DNNL_BACKEND_SINGLE_OP_TRANSFORM(avg_pool_pass, AvgPool, float_pooling_fwd, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         avg_pool_bw_pass, AvgPoolBackward, pooling_bwd_t, 8.f)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(bias_add_pass, BiasAdd, binary_t, 8.f)

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,27 @@ using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
 using FCreatePattern = graph::pass::FCreatePattern;
 
+bool check_avgpool_attributes(op_t *op) {
+    return !(op->get_kind() == graph::op_kind::AvgPool
+            && op->get_attr<std::string>(graph::op_attr::rounding_type)
+                    == "ceil"
+            && op->get_attr<bool>(graph::op_attr::exclude_pad) == false);
+}
+
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(pool_fusion)
+
+DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, avg_pool_pass)
+        .set_priority(8.f)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *avgpool
+                            = pgraph->append_op(graph::op_kind::AvgPool);
+                    avgpool->append_decision_function(check_avgpool_attributes);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_pooling_fwd>();
+        });
 
 DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, pool_post_ops_fusion)
         .set_priority(9.9f)
@@ -41,7 +61,8 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, pool_post_ops_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto ppool = pgraph->append_alternation(
                             {graph::op_kind::AvgPool, graph::op_kind::MaxPool},
-                            "peltwise");
+                            "ppool");
+                    ppool->append_decision_function(check_avgpool_attributes);
                     auto pbinary_subgraph
                             = std::make_shared<pb_graph_t>("pbinary_subgraph");
                     auto pbinary = pbinary_subgraph->append_alternation(
@@ -96,6 +117,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_cpu)
                     auto ppool = pgraph->append_alternation(
                             {graph::op_kind::AvgPool, graph::op_kind::MaxPool},
                             {in_edge(0, pdequant_data, 0)}, "ppool");
+                    ppool->append_decision_function(check_avgpool_attributes);
 
                     // case1: quant
                     auto subgraph_1 = std::make_shared<pb_graph_t>(
@@ -185,6 +207,7 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, int8_pool_binary_fusion_gpu)
                     auto ppool = pgraph->append_alternation(
                             {graph::op_kind::AvgPool, graph::op_kind::MaxPool},
                             {in_edge(0, pdequant_data, 0)}, "ppool");
+                    ppool->append_decision_function(check_avgpool_attributes);
 
                     // case1: quant
                     auto subgraph_1 = std::make_shared<pb_graph_t>(

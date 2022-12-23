@@ -4784,6 +4784,12 @@ TEST(Pass, DnnlSingleOpReplacement) {
     for (auto akind : single_op_set_supported) {
         graph_t agraph;
         op_t *op = agraph.create_op(akind);
+        // specially handle AvgPool
+        // which requires certain combinations of attributes
+        if (akind == AvgPool) {
+            op->set_attr<bool>(op_attr::exclude_pad, false);
+            op->set_attr<std::string>(op_attr::rounding_type, "floor");
+        }
         ASSERT_EQ(op->get_kind(), akind);
         pm.run_passes(agraph, "no_config");
 
