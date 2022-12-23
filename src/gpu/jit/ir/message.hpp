@@ -31,6 +31,7 @@ namespace jit {
 enum class send_op_t {
     undef,
     atomic_fadd,
+    atomic_cmpwr,
     load,
     load_2d,
     prefetch,

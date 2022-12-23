@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,13 +42,23 @@ struct atomic_helper_t {
 template <typename DataSpecT>
 struct atomic_helper_t<DataSpecT,
         typename std::enable_if<
-                std::is_same<DataSpecT, ngen::scattered_dword>::value>::type> {
+                std::is_same<DataSpecT, ngen::scattered_qword>::value
+                || std::is_same<DataSpecT,
+                        ngen::scattered_dword>::value>::type> {
     template <typename GeneratorT>
     static void call(GeneratorT *host, ngen::AtomicOp atomic_op,
             const ngen::InstructionModifier &mod, const DataSpecT &spec,
             ngen::AddressBase base, const ngen::RegData &addr,
             const ngen::RegData &data) {
         host->atomic(atomic_op, mod, spec, base, addr, data);
+    }
+
+    template <typename GeneratorT>
+    static void call(GeneratorT *host, ngen::AtomicOp atomic_op,
+            const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const DataSpecT &spec, ngen::AddressBase base,
+            const ngen::RegData &addr, const ngen::RegData &data) {
+        host->atomic(atomic_op, mod, dst, spec, base, addr, data);
     }
 };
 
@@ -100,6 +110,27 @@ public:
         }
     }
 
+    template <typename GeneratorT, typename T>
+    void emit(GeneratorT *host, ngen_register_scope_t &scope,
+            const ngen::InstructionModifier &mod, const T &dst,
+            const ngen::RegData &surf_base_addr, int surf_bti,
+            const ngen::RegData &header, const T &data) {
+        switch (send_.type.kind()) {
+            case type_kind_t::dword:
+                emit_atomic_cmpwr(host, mod, dst,
+                        ngen::scattered_dword(send_.type.elems()),
+                        to_address_base(send_.address, surf_bti), header, data);
+                break;
+            case type_kind_t::qword:
+                emit_atomic_cmpwr(host, mod, dst,
+                        ngen::scattered_qword(send_.type.elems()),
+                        to_address_base(send_.address, surf_bti), header, data);
+                break;
+            default: ir_error_not_expected() << send_.type;
+        }
+        return;
+    }
+
 private:
     template <typename GeneratorT, typename DataSpecT>
     void emit_load_or_store(GeneratorT *host,
@@ -116,6 +147,15 @@ private:
         } else {
             ir_error_not_expected() << "Can't emit send: " << send_;
         }
+    }
+    template <typename GeneratorT, typename DataSpecT>
+    void emit_atomic_cmpwr(GeneratorT *host,
+            const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const DataSpecT &spec, ngen::AddressBase base,
+            const ngen::RegData &addr, const ngen::RegData &data) {
+        atomic_helper_t<DataSpecT>::call(
+                host, ngen::AtomicOp::cmpwr, mod, dst, spec, base, addr, data);
+        return;
     }
 
     template <typename GeneratorT>

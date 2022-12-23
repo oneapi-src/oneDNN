@@ -29,6 +29,7 @@ std::ostream &operator<<(std::ostream &out, const send_op_t op) {
     const char *s = nullptr;
     switch (op) {
         case send_op_t::atomic_fadd: s = "atomic_fadd"; break;
+        case send_op_t::atomic_cmpwr: s = "atomic_cmpwr"; break;
         case send_op_t::load: s = "load"; break;
         case send_op_t::load_2d: s = "load_2d"; break;
         case send_op_t::prefetch: s = "prefetch"; break;

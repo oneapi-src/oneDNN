@@ -534,6 +534,62 @@ private:
         return tmp[0];
     }
 
+    void send_atomic_add_emu(ngen_register_scope_t &scope,
+            const send_t &send_func, const ngen_operand_t &mask_op,
+            ngen::InstructionModifier &mod, const ngen::RegData &mem_buf_rd,
+            const int &surf_bti, const ngen::RegData &mem_off_op,
+            ngen::RegData &rd) const {
+        int size = send_func.payload_size();
+        ir_assert(utils::one_of(send_func.type.kind(), type_kind_t::dword,
+                          type_kind_t::qword)
+                && (size == 32 || size == 64))
+                << "expected atomic message dwordx8 or qwordx8";
+        auto load_func
+                = send_t::make(send_func.hw, send_op_t::load, send_func.address,
+                        send_func.type, send_func.slots, send_func.cache_hint);
+        auto &load_send = load_func.as<send_t>();
+        send_impl_t load(load_send);
+        auto cmpwr_func = send_t::make(send_func.hw, send_op_t::atomic_cmpwr,
+                send_func.address, send_func.type, send_func.slots,
+                send_func.cache_hint);
+        auto &cmpwr_send = cmpwr_func.as<send_t>();
+        send_impl_t cmpwr(cmpwr_send);
+        bool is_df = size == 64;
+
+        int grf_size = ngen::GRF::bytes(hw);
+        int regs = utils::div_up(size, grf_size);
+
+        auto new_val = scope.alloc_range(2 * regs);
+        auto old_save = scope.alloc_range(regs);
+        auto flag = scope.alloc_flag(send_func.slots);
+        ngen::Label atomic_label;
+        rd.setType(is_df ? ngen::DataType::df : ngen::DataType::f);
+
+        load.emit(host_, scope, mod, mem_buf_rd, surf_bti, mem_off_op,
+                is_df ? new_val[0].df(0) : new_val[0].f(0));
+
+        if (mask_op.is_invalid())
+            host_->emov(1, flag, ngen::Immediate(uint16_t((1 << 8) - 1)));
+        else
+            host_->and_(1, flag, mod.getFlagReg(),
+                    ngen::Immediate(uint16_t((1 << 8) - 1)));
+
+        auto region
+                = is_df ? new_val[2].df(0)(4, 4, 1) : new_val[1].f(0)(8, 8, 1);
+        auto old_region
+                = is_df ? new_val[0].df(0)(4, 4, 1) : new_val[0].f(0)(8, 8, 1);
+        auto old_save_region = is_df ? old_save[0].df(0)(4, 4, 1)
+                                     : old_save[0].f(0)(8, 8, 1);
+        host_->mark(atomic_label);
+        host_->emov(8, old_save_region, old_region);
+        auto cmp_mod = 8 | flag | host_->ne | flag;
+        host_->add(8, region, old_region, rd.setRegion(4, 4, 1));
+        cmpwr.emit(host_, scope, mod | flag, old_region, mem_buf_rd, surf_bti,
+                mem_off_op, old_region);
+        host_->cmp(cmp_mod, old_save_region, old_region);
+        host_->while_(8 | flag, atomic_label);
+    }
+
     void send(ngen_register_scope_t &scope, const send_t &send_func,
             const expr_t &mem_buf, const std::vector<ngen_operand_t> &args,
             const func_call_attr_t &attr) const {
@@ -584,8 +640,13 @@ private:
                 mod |= flag;
             }
         }
-        spec_impl.emit(host_, scope, mod, mem_buf_rd, surf_bti,
-                mem_off_op.reg_data(), rd);
+        if (hw <= ngen::HW::XeLP && send_func.is_atomic()) {
+            send_atomic_add_emu(scope, send_func, mask_op, mod, mem_buf_rd,
+                    surf_bti, mem_off_op.reg_data(), rd);
+        } else {
+            spec_impl.emit(host_, scope, mod, mem_buf_rd, surf_bti,
+                    mem_off_op.reg_data(), rd);
+        }
     }
 
     void reorder(ngen_register_scope_t &scope, const reorder_t &reorder_func,
