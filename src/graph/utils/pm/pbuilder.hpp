@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,6 +82,7 @@ public:
     virtual void set_name(std::string &&name) {
         debug_string_ = std::move(name);
     };
+    const std::unordered_set<pb_op_t *> &get_contained_ops() { return p_ops_; }
 
 protected:
     friend class pb_graph_t;
@@ -96,6 +97,7 @@ protected:
     std::vector<decision_function> decision_functions_;
     std::string debug_string_;
     pb_node_kind node_kind_;
+    std::unordered_set<pb_op_t *> p_ops_;
 };
 
 std::shared_ptr<consumer_t> consumer(pb_node_t *p_node, iport_t i_t);
