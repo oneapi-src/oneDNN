@@ -89,7 +89,7 @@ public:
     // hint op and hint_op_port are the previous binding info
     // used to handle the optional case
     op_t *hint_op = nullptr;
-    size_t hint_op_port;
+    size_t hint_op_port = 0;
 };
 
 using graph_port_map = std::unordered_map<size_t, std::pair<op_t *, size_t>>;
