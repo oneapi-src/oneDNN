@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -364,14 +364,24 @@ protected:
     // unmatched, so we should still take it into the next
     // matching process. Similarly, if any number of blocks are matched,
     // it means that the current op has been matched, and
-    // what we should do is mathcing the next op.
+    // what we should do is matching the next op.
     //
     bool match_current_op(const binding_t &bind_arg);
     bool match_next_op(const binding_t &bind_arg);
     //
     // update single_iter_bind_ for the next matching round
     //
-    bool prepare_next_matching_round(match_context_t &temp_ctx);
+    bool prepare_next_matching_round(const match_context_t &local_cached_ctx);
+    //
+    // After successfully matching one repetition block,
+    // for BIND_OUT matching, we need to verify if the output op
+    // of the block has current number of consumers.
+    // Because for BIND_OUT matching, next matching round will
+    // go to traverse the input op, so the output op remains
+    // unchecked.
+    //
+    bool verify_current_matching_round(const match_context_t &local_cached_ctx,
+            const std::unordered_map<op_t *, pb_op_t *> &local_op_map) const;
 };
 
 //

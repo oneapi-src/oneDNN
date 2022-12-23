@@ -7805,6 +7805,90 @@ TEST(Pass, OptionalQuantForInt8Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8U);
 }
 
+TEST(Pass, OptionalQuantWith2ConsumersForInt8Matmul) {
+    /*
+    quant_wei has two consumers, so it will not
+    be fused into int8_matmul_post_ops
+                         |
+                       quant
+        |(u8/s8)  (s8) /   \
+     dequant    dequant   dequant
+    (f32) \     / (f32)
+           matmul
+             | (f32)
+           quant
+             | (u8/s8)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+
+    op_t quant1 {0, Quantize, "quant"};
+    quant1.set_attr(op_attr::scales, scales);
+    quant1.set_attr(op_attr::zps, zps);
+
+    op_t dequant1 {1, Dequantize, "dequant"};
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
+
+    op_t dequant2 {2, Dequantize, "dequant"};
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
+
+    op_t dequant3 {3, Dequantize, "dequant"};
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
+
+    op_t matmul {4, MatMul, "matmul"};
+    op_t quant2 {5, Quantize, "quant"};
+    quant2.set_attr(op_attr::scales, scales);
+    quant2.set_attr(op_attr::zps, zps);
+
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
+
+    logical_tensor_t fp32_weight = logical_tensor_init(2, data_type::f32);
+    logical_tensor_t s8_weight = logical_tensor_init(3, data_type::s8);
+    quant1.add_input(fp32_weight);
+    quant1.add_output(s8_weight);
+
+    logical_tensor_t fp32_weight2 = logical_tensor_init(4, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight2);
+
+    // another consumer of quant1's output
+    logical_tensor_t fp32_weight3 = logical_tensor_init(5, data_type::f32);
+    dequant3.add_input(s8_weight);
+    dequant3.add_output(fp32_weight3);
+
+    logical_tensor_t fp32_matmul_out = logical_tensor_init(6, data_type::f32);
+    matmul.add_input(fp32_data);
+    matmul.add_input(fp32_weight2);
+    matmul.add_output(fp32_matmul_out);
+
+    logical_tensor_t int8_out = logical_tensor_init(7, data_type::u8);
+    quant2.add_input(fp32_matmul_out);
+    quant2.add_output(int8_out);
+
+    ASSERT_EQ(agraph.add_op(&quant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant3), status::success);
+    ASSERT_EQ(agraph.add_op(&matmul), status::success);
+    ASSERT_EQ(agraph.add_op(&quant2), status::success);
+
+    agraph.finalize();
+
+    pass::pass_base_ptr apass = get_pass("int8_matmul_post_ops_fusion_cpu");
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
+    ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+            partition_kind_t::quantized_matmul_post_ops);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 4U);
+}
+
 TEST(Pass, FuseToInt8MatMulBinary) {
     /*
         | (u8/s8)  | (s8)
