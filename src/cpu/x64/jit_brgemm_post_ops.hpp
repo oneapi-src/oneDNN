@@ -692,14 +692,14 @@ private:
         if (req_comp) maybe_apply_comp(m_block, n_block, tail);
 
         if (brg.alpha != 0 && jcp.with_bias) {
-            for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
                 auto vmm_bias = vmm_tmp(0);
                 auto bias_addr = ptr[aux_reg_bias
                         + bia_typesize_ * (n * brg.ld_block)];
-
                 cvt2ps(bia_dt_, vmm_bias, bias_addr, tail, false, k_mask);
-                vaddps(vector(m, n), vmm_bias);
+                for (int m = 0; m < m_block; m++) {
+                    vaddps(vector(m, n), vmm_bias);
+                }
             }
         }
 
