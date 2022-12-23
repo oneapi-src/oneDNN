@@ -293,6 +293,51 @@ TEST(PatternMatcherV2, ConvAddFusionCase2) {
     ASSERT_EQ(fusion_ops.size(), 2U);
 }
 
+TEST(PatternMatcherV2, ConvAddFusionCase3) {
+    std::shared_ptr<pb_graph_t> pattern_graph = std::make_shared<pb_graph_t>();
+
+    auto pconv = pattern_graph->append_op(Convolution, "pconv");
+    auto padd = pattern_graph->append_op(
+            Add, {in_edge(IN0, pconv, OUT0)}, "padd");
+    UNUSED(padd);
+
+    graph_t agraph;
+    op_t conv0 {0, Convolution, "conv0"};
+    set_conv_common_attr(conv0);
+    op_t conv1 {1, Convolution, "conv1"};
+    set_conv_common_attr(conv1);
+    op_t add {2, Add, "add"};
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(7);
+    conv0.add_input(lt_vec[0]);
+    conv0.add_input(lt_vec[1]);
+    conv0.add_output(lt_vec[2]);
+    conv1.add_input(lt_vec[3]);
+    conv1.add_input(lt_vec[4]);
+    conv1.add_output(lt_vec[5]);
+    add.add_input(lt_vec[2]);
+    add.add_input(lt_vec[5]);
+    add.add_output(lt_vec[6]);
+    ASSERT_EQ(agraph.add_op(&conv0), status::success);
+    ASSERT_EQ(agraph.add_op(&conv1), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    agraph.finalize();
+
+    std::vector<op_t *> fusion_ops;
+
+    EXPECT_TRUE(match_pattern(
+            agraph.get_ops()[0].get(), pattern_graph, fusion_ops));
+    EXPECT_EQ(fusion_ops.size(), 2U);
+    for (auto &op : agraph.get_ops())
+        op->remove_attr(op_attr::matched);
+    fusion_ops.clear();
+
+    EXPECT_TRUE(match_pattern(
+            agraph.get_ops()[1].get(), pattern_graph, fusion_ops));
+    EXPECT_EQ(fusion_ops.size(), 2U);
+    for (auto &op : agraph.get_ops())
+        op->remove_attr(op_attr::matched);
+}
+
 TEST(PatternMatcherV2, CommutativeInputBothConstrained) {
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     std::shared_ptr<pb_graph_t> pattern_graph

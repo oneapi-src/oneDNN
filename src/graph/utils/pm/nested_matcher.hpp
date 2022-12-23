@@ -135,7 +135,7 @@ bool match_node(const binding_t &b, match_context_t *context,
 // of input nodes and input ops are checked until one pair gets
 // matched or all combination are failed
 //
-bool match_node_inputs(op_t *op, pb_node_t *node, match_context_t *context,
+bool match_node_inputs(const binding_t &b, match_context_t *context,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 //
 // pair pattern node output nodes (consumers) with the paired op's
@@ -213,7 +213,7 @@ void fill_parent_io_map(match_context_t *local_ctx);
 //
 class node_inputs_matcher_t {
 public:
-    node_inputs_matcher_t(op_t *op, pb_node_t *node, match_context_t *ctx,
+    node_inputs_matcher_t(const binding_t &b, match_context_t *ctx,
             std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
     std::unordered_map<op_t *, pb_op_t *> get_updated_op_map() const {
         return updated_op_map_;
@@ -235,6 +235,7 @@ public:
 protected:
     op_t *op_;
     pb_node_t *node_;
+    binding_t bind_;
     match_context_t *ctx_;
     std::unordered_map<op_t *, pb_op_t *> updated_op_map_;
     std::vector<std::pair<iport_t, producer_t>> node_inputs_;
