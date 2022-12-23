@@ -15350,3 +15350,56 @@ TEST(Pass, Pool3Postops) {
             ASSERT_EQ(partition->get_outputs()[k].id, output_lts[k]);
     }
 }
+
+TEST(PassSystem, PoolFusionWithInternalInputs) {
+    /*
+        AvgPool/MaxPool
+                |  (both inputs come from the pooling op,
+               / \  the 2nd input should be an internal input)
+        Add/Divide/Maximum/Minimum/Multiply/Subtract
+    */
+    std::vector<op_kind_t> pooling_ts = {AvgPool, MaxPool};
+    std::vector<op_kind_t> binary_ts
+            = {Add, Divide, Maximum, Minimum, Multiply, Subtract};
+    for_(auto pool_t : pooling_ts)
+    for (auto bin_t : binary_ts) {
+        std::vector<int64_t> strides = {1, 1};
+        std::vector<int64_t> pads_begin = {0, 0};
+        std::vector<int64_t> pads_end = {0, 0};
+        std::vector<int64_t> kernel = {2, 2};
+        op_t pool_op {0, pool_t, "pooling"};
+        pool_op.set_attr(op_attr::strides, strides);
+        pool_op.set_attr(op_attr::pads_begin, pads_begin);
+        pool_op.set_attr(op_attr::pads_end, pads_end);
+        pool_op.set_attr(op_attr::kernel, kernel);
+        if (pool_t == AvgPool) pool_op.set_attr(op_attr::exclude_pad, false);
+        op_t binary_op {1, bin_t, "binary"};
+
+        std::vector<logical_tensor_t> lt_vec = create_logical_tensors(3);
+        pool_op.add_input(lt_vec[0]);
+        pool_op.add_output(lt_vec[1]);
+        binary_op.add_input(lt_vec[1]);
+        binary_op.add_input(lt_vec[1]);
+        binary_op.add_output(lt_vec[2]);
+
+        graph_t agraph;
+        ASSERT_EQ(agraph.add_op(&pool_op), status::success);
+        ASSERT_EQ(agraph.add_op(&binary_op), status::success);
+        agraph.finalize();
+
+        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+        pm.run_passes(agraph, "no_config");
+
+        ASSERT_EQ(agraph.get_num_partitions(), 1U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 2U);
+        ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+                partition_kind_t::pooling_post_ops);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
+
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
+    }
+}
