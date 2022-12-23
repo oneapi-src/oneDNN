@@ -81,10 +81,14 @@ void conv_fwd_core_op_t::infer_slice_ranges(
     auto inp_dims = get_inputs()[0]->details_.get_blocking_dims(),
          wei_dims = get_inputs()[1]->details_.get_blocking_dims(),
          out_dims = get_outputs()[0]->details_.get_blocking_dims();
+    const int num_threads = runtime_config_t::get().get_num_threads();
 
-    if (get_inputs()[0]->details_.get_plain_dims()[0] == 1) {
-        // N = 1, no need to do bs fusion or conv has been already flattened
+    // Do bs fusion only when bs > 1  and bs % num_threads == 0
+    if (get_inputs()[0]->details_.get_plain_dims()[0] == 1
+            || (inp_dims[0] % num_threads != 0
+                    && inp_dims[0] / num_threads < 8)) {
         stat_map.append_ops_by_status(this, infer_status_code::FAIL);
+        return;
     }
     slice_range inp_slice, wei_slice, out_slice;
     if (!known_ranges_map[0].empty()) {
@@ -357,6 +361,7 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
             ? attrs_.get<sc_dims>("pads_begin")
             : attrs_.get<sc_dims>("paddings");
     const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
+    const sc_dims &data_shape = info_.inputs_[0]->details_.get_plain_dims();
     auto has_pad = std::any_of(
             pads_begin.begin(), pads_begin.end(), [](int x) { return x > 0; });
     auto is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
@@ -364,7 +369,10 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
     auto is_int8 = utils::is_one_of(
             info_.inputs_[0]->details_.dtype_, datatypes::u8, datatypes::s8);
     // Only support conv 3x3 with os blocking currently
-    auto use_nested_conv = ndims_ == 4 && !has_pad && !is_1x1 && is_int8;
+    // TODO(zhicong): the config of nested conv 3x3 with big
+    // shape(150x150,300x300) needs to be further tuned
+    auto use_nested_conv = ndims_ == 4 && !has_pad && !is_1x1 && is_int8
+            && data_shape.back() <= 56;
     return use_nested_conv;
 }
 
@@ -470,8 +478,7 @@ void conv_fwd_core_op_t::query_format(context_ptr ctx,
     bool force_blocking = test_format == "NCHWc" || test_format == "NCDHWc"
             || test_format == "NCSc";
     bool use_channel_last
-            = ((!is_weight_constant) && channel_last_support && !force_blocking)
-            || force_channel_last;
+            = (channel_last_support && !force_blocking) || force_channel_last;
     // data layout
     if (use_channel_last) {
         in_formats.push_back({is_3d ? sc_data_format_t::NDHWC()

@@ -68,11 +68,13 @@ static int get_im_s_block(const context_ptr &ctx, const int &os,
     s_default_block = L1_cache_size / 4 / im_oc_block;
   }
   auto s_block_list = utils::get_blocks(os, 1, s_default_block);
-  s_block_list.erase(std::remove_if(s_block_list.begin(), s_block_list.end(),
-                       [&](int blk) {
-                         return (blk % (origin_ow * origin_oh) != 0
-                           && (origin_ow * origin_oh) % blk != 0);
-                       }),
+  s_block_list.erase(
+    std::remove_if(s_block_list.begin(), s_block_list.end(),
+      [&](int blk) {
+        return !(origin_ow % blk == 0
+          || (blk % origin_ow == 0 && origin_oh * origin_ow % blk == 0)
+          || blk % (origin_oh * origin_ow) == 0);
+      }),
     s_block_list.end());
   return s_block_list.back();
 }
@@ -138,6 +140,9 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
 
   auto tile_p_list = utils::get_factors(oh_);
   auto tile_q_list = utils::get_factors(ow_);
+  auto dtype_size = get_weight_dtype() == datatypes::f32
+    ? 4
+    : (get_weight_dtype() == datatypes::bf16 ? 2 : 1);
   cfg.tile_d = 1;
   cfg.tile_os = -1;
   cfg.pack_input = (is_1x1_conv_ && (sd_ > 1 || sh_ > 1 || sw_ > 1)) ? 1 : -1;
@@ -176,12 +181,25 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     }
     cfg.loop_sched = 3;
   }
+
+  // large spatial
+  bool large_spatial = oh_ * ow_ >= 128 * 128;
+  if (large_spatial) {
+    if (is_use_amx(ctx) && get_weight_dtype() != datatypes::f32) {
+      cfg.loop_sched = 2;
+    } else {
+      cfg.loop_sched = 0;
+    }
+  }
+
+  bool parallel_space_is_enough
+    = (mb_ % nthreads == 0 || utils::divide_and_ceil(mb_, nthreads) > 8);
   if (is_1x1_conv_ && (oc_ / ic_ >= 4 && oc_ >= 1024)) { max_oc_block = 128; }
   // tile_p and tile_q
   if (!is_1x1_conv_) {
-    cfg.tile_p = tile_p_list.back();
+    cfg.tile_p = 1;
   } else {
-    if (ic_ * oc_ <= 64 * 256) {
+    if (ic_ * oc_ <= 64 * 256 || !parallel_space_is_enough) {
       cfg.tile_p = 1;
     } else {
       cfg.tile_p = tile_p_list.back();
@@ -189,6 +207,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   }
   if (!is_1x1_conv_) {
     cfg.tile_q = tile_q_list.back();
+    if (large_spatial) { cfg.tile_q = utils::get_blocks(ow_, 1, 32).back(); }
   } else {
     // handle large M for gemm kernel: shrink M
     if (sw_ > 1) {
@@ -199,7 +218,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     if (iw_ > 28 && oc_ * ic_ >= 128 * 256) {
       if (iw_ % 2 == 0) cfg.tile_q = iw_ / 2;
     }
-    if (ih_ > 28 && oc_ * ic_ >= 128 * 256) {
+    if (ih_ > 28 && oc_ * ic_ >= 128 * 256 && parallel_space_is_enough) {
       if (ih_ % 2 == 0) cfg.tile_p = ih_ / 2;
     }
   }
@@ -220,6 +239,10 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     cfg.tile_q = -1;
     cfg.tile_p = -1;
   }
+  max_oc_block = std::max(
+    max_oc_block, utils::get_blocks(oc_, 1, ow_ * 2 / dtype_size).back());
+  max_ic_block = std::max(
+    max_ic_block, utils::get_blocks(ic_, 1, ow_ * 2 / dtype_size).back());
   cfg.K_block = oc_ % 32 == 0 ? max_oc_block : oc_;
   cfg.C_block = ic_ % 32 == 0 ? max_ic_block : ic_;
   validate_conv_fwd_default_config(ctx, cfg);
@@ -246,12 +269,15 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
       = mb_ >= num_threads ? num_threads : closest_split(mb_, thread_split);
     cfg.s_threads = num_threads / cfg.bs_threads;
     cfg.oc_threads = 1;
-    if (mb_ == 1 && oc_ % 32 == 0 && num_threads == 4) {
-      if (oc_ > 1024) {
+    auto s_max_task_num = ow_ / im_s_block_;
+    if (mb_ == 1 && s_max_task_num < num_threads) {
+      auto oc_max_task_num = oc_ / im_oc_block_;
+      if (oc_max_task_num == num_threads || oc_max_task_num % num_threads == 0
+        || oc_max_task_num > num_threads * 8) {
         cfg.bs_threads = 1;
         cfg.oc_threads = num_threads;
         cfg.s_threads = 1;
-      } else if (oc_ <= 1024 && oh_ * ow_ <= 28 * 28 && num_threads % 2 == 0) {
+      } else if (oc_ < 1024 && oh_ * ow_ <= 28 * 28 && num_threads % 2 == 0) {
         cfg.bs_threads = 1;
         cfg.oc_threads = num_threads / 2;
         cfg.s_threads = num_threads / 2;
@@ -379,7 +405,8 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   // Note: os blocking is only valid for non_1x1, no pad and non 3D conv with
   // amx-int8 only so far.
   bool has_pad = (pd_ > 0) || (ph_ > 0) || (pw_ > 0);
-  try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8;
+  try_os_blocking_
+    = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && is_int8 && ow_ < 28;
   if (is_1d_) {
     use_conv1d = true;
     COMPILE_ASSERT((kw_ == 1 && pw_ == 0),
