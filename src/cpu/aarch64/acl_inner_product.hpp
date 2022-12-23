@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Arm Ltd. and affiliates
+* Copyright 2021-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -141,11 +141,11 @@ struct acl_inner_product_fwd_t : public primitive_t {
 
             // Only NCHW or NHWC derivatives supported by ACL kernels
             using namespace format_tag;
-            auto src_tag = memory_desc_matches_one_of_tag(
-                    src_md_, nhwc, nchw, nc, cn);
+            auto src_tag
+                    = memory_desc_matches_one_of_tag(src_md_, nhwc, nchw, nc);
             auto wei_tag = memory_desc_matches_one_of_tag(
                     weights_md_, ohwi, oihw, oi, io);
-            auto dst_tag = memory_desc_matches_one_of_tag(dst_md_, nc, cn);
+            auto dst_tag = memory_desc_matches_one_of_tag(dst_md_, nc);
 
             ACL_CHECK_SUPPORT(
                     utils::one_of(format_tag::undef, src_tag, wei_tag, dst_tag),
@@ -156,8 +156,7 @@ struct acl_inner_product_fwd_t : public primitive_t {
 
             arm_compute::TensorShape src_shape, wei_shape;
             if (is_2d) {
-                src_shape = (src_tag == nc) ? arm_compute::TensorShape(ic, n)
-                                            : arm_compute::TensorShape(n, ic);
+                src_shape = arm_compute::TensorShape(ic, n);
 
                 wei_shape = (wei_tag == io) ? arm_compute::TensorShape(oc, ic)
                                             : arm_compute::TensorShape(ic, oc);
