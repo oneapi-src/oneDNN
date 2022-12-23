@@ -4795,6 +4795,57 @@ TEST(Pass, DnnlSingleOpReplacement) {
     }
 }
 
+struct single_op_params_t {
+    op_kind_t op_kind;
+    size_t input_num;
+    size_t output_num;
+    graph::data_type_t data_type;
+    size_t partition_num;
+};
+
+class test_single_op_pass_t
+    : public ::testing::TestWithParam<single_op_params_t> {
+public:
+    void Test_Single_Op_Pass() {
+        const auto params
+                = ::testing::TestWithParam<single_op_params_t>::GetParam();
+
+        graph_t agraph;
+        op_t aop {0, params.op_kind, "aop"};
+
+        std::vector<logical_tensor_t> lts = create_logical_tensors(
+                params.input_num + params.output_num, params.data_type);
+        for (size_t i = 0; i < params.input_num; ++i) {
+            aop.add_input(lts[i]);
+        }
+        for (size_t i = 0; i < params.output_num; ++i) {
+            aop.add_output(lts[params.input_num + i]);
+        }
+
+        ASSERT_EQ(agraph.add_op(&aop), status::success);
+        agraph.finalize();
+        ASSERT_EQ(agraph.num_ops(), 1U);
+
+        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+        pm.run_passes(agraph, "no_config");
+
+        ASSERT_EQ(agraph.get_num_partitions(), params.partition_num);
+    }
+};
+
+TEST_P(test_single_op_pass_t, Test_Single_Op_Pass) {
+    Test_Single_Op_Pass();
+}
+
+INSTANTIATE_TEST_SUITE_P(Test_Single_Op_Pass, test_single_op_pass_t,
+        ::testing::Values(single_op_params_t {graph::op_kind::Round, 1, 1,
+                                  graph::data_type::f32, 1},
+                single_op_params_t {
+                        graph::op_kind::Round, 1, 1, graph::data_type::bf16, 0},
+                single_op_params_t {graph::op_kind::Round, 1, 1,
+                        graph::data_type::f16, 0}));
+
 TEST(Pass, ConvSingleOpReplacement) {
     graph_t agraph;
     op_t conv {0, Convolution, "conv"};

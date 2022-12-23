@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,13 +137,13 @@ static inline std::vector<int64_t> compute_dense_strides(
 }
 
 static inline std::vector<dnnl::impl::graph::logical_tensor_t>
-create_logical_tensors(size_t num_lt) {
+create_logical_tensors(
+        size_t num_lt, impl::data_type_t dtype = impl::data_type::f32) {
     size_t count = 0;
     std::vector<dnnl::impl::graph::logical_tensor_t> lt_vec;
     lt_vec.reserve(num_lt);
     while (count < num_lt) {
-        lt_vec.emplace_back(
-                logical_tensor_init(count, impl::graph::data_type::f32));
+        lt_vec.emplace_back(logical_tensor_init(count, dtype));
         count++;
     }
     return lt_vec;
