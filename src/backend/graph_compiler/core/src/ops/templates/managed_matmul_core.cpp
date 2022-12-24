@@ -64,6 +64,7 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   const int iin_block = iin_block_;
   const int iik_block = iik_block_;
   bool is_int8 = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8);
+  bool is_f32 = get_A_dtype() == datatypes::f32;
   const int M
     = utils::divide_and_ceil(
         static_cast<int>(in_tensors_[0].get_plain_dims()[0]), iim_block)
@@ -83,6 +84,8 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   float cost = std::numeric_limits<float>::max();
   int split_n = 1;
   cfg.im_loop_order = 0;
+  bool is_special_fm = ctx->machine_.cpu_flags_.family == 6
+    && ctx->machine_.cpu_flags_.model == 143;
   for (int i = 1; i <= num_threads; i++) {
     int num_M_block = utils::divide_and_ceil(M / iim_block, num_threads / i);
     int num_N_block = utils::divide_and_ceil(N / iin_block, i);
@@ -90,13 +93,34 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
     int num_core
       = std::min(i, N / iin_block) * std::min(num_threads / i, M / iim_block);
     // Cost = Shape_efficient_weight *
-    // (workload_balance + divide_N_plenty) / core_utilitizaiton
+    // (workload_balance + divide_X_plenty) / core_utilitizaiton
     // single core gemm prefers square shape for A and B.
     // For small workload, the A and B shape is not a key problem, but the
     // num_core and num_brgemm is important to performance. Use 2048 to reduce
     // the shape weight on small shape.
-    float new_cost
-      = (1024 + M * i / num_threads + N / i) * (num_brgemm + 8 * i) / num_core;
+    float new_cost;
+    float sew = 1024 + M * i / num_threads + N / i;
+    if (((K >= 1024 && is_int8 && !is_use_amx(ctx))
+          || (K >= 512 && is_f32 && !is_special_fm))) {
+      // Cost += empty_cores, making M_split_num * N_split_num closer to
+      // num_threads
+      float empty_cores = num_threads - i * (num_threads / i);
+      if (((N >= 1024 && is_int8 && M <= 2 * N)
+            || (N >= 256 && is_f32 && M <= 64))
+        || (is_f32 && M <= 256 && N >= 1024 && K >= 1024)) {
+        // give bigger splits on N when N is bigger
+        new_cost
+          = sew * (num_brgemm + num_threads / i / 2) / num_core + empty_cores;
+      } else if (N >= 256 && is_f32 && M <= 256) {
+        new_cost = sew * (num_brgemm + i + num_threads / i * 2) / num_core
+          + empty_cores;
+      } else {
+        new_cost = sew * (num_brgemm + i / 2) / num_core + empty_cores;
+      }
+    } else {
+      new_cost = sew * (num_brgemm + 8 * i) / num_core;
+    }
+
     if (new_cost < cost) {
       split_n = i;
       cost = new_cost;
@@ -130,6 +154,38 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
         cfg.N_split_num = cfg.N_split_num / possible_splits[1];
       }
     }
+  } else if (is_f32 && !is_special_fm && M <= 256 && N >= 256 && K >= 512) {
+    // f32 special case
+    // for small M, consider giving splits on big K
+    if (K >= 1024 && K >= 2 * N && get_splits(num_threads).size() > 3) {
+      // give bigger splits on K
+      int K_split_num = get_splits(num_threads).at(2);
+      cfg.N_split_num = cfg.N_split_num / K_split_num > 0
+        ? cfg.N_split_num / K_split_num
+        : cfg.N_split_num;
+    } else if (get_splits(num_threads).size() > 2 && N >= 1024 && N != K) {
+      int K_split_num = get_splits(num_threads).at(1);
+      cfg.N_split_num = cfg.N_split_num / K_split_num > 0
+        ? cfg.N_split_num / K_split_num
+        : cfg.N_split_num;
+    } else if (N == 256 && K == 512 && get_splits(num_threads).size() > 3) {
+      // special requirements in dlrm shapes, will refactor logic after
+      // involving graph-level loop up
+      if (cfg.M_split_num >= 2) { cfg.M_split_num /= 2; }
+      if (cfg.N_split_num >= 2) { cfg.N_split_num /= 2; }
+    }
+  } else if (M / iim_block < 2 && (N >= 16 * M || K >= 16 * M)) {
+    // int8 special case
+    if (is_int8 && !is_use_amx(ctx)) {
+      cfg.M_split_num = 1;
+      int K_split_num = 1;
+      if (K >= 16 * M) {
+        K_split_num = get_splits(num_threads).size() > 2
+          ? get_splits(num_threads).at(1)
+          : 1;
+      }
+      cfg.N_split_num = num_threads / K_split_num;
+    }
   }
   int single_M = utils::divide_and_ceil(
                    utils::divide_and_ceil(M, iim_block), cfg.M_split_num)
@@ -142,8 +198,17 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   int single_K_threshold
     = (single_M * single_N * sizeofdtypeA < L2_size ? 2048 : 4096)
     / sizeofdtypeA;
+  if (is_f32 && !is_special_fm
+    && num_threads / cfg.M_split_num / cfg.N_split_num <= 2 && M >= 128) {
+    // if no split is given on K axis, bigger K_sub_block is required
+    single_K_threshold /= 4;
+  }
   if (single_K >= single_K_threshold) {
     cfg.K_sub_block = utils::divide_and_ceil(single_K, single_K_threshold);
+    int K_split_num = num_threads / cfg.M_split_num / cfg.N_split_num;
+    while (K / iik_block_ / K_split_num < cfg.K_sub_block) {
+      cfg.K_sub_block--;
+    }
     int L2_K = utils::divide_and_ceil(
                  utils::divide_and_ceil(single_K, iik_block), cfg.K_sub_block)
       * iik_block;
@@ -372,31 +437,43 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
   const int64_t plain_M = get_mma_plain_dims()[0];
   const int64_t plain_K = get_mma_plain_dims()[1];
   const int64_t plain_N = get_mmb_plain_dims()[1];
+  const int num_threads = runtime_config_t::get().get_num_threads();
 
   bool is_bf16 = get_A_dtype() == datatypes::bf16;
   bool is_f32 = get_A_dtype() == datatypes::f32;
   int64_t M_block_default = 64;
   int64_t N_block_default = 64;
   int64_t K_block_default = 64;
+  bool is_special_fm = get_default_context()->machine_.cpu_flags_.family == 6
+    && get_default_context()->machine_.cpu_flags_.model == 143;
   if (is_f32) {
-    M_block_default = 16;
-    N_block_default = 16;
-    K_block_default = 16;
+    if (is_special_fm) {
+      // prefer small blocks
+      M_block_default = 16;
+      N_block_default = 16;
+      K_block_default = 16;
+    } else {
+      if (plain_M <= 256) { M_block_default = 32; }
+    }
   } else if (is_bf16) {
     M_block_default = 32;
     N_block_default = 32;
     K_block_default = 32;
   } else {
     assert(utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8));
-    M_block_default = 32;
+    M_block_default
+      = (plain_M >= 1024 && !is_use_amx(get_default_context())) ? 64 : 32;
     N_block_default = 64;
     K_block_default = 64;
   }
   if (plain_N <= 512 && plain_K <= 512) {
-    const int num_threads = runtime_config_t::get().get_num_threads();
-    iim_block_ = std::max((int64_t)4,
-      std::min(M_block_default,
-        static_cast<int64_t>(utils::divide_and_ceil(plain_M, num_threads))));
+    iim_block_
+      = std::max((is_f32 && !is_special_fm && plain_M >= 64 && plain_M <= 128
+                   && (plain_N >= 256 || plain_K >= 256))
+          ? (int64_t)8
+          : (int64_t)4,
+        std::min(M_block_default,
+          static_cast<int64_t>(utils::divide_and_ceil(plain_M, num_threads))));
   } else {
     iim_block_ = suggest_aligned_block(plain_M, M_block_default);
   }

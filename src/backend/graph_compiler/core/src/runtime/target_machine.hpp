@@ -74,6 +74,10 @@ struct cpu_flags_t : public machine_flags_t {
     bool fAVX512VBMI = false; //  AVX512 Vector Byte Manipulation Instructions
     bool fAVX512BF16 = false; //  AVX512 BF16 Instructions
 
+    uint8_t family = 0;
+    uint8_t model = 0;
+    uint8_t step = 0;
+
     static const size_t maxNumberCacheLevels = 10;
     std::array<size_t, maxNumberCacheLevels> dataCacheSize_;
     size_t dataCacheLevels_ = 0;

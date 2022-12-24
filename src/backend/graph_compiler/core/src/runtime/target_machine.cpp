@@ -173,6 +173,17 @@ target_machine_t get_native_target_machine() {
         tm.cpu_flags_.fFMA4 = (info[2] & ((int)1 << 16)) != 0;
         tm.cpu_flags_.fXOP = (info[2] & ((int)1 << 11)) != 0;
     }
+    cpuid(info, 0x00000001, 0);
+    uint8_t family = (info[0] >> 8) & 0xf;
+    uint8_t model = (info[0] >> 4) & 0xf;
+    uint8_t step = info[0] & 0xf;
+    if (family == 0x6 || family == 0xf) {
+        model += ((info[0] >> 16) & 0xF) << 4;
+    }
+    if (family == 0xf) { family += (info[0] >> 20) & 0xff; }
+    tm.cpu_flags_.family = family;
+    tm.cpu_flags_.model = model;
+    tm.cpu_flags_.step = step;
     for (int i = 0; tm.cpu_flags_.dataCacheLevels_
             < sc::runtime::cpu_flags_t::maxNumberCacheLevels;
             i++) {
