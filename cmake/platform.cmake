@@ -173,6 +173,8 @@ elseif(UNIX OR MINGW)
         # We disable the warning for debug build mode.
         if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
             append(CMAKE_CCXX_FLAGS "-Wno-debug-disables-optimization")
+            # The compiler may issue the corresponding remark.
+            append(CMAKE_CCXX_FLAGS "-Rno-debug-disables-optimization")
             # Some compiler versions may not know "debug-disables-optimization".
             append(CMAKE_CCXX_FLAGS "-Wno-unknown-warning-option")
         endif()
