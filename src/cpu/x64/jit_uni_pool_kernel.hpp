@@ -70,9 +70,9 @@ private:
     Zmm zreg(int idx) const noexcept { return Zmm(reg_idx(idx)); }
     Vmm vreg(int idx) const noexcept { return Vmm(reg_idx(idx)); }
 
-    const Xbyak::AddressFrame &vmmword = (isa == sse41)
-            ? xword
-            : utils::one_of(isa, avx, avx2, avx2_vnni_2) ? yword : zword;
+    const Xbyak::AddressFrame &vmmword = (isa == sse41)  ? xword
+            : utils::one_of(isa, avx, avx2, avx2_vnni_2) ? yword
+                                                         : zword;
 
     Xmm vmm_mask = Xmm(0);
     Xmm xmm_tmp_1 = Xmm(0);

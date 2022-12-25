@@ -139,8 +139,10 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
 
     jcp.loop_order = loop_ngcw;
 
-    jcp.ur_w = is_bf16 ? (isa_has_bf16(jcp.isa) ? 6 : 4)
-                       : isa == avx512_core ? 6 : isa == avx2 ? 4 : 3;
+    jcp.ur_w = is_bf16           ? (isa_has_bf16(jcp.isa) ? 6 : 4)
+            : isa == avx512_core ? 6
+            : isa == avx2        ? 4
+                                 : 3;
     jcp.ur_w = nstl::min(jcp.ur_w, jcp.ow);
 
     jcp.ch_block = simd_w;
@@ -379,8 +381,10 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     jcp.typesize_out = types::data_type_size(diff_src_d.data_type());
     jcp.typesize_in = types::data_type_size(diff_dst_d.data_type());
 
-    jcp.ur_w = is_bf16 ? (isa_has_bf16(jcp.isa) ? 6 : 4)
-                       : isa == avx512_core ? 6 : isa == avx2 ? 4 : 3;
+    jcp.ur_w = is_bf16           ? (isa_has_bf16(jcp.isa) ? 6 : 4)
+            : isa == avx512_core ? 6
+            : isa == avx2        ? 4
+                                 : 3;
 
     jcp.loop_order = is_data_layout_nxc ? loop_nhwcg : loop_ngcw;
 

@@ -379,11 +379,10 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
         const size_t src_h_step = static_cast<size_t>(jcp.iw * jcp.ngroups);
         const size_t ddst_h_step = static_cast<size_t>(jcp.ow * jcp.ngroups);
         const size_t bias_size = static_cast<size_t>(jcp.ngroups);
-        auto ithr_diff_bias = main_thread
-                ? diff_bias
-                : diff_bias_reduction_buffer ? diff_bias_reduction_buffer
-                                + (ithr_block - 1) * bias_size
-                                             : nullptr;
+        auto ithr_diff_bias = main_thread ? diff_bias
+                : diff_bias_reduction_buffer
+                ? diff_bias_reduction_buffer + (ithr_block - 1) * bias_size
+                : nullptr;
         const int g_step = jcp.nb_ch_blocking;
         for (int g_ = g_start; g_ < g_end; ++g_) {
             const int g = g_ * jcp.nb_ch_blocking;

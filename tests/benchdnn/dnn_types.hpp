@@ -366,7 +366,7 @@ struct attr_t {
         , fpmath_mode(dnnl_fpmath_mode_strict) {}
 
     template <typename First, typename... Rest>
-    void insert(const First &first, const Rest &... rest) {
+    void insert(const First &first, const Rest &...rest) {
         this->insert(first);
         if (sizeof...(rest) > 0) this->insert(rest...);
     }

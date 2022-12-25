@@ -230,12 +230,11 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             = rnn.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half);
     int aux_elsz = rnn.aux_data_type == data_type::f16 ? sizeof(cl_half)
                                                        : sizeof(float);
-    rnn.ws_states_elsz = rnn.dt_conf == all_f32
-            ? sizeof(cl_float)
+    rnn.ws_states_elsz = rnn.dt_conf == all_f32 ? sizeof(cl_float)
             : rnn.dt_conf == all_f16 || rnn.dt_conf == all_bf16
-                    ? sizeof(cl_half)
-                    : rnn.dt_conf == u8u8u8u8 ? sizeof(int8_t)
-                                              : sizeof(int32_t);
+            ? sizeof(cl_half)
+            : rnn.dt_conf == u8u8u8u8 ? sizeof(int8_t)
+                                      : sizeof(int32_t);
 
     // Different size required for forward and backward pass
     rnn.scratch_gates_elsz = (!rnn.is_fwd && rnn.dt_conf == all_bf16)

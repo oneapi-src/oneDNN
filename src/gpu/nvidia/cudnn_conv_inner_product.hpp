@@ -185,8 +185,7 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                             || utils::everyone_is(f16, src_type, weights_type,
                                     bias_type, dst_type));
 
-            bool acc_match = src_wei_match && src_type == s8
-                    ? acc_type == s32
+            bool acc_match = src_wei_match && src_type == s8 ? acc_type == s32
                     : bias_match && bias_may_use_type == f16 ? acc_type == f16
                                                              : acc_type == f32;
 

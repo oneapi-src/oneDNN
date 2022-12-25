@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,8 +43,8 @@ public:
         int nthr_; // To not exceed the limit in execute used for set up.
 
     private:
-        bool dt_supported(const std::set<data_type_t> &tensor_data_types) const
-                noexcept;
+        bool dt_supported(
+                const std::set<data_type_t> &tensor_data_types) const noexcept;
         bool bcast_supported(const prelu::bcast &bcast,
                 const memory_desc_wrapper &src_diff_d,
                 const memory_desc_wrapper &weights_diff_d, int simd_w) const;

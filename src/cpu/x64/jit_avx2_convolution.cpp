@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,15 +32,14 @@ using namespace dnnl::impl::utils;
 using namespace nstl;
 
 #define src_blk_off(f, n, c, d, h, w) \
-    (pd()->ndims() == 3) ? (f).blk_off(n, c, w) \
-                         : (pd()->ndims() == 4) ? (f).blk_off(n, c, h, w) \
-                                                : (f).blk_off(n, c, d, h, w)
+    (pd()->ndims() == 3)           ? (f).blk_off(n, c, w) \
+            : (pd()->ndims() == 4) ? (f).blk_off(n, c, h, w) \
+                                   : (f).blk_off(n, c, d, h, w)
 
 #define wht_blk_off_(f, g, ...) \
     pd()->with_groups() ? (f).blk_off(g, __VA_ARGS__) : (f).blk_off(__VA_ARGS__)
 #define wht_blk_off(f, g, oc, ic, kd, kh, kw) \
-    (pd()->ndims() == 3) \
-            ? wht_blk_off_(f, g, oc, ic, kw) \
+    (pd()->ndims() == 3)           ? wht_blk_off_(f, g, oc, ic, kw) \
             : (pd()->ndims() == 4) ? wht_blk_off_(f, g, oc, ic, kh, kw) \
                                    : wht_blk_off_(f, g, oc, ic, kd, kh, kw)
 

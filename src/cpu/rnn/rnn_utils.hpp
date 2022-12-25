@@ -448,8 +448,8 @@ struct rnn_conf_t {
         return (cell_position & first_layer) && skip_src_layer_copy()
                 ? src_layer_ld_
                 : (cell_position & last_iter) && skip_dst_iter_copy()
-                        ? dst_iter_ld_
-                        : ws_states_layer_ld;
+                ? dst_iter_ld_
+                : ws_states_layer_ld;
     }
 
     inline dim_t src_iter_ld(cell_position_t cell_position) const {
@@ -462,18 +462,17 @@ struct rnn_conf_t {
     }
 
     inline dim_t layer_brgemm_desc(cell_position_t cell_position) const {
-        return ((cell_position & first_layer) && skip_src_layer_copy())
-                ? 0
-                : ((cell_position & last_iter) && skip_dst_iter_copy()) ? 1 : 2;
+        return ((cell_position & first_layer) && skip_src_layer_copy()) ? 0
+                : ((cell_position & last_iter) && skip_dst_iter_copy()) ? 1
+                                                                        : 2;
     }
 
     inline dim_t iter_brgemm_desc(cell_position_t cell_position) const {
-        return ((cell_position & first_iter) && skip_src_iter_copy())
-                ? 0
+        return ((cell_position & first_iter) && skip_src_iter_copy()) ? 0
                 : ((cell_position & last_layer) && skip_dst_layer_copy()
                           && !(cell_position & first_iter))
-                        ? 1
-                        : 2;
+                ? 1
+                : 2;
     }
 
     // Returns index of brgemm kernel for 2nd part of iteration gemm in vanilla
@@ -482,8 +481,7 @@ struct rnn_conf_t {
     // values initialization order
     inline dim_t iter_part2_brgemm_desc(cell_position_t cell_position) const {
         if (cell_position & last_layer) {
-            return (cell_position & last_layer) && skip_dst_layer_copy()
-                    ? 0
+            return (cell_position & last_layer) && skip_dst_layer_copy()  ? 0
                     : (cell_position & last_iter) && skip_dst_iter_copy() ? 1
                                                                           : 2;
         } else {
@@ -504,8 +502,8 @@ struct rnn_conf_t {
         return (cell_position & last_layer) && skip_dst_layer_copy()
                 ? dst_layer_ld_
                 : (cell_position & last_iter) && skip_dst_iter_copy()
-                        ? dst_iter_ld_
-                        : ws_states_layer_ld;
+                ? dst_iter_ld_
+                : ws_states_layer_ld;
     }
 
     inline dim_t dst_brgemm_desc(
@@ -513,9 +511,9 @@ struct rnn_conf_t {
         // We use scratch_ht and not dst_layer for lstmp
         if (is_lstm_projection && !after_proj) return 0;
 
-        return (cell_position & last_layer) && skip_dst_layer_copy()
-                ? 1
-                : (cell_position & last_iter) && skip_dst_iter_copy() ? 2 : 3;
+        return (cell_position & last_layer) && skip_dst_layer_copy()  ? 1
+                : (cell_position & last_iter) && skip_dst_iter_copy() ? 2
+                                                                      : 3;
     }
 
     inline dim_t dst_iter_ld(cell_position_t cell_position) const {

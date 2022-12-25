@@ -658,7 +658,7 @@ static inline void parallel_nd(dim_t D0, dim_t D1, dim_t D2, dim_t D3, dim_t D4,
 /* parallel_nd_in_omp section */
 
 template <typename... Args>
-void parallel_nd_in_omp(Args &&... args) {
+void parallel_nd_in_omp(Args &&...args) {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
     for_nd(0, 1, utils::forward<Args>(args)...);
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP

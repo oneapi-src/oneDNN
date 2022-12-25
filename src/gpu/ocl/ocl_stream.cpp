@@ -102,14 +102,13 @@ cl_command_queue ocl_stream_t::create_queue(
     cl_queue_properties out_of_order_props[]
             = {CL_QUEUE_PROPERTIES, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, 0};
     return clCreateCommandQueueWithProperties(ctx, dev,
-            is_profiling_enabled()
-                    ? profiling_props
-                    : is_out_of_order ? out_of_order_props : nullptr,
+            is_profiling_enabled()    ? profiling_props
+                    : is_out_of_order ? out_of_order_props
+                                      : nullptr,
             err);
 #else
     return clCreateCommandQueue(ctx, dev,
-            is_profiling_enabled()
-                    ? CL_QUEUE_PROFILING_ENABLE
+            is_profiling_enabled()    ? CL_QUEUE_PROFILING_ENABLE
                     : is_out_of_order ? CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE
                                       : 0,
             err);

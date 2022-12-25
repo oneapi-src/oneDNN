@@ -568,8 +568,8 @@ size_t jit_brgemm_amx_uker_base_t::C_offset(int bd, int ldb) const noexcept {
     return bd * LDC_size_ + ldb * ld_block_C_size_;
 }
 
-size_t jit_brgemm_amx_uker_base_t::C_block_offset(int bd, int ldb) const
-        noexcept {
+size_t jit_brgemm_amx_uker_base_t::C_block_offset(
+        int bd, int ldb) const noexcept {
     return (size_t)bd * LDC2_size_M_ + (size_t)ldb * LDC2_size_N_;
 }
 
@@ -932,8 +932,8 @@ void jit_brgemm_amx_uker_base_t::prefetch_CD_range(brgemm_iteration_t &bi,
     }
 }
 
-int jit_brgemm_amx_uker_base_t::calc_ops_CD(brgemm_iteration_t &bi) const
-        noexcept {
+int jit_brgemm_amx_uker_base_t::calc_ops_CD(
+        brgemm_iteration_t &bi) const noexcept {
     return imap_.rdis.size() * bi.ldi.block2() * bi.bdi.block2()
             * (brg.brgattr.var_bs ? 1 : brg.brgattr.max_bs);
 }

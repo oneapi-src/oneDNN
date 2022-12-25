@@ -184,7 +184,7 @@ struct scoped_tp_deactivation_t {
 
 #define RUN_IN_THR_CTX(name) \
     template <typename F, typename... Args_t> \
-    auto name(const thr_ctx_t &ctx, F &&f, Args_t &... args) \
+    auto name(const thr_ctx_t &ctx, F &&f, Args_t &...args) \
             ->decltype(f(args...)) { \
 \
         THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type \
@@ -206,7 +206,7 @@ RUN_IN_THR_CTX(execute_in_thr_ctx)
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
 #define RUN_IN_THR_CTX(name) \
     template <typename F, typename... Args_t> \
-    auto name(const thr_ctx_t &ctx, F &&f, Args_t &... args) \
+    auto name(const thr_ctx_t &ctx, F &&f, Args_t &...args) \
             ->decltype(f(args...)) { \
 \
         THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type, \
@@ -243,7 +243,7 @@ constexpr size_t get_number_args() {
 template <size_t i, typename R>
 struct params_pack_helper_t {
     template <typename F, typename T, typename... Args_t>
-    static R expand_and_call(F &&f, T &packed_args, Args_t &... unpacked_args) {
+    static R expand_and_call(F &&f, T &packed_args, Args_t &...unpacked_args) {
         constexpr size_t cnt = (i == SIZE_MAX)
                 ? get_number_args<decltype(packed_args)>()
                 : i;
@@ -256,7 +256,7 @@ struct params_pack_helper_t {
 template <typename R>
 struct params_pack_helper_t<0, R> {
     template <typename F, typename T, typename... Args_t>
-    static R expand_and_call(F &&f, T &packed_args, Args_t &... unpacked_args) {
+    static R expand_and_call(F &&f, T &packed_args, Args_t &...unpacked_args) {
         return (R)f(unpacked_args...);
     }
 };
@@ -264,7 +264,7 @@ struct params_pack_helper_t<0, R> {
 #include "oneapi/tbb/info.h"
 #define RUN_IN_THR_CTX(name) \
     template <typename F, typename... Args_t> \
-    auto name(const thr_ctx_t &ctx, F &&f, Args_t &... args) \
+    auto name(const thr_ctx_t &ctx, F &&f, Args_t &...args) \
             ->decltype(f(args...)) { \
         static auto core_types = tbb::info:: \
                 core_types(); /* sorted by the relative strength       */ \
@@ -298,7 +298,7 @@ RUN_IN_THR_CTX(execute_in_thr_ctx)
 
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 template <typename F, typename... Args_t>
-auto create_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
+auto create_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &...args)
         -> decltype(f(args...)) {
     THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type,
             "core type %d is not supported for TP runtime\n", ctx.core_type);
@@ -310,7 +310,7 @@ auto create_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
 
 // The function f shall take an interop obj as last argument
 template <typename F, typename... Args_t>
-auto execute_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
+auto execute_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &...args)
         -> decltype(f(args...)) {
     THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type,
             "core type %d is not supported for TP runtime\n", ctx.core_type);

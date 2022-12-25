@@ -50,7 +50,7 @@ struct base_settings_t {
     const char *perf_template = perf_template_def;
 
     template <typename... ArgsT>
-    static attr_t get_attr(const ArgsT &... args) {
+    static attr_t get_attr(const ArgsT &...args) {
         attr_t attr;
         attr.insert(args...);
         return attr;

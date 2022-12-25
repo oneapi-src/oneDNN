@@ -83,9 +83,9 @@ struct jit_sse41_convolution_fwd_t : public primitive_t {
                             dst_d.format_kind() == format_kind::any)
                     && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
             const bool flat = IC() == 3;
-            auto src_tag = is_data_layout_nxc
-                    ? dat_tag_nxc
-                    : flat ? dat_tag_ncx : dat_tag_nCx8c;
+            auto src_tag = is_data_layout_nxc ? dat_tag_nxc
+                    : flat                    ? dat_tag_ncx
+                                              : dat_tag_nCx8c;
             auto dst_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx8c;
             auto wei_tag = with_groups()
                     ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,

@@ -71,10 +71,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     dnnl_dims_t data_dims_2d = {prb->mb, prb->ic, prb->ih, prb->iw};
     dnnl_dims_t data_dims_3d = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
 
-    dnnl_dim_t *data_dims = prb->ndims == 5
-            ? data_dims_3d
-            : prb->ndims == 4 ? data_dims_2d
-                              : prb->ndims == 3 ? data_dims_1d : data_dims_0d;
+    dnnl_dim_t *data_dims = prb->ndims == 5 ? data_dims_3d
+            : prb->ndims == 4               ? data_dims_2d
+            : prb->ndims == 3               ? data_dims_1d
+                                            : data_dims_0d;
 
     auto src_d = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, prb->tag);
     auto dst_d = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);

@@ -61,8 +61,9 @@ struct jit_softmax_t : public jit_generator {
 
     // cpu specific part
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     const softmax_pd_t *pd_;
@@ -148,7 +149,8 @@ struct jit_softmax_t : public jit_generator {
         if (is_bf16_ || is_f16_) {
             return is_reuse_avx512_core
                     ? is_f16_ ? avx512_core_fp16 : avx512_core_bf16
-                    : is_reuse_avx2 ? avx2_vnni_2 : isa;
+                    : is_reuse_avx2 ? avx2_vnni_2
+                                    : isa;
         } else
             return isa;
     }

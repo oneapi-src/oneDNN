@@ -80,7 +80,7 @@ void get_hash_impl(size_t &h, const T &t) {
 }
 
 template <typename ArgHeadT, typename... ArgsT>
-void get_hash_impl(size_t &h, const ArgHeadT &head, const ArgsT &... args) {
+void get_hash_impl(size_t &h, const ArgHeadT &head, const ArgsT &...args) {
     size_t h_head = get_hash(head);
     h = hash_combine(h, h_head);
     get_hash_impl(h, args...);
@@ -128,7 +128,7 @@ size_t get_hash(const std::vector<T> &v) {
 }
 
 template <typename... ArgsT>
-size_t get_hash(const ArgsT &... args) {
+size_t get_hash(const ArgsT &...args) {
     size_t h = 0;
     get_hash_impl(h, args...);
     return h;

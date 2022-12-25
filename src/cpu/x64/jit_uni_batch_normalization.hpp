@@ -49,17 +49,14 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("bnorm_jit:",
                         (src_md()->data_type == data_type::bf16)
-                                ? (mayiuse(avx512_core_bf16)
-                                                ? avx512_core_bf16
+                                ? (mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                                 : mayiuse(avx512_core)
-                                                        ? bf16_emulation_t::
-                                                                get_isa()
-                                                        : avx2_vnni_2)
+                                                ? bf16_emulation_t::get_isa()
+                                                : avx2_vnni_2)
                                 : (src_md()->data_type == data_type::f16)
-                                        ? (mayiuse(avx512_core_fp16)
-                                                        ? avx512_core_fp16
-                                                        : avx2_vnni_2)
-                                        : isa,
+                                ? (mayiuse(avx512_core_fp16) ? avx512_core_fp16
+                                                             : avx2_vnni_2)
+                                : isa,
                         ""),
                 jit_uni_batch_normalization_fwd_t);
 
@@ -95,8 +92,8 @@ struct jit_uni_batch_normalization_bwd_t : public primitive_t {
                                                 ? avx512_core_bf16
                                                 : bf16_emulation_t::get_isa())
                                 : (src_md()->data_type == data_type::f16)
-                                        ? avx512_core_fp16
-                                        : isa,
+                                ? avx512_core_fp16
+                                : isa,
                         ""),
                 jit_uni_batch_normalization_bwd_t);
 

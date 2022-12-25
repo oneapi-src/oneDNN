@@ -42,11 +42,10 @@ cpu_isa_t get_io_isa(cpu_isa_t isa, bool has_f16, bool has_bf16) {
     // re-using avx512_core instantiation for xf16
     // re-using avx2 instantiation for xf16
     if (has_f16 || has_bf16)
-        return is_superset(isa, avx512_core)
-                ? (has_f16 ? avx512_core_fp16
-                           : mayiuse(avx512_core_bf16) ? avx512_core_bf16
-                                                       : avx512_core)
-                : avx2_vnni_2;
+        return is_superset(isa, avx512_core) ? (has_f16    ? avx512_core_fp16
+                               : mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                                           : avx512_core)
+                                             : avx2_vnni_2;
     else
         return isa;
 }
@@ -115,8 +114,9 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
 protected:
     static constexpr int unroll_factor_ = 4;
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     struct ker_args_t {
@@ -649,8 +649,9 @@ struct jit_diff_ss_kernel_t : diff_ss_kernel_t, public jit_generator {
 
 protected:
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     struct ker_args_t {
@@ -846,8 +847,9 @@ struct jit_diff_data_base_kernel_t : diff_data_kernel_t, public jit_generator {
 protected:
     static constexpr int unroll_factor_ = 4;
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     struct ker_args_t {

@@ -253,17 +253,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             for (dim_t w = 0; w < W; w++) {
                 auto i = w_depth
                         ? input[input_d.blk_off<!w_groups>(g, oc, ic, d, h, w)]
-                        : w_height ? input[input_d.blk_off<!w_groups>(
-                                  g, oc, ic, h, w)]
-                                   : input[input_d.blk_off<!w_groups>(
-                                           g, oc, ic, w)];
-                auto &o = w_depth
-                        ? output[output_d.blk_off<!w_groups>(
-                                g, oc, ic, d, h, w)]
-                        : w_height ? output[output_d.blk_off<!w_groups>(
-                                  g, oc, ic, h, w)]
-                                   : output[output_d.blk_off<!w_groups>(
-                                           g, oc, ic, w)];
+                        : w_height
+                        ? input[input_d.blk_off<!w_groups>(g, oc, ic, h, w)]
+                        : input[input_d.blk_off<!w_groups>(g, oc, ic, w)];
+                auto &o = w_depth ? output[output_d.blk_off<!w_groups>(
+                                  g, oc, ic, d, h, w)]
+                        : w_height
+                        ? output[output_d.blk_off<!w_groups>(g, oc, ic, h, w)]
+                        : output[output_d.blk_off<!w_groups>(g, oc, ic, w)];
                 const size_t os_off
                         = (g * OC + oc) * oc_stride + ic * ic_stride;
                 const float s = src_scales[src_scales_mask == 0 ? 0 : os_off];
@@ -388,11 +385,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 ? 4
                 : utils::one_of(tag_traits<tag_o>::inner_blks, ib::_2c8b4c,
                           ib::_2b8a4b)
-                        ? 8
-                        : 16;
+                ? 8
+                : 16;
         constexpr dim_t ocblksize
-                = tag_traits<tag_o>::inner_blks == ib::_4b32a4b
-                ? 32
+                = tag_traits<tag_o>::inner_blks == ib::_4b32a4b ? 32
                 : tag_traits<tag_o>::inner_blks == ib::_4b64a4b ? 64
                                                                 : icblksize;
 
@@ -486,10 +482,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         });
 
 #define wei_blk_off(md, g, o, i, d, h, w) \
-    (is_0d ? (md).blk_off<!w_groups>(g, o, i) \
-           : is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
-                   : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
-                           : (md).blk_off<!w_groups>(g, o, i, h, w))
+    (is_0d                  ? (md).blk_off<!w_groups>(g, o, i) \
+                    : is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
+                    : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
+                            : (md).blk_off<!w_groups>(g, o, i, h, w))
         parallel_nd(G, NB_OC, [&](dim_t g, dim_t O) {
             for_(dim_t I = 0; I < NB_IC; I++)
             for_(dim_t d = 0; d < D; d++)
@@ -631,9 +627,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         }
 
 #define wei_blk_off(md, g, o, i, d, h, w) \
-    (is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
-           : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
-                   : (md).blk_off<!w_groups>(g, o, i, h, w))
+    (is_1d                  ? (md).blk_off<!w_groups>(g, o, i, w) \
+                    : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
+                            : (md).blk_off<!w_groups>(g, o, i, h, w))
 
         parallel_nd(G, NB_OC, [&](dim_t g, dim_t O) {
             for_(dim_t I = 0; I < IC; I++)
@@ -753,8 +749,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 ? 64
                 : utils::one_of(
                           tag_traits<tag_o>::inner_blks, ib::_16a4b, ib::_16b4c)
-                        ? 4
-                        : 1;
+                ? 4
+                : 1;
         assert(ic_blksize != 1);
 
         const auto &plain_d = order_keep ? input_d : output_d;
@@ -812,9 +808,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         }
 
 #define wei_blk_off(md, g, o, i, d, h, w) \
-    (is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
-           : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
-                   : (md).blk_off<!w_groups>(g, o, i, h, w))
+    (is_1d                  ? (md).blk_off<!w_groups>(g, o, i, w) \
+                    : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
+                            : (md).blk_off<!w_groups>(g, o, i, h, w))
 
         parallel_nd(G, NB_OC, [&](dim_t g, dim_t O) {
             for_(dim_t I = 0; I < NB_IC; I++)
@@ -910,14 +906,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 ? 64
                 : (utils::one_of(tag_traits<tag_o>::inner_blks, ib::_16a48b4a,
                           ib::_16b48c4b))
-                        ? 48
-                        : (utils::one_of(tag_traits<tag_o>::inner_blks,
-                                  ib::_16a32b4a, ib::_16b32c4b))
-                                ? 32
-                                : (utils::one_of(tag_traits<tag_o>::inner_blks,
-                                          ib::_16a16b4a, ib::_16b16c4b))
-                                        ? 16
-                                        : 1;
+                ? 48
+                : (utils::one_of(tag_traits<tag_o>::inner_blks, ib::_16a32b4a,
+                          ib::_16b32c4b))
+                ? 32
+                : (utils::one_of(tag_traits<tag_o>::inner_blks, ib::_16a16b4a,
+                          ib::_16b16c4b))
+                ? 16
+                : 1;
         assert(D1_blksize != 1);
 
         const auto &plain_d = order_keep ? input_d : output_d;
@@ -1094,8 +1090,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 = utils::one_of(tag_o, format_tag::Goihw4g, format_tag::Goiw4g)
                 ? 4
                 : utils::one_of(tag_o, format_tag::Goihw8g, format_tag::Goiw8g)
-                        ? 8
-                        : 16;
+                ? 8
+                : 16;
 
         const auto &dims = input_d.dims();
         const auto &pdims = output_d.padded_dims();
@@ -1498,8 +1494,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         };
 
 #define data_blk_off(md, n, c, d, h, w) \
-    (is_1d ? (md).blk_off(n, c, w) \
-           : is_3d ? (md).blk_off(n, c, d, h, w) : (md).blk_off(n, c, h, w))
+    (is_1d                  ? (md).blk_off(n, c, w) \
+                    : is_3d ? (md).blk_off(n, c, d, h, w) \
+                            : (md).blk_off(n, c, h, w))
 
         parallel_nd(dims[0], pdims[1] / blksize_16, D, H, W,
                 [&](dim_t n, dim_t nb_c, dim_t d, dim_t h, dim_t w) {
@@ -1639,11 +1636,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         };
 
 #define off(md, h0, h1, m0, m1, m2) \
-    (ndims >= 6 ? (md).blk_off(h0, h1, m0, m1, m2) \
-                : ndims >= 5 ? (md).blk_off(h0, h1, m1, m2) \
-                             : ndims >= 4 \
-                                    ? (md).blk_off(h0, h1, m2) \
-                                    : /* ndims >= 3 ? */ (md).blk_off(h0, h1))
+    (ndims >= 6                  ? (md).blk_off(h0, h1, m0, m1, m2) \
+                    : ndims >= 5 ? (md).blk_off(h0, h1, m1, m2) \
+                    : ndims >= 4 ? (md).blk_off(h0, h1, m2) \
+                                 : /* ndims >= 3 ? */ (md).blk_off(h0, h1))
 
         const int i_mult = order_keep ? blksize : 1;
         const int o_mult = order_keep ? 1 : blksize;
@@ -1848,10 +1844,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 #define off(md, g, h0, h1, m0, m1, m2) \
     (ndims >= 5 + with_g ? (md).blk_off<!with_g>(g, h0, h1, m0, m1, m2) \
-                         : ndims >= 4 + with_g \
-                            ? (md).blk_off<!with_g>(g, h0, h1, m1, m2) \
-                            : /* ndims >= 3 + with_g ? */ (md) \
-                                      .blk_off<!with_g>(g, h0, h1, m2))
+                    : ndims >= 4 + with_g \
+                    ? (md).blk_off<!with_g>(g, h0, h1, m1, m2) \
+                    : /* ndims >= 3 + with_g ? */ (md).blk_off<!with_g>( \
+                            g, h0, h1, m2))
 
         parallel_nd(G, NB_H0, NB_H1, M0, M1, M2,
                 [&](dim_t g, dim_t nb_h0, dim_t nb_h1, dim_t m0, dim_t m1,

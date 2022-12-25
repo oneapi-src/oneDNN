@@ -360,15 +360,15 @@ private:
 };
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::A_offset(int bd, int rd, bool is_amx) const
-        noexcept {
+int jit_brgemm_kernel_t<isa, Wmm>::A_offset(
+        int bd, int rd, bool is_amx) const noexcept {
     return (is_amx) ? brg.typesize_A * (bd * brg.bd_block * brg.LDA)
                     : brg.typesize_A * (bd * brg.LDA + rd);
 }
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::B_offset(int ld, int rd, bool is_amx) const
-        noexcept {
+int jit_brgemm_kernel_t<isa, Wmm>::B_offset(
+        int ld, int rd, bool is_amx) const noexcept {
     if (is_amx) {
         return brg.typesize_B * (brg.rd_step * ld * brg.ld_block);
     } else {
@@ -456,15 +456,15 @@ int jit_brgemm_kernel_t<isa, Wmm>::bdb_po_offset(int bd_block2) const noexcept {
 }
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::bias_offset(int ld, bool is_tail) const
-        noexcept {
+int jit_brgemm_kernel_t<isa, Wmm>::bias_offset(
+        int ld, bool is_tail) const noexcept {
     return (is_tail) ? brg.typesize_bias * brg.ldb_tail
                      : brg.typesize_bias * ld * brg.ld_block;
 }
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::oc_logical_offset(int ld, bool is_tail) const
-        noexcept {
+int jit_brgemm_kernel_t<isa, Wmm>::oc_logical_offset(
+        int ld, bool is_tail) const noexcept {
     return (is_tail) ? brg.ldb_tail : ld * brg.ld_block;
 }
 
@@ -476,8 +476,8 @@ int jit_brgemm_kernel_t<isa, Wmm>::compensations_offset(
 }
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::bdb_compensation_offset(int bd_block2) const
-        noexcept {
+int jit_brgemm_kernel_t<isa, Wmm>::bdb_compensation_offset(
+        int bd_block2) const noexcept {
     return sizeof(int32_t) * bd_block2 * brg.bd_block * brg.LDB;
 }
 
@@ -488,28 +488,28 @@ int jit_brgemm_kernel_t<isa, Wmm>::compensation_vpad_offset(
 }
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::scales_offset(int ld, bool is_tail) const
-        noexcept {
+int jit_brgemm_kernel_t<isa, Wmm>::scales_offset(
+        int ld, bool is_tail) const noexcept {
     return (is_tail) ? brg.is_oc_scale * sizeof(float) * brg.ldb_tail
                      : brg.is_oc_scale * sizeof(float) * ld * brg.ld_block;
 }
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::zp_comp_a_offset(int ld, bool is_tail) const
-        noexcept {
+int jit_brgemm_kernel_t<isa, Wmm>::zp_comp_a_offset(
+        int ld, bool is_tail) const noexcept {
     return (is_tail) ? sizeof(int32_t) * brg.ldb_tail
                      : sizeof(int32_t) * ld * brg.ld_block;
 }
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::bdb_zp_comp_a_offset(int bd_block2) const
-        noexcept {
+int jit_brgemm_kernel_t<isa, Wmm>::bdb_zp_comp_a_offset(
+        int bd_block2) const noexcept {
     return sizeof(int32_t) * bd_block2 * brg.bd_block * brg.LDB;
 }
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::zp_comp_a_vpad_offset(int ld, int bd) const
-        noexcept {
+int jit_brgemm_kernel_t<isa, Wmm>::zp_comp_a_vpad_offset(
+        int ld, int bd) const noexcept {
     return sizeof(int32_t) * (ld * brg.ld_block + bd * brg.LDB);
 }
 
@@ -519,8 +519,8 @@ int jit_brgemm_kernel_t<isa, Wmm>::zp_comp_b_offset(int bd) const noexcept {
 }
 
 template <cpu_isa_t isa, typename Wmm>
-int jit_brgemm_kernel_t<isa, Wmm>::bdb_zp_comp_b_offset(int bd_block2) const
-        noexcept {
+int jit_brgemm_kernel_t<isa, Wmm>::bdb_zp_comp_b_offset(
+        int bd_block2) const noexcept {
     return zp_comp_b_offset(bd_block2 * brg.bd_block);
 }
 

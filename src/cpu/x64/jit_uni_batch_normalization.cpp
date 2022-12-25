@@ -239,8 +239,9 @@ struct jit_bnorm_t : public jit_generator {
     /* cpu specific part */
     using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
             Ymm, Zmm>::type;
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
 
     const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
     int vlen_spat_data_
