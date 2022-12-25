@@ -40,7 +40,7 @@ inline bool memory_desc_ndims_ok(const memory_desc_t *md) {
 }
 
 template <typename T, typename... Rest>
-bool memory_desc_ndims_ok(const T *first, const Rest *... rest) {
+bool memory_desc_ndims_ok(const T *first, const Rest *...rest) {
     return memory_desc_ndims_ok(first) || memory_desc_ndims_ok(rest...);
 }
 

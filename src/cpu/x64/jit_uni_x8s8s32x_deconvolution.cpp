@@ -464,14 +464,14 @@ int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_ow_end(
 }
 
 template <cpu_isa_t isa, typename Vmm>
-int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_blocking_size() const
-        noexcept {
+int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_blocking_size()
+        const noexcept {
     return jcp_.is_depthwise ? jcp_.ch_block : jcp_.oc_block;
 }
 
 template <cpu_isa_t isa, typename Vmm>
-int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_tail_size() const
-        noexcept {
+int _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::get_tail_size()
+        const noexcept {
     return jcp_.is_depthwise ? jcp_.ngroups % jcp_.ch_block
                              : jcp_.oc_without_padding % jcp_.oc_block;
 }

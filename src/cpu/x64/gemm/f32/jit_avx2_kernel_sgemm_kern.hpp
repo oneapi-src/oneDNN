@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -334,9 +334,9 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
         Xbyak::Label end_K_loop_label, end_main_K_loop_label;
         Xbyak::Label K_loop_with_prefetch_label, K_loop_with_prefetch_rem_label;
 
-        Xbyak::Reg64 A_reg = (mayiuse(avx512_core))
-                ? AO_
-                : ((um == unroll_m_) && (un == unroll_n_)) ? A_ : AO_;
+        Xbyak::Reg64 A_reg = (mayiuse(avx512_core))        ? AO_
+                : ((um == unroll_m_) && (un == unroll_n_)) ? A_
+                                                           : AO_;
 
         if (mayiuse(avx512_core) || (unroll_m_ != um) || (unroll_n_ != un))
             mov(AO_, A_);

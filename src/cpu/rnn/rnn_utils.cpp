@@ -290,9 +290,9 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
                         ? (rnn.n_block == 64 ? format_tag::ldgOI64o4i
                                              : format_tag::ldgOI32o4i)
                         : rnn.is_bf16_conf()
-                                ? (rnn.n_block == 64 ? format_tag::ldgOI64o2i
-                                                     : format_tag::ldgOI32o2i)
-                                : format_tag::ldgOi32o;
+                        ? (rnn.n_block == 64 ? format_tag::ldgOI64o2i
+                                             : format_tag::ldgOI32o2i)
+                        : format_tag::ldgOi32o;
             } else {
                 tag = rnn.is_bf16_conf() ? format_tag::ldgIO32i2o
                                          : format_tag::ldgIo32i;
@@ -319,7 +319,8 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
         } else {
             const format_tag_t tag = weights_type == weights_type_t::projection
                     ? rnn.is_fwd ? ldio : ldoi
-                    : rnn.is_fwd ? ldigo : ldgoi;
+                    : rnn.is_fwd ? ldigo
+                                 : ldgoi;
             CHECK(memory_desc_init_by_tag(weights_md, tag));
             // Adjust strides for good leading dimension in GEMM
             CHECK(set_good_strides(weights_md, tag));

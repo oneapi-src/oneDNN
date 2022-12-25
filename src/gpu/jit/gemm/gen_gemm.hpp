@@ -147,12 +147,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             }
 
             // choose kernel
-            auto co_type = with_bias()
-                    ? d->bias_type()
-                    : with_sum_ab() ? d->sum_ab_type
-                                    : (utils::one_of(eff_a_type(), s8, u8)
-                                                    ? s32
-                                                    : d->c_type());
+            auto co_type = with_bias() ? d->bias_type()
+                    : with_sum_ab()
+                    ? d->sum_ab_type
+                    : (utils::one_of(eff_a_type(), s8, u8) ? s32 : d->c_type());
 
             auto acc_type = utils::one_of(eff_a_type(), s8, u8) ? s32 : f32;
 

@@ -477,50 +477,37 @@ void jit_uni_binary_injector_t<isa, Vmm>::compute_vector_range(
                                                     .rhs_addr_cache_reg,
                                             host_->rax, host_->rdx, host_->r8})
                             : rhs_arg_static_params_.preserve_gpr_helpers
-                                            && should_preserve_mb_sp_offset_conversion_regs
-                                    ? std::initializer_list<Xbyak::Reg64>(
-                                            {rhs_arg_static_params_
-                                                            .rhs_addr_reg,
-                                                    rhs_arg_static_params_
-                                                            .rhs_helper_reg,
-                                                    rhs_arg_static_params_
-                                                            .rhs_addr_cache_reg,
-                                                    host_->rax, host_->rdx,
-                                                    host_->r8, host_->r9})
-                                    : rhs_arg_static_params_
-                                                    .preserve_gpr_helpers
-                                            ? std::initializer_list<
-                                                    Xbyak::Reg64>({rhs_arg_static_params_
-                                                                           .rhs_addr_reg,
-                                                    rhs_arg_static_params_
-                                                            .rhs_helper_reg,
-                                                    rhs_arg_static_params_
-                                                            .rhs_addr_cache_reg,
-                                                    host_->rax, host_->rdx})
-                                            : should_preserve_w_or_oc_offset_conversion_regs
-                                                    ? std::initializer_list<
-                                                            Xbyak::Reg64>(
-                                                            {rhs_arg_static_params_
-                                                                            .rhs_addr_cache_reg,
-                                                                    host_->rax,
-                                                                    host_->rdx,
-                                                                    host_->r8})
-                                                    : should_preserve_mb_sp_offset_conversion_regs
-                                                            ? std::initializer_list<
-                                                                    Xbyak::Reg64>({rhs_arg_static_params_
-                                                                                           .rhs_addr_cache_reg,
-                                                                    host_->rax,
-                                                                    host_->rdx,
-                                                                    host_->r8,
-                                                                    host_->r9})
-                                                            : use_offset_conversions
-                                                                    ? std::initializer_list<
-                                                                            Xbyak::Reg64>({rhs_arg_static_params_
-                                                                                                   .rhs_addr_cache_reg,
-                                                                            host_->rax,
-                                                                            host_->rdx})
-                                                                    : std::initializer_list<
-                                                                            Xbyak::Reg64>()),
+                                    && should_preserve_mb_sp_offset_conversion_regs
+                            ? std::initializer_list<Xbyak::Reg64>(
+                                    {rhs_arg_static_params_.rhs_addr_reg,
+                                            rhs_arg_static_params_
+                                                    .rhs_helper_reg,
+                                            rhs_arg_static_params_
+                                                    .rhs_addr_cache_reg,
+                                            host_->rax, host_->rdx, host_->r8,
+                                            host_->r9})
+                            : rhs_arg_static_params_.preserve_gpr_helpers
+                            ? std::initializer_list<Xbyak::Reg64>(
+                                    {rhs_arg_static_params_.rhs_addr_reg,
+                                            rhs_arg_static_params_
+                                                    .rhs_helper_reg,
+                                            rhs_arg_static_params_
+                                                    .rhs_addr_cache_reg,
+                                            host_->rax, host_->rdx})
+                            : should_preserve_w_or_oc_offset_conversion_regs
+                            ? std::initializer_list<Xbyak::Reg64>(
+                                    {rhs_arg_static_params_.rhs_addr_cache_reg,
+                                            host_->rax, host_->rdx, host_->r8})
+                            : should_preserve_mb_sp_offset_conversion_regs
+                            ? std::initializer_list<Xbyak::Reg64>(
+                                    {rhs_arg_static_params_.rhs_addr_cache_reg,
+                                            host_->rax, host_->rdx, host_->r8,
+                                            host_->r9})
+                            : use_offset_conversions
+                            ? std::initializer_list<Xbyak::Reg64>(
+                                    {rhs_arg_static_params_.rhs_addr_cache_reg,
+                                            host_->rax, host_->rdx})
+                            : std::initializer_list<Xbyak::Reg64>()),
             (rhs_arg_static_params_.preserve_vmm_helper && dt_helper_vmm_needed
                             ? std::initializer_list<Xbyak::Xmm>({Vmm(vmm_hint)})
                             : std::initializer_list<Xbyak::Xmm>())};

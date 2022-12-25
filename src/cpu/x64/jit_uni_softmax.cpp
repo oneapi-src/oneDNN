@@ -60,8 +60,9 @@ struct jit_softmax_base_t : public jit_generator {
 
     // cpu specific part
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     const softmax_pd_t *pd_;

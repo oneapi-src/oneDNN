@@ -83,7 +83,7 @@ void submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
 
 template <typename... storage_types>
 void fast_dispatch_by_size(submit_ctx_t *submit_ctx, ::sycl::handler &cgh,
-        const storage_types *... storages) {
+        const storage_types *...storages) {
     constexpr size_t nparams = sizeof...(storage_types);
 
     auto params_tp = std::make_tuple(

@@ -426,8 +426,9 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_statistics_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
 
     struct call_params_t {
         size_t N, C, S;
@@ -780,8 +781,9 @@ struct jit_bnorm_fwd_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
 
     struct call_params_t {
         size_t N, C, S;
@@ -1041,8 +1043,9 @@ struct jit_bnorm_bwd_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_bwd_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
 
     struct call_params_t {
         size_t N, C, S;
@@ -1327,8 +1330,9 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_bwd_diff_ss_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
 
     struct call_params_t {
         size_t N, C, S;

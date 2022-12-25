@@ -683,8 +683,9 @@ void gemm_kernel_generator_t<hw>::addScaled(const InstructionModifier &mod,
     if (!is_zero_or_pow2(denominator)) stub();
 
     if (numerator == denominator) {
-        (src0 != 0) ? add(mod, dst, src1, src0)
-                    : (src1 != dst) ? mov(mod, dst, src1) : noop();
+        (src0 != 0)             ? add(mod, dst, src1, src0)
+                : (src1 != dst) ? mov(mod, dst, src1)
+                                : noop();
     } else if (numerator > denominator) {
         (src0 == 0) ? mulConstant(mod, dst, src1, numerator / denominator)
                     : mad(mod, dst, src0, src1, numerator / denominator);
@@ -4505,16 +4506,13 @@ void gemm_kernel_generator_t<hw>::atomicAddMatrixBlock(Type T, const GRF &src,
                     } else
                         stub();
 
-                    (hw == HW::XeHPC)
-                            ? simtDoWhileLoop(
-                                    16 | flagToDo | any, labelCmpXchgLoop)
+                    (hw == HW::XeHPC) ? simtDoWhileLoop(
+                            16 | flagToDo | any, labelCmpXchgLoop)
                             : strategy.fused ? simtDoWhileLoop(
                                       16 | flagToDo | any16h, labelCmpXchgLoop)
-                                             : (eoff == 0 && simd == 8)
-                                            ? jmpi(1 | flagToDo | any8h,
-                                                    labelCmpXchgLoop)
-                                            : jmpi(1 | flagToDo | any16h,
-                                                    labelCmpXchgLoop);
+                            : (eoff == 0 && simd == 8)
+                            ? jmpi(1 | flagToDo | any8h, labelCmpXchgLoop)
+                            : jmpi(1 | flagToDo | any16h, labelCmpXchgLoop);
 
                     rOld += 2 * nregReal;
                     rNew += 2 * nregReal;
@@ -4864,8 +4862,8 @@ Subregister gemm_kernel_generator_t<hw>::findLDMultiple(
     if (a64 && !multiples.a64) return Subregister();
 
     return !multiples.a64 ? multiples.range[off].ud(sub)
-                          : a64 ? multiples.range[off].uq(sub)
-                                : multiples.range[off].ud(2 * sub);
+            : a64         ? multiples.range[off].uq(sub)
+                          : multiples.range[off].ud(2 * sub);
 }
 
 static inline void releaseLDMultiples(
@@ -5183,9 +5181,9 @@ void gemm_kernel_generator_t<hw>::setupAddr(const GRFRange &addr, const BO &ptr,
                              : mov(1, addr[0].ud(3), fixedY - 1);
                 offX.isValid() ? addScaled(1, addr[0].ud(5), boffX, offX,
                         int(sizeofT), block.ebytes, state)
-                               : doBaseAdjust
-                                ? add(1, addr[0].ud(5), baseAdjustElems, boffX)
-                                : mov(1, addr[0].ud(5), boffX);
+                        : doBaseAdjust
+                        ? add(1, addr[0].ud(5), baseAdjustElems, boffX)
+                        : mov(1, addr[0].ud(5), boffX);
                 offY.isValid() ? add(1, addr[0].ud(6), offY, boffY)
                                : mov(1, addr[0].ud(6), boffY);
                 if (doBaseAdjust) {
@@ -6003,9 +6001,9 @@ void gemm_kernel_generator_t<hw>::outerProduct(int h, int ha, int hb,
         } else {
             // On Gen12, always put broadcast in src2 for better bank conflict avoidance.
             colMajor ? mad(mod, Cdst(1), Csrc(1), A(1), bcastSrc)
-                     : (hw < HW::Gen12LP)
-                            ? mad(mod, Cdst(1), Csrc(1), bcastSrc, B(1))
-                            : mad(mod, Cdst(1), Csrc(1), B(1), bcastSrc);
+                    : (hw < HW::Gen12LP)
+                    ? mad(mod, Cdst(1), Csrc(1), bcastSrc, B(1))
+                    : mad(mod, Cdst(1), Csrc(1), B(1), bcastSrc);
         }
     };
 
@@ -6942,10 +6940,9 @@ void gemm_kernel_generator_t<hw>::updateCLayout(
                                 ? C_convertRegs[li - listart]
                                 : C_acc0;
                         GRFMultirange C_accSwap;
-                        GRFMultirange C_load = beta0
-                                ? C_acc
-                                : copyCLoad ? C_copyRegs[li - listart]
-                                            : C_extRegs[li - listart];
+                        GRFMultirange C_load = beta0 ? C_acc
+                                : copyCLoad          ? C_copyRegs[li - listart]
+                                                     : C_extRegs[li - listart];
                         switch (phase) {
                             case 0:
                                 if (!beta0)
@@ -7894,22 +7891,20 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
             if (strategy.C.newDP) {
                 !byte_access ? load(16 | mod, Cload, D32 | strategy.C.cachingR,
                         strategy.C.base, header[0])
-                             : (Tc_ext.size() == 2)
-                                ? load(16 | mod, Cload,
-                                        D16U32 | strategy.C.cachingR,
-                                        strategy.C.base, header[0])
-                                : load(16 | mod, Cload,
-                                        D8U32 | strategy.C.cachingR,
-                                        strategy.C.base, header[0]);
+                        : (Tc_ext.size() == 2)
+                        ? load(16 | mod, Cload, D16U32 | strategy.C.cachingR,
+                                strategy.C.base, header[0])
+                        : load(16 | mod, Cload, D8U32 | strategy.C.cachingR,
+                                strategy.C.base, header[0]);
             } else {
                 byte_access
                         ? load(16 | mod, Cload, scattered_byte(Tc_ext.size()),
                                 strategy.C.base, header[0])
-                        : !surface ? load(16 | mod, Cload, scattered_dword(),
-                                  strategy.C.base, header[0])
-                                   : load(16 | mod, Cload,
-                                           surface_dword(ChannelMask::r),
-                                           strategy.C.base, header[0]);
+                        : !surface
+                        ? load(16 | mod, Cload, scattered_dword(),
+                                strategy.C.base, header[0])
+                        : load(16 | mod, Cload, surface_dword(ChannelMask::r),
+                                strategy.C.base, header[0]);
             }
         }
 
@@ -7965,22 +7960,19 @@ void gemm_kernel_generator_t<hw>::doAlternateCRemainder(COperation op,
                 if (strategy.C.newDP) {
                     !byte_access ? store(16 | mod, D32 | strategy.C.cachingW,
                             strategy.C.base, header[q], Cacc)
-                                 : (Tc_ext.size() == 2)
-                                    ? store(16 | mod,
-                                            D16U32 | strategy.C.cachingW,
-                                            strategy.C.base, header[q], Cacc)
-                                    : store(16 | mod,
-                                            D8U32 | strategy.C.cachingW,
-                                            strategy.C.base, header[q], Cacc);
+                            : (Tc_ext.size() == 2)
+                            ? store(16 | mod, D16U32 | strategy.C.cachingW,
+                                    strategy.C.base, header[q], Cacc)
+                            : store(16 | mod, D8U32 | strategy.C.cachingW,
+                                    strategy.C.base, header[q], Cacc);
                 } else {
                     byte_access ? store(16 | mod, scattered_byte(Tc_ext.size()),
                             strategy.C.base, header[q], Cacc)
-                                : !surface
-                                    ? store(16 | mod, scattered_dword(),
-                                            strategy.C.base, header[q], Cacc)
-                                    : store(16 | mod,
-                                            surface_dword(ChannelMask::r),
-                                            strategy.C.base, header[q], Cacc);
+                            : !surface
+                            ? store(16 | mod, scattered_dword(),
+                                    strategy.C.base, header[q], Cacc)
+                            : store(16 | mod, surface_dword(ChannelMask::r),
+                                    strategy.C.base, header[q], Cacc);
                 }
             }
 
@@ -10671,9 +10663,9 @@ void gemm_kernel_generator_t<hw>::gemmAiBiRemLoadInc(bool incremental,
             if (Xi_addrsK.size() == 1) hh_addr = 0;
 
             // OPTIMIZEME: delay inc if kx_slm = 1
-            auto kx_inc = (Xi_addrsK.size() > 1)
-                    ? unrollKSLM
-                    : ((hh + 1) != kx_slm) ? 1 : (unrollKSLM - kx_slm + 1);
+            auto kx_inc = (Xi_addrsK.size() > 1) ? unrollKSLM
+                    : ((hh + 1) != kx_slm)       ? 1
+                                                 : (unrollKSLM - kx_slm + 1);
 
             if (keepAddrTogether) kx_inc = 0;
 
@@ -13482,9 +13474,9 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
         state.systolicSumA = strategy.systolic && globalCM;
         state.slmASums = strategy.slmA && !state.systolicSumA;
 
-        auto As_srcLayout = state.slmASums
-                ? state.Ao_layout
-                : state.repackA ? state.Ar_layout : state.A_layout;
+        auto As_srcLayout = state.slmASums ? state.Ao_layout
+                : state.repackA            ? state.Ar_layout
+                                           : state.A_layout;
         makeSumLayout(
                 false, Ta, As_srcLayout, Tc, state.As_layout, strategy, state);
         if (state.systolicSumA)
@@ -13495,9 +13487,9 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
         state.systolicSumB = strategy.systolic && !globalCM;
         state.slmBSums = strategy.slmB && !state.systolicSumB;
 
-        auto Bs_srcLayout = state.slmBSums
-                ? state.Bo_layout
-                : state.repackB ? state.Br_layout : state.B_layout;
+        auto Bs_srcLayout = state.slmBSums ? state.Bo_layout
+                : state.repackB            ? state.Br_layout
+                                           : state.B_layout;
         makeSumLayout(
                 true, Tb, Bs_srcLayout, Tc, state.Bs_layout, strategy, state);
         if (state.systolicSumB)
@@ -14539,7 +14531,7 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
             if (!gemmUpdateC(subproblem, substrategy, substate)) return false;
         }
 
-        simtCF1 ? else_(16, labelBetaDone)
+        simtCF1                  ? else_(16, labelBetaDone)
                 : state.isNested ? jmpi(1, labelBetaDone)
                                  : epilogue(strategy, state);
 
@@ -21810,8 +21802,8 @@ bool gemm_kernel_generator_t<hw>::copyBodyInternal(
                     strategy.S.accessType = isTransposing(strategy.S.accessType)
                             ? AccessType::Block
                             : strategy.S.base.isStateless()
-                                    ? AccessType::Scattered
-                                    : AccessType::ChannelScattered;
+                            ? AccessType::Scattered
+                            : AccessType::ChannelScattered;
                 }
 
                 if (!setup(newSLoad, newDLoad, S_addr0, S1_addr0, D_addr0,
@@ -21836,14 +21828,14 @@ bool gemm_kernel_generator_t<hw>::copyBodyInternal(
         wholeRem ? zLoopBody(state.S_layout, S_layoutReflected, state.D_layout,
                 state.S_addrs, state.S_addrSrcs, state.D_addrs, unrollZ,
                 newSLoad, newDLoad, false, true, false, !triRemOnly)
-                 : fragmented
-                        ? zLoopBody(S_layout1, S_layout1Reflect, D_layout1,
-                                S_addrs1, S_addrSrcs1, D_addrs1, crosspack,
-                                newSLoad, newDLoad, false, true, crosspack > 1)
-                        : zLoopBody(state.S_layout, S_layoutReflected,
-                                state.D_layout, state.S_addrs, state.S_addrSrcs,
-                                state.D_addrs, crosspack, newSLoad, newDLoad,
-                                false, true, crosspack > 1);
+                : fragmented
+                ? zLoopBody(S_layout1, S_layout1Reflect, D_layout1, S_addrs1,
+                        S_addrSrcs1, D_addrs1, crosspack, newSLoad, newDLoad,
+                        false, true, crosspack > 1)
+                : zLoopBody(state.S_layout, S_layoutReflected, state.D_layout,
+                        state.S_addrs, state.S_addrSrcs, state.D_addrs,
+                        crosspack, newSLoad, newDLoad, false, true,
+                        crosspack > 1);
         if (!wholeRem || triRemOnly) jmpi(1 | state.flagAP, lZRemLoopBegin);
         mark(lZRemLoopEnd);
 

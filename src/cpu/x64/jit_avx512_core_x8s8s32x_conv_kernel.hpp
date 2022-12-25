@@ -155,8 +155,7 @@ private:
         const int nb_x_blocking
                 = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
         const int idx = i_ur * nb_x_blocking + i_oc;
-        assert(idx < (jcp.is_depthwise
-                               ? ker_dw_reg_base_idx
+        assert(idx < (jcp.is_depthwise              ? ker_dw_reg_base_idx
                                : jcp.src_zero_point ? ker_zp_reg_base_idx
                                                     : ker_reg_base_idx));
         return idx;

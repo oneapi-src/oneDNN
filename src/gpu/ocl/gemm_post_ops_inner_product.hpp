@@ -177,9 +177,9 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
                     int8 ? data_type::f32 : pd()->desc()->accum_data_type,
                     "ACC");
             def_data_type(kernel_ctx,
-                    pd()->with_bias()
-                            ? pd()->weights_md(1)->data_type
-                            : int8 ? data_type::f32 : pd()->dst_md()->data_type,
+                    pd()->with_bias() ? pd()->weights_md(1)->data_type
+                            : int8    ? data_type::f32
+                                      : pd()->dst_md()->data_type,
                     "BIAS");
             def_data_type(kernel_ctx, pd()->desc()->accum_data_type, "SPAD");
             def_data_type(kernel_ctx, pd()->dst_md()->data_type, "DST");

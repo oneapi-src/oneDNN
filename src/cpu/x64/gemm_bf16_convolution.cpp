@@ -1044,9 +1044,9 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                         ? (acc_data_t *)diff_weights + g * weights_g_size
                         : need_reduction ? weights_reduce
                                          : acc_base + g * weights_g_size;
-                const dim_t LDC = use_diff_wei
-                        ? jcp.ngroups * jcp.oc
-                        : need_reduction ? jcp.oc : jcp.ngroups * jcp.oc;
+                const dim_t LDC = use_diff_wei ? jcp.ngroups * jcp.oc
+                        : need_reduction       ? jcp.oc
+                                               : jcp.ngroups * jcp.oc;
                 for (size_t mb = mb_start; mb < mb_end; ++mb) {
                     const src_data_t *_src
                             = src + mb * jcp.ngroups * src_step + g * jcp.ic;

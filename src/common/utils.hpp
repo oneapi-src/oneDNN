@@ -160,7 +160,7 @@ inline typename remove_reference<T>::type zero() {
 }
 
 template <typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args &&... args) {
+std::unique_ptr<T> make_unique(Args &&...args) {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
@@ -367,7 +367,7 @@ inline T nd_iterator_init(T start) {
     return start;
 }
 template <typename T, typename U, typename W, typename... Args>
-inline T nd_iterator_init(T start, U &x, const W &X, Args &&... tuple) {
+inline T nd_iterator_init(T start, U &x, const W &X, Args &&...tuple) {
     start = nd_iterator_init(start, utils::forward<Args>(tuple)...);
     x = start % X;
     return start / X;
@@ -377,7 +377,7 @@ inline bool nd_iterator_step() {
     return true;
 }
 template <typename U, typename W, typename... Args>
-inline bool nd_iterator_step(U &x, const W &X, Args &&... tuple) {
+inline bool nd_iterator_step(U &x, const W &X, Args &&...tuple) {
     if (nd_iterator_step(utils::forward<Args>(tuple)...)) {
         if (++x - X == 0) {
             x = 0;
@@ -403,7 +403,7 @@ inline bool nd_iterator_jump(U &cur, const U end, W &x, const Y &X) {
 }
 template <typename U, typename W, typename Y, typename... Args>
 inline bool nd_iterator_jump(
-        U &cur, const U end, W &x, const Y &X, Args &&... tuple) {
+        U &cur, const U end, W &x, const Y &X, Args &&...tuple) {
     if (nd_iterator_jump(cur, end, utils::forward<Args>(tuple)...)) {
         if (++x - X == 0) {
             x = 0;
@@ -418,7 +418,7 @@ constexpr T pick(size_t i, const T &x0) {
     return x0;
 }
 template <typename T, typename... Args>
-constexpr T pick(size_t i, const T &x0, Args &&... args) {
+constexpr T pick(size_t i, const T &x0, Args &&...args) {
     return i == 0 ? x0 : pick(i - 1, utils::forward<Args>(args)...);
 }
 
@@ -510,7 +510,7 @@ std::string format_impl(const char *fmt, Args... args) {
 }
 
 template <typename... Args>
-std::string format(const char *fmt, Args &&... args) {
+std::string format(const char *fmt, Args &&...args) {
     return format_impl(fmt, format_cvt_impl(std::forward<Args>(args))...);
 }
 

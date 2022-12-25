@@ -51,8 +51,8 @@ struct jit_uni_tbb_batch_normalization_fwd_t : public primitive_t {
                                                 ? avx512_core_bf16
                                                 : bf16_emulation_t::get_isa())
                                 : (src_md()->data_type == data_type::f16)
-                                        ? avx512_core_fp16
-                                        : isa,
+                                ? avx512_core_fp16
+                                : isa,
                         ""),
                 jit_uni_tbb_batch_normalization_fwd_t);
 
@@ -89,8 +89,8 @@ struct jit_uni_tbb_batch_normalization_bwd_t : public primitive_t {
                                                 ? avx512_core_bf16
                                                 : bf16_emulation_t::get_isa())
                                 : (src_md()->data_type == data_type::f16)
-                                        ? avx512_core_fp16
-                                        : isa,
+                                ? avx512_core_fp16
+                                : isa,
                         ""),
                 jit_uni_tbb_batch_normalization_bwd_t);
 

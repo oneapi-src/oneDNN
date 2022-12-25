@@ -126,8 +126,7 @@ private:
     Vmm vmm_dw_src;
 
     int vmm_out_idx(int i_ur, int i_oc) {
-        const int idx_limit = jcp.src_zero_point
-                ? ker_zp_reg_base_idx
+        const int idx_limit = jcp.src_zero_point ? ker_zp_reg_base_idx
                 : jcp.is_depthwise ? ker_dw_reg_base_idx - jcp.signed_input
                                    : ker_reg_base_idx;
         const int nb_x_blocking

@@ -371,14 +371,12 @@ struct gen9_gemm_t : public gpu_gemm_t {
         }
 
         type get_gemm_type(engine_t *engine) const {
-            return use_nocopy_k_unroll()
-                    ? type::no_copy_k_unroll
-                    : !use_nocopy() ? type::copy_based
-                                    : use_superkernel(engine)
-                                    ? type::no_copy_superkernel
-                                    : (desc()->c_type() == data_type::f16)
-                                            ? type::no_copy_if_even_off
-                                            : type::no_copy;
+            return use_nocopy_k_unroll()      ? type::no_copy_k_unroll
+                    : !use_nocopy()           ? type::copy_based
+                    : use_superkernel(engine) ? type::no_copy_superkernel
+                    : (desc()->c_type() == data_type::f16)
+                    ? type::no_copy_if_even_off
+                    : type::no_copy;
         }
 
         size_t max_plan_size() const {

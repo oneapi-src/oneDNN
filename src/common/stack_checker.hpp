@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021 Intel Corporation
+ * Copyright 2021-2022 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -130,7 +130,7 @@ namespace stack_checker {
 template <typename F, typename... Targs>
 struct thread_args_t {
     thread_args_t() = delete;
-    thread_args_t(const F &func, const Targs &... func_args)
+    thread_args_t(const F &func, const Targs &...func_args)
         : func(func)
         , func_args(std::forward<Targs>(func_args)...)
         , func_retval {} {}
@@ -149,7 +149,7 @@ constexpr size_t get_number_args() {
 template <size_t i>
 struct executor_t {
     template <typename T, typename... Targs>
-    static void execute(T &thread_args, Targs &... unpacked_func_args) {
+    static void execute(T &thread_args, Targs &...unpacked_func_args) {
         const auto &func_args = thread_args.func_args;
         constexpr size_t idx = get_number_args<decltype(func_args)>() - i;
         executor_t<i - 1>::execute(thread_args,
@@ -161,7 +161,7 @@ struct executor_t {
 template <>
 struct executor_t<0> {
     template <typename T, typename... Targs>
-    static void execute(T &thread_args, Targs &... unpacked_func_args) {
+    static void execute(T &thread_args, Targs &...unpacked_func_args) {
         thread_args.func_retval
                 = thread_args.func(std::forward<Targs>(unpacked_func_args)...);
     }
@@ -172,7 +172,7 @@ struct stack_checker_t {
 
     template <typename F, typename... Targs>
     typename cpp_compat::invoke_result<F *, Targs...>::type check(
-            const F &func, const Targs &... func_args) {
+            const F &func, const Targs &...func_args) {
 
         auto thread_args = utils::make_unique<thread_args_t<F, const Targs...>>(
                 func, std::forward<const Targs>(func_args)...);
