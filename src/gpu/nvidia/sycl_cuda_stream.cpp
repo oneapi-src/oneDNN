@@ -67,35 +67,21 @@ status_t sycl_cuda_stream_t::init() {
     if (!queue_) {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
-        if (!sycl_engine.is_service_stream_created())
-            queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev));
-        else {
-            stream_t *service_stream;
-            CHECK(sycl_engine.get_service_stream(service_stream));
-            auto sycl_stream = utils::downcast<sycl_stream_t *>(service_stream);
-            queue_.reset(new ::sycl::queue(sycl_stream->queue()));
-        }
+        queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev));
     } else {
-        auto queue_streamId = get_underlying_stream();
         auto sycl_dev = queue().get_device();
         bool args_ok
                 = engine()->kind() == engine_kind::gpu && sycl_dev.is_gpu();
         if (!args_ok) return status::invalid_arguments;
 
         auto queue_context = get_underlying_context();
-        CUdevice queue_device = compat::get_native<CUdevice>(sycl_dev);
+        auto queue_device = get_underlying_device();
 
         auto engine_context = sycl_engine.get_underlying_context();
-        auto engine_device = compat::get_native<CUdevice>(sycl_engine.device());
+        auto engine_device = sycl_engine.get_underlying_device();
 
-        stream_t *service_stream;
-        CHECK(sycl_engine.get_service_stream(service_stream));
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
-        auto engine_streamId = cuda_stream->get_underlying_stream();
         status = ((engine_device != queue_device)
-                         || (engine_context != queue_context)
-                         || (engine_streamId != queue_streamId))
+                         || (engine_context != queue_context))
                 ? status::invalid_arguments
                 : status::success;
     }
