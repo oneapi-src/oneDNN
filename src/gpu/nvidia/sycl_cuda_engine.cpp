@@ -115,6 +115,10 @@ CUcontext sycl_cuda_engine_t::get_underlying_context() const {
     return compat::get_native<CUcontext>(context());
 }
 
+CUdevice sycl_cuda_engine_t::get_underlying_device() const {
+    return compat::get_native<CUdevice>(device());
+}
+
 status_t sycl_cuda_engine_t::create_stream(stream_t **stream, unsigned flags) {
     return sycl_cuda_stream_t::create_stream(stream, this, flags);
 }

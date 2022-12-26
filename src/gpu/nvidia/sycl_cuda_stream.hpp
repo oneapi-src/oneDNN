@@ -64,6 +64,7 @@ public:
     status_t interop_task(std::function<void(::sycl::handler &)>);
     CUstream get_underlying_stream();
     CUcontext get_underlying_context();
+    CUdevice get_underlying_device();
 
 private:
     status_t init();

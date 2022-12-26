@@ -50,6 +50,11 @@ CUcontext sycl_cuda_stream_t::get_underlying_context() {
     return compat::get_native<CUcontext>(queue_->get_context());
 }
 
+// the sycl_cuda_stream_t will not own this. it is an observer pointer
+CUdevice sycl_cuda_stream_t::get_underlying_device() {
+    return compat::get_native<CUdevice>(queue_->get_device());
+}
+
 status_t sycl_cuda_stream_t::init() {
     if ((flags() & stream_flags::in_order) == 0
             && (flags() & stream_flags::out_of_order) == 0)

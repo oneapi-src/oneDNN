@@ -75,6 +75,7 @@ public:
     const impl_list_item_t *get_implementation_list(
             const op_desc_t *) const override;
     CUcontext get_underlying_context() const;
+    CUdevice get_underlying_device() const;
     cudnnHandle_t *get_cudnn_handle();
     cublasHandle_t *get_cublas_handle();
     const bool has_primary_context() const { return primary_context_; }
