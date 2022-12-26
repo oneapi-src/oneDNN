@@ -41,37 +41,21 @@ status_t sycl_stream_t::init() {
 
     // If queue_ is not set then construct it
     if (!queue_) {
-        // FIXME: workaround for Intel(R) oneAPI DPC++ Compiler
-        // Intel(R) oneAPI DPC++ Compiler does not work with multiple queues so
-        // try to reuse the service stream from the engine.
-        // That way all oneDNN streams constructed without interop API are
-        // mapped to the same SYCL queue.
-        // If service stream is NULL then the current stream will be service
-        // so construct it from scratch.
-        if (!sycl_engine.is_service_stream_created()) {
-            ::sycl::property_list props;
-            if (gpu::is_profiling_enabled() && sycl_dev.is_gpu()) {
-                props = (flags() & stream_flags::in_order)
-                        ? ::sycl::property_list {::sycl::property::queue::
-                                                         in_order {},
-                                ::sycl::property::queue::enable_profiling {}}
-                        : ::sycl::property_list {
-                                ::sycl::property::queue::enable_profiling {}};
-            } else {
-                props = (flags() & stream_flags::in_order)
-                        ? ::sycl::property_list {::sycl::property::queue::
-                                        in_order {}}
-                        : ::sycl::property_list {};
-            }
-            queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev, props));
+        ::sycl::property_list props;
+        if (gpu::is_profiling_enabled() && sycl_dev.is_gpu()) {
+            props = (flags() & stream_flags::in_order)
+                    ? ::sycl::property_list {::sycl::property::queue::
+                                                     in_order {},
+                            ::sycl::property::queue::enable_profiling {}}
+                    : ::sycl::property_list {
+                            ::sycl::property::queue::enable_profiling {}};
         } else {
-            // XXX: multiple queues support has some issues, so always re-use
-            // the same queue from the service stream.
-            stream_t *service_stream;
-            CHECK(sycl_engine.get_service_stream(service_stream));
-            auto sycl_stream = utils::downcast<sycl_stream_t *>(service_stream);
-            queue_.reset(new ::sycl::queue(sycl_stream->queue()));
+            props = (flags() & stream_flags::in_order)
+                    ? ::sycl::
+                            property_list {::sycl::property::queue::in_order {}}
+                    : ::sycl::property_list {};
         }
+        queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev, props));
     } else {
         // TODO: Compare device and context of the engine with those of the
         // queue after SYCL adds support for device/context comparison.
