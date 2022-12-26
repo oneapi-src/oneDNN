@@ -85,6 +85,7 @@ public:
     const impl_list_item_t *get_implementation_list(
             const op_desc_t *) const override;
     hipCtx_t get_underlying_context() const;
+    hipDevice_t get_underlying_device() const;
     miopenHandle_t *get_miopen_handle();
     const bool has_primary_context() const { return primary_context_; }
     device_id_t device_id() const override;

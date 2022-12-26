@@ -61,6 +61,7 @@ public:
     status_t interop_task(std::function<void(::sycl::handler &)>);
     hipStream_t get_underlying_stream();
     hipCtx_t get_underlying_context();
+    hipDevice_t get_underlying_device();
 
 private:
     status_t init();
