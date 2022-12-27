@@ -63,7 +63,8 @@ std::shared_ptr<alias_set_t> alias_set_t::copy() const {
     auto cur_clique = std::make_shared<alias_info::alias_set_t>(*this);
     for (auto p : set_) {
         auto aid = p.lock();
-        COMPILE_ASSERT(aid, "weak ptr expired");
+        // if the tensor is removed, skip
+        if (!aid) { continue; }
         aid->add_to_clique(cur_clique);
     }
     return cur_clique;

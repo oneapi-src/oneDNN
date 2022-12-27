@@ -87,8 +87,8 @@ struct tensor_usage_analysis_result_t {
         for (auto &cliq : alias_id_->alias_cliques_) {
             for (auto aid : cliq->set_) {
                 auto other_alias_id = aid.lock();
-                COMPILE_ASSERT(other_alias_id,
-                        "Bad weakptr for tensor_alias_identity_t");
+                // if the tensor has been removed, skip
+                if (!other_alias_id) { continue; }
                 auto itr = alias_map.find(other_alias_id.get());
                 if (itr != alias_map.end()) { func(itr->second); }
             }
