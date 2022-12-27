@@ -187,6 +187,13 @@ bool is_same(const std::vector<T> &a, const std::vector<U> &b) {
     return true;
 }
 
+template <typename T, typename U>
+bool contains(const std::vector<T> &vec, const U &u) {
+    for (auto &v : vec)
+        if (v == u) return true;
+    return false;
+}
+
 class error_stream_t {
 public:
     error_stream_t(const char *file, int line, const char *assert_msg) {
@@ -526,6 +533,16 @@ inline std::string to_lower(const std::string &s) {
     std::transform(ret.begin(), ret.end(), ret.begin(),
             [](char c) { return std::tolower(c); });
     return ret;
+}
+
+inline std::string add_indent(const std::string &s, const std::string &indent) {
+    auto lines = split(s, "\n");
+    std::ostringstream oss;
+    for (int i = 0; i < (int)lines.size(); i++) {
+        if (i > 0) oss << std::endl;
+        oss << indent << lines[i];
+    }
+    return oss.str();
 }
 
 template <typename T>
