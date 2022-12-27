@@ -504,11 +504,15 @@ public:
     // Storage size in bytes.
     dim_t size() const {
         if (is_empty()) return 0;
-        dim_t max_stride = 1;
+        dim_t max_off = 0;
+        dim_t max_block_size = 0;
         for (auto &b : blocks_) {
-            max_stride = std::max(max_stride, dim_t(b.block * b.stride));
+            max_off += (b.block - 1) * (dim_t)b.stride;
+            max_block_size
+                    = std::max(max_block_size, b.block * (dim_t)b.stride);
         }
-        return max_stride * type().size();
+        dim_t max_off_bytes = (max_off + 1) * type().size();
+        return std::max(max_off_bytes, max_block_size * type().size());
     }
 
     template <typename T = expr_t>
@@ -784,16 +788,49 @@ public:
     }
 
     layout_t make_strided(int _stride, int block_idx = 0) const {
-        dim_t cur_stride = 1;
         auto new_blocks = blocks_;
+        int factor = 1;
         for (int i = 0; i < (int)new_blocks.size(); i++) {
             auto &b = new_blocks[i];
-            if (i >= block_idx) {
-                b.stride = (i == block_idx ? _stride : cur_stride);
+            if (i == block_idx) {
+                int i_stride = (int)b.stride;
+                if (_stride % i_stride == 0) {
+                    factor = (_stride / i_stride);
+                } else if (i_stride % _stride == 0) {
+                    factor = -(i_stride / _stride);
+                } else {
+                    ir_error_not_expected();
+                }
             }
-            cur_stride = b.stride * b.block;
+            if (factor > 0) {
+                b.stride *= factor;
+            } else {
+                b.stride = ir_utils::safe_divide((dim_t)b.stride, -factor);
+            }
         }
         return layout_t(type(), ndims(), 0, new_blocks);
+    }
+
+    layout_t make_with_block(const layout_t &inner) const {
+        ir_assert(type() == inner.type());
+        ir_assert(ndims() == inner.ndims());
+        auto cur_dims = dims();
+        std::vector<dim_t> rem_dims(ndims());
+        for (int i = 0; i < ndims(); i++)
+            rem_dims[i] = ir_utils::safe_divide(dim(i), inner.dim(i));
+        auto ret = inner;
+        for (auto &b : blocks()) {
+            auto &d = cur_dims[b.dim_idx];
+            auto &r = rem_dims[b.dim_idx];
+            d = ir_utils::safe_divide(d, b.block);
+            if (r <= d) continue;
+            auto blk = ir_utils::safe_divide(r, d);
+            ret = ret.add_outer_block(b.dim_idx, blk);
+            r = ir_utils::safe_divide(r, blk);
+        }
+        for (int i = 0; i < ndims(); i++)
+            ir_assert(rem_dims[i] == 1);
+        return ret;
     }
 
     // Returns an equivalent layout where the specified block is split into two.
@@ -848,7 +885,8 @@ public:
     tensor_t split_into_max_tile(
             dim_t max_tile_elems, bool is_dense_tile) const;
 
-    tensor_t split(const grid_info_t &grid_info) const {
+    tensor_t split(const grid_info_t &grid_info,
+            grid_info_t *out_grid = nullptr) const {
         tensor_t min_tile;
         std::vector<int> cur_dims(grid_info.ndims(), 1);
 
@@ -862,6 +900,7 @@ public:
             if (tile.is_empty()) continue;
             if (min_tile.is_empty() || tile.elems() < min_tile.elems()) {
                 min_tile = tile;
+                if (out_grid) { *out_grid = sub_grid; }
             }
         }
         return min_tile;
@@ -882,6 +921,31 @@ public:
         if (cur_elems_per_tile != elems_per_tile) return tensor_t();
 
         return split(tensor_t(tile_dims), grid);
+    }
+
+    tensor_t split_exact(int factor) const {
+        if (factor == 1) return tensor_t(dims());
+        if (elems() % factor != 0) return tensor_t();
+        dim_t cur_elems = 1;
+        dim_t split_elems = elems() / factor;
+        std::vector<block_t> split_blocks;
+        for (auto &b : blocks()) {
+            if (cur_elems * b.block > split_elems) {
+                if (split_elems % cur_elems != 0) return tensor_t();
+                auto bb = b;
+                bb.block = split_elems / cur_elems;
+                if (b.block % bb.block != 0) return tensor_t();
+                split_blocks.push_back(bb);
+            } else {
+                split_blocks.push_back(b);
+            }
+            cur_elems *= split_blocks.back().block;
+            if (cur_elems == split_elems) break;
+        }
+        std::vector<dim_t> split_dims(ndims(), 1);
+        for (auto &b : split_blocks)
+            split_dims[b.dim_idx] *= b.block;
+        return tensor_t(split_dims);
     }
 
     tensor_t split(const tensor_t &tile, const grid_info_t &grid,
@@ -1001,6 +1065,20 @@ public:
                 idx = 0;
             }
         }
+    }
+
+    bool has_outer_block(dim_t block, int dim_idx = -1) const {
+        if (block == 1) return true;
+        if (blocks().empty()) return false;
+        auto &b = blocks().back();
+        if (dim_idx != -1 && b.dim_idx != dim_idx) return false;
+        if (b.block % block != 0) return false;
+        return true;
+    }
+
+    stride_t inner_stride() const {
+        if (nblocks() == 0) return stride_t(1);
+        return blocks()[0].stride;
     }
 
     // eb is <block index, block> pair, see enumerated_blocks().
@@ -1482,6 +1560,13 @@ public:
         return vvars_[idx];
     }
 
+    const expr_t &vvar(const std::string &name) const {
+        for (auto &v : vvars_)
+            if (v.as<var_t>().name == name) return v;
+        ir_error_not_expected() << name;
+        return vvars_[0];
+    }
+
     const tdim_t &tdim(int idx) const {
         ir_assert(idx < ntdims());
         return tdims_[idx];
@@ -1668,16 +1753,25 @@ public:
         return true;
     }
 
-    // FIXME: Offset of the returned layout is always 0.
-    layout_t create_pseudo_vlayout(bool use_unknown_stride = true) const {
-        return create_pseudo_vlayout(normalized_tlayout(), use_unknown_stride);
+    // Returns the view-based layout constructed based on the view mapping from
+    // the tensor layout to the view dimensions. In general such a layout may
+    // include "unknown" strides which means it can't be used for offset
+    // calculation.
+    // However in many cases it's possible to construct a valid "view" layout
+    // fully representative of the view and the underlying tensor layout.
+    // Mainly it depends on whether each view dimension is a linear combination
+    // of tensor layout dimensions.
+    // If 1) init_offset is true and 2) the returned layout doesn't contain
+    // "unknown" strides then it can be directly used for offset calculation.
+    layout_t create_pseudo_vlayout(bool init_offset = false) const {
+        return create_pseudo_vlayout(normalized_tlayout(), init_offset);
     }
 
     layout_t normalized_tlayout() const {
         auto blocks = move_size_1_blocks_outer();
         blocks = layout_t::normalize_blocks(tlayout_.ndims(), blocks, false);
-        auto layout
-                = layout_t(type(), tlayout_.ndims(), offset(), blocks, false);
+        auto layout = layout_t(
+                type(), tlayout_.ndims(), tlayout_.offset(), blocks, false);
         return layout;
     }
 
@@ -1699,15 +1793,17 @@ public:
                 other.create_vlayout(), compare_offset);
     }
 
-    view_t split(const grid_info_t &grid, tensor_t &vtile) const {
+    view_t split(const grid_info_t &grid, tensor_t &vtile,
+            grid_info_t *out_grid = nullptr) const {
         auto vlayout = create_pseudo_vlayout();
-        vtile = vlayout.split(grid);
+        vtile = vlayout.split(grid, out_grid);
         return create_sub_view(vtile);
     }
 
-    view_t split(const grid_info_t &grid) const {
+    view_t split(
+            const grid_info_t &grid, grid_info_t *out_grid = nullptr) const {
         tensor_t vtile;
-        return split(grid, vtile);
+        return split(grid, vtile, out_grid);
     }
 
     // Returns a tensor corresponding to the biggest innermost sub-layout so that
@@ -1815,6 +1911,8 @@ public:
         buf_view.set_tlayout(tlayout_);
     }
 
+    tensor_t vtile() const { return tensor_t(vdims_, vstart_); }
+
     static const expr_t &placeholder_var() { return tdim_t::placeholder_var(); }
 
     static std::vector<expr_t> create_vvars(int nvdims);
@@ -1846,7 +1944,7 @@ public:
 
 private:
     layout_t create_pseudo_vlayout(
-            const layout_t &tlayout, bool use_unknown_stride) const;
+            const layout_t &tlayout, bool init_offset) const;
 
     void create_mask_tensor(mask_tensor_t &mask_tensor,
             const layout_t &_vlayout, int vidx, std::vector<dim_t> &vargs,

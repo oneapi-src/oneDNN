@@ -1068,7 +1068,7 @@ public:
     view_info_t(const hw_config_t &hw_cfg, const view_t &view,
             const send_hint_t &send_hint)
         : hw_cfg_(hw_cfg), view_(view), send_hint_(send_hint) {
-        vlayout_ = view.create_pseudo_vlayout(/*use_unknown_stride=*/false);
+        vlayout_ = view.create_pseudo_vlayout();
 
         init_tdims();
         init_mask_descs();

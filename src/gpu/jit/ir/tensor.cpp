@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -505,7 +505,7 @@ std::vector<expr_t> view_t::create_vvars(int nvdims) {
 }
 
 layout_t view_t::create_pseudo_vlayout(
-        const layout_t &tlayout, bool use_unknown_stride) const {
+        const layout_t &tlayout, bool init_offset) const {
     ir_assert(!tlayout.is_empty());
 
     std::vector<dim_t> rem_vdims = vdims_;
@@ -543,15 +543,8 @@ layout_t view_t::create_pseudo_vlayout(
                 int vidx = tinfo.vidx(i);
                 if (rem_vdims[vidx] == 1) continue;
 
-                if (false && use_unknown_stride) {
-                    // When expression contains 2+ variables, use unknown stride for
-                    // the remaining view variables.
-                    blocks.emplace_back(
-                            vidx, rem_vdims[vidx], stride_t::unknown());
-                } else {
-                    stride_t stride = tinfo.vstride(i) * tb.stride;
-                    blocks.emplace_back(vidx, rem_vdims[vidx], stride);
-                }
+                stride_t stride = tinfo.vstride(i) * tb.stride;
+                blocks.emplace_back(vidx, rem_vdims[vidx], stride);
                 rem_vdims[vidx] = 1;
             }
             continue;
@@ -573,7 +566,7 @@ layout_t view_t::create_pseudo_vlayout(
             if (tblock % rem_vdim == 0) {
                 auto tmp_layout
                         = tlayout.split_block(teb, rem_vdim, tblock / rem_vdim);
-                return create_pseudo_vlayout(tmp_layout, use_unknown_stride);
+                return create_pseudo_vlayout(tmp_layout, init_offset);
             }
 
             ir_error_not_expected() << "Can't create pseudo-layout.";
@@ -586,7 +579,12 @@ layout_t view_t::create_pseudo_vlayout(
         MAYBE_UNUSED(d);
     }
 
-    return layout_t(tlayout.type(), nvdims(), 0, blocks);
+    layout_t ret(tlayout.type(), nvdims(), 0, blocks);
+    if (!init_offset) return ret;
+
+    auto targs = cvt_vargs_to_targs();
+    auto off = tlayout.offset(targs);
+    return layout_t(tlayout.type(), nvdims(), off, blocks);
 }
 
 layout_t dim_assignment_t::map(const layout_t &layout) const {
