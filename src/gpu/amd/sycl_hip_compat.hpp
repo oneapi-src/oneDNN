@@ -23,6 +23,10 @@
 
 #include "gpu/amd/sycl_hip_utils.hpp"
 
+#if __has_include(<sycl/ext/oneapi/backend/hip.hpp>)
+#include <sycl/ext/oneapi/backend/hip.hpp>
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
