@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -486,15 +486,15 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
         allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
     }
 
-    auto read_hint
-            = get_send_hint(send_op_t::load, send_address_t::a64, src_thr_view);
+    auto read_hint = get_send_hint(
+            exec_cfg_, send_op_t::load, send_address_t::a64, src_thr_view);
     read_hint.try_legacy = false;
     auto read = make_access_builder(
             ir_ctx, src_thr_view, src_buf, reg_buf, read_hint);
     auto read_stmt = read.stmt();
 
     auto write_hint = get_send_hint(
-            send_op_t::store, send_address_t::a64, dst_thr_view);
+            exec_cfg_, send_op_t::store, send_address_t::a64, dst_thr_view);
     write_hint.try_legacy = false;
     auto write = make_access_builder(
             ir_ctx, dst_thr_view, dst_buf, reg_buf, write_hint);

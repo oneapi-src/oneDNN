@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,22 +37,38 @@ public:
     send_plan_t(send_plan_t &&other);
     send_plan_t(std::unique_ptr<send_plan_impl_t> impl);
     ~send_plan_t();
+    send_plan_t &operator=(send_plan_t &&other);
 
     operator bool() const { return (bool)impl_; }
 
+    const send_hint_t &send_hint() const;
     bool is_2d() const;
+    bool is_scattered() const;
     const layout_t &reg_layout() const;
     int reg_buf_size() const;
+    void set_reg_buf_size(int size);
 
-    stmt_t create_stmt(const send_hint_t &hint, const expr_t &mem_buf,
-            const expr_t &reg_buf) const;
+    stmt_t create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
+            int subtile_idx = 0) const;
+
+    int grf_usage(bool with_buffer = true, bool with_headers = true,
+            bool reuse_headers = false) const;
+    bool can_split(int factor) const;
+    void set_split(int factor);
+    int split_factor() const;
+
+    std::string str(const std::string &tag = "send_plan") const;
+
+    IR_DEFINE_DUMP()
 
 private:
     std::unique_ptr<send_plan_impl_t> impl_;
 };
 
-send_plan_t create_send_plan(
-        const hw_config_t &hw_cfg, const view_t &view, const send_hint_t &hint);
+bool can_use_send_plan(const view_t &view);
+
+send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
+        const send_hint_t &hint);
 
 } // namespace jit
 } // namespace gpu

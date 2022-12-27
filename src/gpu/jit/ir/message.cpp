@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -484,12 +484,12 @@ access_builder_t::access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
     , send_cache_hint_(send_cache_hint)
     , mem_type_(mem_view.type()) {
     if (send_hint.use_send_plan) {
-        auto sp = create_send_plan(ir_ctx.hw_cfg(), mem_view, send_hint);
+        auto sp = create_send_plan(ir_ctx.exec_cfg(), mem_view, send_hint);
         if (sp && !sp.is_2d()) send_hint.hint_2d = send_2d_hint_t();
         if (!sp) return;
         reg_layout_ = sp.reg_layout();
         reg_buf_size_ = sp.reg_buf_size();
-        stmt_ = sp.create_stmt(send_hint, mem_buf, reg_buf);
+        stmt_ = sp.create_stmt(mem_buf, reg_buf);
         return;
     }
     if (send_hint.hint_2d.enable) {
@@ -1108,24 +1108,18 @@ send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
     return hint;
 }
 
-send_hint_t get_send_hint(send_op_t send_op, send_address_t send_address,
-        const view_t &view, send_cache_hint_t cache_hint, fma_kind_t fma_kind,
+send_hint_t get_send_hint(const exec_config_t &exec_cfg, send_op_t send_op,
+        send_address_t send_address, const view_t &view,
+        send_cache_hint_t cache_hint, fma_kind_t fma_kind,
         abc_kind_t abc_kind) {
     send_hint_t hint;
+    hint.hw = exec_cfg.hw();
     hint.mem_type = view.type();
     hint.send_op = send_op;
     hint.send_address = send_address;
-    hint.use_send_plan = true;
+    hint.use_send_plan = can_use_send_plan(view);
     hint.cache_hint = cache_hint;
 
-    for (int i = 0; hint.use_send_plan && i < view.ntdims(); i++) {
-        auto &tdim = view.tdim(i);
-        for (int j = 0; j < tdim.nvargs(); j++)
-            if (tdim.vstride(j).is_unknown()) {
-                hint.use_send_plan = false;
-                break;
-            }
-    }
     if (fma_kind == fma_kind_t::dpas && abc_kind == abc_kind_t::a) {
         hint.prefer_dense = true;
     }
@@ -1210,7 +1204,7 @@ send_hint_t get_send_hint(const exec_config_t &exec_cfg, send_op_t send_op,
         send_address_t send_address, fma_kind_t fma_kind, abc_kind_t abc_kind,
         const view_t &view, const gemm_schedule_t &gemm_schedule,
         bool allow_2d) {
-    auto hint = get_send_hint(send_op, send_address, view,
+    auto hint = get_send_hint(exec_cfg, send_op, send_address, view,
             send_cache_hint_t::undef, fma_kind, abc_kind);
     hint.hint_2d = get_send_2d_hint(exec_cfg, send_op, fma_kind, abc_kind, view,
             gemm_schedule, allow_2d, hint.use_send_plan);

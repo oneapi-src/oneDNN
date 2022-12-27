@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -384,8 +384,8 @@ struct send_2d_hint_t {
 
 struct send_hint_t {
     send_hint_t() = default;
-    send_hint_t(const type_t &mem_type, send_op_t send_op)
-        : mem_type(mem_type), send_op(send_op), use_send_plan(true) {}
+    send_hint_t(ngen::HW hw, const type_t &mem_type, send_op_t send_op)
+        : hw(hw), mem_type(mem_type), send_op(send_op), use_send_plan(true) {}
 
     send_op_t convert(const send_op_t &op) const {
         if (hint_2d.enable) {
@@ -396,6 +396,13 @@ struct send_hint_t {
         return op;
     }
 
+    bool is_slm() const { return send_address == send_address_t::slm; }
+    bool is_prefetch() const {
+        return utils::one_of(
+                send_op, send_op_t::prefetch, send_op_t::prefetch_2d);
+    }
+
+    ngen::HW hw = ngen::HW::Unknown;
     type_t mem_type;
     send_op_t send_op;
     send_address_t send_address;
@@ -470,8 +477,8 @@ private:
     stmt_t stmt_;
 };
 
-send_hint_t get_send_hint(send_op_t send_op, send_address_t send_address,
-        const view_t &view,
+send_hint_t get_send_hint(const exec_config_t &exec_cfg, send_op_t send_op,
+        send_address_t send_address, const view_t &view,
         send_cache_hint_t cache_hint = send_cache_hint_t::undef,
         fma_kind_t fma_kind = fma_kind_t::unknown,
         abc_kind_t abc_kind = abc_kind_t::undef);
@@ -493,7 +500,8 @@ inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
         const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
         send_op_t send_op, send_address_t send_address,
         send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
-    auto send_hint = get_send_hint(send_op, send_address, mem_view, cache_hint);
+    auto send_hint = get_send_hint(
+            ir_ctx.exec_cfg(), send_op, send_address, mem_view, cache_hint);
     return make_access_builder(ir_ctx, mem_view, mem_buf, reg_buf, send_hint);
 }
 

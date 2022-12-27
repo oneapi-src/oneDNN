@@ -32,6 +32,24 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+class send_plan_impl_t {
+public:
+    virtual ~send_plan_impl_t() = default;
+    virtual const send_hint_t &send_hint() const = 0;
+    virtual bool is_2d() const = 0;
+    virtual bool is_scattered() const = 0;
+    virtual const layout_t &reg_layout() const = 0;
+    virtual int reg_buf_size() const = 0;
+    virtual stmt_t create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
+            int subtile_idx) const = 0;
+    virtual bool can_split(int factor) const = 0;
+    virtual void set_split(int factor) = 0;
+    virtual int split_factor() const = 0;
+    virtual int grf_usage(bool with_buffer = true, bool with_headers = true,
+            bool reuse_headers = false) const = 0;
+    virtual std::string str(const std::string &tag) const = 0;
+};
+
 send_op_t to_2d(send_op_t op) {
     switch (op) {
         case send_op_t::prefetch: return send_op_t::prefetch_2d;
@@ -793,12 +811,73 @@ int get_max_block_size(ngen::HW hw) {
     return 256;
 }
 
+class split_bounds_t {
+public:
+    split_bounds_t(const layout_t &layout, int factor) {
+        ir_assert(layout.has_zero_offset()) << layout;
+        auto tile = layout.split_exact(factor);
+        if (tile.is_empty()) return;
+
+        std::vector<dim_t> step = tile.dims();
+        std::vector<dim_t> idx(layout.ndims());
+
+        layout.for_each_tile(tile, [&](const std::vector<dim_t> &start) {
+            int off = layout.offset_in_bytes(start);
+            offs_.push_back(off);
+        });
+    }
+
+    int factor() const { return (int)offs_.size(); }
+
+    bool is_empty() const { return offs_.empty(); }
+
+    bool within(int beg, int end) const {
+        if (beg >= offs_.back()) return true;
+        for (int i = 0; i < factor() - 1; i++) {
+            if (offs_[i] <= beg && end <= offs_[i + 1]) return true;
+        }
+        return false;
+    }
+
+    bool contains(int subtile_idx, int off) const {
+        int o0 = offs_[subtile_idx];
+        int o1 = subtile_idx + 1 < factor() ? offs_[subtile_idx + 1]
+                                            : std::numeric_limits<int>::max();
+        return off >= o0 && off < o1;
+    }
+
+    int normalize_reg_off(int subtile_idx, int reg_off) const {
+        return reg_off - offs_[subtile_idx];
+    }
+
+private:
+    std::vector<int> offs_;
+};
+
 struct send_group_t {
+    bool is_empty() const { return type_size == 0; }
     bool is_2d() const { return !send_2d_params.is_empty(); }
     bool is_block() const { return slots == 1 && type_size >= 16; }
     bool is_scattered() const { return !is_2d() && !is_block(); }
 
     int rounded_slots() const { return jit::rounded_slots(slots, max_slots); }
+    int payload_size() const {
+        int grf_size = ngen::GRF::bytes(hw);
+        if (is_block()) return utils::rnd_up(type_size, grf_size);
+        if (is_scattered()) {
+            return utils::rnd_up(slots * slot_stride, grf_size);
+        }
+        if (is_2d()) {
+            auto &p2d = send_2d_params;
+            int size = p2d.type.size() * p2d.w * p2d.h * p2d.c;
+            size = utils::rnd_up(size, grf_size);
+            size *= p2d.w_rcount;
+            size *= p2d.h_rcount;
+            return size;
+        }
+        ir_error_not_expected();
+        return 0;
+    }
 
     bool has_mask(const mask_desc_t &md) const { return has_mask(md.tidx()); }
     bool has_mask(int tidx) const { return (mask_bits & (1 << tidx)) != 0; }
@@ -811,11 +890,12 @@ struct send_group_t {
         return ret;
     }
 
-    send_group_t slice(int start, int stop, bool fuse) const {
+    send_group_t slice(int start, int stop, bool fuse, bool is_last) const {
         ir_assert(slots == 1);
         ir_assert(start < stop);
         int len = (fuse ? stop - start : 1);
         auto ret = *this;
+        if (!is_last) ret.pad_bytes = 1;
         if (fuse) ret.type_size *= len;
         ret.blocks.clear();
         ret.add(*this, start, stop, fuse);
@@ -865,8 +945,7 @@ struct send_group_t {
         return ret;
     }
 
-    std::vector<func_t> create_send_funcs(
-            const send_hint_t &hint, const expr_t &mem_buf) const {
+    std::vector<func_t> create_send_funcs(const send_hint_t &hint) const {
         std::vector<func_t> ret;
         bool is_lsc = (hw >= ngen::HW::XeHPG);
         if (is_block()) {
@@ -913,6 +992,7 @@ struct send_group_t {
     }
 
     std::string str(const std::string &indent = {}) const {
+        if (is_empty()) return indent + "(nil)";
         std::ostringstream oss;
         if (is_2d()) {
             oss << indent << "send_2d." << send_2d_params;
@@ -929,6 +1009,9 @@ struct send_group_t {
         int nblocks = (int)blocks.size();
         for (int i = 0; i < nblocks; i++) {
             oss << std::endl << indent << "   #" << i << " " << blocks[i];
+            if (is_2d()) {
+                oss << " x = " << blocks[i].x_inc << " y = " << blocks[i].y_inc;
+            }
         }
 
         return oss.str();
@@ -949,11 +1032,44 @@ struct send_group_t {
         return type;
     }
 
+    send_group_t split(const split_bounds_t &bounds, int subtile_idx) const {
+        if (!is_block()) return send_group_t();
+
+        int factor = bounds.factor();
+        int nblocks = (int)blocks.size();
+        if (nblocks == 1) {
+            if (type_size % factor != 0) return send_group_t();
+            int new_type_size = type_size / factor;
+            int grf_size = ngen::GRF::bytes(hw);
+            if (new_type_size % grf_size != 0) return send_group_t();
+            auto ret = *this;
+            ret.addr_inc[0] = addr_inc[0] + new_type_size * subtile_idx;
+            ret.type_size = new_type_size;
+            return ret;
+        }
+
+        // Assume that subtile parts do not cross blocks (verified in can_split()).
+        std::vector<send_block_t> new_blocks;
+        for (auto &b : blocks) {
+            if (bounds.contains(subtile_idx, b.reg_off)) {
+                auto bb = b;
+                bb.reg_off = bounds.normalize_reg_off(subtile_idx, b.reg_off);
+                new_blocks.push_back(bb);
+            }
+        }
+
+        auto ret = *this;
+        ret.blocks = new_blocks;
+        return ret;
+    }
+
     ngen::HW hw = ngen::HW::Unknown;
     int max_slots = 1;
     int type_size = 0;
     int slots = 0;
+    int slot_stride = 0;
     int mask_bits = 0;
+    int pad_bytes = 0;
     send_2d_params_t send_2d_params;
 
     vec_off_t addr_inc; // slots
@@ -1034,6 +1150,18 @@ enum class send_kind_t {
     scattered,
 };
 
+send_kind_t get_send_kind(const send_t &send) {
+    if (send.is_block()) return send_kind_t::block;
+    if (send.is_scattered()) return send_kind_t::scattered;
+    if (send.is_2d()) return send_kind_t::_2d;
+    return send_kind_t::undef;
+}
+
+send_kind_t get_send_kind(const stmt_t &s) {
+    auto &send = s.as<func_call_t>().func.as<send_t>();
+    return get_send_kind(send);
+}
+
 struct layout_2d_wrapper_t {
     layout_2d_wrapper_t(const layout_t &l) : l(l) {}
 
@@ -1068,7 +1196,7 @@ public:
     view_info_t(const hw_config_t &hw_cfg, const view_t &view,
             const send_hint_t &send_hint)
         : hw_cfg_(hw_cfg), view_(view), send_hint_(send_hint) {
-        vlayout_ = view.create_pseudo_vlayout();
+        vlayout_ = view.create_pseudo_vlayout(/*init_offset=*/true);
 
         init_tdims();
         init_mask_descs();
@@ -1079,6 +1207,7 @@ public:
 
     const hw_config_t &hw_cfg() const { return hw_cfg_; }
     const view_t &view() const { return view_; }
+    const send_hint_t &send_hint() const { return send_hint_; }
     const layout_t &vlayout() const { return vlayout_; }
     const tdim_info_t &tdim(int tidx) const { return tdims_[tidx]; }
     int inner_idx() const { return inner_idx_; }
@@ -1144,7 +1273,7 @@ private:
             x_base_ = p2d.to_x(tstart);
             y_base_ = p2d.to_y(tstart);
         } else {
-            addr_base_ = view_.offset_in_bytes();
+            addr_base_ = vlayout_.offset_in_bytes();
         }
         addr_base_ = simplify(addr_base_);
     }
@@ -1735,36 +1864,48 @@ std::vector<int> get_tokens(const std::vector<bool> &can_fuse) {
     return ret;
 }
 
-class send_plan_impl_t {
+class fast_send_plan_t final : public send_plan_impl_t {
 public:
-    send_plan_impl_t(const view_info_t &info, const layout_t &reg_layout,
+    fast_send_plan_t(const view_info_t &info, const layout_t &reg_layout,
             int reg_buf_size)
-        : addr_base_(info.addr_base())
+        : send_hint_(info.send_hint())
+        , addr_base_(info.addr_base())
         , x_base_(info.x_base())
         , y_base_(info.y_base())
         , reg_layout_(reg_layout)
         , reg_buf_size_(reg_buf_size)
         , mask_descs_(info.mask_descs()) {}
 
-    const layout_t &reg_layout() const { return reg_layout_; }
-    int reg_buf_size() const { return reg_buf_size_; }
+    const send_hint_t &send_hint() const override { return send_hint_; }
+    const layout_t &reg_layout() const override { return reg_layout_; }
+    int reg_buf_size() const override {
+        return utils::div_up(reg_buf_size_, split_factor_);
+    }
     const std::vector<mask_desc_t> &mask_descs() const { return mask_descs_; }
 
     bool is_empty() const { return send_groups_.empty(); }
-    bool is_2d() const { return !is_empty() && send_groups_[0].is_2d(); }
+    bool is_2d() const override {
+        return !is_empty() && send_groups_[0].is_2d();
+    }
+    bool is_scattered() const override {
+        return !is_empty() && send_groups_[0].is_scattered();
+    }
+    bool is_block() const { return !is_empty() && send_groups_[0].is_block(); }
 
     void set_send_groups(const std::vector<send_group_t> &send_groups) {
         send_groups_ = send_groups;
     }
 
-    std::string str() const {
+    std::string str(const std::string &tag = "send_plan") const override {
         std::ostringstream oss;
-        oss << "send_plan:" << std::endl;
+        oss << tag << ":" << std::endl;
         oss << "  base = " << addr_base_ << std::endl;
         if (!x_base_.is_empty()) oss << "  x = " << x_base_ << std::endl;
         if (!y_base_.is_empty()) oss << "  y = " << y_base_ << std::endl;
         oss << "  layout = " << reg_layout_ << " (size = " << reg_buf_size_
             << ")" << std::endl;
+        if (split_factor_ != 1)
+            oss << " split_factor = " << split_factor_ << std::endl;
         for (auto &md : mask_descs_)
             oss << md.str("  ") << std::endl;
         int ndescs = (int)send_groups_.size();
@@ -1775,18 +1916,23 @@ public:
         return oss.str();
     }
 
-    stmt_t create_stmt(const send_hint_t &hint, const expr_t &mem_buf,
-            const expr_t &reg_buf) const {
+    stmt_t create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
+            int subtile_idx) const override {
         stmt_t ret;
-        for (auto &g : send_groups_) {
-            bool try_legacy = hint.try_legacy && (g.hw < ngen::HW::XeHPC)
+        for (auto &_g : send_groups_) {
+            auto g = (split_factor_ == 1)
+                    ? _g
+                    : _g.split(split_bounds_t(reg_layout(), split_factor_),
+                            subtile_idx);
+            ir_assert(!g.is_empty());
+            bool try_legacy = send_hint().try_legacy && (g.hw < ngen::HW::XeHPC)
                     && g.is_block();
             std::vector<stmt_t> calls;
             std::vector<send_info_t> send_infos;
             auto base_mem_off = add(addr_base_, g.addr_inc, g.slots);
             auto base_x = g.is_2d() ? add(x_base_, g.x_inc, 1) : expr_t();
             auto base_y = g.is_2d() ? add(y_base_, g.y_inc, 1) : expr_t();
-            auto funcs = g.create_send_funcs(hint, mem_buf);
+            auto funcs = g.create_send_funcs(send_hint_);
             for (auto &b : g.blocks) {
                 auto b_mem_off = add(base_mem_off, b.addr_inc, g.slots);
                 auto b_x_off = g.is_2d() ? add(base_x, b.x_inc, 1) : expr_t();
@@ -1824,6 +1970,67 @@ public:
                 ret = ret.append(call);
         }
         return ret;
+    }
+
+    bool can_split(int factor) const override {
+        if (factor == 1) return true;
+        // XXX: For now handle block messages only.
+        if (!is_block()) return false;
+        bool is_single_block = (send_groups_.size() == 1)
+                && (send_groups_[0].blocks.size() == 1);
+        if (is_single_block) {
+            // Try split.
+            auto g = send_groups_[0].split(
+                    split_bounds_t(reg_layout(), factor), 0);
+            if (!g.is_empty()) return true;
+        }
+
+        split_bounds_t bounds(reg_layout(), factor);
+        if (bounds.is_empty()) return false;
+
+        for (auto &g : send_groups_) {
+            for (auto &b : g.blocks) {
+                int beg = b.reg_off;
+                int end = beg + g.payload_size();
+                if (!bounds.within(beg, end)) return false;
+            }
+        }
+
+        return true;
+    }
+
+    void set_split(int factor) override {
+        ir_assert(can_split(factor));
+        split_factor_ = factor;
+    }
+
+    int split_factor() const override { return split_factor_; }
+
+    int grf_usage(bool with_buffer = true, bool with_headers = true,
+            bool reuse_headers = false) const override {
+        int header_size = 0;
+        for (auto &g : send_groups_) {
+            int g_header_size = 0;
+            auto funcs = g.create_send_funcs(send_hint_);
+            for (int i = 0; i < (int)funcs.size(); i++) {
+                auto &send = funcs[i].as<send_t>();
+                if (reuse_headers) {
+                    g_header_size = std::max(g_header_size, send.header_size());
+                } else {
+                    g_header_size += send.header_size();
+                }
+            }
+            if (reuse_headers) {
+                header_size = std::max(header_size, g_header_size);
+            } else {
+                header_size += g_header_size * (int)g.blocks.size();
+            }
+        }
+        int ret = 0;
+        if (with_headers) ret += header_size;
+        if (with_buffer) ret += reg_buf_size();
+        int grf_size = ngen::GRF::bytes(send_hint_.hw);
+        return utils::div_up(ret, grf_size);
     }
 
     expr_t get_mem_off(const send_group_t &g, const expr_t &g_mem_off,
@@ -1950,6 +2157,7 @@ private:
         return ret;
     }
 
+    send_hint_t send_hint_;
     expr_t addr_base_;
     expr_t x_base_;
     expr_t y_base_;
@@ -1957,6 +2165,147 @@ private:
     int reg_buf_size_;
     std::vector<mask_desc_t> mask_descs_;
     std::vector<send_group_t> send_groups_;
+    int split_factor_ = 1;
+};
+
+class ir_send_plan_t final : public send_plan_impl_t {
+public:
+    ir_send_plan_t(const exec_config_t &exec_cfg, const view_t &view,
+            send_hint_t &hint)
+        : hint_(hint)
+        , ir_ctx_(exec_cfg, cset_)
+        , dummy_mem_buf_(var_t::make(type_t::byte_ptr(), "mem"))
+        , dummy_reg_buf_(var_t::make(type_t::byte_ptr(), "reg"))
+        , access_(make_access_builder(
+                  ir_ctx_, view, dummy_mem_buf_, dummy_reg_buf_, hint)) {
+        auto calls = find_objects<func_call_t>(access_.stmt());
+        for (auto &c : calls) {
+            switch (get_send_kind(c)) {
+                case send_kind_t::_2d: is_2d_ = true; break;
+                case send_kind_t::block: break;
+                case send_kind_t::scattered: is_scattered_ = true; break;
+                default: ir_error_not_expected();
+            }
+        }
+    }
+
+    ir_send_plan_t(const ir_send_plan_t &) = delete;
+
+    const send_hint_t &send_hint() const override { return hint_; }
+
+    bool is_2d() const override { return is_2d_; }
+
+    bool is_scattered() const override { return is_scattered_; }
+
+    const layout_t &reg_layout() const override { return access_.reg_layout(); }
+
+    int reg_buf_size() const override {
+        return utils::div_up(access_.reg_buf_size(), split_factor_);
+    }
+
+    stmt_t create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
+            int subtile_idx) const override {
+        auto stmt = access_.stmt();
+        stmt = substitute(stmt, dummy_mem_buf_, mem_buf);
+        stmt = substitute(stmt, dummy_reg_buf_, reg_buf);
+        split_bounds_t bounds(reg_layout(), split_factor_);
+        return split(stmt, bounds, subtile_idx);
+    }
+
+    bool can_split(int factor) const override {
+        if (factor == 1) return true;
+        split_bounds_t bounds(reg_layout(), factor);
+        if (bounds.is_empty()) return false;
+        auto calls = find_objects<func_call_t>(access_.stmt());
+        for (auto &c : calls) {
+            auto &send = c.as<func_call_t>().func.as<send_t>();
+            auto &reg_buf = send_t::arg_reg_buf(c);
+            int beg = get_offset(reg_buf);
+            int end = beg + send.payload_size();
+            if (!bounds.within(beg, end)) return false;
+        }
+        return true;
+    }
+
+    void set_split(int factor) override {
+        ir_assert(can_split(factor));
+        split_factor_ = factor;
+    }
+
+    int split_factor() const override { return split_factor_; }
+
+    int grf_usage(bool with_buffer = true, bool with_headers = true,
+            bool reuse_headers = false) const override {
+        auto calls = find_objects<func_call_t>(access_.stmt());
+        int header_size = 0;
+        for (auto &c : calls) {
+            auto &send = c.as<func_call_t>().func.as<send_t>();
+            if (reuse_headers) {
+                header_size = std::max(header_size, send.header_size());
+            } else {
+                header_size += send.header_size();
+            }
+        }
+        int ret = 0;
+        if (with_headers) ret += header_size;
+        if (with_buffer) ret += reg_buf_size();
+        int grf_size = ngen::GRF::bytes(hint_.hw);
+        return utils::div_up(ret, grf_size);
+    }
+
+    std::string str(const std::string &tag) const override {
+        std::ostringstream oss;
+        oss << tag << ":" << std::endl;
+        oss << access_.stmt();
+        return oss.str();
+    }
+
+private:
+    static expr_t get_base(const expr_t &e) {
+        auto *ptr = e.as_ptr<ptr_t>();
+        if (ptr) return ptr->base;
+        ir_assert(e.is<var_t>()) << e;
+        return e;
+    }
+
+    static int get_offset(const expr_t &e) {
+        auto *ptr = e.as_ptr<ptr_t>();
+        if (ptr) return to_cpp<int>(ptr->off);
+        ir_assert(e.is<var_t>()) << e;
+        return 0;
+    }
+
+    static stmt_t split(
+            const stmt_t &stmt, const split_bounds_t &bounds, int subtile_idx) {
+        if (bounds.factor() == 1) return stmt;
+        auto ret = stmt;
+        auto calls = find_objects<func_call_t>(stmt);
+        for (auto &c : calls) {
+            auto &send = c.as<func_call_t>().func.as<send_t>();
+            auto &reg_buf = send_t::arg_reg_buf(c);
+            auto reg_base = get_base(reg_buf);
+            int reg_off = get_offset(reg_buf);
+            if (!bounds.contains(subtile_idx, reg_off)) {
+                ret = substitute(ret, c, stmt_t());
+                continue;
+            }
+            int new_reg_off = bounds.normalize_reg_off(subtile_idx, reg_off);
+            auto new_args = c.as<func_call_t>().args;
+            send_t::arg_reg_buf(new_args) = reg_base + new_reg_off;
+            ret = substitute(ret, c, send.call(new_args));
+        }
+        return ret;
+    }
+
+    send_hint_t hint_;
+    constraint_set_t cset_;
+    ir_context_t ir_ctx_;
+    expr_t dummy_mem_buf_;
+    expr_t dummy_reg_buf_;
+    access_builder_t access_;
+    bool is_2d_ = false;
+    bool is_scattered_ = false;
+    int split_factor_ = 1;
 };
 
 send_plan_t::send_plan_t() = default;
@@ -1964,24 +2313,58 @@ send_plan_t::send_plan_t(std::unique_ptr<send_plan_impl_t> impl)
     : impl_(std::move(impl)) {}
 send_plan_t::send_plan_t(send_plan_t &&other) = default;
 send_plan_t::~send_plan_t() = default;
+send_plan_t &send_plan_t::operator=(send_plan_t &&other) {
+    impl_ = std::move(other.impl_);
+    return *this;
+}
 
+const send_hint_t &send_plan_t::send_hint() const {
+    return impl_->send_hint();
+}
 bool send_plan_t::is_2d() const {
     return impl_->is_2d();
+}
+bool send_plan_t::is_scattered() const {
+    return impl_->is_scattered();
 }
 const layout_t &send_plan_t::reg_layout() const {
     return impl_->reg_layout();
 }
 int send_plan_t::reg_buf_size() const {
+    if (!impl_) return 0;
     return impl_->reg_buf_size();
 }
 
-stmt_t send_plan_t::create_stmt(const send_hint_t &hint, const expr_t &mem_buf,
-        const expr_t &reg_buf) const {
-    return impl_->create_stmt(hint, mem_buf, reg_buf);
+stmt_t send_plan_t::create_stmt(
+        const expr_t &mem_buf, const expr_t &reg_buf, int subtile_idx) const {
+    return impl_->create_stmt(mem_buf, reg_buf, subtile_idx);
 }
 
-send_group_t init_2d(const view_info_t &info, view_iterator_t &it,
-        layout_t &reg_layout, int &group_pad_bytes) {
+int send_plan_t::grf_usage(
+        bool with_buffer, bool with_headers, bool reuse_headers) const {
+    if (!impl_) return 0;
+    return impl_->grf_usage(with_buffer, with_headers, reuse_headers);
+}
+
+bool send_plan_t::can_split(int factor) const {
+    return impl_->can_split(factor);
+}
+
+void send_plan_t::set_split(int factor) {
+    impl_->set_split(factor);
+}
+
+int send_plan_t::split_factor() const {
+    return impl_->split_factor();
+}
+
+std::string send_plan_t::str(const std::string &tag) const {
+    if (!impl_) return tag + ": (nil)";
+    return impl_->str(tag);
+}
+
+send_group_t init_2d(
+        const view_info_t &info, view_iterator_t &it, layout_t &reg_layout) {
     auto &params = info.send_2d_params();
     auto &vlayout = info.vlayout();
     send_group_t ret;
@@ -1994,7 +2377,7 @@ send_group_t init_2d(const view_info_t &info, view_iterator_t &it,
     ret.mask_inc = it.get_mask(ret.mask_bits);
     int grf_size = info.grf_size();
     reg_layout = params.reg_layout(grf_size, vlayout.ndims(), vlayout.type());
-    group_pad_bytes = utils::rnd_up(reg_layout.size(), grf_size);
+    ret.pad_bytes = utils::rnd_up(reg_layout.size(), grf_size);
     return ret;
 }
 
@@ -2007,6 +2390,7 @@ send_group_t init_block(
     ret.mask_bits = info.mask_bits();
     ret.addr_inc = vec_off_t(0);
     ret.mask_inc = it.get_mask(ret.mask_bits);
+    ret.pad_bytes = info.hw_cfg().grf_size();
     auto &vlayout = info.vlayout();
     auto &blocks = vlayout.blocks();
     reg_layout = layout_t(vlayout.type(), vlayout.ndims(), 0,
@@ -2016,8 +2400,8 @@ send_group_t init_block(
 }
 
 send_group_t init_scattered(const view_info_t &info,
-        const send_hint_t &send_hint, view_iterator_t &it, layout_t &reg_layout,
-        int &group_pad_bytes) {
+        const send_hint_t &send_hint, view_iterator_t &it,
+        layout_t &reg_layout) {
     int slot_size;
     int slot_stride;
     init_scattered_params(info.hw_cfg(), send_hint, it.inner_bytes(),
@@ -2033,6 +2417,7 @@ send_group_t init_scattered(const view_info_t &info,
     ret.hw = info.hw();
     ret.max_slots = get_max_slots(ret.hw, send_hint);
     ret.type_size = slot_size;
+    ret.slot_stride = slot_stride;
     ret.slots = inner_slots * it.middle_blocks();
     ret.mask_bits = info.mask_bits();
     auto mask_base = it.get_mask(ret.mask_bits, inner_slots);
@@ -2062,8 +2447,8 @@ send_group_t init_scattered(const view_info_t &info,
     }
 
     int grf_size = info.grf_size();
-    group_pad_bytes = ret.rounded_slots() * slot_size;
-    group_pad_bytes = utils::rnd_up(group_pad_bytes, grf_size);
+    ret.pad_bytes = ret.rounded_slots() * slot_size;
+    ret.pad_bytes = utils::rnd_up(ret.pad_bytes, grf_size);
     return ret;
 }
 
@@ -2136,7 +2521,9 @@ std::vector<send_group_t> fuse_blocks(
                     break;
                 }
             }
-            if (!found) ret.push_back(send_group.slice(beg, i, /*fuse=*/true));
+            if (!found)
+                ret.push_back(send_group.slice(
+                        beg, i, /*fuse=*/true, /*is_last=*/i == nblocks));
             beg = i;
         }
         if (i < nblocks) cur_token = tokens[i];
@@ -2151,25 +2538,40 @@ std::vector<send_group_t> fuse_blocks(
     return ret;
 }
 
-send_plan_t create_send_plan(const hw_config_t &hw_cfg, const view_t &view,
+bool can_use_send_plan(const view_t &view) {
+    for (int i = 0; i < view.ntdims(); i++) {
+        auto &tdim = view.tdim(i);
+        for (int j = 0; j < tdim.nvargs(); j++)
+            if (tdim.vstride(j).is_unknown()) return false;
+    }
+    return true;
+}
+
+send_plan_t create_ir_send_plan(const exec_config_t &exec_cfg,
+        const view_t &view, const send_hint_t &_hint) {
+    auto hint = _hint;
+    auto send_plan = utils::make_unique<ir_send_plan_t>(exec_cfg, view, hint);
+    return send_plan_t(std::move(send_plan));
+}
+
+send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
         const send_hint_t &hint) {
-    int grf_size = hw_cfg.grf_size();
+    if (!hint.use_send_plan) return create_ir_send_plan(exec_cfg, view, hint);
+    auto &hw_cfg = exec_cfg.hw_cfg();
     view_info_t info(hw_cfg, view, hint);
     view_iterator_t it(info);
 
     send_group_t base_group;
     layout_t reg_layout;
-    int group_pad_bytes = grf_size;
     switch (info.send_kind()) {
         case send_kind_t::_2d:
-            base_group = init_2d(info, it, reg_layout, group_pad_bytes);
+            base_group = init_2d(info, it, reg_layout);
             break;
         case send_kind_t::block:
             base_group = init_block(info, it, reg_layout);
             break;
         case send_kind_t::scattered:
-            base_group = init_scattered(
-                    info, hint, it, reg_layout, group_pad_bytes);
+            base_group = init_scattered(info, hint, it, reg_layout);
             break;
         default: ir_error_not_expected();
     }
@@ -2182,15 +2584,19 @@ send_plan_t create_send_plan(const hw_config_t &hw_cfg, const view_t &view,
         auto &last = reg_layout.blocks().back();
         stride = (dim_t)last.stride * last.block;
     }
-    stride = utils::rnd_up(stride, group_pad_bytes / reg_layout.type().size());
+    stride = utils::rnd_up(
+            stride, base_group.pad_bytes / reg_layout.type().size());
     for (int i = outer_idx; i < (int)blocks.size(); i++) {
         auto &b = blocks[i];
         reg_layout = reg_layout.add_outer_block(b.dim_idx, b.block, stride);
         stride *= b.block;
     }
 
-    int reg_buf_size = utils::rnd_up(reg_layout.size(), group_pad_bytes);
-    send_plan_impl_t ret(info, reg_layout, reg_buf_size);
+    int reg_buf_size = hint.is_prefetch()
+            ? 0
+            : utils::rnd_up(reg_layout.size(), base_group.pad_bytes);
+    auto ret = utils::make_unique<fast_send_plan_t>(
+            info, reg_layout, reg_buf_size);
     base_group.add_block(0, vec_off_t(base_group.nmasks(), 0), 0);
 
     bool is_first = true;
@@ -2201,7 +2607,7 @@ send_plan_t create_send_plan(const hw_config_t &hw_cfg, const view_t &view,
         int64_t x;
         int64_t y;
         it.next(mask, addr, x, y, step_elems, base_group.mask_bits);
-        it.pad_reg_off(group_pad_bytes);
+        it.pad_reg_off(base_group.pad_bytes);
         base_group.add_block(addr, mask, it.reg_off(), x, y);
         if (is_first) {
             step_elems = it.inner_elems() * it.middle_blocks();
@@ -2209,17 +2615,13 @@ send_plan_t create_send_plan(const hw_config_t &hw_cfg, const view_t &view,
         }
     }
 
-    ret.set_send_groups(fuse_blocks(ret.mask_descs(), base_group));
-
-    ir_trace() << "send_plan: view: " << view << std::endl;
-    ir_trace() << "send_plan: send_op: " << hint.send_op << std::endl;
-    ir_trace() << ret << std::endl;
+    ret->set_send_groups(fuse_blocks(ret->mask_descs(), base_group));
 
     if (base_group.is_scattered() && hint.send_op == send_op_t::prefetch) {
         return send_plan_t();
     }
 
-    return send_plan_t(utils::make_unique<send_plan_impl_t>(ret));
+    return send_plan_t(std::move(ret));
 }
 
 } // namespace jit
