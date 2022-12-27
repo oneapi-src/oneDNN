@@ -414,7 +414,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::add_po_kernel(
     bcfg->LDD = (is_init && jcp.use_buffer) ? jcp.LDC : jcp.LDD;
     bcfg->dt_c = (!is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt; // inp
     bcfg->dt_d = (is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt; // out
-    bcfg->alpha = is_init ? 0 : 1;
+    bcfg->alpha = !is_init && IMPLICATION(jcp.with_sum, jcp.use_buffer);
     bcfg->beta = is_init ? 0 : 1;
     CHECK(safe_ptr_assign(kernels_po_[ker_idx],
             new jit_brgemm_kernel_post_ops<isa>(jcp, *bcfg, *_pd->attr())));
