@@ -22,7 +22,7 @@
 #include "cpu/simple_sum.hpp"
 
 #if DNNL_X64
-#include "cpu/x64/jit_avx512_core_bf16_sum.hpp"
+#include "cpu/x64/jit_uni_xf16_sum.hpp"
 using namespace dnnl::impl::cpu::x64;
 #endif
 
@@ -38,8 +38,8 @@ using namespace dnnl::impl::data_type;
 #define SUM_INSTANCE_AVX512(...) REG_AVX512_ISA(INSTANCE(__VA_ARGS__))
 // clang-format off
 constexpr impl_list_item_t cpu_sum_impl_list[] = REG_SUM_P({
-        SUM_INSTANCE_AVX512(jit_bf16_sum_t<bf16, bf16>)
-        SUM_INSTANCE_AVX512(jit_bf16_sum_t<bf16, f32>)
+        SUM_INSTANCE_AVX512(jit_xf16_sum_t<bf16, bf16, avx512_core>)
+        SUM_INSTANCE_AVX512(jit_xf16_sum_t<bf16, f32, avx512_core>)
         INSTANCE(simple_sum_t<f16>)
         INSTANCE(simple_sum_t<f16, f32>)
         INSTANCE(simple_sum_t<bf16>)
