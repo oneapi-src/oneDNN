@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+// TODO: Remove once fully moved to the convolution plan.
 namespace {
-
 bool need_src_or_dst_check(
         bool is_fwd, int o, int i, int k, int p, int s, int d) {
     if (is_fwd) {
@@ -35,8 +35,6 @@ bool need_src_or_dst_check(
     int os_max = (i - 1) + p;
     return (os_min < 0) || (os_max >= o * s);
 }
-
-} // namespace
 
 // Represents hierarchy of tile levels and corresponding loop/grid indices.
 //
@@ -119,6 +117,7 @@ dim_tile_t create_tile(gemm_schedule_t &gemm_schedule, const conv_config_t &cfg,
 
     return tile;
 }
+} // namespace
 
 void conv_ir_builder_t::init_fwd(gemm_schedule_t &gemm_schedule,
         view_t &src_view, view_t &wei_view, view_t &dst_view, expr_t &src_buf,

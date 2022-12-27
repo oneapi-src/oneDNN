@@ -84,6 +84,20 @@ public:
         }
     }
 
+    bool with_zero_points() const {
+        if (zp_cfg.do_src_compensation) return true;
+        if (zp_cfg.do_dst_compensation) return true;
+        if (zp_cfg.is_runtime_src_zero_points) return true;
+        if (zp_cfg.is_runtime_dst_zero_points) return true;
+        if (zp_cfg.is_common_src_zero_point
+                && zp_cfg.common_src_zero_point != 0)
+            return true;
+        if (zp_cfg.is_common_dst_zero_point
+                && zp_cfg.common_dst_zero_point != 0)
+            return true;
+        return false;
+    }
+
     const memory_desc_t &a_md() const {
         return *pick_a(conv_pd->invariant_src_md(), conv_pd->invariant_wei_md(),
                 conv_pd->invariant_dst_md());
@@ -257,6 +271,8 @@ private:
         return post_ops.find(primitive_kind::sum) != -1;
     }
 };
+
+bool is_small_ic(const conv_problem_t &prb);
 
 class conv_hint_t {
 public:
@@ -770,22 +786,28 @@ public:
     std::string desc() const override { return "General pipeline parameters."; }
 
     bool do_unroll() const { return do_unroll_; }
-    bool reuse_headers() const { return !do_unroll(); }
+    bool reuse_headers() const { return reuse_headers_; }
 
     void set_from_str(const std::string &s) override {
         do_unroll_ = false;
+        reuse_headers_ = false;
         for (auto c : s) {
             switch (c) {
                 case 'u': do_unroll_ = true; break;
+                case 'r': reuse_headers_ = true; break;
                 default: ir_error_not_expected() << s;
             }
         }
     }
 
-    void set(bool do_unroll) { do_unroll_ = do_unroll; }
+    void set(bool do_unroll, bool reuse_headers) {
+        do_unroll_ = do_unroll;
+        reuse_headers_ = reuse_headers;
+    }
 
 private:
     bool do_unroll_ = false;
+    bool reuse_headers_ = false;
 };
 
 class prb_param_t : public value_param_t<conv_problem_t> {
@@ -858,6 +880,7 @@ private:
     bool b_ = false;
 };
 
+// TODO: Remove.
 class reduce_b_param_t : public bool_param_t {
 public:
     reduce_b_param_t() : bool_param_t(false) {}
@@ -1047,9 +1070,14 @@ static const int max_slm_bufs = 3;
 static const int reserved_regs = 20;
 } // namespace constants
 
+struct conv_plan_t;
+
+bool use_conv_plan();
+
 class conv_config_t {
 public:
-    conv_config_t() = default;
+    conv_config_t();
+    ~conv_config_t();
 
 #define DECL_PARAM(name) \
     const name##_param_t &name##_param() const { \
@@ -1244,6 +1272,10 @@ public:
         set_exec_cfg(tmp);
     }
 
+    void set_plan(const std::shared_ptr<conv_plan_t> &plan);
+    bool with_plan() const;
+    const conv_plan_t &plan() const;
+
     bool can_skip_wei_zero_out() const;
     bool can_skip_bia_zero_out() const;
 
@@ -1257,6 +1289,7 @@ private:
         return param_init_t();
     }
 
+    std::shared_ptr<conv_plan_t> plan_;
     std::vector<std::function<param_t *(conv_config_t *)>> get_params_;
 
 #define INIT_PARAM(name) \

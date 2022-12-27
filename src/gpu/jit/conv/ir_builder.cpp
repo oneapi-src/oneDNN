@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 #include <unordered_map>
 
 #include "gpu/jit/conv/config.hpp"
+#include "gpu/jit/conv/config_plan.hpp"
 #include "gpu/jit/conv/epilogue.hpp"
 #include "gpu/jit/conv/pipeline.hpp"
 #include "gpu/jit/conv/post_ops.hpp"
@@ -1920,7 +1921,33 @@ private:
     const kernel_info_t &kernel_info_;
 };
 
-class compute_builder_t {
+class compute_builder_iface_t {
+public:
+    virtual ~compute_builder_iface_t() = default;
+    virtual int ab_slm_size() const = 0;
+    virtual stmt_t zero_out_stmt() const = 0;
+    virtual stmt_t iter_stmt() const = 0;
+    virtual stmt_t inject_compute_alloc_stmts(const stmt_t &stmt) const = 0;
+    virtual stmt_t inject_out_alloc_stmts(const stmt_t &stmt) const = 0;
+    virtual stmt_t inject_let_stmts(const stmt_t &stmt) const = 0;
+    virtual const stmt_t &c_store_stmt() const = 0;
+    virtual const stmt_t &b_reduced_store_stmt() const = 0;
+    virtual void build() = 0;
+
+    // Setters for original AP/BP/CP buffers (P - problem notation).
+    void set_ap_buf(const expr_t &buf) { ap_buf_ = buf; }
+    void set_bp_buf(const expr_t &buf) { bp_buf_ = buf; }
+    void set_cp_buf(const expr_t &buf) { cp_buf_ = buf; }
+    virtual void set_b_reduce_buf(const expr_t &buf) { b_reduce_buf_ = buf; }
+
+protected:
+    expr_t ap_buf_;
+    expr_t bp_buf_;
+    expr_t cp_buf_;
+    expr_t b_reduce_buf_;
+};
+
+class compute_builder_t : public compute_builder_iface_t {
 public:
     compute_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
             const kernel_info_t &kernel_info)
@@ -1933,21 +1960,21 @@ public:
                   cfg.allow_b_grf_reorder(), !cfg.prb().is_dw)
         , kernel_info_(kernel_info) {}
 
-    int ab_slm_size() const { return ab_slm_size_; }
+    int ab_slm_size() const override { return ab_slm_size_; }
 
     const stmt_t &c_zero_out_stmt() const { return c_zero_out_stmt_; }
     const stmt_t &b_reduced_zero_out_stmt() const {
         return b_reduced_zero_out_stmt_;
     }
 
-    stmt_t zero_out_stmt() const {
+    stmt_t zero_out_stmt() const override {
         stmt_t ret;
         ret = ret.append(c_zero_out_stmt());
         ret = ret.append(b_reduced_zero_out_stmt());
         return ret;
     }
 
-    stmt_t iter_stmt() const {
+    stmt_t iter_stmt() const override {
         stmt_t stmt;
         bool use_prefetch = !prefetch_stmt_.is_empty();
         bool use_slm = !g2s_load_stmt_.is_empty();
@@ -1966,18 +1993,20 @@ public:
         return stmt;
     }
 
-    const stmt_t &c_store_stmt() const { return c_store_stmt_; }
-    const stmt_t &b_reduced_store_stmt() const { return b_reduced_store_stmt_; }
+    const stmt_t &c_store_stmt() const override { return c_store_stmt_; }
+    const stmt_t &b_reduced_store_stmt() const override {
+        return b_reduced_store_stmt_;
+    }
 
-    stmt_t inject_compute_alloc_stmts(const stmt_t &stmt) const {
+    stmt_t inject_compute_alloc_stmts(const stmt_t &stmt) const override {
         return jit::inject_alloc_stmts(stmt, compute_allocs_);
     }
 
-    stmt_t inject_out_alloc_stmts(const stmt_t &stmt) const {
+    stmt_t inject_out_alloc_stmts(const stmt_t &stmt) const override {
         return jit::inject_alloc_stmts(stmt, out_allocs_);
     }
 
-    stmt_t inject_let_stmts(const stmt_t &stmt) const {
+    stmt_t inject_let_stmts(const stmt_t &stmt) const override {
         return jit::inject_let_stmts(stmt, g2s_ctx_.grid_idx_lets);
     }
 
@@ -1985,11 +2014,7 @@ public:
         gemm_schedule_ = gemm_schedule;
     }
 
-    // Setters for original AP/BP/CP buffers (P - problem notation).
-    void set_ap_buf(const expr_t &buf) { ap_buf_ = buf; }
-    void set_bp_buf(const expr_t &buf) { bp_buf_ = buf; }
-    void set_cp_buf(const expr_t &buf) { cp_buf_ = buf; }
-    void set_b_reduced_mem_buf(const expr_t &buf) {
+    void set_b_reduce_buf(const expr_t &buf) override {
         b_reduce_ctx_.set_b_reduced_mem_buf(buf);
     }
 
@@ -2005,7 +2030,7 @@ public:
         b_reduce_ctx_.set_reduce_condition(cond);
     }
 
-    void build() {
+    void build() override {
         // Initialize SLM buffers.
         expr_t a_slm_buf = make_buffer("a_slm");
         expr_t b_slm_buf = make_buffer("b_slm");
@@ -2478,10 +2503,6 @@ private:
 
     gemm_schedule_t gemm_schedule_;
 
-    expr_t ap_buf_;
-    expr_t bp_buf_;
-    expr_t cp_buf_;
-
     std::vector<stmt_t> compute_allocs_;
     std::vector<stmt_t> out_allocs_;
     int ab_slm_size_ = 0;
@@ -2498,6 +2519,479 @@ private:
     stmt_t b_reduced_store_stmt_;
 
     const kernel_info_t &kernel_info_;
+};
+
+expr_t add_grid_guard(
+        const expr_t &_cond, const grid_info_t &tg, const grid_info_t &load) {
+    auto cond = _cond;
+    for (int i = 0; i < tg.ndims(); i++) {
+        if (tg[i] == load[i]) continue;
+        auto i_cond = (tg.idx(i) < load[i]);
+        if (cond.is_empty()) {
+            cond = i_cond;
+        } else {
+            cond = cond & i_cond;
+        }
+    }
+    return cond;
+}
+
+stmt_t add_grid_guard(
+        const stmt_t &stmt, const grid_info_t &tg, const grid_info_t &load) {
+    expr_t cond = add_grid_guard(expr_t(), tg, load);
+    if (cond.is_empty()) return stmt;
+    return if_t::make(cond, stmt);
+}
+
+class compute_builder_with_plan_t : public compute_builder_iface_t {
+public:
+    compute_builder_with_plan_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
+            const kernel_info_t &kernel_info)
+        : cfg_(cfg)
+        , plan_(cfg_.plan())
+        , ir_ctx_(ir_ctx)
+        , kernel_info_(kernel_info) {
+        if (plan_.slm.has_a())
+            (void)get_buffer("a_slm", plan_.slm.a_layout.size());
+        if (plan_.slm.has_b())
+            (void)get_buffer("b_slm", plan_.slm.b_layout.size());
+    }
+
+    int ab_slm_size() const override { return plan_.slm.slm_size(); }
+
+    stmt_t zero_out_stmt() const override {
+        auto c_buf = find_reg_buffer("c");
+        auto ret = stmt_group_t::make(stmt_label_t::c_zero_out(),
+                create_zero_out_stmt(ir_ctx_, c_buf.first, c_buf.second));
+        auto b_reduce_buf = find_reg_buffer("b_reduce", /*allow_empty=*/true);
+        if (!b_reduce_buf.first.is_empty()) {
+            ret = ret.append(create_zero_out_stmt(
+                    ir_ctx_, b_reduce_buf.first, b_reduce_buf.second));
+        }
+        return ret;
+    }
+
+    stmt_t iter_stmt() const override {
+        stmt_t stmt;
+        bool use_prefetch = !prefetch_stmt_.is_empty();
+        bool use_slm = !g2s_load_stmt_.is_empty();
+        if (use_prefetch) {
+            stmt = stmt.append(stmt_group_t::make(
+                    stmt_label_t::prefetch(), prefetch_stmt_));
+        } else if (use_slm) {
+            stmt = stmt.append(stmt_group_t::make(
+                    stmt_label_t::g2s_load(), g2s_load_stmt_));
+            stmt = stmt.append(funcs::barrier());
+            stmt = stmt.append(stmt_group_t::make(
+                    stmt_label_t::g2s_store(), g2s_store_stmt_));
+            stmt = stmt.append(funcs::barrier());
+        }
+        stmt = stmt.append(x2r_mul_stmt_);
+        return stmt;
+    }
+
+    stmt_t inject_compute_alloc_stmts(const stmt_t &stmt) const override {
+        return inject_alloc_stmts(stmt, get_compute_allocs());
+    }
+
+    stmt_t inject_out_alloc_stmts(const stmt_t &stmt) const override {
+        return inject_alloc_stmts(stmt, get_out_allocs());
+    }
+
+    stmt_t inject_let_stmts(const stmt_t &stmt) const override { return stmt; }
+
+    const stmt_t &c_store_stmt() const override { return c_store_stmt_; }
+
+    const stmt_t &b_reduced_store_stmt() const override {
+        return b_reduce_store_stmt_;
+    }
+
+    void build() override {
+        build_g2s();
+        build_prefetch();
+        build_x2r_mul();
+        build_c_store();
+        build_b_reduce_store();
+
+        // Replace dpas by dpasw when applicable.
+        if (cfg_.fma_kind() == fma_kind_t::dpasw) {
+            alloc_updater_t alloc_updater;
+            inject_dpasw(ir_ctx_.hw(), x2r_mul_stmt_, get_buffer("c"),
+                    c_store_stmt_, alloc_updater,
+                    plan_.gemm_schedule.tg_grid().idx(0));
+            for (auto &a : allocs_) {
+                a.second = alloc_updater.update(a.second);
+            }
+        }
+
+        // Assign {Atomic} for dpas(w) when applicable.
+        x2r_mul_stmt_ = inject_atomic(x2r_mul_stmt_);
+    }
+
+private:
+    static const expr_t &get_buffer(const stmt_t &s) {
+        auto &alloc = s.as<alloc_t>();
+        return alloc.buf;
+    }
+
+    static alloc_kind_t get_alloc_kind(const expr_t &buf) {
+        auto &buf_name = buf.as<var_t>().name;
+        bool is_slm = buf_name.find("slm") != std::string::npos;
+        return is_slm ? alloc_kind_t::slm : alloc_kind_t::grf;
+    }
+
+    static const stmt_t &set_alloc_size(stmt_t &s, int size) {
+        auto &a = s.as<alloc_t>();
+        if (a.size < size) s = alloc_t::make(a.buf, size, a.kind, a.attrs);
+        return s;
+    }
+
+    static std::pair<expr_t, int> to_buf_and_size(const stmt_t &s) {
+        auto &a = s.as<alloc_t>();
+        return std::make_pair(a.buf, a.size);
+    }
+
+    static bool is_out_alloc_buf(const stmt_t &s) {
+        auto &buf = get_buffer(s);
+        auto &buf_name = buf.as<var_t>().name;
+        return utils::one_of(buf_name, "b_reduce", "c");
+    }
+
+    const expr_t &get_buffer(const std::string &tag, int size = 0) {
+        size = utils::rnd_up(size, cfg_.grf_size());
+        auto it = allocs_.find(tag);
+        if (it != allocs_.end()) {
+            return get_buffer(set_alloc_size(it->second, size));
+        }
+        ir_assert(size > 0);
+        auto buf = make_buffer(tag);
+        auto ret = allocs_.emplace(
+                tag, alloc_t::make(buf, size, get_alloc_kind(buf)));
+        return get_buffer(ret.first->second);
+    }
+
+    std::pair<expr_t, int> find_reg_buffer(
+            const std::string &name, bool allow_empty = false) const {
+        for (auto &kv : allocs_) {
+            auto &buf = get_buffer(kv.second);
+            auto &buf_name = buf.as<var_t>().name;
+            if (buf_name == name) return to_buf_and_size(kv.second);
+        }
+        if (allow_empty) return std::make_pair(expr_t(), 0);
+        ir_error_not_expected();
+        return to_buf_and_size(allocs_.begin()->second);
+    }
+
+    std::vector<stmt_t> get_compute_allocs() const {
+        std::vector<stmt_t> ret;
+        for (auto &kv : allocs_) {
+            if (!is_out_alloc_buf(kv.second)) { ret.push_back(kv.second); }
+        }
+        return ret;
+    }
+
+    std::vector<stmt_t> get_out_allocs() const {
+        std::vector<stmt_t> ret;
+        for (auto &kv : allocs_) {
+            if (is_out_alloc_buf(kv.second)) { ret.push_back(kv.second); }
+        }
+        return ret;
+    }
+
+    void build_g2s() {
+        auto &slm = plan_.slm;
+        if (slm.has_a()) {
+            build_g2s_x("a", ap_buf_, get_buffer("a_slm"), slm.a_g2s_load,
+                    layout_t(), reduce_plan_t(), slm.a_reorder, slm.a_g2s_store,
+                    slm.a_grid);
+        }
+        if (slm.has_b()) {
+            build_g2s_x("b", bp_buf_, get_buffer("b_slm"), slm.b_g2s_load,
+                    slm.b_reduce_layout, slm.b_reduce, slm.b_reorder,
+                    slm.b_g2s_store, slm.b_grid);
+        }
+    }
+
+    void build_g2s_x(const std::string &prefix, const expr_t &mem_buf,
+            const expr_t &slm_buf, const send_plan_t &g2s_load,
+            const layout_t &reduce_layout, const reduce_plan_t &g2s_reduce,
+            const reorder_plan_t &g2s_reorder, const send_plan_t &g2s_store,
+            const grid_info_t &grid) {
+        auto g2s_buf = get_buffer(prefix + "_g2s", g2s_load.reg_buf_size());
+        auto load = g2s_load.create_stmt(mem_buf, g2s_buf);
+        auto reduce_buf = g2s_reduce
+                ? get_buffer("b_reduce", g2s_reduce.dst_buf_size())
+                : expr_t();
+        auto store_buf = g2s_reorder
+                ? get_buffer("g2s_tmp", g2s_store.reg_buf_size())
+                : g2s_buf;
+        if (store_buf.is_same(g2s_buf)) {
+            g2s_buf = get_buffer(prefix + "_g2s", g2s_store.reg_buf_size());
+        }
+        if (g2s_reorder) {
+            g2s_buf = get_buffer(prefix + "_g2s", g2s_reorder.src.size());
+        }
+        auto reduce = g2s_reduce.create_stmt(g2s_buf, reduce_buf);
+        auto reorder = g2s_reorder.create_stmt(g2s_buf, store_buf);
+        auto store = g2s_store.create_stmt(slm_buf, store_buf);
+        store = reduce.append(reorder).append(store);
+        load = add_grid_guard(load, cfg_.thread_group_grid(), grid);
+        store = add_grid_guard(store, cfg_.thread_group_grid(), grid);
+        g2s_load_stmt_ = g2s_load_stmt_.append(load);
+        g2s_store_stmt_ = g2s_store_stmt_.append(store);
+    }
+
+    void build_prefetch() {
+        auto &prefetch = plan_.prefetch;
+        if (prefetch.has_a()) {
+            build_prefetch_x(ap_buf_, prefetch.a_prefetch);
+        }
+        if (prefetch.has_b()) {
+            build_prefetch_x(bp_buf_, prefetch.b_prefetch);
+        }
+    }
+
+    void build_prefetch_x(const expr_t &mem_buf, const send_plan_t &prefetch) {
+        prefetch_stmt_ = prefetch_stmt_.append(
+                prefetch.create_stmt(mem_buf, expr_t()));
+    }
+
+    void build_x2r_mul() {
+        auto &x2r = plan_.x2r;
+        auto &fma = plan_.fma;
+        ir_assert(x2r.split_abc == fma.split_abc);
+        ir_assert(x2r.split_factor == fma.split_factor);
+        for (int i = 0; i < x2r.split_factor; i++) {
+            build_x2r(i);
+            build_mul(i);
+        }
+    }
+
+    void build_x2r(int subtile_idx) {
+        auto &x2r = plan_.x2r;
+        auto ax_buf = plan_.slm.has_a() ? get_buffer("a_slm") : ap_buf_;
+        auto bx_buf = plan_.slm.has_b() ? get_buffer("b_slm") : bp_buf_;
+        stmt_t g2r_load_stmt;
+        stmt_t s2r_load_stmt;
+        build_x2r_x("a", ax_buf, subtile_idx, x2r.a_load, reduce_plan_t(),
+                x2r.a_reorder, x2r.a_buf_size(), g2r_load_stmt, s2r_load_stmt);
+        build_x2r_x("b", bx_buf, subtile_idx, x2r.b_load, x2r.b_reduce,
+                x2r.b_reorder, x2r.b_buf_size(), g2r_load_stmt, s2r_load_stmt);
+        g2r_load_stmt = stmt_group_t::make(
+                stmt_label_t::g2r_load(subtile_idx), g2r_load_stmt);
+        s2r_load_stmt = stmt_group_t::make(
+                stmt_label_t::s2r_load(subtile_idx), s2r_load_stmt);
+        x2r_mul_stmt_ = x2r_mul_stmt_.append(g2r_load_stmt);
+        x2r_mul_stmt_ = x2r_mul_stmt_.append(s2r_load_stmt);
+    }
+
+    void build_x2r_x(const std::string &prefix, const expr_t &x_buf,
+            int subtile_idx, const send_plan_t &x2r_load,
+            const reduce_plan_t &x2r_reduce, const reorder_plan_t &x2r_reorder,
+            int buf_size, stmt_t &g2r_load_stmt, stmt_t &s2r_load_stmt) {
+        if (subtile_idx > 0 && x2r_load.split_factor() == 1) return;
+        auto reg_buf = get_buffer(prefix, buf_size);
+        auto load_buf = x2r_reorder ? get_buffer("x2r_tmp",
+                                std::max(x2r_load.reg_buf_size(),
+                                        (int)x2r_reorder.src.size()))
+                                    : reg_buf;
+        if (load_buf.is_same(reg_buf)) {
+            reg_buf = get_buffer(prefix, x2r_load.reg_buf_size());
+        }
+        auto reduce_buf = x2r_reduce
+                ? get_buffer("b_reduce", x2r_reduce.dst_buf_size())
+                : expr_t();
+        auto load = x2r_load.create_stmt(x_buf, load_buf, subtile_idx);
+        auto reduce = x2r_reduce.create_stmt(load_buf, reduce_buf);
+        auto reorder = x2r_reorder.create_stmt(load_buf, reg_buf);
+        auto &load_stmt
+                = x2r_load.send_hint().is_slm() ? s2r_load_stmt : g2r_load_stmt;
+        load_stmt = load_stmt.append(load);
+        load_stmt = load_stmt.append(reduce);
+        load_stmt = load_stmt.append(reorder);
+    }
+
+    void build_mul(int subtile_idx) {
+        auto &fma = plan_.fma;
+        auto &a_layout = fma.a_layout;
+        auto &b_layout = fma.b_layout;
+        auto &c_layout = fma.c_layout;
+        auto &a_buf = get_buffer("a");
+        auto &b_buf = get_buffer("b");
+        auto &c_buf = get_buffer("c", c_layout.size());
+        int b0 = fma.bmnk_start_idx(bmnk_kind_t::b, subtile_idx);
+        int b1 = fma.bmnk_stop_idx(bmnk_kind_t::b, subtile_idx);
+        int m0 = fma.bmnk_start_idx(bmnk_kind_t::m, subtile_idx);
+        int m1 = fma.bmnk_stop_idx(bmnk_kind_t::m, subtile_idx);
+        int n0 = fma.bmnk_start_idx(bmnk_kind_t::n, subtile_idx);
+        int n1 = fma.bmnk_stop_idx(bmnk_kind_t::n, subtile_idx);
+        int k0 = fma.bmnk_start_idx(bmnk_kind_t::k, subtile_idx);
+        int k1 = fma.bmnk_stop_idx(bmnk_kind_t::k, subtile_idx);
+
+        std::vector<int> a_idx(3);
+        std::vector<int> b_idx(3);
+        std::vector<int> c_idx(3);
+
+        auto fma_funcs = create_fma_funcs(fma);
+
+        stmt_t stmt;
+        for (int b = b0; b < b1; b += fma.b_blk) {
+            a_idx[0] = b_idx[0] = c_idx[0] = b;
+            for (int k = k0; k < k1; k += fma.k_blk) {
+                a_idx[2] = b_idx[1] = k;
+                for (int n = n0; n < n1; n += fma.n_blk) {
+                    b_idx[2] = c_idx[2] = n;
+                    for (int m = m0; m < m1; m += fma.m_blk) {
+                        a_idx[1] = c_idx[1] = m;
+                        int a_off = a_layout.offset_in_bytes(a_idx);
+                        int b_off = b_layout.offset_in_bytes(b_idx);
+                        int c_off = c_layout.offset_in_bytes(c_idx);
+                        a_off = a_off % fma.a_buf_size();
+                        b_off = b_off % fma.b_buf_size();
+                        stmt = stmt.append(create_fma_block(fma_funcs,
+                                a_buf[a_off], b_buf[b_off], c_buf[c_off]));
+                    }
+                }
+            }
+        }
+        stmt = stmt_group_t::make(stmt_label_t::mul(subtile_idx), stmt);
+        x2r_mul_stmt_ = x2r_mul_stmt_.append(stmt);
+    }
+
+    void build_c_store() {
+        auto &gemm_schedule = plan_.gemm_schedule;
+        post_op_context_t post_op_ctx(cfg_, gemm_schedule, kernel_info_);
+        auto c_buf = find_reg_buffer("c");
+        auto c_thr_reg_layout = plan_.fma.c_prb_layout;
+        auto thr_tile = gemm_schedule.c_thr_tile(/*is_relative=*/false);
+        expr_t reduce_cond;
+        if (gemm_schedule.with_thread_group_k_slicing()) {
+            slm_reduce_builder_t slm_reduce_builder(ir_ctx_,
+                    gemm_schedule.tg_grid(), c_buf.first, c_thr_reg_layout,
+                    thr_tile);
+            c_store_stmt_ = c_store_stmt_.append(slm_reduce_builder.stmt());
+            c_thr_reg_layout = slm_reduce_builder.reg_layout();
+            thr_tile = slm_reduce_builder.thr_tile();
+            reduce_cond = slm_reduce_builder.reduce_cond();
+        }
+        auto c_thr_mem_view = gemm_schedule.c_view().create_sub_view(thr_tile);
+        auto stmt = create_epilogue_stmt(cfg_, ir_ctx_, gemm_schedule,
+                post_op_ctx, thr_tile, c_thr_mem_view, c_thr_reg_layout,
+                cp_buf_, c_buf.first);
+        if (!reduce_cond.is_empty()) stmt = if_t::make(reduce_cond, stmt);
+        c_store_stmt_ = c_store_stmt_.append(stmt);
+    }
+
+    expr_t get_b_reduce_store_condition() {
+        auto &gemm_schedule = plan_.gemm_schedule;
+        auto &c_view = gemm_schedule.c_view();
+        auto &kd = c_view.vvar("kd");
+        auto &kh = c_view.vvar("kh");
+        auto &kw = c_view.vvar("kw");
+        auto &ic = c_view.vvar("ic");
+        expr_t cond(true);
+        cond &= (kd == 0);
+        cond &= (kh == 0);
+        cond &= (kw == 0);
+        cond &= (ic == 0);
+        loop_kind_t filter = loop_kind_t::kernel_grid;
+        if (!plan_.slm.has_b()) filter = filter | loop_kind_t::tg_grid;
+        cond = gemm_schedule.expand(cond, /*expand_trivial_vars=*/true, filter);
+        if (plan_.slm.has_b()) {
+            cond = add_grid_guard(
+                    cond, cfg_.thread_group_grid(), plan_.slm.b_grid);
+        }
+        return cond;
+    }
+
+    void build_b_reduce_store() {
+        auto &gemm_schedule = plan_.gemm_schedule;
+        bool use_atomic
+                = gemm_schedule.with_kernel_grid_k_slicing() || cfg_.slm().b();
+        auto b_reduce_buf = find_reg_buffer("b_reduce", /*allow_empty=*/true);
+        if (b_reduce_buf.first.is_empty()) return;
+        auto b_reduce_view
+                = plan_.bia_view.create_sub_view(plan_.b_reduce_tile());
+        auto r2g = make_access_builder(ir_ctx_, b_reduce_view, b_reduce_buf_,
+                b_reduce_buf.first,
+                use_atomic ? send_op_t::atomic_fadd : send_op_t::store,
+                send_address_t::a64);
+        auto cond = get_b_reduce_store_condition();
+        b_reduce_store_stmt_ = if_t::make(cond, r2g.stmt());
+    }
+
+    std::vector<func_t> create_fma_funcs(const fma_plan_t &fma) const {
+        auto &a = fma.a_layout;
+        auto &b = fma.b_layout;
+        auto &c = fma.c_layout;
+        std::vector<func_t> ret;
+        switch (fma.fma_kind) {
+            case fma_kind_t::mad: {
+                int simd = fma.max_bmn_blk();
+                int a_stride = fma.is_a_broadcast() ? 0 : (int)a.inner_stride();
+                int b_stride = fma.is_b_broadcast() ? 0 : (int)b.inner_stride();
+                auto mad = mad_t::make(ir_ctx_.hw(), c.type(), simd, a.type(),
+                        a_stride, b.type(), b_stride);
+                ret.push_back(mad);
+                break;
+            }
+            case fma_kind_t::dp4a:
+            case fma_kind_t::dpas:
+            case fma_kind_t::dpasw: {
+                const int max_rcount = 8;
+                int block_rcount = fma.m_blk;
+                int simd = fma.n_blk;
+                int sdepth
+                        = ir_utils::safe_divide(fma.k_blk * a.type().size(), 4);
+                for (int r = 0; r < block_rcount;) {
+                    int rcount = std::min(max_rcount, block_rcount - r);
+                    auto dpas = dpas_t::make(/*is_dpasw=*/false, simd, sdepth,
+                            rcount, c.type(), b.type(), a.type());
+                    ret.push_back(dpas);
+                    r += rcount;
+                }
+                break;
+            }
+            default: ir_error_not_expected();
+        }
+        return ret;
+    }
+
+    stmt_t create_fma_block(const std::vector<func_t> &fmas, const expr_t &a,
+            const expr_t &b, const expr_t &c) const {
+        bool is_dpas = fmas[0].is<dpas_t>();
+        auto src1 = a;
+        auto src2 = b;
+        auto dst = c;
+        if (is_dpas) std::swap(src1, src2);
+        if (!is_dpas) ir_assert(fmas.size() == 1);
+        stmt_t ret;
+        for (auto &f : fmas) {
+            ret = ret.append(f.call({dst, dst, src1, src2}));
+            auto *dpas = f.as_ptr<dpas_t>();
+            if (is_dpas) {
+                src2 += dpas->src2_size();
+                dst += dpas->dst_size();
+            }
+        }
+        return ret;
+    }
+
+    const conv_config_t &cfg_;
+    const conv_plan_t &plan_;
+    ir_context_t &ir_ctx_;
+    const kernel_info_t &kernel_info_;
+
+    stmt_t g2s_load_stmt_;
+    stmt_t g2s_store_stmt_;
+    stmt_t prefetch_stmt_;
+    stmt_t x2r_mul_stmt_;
+    stmt_t c_store_stmt_;
+    stmt_t b_reduce_store_stmt_;
+
+    std::unordered_map<std::string, stmt_t> allocs_;
+
+    stmt_t empty_stmt_;
 };
 
 class compute_loop_label_injector_t : public ir_mutator_t {
@@ -2531,16 +3025,26 @@ stmt_t inject_compute_loop_label(const stmt_t &s) {
 }
 
 void conv_ir_builder_t::build() {
+    auto &prb = cfg_.prb();
+
     constraint_set_t init_cset;
 
     trace_reset();
 
     std::vector<stmt_t> init_stmts;
-    init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(), cfg_.simd(),
-            init_cset, init_stmts);
-
-    gemm_schedule_t gemm_schedule(
-            init_cset, cfg_.kernel_grid(), cfg_.thread_group_grid());
+    gemm_schedule_t gemm_schedule;
+    if (cfg_.with_plan()) {
+        auto &plan = cfg_.plan();
+        gemm_schedule = plan.gemm_schedule;
+        init_cset = plan.init_cset;
+        init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(),
+                cfg_.simd(), init_cset, init_stmts);
+    } else {
+        init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(),
+                cfg_.simd(), init_cset, init_stmts);
+        gemm_schedule = gemm_schedule_t(
+                init_cset, cfg_.kernel_grid(), cfg_.thread_group_grid());
+    }
 
     // Initialize memory buffers.
     std::vector<stmt_t> inner_lets;
@@ -2550,42 +3054,56 @@ void conv_ir_builder_t::build() {
     view_t c_view;
     view_t bp_reduced_view;
 
-    expr_t ap_buf;
-    expr_t bp_buf;
-    expr_t cp_buf;
-    expr_t b_reduced_mem_buf;
+    expr_t ap_buf = kernel_info_.find_arg(prb.is_bwd_d ? "dst" : "src");
+    expr_t bp_buf = kernel_info_.find_arg(prb.is_bwd_w ? "dst" : "wei");
+    expr_t cp_buf = kernel_info_.find_arg(
+            prb.is_fwd ? "dst" : (prb.is_bwd_d ? "src" : "wei"));
+    expr_t b_reduced_mem_buf
+            = kernel_info_.find_arg("bia", /*allow_empty=*/true);
     expr_t b_reduction_condition;
 
-    if (cfg_.prb().is_fwd) {
-        init_fwd(gemm_schedule, a_view, b_view, c_view, ap_buf, bp_buf, cp_buf);
-    } else if (cfg_.prb().is_bwd_d) {
-        init_bwd_d(
-                gemm_schedule, a_view, b_view, c_view, ap_buf, bp_buf, cp_buf);
-    } else if (cfg_.prb().is_bwd_w) {
-        init_bwd_w(gemm_schedule, a_view, b_view, c_view, bp_reduced_view,
-                ap_buf, bp_buf, cp_buf, b_reduced_mem_buf,
-                b_reduction_condition);
-    } else {
-        ir_error_not_expected();
-    }
+    if (!cfg_.with_plan()) {
+        if (cfg_.prb().is_fwd) {
+            init_fwd(gemm_schedule, a_view, b_view, c_view, ap_buf, bp_buf,
+                    cp_buf);
+        } else if (cfg_.prb().is_bwd_d) {
+            init_bwd_d(gemm_schedule, a_view, b_view, c_view, ap_buf, bp_buf,
+                    cp_buf);
+        } else if (cfg_.prb().is_bwd_w) {
+            init_bwd_w(gemm_schedule, a_view, b_view, c_view, bp_reduced_view,
+                    ap_buf, bp_buf, cp_buf, b_reduced_mem_buf,
+                    b_reduction_condition);
+        } else {
+            ir_error_not_expected();
+        }
 
-    gemm_schedule.finalize();
+        gemm_schedule.finalize();
+    }
 
     trace_stamp("GEMM Schedule");
 
     ir_context_t ir_ctx(cfg_.exec_cfg(), init_cset);
-    post_op_context_t post_op_ctx(cfg_, gemm_schedule, kernel_info_);
-    compute_builder_t cb(cfg_, ir_ctx, kernel_info_);
+    std::unique_ptr<compute_builder_iface_t> cb_ptr;
 
-    cb.set_gemm_schedule(gemm_schedule);
+    if (!cfg_.with_plan()) {
+        post_op_context_t post_op_ctx(cfg_, gemm_schedule, kernel_info_);
+        cb_ptr = utils::make_unique<compute_builder_t>(
+                cfg_, ir_ctx, kernel_info_);
+
+        auto &cb = (compute_builder_t &)*cb_ptr;
+        cb.set_gemm_schedule(gemm_schedule);
+        cb.set_b_reduced_view(bp_reduced_view);
+        cb.set_post_op_context(post_op_ctx);
+        cb.set_reduce_condition(b_reduction_condition);
+    } else {
+        cb_ptr = utils::make_unique<compute_builder_with_plan_t>(
+                cfg_, ir_ctx, kernel_info_);
+    }
+    auto &cb = *cb_ptr;
     cb.set_ap_buf(ap_buf);
     cb.set_bp_buf(bp_buf);
     cb.set_cp_buf(cp_buf);
-    cb.set_b_reduced_mem_buf(b_reduced_mem_buf);
-    cb.set_b_reduced_view(bp_reduced_view);
-    cb.set_post_op_context(post_op_ctx);
-    cb.set_reduce_condition(b_reduction_condition);
-
+    cb.set_b_reduce_buf(b_reduced_mem_buf);
     cb.build();
 
     trace_stamp("Compute Builder");
