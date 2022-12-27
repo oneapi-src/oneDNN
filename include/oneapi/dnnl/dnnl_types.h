@@ -830,6 +830,9 @@ typedef enum {
     dnnl_aBdc24b,
     dnnl_aBdec24b,
     dnnl_aBdefc24b,
+    dnnl_abDc16d,
+    dnnl_abdEc16e,
+    dnnl_abdCe16c,
 
     /// Just a sentinel, not real memory format tag. Must be changed after new
     /// format tag is added.
@@ -963,15 +966,18 @@ typedef enum {
     ///  - For GRU cells, the gates order is update, reset and output gate.
     dnnl_ldgo = dnnl_abcd,
     /// 5D LSTM projection tensor
+    dnnl_ldOi16o = dnnl_abDc16d,
     dnnl_ldOi32o = dnnl_abDc32d,
     dnnl_ldOI32o4i = dnnl_abDC32d4c,
     dnnl_ldIo32i = dnnl_abCd32c,
     /// 6D RNN weights tensor
+    dnnl_ldgOi16o = dnnl_abdEc16e,
     dnnl_ldgOi32o = dnnl_abdEc32e,
     dnnl_ldgOI32o2i = dnnl_abdEC32e2c,
     dnnl_ldgOI32o4i = dnnl_abdEC32e4c,
     dnnl_ldgOI64o2i = dnnl_abdEC64e2c,
     dnnl_ldgOI64o4i = dnnl_abdEC64e4c,
+    dnnl_ldgIo16i = dnnl_abdCe16c,
     dnnl_ldgIo32i = dnnl_abdCe32c,
     dnnl_ldgIO32i2o = dnnl_abdCE32c2e,
 

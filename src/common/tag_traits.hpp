@@ -48,6 +48,8 @@ enum class inner_blk_t {
     _16a,
     _16b,
     _16c,
+    _16d,
+    _16e,
     _24a,
     _24b,
     _24c,
@@ -669,6 +671,7 @@ DECL_TRAITS(aBCdef4b8c2b, _BC, _4b8c2b, 6);
 DECL_TRAITS(aBCd4c8b2c, _BC, _4c8b2c, 4);
 DECL_TRAITS(aBCde4c8b2c, _BC, _4c8b2c, 5);
 DECL_TRAITS(aBCdef4c8b2c, _BC, _4c8b2c, 6);
+DECL_TRAITS(abDc16d, _D, _16d, 4);
 DECL_TRAITS(abDc32d, _D, _32d, 4);
 DECL_TRAITS(abDC32d4c, _CD, _32d4c, 4);
 DECL_TRAITS(abCd32c, _C, _32c, 4);
@@ -677,11 +680,13 @@ DECL_TRAITS(abCdef32c, _C, _32c, 6);
 DECL_TRAITS(abCd4c, _C, _4c, 4);
 DECL_TRAITS(abCde4c, _C, _4c, 5);
 DECL_TRAITS(abCdef4c, _C, _4c, 6);
+DECL_TRAITS(abdEc16e, _E, _16e, 5);
 DECL_TRAITS(abdEc32e, _E, _32e, 5);
 DECL_TRAITS(abdEC32e2c, _CE, _32e2c, 5);
 DECL_TRAITS(abdEC32e4c, _CE, _32e4c, 5);
 DECL_TRAITS(abdEC64e2c, _CE, _64e2c, 5);
 DECL_TRAITS(abdEC64e4c, _CE, _64e4c, 5);
+DECL_TRAITS(abdCe16c, _C, _16c, 5);
 DECL_TRAITS(abdCe32c, _C, _32c, 5);
 DECL_TRAITS(abdCE32c2e, _CE, _32c2e, 5);
 DECL_TRAITS(decbA16a, _A, _16a, 5);
