@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,6 +44,17 @@ namespace jit {
 enum class bmnk_kind_t { undef = -1, b = 0, m = 1, n = 2, k = 3 };
 
 enum class abc_kind_t { undef, a, b, c };
+
+inline std::ostream &operator<<(std::ostream &out, abc_kind_t abc) {
+    switch (abc) {
+        case abc_kind_t::undef: out << "undef"; break;
+        case abc_kind_t::a: out << "a"; break;
+        case abc_kind_t::b: out << "b"; break;
+        case abc_kind_t::c: out << "c"; break;
+        default: ir_error_not_expected();
+    }
+    return out;
+}
 
 class bmnk_mapper_t {
 public:
@@ -94,6 +105,10 @@ public:
     layout_t map_to_bmnk(abc_kind_t abc_kind,
             const std::vector<bmnk_kind_t> &bmnk_kinds,
             const layout_t &layout) const;
+
+    layout_t map_from_bmnk(abc_kind_t abc_kind,
+            const std::vector<bmnk_kind_t> &bmnk_kinds,
+            const layout_t &bmnk_layout, const layout_t &abc_layout) const;
 
 private:
     const std::vector<expr_t> &get_vars(abc_kind_t abc_kind) const {
@@ -161,17 +176,22 @@ private:
     bmnk_mapper_t bmnk_mapper_;
 
     // Ordered from innermost to outermost.
+    std::vector<std::pair<abc_kind_t, block_t>> b_blocks_;
     std::vector<std::pair<abc_kind_t, block_t>> m_blocks_;
     std::vector<std::pair<abc_kind_t, block_t>> n_blocks_;
     std::vector<std::pair<abc_kind_t, block_t>> k_blocks_;
 };
 
 enum class loop_kind_t : int {
-    undef,
-    kernel_grid, // Loop is bound to the kernel grid.
-    serial, // Loop is inside a thread (may be unrolled or just a regular loop).
-    tg_grid, // Loop is bound to the thread group grid.
-    tensorized, // Such loops are fully unrolled/vectorized and converted to blocked multiplication.
+    undef = 0,
+    // Loop is bound to the kernel grid.
+    kernel_grid = (1 << 0),
+    // Loop is inside a thread (may be unrolled or just a regular loop).
+    serial = (1 << 1),
+    // Loop is bound to the thread group grid.
+    tg_grid = (1 << 2),
+    // Such loops are fully unrolled/vectorized and converted to blocked multiplication.
+    tensorized = (1 << 3),
 };
 
 static std::string to_string(loop_kind_t kind) {
@@ -190,6 +210,21 @@ inline std::ostream &operator<<(std::ostream &out, loop_kind_t kind) {
     out << to_string(kind);
     return out;
 }
+
+inline loop_kind_t operator&(loop_kind_t a, loop_kind_t b) {
+    return static_cast<loop_kind_t>(static_cast<int>(a) & static_cast<int>(b));
+}
+
+inline loop_kind_t operator|(loop_kind_t a, loop_kind_t b) {
+    return static_cast<loop_kind_t>(static_cast<int>(a) | static_cast<int>(b));
+}
+
+inline bool any(loop_kind_t a) {
+    return a != loop_kind_t::undef;
+}
+
+const loop_kind_t all_loop_kinds = loop_kind_t::kernel_grid
+        | loop_kind_t::serial | loop_kind_t::tg_grid | loop_kind_t::tensorized;
 
 class loop_t {
 public:
@@ -275,14 +310,20 @@ public:
 
     // Returns a loop variable expressed in the variables of the leaf loops.
     expr_t expand_var(const object_map_t<expr_t, loop_t> &all_loops,
-            bool skip_fused = false) const {
-        if (is_leaf()) return var();
+            bool skip_fused = false,
+            loop_kind_t filter_kind = all_loop_kinds) const {
+        if (is_leaf()) {
+            if (any(kind() & filter_kind)) return var();
+            return 0;
+        }
         if (is_split_parent()) {
             ir_assert(child_vars_.size() == 2);
             auto &outer_loop = all_loops.at(child_vars_[0]);
             auto &inner_loop = all_loops.at(child_vars_[1]);
-            auto outer_var = outer_loop.expand_var(all_loops, skip_fused);
-            auto inner_var = inner_loop.expand_var(all_loops, skip_fused);
+            auto outer_var
+                    = outer_loop.expand_var(all_loops, skip_fused, filter_kind);
+            auto inner_var
+                    = inner_loop.expand_var(all_loops, skip_fused, filter_kind);
             return outer_var * inner_loop.bound() + inner_var;
         }
         if (is_fused_parent()) {
@@ -299,7 +340,8 @@ public:
                 auto &child_loop = all_loops.at(v);
                 auto &bound = child_loop.bound();
                 if (v.is_same(var())) {
-                    auto e = fused_loop.expand_var(all_loops, skip_fused)
+                    auto e = fused_loop.expand_var(
+                                     all_loops, skip_fused, filter_kind)
                             / denom;
                     return (i == 0 ? e : e % bound);
                 }
@@ -672,13 +714,15 @@ public:
         }
     }
 
-    expr_t expand(const expr_t &e, bool expand_trivial_vars = true) const {
+    expr_t expand(const expr_t &e, bool expand_trivial_vars = true,
+            loop_kind_t filter_kind = all_loop_kinds) const {
         auto found_vars = find_unique_objects<var_t>(e);
         auto ret = e;
         for (auto &v : found_vars) {
             if (!has_loop(v)) continue;
             auto &loop = find_loop(v);
-            auto v_value = loop.expand_var(loops_, /*skip_fused=*/true);
+            auto v_value
+                    = loop.expand_var(loops_, /*skip_fused=*/true, filter_kind);
             ret = substitute(ret, v, v_value);
         }
         if (expand_trivial_vars) {

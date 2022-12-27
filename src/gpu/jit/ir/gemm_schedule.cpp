@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,9 +46,20 @@ layout_t bmnk_mapper_t::map_to_bmnk(abc_kind_t abc_kind,
     return layout_t(layout.type(), int(bmnk_kinds.size()), 0, blocks);
 }
 
+layout_t bmnk_mapper_t::map_from_bmnk(abc_kind_t abc_kind,
+        const std::vector<bmnk_kind_t> &bmnk_kinds, const layout_t &bmnk_layout,
+        const layout_t &abc_layout) const {
+    bmnk_block_mapper_t m(*this);
+    m.push_blocks(abc_kind, abc_layout.blocks());
+    return m.map_from_bmnk(abc_kind, bmnk_kinds, bmnk_layout);
+}
+
 void bmnk_block_mapper_t::push_block(abc_kind_t abc_kind, const block_t &b) {
     auto bmnk_kind = bmnk_mapper_.bmnk_kind(abc_kind, b.dim_idx);
     switch (bmnk_kind) {
+        case bmnk_kind_t::b:
+            if (abc_kind == abc_kind_t::a) b_blocks_.emplace_back(abc_kind, b);
+            break;
         case bmnk_kind_t::m: m_blocks_.emplace_back(abc_kind, b); break;
         case bmnk_kind_t::n: n_blocks_.emplace_back(abc_kind, b); break;
         case bmnk_kind_t::k: k_blocks_.emplace_back(abc_kind, b); break;
@@ -64,6 +75,8 @@ layout_t bmnk_block_mapper_t::map_from_bmnk(abc_kind_t abc_kind,
     std::vector<block_t> blocks;
     std::vector<std::vector<block_t>> tmp_blocks(
             static_cast<int>(bmnk_kind_t::k) + 1);
+    tmp_blocks[static_cast<int>(bmnk_kind_t::b)]
+            = create_prb_blocks(abc_kind, b_blocks_);
     tmp_blocks[static_cast<int>(bmnk_kind_t::m)]
             = create_prb_blocks(abc_kind, m_blocks_);
     tmp_blocks[static_cast<int>(bmnk_kind_t::n)]
