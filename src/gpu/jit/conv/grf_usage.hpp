@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -160,6 +160,8 @@ public:
     const grf_buf_usage_t &buf_usage() const { return buf_usage_; }
 
     std::string str() const;
+
+    IR_DEFINE_DUMP()
 
 private:
     int grf_size_;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -530,7 +530,10 @@ public:
                 for (auto &buf : buf_usage_.bufs()) {
                     if (is_header(buf)) header_bufs.push_back(buf);
                 }
+                int peak_header_usage_ = 0;
                 for (auto &buf : header_bufs) {
+                    peak_header_usage_ = std::max(
+                            peak_header_usage_, buf_usage_.get_size(buf));
                     buf_usage_.remove(buf);
                 }
             }
@@ -620,6 +623,9 @@ public:
         info.add(grf_usage_label_t::reserved, external_regs);
         info.add(grf_usage_label_t::tmp_vars,
                 utils::div_up(peak_grf_usage_ - peak_alloc_usage_, grf_size_));
+        if (peak_headers_ <= 1) {
+            info.add(grf_usage_label_t::reused_headers, peak_header_usage_);
+        }
         return info;
     }
 
@@ -675,7 +681,7 @@ private:
         if (is_invalid_) return;
         ir_assert(is_buffer(buf));
         auto &name = buf.as<var_t>().name;
-        if (name == "b_reduced") {
+        if (name.find("b_reduce") == 0) {
             set_label(buf, grf_usage_label_t::out_buf);
         } else if (name.find("zp_") == 0) {
             set_label(buf, grf_usage_label_t::zero_points);
@@ -686,7 +692,7 @@ private:
         ir_assert(is_buffer(buf));
         auto &name = buf.as<var_t>().name;
         if (name.find("zp_") == 0) return true;
-        if (name == "b_reduced") return true;
+        if (name.find("b_reduce")) return true;
         return false;
     }
 
@@ -745,6 +751,7 @@ private:
 
     int headers_ = 0;
     int peak_headers_ = 0;
+    int peak_header_usage_ = 0; // Unset when headers are not reused.
 };
 
 grf_usage_t get_grf_usage(const stmt_t &body, int grf_size) {
