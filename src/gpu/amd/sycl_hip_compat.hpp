@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,10 @@
 #include "sycl/sycl_compat.hpp"
 
 #include "gpu/amd/sycl_hip_utils.hpp"
+
+#if __has_include(<sycl/ext/oneapi/backend/hip.hpp>)
+#include <sycl/ext/oneapi/backend/hip.hpp>
+#endif
 
 namespace dnnl {
 namespace impl {
