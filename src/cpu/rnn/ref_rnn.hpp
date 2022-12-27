@@ -331,12 +331,13 @@ struct _ref_rnn_common_t : public primitive_t {
                             data_type::f32)
                     || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt)
                 return status::unimplemented;
-
-            if (rnn_.is_signed_int8_conf() && !mayiuse(avx512_core_amx))
+            const auto isa = get_max_cpu_isa();
+            if (rnn_.is_signed_int8_conf()
+                    && !is_superset(isa, avx512_core_amx))
                 return status::unimplemented;
-            if (rnn_.is_int8_conf() && !mayiuse(avx512_core_vnni))
+            if (rnn_.is_int8_conf() && !is_superset(isa, avx512_core_vnni))
                 return status::unimplemented;
-            if (rnn_.is_f32_conf() && !mayiuse(avx512_core))
+            if (rnn_.is_f32_conf() && !is_superset(isa, avx2))
                 return status::unimplemented;
 
             /* check that no shift have been passed to s8s8 amx lstm */

@@ -36,7 +36,7 @@ std::pair<dim_t, dim_t> brgemm_calc_k_block_amx(
         dim_t K1, dim_t K2, bool is_int8);
 std::pair<dim_t, dim_t> brgemm_calc_k_block_vanilla_rnn(dim_t K1, dim_t K2,
         dim_t M, dim_t n_block, dim_t src_layer_type_size, dim_t As, dim_t Bs,
-        dim_t Cs, dim_t l2_cache_size, bool is_bf16);
+        dim_t Cs, dim_t l2_cache_size, bool is_bf16, x64::cpu_isa_t isa);
 
 dim_t brgemm_calc_m_block(alg_kind_t cell_kind, prop_kind_t aprop, dim_t nthr,
         dim_t M, dim_t N_blocks, bool is_f32, bool is_int8_amx,
@@ -73,9 +73,10 @@ x64::cpu_isa_t brgemm_calc_isa(dim_t K1, dim_t K2, bool is_int8, bool is_bf16) {
         return x64::avx512_core_vnni;
     } else if (is_bf16) {
         return x64::avx512_core_bf16;
+    } else { // f32
+        return utils::map(true, x64::isa_undef, mayiuse(avx512_core),
+                avx512_core, mayiuse(avx2), avx2);
     }
-
-    return x64::isa_undef;
 }
 
 std::pair<dim_t, dim_t> brgemm_calc_k_block(dim_t K1, dim_t K2, dim_t M,
@@ -89,7 +90,7 @@ std::pair<dim_t, dim_t> brgemm_calc_k_block(dim_t K1, dim_t K2, dim_t M,
         return brgemm_calc_k_block_amx(K1, K2, is_int8);
     else if (cell_kind == alg_kind::vanilla_rnn)
         return brgemm_calc_k_block_vanilla_rnn(K1, K2, M, n_block,
-                src_layer_type_size, As, Bs, Cs, l2_cache_size, is_bf16);
+                src_layer_type_size, As, Bs, Cs, l2_cache_size, is_bf16, isa);
 
     return std::make_pair(K1, K2);
 }
@@ -112,16 +113,20 @@ std::pair<dim_t, dim_t> brgemm_calc_k_block_amx(
 
 std::pair<dim_t, dim_t> brgemm_calc_k_block_vanilla_rnn(dim_t K1, dim_t K2,
         dim_t M, dim_t n_block, dim_t src_layer_type_size, dim_t As, dim_t Bs,
-        dim_t Cs, dim_t l2_cache_size, bool is_bf16) {
+        dim_t Cs, dim_t l2_cache_size, bool is_bf16, x64::cpu_isa_t isa) {
 
     //Heuristics experimentally selected.
+    // For avx2 (i.e., non-avx512_core) the value is chosen while tuning
+    // deepspeech model. It might be applicable for avx512_core as well (TODO)
+    const float l2_occupancy
+            = is_superset(isa, x64::avx512_core) ? 0.25f : 0.75f;
     const bool should_adjust_by_l2 = static_cast<float>(As + Bs + Cs)
-            >= 0.25 * static_cast<float>(l2_cache_size);
+            >= l2_occupancy * static_cast<float>(l2_cache_size);
     dim_t k1_block = K1;
     dim_t k2_block = K2;
 
     if (should_adjust_by_l2) {
-        int block_size = (l2_cache_size * 0.25f)
+        int block_size = (l2_cache_size * l2_occupancy)
                 / ((M + n_block) * src_layer_type_size);
 
         if (is_bf16) {
@@ -330,6 +335,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     rnn.K2padded = utils::rnd_up(rnn.K2, padding);
 
     rnn.brgemm_isa = brgemm_calc_isa(rnn.K1, rnn.K2, is_int8, is_bf16);
+    if (rnn.brgemm_isa == isa_undef) return status::unimplemented;
     const int bf32_reduction_dim_threshold = 128;
     const bool is_shape_ok_for_bf32 = rnn.K1 >= bf32_reduction_dim_threshold
             && rnn.K2 >= bf32_reduction_dim_threshold;
@@ -348,7 +354,8 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
             = rnn.is_cell_int8_amx() || rnn.is_cell_bf16_amx();
     const bool can_use_block64
             = is_amx_isa_selected && rnn.N % 64 == 0 && !rnn.is_lstm_projection;
-    rnn.n_block = can_use_block64 ? 64 : 32;
+    const int simd_w = isa_max_vlen(rnn.brgemm_isa) / sizeof(float);
+    rnn.n_block = can_use_block64 ? 64 : 2 * simd_w;
     rnn.N_blocks = utils::div_up(rnn.N, rnn.n_block);
     rnn.n_tail = rnn.N % rnn.n_block;
 

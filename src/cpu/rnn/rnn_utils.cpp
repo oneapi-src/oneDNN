@@ -76,19 +76,20 @@ bool rnn_utils::is_ldoi(const memory_desc_wrapper &mdw) {
 bool rnn_utils::is_ldigo_blocked(const memory_desc_wrapper &mdw) {
     format_tag_t md_format_tag = mdw.matches_one_of_tag(format_tag::ldgOi32o,
             format_tag::ldgOI32o2i, format_tag::ldgOI32o4i,
-            format_tag::ldgOI64o2i, format_tag::ldgOI64o4i);
+            format_tag::ldgOI64o2i, format_tag::ldgOI64o4i,
+            format_tag::ldgOi16o);
     return md_format_tag != format_tag::undef;
 }
 
 bool rnn_utils::is_ldgoi_blocked(const memory_desc_wrapper &mdw) {
     format_tag_t md_format_tag = mdw.matches_one_of_tag(
-            format_tag::ldgIo32i, format_tag::ldgIO32i2o);
+            format_tag::ldgIo32i, format_tag::ldgIO32i2o, format_tag::ldgIo16i);
     return md_format_tag != format_tag::undef;
 }
 
 bool rnn_utils::is_ldio_blocked(const memory_desc_wrapper &mdw) {
     format_tag_t md_format_tag = mdw.matches_one_of_tag(
-            format_tag::ldOi32o, format_tag::ldOI32o4i);
+            format_tag::ldOi32o, format_tag::ldOI32o4i, format_tag::ldOi16o);
     return md_format_tag != format_tag::undef;
 }
 
@@ -280,22 +281,34 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
     } else {
         using namespace format_tag;
         if (rnn.is_brgemm) {
+            const int n_block = rnn.n_block;
             format_tag_t tag = format_tag::undef;
 
             if (weights_type == weights_type_t::projection) {
-                tag = rnn.is_int8_conf() ? format_tag::ldOI32o4i
-                                         : format_tag::ldOi32o;
+                if (rnn.is_int8_conf())
+                    tag = format_tag::ldOI32o4i;
+                else
+                    tag = utils::map(n_block, format_tag::undef, 32,
+                            format_tag::ldOi32o, 16, format_tag::ldOi16o);
             } else if (rnn.is_fwd) {
-                tag = rnn.is_int8_conf()
-                        ? (rnn.n_block == 64 ? format_tag::ldgOI64o4i
-                                             : format_tag::ldgOI32o4i)
-                        : rnn.is_bf16_conf()
-                                ? (rnn.n_block == 64 ? format_tag::ldgOI64o2i
-                                                     : format_tag::ldgOI32o2i)
-                                : format_tag::ldgOi32o;
+                if (rnn.is_int8_conf())
+                    tag = utils::map(n_block, format_tag::undef, 64,
+                            format_tag::ldgOI64o4i, 32, ldgOI32o4i);
+                else if (rnn.is_bf16_conf())
+                    tag = utils::map(n_block, format_tag::undef, 64,
+                            format_tag::ldgOI64o2i, 32, ldgOI32o2i);
+                else {
+                    assert(IMPLICATION(n_block == 64, rnn.is_bf32()));
+                    tag = utils::map(n_block, format_tag::undef, 64,
+                            format_tag::ldgOi32o /*bf32*/, 32,
+                            format_tag::ldgOi32o, 16, ldgOi16o);
+                }
             } else {
-                tag = rnn.is_bf16_conf() ? format_tag::ldgIO32i2o
-                                         : format_tag::ldgIo32i;
+                if (rnn.is_bf16_conf())
+                    tag = format_tag::ldgIO32i2o;
+                else
+                    tag = utils::map(n_block, format_tag::undef, 32,
+                            format_tag::ldgIo32i, 16, format_tag::ldgIo16i);
             }
 
             if (tag != format_tag::undef) {
