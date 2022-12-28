@@ -34,6 +34,7 @@ namespace brgemm_inner_product_utils {
 // Returns amount of work on a thread for 1d partition non-reduction dimension
 // when using parallel reduction.
 int work_1d(int nthrs, int nthr_k, int n_chunks, int n_reduction_blocks) {
+    assert(nthrs >= nthr_k);
     int rd_work = div_up(n_reduction_blocks, nthr_k);
     int nthr_other = nthrs / nthr_k;
     return rd_work * div_up(n_chunks, nthr_other);
@@ -395,19 +396,20 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         const int num_min_chunk_sz = div_up(jbgp.nb_ic, min_chunk_sz);
         int reduce_work = int(0.5f * num_min_chunk_sz * jbgp.nb_os
                 + (float)num_min_chunk_sz / jbgp.nb_oc + 0.5f);
-        const int reduce_thr_groups
-                = nstl::min(jbgp.nb_ic >= 1024 ? 8 : 4, num_min_chunk_sz);
+        const int max_nthr_ic_b = nstl::min(
+                nstl::min(jbgp.nb_ic >= 1024 ? 8 : 4, num_min_chunk_sz),
+                jbgp.nthr);
 
         if (is_f32) {
             // Don't sacrifice reduction threads if other dimension will
             // not benefit.
             int nthr_other = jbgp.nthr / reduce_work;
-            if (reduce_work < reduce_thr_groups && nthr_other <= 1) {
-                reduce_work = reduce_thr_groups;
+            if (reduce_work < max_nthr_ic_b && nthr_other <= 1) {
+                reduce_work = max_nthr_ic_b;
             }
         }
 
-        jbgp.nthr_ic_b = saturate(1, reduce_thr_groups, reduce_work);
+        jbgp.nthr_ic_b = saturate(1, max_nthr_ic_b, reduce_work);
 
         bool is_1d_oc = os_chunks == 1 && oc_chunks > 1;
         bool is_1d_os = oc_chunks == 1 && os_chunks > 1;
@@ -426,7 +428,6 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
             if (work_1 >= work_2 && nthr_other > 1) jbgp.nthr_ic_b--;
         }
 
-        jbgp.nthr_ic_b = nstl::min(jbgp.nthr_ic_b, jbgp.nthr);
         if (jbgp.nthr_ic_b > 1) {
             jbgp.nb_ic_blocking = div_up(jbgp.nb_ic, jbgp.nthr_ic_b);
             jbgp.nb_ic_blocking /= div_up(jbgp.nb_ic_blocking, 64);
@@ -584,11 +585,12 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
                 + (float)num_min_chunk_sz / jbgp.nb_ic + 0.5f);
 
         // optimization for transformer_lt on CPX/SKX
-        const int max_nthr_oc_b
-                = nstl::min((!is_amx_xf16 && !jbgp.is_bf32 && jbgp.oc > 32000)
+        const int max_nthr_oc_b = nstl::min(
+                nstl::min((!is_amx_xf16 && !jbgp.is_bf32 && jbgp.oc > 32000)
                                 ? jbgp.nthr / 2
                                 : 4,
-                        num_min_chunk_sz);
+                        num_min_chunk_sz),
+                jbgp.nthr);
 
         if (is_f32) {
             // Don't sacrifice reduction threads if other dimension will
@@ -618,7 +620,6 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
             if (work_1 >= work_2 && nthr_other > 1) jbgp.nthr_oc_b--;
         }
 
-        jbgp.nthr_oc_b = nstl::min(jbgp.nthr_oc_b, jbgp.nthr);
         if (jbgp.nthr_oc_b > 1) {
             jbgp.nb_oc_blocking = div_up(jbgp.nb_oc, jbgp.nthr_oc_b);
             jbgp.nb_oc_blocking
