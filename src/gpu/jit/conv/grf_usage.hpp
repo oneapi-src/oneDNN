@@ -115,12 +115,6 @@ private:
     object_map_t<expr_t, grf_usage_label_t> buf_labels_;
 };
 
-inline std::ostream &operator<<(
-        std::ostream &out, const grf_buf_usage_t &usage) {
-    out << usage.str();
-    return out;
-}
-
 class grf_usage_t {
 public:
     grf_usage_t(int grf_size = 0) : grf_size_(grf_size), buf_usage_(grf_size) {
@@ -170,11 +164,6 @@ private:
     std::unordered_map<grf_usage_label_t, int, label_hash_t> regs_;
     grf_buf_usage_t buf_usage_;
 };
-
-inline std::ostream &operator<<(std::ostream &out, const grf_usage_t &usage) {
-    out << usage.str();
-    return out;
-}
 
 grf_usage_t estimate_grf_usage(const conv_config_t &cfg);
 grf_usage_t get_grf_usage(const stmt_t &body, int grf_size);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,12 +49,6 @@ struct reorder_config_t {
         , dst_layout(memory_desc_wrapper(dst_md), /*do_normalize=*/false)
         , exec_cfg(engine) {}
 };
-
-inline std::ostream &operator<<(
-        std::ostream &out, const reorder_config_t &cfg) {
-    out << cfg.str();
-    return out;
-}
 
 } // namespace jit
 } // namespace gpu

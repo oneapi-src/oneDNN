@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,6 +54,13 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
+
+template <typename T, typename = decltype(std::declval<T>().str(), void())>
+inline std::ostream &operator<<(std::ostream &out, const T &obj) {
+    out << obj.str();
+    return out;
+}
+
 namespace ir_utils {
 
 const int LOG_OFF = 0;
@@ -267,6 +274,7 @@ public:
 
     template <typename T>
     logger_t &operator<<(const T &obj) {
+        using dnnl::impl::gpu::jit::operator<<;
         maybe_print_header();
         out_ << obj;
         return *this;
@@ -448,11 +456,6 @@ private:
     std::vector<std::string> cur_row_;
 };
 
-inline std::ostream &operator<<(std::ostream &out, const table_t &table) {
-    out << table.str();
-    return out;
-}
-
 inline bool getenv_bool(const char *s, bool def) {
     return getenv_int(s, def ? 1 : 0) == 1;
 }
@@ -606,12 +609,6 @@ private:
     std::string str() const { return ""; };
 #endif
 };
-
-inline std::ostream &operator<<(
-        std::ostream &out, const debug_profiler_t &profile) {
-    out << profile.str();
-    return out;
-}
 
 } // namespace ir_utils
 } // namespace jit

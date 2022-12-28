@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -144,11 +144,6 @@ private:
     std::vector<expr_t> start_;
 };
 
-inline std::ostream &operator<<(std::ostream &out, const tensor_t &tensor) {
-    out << tensor.str();
-    return out;
-}
-
 class grid_info_t {
 public:
     grid_info_t() = default;
@@ -287,12 +282,6 @@ private:
     std::vector<int> parent_dims_;
 };
 
-inline std::ostream &operator<<(
-        std::ostream &out, const grid_info_t &grid_info) {
-    out << grid_info.str();
-    return out;
-}
-
 class grid_splitter_t {
 public:
     grid_splitter_t(const grid_info_t &grid)
@@ -402,11 +391,6 @@ private:
     dim_t stride_ = 0;
 };
 
-inline std::ostream &operator<<(std::ostream &out, const stride_t &stride) {
-    out << stride.str();
-    return out;
-}
-
 inline stride_t operator*(const stride_t &a, const stride_t &b) {
     stride_t tmp = a;
     return tmp *= b;
@@ -452,11 +436,6 @@ struct block_t {
     dim_t block; // Block size.
     stride_t stride; // Stride between elements of the block.
 };
-
-inline std::ostream &operator<<(std::ostream &out, const block_t &b) {
-    out << b.str();
-    return out;
-}
 
 class layout_t {
 public:
@@ -1221,11 +1200,6 @@ private:
     dim_t block_;
 };
 
-inline std::ostream &operator<<(std::ostream &out, const layout_t &layout) {
-    out << layout.str();
-    return out;
-}
-
 class mask_tensor_t {
 public:
     mask_tensor_t() = default;
@@ -1372,12 +1346,6 @@ private:
     std::vector<expr_t> id2masks_;
 };
 
-inline std::ostream &operator<<(
-        std::ostream &out, const mask_tensor_t &mask_tensor) {
-    out << mask_tensor.str();
-    return out;
-}
-
 class tdim_t {
 public:
     tdim_t() = default;
@@ -1455,11 +1423,6 @@ private:
     std::array<int, max_nvargs> vidxs_;
     expr_t mask_;
 };
-
-inline std::ostream &operator<<(std::ostream &out, const tdim_t &tdim) {
-    out << tdim.str();
-    return out;
-}
 
 class view_t {
 public:
@@ -1944,11 +1907,6 @@ private:
     std::vector<tdim_t> tdims_;
     layout_t tlayout_;
 };
-
-inline std::ostream &operator<<(std::ostream &out, const view_t &view) {
-    out << view.str();
-    return out;
-}
 
 class dim_assignment_t {
 public:

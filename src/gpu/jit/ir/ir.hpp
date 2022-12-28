@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -551,11 +551,6 @@ private:
     expr_t expr_;
 };
 
-inline std::ostream &operator<<(std::ostream &out, const relation_t &rel) {
-    out << rel.str();
-    return out;
-}
-
 // Equality for modulus: (var % mod) == 0, where:
 // - var is a variable
 // - mod is an integer constant
@@ -596,11 +591,6 @@ public:
 private:
     expr_t expr_;
 };
-
-inline std::ostream &operator<<(std::ostream &out, const modulus_info_t &mod) {
-    out << mod.str();
-    return out;
-}
 
 // Helper class to find constant bounds of integer expressions based on known
 // relations.

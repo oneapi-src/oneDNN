@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -517,11 +517,6 @@ private:
     bool is_ptr_ = false;
 };
 
-inline std::ostream &operator<<(std::ostream &out, const type_t &type) {
-    out << type.str();
-    return out;
-}
-
 // type_t to dnnl_data_type_t convertor.
 data_type_t to_dnnl(const type_t &type);
 
@@ -747,11 +742,6 @@ private:
 
     object_impl_t *impl_;
 };
-
-inline std::ostream &operator<<(std::ostream &out, const object_t &obj) {
-    out << obj.str();
-    return out;
-}
 
 // Helper classes for containers to store object_t.
 struct object_id_hash_t {
@@ -2222,11 +2212,6 @@ private:
     kind_t kind_;
     int index_; // Used to differentiate groups with the same kind.
 };
-
-inline std::ostream &operator<<(std::ostream &out, const stmt_label_t &label) {
-    out << label.str();
-    return out;
-}
 
 // Statement group, used to assign a label to a group of statements.
 class stmt_group_t : public stmt_impl_t {

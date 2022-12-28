@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,11 +107,6 @@ private:
     std::vector<int64_t> vec_;
 };
 
-std::ostream &operator<<(std::ostream &out, const vec_off_t &vec) {
-    out << vec.str();
-    return out;
-}
-
 vec_off_t operator+(vec_off_t a, int64_t b) {
     return a += b;
 }
@@ -172,11 +167,6 @@ public:
 private:
     std::vector<vec_off_t> vec_;
 };
-
-std::ostream &operator<<(std::ostream &out, const vec_vec_off_t &vec) {
-    out << vec.str();
-    return out;
-}
 
 expr_t to_vec(const expr_t &e, int elems) {
     if (e.type().elems() == elems) return e;
@@ -310,11 +300,6 @@ private:
     static const int lg2_zero_ = max_lg2_ + 1;
 };
 
-std::ostream &operator<<(std::ostream &out, const modulus_t &modulus) {
-    out << modulus.str();
-    return out;
-}
-
 modulus_t operator+(modulus_t a, const modulus_t &b) {
     return a += b;
 }
@@ -439,11 +424,6 @@ private:
     const tdim_t *dim_ = nullptr;
 };
 
-std::ostream &operator<<(std::ostream &out, const tdim_info_t &tdim) {
-    out << tdim.str();
-    return out;
-}
-
 enum class mask_kind_t {
     undef,
     ab,
@@ -537,11 +517,6 @@ private:
     int64_t b_ = 0;
     bool is_bound_ = false;
 };
-
-std::ostream &operator<<(std::ostream &out, const mask_desc_t &mask_desc) {
-    out << mask_desc.str();
-    return out;
-}
 
 bool has_vidx_mask(const std::vector<mask_desc_t> &mask_descs, int idx,
         dim_t dim, dim_t block, dim_t &factor) {
@@ -773,12 +748,6 @@ struct send_2d_params_t {
     int h_vstride = 0;
 };
 
-inline std::ostream &operator<<(
-        std::ostream &out, const send_2d_params_t &params) {
-    out << params.str();
-    return out;
-}
-
 struct send_block_t {
     std::string str(const std::string &indent = {}) const {
         std::ostringstream oss;
@@ -796,11 +765,6 @@ struct send_block_t {
     vec_off_t mask_inc; // nmasks
     int reg_off = 0;
 };
-
-inline std::ostream &operator<<(std::ostream &out, const send_block_t &block) {
-    out << block.str();
-    return out;
-}
 
 int rounded_slots(int slots, int max_slots) {
     if (max_slots == 1) {
@@ -999,12 +963,6 @@ struct send_group_t {
 
     std::vector<send_block_t> blocks;
 };
-
-inline std::ostream &operator<<(
-        std::ostream &out, const send_group_t &send_group) {
-    out << send_group.str();
-    return out;
-}
 
 void init_scattered_params(const hw_config_t &hw_cfg,
         const send_hint_t &send_hint, int inner_bytes, int *slot_size,
@@ -2000,12 +1958,6 @@ private:
     std::vector<mask_desc_t> mask_descs_;
     std::vector<send_group_t> send_groups_;
 };
-
-inline std::ostream &operator<<(
-        std::ostream &out, const send_plan_impl_t &send_plan) {
-    out << send_plan.str();
-    return out;
-}
 
 send_plan_t::send_plan_t() = default;
 send_plan_t::send_plan_t(std::unique_ptr<send_plan_impl_t> impl)

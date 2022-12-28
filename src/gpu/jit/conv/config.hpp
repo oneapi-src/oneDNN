@@ -1303,11 +1303,6 @@ private:
 #undef INIT_PARAM
 };
 
-inline std::ostream &operator<<(std::ostream &out, const conv_config_t &cfg) {
-    out << cfg.str();
-    return out;
-}
-
 class bmnk_dim_helper_t {
 public:
     bmnk_dim_helper_t(const conv_config_t &cfg) : prb_(cfg.prb()), cfg_(cfg) {}
