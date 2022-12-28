@@ -510,7 +510,7 @@ def extract_attr(attrs, type):
 
 def convert_scale_policy(value):
     # 4 is used by batched matmul
-    masks = {0: 'common', 2: 'per_oc', 4: 'per_oc'}
+    masks = {0: 'common', 1: 'per_oc', 2: 'per_oc', 3: 'per_oc', 4: 'per_oc'}
     mask = masks.get(int(value))
     if mask:
         return mask
