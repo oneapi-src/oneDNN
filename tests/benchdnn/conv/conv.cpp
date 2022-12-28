@@ -460,8 +460,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         const bool is_valid_f16 = IMPLICATION(is_f16,
                 prb->get_dt_conf(DST).dt == dnnl_f32
                         || prb->get_dt_conf(DST).dt == dnnl_f16);
+        const bool is_int8_src = prb->get_dt_conf(SRC).dt == dnnl_s8
+                || prb->get_dt_conf(SRC).dt == dnnl_u8;
+        const bool is_int8_wei = prb->get_dt_conf(WEI).dt == dnnl_s8
+                || prb->get_dt_conf(WEI).dt == dnnl_u8;
+        const bool is_f16_dst = prb->get_dt_conf(DST).dt == dnnl_f16;
+        const bool is_x8x8f16 = is_int8_src && is_int8_wei && is_f16_dst;
 
-        if (is_f32f32x8 || is_bf16bf16x8 || !is_valid_f16) {
+        if (is_f32f32x8 || is_bf16bf16x8 || is_x8x8f16 || !is_valid_f16) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
