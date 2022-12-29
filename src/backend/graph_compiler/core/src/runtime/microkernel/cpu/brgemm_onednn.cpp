@@ -124,6 +124,27 @@ static brgemm_attr_t get_dnnl_brgemm_attrs(const attrs_setting_t &attrs) {
             case attr_key::use_interleave_stores:
                 dnnl_attrs.use_interleave_stores = static_cast<bool>(it.second);
                 break;
+            case attr_key::hint_prfA_dist1:
+                dnnl_attrs.hint_prfA.dist1 = static_cast<int>(it.second);
+                break;
+            case attr_key::hint_prfA_dist2:
+                dnnl_attrs.hint_prfA.dist2 = static_cast<int>(it.second);
+                break;
+            case attr_key::hint_prfB_dist1:
+                dnnl_attrs.hint_prfB.dist1 = static_cast<int>(it.second);
+                break;
+            case attr_key::hint_prfB_dist2:
+                dnnl_attrs.hint_prfB.dist2 = static_cast<int>(it.second);
+                break;
+            case attr_key::hint_prfC_dist1:
+                dnnl_attrs.hint_prfC.dist1 = static_cast<int>(it.second);
+                break;
+            case attr_key::hint_prfC_dist2:
+                dnnl_attrs.hint_prfC.dist2 = static_cast<int>(it.second);
+                break;
+            case attr_key::var_bs:
+                dnnl_attrs.var_bs = static_cast<bool>(it.second);
+                break;
             case attr_key::nkeys: break;
         }
     }
@@ -203,7 +224,7 @@ struct alignas(64) brg_arg_t {
     int64_t brg_postops[postops_setting_t::max_postops_num
             * postops_setting_t::op_size / sizeof(int64_t)]
             = {0};
-    int64_t pad = 0;
+    int64_t pad[2] = {0};
     char bd_mask[];
 
     brg_arg_t(float alpha, float beta, int LDA, int LDB, int LDC, int M, int N,
@@ -253,8 +274,8 @@ struct alignas(64) brg_arg_t {
     }
 
     size_t get_hash() const {
-        static_assert(sizeof(brg_arg_t) == 64 * 5,
-                "expecting (64 * 5)-byte size for brg_arg");
+        static_assert(sizeof(brg_arg_t) == 64 * 6,
+                "expecting (64 * 6)-byte size for brg_arg");
         vec_u32x4 v = vec_u32x4(0);
         for (int i = 0; i < static_cast<int>(sizeof(brg_arg_t)) / 16; i += 2) {
             vec_u32x4 v0 = vec_u32x4::load(

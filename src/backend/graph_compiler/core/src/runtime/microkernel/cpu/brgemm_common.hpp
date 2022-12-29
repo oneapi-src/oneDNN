@@ -55,7 +55,16 @@ enum attr_key {
     // use_interleave_stores is a value that determines whether to use the
     // interleave stores or not
     use_interleave_stores, // bool
-    nkeys = use_interleave_stores + 1,
+    // hint of prefetching distance for A, B and C
+    // value should be int
+    hint_prfA_dist1,
+    hint_prfA_dist2,
+    hint_prfB_dist1,
+    hint_prfB_dist2,
+    hint_prfC_dist1,
+    hint_prfC_dist2,
+    var_bs, // bool, enable variable batch size for uker
+    nkeys,
 };
 
 // enumerate of buffer type in post op calculation
