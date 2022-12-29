@@ -383,6 +383,9 @@ status_t compiler_compiled_partition_impl_t::query_dynamic_outputs(
         const std::vector<logical_tensor_t *> &out_lts,
         const std::vector<const logical_tensor_t *> &in_lts,
         const impl::context_t *acontext) const {
+    // ban using query_dynamic_outputs when it is not a dynamic shape partition
+    if (dyn_inputs_.empty()) return status::invalid_arguments;
+
     // copy dyn_inputs_ & dyn_outputs_ to avoid potential race condition
     // when different threads accessing the same compiled_partition
     // holding different execution sizes
