@@ -2227,8 +2227,10 @@ expr_t const_fold_non_recursive(const expr_t &e) {
         auto &b = binary_op->b;
         if (!is_const_or_shuffle_const(a) || !is_const_or_shuffle_const(b))
             return e;
-
-        auto compute_type = common_type(a, b);
+        bool is_int = (a.type().is_int() && b.type().is_int());
+        // Always perform integer const folding in s64 to avoid overflow.
+        auto compute_type
+                = is_int ? type_t::s64(e.type().elems()) : common_type(a, b);
         return const_fold_binary(compute_type, op_kind, a, b);
     }
 
