@@ -781,10 +781,12 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
         if (!matches_tag(dst_md, dst_tag)) user_dst_tag = "axb";
     }
 
-    // Allow internal reorder from oihw/ohwi to more optimal weights layout.
-    if (allow_wei_reorder) {
-        if (matches_tag(wei_md, "abx")) user_wei_tag = "abx";
-        if (matches_tag(wei_md, "axb")) user_wei_tag = "axb";
+    // Allow internal reorder for plain weights.
+    for (auto *t : {"abx", "axb"}) {
+        if (matches_tag(wei_md, t)) {
+            user_wei_tag = t;
+            break;
+        }
     }
 
     if (user_src_tag.empty()) user_src_tag = src_tag;
