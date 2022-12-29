@@ -25,7 +25,7 @@ jobs:
       vmImage: 'ubuntu-20.04'
     steps:
       - script: |
-          .github/automation/env/clang.sh 9
+          .github/automation/env/clang.sh 11
         displayName: 'init'
       - script: |
           .github/automation/clang-format.sh
