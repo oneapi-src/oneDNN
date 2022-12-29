@@ -46,7 +46,6 @@
     }
 
 #if USE_STATS_ONE_PASS
-
 #define ACCUM_DATA_T float
 #define ACCUM_DATA8_T float8
 #define ACCUM_DATA2_T float2
@@ -62,13 +61,18 @@ SUM_DATA_T summation(ACCUM_DATA_T input, SUM_DATA_T state) {
     ret.s0 = t;
     return ret;
 }
+#endif // USE_STATS_ONE_PASS
 
 #if FUSED_ATOMICS_REDUCTION
+#if USE_STATS_ONE_PASS
 void gen9_mean_var_calc_fused_reduction(volatile __global atomic_float *mean,
         volatile __global atomic_float *variance, int dst_offset,
         SUM_DATA_T *sum, SUM_DATA_T *sum_sq, __local SUM_DATA_T *local_sum,
         __local SUM_DATA_T *local_sum_sq) {
-
+#else // regular alg
+void gen9_calc_fused_reduction(volatile __global atomic_float *dst,
+        int dst_offset, float *sum, __local float *local_sum) {
+#endif
     const int simd_id = get_sub_group_local_id();
 
     const int group_size = GWS_LWS1_CALC * GWS_LWS2_CALC;
@@ -80,7 +84,9 @@ void gen9_mean_var_calc_fused_reduction(volatile __global atomic_float *mean,
             const int slm_offset = CALC_SLM_LINE_SIZE * local_id
                     + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16 + simd_id;
             local_sum[slm_offset] = sum[sg];
+#if USE_STATS_ONE_PASS
             local_sum_sq[slm_offset] = sum_sq[sg];
+#endif
         }
     }
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -91,59 +97,30 @@ void gen9_mean_var_calc_fused_reduction(volatile __global atomic_float *mean,
                 const int off_local = CALC_SLM_LINE_SIZE * gr_id
                         + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16
                         + simd_id;
+#if USE_STATS_ONE_PASS
                 SUM_DATA_T tmp = local_sum[off_local];
                 SUM_DATA_T tmp_sq = local_sum_sq[off_local];
                 sum[sg] = summation(tmp.s1, sum[sg]);
                 sum_sq[sg] = summation(tmp_sq.s1, sum_sq[sg]);
                 sum[sg] = summation(tmp.s0, sum[sg]);
                 sum_sq[sg] = summation(tmp_sq.s0, sum_sq[sg]);
+#else // regular alg
+                sum[sg] += local_sum[off_local];
+#endif
             }
             const int offset = dst_offset + sg * 16 + simd_id;
 #if HAS_IC_TAIL
             if (offset < IC) {
 #endif
+#if USE_STATS_ONE_PASS
                 atomic_add_global(&mean[offset], sum[sg].s0);
                 atomic_add_global(&variance[offset], sum_sq[sg].s0);
+#else // regular alg
+            atomic_add_global(&dst[offset], sum[sg]);
+#endif
 #if HAS_IC_TAIL
             }
 #endif
-        }
-    }
-}
-#endif // FUSED_ATOMICS_REDUCTION
-#endif // USE_STATS_ONE_PASS
-
-#if FUSED_ATOMICS_REDUCTION
-void gen9_calc_fused_reduction(volatile __global atomic_float *dst,
-        int dst_offset, float *sum, __local float *local_sum) {
-    const int simd_id = get_sub_group_local_id();
-
-    const int group_size = GWS_LWS1_CALC * GWS_LWS2_CALC;
-    const int sg_group_id = get_local_id(0) / 16;
-    const int local_id = get_local_id(1);
-
-    if (local_id > 0) {
-        for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
-            const int slm_offset = CALC_SLM_LINE_SIZE * local_id
-                    + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16 + simd_id;
-            local_sum[slm_offset] = sum[sg];
-        }
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    if (local_id == 0) {
-        for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
-            for (int gr_id = 1; gr_id < group_size; ++gr_id) {
-                const int off_local = CALC_SLM_LINE_SIZE * gr_id
-                        + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16
-                        + simd_id;
-                sum[sg] += local_sum[off_local];
-            }
-            const int offset = dst_offset + sg * 16 + simd_id;
-#if HAS_IC_TAIL
-            if (offset < IC)
-#endif
-                atomic_add_global(&dst[offset], sum[sg]);
         }
     }
     return;
@@ -412,7 +389,7 @@ __kernel void gen9_reduce_mean_var(__global ACCUM_DATA_T *reduce_temp,
         variance[c] = tmp_var;
     }
 }
-#endif // USE_STATS_ONE_PASS
+#else // USE_STATS_ONE_PASS
 
 #if NHWC_OPTIMIZED
 
@@ -846,6 +823,8 @@ __kernel void gen9_reduce_variance(
     gen9_reduce_common(
             reduce_temp + REDUCE_STAT_NBLOCKS * IC16, local_sum, variance);
 }
+
+#endif // USE_STATS_ONE_PASS
 
 #if NHWC_OPTIMIZED
 
