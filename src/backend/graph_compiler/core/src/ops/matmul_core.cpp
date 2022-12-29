@@ -149,9 +149,13 @@ void matmul_core_op_t::query_format(context_ptr ctx,
     if (!config_data_) {
         config_data_ = create_generator()->get_default_config(ctx);
     }
+    const bool is_A_not_blocking
+            = !info_.inputs_[0]->details_.get_format().is_blocking();
     const sc_dims &A_dims = info_.inputs_[0]->details_.get_plain_dims();
     const sc_dims &A_blocking_dims
             = info_.inputs_[0]->details_.get_blocking_dims();
+    const bool is_B_not_blocking
+            = !info_.inputs_[1]->details_.get_format().is_blocking();
     const sc_dims &B_dims = info_.inputs_[1]->details_.get_plain_dims();
     const sc_dims &B_blocking_dims
             = info_.inputs_[1]->details_.get_blocking_dims();
@@ -289,6 +293,18 @@ void matmul_core_op_t::query_format(context_ptr ctx,
                                     // regular ND*ND matmul (non-batch
                                     // format)
                                     ret_A_format = A_format;
+                                }
+                            }
+                            // if it is dynamic, follows the layout of last
+                            // layer.
+                            if (!is_A_not_blocking && dynamic) {
+                                ret_A_format = A_format;
+                                // follow last layer's config
+                                if (A_format.blocks_[0]) {
+                                    A_m_blk = C_m_blk = A_format.blocks_[0];
+                                }
+                                if (A_format.blocks_[1]) {
+                                    A_k_blk = B_k_blk = A_format.blocks_[1];
                                 }
                             }
                             // process B
@@ -708,26 +724,7 @@ sc_op_ptr matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
         auto weight = info_.inputs_[1];
         std::vector<int> shape_idxs = {
                 static_cast<int>(weight->details_.get_plain_dims().size() - 2)};
-        auto find_ltsr = [](const sc_op *node) {
-            auto inp = node->get_inputs()[0];
-            assert(inp->uses_.size() > 1);
-            for (auto &use : inp->uses_) {
-                if (use.second->isa<reorder_op_t>()) {
-                    auto next_op
-                            = use.second->get_outputs()[0]->uses_[0].second;
-                    if ((next_op->isa<fused_op_t>()
-                                && !next_op->stc_cast<fused_op_t>()
-                                            ->main_op_.ops_.empty()
-                                && next_op->stc_cast<fused_op_t>()
-                                           ->main_op_.ops_[1]
-                                           ->isa<matmul_core_op_t>())
-                            || next_op->isa<matmul_core_op_t>()) {
-                        return use.second->get_outputs();
-                    }
-                }
-            }
-            return std::vector<graph_tensor_ptr>();
-        };
+        auto find_ltsr = [](const sc_op *node) { return node->get_inputs(); };
         auto reduce_shape = mgr.make(
                 "shape_of_tensor", {weight}, {}, {{"shape_idxs", shape_idxs}});
         reduce_shape->stc_cast<ops::shape_of_tensor_op_t>()->set_find_ltsr_func(
@@ -969,9 +966,15 @@ void matmul_core_op_t::infer_slice_ranges(
 
     auto inp_plain_size = get_inputs()[0]->details_.get_plain_dims().size(),
          wei_plain_size = get_inputs()[1]->details_.get_plain_dims().size();
-    auto inp_dims = get_inputs()[0]->details_.get_blocking_dims(),
-         wei_dims = get_inputs()[1]->details_.get_blocking_dims(),
-         out_dims = get_outputs()[0]->details_.get_blocking_dims();
+    auto &graph = get_owner_graph();
+    auto inp_dims = get_inputs()[0]->details_.get_blocking_dims();
+    auto wei_dims = get_inputs()[1]->details_.get_blocking_dims();
+    auto inp_dims_expr
+            = get_inputs()[0]->details_.get_blocking_dims_expr(graph);
+    auto wei_dims_expr
+            = get_inputs()[1]->details_.get_blocking_dims_expr(graph);
+    auto out_dims_expr
+            = get_outputs()[0]->details_.get_blocking_dims_expr(graph);
 
     auto batch_dims_size = get_batch_dims().size();
 
@@ -1041,7 +1044,7 @@ void matmul_core_op_t::infer_slice_ranges(
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
-        auto wei_size = wei_dims.size();
+        auto wei_size = wei_dims_expr.size();
         wei_slice.resize(wei_size);
         int bs_cnt = 0;
         for (int64_t i = static_cast<int64_t>(wei_size) - 1; i >= 0; i--) {
@@ -1053,8 +1056,7 @@ void matmul_core_op_t::infer_slice_ranges(
                                 - 1 - bs_cnt]];
                 bs_cnt++;
             } else {
-                wei_slice[i]
-                        = std::make_pair(expr(0), dim2unsigned(wei_dims[i]));
+                wei_slice[i] = std::make_pair(expr(0), wei_dims_expr[i]);
             }
         }
     }
@@ -1063,7 +1065,7 @@ void matmul_core_op_t::infer_slice_ranges(
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;
         }
-        auto inp_size = inp_dims.size();
+        auto inp_size = inp_dims_expr.size();
         inp_slice.resize(inp_size);
         int bs_cnt = 0;
         for (int64_t i = static_cast<int64_t>(inp_size) - 1; i >= 0; i--) {
@@ -1075,8 +1077,7 @@ void matmul_core_op_t::infer_slice_ranges(
                                 - 1 - bs_cnt]];
                 bs_cnt++;
             } else {
-                inp_slice[i]
-                        = std::make_pair(expr(0), dim2unsigned(inp_dims[i]));
+                inp_slice[i] = std::make_pair(expr(0), inp_dims_expr[i]);
             }
         }
     }
@@ -1085,7 +1086,7 @@ void matmul_core_op_t::infer_slice_ranges(
     auto ref_slice = (inp_plain_size >= wei_plain_size) ? inp_slice : wei_slice;
     auto ref_bs_axis = (inp_plain_size >= wei_plain_size) ? blocking_axis.A_bs
                                                           : blocking_axis.B_bs;
-    auto out_size = out_dims.size();
+    auto out_size = out_dims_expr.size();
     out_slice.resize(out_size);
     int bs_cnt = 0;
     int m_cnt = 0;
@@ -1101,11 +1102,10 @@ void matmul_core_op_t::infer_slice_ranges(
                 out_slice[i] = inp_slice[blocking_axis.A_m[m_cnt]];
                 m_cnt++;
             } else {
-                out_slice[i]
-                        = std::make_pair(expr(0), dim2unsigned(out_dims[i]));
+                out_slice[i] = std::make_pair(expr(0), out_dims_expr[i]);
             }
         } else {
-            out_slice[i] = std::make_pair(expr(0), dim2unsigned(out_dims[i]));
+            out_slice[i] = std::make_pair(expr(0), out_dims_expr[i]);
         }
     }
 

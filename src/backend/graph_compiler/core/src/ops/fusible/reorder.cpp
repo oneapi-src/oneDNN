@@ -24,6 +24,7 @@
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/graph/outer_loop_generator.hpp>
+#include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
@@ -93,6 +94,28 @@ void reorder_op_t::query_format(context_ptr ctx,
         supported_outs.push_back(std::vector<format_stride_pair> {
                 std::make_pair(out.get_format(), out.get_strides())});
     }
+    // when call layout propagation before kernel lower with concrete dispatch
+    // key, set break_pre_fuse attr here.
+    // reset attrs_ first
+    auto &graph = get_owner_graph();
+    if (graph.is_dynamic()
+            && !graph.attrs_.get_or_else("insert_reorder", true)) {
+        attrs_.set(op_attr_key::break_pre_fuse, false);
+        attrs_.set(op_attr_key::break_post_fuse, false);
+        if (use_output_loop()) {
+            attrs_.set(op_attr_key::break_pre_fuse, true);
+        }
+        // has broadcast uses, do not fuse them as their outer loop can not be
+        // fused.
+        for (auto &use : get_outputs()[0]->uses_) {
+            if (auto may_bcst
+                    = use.second->dyn_cast<op_traits::may_broadcast_t>()) {
+                if (may_bcst->get_broadcast_input() != -1) {
+                    attrs_.set(op_attr_key::break_post_fuse, true);
+                }
+            }
+        }
+    }
 }
 
 reorder_op_t::reorder_op_t(const std::vector<graph_tensor_ptr> &ins,
@@ -121,12 +144,18 @@ reorder_op_t::reorder_op_t(const std::vector<graph_tensor_ptr> &ins,
             "input format " << info_.inputs_[0]->details_.get_format()
                             << " can not convert to "
                             << info_.outputs_[0]->details_.get_format() << ".");
-    if (use_output_loop()) { attrs_.set(op_attr_key::break_pre_fuse, true); }
-    if (check_padding()) { attrs_.set(op_attr_key::break_post_fuse, true); }
+    if (!is_dynamic()) {
+        if (use_output_loop()) {
+            attrs_.set(op_attr_key::break_pre_fuse, true);
+        }
+        if (check_padding()) { attrs_.set(op_attr_key::break_post_fuse, true); }
+    }
     // currently we don't fuse reorder in dynamic as it should query next op.
-    if (is_dynamic()
-            && info_.outputs_[0]->details_.get_format().is_blocking()) {
-        attrs_.set(op_attr_key::no_fuse, true);
+    if (is_dynamic()) {
+        if (info_.inputs_[0]->details_.get_format().is_blocking()
+                && info_.outputs_[0]->details_.get_format().is_blocking()) {
+            attrs_.set(op_attr_key::no_fuse, true);
+        }
     }
 }
 
@@ -309,6 +338,7 @@ slice_range get_block2plain_ranges(const expr &block_num_start,
                 do_cast_and_fold(block_num_length * block_size_length_int));
         plain_range_list = {plain_range};
     } else {
+        if (!block_num_length.isa<constant>()) { return plain_range_list; }
         // multi plain ranges
         int block_num_length_int
                 = get_const_as_int(block_num_length.checked_as<constant_c>());
@@ -367,8 +397,9 @@ get_plain2block_ranges(const expr &start, const expr &length, int blocks) {
             }
         } else {
             // dynamic case, fixed block so no tail
-            std::pair<expr, expr> block_num_range = std::make_pair(
-                    0, folder(caster(folded_length / blocks)).remove_const());
+            std::pair<expr, expr> block_num_range = std::make_pair(0,
+                    folder(caster(divide_and_ceil(folded_length, blocks)))
+                            .remove_const());
             std::pair<expr, expr> block_size_range = std::make_pair(0, blocks);
             ret.emplace_back(std::make_pair(
                     std::move(block_num_range), std::move(block_size_range)));
@@ -804,13 +835,16 @@ void reorder_op_t::infer_slice_ranges(
                         get_output_format().is_vnni_format() ? 3 : 2))
             return;
     }
-
     fsmap.get(get_outputs()[0]) = reorder_ranges_list;
 }
 
 // pre-infer reorder slice according output_slice
 void reorder_op_t::pre_slice_ranges(
         fslice_map &fsmap, infer_status_map_t &stat_map) {
+    if (is_dynamic()) {
+        stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+        return;
+    }
     if (fsmap.get(get_inputs()[0]).empty()) {
         slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
         slice_range_list input_slice_list;
@@ -1302,13 +1336,18 @@ void compute_reorder_stride2block(sc_graph_t &graph, const context_ptr &ctx,
             && input_last_origin_axis == output_last_origin_axis
             && output_blocking_dims.back() % step == 0 && is_valid_step(step)
             && step * utils::get_sizeof_type(dtype) * 8 >= 128;
+    // Usually use input loop means no padding in static, but not in dynamic, if
+    // dynamic and use input loop, need to check the static dim with blocks.
+    if (!output_loop && !is_dynamic_dim(input_blocking_dims.back())
+            && input_blocking_dims.back() % step != 0) {
+        can_vectorize = false;
+    }
     bool no_padding = !is_dynamic
             && sc_data_format_t::get_padded_plain_shapes(
                        output_blocking_dims, output_format)
                     == sc_data_format_t::get_padded_plain_shapes(
                             input_blocking_dims, input_format);
     no_padding |= (is_dynamic && dynamic_no_padding);
-
     if (!can_vectorize) {
         cannot_convert_warning(input_format, output_format, plain_dims);
     }
@@ -2409,6 +2448,8 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
     auto output_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
+    auto input_blocking_dims_expr
+            = get_blocking_shapes_expr(graph, plain_dims, output_format);
     auto output_blocking_dims_expr
             = get_blocking_shapes_expr(graph, plain_dims, output_format);
     bool is_padding = false;
@@ -2771,10 +2812,15 @@ bool reorder_op_t::check_padding() const {
             = sc_data_format_t::get_blocking_shapes(plain_dims_, input_format);
     auto output_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims_, output_format);
-    return sc_data_format_t::get_padded_plain_shapes(
-                   input_blocking_dims, input_format)
-            != sc_data_format_t::get_padded_plain_shapes(
-                    output_blocking_dims, output_format);
+    bool is_dynamic_block = is_dynamic_blocking(plain_dims_, input_format);
+    is_dynamic_block |= is_dynamic_blocking(plain_dims_, output_format);
+    return (!is_dynamic_block
+                   && sc_data_format_t::get_padded_plain_shapes(
+                              input_blocking_dims, input_format)
+                           != sc_data_format_t::get_padded_plain_shapes(
+                                   output_blocking_dims, output_format))
+            || (is_dynamic_block
+                    && !(info_.cur_impl_ & impl_kind_t::no_padding));
 }
 
 bool reorder_op_t::use_output_loop() const {
@@ -2817,30 +2863,28 @@ bool reorder_op_t::support_optmized_kernel(const context_ptr &ctx) const {
     auto &output_format = info_.outputs_[0]->details_.get_format();
 
     auto dtype = info_.inputs_[0]->details_.dtype_;
-    auto input_blocking_shapes
-            = sc_data_format_t::get_blocking_shapes(plain_dims_, input_format);
-    auto output_blocking_shapes
-            = sc_data_format_t::get_blocking_shapes(plain_dims_, output_format);
+    auto input_blocking_shapes_expr = get_blocking_shapes_expr(
+            get_owner_graph(), plain_dims_, input_format);
+    auto output_blocking_shapes_expr = get_blocking_shapes_expr(
+            get_owner_graph(), plain_dims_, output_format);
     sc_graph_t g;
-    auto toy_inp_tsr = builder::make_tensor(std::string("dummy_inp"),
-            g.dims_to_expr(input_blocking_shapes), dtype);
-    auto toy_out_tsr = builder::make_tensor(std::string("dummy_out"),
-            g.dims_to_expr(output_blocking_shapes), dtype);
+    auto toy_inp_tsr = builder::make_tensor(
+            std::string("dummy_inp"), input_blocking_shapes_expr, dtype);
+    auto toy_out_tsr = builder::make_tensor(
+            std::string("dummy_out"), output_blocking_shapes_expr, dtype);
     auto src = tensor_slice(toy_inp_tsr), dst = tensor_slice(toy_out_tsr);
 
     std::vector<int> inp_a_axis, inp_b_axis, out_a_axis, out_b_axis;
     bool is_vnni_reorder = false;
-    return (!is_innermost_dim_strided && !is_dynamic()
+    return (!is_innermost_dim_strided
                    && can_be_fast_transpose(ctx, inp_a_axis, inp_b_axis,
                            out_a_axis, out_b_axis, plain_dims_, input_format,
                            output_format, src, dst, dtype, is_dynamic(),
                            info_.cur_impl_ & impl_kind_t::no_padding))
-            || (!is_dynamic()
-                    && can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis,
-                            out_a_axis, out_b_axis, plain_dims_, input_format,
-                            output_format, src, dst, dtype, is_vnni_reorder,
-                            is_dynamic(),
-                            info_.cur_impl_ & impl_kind_t::no_padding));
+            || can_be_vnni_reorder(ctx, inp_a_axis, inp_b_axis, out_a_axis,
+                    out_b_axis, plain_dims_, input_format, output_format, src,
+                    dst, dtype, is_vnni_reorder, is_dynamic(),
+                    info_.cur_impl_ & impl_kind_t::no_padding);
 }
 
 void reorder_op_t::compute_block(context_ptr ctx,

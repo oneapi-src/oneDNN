@@ -652,8 +652,6 @@ func_t get_cal_shape_of_tensor_op_func() {
     static func_t cal_shapeof_f = make_func("calculate_shape_of_tensor_op",
             {make_var(datatypes::pointer, "out"),
                     make_var(datatypes::pointer, "in"),
-                    make_var(datatypes::pointer, "out_format"),
-                    make_var(datatypes::pointer, "in_format"),
                     make_var(datatypes::pointer, "shape_idxs"),
                     make_var(datatypes::s32, "shape_size")},
             stmt(), datatypes::void_t);

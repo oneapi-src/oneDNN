@@ -54,6 +54,8 @@ SC_INTERNAL_API sc_graph_t copy_graph(const sc_graph_t &graph) {
             } else {
                 new_node = node->dyn_cast<op_traits::copyable_t>()->copy(ins,
                         copy_logical_tsr(node->get_outputs()), copied_graph);
+                new_node->get_dispatch_key_set() = node->get_dispatch_key_set();
+                new_node->info_.cur_impl_ = node->info_.cur_impl_;
             }
         }
         // recording old graph_tensor->new graph_tensor

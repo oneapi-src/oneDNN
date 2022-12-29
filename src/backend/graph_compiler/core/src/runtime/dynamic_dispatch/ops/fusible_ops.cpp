@@ -68,10 +68,6 @@ static bool is_fast_transpose_padding(runtime::dynamic_tensor_t *in,
 static int check_and_set_reorder_impl(runtime::dynamic_tensor_t *in,
         runtime::dispatch_key *in_fmt_st, runtime::dispatch_key *out_fmt_st) {
     int impl_alg = impl_kind_t::no_padding;
-    // int simd_length = std::min(UINT64_C(16),
-    //         static_cast<uint64_t>(runtime::get_runtime_target_machine()
-    //                                       .cpu_flags_.get_max_vector_lanes(
-    //                                               sc_data_etype(in->dtype_))));
     int ndims = in->ndims_;
     if (is_block_produce_padding(in, in_fmt_st)
             || is_block_produce_padding(in, out_fmt_st)) {

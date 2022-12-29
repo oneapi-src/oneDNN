@@ -139,6 +139,14 @@ inline slice_range gen_slice_by_dims(const sc_dims &dims) {
     return ret;
 }
 
+inline slice_range gen_slice_by_dims_expr(const std::vector<expr> &dims) {
+    slice_range ret;
+    for (auto &r : dims) {
+        ret.emplace_back(std::make_pair(dim2unsigned(0), r));
+    }
+    return ret;
+}
+
 bool is_reshaped_tensor(const expr &tsr);
 
 expr transform_tsr2stsr_with_range(const expr &tsr, const slice_range &range);

@@ -27,8 +27,10 @@
 #include <util/def.hpp>
 namespace sc {
 class sc_op;
+class sc_graph_t;
 struct graph_tensor;
 struct op_dispatch_key_base_t;
+struct combined_op_dispatch_key_t;
 struct dispatch_key_set_base_t;
 struct sc_data_format_t;
 // op tables used in ir_module
@@ -73,6 +75,13 @@ op_layout_link_vec_t get_op_layout_link_relationships(
         const std::vector<std::shared_ptr<dispatch_key_set_base_t>>
                 &dispatch_keys,
         const std::shared_ptr<sc_op> &modified_inp);
+// Query function order, if we meet reorder, query its next tunable op first.
+void lower_query_function(std::vector<bool> &visited,
+        const std::shared_ptr<sc_op> &node,
+        const std::function<void(const std::shared_ptr<sc_op> &)> &callback);
+
+void visit_fused_graph_by_query_order(sc_graph_t &graph,
+        const std::function<void(const std::shared_ptr<sc_op> &)> &callback);
 // Judge whether the two input layout could be linked. The linked means the
 // graph is in the valid status of layout. For example, pattern like "reorder +
 // matmul", the output layout of reorder should be equal to the input layout of
@@ -81,6 +90,13 @@ op_layout_link_vec_t get_op_layout_link_relationships(
 // while MKmk(32,16) and MKmk(1, 32) not.
 bool is_linked_layout(
         const sc_data_format_t &layout1, const sc_data_format_t &layout2);
+std::vector<std::shared_ptr<sc_op>> get_graph_inner_dispatch_ops(
+        sc_graph_t &graph, int *total_num_key);
+void update_graph_format_by_key(const std::shared_ptr<sc_op> &fused_op,
+        sc_graph_t &graph, const combined_op_dispatch_key_t &key, int &key_idx,
+        size_t node_input_offset, size_t graph_input_offset,
+        const std::shared_ptr<sc_op> &modified_inp = nullptr);
+int count_dynamic_dims(const sc_dims &in);
 
 namespace runtime {
 struct dynamic_tensor_t;

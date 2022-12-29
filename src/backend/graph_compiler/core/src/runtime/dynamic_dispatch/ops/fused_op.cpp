@@ -15,6 +15,7 @@
  *******************************************************************************/
 #include <stdint.h>
 #include <string.h>
+#include "impl_type.hpp"
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <util/null_check.hpp>
 
@@ -35,11 +36,30 @@ extern "C" void query_combined_fused_op(void *table, uint64_t **combined_keys,
     SC_ABORT_IF_NULL(final_query_keys);
     runtime::dispatch_key **combined_dispatch_keys
             = reinterpret_cast<runtime::dispatch_key **>(combined_keys);
+    // link all impl alg of reorder, if all of impl of reorder is no_padding,
+    // then use no_padding; else reset all of impl to normal.
+    int linked_reorder_impl = impl_kind_t::no_padding;
+    bool stop = false;
+    for (int i = 0; !stop && i < op_num; i++) {
+        for (int k = 0; k < each_op_num_key[i]; k++) {
+            // currently use number == 2 to judge if it is a reorder.
+            if (each_op_num_key[i] == 2
+                    && combined_algs[i] == impl_kind_t::normal) {
+                linked_reorder_impl = impl_kind_t::normal;
+                stop = true;
+                break;
+            }
+        }
+    }
     int offset = 0;
     for (int i = 0; i < op_num; i++) {
         for (int k = 0; k < each_op_num_key[i]; k++) {
-            combined_dispatch_keys[offset + k]->set_impl_alg(combined_algs[i]);
             final_query_keys[offset + k] = *combined_dispatch_keys[offset + k];
+            if (each_op_num_key[i] == 2) {
+                final_query_keys[offset + k].set_impl_alg(linked_reorder_impl);
+            } else {
+                final_query_keys[offset + k].set_impl_alg(combined_algs[i]);
+            }
         }
         offset += each_op_num_key[i];
     }

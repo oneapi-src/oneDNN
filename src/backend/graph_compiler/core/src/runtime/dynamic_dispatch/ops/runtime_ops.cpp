@@ -20,46 +20,18 @@
 #include <runtime/dynamic_dispatch/utils.hpp>
 #include <util/utils.hpp>
 namespace sc {
-extern "C" void calculate_shape_of_tensor_op(void *out, void *in,
-        uint64_t *out_fmt, uint64_t *in_fmt, int *shape_idxs, int ndims) {
+extern "C" void calculate_shape_of_tensor_op(
+        void *out, void *in, int *shape_idxs, int ndims) {
     runtime::dynamic_tensor_t *out_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
     runtime::dynamic_tensor_t *in_dyn_tsr
             = reinterpret_cast<runtime::dynamic_tensor_t *>(in);
-    runtime::dispatch_key *out_fmt_st
-            = reinterpret_cast<runtime::dispatch_key *>(out_fmt);
-    runtime::dispatch_key *in_fmt_st
-            = reinterpret_cast<runtime::dispatch_key *>(in_fmt);
     assert(out_dyn_tsr->ndims_ == ndims);
-    constexpr int max_format_dims
-            = runtime::dispatch_key::meta::FORMAT_BITS / 4;
-    uint16_t count[max_format_dims] = {0};
     for (int n = 0; n < ndims; n++) {
         int ret = 1;
-        bool first_block = true;
-        for (int i = 0; i < in_fmt_st->ndims(); i++) {
-            auto &idx = shape_idxs[n];
-            auto axis = in_fmt_st->get(i);
-            ++count[axis];
-            if (axis == idx) {
-                // vnni format may have count==3 but we do not concern.
-                if (count[axis] == 1) {
-                    ret *= in_dyn_tsr->dims_[axis];
-                } else if (count[axis] == 2) {
-                    uint16_t block;
-                    if (first_block) {
-                        block = in_fmt_st->get_block1();
-                    } else {
-                        block = in_fmt_st->get_block2();
-                    }
-                    ret = ret / in_dyn_tsr->dims_[axis]
-                            * utils::divide_and_ceil(
-                                    in_dyn_tsr->dims_[axis], block)
-                            * block;
-                }
-            }
-            if (count[axis] == 2) { first_block = false; }
-        }
+        int dim = static_cast<int>(in_dyn_tsr->dims_[shape_idxs[n]]);
+        int block = runtime::get_dyn_cfg_single(dim);
+        ret = utils::divide_and_ceil(dim, block) * block;
         reinterpret_cast<int *>(out_dyn_tsr->data_)[n] = ret;
     }
 }

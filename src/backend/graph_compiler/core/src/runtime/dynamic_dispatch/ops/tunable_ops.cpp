@@ -135,6 +135,7 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
     } else {
         assert(data_fmt_st->ndims() == data_ndims + 2);
         // reuse last blocking.
+        K_blk = data_fmt_st->get_block2();
     }
     bool is_vnni = weight_dyn_tsr->dtype_ == uint32_t(sc_data_etype::U8)
             || weight_dyn_tsr->dtype_ == uint32_t(sc_data_etype::S8)

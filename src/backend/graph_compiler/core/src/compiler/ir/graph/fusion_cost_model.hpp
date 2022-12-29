@@ -53,6 +53,8 @@ public:
     void append_evaluator(float weight, const cost_eval &eval);
     // disable cost model
     void disable() { enable_ = false; }
+    // judge if it is enabled
+    bool is_enabled() const { return enable_; }
     // make decision for partition merge
     bool make_decision_for_parti(const mixed_parti_t *parti,
             size_t merge_loop_size, parti_merge_kind merge_kind);

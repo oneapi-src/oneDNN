@@ -22,6 +22,7 @@
 #include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/sc_data_format.hpp>
+#include <ops/fusible/memory_movement.hpp>
 #include <runtime/dynamic_dispatch/ops/impl_type.hpp>
 #include <runtime/logging.hpp>
 #include <util/assert.hpp>
@@ -98,8 +99,12 @@ bool combined_op_dispatch_key_t::operator!=(
 
 void combined_op_dispatch_key_t::set_op_dispatch_key(
         const sc_op_ptr &node) const {
-    assert(node->isa<fused_op_t>());
-    node->stc_cast<fused_op_t>()->update_internal_graph_format(*this);
+    assert(node->isa<fused_op_t>() || node->isa<mixed_fuse_op_t>());
+    if (node->isa<fused_op_t>()) {
+        node->stc_cast<fused_op_t>()->update_internal_graph_format(*this);
+    } else {
+        node->stc_cast<mixed_fuse_op_t>()->update_internal_graph_format(*this);
+    }
 }
 
 bool dispatch_key_cmper_t::operator()(
@@ -144,16 +149,63 @@ combined_dispatch_key_set_t::combined_dispatch_key_set_t(
     if (!dispatch_sets.empty()) { internal_construct(dispatch_sets); }
 }
 
+void recursive_construct(combined_dispatch_key_set_t::inner_set_t &set,
+        combined_op_dispatch_key_t &cur_combined_key,
+        op_layout_link_vec_t &op_link_relations,
+        const std::vector<dispatch_set_ptr> &dispatch_sets,
+        const std::vector<sc_op_ptr> &inputs, size_t cur_op_idx, size_t len_key,
+        int linked_reorder_impl) {
+    if (cur_op_idx == len_key) {
+        if (cur_combined_key.size() == len_key) {
+            set.insert(cur_combined_key);
+        }
+        return;
+    }
+    auto &inner_set = dispatch_sets[cur_op_idx]->get_inner_set();
+    for (auto it = inner_set.begin(); it != inner_set.end(); it++) {
+        bool is_valid = true;
+        auto cur_key = *it;
+        if (!op_link_relations.empty()) {
+            for (size_t j = 0; j < op_link_relations[cur_op_idx].size(); j++) {
+                auto &link_pair = op_link_relations[cur_op_idx][j];
+                if (link_pair.first != no_link_idx
+                        && !is_linked_layout(it->in_out_formats_[j],
+                                cur_combined_key[link_pair.first]
+                                        .in_out_formats_[link_pair.second])) {
+                    is_valid = false;
+                    break;
+                }
+            }
+        }
+        // In order to reduce the number of combined dispatch key, all reorder
+        // inside subgraph follows same impl algorithm(normal/no_padding).
+        // no_padding is available when all reorders has no padding at runtime.
+        if (!inputs.empty() && inputs[cur_op_idx]->isa<reorder_op_t>()) {
+            if (it->impl_ != linked_reorder_impl) {
+                // static reorder in dynamic pattern
+                if (!can_op_be_dispatched(inputs[cur_op_idx])) {
+                    cur_key.impl_ = linked_reorder_impl;
+                } else {
+                    is_valid = false;
+                }
+            }
+        }
+        if (!is_valid) { continue; }
+        cur_combined_key.emplace_back(cur_key);
+        recursive_construct(set, cur_combined_key, op_link_relations,
+                dispatch_sets, inputs, cur_op_idx + 1, len_key,
+                linked_reorder_impl);
+        cur_combined_key.pop_back();
+    }
+}
+
 void combined_dispatch_key_set_t::internal_construct(
         const std::vector<dispatch_set_ptr> &dispatch_sets,
         const std::vector<sc_op_ptr> &inputs, const sc_op_ptr &modified_inp) {
     op_layout_link_vec_t op_link_relations;
     auto len_key = dispatch_sets.size();
-    size_t num_keys = 1;
-    std::vector<size_t> accum_size;
-    accum_size.reserve(len_key);
+    auto num_keys = UINT64_C(1);
     for (size_t i = len_key; i > 0; i--) {
-        accum_size.emplace_back(num_keys);
         num_keys = num_keys * dispatch_sets[i - 1]->size();
     }
     // no need to dispatch
@@ -162,36 +214,19 @@ void combined_dispatch_key_set_t::internal_construct(
         op_link_relations = get_op_layout_link_relationships(
                 inputs, dispatch_sets, modified_inp);
     }
-    std::reverse(accum_size.begin(), accum_size.end());
-    for (size_t cur_idx = 0; cur_idx < num_keys; cur_idx++) {
-        combined_op_dispatch_key_t cur_combined_key;
-        cur_combined_key.reserve(len_key);
-        for (size_t i = 0; i < len_key; i++) {
-            size_t offset = cur_idx;
-            if (i) { offset = offset % accum_size[i - 1]; }
-            offset = offset / accum_size[i];
-            auto it = dispatch_sets[i]->get_inner_set().begin();
-            std::advance(it, offset);
-            bool is_valid = true;
-            if (!op_link_relations.empty()) {
-                for (size_t j = 0; j < op_link_relations[i].size(); j++) {
-                    auto &link_pair = op_link_relations[i][j];
-                    if (link_pair.first != no_link_idx
-                            && !is_linked_layout(it->in_out_formats_[j],
-                                    cur_combined_key[link_pair.first]
-                                            .in_out_formats_
-                                                    [link_pair.second])) {
-                        is_valid = false;
-                        break;
-                    }
-                }
-            }
-            if (!is_valid) { break; }
-            cur_combined_key.emplace_back(*it);
-        }
-        if (cur_combined_key.size() == len_key) {
-            set_.insert(cur_combined_key);
-        }
+
+    combined_op_dispatch_key_t cur_combined_key;
+    cur_combined_key.reserve(len_key);
+    auto reorder_impl_candidates = get_default_impl_dispatch_candidates();
+    for (auto &linked_reorder_impl : reorder_impl_candidates) {
+        recursive_construct(set_, cur_combined_key, op_link_relations,
+                dispatch_sets, inputs, 0, len_key, linked_reorder_impl);
+    }
+    COMPILE_ASSERT(!set_.empty(), "Empty linked combined dispatch key set!");
+    if (set_.size() > DISPATCH_KEY_MAX_THRESHOLD) {
+        SC_MODULE_WARN << "Number of dispatch key set " << set_.size()
+                       << " has exceeded threshold "
+                       << DISPATCH_KEY_MAX_THRESHOLD;
     }
     COMPILE_ASSERT(!set_.empty(), "Empty linked combined dispatch key set!");
     if (set_.size() > DISPATCH_KEY_MAX_THRESHOLD) {

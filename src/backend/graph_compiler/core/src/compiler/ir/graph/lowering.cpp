@@ -419,10 +419,6 @@ std::string get_tensor_name(graph_tensor *t, sc_op *linked_output) {
 }
 } // namespace graph
 
-static bool need_query_next_first(const sc_op_ptr &node) {
-    return can_op_be_dispatched(node->get_outputs()[0]->uses_[0].second.lock());
-}
-
 expr call_op_dynamic_query_function(
         const sc_op_ptr &op, const std::vector<expr> &args) {
     if (op->isa<ops::matmul_core_op_t>()) {
@@ -740,8 +736,7 @@ expr get_or_create_tensor(general_lower_params_t &gp, const graph_tensor_ptr &t,
 };
 
 expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
-        std::vector<expr> &op_dispatch_kernel, const sc_op_ptr &node,
-        op_kinds kind) {
+        std::vector<expr> &op_dispatch_kernel, const sc_op_ptr &node) {
     std::vector<expr> plhd_ins, fmt_ins;
     std::vector<expr> plhd_outs, fmt_outs, size_outs;
     bool need_dispatch = can_op_be_dispatched(node);
@@ -757,16 +752,32 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
     // input before reorder
     if (node->isa<tunable_op_t>()
             || (node->isa<fused_op_t>()
-                    && !node->stc_cast<fused_op_t>()->main_op_.empty())) {
+                    && !node->stc_cast<fused_op_t>()->main_op_.empty())
+            || (node->isa<mixed_fuse_op_t>()
+                    && !node->stc_cast<mixed_fuse_op_t>()
+                                ->get_internal_tunable_input_indices()
+                                .empty())) {
         auto &inputs = node->get_inputs();
-        auto query_sz = inputs.size();
-        if (node->isa<fused_op_t>()) {
-            query_sz = node->stc_cast<fused_op_t>()
-                               ->main_op_.ops_[1]
-                               ->get_inputs()
-                               .size();
+        std::vector<size_t> query_idxs;
+        if (node->isa<fused_op_t>() || node->isa<tunable_op_t>()) {
+            size_t sz;
+            if (node->isa<fused_op_t>()) {
+                sz = node->stc_cast<fused_op_t>()
+                             ->main_op_.ops_[1]
+                             ->get_inputs()
+                             .size();
+            } else {
+                sz = inputs.size();
+            }
+            query_idxs.reserve(sz);
+            for (size_t i = 0; i < sz; i++) {
+                query_idxs.emplace_back(i);
+            }
+        } else if (node->isa<mixed_fuse_op_t>()) {
+            query_idxs = node->stc_cast<mixed_fuse_op_t>()
+                                 ->get_internal_tunable_input_indices();
         }
-        for (size_t i = 0; i < query_sz; i++) {
+        for (auto i : query_idxs) {
             auto ltensor = node->get_inputs()[i];
             auto node_before = ltensor->producer_owner_;
             auto const_type_before = node_before->attrs_.get_or_else(
@@ -789,13 +800,13 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
             = node->attrs_.get_or_else("constant", const_kind::not_const);
     for (auto &ltensor : node->get_outputs()) {
         expr plhd, fmt, size;
-        if (kind == kinput) {
+        if (node->isa<input_op>()) {
             // use real tensor instead of placeholder.
             plhd = get_or_create_tensor(
                     gp, ltensor, true, const_type, info_etype_t::real_tensor);
             fmt = get_or_create_tensor(
                     gp, ltensor, true, const_type, info_etype_t::format);
-        } else if (kind == kconstant) {
+        } else if (node->isa<constant_op_t>()) {
             plhd = get_or_create_tensor(gp, ltensor, false,
                     const_kind::global_const, info_etype_t::real_tensor);
             fmt = get_or_create_tensor(gp, ltensor, false,
@@ -828,64 +839,67 @@ expr create_op_query_func(const context_ptr &ctx, general_lower_params_t &gp,
     expr dyn_ker_ptr;
     // update dynamic query format
     if (!op_dispatch_kernel[node->logical_op_id_].defined()) {
-        if (!utils::is_one_of(kind, kinput, koutput, kconstant)) {
-            auto &table_map = gp.ret_mod->get_op_table_map();
-            auto func_name = node->op_name_ + "__"
-                    + std::to_string(node->logical_op_id_) + "_ptr";
-            auto table_name = func_name + "_table";
-            auto table_it = table_map.find(table_name);
-            auto table_var = builder::make_var(datatypes::pointer, table_name);
-            auto table_ptr = table_it != table_map.end()
-                    ? table_it->second
-                    : std::make_shared<op_dispatch_tables_t>();
-            dyn_ker_ptr = builder::make_tensor(
-                    func_name, {UINT64_C(1)}, datatypes::pointer);
-            std::vector<expr> query_func_args;
-            query_func_args.emplace_back(table_var);
-            query_func_args.insert(
-                    query_func_args.end(), plhd_outs.begin(), plhd_outs.end());
-            query_func_args.insert(
-                    query_func_args.end(), plhd_ins.begin(), plhd_ins.end());
-            query_func_args.insert(
-                    query_func_args.end(), fmt_outs.begin(), fmt_outs.end());
-            query_func_args.insert(
-                    query_func_args.end(), fmt_ins.begin(), fmt_ins.end());
-            query_func_args.insert(
-                    query_func_args.end(), size_outs.begin(), size_outs.end());
-            query_func_args.push_back(dyn_ker_ptr);
-            expr query_call; // call node
-            if (node->isa<fused_op_t>()) {
-                auto fused_node = node->stc_cast<fused_op_t>();
-                auto query_mod = fused_node->get_dynamic_query_func(ctx);
-                gp.ret_mod->merge(*query_mod);
-                assert(table_ptr);
-                query_call = builder::make_call(
-                        query_mod->get_entry_func(), query_func_args);
-
-            } else {
-                auto table_ptr = std::make_shared<op_dispatch_tables_t>();
-                gp.ret_mod->add_op_table(std::make_pair(table_name, table_ptr));
-                initialize_format_table_with_op(node, table_ptr);
-                query_call
-                        = call_op_dynamic_query_function(node, query_func_args);
-            }
-            stmts_node_t *target_body = gp.func_body.get();
-            if (table_it == table_map.end()) {
-                auto table_def = builder::make_var_tensor_def_unattached(
-                        table_var, linkage::private_global);
-                gp.ret_mod->add_global_var(table_def.checked_as<define>());
-            }
-            target_body->seq_.emplace_back(
-                    builder::make_var_tensor_def_unattached(dyn_ker_ptr));
-            target_body->seq_.emplace_back(
-                    builder::make_evaluate_unattached(query_call));
-            op_dispatch_kernel[node->logical_op_id_]
-                    = builder::make_indexing(dyn_ker_ptr, 0);
-            op_dispatch_kernel[node->logical_op_id_]->attr().set(
-                    attr_keys::no_index2var, true);
-            op_dispatch_kernel[node->logical_op_id_]->attr().set(
-                    attr_keys::always_trans, true);
+        auto &table_map = gp.ret_mod->get_op_table_map();
+        auto func_name = node->op_name_ + "__"
+                + std::to_string(node->logical_op_id_) + "_ptr";
+        auto table_name = func_name + "_table";
+        auto table_it = table_map.find(table_name);
+        auto table_var = builder::make_var(datatypes::pointer, table_name);
+        auto table_ptr = table_it != table_map.end()
+                ? table_it->second
+                : std::make_shared<op_dispatch_tables_t>();
+        dyn_ker_ptr = builder::make_tensor(
+                func_name, {UINT64_C(1)}, datatypes::pointer);
+        std::vector<expr> query_func_args;
+        query_func_args.emplace_back(table_var);
+        query_func_args.insert(
+                query_func_args.end(), plhd_outs.begin(), plhd_outs.end());
+        query_func_args.insert(
+                query_func_args.end(), plhd_ins.begin(), plhd_ins.end());
+        query_func_args.insert(
+                query_func_args.end(), fmt_outs.begin(), fmt_outs.end());
+        query_func_args.insert(
+                query_func_args.end(), fmt_ins.begin(), fmt_ins.end());
+        query_func_args.insert(
+                query_func_args.end(), size_outs.begin(), size_outs.end());
+        query_func_args.push_back(dyn_ker_ptr);
+        expr query_call; // call node
+        if (node->isa<fused_op_t>()) {
+            auto fused_node = node->stc_cast<fused_op_t>();
+            auto query_mod = fused_node->get_dynamic_query_func(ctx);
+            gp.ret_mod->merge(*query_mod);
+            assert(table_ptr);
+            query_call = builder::make_call(
+                    query_mod->get_entry_func(), query_func_args);
+        } else if (node->isa<mixed_fuse_op_t>()) {
+            auto fused_node = node->stc_cast<mixed_fuse_op_t>();
+            auto query_mod = fused_node->get_dynamic_query_func(ctx);
+            gp.ret_mod->merge(*query_mod);
+            assert(table_ptr);
+            query_call = builder::make_call(
+                    query_mod->get_entry_func(), query_func_args);
+        } else {
+            auto table_ptr = std::make_shared<op_dispatch_tables_t>();
+            gp.ret_mod->add_op_table(std::make_pair(table_name, table_ptr));
+            initialize_format_table_with_op(node, table_ptr);
+            query_call = call_op_dynamic_query_function(node, query_func_args);
         }
+        stmts_node_t *target_body = gp.func_body.get();
+        if (table_it == table_map.end()) {
+            auto table_def = builder::make_var_tensor_def_unattached(
+                    table_var, linkage::private_global);
+            gp.ret_mod->add_global_var(table_def.checked_as<define>());
+        }
+        target_body->seq_.emplace_back(
+                builder::make_var_tensor_def_unattached(dyn_ker_ptr));
+        target_body->seq_.emplace_back(
+                builder::make_evaluate_unattached(query_call));
+        op_dispatch_kernel[node->logical_op_id_]
+                = builder::make_indexing(dyn_ker_ptr, 0);
+        op_dispatch_kernel[node->logical_op_id_]->attr().set(
+                attr_keys::no_index2var, true);
+        op_dispatch_kernel[node->logical_op_id_]->attr().set(
+                attr_keys::always_trans, true);
     }
     return dyn_ker_ptr;
 }
@@ -1166,11 +1180,14 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     if (graph.attrs_.get_or_else("folded_input", false)) {
         ret_mod->attr_.set("folded_input", true);
     }
-    bool is_graph_dynamic = graph.is_dynamic();
+    bool is_graph_dynamic = graph.is_dynamic()
+            && !graph.attrs_.get_or_else("temp.force_static", false);
     general_lower_params_t gp {ret_mod, ltsr_rtsr, graph, func_body, init_body,
             tensor_counter, global_tensor_counter, is_graph_dynamic};
     // the set of dynamic var defined in func body.(dynamic reshape)
     std::unordered_set<expr> dyn_var_set;
+    // record the node, index is op id.
+    std::vector<bool> query_visited(graph.ops_.size(), false);
     std::vector<std::pair<sc_op_ptr, stmt>> op_execution_log;
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
         std::vector<expr> ins, outs;
@@ -1213,31 +1230,18 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 exprargs.emplace_back(get_or_create_tensor(
                         gp, in, false, const_type, info_etype_t::real_tensor));
             }
-            for (auto &out : outs) {
-                exprargs.emplace_back(get_or_create_tensor(
-                        gp, out, false, const_type, info_etype_t::format));
-            }
-            for (auto &in : ins) {
-                exprargs.emplace_back(get_or_create_tensor(
-                        gp, in, false, const_type, info_etype_t::format));
-            }
             exprargs.insert(exprargs.end(), extra_infos.attrs_.begin(),
                     extra_infos.attrs_.end());
         };
 
-        // if the node is reorder, query its uses op first.
+        // if the node is reorder or has tail reorder in its internal graph,
+        // query its uses op first.
         if (is_graph_dynamic && can_op_be_dispatched(node)) {
-            if (kind == kreorder
-                    && node->attrs_.get_or_else(
-                               "constant", const_kind::not_const)
-                            == const_kind::not_const
-                    && need_query_next_first(node)) {
-                auto query_node
-                        = node->get_outputs()[0]->uses_[0].second.lock();
-                create_op_query_func(
-                        ctx, gp, op_dispatch_kernel, query_node, kind);
-            }
-            create_op_query_func(ctx, gp, op_dispatch_kernel, node, kind);
+            auto create_op_query_func_wrapper = std::bind(create_op_query_func,
+                    ctx, std::ref(gp), std::ref(op_dispatch_kernel),
+                    std::placeholders::_1);
+            lower_query_function(
+                    query_visited, node, create_op_query_func_wrapper);
         }
         // tensor decl should put after query functions.
         create_op_tensors(gp, ins, outs, node, kind);
@@ -1280,15 +1284,13 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 }
                 expr kernel_call;
                 std::string callee_name;
-                bool need_dispatch = can_op_be_dispatched(node);
-                if (need_dispatch) {
+                if (is_graph_dynamic && can_op_be_dispatched(node)) {
                     assert(is_graph_dynamic);
                     assert(op_dispatch_kernel[node->logical_op_id_].defined());
                     callee_name = get_dispatch_callee_name(
                             op_dispatch_kernel[node->logical_op_id_]);
                     std::string table_name = callee_name + "_table";
                     int dyn_idx = 0;
-
                     node->get_dispatch_key_set()->for_each_key_process(
                             std::bind(create_dispatch_funcs_by_keys, ctx,
                                     std::ref(ret_mod), table_name, node,
@@ -1332,7 +1334,8 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                         // runtime op
                         assert(mod->attr_.has_key("temp.runtime_func"));
                         callee = mod->attr_.get<func_t>("temp.runtime_func");
-                    } else if (is_graph_dynamic) {
+                    } else if (graph.is_dynamic()) {
+                        // don't use is_graph_dynamic here.
                         callee->attr().set(attr_keys::always_trans, true);
                         callee->decl_->attr().set(
                                 attr_keys::always_trans, true);

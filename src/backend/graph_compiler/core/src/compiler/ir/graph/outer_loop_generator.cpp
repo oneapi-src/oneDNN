@@ -150,6 +150,7 @@ static bool detect_loop_conflict(fusion_manager *fmgr) {
  * */
 static std::vector<int> move_reduce_axis_to_inner(
         const std::vector<int> &in_axis, sc_graph_t &graph, const tensor &tsr) {
+    if (graph.is_dynamic() && !axis_can_be_sort(graph)) { return in_axis; }
     auto run_threads = runtime_config_t::get().get_num_threads();
     std::vector<int> out_axis(in_axis.begin(), in_axis.end());
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(graph.ops_.size());

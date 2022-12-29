@@ -63,7 +63,7 @@ basic_graph_pass_ptr create_graph_pass(const std::string &name, pass_func func,
 // (enabled_ sets true) and the passes it depends on also need to be opened.
 SC_API std::tuple<std::vector<basic_graph_pass_ptr>,
         std::vector<basic_graph_pass_ptr>>
-get_graph_passes(const context_ptr &ctx, bool is_dynamic = false);
+get_graph_passes(const context_ptr &ctx);
 
 /**
  * @param graph orginal graph

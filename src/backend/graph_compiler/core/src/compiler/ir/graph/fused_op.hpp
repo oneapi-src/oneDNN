@@ -117,7 +117,6 @@ public:
             int bw_size, gt2axis_map &bw_axis_map) override;
 
     // dynamic related
-    virtual const dispatch_set_ptr &get_dispatch_key_set() const override;
     virtual dispatch_set_ptr &get_dispatch_key_set() override;
     // Return vector of inner ops who has effective dispatch keys like tunable
     // op/reorder op(dispatch alg). total_key_num is the pointer to number of
@@ -126,9 +125,6 @@ public:
     virtual std::vector<sc_op_ptr> get_inner_dispatch_ops(int *total_key_num);
     void update_internal_graph_format(const combined_op_dispatch_key_t &key);
     ir_module_ptr get_dynamic_query_func(const context_ptr &ctx);
-    // return the impl alg candidates vector, element is int(not enum) because
-    // different ops have different impl algs.
-    std::vector<int> get_impl_dispatch_candidates() const override;
 };
 
 using horizontal_ops_idx_list = std::vector<
@@ -174,6 +170,18 @@ public:
     ir_module_ptr get_func(context_ptr ctx) override;
     void get_graph_impl(std::shared_ptr<sc_graph_t> &) override;
     void schedule_loops(const stmt &body);
+
+    // dynamic related
+    // return the indices of tunable op inputs in sub graph.
+    std::vector<size_t> get_internal_tunable_input_indices();
+    virtual dispatch_set_ptr &get_dispatch_key_set() override;
+    // Return vector of inner op with dispatch key set like tunable op/reorder
+    // op(dispatch alg). total_key_num is the pointer to number of input/output
+    // dispatch key inside(option). The return value is mainly used for combined
+    // dispatch key construction.
+    virtual std::vector<sc_op_ptr> get_inner_dispatch_ops(int *total_key_num);
+    void update_internal_graph_format(const combined_op_dispatch_key_t &key);
+    ir_module_ptr get_dynamic_query_func(const context_ptr &ctx);
 
     std::vector<int> query_prefetch(const context_ptr &ctx, bool is_global,
             const std::vector<tensor_slice> &ins) override;

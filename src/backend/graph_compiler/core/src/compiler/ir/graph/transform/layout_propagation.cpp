@@ -87,6 +87,8 @@ static void insert_reorder_op(sc_graph_t &graph, reorder_map_t &reorder_map,
                             out_format_stride.first);
                     dynamic_formats.insert(dispatch_key);
                 }
+                ret->get_outputs()[0]->details_.add_format_candidate(
+                        out_format_stride.first);
             }
         }
     }
@@ -268,7 +270,7 @@ SC_INTERNAL_API void layout_propagation(
     std::vector<sc_op_ptr> sorted_ops;
     sorted_ops.reserve(graph.ops_.size());
     std::vector<size_t> num_choices;
-    num_choices.resize(graph.ops_.size());
+    num_choices.resize(graph.ops_.size(), 1);
     size_t total_choices = 1;
     std::vector<size_t> cur_choice;
     cur_choice.resize(graph.ops_.size(), 0);
@@ -281,6 +283,7 @@ SC_INTERNAL_API void layout_propagation(
     // stage 1, collect all ops and the number of choices of formats
     vis.visit_graph(graph, [&](const sc_op_ptr &node) {
         sorted_ops.emplace_back(node);
+        if (is_graph_dynamic) { return; }
         if (auto input_node = node->dyn_cast<input_op>()) {
             // backup the input's format
             std::vector<format_stride_pair> backup_info;
@@ -302,7 +305,7 @@ SC_INTERNAL_API void layout_propagation(
             } else {
                 num_choices[node->logical_op_id_]
                         = in_supported_pairs[0].size();
-                if (!is_graph_dynamic
+                if (!graph.is_dynamic()
                         && total_choices <= STATIC_MAX_LAYOUT_TRIES)
                     total_choices
                             = total_choices * num_choices[node->logical_op_id_];
@@ -425,12 +428,15 @@ SC_INTERNAL_API void layout_propagation(
                     // tunable op should return same formats in dynamic
                     // shape.
                     if (is_graph_dynamic) {
-                        if (!node->isa<tunable_op_t>()) {
-                            assert(cur_layout_choice == 0);
-                            reset_in_out_supported_pairs();
-                            node->query_format(ctx, in_supported_pairs,
-                                    out_supported_pairs);
+                        // tuanble op also need re-query as the internal layer
+                        // rely on previous layer's output layout.
+                        assert(cur_layout_choice == 0);
+                        reset_in_out_supported_pairs();
+                        if (node->isa<tunable_op_t>()) {
+                            node->stc_cast<tunable_op_t>()->set_config(nullptr);
                         }
+                        node->query_format(
+                                ctx, in_supported_pairs, out_supported_pairs);
                     }
                     // need to unify input formats
                     // todo: should check add_op input shape, output shape
@@ -457,11 +463,25 @@ SC_INTERNAL_API void layout_propagation(
                                     for (size_t k
                                             = in_supported_pairs[i].size();
                                             k > 0; k--) {
-                                        insert_reorder_op(graph, reorder_map,
-                                                inputs[i], i,
-                                                in_supported_pairs[i][k - 1],
-                                                node, is_input_plain,
-                                                insert_reorder_callback);
+                                        // ensure that each internal tunable op
+                                        // follows last format
+                                        // clang-format off
+                                        if (!in_supported_pairs[i][k - 1]
+                                                        .first.is_blocking()
+                                                || (format_candidates.find(
+                                                            in_supported_pairs
+                                                                    [i][k - 1]
+                                                                        .first)
+                                                        == format_candidates
+                                                                   .end())) {
+                                            insert_reorder_op(graph,
+                                                    reorder_map, inputs[i], i,
+                                                    in_supported_pairs[i]
+                                                                      [k - 1],
+                                                    node, is_input_plain,
+                                                    insert_reorder_callback);
+                                        }
+                                        // clang-format on
                                     }
                                 } else {
                                     // binary fusible, if input format
@@ -499,17 +519,24 @@ SC_INTERNAL_API void layout_propagation(
                                 dispatch_format.push_back(target_fs_pair.first);
                             }
                         }
-                        if (is_graph_dynamic && !node->isa<tunable_op_t>()) {
-                            assert(out_supported_pairs[0].size() == 1);
-                            update_output_formats(node->info_.outputs_,
-                                    out_supported_pairs, 0);
-                            dispatch_format.push_back(
-                                    out_supported_pairs[0][0].first);
-                            // update fusible_op's dispatch key in pass as it
-                            // follows format of tunable op.
-                            node->get_dispatch_key_set()
-                                    ->get_inner_set()
-                                    .insert(dispatch_format);
+                        if (is_graph_dynamic) {
+                            assert(!out_supported_pairs[0].empty());
+                            for (size_t j = out_supported_pairs[0].size();
+                                    j > 0; j--) {
+                                update_output_formats(node->info_.outputs_,
+                                        out_supported_pairs, j - 1);
+                            }
+                            if (!node->isa<tunable_op_t>()) {
+                                // dispatch_key of tunable op is decided by
+                                // itself.
+                                dispatch_format.push_back(
+                                        out_supported_pairs[0][0].first);
+                                // update fusible_op's dispatch key in pass as
+                                // it follows format of tunable op.
+                                node->get_dispatch_key_set()
+                                        ->get_inner_set()
+                                        .insert(dispatch_format);
+                            }
                         }
                     } else {
                         COMPILE_ASSERT(0,
@@ -522,21 +549,22 @@ SC_INTERNAL_API void layout_propagation(
                     for (size_t i = 0; i < inputs.size(); ++i) {
                         inputs[i]->details_.set_format(old_formats[i]);
                     }
-                }
-                if (is_graph_dynamic && node->isa<tunable_op_t>()) {
-                    for (size_t j = out_supported_pairs[0].size(); j > 0; j--) {
-                        update_output_formats(node->info_.outputs_,
-                                out_supported_pairs, j - 1);
+                    reset_in_out_supported_pairs();
+                    if (node->isa<tunable_op_t>()) {
+                        node->stc_cast<tunable_op_t>()->set_config(nullptr);
                     }
-                } else {
-                    if (is_graph_dynamic) {
-                        reset_in_out_supported_pairs();
-                        node->query_format(
-                                ctx, in_supported_pairs, out_supported_pairs);
+                    node->query_format(
+                            ctx, in_supported_pairs, out_supported_pairs);
+                    // if (node->isa<tunable_op_t>()) {
+                    // reset one unified layout for fusion.
+                    for (size_t i = 0; i < node->get_inputs().size(); ++i) {
+                        node->get_inputs()[i]->details_.set_format(
+                                in_supported_pairs[i][0].first);
                     }
-                    update_output_formats(node->info_.outputs_,
-                            out_supported_pairs, cur_layout_choice);
+                    // }
                 }
+                update_output_formats(node->info_.outputs_, out_supported_pairs,
+                        cur_layout_choice);
             } else if (node->isa<fusible_op_t>()) {
                 // split/flatten/reshape/concat/matmul/reduce/reorder/trans2d/transpose
                 // has itself query_format func

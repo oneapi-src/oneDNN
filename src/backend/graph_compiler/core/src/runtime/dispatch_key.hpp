@@ -103,7 +103,7 @@ union dispatch_key {
 
     int ndims() const {
         int idx = 0;
-        while (get(idx) != 0xF) {
+        while (idx < meta::MAX_DIMS && get(idx) != 0xF) {
             idx++;
         }
         return idx;

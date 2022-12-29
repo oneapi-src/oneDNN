@@ -369,7 +369,8 @@ void reduce_op_t::pre_slice_ranges(
         for (auto &range : out_ranges) {
             slice_range reduce_range;
             // additional process is needed.
-            auto real_dims = get_inputs()[0]->details_.get_blocking_dims();
+            auto real_dims = get_inputs()[0]->details_.get_blocking_dims_expr(
+                    get_owner_graph());
             // idx record real idx in range, used to skip range {0,1} when
             // keep_dims=false
             int idx = 0;
@@ -377,8 +378,8 @@ void reduce_op_t::pre_slice_ranges(
                 if (real_rd_axis.end()
                         != std::find(
                                 real_rd_axis.begin(), real_rd_axis.end(), i)) {
-                    reduce_range.emplace_back(std::pair<expr, expr> {
-                            0, dim2unsigned(real_dims.at(i))});
+                    reduce_range.emplace_back(
+                            std::pair<expr, expr> {0, real_dims.at(i)});
                     if (keep_dims_) idx++;
                 } else {
                     reduce_range.emplace_back(range.at(idx++));

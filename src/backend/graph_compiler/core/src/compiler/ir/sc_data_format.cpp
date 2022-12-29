@@ -508,6 +508,18 @@ bool sc_data_format_cmper_t::operator()(
     return false;
 }
 
+bool is_dynamic_blocking(
+        const sc_dims &shapes, const sc_data_format_t &format) {
+    auto &code = format.format_code_;
+    for (size_t i = 0; i < shapes.size(); i++) {
+        if (is_dynamic_dim(shapes[i])
+                && !code.collect_blocking_index(i).empty()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // clang-format off
 SC_CLASS(sc_data_format_t)
     SC_FIELD(format_code_)

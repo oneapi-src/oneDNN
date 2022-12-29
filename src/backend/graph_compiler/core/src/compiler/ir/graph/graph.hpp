@@ -285,7 +285,7 @@ public:
     void remove();
 
     // get op's owner graph
-    sc_graph_t &get_owner_graph() { return *owner_graph_; }
+    sc_graph_t &get_owner_graph() const { return *owner_graph_; }
     void set_owner_graph(sc_graph_t *owner_graph) {
         owner_graph_ = owner_graph;
     }

@@ -99,7 +99,9 @@ std::vector<int> select_op_t::infer_broadcast_axis(
         }
         if (double_check_broadcast) {
             for (size_t i = 0; i < elt_dims.size(); ++i) {
-                if (elt_dims.at(i) == bc_dims.at(i)) {
+                if (elt_dims.at(i) == bc_dims.at(i)
+                        || (is_dynamic_dim(elt_dims.at(i))
+                                && is_dynamic_dim(bc_dims.at(i)))) {
                     bc_axis.emplace_back(i);
                 }
             }
@@ -111,7 +113,7 @@ std::vector<int> select_op_t::infer_broadcast_axis(
 }
 
 static slice_range_list infer_broadcast_slice(slice_range_list known_range_list,
-        std::vector<int> bc_axis, sc_dims bc_dim) {
+        const std::vector<int> &bc_axis, const std::vector<expr> &bc_dim) {
     slice_range_list bc_range_list(known_range_list.size());
     for (size_t i = 0; i < bc_range_list.size(); i++) {
         auto &known_range = known_range_list[i];
@@ -121,9 +123,9 @@ static slice_range_list infer_broadcast_slice(slice_range_list known_range_list,
         for (size_t j = 0; j < known_range.size(); j++) {
             if (bc_axis.end() != std::find(bc_axis.begin(), bc_axis.end(), j)) {
                 bc_range_list[i].emplace_back(known_range.at(j));
-            } else {
+            } else if (bc_dim.size() != 1) {
                 bc_range_list[i].emplace_back(
-                        std::make_pair(expr(0), dim2unsigned(bc_dim[j])));
+                        std::make_pair(expr(0), bc_dim[j]));
             }
         }
     }
@@ -365,17 +367,19 @@ void select_op_t::infer_slice_ranges(
                 COMPILE_ASSERT(maxtensor_idx != 1,
                         "maxtensor_idx shouldn't be input1");
                 // call get_bc_axis for input[0] && input[2]
-                auto bc_axis = get_bc_axis(2 - maxtensor_idx, maxtensor_idx);
+                auto bc_axis = get_bc_axis(maxtensor_idx, 2 - maxtensor_idx);
                 slice_range_list bc_range_list = infer_broadcast_slice(
                         known_ranges_map[2 - maxtensor_idx], bc_axis,
                         get_inputs()[maxtensor_idx]
-                                ->details_.get_blocking_dims());
+                                ->details_.get_blocking_dims_expr(
+                                        get_owner_graph()));
                 known_ranges_map[maxtensor_idx] = bc_range_list;
                 // deal with input[1]
                 bc_axis = get_bc_axis(2 - maxtensor_idx, 1);
                 bc_range_list = infer_broadcast_slice(
                         known_ranges_map[2 - maxtensor_idx], bc_axis,
-                        get_inputs()[1]->details_.get_blocking_dims());
+                        get_inputs()[1]->details_.get_blocking_dims_expr(
+                                get_owner_graph()));
                 known_ranges_map[1] = bc_range_list;
             }
             // set the other unknown slice range by achieved
@@ -412,7 +416,7 @@ void select_op_t::infer_slice_ranges(
 
 // l is always the larger side when passing parameters.
 std::vector<int> select_op_t::get_bc_axis(const int l, const int r) const {
-    COMPILE_ASSERT(l == get_max_input() || r == 2,
+    COMPILE_ASSERT(l == get_max_input() || r == 1,
             "l should be the larger side when passing parameters");
     int bc_input_idx = get_broadcast_input(l, r);
     if (bc_input_idx == -1) {

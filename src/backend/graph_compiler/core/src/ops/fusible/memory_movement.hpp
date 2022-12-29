@@ -81,6 +81,7 @@ public:
     tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
     sc_dims get_shapes() const;
+    std::vector<expr> get_shapes_expr();
     bool try_penetrate(sc_data_format_t &new_output_format) const;
     shape_rl_vec get_dynamic_shape_relations() const override;
     sc_dims get_bwise_fuse_shrink_dims() override;

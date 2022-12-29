@@ -508,7 +508,7 @@ size_t get_dims_product(const sc_dims &dims) {
     sc_dim ret = 1;
     // todo: find out how to use this function in dynamic cases.
     for (unsigned i = 0; i < dims.size(); ++i) {
-        if (!is_dynamic_dim(dims[i])) { ret *= dims[i]; }
+        if (!is_dynamic_dim(dims[i]) && dims[i]) { ret *= dims[i]; }
     }
     assert(ret > 0 && "Overflow or non-constant shape detected");
     return ret;
@@ -673,6 +673,17 @@ std::vector<int> transform_axis_blocking2plain(
     return plain_axis;
 }
 
+bool is_dynamic_slice_range_list(const slice_range_list &in_slice_range_list) {
+    for (auto &range : in_slice_range_list) {
+        auto shapes = get_slice_shape(range);
+        for (auto &shape : shapes) {
+            auto folded_shape = do_cast_and_fold(shape);
+            if (!folded_shape.isa<constant>()) { return true; }
+        }
+    }
+    return false;
+}
+
 /**
  * Compare left and right fsmap
  * */
@@ -682,18 +693,49 @@ cmp_res cmp_slice_range(const slice_range_list &left_slice_range_list,
     COMPILE_ASSERT(
             !left_slice_range_list.empty() && !right_slice_range_list.empty(),
             "slice range should be set");
-    for (auto &left_slice_range : left_slice_range_list) {
-        auto left_slice_shape
-                = get_expr_to_dims(get_slice_shape(left_slice_range));
-        if (get_dims_product(left_slice_shape) > left_slice_size) {
-            left_slice_size = get_dims_product(left_slice_shape);
+    if (is_dynamic_slice_range_list(left_slice_range_list)
+            || is_dynamic_slice_range_list(right_slice_range_list)) {
+        COMPILE_ASSERT(left_slice_range_list.size() == 1
+                        && right_slice_range_list.size() == 1,
+                "left and right slice range size should be 1.");
+        auto &left_slice_range = left_slice_range_list[0];
+        auto &right_slice_range = right_slice_range_list[0];
+        assert(left_slice_range.size() == right_slice_range.size());
+        for (size_t i = left_slice_range.size(); i > 0; i--) {
+            auto left_shape = do_cast_and_fold(left_slice_range[i - 1].second);
+            auto right_shape
+                    = do_cast_and_fold(right_slice_range[i - 1].second);
+            if (!left_shape->equals(right_shape)
+                    && !(left_shape.isa<constant>()
+                            && right_shape.isa<constant>()
+                            && get_expr_as_int(left_shape)
+                                    == get_expr_as_int(right_shape))) {
+                assert((left_shape.isa<constant>()
+                               && get_expr_as_int(left_shape) == 1)
+                        || (right_shape.isa<constant>()
+                                && get_expr_as_int(right_shape) == 1));
+                if (left_shape.isa<constant>()
+                        && get_expr_as_int(left_shape) == 1) {
+                    right_slice_size++;
+                } else {
+                    left_slice_size++;
+                }
+            }
         }
-    }
-    for (auto &right_slice_range : right_slice_range_list) {
-        auto right_slice_shape
-                = get_expr_to_dims(get_slice_shape(right_slice_range));
-        if (get_dims_product(right_slice_shape) > right_slice_size) {
-            right_slice_size = get_dims_product(right_slice_shape);
+    } else {
+        for (auto &left_slice_range : left_slice_range_list) {
+            auto left_slice_shape
+                    = get_expr_to_dims(get_slice_shape(left_slice_range));
+            if (get_dims_product(left_slice_shape) > left_slice_size) {
+                left_slice_size = get_dims_product(left_slice_shape);
+            }
+        }
+        for (auto &right_slice_range : right_slice_range_list) {
+            auto right_slice_shape
+                    = get_expr_to_dims(get_slice_shape(right_slice_range));
+            if (get_dims_product(right_slice_shape) > right_slice_size) {
+                right_slice_size = get_dims_product(right_slice_shape);
+            }
         }
     }
     // if right anchor is more smaller than the leftrent one
@@ -838,6 +880,17 @@ bool slice_divisible_on_axis(
         }
     }
     return true;
+}
+
+bool slice_expr_equals(const expr &in1, const expr &in2) {
+    auto fin1 = do_cast_and_fold(in1);
+    auto fin2 = do_cast_and_fold(in2);
+    if (fin1->equals(fin2)) { return true; }
+    // datatype may not equal during slice compare.
+    if (fin1.isa<constant>() && fin2.isa<constant>()) {
+        return get_expr_as_int(fin1) == get_expr_as_int(fin2);
+    }
+    return false;
 }
 
 expr cast_to_s32(const expr &in) {

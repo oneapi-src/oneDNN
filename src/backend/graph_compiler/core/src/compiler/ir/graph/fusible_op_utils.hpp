@@ -141,6 +141,9 @@ static constexpr size_t workload_penalty_coefficient = 16UL;
 
 float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops);
 expr cast_to_s32(const expr &in);
+// compare expr in slice equal or not, constant slice may have different
+// datatypes but same value as we use `int` for static.
+bool slice_expr_equals(const expr &in1, const expr &in2);
 } // namespace sc
 
 #endif

@@ -155,14 +155,8 @@ create_default_graph_flow(const context_ptr &ctx) {
 }
 
 std::tuple<std::vector<basic_graph_pass_ptr>, std::vector<basic_graph_pass_ptr>>
-get_graph_passes(const context_ptr &ctx, bool is_dynamic) {
-    // todo:apply dynamic on mixed_partition.
-    if (!is_dynamic) { return create_default_graph_flow(ctx); }
-    bool oldf = ctx->flags_.mixed_fusion_;
-    ctx->flags_.mixed_fusion_ = false;
-    auto dynamic_passes = create_default_graph_flow(ctx);
-    ctx->flags_.mixed_fusion_ = oldf;
-    return dynamic_passes;
+get_graph_passes(const context_ptr &ctx) {
+    return create_default_graph_flow(ctx);
 }
 
 static void run_passes(sc_graph_t &graph, const context_ptr &ctx,
@@ -232,7 +226,7 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
         SC_MODULE_INFO << "Use default config";
     }
 
-    auto passes_tuple = get_graph_passes(ctx, graph.is_dynamic());
+    auto passes_tuple = get_graph_passes(ctx);
     const std::vector<basic_graph_pass_ptr> *prepass
             = pre_tune_pass ? pre_tune_pass : &std::get<0>(passes_tuple);
     const std::vector<basic_graph_pass_ptr> *postpass

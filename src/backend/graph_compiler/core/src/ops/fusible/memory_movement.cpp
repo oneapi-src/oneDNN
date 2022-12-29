@@ -25,6 +25,7 @@
 
 #include "memory_movement.hpp"
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_mgr.hpp>
 #include <compiler/ir/graph/outer_loop_generator.hpp>
@@ -178,6 +179,11 @@ sc_dims tensor_view_op_t::get_shapes() const {
     return info_.outputs_[0]->details_.get_blocking_dims();
 }
 
+std::vector<expr> tensor_view_op_t::get_shapes_expr() {
+    return info_.outputs_[0]->details_.get_blocking_dims_expr(
+            get_owner_graph());
+}
+
 tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     op_name_ = "tensor_view";
@@ -223,7 +229,12 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
                 info_.outputs_[0]->details_.get_plain_dims().size()));
     }
     attrs_["format"] = format;
-    if (is_dynamic()) { attrs_.set(op_attr_key::no_fuse, true); }
+    if (is_dynamic()
+            && count_dynamic_dims(get_inputs()[0]->details_.get_plain_dims())
+                    != count_dynamic_dims(
+                            get_outputs()[0]->details_.get_plain_dims())) {
+        attrs_.set(op_attr_key::no_fuse, true);
+    }
 }
 
 tensor_view_op_t::tensor_view_op_t(graph_tensor_ptr v, const sc_dims &shapes)
@@ -378,7 +389,23 @@ void tensor_view_op_t::query_format(context_ptr ctx,
     sc_data_format_t output_format;
     // temp workaround
     assert(!attrs_.get<sc_data_format_t>("format").is_any());
-    if (attrs_.has_key("expand_dim")
+    bool query_by_dispatch_key = false;
+    if (is_dynamic()) {
+        auto key_set = get_dispatch_key_set();
+        key_set->for_each_key_process([&](const op_dispatch_key_base_t *key) {
+            auto dkey = static_cast<const op_dispatch_key_t *>(key);
+            if (!query_by_dispatch_key
+                    && dkey->in_out_formats_[0]
+                            == info_.inputs_[0]->details_.get_format()) {
+                query_by_dispatch_key = true;
+                output_format = dkey->in_out_formats_[1];
+            }
+        });
+    }
+    if (query_by_dispatch_key) {
+        out_formats.push_back({output_format});
+        in_formats.push_back({info_.inputs_[0]->details_.get_format()});
+    } else if (attrs_.has_key("expand_dim")
             && info_.inputs_[0]->details_.get_format()
                     == attrs_.get<sc_data_format_t>("cache_input_format")) {
         out_formats.push_back({attrs_.get<sc_data_format_t>("format")});
@@ -403,20 +430,16 @@ void tensor_view_op_t::prepare_fusion_data(fdata_map &fdmap) {
     in_detail0.use_count_++;
 }
 
-slice_range_list infer_tensor_view_slice(
-        const slice_range_list &known_ranges_list, const sc_dims &src_tv_dims,
-        const sc_dims &dst_tv_dims) {
+slice_range_list infer_tensor_view_slice(sc_graph_t &graph,
+        const slice_range_list &known_ranges_list,
+        const std::vector<expr> &src_tv_dims,
+        const std::vector<expr> &dst_tv_dims) {
     slice_range_list ret;
-    // auto skip
-    if (src_tv_dims == dst_tv_dims) {
-        ret = known_ranges_list;
-        return ret;
-    }
     for (auto known_ranges : known_ranges_list) {
         slice_range consistent_tv_slice;
         auto src_dims = src_tv_dims, dst_dims = dst_tv_dims;
         while (!dst_dims.empty() && !src_dims.empty()) {
-            if (dst_dims.back() != src_dims.back()) break;
+            if (!slice_expr_equals(dst_dims.back(), src_dims.back())) break;
             consistent_tv_slice.insert(
                     consistent_tv_slice.begin(), known_ranges.back());
             known_ranges.pop_back();
@@ -432,10 +455,11 @@ slice_range_list infer_tensor_view_slice(
         bool slice_stop = false;
         // flatten index
         expr flatten_idx = 0;
-        // total length
+        // total length of static dim
         sc_dim total_len = 1;
         // accumulater src dims
-        sc_dim acc_src_dim = 1;
+        expr acc_src_dim_expr = 1;
+        const int dyn_len = -2;
         for (int i = src_dims.size() - 1; i >= 0; i--) {
             if (slice_stop) {
                 // check whether slice is full on last several dims
@@ -447,48 +471,55 @@ slice_range_list infer_tensor_view_slice(
                     // to fuse it
                     return slice_range_list {};
             }
+            auto src_expr = src_dims[i];
             if (!(known_ranges[i].first.isa<constant_c>()
                         && get_const_as_int(
                                    known_ranges[i]
                                            .first.checked_as<constant_c>())
                                 == 0
-                        && get_const_as_int(
-                                   known_ranges[i]
-                                           .second.checked_as<constant_c>())
-                                == src_dims[i])) {
+                        && slice_expr_equals(
+                                known_ranges[i].second, src_expr))) {
                 slice_stop = true;
             }
-            total_len *= get_const_as_int(
-                    known_ranges[i].second.checked_as<constant_c>());
-            if (!is_dynamic_dim(src_dims[i])) {
-                flatten_idx = flatten_idx
-                        + known_ranges[i].first
-                                * expr(dim2unsigned(acc_src_dim));
-                acc_src_dim *= src_dims[i];
+            if (known_ranges[i].second.isa<constant_c>()) {
+                total_len *= get_const_as_int(
+                        known_ranges[i].second.checked_as<constant_c>());
+            } else {
+                total_len *= dyn_len;
             }
+            flatten_idx
+                    = flatten_idx + known_ranges[i].first * acc_src_dim_expr;
+            acc_src_dim_expr = acc_src_dim_expr * src_expr;
         }
         // deflatten to new shape
         slice_range reshape_ranges;
         sc_dims acc_dst_dim;
+        std::vector<expr> acc_dst_dim_expr;
         sc_dim tmp_acc = 1;
+        expr tmp_acc_expr = 1;
         for (int64_t i = static_cast<int64_t>(dst_dims.size()) - 1; i >= 0;
                 i--) {
-            tmp_acc *= dst_dims[i];
+            tmp_acc *= !dst_dims[i].isa<constant>()
+                    ? dyn_len
+                    : get_expr_as_int(dst_dims[i]);
+            tmp_acc_expr = tmp_acc_expr * dst_dims[i];
             acc_dst_dim.emplace_back(tmp_acc);
+            acc_dst_dim_expr.emplace_back(tmp_acc_expr);
         }
         std::reverse(acc_dst_dim.begin(), acc_dst_dim.end());
+        std::reverse(acc_dst_dim_expr.begin(), acc_dst_dim_expr.end());
         std::vector<expr> dst_idx;
         for (unsigned i = 0; i < dst_dims.size() - 1; i++) {
-            expr cur_idx = flatten_idx / expr(dim2unsigned(acc_dst_dim[i + 1]));
+            expr cur_idx = flatten_idx / acc_dst_dim_expr[i + 1];
             dst_idx.emplace_back(cur_idx);
-            flatten_idx = flatten_idx % expr(dim2unsigned(acc_dst_dim[i + 1]));
+            flatten_idx = flatten_idx % acc_dst_dim_expr[i + 1];
         }
         slice_stop = false;
         for (int64_t i = static_cast<int64_t>(dst_dims.size()) - 1; i >= 0;
                 i--) {
-            if (!slice_stop && total_len >= acc_dst_dim[i]) {
-                reshape_ranges.emplace_back(std::make_pair(
-                        expr(0), expr(dim2unsigned(dst_dims[i]))));
+            if (!slice_stop && abs(total_len) >= abs(acc_dst_dim[i])) {
+                reshape_ranges.emplace_back(
+                        std::make_pair(expr(0), dst_dims[i]));
                 if (total_len == acc_dst_dim[i]) slice_stop = true;
             } else {
                 if (!slice_stop) slice_stop = true;
@@ -529,13 +560,16 @@ void tensor_view_op_t::infer_slice_ranges(
     slice_range_list known_ranges_list = known_ranges_map[0];
 
     if (fsmap.get(get_outputs()[0]).empty()) {
+        auto &graph = get_owner_graph();
         // src
-        auto src_dims = info_.inputs_[0]->details_.get_blocking_dims();
+        auto src_dims
+                = info_.inputs_[0]->details_.get_blocking_dims_expr(graph);
         // dst
-        auto shapes = get_shapes();
+        auto dst_dims
+                = info_.outputs_[0]->details_.get_blocking_dims_expr(graph);
 
-        auto tv_slice
-                = infer_tensor_view_slice(known_ranges_list, src_dims, shapes);
+        auto tv_slice = infer_tensor_view_slice(
+                graph, known_ranges_list, src_dims, dst_dims);
 
         if (tv_slice.empty()) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
@@ -553,13 +587,16 @@ void tensor_view_op_t::pre_slice_ranges(
     }
     if (fsmap.get(get_inputs()[0]).empty()) {
         slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
+        auto &graph = get_owner_graph();
         // src
-        auto src_dims = info_.inputs_[0]->details_.get_blocking_dims();
+        auto src_dims
+                = info_.inputs_[0]->details_.get_blocking_dims_expr(graph);
         // dst
-        auto shapes = get_shapes();
+        auto dst_dims
+                = info_.outputs_[0]->details_.get_blocking_dims_expr(graph);
         // NOTE: pre_slice_ranges use shapes as src_dims
-        auto tv_slice
-                = infer_tensor_view_slice(known_ranges_list, shapes, src_dims);
+        auto tv_slice = infer_tensor_view_slice(
+                graph, known_ranges_list, dst_dims, src_dims);
         if (tv_slice.empty()) {
             stat_map.append_ops_by_status(this, infer_status_code::RETRY);
             return;

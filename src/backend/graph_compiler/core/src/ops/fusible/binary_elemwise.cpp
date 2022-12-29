@@ -110,7 +110,9 @@ std::vector<int> binary_elementwise_op_impl_t::infer_broadcast_axis() const {
         }
         if (double_check_broadcast) {
             for (size_t i = 0; i < elt_dims.size(); ++i) {
-                if (elt_dims.at(i) == bc_dims.at(i)) {
+                if (elt_dims.at(i) == bc_dims.at(i)
+                        || (is_dynamic_dim(elt_dims.at(i))
+                                && is_dynamic_dim(bc_dims.at(i)))) {
                     bc_axis.emplace_back(i);
                 }
             }

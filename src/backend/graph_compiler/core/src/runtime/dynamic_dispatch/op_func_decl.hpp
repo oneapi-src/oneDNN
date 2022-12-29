@@ -52,8 +52,8 @@ SC_API void query_format_select_op(void *table, void *out, void *in0, void *in1,
         uint64_t *in2_fmt, uint64_t *out_size, void *kernel);
 SC_API void query_combined_fused_op(void *table, uint64_t **combined_keys,
         int *combined_algs, int *each_op_num_key, int op_num, void *kernel);
-SC_API void calculate_shape_of_tensor_op(void *out, void *in, uint64_t *out_fmt,
-        uint64_t *in_fmt, int *shape_idxs, int shape_size);
+SC_API void calculate_shape_of_tensor_op(
+        void *out, void *in, int *shape_idxs, int shape_size);
 };
 
 } // namespace sc

@@ -411,6 +411,8 @@ struct sc_data_format_cmper_t {
 SC_INTERNAL_API std::ostream &operator<<(
         std::ostream &os, const sc_data_format_t &in);
 
+// if has block on dynamic plain shapes
+bool is_dynamic_blocking(const sc_dims &shapes, const sc_data_format_t &format);
 } // namespace sc
 
 namespace std {
