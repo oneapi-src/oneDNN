@@ -50,8 +50,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     set_default_pool_conf(conf, *pd->desc(), *pd->invariant_src_md(),
             *pd->invariant_dst_md(), *pd->attr());
 
-    if (conf.id != conf.kd || conf.iw != conf.kw || conf.ih != conf.kh
-            || conf.od * conf.ow * conf.oh != 1)
+    if (conf.iw != conf.kw || conf.ih != conf.kh || conf.ow * conf.oh != 1)
         return status::unimplemented;
 
     const memory_desc_wrapper src_mdw(pd->invariant_src_md());
@@ -63,10 +62,14 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
             || utils::array_product(padded_dst_dims + 2, conf.ndims - 2)
                     != conf.od * conf.oh * conf.ow)
         return status::unimplemented;
+
+    using namespace dnnl::impl::alg_kind;
     if (!conf.is_backward) {
-        // gen9_global_pooling_fwd doesn't support zero padding.
-        if (conf.mb != conf.mb_padded || conf.c != conf.c_padded)
-            return status::unimplemented;
+        if (conf.alg == pooling_max) {
+            // gen9_global_pooling_fwd doesn't support zero padding.
+            if (conf.mb != conf.mb_padded || conf.c != conf.c_padded)
+                return status::unimplemented;
+        }
         // heuristics: for small shapes, gen9_pooling_fwd provides better perf.
         if (conf.kd * conf.kh * conf.kw < 128) return status::unimplemented;
     }
