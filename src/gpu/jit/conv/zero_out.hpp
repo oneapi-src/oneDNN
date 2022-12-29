@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,10 +80,14 @@ public:
         auto idx_vec = ra_.alloc().uw();
         mov(8, idx_vec, ngen::Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
 
+        reg_buf_t dst, src0, src1;
         for (int i = 0; i < bytes_per_thr; i += 8) {
             auto off_sub_vec
                     = get_subregister(hw, ngen::DataType::ud, off_vec, i)(1);
-            add3(8, off_sub_vec, off0, idx_vec, i);
+            this->eadd3(8, ngen_operand_t(reg_buf_data_t(dst, off_sub_vec)),
+                    ngen_operand_t(reg_buf_data_t(src0, off0)),
+                    ngen_operand_t(reg_buf_data_t(src1, idx_vec)),
+                    ngen_operand_t(i));
             if (use_a64) {
                 auto ptr_sub_vec = get_subregister(
                         hw, ngen::DataType::uq, ptr_vec, i)(1);
