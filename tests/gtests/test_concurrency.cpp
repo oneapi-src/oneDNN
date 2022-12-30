@@ -276,6 +276,15 @@ protected:
 #endif
         SKIP_IF_CUDA(true, "Concurrent execution is not supported with CUDA.");
 
+#ifdef DNNL_WITH_SYCL
+        // XXX: Disable primitive cache to force creating new primitives each
+        // time (and therefore new kernels) in different threads.
+        // The reason for that is that there is a bug in SYCL that may cause
+        // incorrect results of the primitive due to the same kernel being
+        // submitted to different queues from from different threads.
+        if (get_test_engine_kind() == engine::kind::gpu)
+            set_primitive_cache_capacity(0);
+#endif
         // This test doesn't work properly under SDE.
         const int len = 1024;
         char value_str[len];
