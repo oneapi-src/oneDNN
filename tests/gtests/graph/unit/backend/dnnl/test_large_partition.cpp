@@ -371,7 +371,7 @@ TEST(Execute, Int8Mha) {
     utils::construct_int8_MHA(&g);
     g.finalize();
 
-    ASSERT_EQ(g.get_ops().size(), 21U);
+    ASSERT_EQ(g.get_ops().size(), 13U);
 
     graph::pass::pass_base_ptr apass = get_pass("int8_MHA_fusion");
     apass->run(g);
@@ -430,10 +430,10 @@ TEST(Execute, F32Mha) {
     graph::stream_t *strm = get_stream();
 
     graph::graph_t g(eng->kind());
-    utils::construct_f32_MHA(&g);
+    utils::construct_dnnl_f32_MHA(&g);
     g.finalize();
 
-    ASSERT_EQ(g.get_ops().size(), 13U);
+    ASSERT_EQ(g.get_ops().size(), 7U);
 
     graph::pass::pass_base_ptr apass = get_pass("f32_MHA_fusion");
     apass->run(g);
@@ -502,7 +502,7 @@ TEST(Execute, Int8Bf16Mha) {
     utils::construct_int8_bf16_MHA(&g);
     g.finalize();
 
-    ASSERT_EQ(g.get_ops().size(), 29U);
+    ASSERT_EQ(g.get_ops().size(), 19U);
 
     graph::pass::pass_base_ptr apass = get_pass("int8_bf16_MHA_fusion");
     apass->run(g);
@@ -544,68 +544,6 @@ TEST(Execute, Int8Bf16Mha) {
         outputs_data.emplace_back(
                 test::vector<uint16_t>(utils::product(ltw(lt).vdims())));
         outputs_ts.emplace_back(lt, eng, outputs_data.back().data());
-    }
-
-    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
-    strm->wait();
-}
-
-TEST(Execute, F32MhaReshapeSoftMax) {
-    graph::engine_t *eng = get_engine();
-    graph::stream_t *strm = get_stream();
-
-    graph::graph_t g(eng->kind());
-    utils::construct_reshaped_softmax_f32_mha(&g);
-    g.finalize();
-
-    ASSERT_EQ(g.get_ops().size(), 14U);
-
-    graph::pass::pass_base_ptr apass = get_pass("f32_MHA_fusion");
-    apass->run(g);
-    ASSERT_EQ(g.get_num_partitions(), 1U);
-    auto part = g.get_partitions()[0];
-
-    // compile
-    graph::partition_t p;
-    p.init(part);
-
-    auto partition_inputs = p.get_inputs();
-    auto partition_outputs = p.get_outputs();
-    ASSERT_EQ(partition_inputs.size(), 4U);
-    ASSERT_EQ(partition_outputs.size(), 1U);
-
-    std::vector<const graph::logical_tensor_t *> inputs, outputs;
-    for (auto &lt : partition_inputs) {
-        inputs.emplace_back(&lt);
-    }
-    for (auto &lt : partition_outputs) {
-        // set output to be strided
-        lt = utils::logical_tensor_init(
-                lt.id, lt.data_type, graph::layout_type::strided);
-        outputs.emplace_back(&lt);
-    }
-
-    graph::compiled_partition_t cp(p);
-    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
-
-    using ltw = graph::logical_tensor_wrapper_t;
-
-    std::vector<test::vector<float>> inputs_data, outputs_data;
-    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
-
-    for (auto &lt : inputs) {
-        inputs_data.emplace_back(
-                test::vector<float>(utils::product(ltw(lt).vdims())));
-        inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
-    }
-
-    for (auto &lt : outputs) {
-        graph::logical_tensor_t compiled_output;
-        cp.query_logical_tensor(lt->id, &compiled_output);
-        outputs_data.emplace_back(test::vector<float>(
-                utils::product(ltw(compiled_output).vdims())));
-        outputs_ts.emplace_back(
-                compiled_output, eng, outputs_data.back().data());
     }
 
     ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
