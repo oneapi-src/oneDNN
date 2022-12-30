@@ -1640,9 +1640,10 @@ dnnl_status_t sgemm_nocopy_driver(const char *transa, const char *transb,
     float *ws = nullptr;
     bool use_heap_mem = BK > ker_b1->stack_k_capacity();
     if (use_heap_mem) {
-        // Kernel uses sizeK * unroll_m + 64 elements as workspace.
+        // Kernel uses sizeK * unroll_m + 64 + unroll_m elements as workspace.
         const dim_t max_sizeK = BK;
-        const size_t ws_size = sizeof *ws * (max_sizeK * UNROLL_M + 64);
+        const size_t ws_size
+                = sizeof *ws * (max_sizeK * UNROLL_M + 64 + UNROLL_M);
 
         ws = (float *)malloc(ws_size, PAGE_4K);
         if (!ws) return dnnl_out_of_memory;

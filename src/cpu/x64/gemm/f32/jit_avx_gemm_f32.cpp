@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2273,10 +2273,10 @@ dnnl_status_t sgemm_nocopy_driver(const char *transa, const char *transb,
     float *ws = nullptr;
     bool use_heap_mem = BK > ker_b1->stack_k_capacity();
     if (use_heap_mem) {
-        // Kernel uses sizeK * unroll_m + 64 elements as workspace.
+        // Kernel uses sizeK * unroll_m + 64 + unroll_m elements as workspace.
         const dim_t um = ker_b1->unroll_m();
         const dim_t max_sizeK = BK;
-        const size_t ws_size = sizeof *ws * (max_sizeK * um + 64);
+        const size_t ws_size = sizeof *ws * (max_sizeK * um + 64 + um);
 
         ws = (float *)malloc(ws_size, PAGE_4K);
         if (!ws) return dnnl_out_of_memory;
