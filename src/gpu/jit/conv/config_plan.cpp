@@ -961,8 +961,8 @@ grf_usage_t conv_plan_t::grf_usage() const {
     gmem_load_buf_regs += slm.b_g2s_load.estimate_regs(
             /*with_buffer=*/true, with_headers, reuse_headers);
 
-    bool use_a_slm = x2r.a_load.send_hint().is_slm();
-    bool use_b_slm = x2r.b_load.send_hint().is_slm();
+    bool use_a_slm = x2r.a_load.send_params().is_slm();
+    bool use_b_slm = x2r.b_load.send_params().is_slm();
     int a_g2r_buf_regs = use_a_slm
             ? 0
             : x2r.a_load.estimate_regs(/*with_buffer=*/true,
@@ -978,9 +978,9 @@ grf_usage_t conv_plan_t::grf_usage() const {
         // Reuse load buffer when both reorders are enabled.
         gmem_load_buf_regs += std::max(a_g2r_buf_regs, b_g2r_buf_regs);
     } else {
-        if (!x2r.a_load.send_hint().is_slm())
+        if (!x2r.a_load.send_params().is_slm())
             gmem_load_buf_regs += a_g2r_buf_regs;
-        if (!x2r.b_load.send_hint().is_slm())
+        if (!x2r.b_load.send_params().is_slm())
             gmem_load_buf_regs += b_g2r_buf_regs;
     }
     int gmem_load_regs = 0;
@@ -1771,12 +1771,13 @@ private:
         auto slm_thr_layout = slm_layout.map(thr_tile);
         auto slm_thr_view = view_t(slm_thr_layout);
         auto thr_view = tg_view.create_sub_view(thr_tile);
-        auto load_hint = get_send_hint(cfg_.exec_cfg(), send_op_t::load,
+        auto load_params = get_send_params(cfg_.exec_cfg(), send_op_t::load,
                 send_address_t::a64, abc, thr_view);
-        auto store_hint = get_send_hint(cfg_.exec_cfg(), send_op_t::store,
+        auto store_params = get_send_params(cfg_.exec_cfg(), send_op_t::store,
                 send_address_t::slm, abc, slm_thr_view);
-        g2s_load = create_send_plan(cfg_.exec_cfg(), thr_view, load_hint);
-        g2s_store = create_send_plan(cfg_.exec_cfg(), slm_thr_view, store_hint);
+        g2s_load = create_send_plan(cfg_.exec_cfg(), thr_view, load_params);
+        g2s_store
+                = create_send_plan(cfg_.exec_cfg(), slm_thr_view, store_params);
         auto &src = g2s_load.reg_layout();
         auto &dst = g2s_store.reg_layout();
         reorder = create_reorder_plan(cfg_.hw(), src, dst);
@@ -1817,10 +1818,10 @@ private:
         if (!use_prefetch(abc)) return plan_status_t::success;
         auto &tg = cfg_.thread_group_grid();
         auto thr_view = tg_view.split(tg, &grid);
-        auto hint = get_send_hint(cfg_.exec_cfg(), send_op_t::prefetch,
+        auto params = get_send_params(cfg_.exec_cfg(), send_op_t::prefetch,
                 send_address_t::a64, fma_kind_t::unknown, abc, thr_view,
                 gemm_schedule_);
-        prefetch = create_send_plan(cfg_.exec_cfg(), thr_view, hint);
+        prefetch = create_send_plan(cfg_.exec_cfg(), thr_view, params);
         return plan_status_t::success;
     }
 
@@ -1837,9 +1838,9 @@ private:
             send_plan_t &load, layout_t &layout) const {
         if (!has_x_slm) return plan_status_t::success;
         auto thr_view = view_t(slm_layout).create_sub_view(thr_tile);
-        auto hint = get_send_hint(cfg_.exec_cfg(), send_op_t::load,
+        auto params = get_send_params(cfg_.exec_cfg(), send_op_t::load,
                 send_address_t::slm, abc, thr_view);
-        load = create_send_plan(cfg_.exec_cfg(), thr_view, hint);
+        load = create_send_plan(cfg_.exec_cfg(), thr_view, params);
         layout = load.reg_layout();
         return plan_status_t::success;
     }
@@ -1858,11 +1859,11 @@ private:
                 = (abc == abc_kind_t::a ? a_direct_view_ : b_direct_view_);
         auto load_view = direct_view ? direct_view.get() : gmem_view;
 
-        auto hint = get_send_hint(cfg_.exec_cfg(), send_op_t::load,
+        auto params = get_send_params(cfg_.exec_cfg(), send_op_t::load,
                 send_address_t::a64, cfg_.fma_kind(), abc, load_view,
                 gemm_schedule_,
                 /*allow_2d_load=*/true);
-        load = create_send_plan(cfg_.exec_cfg(), load_view, hint);
+        load = create_send_plan(cfg_.exec_cfg(), load_view, params);
 
         auto reg_layout = load.reg_layout();
         if (direct_view) reg_layout = direct_view.transform(reg_layout);
@@ -1885,8 +1886,8 @@ private:
     }
 
     plan_status_t verify_2d() const {
-        auto &a = plan_.x2r.a_load.send_hint().hint_2d;
-        auto &b = plan_.x2r.b_load.send_hint().hint_2d;
+        auto &a = plan_.x2r.a_load.send_params().hint_2d;
+        auto &b = plan_.x2r.b_load.send_params().hint_2d;
         int a_vnni_factor = a.enable ? a.vnni_permute_factor : 0;
         int b_vnni_factor = b.enable ? b.vnni_permute_factor : 0;
         if (a_vnni_factor != b_vnni_factor)
@@ -2077,25 +2078,25 @@ private:
         return plan_ptr;
     }
 
-    send_hint_t get_send_hint(const exec_config_t &exec_cfg, send_op_t op,
+    send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t op,
             send_address_t address, abc_kind_t abc, const view_t &view) const {
-        auto hint = jit::get_send_hint(exec_cfg, op, address, view);
+        auto params = jit::get_send_params(exec_cfg, op, address, view);
         bool allow_send_2d
                 = (abc == abc_kind_t::a ? allow_a_send_2d_ : allow_b_send_2d_);
-        if (!allow_send_2d) hint.hint_2d.enable = false;
-        return hint;
+        if (!allow_send_2d) params.hint_2d.enable = false;
+        return params;
     }
 
-    send_hint_t get_send_hint(const exec_config_t &exec_cfg, send_op_t op,
+    send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t op,
             send_address_t address, fma_kind_t fma, abc_kind_t abc,
             const view_t &view, const gemm_schedule_t &gemm_schedule,
             bool allow_2d_load = true) const {
-        auto hint = jit::get_send_hint(exec_cfg, op, address, fma, abc, view,
-                gemm_schedule, allow_2d_load);
+        auto params = jit::get_send_params(exec_cfg, op, address, fma, abc,
+                view, gemm_schedule, allow_2d_load);
         bool allow_send_2d
                 = (abc == abc_kind_t::a ? allow_a_send_2d_ : allow_b_send_2d_);
-        if (!allow_send_2d) hint.hint_2d.enable = false;
-        return hint;
+        if (!allow_send_2d) params.hint_2d.enable = false;
+        return params;
     }
 
     void enable_direct_view(bool value) { allow_direct_view_ = value; }

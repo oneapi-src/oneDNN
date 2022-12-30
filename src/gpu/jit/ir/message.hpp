@@ -382,9 +382,9 @@ struct send_2d_hint_t {
     int height = 0;
 };
 
-struct send_hint_t {
-    send_hint_t() = default;
-    send_hint_t(ngen::HW hw, const type_t &mem_type, send_op_t send_op)
+struct send_params_t {
+    send_params_t() = default;
+    send_params_t(ngen::HW hw, const type_t &mem_type, send_op_t send_op)
         : hw(hw), mem_type(mem_type), send_op(send_op), use_send_plan(true) {}
 
     send_op_t convert(const send_op_t &op) const {
@@ -421,7 +421,7 @@ public:
     access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
             const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
             send_address_t send_address, send_cache_hint_t send_cache_hint,
-            send_hint_t &send_hint);
+            send_params_t &send_params);
     access_builder_t(access_builder_t &&);
     ~access_builder_t();
 
@@ -447,7 +447,7 @@ public:
 private:
     void build();
     bool try_build(const layout_t &try_layout, memory_walker_t &mem_walker);
-    bool try_build_2d(send_hint_t &send_hint);
+    bool try_build_2d(send_params_t &send_params);
     bool fixup_send_2d_params(const type_t &send_type, bool vnni,
             bool transpose, bool use_xy, int &W, int &H, int &P, int &w, int &h,
             int &c, int &vnni_permute_factor);
@@ -477,32 +477,32 @@ private:
     stmt_t stmt_;
 };
 
-send_hint_t get_send_hint(const exec_config_t &exec_cfg, send_op_t send_op,
+send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
         send_address_t send_address, const view_t &view,
         send_cache_hint_t cache_hint = send_cache_hint_t::undef,
         fma_kind_t fma_kind = fma_kind_t::unknown,
         abc_kind_t abc_kind = abc_kind_t::undef);
 
-send_hint_t get_send_hint(const exec_config_t &exec_cfg, send_op_t send_op,
+send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
         send_address_t send_address, fma_kind_t fma_kind, abc_kind_t abc_kind,
         const view_t &view, const gemm_schedule_t &gemm_schedule,
         bool allow_2d = true);
 
 inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
         const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
-        send_hint_t &send_hint) {
+        send_params_t &send_params) {
     return access_builder_t(ir_ctx, mem_view, mem_buf, reg_buf,
-            send_hint.send_op, send_hint.send_address, send_hint.cache_hint,
-            send_hint);
+            send_params.send_op, send_params.send_address,
+            send_params.cache_hint, send_params);
 }
 
 inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
         const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
         send_op_t send_op, send_address_t send_address,
         send_cache_hint_t cache_hint = send_cache_hint_t::undef) {
-    auto send_hint = get_send_hint(
+    auto send_params = get_send_params(
             ir_ctx.exec_cfg(), send_op, send_address, mem_view, cache_hint);
-    return make_access_builder(ir_ctx, mem_view, mem_buf, reg_buf, send_hint);
+    return make_access_builder(ir_ctx, mem_view, mem_buf, reg_buf, send_params);
 }
 
 } // namespace jit

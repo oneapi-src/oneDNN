@@ -35,7 +35,7 @@ namespace jit {
 class send_plan_impl_t {
 public:
     virtual ~send_plan_impl_t() = default;
-    virtual const send_hint_t &send_hint() const = 0;
+    virtual const send_params_t &send_params() const = 0;
     virtual bool is_2d() const = 0;
     virtual bool is_scattered() const = 0;
     virtual const layout_t &reg_layout() const = 0;
@@ -800,9 +800,9 @@ int rounded_slots(int slots, int max_slots) {
     return ret;
 }
 
-int get_max_slots(ngen::HW hw, const send_hint_t &hint) {
+int get_max_slots(ngen::HW hw, const send_params_t &send_params) {
     if (hw >= ngen::HW::XeHPC) return 32;
-    if (hint.send_op == send_op_t::atomic_fadd) return 8;
+    if (send_params.send_op == send_op_t::atomic_fadd) return 8;
     return 16;
 }
 
@@ -945,7 +945,8 @@ struct send_group_t {
         return ret;
     }
 
-    std::vector<func_t> create_send_funcs(const send_hint_t &hint) const {
+    std::vector<func_t> create_send_funcs(
+            const send_params_t &send_params) const {
         std::vector<func_t> ret;
         bool is_lsc = (hw >= ngen::HW::XeHPG);
         if (is_block()) {
@@ -955,9 +956,11 @@ struct send_group_t {
                 cur_size = utils::rnd_down_pow2(cur_size);
                 ir_assert(cur_size >= 16);
                 auto type = type_t::oword(cur_size / 16);
-                type = fixup_type(type, hint);
-                auto f = send_t::make(hw, hint.send_op, hint.send_address, type,
-                        1, send_t::default_slot_mask, is_lsc, hint.cache_hint);
+                type = fixup_type(type, send_params);
+                auto f = send_t::make(hw, send_params.send_op,
+                        send_params.send_address, type, 1,
+                        send_t::default_slot_mask, is_lsc,
+                        send_params.cache_hint);
                 ret.push_back(f);
             }
         } else if (is_scattered()) {
@@ -970,19 +973,20 @@ struct send_group_t {
                     slot_mask = (1 << cur_slots) - 1;
                     cur_slots = utils::rnd_up_pow2(cur_slots);
                 }
-                type = fixup_type(type, hint);
-                auto f = send_t::make(hw, hint.send_op, hint.send_address, type,
-                        cur_slots, slot_mask, is_lsc, hint.cache_hint);
+                type = fixup_type(type, send_params);
+                auto f = send_t::make(hw, send_params.send_op,
+                        send_params.send_address, type, cur_slots, slot_mask,
+                        is_lsc, send_params.cache_hint);
                 ret.push_back(f);
             }
         } else if (is_2d()) {
             auto &p = send_2d_params;
             int rcount = p.w_rcount * p.h_rcount;
             for (int i = 0; i < rcount; i++) {
-                auto type = fixup_type(p.type, hint);
-                auto f = send_t::make_2d(hw, to_2d(hint.send_op), type, p.W,
-                        p.H, p.P, p.w, p.h, p.c, p.vnni, p.transpose,
-                        hint.cache_hint);
+                auto type = fixup_type(p.type, send_params);
+                auto f = send_t::make_2d(hw, to_2d(send_params.send_op), type,
+                        p.W, p.H, p.P, p.w, p.h, p.c, p.vnni, p.transpose,
+                        send_params.cache_hint);
                 ret.push_back(f);
             }
         } else {
@@ -1019,11 +1023,12 @@ struct send_group_t {
 
     IR_DEFINE_DUMP()
 
-    type_t fixup_type(const type_t &type, const send_hint_t &hint) const {
+    type_t fixup_type(
+            const type_t &type, const send_params_t &send_params) const {
         if (hw >= ngen::HW::XeHPC) return type;
 
-        bool is_slm = (hint.send_address == send_address_t::slm);
-        bool is_atomic = (hint.send_op == send_op_t::atomic_fadd);
+        bool is_slm = (send_params.send_address == send_address_t::slm);
+        bool is_atomic = (send_params.send_op == send_op_t::atomic_fadd);
         if (!is_slm && type == type_t::oword(16)) return type_t::hword(8);
         if (is_atomic && type.size() == 4) return type_t::dword();
         if (type.size() <= 4) return type_t::byte(type.size());
@@ -1081,21 +1086,21 @@ struct send_group_t {
 };
 
 void init_scattered_params(const hw_config_t &hw_cfg,
-        const send_hint_t &send_hint, int inner_bytes, int *slot_size,
+        const send_params_t &send_params, int inner_bytes, int *slot_size,
         int *slot_stride, int *max_slots = nullptr) {
     *slot_size = ir_utils::max_divisor(inner_bytes, {1, 2, 4, 8});
     // XXX: Do not allow type promotion with sub-dword slots as the resulting
     // GRF layout will be strided in the middle and may trigger unsupported
     // reorders. Once reorder is robust enough, this check should be removed.
-    int type_size = send_hint.mem_type.size();
+    int type_size = send_params.mem_type.size();
     if (type_size < *slot_size && *slot_size < 4) *slot_size = type_size;
 
     // atomic_fadd messages imply direct type match.
-    if (send_hint.send_op == send_op_t::atomic_fadd) {
-        *slot_size = send_hint.mem_type.size();
+    if (send_params.send_op == send_op_t::atomic_fadd) {
+        *slot_size = send_params.mem_type.size();
     }
     if (slot_stride) *slot_stride = std::max(4, *slot_size);
-    if (max_slots) *max_slots = get_max_slots(hw_cfg.hw(), send_hint);
+    if (max_slots) *max_slots = get_max_slots(hw_cfg.hw(), send_params);
 }
 
 class mod_info_t {
@@ -1194,8 +1199,8 @@ struct layout_2d_wrapper_t {
 class view_info_t {
 public:
     view_info_t(const hw_config_t &hw_cfg, const view_t &view,
-            const send_hint_t &send_hint)
-        : hw_cfg_(hw_cfg), view_(view), send_hint_(send_hint) {
+            const send_params_t &send_params)
+        : hw_cfg_(hw_cfg), view_(view), send_params_(send_params) {
         vlayout_ = view.create_pseudo_vlayout(/*init_offset=*/true);
 
         init_tdims();
@@ -1207,7 +1212,7 @@ public:
 
     const hw_config_t &hw_cfg() const { return hw_cfg_; }
     const view_t &view() const { return view_; }
-    const send_hint_t &send_hint() const { return send_hint_; }
+    const send_params_t &send_params() const { return send_params_; }
     const layout_t &vlayout() const { return vlayout_; }
     const tdim_info_t &tdim(int tidx) const { return tdims_[tidx]; }
     int inner_idx() const { return inner_idx_; }
@@ -1309,8 +1314,8 @@ private:
     }
 
     bool can_use_block(const layout_t &vlayout, int inner_idx, int inner_bytes,
-            int total_bytes, const send_hint_t &hint) const {
-        if (hint.send_op == send_op_t::atomic_fadd) return false;
+            int total_bytes, const send_params_t &send_params) const {
+        if (send_params.send_op == send_op_t::atomic_fadd) return false;
         if (!block_alignment_ok(vlayout, inner_idx, inner_bytes)) return false;
         if (inner_bytes % hw_cfg_.grf_size() == 0) return true;
 
@@ -1344,7 +1349,7 @@ private:
             inner_bytes *= (int)blocks[i].block;
         }
         if (can_use_block(vlayout_, inner_idx_, inner_bytes, total_bytes,
-                    send_hint_)) {
+                    send_params_)) {
             send_kind_ = send_kind_t::block;
         } else {
             send_kind_ = send_kind_t::scattered;
@@ -1385,7 +1390,7 @@ private:
                 * ir_utils::safe_divide(total_bytes, slots * slot_size);
 
         double score = total_bytes / (double)nmsgs;
-        if (send_hint_.prefer_dense) {
+        if (send_params_.prefer_dense) {
             bool is_dense = (r_size % grf_size() == 0)
                     || (total_bytes == slots * slot_size);
             score += 100 * is_dense;
@@ -1414,7 +1419,7 @@ private:
         int slot_size;
         int max_slots;
         int slot_stride;
-        init_scattered_params(hw_cfg_, send_hint_, inner_bytes, &slot_size,
+        init_scattered_params(hw_cfg_, send_params_, inner_bytes, &slot_size,
                 &slot_stride, &max_slots);
         reg_bytes_per_elem = (slot_stride / slot_size) * type_size;
 
@@ -1524,7 +1529,7 @@ private:
 
     hw_config_t hw_cfg_;
     view_t view_;
-    send_hint_t send_hint_;
+    send_params_t send_params_;
     std::vector<tdim_info_t> tdims_;
     layout_t vlayout_; // Virtual layout.
     int inner_idx_ = 0;
@@ -1541,9 +1546,9 @@ private:
 
 class send_2d_helper_t {
 public:
-    send_2d_helper_t(const view_info_t &info, const send_hint_t &hint)
+    send_2d_helper_t(const view_info_t &info, const send_params_t &send_params)
         : info_(info) {
-        if (!try_enable(hint.send_op, hint.hint_2d)) return;
+        if (!try_enable(send_params.send_op, send_params.hint_2d)) return;
     }
 
     bool try_enable(send_op_t send_op, const send_2d_hint_t &hint) {
@@ -1717,7 +1722,7 @@ private:
 };
 
 send_2d_params_t view_info_t::try_init_2d() const {
-    send_2d_helper_t h(*this, send_hint_);
+    send_2d_helper_t h(*this, send_params_);
     return h.params();
 }
 
@@ -1868,7 +1873,7 @@ class fast_send_plan_t final : public send_plan_impl_t {
 public:
     fast_send_plan_t(const view_info_t &info, const layout_t &reg_layout,
             int reg_buf_size)
-        : send_hint_(info.send_hint())
+        : send_params_(info.send_params())
         , addr_base_(info.addr_base())
         , x_base_(info.x_base())
         , y_base_(info.y_base())
@@ -1876,7 +1881,7 @@ public:
         , reg_buf_size_(reg_buf_size)
         , mask_descs_(info.mask_descs()) {}
 
-    const send_hint_t &send_hint() const override { return send_hint_; }
+    const send_params_t &send_params() const override { return send_params_; }
     const layout_t &reg_layout() const override { return reg_layout_; }
     int reg_buf_size() const override {
         return utils::div_up(reg_buf_size_, split_factor_);
@@ -1925,14 +1930,14 @@ public:
                     : _g.split(split_bounds_t(reg_layout(), split_factor_),
                             subtile_idx);
             ir_assert(!g.is_empty());
-            bool try_legacy = send_hint().try_legacy && (g.hw < ngen::HW::XeHPC)
-                    && g.is_block();
+            bool try_legacy = send_params().try_legacy
+                    && (g.hw < ngen::HW::XeHPC) && g.is_block();
             std::vector<stmt_t> calls;
             std::vector<send_info_t> send_infos;
             auto base_mem_off = add(addr_base_, g.addr_inc, g.slots);
             auto base_x = g.is_2d() ? add(x_base_, g.x_inc, 1) : expr_t();
             auto base_y = g.is_2d() ? add(y_base_, g.y_inc, 1) : expr_t();
-            auto funcs = g.create_send_funcs(send_hint_);
+            auto funcs = g.create_send_funcs(send_params_);
             for (auto &b : g.blocks) {
                 auto b_mem_off = add(base_mem_off, b.addr_inc, g.slots);
                 auto b_x_off = g.is_2d() ? add(base_x, b.x_inc, 1) : expr_t();
@@ -2011,7 +2016,7 @@ public:
         int header_size = 0;
         for (auto &g : send_groups_) {
             int g_header_size = 0;
-            auto funcs = g.create_send_funcs(send_hint_);
+            auto funcs = g.create_send_funcs(send_params_);
             for (int i = 0; i < (int)funcs.size(); i++) {
                 auto &send = funcs[i].as<send_t>();
                 if (reuse_headers) {
@@ -2029,7 +2034,7 @@ public:
         int ret = 0;
         if (with_headers) ret += header_size;
         if (with_buffer) ret += reg_buf_size();
-        int grf_size = ngen::GRF::bytes(send_hint_.hw);
+        int grf_size = ngen::GRF::bytes(send_params_.hw);
         return utils::div_up(ret, grf_size);
     }
 
@@ -2157,7 +2162,7 @@ private:
         return ret;
     }
 
-    send_hint_t send_hint_;
+    send_params_t send_params_;
     expr_t addr_base_;
     expr_t x_base_;
     expr_t y_base_;
@@ -2171,13 +2176,13 @@ private:
 class ir_send_plan_t final : public send_plan_impl_t {
 public:
     ir_send_plan_t(const exec_config_t &exec_cfg, const view_t &view,
-            send_hint_t &hint)
-        : hint_(hint)
+            send_params_t &send_params)
+        : send_params_(send_params)
         , ir_ctx_(exec_cfg, cset_)
         , dummy_mem_buf_(var_t::make(type_t::byte_ptr(), "mem"))
         , dummy_reg_buf_(var_t::make(type_t::byte_ptr(), "reg"))
         , access_(make_access_builder(
-                  ir_ctx_, view, dummy_mem_buf_, dummy_reg_buf_, hint)) {
+                  ir_ctx_, view, dummy_mem_buf_, dummy_reg_buf_, send_params)) {
         auto calls = find_objects<func_call_t>(access_.stmt());
         for (auto &c : calls) {
             switch (get_send_kind(c)) {
@@ -2191,7 +2196,7 @@ public:
 
     ir_send_plan_t(const ir_send_plan_t &) = delete;
 
-    const send_hint_t &send_hint() const override { return hint_; }
+    const send_params_t &send_params() const override { return send_params_; }
 
     bool is_2d() const override { return is_2d_; }
 
@@ -2249,7 +2254,7 @@ public:
         int ret = 0;
         if (with_headers) ret += header_size;
         if (with_buffer) ret += reg_buf_size();
-        int grf_size = ngen::GRF::bytes(hint_.hw);
+        int grf_size = ngen::GRF::bytes(send_params_.hw);
         return utils::div_up(ret, grf_size);
     }
 
@@ -2297,7 +2302,7 @@ private:
         return ret;
     }
 
-    send_hint_t hint_;
+    send_params_t send_params_;
     constraint_set_t cset_;
     ir_context_t ir_ctx_;
     expr_t dummy_mem_buf_;
@@ -2318,8 +2323,8 @@ send_plan_t &send_plan_t::operator=(send_plan_t &&other) {
     return *this;
 }
 
-const send_hint_t &send_plan_t::send_hint() const {
-    return impl_->send_hint();
+const send_params_t &send_plan_t::send_params() const {
+    return impl_->send_params();
 }
 bool send_plan_t::is_2d() const {
     return impl_->is_2d();
@@ -2400,11 +2405,11 @@ send_group_t init_block(
 }
 
 send_group_t init_scattered(const view_info_t &info,
-        const send_hint_t &send_hint, view_iterator_t &it,
+        const send_params_t &send_params, view_iterator_t &it,
         layout_t &reg_layout) {
     int slot_size;
     int slot_stride;
-    init_scattered_params(info.hw_cfg(), send_hint, it.inner_bytes(),
+    init_scattered_params(info.hw_cfg(), send_params, it.inner_bytes(),
             &slot_size, &slot_stride);
     int inner_slots = ir_utils::safe_divide(it.inner_bytes(), slot_size);
 
@@ -2415,7 +2420,7 @@ send_group_t init_scattered(const view_info_t &info,
 
     send_group_t ret;
     ret.hw = info.hw();
-    ret.max_slots = get_max_slots(ret.hw, send_hint);
+    ret.max_slots = get_max_slots(ret.hw, send_params);
     ret.type_size = slot_size;
     ret.slot_stride = slot_stride;
     ret.slots = inner_slots * it.middle_blocks();
@@ -2548,17 +2553,19 @@ bool can_use_send_plan(const view_t &view) {
 }
 
 send_plan_t create_ir_send_plan(const exec_config_t &exec_cfg,
-        const view_t &view, const send_hint_t &_hint) {
-    auto hint = _hint;
-    auto send_plan = utils::make_unique<ir_send_plan_t>(exec_cfg, view, hint);
+        const view_t &view, const send_params_t &_send_params) {
+    auto send_params = _send_params;
+    auto send_plan
+            = utils::make_unique<ir_send_plan_t>(exec_cfg, view, send_params);
     return send_plan_t(std::move(send_plan));
 }
 
 send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
-        const send_hint_t &hint) {
-    if (!hint.use_send_plan) return create_ir_send_plan(exec_cfg, view, hint);
+        const send_params_t &send_params) {
+    if (!send_params.use_send_plan)
+        return create_ir_send_plan(exec_cfg, view, send_params);
     auto &hw_cfg = exec_cfg.hw_cfg();
-    view_info_t info(hw_cfg, view, hint);
+    view_info_t info(hw_cfg, view, send_params);
     view_iterator_t it(info);
 
     send_group_t base_group;
@@ -2571,7 +2578,7 @@ send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
             base_group = init_block(info, it, reg_layout);
             break;
         case send_kind_t::scattered:
-            base_group = init_scattered(info, hint, it, reg_layout);
+            base_group = init_scattered(info, send_params, it, reg_layout);
             break;
         default: ir_error_not_expected();
     }
@@ -2592,7 +2599,7 @@ send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
         stride *= b.block;
     }
 
-    int reg_buf_size = hint.is_prefetch()
+    int reg_buf_size = send_params.is_prefetch()
             ? 0
             : utils::rnd_up(reg_layout.size(), base_group.pad_bytes);
     auto ret = utils::make_unique<fast_send_plan_t>(
@@ -2617,7 +2624,8 @@ send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
 
     ret->set_send_groups(fuse_blocks(ret->mask_descs(), base_group));
 
-    if (base_group.is_scattered() && hint.send_op == send_op_t::prefetch) {
+    if (base_group.is_scattered()
+            && send_params.send_op == send_op_t::prefetch) {
         return send_plan_t();
     }
 

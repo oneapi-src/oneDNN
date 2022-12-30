@@ -474,7 +474,7 @@ private:
 access_builder_t::access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
         const expr_t &mem_buf, const expr_t &reg_buf, send_op_t send_op,
         send_address_t send_address, send_cache_hint_t send_cache_hint,
-        send_hint_t &send_hint)
+        send_params_t &send_params)
     : ir_ctx_(&ir_ctx)
     , mem_view_(mem_view)
     , mem_buf_(mem_buf)
@@ -483,19 +483,19 @@ access_builder_t::access_builder_t(ir_context_t &ir_ctx, const view_t &mem_view,
     , send_address_(send_address)
     , send_cache_hint_(send_cache_hint)
     , mem_type_(mem_view.type()) {
-    if (send_hint.use_send_plan) {
-        auto sp = create_send_plan(ir_ctx.exec_cfg(), mem_view, send_hint);
-        if (sp && !sp.is_2d()) send_hint.hint_2d = send_2d_hint_t();
+    if (send_params.use_send_plan) {
+        auto sp = create_send_plan(ir_ctx.exec_cfg(), mem_view, send_params);
+        if (sp && !sp.is_2d()) send_params.hint_2d = send_2d_hint_t();
         if (!sp) return;
         reg_layout_ = sp.reg_layout();
         reg_buf_size_ = sp.reg_buf_size();
         stmt_ = sp.create_stmt(mem_buf, reg_buf);
         return;
     }
-    if (send_hint.hint_2d.enable) {
-        if (try_build_2d(send_hint)) return;
+    if (send_params.hint_2d.enable) {
+        if (try_build_2d(send_params)) return;
     }
-    send_hint.hint_2d = send_2d_hint_t();
+    send_params.hint_2d = send_2d_hint_t();
     build();
 }
 
@@ -577,9 +577,9 @@ static stmt_t try_promote_to_lsc(const stmt_t &_call) {
     return lsc_send.call(new_args);
 }
 
-bool access_builder_t::try_build_2d(send_hint_t &send_hint) {
+bool access_builder_t::try_build_2d(send_params_t &send_params) {
     auto vlayout = mem_view_.create_pseudo_vlayout();
-    auto &hint = send_hint.hint_2d;
+    auto &hint = send_params.hint_2d;
     // The data may be loaded in a wider data type to get a proper GRF layout.
     if (!hint.type.is_undef()) vlayout = vlayout.reinterpret(hint.type);
 
@@ -718,7 +718,7 @@ bool access_builder_t::try_build_2d(send_hint_t &send_hint) {
     hint.transpose = transpose;
     hint.width = w;
     hint.height = h;
-    auto _send = send_t::make_2d(ir_ctx_->hw(), send_hint.convert(send_op_),
+    auto _send = send_t::make_2d(ir_ctx_->hw(), send_params.convert(send_op_),
             send_type, W, H, P, w, h, c, vnni, transpose, send_cache_hint_);
     auto &send = _send.as<send_t>();
 
@@ -1108,22 +1108,22 @@ send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
     return hint;
 }
 
-send_hint_t get_send_hint(const exec_config_t &exec_cfg, send_op_t send_op,
+send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
         send_address_t send_address, const view_t &view,
         send_cache_hint_t cache_hint, fma_kind_t fma_kind,
         abc_kind_t abc_kind) {
-    send_hint_t hint;
-    hint.hw = exec_cfg.hw();
-    hint.mem_type = view.type();
-    hint.send_op = send_op;
-    hint.send_address = send_address;
-    hint.use_send_plan = can_use_send_plan(view);
-    hint.cache_hint = cache_hint;
+    send_params_t params;
+    params.hw = exec_cfg.hw();
+    params.mem_type = view.type();
+    params.send_op = send_op;
+    params.send_address = send_address;
+    params.use_send_plan = can_use_send_plan(view);
+    params.cache_hint = cache_hint;
 
     if (fma_kind == fma_kind_t::dpas && abc_kind == abc_kind_t::a) {
-        hint.prefer_dense = true;
+        params.prefer_dense = true;
     }
-    return hint;
+    return params;
 }
 
 send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
@@ -1200,15 +1200,15 @@ send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
     return hint;
 }
 
-send_hint_t get_send_hint(const exec_config_t &exec_cfg, send_op_t send_op,
+send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
         send_address_t send_address, fma_kind_t fma_kind, abc_kind_t abc_kind,
         const view_t &view, const gemm_schedule_t &gemm_schedule,
         bool allow_2d) {
-    auto hint = get_send_hint(exec_cfg, send_op, send_address, view,
+    auto params = get_send_params(exec_cfg, send_op, send_address, view,
             send_cache_hint_t::undef, fma_kind, abc_kind);
-    hint.hint_2d = get_send_2d_hint(exec_cfg, send_op, fma_kind, abc_kind, view,
-            gemm_schedule, allow_2d, hint.use_send_plan);
-    return hint;
+    params.hint_2d = get_send_2d_hint(exec_cfg, send_op, fma_kind, abc_kind,
+            view, gemm_schedule, allow_2d, params.use_send_plan);
+    return params;
 }
 
 } // namespace jit

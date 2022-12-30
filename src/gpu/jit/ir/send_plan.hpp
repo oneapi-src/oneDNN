@@ -29,7 +29,7 @@ namespace gpu {
 namespace jit {
 
 class send_plan_impl_t;
-struct send_hint_t;
+struct send_params_t;
 
 class send_plan_t {
 public:
@@ -41,7 +41,7 @@ public:
 
     operator bool() const { return (bool)impl_; }
 
-    const send_hint_t &send_hint() const;
+    const send_params_t &send_params() const;
     bool is_2d() const;
     bool is_scattered() const;
     const layout_t &reg_layout() const;
@@ -68,7 +68,7 @@ private:
 bool can_use_send_plan(const view_t &view);
 
 send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
-        const send_hint_t &hint);
+        const send_params_t &send_params);
 
 } // namespace jit
 } // namespace gpu

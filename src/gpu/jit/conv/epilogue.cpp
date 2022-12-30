@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -835,11 +835,11 @@ private:
         auto send_op = gemm_schedule_.with_kernel_grid_k_slicing()
                 ? send_op_t::atomic_fadd
                 : send_op_t::store;
-        auto send_hint = get_send_hint(ir_ctx_.exec_cfg(), send_op,
+        auto send_params = get_send_params(ir_ctx_.exec_cfg(), send_op,
                 send_address_t::a64, fma_kind_t::unknown, abc_kind_t::c,
                 c_mem_tile_view, gemm_schedule_);
         auto r2g = make_access_builder(
-                ir_ctx_, c_mem_tile_view, c_mem_buf_, tmp_reg_buf, send_hint);
+                ir_ctx_, c_mem_tile_view, c_mem_buf_, tmp_reg_buf, send_params);
 
         // Initialize C stages.
         std::vector<c_stage_t> c_stages;

@@ -486,18 +486,18 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
         allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
     }
 
-    auto read_hint = get_send_hint(
+    auto read_params = get_send_params(
             exec_cfg_, send_op_t::load, send_address_t::a64, src_thr_view);
-    read_hint.try_legacy = false;
+    read_params.try_legacy = false;
     auto read = make_access_builder(
-            ir_ctx, src_thr_view, src_buf, reg_buf, read_hint);
+            ir_ctx, src_thr_view, src_buf, reg_buf, read_params);
     auto read_stmt = read.stmt();
 
-    auto write_hint = get_send_hint(
+    auto write_params = get_send_params(
             exec_cfg_, send_op_t::store, send_address_t::a64, dst_thr_view);
-    write_hint.try_legacy = false;
+    write_params.try_legacy = false;
     auto write = make_access_builder(
-            ir_ctx, dst_thr_view, dst_buf, reg_buf, write_hint);
+            ir_ctx, dst_thr_view, dst_buf, reg_buf, write_params);
     auto write_stmt = write.stmt();
 
     auto read_layout = read.reg_layout();
