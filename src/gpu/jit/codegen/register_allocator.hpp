@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,11 +50,11 @@ public:
     }
     ~reg_allocator_t() {
 #ifdef GEN_CONV_DEBUG
-        if ((warn_flags & warn_large_grf) && (peak_grf_usage <= 128)
+        if ((warn_flags & warn_large_grf) && (peak_regs <= 128)
                 && (ra.getRegisterCount() > 128))
             ir_warning() << kernel_name
-                         << " uselessly enables large grf mode as "
-                         << peak_grf_usage << " registers were used\n";
+                         << " uselessly enables large grf mode as " << peak_regs
+                         << " registers were used\n";
         ir_assert(!is_speculate) << "Speculative allocation never finished\n";
 #endif
     }
@@ -134,8 +134,8 @@ public:
     void setRegisterCount(int rcount) { ra.setRegisterCount(rcount); }
 
 #ifdef GEN_CONV_DEBUG
-    int get_peak_grf_usage() const { return peak_grf_usage; }
-    int get_grf_usage() const { return ra.countAllocedRegisters(); }
+    int get_peak_regs() const { return peak_regs; }
+    int get_alloced_regs() const { return ra.countAllocedRegisters(); }
 
     // For performing speculative allocations that may not be used in the final
     // register allocation
@@ -153,14 +153,14 @@ protected:
 #ifdef GEN_CONV_DEBUG
     void update_peak_grf_usage() {
         if (is_speculate) return;
-        int register_count = get_grf_usage();
-        if (peak_grf_usage < register_count) peak_grf_usage = register_count;
+        int register_count = get_alloced_regs();
+        if (peak_regs < register_count) peak_regs = register_count;
     }
 #else
     void update_peak_grf_usage() {}
 #endif
 
-    int peak_grf_usage = 0;
+    int peak_regs = 0;
     int warn_flags;
     bool is_speculate = false;
     std::string kernel_name;

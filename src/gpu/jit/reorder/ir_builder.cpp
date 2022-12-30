@@ -541,14 +541,14 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     stmt_ = optimize_alloc_let(stmt_, ir_ctx);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
-    int ir_usage = get_peak_grf_usage(stmt_, exec_cfg_.grf_size());
-    int reserved_usage = 16;
-    int grf_usage = ir_usage + reserved_usage;
-    if (grf_usage > exec_cfg_.regs()) {
-        ir_warning()
-                << "Estimated GRF usage is " << grf_usage
-                << " which exceeds available space, retry with a smaller tile."
-                << std::endl;
+    int ir_regs = get_peak_regs(stmt_, exec_cfg_.grf_size());
+    int reserved_regs = 16;
+    int regs = ir_regs + reserved_regs;
+    if (regs > exec_cfg_.regs()) {
+        ir_warning() << "Estimated GRF usage is " << regs
+                     << " registers which exceeds available space, retry with "
+                        "a smaller tile."
+                     << std::endl;
 
         return false;
     }

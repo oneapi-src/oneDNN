@@ -2203,8 +2203,8 @@ status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd) {
         // If the kernel fits 128 registers, switch to the normal mode which is
         // expected to have better performance for such cases.
         int bound = (!try_cfg.is_dp_fma() ? 128 : 116);
-        int estimated_peak_grf_usage = estimate_register_count(try_cfg);
-        if (try_regs == 256 && estimated_peak_grf_usage <= bound) {
+        int estimated_peak_regs = estimate_register_count(try_cfg);
+        if (try_regs == 256 && estimated_peak_regs <= bound) {
             try_regs = 128;
             continue;
         }
@@ -2303,7 +2303,7 @@ std::string conv_config_t::str() const {
         }
         oss << std::endl;
     }
-    int estimated_peak_grf_usage = estimate_register_count(*this);
+    int estimated_peak_regs = estimate_register_count(*this);
     oss << blocking_brief_str();
     oss << "  Kernel grid:                " << kernel_grid() << std::endl;
     oss << "  Thread group:               " << thread_group_grid() << std::endl;
@@ -2321,7 +2321,7 @@ std::string conv_config_t::str() const {
     oss << "  Reuse headers:              " << to_string(pipeline().reuse_headers()) << std::endl;
     oss << "  Allow GRF reorder:          " << "A: " << to_string(allow_a_grf_reorder()) << ", B: " << to_string(allow_b_grf_reorder()) << std::endl;
     oss << "  Subtiles:                   " << "A: " << subtiles().a() << ", B: " << subtiles().b() << std::endl;
-    oss << "  Estimated GRF usage:        " << estimated_peak_grf_usage << std::endl;
+    oss << "  Estimated GRF usage:        " << estimated_peak_regs << std::endl;
     oss << "  Use plan:                   " << to_string(with_plan()) << std::endl;
     // clang-format on
     return oss.str();

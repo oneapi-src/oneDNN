@@ -695,7 +695,7 @@ stmt_t reorder_plan_t::create_stmt(
     return stmt;
 }
 
-int reorder_plan_t::grf_usage() const {
+int reorder_plan_t::estimate_regs() const {
     if (!*this) return 0;
 
     int dst_size = utils::div_up(dst.size(), split_factor);
@@ -746,7 +746,7 @@ stmt_t reduce_plan_t::create_stmt(
     return stmt;
 }
 
-int reduce_plan_t::grf_usage() const {
+int reduce_plan_t::estimate_regs() const {
     if (!*this) return 0;
 
     int ret = 0;
@@ -816,7 +816,7 @@ void x2r_plan_t::set_split(abc_kind_t abc, int factor) {
     }
 }
 
-int x2r_plan_t::grf_usage(bool reuse_headers) const {
+int x2r_plan_t::estimate_regs(bool reuse_headers) const {
     int a_size = a_load.reg_buf_size();
     int b_size = b_load.reg_buf_size();
     if (a_reorder) a_size += utils::rnd_up(a_layout.size(), grf_size());
@@ -824,11 +824,11 @@ int x2r_plan_t::grf_usage(bool reuse_headers) const {
     int ret = 0;
     ret += utils::div_up(a_size, grf_size());
     ret += utils::div_up(b_size, grf_size());
-    ret += a_load.grf_usage(/*with_buffer=*/false, reuse_headers);
-    ret += b_load.grf_usage(/*with_buffer=*/false, reuse_headers);
-    ret += b_reduce.grf_usage();
-    ret += a_reorder.grf_usage();
-    ret += b_reorder.grf_usage();
+    ret += a_load.estimate_regs(/*with_buffer=*/false, reuse_headers);
+    ret += b_load.estimate_regs(/*with_buffer=*/false, reuse_headers);
+    ret += b_reduce.estimate_regs();
+    ret += a_reorder.estimate_regs();
+    ret += b_reorder.estimate_regs();
     return ret;
 }
 
@@ -915,7 +915,7 @@ int fma_plan_t::bmnk_stop_idx(bmnk_kind_t bmnk, int subtile_idx) const {
     return bmnk_split_idx(bmnk, subtile_idx, false);
 }
 
-int fma_plan_t::grf_usage() const {
+int fma_plan_t::estimate_regs() const {
     return utils::div_up(c_layout.size(), grf_size());
 }
 
@@ -950,86 +950,88 @@ void conv_plan_t::set_split(abc_kind_t abc, int factor) {
 grf_usage_t conv_plan_t::grf_usage() const {
     bool with_headers = !reuse_headers;
 
-    int out_buf_usage = 0;
-    out_buf_usage += utils::div_up(fma.c_layout.size(), grf_size());
-    out_buf_usage += utils::div_up(slm.b_reduce.dst_buf_size(), grf_size());
-    out_buf_usage += utils::div_up(x2r.b_reduce.dst_buf_size(), grf_size());
+    int out_buf_regs = 0;
+    out_buf_regs += utils::div_up(fma.c_layout.size(), grf_size());
+    out_buf_regs += utils::div_up(slm.b_reduce.dst_buf_size(), grf_size());
+    out_buf_regs += utils::div_up(x2r.b_reduce.dst_buf_size(), grf_size());
 
-    int gmem_load_buf_usage = 0;
-    gmem_load_buf_usage += slm.a_g2s_load.grf_usage(
+    int gmem_load_buf_regs = 0;
+    gmem_load_buf_regs += slm.a_g2s_load.estimate_regs(
             /*with_buffer=*/true, with_headers, reuse_headers);
-    gmem_load_buf_usage += slm.b_g2s_load.grf_usage(
+    gmem_load_buf_regs += slm.b_g2s_load.estimate_regs(
             /*with_buffer=*/true, with_headers, reuse_headers);
 
     bool use_a_slm = x2r.a_load.send_hint().is_slm();
     bool use_b_slm = x2r.b_load.send_hint().is_slm();
-    int a_g2r_buf_usage = use_a_slm
+    int a_g2r_buf_regs = use_a_slm
             ? 0
-            : x2r.a_load.grf_usage(/*with_buffer=*/true, /*with_headers=*/false,
+            : x2r.a_load.estimate_regs(/*with_buffer=*/true,
+                    /*with_headers=*/false,
                     /*reuse_headers=*/false);
-    int b_g2r_buf_usage = use_b_slm
+    int b_g2r_buf_regs = use_b_slm
             ? 0
-            : x2r.b_load.grf_usage(/*with_buffer=*/true, /*with_headers=*/false,
+            : x2r.b_load.estimate_regs(/*with_buffer=*/true,
+                    /*with_headers=*/false,
                     /*reuse_headers=*/false);
     if (x2r.a_reorder && x2r.b_reorder) {
         ir_assert(!use_a_slm && !use_b_slm);
         // Reuse load buffer when both reorders are enabled.
-        gmem_load_buf_usage += std::max(a_g2r_buf_usage, b_g2r_buf_usage);
+        gmem_load_buf_regs += std::max(a_g2r_buf_regs, b_g2r_buf_regs);
     } else {
         if (!x2r.a_load.send_hint().is_slm())
-            gmem_load_buf_usage += a_g2r_buf_usage;
+            gmem_load_buf_regs += a_g2r_buf_regs;
         if (!x2r.b_load.send_hint().is_slm())
-            gmem_load_buf_usage += b_g2r_buf_usage;
+            gmem_load_buf_regs += b_g2r_buf_regs;
     }
-    int gmem_load_usage = 0;
-    gmem_load_usage += prefetch.a_prefetch.grf_usage(
+    int gmem_load_regs = 0;
+    gmem_load_regs += prefetch.a_prefetch.estimate_regs(
             /*with_buffer=*/false, with_headers, reuse_headers);
-    gmem_load_usage += prefetch.b_prefetch.grf_usage(
+    gmem_load_regs += prefetch.b_prefetch.estimate_regs(
             /*with_buffer=*/false, with_headers, reuse_headers);
     if (!use_a_slm)
-        gmem_load_usage += x2r.a_load.grf_usage(
+        gmem_load_regs += x2r.a_load.estimate_regs(
                 /*with_buffer=*/false, with_headers, reuse_headers);
     if (!use_b_slm)
-        gmem_load_usage += x2r.b_load.grf_usage(
+        gmem_load_regs += x2r.b_load.estimate_regs(
                 /*with_buffer=*/false, with_headers, reuse_headers);
-    gmem_load_usage += gmem_load_buf_usage;
+    gmem_load_regs += gmem_load_buf_regs;
 
-    int slm_store_usage = 0;
-    slm_store_usage += slm.a_g2s_store.grf_usage(
+    int slm_store_regs = 0;
+    slm_store_regs += slm.a_g2s_store.estimate_regs(
             /*with_buffer=*/false, with_headers, reuse_headers);
-    slm_store_usage += slm.b_g2s_store.grf_usage(
+    slm_store_regs += slm.b_g2s_store.estimate_regs(
             /*with_buffer=*/false, with_headers, reuse_headers);
 
-    int slm_load_usage = 0;
+    int slm_load_regs = 0;
     if (use_a_slm)
-        slm_load_usage += x2r.a_load.grf_usage(
+        slm_load_regs += x2r.a_load.estimate_regs(
                 /*with_buffer=*/true, with_headers, reuse_headers);
     if (use_b_slm)
-        slm_load_usage += x2r.b_load.grf_usage(
+        slm_load_regs += x2r.b_load.estimate_regs(
                 /*with_buffer=*/true, with_headers, reuse_headers);
 
-    int reorder_usage = 0;
-    reorder_usage += slm.a_reorder.grf_usage();
-    reorder_usage += slm.b_reorder.grf_usage();
-    reorder_usage += x2r.a_reorder.grf_usage();
-    reorder_usage += x2r.b_reorder.grf_usage();
+    int reorder_regs = 0;
+    reorder_regs += slm.a_reorder.estimate_regs();
+    reorder_regs += slm.b_reorder.estimate_regs();
+    reorder_regs += x2r.a_reorder.estimate_regs();
+    reorder_regs += x2r.b_reorder.estimate_regs();
 
-    int reused_header_usage = 0;
+    int reused_header_regs = 0;
     if (reuse_headers) {
         for (auto *sp : {&prefetch.a_prefetch, &prefetch.b_prefetch,
                      &x2r.a_load, &x2r.b_load}) {
-            reused_header_usage = std::max(
-                    reused_header_usage, sp->grf_usage(false, true, true));
+            reused_header_regs = std::max(
+                    reused_header_regs, sp->estimate_regs(false, true, true));
         }
     }
 
     grf_usage_t info(grf_size());
-    info.add(grf_usage_label_t::out_buf, out_buf_usage);
-    info.add(grf_usage_label_t::gmem_load, gmem_load_usage);
-    info.add(grf_usage_label_t::slm_store, slm_store_usage);
-    info.add(grf_usage_label_t::slm_load, slm_load_usage);
-    info.add(grf_usage_label_t::reorder, reorder_usage);
-    info.add(grf_usage_label_t::reused_headers, reused_header_usage);
+    info.add(grf_usage_label_t::out_buf, out_buf_regs);
+    info.add(grf_usage_label_t::gmem_load, gmem_load_regs);
+    info.add(grf_usage_label_t::slm_store, slm_store_regs);
+    info.add(grf_usage_label_t::slm_load, slm_load_regs);
+    info.add(grf_usage_label_t::reorder, reorder_regs);
+    info.add(grf_usage_label_t::reused_headers, reused_header_regs);
     info.add(grf_usage_label_t::reserved, constants::reserved_regs);
     info.add(grf_usage_label_t::zero_points, 0);
     return info;
@@ -1608,10 +1610,10 @@ private:
         auto &slm = plan_.slm;
         if (slm) {
             int gmem_buf_size = 0;
-            gmem_buf_size += slm.a_g2s_load.grf_usage(
+            gmem_buf_size += slm.a_g2s_load.estimate_regs(
                     /*with_buffer=*/true, /*with_headers*/ false,
                     plan_.reuse_headers);
-            gmem_buf_size += slm.b_g2s_load.grf_usage(
+            gmem_buf_size += slm.b_g2s_load.estimate_regs(
                     /*with_buffer=*/true, /*with_headers=*/false,
                     plan_.reuse_headers);
             int bound = cfg_.regs() - 5;
@@ -1650,8 +1652,8 @@ private:
     plan_status_t fixup_grf_usage(conv_plan_t &plan) const {
         // XXX: This is an estimation, CSE pass does more accurate counting to
         // not exceed available GRF space.
-        int tmp_usage = 5;
-        int bound = cfg_.regs() - tmp_usage;
+        int tmp_regs = 5;
+        int bound = cfg_.regs() - tmp_regs;
         if (plan.grf_usage().total() < bound) return plan_status_t::success;
 
         plan_status_t status;

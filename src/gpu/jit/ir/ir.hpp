@@ -453,7 +453,7 @@ stmt_t get_stmt_body(const stmt_t &stmt);
 
 stmt_t replace_stmt_body(const stmt_t &stmt, const stmt_t &new_body);
 
-int get_peak_grf_usage(const stmt_t &stmt, int grf_size, int external_usage = 0,
+int get_peak_regs(const stmt_t &stmt, int grf_size, int external_regs = 0,
         bool skip_let = false);
 
 bool has_send_atomics(const stmt_t &s);

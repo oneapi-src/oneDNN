@@ -45,7 +45,7 @@ public:
     virtual bool can_split(int factor) const = 0;
     virtual void set_split(int factor) = 0;
     virtual int split_factor() const = 0;
-    virtual int grf_usage(bool with_buffer = true, bool with_headers = true,
+    virtual int estimate_regs(bool with_buffer = true, bool with_headers = true,
             bool reuse_headers = false) const = 0;
     virtual std::string str(const std::string &tag) const = 0;
 };
@@ -2006,7 +2006,7 @@ public:
 
     int split_factor() const override { return split_factor_; }
 
-    int grf_usage(bool with_buffer = true, bool with_headers = true,
+    int estimate_regs(bool with_buffer = true, bool with_headers = true,
             bool reuse_headers = false) const override {
         int header_size = 0;
         for (auto &g : send_groups_) {
@@ -2234,7 +2234,7 @@ public:
 
     int split_factor() const override { return split_factor_; }
 
-    int grf_usage(bool with_buffer = true, bool with_headers = true,
+    int estimate_regs(bool with_buffer = true, bool with_headers = true,
             bool reuse_headers = false) const override {
         auto calls = find_objects<func_call_t>(access_.stmt());
         int header_size = 0;
@@ -2340,10 +2340,10 @@ stmt_t send_plan_t::create_stmt(
     return impl_->create_stmt(mem_buf, reg_buf, subtile_idx);
 }
 
-int send_plan_t::grf_usage(
+int send_plan_t::estimate_regs(
         bool with_buffer, bool with_headers, bool reuse_headers) const {
     if (!impl_) return 0;
-    return impl_->grf_usage(with_buffer, with_headers, reuse_headers);
+    return impl_->estimate_regs(with_buffer, with_headers, reuse_headers);
 }
 
 bool send_plan_t::can_split(int factor) const {

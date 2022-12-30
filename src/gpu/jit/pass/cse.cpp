@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -150,8 +150,8 @@ class cse_stmt_entry_t {
 public:
     bool visited() const { return visited_; }
 
-    void set_usage(int usage) {
-        usage_ = usage;
+    void set_bytes(int bytes) {
+        bytes_ = bytes;
         visited_ = true;
     };
 
@@ -163,7 +163,7 @@ public:
     bool try_allocate(int size, int limit) {
         const auto alloc_size
                 = utils::rnd_up(size, reg_allocator_t::granularity);
-        if (usage_ + alloc_size > limit) return false;
+        if (bytes_ + alloc_size > limit) return false;
         propagate_usage_down(alloc_size);
         if (parent_) parent_->propagate_usage_up(this);
         return true;
@@ -177,18 +177,18 @@ public:
 
 private:
     void propagate_usage_up(const cse_stmt_entry_t *child) {
-        if (child->usage_ <= usage_) return;
-        usage_ = child->usage_;
+        if (child->bytes_ <= bytes_) return;
+        bytes_ = child->bytes_;
         if (parent_) parent_->propagate_usage_up(this);
     }
 
     void propagate_usage_down(int size) {
-        usage_ += size;
+        bytes_ += size;
         for (auto *c : childs_)
             c->propagate_usage_down(size);
     }
 
-    int usage_ = 0;
+    int bytes_ = 0;
     bool visited_ = false;
     cse_stmt_entry_t *parent_ = nullptr;
     std::vector<cse_stmt_entry_t *> childs_;
@@ -224,26 +224,26 @@ public:
 
 private:
     mem_usage_guard_t grf_usage_guard(int size) {
-        return mem_usage_guard_t(&cur_usage_, size);
+        return mem_usage_guard_t(&cur_bytes_, size);
     }
 
     template <typename T>
     void visit_stmt(const T &obj) {
-        int obj_usage = 0;
+        int obj_bytes = 0;
         if (auto *alloc = obj.template as_ptr<alloc_t>()) {
             if (alloc->kind == alloc_kind_t::grf)
-                obj_usage = utils::rnd_up(alloc->size, grf_size_);
+                obj_bytes = utils::rnd_up(alloc->size, grf_size_);
         } else if (auto *let = obj.template as_ptr<let_t>()) {
-            obj_usage = utils::rnd_up(
+            obj_bytes = utils::rnd_up(
                     let->var.type().size(), reg_allocator_t::granularity);
         }
 
-        auto guard = grf_usage_guard(obj_usage);
+        auto guard = grf_usage_guard(obj_bytes);
         cse_stmt_entry_t *entry = nullptr;
         auto it = entries_.find(&obj);
         if (it != entries_.end()) entry = &it->second;
         if (entry) {
-            entry->set_usage(cur_usage_);
+            entry->set_bytes(cur_bytes_);
             if (!path_.empty()) entry->set_parent(path_.back());
             path_.push_back(entry);
         }
@@ -254,7 +254,7 @@ private:
     std::unordered_map<const object_impl_t *, cse_stmt_entry_t> &entries_;
     int grf_size_;
 
-    int cur_usage_ = 0;
+    int cur_bytes_ = 0;
     std::vector<cse_stmt_entry_t *> path_;
 };
 
@@ -730,7 +730,7 @@ stmt_t eliminate_common_subexprs_impl(const stmt_t &_stmt, cse_context_t &ctx,
     // If memory usage exceeds the limit, exclude some
     // expressions from CSE and retry the whole process from
     // scratch.
-    int memory_usage = get_peak_grf_usage(stmt, grf_size) * grf_size;
+    int memory_usage = get_peak_regs(stmt, grf_size) * grf_size;
     if (memory_usage > memory_usage_limit) {
         ir_trace() << "CSE exceeded GRF usage limit. Usage: " << memory_usage
                    << ", limit: " << memory_usage_limit

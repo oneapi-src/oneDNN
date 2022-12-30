@@ -55,7 +55,7 @@ struct reorder_plan_t : public base_plan_t {
     bool can_split(int factor) const;
     void set_split(int factor = 1);
     stmt_t create_stmt(const expr_t &src_buf, const expr_t &dst_buf) const;
-    int grf_usage() const;
+    int estimate_regs() const;
 
     std::string str(const std::string &tag = "reorder") const {
         std::ostringstream oss;
@@ -79,7 +79,7 @@ struct reduce_plan_t : public base_plan_t {
     bool can_split(int factor) const;
     void set_split(int factor = 1);
     stmt_t create_stmt(const expr_t &src_buf, const expr_t &dst_buf) const;
-    int grf_usage() const;
+    int estimate_regs() const;
 
     std::string str(const std::string &tag = "reduce") const {
         std::ostringstream oss;
@@ -130,7 +130,7 @@ struct prefetch_plan_t : public base_plan_t {
     bool has_a() const { return (bool)a_prefetch; }
     bool has_b() const { return (bool)b_prefetch; }
 
-    int grf_usage(bool reuse_headers) const;
+    int estimate_regs(bool reuse_headers) const;
     std::string str() const;
 
     IR_DEFINE_DUMP()
@@ -169,7 +169,7 @@ struct x2r_plan_t : public base_plan_t {
         return b_size;
     }
 
-    int grf_usage(bool reuse_headers) const;
+    int estimate_regs(bool reuse_headers) const;
     std::string str() const;
 
     IR_DEFINE_DUMP()
@@ -208,7 +208,7 @@ struct fma_plan_t : public base_plan_t {
     int bmnk_start_idx(bmnk_kind_t bmnk, int subtile_idx) const;
     int bmnk_stop_idx(bmnk_kind_t bmnk, int subtile_idx) const;
 
-    int grf_usage() const;
+    int estimate_regs() const;
     std::string str() const;
 
     IR_DEFINE_DUMP()

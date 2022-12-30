@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 
 #ifdef GEN_CONV_DEBUG
     profile.stop();
-    verify_grf_usage(cfg, body, ra_.get_grf_usage());
+    verify_grf_usage(cfg, body, ra_.get_alloced_regs());
     profile.start();
 #endif
 
@@ -104,14 +104,14 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     ir_perf_no_trace() << profile << "\n";
 #endif
 #ifdef GEN_CONV_DEBUG
-    ir_trace() << "Actual register usage:           "
-               << ra_.get_peak_grf_usage() << std::endl;
-    int estimated_peak_grf_usage = estimate_register_count(cfg_);
-    if (ra_.get_peak_grf_usage() > estimated_peak_grf_usage) {
+    ir_trace() << "Actual register usage:           " << ra_.get_peak_regs()
+               << std::endl;
+    int estimated_peak_regs = estimate_register_count(cfg_);
+    if (ra_.get_peak_regs() > estimated_peak_regs) {
         ir_warning()
                 << "conv_kernel_t register usage underestimated: estimate = "
-                << estimated_peak_grf_usage
-                << ", actual = " << ra_.get_peak_grf_usage() << "\n";
+                << estimated_peak_regs << ", actual = " << ra_.get_peak_regs()
+                << "\n";
     }
 #endif
 }

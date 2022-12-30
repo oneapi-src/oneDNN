@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -290,11 +290,11 @@ stmt_t hoist_exprs_impl(
 
     auto stmt = hoist_exprs_mutator_t(ir_ctx).mutate(s);
 
-    int memory_usage = get_peak_grf_usage(stmt, grf_size) * grf_size;
+    int memory_usage = get_peak_regs(stmt, grf_size) * grf_size;
     if (memory_usage >= memory_usage_limit) {
         // Pessimistically hoist expressions. Does not identify and account for
         // hoists which do not change memory usage.
-        int memory_usage_original = get_peak_grf_usage(s, grf_size) * grf_size;
+        int memory_usage_original = get_peak_regs(s, grf_size) * grf_size;
         stmt = hoist_exprs_mutator_t(
                 ir_ctx, memory_usage_limit - memory_usage_original)
                        .mutate(s);

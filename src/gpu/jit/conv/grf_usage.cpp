@@ -260,34 +260,34 @@ public:
         int a_slm_store_payload_regs = 0;
         int b_slm_store_payload_regs = 0;
 
-        int c_buf_usage = estimate_c_buf_usage();
-        int gmem_load_usage = estimate_gmem_load_usage(max_reuse_header_regs);
-        int slm_store_usage = estimate_slm_store_usage(a_slm_store_payload_regs,
+        int c_buf_regs = estimate_c_buf_regs();
+        int gmem_load_regs = estimate_gmem_load_regs(max_reuse_header_regs);
+        int slm_store_regs = estimate_slm_store_regs(a_slm_store_payload_regs,
                 b_slm_store_payload_regs, max_reuse_header_regs);
-        int slm_load_usage = estimate_slm_load_usage(max_reuse_header_regs);
-        int reorder_usage = estimate_reorder_usage(
+        int slm_load_regs = estimate_slm_load_regs(max_reuse_header_regs);
+        int reorder_regs = estimate_reorder_regs(
                 a_slm_store_payload_regs, b_slm_store_payload_regs);
-        int zp_usage = estimate_zero_point_usage();
+        int zp_regs = estimate_zero_point_regs();
 
         grf_usage_t info(cfg_.grf_size());
-        info.add(grf_usage_label_t::out_buf, c_buf_usage);
-        info.add(grf_usage_label_t::gmem_load, gmem_load_usage);
-        info.add(grf_usage_label_t::slm_store, slm_store_usage);
-        info.add(grf_usage_label_t::slm_load, slm_load_usage);
-        info.add(grf_usage_label_t::reorder, reorder_usage);
+        info.add(grf_usage_label_t::out_buf, c_buf_regs);
+        info.add(grf_usage_label_t::gmem_load, gmem_load_regs);
+        info.add(grf_usage_label_t::slm_store, slm_store_regs);
+        info.add(grf_usage_label_t::slm_load, slm_load_regs);
+        info.add(grf_usage_label_t::reorder, reorder_regs);
         info.add(grf_usage_label_t::reused_headers, max_reuse_header_regs);
         info.add(grf_usage_label_t::reserved, constants::reserved_regs);
-        info.add(grf_usage_label_t::zero_points, zp_usage);
+        info.add(grf_usage_label_t::zero_points, zp_regs);
         return info;
     }
 
 private:
-    int estimate_c_buf_usage() const {
+    int estimate_c_buf_regs() const {
         int c_bytes = c_thr_elems_ * prb_.acc_data_type_size;
         return utils::div_up(c_bytes, reg_bytes_);
     }
 
-    int estimate_gmem_load_usage(int &max_reuse_header_regs) const {
+    int estimate_gmem_load_regs(int &max_reuse_header_regs) const {
         int regs = 0;
         bool use_a_2d_send = can_use_a_2d_send(cfg_);
         bool use_b_2d_send = can_use_b_2d_send(cfg_);
@@ -321,7 +321,7 @@ private:
         return regs;
     }
 
-    int estimate_slm_store_usage(int &a_payload_regs, int &b_payload_regs,
+    int estimate_slm_store_regs(int &a_payload_regs, int &b_payload_regs,
             int &max_reuse_header_regs) const {
         int regs = 0;
         for (bool is_a : {true, false}) {
@@ -344,7 +344,7 @@ private:
         return regs;
     }
 
-    int estimate_slm_load_usage(int &max_reuse_header_regs) const {
+    int estimate_slm_load_regs(int &max_reuse_header_regs) const {
         int regs = 0;
         for (bool is_a : {true, false}) {
             if (!ab_use_slm(is_a)) continue;
@@ -369,7 +369,7 @@ private:
 
     // Extra registers for GRF <-> GRF reorders.
     // Estimates upper bound for A/B reorders to temporary buffers.
-    int estimate_reorder_usage(int a_payload_regs, int b_payload_regs) const {
+    int estimate_reorder_regs(int a_payload_regs, int b_payload_regs) const {
         if (!cfg_.allow_a_grf_reorder() && !cfg_.allow_b_grf_reorder())
             return 0;
 
@@ -399,7 +399,7 @@ private:
         return regs;
     }
 
-    int estimate_zero_point_usage() const {
+    int estimate_zero_point_regs() const {
         if (!prb_.zp_cfg.do_src_compensation) return 0;
         int sp_iter_dim = 1;
         for (auto *name : {"ow", "iw", "osp"}) {

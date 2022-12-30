@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ public:
                 = mem_usage_guard(obj.kind == alloc_kind_t::grf ? obj.size : 0);
         print_indent();
         out_ << "alloc " << obj.buf.as<var_t>().name << "[" << obj.size
-             << "] (mem_usage: " << mem_usage_ << ")\n";
+             << "] (mem_usage: " << mem_usage_bytes_ << ")\n";
         visit(obj.body);
     }
 
@@ -214,7 +214,7 @@ public:
 
 private:
     mem_usage_guard_t mem_usage_guard(int size) {
-        return mem_usage_guard_t(&mem_usage_, size);
+        return mem_usage_guard_t(&mem_usage_bytes_, size);
     }
 
     static std::string strip_parens(const std::string &s) {
@@ -239,7 +239,7 @@ private:
 
     // Size required for all enclosed let/alloc statements. The value is
     // updated during traversal.
-    int mem_usage_ = 0;
+    int mem_usage_bytes_ = 0;
 };
 
 class substitute_mutator_t : public ir_mutator_t {
@@ -616,10 +616,8 @@ stmt_t replace_stmt_body(const stmt_t &stmt, const stmt_t &new_body) {
 
 class grf_usage_visitor_t : public ir_visitor_t {
 public:
-    grf_usage_visitor_t(int grf_size, int external_usage, bool skip_let)
-        : grf_size_(grf_size)
-        , skip_let_(skip_let)
-        , grf_usage_(external_usage) {}
+    grf_usage_visitor_t(int grf_size, int external_regs, bool skip_let)
+        : grf_size_(grf_size), skip_let_(skip_let), regs_(external_regs) {}
 
     void _visit(const alloc_t &obj) override {
         int size = (obj.kind == alloc_kind_t::grf ? obj.size : 0);
@@ -639,26 +637,26 @@ public:
         ir_visitor_t::_visit(obj);
     }
 
-    int peak_grf_usage() const { return peak_grf_usage_; }
+    int peak_regs() const { return peak_regs_; }
 
 private:
     mem_usage_guard_t grf_usage_guard(int size) {
-        auto ret = mem_usage_guard_t(&grf_usage_, size);
-        peak_grf_usage_ = std::max(peak_grf_usage_, grf_usage_);
+        auto ret = mem_usage_guard_t(&regs_, size);
+        peak_regs_ = std::max(peak_regs_, regs_);
         return ret;
     }
 
     int grf_size_ = 0;
     bool skip_let_ = false;
-    int grf_usage_ = 0;
-    int peak_grf_usage_ = 0;
+    int regs_ = 0;
+    int peak_regs_ = 0;
 };
 
-int get_peak_grf_usage(
-        const stmt_t &stmt, int grf_size, int external_usage, bool skip_let) {
-    grf_usage_visitor_t visitor(grf_size, external_usage, skip_let);
+int get_peak_regs(
+        const stmt_t &stmt, int grf_size, int external_regs, bool skip_let) {
+    grf_usage_visitor_t visitor(grf_size, external_regs, skip_let);
     visitor.visit(stmt);
-    return utils::div_up(visitor.peak_grf_usage(), grf_size);
+    return utils::div_up(visitor.peak_regs(), grf_size);
 }
 
 class has_send_atomics_visitor_t : public ir_visitor_t {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -151,11 +151,11 @@ stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx) {
 stmt_t maybe_strip_prefetches(
         const stmt_t &s, ir_context_t &ir_ctx, int reserved_regs) {
     trace_start();
-    int ir_usage = get_peak_grf_usage(s, ir_ctx.hw_cfg().grf_size());
-    int grf_usage = ir_usage + reserved_regs;
+    int ir_regs = get_peak_regs(s, ir_ctx.hw_cfg().grf_size());
+    int regs = ir_regs + reserved_regs;
     auto ret = s;
     //strip prefetches when they exceed available registers
-    if (grf_usage > ir_ctx.exec_cfg().regs()) {
+    if (regs > ir_ctx.exec_cfg().regs()) {
         ret = remove_stmt_group(s, stmt_label_t::prefetch());
         ir_warning() << "Dropping prefetches due to too lack of available "
                         "registers.\n";
