@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -956,8 +956,8 @@ TEST(GCPatternTests, FP32ConvolutionalBottleneckTrainingPattern) {
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_convolutional_bottleneck_training_subgraph(
-            &agraph, id_gen, {1, 64, 56, 56},
-            {{256, 64, 1, 1}, {64, 64, 1, 1}, {64, 64, 3, 3}, {256, 64, 1, 1}});
+            &agraph, id_gen, {1, 56, 56, 64},
+            {{1, 1, 64, 256}, {1, 1, 64, 64}, {3, 3, 64, 64}, {1, 1, 64, 256}});
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -985,8 +985,8 @@ TEST(GCPatternTests, FP32IdenticalBottleneckTrainingPattern) {
     utils::id_generator id_gen;
     impl::graph_t agraph;
     compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
-            id_gen, {1, 64, 56, 56},
-            {{64, 64, 1, 1}, {64, 64, 3, 3}, {64, 64, 1, 1}});
+            id_gen, {1, 56, 56, 64},
+            {{1, 1, 64, 64}, {3, 3, 64, 64}, {1, 1, 64, 64}});
     agraph.build_graph();
 
     auto &compiler_backend_ptr
@@ -1007,4 +1007,26 @@ TEST(GCPatternTests, FP32IdenticalBottleneckTrainingPattern) {
     ASSERT_EQ(partitions[1]->get_ops().size(), 13U);
     ASSERT_EQ(partitions[1]->get_inputs().size(), 20U);
     ASSERT_EQ(partitions[1]->get_outputs().size(), 10U);
+}
+
+TEST(GCPatternTests, DynamicShapePartitions) {
+    REQUIRE_AVX512();
+    utils::id_generator id_gen;
+    impl::graph_t agraph;
+    compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
+            id_gen, {1, 56, 56, 64},
+            {{1, 1, 64, 64}, {3, 3, 64, 64}, {1, 1, 64, 64}});
+    compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
+            id_gen, {-2, 56, 56, 64},
+            {{1, 1, 64, 64}, {3, 3, 64, 64}, {1, 1, 64, 64}});
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass = get_pass(
+            compiler_backend_ptr, "f32_identical_bottleneck_forward");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1U);
 }

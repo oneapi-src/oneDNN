@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,10 +40,12 @@ class pattern_utils_t {
 public:
     inline void match(dnnl::graph::impl::graph_t &backend_graph,
             std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
-            std::vector<std::vector<op_t *>> &fusion_ops);
+            std::vector<std::vector<op_t *>> &fusion_ops,
+            const std::string &pname);
     inline void set_partitions(dnnl::graph::impl::graph_t &backend_graph,
             std::vector<std::vector<op_t *>> &fusion_ops,
-            dnnl::graph::impl::partition_kind_t pkind, std::string pname);
+            const dnnl::graph::impl::partition_kind_t &pkind,
+            const std::string &pname);
 
     pattern_utils_t() = default;
     pattern_utils_t(const pattern_utils_t &) = delete;
@@ -53,13 +55,33 @@ public:
 
 inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
         std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
-        std::vector<std::vector<op_t *>> &fusion_ops) {
+        std::vector<std::vector<op_t *>> &fusion_ops,
+        const std::string &pname) {
     // dfs_visit graph, do pattern matching
     topo_order_visit(backend_graph.get_output_ops(), [&](op_t *cur_op) {
         std::vector<op_t *> candidate_fusion;
         if (!impl::utils::pm::match_pattern(cur_op, pgraph, candidate_fusion)) {
             return status::success;
         }
+        std::unordered_set<std::string> dynamic_shape_allowlist = {
+                "fp32_mlp_forward_pattern", "int8_mlp_pattern",
+                "bf16_mlp_forward_pattern", "fp32_mha_pattern_alternative",
+                "int8_bf16_mha_pattern_alternative",
+                "bf16_mha_pattern_alternative", "fp32_distill_bert_mha_pattern",
+                "int8_bf16_distill_bert_mha_pattern",
+                "bf16_distill_bert_mha_pattern"};
+        // check if those candidate ops have dynamic input shape && the pattern
+        // does not support dynamic
+        for (const auto &c : candidate_fusion) {
+            for (const auto &in_val : c->get_input_values()) {
+                auto in_lt = in_val->get_logical_tensor();
+                if (impl::logical_tensor_wrapper_t(in_lt).has_dynamic_dim()
+                        && dynamic_shape_allowlist.find(pname)
+                                == dynamic_shape_allowlist.end())
+                    return status::success;
+            }
+        }
+
         fusion_ops.emplace_back(candidate_fusion);
         return status::success;
     });
@@ -68,7 +90,8 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
 inline void pattern_utils_t::set_partitions(
         dnnl::graph::impl::graph_t &backend_graph,
         std::vector<std::vector<op_t *>> &fusion_ops,
-        dnnl::graph::impl::partition_kind_t pkind, std::string pname) {
+        const dnnl::graph::impl::partition_kind_t &pkind,
+        const std::string &pname) {
     std::vector<op_t *> fusion_ops_set;
     std::unordered_set<op_t *> visit;
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ public:
 
             // match the given pattern in the graph
             std::vector<std::vector<op_t *>> matched_pairs_list;
-            pu.match(agraph, pgraph, matched_pairs_list);
+            pu.match(agraph, pgraph, matched_pairs_list, get_pass_name());
             if (!matched_pairs_list.empty()) {
                 // temporary solution here for showing which pattern matched
                 if (impl::utils::getenv_int_user("DUMP", 0) > 0
