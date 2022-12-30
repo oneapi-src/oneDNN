@@ -1061,6 +1061,7 @@ public:
         }
 
         auto dst_op = alloc_dst_op(obj);
+        auto op = ngen_operand_t(scope_.alloc_reg_data(type_t::u16(1)), 1);
         for (auto &chunk : chunks) {
             int off = std::get<0>(chunk);
             int length = std::get<1>(chunk);
@@ -1068,12 +1069,22 @@ public:
             // Split length into powers of two.
             while (length > 0) {
                 int exec_size = (1 << math::ilog2q(length));
-                auto chunk_op = dst_op.sub_reg_data(off, exec_size);
-                eval(obj.vec[idx], ngen_operand_t(chunk_op, exec_size));
+                if (obj.type.is_bool()) {
+                    ir_assert(off % 8 == 0)
+                            << "expected mask offset to be multiple of 8";
+                    auto chunk_op = op.reg_buf_data().subregister(
+                            off / 8, ngen::DataType::b)(1);
+                    eval(obj.vec[idx], ngen_operand_t(dst_op, exec_size));
+                    host_->emov(1, chunk_op, dst_op.flag_register().b(0));
+                } else {
+                    auto chunk_op = dst_op.sub_reg_data(off, exec_size);
+                    eval(obj.vec[idx], ngen_operand_t(chunk_op, exec_size));
+                }
                 length -= exec_size;
                 off += exec_size;
             }
         }
+        if (obj.type.is_bool()) host_->emov(1, dst_op, op);
         bind(obj, dst_op);
     }
 
