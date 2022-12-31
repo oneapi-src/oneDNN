@@ -25,6 +25,13 @@ namespace impl {
 namespace gpu {
 namespace amd {
 
+rocblas_handle &sycl_hip_stream_t::get_rocblas_handle(HIPstream hip_stream) {
+    if (!hip_stream) hip_stream = get_underlying_stream();
+    auto e = utils::downcast<sycl_hip_engine_t *>(engine());
+    assert(e->context() == queue().get_context());
+    e->activate_stream_rocblas(hip_stream);
+    return *(e->get_rocblas_handle());
+}
 miopenHandle_t &sycl_hip_stream_t::get_miopen_handle(HIPstream hip_stream) {
     auto e = utils::downcast<sycl_hip_engine_t *>(engine());
     assert(e->context() == queue().get_context());

@@ -18,6 +18,7 @@
 #ifndef GPU_AMD_SYCL_HIP_ENGINE_HPP
 #define GPU_AMD_SYCL_HIP_ENGINE_HPP
 
+#include <rocblas.h>
 #include <stdexcept>
 #include "common/stream.hpp"
 #include "common/thread_local_storage.hpp"
@@ -81,12 +82,14 @@ public:
     }
 
     void activate_stream_miopen(HIPstream hip_stream);
+    void activate_stream_rocblas(HIPstream hip_stream);
 
     const impl_list_item_t *get_implementation_list(
             const op_desc_t *) const override;
     hipCtx_t get_underlying_context() const;
     hipDevice_t get_underlying_device() const;
     miopenHandle_t *get_miopen_handle();
+    rocblas_handle *get_rocblas_handle();
     const bool has_primary_context() const { return primary_context_; }
     device_id_t device_id() const override;
 
@@ -95,10 +98,13 @@ protected:
 
 private:
     status_t set_miopen_handle();
+    status_t set_rocblas_handle();
     utils::thread_local_storage_t<
             std::unique_ptr<miopenHandle_t, void (*)(miopenHandle_t *)>>
             miopen_handle_;
-
+    utils::thread_local_storage_t<
+            std::unique_ptr<rocblas_handle, void (*)(rocblas_handle *)>>
+            rocblas_handle_;
     bool primary_context_;
 };
 
