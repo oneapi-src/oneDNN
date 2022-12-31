@@ -66,7 +66,9 @@ if(DNNL_SYCL_HIP)
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/softmax.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/lrn.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/eltwise.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/reduction.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/reduction.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/matmul.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/matmul_perf.cpp)
 endif()
 
 # Skip SYCL, GPU and cross-engine examples
