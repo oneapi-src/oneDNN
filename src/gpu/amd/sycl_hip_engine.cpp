@@ -112,16 +112,13 @@ device_id_t sycl_hip_engine_t::device_id() const {
             static_cast<uint64_t>(0));
 }
 
-void sycl_hip_engine_t::activate_stream_miopen(stream_t *stream) {
+void sycl_hip_engine_t::activate_stream_miopen(HIPstream hip_stream) {
     hip_sycl_scoped_context_handler_t sc(*this);
-    auto hip_stream = utils::downcast<sycl_hip_stream_t *>(stream);
-    auto streamId = hip_stream->get_underlying_stream();
-    assert(context() == hip_stream->queue().get_context());
     hipStream_t current_stream_id = nullptr;
     auto miopen_handle = get_miopen_handle();
     MIOPEN_EXECUTE_FUNC_S(miopenGetStream, *miopen_handle, &current_stream_id);
-    if (current_stream_id != streamId) {
-        MIOPEN_EXECUTE_FUNC_S(miopenSetStream, *miopen_handle, streamId);
+    if (current_stream_id != hip_stream) {
+        MIOPEN_EXECUTE_FUNC_S(miopenSetStream, *miopen_handle, hip_stream);
     }
 }
 

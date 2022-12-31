@@ -80,7 +80,7 @@ public:
         return hip_sum_impl_list;
     }
 
-    void activate_stream_miopen(stream_t *stream);
+    void activate_stream_miopen(HIPstream hip_stream);
 
     const impl_list_item_t *get_implementation_list(
             const op_desc_t *) const override;

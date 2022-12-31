@@ -25,9 +25,11 @@ namespace impl {
 namespace gpu {
 namespace amd {
 
-miopenHandle_t &sycl_hip_stream_t::get_miopen_handle() {
+miopenHandle_t &sycl_hip_stream_t::get_miopen_handle(HIPstream hip_stream) {
     auto e = utils::downcast<sycl_hip_engine_t *>(engine());
-    e->activate_stream_miopen(this);
+    assert(e->context() == queue().get_context());
+    if (!hip_stream) hip_stream = get_underlying_stream();
+    e->activate_stream_miopen(hip_stream);
     return *(e->get_miopen_handle());
 }
 // the sycl_hip_stream_t will not own this. it is an observer pointer
