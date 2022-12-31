@@ -113,8 +113,15 @@ protected:
                              || p.attr.zero_points.weights != 0),
                 "Zero points not supported for CUDA");
 
+        SKIP_IF_HIP((p.attr.zero_points.src != 0 || p.attr.zero_points.dst != 0
+                            || p.attr.zero_points.weights != 0),
+                "Zero points not supported for HIP");
+
         SKIP_IF_CUDA((p.attr.scale_flags & P::MASK_MASK) == P::PER_N,
                 "Per dimensional scaling is not supported for CUDA");
+
+        SKIP_IF_HIP((p.attr.scale_flags & P::MASK_MASK) == P::PER_N,
+                "Per dimensional scaling is not supported for HIP");
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status, false);

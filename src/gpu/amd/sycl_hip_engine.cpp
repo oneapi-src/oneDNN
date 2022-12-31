@@ -25,6 +25,7 @@
 #include "gpu/amd/miopen_binary.hpp"
 #include "gpu/amd/miopen_eltwise.hpp"
 #include "gpu/amd/miopen_lrn.hpp"
+#include "gpu/amd/miopen_matmul.hpp"
 #include "gpu/amd/miopen_pooling.hpp"
 #include "gpu/amd/miopen_reduction.hpp"
 #include "gpu/amd/miopen_softmax.hpp"
@@ -178,6 +179,8 @@ constexpr dnnl::impl::impl_list_item_t sycl_hip_impl_list[] = {
         INSTANCE(miopen_pooling_bwd_t)
         // Reduction
         INSTANCE(miopen_reduction_t)
+        // MatMul
+        INSTANCE(miopen_matmul_t)
         nullptr,
 };
 // clang-format on
