@@ -18,6 +18,7 @@
 #ifndef GPU_AMD_SYCL_HIP_UTILS_HPP
 #define GPU_AMD_SYCL_HIP_UTILS_HPP
 
+#include <rocblas.h>
 #include <stdexcept>
 #include "miopen/miopen.h"
 #include <hip/hip_runtime.h>
@@ -79,7 +80,9 @@ inline status_t convert_data_type(const memory_desc_t *mem_desc,
         case data_type_t::dnnl_f32:
             *miopen_data_type = miopenDataType_t::miopenFloat;
             break;
-
+        case data_type_t::dnnl_s32:
+            *miopen_data_type = miopenDataType_t::miopenInt32;
+            break;
         case data_type_t::dnnl_s8:
             *miopen_data_type
                     = ((vectorized
@@ -91,6 +94,76 @@ inline status_t convert_data_type(const memory_desc_t *mem_desc,
         default: return status::unimplemented;
     }
     return status::success;
+}
+
+class rocblas_error : virtual public std::runtime_error {
+
+protected:
+    const char *rocblas_error_map(rocblas_status error) {
+        switch (error) {
+            case rocblas_status_success: return "ROCBLAS_STATUS_SUCCESS";
+
+            case rocblas_status_invalid_handle:
+                return "ROCBLAS_STATUS_INVALID_HANDLE";
+
+            case rocblas_status_not_implemented:
+                return "ROCBLAS_STATUS_NOT_IMPLEMENTED";
+
+            case rocblas_status_invalid_pointer:
+                return "ROCBLAS_STATUS_INVALID_POINTER";
+
+            case rocblas_status_invalid_size:
+                return "ROCBLAS_STATUS_INVALID_SIZE";
+
+            case rocblas_status_memory_error:
+                return "ROCBLAS_STATUS_MEMORY_ERROR";
+
+            case rocblas_status_internal_error:
+                return "ROCBLAS_STATUS_INTERNAL_ERROR";
+
+            case rocblas_status_perf_degraded:
+                return "ROCBLAS_STATUS_PERF_DEGRADED";
+
+            case rocblas_status_size_query_mismatch:
+                return "ROCBLAS_STATUS_SIZE_QUERY_MISMATCH";
+
+            case rocblas_status_size_increased:
+                return "ROCBLAS_STATUS_SIZE_INCREASED";
+
+            case rocblas_status_size_unchanged:
+                return "ROCBLAS_STATUS_SIZE_UNCHANGED";
+
+            case rocblas_status_invalid_value:
+                return "ROCBLAS_STATUS_INVALID_VALUE";
+
+            case rocblas_status_continue: return "ROCBLAS_STATUS_CONTINUE";
+
+            case rocblas_status_check_numerics_fail:
+                return "ROCBLAS_STATUS_CHECK_NUMERICS_FAIL";
+
+            default: return "<unknown>";
+        }
+    }
+
+    int error_number_;
+
+public:
+    explicit rocblas_error(const std::string &message, rocblas_status result)
+        : std::runtime_error(
+                (message + std::string(rocblas_error_map(result)))) {
+        error_number_ = static_cast<int>(result);
+    }
+
+    virtual ~rocblas_error() throw() {}
+
+    virtual int get_error_number() const throw() { return error_number_; }
+};
+
+inline status_t rocblas_to_dnnl_status(rocblas_status rocblas_status) {
+    switch (rocblas_status) {
+        case rocblas_status_success: return status::success;
+        default: return status::runtime_error;
+    }
 }
 
 class hip_error : virtual public std::runtime_error {
@@ -143,6 +216,16 @@ static status_t miopen_to_dnnl_status(miopenStatus_t miopen_status) {
                     err); \
         } \
     }
+#define ROCBLAS_EXECUTE_FUNC(name, ...) \
+    { \
+        auto err = name(__VA_ARGS__); \
+        if (err != rocblas_status_success) { \
+            throw rocblas_error(std::string("At :") \
+                            + std::string(HIP_ERROR_LOCATION) \
+                            + std::string(#name) + std::string(" : "), \
+                    err); \
+        } \
+    }
 
 #define MIOPEN_EXECUTE_FUNC(name, ...) \
     { \
@@ -181,6 +264,19 @@ static status_t miopen_to_dnnl_status(miopenStatus_t miopen_status) {
         } \
     }
 
+#define ROCBLAS_EXECUTE_FUNC_V(name, ...) \
+    { \
+        auto err = name(__VA_ARGS__); \
+        if (err != rocblas_status_success) { \
+            std::cout << rocblas_error(std::string("At :") \
+                            + std::string(HIP_ERROR_LOCATION) \
+                            + std::string(#name) + std::string(" : "), \
+                    err) \
+                                 .what() \
+                      << std::endl; \
+        } \
+    }
+
 #define MIOPEN_CHECK_V(e) \
     { \
         auto status = (e); \
@@ -199,6 +295,12 @@ static status_t miopen_to_dnnl_status(miopenStatus_t miopen_status) {
         auto err = name(__VA_ARGS__); \
         if (err != miopenStatusSuccess) { return miopen_to_dnnl_status(err); } \
         return status::success; \
+    }()
+
+#define ROCBLAS_EXECUTE_FUNC_S(name, ...) \
+    [&]() { \
+        auto err = name(__VA_ARGS__); \
+        return rocblas_to_dnnl_status(err); \
     }()
 
 inline status_t create_and_set_tensor_descriptor(
