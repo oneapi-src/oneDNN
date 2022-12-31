@@ -31,7 +31,7 @@ class sycl_hip_stream_t : public dnnl::impl::sycl::sycl_stream_t {
 public:
     using base_t = dnnl::impl::sycl::sycl_stream_t;
 
-    miopenHandle_t &get_miopen_handle();
+    miopenHandle_t &get_miopen_handle(HIPstream hip_stream = nullptr);
 
     static status_t create_stream(
             stream_t **stream, engine_t *engine, unsigned flags) {
