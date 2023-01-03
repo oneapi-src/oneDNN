@@ -316,6 +316,15 @@ const dnn_mem_t &args_t::find(int arg) const {
     return empty_stub;
 }
 
+void args_t::replace(int arg, const dnn_mem_t *mem) {
+    for (auto &e : args_) {
+        if (e.first == arg) {
+            e.second = mem;
+            break;
+        }
+    }
+}
+
 // Unmap before passing the memory to execute
 void execute_unmap_args(
         const args_t &args, std::vector<dnnl_exec_arg_t> &dnnl_args) {

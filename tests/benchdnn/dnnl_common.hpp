@@ -305,6 +305,9 @@ struct args_t {
     int size() const { return (int)args_.size(); }
 
     const dnn_mem_t &find(int arg) const;
+    // Used in graph to link arguments together by updating current source with
+    // previous destination.
+    void replace(int arg, const dnn_mem_t *mem);
 
     int arg(int index) const { return args_[index].first; }
     const dnn_mem_t &dnn_mem(int index) const { return *args_[index].second; }
