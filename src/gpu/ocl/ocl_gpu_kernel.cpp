@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -198,7 +198,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         std::vector<cl_event> events(
                 event_wrappers.begin(), event_wrappers.end());
 
-        cl_uint num_events = events.size();
+        cl_uint num_events = (cl_uint)events.size();
         const cl_event *events_data = num_events ? events.data() : nullptr;
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
                 range.global_range(), range.local_range(), num_events,
