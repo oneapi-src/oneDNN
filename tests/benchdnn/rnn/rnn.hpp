@@ -251,9 +251,40 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
+
+    bool has_single_setup() const override {
+        return prop.size() == 1 && cfg.size() == 1 && alg.size() == 1
+                && direction.size() == 1 && activation.size() == 1
+                && skip_nonlinear.size() == 1 && trivial_strides.size() == 1
+                && with_peephole.size() == 1 && with_projection.size() == 1
+                && n_layer.size() == 1 && n_iter.size() == 1
+                && scale_policy.size() == 1 && scale_proj_policy.size() == 1
+                && base_settings_t::has_single_setup();
+    }
 };
 
 struct prb_t : public desc_t {
+    // A ctor with common interface across all drivers.
+    prb_t(const settings_t &s)
+        : prb_t(s.desc,
+                dt_conf_t::create(s.cfg[0],
+                        settings_t::get_attr(s.scales[0], s.zero_points[0],
+                                s.post_ops[0], s.scratchpad_mode[0],
+                                s.fpmath_mode[0])),
+                s.prop[0], s.alg[0], s.with_peephole[0], s.with_projection[0],
+                s.direction[0], s.scale_policy[0], s.scale_proj_policy[0],
+                s.flags, s.activation[0],
+                settings_t::get_attr(s.scales[0], s.zero_points[0],
+                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
+                s.ctx_init[0], s.ctx_exe[0], s.alpha, s.beta,
+                s.skip_nonlinear[0], s.trivial_strides[0], s.n_layer[0],
+                s.n_iter[0], s.mb[0]) {
+        SAFE_V(s.has_single_setup() ? OK : FAIL);
+        // Just for better styling, no real reason to keep it separate.
+        this->attr = settings_t::get_attr(s.scales[0], s.zero_points[0],
+                s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]);
+    }
+
     prb_t(const desc_t &desc, const dt_conf_t &cfg, dir_t prop, alg_t alg,
             bool with_peephole, bool with_projection,
             dnnl_rnn_direction_t direction, policy_t scale_policy,

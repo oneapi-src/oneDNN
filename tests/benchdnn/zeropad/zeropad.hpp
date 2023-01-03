@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,9 +46,19 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
+
+    bool has_single_setup() const override {
+        return dt.size() == 1 && tag.size() == 1
+                && base_settings_t::has_single_setup();
+    }
 };
 
 struct prb_t : public prb_dims_t {
+    // A ctor with common interface across all drivers.
+    prb_t(const settings_t &s) : prb_t(s.prb_dims, s.dt[0], s.tag[0]) {
+        SAFE_V(s.has_single_setup() ? OK : FAIL);
+    }
+
     prb_t(const prb_dims_t &prb_dims, dnnl_data_type_t dt,
             const std::string &tag)
         : prb_dims_t(prb_dims), dt(dt), tag(tag) {}

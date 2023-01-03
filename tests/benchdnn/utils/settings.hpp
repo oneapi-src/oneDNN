@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,6 +54,15 @@ struct base_settings_t {
         attr_t attr;
         attr.insert(args...);
         return attr;
+    }
+
+    // Returns `true` if all vector members in this class have capacity of one.
+    virtual bool has_single_setup() const {
+        return mb.size() == 1 && inplace.size() == 1 && oscale.size() == 1
+                && scales.size() == 1 && zero_points.size() == 1
+                && post_ops.size() == 1 && scratchpad_mode.size() == 1
+                && fpmath_mode.size() == 1 && ctx_init.size() == 1
+                && ctx_exe.size() == 1;
     }
 };
 

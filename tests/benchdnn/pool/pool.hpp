@@ -130,9 +130,23 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
+
+    bool has_single_setup() const override {
+        return dir.size() == 1 && cfg.size() == 1 && tag.size() == 1
+                && alg.size() == 1 && base_settings_t::has_single_setup();
+    }
 };
 
 struct prb_t : public desc_t {
+    // A ctor with common interface across all drivers.
+    prb_t(const settings_t &s)
+        : prb_t(s.desc, s.dir[0], s.cfg[0], s.tag[0], s.alg[0],
+                settings_t::get_attr(s.scales[0], s.zero_points[0],
+                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
+                s.ctx_init[0], s.ctx_exe[0], s.mb[0]) {
+        SAFE_V(s.has_single_setup() ? OK : FAIL);
+    }
+
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
             const std::string &tag, alg_t alg, const attr_t &attr,
             const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe, int64_t mb = 0)

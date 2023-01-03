@@ -51,9 +51,25 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
+
+    bool has_single_setup() const override {
+        return sdt.size() == 1 && ddt.size() == 1 && stag.size() == 1
+                && dtag.size() == 1 && input_scales.size() == 1
+                && base_settings_t::has_single_setup();
+    }
 };
 
 struct prb_t : public prb_dims_t {
+    // A ctor with common interface across all drivers.
+    prb_t(const settings_t &s)
+        : prb_t(s.prb_dims, s.sdt[0], s.ddt[0], s.stag[0], s.dtag[0],
+                s.input_scales[0], s.inplace[0],
+                settings_t::get_attr(s.scales[0], s.zero_points[0],
+                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
+                s.ctx_init[0], s.ctx_exe[0]) {
+        SAFE_V(s.has_single_setup() ? OK : FAIL);
+    }
+
     prb_t(const prb_dims_t &prb_dims, const std::vector<dnnl_data_type_t> &sdt,
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,
             const std::string &dtag, const std::vector<float> &input_scales,
