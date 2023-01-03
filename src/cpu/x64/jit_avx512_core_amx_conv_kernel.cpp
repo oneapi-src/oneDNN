@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -565,7 +565,7 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_body(
         int set_width_padded = !jcp.is_pbuffer_strided
                 ? (jcp.ow_block - 1) * jcp.stride_w + gen_kw
                 : are_sets_interleaved ? jcp.ow_block - 1 + gen_kw / num_sets
-                                + (set_idx < gen_kw % num_sets ? 1 : 0)
+                        + (set_idx < gen_kw % num_sets ? 1 : 0)
                                        : jcp.ow_block;
         for (int set_shift = 0; set_shift < set_width_padded;
                 set_shift++, iwp_idx++) {
@@ -1208,7 +1208,8 @@ size_t jit_avx512_core_amx_fwd_kernel_t::get_wei_offset(int ocb, int kw) const {
 }
 size_t jit_avx512_core_amx_fwd_kernel_t::get_inp_shift() const {
     size_t w_step = (jcp.is_relo ? jcp.stride_w * jcp.kh
-                                 : jcp.is_pbuffer_strided ? 1 : jcp.stride_w)
+                                    : jcp.is_pbuffer_strided ? 1
+                                                             : jcp.stride_w)
             * jcp.ic_block_int_np;
     return (size_t)jcp.typesize_in * jcp.tile_width * w_step;
 }
@@ -2054,8 +2055,9 @@ void jit_avx512_core_amx_fwd_kernel_t::generate() {
     mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
     mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
 
-    const int fac = jcp.is_relo ? jcp.stride_w * jcp.kh
-                                : jcp.is_pbuffer_strided ? 1 : jcp.stride_w;
+    const int fac = jcp.is_relo      ? jcp.stride_w * jcp.kh
+            : jcp.is_pbuffer_strided ? 1
+                                     : jcp.stride_w;
     const int inp_stride = fac * jcp.ic_block_int_np * jcp.typesize_in;
     const int wei_stride = jcp.oc_block * jcp.typesize_acc;
     mov(reg_inp_stride, inp_stride);
@@ -2480,17 +2482,15 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         format_tag_t wei_tag;
         wei_tag = jcp.is_relo ? pick(with_groups + 2 * (ndims - 3), Owi16o,
                           gOwi16o, Owhi16o, gOwhi16o, Odwhi16o, gOdwhi16o)
-                              : is_bf16_convolution
-                        ? pick(with_groups + 2 * (ndims - 3), OIw16i16o2i,
-                                gOIw16i16o2i, OIhw16i16o2i, gOIhw16i16o2i,
-                                OIdhw16i16o2i, gOIdhw16i16o2i)
-                        : is_small_ic ? pick(with_groups + 2 * (ndims - 3),
-                                  OwI16o4i, gOwI16o4i, OhwI16o4i, gOhwI16o4i,
-                                  OdhwI16o4i, gOdhwI16o4i)
-                                      : pick(with_groups + 2 * (ndims - 3),
-                                              OIw16i16o4i, gOIw16i16o4i,
-                                              OIhw16i16o4i, gOIhw16i16o4i,
-                                              OIdhw16i16o4i, gOIdhw16i16o4i);
+                : is_bf16_convolution ? pick(with_groups + 2 * (ndims - 3),
+                          OIw16i16o2i, gOIw16i16o2i, OIhw16i16o2i,
+                          gOIhw16i16o2i, OIdhw16i16o2i, gOIdhw16i16o2i)
+                : is_small_ic
+                ? pick(with_groups + 2 * (ndims - 3), OwI16o4i, gOwI16o4i,
+                        OhwI16o4i, gOhwI16o4i, OdhwI16o4i, gOdhwI16o4i)
+                : pick(with_groups + 2 * (ndims - 3), OIw16i16o4i, gOIw16i16o4i,
+                        OIhw16i16o4i, gOIhw16i16o4i, OIdhw16i16o4i,
+                        gOIdhw16i16o4i);
 
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);
@@ -5296,9 +5296,9 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
 
     jcp.harness = ndims == 5
             ? harness_3d_reduction
-            : (use_full_spat_loop ? harness_compute_full_spatial
-                                  : (ndims == 4) ? harness_2d_reduction
-                                                 : harness_mb_reduction);
+            : (use_full_spat_loop          ? harness_compute_full_spatial
+                            : (ndims == 4) ? harness_2d_reduction
+                                           : harness_mb_reduction);
     switch (jcp.harness) {
         case harness_2d_reduction: jcp.nthr_mb_work = jcp.mb * jcp.oh; break;
         case harness_3d_reduction: jcp.nthr_mb_work = jcp.mb * jcp.od; break;

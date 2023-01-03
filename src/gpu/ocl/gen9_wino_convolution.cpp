@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,9 +77,9 @@ static void fwd_compute_block_sizes(
     }
 
     //Using F(m, r) for r = 3 and tile_size = m + r - 1
-    const int m = utils::div_up(conf.oh, 6) < utils::div_up(conf.oh, 4)
-            ? 6
-            : conf.oh > 2 ? 4 : 2;
+    const int m = utils::div_up(conf.oh, 6) < utils::div_up(conf.oh, 4) ? 6
+            : conf.oh > 2                                               ? 4
+                                                                        : 2;
     const int r = 3;
     conf.is_fused = true;
 

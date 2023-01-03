@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,9 +88,9 @@ struct jit_avx2_convolution_fwd_t : public primitive_t {
                     && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
 
             const bool flat = IC() < 8;
-            auto src_tag = is_data_layout_nxc
-                    ? dat_tag_nxc
-                    : flat ? dat_tag_ncx : dat_tag_nCx8c;
+            auto src_tag = is_data_layout_nxc ? dat_tag_nxc
+                    : flat                    ? dat_tag_ncx
+                                              : dat_tag_nCx8c;
             auto dst_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx8c;
             auto wei_tag = with_groups()
                     ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,
@@ -276,9 +276,9 @@ struct jit_avx2_convolution_bwd_weights_t : public primitive_t {
                             diff_dst_d.format_kind() == format_kind::any)
                     && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
 
-            auto src_tag = is_data_layout_nxc
-                    ? dat_tag_nxc
-                    : flat ? dat_tag_ncx : dat_tag_nCx8c;
+            auto src_tag = is_data_layout_nxc ? dat_tag_nxc
+                    : flat                    ? dat_tag_ncx
+                                              : dat_tag_nCx8c;
             auto dst_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx8c;
             auto wei_tag = with_groups()
                     ? utils::pick(2 * ndims() - 6 + flat, gOIw8i8o, gOwi8o,

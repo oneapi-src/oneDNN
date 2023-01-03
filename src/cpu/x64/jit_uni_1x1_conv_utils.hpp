@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -375,7 +375,8 @@ struct rtus_driver_t : public jit_generator {
         const size_t w_step_factor = ic_ * typesize_;
         const size_t max_load_store_bytes = isa == sse41
                 ? typesize_ == 4 ? 16 : 8
-                : typesize_ == 4 ? 32 : 16;
+                : typesize_ == 4 ? 32
+                                 : 16;
         const size_t load_store_size
                 = isa == avx512_core ? vlen_ : max_load_store_bytes;
         size_t load_store_tail_size = (typesize_ == 1 ? max_load_store_bytes

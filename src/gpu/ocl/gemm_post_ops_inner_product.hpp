@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -194,9 +194,9 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
                     int8 ? data_type::f32 : pd()->desc()->accum_data_type,
                     "ACC");
             def_data_type(kernel_ctx,
-                    pd()->with_bias()
-                            ? pd()->weights_md(1)->data_type
-                            : int8 ? data_type::f32 : pd()->dst_md()->data_type,
+                    pd()->with_bias() ? pd()->weights_md(1)->data_type
+                            : int8    ? data_type::f32
+                                      : pd()->dst_md()->data_type,
                     "BIAS");
             def_data_type(kernel_ctx, pd()->desc()->accum_data_type, "SPAD");
             def_data_type(kernel_ctx, pd()->dst_md()->data_type, "DST");

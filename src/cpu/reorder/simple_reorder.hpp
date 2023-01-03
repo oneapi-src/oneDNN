@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -225,17 +225,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             for (dim_t w = 0; w < W; w++) {
                 auto i = w_depth
                         ? input[input_d.blk_off<!w_groups>(g, oc, ic, d, h, w)]
-                        : w_height ? input[input_d.blk_off<!w_groups>(
-                                  g, oc, ic, h, w)]
-                                   : input[input_d.blk_off<!w_groups>(
-                                           g, oc, ic, w)];
-                auto &o = w_depth
-                        ? output[output_d.blk_off<!w_groups>(
-                                g, oc, ic, d, h, w)]
-                        : w_height ? output[output_d.blk_off<!w_groups>(
-                                  g, oc, ic, h, w)]
-                                   : output[output_d.blk_off<!w_groups>(
-                                           g, oc, ic, w)];
+                        : w_height
+                        ? input[input_d.blk_off<!w_groups>(g, oc, ic, h, w)]
+                        : input[input_d.blk_off<!w_groups>(g, oc, ic, w)];
+                auto &o = w_depth ? output[output_d.blk_off<!w_groups>(
+                                  g, oc, ic, d, h, w)]
+                        : w_height
+                        ? output[output_d.blk_off<!w_groups>(g, oc, ic, h, w)]
+                        : output[output_d.blk_off<!w_groups>(g, oc, ic, w)];
                 const size_t os_off
                         = (g * OC + oc) * oc_stride + ic * ic_stride;
                 const float s = scales[os_off];
@@ -362,11 +359,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 ? 4
                 : utils::one_of(tag_traits<tag_o>::inner_blks, ib::_2c8b4c,
                           ib::_2b8a4b)
-                        ? 8
-                        : 16;
+                ? 8
+                : 16;
         constexpr dim_t ocblksize
-                = tag_traits<tag_o>::inner_blks == ib::_4b32a4b
-                ? 32
+                = tag_traits<tag_o>::inner_blks == ib::_4b32a4b ? 32
                 : tag_traits<tag_o>::inner_blks == ib::_4b64a4b ? 64
                                                                 : icblksize;
 
@@ -459,10 +455,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         });
 
 #define wei_blk_off(md, g, o, i, d, h, w) \
-    (is_0d ? (md).blk_off<!w_groups>(g, o, i) \
-           : is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
-                   : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
-                           : (md).blk_off<!w_groups>(g, o, i, h, w))
+    (is_0d                  ? (md).blk_off<!w_groups>(g, o, i) \
+                    : is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
+                    : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
+                            : (md).blk_off<!w_groups>(g, o, i, h, w))
         parallel_nd(G, NB_OC, [&](dim_t g, dim_t O) {
             for_(dim_t I = 0; I < NB_IC; I++)
             for_(dim_t d = 0; d < D; d++)
@@ -602,9 +598,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         }
 
 #define wei_blk_off(md, g, o, i, d, h, w) \
-    (is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
-           : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
-                   : (md).blk_off<!w_groups>(g, o, i, h, w))
+    (is_1d                  ? (md).blk_off<!w_groups>(g, o, i, w) \
+                    : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
+                            : (md).blk_off<!w_groups>(g, o, i, h, w))
 
         parallel_nd(G, NB_OC, [&](dim_t g, dim_t O) {
             for_(dim_t I = 0; I < IC; I++)
@@ -713,8 +709,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 ? 64
                 : utils::one_of(
                           tag_traits<tag_o>::inner_blks, ib::_16a4b, ib::_16b4c)
-                        ? 4
-                        : 1;
+                ? 4
+                : 1;
         assert(ic_blksize != 1);
 
         const auto &plain_d = order_keep ? input_d : output_d;
@@ -775,9 +771,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         }
 
 #define wei_blk_off(md, g, o, i, d, h, w) \
-    (is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
-           : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
-                   : (md).blk_off<!w_groups>(g, o, i, h, w))
+    (is_1d                  ? (md).blk_off<!w_groups>(g, o, i, w) \
+                    : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
+                            : (md).blk_off<!w_groups>(g, o, i, h, w))
 
         parallel_nd(G, NB_OC, [&](dim_t g, dim_t O) {
             for_(dim_t I = 0; I < NB_IC; I++)
@@ -852,16 +848,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         constexpr dim_t A_blksize = 64;
         constexpr dim_t B_blksize
-                = (tag_traits<tag_o>::inner_blks == ib::_16a64b4a)
-                ? 64
-                : (tag_traits<tag_o>::inner_blks == ib::_16a48b4a)
-                        ? 48
-                        : (tag_traits<tag_o>::inner_blks == ib::_16a32b4a)
-                                ? 32
-                                : (tag_traits<tag_o>::inner_blks
-                                          == ib::_16a16b4a)
-                                        ? 16
-                                        : 1;
+                = (tag_traits<tag_o>::inner_blks == ib::_16a64b4a) ? 64
+                : (tag_traits<tag_o>::inner_blks == ib::_16a48b4a) ? 48
+                : (tag_traits<tag_o>::inner_blks == ib::_16a32b4a) ? 32
+                : (tag_traits<tag_o>::inner_blks == ib::_16a16b4a) ? 16
+                                                                   : 1;
         assert(B_blksize != 1);
 
         const auto &plain_d = order_keep ? input_d : output_d;
@@ -1017,8 +1008,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 = utils::one_of(tag_o, format_tag::Goihw4g, format_tag::Goiw4g)
                 ? 4
                 : utils::one_of(tag_o, format_tag::Goihw8g, format_tag::Goiw8g)
-                        ? 8
-                        : 16;
+                ? 8
+                : 16;
 
         const auto &dims = input_d.dims();
         const auto &pdims = output_d.padded_dims();
@@ -1416,8 +1407,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         };
 
 #define data_blk_off(md, n, c, d, h, w) \
-    (is_1d ? (md).blk_off(n, c, w) \
-           : is_3d ? (md).blk_off(n, c, d, h, w) : (md).blk_off(n, c, h, w))
+    (is_1d                  ? (md).blk_off(n, c, w) \
+                    : is_3d ? (md).blk_off(n, c, d, h, w) \
+                            : (md).blk_off(n, c, h, w))
 
         parallel_nd(dims[0], pdims[1] / blksize_16, D, H, W,
                 [&](dim_t n, dim_t nb_c, dim_t d, dim_t h, dim_t w) {
@@ -1482,14 +1474,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         using namespace data_type;
         using namespace utils;
 
-        constexpr int blksize = false
-                ? 0
-                : one_of(tag_traits<tag_o>::inner_blks, ib::_4a, ib::_4b)
-                        ? 4
-                        : one_of(tag_traits<tag_o>::inner_blks, ib::_8a,
-                                  ib::_8b)
-                                ? 8
-                                : 16;
+        constexpr int blksize = false                                     ? 0
+                : one_of(tag_traits<tag_o>::inner_blks, ib::_4a, ib::_4b) ? 4
+                : one_of(tag_traits<tag_o>::inner_blks, ib::_8a, ib::_8b) ? 8
+                                                                          : 16;
 
         constexpr bool f32bf16
                 = one_of(type_i, f32, bf16) && one_of(type_o, f32, bf16);
@@ -1557,11 +1545,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         };
 
 #define off(md, h0, h1, m0, m1, m2) \
-    (ndims >= 6 ? (md).blk_off(h0, h1, m0, m1, m2) \
-                : ndims >= 5 ? (md).blk_off(h0, h1, m1, m2) \
-                             : ndims >= 4 \
-                                    ? (md).blk_off(h0, h1, m2) \
-                                    : /* ndims >= 3 ? */ (md).blk_off(h0, h1))
+    (ndims >= 6                  ? (md).blk_off(h0, h1, m0, m1, m2) \
+                    : ndims >= 5 ? (md).blk_off(h0, h1, m1, m2) \
+                    : ndims >= 4 ? (md).blk_off(h0, h1, m2) \
+                                 : /* ndims >= 3 ? */ (md).blk_off(h0, h1))
 
         constexpr int i_mult = order_keep ? blksize : 1;
         constexpr int o_mult = order_keep ? 1 : blksize;
@@ -1640,22 +1627,19 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         using namespace data_type;
         using namespace utils;
 
-        constexpr dim_t blksize_0 = false
-                ? 0
+        constexpr dim_t blksize_0 = false ? 0
                 : one_of(tag_traits<tag_o>::inner_blks, ib::_4b4a, ib::_4b4c,
                           ib::_4c4b)
-                        ? 4
-                        : one_of(tag_traits<tag_o>::inner_blks, ib::_8a8b,
-                                  ib::_8b8a, ib::_8b8c, ib::_8c8b, ib::_2c8b4c)
-                                ? 8
-                                : one_of(tag_traits<tag_o>::inner_blks,
-                                          ib::_16a16b, ib::_16b16a, ib::_16b16c,
-                                          ib::_16c16b, ib::_8a16b2a,
-                                          ib::_4b16a4b, ib::_8b16a2b,
-                                          ib::_8b16c2b, ib::_4c16b4c,
-                                          ib::_8c16b2c)
-                                        ? 16
-                                        : -1;
+                ? 4
+                : one_of(tag_traits<tag_o>::inner_blks, ib::_8a8b, ib::_8b8a,
+                          ib::_8b8c, ib::_8c8b, ib::_2c8b4c)
+                ? 8
+                : one_of(tag_traits<tag_o>::inner_blks, ib::_16a16b,
+                          ib::_16b16a, ib::_16b16c, ib::_16c16b, ib::_8a16b2a,
+                          ib::_4b16a4b, ib::_8b16a2b, ib::_8b16c2b,
+                          ib::_4c16b4c, ib::_8c16b2c)
+                ? 16
+                : -1;
 
         constexpr dim_t blksize_1
                 = one_of(tag_traits<tag_o>::inner_blks, ib::_8a8b, ib::_8b8a,
@@ -1665,11 +1649,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                           ib::_16b16a, ib::_16b16c, ib::_16c16b, ib::_8a16b2a,
                           ib::_4b16a4b, ib::_8b16a2b, ib::_8b16c2b,
                           ib::_4c16b4c, ib::_8c16b2c)
-                        ? 16
-                        : one_of(tag_traits<tag_o>::inner_blks, ib::_4b4a,
-                                  ib::_4b4c, ib::_4c4b)
-                                ? 4
-                                : -1;
+                ? 16
+                : one_of(tag_traits<tag_o>::inner_blks, ib::_4b4a, ib::_4b4c,
+                          ib::_4c4b)
+                ? 4
+                : -1;
 
         const dim_t NB_H0 = pdims[0 + with_g] / blksize_0;
         const dim_t NB_H1 = pdims[1 + with_g] / blksize_1;
@@ -1764,10 +1748,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 #define off(md, g, h0, h1, m0, m1, m2) \
     (ndims >= 5 + with_g ? (md).blk_off<!with_g>(g, h0, h1, m0, m1, m2) \
-                         : ndims >= 4 + with_g \
-                            ? (md).blk_off<!with_g>(g, h0, h1, m1, m2) \
-                            : /* ndims >= 3 + with_g ? */ (md) \
-                                      .blk_off<!with_g>(g, h0, h1, m2))
+                    : ndims >= 4 + with_g \
+                    ? (md).blk_off<!with_g>(g, h0, h1, m1, m2) \
+                    : /* ndims >= 3 + with_g ? */ (md).blk_off<!with_g>( \
+                            g, h0, h1, m2))
 
         parallel_nd(G, NB_H0, NB_H1, M0, M1, M2,
                 [&](dim_t g, dim_t nb_h0, dim_t nb_h1, dim_t m0, dim_t m1,

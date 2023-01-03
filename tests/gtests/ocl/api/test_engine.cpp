@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,13 +74,13 @@ protected:
 
 TEST_P(ocl_engine_test_t, BasicInteropC) {
     auto p = GetParam();
-    cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu)
-            ? gpu_ocl_dev
-            : (p.adev_kind == dev_kind::cpu) ? cpu_ocl_dev : nullptr;
+    cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu) ? gpu_ocl_dev
+            : (p.adev_kind == dev_kind::cpu)              ? cpu_ocl_dev
+                                                          : nullptr;
 
-    cl_context ocl_ctx = (p.actx_kind == ctx_kind::gpu)
-            ? gpu_ocl_ctx
-            : (p.actx_kind == ctx_kind::cpu) ? cpu_ocl_ctx : nullptr;
+    cl_context ocl_ctx = (p.actx_kind == ctx_kind::gpu) ? gpu_ocl_ctx
+            : (p.actx_kind == ctx_kind::cpu)            ? cpu_ocl_ctx
+                                                        : nullptr;
 
     SKIP_IF(p.adev_kind != dev_kind::null && !ocl_dev,
             "Required OpenCL device not found.");
@@ -167,13 +167,13 @@ TEST_P(ocl_engine_test_t, BasicInteropC) {
 
 TEST_P(ocl_engine_test_t, BasicInteropCpp) {
     auto p = GetParam();
-    cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu)
-            ? gpu_ocl_dev
-            : (p.adev_kind == dev_kind::cpu) ? cpu_ocl_dev : nullptr;
+    cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu) ? gpu_ocl_dev
+            : (p.adev_kind == dev_kind::cpu)              ? cpu_ocl_dev
+                                                          : nullptr;
 
-    cl_context ocl_ctx = (p.actx_kind == ctx_kind::gpu)
-            ? gpu_ocl_ctx
-            : (p.actx_kind == ctx_kind::cpu) ? cpu_ocl_ctx : nullptr;
+    cl_context ocl_ctx = (p.actx_kind == ctx_kind::gpu) ? gpu_ocl_ctx
+            : (p.actx_kind == ctx_kind::cpu)            ? cpu_ocl_ctx
+                                                        : nullptr;
 
     SKIP_IF(p.adev_kind != dev_kind::null && !ocl_dev,
             "Required OpenCL device not found.");
@@ -262,13 +262,13 @@ TEST_P(ocl_engine_test_t, BasicInteropCpp) {
 
 TEST_P(ocl_engine_test_t, BinaryKernels) {
     auto p = GetParam();
-    cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu)
-            ? gpu_ocl_dev
-            : (p.adev_kind == dev_kind::cpu) ? cpu_ocl_dev : nullptr;
+    cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu) ? gpu_ocl_dev
+            : (p.adev_kind == dev_kind::cpu)              ? cpu_ocl_dev
+                                                          : nullptr;
 
-    cl_context ocl_ctx = (p.actx_kind == ctx_kind::gpu)
-            ? gpu_ocl_ctx
-            : (p.actx_kind == ctx_kind::cpu) ? cpu_ocl_ctx : nullptr;
+    cl_context ocl_ctx = (p.actx_kind == ctx_kind::gpu) ? gpu_ocl_ctx
+            : (p.actx_kind == ctx_kind::cpu)            ? cpu_ocl_ctx
+                                                        : nullptr;
 
     SKIP_IF(p.adev_kind != dev_kind::null && !ocl_dev,
             "Required OpenCL device not found.");

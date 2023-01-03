@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -240,8 +240,9 @@ struct jit_bnorm_t : public jit_generator {
     /* cpu specific part */
     using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
             Ymm, Zmm>::type;
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
 
     const int vlen = isa == sse41 ? 32 : cpu_isa_traits<isa>::vlen;
     int vlen_spat_data_
@@ -2276,9 +2277,9 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
     auto scale = CTX_IN_MEM(
             const acc_data_t *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
     auto shift = use_sh ? CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SHIFT)
-                        : use_ss ? &CTX_IN_MEM(const acc_data_t *,
-                                  DNNL_ARG_SCALE_SHIFT)[shift_off]
-                                 : nullptr;
+            : use_ss
+            ? &CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT)[shift_off]
+            : nullptr;
 
     auto mean = pd()->stats_is_src() ? const_cast<acc_data_t *>(
                         CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN))
@@ -2406,7 +2407,8 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
     auto diff_scale = CTX_OUT_MEM(acc_data_t *,
             use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
     auto diff_shift = use_sh ? CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT)
-                             : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+            : use_ss         ? &diff_scale[diff_shift_off]
+                             : nullptr;
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 

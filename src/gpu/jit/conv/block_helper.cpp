@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -482,8 +482,9 @@ void block_helper_t::init_bmnk_blocks() {
         if (is_bn && !vectorize_by_bmnk(bmnk)) continue;
 
         int blk = d.base_iter_block();
-        int inst_blk
-                = is_bn ? bn_inst_blk : (bmnk == 'M') ? m_inst_blk : k_inst_blk;
+        int inst_blk = is_bn    ? bn_inst_blk
+                : (bmnk == 'M') ? m_inst_blk
+                                : k_inst_blk;
         d.set_base_iter_block(math::lcm(blk, inst_blk));
     }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -386,8 +386,8 @@ size_t jit_brgemm_amx_uker_base_t::C_offset(int bd, int ldb) const noexcept {
     return bd * LDC_size_ + ldb * ld_block_C_size_;
 }
 
-size_t jit_brgemm_amx_uker_base_t::C_block_offset(int bd, int ldb) const
-        noexcept {
+size_t jit_brgemm_amx_uker_base_t::C_block_offset(
+        int bd, int ldb) const noexcept {
     return (size_t)bd * LDC2_size_M_ + (size_t)ldb * LDC2_size_N_;
 }
 

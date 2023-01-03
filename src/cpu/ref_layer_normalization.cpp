@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,7 +47,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     auto scale = CTX_IN_MEM(
             const float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
     auto shift = use_shift ? CTX_IN_MEM(const float *, DNNL_ARG_SHIFT)
-                           : use_ss ? &scale[shift_off] : nullptr;
+            : use_ss       ? &scale[shift_off]
+                           : nullptr;
     auto mean = pd()->stats_are_src()
             ? const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN))
             : CTX_OUT_MEM(float *, DNNL_ARG_MEAN);
@@ -158,13 +159,14 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
 
     auto diff_scale = use_scale
             ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SCALE, status)
-            : use_ss ? CTX_OUT_CLEAN_MEM(
-                      float *, DNNL_ARG_DIFF_SCALE_SHIFT, status)
-                     : nullptr;
+            : use_ss
+            ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SCALE_SHIFT, status)
+            : nullptr;
     CHECK(status);
     auto diff_shift = use_shift
             ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SHIFT, status)
-            : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+            : use_ss ? &diff_scale[diff_shift_off]
+                     : nullptr;
     CHECK(status);
 
     const dim_t N = pd()->across_axis();

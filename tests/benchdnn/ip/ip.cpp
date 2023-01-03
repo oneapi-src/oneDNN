@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,15 +50,15 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     dnnl_dims_t bia_dims = {prb->oc};
     dnnl_dims_t dst_dims = {prb->mb, prb->oc};
 
-    dnnl_dim_t *src_dims = prb->ndims == 5
-            ? src_dims_3d
-            : prb->ndims == 4 ? src_dims_2d
-                              : prb->ndims == 3 ? src_dims_1d : src_dims_0d;
+    dnnl_dim_t *src_dims = prb->ndims == 5 ? src_dims_3d
+            : prb->ndims == 4              ? src_dims_2d
+            : prb->ndims == 3              ? src_dims_1d
+                                           : src_dims_0d;
 
-    dnnl_dim_t *wei_dims = prb->ndims == 5
-            ? wei_dims_3d
-            : prb->ndims == 4 ? wei_dims_2d
-                              : prb->ndims == 3 ? wei_dims_1d : wei_dims_0d;
+    dnnl_dim_t *wei_dims = prb->ndims == 5 ? wei_dims_3d
+            : prb->ndims == 4              ? wei_dims_2d
+            : prb->ndims == 3              ? wei_dims_1d
+                                           : wei_dims_0d;
 
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, src_dims, prb->cfg[SRC].dt, prb->stag);

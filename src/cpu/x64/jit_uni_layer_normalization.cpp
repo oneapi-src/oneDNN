@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,8 +96,9 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
 protected:
     static constexpr int unroll_factor_ = 4;
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     struct ker_args_t {
@@ -518,8 +519,9 @@ struct jit_diff_ss_kernel_t : diff_ss_kernel_t, public jit_generator {
 
 protected:
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     struct ker_args_t {
@@ -711,8 +713,9 @@ struct jit_diff_data_base_kernel_t : diff_data_kernel_t, public jit_generator {
 protected:
     static constexpr int unroll_factor_ = 4;
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     struct ker_args_t {
@@ -959,7 +962,8 @@ status_t jit_uni_layer_normalization_fwd_t::execute_forward(
     auto scale = CTX_IN_MEM(
             const float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
     auto shift = use_shift ? CTX_IN_MEM(const float *, DNNL_ARG_SHIFT)
-                           : use_ss ? &scale[shift_off] : nullptr;
+            : use_ss       ? &scale[shift_off]
+                           : nullptr;
 
     float *mean, *variance;
     if (pd()->use_tmp_stats()) {
@@ -1024,7 +1028,8 @@ status_t jit_uni_layer_normalization_bwd_t::execute_backward(
     CHECK(status);
     auto diff_shift = use_shift
             ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SHIFT, status)
-            : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+            : use_ss ? &diff_scale[diff_shift_off]
+                     : nullptr;
     CHECK(status);
 
     const float *mean, *variance;

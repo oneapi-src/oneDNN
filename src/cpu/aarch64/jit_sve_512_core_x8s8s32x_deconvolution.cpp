@@ -845,15 +845,15 @@ void jit_sve_512_core_x8s8s32x_deconv_fwd_kernel<isa>::kh_loop(int ur_w,
     }
 }
 template <cpu_isa_t isa>
-int jit_sve_512_core_x8s8s32x_deconv_fwd_kernel<isa>::get_tail_size() const
-        noexcept {
+int jit_sve_512_core_x8s8s32x_deconv_fwd_kernel<isa>::get_tail_size()
+        const noexcept {
     return jcp.is_depthwise ? jcp.ngroups % jcp.ch_block
                             : jcp.oc_without_padding % jcp.oc_block;
 }
 
 template <cpu_isa_t isa>
-int jit_sve_512_core_x8s8s32x_deconv_fwd_kernel<isa>::get_blocking_size() const
-        noexcept {
+int jit_sve_512_core_x8s8s32x_deconv_fwd_kernel<isa>::get_blocking_size()
+        const noexcept {
     return jcp.is_depthwise ? jcp.ch_block : jcp.oc_block;
 }
 
