@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ struct test_params {
 
 template <typename... TArgs>
 inline test_params make_test_params_with_offset(
-        const gemm_offset &off, TArgs &&... args) {
+        const gemm_offset &off, TArgs &&...args) {
     test_params params {std::forward<TArgs>(args)...};
     params.off = off;
     return params;
@@ -93,7 +93,7 @@ inline test_params make_test_params_with_offset(
 
 template <typename... TArgs>
 inline test_params make_test_params_pack(
-        const test_pack_params &pack_params, TArgs &&... args) {
+        const test_pack_params &pack_params, TArgs &&...args) {
     test_params params {std::forward<TArgs>(args)...};
     params.pack_params = pack_params;
     return params;

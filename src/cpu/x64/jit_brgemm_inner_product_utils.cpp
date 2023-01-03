@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -304,7 +304,8 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     constexpr int amx_int8_row = 64;
     constexpr int amx_bf16_row = 32;
     jbgp.ic_block = (is_amx_int8) ? amx_int8_row
-                                  : (is_amx_bf16) ? amx_bf16_row : jbgp.simd_w;
+            : (is_amx_bf16)       ? amx_bf16_row
+                                  : jbgp.simd_w;
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
 
     // gemm-based inner product performs better when oc = 1
@@ -484,7 +485,8 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     jbgp.ic_block = !avoid_max_ic_block
                     && jbgp.ic >= (is_f32 && !jbgp.is_bf32 ? 512 : 64)
             ? 64
-            : jbgp.ic >= 32 ? 32 : 16;
+            : jbgp.ic >= 32 ? 32
+                            : 16;
 
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
     jbgp.nb_ic_blocking = 1;
@@ -782,9 +784,9 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     const int amx_bf16_row = 64;
     const bool big_ic_blk_ok
             = is_f32 && jbgp.ic % (4 * jbgp.simd_w) == 0 && jbgp.mb <= 128;
-    jbgp.ic_block = big_ic_blk_ok && !is_amx_bf16
-            ? 4 * jbgp.simd_w
-            : (is_amx_bf16 && has_weights_buffer) ? amx_bf16_row : jbgp.simd_w;
+    jbgp.ic_block = big_ic_blk_ok && !is_amx_bf16 ? 4 * jbgp.simd_w
+            : (is_amx_bf16 && has_weights_buffer) ? amx_bf16_row
+                                                  : jbgp.simd_w;
     jbgp.ic_block_ext = (jbgp.wei_dt == dnnl::impl::data_type::bf16) ? 32 : 16;
 
     jbgp.oc_block = has_weights_buffer ? get_oc_block(jbgp)

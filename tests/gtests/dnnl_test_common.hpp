@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -808,14 +808,14 @@ struct allows_attr_t {
 using engine = dnnl::engine;
 // forward
 template <typename pd_t, typename... prim_params_t>
-void test_fwd_pd_attr(const engine &eng, const prim_params_t &... prim_params) {
+void test_fwd_pd_attr(const engine &eng, const prim_params_t &...prim_params) {
     dnnl::primitive_attr attr;
     EXPECT_NO_THROW(pd_t pd(prim_params..., attr, eng));
 }
 
 template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_oscale(const engine &eng, bool supports_oscale,
-        const prim_params_t &... prim_params) {
+        const prim_params_t &...prim_params) {
     dnnl::primitive_attr attr_oscale;
     attr_oscale.set_output_scales(0, {2.f});
     if (supports_oscale)
@@ -826,7 +826,7 @@ void test_fwd_pd_attr_oscale(const engine &eng, bool supports_oscale,
 
 template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_po_sum(const engine &eng, bool supports_po_sum,
-        const prim_params_t &... prim_params) {
+        const prim_params_t &...prim_params) {
     dnnl::post_ops ops_sum;
     ops_sum.append_sum(1.1f);
     dnnl::primitive_attr attr_po_sum;
@@ -839,7 +839,7 @@ void test_fwd_pd_attr_po_sum(const engine &eng, bool supports_po_sum,
 
 template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_po_eltwise(const engine &eng, bool supports_po_eltwise,
-        const prim_params_t &... prim_params) {
+        const prim_params_t &...prim_params) {
     dnnl::post_ops ops_eltwise;
     ops_eltwise.append_eltwise(1.0f, dnnl::algorithm::eltwise_relu, 0.f, 0.f);
     dnnl::primitive_attr attr_po_eltwise;
@@ -852,7 +852,7 @@ void test_fwd_pd_attr_po_eltwise(const engine &eng, bool supports_po_eltwise,
 
 template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_po_binary(const engine &eng, bool supports_po_binary,
-        const prim_params_t &... prim_params) {
+        const prim_params_t &...prim_params) {
     dnnl::post_ops ops_binary;
     dnnl::memory::desc src1_desc(
             {16}, memory::data_type::s8, memory::format_tag::x);
@@ -867,7 +867,7 @@ void test_fwd_pd_attr_po_binary(const engine &eng, bool supports_po_binary,
 
 template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_zp(const engine &eng, bool supports_zero_point,
-        const prim_params_t &... prim_params) {
+        const prim_params_t &...prim_params) {
     dnnl::primitive_attr attr_zp;
     attr_zp.set_zero_points(DNNL_ARG_SRC, 0, {1});
     if (supports_zero_point)
@@ -878,7 +878,7 @@ void test_fwd_pd_attr_zp(const engine &eng, bool supports_zero_point,
 
 template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_scales(const engine &eng, bool supports_scales,
-        const prim_params_t &... prim_params) {
+        const prim_params_t &...prim_params) {
     dnnl::primitive_attr attr_scales;
     attr_scales.set_scales(DNNL_ARG_SRC, 0, {2.f});
 
@@ -899,7 +899,7 @@ void test_fwd_pd_attr_scales(const engine &eng, bool supports_scales,
 
 template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_allow_empty(
-        const pd_t &pd, const prim_params_t &... prim_params) {
+        const pd_t &pd, const prim_params_t &...prim_params) {
     bool allow_empty = true;
     pd_t new_pd {};
     dnnl::primitive_attr unsupported_attr;
@@ -914,7 +914,7 @@ void test_fwd_pd_allow_empty(
 // Note: requires a valid primitive descriptor!
 template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_constructors(const pd_t &pd, const allows_attr_t &aa,
-        const prim_params_t &... prim_params) {
+        const prim_params_t &...prim_params) {
     auto test_pd = pd_t();
     auto eng = pd.get_engine();
     // ctor from C pd, should not throw
@@ -935,14 +935,14 @@ void test_fwd_pd_constructors(const pd_t &pd, const allows_attr_t &aa,
 // backward: has hint
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr(const engine &eng, const hint_pd_t &hint,
-        const prim_params_t &... prim_params) {
+        const prim_params_t &...prim_params) {
     dnnl::primitive_attr attr;
     EXPECT_NO_THROW(pd_t pd(prim_params..., attr, eng, hint));
 }
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr_oscale(const engine &eng, const hint_pd_t &hint,
-        bool supports_oscale, const prim_params_t &... prim_params) {
+        bool supports_oscale, const prim_params_t &...prim_params) {
     dnnl::primitive_attr attr_oscale;
     attr_oscale.set_output_scales(0, {2.f});
     if (supports_oscale)
@@ -953,7 +953,7 @@ void test_bwd_pd_attr_oscale(const engine &eng, const hint_pd_t &hint,
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr_po_sum(const engine &eng, const hint_pd_t &hint,
-        bool supports_po_sum, const prim_params_t &... prim_params) {
+        bool supports_po_sum, const prim_params_t &...prim_params) {
     dnnl::post_ops ops_sum;
     ops_sum.append_sum(1.1f);
     dnnl::primitive_attr attr_po_sum;
@@ -966,7 +966,7 @@ void test_bwd_pd_attr_po_sum(const engine &eng, const hint_pd_t &hint,
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr_po_eltwise(const engine &eng, const hint_pd_t &hint,
-        bool supports_po_eltwise, const prim_params_t &... prim_params) {
+        bool supports_po_eltwise, const prim_params_t &...prim_params) {
     dnnl::post_ops ops_eltwise;
     ops_eltwise.append_eltwise(1.f, dnnl::algorithm::eltwise_relu, 0.f, 0.f);
     dnnl::primitive_attr attr_po_eltwise;
@@ -979,7 +979,7 @@ void test_bwd_pd_attr_po_eltwise(const engine &eng, const hint_pd_t &hint,
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr_po_binary(const engine &eng, const hint_pd_t &hint,
-        bool supports_po_binary, const prim_params_t &... prim_params) {
+        bool supports_po_binary, const prim_params_t &...prim_params) {
     dnnl::post_ops ops_binary;
     dnnl::memory::desc src1_desc(
             {16}, memory::data_type::s8, memory::format_tag::x);
@@ -994,7 +994,7 @@ void test_bwd_pd_attr_po_binary(const engine &eng, const hint_pd_t &hint,
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr_zp(const engine &eng, const hint_pd_t &hint,
-        bool supports_zero_point, const prim_params_t &... prim_params) {
+        bool supports_zero_point, const prim_params_t &...prim_params) {
     dnnl::primitive_attr attr_zp;
     attr_zp.set_zero_points(DNNL_ARG_SRC, 0, {1});
     if (supports_zero_point)
@@ -1005,7 +1005,7 @@ void test_bwd_pd_attr_zp(const engine &eng, const hint_pd_t &hint,
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_attr_scales(const engine &eng, const hint_pd_t &hint,
-        bool supports_scales, const prim_params_t &... prim_params) {
+        bool supports_scales, const prim_params_t &...prim_params) {
     dnnl::primitive_attr attr_scales;
     attr_scales.set_scales(DNNL_ARG_SRC, 0, {2.f});
     EXPECT_ANY_THROW(pd_t pd(prim_params..., attr_scales, eng, hint));
@@ -1013,7 +1013,7 @@ void test_bwd_pd_attr_scales(const engine &eng, const hint_pd_t &hint,
 
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_allow_empty(const pd_t &pd, const hint_pd_t &hint,
-        const prim_params_t &... prim_params) {
+        const prim_params_t &...prim_params) {
     bool allow_empty = true;
     pd_t new_pd {};
     dnnl::primitive_attr unsupported_attr;
@@ -1028,7 +1028,7 @@ void test_bwd_pd_allow_empty(const pd_t &pd, const hint_pd_t &hint,
 // Note: requires a valid primitive descriptor!
 template <typename pd_t, typename hint_pd_t, typename... prim_params_t>
 void test_bwd_pd_constructors(const pd_t &pd, const hint_pd_t &hint,
-        const allows_attr_t &aa, const prim_params_t &... prim_params) {
+        const allows_attr_t &aa, const prim_params_t &...prim_params) {
     auto test_pd = pd_t();
     auto hint_pd = hint;
     auto eng = pd.get_engine();

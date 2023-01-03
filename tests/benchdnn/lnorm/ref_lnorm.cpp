@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,7 +43,8 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
         for (int64_t c = 0; c < prb->c; ++c) {
             float gamma = (use_ss || use_sc ? ss.get_elem(c) : 1.0f) / sqrt_var;
             float beta = use_ss ? ss.get_elem(prb->c + c)
-                                : use_sh ? sh.get_elem(c) : 0;
+                    : use_sh    ? sh.get_elem(c)
+                                : 0;
             auto off = n * prb->c + c;
             float res = gamma * (src.get_elem(off) - smean) + beta;
             maybe_oscale(prb->attr, res, prb->scales, 0);

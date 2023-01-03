@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -251,13 +251,11 @@ void compare_eltwise_fwd(const eltwise_test_params_t &p, const memory::desc &md,
                         : (p.alg_kind == algorithm::eltwise_elu
                                   || p.alg_kind == algorithm::eltwise_gelu_tanh
                                   || p.alg_kind == algorithm::eltwise_gelu_erf)
-                                ? 2e-5
-                                : p.alg_kind == algorithm::eltwise_soft_relu
-                                                || p.alg_kind
-                                                        == algorithm::
-                                                                eltwise_soft_relu_v2
-                                        ? 3e-5
-                                        : 1e-6);
+                        ? 2e-5
+                        : p.alg_kind == algorithm::eltwise_soft_relu
+                                || p.alg_kind == algorithm::eltwise_soft_relu_v2
+                        ? 3e-5
+                        : 1e-6);
     compare_data(ref_dst, dst, eps);
 }
 

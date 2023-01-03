@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -175,8 +175,8 @@ private:
     void prepare_output(int ur_w);
     void store_output(int ur_w, bool last_oc_block);
     void compute(const Vmm &vreg_acc, const Vmm &vreg_wei, const Vmm &vreg_src);
-    std::function<Vmm()> prepare_round_robin_vmm_inp_generator(int ur_w) const
-            noexcept;
+    std::function<Vmm()> prepare_round_robin_vmm_inp_generator(
+            int ur_w) const noexcept;
     void apply_zp_src_pad_str_comp(
             int ur_w, int l_overflow, int r_overflow, bool h_padded);
     void append_zp_src_pad_str_comp(int ur_w, int l_overflow, int r_overflow,

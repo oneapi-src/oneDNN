@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -465,9 +465,10 @@ status_t nchw_pooling_bwd_t<data_type::f32>::execute_backward(
         auto b_c = ws_d.blocking_desc().inner_nblks == 0
                 ? 1
                 : ws_d.blocking_desc().inner_blks[0];
-        auto ws_offset = (is_3d ? ws_d.blk_off(mb, c / b_c, od, oh, ow)
-                                : is_2d ? ws_d.blk_off(mb, c / b_c, oh, ow)
-                                        : ws_d.blk_off(mb, c / b_c, ow))
+        auto ws_offset
+                = (is_3d ? ws_d.blk_off(mb, c / b_c, od, oh, ow)
+                                  : is_2d ? ws_d.blk_off(mb, c / b_c, oh, ow)
+                                          : ws_d.blk_off(mb, c / b_c, ow))
                 + c % b_c;
 
         const int index = ws_d.data_type() == data_type::u8
@@ -623,9 +624,10 @@ status_t nchw_pooling_bwd_t<d_type>::execute_backward(
         auto b_c = ws_d.blocking_desc().inner_nblks == 0
                 ? 1
                 : ws_d.blocking_desc().inner_blks[0];
-        auto ws_offset = (is_3d ? ws_d.blk_off(mb, c / b_c, od, oh, ow)
-                                : is_2d ? ws_d.blk_off(mb, c / b_c, oh, ow)
-                                        : ws_d.blk_off(mb, c / b_c, ow))
+        auto ws_offset
+                = (is_3d ? ws_d.blk_off(mb, c / b_c, od, oh, ow)
+                                  : is_2d ? ws_d.blk_off(mb, c / b_c, oh, ow)
+                                          : ws_d.blk_off(mb, c / b_c, ow))
                 + c % b_c;
 
         const int index = ws_d.data_type() == data_type::u8

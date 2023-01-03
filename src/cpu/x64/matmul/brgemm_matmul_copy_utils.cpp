@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1452,8 +1452,8 @@ struct jit_brgemm_matmul_copy_b_bf16_t : public jit_brgemm_matmul_copy_b_t,
         , src_stride(conf_->wei_tag == format_tag::acbd
                           ? conf->copy_B_wei_stride
                           : conf->req_wei_vnni_downconvert
-                                  ? conf_->LDB * typesize
-                                  : conf_->N * typesize)
+                          ? conf_->LDB * typesize
+                          : conf_->N * typesize)
         , tr_src_stride(conf_->LDB * k_blk_step * tr_typesize) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }

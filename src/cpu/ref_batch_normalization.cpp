@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,7 +77,8 @@ status_t ref_batch_normalization_fwd_t<d_type>::execute_forward(
     auto scale = CTX_IN_MEM(const acc_data_t *,
             use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
     auto shift = use_shift ? CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SHIFT)
-                           : use_ss ? &scale[shift_off] : nullptr;
+            : use_ss       ? &scale[shift_off]
+                           : nullptr;
 
     auto mean = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN))
@@ -229,7 +230,8 @@ status_t ref_batch_normalization_bwd_t<d_type>::execute_backward(
     CHECK(status);
     auto diff_shift = use_shift
             ? CTX_OUT_CLEAN_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT, status)
-            : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+            : use_ss ? &diff_scale[diff_shift_off]
+                     : nullptr;
     CHECK(status);
 
     const auto ndims = data_d.ndims();

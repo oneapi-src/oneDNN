@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -938,9 +938,9 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
             sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;
 
-    const int simd_w = (jcp.ic % 16 == 0 && jcp.oc % 16 == 0)
-            ? 16
-            : (jcp.ic % 8 == 0 && jcp.oc % 8 == 0) ? 8 : 4;
+    const int simd_w = (jcp.ic % 16 == 0 && jcp.oc % 16 == 0) ? 16
+            : (jcp.ic % 8 == 0 && jcp.oc % 8 == 0)            ? 8
+                                                              : 4;
 
     auto set_or_check_wei_format = [&]() -> bool {
         using namespace format_tag;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -346,7 +346,7 @@ struct attr_t {
         , fpmath_mode(dnnl_fpmath_mode_strict) {}
 
     template <typename First, typename... Rest>
-    void insert(const First &first, const Rest &... rest) {
+    void insert(const First &first, const Rest &...rest) {
         this->insert(first);
         if (sizeof...(rest) > 0) this->insert(rest...);
     }

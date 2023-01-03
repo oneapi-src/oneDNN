@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -182,9 +182,9 @@ void dispatch_t::def_kernel_macros(kernel_ctx_t &kernel_ctx) const {
         bool is_zero = (dims_[i].size == 1);
         bool is_outermost = (i == ndims_ - 1)
                 || dims_[i + 1].gws_index != dims_[i].gws_index;
-        const char *op_name = is_zero
-                ? "GWS_OP_ZERO"
-                : is_outermost ? "GWS_OP_FIRST" : "GWS_OP_MOD";
+        const char *op_name = is_zero ? "GWS_OP_ZERO"
+                : is_outermost        ? "GWS_OP_FIRST"
+                                      : "GWS_OP_MOD";
         kernel_ctx.add_option(
                 utils::format("-D%s_OP%d=%s", gws_prefix.c_str(), i, op_name));
         kernel_ctx.define_int(utils::format("%s_DIM%d", gws_prefix.c_str(), i),

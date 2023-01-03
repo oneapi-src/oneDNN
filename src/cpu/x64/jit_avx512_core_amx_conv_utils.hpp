@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -256,9 +256,9 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
                             delta_w - dow_l_overflow, dow_r_overflow);
                     size_t inp_offset = is_1d
                             ? diff_dst_d.blk_off(mb, ocb, ow_s)
-                            : is_3d ? diff_dst_d.blk_off(
-                                      mb, ocb, d_oj, oh_s, ow_s)
-                                    : diff_dst_d.blk_off(mb, ocb, oh_s, ow_s);
+                            : is_3d
+                            ? diff_dst_d.blk_off(mb, ocb, d_oj, oh_s, ow_s)
+                            : diff_dst_d.blk_off(mb, ocb, oh_s, ow_s);
                     p.src = diff_dst + diff_dst_dt_size * inp_offset;
                     p.dst = inp_buffer
                             + (size_t)(doh_s - doh_b) * jcp.owp
@@ -267,8 +267,7 @@ inline void execute_backward_convolution_body(const exec_ctx_t &ctx,
                     kernel->bwd_data_copy_kernel()(&p);
                 }
 
-                size_t diff_src_offset = is_1d
-                        ? diff_src_d.blk_off(mb, icb, iw)
+                size_t diff_src_offset = is_1d ? diff_src_d.blk_off(mb, icb, iw)
                         : is_3d ? diff_src_d.blk_off(mb, icb, id_s, ih, iw)
                                 : diff_src_d.blk_off(mb, icb, ih, iw);
                 p.dst = inp_buffer

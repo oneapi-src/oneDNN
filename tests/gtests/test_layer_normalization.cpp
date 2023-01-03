@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -335,9 +335,9 @@ protected:
         const size_t bias_off = use_weights_bias && !weights_mdw.has_zero_dim()
                 ? weights_mdw.off_l(C, true)
                 : 0;
-        auto bias_data = use_bias
-                ? map_memory<const float>(bias)
-                : use_weights_bias ? &weights_data[bias_off] : nullptr;
+        auto bias_data = use_bias  ? map_memory<const float>(bias)
+                : use_weights_bias ? &weights_data[bias_off]
+                                   : nullptr;
         if (use_weights_bias || use_bias) GTEST_EXPECT_NE(bias_data, nullptr);
         auto mean_data = (!calculate_stats || is_training)
                 ? map_memory<const float>(mean)
@@ -447,9 +447,9 @@ protected:
         const memory::desc diff_weights_d = use_weights || use_weights_bias
                 ? diff_weights.get_desc()
                 : memory::desc();
-        const memory::desc diff_bias_d = use_bias
-                ? diff_bias.get_desc()
-                : use_weights_bias ? diff_weights.get_desc() : memory::desc();
+        const memory::desc diff_bias_d = use_bias ? diff_bias.get_desc()
+                : use_weights_bias                ? diff_weights.get_desc()
+                                                  : memory::desc();
 
         const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
         const dnnl::impl::memory_desc_wrapper stat_mdw((*stat_d).data);

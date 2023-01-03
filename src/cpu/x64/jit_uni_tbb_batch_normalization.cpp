@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -431,8 +431,9 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_statistics_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
 
     struct call_params_t {
         size_t N, C, S;
@@ -786,8 +787,9 @@ struct jit_bnorm_fwd_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
 
     struct call_params_t {
         size_t N, C, S;
@@ -1049,8 +1051,9 @@ struct jit_bnorm_bwd_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_bwd_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
 
     struct call_params_t {
         size_t N, C, S;
@@ -1337,8 +1340,9 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_bwd_diff_ss_t)
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                      ? yword
+                                                 : zword;
 
     struct call_params_t {
         size_t N, C, S;
@@ -2348,9 +2352,9 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::execute(
     auto scale = CTX_IN_MEM(
             const acc_data_t *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
     auto shift = use_sh ? CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SHIFT)
-                        : use_ss ? &CTX_IN_MEM(const acc_data_t *,
-                                  DNNL_ARG_SCALE_SHIFT)[shift_off]
-                                 : nullptr;
+            : use_ss
+            ? &CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT)[shift_off]
+            : nullptr;
 
     auto mean = pd()->stats_is_src() ? const_cast<acc_data_t *>(
                         CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN))
@@ -2479,7 +2483,8 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::execute(
     auto diff_scale = CTX_OUT_MEM(acc_data_t *,
             use_sc ? DNNL_ARG_DIFF_SCALE : DNNL_ARG_DIFF_SCALE_SHIFT);
     auto diff_shift = use_sh ? CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SHIFT)
-                             : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+            : use_ss         ? &diff_scale[diff_shift_off]
+                             : nullptr;
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 

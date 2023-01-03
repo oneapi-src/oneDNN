@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -176,7 +176,7 @@ struct scoped_tp_deactivation_t {
 
 #define ALIAS_TO_RUN_IN_THR_CTX(name) \
     template <typename F, class... Args_t> \
-    auto name(const thr_ctx_t &ctx, F &&f, Args_t &... args) \
+    auto name(const thr_ctx_t &ctx, F &&f, Args_t &...args) \
             ->decltype(run_in_thr_ctx<F, Args_t...>(ctx, f, args...)) { \
         return run_in_thr_ctx<F, Args_t...>(ctx, f, args...); \
     }
@@ -184,7 +184,7 @@ struct scoped_tp_deactivation_t {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ \
         || DNNL_TBB_THREADING_WITHOUT_CONSTRAINTS
 template <typename F, class... Args_t>
-auto run_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
+auto run_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &...args)
         -> decltype(f(args...)) {
 
     THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type
@@ -203,7 +203,7 @@ ALIAS_TO_RUN_IN_THR_CTX(execute_in_thr_ctx)
 
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
 template <typename F, class... Args_t>
-auto run_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
+auto run_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &...args)
         -> decltype(f(args...)) {
 
     THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type,
@@ -223,7 +223,7 @@ ALIAS_TO_RUN_IN_THR_CTX(execute_in_thr_ctx)
 #include "oneapi/tbb/info.h"
 
 template <typename F, class... Args_t>
-auto run_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
+auto run_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &...args)
         -> decltype(f(args...)) {
     static auto core_types
             = tbb::info::core_types(); // sorted by the relative strength
@@ -252,7 +252,7 @@ ALIAS_TO_RUN_IN_THR_CTX(execute_in_thr_ctx)
 
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 template <typename F, class... Args_t>
-auto create_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
+auto create_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &...args)
         -> decltype(f(args...)) {
     THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type,
             "core type %d is not supported for TP runtime\n", ctx.core_type);
@@ -264,7 +264,7 @@ auto create_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
 
 // The function f shall take an interop obj as last argument
 template <typename F, class... Args_t>
-auto execute_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &... args)
+auto execute_in_thr_ctx(const thr_ctx_t &ctx, F &&f, Args_t &...args)
         -> decltype(f(args...)) {
     THR_CTX_ASSERT(ctx.core_type == default_thr_ctx.core_type,
             "core type %d is not supported for TP runtime\n", ctx.core_type);

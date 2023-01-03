@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ inline size_t icache_size(ngen::HW arch) {
 }
 
 template <template <ngen::HW> class KernelT, ngen::HW arch, typename... ArgsT>
-std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&... args) {
+std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&...args) {
 
     auto raw_kernel = new KernelT<arch>(std::forward<ArgsT>(args)...);
     if (raw_kernel->getRootStreamLength() > icache_size(arch)) {
@@ -63,7 +63,7 @@ std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&... args) {
 
 template <template <ngen::HW> class KernelT, typename... ArgsT>
 compute::kernel_t make_kernel(
-        gpu_primitive_t *primitive, engine_t *engine, ArgsT &&... args) {
+        gpu_primitive_t *primitive, engine_t *engine, ArgsT &&...args) {
     using namespace compute;
     kernel_t kernel;
 
@@ -234,8 +234,7 @@ public:
         , exec_cfg_(exec_cfg)
         , kernel_info_(kernel_info)
         , require_dpas_(require_dpas)
-        , regs_((grf_mode == grf_mode_t::large)
-                          ? 256
+        , regs_((grf_mode == grf_mode_t::large)             ? 256
                           : (grf_mode == grf_mode_t::small) ? 128
                                                             : exec_cfg.regs())
         , ra_(hw, kernel_name,

@@ -274,13 +274,13 @@ void jit_sve_512_x8s8s32x_fwd_kernel::store_output(
             auto re = get_offset(aux_output_offset);
 
             auto reg_tmp_adr = ((j % 4) == 0) ? reg_tmp0_adr
-                                              : ((j % 4) == 1)
-                            ? reg_tmp1_adr
-                            : ((j % 4) == 2) ? reg_tmp2_adr : reg_tmp3_adr;
+                    : ((j % 4) == 1)          ? reg_tmp1_adr
+                    : ((j % 4) == 2)          ? reg_tmp2_adr
+                                              : reg_tmp3_adr;
             auto reg_tmp_imm = ((j % 4) == 0) ? reg_tmp0_imm
-                                              : ((j % 4) == 1)
-                            ? reg_tmp1_imm
-                            : ((j % 4) == 2) ? reg_tmp2_imm : reg_tmp3_imm;
+                    : ((j % 4) == 1)          ? reg_tmp1_imm
+                    : ((j % 4) == 2)          ? reg_tmp2_imm
+                                              : reg_tmp3_imm;
             add_imm(reg_tmp_adr, base, re, reg_tmp_imm);
 
             auto vmm = vmm_out(j, k);
@@ -576,15 +576,13 @@ void jit_sve_512_x8s8s32x_fwd_kernel::compute_ker(int ur_w, int pad_l,
                                 auto reg_tmp_adr = ((jj % 4) == 0)
                                         ? reg_tmp0_adr
                                         : ((jj % 4) == 1) ? reg_tmp1_adr
-                                                          : ((jj % 4) == 2)
-                                                        ? reg_tmp2_adr
-                                                        : reg_tmp3_adr;
+                                        : ((jj % 4) == 2) ? reg_tmp2_adr
+                                                          : reg_tmp3_adr;
                                 auto reg_tmp_imm = ((jj % 4) == 0)
                                         ? reg_tmp0_imm
                                         : ((jj % 4) == 1) ? reg_tmp1_imm
-                                                          : ((jj % 4) == 2)
-                                                        ? reg_tmp2_imm
-                                                        : reg_tmp3_imm;
+                                        : ((jj % 4) == 2) ? reg_tmp2_imm
+                                                          : reg_tmp3_imm;
                                 add_imm(reg_tmp_adr, base, re, reg_tmp_imm);
                                 ld1rw(vmm_inp(jj, nb_oc_block).s, mask_all_one,
                                         ptr(reg_tmp_adr));

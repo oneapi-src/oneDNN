@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -4451,9 +4451,9 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
 
     jcp.harness = ndims == 5
             ? harness_3d_reduction
-            : (use_full_spat_loop ? harness_compute_full_spatial
-                                  : (ndims == 4) ? harness_2d_reduction
-                                                 : harness_mb_reduction);
+            : (use_full_spat_loop          ? harness_compute_full_spatial
+                            : (ndims == 4) ? harness_2d_reduction
+                                           : harness_mb_reduction);
 
     switch (jcp.harness) {
         case harness_2d_reduction: jcp.nthr_mb_work = jcp.mb * jcp.oh; break;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -416,7 +416,8 @@ inline U hardswish_fwd(T s) {
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U hardswish_bwd(T dd, T s) {
     return (s < 3.f && s > -3.f ? dd * (2 * s + 3.f) / 6.f
-                                : s >= 3.f ? dd : 0.f);
+                    : s >= 3.f  ? dd
+                                : 0.f);
 }
 
 inline bool is_eltwise_ok(

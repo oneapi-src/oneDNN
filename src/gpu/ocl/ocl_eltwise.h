@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -248,7 +248,8 @@ float hardswish_fwd(float s) {
 }
 float hardswish_bwd(float dd, float s) {
     return (s < 3.f && s > -3.f ? dd * (2 * s + 3.f) / 6.f
-                                : s >= 3.f ? dd : 0.f);
+                    : s >= 3.f  ? dd
+                                : 0.f);
 }
 
 float fwd_eltwise_common(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,9 +70,9 @@ private:
     Zmm zreg(int idx) const noexcept { return Zmm(reg_idx(idx)); }
     Vmm vreg(int idx) const noexcept { return Vmm(reg_idx(idx)); }
 
-    const Xbyak::AddressFrame &vmmword = (isa == sse41)
-            ? xword
-            : (isa == avx || isa == avx2) ? yword : zword;
+    const Xbyak::AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx || isa == avx2)               ? yword
+                                                        : zword;
 
     Xmm vmm_mask = Xmm(0);
     Xmm xmm_tmp_1 = Xmm(0);

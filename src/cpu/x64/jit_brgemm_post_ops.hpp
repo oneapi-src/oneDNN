@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -468,16 +468,16 @@ private:
 
         return 0;
     }
-    int zp_comp_a_vpad_offset(int n, int m, bool is_tail = false) const
-            noexcept {
+    int zp_comp_a_vpad_offset(
+            int n, int m, bool is_tail = false) const noexcept {
         return (is_tail) ? sizeof(int32_t) * (brg.ldb_tail + m * brg.LDB)
                          : sizeof(int32_t) * (n * brg.ld_block + m * brg.LDB);
     }
     int mb_zp_comp_a_offset(int m_block) const noexcept {
         return sizeof(int32_t) * m_block * brg.LDB;
     }
-    int compensation_vpad_offset(int n, int m, bool is_tail = false) const
-            noexcept {
+    int compensation_vpad_offset(
+            int n, int m, bool is_tail = false) const noexcept {
         return (is_tail) ? sizeof(int32_t) * (brg.ldb_tail + m * brg.LDB)
                          : sizeof(int32_t) * (n * brg.ld_block + m * brg.LDB);
     }

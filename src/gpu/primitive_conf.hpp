@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ inline bool memory_desc_ndims_ok(const memory_desc_t *md) {
 }
 
 template <typename T, typename... Rest>
-bool memory_desc_ndims_ok(const T *first, const Rest *... rest) {
+bool memory_desc_ndims_ok(const T *first, const Rest *...rest) {
     return memory_desc_ndims_ok(first) || memory_desc_ndims_ok(rest...);
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1081,10 +1081,9 @@ int check_abc_tag(const std::string &tag_, bool check_enum_tags_only) {
         // Check rules related to lowercase/uppercase/block order.
         int dim_idx = std::tolower(c) - 'a';
         dim_state_t prev_state = dim_states[dim_idx];
-        dim_state_t cur_state = is_upper
-                ? dim_state_t::upper
-                : block != 0 ? dim_state_t::lower_with_block
-                             : dim_state_t::lower;
+        dim_state_t cur_state = is_upper ? dim_state_t::upper
+                : block != 0             ? dim_state_t::lower_with_block
+                                         : dim_state_t::lower;
 
         switch (cur_state) {
             case dim_state_t::upper:

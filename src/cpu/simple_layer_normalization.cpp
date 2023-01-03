@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,7 +81,8 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
     auto scale = CTX_IN_MEM(
             const float *, use_scale ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
     auto shift = use_shift ? CTX_IN_MEM(const float *, DNNL_ARG_SHIFT)
-                           : use_ss ? &scale[shift_off] : nullptr;
+            : use_ss       ? &scale[shift_off]
+                           : nullptr;
 
     float *mean, *variance;
     if (pd()->use_tmp_stats()) {
@@ -258,7 +259,8 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
     CHECK(status);
     auto diff_shift = use_shift
             ? CTX_OUT_CLEAN_MEM(float *, DNNL_ARG_DIFF_SHIFT, status)
-            : use_ss ? &diff_scale[diff_shift_off] : nullptr;
+            : use_ss ? &diff_scale[diff_shift_off]
+                     : nullptr;
     CHECK(status);
 
     const float *mean, *variance;

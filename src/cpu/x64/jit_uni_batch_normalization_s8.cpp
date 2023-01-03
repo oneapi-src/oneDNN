@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -742,9 +742,9 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::execute(
     auto scale = CTX_IN_MEM(
             const float *, use_sc ? DNNL_ARG_SCALE : DNNL_ARG_SCALE_SHIFT);
     auto shift = use_sh ? CTX_IN_MEM(const float *, DNNL_ARG_SHIFT)
-                        : use_ss ? &CTX_IN_MEM(const float *,
-                                  DNNL_ARG_SCALE_SHIFT)[shift_off]
-                                 : nullptr;
+            : use_ss
+            ? &CTX_IN_MEM(const float *, DNNL_ARG_SCALE_SHIFT)[shift_off]
+            : nullptr;
     auto mean = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN));
     auto var
             = const_cast<float *>(CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE));
