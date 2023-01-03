@@ -80,7 +80,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args));
 
     DNN_SAFE_STATUS(dnnl_matmul_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, src_d, wei_d, bia_d, dst_d, dnnl_attr));
+            init_pd_args.engine,
+            init_pd_args.src_md ? init_pd_args.src_md : src_d, wei_d, bia_d,
+            dst_d, dnnl_attr));
 
     return dnnl_success;
 }
@@ -104,7 +106,7 @@ int init_prim_ref(
 
     init_pd_args_t<prb_t> init_pd_args(
             /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
-            /* hint = */ nullptr);
+            /* hint = */ nullptr, /* src_md = */ nullptr);
     init_pd(init_pd_args);
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;

@@ -60,14 +60,11 @@ int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    std::vector<benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>> src_d(
-            prb->n_inputs());
+    auto src0_d = dnn_mem_t::init_md(
+            prb->ndims, prb->vdims[0].data(), prb->sdt[0], prb->stag[0]);
 
-    for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
-        const dims_t &i_vdims = prb->vdims[i_input];
-        src_d[i_input] = dnn_mem_t::init_md(prb->ndims, i_vdims.data(),
-                prb->sdt[i_input], prb->stag[i_input]);
-    }
+    auto src1_d = dnn_mem_t::init_md(
+            prb->ndims, prb->vdims[1].data(), prb->sdt[1], prb->stag[1]);
 
     auto dst_d = dnn_mem_t::init_md(
             prb->ndims, prb->dst_dims.data(), prb->ddt, prb->dtag);
@@ -80,7 +77,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args));
 
     DNN_SAFE_STATUS(dnnl_binary_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, alg, src_d[0], src_d[1], dst_d, dnnl_attr));
+            init_pd_args.engine, alg,
+            init_pd_args.src_md ? init_pd_args.src_md : src0_d, src1_d, dst_d,
+            dnnl_attr));
 
     return dnnl_success;
 }

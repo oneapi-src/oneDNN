@@ -84,7 +84,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                                              : dnnl_forward_training;
         DNN_SAFE_STATUS(dnnl_resampling_forward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, prop_kind, alg, nullptr,
-                src_d, dst_d, dnnl_attr));
+                init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
+                dnnl_attr));
     } else {
         DNN_SAFE_STATUS(dnnl_resampling_backward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, alg, nullptr, src_d,

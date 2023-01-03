@@ -105,8 +105,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto prop_kind = prb->dir & FLAG_INF ? dnnl_forward_inference
                                              : dnnl_forward_training;
         DNN_SAFE_STATUS(dnnl_pooling_forward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop_kind, alg, src_d,
-                dst_d, prb->strides().data(), prb->kernel().data(),
+                &init_pd_args.pd, init_pd_args.engine, prop_kind, alg,
+                init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
+                prb->strides().data(), prb->kernel().data(),
                 prb->dilations().data(), prb->padding().data(),
                 prb->padding_r().data(), dnnl_attr));
     } else {

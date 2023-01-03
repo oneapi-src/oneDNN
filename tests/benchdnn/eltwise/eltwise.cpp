@@ -52,7 +52,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                                         : dnnl_forward_training;
 
         DNN_SAFE_STATUS(dnnl_eltwise_forward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop, alg, src_d, dst_d,
+                &init_pd_args.pd, init_pd_args.engine, prop, alg,
+                init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
                 prb->alpha, prb->beta, dnnl_attr));
     } else {
         auto diff_src_d = dnn_mem_t::init_md(

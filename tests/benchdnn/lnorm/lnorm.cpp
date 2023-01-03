@@ -347,6 +347,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
+
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> stat_d {};
     if (prb->stat_tag != tag::undef) {
         stat_d = dnn_mem_t::init_md(
@@ -363,7 +364,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
         DNN_SAFE_STATUS(dnnl_layer_normalization_forward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop, src_d, dst_d,
+                &init_pd_args.pd, init_pd_args.engine, prop,
+                init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
                 stat_d, prb->eps, flags, dnnl_attr));
     } else {
         auto diff_src_d = dnn_mem_t::init_md(

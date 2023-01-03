@@ -60,9 +60,9 @@ problem_bounds get_problem_bounds(alg_t alg, dnnl_data_type_t dt) {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    auto src_desc = dnn_mem_t::init_md(
+    auto src_d = dnn_mem_t::init_md(
             prb->ndims, prb->vdims[0].data(), prb->sdt, prb->stag);
-    auto dst_desc = dnn_mem_t::init_md(
+    auto dst_d = dnn_mem_t::init_md(
             prb->ndims, prb->vdims[1].data(), prb->ddt, prb->dtag);
 
     attr_args_t attr_args;
@@ -71,8 +71,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args));
 
     DNN_SAFE_STATUS(dnnl_reduction_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, alg2alg_kind(prb->alg), src_desc, dst_desc,
-            prb->p, prb->eps, dnnl_attr));
+            init_pd_args.engine, alg2alg_kind(prb->alg),
+            init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d, prb->p,
+            prb->eps, dnnl_attr));
 
     return dnnl_success;
 }

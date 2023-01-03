@@ -59,7 +59,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                     &init_pd_args.pd, init_pd_args.engine,
                     prb->dir == FWD_I ? dnnl_forward_inference
                                       : dnnl_forward_training,
-                    src_d, wei_d, bia_d, dst_d, dnnl_attr));
+                    init_pd_args.src_md ? init_pd_args.src_md : src_d, wei_d,
+                    bia_d, dst_d, dnnl_attr));
             break;
         case BWD_D:
             DNN_SAFE_STATUS(
@@ -94,7 +95,7 @@ int init_prim_ref(
 
     init_pd_args_t<prb_t> init_pd_args(
             /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
-            /* hint = */ nullptr);
+            /* hint = */ nullptr, /* src_md = */ nullptr);
     init_pd(init_pd_args);
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
