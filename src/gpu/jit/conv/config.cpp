@@ -1941,12 +1941,6 @@ void init_allow_slm_tg_slicing(conv_config_t &cfg) {
     cfg.set_allow_slm_tg_slicing(true);
 }
 
-void init_reduce_b(conv_config_t &cfg) {
-    const auto &prb = cfg.prb();
-
-    if (prb.is_bwd_w && prb.with_bias) { cfg.set_reduce_b(true); }
-}
-
 void init_assign_sbids(conv_config_t &cfg) {
     if (cfg.is_dp_fma()) cfg.set_assign_sbids(true);
 }
@@ -2130,7 +2124,6 @@ status_t try_init_cfg(conv_config_t &cfg) {
     init_allow_a_grf_reorder(cfg);
     init_allow_b_grf_reorder(cfg);
     init_allow_slm_tg_slicing(cfg);
-    init_reduce_b(cfg);
     init_assign_sbids(cfg);
     init_subtiles(cfg);
 

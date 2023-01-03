@@ -98,6 +98,8 @@ public:
         return false;
     }
 
+    bool reduce_b() const { return is_bwd_w && with_bias; }
+
     const memory_desc_t &a_md() const {
         return *pick_a(conv_pd->invariant_src_md(), conv_pd->invariant_wei_md(),
                 conv_pd->invariant_dst_md());
@@ -880,17 +882,6 @@ private:
     bool b_ = false;
 };
 
-// TODO: Remove.
-class reduce_b_param_t : public bool_param_t {
-public:
-    reduce_b_param_t() : bool_param_t(false) {}
-    std::string name() const override { return "reduce-b"; }
-    std::string desc() const override {
-        return "Whether to reduce B tensor (used for dst reduction in backward "
-               "by weights).";
-    }
-};
-
 class reduce_grf_usage_param_t : public bool_param_t {
 public:
     reduce_grf_usage_param_t() : bool_param_t(true) {}
@@ -1113,7 +1104,6 @@ public:
     DECL_PARAM(ow_kw_grf_cache)
     DECL_PARAM(pad_slm)
     DECL_PARAM(prb)
-    DECL_PARAM(reduce_b)
     DECL_PARAM(reduce_grf_usage)
     DECL_PARAM(send_2d_nhwc)
     DECL_PARAM(shrink_tg_dims)
@@ -1321,7 +1311,6 @@ private:
     INIT_PARAM(pipeline)
     INIT_PARAM(prb)
     INIT_PARAM(prefetch)
-    INIT_PARAM(reduce_b)
     INIT_PARAM(reduce_grf_usage)
     INIT_PARAM(send_2d_nhwc)
     INIT_PARAM(shrink_tg_dims)

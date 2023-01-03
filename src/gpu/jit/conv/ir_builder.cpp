@@ -682,7 +682,8 @@ class b_reduce_context_t {
 public:
     b_reduce_context_t(ir_context_t &ir_ctx, const conv_config_t &cfg)
         : ir_ctx_(ir_ctx), cfg_(cfg), reduce_condition_(true) {
-        if (cfg_.reduce_b()) b_reduced_reg_buf_ = make_buffer("b_reduced");
+        if (cfg_.prb().reduce_b())
+            b_reduced_reg_buf_ = make_buffer("b_reduced");
     }
 
     // Setters for B reduced memory buffer/view.
@@ -945,7 +946,7 @@ public:
         b_thr_view_ = bp_x_view.create_sub_view(gemm_schedule_.b_thr_tile());
 
         // Initialize view for reduced B.
-        if (cfg_.reduce_b() && !cfg_.slm().b()) {
+        if (cfg_.prb().reduce_b() && !cfg_.slm().b()) {
             b_reduce_ctx_.init_reduced_thr_view(
                     gemm_schedule_.b_thr_tile(/*is_relative=*/false));
         }
@@ -1110,7 +1111,7 @@ private:
             a_subtiles_.back().load();
         }
         subtile_info_t::post_load_func_t b_post_load;
-        if (!use_b_slm && cfg_.reduce_b()) {
+        if (!use_b_slm && cfg_.prb().reduce_b()) {
             b_post_load = [&](const layout_t &reg_layout, const expr_t &reg_buf,
                                   const tensor_t &tile) {
                 return b_reduce_ctx_.create_reduce_stmt(
@@ -2095,7 +2096,7 @@ public:
                 create_zero_out_stmt(ir_ctx_, c_buf, c_size));
         c_store_stmt_ = c_store_stmt_.append(c_m2g_stmt);
 
-        if (cfg_.reduce_b()) {
+        if (cfg_.prb().reduce_b()) {
             auto &ctx = b_reduce_ctx_;
             b_reduced_zero_out_stmt_ = create_zero_out_stmt(
                     ir_ctx_, ctx.b_reduced_reg_buf(), ctx.b_reduced_size());
@@ -2344,7 +2345,7 @@ private:
             }
         }
         // Generate reduction statement for B.
-        if (!is_a && cfg_.reduce_b()) {
+        if (!is_a && cfg_.prb().reduce_b()) {
             auto absolute_thr_tile = tg_tile.create_sub_tensor(thr_tile);
             b_reduce_ctx_.init_reduced_thr_view(absolute_thr_tile, grid_cond);
             auto reduce_stmt = b_reduce_ctx_.create_reduce_stmt(
