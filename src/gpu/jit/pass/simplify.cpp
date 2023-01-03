@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1771,6 +1771,12 @@ struct op_traits_t<op_kind_t::_min> {
     }
 };
 
+template <typename T>
+struct is_int_t {
+    static const bool value
+            = std::is_integral<T>::value && !std::is_same<T, bool>::value;
+};
+
 // Integer division/modulo operation in IR has the following
 // behavior/restrictions:
 // - Rounding is done towards -inf (different from C/C++)
@@ -1779,8 +1785,7 @@ struct op_traits_t<op_kind_t::_min> {
 template <>
 struct op_traits_t<op_kind_t::_div> {
     template <typename T,
-            typename
-            = typename std::enable_if<std::is_integral<T>::value>::type>
+            typename = typename std::enable_if<is_int_t<T>::value>::type>
     static auto compute(T a, T b) -> decltype(a / b) {
         ir_assert(b > 0);
         int r = a % b;
