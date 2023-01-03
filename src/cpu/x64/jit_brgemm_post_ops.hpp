@@ -611,6 +611,11 @@ private:
                     // if sum then have to init zmm each time
                     vpxord(vector(m, n), vector(m, n), vector(m, n));
                 }
+            } else if (!IMPLICATION(jcp.with_sum, jcp.use_buffer)) {
+                if (sum_idx != -1 && brg.beta != 0) {
+                    // if sum without buffer then have to init vmm each time
+                    uni_vpxor(vector(m, n), vector(m, n), vector(m, n));
+                }
             } else {
                 auto inp_addr = ptr[aux_reg_in
                         + inp_typesize_ * (m * brg.LDC + n * brg.ld_block)];
