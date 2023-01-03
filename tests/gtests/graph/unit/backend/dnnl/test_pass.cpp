@@ -12651,6 +12651,70 @@ TEST(PassSystem, FuseLayernormTypecastQuantize) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
+TEST(PassSystem, NotFuseLayernormTypecast) {
+    /*
+             | (bf16)
+           layernorm
+             | (bf16)
+           typecast
+             | (f32)
+           quant (non-zero zps)
+             | (u8/s8)
+    */
+    graph_t agraph;
+    std::vector<int64_t> zps = {198};
+    std::vector<float> scales = {3.1f};
+    op_t layernorm {0, LayerNorm, "layernorm"};
+    op_t typecast {1, TypeCast, "typecast"};
+    op_t quant {2, Quantize, "quant"};
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
+
+    logical_tensor_t src = logical_tensor_init(0, data_type::bf16);
+    logical_tensor_t scale_lt = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t shift_lt = logical_tensor_init(2, data_type::f32);
+    logical_tensor_t layernorm_dst = logical_tensor_init(3, data_type::bf16);
+    layernorm.add_input(src);
+    layernorm.add_input(scale_lt);
+    layernorm.add_input(shift_lt);
+    layernorm.add_output(layernorm_dst);
+
+    logical_tensor_t typecast_dst = logical_tensor_init(4, data_type::f32);
+    typecast.add_input(layernorm_dst);
+    typecast.add_output(typecast_dst);
+
+    logical_tensor_t quant_dst = logical_tensor_init(5, data_type::u8);
+    quant.add_input(typecast_dst);
+    quant.add_output(quant_dst);
+
+    ASSERT_EQ(agraph.add_op(&layernorm), status::success);
+    ASSERT_EQ(agraph.add_op(&typecast), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+
+    agraph.finalize();
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+
+    ASSERT_EQ(agraph.get_num_partitions(), 2U);
+
+    // partition 0: tc + quant
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 3U);
+
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
+
+    // partition 1: layernorm
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs().size(), 3U);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[0].id, 0U);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[1].id, 1U);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[2].id, 2U);
+
+    ASSERT_EQ(agraph.get_partitions()[1]->get_outputs().size(), 1U);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 3U);
+}
+
 TEST(Pass, ShuffleFusion) {
     /*   reshape
             |

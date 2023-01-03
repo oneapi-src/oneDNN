@@ -80,6 +80,19 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(
                             = std::make_shared<pb_graph_t>("ptypecast_graph");
                     pm::pb_op_t *ptypecast = ptypecast_graph->append_op(
                             graph::op_kind::TypeCast, "typecast");
+                    // For layernorm+tc+quant case, if the quant's zp is not
+                    // zero, then layernorm+tc will be matched and the tc+quant
+                    // fusion will be broken. To avoid this, we make the
+                    // layernorm+tc fusion only happen when tc's consumer is not
+                    // quant.
+                    ptypecast->append_decision_function([](op_t *op) -> bool {
+                        auto &csms = op->get_output_value(0)->get_consumers();
+                        return std::none_of(csms.begin(), csms.end(),
+                                [](const graph::value_t::consumer_t &csm) {
+                                    return csm.get_op().get_kind()
+                                            == graph::op_kind::Quantize;
+                                });
+                    });
                     ptypecast_graph->create_input_port(0, ptypecast, 0);
                     ptypecast_graph->create_output_port(0, ptypecast, 0);
 
