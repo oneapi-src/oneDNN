@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,28 +29,10 @@ namespace impl {
 namespace gpu {
 
 struct gpu_resource_t : public resource_t {
-    using key_kernel_t = compute::kernel_t::id_t;
-    using mapped_kernel_t = compute::kernel_t;
-
     using key_memory_t = int;
     using mapped_memory_t = std::unique_ptr<memory_storage_t>;
 
     gpu_resource_t() = default;
-
-    status_t add_kernel(compute::kernel_t::id_t kernel_id,
-            const compute::kernel_t &kernel) {
-        if (!kernel) return status::success;
-        assert(kernel_id_to_kernel_.count(kernel_id) == 0);
-        kernel_id_to_kernel_.emplace(kernel_id, kernel);
-        return status::success;
-    }
-
-    const compute::kernel_t &get_kernel(key_kernel_t id) const {
-        assert(kernel_id_to_kernel_.count(id));
-        const auto &kernel = kernel_id_to_kernel_.at(id);
-        assert(kernel);
-        return kernel;
-    }
 
     void add_memory_storage(key_memory_t idx, mapped_memory_t &&m) {
         assert(idx_to_memory_storage_.count(idx) == 0);
@@ -66,7 +48,6 @@ struct gpu_resource_t : public resource_t {
     DNNL_DISALLOW_COPY_AND_ASSIGN(gpu_resource_t);
 
 private:
-    std::unordered_map<key_kernel_t, mapped_kernel_t> kernel_id_to_kernel_;
     std::unordered_map<key_memory_t, mapped_memory_t> idx_to_memory_storage_;
 };
 

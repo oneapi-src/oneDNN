@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -317,8 +317,7 @@ status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
 }
 
 status_t dnnl_primitive::get_cache_blob_size(size_t *size) const {
-    (*size) = 0;
-    return primitive_->get_cache_blob_size(size);
+    return primitive_->get_cache_blob_size(engine(), size);
 }
 
 status_t dnnl_primitive::get_cache_blob(cache_blob_t cache_blob) const {

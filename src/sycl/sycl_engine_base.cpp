@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,11 +52,6 @@ status_t sycl_engine_base_t::init_device_info() {
     device_info_.reset(new sycl_device_info_t());
     CHECK(device_info_->init(this));
     return status::success;
-}
-
-std::function<void(void *)>
-sycl_engine_base_t::get_program_list_deleter() const {
-    return compat::get_program_list_deleter();
 }
 
 } // namespace sycl

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -160,8 +160,6 @@ public:
         stream = service_stream_.get();
         return status;
     }
-
-    virtual std::function<void(void *)> get_program_list_deleter() const = 0;
 
 protected:
     virtual status_t init_device_info() = 0;

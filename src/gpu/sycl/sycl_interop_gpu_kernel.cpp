@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,64 +57,9 @@ static void set_scalar_arg(
     }
 }
 
-static status_t create_ocl_program(
-        gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program, cl_device_id dev,
-        cl_context ctx, const gpu::compute::binary_t *binary) {
-    cl_int err;
-    const unsigned char *binary_buffer = binary->data();
-    size_t binary_size = binary->size();
-    assert(binary_size > 0);
-
-    ocl_program = clCreateProgramWithBinary(
-            ctx, 1, &dev, &binary_size, &binary_buffer, nullptr, &err);
-    OCL_CHECK(err);
-    err = clBuildProgram(ocl_program, 1, &dev, nullptr, nullptr, nullptr);
-    OCL_CHECK(err);
-
-    return status::success;
-}
-
-status_t sycl_interop_gpu_kernel_t::realize(gpu::compute::kernel_t *kernel,
-        const engine_t *engine, gpu::compute::program_list_t *programs) const {
-    assert(state_ == state_t::binary);
-    if (!binary_) return status::success;
-
-    auto *sycl_engine = utils::downcast<const sycl_gpu_engine_t *>(engine);
-
-    std::unique_ptr<::sycl::kernel> sycl_kernel;
-
-    CHECK(compat::make_kernel(
-            sycl_kernel, kernel_name_, sycl_engine, binary_.get(), programs));
-    if (sycl_kernel) {
-        (*kernel) = gpu::compute::kernel_t(
-                new sycl_interop_gpu_kernel_t(*sycl_kernel, arg_types_));
-        return status::success;
-    }
-
-    if (sycl_engine->backend() == backend_t::opencl) {
-        gpu::ocl::ocl_wrapper_t<cl_program> ocl_program;
-        CHECK(create_ocl_program(ocl_program, sycl_engine->ocl_device(),
-                sycl_engine->ocl_context(), binary_.get()));
-        CHECK(compat::make_kernel(sycl_kernel, kernel_name_, sycl_engine,
-                ocl_program.release(), binary_.get(), programs));
-    } else if (sycl_engine->backend() == backend_t::level0) {
-        CHECK(sycl_create_kernel_with_level_zero(sycl_kernel, kernel_name_,
-                sycl_engine, binary_.get(), programs));
-    } else {
-        assert(!"not expected");
-        return status::invalid_arguments;
-    }
-
-    (*kernel) = gpu::compute::kernel_t(
-            new sycl_interop_gpu_kernel_t(*sycl_kernel, arg_types_));
-    return status::success;
-}
-
 status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
         const gpu::compute::nd_range_t &range,
         const gpu::compute::kernel_arg_list_t &arg_list) {
-    assert(state_ == state_t::kernel);
-
     if (range.is_zero()) return status::success;
     auto *sycl_stream = utils::downcast<sycl_stream_t *>(&stream);
     auto &queue = sycl_stream->queue();

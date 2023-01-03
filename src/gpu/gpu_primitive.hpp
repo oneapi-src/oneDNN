@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 #include "gpu/gpu_resource.hpp"
 
 #define CTX_GPU_RES_STORAGE(arg) \
-    (*(cached_mapper() \
+    (*(ctx.get_resource_mapper() \
                     ->template get<gpu_resource_t>(this) \
                     ->get_memory_storage(arg)))
 
@@ -60,31 +60,24 @@ struct gpu_primitive_t : public primitive_t {
         const primitive_t *primitive_;
     };
 
-    const resource_mapper_t *cached_mapper() const { return &cached_mapper_; }
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<gpu_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(init_res_storage(engine, r.get()));
+        mapper.add(this, std::move(r));
 
-    status_t init_cached_resource(engine_t *engine) const override {
-        CHECK(fill_mapper(engine, cached_mapper_));
-        // When caching kernels, each primitve from the hierarchy has its
-        // own mapper and is responsible for filling it.
         for (const auto &cb : compute_blocks()) {
             if (!cb) continue;
-
-            switch (cb.kind()) {
-                case compute_block_t::kind_t::primitive:
-                    CHECK(cb.primitive()->init_cached_resource(engine));
-                    break;
-                case compute_block_t::kind_t::kernel:
-                    // Clear kernels with binary state to decrease memory
-                    // consumption.
-                    cb.kernel().clear();
-                    break;
-                default: assert(!"unexpected"); return status::runtime_error;
-            }
+            if (cb.kind() == compute_block_t::kind_t::primitive)
+                CHECK(cb.primitive()->create_resource(engine, mapper));
         }
         return status::success;
     }
 
-    status_t get_cache_blob_size(size_t *size) const override {
+    status_t get_cache_blob_size(
+            engine_t *engine, size_t *size) const override {
         if (!size) return status::invalid_arguments;
         // Query binary size for each created kernel.
         for (const auto &cb : compute_blocks()) {
@@ -93,14 +86,14 @@ struct gpu_primitive_t : public primitive_t {
             switch (cb.kind()) {
                 case compute_block_t::kind_t::kernel: {
                     size_t sz = 0;
-                    CHECK(cb.kernel().binary_size(&sz));
+                    CHECK(cb.kernel().get_binary_size(engine, &sz));
                     // We need additional sizeof(size_t) bytes to store the size
                     // of the binary when packing.
                     (*size) += sz + sizeof(size_t);
                     break;
                 }
                 case compute_block_t::kind_t::primitive:
-                    CHECK(cb.primitive()->get_cache_blob_size(size));
+                    CHECK(cb.primitive()->get_cache_blob_size(engine, size));
                     break;
                 default: assert(!"unexpected"); return status::runtime_error;
             }
@@ -115,16 +108,9 @@ struct gpu_primitive_t : public primitive_t {
 
             switch (cb.kind()) {
                 case compute_block_t::kind_t::kernel: {
+                    // Get a binary for each kernel within current primitive.
                     compute::binary_t binary;
-                    const resource_mapper_t *rm = cached_mapper();
-                    ;
-                    const auto *resource = rm->get<gpu_resource_t>(this);
-                    const auto &realized_kernel
-                            = resource->get_kernel(cb.kernel().id());
-                    // Get binaries for all kernels within current primitive.
-                    // TODO: Copy binary directly to `blob` when binary cache
-                    // mode is removed.
-                    CHECK(realized_kernel.binary(engine, binary));
+                    CHECK(cb.kernel().get_binary(engine, binary));
                     CHECK(blob.add_binary(binary.data(), binary.size()));
                     break;
                 }
@@ -195,17 +181,13 @@ protected:
     status_t parallel_for(const gemm_exec_ctx_t &ctx,
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
             const compute::kernel_arg_list_t &arg_list) const {
-        const resource_mapper_t *rm = nullptr;
-        rm = cached_mapper();
-        return parallel_for(rm, ctx.stream(), range, kernel, arg_list);
+        return parallel_for(ctx.stream(), range, kernel, arg_list);
     }
 
     status_t parallel_for(const exec_ctx_t &ctx,
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
             const compute::kernel_arg_list_t &arg_list) const {
-        const resource_mapper_t *rm = nullptr;
-        rm = cached_mapper();
-        return parallel_for(rm, ctx.stream(), range, kernel, arg_list);
+        return parallel_for(ctx.stream(), range, kernel, arg_list);
     }
 
 private:
@@ -213,39 +195,15 @@ private:
         return registered_compute_blocks_;
     }
 
-    status_t fill_mapper(engine_t *engine, resource_mapper_t &mapper) const {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<gpu_resource_t>();
-        if (!r) return status::out_of_memory;
-        compute::program_list_t programs(engine);
-        for (const auto &cb : compute_blocks()) {
-            if (!cb || !cb.is_kernel()) continue;
-            compute::kernel_t realized_kernel;
-            CHECK(cb.kernel().realize(&realized_kernel, engine, &programs));
-            r->add_kernel(cb.kernel().id(), realized_kernel);
-        }
-        CHECK(init_res_storage(engine, r.get()));
-        mapper.add(this, std::move(r));
-        return status::success;
-    }
-
-    status_t parallel_for(const resource_mapper_t *resource_mapper,
-            stream_t *stream, const compute::nd_range_t &range,
+    status_t parallel_for(stream_t *stream, const compute::nd_range_t &range,
             const compute::kernel_t &kernel,
             const compute::kernel_arg_list_t &arg_list) const {
-
         compute::compute_stream_t *compute_stream
                 = utils::downcast<compute::compute_stream_t *>(stream);
-        const auto *resource = resource_mapper->get<gpu_resource_t>(this);
-        const auto &realized_kernel = resource->get_kernel(kernel.id());
-
-        CHECK(compute_stream->parallel_for(range, realized_kernel, arg_list));
-        return status::success;
+        return compute_stream->parallel_for(range, kernel, arg_list);
     }
 
-    // Make these mutable to allow modifying them from `init_cached_resource`.
-    mutable resource_mapper_t cached_mapper_;
-    mutable std::vector<compute_block_t> registered_compute_blocks_;
+    std::vector<compute_block_t> registered_compute_blocks_;
 };
 
 } // namespace gpu

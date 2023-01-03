@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -202,9 +202,6 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     auto kernel = binary_format_kernel_t<HW::Unknown>::make_kernel(gpu_engine);
     if (!kernel) return status::success;
 
-    compute::kernel_t realized_kernel;
-    CHECK(kernel.realize(&realized_kernel, engine, nullptr));
-
     // Binary kernel check.
     uint32_t magic0 = MAGIC0;
     uint64_t magic1 = MAGIC1;
@@ -256,7 +253,7 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
 
     auto nd_range = compute::nd_range_t(gws, lws);
 
-    status = stream->parallel_for(nd_range, realized_kernel, arg_list);
+    status = stream->parallel_for(nd_range, kernel, arg_list);
 
     if (status != status::success) return status::runtime_error;
 

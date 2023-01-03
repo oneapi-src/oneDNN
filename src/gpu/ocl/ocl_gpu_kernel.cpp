@@ -22,7 +22,6 @@
 
 #include "common/rw_mutex.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/program_list.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_usm_utils.hpp"
@@ -108,7 +107,7 @@ private:
 
 ocl_gpu_kernel_t::ocl_gpu_kernel_t(cl_kernel ocl_kernel,
         const std::vector<gpu::compute::scalar_type_t> &arg_types)
-    : state_(state_t::kernel), ocl_kernel_(ocl_kernel), arg_types_(arg_types) {
+    : ocl_kernel_(ocl_kernel), arg_types_(arg_types) {
     OCL_CHECK_V(clRetainKernel(ocl_kernel_));
     cache_ = std::make_shared<ocl_gpu_kernel_cache_t>(ocl_kernel_);
 }
@@ -117,10 +116,22 @@ ocl_gpu_kernel_t::~ocl_gpu_kernel_t() {
     if (ocl_kernel_) OCL_CHECK_V(clReleaseKernel(ocl_kernel_));
 }
 
+status_t ocl_gpu_kernel_t::get_binary(
+        const engine_t *engine, compute::binary_t &binary) const {
+    auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
+    return get_ocl_program_binary(ocl_kernel(), ocl_engine->device(), binary);
+}
+
+status_t ocl_gpu_kernel_t::get_binary_size(
+        const engine_t *engine, size_t *binary_size) const {
+    auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
+    return get_ocl_program_binary_size(
+            ocl_kernel(), ocl_engine->device(), binary_size);
+}
+
 status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         const compute::nd_range_t &range,
         const compute::kernel_arg_list_t &arg_list) {
-    assert(state_ == state_t::kernel);
 
     auto *ocl_stream = utils::downcast<ocl_stream_t *>(&stream);
     cl_command_queue queue = ocl_stream->queue();
@@ -213,57 +224,6 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
     }
 
     if (is_profiling_enabled()) register_profile_event(event, ocl_stream);
-    return status::success;
-}
-
-status_t ocl_gpu_kernel_t::realize(compute::kernel_t *kernel,
-        const engine_t *engine, compute::program_list_t *programs) const {
-    assert(state_ == state_t::binary);
-    if (!binary_) return status::success;
-
-    cl_int err;
-    if (programs) {
-        auto *p = programs->get<cl_program>(binary_.get());
-        if (p) {
-            auto k = make_ocl_wrapper(clCreateKernel(p, name(), &err));
-            OCL_CHECK(err);
-            (*kernel) = compute::kernel_t(new ocl_gpu_kernel_t(k, arg_types_));
-            return status::success;
-        }
-    }
-
-    auto *compute_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
-    cl_device_id dev = compute_engine->device();
-    cl_context ctx = compute_engine->context();
-    const unsigned char *binary_buffer = binary_->data();
-    size_t binary_size = binary_->size();
-    assert(binary_size > 0);
-
-    auto program = make_ocl_wrapper(clCreateProgramWithBinary(
-            ctx, 1, &dev, &binary_size, &binary_buffer, nullptr, &err));
-    OCL_CHECK(err);
-    err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
-    OCL_CHECK(err);
-
-    auto ocl_kernel = make_ocl_wrapper(clCreateKernel(program, name(), &err));
-    OCL_CHECK(err);
-    (*kernel) = compute::kernel_t(new ocl_gpu_kernel_t(ocl_kernel, arg_types_));
-
-    if (programs) {
-        programs->add(binary_.get(), program.get());
-        program.release();
-    }
-
-    return status::success;
-}
-
-status_t ocl_gpu_kernel_t::binary(
-        engine_t *engine, compute::binary_t &binary) const {
-    const auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
-    std::shared_ptr<compute::binary_t> shared_binary;
-    CHECK(get_ocl_program_binary(
-            ocl_kernel_, ocl_engine->device(), shared_binary));
-    binary = std::move(*shared_binary);
     return status::success;
 }
 

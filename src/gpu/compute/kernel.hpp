@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,12 +29,10 @@ namespace impl {
 namespace gpu {
 namespace compute {
 
-class program_list_t;
 class kernel_impl_t;
 
 class kernel_t {
 public:
-    using id_t = intptr_t;
     kernel_t(kernel_impl_t *impl) : impl_(impl) {}
 
     kernel_t() = default;
@@ -44,7 +42,6 @@ public:
     virtual ~kernel_t() = default;
 
     operator bool() const { return bool(impl_); }
-    id_t id() const;
 
     kernel_impl_t *impl() const { return impl_.get(); }
 
@@ -54,14 +51,9 @@ public:
     status_t parallel_for(
             stream_t &stream, const std::function<void(void *)> &cgf) const;
 
-    status_t realize(kernel_t *kernel, const engine_t *engine,
-            program_list_t *programs) const;
-
-    void clear();
-    status_t binary_size(size_t *binary_size) const;
-
-    status_t binary(engine_t *engine, compute::binary_t &binary) const;
-    const std::shared_ptr<compute::binary_t> &binary() const;
+    status_t get_binary_size(const engine_t *engine, size_t *binary_size) const;
+    status_t get_binary(
+            const engine_t *engine, compute::binary_t &binary) const;
 
     const std::vector<scalar_type_t> &arg_types() const;
 
@@ -89,18 +81,13 @@ public:
         return status::runtime_error;
     }
 
-    virtual status_t realize(kernel_t *kernel, const engine_t *engine,
-            program_list_t *programs) const {
-        return status::success;
-    }
-
-    virtual void clear() {}
-
-    virtual status_t binary_size(size_t *binary_size) const {
+    virtual status_t get_binary_size(
+            const engine_t *engine, size_t *binary_size) const {
         assert(!"unexpected");
         return status::runtime_error;
     }
-    virtual status_t binary(engine_t *engine, compute::binary_t &binary) const {
+    virtual status_t get_binary(
+            const engine_t *engine, compute::binary_t &binary) const {
         assert(!"unexpected");
         return status::runtime_error;
     }
@@ -109,16 +96,8 @@ public:
         static const std::vector<scalar_type_t> dummy;
         return dummy;
     }
-
-    virtual const std::shared_ptr<compute::binary_t> &binary() const {
-        static const std::shared_ptr<compute::binary_t> dummy;
-        return dummy;
-    }
 };
 
-inline kernel_t::id_t kernel_t::id() const {
-    return reinterpret_cast<id_t>(impl_.get());
-}
 inline status_t kernel_t::parallel_for(stream_t &stream,
         const nd_range_t &range, const kernel_arg_list_t &arg_list) const {
     return impl_->parallel_for(stream, range, arg_list);
@@ -128,26 +107,14 @@ inline status_t kernel_t::parallel_for(
     return impl_->parallel_for(stream, cgf);
 }
 
-inline status_t kernel_t::realize(kernel_t *kernel, const engine_t *engine,
-        program_list_t *programs) const {
-    return impl_->realize(kernel, engine, programs);
+inline status_t kernel_t::get_binary_size(
+        const engine_t *engine, size_t *binary_size) const {
+    return impl_->get_binary_size(engine, binary_size);
 }
 
-inline void kernel_t::clear() {
-    impl_->clear();
-}
-
-inline status_t kernel_t::binary_size(size_t *binary_size) const {
-    return impl_->binary_size(binary_size);
-}
-
-inline status_t kernel_t::binary(
-        engine_t *engine, compute::binary_t &binary) const {
-    return impl_->binary(engine, binary);
-}
-
-inline const std::shared_ptr<compute::binary_t> &kernel_t::binary() const {
-    return impl_->binary();
+inline status_t kernel_t::get_binary(
+        const engine_t *engine, compute::binary_t &binary) const {
+    return impl_->get_binary(engine, binary);
 }
 
 inline const std::vector<scalar_type_t> &kernel_t::arg_types() const {

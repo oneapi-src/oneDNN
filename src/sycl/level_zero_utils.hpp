@@ -37,8 +37,7 @@ class sycl_engine_base_t;
 status_t sycl_create_kernel_with_level_zero(
         std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const std::string &kernel_name, const sycl_engine_base_t *sycl_engine,
-        const gpu::compute::binary_t *binary,
-        gpu::compute::program_list_t *programs);
+        const gpu::compute::binary_t &binary);
 
 bool compare_ze_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -324,11 +324,14 @@ cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
         size_t size, void *host_ptr, cl_int *errcode_ret);
 #endif
 
-status_t get_ocl_program_binary(cl_program program, cl_device_id device,
-        std::shared_ptr<compute::binary_t> &binary);
+status_t get_ocl_program_binary(
+        cl_program program, cl_device_id device, compute::binary_t &binary);
 
-status_t get_ocl_program_binary(cl_kernel kernel, cl_device_id device,
-        std::shared_ptr<compute::binary_t> &binary);
+status_t get_ocl_program_binary(
+        cl_kernel kernel, cl_device_id device, compute::binary_t &binary);
+
+status_t get_ocl_program_binary_size(
+        cl_kernel kernel, cl_device_id device, size_t *size);
 
 void dump_kernel_binary(cl_kernel ocl_kernel);
 void dump_kernel_binary(
@@ -340,6 +343,9 @@ status_t get_kernel_arg_types(cl_kernel ocl_kernel,
 status_t get_ocl_device_eu_count(cl_device_id device, int32_t *eu_count);
 
 status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel);
+
+status_t create_ocl_program(gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program,
+        cl_device_id dev, cl_context ctx, const gpu::compute::binary_t *binary);
 
 } // namespace ocl
 } // namespace gpu

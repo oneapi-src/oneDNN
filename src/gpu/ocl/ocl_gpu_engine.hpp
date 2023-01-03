@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,8 +65,6 @@ public:
             const std::vector<const char *> &kernel_names,
             const char *source_string,
             const compute::kernel_ctx_t &kernel_ctx) const override;
-
-    std::function<void(void *)> get_program_list_deleter() const override;
 
     const impl_list_item_t *get_concat_implementation_list() const override {
         return gpu_impl_list_t::get_concat_implementation_list();

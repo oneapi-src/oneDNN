@@ -173,13 +173,12 @@ device_uuid_t get_device_uuid(const ::sycl::device &dev) {
 status_t sycl_create_kernel_with_level_zero(
         std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const std::string &kernel_name, const sycl_engine_base_t *sycl_engine,
-        const gpu::compute::binary_t *binary,
-        gpu::compute::program_list_t *programs) {
+        const gpu::compute::binary_t &binary) {
     auto desc = ze_module_desc_t();
     desc.stype = ZE_STRUCTURE_TYPE_MODULE_DESC;
     desc.format = ZE_MODULE_FORMAT_NATIVE;
-    desc.inputSize = binary->size();
-    desc.pInputModule = binary->data();
+    desc.inputSize = binary.size();
+    desc.pInputModule = binary.data();
     desc.pBuildFlags = "";
     desc.pConstants = nullptr;
 
@@ -191,8 +190,18 @@ status_t sycl_create_kernel_with_level_zero(
             = compat::get_native<ze_context_handle_t>(sycl_engine->context());
 
     CHECK(func_zeModuleCreate(ze_ctx, ze_device, &desc, &ze_module, nullptr));
-    CHECK(compat::make_kernel(sycl_kernel, kernel_name, sycl_engine, ze_module,
-            binary, programs));
+    ::sycl::kernel_bundle<::sycl::bundle_state::executable> kernel_bundle
+            = ::sycl::make_kernel_bundle<::sycl::backend::ext_oneapi_level_zero,
+                    ::sycl::bundle_state::executable>(
+                    {ze_module}, sycl_engine->context());
+
+    ze_kernel_handle_t ze_kernel;
+    ze_kernel_desc_t ze_kernel_desc {
+            ZE_STRUCTURE_TYPE_KERNEL_DESC, nullptr, 0, kernel_name.c_str()};
+    CHECK(func_zeKernelCreate(ze_module, &ze_kernel_desc, &ze_kernel));
+    auto k = ::sycl::make_kernel<::sycl::backend::ext_oneapi_level_zero>(
+            {kernel_bundle, ze_kernel}, sycl_engine->context());
+    sycl_kernel = utils::make_unique<::sycl::kernel>(k);
 
     return status::success;
 }

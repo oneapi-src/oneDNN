@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,7 +51,6 @@ struct primitive_t : public c_compatible {
             const cache_blob_t &cache_blob) {
         cache_blob_ = cache_blob;
         CHECK(init(engine));
-        CHECK(init_cached_resource(engine));
         use_global_scratchpad_ = use_global_scratchpad;
         // The `cache_blob_` is no longer needed after primitive creation.
         cache_blob_ = cache_blob_t();
@@ -68,29 +67,13 @@ struct primitive_t : public c_compatible {
         return status::runtime_error;
     }
 
-    virtual status_t get_cache_blob_size(size_t *size) const {
+    virtual status_t get_cache_blob_size(engine_t *engine, size_t *size) const {
         assert(!"unexpected");
         return status::runtime_error;
     }
 
     virtual status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const {
-        return status::success;
-    }
-
-    // Although this function is marked as `const` it changes primitive_t state.
-    // The only place where this function should be used is in:
-    // `init(engine_t *engine, bool use_global_scratchpad)` during primitive_t
-    // creation in `create_primitive_common`.
-    // The rationale behind marking it as `const` is to simplify enabling the
-    // primitive cache mode for storing compiled GPU kernels instead of
-    // binaries and to preserve the current primitive cache implementation.
-    //
-    // The main idea is to create a resource inside the primitive_t only once
-    // and cache it as part of primitive_t.
-    // TODO: The ultimate goal is to switch completely to caching compiled
-    // GPU kernels therefore the code will be thrown out once it's done.
-    virtual status_t init_cached_resource(engine_t *engine) const {
         return status::success;
     }
 

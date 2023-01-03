@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,13 +88,19 @@ public:
         std::vector<gpu::compute::scalar_type_t> arg_types;
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
-        std::shared_ptr<gpu::compute::binary_t> shared_binary;
-        CHECK(gpu::ocl::get_ocl_program_binary(
-                ocl_kernel.get(), ocl_engine->device(), shared_binary));
+        gpu::compute::binary_t binary;
+        {
+            auto kernel = gpu::compute::kernel_t(
+                    new gpu::ocl::ocl_gpu_kernel_t(ocl_kernel, arg_types));
+            CHECK(kernel.get_binary(ocl_engine.get(), binary));
+        }
+
+        std::unique_ptr<::sycl::kernel> sycl_kernel;
+        CHECK(compat::make_kernel(sycl_kernel, this, binary, kernel_name));
 
         *kernel = gpu::compute::kernel_t(
                 new gpu::sycl::sycl_interop_gpu_kernel_t(
-                        shared_binary, kernel_name, arg_types));
+                        *sycl_kernel, arg_types));
         return status::success;
     }
 
@@ -121,9 +127,15 @@ public:
             if (!ocl_kernels[i]) continue;
             auto *k = utils::downcast<gpu::ocl::ocl_gpu_kernel_t *>(
                     ocl_kernels[i].impl());
+            gpu::compute::binary_t binary;
+            CHECK(k->get_binary(ocl_engine.get(), binary));
+            std::unique_ptr<::sycl::kernel> sycl_kernel;
+            CHECK(compat::make_kernel(
+                    sycl_kernel, this, binary, kernel_names[i]));
+
             (*kernels)[i] = gpu::compute::kernel_t(
                     new gpu::sycl::sycl_interop_gpu_kernel_t(
-                            k->binary(), k->name(), k->arg_types()));
+                            *sycl_kernel, k->arg_types()));
         }
         return status::success;
     }
@@ -153,8 +165,6 @@ public:
     }
 
     device_id_t device_id() const override { return sycl_device_id(device_); }
-
-    std::function<void(void *)> get_program_list_deleter() const override;
 
     engine_id_t engine_id() const override {
         return engine_id_t(new sycl_engine_id_impl_t(

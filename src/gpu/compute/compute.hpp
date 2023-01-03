@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@
 #include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/compute/kernel_ctx.hpp"
 #include "gpu/compute/kernel_list.hpp"
-#include "gpu/compute/program_list.hpp"
 #include "gpu/compute/utils.hpp"
 
 #endif // GPU_COMPUTE_COMPUTE_HPP

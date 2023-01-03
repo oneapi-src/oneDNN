@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -195,7 +195,7 @@ public:
         int key = args_[idx].key;
         switch (args_[idx].kind) {
             case arg_kind_t::resource:
-                return *(primitive->cached_mapper()
+                return *(ctx.get_resource_mapper()
                                  ->template get<gpu_resource_t>(primitive)
                                  ->get_memory_storage(key));
             case arg_kind_t::scratchpad:

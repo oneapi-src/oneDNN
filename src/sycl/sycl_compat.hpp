@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,16 +30,8 @@ class sycl_engine_base_t;
 namespace compat {
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const std::string &kernel_name, const sycl_engine_base_t *sycl_engine,
-        void *native_program_handle, const gpu::compute::binary_t *binary,
-        gpu::compute::program_list_t *programs);
-
-status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const std::string &kernel_name, const sycl_engine_base_t *sycl_engine,
-        const gpu::compute::binary_t *binary,
-        const gpu::compute::program_list_t *programs);
-
-std::function<void(void *)> get_program_list_deleter();
+        const sycl_engine_base_t *sycl_engine,
+        const gpu::compute::binary_t &binary, const char *kernel_name);
 
 void *get_native(const ::sycl::device &dev);
 void *get_native(const ::sycl::context &ctx);

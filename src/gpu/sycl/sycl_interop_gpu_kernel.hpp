@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,67 +30,23 @@ namespace sycl {
 
 class sycl_interop_gpu_kernel_t : public gpu::compute::kernel_impl_t {
 public:
-    // Tell the compiler that we need both `binary` function from the base
-    // class and the one that is defined here to silent warning.
-    using kernel_impl_t::binary;
-    sycl_interop_gpu_kernel_t(
-            const std::shared_ptr<gpu::compute::binary_t> &binary,
-            const std::string &kernel_name,
+    sycl_interop_gpu_kernel_t(const ::sycl::kernel &sycl_kernel,
             const std::vector<gpu::compute::scalar_type_t> &arg_types)
-        : state_(state_t::binary)
-        , binary_(binary)
-        , kernel_name_(kernel_name)
-        , arg_types_(arg_types) {
-        MAYBE_UNUSED(state_);
-    }
+        : sycl_kernel_(new ::sycl::kernel(sycl_kernel))
+        , arg_types_(arg_types) {}
 
-    ::sycl::kernel sycl_kernel() const {
-        assert(state_ == state_t::kernel);
-        return *sycl_kernel_;
-    }
+    ::sycl::kernel sycl_kernel() const { return *sycl_kernel_; }
 
     status_t parallel_for(stream_t &stream,
             const gpu::compute::nd_range_t &range,
             const gpu::compute::kernel_arg_list_t &arg_list) override;
 
-    status_t realize(gpu::compute::kernel_t *kernel, const engine_t *engine,
-            gpu::compute::program_list_t *programs) const override;
-
-    const char *name() const {
-        assert(state_ == state_t::binary);
-        return kernel_name_.c_str();
-    }
-
-    const std::shared_ptr<gpu::compute::binary_t> &binary() const override {
-        assert(state_ == state_t::binary);
-        return binary_;
-    }
-
-    void clear() override {
-        assert(state_ == state_t::binary);
-        binary_->clear();
-        kernel_name_.clear();
-        arg_types_.clear();
-    }
-
-    enum class state_t { binary, kernel };
-
     const std::vector<gpu::compute::scalar_type_t> &arg_types() const override {
         return arg_types_;
     }
 
-protected:
-    sycl_interop_gpu_kernel_t(const ::sycl::kernel &sycl_kernel,
-            const std::vector<gpu::compute::scalar_type_t> &arg_types)
-        : state_(state_t::kernel)
-        , sycl_kernel_(new ::sycl::kernel(sycl_kernel))
-        , arg_types_(arg_types) {}
-
-    state_t state_;
+private:
     std::unique_ptr<::sycl::kernel> sycl_kernel_;
-    std::shared_ptr<gpu::compute::binary_t> binary_;
-    std::string kernel_name_;
-
     std::vector<gpu::compute::scalar_type_t> arg_types_;
 };
 

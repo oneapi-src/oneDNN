@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -246,16 +246,41 @@ cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
     return clCreateBuffer(context, flags, size, host_ptr, errcode_ret);
 }
 
-status_t get_ocl_program_binary(cl_program program, cl_device_id device,
-        std::shared_ptr<compute::binary_t> &binary) {
-
-    size_t n_devices = 0;
+static status_t get_number_devices(cl_program program, size_t *n_devices) {
     cl_int err = clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES,
-            sizeof(size_t), &n_devices, nullptr);
+            sizeof(size_t), n_devices, nullptr);
+    OCL_CHECK(err);
+    return status::success;
+}
+
+status_t get_ocl_program_binary_size(
+        cl_kernel kernel, cl_device_id device, size_t *size) {
+    size_t device_idx = 0;
+    CHECK(get_ocl_device_index(&device_idx, device));
+
+    cl_program program;
+    cl_int err = clGetKernelInfo(
+            kernel, CL_KERNEL_PROGRAM, sizeof(program), &program, nullptr);
     OCL_CHECK(err);
 
-    std::vector<size_t> binarySize(n_devices);
+    size_t n_devices = 0;
+    CHECK(get_number_devices(program, &n_devices));
+
+    std::vector<size_t> binary_sizes(n_devices);
     err = clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
+            sizeof(size_t) * n_devices, binary_sizes.data(), nullptr);
+    OCL_CHECK(err);
+    (*size) = binary_sizes[device_idx];
+    return status::success;
+}
+
+status_t get_ocl_program_binary(
+        cl_program program, cl_device_id device, compute::binary_t &binary) {
+    size_t n_devices = 0;
+    CHECK(get_number_devices(program, &n_devices));
+
+    std::vector<size_t> binarySize(n_devices);
+    cl_int err = clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
             sizeof(size_t) * n_devices, binarySize.data(), nullptr);
     OCL_CHECK(err);
 
@@ -267,22 +292,21 @@ status_t get_ocl_program_binary(cl_program program, cl_device_id device,
     size_t device_idx = std::distance(
             devices.begin(), std::find(devices.begin(), devices.end(), device));
     std::vector<uint8_t *> binary_pointers(n_devices);
-    std::vector<std::shared_ptr<compute::binary_t>> binaries(n_devices);
+    std::vector<compute::binary_t> binaries(n_devices);
     for (size_t i = 0; i < n_devices; ++i) {
-        binaries[i] = std::make_shared<compute::binary_t>(binarySize[i]);
-        binary_pointers[i] = binaries[i]->data();
+        binaries[i] = compute::binary_t(binarySize[i]);
+        binary_pointers[i] = binaries[i].data();
     }
 
     err = clGetProgramInfo(program, CL_PROGRAM_BINARIES,
             sizeof(uint8_t *) * n_devices, binary_pointers.data(), nullptr);
     OCL_CHECK(err);
     binary = binaries[device_idx];
-
     return status::success;
 }
 
-status_t get_ocl_program_binary(cl_kernel kernel, cl_device_id device,
-        std::shared_ptr<compute::binary_t> &binary) {
+status_t get_ocl_program_binary(
+        cl_kernel kernel, cl_device_id device, compute::binary_t &binary) {
     cl_int err;
 
     cl_program program;
@@ -335,18 +359,11 @@ void dump_kernel_binary(cl_kernel ocl_kernel) {
 }
 
 void dump_kernel_binary(
-        const engine_t *engine, const compute::kernel_t &binary_kernel) {
+        const engine_t *engine, const compute::kernel_t &kernel) {
     if (!get_jit_dump()) return;
-
-    compute::kernel_t realized_kernel;
-    auto status = binary_kernel.realize(&realized_kernel, engine, nullptr);
-
-    // Ignore error.
-    if (status != status::success) return;
-
-    auto *kernel
-            = utils::downcast<const ocl_gpu_kernel_t *>(realized_kernel.impl());
-    dump_kernel_binary(kernel->ocl_kernel());
+    auto *kernel_impl
+            = utils::downcast<const ocl_gpu_kernel_t *>(kernel.impl());
+    dump_kernel_binary(kernel_impl->ocl_kernel());
 }
 #else
 void dump_kernel_binary(const engine_t *, const compute::kernel_t &) {}
@@ -422,6 +439,23 @@ status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel) {
     *cloned_kernel = clCreateKernel(program, name.c_str(), &err);
     OCL_CHECK(err);
 #endif
+
+    return status::success;
+}
+
+status_t create_ocl_program(gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program,
+        cl_device_id dev, cl_context ctx,
+        const gpu::compute::binary_t *binary) {
+    cl_int err;
+    const unsigned char *binary_buffer = binary->data();
+    size_t binary_size = binary->size();
+    assert(binary_size > 0);
+
+    ocl_program = clCreateProgramWithBinary(
+            ctx, 1, &dev, &binary_size, &binary_buffer, nullptr, &err);
+    OCL_CHECK(err);
+    err = clBuildProgram(ocl_program, 1, &dev, nullptr, nullptr, nullptr);
+    OCL_CHECK(err);
 
     return status::success;
 }

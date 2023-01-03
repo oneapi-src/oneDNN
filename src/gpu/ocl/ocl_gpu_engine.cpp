@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -147,10 +147,8 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
         OCL_CHECK(err);
 
-        auto shared_binary = std::make_shared<compute::binary_t>(
-                binary, binary + binary_size);
         (*kernels)[i] = compute::kernel_t(
-                new ocl_gpu_kernel_t(shared_binary, kernel_name, arg_types));
+                new ocl_gpu_kernel_t(ocl_kernel, arg_types));
         dump_kernel_binary(ocl_engine, (*kernels)[i]);
     }
 
@@ -223,11 +221,7 @@ status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
     std::vector<gpu::compute::scalar_type_t> arg_types;
     CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
-    std::shared_ptr<compute::binary_t> shared_binary;
-    CHECK(get_ocl_program_binary(ocl_kernel, device(), shared_binary));
-
-    *kernel = compute::kernel_t(
-            new ocl_gpu_kernel_t(shared_binary, kernel_name, arg_types));
+    *kernel = compute::kernel_t(new ocl_gpu_kernel_t(ocl_kernel, arg_types));
     dump_kernel_binary(this, *kernel);
 
     return status::success;
@@ -284,9 +278,6 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
     err = clBuildProgram(program, 1, &dev, options.c_str(), nullptr, nullptr);
     OCL_CHECK(maybe_print_debug_info(err, program, dev));
 
-    std::shared_ptr<compute::binary_t> shared_binary;
-    CHECK(get_ocl_program_binary(program, dev, shared_binary));
-
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); ++i) {
         cl_int err;
@@ -296,20 +287,12 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
         std::vector<gpu::compute::scalar_type_t> arg_types;
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
-        (*kernels)[i] = compute::kernel_t(new ocl_gpu_kernel_t(
-                shared_binary, kernel_names[i], arg_types));
+        (*kernels)[i] = compute::kernel_t(
+                new ocl_gpu_kernel_t(ocl_kernel, arg_types));
         dump_kernel_binary(this, (*kernels)[i]);
     }
 
     return status::success;
-}
-
-std::function<void(void *)> ocl_gpu_engine_t::get_program_list_deleter() const {
-    return [](void *p) {
-        cl_int err = clReleaseProgram(reinterpret_cast<cl_program>(p));
-        assert(err == 0);
-        MAYBE_UNUSED(err);
-    };
 }
 
 status_t ocl_gpu_engine_t::init_device_info() {
