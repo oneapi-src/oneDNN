@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Arm Ltd. and affiliates
+* Copyright 2021-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,8 +58,7 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
             src_md, abcd, abdc, abc, acb, ab, ba);
     auto wei_tag = memory_desc_matches_one_of_tag(
             wei_md, abcd, abdc, abc, acb, ab, ba);
-    auto dst_tag
-            = memory_desc_matches_one_of_tag(dst_md, abcd, abc, acb, ab, ba);
+    auto dst_tag = memory_desc_matches_one_of_tag(dst_md, abcd, abc, ab, ba);
     ACL_CHECK_SUPPORT(
             utils::one_of(format_tag::undef, src_tag, wei_tag, dst_tag),
             "Format tag is undefined");
