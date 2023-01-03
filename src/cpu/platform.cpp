@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 FUJITSU LIMITED
 * Copyright 2022 Arm Ltd. and affiliates
 *
@@ -161,7 +161,9 @@ bool has_training_support(data_type_t data_type) {
 
 float s8s8_weights_scale_factor() {
 #if DNNL_X64
-    return x64::mayiuse(x64::avx512_core_vnni) ? 1.0f : 0.5f;
+    return x64::mayiuse(x64::avx512_core_vnni) || x64::mayiuse(x64::avx2_vnni)
+            ? 1.0f
+            : 0.5f;
 #else
     return 1.0f;
 #endif
