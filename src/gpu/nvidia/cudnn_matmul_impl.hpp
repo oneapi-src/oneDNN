@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -187,6 +187,19 @@ struct cudnn_matmul_impl_t {
         }
     }
 
+    int get_ld(const memory_desc_wrapper desc, cublasOperation_t trans) {
+        const int ndims = desc.ndims();
+        const auto *strides = &desc.blocking_desc().strides[ndims - 2];
+        const int ld = strides[trans == cublasOperation_t::CUBLAS_OP_N ? 0 : 1];
+        return ld;
+    }
+
+    int get_batch_stride(const memory_desc_wrapper desc) {
+        auto dims = desc.dims();
+        auto strides = desc.blocking_desc().strides;
+        return dims[0] == 1 ? 0 : strides[0];
+    }
+
     status_t init_gemm_parameters(const memory_desc_wrapper src_d,
             const memory_desc_wrapper weights_d,
             const memory_desc_wrapper dst_d) {
@@ -219,22 +232,15 @@ struct cudnn_matmul_impl_t {
                 ? cublasOperation_t::CUBLAS_OP_N
                 : cublasOperation_t::CUBLAS_OP_T;
 
-        lda_ = (int)
-                weights_strides[transA_ == cublasOperation_t::CUBLAS_OP_N ? 0
-                                                                          : 1];
-        ldb_ = (int)
-                src_strides[transB_ == cublasOperation_t::CUBLAS_OP_N ? 0 : 1];
-        ldc_ = (int)
-                dst_strides[transC_ == cublasOperation_t::CUBLAS_OP_N ? 0 : 1];
+        lda_ = get_ld(weights_d, transA_);
+        ldb_ = get_ld(src_d, transB_);
+        ldc_ = get_ld(dst_d, transC_);
 
         if (isbatched_) {
             // These parameters are required for cublasGemmStridedBatchedEx()
-            stride_a_ = (transA_ == cublasOperation_t::CUBLAS_OP_N) ? lda_ * K_
-                                                                    : lda_ * M_;
-            stride_b_ = (transB_ == cublasOperation_t::CUBLAS_OP_N) ? ldb_ * N_
-                                                                    : ldb_ * K_;
-            stride_c_ = (transC_ == cublasOperation_t::CUBLAS_OP_N) ? ldc_ * N_
-                                                                    : ldc_ * M_;
+            stride_a_ = get_batch_stride(weights_d);
+            stride_b_ = get_batch_stride(src_d);
+            stride_c_ = get_batch_stride(dst_d);
 
             // Enable broadcast semantics.
             if (src_d.dims()[0] > weights_d.dims()[0])
