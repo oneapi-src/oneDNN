@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,7 +51,8 @@ struct miopen_matmul_t : public primitive_t {
 
             bool f32_case = utils::everyone_is(f32, src_dt, wei_dt, dst_dt);
             bool f16_case = utils::everyone_is(f16, src_dt, wei_dt, dst_dt);
-            bool s8_case = utils::everyone_is(s8, src_dt, wei_dt) && (dst_dt == s32);
+            bool s8_case
+                    = utils::everyone_is(s8, src_dt, wei_dt) && (dst_dt == s32);
 
             bool bf16_case = batched()
                     ? utils::everyone_is(bf16, src_dt, wei_dt, dst_dt)
@@ -67,7 +68,8 @@ struct miopen_matmul_t : public primitive_t {
                             (IMPLICATION(f32_case, (bia_dt == f32))
                                     && IMPLICATION(f16_case, (bia_dt == f16))
                                     && IMPLICATION(s8_case, (bia_dt == s32))
-                                    && IMPLICATION(bf16_case, dst_dt == f32 && bia_dt == f32)));
+                                    && IMPLICATION(bf16_case,
+                                            dst_dt == f32 && bia_dt == f32)));
 
             if (!ok) return status::unimplemented;
 

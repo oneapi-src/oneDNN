@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -165,7 +165,10 @@ struct miopen_matmul_impl_t {
     int get_ld(const memory_desc_wrapper desc, rocblas_operation trans) {
         const int ndims = desc.ndims();
         const auto *strides = &desc.blocking_desc().strides[ndims - 2];
-        const int ld = strides[trans == rocblas_operation::rocblas_operation_none ? 0 : 1];
+        const int ld
+                = strides[trans == rocblas_operation::rocblas_operation_none
+                                ? 0
+                                : 1];
         return ld;
     }
 
