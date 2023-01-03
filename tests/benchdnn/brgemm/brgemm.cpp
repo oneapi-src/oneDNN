@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -459,16 +459,6 @@ int doit(const prb_t *prb, res_t *res) {
     if (prb->bia_dt != dnnl_data_type_undef)
         SAFE(fill_data(BIA, prb, bia_dt, bia_fp, res), WARN);
 
-    dnn_mem_t src_zero_points_m, wei_zero_points_m, dst_zero_points_m;
-    const auto &wei_zero_point_val
-            = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).value;
-    maybe_prepare_runtime_zero_points(
-            src_zero_points_m, prb->attr, DNNL_ARG_SRC, prb->k, prb->src_zp);
-    maybe_prepare_runtime_zero_points(wei_zero_points_m, prb->attr,
-            DNNL_ARG_WEIGHTS, 1, &(wei_zero_point_val));
-    maybe_prepare_runtime_zero_points(
-            dst_zero_points_m, prb->attr, DNNL_ARG_DST, prb->n, prb->dst_zp);
-
     // "Library" args are needed to get dst for comparison.
     // "Reference" are used as usual.
     args_t args, ref_args;
@@ -513,11 +503,15 @@ int doit(const prb_t *prb, res_t *res) {
     // Brgemm takes single pointer oscale, but relies on a combination of arg
     // scales attributes. This helps to reuse attributes from primitives, but
     // requires them to pre-compute oscale = src_scale * wei_scale[:]
-    dnn_mem_t scales;
     auto src_scale = prb->attr.scales.get(DNNL_ARG_SRC);
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
     auto attr_scale = wei_scale.runtime ? wei_scale : src_scale;
-    maybe_prepare_runtime_scales(scales, attr_scale, prb->n, prb->scales);
+
+    const int64_t count = attr_scale.policy == policy_t::COMMON ? 1 : prb->n;
+    dnn_mem_t scales(1, &count, dnnl_f32, tag::x, get_test_engine());
+    for (int64_t c = 0; c < count; ++c)
+        scales.set_elem(c, prb->scales[c]);
+
     // Handle output scale common policy separately since the implementation
     // always expects them to be of vector length in case of `common` policy.
     std::vector<float> v16_scales(16, prb->scales[0]);
@@ -527,11 +521,10 @@ int doit(const prb_t *prb, res_t *res) {
 
     char *acc_ptr = (char *)acc_dt;
 
-    const int32_t *dst_zp_ptr = (const int32_t *)dst_zero_points_m;
+    const int32_t *dst_zp_ptr = (const int32_t *)prb->dst_zp;
     char *src_comp_ptr = (char *)wei_dt + wei_offset_zp;
-    int32_t zp_a_val = !prb->attr.zero_points.is_def(DNNL_ARG_SRC)
-            ? src_zero_points_m.get_elem(0)
-            : 0;
+    int32_t zp_a_val
+            = !prb->attr.zero_points.is_def(DNNL_ARG_SRC) ? prb->src_zp[0] : 0;
 
     if (!prb->attr.zero_points.is_def(DNNL_ARG_WEIGHTS)) {
         // TODO: weights zero point is not supported yet.

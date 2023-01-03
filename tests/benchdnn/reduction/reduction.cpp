@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -191,6 +191,59 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     }
 }
 
+std::vector<int> supported_exec_args(dir_t dir) {
+    static const std::vector<int> exec_args = {
+            DNNL_ARG_SRC,
+            DNNL_ARG_DST,
+    };
+    return exec_args;
+};
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref) {
+    const auto &ref_engine = get_cpu_engine();
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second; // `mem` is modified by filler (reorder).
+
+        ref_mem_map.emplace(
+                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_SRC: SAFE(fill_src(prb, mem, ref_mem), WARN); break;
+            case DNNL_ARG_DST:
+                if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM)
+                        >= 0)
+                    SAFE(fill_dst(prb, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_SCRATCHPAD: break;
+            default: { // Process all attributes here
+                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+                bool is_post_ops_arg = (exec_arg & post_ops_range);
+                if (is_post_ops_arg) {
+                    if (exec_arg & DNNL_ARG_SRC_1) {
+                        const bool is_signed
+                                = prb->sdt != dnnl_u8 && prb->ddt != dnnl_u8;
+                        const bool use_positive
+                                = is_norm_alg(prb->alg) || !is_signed;
+                        SAFE(binary::fill_mem(
+                                     exec_arg, mem, ref_mem, use_positive),
+                                WARN);
+                    }
+                }
+            } break;
+        }
+        // Don't keep reference memory if it is not used further.
+        if (!is_bench_mode(CORR)) ref_mem_map.clear();
+    }
+
+    return OK;
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -199,50 +252,16 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     if (is_bench_mode(INIT)) return OK;
 
-    auto const_pd = query_pd(prim);
-
-    const auto fp_dt = dnnl_f32;
-    const auto abx_tag = tag::abx;
-
-    const auto &test_engine = get_test_engine();
-    const auto &ref_engine = get_cpu_engine();
-
-    const auto &src_md = query_md(const_pd, DNNL_ARG_SRC);
-    dnn_mem_t src_fp(src_md, fp_dt, abx_tag, ref_engine);
-    dnn_mem_t src_dt(src_md, test_engine);
-    SAFE(fill_src(prb, src_dt, src_fp), WARN);
-
-    const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
-    dnn_mem_t dst_fp(dst_md, fp_dt, abx_tag, ref_engine);
-    dnn_mem_t dst_dt(dst_md, test_engine);
-    if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
-        SAFE(fill_dst(prb, dst_dt, dst_fp), WARN);
-
-    const auto sdt = prb->sdt;
-    const auto ddt = prb->ddt;
-    // include ddt in is_signed to avoid mistrusted rounding negative -> 0
-    const bool is_signed = sdt != dnnl_u8 && ddt != dnnl_u8;
-    const bool binary_po_only_positive_vals
-            = is_norm_alg(prb->alg) || !is_signed;
-    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
-    std::vector<int> binary_po_args;
-    SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
-                 binary_po_fp, binary_po_only_positive_vals),
+    dnn_mem_map_t mem_map, ref_mem_map;
+    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
+    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
             WARN);
 
-    args_t args, ref_args;
-
-    args.set(DNNL_ARG_SRC, src_dt);
-    args.set(DNNL_ARG_DST, dst_dt);
-    args.set(binary_po_args, binary_po_dt);
+    args_t args(mem_map), ref_args(ref_mem_map);
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        ref_args.set(DNNL_ARG_SRC, src_fp);
-        ref_args.set(DNNL_ARG_DST, dst_fp);
-        ref_args.set(binary_po_args, binary_po_fp);
-
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 

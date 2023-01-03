@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -909,6 +909,233 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_driver_check_function(rnn_add_check);
 }
 
+std::vector<int> supported_exec_args(dir_t dir) {
+    static const std::vector<int> exec_fwd_args = {
+            DNNL_ARG_SRC_LAYER,
+            DNNL_ARG_AUGRU_ATTENTION,
+            DNNL_ARG_SRC_ITER,
+            DNNL_ARG_SRC_ITER_C,
+            DNNL_ARG_WEIGHTS_LAYER,
+            DNNL_ARG_WEIGHTS_ITER,
+            DNNL_ARG_WEIGHTS_PEEPHOLE,
+            DNNL_ARG_WEIGHTS_PROJECTION,
+            DNNL_ARG_BIAS,
+            DNNL_ARG_DST_LAYER,
+            DNNL_ARG_DST_ITER,
+            DNNL_ARG_DST_ITER_C,
+            DNNL_ARG_WORKSPACE,
+    };
+    static const std::vector<int> exec_bwd_args = {
+            DNNL_ARG_SRC_LAYER,
+            DNNL_ARG_AUGRU_ATTENTION,
+            DNNL_ARG_SRC_ITER,
+            DNNL_ARG_SRC_ITER_C,
+            DNNL_ARG_WEIGHTS_LAYER,
+            DNNL_ARG_WEIGHTS_ITER,
+            DNNL_ARG_WEIGHTS_PEEPHOLE,
+            DNNL_ARG_WEIGHTS_PROJECTION,
+            DNNL_ARG_BIAS,
+            DNNL_ARG_DST_LAYER,
+            DNNL_ARG_DST_ITER,
+            DNNL_ARG_DST_ITER_C,
+            DNNL_ARG_WORKSPACE,
+            DNNL_ARG_DIFF_DST_LAYER,
+            DNNL_ARG_DIFF_DST_ITER,
+            DNNL_ARG_DIFF_DST_ITER_C,
+            DNNL_ARG_DIFF_SRC_LAYER,
+            DNNL_ARG_DIFF_AUGRU_ATTENTION,
+            DNNL_ARG_DIFF_SRC_ITER,
+            DNNL_ARG_DIFF_SRC_ITER_C,
+            DNNL_ARG_DIFF_WEIGHTS_LAYER,
+            DNNL_ARG_DIFF_WEIGHTS_ITER,
+            DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE,
+            DNNL_ARG_DIFF_WEIGHTS_PROJECTION,
+            DNNL_ARG_DIFF_BIAS,
+    };
+    return (dir & FLAG_FWD) ? exec_fwd_args : exec_bwd_args;
+};
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb_, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref) {
+    const auto &prb = *prb_;
+    const auto &test_engine = get_test_engine();
+    const auto &ref_engine = get_cpu_engine();
+
+    auto const_pd = query_pd(prim);
+    // for int8 RNN we need pass attributes for data q10n
+    auto rnn_attr = query_attr(const_pd);
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second; // `mem` is modified by filler (reorder).
+
+        ref_mem_map.emplace(
+                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_SRC_LAYER:
+                SAFE(fill_activation(prb, SRC_LAYER, mem, ref_mem, rnn_attr),
+                        WARN);
+                break;
+            case DNNL_ARG_AUGRU_ATTENTION:
+                SAFE(fill_activation(
+                             prb, AUGRU_ATTENTION, mem, ref_mem, rnn_attr),
+                        WARN);
+                break;
+            case DNNL_ARG_SRC_ITER:
+                SAFE(fill_activation(prb, SRC_ITER, mem, ref_mem, rnn_attr),
+                        WARN);
+                break;
+            case DNNL_ARG_SRC_ITER_C:
+                SAFE(fill_src_iter_c(prb, mem, ref_mem, rnn_attr), WARN);
+                break;
+            case DNNL_ARG_WEIGHTS_LAYER:
+                if (dir & FLAG_FWD) {
+                    SAFE(fill_weights(
+                                 prb, WEIGHTS_LAYER, mem, ref_mem, rnn_attr),
+                            WARN);
+                } else {
+                    // RNN uses a different md on backward. It's required to
+                    // re-create it and reorder from former.
+                    const auto &bwd_md = query_md(const_pd, exec_arg);
+                    dnn_mem_t bwd_mem = dnn_mem_t(bwd_md, test_engine);
+                    if (query_md_ndims(bwd_md) > 0)
+                        SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
+                    mem_map[exec_arg] = std::move(bwd_mem);
+                }
+                break;
+            case DNNL_ARG_WEIGHTS_ITER:
+                if (dir & FLAG_FWD) {
+                    SAFE(fill_weights(
+                                 prb, WEIGHTS_ITER, mem, ref_mem, rnn_attr),
+                            WARN);
+                } else {
+                    // RNN uses a different md on backward. It's required to
+                    // re-create it and reorder from former.
+                    const auto &bwd_md = query_md(const_pd, exec_arg);
+                    dnn_mem_t bwd_mem = dnn_mem_t(bwd_md, test_engine);
+                    if (query_md_ndims(bwd_md) > 0)
+                        SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
+                    mem_map[exec_arg] = std::move(bwd_mem);
+                }
+                break;
+            case DNNL_ARG_WEIGHTS_PEEPHOLE:
+                if (dir & FLAG_FWD)
+                    SAFE(fill_memory(prb, WEIGHTS_PEEPHOLE, mem, ref_mem),
+                            WARN);
+                break;
+            case DNNL_ARG_WEIGHTS_PROJECTION:
+                if (dir & FLAG_FWD) {
+                    SAFE(fill_weights(prb, WEIGHTS_PROJECTION, mem, ref_mem,
+                                 rnn_attr),
+                            WARN);
+                } else {
+                    // RNN uses a different md on backward. It's required to
+                    // re-create it and reorder from former.
+                    const auto &bwd_md = query_md(const_pd, exec_arg);
+                    dnn_mem_t bwd_mem = dnn_mem_t(bwd_md, test_engine);
+                    if (query_md_ndims(bwd_md) > 0)
+                        SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
+                    mem_map[exec_arg] = std::move(bwd_mem);
+                }
+                break;
+            case DNNL_ARG_BIAS:
+                if (dir & FLAG_FWD)
+                    SAFE(fill_memory(prb, BIAS, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DST_LAYER:
+                if (dir & FLAG_FWD)
+                    SAFE(fill_activation(prb, DST_LAYER, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DST_ITER:
+                if (dir & FLAG_FWD)
+                    SAFE(fill_activation(prb, DST_ITER, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DST_ITER_C:
+                if (dir & FLAG_FWD)
+                    SAFE(fill_memory(prb, DST_ITER_C, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_SCRATCHPAD: break;
+            case DNNL_ARG_WORKSPACE: break;
+            case DNNL_ARG_DIFF_SRC_LAYER:
+                SAFE(fill_activation(prb, DIFF_SRC_LAYER, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DIFF_AUGRU_ATTENTION:
+                SAFE(fill_activation(prb, DIFF_AUGRU_ATTENTION, mem, ref_mem),
+                        WARN);
+                break;
+            case DNNL_ARG_DIFF_SRC_ITER:
+                SAFE(fill_activation(prb, DIFF_SRC_ITER, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DIFF_SRC_ITER_C:
+                SAFE(fill_memory(prb, DIFF_SRC_ITER_C, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DIFF_WEIGHTS_LAYER:
+                SAFE(fill_weights(prb, DIFF_WEIGHTS_LAYER, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DIFF_WEIGHTS_ITER:
+                SAFE(fill_weights(prb, DIFF_WEIGHTS_ITER, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE:
+                SAFE(fill_memory(prb, DIFF_WEIGHTS_PEEPHOLE, mem, ref_mem),
+                        WARN);
+                break;
+            case DNNL_ARG_DIFF_WEIGHTS_PROJECTION:
+                SAFE(fill_memory(prb, DIFF_WEIGHTS_PROJECTION, mem, ref_mem),
+                        WARN);
+                break;
+            case DNNL_ARG_DIFF_BIAS:
+                SAFE(fill_bias(prb, DIFF_BIAS, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DIFF_DST_LAYER:
+                SAFE(fill_activation(prb, DIFF_DST_LAYER, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DIFF_DST_ITER:
+                SAFE(fill_activation(prb, DIFF_DST_ITER, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DIFF_DST_ITER_C:
+                SAFE(fill_memory(prb, DIFF_DST_ITER_C, mem, ref_mem), WARN);
+                break;
+            default: break;
+        }
+        // Don't keep reference memory if it is not used further.
+        if (!is_bench_mode(CORR)) ref_mem_map.clear();
+    }
+
+    return OK;
+}
+
+std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
+    std::vector<data_kind_t> check_kinds;
+    if (prb->dir & FLAG_FWD) {
+        check_kinds = {data_kind_t::DST, data_kind_t::DST_ITER};
+        if (prb->alg == VANILLA_LSTM) {
+            check_kinds.push_back(data_kind_t::DST_ITER_C);
+        }
+    } else if (prb->dir & FLAG_BWD) {
+        check_kinds = {data_kind_t::DST, data_kind_t::DST_ITER,
+                data_kind_t::SRC, data_kind_t::SRC_ITER, data_kind_t::WEI,
+                data_kind_t::WEI_ITER, data_kind_t::BIA};
+        if (prb->alg == VANILLA_LSTM) {
+            check_kinds.push_back(data_kind_t::DST_ITER_C);
+            check_kinds.push_back(data_kind_t::SRC_ITER_C);
+        }
+        if (prb->alg == VANILLA_AUGRU || prb->alg == LBR_AUGRU)
+            check_kinds.push_back(data_kind_t::AUGRU_ATTENTION);
+        if (prb->is_lstm_peephole())
+            check_kinds.push_back(data_kind_t::WEI_PEEPHOLE);
+        if (prb->is_lstm_projection())
+            check_kinds.push_back(data_kind_t::WEI_PROJECTION);
+    } else {
+        assert(!"unexpected!");
+        SAFE_V(FAIL);
+    }
+    assert(check_kinds.size() > 0);
+    return check_kinds;
+}
+
 int doit(const prb_t &prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -920,362 +1147,46 @@ int doit(const prb_t &prb, res_t *res) {
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     if (!is_service_prim && is_bench_mode(INIT)) return OK;
 
-    auto const_fpd = query_pd(prim);
-
-    const auto &src_layer_md = query_md(const_fpd, DNNL_ARG_SRC_LAYER);
-    const auto &src_layer_attention_md
-            = query_md(const_fpd, DNNL_ARG_AUGRU_ATTENTION);
-    const auto &src_iter_md = query_md(const_fpd, DNNL_ARG_SRC_ITER);
-    const auto &src_iter_c_md = query_md(const_fpd, DNNL_ARG_SRC_ITER_C);
-    const auto &weights_layer_md = query_md(const_fpd, DNNL_ARG_WEIGHTS_LAYER);
-    const auto &weights_iter_md = query_md(const_fpd, DNNL_ARG_WEIGHTS_ITER);
-    const auto &weights_peephole_md
-            = query_md(const_fpd, DNNL_ARG_WEIGHTS_PEEPHOLE);
-    const auto &weights_projection_md
-            = query_md(const_fpd, DNNL_ARG_WEIGHTS_PROJECTION);
-    const auto &bias_md = query_md(const_fpd, DNNL_ARG_BIAS);
-    const auto &dst_layer_md = query_md(const_fpd, DNNL_ARG_DST_LAYER);
-    const auto &dst_iter_md = query_md(const_fpd, DNNL_ARG_DST_ITER);
-    const auto &dst_iter_c_md = query_md(const_fpd, DNNL_ARG_DST_ITER_C);
-    const auto &workspace_md = query_md(const_fpd, DNNL_ARG_WORKSPACE);
-    const auto &scratchpad_md = query_md(const_fpd, DNNL_ARG_SCRATCHPAD);
-
-    const auto &test_engine = get_test_engine();
-    const auto &ref_engine = get_cpu_engine();
-
-    dnn_mem_t src_layer_dt(src_layer_md, test_engine);
-    dnn_mem_t src_layer_attention_dt(src_layer_attention_md, test_engine);
-    dnn_mem_t src_iter_dt(src_iter_md, test_engine);
-    dnn_mem_t src_iter_c_dt(src_iter_c_md, test_engine);
-    dnn_mem_t weights_layer_dt(weights_layer_md, test_engine);
-    dnn_mem_t weights_iter_dt(weights_iter_md, test_engine);
-    dnn_mem_t weights_peephole_dt(weights_peephole_md, test_engine);
-    dnn_mem_t weights_projection_dt(weights_projection_md, test_engine);
-    dnn_mem_t bias_dt(bias_md, test_engine);
-    dnn_mem_t dst_layer_dt(dst_layer_md, test_engine);
-    dnn_mem_t dst_iter_dt(dst_iter_md, test_engine);
-    dnn_mem_t dst_iter_c_dt(dst_iter_c_md, test_engine);
-    dnn_mem_t workspace_dt(workspace_md, test_engine);
-    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
-
-    dnn_mem_t src_layer_fp(
-            src_layer_md, dnnl_f32, tag::abx /*tnc*/, ref_engine);
-    dnn_mem_t src_layer_attention_fp(
-            src_layer_attention_md, dnnl_f32, tag::abx /*tnc*/, ref_engine);
-    dnn_mem_t src_iter_fp(src_iter_md, dnnl_f32, tag::abx /*ldnc*/, ref_engine);
-    dnn_mem_t src_iter_c_fp(
-            src_iter_c_md, dnnl_f32, tag::abx /*ldnc*/, ref_engine);
-    dnn_mem_t weights_layer_fp(
-            weights_layer_md, dnnl_f32, tag::abx /*ldigo*/, ref_engine);
-    dnn_mem_t weights_iter_fp(
-            weights_iter_md, dnnl_f32, tag::abx /*ldigo*/, ref_engine);
-    dnn_mem_t weights_peephole_fp(
-            weights_peephole_md, dnnl_f32, tag::abx /*ldgo*/, ref_engine);
-    dnn_mem_t weights_projection_fp(
-            weights_projection_md, dnnl_f32, tag::abx /*ldio*/, ref_engine);
-    dnn_mem_t bias_fp(bias_md, dnnl_f32, tag::abx /*ldgo*/, ref_engine);
-    dnn_mem_t dst_layer_fp(
-            dst_layer_md, dnnl_f32, tag::abx /*tnc*/, ref_engine);
-    dnn_mem_t dst_iter_fp(dst_iter_md, dnnl_f32, tag::abx /*ldnc*/, ref_engine);
-    dnn_mem_t dst_iter_c_fp(
-            dst_iter_c_md, dnnl_f32, tag::abx /*ldnc*/, ref_engine);
-
-    dnn_mem_t bwd_weights_layer_dt;
-    dnn_mem_t bwd_weights_iter_dt;
-    dnn_mem_t bwd_weights_projection_dt;
-    dnn_mem_t diff_src_layer_dt;
-    dnn_mem_t diff_src_layer_attention_dt;
-    dnn_mem_t diff_src_iter_dt;
-    dnn_mem_t diff_src_iter_c_dt;
-    dnn_mem_t diff_weights_layer_dt;
-    dnn_mem_t diff_weights_iter_dt;
-    dnn_mem_t diff_weights_peephole_dt;
-    dnn_mem_t diff_weights_projection_dt;
-    dnn_mem_t diff_bias_dt;
-    dnn_mem_t diff_dst_layer_dt;
-    dnn_mem_t diff_dst_iter_dt;
-    dnn_mem_t diff_dst_iter_c_dt;
-
-    // for int8 RNN we need pass attributes for data q10n
-    auto rnn_attr = query_attr(const_fpd);
-    SAFE(fill_activation(prb, SRC_LAYER, src_layer_dt, src_layer_fp, rnn_attr),
+    dnn_mem_map_t mem_map, ref_mem_map;
+    init_memory_args<prb_t>(mem_map, &prb, prim, supported_exec_args(FLAG_FWD));
+    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, &prb, res, FLAG_FWD),
             WARN);
-    if (prb.alg == VANILLA_AUGRU || prb.alg == LBR_AUGRU)
-        SAFE(fill_activation(prb, AUGRU_ATTENTION, src_layer_attention_dt,
-                     src_layer_attention_fp, rnn_attr),
-                WARN);
-    SAFE(fill_activation(prb, SRC_ITER, src_iter_dt, src_iter_fp, rnn_attr),
-            WARN);
-    if (prb.alg == VANILLA_LSTM)
-        SAFE(fill_src_iter_c(prb, src_iter_c_dt, src_iter_c_fp, rnn_attr),
-                WARN);
-    SAFE(fill_weights(prb, WEIGHTS_LAYER, weights_layer_dt, weights_layer_fp,
-                 rnn_attr),
-            WARN);
-    SAFE(fill_weights(
-                 prb, WEIGHTS_ITER, weights_iter_dt, weights_iter_fp, rnn_attr),
-            WARN);
-    SAFE(fill_memory(prb, WEIGHTS_PEEPHOLE, weights_peephole_dt,
-                 weights_peephole_fp),
-            WARN);
-    SAFE(fill_weights(prb, WEIGHTS_PROJECTION, weights_projection_dt,
-                 weights_projection_fp, rnn_attr),
-            WARN);
-    SAFE(fill_memory(prb, BIAS, bias_dt, bias_fp), WARN);
-    SAFE(fill_activation(prb, DST_LAYER, dst_layer_dt, dst_layer_fp), WARN);
-    SAFE(fill_activation(prb, DST_ITER, dst_iter_dt, dst_iter_fp), WARN);
-    if (prb.alg == VANILLA_LSTM)
-        SAFE(fill_memory(prb, DST_ITER_C, dst_iter_c_dt, dst_iter_c_fp), WARN);
 
-    args_t args, ref_args;
-
-    // Running the forward pass
-    args.set(DNNL_ARG_SRC_LAYER, src_layer_dt);
-    args.set(DNNL_ARG_AUGRU_ATTENTION, src_layer_attention_dt);
-    args.set(DNNL_ARG_SRC_ITER, src_iter_dt);
-    args.set(DNNL_ARG_SRC_ITER_C, src_iter_c_dt);
-    args.set(DNNL_ARG_WEIGHTS_LAYER, weights_layer_dt);
-    args.set(DNNL_ARG_WEIGHTS_ITER, weights_iter_dt);
-    args.set(DNNL_ARG_WEIGHTS_PEEPHOLE, weights_peephole_dt);
-    args.set(DNNL_ARG_WEIGHTS_PROJECTION, weights_projection_dt);
-    args.set(DNNL_ARG_BIAS, bias_dt);
-    args.set(DNNL_ARG_DST_LAYER, dst_layer_dt);
-    args.set(DNNL_ARG_DST_ITER, dst_iter_dt);
-    args.set(DNNL_ARG_DST_ITER_C, dst_iter_c_dt);
-    args.set(DNNL_ARG_WORKSPACE, workspace_dt);
-    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+    args_t args(mem_map), ref_args(ref_mem_map);
 
     if (!is_bench_mode(INIT)) SAFE(execute_and_wait(prim, args, res), WARN);
 
-    if (prb.prop != dnnl_backward) {
-        if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_SRC_LAYER, src_layer_fp);
-            ref_args.set(DNNL_ARG_AUGRU_ATTENTION, src_layer_attention_fp);
-            ref_args.set(DNNL_ARG_SRC_ITER, src_iter_fp);
-            ref_args.set(DNNL_ARG_SRC_ITER_C, src_iter_c_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS_LAYER, weights_layer_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS_ITER, weights_iter_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS_PEEPHOLE, weights_peephole_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS_PROJECTION, weights_projection_fp);
-            ref_args.set(DNNL_ARG_BIAS, bias_fp);
-            ref_args.set(DNNL_ARG_DST_LAYER, dst_layer_fp);
-            ref_args.set(DNNL_ARG_DST_ITER, dst_iter_fp);
-            ref_args.set(DNNL_ARG_DST_ITER_C, dst_iter_c_fp);
-
-            std::vector<data_kind_t> kinds {
-                    data_kind_t::DST, data_kind_t::DST_ITER};
-            if (prb.alg == VANILLA_LSTM) {
-                kinds.push_back(data_kind_t::DST_ITER_C);
-            }
-
-            check_correctness(&prb, kinds, args, ref_args, setup_cmp, res);
+    if (is_bench_mode(CORR)) {
+        if (prb.prop != dnnl_backward) {
+            check_correctness(&prb, get_kinds_to_check(&prb), args, ref_args,
+                    setup_cmp, res);
         }
-    } else {
+    }
+
+    if (prb.prop == dnnl_backward) {
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
-        SAFE(init_prim(tmp_prim, init_pd, &prb, res, FLAG_BWD), WARN);
+        SAFE(init_prim(prb.ctx_init, tmp_prim, init_pd, &prb, res, FLAG_BWD),
+                WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
         if (is_bench_mode(INIT)) return OK;
         prim.reset(tmp_prim.release());
 
-        auto const_bpd = query_pd(prim);
-
-        const auto &bwd_weights_layer_md
-                = query_md(const_bpd, DNNL_ARG_WEIGHTS_LAYER);
-        const auto &bwd_weights_iter_md
-                = query_md(const_bpd, DNNL_ARG_WEIGHTS_ITER);
-        const auto &bwd_weights_projection_md
-                = query_md(const_bpd, DNNL_ARG_WEIGHTS_PROJECTION);
-        const auto &diff_src_layer_md
-                = query_md(const_bpd, DNNL_ARG_DIFF_SRC_LAYER);
-        const auto &diff_src_layer_attention_md
-                = query_md(const_bpd, DNNL_ARG_DIFF_AUGRU_ATTENTION);
-        const auto &diff_src_iter_md
-                = query_md(const_bpd, DNNL_ARG_DIFF_SRC_ITER);
-        const auto &diff_src_iter_c_md
-                = query_md(const_bpd, DNNL_ARG_DIFF_SRC_ITER_C);
-        const auto &diff_weights_layer_md
-                = query_md(const_bpd, DNNL_ARG_DIFF_WEIGHTS_LAYER);
-        const auto &diff_weights_iter_md
-                = query_md(const_bpd, DNNL_ARG_DIFF_WEIGHTS_ITER);
-        const auto &diff_weights_peephole_md
-                = query_md(const_bpd, DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE);
-        const auto &diff_weights_projection_md
-                = query_md(const_bpd, DNNL_ARG_DIFF_WEIGHTS_PROJECTION);
-        const auto &diff_bias_md = query_md(const_bpd, DNNL_ARG_DIFF_BIAS);
-        const auto &diff_dst_layer_md
-                = query_md(const_bpd, DNNL_ARG_DIFF_DST_LAYER);
-        const auto &diff_dst_iter_md
-                = query_md(const_bpd, DNNL_ARG_DIFF_DST_ITER);
-        const auto &diff_dst_iter_c_md
-                = query_md(const_bpd, DNNL_ARG_DIFF_DST_ITER_C);
-        const auto &bwd_scratchpad_md
-                = query_md(const_bpd, DNNL_ARG_SCRATCHPAD);
-
-        bwd_weights_layer_dt = dnn_mem_t(bwd_weights_layer_md, test_engine);
-        bwd_weights_iter_dt = dnn_mem_t(bwd_weights_iter_md, test_engine);
-        bwd_weights_projection_dt
-                = dnn_mem_t(bwd_weights_projection_md, test_engine);
-        diff_src_layer_dt = dnn_mem_t(diff_src_layer_md, test_engine);
-        diff_src_layer_attention_dt
-                = dnn_mem_t(diff_src_layer_attention_md, test_engine);
-        diff_src_iter_dt = dnn_mem_t(diff_src_iter_md, test_engine);
-        diff_src_iter_c_dt = dnn_mem_t(diff_src_iter_c_md, test_engine);
-        diff_weights_layer_dt = dnn_mem_t(diff_weights_layer_md, test_engine);
-        diff_weights_iter_dt = dnn_mem_t(diff_weights_iter_md, test_engine);
-        diff_weights_peephole_dt
-                = dnn_mem_t(diff_weights_peephole_md, test_engine);
-        diff_weights_projection_dt
-                = dnn_mem_t(diff_weights_projection_md, test_engine);
-        diff_bias_dt = dnn_mem_t(diff_bias_md, test_engine);
-        diff_dst_layer_dt = dnn_mem_t(diff_dst_layer_md, test_engine);
-        diff_dst_iter_dt = dnn_mem_t(diff_dst_iter_md, test_engine);
-        diff_dst_iter_c_dt = dnn_mem_t(diff_dst_iter_c_md, test_engine);
-        scratchpad_dt = dnn_mem_t(bwd_scratchpad_md, test_engine);
-
-        dnn_mem_t diff_src_layer_fp(
-                diff_src_layer_md, dnnl_f32, tag::abx /*tnc*/, ref_engine);
-        dnn_mem_t diff_src_layer_attention_fp(diff_src_layer_attention_md,
-                dnnl_f32, tag::abx /*tnc*/, ref_engine);
-        dnn_mem_t diff_src_iter_fp(
-                diff_src_iter_md, dnnl_f32, tag::abx /*ldnc*/, ref_engine);
-        dnn_mem_t diff_src_iter_c_fp(
-                diff_src_iter_c_md, dnnl_f32, tag::abx /*ldnc*/, ref_engine);
-        dnn_mem_t diff_weights_layer_fp(diff_weights_layer_md, dnnl_f32,
-                tag::abx /*ldigo*/, ref_engine);
-        dnn_mem_t diff_weights_iter_fp(
-                diff_weights_iter_md, dnnl_f32, tag::abx /*ldigo*/, ref_engine);
-        dnn_mem_t diff_weights_peephole_fp(diff_weights_peephole_md, dnnl_f32,
-                tag::abx /*ldgo*/, ref_engine);
-        dnn_mem_t diff_weights_projection_fp(diff_weights_projection_md,
-                dnnl_f32, tag::abx /*ldio*/, ref_engine);
-        dnn_mem_t diff_bias_fp(
-                diff_bias_md, dnnl_f32, tag::abx /*ldgo*/, ref_engine);
-        dnn_mem_t diff_dst_layer_fp(
-                diff_dst_layer_md, dnnl_f32, tag::abx /*tnc*/, ref_engine);
-        dnn_mem_t diff_dst_iter_fp(
-                diff_dst_iter_md, dnnl_f32, tag::abx /*ldnc*/, ref_engine);
-        dnn_mem_t diff_dst_iter_c_fp(
-                diff_dst_iter_c_md, dnnl_f32, tag::abx /*ldnc*/, ref_engine);
-
-        SAFE(bwd_weights_iter_dt.reorder(weights_iter_dt), WARN);
-        SAFE(bwd_weights_layer_dt.reorder(weights_layer_dt), WARN);
-        if (prb.is_lstm_projection())
-            SAFE(bwd_weights_projection_dt.reorder(weights_projection_dt),
-                    WARN);
-        SAFE(fill_activation(
-                     prb, DIFF_SRC_LAYER, diff_src_layer_dt, diff_src_layer_fp),
+        // Pass same memory map as we need data from forward on backward.
+        init_memory_args<prb_t>(
+                mem_map, &prb, prim, supported_exec_args(FLAG_BWD));
+        SAFE(init_ref_memory_args(
+                     ref_mem_map, mem_map, prim, &prb, res, FLAG_BWD),
                 WARN);
-        if (prb.alg == VANILLA_AUGRU || prb.alg == LBR_AUGRU)
-            SAFE(fill_activation(prb, DIFF_AUGRU_ATTENTION,
-                         diff_src_layer_attention_dt,
-                         diff_src_layer_attention_fp),
-                    WARN);
-        SAFE(fill_activation(
-                     prb, DIFF_SRC_ITER, diff_src_iter_dt, diff_src_iter_fp),
-                WARN);
-        if (prb.alg == VANILLA_LSTM)
-            SAFE(fill_memory(prb, DIFF_SRC_ITER_C, diff_src_iter_c_dt,
-                         diff_src_iter_c_fp),
-                    WARN);
-        SAFE(fill_weights(prb, DIFF_WEIGHTS_LAYER, diff_weights_layer_dt,
-                     diff_weights_layer_fp),
-                WARN);
-        SAFE(fill_weights(prb, DIFF_WEIGHTS_ITER, diff_weights_iter_dt,
-                     diff_weights_iter_fp),
-                WARN);
-        SAFE(fill_memory(prb, DIFF_WEIGHTS_PEEPHOLE, diff_weights_peephole_dt,
-                     diff_weights_peephole_fp),
-                WARN);
-        SAFE(fill_memory(prb, DIFF_WEIGHTS_PROJECTION,
-                     diff_weights_projection_dt, diff_weights_projection_fp),
-                WARN);
-        SAFE(fill_bias(prb, DIFF_BIAS, diff_bias_dt, diff_bias_fp), WARN);
-        SAFE(fill_activation(
-                     prb, DIFF_DST_LAYER, diff_dst_layer_dt, diff_dst_layer_fp),
-                WARN);
-        SAFE(fill_activation(
-                     prb, DIFF_DST_ITER, diff_dst_iter_dt, diff_dst_iter_fp),
-                WARN);
-        if (prb.alg == VANILLA_LSTM)
-            SAFE(fill_memory(prb, DIFF_DST_ITER_C, diff_dst_iter_c_dt,
-                         diff_dst_iter_c_fp),
-                    WARN);
 
         args.clear();
-        args.set(DNNL_ARG_SRC_LAYER, src_layer_dt);
-        args.set(DNNL_ARG_AUGRU_ATTENTION, src_layer_attention_dt);
-        args.set(DNNL_ARG_SRC_ITER, src_iter_dt);
-        args.set(DNNL_ARG_SRC_ITER_C, src_iter_c_dt);
-        args.set(DNNL_ARG_WEIGHTS_LAYER, bwd_weights_layer_dt);
-        args.set(DNNL_ARG_WEIGHTS_ITER, bwd_weights_iter_dt);
-        args.set(DNNL_ARG_WEIGHTS_PEEPHOLE, weights_peephole_dt);
-        args.set(DNNL_ARG_WEIGHTS_PROJECTION, bwd_weights_projection_dt);
-        args.set(DNNL_ARG_BIAS, bias_dt);
-        args.set(DNNL_ARG_DST_LAYER, dst_layer_dt);
-        args.set(DNNL_ARG_DST_ITER, dst_iter_dt);
-        args.set(DNNL_ARG_DST_ITER_C, dst_iter_c_dt);
-        args.set(DNNL_ARG_DIFF_DST_LAYER, diff_dst_layer_dt);
-        args.set(DNNL_ARG_DIFF_DST_ITER, diff_dst_iter_dt);
-        args.set(DNNL_ARG_DIFF_DST_ITER_C, diff_dst_iter_c_dt);
-        args.set(DNNL_ARG_WORKSPACE, workspace_dt);
-        args.set(DNNL_ARG_DIFF_SRC_LAYER, diff_src_layer_dt);
-        args.set(DNNL_ARG_DIFF_AUGRU_ATTENTION, diff_src_layer_attention_dt);
-        args.set(DNNL_ARG_DIFF_SRC_ITER, diff_src_iter_dt);
-        args.set(DNNL_ARG_DIFF_SRC_ITER_C, diff_src_iter_c_dt);
-        args.set(DNNL_ARG_DIFF_WEIGHTS_LAYER, diff_weights_layer_dt);
-        args.set(DNNL_ARG_DIFF_WEIGHTS_ITER, diff_weights_iter_dt);
-        args.set(DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE, diff_weights_peephole_dt);
-        args.set(DNNL_ARG_DIFF_WEIGHTS_PROJECTION, diff_weights_projection_dt);
-        args.set(DNNL_ARG_DIFF_BIAS, diff_bias_dt);
-        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+        ref_args.clear();
+        args_t args(mem_map), ref_args(ref_mem_map);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_SRC_LAYER, src_layer_fp);
-            ref_args.set(DNNL_ARG_AUGRU_ATTENTION, src_layer_attention_fp);
-            ref_args.set(DNNL_ARG_SRC_ITER, src_iter_fp);
-            ref_args.set(DNNL_ARG_SRC_ITER_C, src_iter_c_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS_LAYER, weights_layer_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS_ITER, weights_iter_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS_PEEPHOLE, weights_peephole_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS_PROJECTION, weights_projection_fp);
-            ref_args.set(DNNL_ARG_BIAS, bias_fp);
-            ref_args.set(DNNL_ARG_DST_LAYER, dst_layer_fp);
-            ref_args.set(DNNL_ARG_DST_ITER, dst_iter_fp);
-            ref_args.set(DNNL_ARG_DST_ITER_C, dst_iter_c_fp);
-            ref_args.set(DNNL_ARG_DIFF_DST_LAYER, diff_dst_layer_fp);
-            ref_args.set(DNNL_ARG_DIFF_DST_ITER, diff_dst_iter_fp);
-            ref_args.set(DNNL_ARG_DIFF_DST_ITER_C, diff_dst_iter_c_fp);
-            ref_args.set(DNNL_ARG_DIFF_SRC_LAYER, diff_src_layer_fp);
-            ref_args.set(
-                    DNNL_ARG_DIFF_AUGRU_ATTENTION, diff_src_layer_attention_fp);
-            ref_args.set(DNNL_ARG_DIFF_SRC_ITER, diff_src_iter_fp);
-            ref_args.set(DNNL_ARG_DIFF_SRC_ITER_C, diff_src_iter_c_fp);
-            ref_args.set(DNNL_ARG_DIFF_WEIGHTS_LAYER, diff_weights_layer_fp);
-            ref_args.set(DNNL_ARG_DIFF_WEIGHTS_ITER, diff_weights_iter_fp);
-            ref_args.set(
-                    DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE, diff_weights_peephole_fp);
-            ref_args.set(DNNL_ARG_DIFF_WEIGHTS_PROJECTION,
-                    diff_weights_projection_fp);
-            ref_args.set(DNNL_ARG_DIFF_BIAS, diff_bias_fp);
-
-            std::vector<data_kind_t> kinds {data_kind_t::DST,
-                    data_kind_t::DST_ITER, data_kind_t::SRC,
-                    data_kind_t::SRC_ITER, data_kind_t::WEI,
-                    data_kind_t::WEI_ITER, data_kind_t::BIA};
-            if (prb.alg == VANILLA_LSTM) {
-                kinds.push_back(data_kind_t::DST_ITER_C);
-                kinds.push_back(data_kind_t::SRC_ITER_C);
-            }
-            if (prb.alg == VANILLA_AUGRU || prb.alg == LBR_AUGRU)
-                kinds.push_back(data_kind_t::AUGRU_ATTENTION);
-            if (prb.is_lstm_peephole())
-                kinds.push_back(data_kind_t::WEI_PEEPHOLE);
-            if (prb.is_lstm_projection())
-                kinds.push_back(data_kind_t::WEI_PROJECTION);
-
-            check_correctness(&prb, kinds, args, ref_args, setup_cmp, res);
+            check_correctness(&prb, get_kinds_to_check(&prb), args, ref_args,
+                    setup_cmp, res);
         }
     }
 

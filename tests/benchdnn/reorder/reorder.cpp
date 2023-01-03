@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,12 +68,27 @@ int fill_mem(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
-int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
-        dnn_mem_t &mem_zp_comp_ref, dnn_mem_t &mem_got, res_t *res) {
+dnn_mem_t setup_compensation_memory(const prb_t *prb, flag_bit_t flag) {
+    dnn_mem_t m;
+    if (prb->is_reorder_with_compensation(flag)) {
+        dims_t dims = prb->get_compensation_dims(flag);
+        int ndims = static_cast<int>(dims.size());
+        auto md = dnn_mem_t::init_md(ndims, dims.data(), dnnl_s32, tag::abx);
+        m = dnn_mem_t(md, get_cpu_engine());
+    }
+    return m;
+};
+
+int compare_compensation(const prb_t *prb, dnn_mem_map_t &mem_map,
+        dnn_mem_map_t &ref_mem_map, res_t *res) {
     // Note: following check relies on certain assumptions on CPU. These
     // assumptions may not hold for GPU. In addition, it's prohibit to work
     // with raw pointers directly for buffer type of memory.
     if (!is_cpu(get_test_engine())) return FAIL;
+
+    const auto &mem_got = mem_map[DNNL_ARG_DST];
+    const auto &mem_s8_comp_ref = ref_mem_map[DNNL_ARG_SRC_1];
+    const auto &mem_zp_comp_ref = ref_mem_map[DNNL_ARG_SRC_2];
 
     const auto padded_nelems = mem_got.nelems(true);
     // Note: internally offset is aligned on 4, otherwise it's UB.
@@ -329,6 +344,78 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_driver_check_function(reorder_add_check);
 }
 
+std::vector<int> supported_exec_args(dir_t dir) {
+    static const std::vector<int> exec_args = {
+            DNNL_ARG_FROM,
+            DNNL_ARG_TO,
+    };
+    return exec_args;
+};
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref) {
+    const auto &ref_engine = get_cpu_engine();
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second; // `mem` is modified by filler (reorder).
+
+        ref_mem_map.emplace(
+                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_FROM: {
+                SAFE(fill_mem(prb, SRC, mem, ref_mem), WARN);
+                // Additional inputs to compare compensation buffers.
+                ref_mem_map.emplace(DNNL_ARG_SRC_1,
+                        setup_compensation_memory(prb, FLAG_S8S8_COMP));
+                ref_mem_map.emplace(DNNL_ARG_SRC_2,
+                        setup_compensation_memory(prb, FLAG_ZP_COMP));
+            } break;
+            case DNNL_ARG_TO: {
+                const auto &po = prb->attr.post_ops;
+                const int sum_idx = po.find(attr_t::post_ops_t::SUM);
+                if (sum_idx >= 0) {
+                    SAFE(fill_mem(prb, DST, mem, ref_mem), WARN);
+                }
+            } break;
+            case DNNL_ARG_SCRATCHPAD: break;
+            default: { // Process all attributes here
+                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
+                bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
+
+                if (is_scales_arg) {
+                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
+                    float *prb_ptr = nullptr;
+                    switch (local_exec_arg) {
+                        case DNNL_ARG_SRC: prb_ptr = prb->src_scales; break;
+                        case DNNL_ARG_DST: prb_ptr = prb->dst_scales; break;
+                        default: break;
+                    }
+                    // Fill library scales directly.
+                    for (int64_t idx = 0; idx < mem.nelems(); ++idx)
+                        mem.set_elem(idx, prb_ptr[idx]);
+                } else if (is_zero_point_arg) {
+                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
+                    const auto *prb_ptr = (local_exec_arg == DNNL_ARG_SRC)
+                            ? prb->src_zp
+                            : (local_exec_arg == DNNL_ARG_DST) ? prb->dst_zp
+                                                               : nullptr;
+                    // Fill library zero points directly.
+                    for (int64_t idx = 0; idx < mem.nelems(); ++idx)
+                        mem.set_elem(idx, prb_ptr[idx]);
+                }
+            } break;
+        }
+        // Don't keep reference memory if it is not used further.
+        if (!is_bench_mode(CORR)) ref_mem_map.clear();
+    }
+
+    return OK;
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -337,94 +424,19 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     if (is_bench_mode(INIT)) return OK;
 
-    auto const_pd = query_pd(prim);
+    dnn_mem_map_t mem_map, ref_mem_map;
+    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
+    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
+            WARN);
 
-    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> src_md {}, dst_md {};
-    if (prb->runtime_dim_mask != 0) {
-        // re-create memory descriptors with defined dims
-        src_md = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->sdt, prb->stag);
-        dst_md = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->ddt, prb->dtag);
-    } else {
-        src_md = clone_md(query_md(const_pd, DNNL_ARG_SRC));
-        dst_md = clone_md(query_md(const_pd, DNNL_ARG_DST));
-    }
-    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-
-    dnnl_engine_t src_engine
-            = query_engine(const_pd, dnnl_query_reorder_src_engine);
-    dnnl_engine_t dst_engine
-            = query_engine(const_pd, dnnl_query_reorder_dst_engine);
-    const auto &ref_engine = get_cpu_engine();
-
-    dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, ref_engine);
-    dnn_mem_t src_dt(src_md, src_engine);
-
-    dnn_mem_t scratchpad_dt(scratchpad_md, src_engine);
-
-    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
-    dnn_mem_t dst_dt(dst_md, dst_engine);
-
-    SAFE(fill_mem(prb, SRC, src_dt, src_fp), WARN);
-
-    const bool has_sum
-            = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0;
-    if (has_sum) { SAFE(fill_mem(prb, DST, dst_dt, dst_fp), WARN); }
-
-    const int src_mask = attr_t::get_default_mask(
-            prb->attr.scales.get(DNNL_ARG_SRC).policy);
-    const int dst_mask = attr_t::get_default_mask(
-            prb->attr.scales.get(DNNL_ARG_DST).policy);
-    dnn_mem_t src_scales, dst_scales;
-    dnn_mem_t src_zero_points_m, dst_zero_points_m;
-
-    maybe_prepare_runtime_scales(src_scales, prb->attr.scales.get(DNNL_ARG_SRC),
-            prb->nelems(src_mask), prb->src_scales);
-    maybe_prepare_runtime_scales(dst_scales, prb->attr.scales.get(DNNL_ARG_DST),
-            prb->nelems(dst_mask), prb->dst_scales);
-    maybe_prepare_runtime_zero_points(
-            src_zero_points_m, prb->attr, DNNL_ARG_SRC, 1, prb->src_zp);
-    maybe_prepare_runtime_zero_points(
-            dst_zero_points_m, prb->attr, DNNL_ARG_DST, 1, prb->dst_zp);
-
-    args_t args, ref_args;
-
-    args.set(DNNL_ARG_FROM, src_dt);
-    args.set(DNNL_ARG_TO, dst_dt);
-    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-    args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales);
-    args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales);
-    args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
-    args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
+    args_t args(mem_map), ref_args(ref_mem_map);
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        const auto assign_comp_mem = [&](dnn_mem_t &m, flag_bit_t flag) {
-            if (prb->is_reorder_with_compensation(flag)) {
-                dims_t dims = prb->get_compensation_dims(flag);
-                int ndims = static_cast<int>(dims.size());
-                auto md = dnn_mem_t::init_md(
-                        ndims, dims.data(), dnnl_s32, tag::abx);
-                m = dnn_mem_t(md, ref_engine);
-            }
-            return OK;
-        };
-
-        dnn_mem_t dst_s8_comp_ref, dst_zp_comp_ref;
-        assign_comp_mem(dst_s8_comp_ref, FLAG_S8S8_COMP);
-        assign_comp_mem(dst_zp_comp_ref, FLAG_ZP_COMP);
-
-        ref_args.set(DNNL_ARG_FROM, src_fp);
-        ref_args.set(DNNL_ARG_TO, dst_fp);
-        ref_args.set(DNNL_ARG_SRC_1, dst_s8_comp_ref); // Additional input
-        ref_args.set(DNNL_ARG_SRC_2, dst_zp_comp_ref); // Additional input
-        ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales);
-        ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales);
-
         // Remove extra desc so that reorders with compensation could have
         // proper reorder from blocked layout to plain for comparison.
+        auto &dst_dt = mem_map[DNNL_ARG_DST];
         dnnl::impl::memory_extra_desc_t empty_extra {};
         const auto orig_dst_extra = dst_dt.md_->extra;
         dst_dt.md_->extra = empty_extra;
@@ -437,8 +449,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         // Validate compensated reorder part.
         if (prb->is_reorder_with_compensation(FLAG_ANY)) {
-            compare_compensation(
-                    prb, dst_s8_comp_ref, dst_zp_comp_ref, dst_dt, res);
+            compare_compensation(prb, mem_map, ref_mem_map, res);
         }
     }
 

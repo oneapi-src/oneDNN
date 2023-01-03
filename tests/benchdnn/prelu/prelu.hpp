@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,12 +107,15 @@ private:
     std::vector<std::string> stag_;
 };
 
-int setup_prelu_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
-        std::vector<dnn_mem_t> &ref_mem, std::vector<dnn_mem_t> &prim_mem);
+int fill_data(data_kind_t kind, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp);
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args);
+std::vector<int> supported_exec_args(dir_t dir);
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref = nullptr);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);

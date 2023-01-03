@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -135,6 +135,10 @@ float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd = true);
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args);
+std::vector<int> supported_exec_args(dir_t dir);
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref = nullptr);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);

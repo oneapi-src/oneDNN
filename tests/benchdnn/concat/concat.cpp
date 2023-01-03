@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -125,6 +125,48 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {}
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {}
 
+std::vector<int> supported_exec_args(dir_t dir) {
+    static const std::vector<int> exec_args = {
+            DNNL_ARG_MULTIPLE_SRC,
+            DNNL_ARG_DST,
+    };
+    return exec_args;
+};
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref) {
+    const auto &ref_engine = get_cpu_engine();
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second; // `mem` is modified by filler (reorder).
+
+        ref_mem_map.emplace(
+                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_SCRATCHPAD: break;
+            default:
+                bool is_src_arg = (exec_arg & DNNL_ARG_MULTIPLE_SRC);
+                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
+                if (is_src_arg && !is_scales_arg) {
+                    SAFE(fill_src(exec_arg, prb->ddt, mem, ref_mem), WARN);
+                } else if (is_scales_arg) {
+                    int exec_src_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
+                    // Leave hard coded until supported mask is 0 only.
+                    mem.set_elem(0, prb->attr.scales.get(exec_src_arg).scale);
+                }
+                break;
+        }
+        // Don't keep reference memory if it is not used further.
+        if (!is_bench_mode(CORR)) ref_mem_map.clear();
+    }
+
+    return OK;
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -133,51 +175,16 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     if (is_bench_mode(INIT)) return OK;
 
-    auto const_pd = query_pd(prim);
+    dnn_mem_map_t mem_map, ref_mem_map;
+    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
+    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
+            WARN);
 
-    const auto &test_engine = get_test_engine();
-    const auto &ref_engine = get_cpu_engine();
-    const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
-    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-
-    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
-    dnn_mem_t dst_dt(dst_md, test_engine);
-    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
-
-    args_t args, ref_args;
-
-    args.set(DNNL_ARG_DST, dst_dt);
-    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-
-    std::vector<dnn_mem_t> src_fp, src_dt, scales;
-    src_fp.reserve(prb->n_inputs());
-    src_dt.reserve(prb->n_inputs());
-    scales.resize(prb->n_inputs());
-
-    for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
-        const auto &src_md
-                = query_md(const_pd, DNNL_ARG_MULTIPLE_SRC + i_input);
-        src_fp.emplace_back(src_md, dnnl_f32, tag::abx, ref_engine);
-        src_dt.emplace_back(src_md, test_engine);
-        SAFE(fill_src(i_input, dst_dt.dt(), src_dt[i_input], src_fp[i_input]),
-                WARN);
-        args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
-        if (is_bench_mode(CORR))
-            ref_args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_fp[i_input]);
-
-        // scales
-        const auto &sc = prb->attr.scales.get(DNNL_ARG_MULTIPLE_SRC + i_input);
-        float scale_val = sc.scale;
-        maybe_prepare_runtime_scales(scales[i_input], sc, 1, &scale_val);
-        args.set((DNNL_ARG_MULTIPLE_SRC + i_input) | DNNL_ARG_ATTR_SCALES,
-                scales[i_input]);
-    }
+    args_t args(mem_map), ref_args(ref_mem_map);
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        ref_args.set(DNNL_ARG_DST, dst_fp);
-
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
 * Copyright 2021 Arm Ltd. and affiliates
 *
@@ -87,23 +87,6 @@ double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
     }
 
     return trust;
-}
-
-bool need_src_init(const prb_t *prb) {
-    return !(prb->dir == BWD_D);
-}
-
-bool need_wei_init(const prb_t *prb) {
-    return !(prb->dir & FLAG_BWD && prb->dir & FLAG_WEI);
-}
-
-bool need_bia_init(const prb_t *prb) {
-    return need_wei_init(prb);
-}
-
-bool need_dst_init(const prb_t *prb) {
-    return !(prb->dir & FLAG_FWD)
-            || (prb->attr.post_ops.find(attr_t::post_ops_t::SUM) >= 0);
 }
 
 int fill_src(
@@ -502,6 +485,134 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_zero_trust_percent(zpp);
 }
 
+std::vector<int> supported_exec_args(dir_t dir) {
+    static const std::vector<int> exec_fwd_args = {
+            DNNL_ARG_SRC,
+            DNNL_ARG_WEIGHTS,
+            DNNL_ARG_BIAS,
+            DNNL_ARG_DST,
+    };
+    static const std::vector<int> exec_bwd_d_args = {
+            DNNL_ARG_DIFF_SRC,
+            DNNL_ARG_WEIGHTS,
+            DNNL_ARG_BIAS,
+            DNNL_ARG_DIFF_DST,
+    };
+    static const std::vector<int> exec_bwd_w_args = {
+            DNNL_ARG_SRC,
+            DNNL_ARG_DIFF_WEIGHTS,
+            DNNL_ARG_DIFF_BIAS,
+            DNNL_ARG_DIFF_DST,
+    };
+    return (dir & FLAG_FWD)    ? exec_fwd_args
+            : (dir & FLAG_WEI) ? exec_bwd_w_args
+                               : exec_bwd_d_args;
+};
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref) {
+    const auto &ref_engine = get_cpu_engine();
+
+    // Memory filling is the first one who uses updated problem alg and cfg.
+    if (prb->alg == AUTO)
+        prb->alg = alg_kind2alg(query_alg_kind(query_pd(prim)));
+    prb->cfg = auto_cfg(prb->alg, prb->cfg);
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second; // `mem` is modified by filler (reorder).
+
+        ref_mem_map.emplace(
+                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_SRC:
+                SAFE(fill_src(prb, mem, ref_mem, res), WARN);
+                break;
+            case DNNL_ARG_WEIGHTS:
+                SAFE(fill_wei(prb, mem, ref_mem, res), WARN);
+                break;
+            case DNNL_ARG_BIAS:
+                SAFE(fill_bia(prb, mem, ref_mem, res), WARN);
+                break;
+            case DNNL_ARG_DST:
+                if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM)
+                        >= 0)
+                    SAFE(fill_dst(prb, mem, ref_mem, res), WARN);
+                break;
+            case DNNL_ARG_DIFF_DST:
+                SAFE(fill_dst(prb, mem, ref_mem, res), WARN);
+                break;
+            case DNNL_ARG_SCRATCHPAD:
+                // Reference CPU impl may need a different size for scratchpad.
+                // Need to query it instead of replicating one from GPU.
+                if (prim_ref) {
+                    ref_mem_map[exec_arg] = dnn_mem_t(
+                            query_md(query_pd(prim_ref), DNNL_ARG_SCRATCHPAD),
+                            ref_engine);
+                }
+                break;
+            default: { // Process all attributes here
+                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+                bool is_post_ops_arg = (exec_arg & post_ops_range);
+                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
+                bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
+
+                if (is_post_ops_arg) {
+                    if (exec_arg & DNNL_ARG_SRC_1)
+                        SAFE(binary::fill_mem(exec_arg, mem, ref_mem), WARN);
+                    else if (exec_arg & DNNL_ARG_WEIGHTS)
+                        SAFE(prelu::fill_data(WEI, mem, ref_mem), WARN);
+                } else if (is_scales_arg) {
+                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
+                    float *prb_ptr = nullptr;
+                    switch (local_exec_arg) {
+                        case DNNL_ARG_SRC: prb_ptr = prb->src_scales; break;
+                        case DNNL_ARG_WEIGHTS: prb_ptr = prb->wei_scales; break;
+                        case DNNL_ARG_DST: prb_ptr = prb->dst_scales; break;
+                        default: break;
+                    }
+                    // Fill library scales directly.
+                    for (int64_t idx = 0; idx < mem.nelems(); ++idx)
+                        mem.set_elem(idx, prb_ptr[idx]);
+                } else if (is_zero_point_arg) {
+                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
+                    const auto *prb_ptr = (local_exec_arg == DNNL_ARG_SRC)
+                            ? prb->src_zp
+                            : (local_exec_arg == DNNL_ARG_DST) ? prb->dst_zp
+                                                               : nullptr;
+                    // Fill library zero points directly.
+                    for (int64_t idx = 0; idx < mem.nelems(); ++idx)
+                        mem.set_elem(idx, prb_ptr[idx]);
+                }
+            } break;
+        }
+        // Don't keep reference memory if it is not used further.
+        if (!is_bench_mode(CORR)) ref_mem_map.clear();
+    }
+
+    return OK;
+}
+
+std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
+    std::vector<data_kind_t> check_kinds;
+    if (prb->dir & FLAG_FWD) {
+        check_kinds = {DST};
+    } else if (prb->dir == BWD_D) {
+        check_kinds = {SRC};
+    } else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI) {
+        check_kinds = {WEI, BIA};
+    } else {
+        assert(!"unexpected!");
+        SAFE_V(FAIL);
+    }
+    assert(check_kinds.size() > 0);
+    return check_kinds;
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -510,169 +621,23 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     if (is_bench_mode(INIT)) return OK;
 
-    auto const_pd = query_pd(prim);
-
-    if (prb->alg == AUTO) prb->alg = alg_kind2alg(query_alg_kind(const_pd));
-    prb->cfg = auto_cfg(prb->alg, prb->cfg);
-
-    const auto &src_md = prb->dir == BWD_D
-            ? query_md(const_pd, DNNL_ARG_DIFF_SRC)
-            : query_md(const_pd, DNNL_ARG_SRC);
-    const auto &wei_md = prb->dir & FLAG_WEI
-            ? query_md(const_pd, DNNL_ARG_DIFF_WEIGHTS)
-            : query_md(const_pd, DNNL_ARG_WEIGHTS);
-    const auto &bia_md = prb->dir & FLAG_WEI
-            ? query_md(const_pd, DNNL_ARG_DIFF_BIAS)
-            : query_md(const_pd, DNNL_ARG_BIAS);
-    const auto &dst_md = prb->dir & FLAG_BWD
-            ? query_md(const_pd, DNNL_ARG_DIFF_DST)
-            : query_md(const_pd, DNNL_ARG_DST);
-    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-
-    const auto fp = dnnl_f32;
-    const auto src_tag = tag::abx;
-    const auto wei_tag = tag::abx;
-
     // Use CPU prim as the reference in GPU testing to reduce testing time.
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim_ref;
     SAFE(init_prim_ref(prim_ref, prb), WARN);
 
-    const auto &test_engine = get_test_engine();
-    const auto &ref_engine = get_cpu_engine();
-
-    dnn_mem_t src_dt(src_md, test_engine);
-    dnn_mem_t wei_dt(wei_md, test_engine);
-    dnn_mem_t dst_dt(dst_md, test_engine);
-    dnn_mem_t bia_dt(bia_md, test_engine);
-    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
-    dnn_mem_t src_scales_dt, src_scales_fp;
-    dnn_mem_t wei_scales_dt, wei_scales_fp;
-    dnn_mem_t dst_scales_dt, dst_scales_fp;
-    dnn_mem_t src_zp_dt, src_zp_fp;
-    dnn_mem_t dst_zp_dt, dst_zp_fp;
-    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
-    std::vector<int> binary_po_args;
-    SAFE(binary::setup_binary_po(
-                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
-            WARN);
-    std::vector<dnn_mem_t> prelu_po_fp, prelu_po_dt;
-    std::vector<int> prelu_po_args;
-    SAFE(prelu::setup_prelu_po(
-                 const_pd, prelu_po_args, prelu_po_fp, prelu_po_dt),
+    dnn_mem_map_t mem_map, ref_mem_map;
+    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
+    SAFE(init_ref_memory_args(
+                 ref_mem_map, mem_map, prim, prb, res, prb->dir, prim_ref),
             WARN);
 
-    dnn_mem_t src_fp(src_md, fp, src_tag, ref_engine);
-    dnn_mem_t wei_fp(wei_md, fp, wei_tag, ref_engine);
-    dnn_mem_t dst_fp(dst_md, fp, src_tag, ref_engine);
-    dnn_mem_t bia_fp(bia_md, fp, tag::x, ref_engine);
-    dnn_mem_t scratchpad_fp;
-    if (prim_ref)
-        scratchpad_fp = dnn_mem_t(
-                query_md(query_pd(prim_ref), DNNL_ARG_SCRATCHPAD), ref_engine);
+    args_t args(mem_map), ref_args(ref_mem_map);
 
-    if (need_src_init(prb)) SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
-    if (need_dst_init(prb)) SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
-    if (need_wei_init(prb)) SAFE(fill_wei(prb, wei_dt, wei_fp, res), WARN);
-    if (need_bia_init(prb)) SAFE(fill_bia(prb, bia_dt, bia_fp, res), WARN);
+    SAFE(execute_and_wait(prim, args, res), WARN);
 
-    const int src_mask = attr_t::get_default_mask(
-            prb->attr.scales.get(DNNL_ARG_SRC).policy);
-    int wei_mask = attr_t::get_default_mask(
-            prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy, DNNL_ARG_WEIGHTS);
-    // oihw: per_oc: 1 << 0 -> 1
-    // goihw: per_oc: 1 << 1 + 1 << 0 -> 3
-    if (prb->has_groups && wei_mask != 0) wei_mask = (1 << wei_mask) + 1;
-    const int dst_mask = attr_t::get_default_mask(
-            prb->attr.scales.get(DNNL_ARG_DST).policy);
-    maybe_prepare_runtime_scales_v2(src_scales_dt, src_scales_fp,
-            prb->attr.scales.get(DNNL_ARG_SRC),
-            prb->desc_nelems(DNNL_ARG_SRC, src_mask), prb->src_scales);
-    maybe_prepare_runtime_scales_v2(wei_scales_dt, wei_scales_fp,
-            prb->attr.scales.get(DNNL_ARG_WEIGHTS),
-            prb->desc_nelems(DNNL_ARG_WEIGHTS, wei_mask), prb->wei_scales);
-    maybe_prepare_runtime_scales_v2(dst_scales_dt, dst_scales_fp,
-            prb->attr.scales.get(DNNL_ARG_DST),
-            prb->desc_nelems(DNNL_ARG_DST, dst_mask), prb->dst_scales);
-
-    maybe_prepare_runtime_zero_points_v2(src_zp_dt, src_zp_fp, prb->attr,
-            DNNL_ARG_SRC, prb->ic, prb->src_zp);
-    maybe_prepare_runtime_zero_points_v2(dst_zp_dt, dst_zp_fp, prb->attr,
-            DNNL_ARG_DST, prb->oc, prb->dst_zp);
-
-    args_t args, ref_args;
-
-    if (prb->dir & FLAG_FWD) {
-        args.set(DNNL_ARG_SRC, src_dt);
-        args.set(DNNL_ARG_WEIGHTS, wei_dt);
-        args.set(DNNL_ARG_BIAS, bia_dt);
-        args.set(DNNL_ARG_DST, dst_dt);
-        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_dt);
-        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_scales_dt);
-        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_dt);
-        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zp_dt);
-        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zp_dt);
-        args.set(binary_po_args, binary_po_dt);
-        args.set(prelu_po_args, prelu_po_dt);
-
-        SAFE(execute_and_wait(prim, args, res), WARN);
-
-        if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_SRC, src_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
-            ref_args.set(DNNL_ARG_BIAS, bia_fp);
-            ref_args.set(DNNL_ARG_DST, dst_fp);
-            ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
-            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_fp);
-            ref_args.set(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_scales_fp);
-            ref_args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_fp);
-            ref_args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zp_fp);
-            ref_args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zp_fp);
-            ref_args.set(binary_po_args, binary_po_fp);
-            ref_args.set(prelu_po_args, prelu_po_fp);
-
-            check_correctness(
-                    prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);
-        }
-    } else if (prb->dir == BWD_D) {
-        args.set(DNNL_ARG_DIFF_SRC, src_dt);
-        args.set(DNNL_ARG_WEIGHTS, wei_dt);
-        args.set(DNNL_ARG_DIFF_DST, dst_dt);
-        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-
-        SAFE(execute_and_wait(prim, args, res), WARN);
-
-        if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
-            ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
-            ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
-
-            check_correctness(
-                    prb, {SRC}, args, ref_args, setup_cmp, res, prim_ref);
-        }
-    } else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI) {
-        args.set(DNNL_ARG_SRC, src_dt);
-        args.set(DNNL_ARG_DIFF_DST, dst_dt);
-        args.set(DNNL_ARG_DIFF_WEIGHTS, wei_dt);
-        args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
-        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-
-        SAFE(execute_and_wait(prim, args, res), WARN);
-
-        if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_SRC, src_fp);
-            ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
-            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, wei_fp);
-            ref_args.set(DNNL_ARG_DIFF_BIAS, bia_fp);
-            ref_args.set(DNNL_ARG_SCRATCHPAD, scratchpad_fp);
-
-            check_correctness(
-                    prb, {WEI, BIA}, args, ref_args, setup_cmp, res, prim_ref);
-        }
-    } else {
-        SAFE(FAIL, CRIT);
+    if (is_bench_mode(CORR)) {
+        check_correctness(prb, get_kinds_to_check(prb), args, ref_args,
+                setup_cmp, res, prim_ref);
     }
 
     return measure_perf(prb->ctx_exe, res, prim, args);

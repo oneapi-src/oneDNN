@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -205,6 +205,158 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
 }
 
+std::vector<int> supported_fused_exec_args(dir_t dir) {
+    static const std::vector<int> exec_fwd_args = {
+            DNNL_ARG_SRC,
+            DNNL_ARG_WEIGHTS,
+            DNNL_ARG_BIAS,
+            DNNL_ARG_DST,
+            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
+            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS,
+    };
+    return exec_fwd_args;
+};
+
+int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
+        dnn_mem_map_t &mem_map, dnnl_primitive_t prim0, const prb_t *prb0,
+        const prb_t *prb1, const prb_t *prb, res_t *res, dir_t dir) {
+    const auto &ref_engine = get_cpu_engine();
+
+    const int dw_idx = prb->attr.post_ops.convolution_index();
+    // Memory filling is the first one who uses updated problem alg and cfg.
+    if (prb0->alg == conv::AUTO) prb0->alg = conv::DIRECT;
+    prb0->cfg = auto_cfg(prb0->alg, prb0->cfg);
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second; // `mem` is modified by filler (reorder).
+
+        dnn_mem_t ref_mem(mem.md_, dnnl_f32, tag::abx, ref_engine);
+
+        switch (exec_arg) {
+            case DNNL_ARG_SRC:
+                SAFE(fill_src(prb0, mem, ref_mem, res), WARN);
+                SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
+                break;
+            case DNNL_ARG_WEIGHTS:
+                SAFE(fill_wei(prb0, mem, ref_mem, res), WARN);
+                SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
+                break;
+            case DNNL_ARG_BIAS:
+                SAFE(fill_bia(prb0, mem, ref_mem, res), WARN);
+                if (ref_mem.ndims() > 0)
+                    SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
+                break;
+            case (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS):
+                SAFE(fill_wei(prb1, mem, ref_mem, res), WARN);
+                SAFE(mem_map1.at(DNNL_ARG_WEIGHTS).reorder(ref_mem), WARN);
+                break;
+            case (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS):
+                SAFE(fill_bia(prb1, mem, ref_mem, res), WARN);
+                if (ref_mem.ndims() > 0)
+                    SAFE(mem_map1.at(DNNL_ARG_BIAS).reorder(ref_mem), WARN);
+                break;
+            default: { // Process all attributes here
+                int pre_dw_post_ops_range
+                        = DNNL_ARG_ATTR_MULTIPLE_POST_OP(dw_idx)
+                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+                int post_dw_post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(dw_idx);
+                bool is_pre_dw_post_ops_arg
+                        = (exec_arg & pre_dw_post_ops_range);
+                bool is_post_dw_post_ops_arg
+                        = (exec_arg & post_dw_post_ops_range);
+                bool is_pre_dw_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
+                bool is_post_dw_scales_arg = is_pre_dw_scales_arg
+                        && (exec_arg & DNNL_ARG_ATTR_POST_OP_DW);
+
+                if (is_pre_dw_post_ops_arg && !is_post_dw_post_ops_arg) {
+                    if (exec_arg & DNNL_ARG_SRC_1) {
+                        SAFE(binary::fill_mem(exec_arg, mem, ref_mem), WARN);
+                        SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
+                    }
+                } else if (is_pre_dw_scales_arg && !is_post_dw_scales_arg) {
+                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
+                    float *prb_ptr = nullptr;
+                    switch (local_exec_arg) {
+                        case DNNL_ARG_SRC: prb_ptr = prb0->src_scales; break;
+                        case DNNL_ARG_WEIGHTS:
+                            prb_ptr = prb0->wei_scales;
+                            break;
+                        case DNNL_ARG_DST: prb_ptr = prb0->dst_scales; break;
+                        default: break;
+                    }
+                    // Fill library scales directly.
+                    for (int64_t idx = 0; idx < mem.nelems(); ++idx) {
+                        mem.set_elem(idx, prb_ptr[idx]);
+                        mem_map0.at(exec_arg).set_elem(idx, prb_ptr[idx]);
+                    }
+                }
+            } break;
+        }
+        // Don't keep reference memory if it is not used further.
+        if (!is_bench_mode(CORR)) {
+            mem_map0.clear();
+            mem_map1.clear();
+        }
+    }
+
+    // Copy binary post_ops from second conv and reverse engineer an index in
+    // the original map for those.
+    for (const auto &e : mem_map1) {
+        int arg = e.first;
+        int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+                - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+        bool is_post_ops_arg = (arg & post_ops_range);
+        if (is_post_ops_arg && (arg & DNNL_ARG_SRC_1)) {
+            int second_conv_idx = arg / DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE - 1;
+            int orig_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                                   second_conv_idx + dw_idx + 1)
+                    | DNNL_ARG_SRC_1;
+            SAFE(binary::fill_mem(
+                         orig_idx, mem_map.at(orig_idx), mem_map1.at(arg)),
+                    WARN);
+        }
+    }
+
+    // Post DW scales handling.
+    if (!prb0->attr.scales.get(DNNL_ARG_DST).is_def()) {
+        for (int64_t idx = 0;
+                idx < mem_map0.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST).nelems();
+                ++idx) {
+            float val = mem_map0.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)
+                                .get_elem(idx);
+            mem_map1.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC).set_elem(idx, val);
+        }
+    }
+    if (!prb1->attr.scales.get(DNNL_ARG_WEIGHTS).is_def()) {
+        // Scales after dw can't be queried, create them from scratch.
+        int wei_scale_arg = DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS;
+        int dw_wei_scale_arg = DNNL_ARG_ATTR_POST_OP_DW | wei_scale_arg;
+        const auto &wei_scale_md = mem_map1.at(wei_scale_arg).md_;
+        mem_map[dw_wei_scale_arg] = dnn_mem_t(wei_scale_md, get_test_engine());
+        for (int64_t idx = 0; idx < mem_map.at(dw_wei_scale_arg).nelems();
+                ++idx) {
+            mem_map.at(dw_wei_scale_arg).set_elem(idx, prb1->wei_scales[idx]);
+            mem_map1.at(wei_scale_arg).set_elem(idx, prb1->wei_scales[idx]);
+        }
+    }
+    if (!prb1->attr.scales.get(DNNL_ARG_DST).is_def()) {
+        // Scales after dw can't be queried, create them from scratch.
+        int dst_scale_arg = DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST;
+        int dw_dst_scale_arg = DNNL_ARG_ATTR_POST_OP_DW | dst_scale_arg;
+        const auto &dst_scale_md = mem_map1.at(dst_scale_arg).md_;
+        mem_map[dw_dst_scale_arg] = dnn_mem_t(dst_scale_md, get_test_engine());
+        for (int64_t idx = 0; idx < mem_map.at(dw_dst_scale_arg).nelems();
+                ++idx) {
+            mem_map.at(dw_dst_scale_arg).set_elem(idx, prb1->dst_scales[idx]);
+            mem_map1.at(dst_scale_arg).set_elem(idx, prb1->dst_scales[idx]);
+        }
+    }
+
+    return OK;
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -216,300 +368,65 @@ int doit(const prb_t *prb, res_t *res) {
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    auto const_pd = query_pd(prim);
-
-    if (prb->alg == alg_t::AUTO)
-        prb->alg = conv::alg_kind2alg(query_alg_kind(const_pd));
-    prb->cfg = auto_cfg(prb->alg, prb->cfg);
-
-    const auto &src_md = prb->dir == BWD_D
-            ? query_md(const_pd, DNNL_ARG_DIFF_SRC)
-            : query_md(const_pd, DNNL_ARG_SRC);
-    const auto &wei_md = prb->dir & FLAG_WEI
-            ? query_md(const_pd, DNNL_ARG_DIFF_WEIGHTS)
-            : query_md(const_pd, DNNL_ARG_WEIGHTS);
-    const auto &bia_md = prb->dir & FLAG_WEI
-            ? query_md(const_pd, DNNL_ARG_DIFF_BIAS)
-            : query_md(const_pd, DNNL_ARG_BIAS);
-    const auto &dst_md = prb->dir & FLAG_BWD
-            ? query_md(const_pd, DNNL_ARG_DIFF_DST)
-            : query_md(const_pd, DNNL_ARG_DST);
-    const auto &fused_wei_md = prb->dir & FLAG_WEI
-            ? query_md(
-                    const_pd, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DIFF_WEIGHTS)
-            : query_md(const_pd, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
-    const auto &fused_bia_md = prb->dir & FLAG_WEI
-            ? query_md(const_pd, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DIFF_BIAS)
-            : query_md(const_pd, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
-    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-
-    const auto &test_engine = get_test_engine();
-    const auto &ref_engine = get_cpu_engine();
-
-    dnn_mem_t src_dt(src_md, test_engine);
-    dnn_mem_t wei_dt(wei_md, test_engine);
-    dnn_mem_t bia_dt(bia_md, test_engine);
-    dnn_mem_t dst_dt(dst_md, test_engine);
-    dnn_mem_t fused_wei_dt(fused_wei_md, test_engine);
-    dnn_mem_t fused_bia_dt(fused_bia_md, test_engine);
-    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
-
-    const auto fp = dnnl_f32;
-    dnn_mem_t src_fp(src_md, fp, tag::abx, ref_engine);
-    dnn_mem_t wei_fp(wei_md, fp, tag::abx, ref_engine);
-    dnn_mem_t bia_fp(bia_md, fp, tag::x, ref_engine);
-    dnn_mem_t dst_fp(dst_md, fp, tag::abx, ref_engine);
-    dnn_mem_t fused_wei_fp(fused_wei_md, fp, tag::abx, ref_engine);
-    dnn_mem_t fused_bia_fp(fused_bia_md, fp, tag::x, ref_engine);
-
-    std::vector<dnn_mem_t> binary_po_dt;
-    std::vector<int> binary_po_args;
-
-    // Current filling doesn't work for fused_wei due to relying on prb values,
-    // which are different for fused conv. This can be fixed later by relying
-    // on md values, rather than prb desc ones.
-    // Filling for this problem is done below.
-    // TODO: fix this if irritates.
+    dnn_mem_map_t mem_map;
+    init_memory_args<prb_t>(
+            mem_map, prb, prim, supported_fused_exec_args(prb->dir));
 
     // Fill first convolution
-    std::unique_ptr<prb_t> p0 = get_first_conv_prb(prb);
+    std::unique_ptr<prb_t> prb0 = get_first_conv_prb(prb);
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim0;
-    SAFE(init_prim(prim0, init_pd, p0.get(), res, FLAG_FWD, nullptr,
+    SAFE(init_prim(prb->ctx_init, prim0, init_pd, prb0.get(), res, FLAG_FWD,
+                 nullptr,
                  /* is_service_prim = */ true),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    auto const_pd0 = query_pd(prim0);
-
-    if (p0->alg == alg_t::AUTO)
-        p0->alg = conv::alg_kind2alg(query_alg_kind(const_pd0));
-    p0->cfg = auto_cfg(p0->alg, p0->cfg);
-
-    const auto &src_md0 = p0->dir == BWD_D
-            ? query_md(const_pd0, DNNL_ARG_DIFF_SRC)
-            : query_md(const_pd0, DNNL_ARG_SRC);
-    const auto &wei_md0 = p0->dir & FLAG_WEI
-            ? query_md(const_pd0, DNNL_ARG_DIFF_WEIGHTS)
-            : query_md(const_pd0, DNNL_ARG_WEIGHTS);
-    const auto &bia_md0 = p0->dir & FLAG_WEI
-            ? query_md(const_pd0, DNNL_ARG_DIFF_BIAS)
-            : query_md(const_pd0, DNNL_ARG_BIAS);
-    const auto &dst_md0 = p0->dir & FLAG_BWD
-            ? query_md(const_pd0, DNNL_ARG_DIFF_DST)
-            : query_md(const_pd0, DNNL_ARG_DST);
-    const auto &scratchpad_md0 = query_md(const_pd0, DNNL_ARG_SCRATCHPAD);
-
-    dnn_mem_t src_dt0(src_md0, test_engine);
-    dnn_mem_t wei_dt0(wei_md0, test_engine);
-    dnn_mem_t bia_dt0(bia_md0, test_engine);
-    dnn_mem_t dst_dt0(dst_md0, test_engine);
-    dnn_mem_t scratchpad_dt0(scratchpad_md0, test_engine);
-
-    dnn_mem_t src_fp0(src_md0, fp, tag::abx, ref_engine);
-    dnn_mem_t wei_fp0(wei_md0, fp, tag::abx, ref_engine);
-    dnn_mem_t bia_fp0(bia_md0, fp, tag::x, ref_engine);
-    dnn_mem_t dst_fp0(dst_md0, fp, tag::abx, ref_engine);
-
-    std::vector<dnn_mem_t> binary_po_fp0, binary_po_dt0;
-    std::vector<int> binary_po_args0;
-    SAFE(binary::setup_binary_po(
-                 const_pd0, binary_po_args0, binary_po_dt0, binary_po_fp0),
-            WARN);
-
-    dnn_mem_t src_scales_dt0, src_scales_fp0;
-    dnn_mem_t wei_scales_dt0, wei_scales_fp0;
-    dnn_mem_t dst_scales_dt0, dst_scales_fp0;
-
-    const int src_mask = attr_t::get_default_mask(
-            prb->attr.scales.get(DNNL_ARG_SRC).policy);
-    const int wei_mask = attr_t::get_default_mask(
-            prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy, DNNL_ARG_WEIGHTS);
-    const int dst_mask = attr_t::get_default_mask(
-            prb->attr.scales.get(DNNL_ARG_DST).policy);
-    maybe_prepare_runtime_scales_v2(src_scales_dt0, src_scales_fp0,
-            prb->attr.scales.get(DNNL_ARG_SRC),
-            prb->desc_nelems(DNNL_ARG_SRC, src_mask), prb->src_scales);
-    maybe_prepare_runtime_scales_v2(wei_scales_dt0, wei_scales_fp0,
-            prb->attr.scales.get(DNNL_ARG_WEIGHTS),
-            prb->desc_nelems(DNNL_ARG_WEIGHTS, wei_mask), prb->wei_scales);
-    maybe_prepare_runtime_scales_v2(dst_scales_dt0, dst_scales_fp0,
-            prb->attr.scales.get(DNNL_ARG_DST),
-            prb->desc_nelems(DNNL_ARG_DST, dst_mask), prb->dst_scales);
-
-    SAFE(conv::fill_src(p0.get(), src_dt0, src_fp0, res), WARN);
-    SAFE(conv::fill_wei(p0.get(), wei_dt0, wei_fp0, res), WARN);
-    SAFE(conv::fill_bia(p0.get(), bia_dt0, bia_fp0, res), WARN);
-    SAFE(conv::fill_dst(p0.get(), dst_dt0, dst_fp0, res), WARN);
+    dnn_mem_map_t mem_map0;
+    init_memory_args<prb_t>(
+            mem_map0, prb0.get(), prim0, conv::supported_exec_args(prb->dir));
 
     // Fill next convolution
-    std::unique_ptr<prb_t> p1 = get_fused_conv_prb(prb);
-    if (!p1) SAFE(FAIL, CRIT);
+    std::unique_ptr<prb_t> prb1 = get_fused_conv_prb(prb);
+    if (!prb1) SAFE(FAIL, WARN);
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim1;
-    SAFE(init_prim(prim1, init_pd, p1.get(), res, FLAG_FWD, nullptr,
+    SAFE(init_prim(prb->ctx_init, prim1, init_pd, prb1.get(), res, FLAG_FWD,
+                 nullptr,
                  /* is_service_prim = */ true),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    auto const_pd1 = query_pd(prim1);
+    dnn_mem_map_t mem_map1;
+    init_memory_args<prb_t>(
+            mem_map1, prb1.get(), prim1, conv::supported_exec_args(prb->dir));
 
-    if (p1->alg == alg_t::AUTO)
-        p1->alg = conv::alg_kind2alg(query_alg_kind(const_pd1));
-    p1->cfg = auto_cfg(p1->alg, p1->cfg);
-
-    const auto &src_md1 = prb->dir == BWD_D
-            ? query_md(const_pd1, DNNL_ARG_DIFF_SRC)
-            : query_md(const_pd1, DNNL_ARG_SRC);
-    const auto &wei_md1 = prb->dir & FLAG_WEI
-            ? query_md(const_pd1, DNNL_ARG_DIFF_WEIGHTS)
-            : query_md(const_pd1, DNNL_ARG_WEIGHTS);
-
-    const auto &bia_md1 = prb->dir & FLAG_WEI
-            ? query_md(const_pd1, DNNL_ARG_DIFF_BIAS)
-            : query_md(const_pd1, DNNL_ARG_BIAS);
-    const auto &dst_md1 = prb->dir & FLAG_BWD
-            ? query_md(const_pd1, DNNL_ARG_DIFF_DST)
-            : query_md(const_pd1, DNNL_ARG_DST);
-    const auto &scratchpad_md1 = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-
-    dnn_mem_t src_dt1(src_md1, test_engine);
-    dnn_mem_t wei_dt1(wei_md1, test_engine);
-    dnn_mem_t bia_dt1(bia_md1, test_engine);
-    dnn_mem_t dst_dt1(dst_md1, test_engine);
-    dnn_mem_t scratchpad_dt1(scratchpad_md1, test_engine);
-
-    dnn_mem_t wei_fp1(wei_md1, fp, tag::abx, ref_engine);
-    dnn_mem_t bia_fp1(bia_md1, fp, tag::x, ref_engine);
-    dnn_mem_t dst_fp1(dst_md1, fp, tag::abx, ref_engine);
-
-    std::vector<dnn_mem_t> binary_po_fp1, binary_po_dt1;
-    std::vector<int> binary_po_args1;
-    SAFE(binary::setup_binary_po(
-                 const_pd1, binary_po_args1, binary_po_dt1, binary_po_fp1),
+    SAFE(init_ref_memory_args(mem_map0, mem_map1, mem_map, prim0, prb0.get(),
+                 prb1.get(), prb, res, prb->dir),
             WARN);
 
-    dnn_mem_t wei_scales_dt1, wei_scales_fp1;
-    dnn_mem_t dst_scales_dt1, dst_scales_fp1;
-
-    int dw_wei_mask = attr_t::get_default_mask(
-            p1->attr.scales.get(DNNL_ARG_WEIGHTS).policy, DNNL_ARG_WEIGHTS);
-    if (p1->has_groups && dw_wei_mask != 0)
-        dw_wei_mask = (1 << dw_wei_mask) + 1;
-    const int dw_dst_mask = attr_t::get_default_mask(
-            p1->attr.scales.get(DNNL_ARG_DST).policy);
-    maybe_prepare_runtime_scales_v2(wei_scales_dt1, wei_scales_fp1,
-            p1->attr.scales.get(DNNL_ARG_WEIGHTS),
-            p1->desc_nelems(DNNL_ARG_WEIGHTS, dw_wei_mask), p1->wei_scales);
-    maybe_prepare_runtime_scales_v2(dst_scales_dt1, dst_scales_fp1,
-            p1->attr.scales.get(DNNL_ARG_DST),
-            p1->desc_nelems(DNNL_ARG_DST, dw_dst_mask), p1->dst_scales);
-
-    SAFE(conv::fill_wei(p1.get(), wei_dt1, wei_fp1, res), WARN);
-    SAFE(conv::fill_bia(p1.get(), bia_dt1, bia_fp1, res), WARN);
-    SAFE(conv::fill_dst(p1.get(), dst_dt1, dst_fp1, res), WARN);
-
-    // TODO: fix this if irritates.
-    // SAFE(conv::fill_src(prb, src_dt, src_fp, res), WARN);
-    // SAFE(conv::fill_wei(prb, wei_dt, wei_fp, res), WARN);
-    // SAFE(conv::fill_bia(prb, bia_dt, bia_fp, res), WARN);
-    // SAFE(conv::fill_dst(prb, dst_dt, dst_fp, res), WARN);
-    // SAFE(conv::fill_wei(prb, fused_wei_dt, fused_wei_fp, res), WARN);
-    // SAFE(conv::fill_bia(prb, fused_bia_dt, fused_bia_fp, res), WARN);
-    // Work around for the issue above
-    SAFE(src_dt.reorder(src_fp0), WARN);
-    SAFE(wei_dt.reorder(wei_fp0), WARN);
-    if (bia_dt.dt() != dnnl_data_type_undef)
-        SAFE(bia_dt.reorder(bia_fp0), WARN);
-    SAFE(dst_dt.reorder(dst_fp1), WARN);
-    SAFE(fused_wei_dt.reorder(wei_fp1), WARN);
-    if (fused_bia_dt.dt() != dnnl_data_type_undef)
-        SAFE(fused_bia_dt.reorder(bia_fp1), WARN);
-
-    args_t args, args0, args1, ref_args;
+    args_t args(mem_map), args0(mem_map0), args1(mem_map1);
 
     if (prb->dir & FLAG_FWD) {
-        args0.set(DNNL_ARG_SRC, src_dt0);
-        args0.set(DNNL_ARG_WEIGHTS, wei_dt0);
-        args0.set(DNNL_ARG_BIAS, bia_dt0);
-        args0.set(DNNL_ARG_DST, dst_dt0);
-        args0.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_dt0);
-        args0.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_scales_dt0);
-        args0.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_dt0);
-        args0.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt0);
-        args0.set(binary_po_args0, binary_po_dt0);
-
-        SAFE(execute_and_wait(prim0, args0), WARN);
-        SAFE(src_dt1.reorder(dst_dt0), WARN);
-
-        args1.set(DNNL_ARG_SRC, src_dt1);
-        args1.set(DNNL_ARG_WEIGHTS, wei_dt1);
-        args1.set(DNNL_ARG_BIAS, bia_dt1);
-        args1.set(DNNL_ARG_DST, dst_dt1);
-        args1.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, dst_scales_dt0);
-        args1.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_scales_dt1);
-        args1.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_dt1);
-        args1.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt1);
-        args1.set(binary_po_args1, binary_po_dt1);
-
-        SAFE(execute_and_wait(prim1, args1), WARN);
-
-        // Reverse engineer binary post-ops indices from second conv and update
-        // them in-place to follow fused conv enumaration.
-        const int dw_idx = prb->attr.post_ops.convolution_index();
-        const auto update_bin_po_args1_indices = [&](size_t i) {
-            auto &b = binary_po_args1[i];
-            const int orig_idx = b / DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE - 1;
-            b = DNNL_ARG_ATTR_MULTIPLE_POST_OP(orig_idx + dw_idx + 1)
-                    | DNNL_ARG_SRC_1;
-        };
-        for (size_t i = 0; i < binary_po_dt1.size(); ++i)
-            update_bin_po_args1_indices(i);
-
-        // As memory is not allowed to be copied, and binary post-op memories
-        // are read-only, we move them to main convolution execution and adjust
-        // arg indices to follow the library API.
-
-        // Move the content to binary_po_dt from separate convs.
-        std::move(binary_po_dt0.begin(), binary_po_dt0.end(),
-                std::back_inserter(binary_po_dt));
-        std::move(binary_po_dt1.begin(), binary_po_dt1.end(),
-                std::back_inserter(binary_po_dt));
-        // Move the content to binary_po_args from separate convs.
-        std::move(binary_po_args0.begin(), binary_po_args0.end(),
-                std::back_inserter(binary_po_args));
-        std::move(binary_po_args1.begin(), binary_po_args1.end(),
-                std::back_inserter(binary_po_args));
-
-        args.set(DNNL_ARG_SRC, src_dt);
-        args.set(DNNL_ARG_WEIGHTS, wei_dt);
-        args.set(DNNL_ARG_BIAS, bia_dt);
-        args.set(DNNL_ARG_DST, dst_dt);
-        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC, src_scales_dt0);
-        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_scales_dt0);
-        args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scales_dt0);
-        args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, fused_wei_dt);
-        args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS, fused_bia_dt);
-        args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_SCALES
-                        | DNNL_ARG_WEIGHTS,
-                wei_scales_dt1);
-        args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
-                dst_scales_dt1);
-        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-        args.set(binary_po_args, binary_po_dt);
-
         SAFE(execute_and_wait(prim, args, res), WARN);
 
         if (is_bench_mode(CORR)) {
+            SAFE(execute_and_wait(prim0, args0), WARN);
+            SAFE(mem_map1.at(DNNL_ARG_SRC).reorder(mem_map0.at(DNNL_ARG_DST)),
+                    WARN);
+            SAFE(execute_and_wait(prim1, args1), WARN);
+
             compare::compare_t cmp;
             cmp.set_data_kind(DST);
-            // Used p1 to avoid writing separate compare function. Compare uses
-            // prb->cfg which can be u8s8u8 while after fusion it may be u8s8s8,
-            // thus, compare() will saturate values which is not correct.
-            conv::setup_cmp(cmp, p1.get(), DST, ref_args);
+            // Used prb1 to avoid writing separate compare function. Compare
+            // uses prb->cfg which can be u8s8u8 while after fusion it may be
+            // u8s8s8, thus, compare() will saturate values which is not correct
+            conv::setup_cmp(cmp, prb1.get(), DST, args1);
 
-            dnn_mem_t dst_fused(dst_dt, fp, tag::abx, test_engine);
-            dnn_mem_t dst_unfused(dst_dt1, fp, tag::abx, test_engine);
+            dnn_mem_t dst_fused(mem_map.at(DNNL_ARG_DST), dnnl_f32, tag::abx,
+                    get_test_engine());
+            dnn_mem_t dst_unfused(mem_map1.at(DNNL_ARG_DST), dnnl_f32, tag::abx,
+                    get_test_engine());
 
             cmp.compare(dst_unfused, dst_fused, prb->attr, res);
         }
