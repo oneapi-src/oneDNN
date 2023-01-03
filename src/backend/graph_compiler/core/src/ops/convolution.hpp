@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ public:
     sc_op_ptr get_weight_compensation(sc_graph_t &g);
     sc_op_ptr get_constant_compensation(sc_graph_t &g);
     bool use_nested_conv_fwd_generator();
+    bool use_conv1d();
     sc_dims get_bwise_fuse_shrink_dims() override;
     void collect_shrinked_lt_map(int bw_size, gt2gt_map &bw_lt_map) override;
     void collect_shrinked_axis_map(

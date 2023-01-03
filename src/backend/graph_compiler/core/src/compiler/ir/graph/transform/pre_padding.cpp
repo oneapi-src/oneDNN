@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,6 +77,11 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
             if (parent_node->isa<input_op>()) { return; }
             auto padding_node = graph.make("padding", {node->get_inputs()[0]},
                     {}, {{"pads_begin", pads_begin}, {"pads_end", pads_end}});
+            if (node->get_inputs()[0]->details_.get_plain_dims()[0] == 1) {
+                padding_node->attrs_.set(
+                        op_attr_key::bwise_break_post_fuse, true);
+                node->attrs_.set(op_attr_key::break_pre_fuse, true);
+            }
 
             // clear paddings from original conv node
             node->attrs_.set<sc_dims>("pads_begin", sc_dims {0});

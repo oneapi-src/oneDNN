@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -374,6 +374,38 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
     auto use_nested_conv = ndims_ == 4 && !has_pad && !is_1x1 && is_int8
             && data_shape.back() <= 56;
     return use_nested_conv;
+}
+
+bool conv_fwd_core_op_t::use_conv1d() {
+    const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
+    const sc_dims &data_shape = info_.inputs_[0]->details_.get_plain_dims();
+    const sc_dims &paddings = attrs_.has_key("pads_begin")
+            ? attrs_.get<sc_dims>("pads_begin")
+            : attrs_.get<sc_dims>("paddings");
+    const auto &format = get_inputs()[0]->details_.get_format();
+    if (weight_shape.size() != 4UL) { // should be 2d case
+        return false;
+    }
+    sc_dim kh = weight_shape[2], kw = weight_shape[3];
+    for (auto &p : paddings) {
+        if (p != 0) { return false; }
+    }
+    if (kh != 1 || kw != 1) { return false; }
+    if (format != sc_data_format_t::NCHW()
+            && format != sc_data_format_t::NHWC()) {
+        return false;
+    }
+    bool is_weight_constant
+            = get_inputs()[1]->producer_owner_->isa<constant_op_t>()
+            || get_inputs()[1]->producer_owner_->attrs_.get_or_else(
+                    "constant", const_kind::not_const)
+            || get_inputs()[1]->attrs_.get_or_else(
+                    "constant", const_kind::not_const);
+    if (!is_weight_constant) {
+        // TODO(zhicong): improve f32/bf16 training fwd config
+        return false;
+    }
+    return true;
 }
 
 body_generator_ptr conv_fwd_core_op_t::create_generator() {
