@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -69,17 +69,7 @@ struct cudnn_matmul_t : public primitive_t {
                     && !(with_bias() && s8_case);
             if (!ok) return status::unimplemented;
 
-            // Check for uniform batch values across src and wei since
-            // cublasGemmStridedBatchedEx doesn't support broadcast semantic.
-            // It also doesn't support 2+D batch dimensions.
-            if (src_md()->ndims > 3) {
-                return status::unimplemented;
-            } else if (src_md()->ndims > 2) {
-                for (int i = 0; i < src_md()->ndims - 2; i++)
-                    ok = src_md()->dims[i] == weights_md()->dims[i]
-                            && src_md()->dims[i] == dst_md()->dims[i];
-                if (!ok) return status::unimplemented;
-            }
+            if (src_md()->ndims > 3) return status::unimplemented;
 
             return status::success;
         }
