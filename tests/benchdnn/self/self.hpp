@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,6 +84,7 @@ void res();
 void conv();
 void bnorm();
 void memory();
+void graph();
 
 int bench(int argc, char **argv);
 
