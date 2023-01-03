@@ -73,15 +73,7 @@ struct miopen_matmul_t : public primitive_t {
 
             if (!ok) return status::unimplemented;
 
-            if (src_md()->ndims > 3) {
-                return status::unimplemented;
-            } else if (src_md()->ndims > 2) {
-                for (int i = 0; i < src_md()->ndims - 2; i++) {
-                    ok = src_md()->dims[i] == weights_md()->dims[i]
-                            && src_md()->dims[i] == dst_md()->dims[i];
-                }
-                if (!ok) return status::unimplemented;
-            }
+            if (src_md()->ndims > 3) return status::unimplemented;
 
             return status::success;
         }
