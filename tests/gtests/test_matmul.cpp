@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -514,23 +514,28 @@ INSTANTIATE_TEST_SUITE_P(ZeroDim_f32, iface, cases_zd(data_type::f32));
 static auto cases_f = [](memory::data_type dt) {
     std::vector<matmul_test_params_t> cases;
 
+    auto bias_dt = data_type::f32;
+#ifdef DNNL_SYCL_HIP
+    if (dt == data_type::f16) bias_dt = data_type::f16;
+#endif
+
     // simple case
     cases.push_back({{{{10, 2}, dt, tag::ab}, {{2, 20}, dt, tag::ab},
                              {{10, 20}, dt, tag::ab}, data_type::undef},
             {}});
     // simple case + leading dimensions
-    cases.push_back({{{{10, 1}, dt, tag::ab, P::SRC | P::LEADING_DIM},
-                             {{1, 3}, dt, tag::ba},
-                             {{10, 3}, dt, tag::ab, P::DST | P::LEADING_DIM},
-                             data_type::f32},
-            {}});
+    cases.push_back(
+            {{{{10, 1}, dt, tag::ab, P::SRC | P::LEADING_DIM},
+                     {{1, 3}, dt, tag::ba},
+                     {{10, 3}, dt, tag::ab, P::DST | P::LEADING_DIM}, bias_dt},
+                    {}});
     // simple case + leading dimensions + runtime dims
     cases.push_back(
             {{{{1, 10}, dt, tag::ab, P::SRC | P::LEADING_DIM | P::RUNTIME},
                      {{10, 2}, dt, tag::ba, P::WEIGHTS | P::RUNTIME},
                      {{1, 2}, dt, tag::ab,
                              P::DST | P::LEADING_DIM | P::RUNTIME},
-                     data_type::f32},
+                     bias_dt},
                     {}});
 
     // post-ops
@@ -548,14 +553,14 @@ static auto cases_f = [](memory::data_type dt) {
 
     // gemm like: output scale + post-ops(sum)
     cases.push_back({{{{10, 1}, dt, tag::ab}, {{1, 20}, dt, tag::ab},
-                             {{10, 20}, dt, tag::ab}, data_type::f32},
+                             {{10, 20}, dt, tag::ab}, bias_dt},
             {P::SCALES | P::COMMON, {}, {{primitive::kind::sum}}}});
     // gemm like: output scale + post-ops(sum) + all runtime
-    cases.push_back({{{{10, 1}, dt, tag::ab, P::SRC | P::RUNTIME},
-                             {{1, 20}, dt, tag::ab, P::WEIGHTS | P::RUNTIME},
-                             {{10, 20}, dt, tag::ab, P::DST | P::RUNTIME},
-                             data_type::f32},
-            {P::SCALES | P::COMMON, {}, {{primitive::kind::sum}}}});
+    cases.push_back(
+            {{{{10, 1}, dt, tag::ab, P::SRC | P::RUNTIME},
+                     {{1, 20}, dt, tag::ab, P::WEIGHTS | P::RUNTIME},
+                     {{10, 20}, dt, tag::ab, P::DST | P::RUNTIME}, bias_dt},
+                    {P::SCALES | P::COMMON, {}, {{primitive::kind::sum}}}});
 
     return ::testing::ValuesIn(cases);
 };
