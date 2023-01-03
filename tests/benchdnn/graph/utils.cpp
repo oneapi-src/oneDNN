@@ -255,4 +255,117 @@ void compare_data(
     }
 }
 
+#ifdef DNNL_GRAPH_WITH_SYCL
+void *scratchpad_mm_mgr::sycl_alloc_mm(
+        size_t size, size_t alignment, const void *dev, const void *ctx) {
+    // fake malloc for 0 size
+    if (size == 0) return nullptr;
+
+    void *ptr {nullptr};
+    bool need_alloc_new_mm = true;
+    // find alloc mm with same size
+    const auto cnt = map_size_ptr_.count(size);
+    if (cnt > 0) {
+        const auto Iter = map_size_ptr_.equal_range(size);
+        for (auto it = Iter.first; it != Iter.second; ++it) {
+            // check if same size mm is free
+            if (free_ptr_.find(it->second.get()) != free_ptr_.end()) {
+                ptr = it->second.get();
+                free_ptr_.erase(ptr);
+                need_alloc_new_mm = false;
+            }
+        }
+    }
+
+    if (need_alloc_new_mm) {
+        auto sh_ptr = std::shared_ptr<void> {
+                malloc_shared(size, *static_cast<const ::sycl::device *>(dev),
+                        *static_cast<const ::sycl::context *>(ctx)),
+                sycl_deletor {*static_cast<const ::sycl::context *>(ctx)}};
+        ptr = sh_ptr.get();
+        // record the map of mm size and its ptr for reuse
+        map_size_ptr_.emplace(std::make_pair(size, sh_ptr));
+    }
+    return ptr;
+}
+
+void scratchpad_mm_mgr::sycl_free_mm(
+        void *ptr, const void *device, const void *context, void *event) {
+    free_ptr_.insert(ptr);
+}
+
+static scratchpad_mm_mgr s_mm_mgr;
+
+void *test_sycl_malloc_wrapper(
+        size_t size, size_t alignment, const void *dev, const void *ctx) {
+    UNUSED(alignment);
+    return malloc_shared(size, *static_cast<const ::sycl::device *>(dev),
+            *static_cast<const ::sycl::context *>(ctx));
+}
+
+void test_sycl_free_wrapper(
+        void *ptr, const void *device, const void *context, void *event) {
+    UNUSED(device);
+    // immediate synchronization here is for test purpose for performance, users
+    // may need to store the ptr and event and handle them separately
+    if (event) {
+        auto sycl_deps_ptr = static_cast<::sycl::event *>(event);
+        sycl_deps_ptr->wait();
+    }
+    free(ptr, *static_cast<const ::sycl::context *>(context));
+}
+
+void *sycl_malloc_wrapper(
+        size_t size, size_t alignment, const void *dev, const void *ctx) {
+    void *ptr = is_bench_mode(CORR) || is_cpu()
+            ? test_sycl_malloc_wrapper(size, alignment, dev, ctx)
+            : s_mm_mgr.sycl_alloc_mm(size, alignment, dev, ctx);
+
+    return ptr;
+}
+
+// perf mode, mem will be finally released in s_mm_mgr ~shared_ptr when
+// test finished.
+void sycl_free_wrapper(
+        void *ptr, const void *device, const void *context, void *event) {
+    if (is_bench_mode(CORR) || is_cpu()) {
+        test_sycl_free_wrapper(ptr, device, context, event);
+    } else {
+        s_mm_mgr.sycl_free_mm(ptr, device, context, event);
+    }
+}
+
+const dnnl::graph::engine &get_graph_engine() {
+    static auto sycl_allocator {dnnl::graph::sycl_interop::make_allocator(
+            sycl_malloc_wrapper, sycl_free_wrapper)};
+    static dnnl::engine test_eng {::get_test_engine()};
+    static ::sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
+    static ::sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
+    static dnnl::graph::engine eng {
+            dnnl::graph::sycl_interop::make_engine(dev, ctx, sycl_allocator)};
+    return eng;
+}
+
+#endif // DNNL_GRAPH_WITH_SYCL
+
+const dnnl::graph::engine &get_test_engine() {
+    using engine = dnnl::graph::engine;
+    if (engine_tgt_kind == dnnl_cpu) {
+#ifdef DNNL_GRAPH_CPU_SYCL
+        static engine eng(get_graph_engine());
+#else
+        static engine eng(engine::kind::cpu, static_cast<int>(engine_index));
+#endif
+        return eng;
+    } else {
+#ifdef DNNL_GRAPH_GPU_SYCL
+        static engine eng(get_graph_engine());
+#else
+        assert(!"GPU only support DPCPP runtime now");
+        static engine eng(engine::kind::gpu, static_cast<int>(engine_index));
+#endif
+        return eng;
+    }
+}
+
 } // namespace graph
