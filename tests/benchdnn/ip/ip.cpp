@@ -351,7 +351,7 @@ std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
         assert(!"unexpected!");
         SAFE_V(FAIL);
     }
-    assert(check_kinds.size() > 0);
+    assert(!check_kinds.empty());
     return check_kinds;
 }
 

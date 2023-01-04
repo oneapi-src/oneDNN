@@ -562,7 +562,7 @@ std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
         if (prb->use_sc() && (prb->dir & FLAG_WEI)) check_kinds.push_back(SC);
         if (prb->use_sh() && (prb->dir & FLAG_WEI)) check_kinds.push_back(SH);
     }
-    assert(check_kinds.size() > 0);
+    assert(!check_kinds.empty());
     return check_kinds;
 }
 
