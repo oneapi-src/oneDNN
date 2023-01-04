@@ -1417,9 +1417,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_post_ops_fusion)
                     alt_graph->create_input_port(0, palt, 0);
                     alt_graph->create_output_port(0, palt, 0);
 
+                    // here using `MAX_REPETITION + 1` to cover previous swish
+                    // (sigmoid + mul) pattern
                     auto prep = pgraph->append_repetition(alt_graph, {0, 0}, 0,
-                            MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
-                            "prepetition");
+                            MAX_REPETITION + 1,
+                            in_edges_t {in_edge(0, popt, 0)}, "prepetition");
 
                     // Optional typecast
                     auto popt_tc_graph
@@ -1481,9 +1483,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_bias_post_ops_fusion)
                     alt_graph->create_input_port(0, palt, 0);
                     alt_graph->create_output_port(0, palt, 0);
 
+                    // here using `MAX_REPETITION + 1` to cover previous swish
+                    // (sigmoid + mul) pattern
                     auto prep = pgraph->append_repetition(alt_graph, {0, 0}, 0,
-                            MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
-                            "prepetition");
+                            MAX_REPETITION + 1,
+                            in_edges_t {in_edge(0, popt, 0)}, "prepetition");
 
                     // Optional typecast
                     auto popt_tc_graph
@@ -1522,9 +1526,11 @@ DNNL_BACKEND_REGISTER_TRANSFORMATION_PATTERN(dnnl, conv_bias_post_ops_fusion)
                     alt_graph->create_input_port(0, palt, 0);
                     alt_graph->create_output_port(0, palt, 0);
 
+                    // here using `MAX_REPETITION + 1` to cover previous swish
+                    // (sigmoid + mul) pattern
                     auto prep = pgraph->append_repetition(alt_graph, {0, 0}, 0,
-                            MAX_REPETITION, in_edges_t {in_edge(0, popt, 0)},
-                            "prepetition");
+                            MAX_REPETITION + 1,
+                            in_edges_t {in_edge(0, popt, 0)}, "prepetition");
 
                     // Optional typecast
                     auto popt_tc_graph
