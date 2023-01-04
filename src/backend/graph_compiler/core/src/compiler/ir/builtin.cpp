@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,11 @@
 #include <compiler/config/context.hpp>
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/transform/auto_cast.hpp>
+#include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/index2var.hpp>
 #include <unordered_map>
+#include <util/math_utils.hpp>
 #include <util/utils.hpp>
 
 SC_MODULE(microkernel.builtin)
@@ -694,6 +697,135 @@ func_t get_set_idle_func_managed_func() {
                     builder::make_var(datatypes::pointer, "arg1")},
             stmt(), datatypes::void_t);
     return f;
+}
+
+// get the sum of elements with indices [0,1,...,gid] of the
+// array: [A,A,..., A, B, B,...,B], where the count of element "A" is num_A
+static expr generate_balance211_job_id_base(const expr &gid, const expr &num_A,
+        const expr &val_A, const expr &val_B) {
+    return builder::make_select(
+            gid <= num_A, gid * val_A, num_A * val_A + (gid - num_A) * val_B);
+}
+
+uint64_t generate_balance211(int num_threads, const expr &start_e,
+        const expr &end_e, const expr &step_e, const expr &gid,
+        const std::function<std::string(const char *)> &namer, expr *out_start,
+        expr *out_len, expr *out_end, std::vector<stmt> *out_seq) {
+    // the util function to define a var with init value
+    auto def_var = [&](const char *name, const expr &init_v,
+                           sc_data_type_t dtype = datatypes::index) {
+        auto ret = builder::make_var(dtype, namer ? namer(name) : name);
+        auto def = builder::make_var_tensor_def_unattached(
+                ret, linkage::local, do_cast_and_fold(init_v));
+        if (out_seq) {
+            out_seq->emplace_back(def);
+        } else {
+            builder::get_current_builder()->emit(def);
+        }
+        return ret;
+    };
+    // the util function to define the expressions to return
+    auto make_output_vars = [&](expr &my_begin, const expr &cur_jobs) {
+        my_begin = do_cast_and_fold(my_begin);
+        *out_start = def_var("_start", my_begin);
+
+        expr out_len_e;
+        if (out_end || out_len) {
+            out_len_e = def_var("_len", do_cast_and_fold(cur_jobs * step_e));
+        }
+        if (out_end) {
+            expr my_end = *out_start + out_len_e;
+            my_end = do_cast_and_fold(my_end);
+            *out_end = def_var("_end", my_end);
+        }
+        if (out_len) { *out_len = out_len_e; }
+    };
+    expr the_tid, my_jobs_e, my_jobs_2_e;
+    if (start_e.isa<constant>() && end_e.isa<constant>()
+            && step_e.isa<constant>()) {
+        // if is constant-for (in most cases)
+        uint64_t end = get_const_as_int(end_e.static_as<constant>());
+        uint64_t begin = get_const_as_int(start_e.static_as<constant>());
+        uint64_t step = get_const_as_int(step_e.static_as<constant>());
+        auto len = end - begin;
+        auto num_jobs = utils::divide_and_ceil(len, step);
+        uint64_t my_jobs = utils::divide_and_ceil(num_jobs, num_threads);
+        COMPILE_ASSERT(my_jobs > 0, "Bad number of jobs");
+        if (num_jobs % num_threads == 0) {
+            // fast path. the jobs is divisible by the thread number
+            *out_start = def_var("_start", gid * (my_jobs * step) + begin);
+            if (out_end) {
+                *out_end = def_var("_end", *out_start + (my_jobs * step));
+            }
+            if (out_len) { *out_len = my_jobs * step; }
+            return num_threads;
+        }
+        uint64_t my_jobs_2 = my_jobs - 1;
+        // number of threads doing my_jobs work
+        uint64_t num_thread_larger_work = num_jobs - my_jobs_2 * num_threads;
+        // number of threads doing my_jobs - 1 work
+        uint64_t num_thread_less_work = num_threads - num_thread_larger_work;
+        // the loop is divisible with num_thread_less_work parts
+        // and each part has same number of works
+        // the loop can be further "split" into outer and inner loops and
+        // the outer loop may be merged with another loop
+        uint64_t num_split
+                = math_utils::get_gcd(num_thread_larger_work, num_threads);
+        if (num_split > 1UL) {
+            // e.g. 22 jobs and 8 threads
+            // my_jobs=3 my_jobs_2=2
+            // num_thread_larger_work = 6
+            // num_split = gcd(num_thread_larger_work, num_threads) = 2
+            // num_thread_each_split = 4
+            // num_thread_larger_work_per_split = 6/2 = 3
+            // cur_jobs for each thread: 3,3,3,2 | 3,3,3,2 <<< 2 splits
+            uint64_t num_thread_each_split = num_threads / num_split;
+            uint64_t num_thread_larger_work_per_split
+                    = num_thread_larger_work / num_split;
+            expr id_in_split
+                    = def_var("id_in_split", gid % num_thread_each_split);
+            expr is_large_work = id_in_split < num_thread_larger_work_per_split;
+            expr cur_jobs
+                    = builder::make_select(is_large_work, my_jobs, my_jobs_2);
+            // for gid=5, base_job_id = 11
+            expr base_job_id
+                    = (gid / num_thread_each_split) * (num_jobs / num_split);
+            // for gid=5, job_id_offset = 3
+            expr job_id_offset;
+            if (num_thread_larger_work_per_split == num_thread_each_split - 1) {
+                job_id_offset = id_in_split * my_jobs;
+            } else {
+                job_id_offset = generate_balance211_job_id_base(id_in_split,
+                        num_thread_larger_work_per_split, my_jobs, my_jobs_2);
+            }
+            expr my_begin = start_e + (base_job_id + job_id_offset) * step_e;
+            make_output_vars(my_begin, cur_jobs);
+            return num_split;
+        }
+        // fallback way: non-divisible loop
+        the_tid = num_thread_larger_work;
+        my_jobs_e = my_jobs;
+        my_jobs_2_e = my_jobs_2;
+
+    } else {
+        auto &end = end_e;
+        auto &begin = start_e;
+        auto &step = step_e;
+        auto len = end - begin;
+        auto num_jobs = def_var("num_jobs", (len + step - 1) / step);
+        my_jobs_e = def_var(
+                "my_jobs", (num_jobs + (num_threads - 1)) / num_threads);
+        // assert(my_jobs > 0);
+        my_jobs_2_e = def_var("my_jobs2", my_jobs_e - 1);
+        the_tid = def_var("the_tid", num_jobs - my_jobs_2_e * num_threads);
+    }
+    expr cur_jobs = builder::make_select(gid < the_tid, my_jobs_e, my_jobs_2_e);
+    expr my_begin = start_e
+            + generate_balance211_job_id_base(
+                      gid, the_tid, my_jobs_e, my_jobs_2_e)
+                    * step_e;
+    make_output_vars(my_begin, cur_jobs);
+    return 0;
 }
 
 } // namespace builtin

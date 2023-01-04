@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "visitable.hpp"
 #include <compiler/ir/pass/printer.hpp>
 #include <util/any_map.hpp>
+#include <util/math_utils.hpp>
 namespace sc {
 
 stmt_base_t::~stmt_base_t() = default;
@@ -171,6 +172,36 @@ bool for_loop_node_t::equals(stmt_c v, ir_comparer &ctx) const {
             && iter_end_->equals(other->iter_end_, ctx)
             && step_->equals(other->step_, ctx)
             && body_->equals(other->body_, ctx);
+}
+
+uint64_t for_loop_node_t::get_balance211_split_factor() const {
+    COMPILE_ASSERT(num_threads_ > 0,
+            "get_balance211_split_factor only works on num_threads>0");
+    if (iter_begin_.isa<constant>() && iter_end_.isa<constant>()
+            && step_.isa<constant>()) {
+        // if is constant-for (in most cases)
+        uint64_t end = get_const_as_int(iter_end_.static_as<constant>());
+        uint64_t begin = get_const_as_int(iter_begin_.static_as<constant>());
+        uint64_t step = get_const_as_int(step_.static_as<constant>());
+        auto len = end - begin;
+        auto num_jobs = utils::divide_and_ceil(len, step);
+        uint64_t my_jobs = utils::divide_and_ceil(num_jobs, num_threads_);
+        COMPILE_ASSERT(my_jobs > 0, "Bad number of jobs");
+        if (num_jobs % num_threads_ == 0) { return num_threads_; }
+        uint64_t my_jobs_2 = my_jobs - 1;
+        // number of threads doing my_jobs work
+        uint64_t num_thread_larger_work = num_jobs - my_jobs_2 * num_threads_;
+        // number of threads doing my_jobs - 1 work
+        uint64_t num_thread_less_work = num_threads_ - num_thread_larger_work;
+        // the loop is divisible with num_thread_less_work parts
+        // and each part has same number of works
+        // the loop can be further "split" into outer and inner loops and
+        // the outer loop may be merged with another loop
+        uint64_t num_split
+                = math_utils::get_gcd(num_thread_larger_work, num_threads_);
+        return num_split;
+    }
+    return 0;
 }
 
 } // namespace sc

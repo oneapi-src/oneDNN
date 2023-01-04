@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -564,6 +564,17 @@ public:
      * @param ax the sibling loop to be merged after this loop
      * */
     void parallel_merge(const stmt &parent, const ptr_type &ax);
+
+    /**
+     * Gets the split factor of this loop for balance211 workload-dispatch.
+     * @see builtin::generate_balance211
+     * This function is only avaliable when the loop is a nested parallel-for
+     * (with num_threads!=0). It returns the maximal number of groups that this
+     * parallel-for can be split into. Each sub-thread group will be assign with
+     * a workload of the same size after spliting. It may return 0, indicating
+     * that this for-loop has non-const boundary.
+     */
+    uint64_t get_balance211_split_factor() const;
 
     stmt remake() const override;
     bool equals(stmt_c other, ir_comparer &ctx) const override;

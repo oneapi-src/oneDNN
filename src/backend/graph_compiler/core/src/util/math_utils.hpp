@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -91,6 +91,18 @@ inline int nearest_power_of_2(int in) {
     }
     return in == 0 ? 1 : in;
 }
+
+// get greatest common divisor of block_in and block_out
+inline int64_t get_gcd(int64_t a, int64_t b) {
+    COMPILE_ASSERT(a * b != 0, "non-zero number is expected");
+    int64_t i = std::min(a, b);
+    while (a % i != 0 || b % i != 0) {
+        i--;
+        if (i == 0) return 1;
+    }
+    return i;
+}
+
 } // namespace math_utils
 } // namespace sc
 #endif

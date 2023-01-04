@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,66 +70,6 @@ public:
         name += '_';
         name += std::to_string(++var_count_);
         return name;
-    }
-
-    void do_generate_balance211(int num_threads, const for_loop_c &v,
-            const expr &gid, std::vector<stmt> &out_seq, expr &out_start,
-            expr &out_end) {
-        auto_caster_t caster;
-        constant_folder_t folder;
-        auto def_var = [&](const char *name, const expr &init_v) {
-            auto ret = builder::make_var(datatypes::index, make_name(name));
-            out_seq.emplace_back(builder::make_var_tensor_def_unattached(
-                    ret, linkage::local, do_cast_and_fold(init_v)));
-            return ret;
-        };
-        expr the_tid, my_jobs_e, my_jobs_2_e;
-        if (v->iter_begin_.isa<constant>() && v->iter_end_.isa<constant>()
-                && v->step_.isa<constant>()) {
-            // if is constant-for (in most cases)
-            uint64_t end = get_const_as_int(v->iter_end_.static_as<constant>());
-            uint64_t begin
-                    = get_const_as_int(v->iter_begin_.static_as<constant>());
-            uint64_t step = get_const_as_int(v->step_.static_as<constant>());
-            auto len = end - begin;
-            auto num_jobs = utils::divide_and_ceil(len, step);
-            uint64_t my_jobs = utils::divide_and_ceil(num_jobs, num_threads);
-            COMPILE_ASSERT(my_jobs > 0, "Bad number of jobs");
-            if (num_jobs % num_threads == 0) {
-                // fast path. the jobs is divisible by the thread number
-                out_start = def_var("_start", gid * (my_jobs * step) + begin);
-                out_end = def_var("_end", out_start + (my_jobs * step));
-                return;
-            }
-            uint64_t my_jobs_2 = my_jobs - 1;
-            the_tid = num_jobs - my_jobs_2 * num_threads;
-            my_jobs_e = my_jobs;
-            my_jobs_2_e = my_jobs_2;
-
-        } else {
-            expr end = v->iter_end_;
-            expr begin = v->iter_begin_;
-            expr step = v->step_;
-            expr len = end - begin;
-            auto num_jobs = def_var("num_jobs", (len + step - 1) / step);
-            my_jobs_e = def_var(
-                    "my_jobs", (num_jobs + (num_threads - 1)) / num_threads);
-            // assert(my_jobs > 0);
-            my_jobs_2_e = def_var("my_jobs2", my_jobs_e - 1);
-            the_tid = def_var("the_tid", num_jobs - my_jobs_2_e * num_threads);
-        }
-        expr cur_jobs
-                = builder::make_select(gid < the_tid, my_jobs_e, my_jobs_2_e);
-        expr my_begin = v->iter_begin_
-                + builder::make_select(gid <= the_tid, gid * my_jobs_e,
-                          the_tid * my_jobs_e + (gid - the_tid) * my_jobs_2_e)
-                        * v->step_;
-        my_begin = folder(caster(my_begin)).remove_const();
-        out_start = def_var("_start", my_begin);
-
-        expr my_end = out_start + cur_jobs * v->step_;
-        my_end = folder(caster(my_end)).remove_const();
-        out_end = def_var("_end", my_end);
     }
 
     expr get_barrier_for_current_for() {
@@ -276,8 +216,10 @@ void work() {
             // the balance211 & for body code will be omited in the if body
         }
         expr begin, end;
-        do_generate_balance211(
-                num_threads, v, gid1, *cur_insert_point, begin, end);
+        builtin::generate_balance211(
+                num_threads, v->iter_begin_, v->iter_end_, v->step_, gid1,
+                [&](const char *v) { return make_name(v); }, &begin, nullptr,
+                &end, cur_insert_point);
         if (need_pre_barrier) { gen_call_to_barrier(cur_insert_point); }
 
         auto new_body = make_stmt<stmts_node_t>(std::vector<stmt> {});

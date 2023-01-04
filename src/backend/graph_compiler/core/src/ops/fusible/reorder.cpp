@@ -358,17 +358,6 @@ slice_range get_block2plain_ranges(const expr &block_num_start,
     return plain_range_list;
 }
 
-// get greatest common divisor of block_in and block_out
-inline int get_gcd(int a, int b) {
-    COMPILE_ASSERT(a * b != 0, "non-zero number is expected");
-    int i = std::min(a, b);
-    while (a % i != 0 || b % i != 0) {
-        i--;
-        if (i == 0) return 1;
-    }
-    return i;
-}
-
 // Get plain to block ranges
 std::vector<std::pair<std::pair<expr, expr>, std::pair<expr, expr>>>
 get_plain2block_ranges(const expr &start, const expr &length, int blocks) {
@@ -434,7 +423,7 @@ get_plain2block_ranges(const expr &start, const expr &length, int blocks) {
                                         std::move(block_size_range)));
                     }
                 } else {
-                    int gcd = get_gcd(multiple, blocks);
+                    int gcd = math_utils::get_gcd(multiple, blocks);
                     for (int i = 0; i < ilength / gcd; i++) {
                         auto block_num_range = std::make_pair(
                                 (folded_start + i * gcd) / blocks, 1);

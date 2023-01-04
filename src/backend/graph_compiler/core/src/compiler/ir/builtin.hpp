@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -438,6 +438,42 @@ func_t get_init_barrier_func();
 func_t get_set_idle_func_managed_func();
 
 func_t get_brgemm_init_func();
+
+/**
+ * Generates the IR to do work-dispatch of balance211 - to parallelize a loop of
+ * [start,end) with loop iterator step = "step" using "num_threads" threads.
+ * Given the above parameters and the thread id, this helper function builds the
+ * IR to calculate the share of the workload in [out_start, out_end)
+ *
+ * @param num_threads the number of threads
+ * @param start the start of the loop
+ * @param end the end of the loop, not inclusive
+ * @param step the setp of the loop
+ * @param tid the current thread id
+ * @param namer the optional callback function to customize the internal
+ * variable name. It takes a parameter of the base variable name. A typical
+ * implementation of this function may transform the input name "a" into a_{N},
+ * where N is an internal counter. If is null, use the default namer.
+ * @param out_start outputs the IR node for the start of the workload of the
+ * thread
+ * @param out_len optionally outputs the IR node for the length of the workload
+ * of the thread. If is null, this function will not output IR for this
+ * @param out_end optionally outputs the IR node for the end of the workload of
+ * the thread. If is null, this function will not output IR for this
+ * @param out_seq If it is not null, append the generated statements into it. If
+ * is is null, generate the statements to the current IR builder.
+ * @return the maximal number of splits of the threads, which threads can be
+ * grouped into, and each group of threads does the same amount of jobs. The
+ * return value should be a factor of num_threads. e.g. If the number of threads
+ * is 18 and the function returns 6, it means that the 18 threads can be further
+ * grouped into sub-groups with 2, 3, or 6 threads. The function can return 0,
+ * indicating that the loop boundary are not constants.
+ * */
+uint64_t generate_balance211(int num_threads, const expr &start,
+        const expr &end, const expr &step, const expr &tid,
+        const std::function<std::string(const char *)> &namer, expr *out_start,
+        expr *out_len = nullptr, expr *out_end = nullptr,
+        std::vector<stmt> *out_seq = nullptr);
 
 } // namespace builtin
 } // namespace sc
