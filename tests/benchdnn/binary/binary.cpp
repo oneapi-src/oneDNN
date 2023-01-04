@@ -197,7 +197,9 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 } else if (is_scales_arg) {
                     int exec_src_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
                     // Leave hard coded until supported mask is 0 only.
-                    mem.set_elem(0, prb->attr.scales.get(exec_src_arg).scale);
+                    ref_mem.set_elem(
+                            0, prb->attr.scales.get(exec_src_arg).scale);
+                    mem.reorder(ref_mem);
                 }
             } break;
         }

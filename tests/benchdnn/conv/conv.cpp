@@ -576,8 +576,10 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                         default: break;
                     }
                     // Fill library scales directly.
-                    for (int64_t idx = 0; idx < mem.nelems(); ++idx)
-                        mem.set_elem(idx, prb_ptr[idx]);
+                    for (int64_t idx = 0; idx < mem.nelems(); ++idx) {
+                        ref_mem.set_elem(idx, prb_ptr[idx]);
+                        mem.reorder(ref_mem);
+                    }
                 } else if (is_zero_point_arg) {
                     int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
                     const auto *prb_ptr = (local_exec_arg == DNNL_ARG_SRC)
