@@ -673,7 +673,8 @@ void init_data_tags(const conv_config_t &cfg, bool allow_src_reorder,
     // limitation to register granularity
     nc_block_t dst_blk = nc_block_t::get_default_blocking(dst_compute_type,
             prb.is_dw, prb.mb, prb.oc, prb.g, prb.is_bwd_d || prb.is_bwd_w,
-            is_small_oc(prb), 0, true, prb.is_bwd_w && prb.with_bias);
+            is_small_oc(prb), 0, true,
+            prb.is_bwd_w && prb.with_bias && prb.g == 1);
 
     auto wei_blk = goi_block_t::get_default_blocking(wei_compute_type,
             cfg.vec_size(), cfg.fma_kind(), prb.is_bwd_d, is_small_ic(prb),
