@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2235,26 +2235,6 @@ static bool can_be_vnni_reorder(const context_ptr &ctx,
     return true;
 }
 
-static void vnni_mask_othercondition_offset(const bool &is_vnni_reorder,
-        const sc_dims &plain_dims, std::vector<expr> &tmp_in_indexes,
-        sc_graph_t &graph, std::vector<int> &inp_n_axis,
-        std::vector<int> &inp_k_axis, expr &last_axis_offset,
-        expr &other_axis_condition) {
-    other_axis_condition = true;
-    int last_orig_dim
-            = is_vnni_reorder ? plain_dims.size() - 1 : plain_dims.size() - 2;
-    int other_orig_dim
-            = is_vnni_reorder ? plain_dims.size() - 2 : plain_dims.size() - 1;
-    int tmp_in_last_dim = is_vnni_reorder ? inp_n_axis[0] : inp_k_axis[0];
-    int tmp_in_other_dim = is_vnni_reorder ? inp_k_axis[0] : inp_n_axis[0];
-
-    last_axis_offset = cast_to_s32(graph.dim_to_expr(plain_dims[last_orig_dim])
-            - tmp_in_indexes[tmp_in_last_dim]);
-    other_axis_condition = other_axis_condition
-            && tmp_in_indexes[tmp_in_other_dim]
-                    < graph.dim_to_expr(plain_dims[other_orig_dim]);
-}
-
 static void do_vnni_reorder_avx512f(std::vector<stmt_c> &cur_list,
         std::vector<expr> &rows, sc_data_type_t &rows_dtype) {
     // reorder on a kernel of 4x16(u8/s8) or 4x8(bf16)
@@ -2446,6 +2426,8 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
     auto bld = builder::get_current_builder();
     auto input_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, input_format);
+    auto input_blocking_shape_expr
+            = get_blocking_shapes_expr(graph, plain_dims, input_format);
     auto output_blocking_dims
             = sc_data_format_t::get_blocking_shapes(plain_dims, output_format);
     auto input_blocking_dims_expr
@@ -2461,7 +2443,7 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
     }
 
     std::vector<expr> rows(4);
-    std::vector<expr> iter_vars, iter_vars_2;
+    std::vector<expr> iter_vars;
     std::vector<stmt_c> cur_list;
     auto rows_dtype = dtype;
     rows_dtype.lanes_ = is_bf16 ? 8 : 16;
@@ -2474,13 +2456,10 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         cur_list.emplace_back(builder::make_var_tensor_def_unattached(rows[i]));
     }
     if (!output_loop) {
-        std::vector<expr> in_indexes, in_indexes_2, loop_indexes;
+        std::vector<expr> in_indexes, loop_indexes;
         for (size_t i = 0; i < input_blocking_dims.size(); i++) {
             iter_vars.emplace_back(builder::make_var(datatypes::index,
                     std::string("_fuseiter") + fusion_create_idx()));
-            iter_vars_2.emplace_back(builder::make_var(datatypes::index,
-                    std::string("_fuseiter") + fusion_create_idx()));
-            in_indexes_2.emplace_back(iter_vars_2[i] + src.get_offset()[i]);
             in_indexes.emplace_back((iter_vars[i] + src.get_offset()[i]));
             loop_indexes.emplace_back(iter_vars[i]);
         }
@@ -2586,7 +2565,7 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         cur->attr()[stmt_attr_key::merge_loop] = true;
         bld->emit(cur);
     } else { // use output loop
-        std::vector<expr> out_indexes, out_indexes_2;
+        std::vector<expr> out_indexes;
         // create iter variable, and make index
         for (size_t i = 0; i < output_blocking_dims.size(); i++) {
             iter_vars.emplace_back(builder::make_var(datatypes::index,
@@ -2618,9 +2597,15 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
             stmt mask_def;
             int real_step = is_bf16 ? 8 : 16;
             if (is_padding) {
-                vnni_mask_othercondition_offset(is_vnni_reorder, plain_dims,
-                        tmp_in_indexes, graph, inp_n_axis, inp_k_axis,
-                        last_axis_offset, other_axis_condition);
+                int tmp_in_last_dim
+                        = is_vnni_reorder ? inp_n_axis[0] : inp_k_axis[0];
+                int tmp_in_other_dim
+                        = is_vnni_reorder ? inp_k_axis[0] : inp_n_axis[0];
+                last_axis_offset
+                        = cast_to_s32(input_blocking_shape_expr[tmp_in_last_dim]
+                                - tmp_in_indexes[tmp_in_last_dim]);
+                other_axis_condition = tmp_in_indexes[tmp_in_other_dim]
+                        < input_blocking_shape_expr[tmp_in_other_dim];
                 // The cur_step corresponding to each step is the same,
                 // so we only need to count the first time and others
                 // can be reused.
@@ -2644,12 +2629,13 @@ static void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                         real_step, other_axis_condition);
                 cur_list.emplace_back(mask_def);
             }
+
+            // here, we use input is to fix the out-of-bound exception.
+            // Using tptr will make the address calculation wrong in some
+            // cases (479x1024..).
             auto assign = builder::make_assign_unattached(rows[i],
-                    // here, use src.tptr instead of input is aimed to
-                    // avoid input is tensor_view_op. Otherwise, it will
-                    // throw illegal exception in tensor_shrink
                     builder::make_indexing(
-                            src.tptr_, tmp_in_indexes, is_bf16 ? 8 : 16, mask));
+                            input, tmp_in_indexes, is_bf16 ? 8 : 16, mask));
             assign->attr()[op_traits::workload_computable_t::workload_number]
                     = wkld;
             cur_list.emplace_back(assign);
