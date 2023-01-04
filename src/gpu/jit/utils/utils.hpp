@@ -65,6 +65,7 @@ namespace ir_utils {
 
 const int LOG_OFF = 0;
 const int LOG_WARNING = 100;
+const int LOG_SUGGESTION = 120;
 const int LOG_INFO = 150;
 const int LOG_PERF = 170;
 const int LOG_TRACE = 200;
@@ -299,6 +300,7 @@ private:
 
         switch (level) {
             case LOG_WARNING: out_ << "[WARNING] "; break;
+            case LOG_SUGGESTION: out_ << "[SUGGESTION] "; break;
             default: break;
         }
         is_first_print_ = false;
@@ -325,6 +327,10 @@ private:
 #define ir_warning() \
     ir_utils::logger_t<ir_utils::LOG_WARNING>::is_enabled() \
             && ir_utils::logger_t<ir_utils::LOG_WARNING>()
+
+#define ir_suggestion() \
+    ir_utils::logger_t<ir_utils::LOG_SUGGESTION>::is_enabled() \
+            && ir_utils::logger_t<ir_utils::LOG_SUGGESTION>()
 
 #define ir_trace() \
     ir_utils::logger_t<ir_utils::LOG_TRACE>::is_enabled() \
