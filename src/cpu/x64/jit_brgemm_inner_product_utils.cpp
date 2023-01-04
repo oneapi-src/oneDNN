@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,8 +56,8 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
     const bool is_xf16 = one_of(jbgp.wei_dt, bf16, f16) || jbgp.is_bf32;
     const bool is_amx_xf16 = jbgp.is_amx && is_xf16;
     const bool is_avx512_bf16 = jbgp.isa == avx512_core_bf16;
-    const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
-    const bool is_bf32 = jbgp.is_bf32;
+    const bool is_f32_compute = !jbgp.is_bf32
+            && everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
 
     int max_os_block = 0;
     int min_os_block = 0;
@@ -85,7 +85,7 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
         //
         // For f32 data type our objective is to determine the optimal value
         // of os_block such that the work amount per thread ~ 2
-        if (is_f32 && !is_bf32) {
+        if (is_f32_compute) {
             const bool small_work_amt_per_thread
                     = div_up(jbgp.os, max_os_block) * jbgp.nb_oc
                     < 1.8f * jbgp.nthr;
@@ -307,7 +307,8 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     const bool is_amx_xf16
             = jbgp.is_amx && one_of(jbgp.wei_dt, bf16, f16) && !jbgp.is_bf32;
     const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
-    const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+    const bool is_f32_compute = !jbgp.is_bf32
+            && everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const auto &p = attr.post_ops_;
     jbgp.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
@@ -331,7 +332,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
 
     // gemm-based inner product performs better when oc = 1
-    if (is_f32 && !jbgp.is_bf32 && jbgp.oc == 1) return status::unimplemented;
+    if (is_f32_compute && jbgp.oc == 1) return status::unimplemented;
 
     jbgp.oc_block = ip_fwd_get_adjusted_oc_block(jbgp);
     jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
@@ -347,7 +348,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     //   * 1 <= nb_os_blocking <= 8 AND nb_os_blocking <= nb_os
     //   * Work amount per thread ~ 2
     //   * NOTE: here nb_oc_blocking = 1 as os is large
-    if (jbgp.os > 256 && is_f32 && !jbgp.is_bf32) {
+    if (jbgp.os > 256 && is_f32_compute) {
         jbgp.nb_os_blocking = saturate(1, nstl::min(8, jbgp.nb_os),
                 nstl::min(nstl::max(jbgp.oc / jbgp.os / 2, 1),
                         div_up(jbgp.nb_os * jbgp.nb_oc, 2 * jbgp.nthr)));
@@ -369,9 +370,9 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
     //  * number of threads > 1
     //  * not a "gigantic shape" since it already has a lot of parallelism
     //      in mb and oc dimensions w/o enabling IC parallelism
-    const bool use_parallel_ic_reduction = is_f32 && !jbgp.is_bf32
-            && jbgp.ic > 1024 && num_work_to_parallel < jbgp.nb_ic
-            && jbgp.nthr > 1 && !is_gigantic_shape;
+    const bool use_parallel_ic_reduction = is_f32_compute && jbgp.ic > 1024
+            && num_work_to_parallel < jbgp.nb_ic && jbgp.nthr > 1
+            && !is_gigantic_shape;
 
     // For os > 256, compute all os blocks as a single chunk when performing
     // IC reduction. Note that this condition is empirical
@@ -401,7 +402,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
                 nstl::min(jbgp.nb_ic >= 1024 ? 8 : 4, num_min_chunk_sz),
                 jbgp.nthr);
 
-        if (is_f32) {
+        if (is_f32_compute) {
             // Don't sacrifice reduction threads if other dimension will
             // not benefit.
             int nthr_other = jbgp.nthr / reduce_work;
@@ -415,7 +416,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         bool is_1d_oc = os_chunks == 1 && oc_chunks > 1;
         bool is_1d_os = oc_chunks == 1 && os_chunks > 1;
         bool is_1d = is_1d_oc || is_1d_os;
-        if (is_f32 && is_1d && jbgp.nthr_ic_b > 1) {
+        if (is_f32_compute && is_1d && jbgp.nthr_ic_b > 1) {
             int n_chunks = is_1d_oc ? oc_chunks : os_chunks;
             int nthr_1 = jbgp.nthr_ic_b;
             int nthr_2 = nthr_1 - 1;
@@ -513,7 +514,8 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     const bool is_amx_xf16 = jbgp.is_amx && !jbgp.is_bf32;
     const bool is_avx512_bf16 = jbgp.isa == avx512_core_bf16;
-    const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
+    const bool is_f32_compute = !jbgp.is_bf32
+            && everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     const bool is_bf16 = everyone_is(bf16, jbgp.wei_dt, jbgp.dst_dt);
 
     constexpr int amx_xf16_granularity = 2;
@@ -529,13 +531,12 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     //   os <= 128 && max(ic, oc) <= 2048 && min(ic, oc) <= 1000
     //
     // TODO: Will the optimization be useful for bf16 data type
-    const bool avoid_max_ic_block = is_f32 && !jbgp.is_bf32 && jbgp.os <= 128
+    const bool avoid_max_ic_block = is_f32_compute && jbgp.os <= 128
             && nstl::max(jbgp.ic, jbgp.oc) <= 2048
             && nstl::min(jbgp.ic, jbgp.oc) <= 1000;
-    jbgp.ic_block = !avoid_max_ic_block
-                    && jbgp.ic >= (is_f32 && !jbgp.is_bf32 ? 512 : 64)
-            ? 64
-            : jbgp.ic >= 32 ? 32
+    jbgp.ic_block
+            = !avoid_max_ic_block && jbgp.ic >= (is_f32_compute ? 512 : 64) ? 64
+            : jbgp.ic >= 32                                                 ? 32
                             : 16;
 
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
@@ -594,7 +595,7 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
                         num_min_chunk_sz),
                 jbgp.nthr);
 
-        if (is_f32) {
+        if (is_f32_compute) {
             // Don't sacrifice reduction threads if other dimension will
             // not benefit.
             int nthr_other = jbgp.nthr / reduce_work;
@@ -608,7 +609,7 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
         bool is_1d_ic = os_chunks == 1 && ic_chunks > 1;
         bool is_1d_os = ic_chunks == 1 && os_chunks > 1;
         bool is_1d = is_1d_ic || is_1d_os;
-        if (is_f32 && is_1d && jbgp.nthr_oc_b > 1) {
+        if (is_f32_compute && is_1d && jbgp.nthr_oc_b > 1) {
             int n_chunks = is_1d_ic ? ic_chunks : os_chunks;
             int nthr_1 = jbgp.nthr_oc_b;
             int nthr_2 = nthr_1 - 1;
