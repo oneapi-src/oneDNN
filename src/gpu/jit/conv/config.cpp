@@ -1500,7 +1500,8 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
         bh.reorder({osp_name, "mb"});
         if (!prb.is_int8_dst() && !cfg.fuse_spatial() && prb.mb < 16
                 && prb.iw % 8 != 0 && !prb.is_dw) {
-            bh.set_max_m_tg_dim(1);
+            int max_dim = (prb.ic < 3 && prb.oc < 3) ? 2 : 1;
+            bh.set_max_m_tg_dim(max_dim);
         }
     } else {
         const int large_sp_threshold = cfg.is_ge_xe_hpc() ? 128 : 256;
