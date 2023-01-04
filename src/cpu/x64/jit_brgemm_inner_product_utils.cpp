@@ -354,6 +354,16 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
                         div_up(jbgp.nb_os * jbgp.nb_oc, 2 * jbgp.nthr)));
     }
 
+    if (jbgp.nthr == 1 && is_f32_compute) {
+        // If a panel src doesn't fit in l2 cache, do all os-blocks at once to
+        // improve bandwidth for weights.
+        size_t src_panel_sz
+                = jbgp.os_block * jbgp.ic * types::data_type_size(jbgp.src_dt);
+        size_t l2_sz = platform::get_per_core_cache_size(2);
+        if (src_panel_sz > l2_sz && jbgp.nb_oc_blocking == 1)
+            jbgp.nb_os_blocking = jbgp.nb_os;
+    }
+
     // NOTE: comment about is_gigantic_shape is in get_os_block()
     const bool is_gigantic_shape = jbgp.oc >= 4096 && jbgp.os >= 512;
     const int oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
