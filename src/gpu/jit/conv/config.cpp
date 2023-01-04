@@ -1309,9 +1309,13 @@ void init_common_blocking(conv_config_t &cfg, block_helper_t &bh) {
         }
     } else if (prb.is_bwd_d) {
         bh.set_base_iter_block("mb", dst_layout.inner_block(0));
-        int dst_g_blk = dst_layout.inner_block(1);
-        int wei_g_blk = wei_layout.inner_block(0);
-        bh.set_base_iter_block("g", dst_g_blk, wei_g_blk);
+        if (!cfg.is_dp_fma()) {
+            int dst_g_blk = dst_layout.inner_block(1);
+            int wei_g_blk = wei_layout.inner_block(0);
+            bh.set_base_iter_block("g", dst_g_blk, wei_g_blk);
+            if (!prb.is_dw)
+                bh.dim("g").set_iter_dim(bh.dim("g").base_iter_block());
+        }
         int dst_oc_blk = dst_layout.inner_block(2);
         int wei_oc_blk = wei_layout.inner_block(1);
         bh.set_base_iter_block("oc", dst_oc_blk, wei_oc_blk);
