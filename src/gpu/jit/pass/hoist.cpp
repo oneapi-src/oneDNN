@@ -402,7 +402,7 @@ private:
         if (it != hoisted_masks_.end()) return it->second;
 
         auto var = ir_ctx_.create_tmp_var(
-                type_t::u(std::max(e.type().elems(), 16)));
+                bool_imm_t::get_packed_type(e.type().elems()));
         hoisted_masks_.emplace(e_expanded, var);
 
         return var;
@@ -454,7 +454,7 @@ private:
 
             if (can_hoist(_e)) {
                 auto var = ir_ctx_.create_tmp_var(
-                        type_t::u(std::max(e.type().elems(), 16)));
+                        bool_imm_t::get_packed_type(e.type().elems()));
                 ops.emplace(_e, var);
                 current_hoist_size_ += utils::rnd_up(
                         var.type().size(), reg_allocator_t::granularity);

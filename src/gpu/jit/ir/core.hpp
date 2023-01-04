@@ -1025,6 +1025,10 @@ public:
 
     static expr_t make(bool value) { return expr_t(new bool_imm_t(value)); }
 
+    static type_t get_packed_type(int elems) {
+        return type_t::u(std::max(elems, 16));
+    }
+
     bool is_equal(const object_impl_t &obj) const override {
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();

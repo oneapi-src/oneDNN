@@ -317,7 +317,7 @@ public:
         auto &cse_expr = find_cse_expr(e);
         if (cse_expr.cse_var.is_empty()) {
             cse_expr.cse_var = ir_ctx_.create_tmp_var(e.type().is_bool()
-                            ? type_t::u(std::max(e.type().elems(), 16))
+                            ? bool_imm_t::get_packed_type(e.type().elems())
                             : e.type());
             ir_trace() << "cse_pass: assigning var: " << e << " -> "
                        << cse_expr.cse_var << std::endl;
@@ -651,8 +651,8 @@ private:
             auto ret = seen_vars_.insert(var);
             if (ret.second)
                 lets_.push_back(let_t::make(var,
-                        obj.type.is_bool() ? cast(
-                                obj, type_t::u(std::max(16, obj.type.elems())))
+                        obj.type.is_bool() ? cast(obj,
+                                bool_imm_t::get_packed_type(obj.type.elems()))
                                            : obj));
         }
     }
