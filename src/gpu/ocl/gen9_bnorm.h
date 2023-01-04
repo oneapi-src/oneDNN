@@ -132,4 +132,166 @@
 #define CALC_SLM_LINE_SIZE (REDUCE_NUM_SGROUPS * GWS_LWS0_CALC)
 #define CALC_SLM_SIZE (CALC_SLM_LINE_SIZE * GWS_LWS1_CALC * GWS_LWS2_CALC)
 
+#if IS_FWD
+#if USE_STATS_ONE_PASS
+#define ACCUM_DATA_T float
+#define ACCUM_DATA8_T float8
+#define ACCUM_DATA2_T float2
+#define SUM_DATA_T ACCUM_DATA2_T
+
+// Kahan summation algorithm. It's much more precise than simple sum and works
+// just as fast, since kernel is still memory-bound.
+SUM_DATA_T summation(ACCUM_DATA_T input, SUM_DATA_T state) {
+    ACCUM_DATA2_T ret;
+    ACCUM_DATA_T y = input - state.s1;
+    ACCUM_DATA_T t = state.s0 + y;
+    ret.s1 = (t - state.s0) - y;
+    ret.s0 = t;
+    return ret;
+}
+#endif // USE_STATS_ONE_PASS
+#endif // IS_FWD
+
+#if FUSED_ATOMICS_REDUCTION
+
+#if NHWC_OPTIMIZED
+#if VECT_SIZE > 1
+#define GET_SCALAR_VAL(v, idx) v[idx / VECT_SIZE][idx % VECT_SIZE]
+#else
+#define GET_SCALAR_VAL(v, idx) v[idx]
+#endif
+#else
+#define GET_SCALAR_VAL(v, idx) v[idx]
+#endif
+
+#if IS_FWD
+#if USE_STATS_ONE_PASS
+void gen9_mean_var_calc_fused_reduction(volatile __global atomic_float *mean,
+        volatile __global atomic_float *variance, int dst_offset,
+        SUM_DATA_T *sum, SUM_DATA_T *sum_sq, __local SUM_DATA_T *local_sum,
+        __local SUM_DATA_T *local_sum_sq) {
+#else // regular alg
+void gen9_calc_fused_reduction(volatile __global atomic_float *dst,
+        int dst_offset, float *sum, __local float *local_sum) {
+#endif
+    const int simd_id = get_sub_group_local_id();
+
+    const int group_size = GWS_LWS1_CALC * GWS_LWS2_CALC;
+    const int sg_group_id = get_local_id(0) / 16;
+    const int local_id = get_local_id(1);
+
+    if (local_id > 0) {
+        for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
+            const int slm_offset = CALC_SLM_LINE_SIZE * local_id
+                    + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16 + simd_id;
+            local_sum[slm_offset] = sum[sg];
+#if USE_STATS_ONE_PASS
+            local_sum_sq[slm_offset] = sum_sq[sg];
+#endif
+        }
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (local_id == 0) {
+        for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
+            for (int gr_id = 1; gr_id < group_size; ++gr_id) {
+                const int off_local = CALC_SLM_LINE_SIZE * gr_id
+                        + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16
+                        + simd_id;
+#if USE_STATS_ONE_PASS
+                SUM_DATA_T tmp = local_sum[off_local];
+                SUM_DATA_T tmp_sq = local_sum_sq[off_local];
+                sum[sg] = summation(tmp.s1, sum[sg]);
+                sum_sq[sg] = summation(tmp_sq.s1, sum_sq[sg]);
+                sum[sg] = summation(tmp.s0, sum[sg]);
+                sum_sq[sg] = summation(tmp_sq.s0, sum_sq[sg]);
+#else // regular alg
+                sum[sg] += local_sum[off_local];
+#endif
+            }
+            const int offset = dst_offset + sg * 16 + simd_id;
+#if HAS_IC_TAIL
+            if (offset < IC) {
+#endif
+#if USE_STATS_ONE_PASS
+                atomic_add_global(&mean[offset], sum[sg].s0);
+                atomic_add_global(&variance[offset], sum_sq[sg].s0);
+#else // regular alg
+            atomic_add_global(&dst[offset], sum[sg]);
+#endif
+#if HAS_IC_TAIL
+            }
+#endif
+        }
+    }
+    return;
+}
+#endif // IS_FWD
+
+#if IS_BWD
+void gen9_calc_fused_reduction(volatile __global atomic_float *diff_scale,
+        volatile __global atomic_float *diff_shift, int dst_offset,
+#if NHWC_OPTIMIZED
+        VECT_FLOAT_T *diff_gamma, VECT_FLOAT_T *diff_beta,
+#else
+        float *diff_gamma, float *diff_beta,
+#endif
+        float *diff_gamma_tail, float *diff_beta_tail,
+        __local float *local_gamma, __local float *local_beta) {
+
+    const int simd_id = get_sub_group_local_id();
+    const int group_size = GWS_LWS1_CALC * GWS_LWS2_CALC;
+    const int sg_group_id = get_local_id(0) / 16;
+    const int local_id = get_local_id(1);
+
+    for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
+        const int slm_offset = CALC_SLM_LINE_SIZE * local_id
+                + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16 + simd_id;
+#if HAS_IC_VECT_TAIL && NHWC_OPTIMIZED
+        if (sg >= IC_VECT_SGROUPS) {
+            local_gamma[slm_offset] = diff_gamma_tail[sg - IC_VECT_SGROUPS];
+            local_beta[slm_offset] = diff_beta_tail[sg - IC_VECT_SGROUPS];
+        } else
+#endif
+        {
+            local_gamma[slm_offset] = GET_SCALAR_VAL(diff_gamma, sg);
+            local_beta[slm_offset] = GET_SCALAR_VAL(diff_beta, sg);
+        }
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (local_id == 0) {
+        for (int sg = 0; sg < REDUCE_NUM_SGROUPS; ++sg) {
+            float d_gamma = 0.f;
+            float d_beta = 0.f;
+
+            for (int gr_id = 0; gr_id < group_size; ++gr_id) {
+                const int off_local = CALC_SLM_LINE_SIZE * gr_id
+                        + REDUCE_NUM_SGROUPS * 16 * sg_group_id + sg * 16
+                        + simd_id;
+                d_gamma += local_gamma[off_local];
+                d_beta += local_beta[off_local];
+            }
+            const int offset = dst_offset + sg * 16 + simd_id;
+#if HAS_IC_TAIL
+            if (offset < IC)
+#endif
+            {
+                atomic_add_global(&diff_scale[offset], d_gamma);
+#if DIFF_SHIFT == 1
+                atomic_add_global(&diff_shift[offset], d_beta);
+#else
+                atomic_add_global(
+                        &diff_shift[IC + IC * REDUCE_STAT_NBLOCKS + offset],
+                        d_beta);
+#endif
+            }
+        }
+    }
+    return;
+}
+#endif // IS_BWD
+#endif // FUSED_ATOMICS_REDUCTION
+
 #endif // GPU_OCL_GEN9_BNORM_H
