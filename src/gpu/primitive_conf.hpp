@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -536,6 +536,7 @@ struct bnorm_conf_t {
     bool nhwc_optimized;
     int calc_stat_ic;
     bool use_fused_atomics_reduction;
+    bool use_workaround;
 
     compute::dispatch_t dispatch_calc_stat;
     compute::dispatch_t dispatch_reduce_stat;

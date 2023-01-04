@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -249,6 +249,11 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
             && gpu_arch >= compute::gpu_arch_t::xe_hpg;
 
+    // Compiler issue workaround
+    // TODO: remove it after fixing the issue
+    conf.use_workaround = conf.data_type == data_type::f32
+            && gpu_arch == compute::gpu_arch_t::xe_hpg;
+
     conf.use_fused_atomics_reduction
             = use_fused_atomics_reduction(conf, engine);
 
@@ -394,6 +399,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("NHWC_OPTIMIZED", conf.nhwc_optimized);
     kernel_ctx.define_int(
             "FUSED_ATOMICS_REDUCTION", conf.use_fused_atomics_reduction);
+    kernel_ctx.define_int("USE_WORKAROUND", conf.use_workaround);
 
     kernel_ctx.add_option("-cl-std=CL2.0");
     if (conf.data_type == data_type::s8)

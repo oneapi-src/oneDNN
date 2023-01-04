@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1480,12 +1480,17 @@ __kernel void gen9_calculate_stats(__global DATA_T *src, __global float *mean,
     float *diff_beta_tail = NULL;
 #endif
 
+#if USE_WORKAROUND
+    for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
+        if (sp_block_idx * STAT_SP_BLOCK + sp >= SP) break;
+#else // issue
 #if HAS_STAT_SP_BLOCK_TAIL
     for (int sp = 0; sp < min(STAT_SP_BLOCK, SP - sp_block_idx * STAT_SP_BLOCK);
             ++sp) {
 #else
     for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
 #endif
+#endif // USE_WORKAROUND
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
             const int sg_idx = sg * 16 * VECT_SIZE;
 #if FUSE_BN_RELU
