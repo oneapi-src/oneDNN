@@ -24,6 +24,7 @@
 #include "gpu/jit/conv/config_lookup_table.hpp"
 #include "gpu/jit/conv/config_plan.hpp"
 #include "gpu/jit/conv/grf_usage.hpp"
+#include "gpu/jit/conv/message_patterns.hpp"
 #include "gpu/jit/conv/normalization.hpp"
 #include "gpu/jit/ir/block_2d_utils.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
@@ -1358,6 +1359,56 @@ bool should_use_spatial_blocking(const conv_config_t &cfg,
     return sp_ratio >= mb_ratio;
 }
 
+send_pattern_t validate_blocking(const conv_config_t &cfg,
+        const block_helper_t &bh, conv_stride_layout_t::input_tensor_t tensor,
+        std::pair<const char *, const char *> translation = {"", ""}) {
+
+    const compute::gpu_arch_t arch
+            = convert_ngen_arch_to_dnnl(cfg.hw_cfg().hw());
+
+    auto is_match = [&](const block_hint_t<conv_dim_t> &hint,
+                            const block_helper_t &bh) {
+        for (auto dim : conv_dim_t::dims()) {
+            if (hint[dim]) {
+                if (dim.str() == translation.first) {
+                    if (bh.iter_dim(translation.second) % hint[dim])
+                        return false;
+                } else {
+                    if (bh.iter_dim(dim.str()) % hint[dim]) return false;
+                }
+            }
+        }
+        return true;
+    };
+
+    for (const auto &load : get_uniform_blocked_patterns(arch)) {
+        uniform_blocked_idiom_t<conv_dim_t> idiom(load);
+        auto layout = conv_stride_layout_t(cfg.prb(), tensor);
+        auto hints = idiom.get_hints(layout);
+
+        if (hints.empty()) continue;
+
+        bool found_match = false;
+        for (const auto &hint : hints) {
+            if (is_match(hint, bh)) {
+                found_match = true;
+                break;
+            }
+        }
+        if (!found_match) {
+            ir_suggestion()
+                    << "blocking disables " << load.str() << " load of the "
+                    << tensor << " tensor. Try a multiple of:\n";
+            for (auto &hint : hints) {
+                ir_suggestion() << "\t" << hint.str() << "\n";
+            }
+            return send_pattern_t();
+        }
+        return load;
+    }
+    return send_pattern_t();
+}
+
 void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
     using namespace ir_utils;
 
@@ -1456,6 +1507,16 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
     }
 
     bh.compute();
+#ifdef GEN_CONV_DEBUG
+    if (!can_use_2d_send(cfg, cfg.a_layout().compute_unnormalized(), true)
+            && prb.g == 1)
+        cfg.a_load_pattern = validate_blocking(cfg, bh,
+                conv_stride_layout_t::input_tensor_t::src, {"ow", osp_name});
+    if (!can_use_2d_send(cfg, cfg.b_layout().compute_unnormalized(), false)
+            && prb.g == 1)
+        cfg.b_load_pattern = validate_blocking(
+                cfg, bh, conv_stride_layout_t::input_tensor_t::wei);
+#endif
 }
 
 void init_bwd_d(conv_config_t &cfg, block_helper_t &bh) {
@@ -1493,6 +1554,13 @@ void init_bwd_d(conv_config_t &cfg, block_helper_t &bh) {
     }
 
     bh.compute();
+
+#ifdef GEN_CONV_DEBUG
+    if (!can_use_2d_send(cfg, cfg.a_layout().compute_unnormalized(), true))
+        validate_blocking(cfg, bh, conv_stride_layout_t::input_tensor_t::dst);
+    if (!can_use_2d_send(cfg, cfg.b_layout().compute_unnormalized(), false))
+        validate_blocking(cfg, bh, conv_stride_layout_t::input_tensor_t::wei);
+#endif
 }
 
 void init_bwd_w(conv_config_t &cfg, block_helper_t &bh) {
@@ -1532,6 +1600,12 @@ void init_bwd_w(conv_config_t &cfg, block_helper_t &bh) {
     if (cfg.send_2d_nhwc()) bh.set_reduce_m_block_hint(false);
 
     bh.compute();
+#ifdef GEN_CONV_DEBUG
+    if (!can_use_2d_send(cfg, cfg.a_layout().compute_unnormalized(), true))
+        validate_blocking(cfg, bh, conv_stride_layout_t::input_tensor_t::src);
+    if (!can_use_2d_send(cfg, cfg.b_layout().compute_unnormalized(), false))
+        validate_blocking(cfg, bh, conv_stride_layout_t::input_tensor_t::dst);
+#endif
 }
 
 void init_blocking(conv_config_t &cfg) {
@@ -2003,6 +2077,21 @@ status_t check_plan(conv_config_t &cfg) {
     ir_assert(cfg.slm().a() == plan.slm.has_a());
     ir_assert(cfg.slm().b() == plan.slm.has_b());
     ir_assert(cfg.pipeline().reuse_headers() == plan.reuse_headers);
+
+#ifdef GEN_CONV_DEBUG
+    auto dummy_mem(var_t::make(type_t::byte_ptr(), "mem"));
+    auto dummy_reg(var_t::make(type_t::byte_ptr(), "reg"));
+    if (!cfg.a_load_pattern.matches(
+                plan.x2r.a_load.create_stmt(dummy_mem, dummy_reg))) {
+        ir_warning() << "Generated load for tensor A does not match "
+                     << cfg.a_load_pattern << " load idiom\n";
+    }
+    if (!cfg.b_load_pattern.matches(
+                plan.x2r.b_load.create_stmt(dummy_mem, dummy_reg))) {
+        ir_warning() << "Generated load for tensor B does not match "
+                     << cfg.a_load_pattern << " load idiom\n";
+    }
+#endif
     return status::success;
 }
 

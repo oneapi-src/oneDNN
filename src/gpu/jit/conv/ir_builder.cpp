@@ -1022,6 +1022,17 @@ private:
         }
         ir_assert(load_ok) << "Can't generate load statements for subtiles.";
 
+#ifdef GEN_CONV_DEBUG
+        if (!cfg_.a_load_pattern.matches(a_subtiles_[0].g2r_load())) {
+            ir_warning() << "Generated load for tensor A does not match "
+                         << cfg_.a_load_pattern << " load idiom\n";
+        }
+        if (!cfg_.b_load_pattern.matches(b_subtiles_[0].g2r_load())) {
+            ir_warning() << "Generated load for tensor B does not match "
+                         << cfg_.b_load_pattern << " load idiom\n";
+        }
+#endif
+
         auto a_subtiles = cfg_.subtiles().a();
         auto b_subtiles = cfg_.subtiles().b();
 

@@ -32,6 +32,7 @@
 #include "gpu/jit/conv/tensor_config.hpp"
 #include "gpu/jit/ir/fma.hpp"
 #include "gpu/jit/ir/hw_config.hpp"
+#include "gpu/jit/ir/message_patterns.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 #include "gpu/jit/jit_eltwise_injector.hpp"
 #include "gpu/jit/utils/utils.hpp"
@@ -1125,6 +1126,9 @@ public:
 
 #undef DECL_PARAM
 #undef DECL_PARAM2
+
+    send_pattern_t a_load_pattern;
+    send_pattern_t b_load_pattern;
 
     void override_set(const std::string &s, bool is_env);
 
