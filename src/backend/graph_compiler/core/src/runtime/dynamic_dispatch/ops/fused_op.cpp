@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ extern "C" void query_combined_fused_op(void *table, uint64_t **combined_keys,
         for (int k = 0; k < each_op_num_key[i]; k++) {
             final_query_keys[offset + k] = *combined_dispatch_keys[offset + k];
             if (each_op_num_key[i] == 2) {
+                final_query_keys[offset + k].reset_blocks_and_impl();
                 final_query_keys[offset + k].set_impl_alg(linked_reorder_impl);
             } else {
                 final_query_keys[offset + k].set_impl_alg(combined_algs[i]);

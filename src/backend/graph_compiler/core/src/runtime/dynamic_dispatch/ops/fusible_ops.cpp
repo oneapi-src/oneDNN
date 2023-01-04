@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -193,6 +193,9 @@ extern "C" void query_format_reorder_op(void *table, void *out, void *in,
     uint64_t cp_in_fmt = *in_fmt, cp_out_fmt = *out_fmt;
     auto *in_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_in_fmt);
     auto *out_fmt_st = reinterpret_cast<runtime::dispatch_key *>(&cp_out_fmt);
+    // reset before for some plain in/out formats.
+    in_fmt_st->reset_blocks_and_impl();
+    out_fmt_st->reset_blocks_and_impl();
     auto tmp_impl_alg
             = check_and_set_reorder_impl(in_dyn_tsr, in_fmt_st, out_fmt_st);
     if (impl_alg) { *impl_alg = tmp_impl_alg; }
