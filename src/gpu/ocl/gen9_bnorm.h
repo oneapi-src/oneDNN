@@ -17,7 +17,6 @@
 #define GPU_OCL_GEN9_BNORM_H
 
 #define VECT_DT_N VECT_SIZE
-
 #include "gpu/ocl/ocl_types.h"
 
 #define IS_IC_EQ_8 (IC == 8)
@@ -25,19 +24,15 @@
 #define HAS_STAT_SP_BLOCK_TAIL (SP % STAT_SP_BLOCK)
 
 #if NHWC_OPTIMIZED
-
 #if HAS_IC_TAIL
 #error IC tail processing not supported
 #endif
-
 #else // NHWC_OPTIMIZED
-
 #if HAS_IC_TAIL && !USE_NHWC
 #error IC tail processing not supported
 #endif
 #define HAS_STAT_SP_TAIL (STAT_SP_TAIL != STAT_SP_NBLOCKS)
 #define HAS_SP_TAIL (SP != SP_TAIL)
-
 #endif // NHWC_OPTIMIZED
 
 #define IC_BLOCK_SGROUPS (IC_BLOCK / 16)
@@ -164,6 +159,7 @@ SUM_DATA_T summation(ACCUM_DATA_T input, SUM_DATA_T state) {
 #define GET_SCALAR_VAL(v, idx) v[idx]
 #endif
 
+// Atomics-based reduction with SLM use, fused with calculating kernels.
 #if IS_FWD
 #if USE_STATS_ONE_PASS
 void gen9_mean_var_calc_fused_reduction(volatile __global atomic_float *mean,
@@ -293,5 +289,4 @@ void gen9_calc_fused_reduction(volatile __global atomic_float *diff_scale,
 }
 #endif // IS_BWD
 #endif // FUSED_ATOMICS_REDUCTION
-
 #endif // GPU_OCL_GEN9_BNORM_H

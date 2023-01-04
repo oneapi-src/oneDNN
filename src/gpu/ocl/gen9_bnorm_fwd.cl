@@ -16,21 +16,18 @@
 
 #include "gpu/ocl/gen9_bnorm.h"
 
-// For regular and 1-pass (under USE_STATS_ONE_PASS) bnorm algorithms
-// there are two sets of kernels:
-// 1) The kernels that support both blocked and NHWC layouts (USE_NHWC).
-//    These kernels perform IC tail processing for NHWC and for ic % 8 == 0
-//    cases only.
-// 2) Specially optimized for NHWC kernels (under NHWC_OPTIMIZED).
-//    Not supported IC tail processing.
-//
+// FWD kernels for regular and 1-pass (under USE_STATS_ONE_PASS) bnorm
+// algorithms that support both blocked and NHWC layouts (USE_NHWC definition).
+// These kernels perform IC tail processing for NHWC and for ic % 8 == 0
+// cases only.
 // For both algorithms, two types of reduction are implemented:
 // 1) Reduction over scratchpad (reduce_temp) with SLM use, implemented by
-//    gen9_reduce_xxxxx kernels.
-// 2) Atomics-based reduction with SLM use, implemented as part of calc kernels
-//    (gem9_calc_xxxxx_fused_reduction() functions). It also requires
-//    zeroing and finalization steps, see gen9_fused_reduce_xxxxx kernels.
-//    Under FUSED_ATOMICS_REDUCTION definition.
+//    gen9_reduce_* kernels.
+// 2) Atomics-based reduction with SLM use (FUSED_ATOMICS_REDUCTION definition),
+//    implemented as part of calc kernels, see gem9_*_fused_reduction()
+//    functions in gen9_bnorm.h. This reduction implementation requires
+//    zeroing and finalization steps, see gen9_fused_reduce_* kernels
+//    in gen9_bnorm_reduce.cl
 
 #define LOAD_DATA_Nx16_USING_LOOP_IDX(n, dest, src, idx) \
     { \
@@ -45,115 +42,10 @@
         } \
     }
 
-void gen9_reduce_common(__global float *reduce_temp, __local float *local_sum,
-        __global float *dst) {
-
-    const int ic_sub_group = get_global_id(0) / 16;
-    const int group_c = get_global_id(1);
-    const int simd_id = get_sub_group_local_id();
-    const int c = group_c * 16 + simd_id;
-    const bool is_last_ic_block = (IC - group_c * 16) < 16;
-    float sum = 0.0f;
-
-    reduce_temp
-            += REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS * 16 * ic_sub_group
-            + REDUCE_STAT_NBLOCKS * 16 * group_c + simd_id;
-    for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
-        sum += reduce_temp[i * 16];
-    }
-
-    if (ic_sub_group > 0) { local_sum[ic_sub_group * 16 + simd_id] = sum; }
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    if (ic_sub_group == 0) {
-        for (int i = 1; i < REDUCE_IC_SUB_GROUPS; i++) {
-            sum += local_sum[i * 16 + simd_id];
-        }
-#if HAS_IC_TAIL
-        if (!is_last_ic_block || (is_last_ic_block && simd_id < 8))
-#endif
-            dst[c] = sum / (MB * ID * IH * IW);
-    }
-}
-
 #if USE_STATS_ONE_PASS
 
 // IC tail processing is not implemented for one pass algorithm
 // Calculates partial sums of values and squares-of-values per channel
-
-#if NHWC_OPTIMIZED
-
-NAMED_KERNEL_ATTR(CALC)
-__kernel void gen9_calc_mean_var(__global DATA_T *src,
-        __global ACCUM_DATA_T *reduce_temp,
-        volatile __global atomic_float *mean,
-        volatile __global atomic_float *variance) {
-
-    const int mb = GWS_GET_STAT_MB();
-    const int c = GWS_GET_STAT_IC();
-    const int sp_block_idx = GWS_GET_STAT_SP();
-
-    const int ic_block_offset = (c / 16) * IC_BLOCK;
-    const int group_c_offset
-            = REDUCE_STAT_NBLOCKS * ic_block_offset + sp_block_idx * 16;
-    const int ver_offs = REDUCE_STAT_NBLOCKS * IC;
-
-    const int src_off = ic_block_offset + sp_block_idx * STAT_SP_BLOCK * IC;
-
-    src += src_off;
-
-    SUM_DATA_T sum[IC_BLOCK_SGROUPS] = {0.0f};
-    SUM_DATA_T sum_sq[IC_BLOCK_SGROUPS] = {0.0f};
-
-#if HAS_STAT_SP_BLOCK_TAIL
-    for (int sp = 0; sp < min(STAT_SP_BLOCK, SP - sp_block_idx * STAT_SP_BLOCK);
-            ++sp) {
-#else
-    for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
-#endif
-        // vectorized part
-        for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
-            VECT_FLOAT_T s_vect = LOAD_VECT_DATA(&src[sg * 16 * VECT_SIZE]);
-
-            for (int vect = 0; vect < VECT_SIZE; ++vect) {
-                const int sum_idx = sg * VECT_SIZE + vect;
-#if VECT_SIZE > 1
-                sum[sum_idx] = summation(s_vect[vect], sum[sum_idx]);
-                sum_sq[sum_idx] = summation(
-                        s_vect[vect] * s_vect[vect], sum_sq[sum_idx]);
-#else
-                sum[sum_idx] = summation(s_vect, sum[sum_idx]);
-                sum_sq[sum_idx] = summation(s_vect * s_vect, sum_sq[sum_idx]);
-#endif
-            }
-        }
-#if HAS_IC_VECT_TAIL
-        // tails
-        for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
-            const int sg_idx = IC_VECT_SGROUPS + sg;
-            float s_tail = LOAD_DATA_1x16(&src[(IC_VECT_SGROUPS + sg) * 16]);
-            sum[sg_idx] = summation(s_tail, sum[sg_idx]);
-            sum_sq[sg_idx] = summation(s_tail * s_tail, sum_sq[sg_idx]);
-        }
-#endif
-        src += IC;
-    }
-
-#if FUSED_ATOMICS_REDUCTION
-    __local SUM_DATA_T local_sum[2 * CALC_SLM_SIZE];
-    __local SUM_DATA_T *local_sum_sq = local_sum + CALC_SLM_SIZE;
-    gen9_mean_var_calc_fused_reduction(mean, variance, ic_block_offset, sum,
-            sum_sq, local_sum, local_sum_sq);
-#else
-    for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
-        const int reduce_off = group_c_offset + sg * 16 * REDUCE_STAT_NBLOCKS;
-        STORE_FLOAT_1x16(&reduce_temp[reduce_off], sum[sg].s0);
-        STORE_FLOAT_1x16(&reduce_temp[ver_offs + reduce_off], sum_sq[sg].s0);
-    }
-#endif
-}
-
-#else // NHWC_OPTIMIZED
 
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calc_mean_var(__global DATA_T *src,
@@ -250,123 +142,7 @@ __kernel void gen9_calc_mean_var(__global DATA_T *src,
 #endif
 }
 
-#endif // NHWC_OPTIMIZED
-
-// Calculates mean and variance by further reducing sum of values
-// and sum of squares-of-values.
-NAMED_KERNEL_ATTR(REDUCE)
-__kernel void gen9_reduce_mean_var(__global ACCUM_DATA_T *reduce_temp,
-        __global float *mean, __global float *variance) {
-
-    __local SUM_DATA_T local_sum[16 * REDUCE_IC_SUB_GROUPS];
-    __local SUM_DATA_T local_sum_sq[16 * REDUCE_IC_SUB_GROUPS];
-
-    const int ic_sub_group = get_global_id(0) / 16;
-    const int group_c = get_global_id(1);
-    const int simd_id = get_sub_group_local_id();
-    const int c = group_c * 16 + simd_id;
-    SUM_DATA_T sum;
-    SUM_DATA_T sum_sq;
-    sum.s0 = 0;
-    sum.s1 = 0;
-    sum_sq.s0 = 0;
-    sum_sq.s1 = 0;
-
-    int offs_sq = REDUCE_STAT_NBLOCKS * IC;
-    int offs = REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS * 16 * ic_sub_group
-            + REDUCE_STAT_NBLOCKS * 16 * group_c + simd_id;
-
-    for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
-        float tmp = reduce_temp[offs + i * 16];
-        sum = summation(tmp, sum);
-    }
-    for (int i = 0; i < REDUCE_STAT_NBLOCKS / REDUCE_IC_SUB_GROUPS; i++) {
-        float tmp = reduce_temp[offs_sq + offs + i * 16];
-        sum_sq = summation(tmp, sum_sq);
-    }
-
-    if (ic_sub_group > 0) {
-        local_sum[ic_sub_group * 16 + simd_id] = sum;
-        local_sum_sq[ic_sub_group * 16 + simd_id] = sum_sq;
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    if (ic_sub_group == 0) {
-        for (int i = 1; i < REDUCE_IC_SUB_GROUPS; i++) {
-            SUM_DATA_T tmp = local_sum[i * 16 + simd_id];
-            SUM_DATA_T tmp_sq = local_sum_sq[i * 16 + simd_id];
-            sum = summation(tmp.s1, sum);
-            sum_sq = summation(tmp_sq.s1, sum_sq);
-            sum = summation(tmp.s0, sum);
-            sum_sq = summation(tmp_sq.s0, sum_sq);
-        }
-        float tmp_mean = sum.s0 / (MB * ID * IH * IW);
-        mean[c] = tmp_mean;
-        float tmp_var = max(0.0f,
-                (sum_sq.s0 / (MB * ID * IH * IW)) - (tmp_mean * tmp_mean));
-        variance[c] = tmp_var;
-    }
-}
 #else // USE_STATS_ONE_PASS
-
-#if NHWC_OPTIMIZED
-
-NAMED_KERNEL_ATTR(CALC)
-__kernel void gen9_calc_mean(__global DATA_T *src, __global float *reduce_temp,
-        volatile __global atomic_float *mean) {
-
-    const int mb = GWS_GET_STAT_MB();
-    const int c = GWS_GET_STAT_IC();
-    const int sp_block_idx = GWS_GET_STAT_SP();
-    const int ic_block_offset = (c / 16) * IC_BLOCK;
-    const int group_c_offset
-            = REDUCE_STAT_NBLOCKS * ic_block_offset + sp_block_idx * 16;
-
-    const int src_off = ic_block_offset + sp_block_idx * STAT_SP_BLOCK * IC;
-    src += src_off;
-
-    float v_mean[IC_BLOCK_SGROUPS] = {0.0f};
-
-#if HAS_STAT_SP_BLOCK_TAIL
-    for (int sp = 0; sp < min(STAT_SP_BLOCK, SP - sp_block_idx * STAT_SP_BLOCK);
-            ++sp) {
-#else
-    for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
-#endif
-        // vectorized part
-        for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
-            VECT_FLOAT_T s_vect = LOAD_VECT_DATA(&src[sg * 16 * VECT_SIZE]);
-            for (int vect = 0; vect < VECT_SIZE; ++vect) {
-                v_mean[sg * VECT_SIZE + vect]
-#if VECT_SIZE > 1
-                        += s_vect[vect];
-#else
-                        += s_vect;
-#endif
-            }
-        }
-#if HAS_IC_VECT_TAIL
-        // tails
-        for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
-            float s_tail = LOAD_DATA_1x16(&src[(IC_VECT_SGROUPS + sg) * 16]);
-            v_mean[IC_VECT_SGROUPS + sg] += s_tail;
-        }
-#endif // HAS_IC_VECT_TAIL
-        src += IC;
-    }
-
-#if FUSED_ATOMICS_REDUCTION
-    __local float local_sum[CALC_SLM_SIZE];
-    gen9_calc_fused_reduction(mean, ic_block_offset, v_mean, local_sum);
-#else
-    for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
-        const int reduce_off = group_c_offset + sg * 16 * REDUCE_STAT_NBLOCKS;
-        STORE_FLOAT_1x16(&reduce_temp[reduce_off], v_mean[sg]);
-    }
-#endif
-}
-
-#else // NHWC_OPTIMIZED
 
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calc_mean(__global DATA_T *src, __global float *reduce_temp,
@@ -503,86 +279,6 @@ __kernel void gen9_calc_mean(__global DATA_T *src, __global float *reduce_temp,
     STORE_FLOAT_1x16(&reduce_temp[group_c_offset + mb_sp_idx * 16], v_mean);
 #endif
 }
-
-#endif // NHWC_OPTIMIZED
-
-NAMED_KERNEL_ATTR(REDUCE)
-__kernel void gen9_reduce_mean(
-        __global float *reduce_temp, __global float *mean) {
-    __local float local_sum[16 * REDUCE_IC_SUB_GROUPS];
-    gen9_reduce_common(reduce_temp, local_sum, mean);
-}
-
-#if NHWC_OPTIMIZED
-
-NAMED_KERNEL_ATTR(CALC)
-__kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
-        __global float *reduce_temp, volatile __global atomic_float *variance) {
-
-    const int mb = GWS_GET_STAT_MB();
-    const int c = GWS_GET_STAT_IC();
-    const int sp_block_idx = GWS_GET_STAT_SP();
-    const int ic_block_offset = (c / 16) * IC_BLOCK;
-    const int group_c_offset
-            = REDUCE_STAT_NBLOCKS * ic_block_offset + sp_block_idx * 16;
-
-    reduce_temp += REDUCE_STAT_NBLOCKS * IC16;
-    mean += ic_block_offset;
-    const int src_off = ic_block_offset + sp_block_idx * STAT_SP_BLOCK * IC;
-    src += src_off;
-
-    float v_mean[IC_BLOCK_SGROUPS];
-    for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
-        v_mean[sg] = as_float(intel_sub_group_block_read(
-                (const __global uint *)(&mean[(sg * 16)])));
-    }
-
-    float v_var[IC_BLOCK_SGROUPS] = {0.0f};
-    float v0[IC_BLOCK_SGROUPS] = {0.0f};
-
-#if HAS_STAT_SP_BLOCK_TAIL
-    for (int sp = 0; sp < min(STAT_SP_BLOCK, SP - sp_block_idx * STAT_SP_BLOCK);
-            ++sp) {
-#else
-    for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
-#endif
-        for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
-            VECT_FLOAT_T s_vect = LOAD_VECT_DATA(&src[sg * 16 * VECT_SIZE]);
-
-            for (int vect = 0; vect < VECT_SIZE; ++vect) {
-                int sg_idx = sg * VECT_SIZE + vect;
-#if VECT_SIZE > 1
-                v0[sg_idx] = s_vect[vect] - v_mean[sg_idx];
-#else
-                v0[sg_idx] = s_vect - v_mean[sg_idx];
-#endif
-                v_var[sg_idx] = fma(v0[sg_idx], v0[sg_idx], v_var[sg_idx]);
-            }
-        }
-#if HAS_IC_VECT_TAIL
-        // tails
-        for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
-            const int sg_idx = IC_VECT_SGROUPS + sg;
-            float s_tail = LOAD_DATA_1x16(&src[(IC_VECT_SGROUPS + sg) * 16]);
-            v0[sg_idx] = s_tail - v_mean[sg_idx];
-            v_var[sg_idx] = fma(v0[sg_idx], v0[sg_idx], v_var[sg_idx]);
-        }
-#endif // HAS_IC_VECT_TAIL
-        src += IC;
-    }
-
-#if FUSED_ATOMICS_REDUCTION
-    __local float local_sum[CALC_SLM_SIZE];
-    gen9_calc_fused_reduction(variance, ic_block_offset, v_var, local_sum);
-#else
-    for (int sg = 0; sg < IC_BLOCK_SGROUPS; ++sg) {
-        const int reduce_off = group_c_offset + sg * 16 * REDUCE_STAT_NBLOCKS;
-        STORE_FLOAT_1x16(&reduce_temp[reduce_off], v_var[sg]);
-    }
-#endif
-}
-
-#else // NHWC_OPTIMIZED
 
 NAMED_KERNEL_ATTR(CALC)
 __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
@@ -732,155 +428,7 @@ __kernel void gen9_calc_variance(__global DATA_T *src, __global float *mean,
 #endif
 }
 
-#endif // NHWC_OPTIMIZED
-
-NAMED_KERNEL_ATTR(REDUCE)
-__kernel void gen9_reduce_variance(
-        __global float *reduce_temp, __global float *variance) {
-    __local float local_sum[16 * REDUCE_IC_SUB_GROUPS];
-    gen9_reduce_common(
-            reduce_temp + REDUCE_STAT_NBLOCKS * IC16, local_sum, variance);
-}
-
 #endif // USE_STATS_ONE_PASS
-
-#if NHWC_OPTIMIZED
-
-KERNEL_ATTR
-__kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
-        __global float *variance, __global DATA_T *dst,
-        __global float *scaleshift, __global float *shift, __global char *ws,
-        float eps, __global DATA_T *src_add) {
-
-    const int n = GWS_GET_MB();
-    const int c = GWS_GET_IC();
-    const int sp = GWS_GET_SP() * STAT_SP_BLOCK;
-
-    const int ic_block_offset = (c / 16) * IC_BLOCK;
-    mean += ic_block_offset;
-    variance += ic_block_offset;
-    shift += ic_block_offset;
-    scaleshift += ic_block_offset;
-    const uint d_off = sp * IC + ic_block_offset;
-
-    src += d_off;
-#if FUSE_BN_ADD_RELU
-    src_add += d_off;
-#endif
-    dst += d_off;
-#if FUSE_BN_RELU && IS_TRAINING
-    ws += d_off;
-#endif
-
-    VECT_FLOAT_T sm[IC_BLOCK_SGROUPS / VECT_SIZE],
-            sv[IC_BLOCK_SGROUPS / VECT_SIZE],
-            v_mean[IC_BLOCK_SGROUPS / VECT_SIZE],
-            v_variance[IC_BLOCK_SGROUPS / VECT_SIZE],
-            sqrt_variance[IC_BLOCK_SGROUPS / VECT_SIZE];
-    for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
-        const int sg_idx = sg * 16 * VECT_SIZE;
-#if USE_SCALE == 1
-        sm[sg] = LOAD_VECT_FLOAT(&scaleshift[sg_idx]);
-#else
-        sm[sg] = (VECT_FLOAT_T)1.0f;
-#endif
-#if USE_SHIFT == 1
-        sv[sg] = LOAD_VECT_FLOAT(&shift[sg_idx]);
-#else
-        sv[sg] = (VECT_FLOAT_T)0.0f;
-#endif
-        v_mean[sg] = LOAD_VECT_FLOAT(&mean[sg_idx]);
-        v_variance[sg] = LOAD_VECT_FLOAT(&variance[sg_idx]);
-        sqrt_variance[sg] = sm[sg] / sqrt(v_variance[sg] + (VECT_FLOAT_T)eps);
-    }
-
-#if HAS_IC_VECT_TAIL
-    float sm_tail[IC_TAIL_SGROUPS], sv_tail[IC_TAIL_SGROUPS],
-            v_mean_tail[IC_TAIL_SGROUPS], v_variance_tail[IC_TAIL_SGROUPS],
-            sqrt_variance_tail[IC_TAIL_SGROUPS];
-    for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
-        const int sg_idx = (IC_VECT_SGROUPS + sg) * 16;
-#if USE_SCALE == 1
-        sm_tail[sg] = LOAD_FLOAT_1x16(&scaleshift[sg_idx]);
-#else
-        sm_tail[sg] = 1.0f;
-#endif
-#if USE_SHIFT == 1
-        sv_tail[sg] = LOAD_FLOAT_1x16(&shift[sg_idx]);
-#else
-        sv_tail[sg] = 0.0f;
-#endif
-        v_mean_tail[sg] = LOAD_FLOAT_1x16(&mean[sg_idx]);
-        v_variance_tail[sg] = LOAD_FLOAT_1x16(&variance[sg_idx]);
-        sqrt_variance_tail[sg] = sm_tail[sg] / sqrt(v_variance_tail[sg] + eps);
-    }
-#endif
-
-#if HAS_STAT_SP_BLOCK_TAIL
-    for (int sp_idx = 0; sp_idx < min(STAT_SP_BLOCK, SP - sp); ++sp_idx) {
-#else
-    for (int sp_idx = 0; sp_idx < STAT_SP_BLOCK; ++sp_idx) {
-#endif
-        // vectorized part
-        for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
-            const int sg_idx = sg * 16 * VECT_SIZE;
-            VECT_FLOAT_T s_vect = LOAD_VECT_DATA(&src[sg_idx]);
-            VECT_FLOAT_T d_vect
-                    = fma(s_vect - v_mean[sg], sqrt_variance[sg], sv[sg]);
-
-#if FUSE_BN_RELU
-#if FUSE_BN_ADD_RELU
-            VECT_FLOAT_T s_add_vect = LOAD_VECT_DATA(&src_add[sg_idx]);
-            d_vect += s_add_vect;
-#endif
-            VECT_INT_T ws_vect = isgreater(d_vect, (VECT_FLOAT_T)0.0f);
-            d_vect = select((VECT_FLOAT_T)0.0f, d_vect, ws_vect);
-#if IS_TRAINING
-            STORE_VECT_CHAR(&ws[sg_idx], ws_vect);
-#endif // IS_TRAINING
-#endif // FUSE_BN_RELU
-#if WITH_RELU
-            d_vect = max(d_vect, (VECT_FLOAT_T)0.0f);
-#endif
-            STORE_VECT_DATA(&dst[sg_idx], d_vect);
-        }
-
-#if HAS_IC_VECT_TAIL
-        // tails
-        for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
-            const int sg_idx = (IC_VECT_SGROUPS + sg) * 16;
-            float s_tail = LOAD_DATA_1x16(&src[sg_idx]);
-            float d_tail = fma(s_tail - v_mean_tail[sg], sqrt_variance_tail[sg],
-                    sv_tail[sg]);
-#if FUSE_BN_RELU
-#if FUSE_BN_ADD_RELU
-            float s_add_tail = LOAD_DATA_1x16(&src_add[sg_idx]);
-            d_tail += s_add_tail;
-#endif
-            int ws_tail = isgreater(d_tail, 0.0f);
-            d_tail = select(0.0f, d_tail, ws_tail);
-#if IS_TRAINING
-            STORE_CHAR_1x16(&ws[sg_idx], convert_char(ws_tail));
-#endif // IS_TRAINING
-#endif // FUSE_BN_RELU
-#if WITH_RELU
-            d_tail = max(d_tail, 0.0f);
-#endif
-            STORE_DATA_1x16(&dst[sg_idx], d_tail);
-        }
-#endif
-        src += IC;
-#if FUSE_BN_ADD_RELU
-        src_add += IC;
-#endif
-        dst += IC;
-#if FUSE_BN_RELU && IS_TRAINING
-        ws += IC;
-#endif
-    }
-}
-
-#else // NHWC_OPTIMIZED
 
 inline float8 read_src_block(__global DATA_T *src, int c, int sp) {
     float8 blockS0 = 0.0f;
@@ -1049,4 +597,3 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #endif // USE_NHWC
     }
 }
-#endif // NHWC_OPTIMIZED

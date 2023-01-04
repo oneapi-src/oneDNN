@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,21 +94,49 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        std::vector<const char *> kernel_names = {"gen9_bnorm_fwd", nullptr,
-                nullptr, nullptr, nullptr, nullptr, nullptr};
+        std::vector<const char *> kernel_names
+                = {nullptr, nullptr, nullptr, nullptr, nullptr};
+
+        if (pd()->conf.nhwc_optimized) {
+            kernel_names[0] = "gen9_bnorm_fwd_nhwc";
+            if (pd()->conf.calculate_stats) {
+                if (pd()->conf.use_stats_one_pass) {
+                    kernel_names[1] = "gen9_calc_mean_var_nhwc";
+                } else {
+                    kernel_names[1] = "gen9_calc_mean_nhwc";
+                    kernel_names[2] = "gen9_calc_variance_nhwc";
+                }
+            }
+        } else {
+            kernel_names[0] = "gen9_bnorm_fwd";
+            if (pd()->conf.calculate_stats) {
+                if (pd()->conf.use_stats_one_pass) {
+                    kernel_names[1] = "gen9_calc_mean_var";
+                } else {
+                    kernel_names[1] = "gen9_calc_mean";
+                    kernel_names[2] = "gen9_calc_variance";
+                }
+            }
+        }
         if (pd()->conf.calculate_stats) {
             if (pd()->conf.use_stats_one_pass) {
-                kernel_names[1] = "gen9_calc_mean_var";
-                kernel_names[2] = "gen9_reduce_mean_var";
+                if (!pd()->conf.use_fused_atomics_reduction)
+                    kernel_names[2] = "gen9_reduce_mean_var";
+            } else {
+                if (!pd()->conf.use_fused_atomics_reduction) {
+                    kernel_names[3] = "gen9_reduce_mean";
+                    kernel_names[4] = "gen9_reduce_variance";
+                }
+            }
+        }
+        if (pd()->conf.calculate_stats
+                && pd()->conf.use_fused_atomics_reduction) {
+            if (pd()->conf.use_stats_one_pass) {
+                kernel_names[2] = "gen9_fused_reduce_init";
+                kernel_names[3] = "gen9_fused_reduce_final";
+            } else {
                 kernel_names[3] = "gen9_fused_reduce_init";
                 kernel_names[4] = "gen9_fused_reduce_final";
-            } else {
-                kernel_names[1] = "gen9_calc_mean";
-                kernel_names[2] = "gen9_calc_variance";
-                kernel_names[3] = "gen9_reduce_mean";
-                kernel_names[4] = "gen9_reduce_variance";
-                kernel_names[5] = "gen9_fused_reduce_init";
-                kernel_names[6] = "gen9_fused_reduce_final";
             }
         }
 
@@ -119,16 +147,22 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         kernel_ = kernels[0];
         if (pd()->conf.use_stats_one_pass) {
             calculate_mean_var_kernel_ = kernels[1];
-            reduce_mean_var_kernel_ = kernels[2];
-            reduce_init_kernel_ = kernels[3];
-            reduce_final_kernel_ = kernels[4];
+            if (pd()->conf.use_fused_atomics_reduction) {
+                reduce_init_kernel_ = kernels[2];
+                reduce_final_kernel_ = kernels[3];
+            } else {
+                reduce_mean_var_kernel_ = kernels[2];
+            }
         } else {
             calculate_mean_kernel_ = kernels[1];
             calculate_variance_kernel_ = kernels[2];
-            reduce_mean_kernel_ = kernels[3];
-            reduce_variance_kernel_ = kernels[4];
-            reduce_init_kernel_ = kernels[5];
-            reduce_final_kernel_ = kernels[6];
+            if (pd()->conf.use_fused_atomics_reduction) {
+                reduce_init_kernel_ = kernels[3];
+                reduce_final_kernel_ = kernels[4];
+            } else {
+                reduce_mean_kernel_ = kernels[3];
+                reduce_variance_kernel_ = kernels[4];
+            }
         }
 
         return status::success;
@@ -208,20 +242,34 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
+        std::vector<const char *> kernel_names
+                = {nullptr, nullptr, nullptr, nullptr};
 
-        std::vector<const char *> kernel_names = {"gen9_bnorm_bwd",
-                "gen9_calculate_stats", "gen9_reduce_stats",
-                "gen9_fused_reduce_init", "gen9_fused_reduce_final"};
-
+        if (pd()->conf.nhwc_optimized) {
+            kernel_names[0] = "gen9_bnorm_bwd_nhwc";
+            kernel_names[1] = "gen9_calculate_stats_nhwc";
+        } else {
+            kernel_names[0] = "gen9_bnorm_bwd";
+            kernel_names[1] = "gen9_calculate_stats";
+        }
+        if (pd()->conf.use_fused_atomics_reduction) {
+            kernel_names[2] = "gen9_fused_reduce_init";
+            kernel_names[3] = "gen9_fused_reduce_final";
+        } else {
+            kernel_names[2] = "gen9_reduce_stats";
+        }
         std::vector<compute::kernel_t> kernels;
         status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
         CHECK(status);
 
         bwd_kernel_ = kernels[0];
         calculate_stats_kernel_ = kernels[1];
-        reduce_stats_kernel_ = kernels[2];
-        reduce_init_kernel_ = kernels[3];
-        reduce_final_kernel_ = kernels[4];
+        if (pd()->conf.use_fused_atomics_reduction) {
+            reduce_init_kernel_ = kernels[2];
+            reduce_final_kernel_ = kernels[3];
+        } else {
+            reduce_stats_kernel_ = kernels[2];
+        }
 
         return status::success;
     }
