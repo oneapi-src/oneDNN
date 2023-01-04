@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2022 Intel Corporation
+# Copyright 2020-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -269,38 +269,57 @@ install(EXPORT ${LIB_EXPORT_NAME}
 NAMESPACE ${LIB_NAMESPACE}
 DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 
-if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED" OR MSVC)
-    add_definitions(-DDNNL_ENABLE_JIT_PROFILING=0)
-    add_definitions(-DDNNL_ENABLE_MAX_CPU_ISA=1)
-    add_definitions(-DDNNL_ENABLE_CPU_ISA_HINTS=1)
-    file(GLOB_RECURSE DNNL_SOURCES
-        ${DNNL_PATH}/src/cpu/x64/brgemm/*.cpp
-        ${DNNL_PATH}/src/cpu/x64/injectors/*.cpp
-        ${DNNL_PATH}/src/cpu/x64/cpu_isa_traits.cpp
-        ${DNNL_PATH}/src/cpu/x64/jit_avx512_core_bf16cvt.cpp
-        ${DNNL_PATH}/src/cpu/x64/amx_tile_configure.[ch]pp
-        ${DNNL_PATH}/src/cpu/x64/jit_uni_convert_xf16.[ch]pp
-        ${DNNL_PATH}/src/cpu/jit_utils/jit_utils.cpp
-        ${DNNL_PATH}/src/cpu/platform.[ch]pp
-        ${DNNL_PATH}/src/cpu/bfloat16.cpp
-        ${DNNL_PATH}/src/cpu/binary_injector_utils.cpp
-        ${DNNL_PATH}/src/common/fpmath_mode.cpp
-        ${DNNL_PATH}/src/common/utils.cpp
-        ${DNNL_PATH}/src/common/bfloat16.[ch]pp
-        ${DNNL_PATH}/src/common/memory_debug.cpp
-        ${DNNL_PATH}/src/common/primitive_attr.cpp
-        ${DNNL_PATH}/src/common/broadcast_strategy.cpp
-        ${DNNL_PATH}/src/common/primitive_exec_types.cpp
-        ${DNNL_PATH}/src/common/memory.cpp
-        ${DNNL_PATH}/src/common/memory_zero_pad.cpp
-        ${DNNL_PATH}/src/common/memory_desc_wrapper.cpp
-        ${DNNL_PATH}/src/common/memory_desc.[ch]pp
-        ${DNNL_PATH}/src/common/dnnl_thread.cpp
+###########
+# Make the runtime library target and don't need to build it by default
+###########
+file(GLOB_RECURSE SC_RUNTIME_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/*.c
     )
-    add_library(dnnl_brgemm ${DNNL_SOURCES})
-    set_property(TARGET dnnl_brgemm PROPERTY POSITION_INDEPENDENT_CODE ON
-                CXX_VISIBILITY_PRESET "hidden"
-                VISIBILITY_INLINES_HIDDEN 1)
+add_library(graphcompiler_runtime STATIC ${SC_RUNTIME_SOURCES})
+target_link_libraries(graphcompiler_runtime PRIVATE dnnl_brgemm)
+set_property(TARGET graphcompiler_runtime PROPERTY POSITION_INDEPENDENT_CODE ON
+            CXX_VISIBILITY_PRESET "hidden"
+            VISIBILITY_INLINES_HIDDEN 1
+            EXCLUDE_FROM_ALL True)
+
+###########
+# Make the brgemm library target and don't need to build it by default
+###########
+add_definitions(-DDNNL_ENABLE_JIT_PROFILING=0)
+add_definitions(-DDNNL_ENABLE_MAX_CPU_ISA=1)
+add_definitions(-DDNNL_ENABLE_CPU_ISA_HINTS=1)
+file(GLOB_RECURSE DNNL_SOURCES
+    ${DNNL_PATH}/src/cpu/x64/brgemm/*.cpp
+    ${DNNL_PATH}/src/cpu/x64/injectors/*.cpp
+    ${DNNL_PATH}/src/cpu/x64/cpu_isa_traits.cpp
+    ${DNNL_PATH}/src/cpu/x64/jit_avx512_core_bf16cvt.cpp
+    ${DNNL_PATH}/src/cpu/x64/amx_tile_configure.[ch]pp
+    ${DNNL_PATH}/src/cpu/x64/jit_uni_convert_xf16.[ch]pp
+    ${DNNL_PATH}/src/cpu/jit_utils/jit_utils.cpp
+    ${DNNL_PATH}/src/cpu/platform.[ch]pp
+    ${DNNL_PATH}/src/cpu/bfloat16.cpp
+    ${DNNL_PATH}/src/cpu/binary_injector_utils.cpp
+    ${DNNL_PATH}/src/common/fpmath_mode.cpp
+    ${DNNL_PATH}/src/common/utils.cpp
+    ${DNNL_PATH}/src/common/bfloat16.[ch]pp
+    ${DNNL_PATH}/src/common/memory_debug.cpp
+    ${DNNL_PATH}/src/common/primitive_attr.cpp
+    ${DNNL_PATH}/src/common/broadcast_strategy.cpp
+    ${DNNL_PATH}/src/common/primitive_exec_types.cpp
+    ${DNNL_PATH}/src/common/memory.cpp
+    ${DNNL_PATH}/src/common/memory_zero_pad.cpp
+    ${DNNL_PATH}/src/common/memory_desc_wrapper.cpp
+    ${DNNL_PATH}/src/common/memory_desc.[ch]pp
+    ${DNNL_PATH}/src/common/dnnl_thread.cpp
+)
+add_library(dnnl_brgemm ${DNNL_SOURCES})
+set_property(TARGET dnnl_brgemm PROPERTY POSITION_INDEPENDENT_CODE ON
+            CXX_VISIBILITY_PRESET "hidden"
+            VISIBILITY_INLINES_HIDDEN 1
+            EXCLUDE_FROM_ALL True)
+
+if(DNNL_GRAPH_LIBRARY_TYPE STREQUAL "SHARED" OR MSVC)
     target_link_libraries(${SC_LIB_NAME} PRIVATE $<BUILD_INTERFACE:dnnl_brgemm>)
 endif()
 

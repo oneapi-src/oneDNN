@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,10 +36,9 @@ enum key {
     SC_PRINT_IR,
     SC_BOUNDARY_CHECK,
     SC_PRINT_GENCODE,
-    SC_KEEP_GENCODE,
+    SC_DUMP_GENCODE,
     SC_JIT_CC_OPTIONS_GROUP,
     SC_CPU_JIT_FLAGS,
-    SC_TEMP_DIR,
     SC_VERBOSE,
     SC_RUN_THREADS,
     SC_TRACE_INIT_CAP,

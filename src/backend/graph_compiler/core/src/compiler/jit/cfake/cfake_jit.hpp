@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,6 +57,8 @@ public:
             const std::string &name) override;
 };
 
+struct c_generator_optional_out_t;
+
 class SC_INTERNAL_API cfake_jit : public jit_engine_t {
 public:
     cfake_jit(context_ptr ctx = get_default_context())
@@ -71,7 +73,8 @@ public:
             const const_ir_module_ptr &module, bool generate_wrapper);
     statics_table_t codegen_to_cpp(std::ostream &os,
             const const_ir_module_ptr &module, bool generate_wrapper,
-            bool &out_managed_thread_pool);
+            bool &out_managed_thread_pool,
+            c_generator_optional_out_t *optional_out = nullptr);
     std::shared_ptr<jit_module> make_jit_module(
             const_ir_module_ptr module, bool generate_wrapper) override;
     std::shared_ptr<jit_module> make_jit_module(const std::string &inpath,

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ protected:
     void unary_func_codegen_c(const expr &arg, const char *funcname);
 
 public:
+    bool is_offline_ = false;
     virtual ostream &print_cpp_var_def(const var &v);
     virtual ostream &print_tensor_def(const tensor &v);
     using ir_viewer_t::dispatch;
@@ -87,11 +88,14 @@ public:
     void view(for_loop_c v) override;
 };
 
+struct c_generator_optional_out_t;
 extern const_ir_module_ptr preprocess_module_and_make_decl(
         const const_ir_module_ptr &mod, module_pass_t &pre_passes,
-        std::ostream &source);
+        std::ostream &source,
+        c_generator_optional_out_t *optionalout = nullptr);
 extern ostream &print_cpp_type(ostream &os, sc_data_type_t dtype);
-extern void write_cpp_prototype(std::ostream *source_, const func_c &f);
+extern void write_cpp_prototype(
+        std::ostream *source_, const func_c &f, bool is_offline = false);
 extern void write_cpp_generic_wrapper(
         std::ostream *source_, const func_c &f, bool is_parallel);
 } // namespace sc

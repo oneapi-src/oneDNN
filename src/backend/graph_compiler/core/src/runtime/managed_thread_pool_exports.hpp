@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,20 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_UNIQUE_FILE_NAME_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_UTIL_UNIQUE_FILE_NAME_HPP
 
-#include <string>
-#include <util/def.hpp>
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_MANAGED_THREAD_POOL_EXPORTS_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_MANAGED_THREAD_POOL_EXPORTS_HPP
+#include <atomic>
+#include <runtime/context.hpp>
 
-namespace sc {
-namespace utils {
-/**
- * Generates a unique name for file name
- * */
-SC_INTERNAL_API std::string get_unique_name_for_file();
-} // namespace utils
+extern "C" SC_API void sc_parallel_call_managed(
+        void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
+        uint64_t execution_flags, void *rtl_ctx, void *module_env,
+        int64_t begin, int64_t end, int64_t step, sc::generic_val *args);
 
-} // namespace sc
+extern "C" SC_API void sc_set_idle_func_managed(
+        uint64_t (*func)(std::atomic<int> *remaining, int expected_remain,
+                int tid, void *args),
+        void *args);
 
 #endif

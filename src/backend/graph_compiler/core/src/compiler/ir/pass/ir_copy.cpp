@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,13 @@
  *******************************************************************************/
 #include "ir_copy.hpp"
 #include <algorithm>
+#include <memory>
 #include <utility>
 #include <vector>
 #include "../builder.hpp"
 #include "../viewer.hpp"
 #include "ir_copy_internal.hpp"
+#include <compiler/ir/transform/tensor_shrink.hpp>
 #include <util/any_map.hpp>
 
 namespace sc {
@@ -115,8 +117,10 @@ void ir_copier_impl_t::view(indexing_c v) {
 }
 
 void ir_copier_impl_t::view(tensorptr_c v) {
-    returned_expr_ = make_expr<tensorptr_node>(
+    auto ret = make_expr<tensorptr_node>(
             copy(v->base_).checked_as<indexing>(), v->shape_, v->is_slice_);
+    update_shrink_info(v, ret);
+    returned_expr_ = ret;
 }
 
 void ir_copier_impl_t::view(call_c v) {
@@ -162,8 +166,28 @@ void ir_copier_impl_t::view(ssa_phi_c v) {
     returned_expr_ = make_expr<ssa_phi_node>(args, v->is_loop_phi_);
 }
 
+void ir_copier_impl_t::update_shrink_info(const expr_c &v, const expr &ret) {
+    if (v->attr_) {
+        if (auto shrink_info
+                = v->attr_->get_or_null<tensor_shrinker_t::shrink_info_t>(
+                        tensor_shrinker_attrs::should_shrink)) {
+            auto new_shrink = *shrink_info;
+            // update the shape and base by using new copied expr
+            for (auto &val : new_shrink.base_) {
+                val = copy(val);
+            }
+            for (auto &val : new_shrink.shape_) {
+                val = copy(val);
+            }
+            ret->attr()[tensor_shrinker_attrs::should_shrink]
+                    = std::move(new_shrink);
+        }
+    }
+}
+
 void ir_copier_impl_t::view(tensor_c v) {
     if (find_and_return(v)) return;
+
     std::vector<expr> args(v->dims_.size());
     std::vector<expr> strides(v->strides_.size());
     for (size_t i = 0; i < v->dims_.size(); ++i) {
@@ -186,6 +210,26 @@ void ir_copier_impl_t::view(stmts_c v) {
         seq.emplace_back(copy(i));
     }
     returned_stmt_ = make_stmt<stmts_node_t>(std::move(seq));
+
+    if (v->attr_
+            && v->attr_->has_key(
+                    tensor_shrinker_attrs::tensor_for_placerholder)) {
+        auto tsr = v->attr_->get<std::weak_ptr<expr_base>>(
+                                   tensor_shrinker_attrs::
+                                           tensor_for_placerholder)
+                           .lock();
+        assert(tsr);
+        auto tsr_copy = copy(tsr->node_ptr_from_this());
+        returned_stmt_->attr()[tensor_shrinker_attrs::tensor_for_placerholder]
+                = std::weak_ptr<expr_base>(tsr_copy.impl);
+        update_shrink_info(tsr->node_ptr_from_this(), tsr_copy);
+        auto &shrink_info
+                = tsr_copy->attr_->get<tensor_shrinker_t::shrink_info_t>(
+                        tensor_shrinker_attrs::should_shrink);
+        assert(shrink_info.move_def_.get() == v.get());
+        // update the new def
+        shrink_info.move_def_ = returned_stmt_.checked_as<stmts>();
+    }
 }
 
 void ir_copier_impl_t::view(if_else_c v) {
@@ -204,8 +248,10 @@ void ir_copier_impl_t::view(returns_c v) {
 }
 
 void ir_copier_impl_t::view(define_c v) {
-    returned_stmt_ = make_stmt<define_node_t>(copy(v->var_), v->linkage_,
-            v->init_.defined() ? copy(v->init_) : expr());
+    auto the_var = copy(v->var_);
+    returned_stmt_ = make_stmt<define_node_t>(
+            the_var, v->linkage_, v->init_.defined() ? copy(v->init_) : expr());
+    if (the_var.isa<tensor>()) { update_shrink_info(v->var_, the_var); }
 }
 
 void ir_copier_impl_t::view(for_loop_c v) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "builder.hpp"
 #include "pass/func_dependency.hpp"
 #include "visitor.hpp"
+#include <compiler/ir/pass/ir_copy.hpp>
 #include <compiler/ir/pass/printer.hpp>
 #include <runtime/dynamic_dispatch/op_dispatch_tables.hpp>
 #include <unordered_set>
@@ -124,6 +125,26 @@ func_t ir_module_t::get_func(const std::string &name) const {
 
 ir_module_ptr ir_module_t::copy() const {
     return std::make_shared<ir_module_t>(*this);
+}
+
+ir_module_ptr ir_module_t::deep_copy() const {
+    auto ret = copy();
+    std::unordered_map<expr_c, expr> replacer;
+    for (auto &kv : ret->var_symbols_) {
+        ir_copier_t cpy {replacer, true};
+        kv.second = cpy(kv.second).remove_const().checked_as<define>();
+    }
+    for (auto &def : ret->module_vars_) {
+        def = ret->var_symbols_[get_node_name(def->var_)];
+    }
+    for (auto &f : ret->contents_) {
+        ir_copier_t cpy {replacer, true};
+        f = std::const_pointer_cast<func_base>(cpy(f));
+    }
+    for (auto &kv : ret->op_table_map_) {
+        kv.second = std::make_shared<op_dispatch_tables_t>(*kv.second);
+    }
+    return ret;
 }
 
 void ir_module_t::add_func(const std::vector<func_t> &funcs) {

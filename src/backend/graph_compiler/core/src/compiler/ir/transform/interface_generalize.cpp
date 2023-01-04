@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,6 +64,10 @@ const_ir_module_ptr interface_generalizer_t::operator()(
             }
             wrapper_func->name_ = wrapper_name;
             wrapper_func->decl_->name_ = wrapper_name;
+            if (f->attr_
+                    && f->attr_->get_or_else(function_attrs::is_main, false)) {
+                wrapper_func->attr()[function_attrs::is_main] = true;
+            }
             ret->add_func({wrapper_func});
         }
     }

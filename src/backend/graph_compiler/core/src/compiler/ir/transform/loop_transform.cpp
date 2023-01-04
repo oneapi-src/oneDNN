@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -140,32 +140,6 @@ class ir_copier_with_unroll_check_t : public ir_copier_impl_t {
                 "Only allow local variables in unroll, got: " << v);
         replace_map_[v->var_] = expr();
         ir_copier_impl_t::view(std::move(v));
-    }
-
-    void view(stmts_c v) override {
-        ir_copier_impl_t::view(v);
-        if (v->attr_
-                && v->attr_->has_key(
-                        tensor_shrinker_attrs::tensor_for_placerholder)) {
-            auto tsr = v->attr_->get<std::weak_ptr<expr_base>>(
-                                       tensor_shrinker_attrs::
-                                               tensor_for_placerholder)
-                               .lock();
-            assert(tsr);
-            auto &shrink_info
-                    = tsr->attr_->get<tensor_shrinker_t::shrink_info_t>(
-                            tensor_shrinker_attrs::should_shrink);
-            assert(shrink_info.move_def_.get() == v.get());
-            // update the shape and base by using new copied expr
-            for (auto &val : shrink_info.base_) {
-                val = copy(val);
-            }
-            for (auto &val : shrink_info.shape_) {
-                val = copy(val);
-            }
-            // update the new def
-            shrink_info.move_def_ = returned_stmt_.checked_as<stmts>();
-        }
     }
 };
 

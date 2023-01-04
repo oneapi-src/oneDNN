@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,11 @@
 #include <string>
 #include <utility>
 
+#include <fstream>
 #include <stdlib.h>
 #include "llvm_jit.hpp"
 #include "llvm_jit_resolver.hpp"
+#include <compiler/codegen/codegen_c.hpp>
 #include <compiler/codegen/codegen_llvm.hpp>
 #include <llvm/Analysis/TargetLibraryInfo.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
@@ -40,6 +42,7 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <runtime/config.hpp>
 #include <runtime/runtime.hpp>
+#include <util/file.hpp>
 #include <util/scoped_timer.hpp>
 #include <util/utils.hpp>
 
@@ -106,7 +109,11 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
     std::unique_ptr<llvm::Module> llvmmod;
     llvm_generator_pass gen {*llvm_ctx, llvmmod, generate_wrapper};
     auto new_mod = gen(module);
-
+    ir_module_ptr copied_ir_module;
+    auto &compiler_config = utils::compiler_configs_t::get();
+    if (!compiler_config.dump_gen_code_.empty()) {
+        copied_ir_module = module->deep_copy();
+    }
     auto timer = SC_SCOPED_TIMER_INFO("pass.time.llvm_jit", "");
     auto &attr_table = *new_mod->attr_.get<std::shared_ptr<statics_table_t>>(
             ir_module_t::attr_key_t::MODULE_DATA_BUFFERS);
@@ -154,6 +161,30 @@ std::shared_ptr<jit_module> llvm_jit::make_jit_module(
             std::move(attr_table), std::move(outlisteners), use_managed_tp,
             source_path);
     ret->update_runtime_op_tables(module);
+
+    if (copied_ir_module) {
+        std::stringstream of;
+        std::ofstream dump_main_f;
+        std::ofstream dump_header_f;
+        std::ofstream dump_data_f;
+        c_generator_optional_out_t optional_dump {
+                &dump_main_f, &dump_header_f, &dump_data_f};
+        std::string dump_path_base = compiler_config.dump_gen_code_ + '/';
+        dump_path_base += module->attr_.get_or_else(
+                ir_module_t::attr_key_t::NAME,
+                "/cfake_jit_module-" + utils::get_unique_name_for_file());
+
+        std::string dump_path = dump_path_base + ".cpp";
+        std::string dump_header_path = dump_path_base + ".hpp";
+        std::string dump_data_path = dump_path_base + "_data.cpp";
+        utils::open_file_for_write(dump_main_f, dump_path);
+        utils::open_file_for_write(dump_header_f, dump_header_path);
+        utils::open_file_for_write(dump_data_f, dump_data_path);
+
+        auto gen = create_c_generator(
+                of, context_, generate_wrapper, &optional_dump);
+        auto new_mod = gen(copied_ir_module);
+    }
     return ret;
 }
 
@@ -173,10 +204,7 @@ std::vector<std::string> llvm_jit_module::get_temp_filenames() const {
 }
 
 llvm_jit_module::~llvm_jit_module() {
-    if (!utils::compiler_configs_t::get().keep_gen_code_
-            && !source_path_.empty()) {
-        remove(source_path_.c_str());
-    }
+    if (!source_path_.empty()) { remove(source_path_.c_str()); }
 }
 
 static void *resolve_llvm_symbol(

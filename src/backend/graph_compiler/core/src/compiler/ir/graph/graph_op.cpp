@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,8 @@ std::vector<graph_tensor_ptr> graph_op_t::remake_logical_tensors(
 
 ir_module_ptr graph_op_t::get_func(context_ptr ctx) {
     auto graph = get_graph();
-    return lower_graph(ctx, *graph, {graph->ops_.back(), graph->ops_[0]});
+    return lower_graph(
+            ctx, *graph, {graph->ops_.back(), graph->ops_[0]}, false);
 }
 
 std::shared_ptr<sc_graph_t> graph_op_t::get_graph() {

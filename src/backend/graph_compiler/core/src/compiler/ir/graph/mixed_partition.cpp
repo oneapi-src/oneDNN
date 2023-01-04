@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -3076,7 +3076,7 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
             auto input_ops = copied_grpah.get_input_ops();
             lower_args.insert(
                     lower_args.end(), input_ops.begin(), input_ops.end());
-            auto modu = lower_graph(ctx, copied_grpah, lower_args);
+            auto modu = lower_graph(ctx, copied_grpah, lower_args, false);
             auto main_func = modu->get_entry_func();
             main_func->name_ = mx_op_name;
             main_func->decl_->name_ = mx_op_name;

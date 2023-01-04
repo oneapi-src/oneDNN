@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,8 @@ constexpr const char *no_alias = "noalias";
 constexpr const char *no_parallel = "no_parallel";
 // bool, if the function cannot be traced. default = false
 constexpr const char *skip_trace = "skip_trace";
+// bool, if the function is the main entry of the module
+constexpr const char *is_main = "is_main";
 // bool, if the function is a top-level function. The main entry function should
 // be a top-level function. If other functions needs the same optimization as
 // the main entry function, they should be top-level functions

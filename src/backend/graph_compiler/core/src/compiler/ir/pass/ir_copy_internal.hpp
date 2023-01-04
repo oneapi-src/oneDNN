@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@ protected:
      * @return true if `v` is in the replace map
      * */
     bool find_and_return(const expr_c &v);
+    void update_shrink_info(const expr_c &v, const expr &ret);
 
 public:
     ir_copier_impl_t(std::unordered_map<expr_c, expr> &replace_map,

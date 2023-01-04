@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,9 +49,10 @@ enum info_etype_t { real_tensor, placeholder, format, out_size };
  * @param graph the graph
  * @param args optional order of the arguments of the generated IR function.
  * Should all be input_op or output_op. If empty, use default internal order
+ * @param mark_as_main mark the main entry function with "is_main" attr
  * */
-SC_API ir_module_ptr lower_graph(
-        context_ptr ctx, sc_graph_t &graph, const std::vector<sc_op_ptr> &args);
+SC_API ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
+        const std::vector<sc_op_ptr> &args, bool mark_as_main = true);
 } // namespace sc
 
 #endif

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,10 @@
 #include <unistd.h>
 #endif
 #include <atomic>
+#include <fstream>
 #include <stdlib.h>
 #include <string>
+#include "file.hpp"
 #include "utils.hpp"
 #include <compiler/ir/sc_data_type.hpp>
 #include <runtime/config.hpp>
@@ -136,42 +138,65 @@ compiler_configs_t &compiler_configs_t::get() {
 
 const std::string &compiler_configs_t::get_temp_dir_path() {
     const std::string &temp_dir = compiler_configs_t::get().temp_dir_;
-    if (temp_dir.empty()) {
-        COMPILE_ASSERT(0,
-                "Current SC_TEMP_DIR can not be writen as temp directory, "
-                "please make your writable temp directory and use with "
-                "SC_TEMP_DIR=/path/to/temp");
-    }
     return temp_dir;
 }
 
 using namespace env_key;
 compiler_configs_t::compiler_configs_t() {
     print_gen_code_ = utils::getenv_int(env_names[SC_PRINT_GENCODE], 0);
-    const int default_keep_gencode =
-#if SC_PROFILING == 1
-            1;
-#else
-            0;
-#endif
-    keep_gen_code_ = utils::getenv_int(
-            env_names[SC_KEEP_GENCODE], default_keep_gencode);
+    dump_gen_code_ = utils::getenv_string(env_names[SC_DUMP_GENCODE]);
     jit_cc_options_ = utils::getenv_string(env_names[SC_JIT_CC_OPTIONS_GROUP]);
     cpu_jit_flags_ = utils::string_split(
             utils::getenv_string(env_names[SC_CPU_JIT_FLAGS]), " ");
-    temp_dir_ = utils::getenv_string(env_names[SC_TEMP_DIR]);
-    if (temp_dir_.empty()) { temp_dir_ = "/tmp"; }
-    int access_ret = 0;
-#ifndef _WIN32
-    access_ret = access(temp_dir_.c_str(), W_OK);
-#else
-    access_ret = _access(temp_dir_.c_str(), 2);
-#endif
-    if (access_ret != 0) { temp_dir_.clear(); }
-
     print_pass_time_ = utils::getenv_int(env_names[SC_PRINT_PASS_TIME], 0);
     print_pass_result_ = utils::getenv_int(env_names[SC_PRINT_PASS_RESULT], 0);
     jit_profile_ = utils::getenv_int(env_names[SC_JIT_PROFILE], 0);
+
+    if (temp_dir_.empty()) {
+#ifndef _WIN32
+        // use the order defined by POSIX standard
+        do {
+            temp_dir_ = utils::getenv_string("TMPDIR");
+            if (!temp_dir_.empty()) { break; }
+            temp_dir_ = utils::getenv_string("TMP");
+            if (!temp_dir_.empty()) { break; }
+            temp_dir_ = utils::getenv_string("TEMP");
+            if (!temp_dir_.empty()) { break; }
+            temp_dir_ = utils::getenv_string("TEMPDIR");
+            if (!temp_dir_.empty()) { break; }
+            temp_dir_ = "/tmp";
+        } while (false);
+#else
+        char temp[MAX_PATH + 2];
+        auto ret = GetTempPathA(MAX_PATH + 1, temp);
+        if (ret != 0) { temp_dir_ = temp; }
+#endif // _WIN32
+    }
+}
+
+void open_file_for_write(std::ofstream &ret, const std::string &path) {
+    ret.open(path);
+    COMPILE_ASSERT(ret, "Cannot open file for write:" << path);
+}
+
+void open_file_for_read(std::ifstream &ret, const std::string &path) {
+    ret.open(path);
+    COMPILE_ASSERT(ret, "Cannot open file for read:" << path);
+}
+
+static std::string make_temp_path(const std::string &filename) {
+    std::string name = compiler_configs_t::get_temp_dir_path();
+    name += '/';
+    name += filename;
+    return name;
+}
+
+void open_temp_file_for_write(std::ofstream &ret, const std::string &filename) {
+    open_file_for_write(ret, make_temp_path(filename));
+}
+
+void open_temp_file_for_read(std::ifstream &ret, const std::string &filename) {
+    open_file_for_read(ret, make_temp_path(filename));
 }
 
 } // namespace utils

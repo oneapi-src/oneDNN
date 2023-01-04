@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,9 +30,9 @@
 #include <runtime/env_vars.hpp>
 #include <runtime/memorypool.hpp> // to get the path of the runtime library
 #include <unordered_map>
+#include <util/file.hpp>
 #include <util/scoped_timer.hpp>
 #include <util/string_utils.hpp>
-#include <util/unique_file_name.hpp>
 #include <util/utils.hpp>
 
 #ifdef _WIN32
@@ -80,10 +80,12 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
     if (home_path.empty()) {
         throw std::runtime_error("environment variable SC_HOME is not set");
     }
-    if (utils::compiler_configs_t::get().print_gen_code_) {
+    const auto &compiler_config = utils::compiler_configs_t::get();
+    if (compiler_config.print_gen_code_) {
         std::ifstream f(inpath);
         if (f.is_open()) std::cerr << f.rdbuf();
     }
+
     const std::string home_inc = home_path + "/src";
     const std::string &command = cfake_jit::get_compiler_command();
     // Mandatory compiler options...
@@ -158,9 +160,7 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
     } else {
         // If we call 'unlink', it will overwrite errno.
         const int fork_errno = errno;
-        if (!utils::compiler_configs_t::get().keep_gen_code_) {
-            unlink(inpath.c_str());
-        }
+        unlink(inpath.c_str());
 
         std::ostringstream os;
         os << "Error when fork: " << utils::get_error_msg(fork_errno);
@@ -173,8 +173,8 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
 
 statics_table_t cfake_jit::codegen_to_cpp(std::ostream &os,
         const const_ir_module_ptr &module, bool generate_wrapper,
-        bool &out_managed_thread_pool) {
-    auto gen = create_c_generator(os, context_, generate_wrapper);
+        bool &out_managed_thread_pool, c_generator_optional_out_t *optout) {
+    auto gen = create_c_generator(os, context_, generate_wrapper, optout);
     auto new_mod = gen(module);
     out_managed_thread_pool = new_mod->attr_.get<bool>(
             ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
@@ -199,10 +199,34 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
     std::string outpath = tmpdir + "/cfake_jit_module-" + unique_name + ".so";
     std::string inpath = tmpdir + "/cfake_jit_module-" + unique_name + ".cpp";
 
-    std::ofstream of(inpath);
+    std::ofstream of;
+    utils::open_file_for_write(of, inpath);
+
+    const auto &compiler_config = utils::compiler_configs_t::get();
+    std::ofstream dump_main_f;
+    std::ofstream dump_header_f;
+    std::ofstream dump_data_f;
+    c_generator_optional_out_t optional_dump {
+            &dump_main_f, &dump_header_f, &dump_data_f};
+    c_generator_optional_out_t *ptr_optional_dump = nullptr;
+    if (!compiler_config.dump_gen_code_.empty()) {
+        std::string dump_path_base = compiler_config.dump_gen_code_ + '/';
+        dump_path_base
+                += module->attr_.get_or_else(ir_module_t::attr_key_t::NAME,
+                        "/cfake_jit_module-" + unique_name);
+
+        std::string dump_path = dump_path_base + ".cpp";
+        std::string dump_header_path = dump_path_base + ".hpp";
+        std::string dump_data_path = dump_path_base + "_data.cpp";
+        utils::open_file_for_write(dump_main_f, dump_path);
+        utils::open_file_for_write(dump_header_f, dump_header_path);
+        utils::open_file_for_write(dump_data_f, dump_data_path);
+        ptr_optional_dump = &optional_dump;
+    }
+
     bool managed_thread_pool;
-    auto attr_table
-            = codegen_to_cpp(of, module, generate_wrapper, managed_thread_pool);
+    auto attr_table = codegen_to_cpp(of, module, generate_wrapper,
+            managed_thread_pool, ptr_optional_dump);
     of.close();
 
     auto ret = make_jit_module(inpath, outpath, std::move(attr_table),
@@ -221,10 +245,8 @@ cfake_jit_module_t::~cfake_jit_module_t() {
     if (module_) {
         dlclose(module_);
 
-        if (!utils::compiler_configs_t::get().keep_gen_code_) {
-            unlink(path_.c_str());
-            unlink(src_path_.c_str());
-        }
+        unlink(path_.c_str());
+        unlink(src_path_.c_str());
 
         module_ = nullptr;
     }

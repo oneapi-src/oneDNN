@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1142,7 +1142,7 @@ static func_t insert_prefetch(const context_ptr &ctx,
 }
 
 ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
-        const std::vector<sc_op_ptr> &args) {
+        const std::vector<sc_op_ptr> &args, bool mark_as_main) {
     auto timer = SC_SCOPED_TIMER_INFO("graph.driver.time.lowering", "");
     if (!ctx->flags_.dump_graph_.empty()) {
         SC_INFO << "visualize graph to a dot file and a json file";
@@ -1156,10 +1156,12 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     std::vector<expr> params;
     stmts func_body = make_stmt<stmts_node_t>(std::vector<stmt>());
     stmts init_body = make_stmt<stmts_node_t>(std::vector<stmt>());
+    constexpr const char *default_graph_name = "main_entry";
+    auto graph_name = graph.attrs_.get_or_else<std::string>(
+            "temp.name", default_graph_name);
     // todo: use graph-id to generate name
     auto func = builder::make_func(
-            graph.attrs_.get_or_else<std::string>("temp.name", "main_entry"),
-            params, func_body, datatypes::void_t);
+            graph_name, params, func_body, datatypes::void_t);
     // todo: logical tensor should also have an unique id
     // tsr_info_t include dynamic placeholder(dynamic tensor with empty
     // datapointer) and runtime format.
@@ -1425,11 +1427,15 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     func->decl_->params_ = func->params_;
     func->body_ = std::move(func_body);
     func->attr()[function_attrs::top_level] = true;
+    if (mark_as_main) func->attr()[function_attrs::is_main] = true;
     if (utils::compiler_configs_t::get().print_pass_result_) {
         SC_MODULE_INFO << ret_mod;
     }
     ret_mod->attr_[ir_module_t::attr_key_t::GFLOP]
             = graph.attrs_.get_or_else(sc_graph_t::attr_key_t::gflop, 0.0f);
+    if (graph_name != default_graph_name) {
+        ret_mod->attr_[ir_module_t::attr_key_t::NAME] = graph_name;
+    }
     return ret_mod;
 }
 } // namespace sc

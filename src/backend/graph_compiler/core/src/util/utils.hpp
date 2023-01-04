@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -205,7 +205,7 @@ SC_INTERNAL_API std::string get_dyn_lib_path(void *addr);
 
 struct SC_INTERNAL_API compiler_configs_t {
     bool print_gen_code_;
-    bool keep_gen_code_;
+    std::string dump_gen_code_;
     std::string jit_cc_options_;
     std::vector<std::string> cpu_jit_flags_;
     bool diagnose_ = false;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,8 +53,8 @@
 #include <llvm/Target/TargetOptions.h>
 #include <unordered_set>
 #include <util/any_map.hpp>
+#include <util/file.hpp>
 #include <util/scoped_timer.hpp>
-#include <util/unique_file_name.hpp>
 
 #if SC_LLVM_BACKEND > 8
 #include <llvm/IR/IntrinsicsX86.h>
@@ -1824,14 +1824,13 @@ const_ir_module_ptr llvm_generator_pass::operator()(const_ir_module_ptr f) {
     auto passes = get_default_precodegen_passes(f->ctx_, gen_wrapper_);
     auto mod = run_precodegen_passes(passes, f);
     std::string unique_name;
-    const auto &tmpdir = f->ctx_->flags_.debug_info_
-            ? utils::compiler_configs_t::get_temp_dir_path()
-            : "";
+    const auto &tmpdir = utils::compiler_configs_t::get_temp_dir_path();
     if (f->ctx_->flags_.debug_info_) {
         std::string file_name;
         file_name = "llvm_jit-" + utils::get_unique_name_for_file() + ".gcir";
         std::string unique_name = tmpdir + "/" + file_name;
-        std::ofstream ofs(unique_name);
+        std::ofstream ofs;
+        utils::open_file_for_write(ofs, unique_name);
         out_source_path_ = unique_name;
         print_ir_and_annotate_source_pos(*mod, ofs);
     } else {

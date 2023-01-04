@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1934,7 +1934,7 @@ ir_module_ptr batchwise_fused_op_t::get_func(context_ptr ctx) {
          out_ops = sub_graph.get_output_ops();
     sub_args.insert(sub_args.end(), out_ops.begin(), out_ops.end());
     sub_args.insert(sub_args.end(), inp_ops.begin(), inp_ops.end());
-    auto sub_modu = lower_graph(ctx, sub_graph, sub_args);
+    auto sub_modu = lower_graph(ctx, sub_graph, sub_args, false);
     auto &sub_vars = sub_modu->get_module_vars();
 
     for (auto &f : sub_modu->get_contents()) {

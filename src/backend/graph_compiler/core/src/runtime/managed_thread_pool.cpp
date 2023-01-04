@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <immintrin.h>
 #include "config.hpp"
 #include "managed_thread_pool.hpp"
+#include "managed_thread_pool_exports.hpp"
 #include "memorypool.hpp"
 #include "runtime.hpp"
 #include "thread_locals.hpp"

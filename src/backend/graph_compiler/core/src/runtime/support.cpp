@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #include <runtime/env_var.hpp>
 #include <runtime/env_vars.hpp>
 #include <runtime/logging.hpp>
-#include <runtime/managed_thread_pool.hpp>
+#include <runtime/managed_thread_pool_exports.hpp>
 #include <runtime/os.hpp>
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>

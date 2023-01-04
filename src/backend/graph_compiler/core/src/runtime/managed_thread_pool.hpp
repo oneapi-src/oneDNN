@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,13 +58,5 @@ struct thread_manager {
 };
 } // namespace runtime
 } // namespace sc
-
-extern "C" SC_API void sc_parallel_call_managed(
-        void (*pfunc)(void *, void *, int64_t, sc::generic_val *),
-        uint64_t execution_flags, void *rtl_ctx, void *module_env,
-        int64_t begin, int64_t end, int64_t step, sc::generic_val *args);
-
-extern "C" SC_API void sc_set_idle_func_managed(
-        sc::runtime::thread_manager::idle_func_t func, void *args);
 
 #endif

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,6 +58,8 @@ public:
         // bool, whether to use managed thread pool
         static constexpr const char *MANAGED_THREAD_POOL
                 = "MANAGED_THREAD_POOL";
+        // string, the name of the module
+        static constexpr const char *NAME = "name";
     };
 
     context_ptr ctx_;
@@ -137,6 +139,8 @@ public:
 
     // copies the module
     std::shared_ptr<ir_module_t> copy() const;
+    // deep copies the module
+    std::shared_ptr<ir_module_t> deep_copy() const;
 
     /**
      * Creates an IR module from a list of functions. Finds the direct and

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <memory>
+#include <string.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -166,16 +167,28 @@ stmt_c codegen_c_vis::dispatch(stmt_c v) {
     return ir_visitor_t::dispatch(std::move(v));
 }
 
+static const std::string &get_func_name(const func_c &v) {
+    if (v->attr_) {
+        if (auto pname = v->attr_->get_or_null<std::string>(
+                    "temp.replace_func_name")) {
+            return *pname;
+        }
+    }
+    return v->name_;
+}
+
 func_c codegen_c_vis::dispatch(func_c v) {
-    bool is_symbol_in_runtime = default_external_symbol_resolve(v->name_);
+    bool is_symbol_in_runtime
+            = !is_offline_ && default_external_symbol_resolve(v->name_);
     if (!is_symbol_in_runtime) {
         *os << (is_static ? "static " : "extern \"C\" ");
     }
     print_type(v->ret_type_);
+    const std::string &real_name = get_func_name(v);
     if (is_symbol_in_runtime) {
-        *os << " (*" << v->name_ << "_fptr" << ')' << '(';
+        *os << " (*" << real_name << "_fptr" << ')' << '(';
     } else {
-        *os << " " << v->name_ << '(';
+        *os << " " << real_name << '(';
     }
     if (!v->params_.empty()) {
         for (size_t i = 0; i < v->params_.size() - 1; i++) {
@@ -192,8 +205,10 @@ func_c codegen_c_vis::dispatch(func_c v) {
                 *os << " __attribute__((const))";
             }
             if (v->attr_->get_or_else(function_attrs::no_alias, false)) {
-                *os << " __attribute__((returns_nonnull))  /*__attribute__"
-                       "((malloc))*/";
+                *os << " __attribute__((returns_nonnull))  ";
+                if (!is_offline_) { *os << "/*"; }
+                *os << "__attribute__((malloc))";
+                if (!is_offline_) { *os << "*/"; }
             }
         }
         std::string tensor_idx = " __attribute__((nonnull (";
@@ -341,7 +356,7 @@ void codegen_c_vis::unary_func_codegen_c(
 }
 
 void codegen_c_vis::view(func_addr_c v) {
-    if (default_external_symbol_resolve(v->func_->name_)) {
+    if (!is_offline_ && default_external_symbol_resolve(v->func_->name_)) {
         *os << "(void*)" << v->func_->name_ << "_fptr";
     } else {
         *os << "(void*)&" << v->func_->name_;
@@ -633,7 +648,8 @@ void codegen_c_vis::view(call_c v) {
     } else {
         if (the_func) {
             *os << the_func->name_;
-            if (default_external_symbol_resolve(the_func->name_)) {
+            if (!is_offline_
+                    && default_external_symbol_resolve(the_func->name_)) {
                 *os << "_fptr";
             }
         } else {
@@ -875,9 +891,27 @@ static void prepare_include(std::ostream *source) {
 )";
 }
 
-void write_cpp_prototype(std::ostream *source_, const func_c &f) {
-    codegen_c_vis vis(source_, true,
-            f->attr_ && f->attr_->get_or_else(function_attrs::private_, false));
+static constexpr const char *wrapper_postfix = "_0wrapper";
+static bool is_main_func_wrapper(const func_c &f) {
+    return f->attr_ && f->attr_->get_or_else(function_attrs::is_main, false)
+            && utils::string_endswith(f->name_, wrapper_postfix);
+}
+
+static bool is_func_static(const func_c &f, bool is_offline) {
+    auto attr = f->attr_.get();
+    if (is_offline) {
+        // if is offline mode, hide all symbols except the main entry
+        if (is_main_func_wrapper(f)) { return false; }
+        if (f->name_ == "__sc_init__" || f->name_ == "memset") { return false; }
+        return !default_external_symbol_resolve(f->name_);
+    }
+    return attr && attr->get_or_else(function_attrs::private_, false);
+}
+
+void write_cpp_prototype(
+        std::ostream *source_, const func_c &f, bool is_offline) {
+    codegen_c_vis vis(source_, true, is_func_static(f, is_offline));
+    vis.is_offline_ = is_offline;
     vis.dispatch(f);
     *source_ << '\n';
 }
@@ -927,8 +961,10 @@ void write_cpp_generic_wrapper(
 }
 
 static func_c do_generate_c(func_c f, std::ostream &source,
-        const std::vector<define> &globals, bool gen_wrapper, bool is_static) {
+        const std::vector<define> &globals, bool gen_wrapper, bool is_static,
+        bool is_offline) {
     codegen_c_vis vis(&source, false, is_static);
+    vis.is_offline_ = is_offline;
     vis.dispatch(f);
     source << '\n' << '\n';
     if (!f->body_.defined()) return f;
@@ -938,21 +974,24 @@ static func_c do_generate_c(func_c f, std::ostream &source,
 void c_generator_pass_t::operator()(func_t f) {
     f = pre_passes_(ir_module_t::from_entry_func(context_, f))
                 ->get_entry_func();
-    do_generate_c(f, source_, {}, gen_wrapper_, false);
+    do_generate_c(f, source_, {}, gen_wrapper_, false, false);
 }
 
-c_generator_pass_t::c_generator_pass_t(
-        std::ostream &source, const context_ptr &ctx, bool gen_wrapper)
+c_generator_pass_t::c_generator_pass_t(std::ostream &source,
+        const context_ptr &ctx, bool gen_wrapper,
+        c_generator_optional_out_t *optional_out)
     : source_(source)
     , context_(ctx)
     , gen_wrapper_(gen_wrapper)
-    , pre_passes_ {get_default_precodegen_passes(ctx, gen_wrapper)} {
+    , pre_passes_ {get_default_precodegen_passes(ctx, gen_wrapper)}
+    , optional_out_(optional_out) {
     prepare_include(&source_);
+    if (optional_out_) { prepare_include(optional_out_->offline_source_); }
 }
 
 const_ir_module_ptr preprocess_module_and_make_decl(
         const const_ir_module_ptr &mod, module_pass_t &pre_passes,
-        std::ostream &source) {
+        std::ostream &source, c_generator_optional_out_t *optout) {
     auto mod_cpy = run_precodegen_passes(pre_passes, mod);
     auto timer
             = SC_SCOPED_TIMER_INFO("pass.time.c_generator_pass.preprocess", "");
@@ -968,31 +1007,126 @@ const_ir_module_ptr preprocess_module_and_make_decl(
     }
     for (auto &f : dep) {
         if (!f->attr_ || !f->attr_->has_key("device_func")) {
-            write_cpp_prototype(&source, f);
+            write_cpp_prototype(&source, f, false);
         }
     }
     source << '\n';
     source << '\n';
+
+    if (optout) {
+        bool managed_thread_pool = mod_cpy->attr_.get<bool>(
+                ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
+        if (managed_thread_pool) {
+            (*optout->offline_source_)
+                    << R"(#include <runtime/managed_thread_pool.hpp>
+)";
+        }
+
+        (*optout->offline_source_) << R"(#include <omp.h>
+#define sc_get_thread_id omp_get_thread_num
+#define sc_parallel_call_cpu_with_env sc_parallel_call_cpu_with_env_impl
+)";
+        for (auto &f : dep) {
+            if (!f->attr_ || !f->attr_->has_key("device_func")) {
+                write_cpp_prototype(optout->offline_source_, f, true);
+            }
+        }
+        *(optout->offline_source_) << '\n' << '\n';
+    }
     return mod_cpy;
 } // namespace sc
 
+static void generate_dumped_source(const const_ir_module_ptr &mod,
+        c_generator_optional_out_t *optional_out, bool gen_wrapper) {
+    std::string module_name = "main_entry";
+    for (auto &f : mod->get_contents()) {
+        if (f->attr_ && f->attr_->get_or_else(function_attrs::is_main, false)
+                && !utils::string_endswith(f->name_, wrapper_postfix)) {
+            module_name = f->name_;
+            break;
+        }
+    }
+
+    bool managed_thread_pool = mod->attr_.get<bool>(
+            ir_module_t::attr_key_t::MANAGED_THREAD_POOL);
+    for (auto &f : mod->get_contents()) {
+        if (f->name_ == "__sc_init__") {
+            f->attr()["temp.replace_func_name"] = "sc_init_" + module_name;
+            break;
+        }
+    }
+    auto &header_src = *optional_out->header_source_;
+    auto &data_src = *optional_out->data_source_;
+    auto &offline_src = *optional_out->offline_source_;
+
+    auto &mod_data = mod->attr_.get<std::shared_ptr<statics_table_t>>(
+            ir_module_t::attr_key_t::MODULE_DATA_BUFFERS);
+
+    header_src << R"(#include <stdint.h>
+#include <runtime/generic_val.hpp>
+using generic_val = sc::generic_val;
+
+extern uint8_t )"
+               << module_name << "_data[" << mod_data->data_.size_ << "];\n\n";
+    const char *skip_func_name = "__sc_init___0wrapper";
+    for (auto &f : mod->get_contents()) {
+        if (f->name_ == skip_func_name) { continue; }
+        bool is_static_func = is_func_static(f, true);
+        if (!is_static_func) { write_cpp_prototype(&header_src, f, true); }
+
+        // change the name of the generated func to insert managed thread pool
+        // code
+        if (managed_thread_pool && is_main_func_wrapper(f)) {
+            f->attr()["temp.replace_func_name"] = f->name_ + "_impl";
+        }
+
+        do_generate_c(f, offline_src, mod->get_module_vars(), gen_wrapper,
+                is_static_func, true);
+    }
+    if (managed_thread_pool) {
+        offline_src
+                << "extern \"C\" void " << module_name
+                << R"(_0wrapper(void* __stream, int8_t* __restrict__ __module_data, generic_val* __restrict__ args) noexcept{
+  sc::runtime::thread_manager::cur_mgr.run_main_function((sc::runtime::thread_manager::main_func_t))"
+                << module_name
+                << R"(_0wrapper_impl, (sc::runtime::stream_t *)__stream, __module_data, args);
+})";
+    }
+
+    // generate module data
+
+    memset((char *)mod_data->data_.data_ + mod_data->initialized_size_, 0,
+            mod_data->data_.size_ - mod_data->initialized_size_);
+    data_src << R"(#include <stdint.h>
+
+alignas(64) uint8_t )"
+             << module_name << "_data[" << mod_data->data_.size_ << "] = {";
+    uint8_t *buffer = (uint8_t *)mod_data->data_.data_;
+    for (size_t i = 0; i < mod_data->initialized_size_; i++) {
+        data_src << (uint32_t)buffer[i] << ',';
+    }
+    data_src << "};\n";
+}
+
 const_ir_module_ptr c_generator_pass_t::operator()(const_ir_module_ptr mod) {
-    // TODO(xxx): cfake_jit is created with default ctx, which can't pass below
-    // assertion. assert(mod->ctx_ == context_);
-    mod = preprocess_module_and_make_decl(mod, pre_passes_, source_);
+    // TODO(xxx): cfake_jit is created with default ctx, which can't pass
+    // below assertion. assert(mod->ctx_ == context_);
+    mod = preprocess_module_and_make_decl(
+            mod, pre_passes_, source_, optional_out_);
     auto timer = SC_SCOPED_TIMER_INFO("pass.time.c_generator_pass.codegen", "");
     for (auto &f : mod->get_contents()) {
         do_generate_c(f, source_, mod->get_module_vars(), gen_wrapper_,
-                f->attr_
-                        && f->attr_->get_or_else(
-                                function_attrs::private_, false));
+                is_func_static(f, false), false);
+    }
+    if (optional_out_) {
+        generate_dumped_source(mod, optional_out_, gen_wrapper_);
     }
     return mod;
 }
 
-c_generator_pass_t create_c_generator(
-        std::ostream &os, const context_ptr &ctx, bool gen_wrapper) {
-    return c_generator_pass_t(os, ctx, gen_wrapper);
+c_generator_pass_t create_c_generator(std::ostream &os, const context_ptr &ctx,
+        bool gen_wrapper, c_generator_optional_out_t *optional_out) {
+    return c_generator_pass_t(os, ctx, gen_wrapper, optional_out);
 }
 
 } // namespace sc
