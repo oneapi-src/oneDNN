@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -253,17 +253,22 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
     auto cp = compile_partition(::pool::init_pd, prb, res, par, ins, outs);
 
     auto src_fp = make_dnn_mem(is_fwd ? ins[0] : outs[0], dt::f32, tag::abx);
-    auto dst_fp = make_dnn_mem(is_fwd ? outs[0] : is_max_pool ? ins[1] : ins[0],
+    auto dst_fp = make_dnn_mem(is_fwd ? outs[0]
+                    : is_max_pool     ? ins[1]
+                                      : ins[0],
             dt::f32, tag::abx);
-    dnn_mem_t ws_fp
-            = make_dnn_mem(is_fwd ? outs[0] : is_max_pool ? ins[1] : ins[0],
-                    dt::s32, tag::abx);
+    dnn_mem_t ws_fp = make_dnn_mem(is_fwd ? outs[0]
+                    : is_max_pool         ? ins[1]
+                                          : ins[0],
+            dt::s32, tag::abx);
 
     auto src_dt = make_dnn_mem(is_fwd ? ins[0] : outs[0], prb->tag);
-    auto dst_dt = make_dnn_mem(
-            is_fwd ? outs[0] : is_max_pool ? ins[1] : ins[0], prb->tag);
+    auto dst_dt = make_dnn_mem(is_fwd ? outs[0]
+                    : is_max_pool     ? ins[1]
+                                      : ins[0],
+            prb->tag);
 
-    SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
+    SAFE(fill_dat(prb, SRC, src_dt, src_fp), WARN);
 
     std::vector<dnnl::graph::tensor> tensors_in, tensors_out;
 
@@ -320,7 +325,7 @@ int doit(const ::pool::prb_t *prb, res_t *res) {
         auto d_src_fp = make_dnn_mem(outs[0], dt::f32, tag::abx);
         d_dst_dt = make_dnn_mem(is_max_pool ? ins[1] : ins[0], prb->tag);
         d_src_dt = make_dnn_mem(outs[0], prb->tag);
-        SAFE(fill_dst(prb, d_dst_dt, d_dst_fp, res), WARN);
+        SAFE(fill_dat(prb, DST, d_dst_dt, d_dst_fp), WARN);
         tensors_out.emplace_back(outs[0], eng, static_cast<void *>(d_src_dt));
 
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);

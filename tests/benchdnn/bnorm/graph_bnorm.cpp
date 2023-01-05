@@ -1,5 +1,5 @@
 /*******************************************************************************
- * * Copyright 2019-2022 Intel Corporation
+ * * Copyright 2019-2023 Intel Corporation
  * *
  * * Licensed under the Apache License, Version 2.0 (the "License");
  * * you may not use this file except in compliance with the License.
@@ -221,8 +221,9 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
     dnn_mem_t r_mean_dt, r_var_dt, b_mean_dt, b_var_dt;
 
-    if (::bnorm::prepare_fwd(
-                prb, src_fp, src_add_fp, mean_fp, var_fp, scale_fp, shift_fp)
+    if (::bnorm::prepare_fwd(prb, src_dt, src_add_dt, mean_dt, var_dt, scale_dt,
+                shift_dt, src_fp, src_add_fp, mean_fp, var_fp, scale_fp,
+                shift_fp, res)
             != OK) {
         cleanup();
         return res->state = MISTRUSTED, OK;

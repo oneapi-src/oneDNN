@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -186,7 +186,7 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
     auto src_dt = make_dnn_mem(ins[0], prb->tag);
     auto dst_dt = make_dnn_mem(cp_dst_lt, prb->tag);
     if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
-        SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
+        SAFE(fill_dat(prb, DST, dst_dt, dst_fp), WARN);
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
@@ -217,7 +217,7 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
         binary_po_args.push_back(po_idx);
     }
 
-    SAFE(::resampling::fill_src(prb, src_dt, src_fp, res), WARN);
+    SAFE(::resampling::fill_dat(prb, SRC, src_dt, src_fp), WARN);
 
     if (prb->dir & FLAG_FWD) {
         dnnl::graph::tensor src_tensor(
@@ -272,7 +272,7 @@ int doit(const ::resampling::prb_t *prb, res_t *res) {
         dnnl::graph::tensor src_tensor(
                 ins[0], eng, static_cast<void *>(src_dt));
 
-        SAFE(::resampling::fill_dst(prb, d_dst_dt, d_dst_fp, res), WARN);
+        SAFE(::resampling::fill_dat(prb, DST, d_dst_dt, d_dst_fp), WARN);
         dnnl::graph::tensor d_dst_tensor(
                 ins[1], eng, static_cast<void *>(d_dst_dt));
         dnnl::graph::tensor d_src_tensor(
