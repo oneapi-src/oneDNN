@@ -1900,6 +1900,9 @@ public:
     void set_send_groups(const std::vector<send_group_t> &send_groups) {
         send_groups_ = send_groups;
     }
+    void fixup_params() {
+        if (!is_2d()) send_params_.hint_2d.enable = false;
+    }
 
     std::string str(const std::string &tag = "send_plan") const override {
         std::ostringstream oss;
@@ -2629,6 +2632,7 @@ send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
         return send_plan_t();
     }
 
+    ret->fixup_params();
     return send_plan_t(std::move(ret));
 }
 
