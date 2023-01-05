@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,14 +70,26 @@ static dim_t get_outer_dims_product(
 
 using namespace data_type;
 
-static bool data_type_supported(const data_type_t dtype) {
-    return utils::one_of(dtype, f32, bf16, f16, s8, u8);
+static bool data_type_supported(const data_type_t dtype, const cpu_isa_t isa) {
+    switch (dtype) {
+        case bf16:
+            return is_superset(isa, avx512_core)
+                    || is_superset(isa, avx2_vnni_2);
+        case f16:
+            return is_superset(isa, avx512_core_fp16)
+                    || is_superset(isa, avx2_vnni_2);
+        case f32:
+        case s8:
+        case u8: return true;
+        default: return false;
+    }
 }
 
 static cpu_isa_t get_supported_isa() {
     if (mayiuse(avx512_core_fp16)) return avx512_core_fp16;
     if (mayiuse(avx512_core_bf16)) return avx512_core_bf16;
     if (mayiuse(avx512_core)) return avx512_core;
+    if (mayiuse(avx2_vnni_2)) return avx2_vnni_2;
     if (mayiuse(avx2)) return avx2;
     if (mayiuse(sse41)) return sse41;
 
@@ -110,14 +122,10 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
 
     conf_.isa = get_supported_isa();
 
-    bool ok = data_type_supported(conf_.dst_type)
-            && data_type_supported(conf_.src0_type)
-            && data_type_supported(conf_.src1_type)
+    bool ok = data_type_supported(conf_.dst_type, conf_.isa)
+            && data_type_supported(conf_.src0_type, conf_.isa)
+            && data_type_supported(conf_.src1_type, conf_.isa)
             && data_format_supported(src0_md_, conf_.isa)
-            && IMPLICATION(conf_.src0_type == bf16, mayiuse(avx512_core))
-            && IMPLICATION(utils::one_of(f16, conf_.src0_type, conf_.src1_type,
-                                   conf_.dst_type),
-                    mayiuse(avx512_core_fp16))
             && set_default_params() == status::success && !has_zero_dim_memory()
             && IMPLICATION(!conf_.is_i8, src0_md_ == dst_md_) && is_applicable()
             && attr()->has_default_values(sm::post_ops | sm::scales_runtime)
@@ -608,6 +616,18 @@ binary_kernel_t *create_binary_kernel(
                             = jit_uni_binary_kernel_t<avx512_core, Xbyak::Xmm>;
                     return new kernel_t(pd, conf, tail_kernel);
                 }
+            }
+            break;
+        }
+        case avx2_vnni_2: {
+            if (blk_size == 8 || is_plain_layout) {
+                using kernel_t
+                        = jit_uni_binary_kernel_t<avx2_vnni_2, Xbyak::Ymm>;
+                return new kernel_t(pd, conf, tail_kernel && !conf.is_i8);
+            } else if (blk_size == 4) {
+                using kernel_t
+                        = jit_uni_binary_kernel_t<avx2_vnni_2, Xbyak::Xmm>;
+                return new kernel_t(pd, conf, tail_kernel && !conf.is_i8);
             }
             break;
         }

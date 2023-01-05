@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,6 +30,13 @@ static bcast_set_t get_supported_postops_bcast_strategies() {
     return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
             broadcasting_strategy_t::per_oc_spatial,
             broadcasting_strategy_t::no_broadcast};
+}
+
+static bool is_xf16(const data_type_t dtype) {
+    return utils::one_of(dtype, data_type::bf16, data_type::f16);
+}
+static bool is_ne_xf16_supported(cpu_isa_t isa, const data_type_t dtype) {
+    return isa == avx2_vnni_2 && is_xf16(dtype);
 }
 
 binary_kernel_t::binary_kernel_t(const size_t vlen, const binary_pd_t *pd,
@@ -141,6 +148,39 @@ void jit_uni_binary_kernel_t<isa, Vmm>::init_post_ops_injector() {
 
 template <cpu_isa_t isa, typename Vmm>
 void jit_uni_binary_kernel_t<isa, Vmm>::apply_postops(int unroll, bool tail) {
+    const auto sum_ne_xf16_injector = [&]() {
+        const Vmm vreg_dst_even_tmp = conf_.is_src_different_layouts
+                ? vmm_gathered_src_
+                : Vmm(unroll + vmm_start_idx_);
+        const Vmm vreg_dst_odd_tmp = Vmm(unroll + 1 + vmm_start_idx_);
+        const Vmm vmm_aux = vreg_saturation_ubound_;
+        for (int i = 0; i < unroll; i += 2) {
+            const bool can_load_two_simdw = unroll - i >= 2;
+            const int offt_base = simd_w_ * i;
+            const Vmm vreg_tmp_even_src0 = Vmm(i + vmm_start_idx_);
+            const Vmm vreg_tmp_odd_src0 = Vmm(i + 1 + vmm_start_idx_);
+            if (can_load_two_simdw) {
+                io_.at(conf_.dst_type)
+                        ->load_two_simdw_xf16(dst_ptr(offt_base
+                                                      * types::data_type_size(
+                                                              conf_.dst_type)),
+                                vreg_dst_even_tmp, vreg_dst_odd_tmp);
+                io_.at(conf_.dst_type)
+                        ->merge_interleaved_to_plain(
+                                vreg_dst_even_tmp, vreg_dst_odd_tmp, vmm_aux);
+            } else
+                io_.at(conf_.dst_type)
+                        ->load(dst_ptr(offt_base
+                                       * types::data_type_size(conf_.dst_type)),
+                                vreg_dst_even_tmp, false);
+            uni_vfmadd231ps(
+                    vreg_tmp_even_src0, vreg_dst_even_tmp, vreg_sum_scale_);
+            if (can_load_two_simdw)
+                uni_vfmadd231ps(
+                        vreg_tmp_odd_src0, vreg_dst_odd_tmp, vreg_sum_scale_);
+        }
+    };
+
     const auto sum_injector = [&]() {
         for (int i = 0; i < unroll; i++) {
             const int offt = simd_w_ * i;
@@ -156,9 +196,14 @@ void jit_uni_binary_kernel_t<isa, Vmm>::apply_postops(int unroll, bool tail) {
         }
     };
 
-    if (conf_.do_sum)
-        postops_injector_->set_lambda_injector(
-                primitive_kind::sum, sum_injector);
+    if (conf_.do_sum) {
+        if (is_ne_xf16_supported(isa, conf_.dst_type) && !tail)
+            postops_injector_->set_lambda_injector(
+                    primitive_kind::sum, sum_ne_xf16_injector);
+        else
+            postops_injector_->set_lambda_injector(
+                    primitive_kind::sum, sum_injector);
+    }
 
     if (conf_.with_binary) {
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
@@ -337,29 +382,7 @@ void jit_uni_binary_kernel_t<isa, Vmm>::load_src1(
 }
 
 template <cpu_isa_t isa, typename Vmm>
-void jit_uni_binary_kernel_t<isa, Vmm>::compute_dst(int unroll, bool tail) {
-    for (int i = 0; i < unroll; i++) {
-        const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
-        const Vmm vreg_tmp = conf_.is_src_different_layouts
-                ? vmm_gathered_src_
-                : Vmm(unroll + i + vmm_start_idx_);
-        const Vmm vreg_tmp_src1 = offt_src1_ ? vreg_tmp : vreg_bcast_src1_;
-        const int offt = simd_w_ * i;
-        io_.at(conf_.src0_type)
-                ->load(src0_ptr(offt * types::data_type_size(conf_.src0_type)),
-                        vreg_tmp_src0, tail);
-        if (offt_src1_) load_src1(vreg_tmp_src1, offt, tail);
-
-        // avoid multiple multiplication on input scale for broadcasted vreg
-        // not needed for different layouts
-        if (!conf_.is_src_different_layouts)
-            uni_vmovups(vreg_tmp, vreg_tmp_src1);
-        perform_op(
-                vreg_tmp_src0, vreg_tmp, vreg_scales_src0_, vreg_scales_src1_);
-    }
-
-    if (postops_injector_) apply_postops(unroll, tail);
-
+void jit_uni_binary_kernel_t<isa, Vmm>::store(int unroll, bool tail) {
     for (int i = 0; i < unroll; i++) {
         const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
         const int offt = simd_w_ * i;
@@ -407,6 +430,116 @@ void jit_uni_binary_kernel_t<isa, Vmm>::compute_dst(int unroll, bool tail) {
             io_.at(conf_.dst_type)
                     ->store(vreg_tmp_src0, dst_ptr(offt * dt_size), tail);
     }
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::compute_ne_xf16_dst_body(
+        int unroll, bool tail) {
+    const Vmm vreg_tmp = conf_.is_src_different_layouts
+            ? vmm_gathered_src_
+            : Vmm(unroll + vmm_start_idx_);
+    const Vmm vreg_tmp_even_src1 = offt_src1_ ? vreg_tmp : vreg_bcast_src1_;
+    const Vmm vreg_tmp_odd_src1 = Vmm(unroll + 1 + vmm_start_idx_);
+    const Vmm vmm_aux = Vmm(unroll + 2 + vmm_start_idx_);
+
+    for (int i = 0; i < unroll; i += 2) {
+        const bool can_load_two_simdw_src0
+                = is_xf16(conf_.src0_type) && unroll - i >= 2;
+        const bool can_load_two_simdw_src1 = is_xf16(conf_.src1_type)
+                && unroll - i >= 2 && offt_src1_
+                && !conf_.is_src_different_layouts;
+        const Vmm vreg_tmp_even_src0 = Vmm(i + vmm_start_idx_);
+        const Vmm vreg_tmp_odd_src0 = Vmm(i + 1 + vmm_start_idx_);
+        const int offt_base = simd_w_ * i;
+
+        if (can_load_two_simdw_src0) {
+            io_.at(conf_.src0_type)
+                    ->load_two_simdw_xf16(
+                            src0_ptr(offt_base
+                                    * types::data_type_size(conf_.src0_type)),
+                            vreg_tmp_even_src0, vreg_tmp_odd_src0);
+            io_.at(conf_.src0_type)
+                    ->merge_interleaved_to_plain(
+                            vreg_tmp_even_src0, vreg_tmp_odd_src0, vmm_aux);
+        }
+
+        if (can_load_two_simdw_src1) {
+            io_.at(conf_.src1_type)
+                    ->load_two_simdw_xf16(
+                            src1_ptr(offt_base
+                                    * types::data_type_size(conf_.src1_type)),
+                            vreg_tmp_even_src1, vreg_tmp_odd_src1);
+            io_.at(conf_.src1_type)
+                    ->merge_interleaved_to_plain(
+                            vreg_tmp_even_src1, vreg_tmp_odd_src1, vmm_aux);
+        }
+
+        for (int j = 0; j < 2 && i + j < unroll; j++) {
+            const Vmm vreg_tmp_src0
+                    = j == 0 ? vreg_tmp_even_src0 : vreg_tmp_odd_src0;
+            const Vmm vreg_tmp_src1 = j == 0 || !can_load_two_simdw_src1
+                    ? vreg_tmp_even_src1
+                    : vreg_tmp_odd_src1;
+            const int offt = simd_w_ * j + offt_base;
+            if (!can_load_two_simdw_src0)
+                io_.at(conf_.src0_type)
+                        ->load(src0_ptr(offt
+                                       * types::data_type_size(
+                                               conf_.src0_type)),
+                                vreg_tmp_src0, tail);
+            if (offt_src1_ && !can_load_two_simdw_src1)
+                load_src1(vreg_tmp_src1, offt, tail);
+
+            // avoid multiple multiplication on input scale for broadcasted vreg
+            // not needed for different layouts
+            if (!conf_.is_src_different_layouts)
+                uni_vmovups(vreg_tmp, vreg_tmp_src1);
+            perform_op(vreg_tmp_src0, vreg_tmp, vreg_scales_src0_,
+                    vreg_scales_src1_);
+        }
+    }
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::compute_dst_body(
+        int unroll, bool tail) {
+    for (int i = 0; i < unroll; i++) {
+        const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
+        const Vmm vreg_tmp = conf_.is_src_different_layouts
+                ? vmm_gathered_src_
+                : Vmm(unroll + i + vmm_start_idx_);
+        const Vmm vreg_tmp_src1 = offt_src1_ ? vreg_tmp : vreg_bcast_src1_;
+        const int offt = simd_w_ * i;
+        io_.at(conf_.src0_type)
+                ->load(src0_ptr(offt * types::data_type_size(conf_.src0_type)),
+                        vreg_tmp_src0, tail);
+        if (offt_src1_) load_src1(vreg_tmp_src1, offt, tail);
+
+        // avoid multiple multiplication on input scale for broadcasted vreg
+        // not needed for different layouts
+        if (!conf_.is_src_different_layouts)
+            uni_vmovups(vreg_tmp, vreg_tmp_src1);
+        perform_op(
+                vreg_tmp_src0, vreg_tmp, vreg_scales_src0_, vreg_scales_src1_);
+    }
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::compute_dst(int unroll, bool tail) {
+    // When src1 supports but src0 does not support ne convert instructions
+    // we only call compute_ne_xf16_dst_body() when loading src1 is needed
+    if (!tail
+            && IMPLICATION(is_xf16(conf_.src1_type),
+                    offt_src1_ && !conf_.is_src_different_layouts)
+            && (is_ne_xf16_supported(isa, conf_.src0_type)
+                    || is_ne_xf16_supported(isa, conf_.src1_type)))
+        compute_ne_xf16_dst_body(unroll, tail);
+    else
+        compute_dst_body(unroll, tail);
+
+    if (postops_injector_) apply_postops(unroll, tail);
+
+    store(unroll, tail);
 }
 
 template <cpu_isa_t isa, typename Vmm>
@@ -580,6 +713,8 @@ template struct jit_uni_binary_kernel_t<avx512_core_bf16, Xmm>;
 template struct jit_uni_binary_kernel_t<avx512_core, Zmm>;
 template struct jit_uni_binary_kernel_t<avx512_core, Ymm>;
 template struct jit_uni_binary_kernel_t<avx512_core, Xmm>;
+template struct jit_uni_binary_kernel_t<avx2_vnni_2, Ymm>;
+template struct jit_uni_binary_kernel_t<avx2_vnni_2, Xmm>;
 template struct jit_uni_binary_kernel_t<avx2, Ymm>;
 template struct jit_uni_binary_kernel_t<avx2, Xmm>;
 template struct jit_uni_binary_kernel_t<sse41, Xmm>;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -141,6 +141,9 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     void prepare_isa_kernel();
     void compute_bcast(bool tail);
     void load_src1(const Vmm &vreg_src1, const int offt, bool tail);
+    void store(int unroll, bool tail);
+    void compute_ne_xf16_dst_body(int unroll, bool tail);
+    void compute_dst_body(int unroll, bool tail);
     void compute_dst(int unroll, bool tail);
     void forward();
     void forward_over_outer_dims();
