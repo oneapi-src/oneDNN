@@ -1029,9 +1029,11 @@ static void cannot_convert_warning(const sc_data_format_t &input_format,
 // complex constant folding will suprisingly cause LLVM regression on
 // vectorization for reorder
 static void set_const_fold_bypass(const context_ptr &ctx, const stmt &v) {
+#if defined(SC_LLVM_BACKEND)
     if (ctx->flags_.jit_kind_ == jit_kind::llvm) {
         v->attr()["bypass_complex_const_fold"] = true;
     }
+#endif
 }
 
 constexpr const int byte = 8;

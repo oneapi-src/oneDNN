@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,13 +118,17 @@ context_ptr get_default_context() {
         scflags_t flags;
 
         // todo: set the flags in target machine from the environment vars
+#if defined(SC_LLVM_BACKEND)
         jit_kind jit = jit_kind::llvm;
+#else
+        jit_kind jit = jit_kind::cfake;
+#endif
         {
             const char *jit_env_var_name = "DNNL_GRAPH_SC_CPU_JIT";
             const char *cfakejit_switch_name = "c";
             auto buf = sc::utils::getenv_string(jit_env_var_name);
             if (!buf.empty()) {
-#ifdef SC_CFAKE_JIT_ENABLED
+#if SC_CFAKE_JIT_ENABLED
                 if (buf == cfakejit_switch_name) {
                     jit = jit_kind::cfake;
                 }
@@ -133,14 +137,26 @@ context_ptr get_default_context() {
                     // make compiler happy
                 }
 #endif
+#if SC_BUILTIN_JIT_ENABLED
                 else if (buf == "builtin") {
                     jit = jit_kind::xbyak;
-                } else if (buf == "llvm") {
+                }
+#endif
+#if defined(SC_LLVM_BACKEND)
+                else if (buf == "llvm") {
                     jit = jit_kind::llvm;
-                } else {
+                }
+#endif
+                else {
                     SC_MODULE_WARN << "Bad value for SC_CPU_JIT=" << buf
                                    << ", setting to default value="
+#if defined(SC_LLVM_BACKEND)
                                       "llvm";
+#elif SC_CFAKE_JIT_ENABLED
+                                      "cfake";
+#elif SC_BUILTIN_JIT_ENABLED
+                                      "builtin";
+#endif
                 }
             }
         }

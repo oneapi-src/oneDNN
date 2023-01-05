@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,15 @@
 #if SC_CFAKE_JIT_ENABLED
 #include "cfake/cfake_jit.hpp"
 #endif
+#if defined(SC_LLVM_BACKEND)
+#include "llvm/llvm_jit.hpp"
+#endif
 #include <atomic>
 #include <chrono>
 #include <stdio.h>
-#include "llvm/llvm_jit.hpp"
+#if SC_BUILTIN_JIT_ENABLED
 #include "xbyak/xbyak_jit_engine.hpp"
+#endif
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <runtime/config.hpp>
 #include <runtime/managed_thread_pool.hpp>
@@ -44,9 +48,13 @@ std::unique_ptr<jit_engine_t> jit_engine_t::make(const context_ptr &ctx) {
 #if SC_CFAKE_JIT_ENABLED
         case jit_kind::cfake: return utils::make_unique<cfake_jit>(ctx);
 #endif
+#if defined(SC_LLVM_BACKEND)
         case jit_kind::llvm: return utils::make_unique<llvm_jit>(ctx);
+#endif
+#if SC_BUILTIN_JIT_ENABLED
         case jit_kind::xbyak:
             return utils::make_unique<sc_xbyak::xbyak_jit_engine>(ctx);
+#endif
         default:
             assert(0 && "Bad JIT type");
             return nullptr;
@@ -73,6 +81,7 @@ void jit_engine_t::set_target_machine(
         }
 #endif
 
+#if defined(SC_LLVM_BACKEND)
         case jit_kind::llvm:
 #if SC_LLVM_BACKEND <= 8
             tm.cpu_flags_.fAVX512BF16 = false;
@@ -83,9 +92,13 @@ void jit_engine_t::set_target_machine(
             sc_flags.jit_support_amx_intrinsics_ = false;
 #endif
             return;
+#endif
+
+#if SC_BUILTIN_JIT_ENABLED
         case jit_kind::xbyak:
             sc_flags.jit_support_amx_intrinsics_ = true;
             return sc_xbyak::xbyak_jit_engine::set_target_machine(tm);
+#endif
         default: assert(0 && "Bad JIT type"); break;
     }
 }

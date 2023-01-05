@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,9 @@ struct engine_t;
 
 enum class jit_kind {
     cfake = 0,
+#if defined(SC_LLVM_BACKEND)
     llvm,
+#endif
     xbyak,
 };
 

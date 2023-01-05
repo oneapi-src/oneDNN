@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,10 +46,16 @@
 #define SC_LEAK_CHECK(T)
 #endif
 
+#ifndef SC_CFAKE_JIT_ENABLED
 #if defined(_WIN32) || defined(__APPLE__)
 #define SC_CFAKE_JIT_ENABLED 0
 #else
 #define SC_CFAKE_JIT_ENABLED 1
+#endif
+#endif
+
+#ifndef SC_BUILTIN_JIT_ENABLED
+#define SC_BUILTIN_JIT_ENABLED 1
 #endif
 
 #define SC_THREAD_POOL_SEQ 0
