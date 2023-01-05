@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -249,6 +249,20 @@ void rnn_linear_bwd(const prb_t &prb, const args_t &args,
             src_layer_attention_, prb.n_iter, prb.mb, 1);
     AOC<float> diff_src_layer_attention(
             diff_src_layer_attention_, prb.n_iter, prb.mb, 1);
+
+    // init diff_weights & diff_bias
+    if (prb.flags & dnnl_rnn_flags_diff_weights_overwrite) {
+        auto init_mem = [&](const dnn_mem_t &m) {
+            for (int i = 0; i < m.nelems(); ++i)
+                m.set_elem(i, 0.0f);
+        };
+
+        init_mem(diff_weights_layer_);
+        init_mem(diff_weights_iter_);
+        init_mem(diff_bias_);
+        if (prb.is_lstm_peephole()) init_mem(diff_weights_peephole_);
+        if (prb.is_lstm_projection()) init_mem(diff_weights_projection_);
+    }
 
     int64_t b_gates_size = prb.mb * prb.n_gates() * prb.dhc;
     auto *b_gates = new float[b_gates_size];

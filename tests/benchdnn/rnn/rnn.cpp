@@ -806,6 +806,10 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+        if (prb.flags != NONE) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
     }
 }
 

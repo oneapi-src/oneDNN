@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_activation : s.activation)
     for_(auto i_skip_nonlinear : s.skip_nonlinear)
     for_(auto i_trivial_strides : s.trivial_strides)
+    for_(const auto &i_flags : s.flags)
     for_(const auto &i_n_layer : s.n_layer)
     for_(const auto &i_n_iter : s.n_iter)
     for_(const auto &i_mb : s.mb)
@@ -68,7 +69,7 @@ void check_correctness(const settings_t &s) {
 
         const prb_t prb(s.desc, dt_conf_t::create(i_cfg, attr), i_prop, i_alg,
                 i_with_peephole, i_with_projection, i_direction, i_scale_policy,
-                i_scale_proj_policy, s.flags, i_activation, attr, i_ctx_init,
+                i_scale_proj_policy, i_flags, i_activation, attr, i_ctx_init,
                 i_ctx_exe, s.alpha, s.beta, i_skip_nonlinear, i_trivial_strides,
                 i_n_layer, i_n_iter, i_mb);
         std::stringstream ss;
@@ -117,6 +118,10 @@ static const std::string help_with_projection
         = "BOOL    (Default: `false`)\n    When set to `true`, enables LSTM "
           "projection extension.\n";
 
+static const std::string help_flags
+        = "FLAGS    (Default: not specified)\n    Specifies rnn flags. `FLAGS` "
+          "values are:\n    * `O` for diff_weights_overwrite.\n";
+
 int bench(int argc, char **argv) {
     driver_name = "rnn";
     using namespace parser;
@@ -145,6 +150,8 @@ int bench(int argc, char **argv) {
                         s.skip_nonlinear, def.skip_nonlinear, argv[0])
                 || parse_trivial_strides(
                         s.trivial_strides, def.trivial_strides, argv[0])
+                || parse_vector_option(s.flags, def.flags, str2flags, argv[0],
+                        "flags", help_flags)
                 || parse_vector_option(s.with_peephole, def.with_peephole,
                         str2bool, argv[0], "with-peephole", help_with_peephole)
                 || parse_vector_option(s.with_projection, def.with_projection,

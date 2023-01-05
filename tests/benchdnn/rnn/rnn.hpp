@@ -94,6 +94,13 @@ enum rnn_data_kind_t {
 };
 const char *rnn_data_kind2str(rnn_data_kind_t kind);
 
+using flags_t = unsigned;
+// XXX: UNDEF is used in activation_t
+const flags_t NONE = dnnl_rnn_flags_undef;
+const flags_t DIFF_WEIGHTS_OVERWRITE = dnnl_rnn_flags_diff_weights_overwrite;
+flags_t str2flags(const char *str);
+std::string flags2str(flags_t flags);
+
 // Gates indices
 enum {
     LSTM_I = 0,
@@ -241,7 +248,7 @@ struct settings_t : public base_settings_t {
     std::vector<int64_t> n_layer {0}, n_iter {0};
     std::vector<policy_t> scale_policy {policy_t::COMMON};
     std::vector<policy_t> scale_proj_policy {policy_t::COMMON};
-    unsigned int flags = 0x0;
+    std::vector<flags_t> flags {NONE};
     float alpha = 0.9f, beta = 0.0f;
 
     const char *perf_template_csv() const {

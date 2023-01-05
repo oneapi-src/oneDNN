@@ -44,6 +44,10 @@ where *rnn-knobs* are:
             specified in the problem descriptor.
  - `--attr-fpmath=STRING` -- fpmath mode primitive attribute. `strict` math mode
             is set by default. Refer to [attributes](knobs_attr.md) for details.
+ - `--flags=[|O]` -- RNN flags, default `undef` (no flags); where multiple
+            simultaneous flags are supported.
+            `O` is dnnl_rnn_flags_diff_weights_overwrite;
+            Refer to [RNN primitive](https://oneapi-src.github.io/oneDNN/dev_guide_rnn.html) for details.
 
 and *rnn-desc* is a problem descriptor. The canonical form is:
 ```
