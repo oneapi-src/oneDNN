@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
   if (use_nested_2d_) {
     const int num_threads = runtime_config_t::get().get_num_threads();
     auto thread_split = get_splits(num_threads);
-    cfg.bs_threads = mb_ > num_threads || (mb_ == num_threads && oc_ < 128)
+    cfg.bs_threads = mb_ > num_threads || (mb_ == num_threads && oc_ <= 128)
       ? num_threads
       : *(std::find_if(thread_split.rbegin(), thread_split.rend(),
         [&](int split) { return split == 1 || split < mb_; }));
@@ -75,8 +75,9 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
     cfg.h_threads = 1;
     cfg.w_threads = 1;
     auto ic_threads = 1;
-    cfg.im_oc_block = utils::get_blocks(oc_, 1, 128).back();
-    cfg.im_ic_block = utils::get_blocks(ic_, 1, 128).back();
+    auto default_block = 128;
+    cfg.im_oc_block = utils::get_blocks(oc_, 1, default_block).back();
+    cfg.im_ic_block = utils::get_blocks(ic_, 1, default_block).back();
 
     cfg.im_h_block = 1;
     cfg.im_w_block = ow_;
@@ -137,8 +138,9 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
           cfg.h_threads = num_threads;
           cfg.w_threads = 1;
         }
-        cfg.im_oc_block = std::min(
-          utils::get_blocks(oc_, 1, 128).back(), oc_ / cfg.oc_threads);
+        cfg.im_oc_block
+          = std::min(utils::get_blocks(oc_, 1, default_block).back(),
+            oc_ / cfg.oc_threads);
         cfg.w_block
           = utils::divide_and_ceil(
               utils::divide_and_ceil(actual_os_, cfg.im_w_block), cfg.w_threads)
@@ -158,6 +160,52 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
                utils::divide_and_ceil(ow_, cfg.im_w_block), cfg.w_threads)
             * cfg.im_w_block);
       }
+    }
+
+    if (is_1x1_conv_) {
+      if (ic_ >= 256 && oc_ >= 256 && oh_ <= 14) {
+        cfg.im_h_block = oh_;
+      } else {
+        cfg.im_h_block = 1;
+        if (oh_ >= 28 && cfg.bs_threads % 2 == 0) {
+          cfg.h_threads = 2;
+          cfg.bs_threads /= 2;
+        }
+      }
+      if (mb_ == 1 && num_threads == 4) {
+        cfg.im_w_block = ow_;
+        if (oc_ >= 512 && ic_ >= 512) {
+          cfg.bs_threads = 1;
+          cfg.h_threads = 1;
+          cfg.w_threads = 1;
+          cfg.oc_threads = num_threads;
+        } else {
+          cfg.bs_threads = 1;
+          cfg.oc_threads = 1;
+          cfg.h_threads = num_threads;
+          cfg.w_threads = 1;
+          cfg.im_h_block = 1;
+        }
+      }
+
+      cfg.im_oc_block = std::min(
+        utils::get_blocks(oc_, 1, default_block).back(), oc_ / cfg.oc_threads);
+      if (cfg.im_h_block == 1 && cfg.im_oc_block == default_block
+        && cfg.im_ic_block == default_block) {
+        if (ow_ >= 56 && ow_ % 2 == 0) {
+          cfg.im_w_block = ow_ / 2;
+        } else if (sw_ == 1 && ow_ >= 28 && oc_ >= ic_ && oc_ >= 512) {
+          cfg.im_w_block = ow_ / 2;
+        } else {
+          cfg.im_w_block = ow_;
+        }
+      }
+
+      cfg.h_block = cfg.h_threads == 1
+        ? oh_
+        : (utils::divide_and_ceil(
+             utils::divide_and_ceil(oh_, cfg.im_h_block), cfg.h_threads)
+          * cfg.im_h_block);
     }
 
     cfg.K_block
