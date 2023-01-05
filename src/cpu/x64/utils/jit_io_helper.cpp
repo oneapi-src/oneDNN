@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -321,7 +321,7 @@ void jit_io_helper_t<Xbyak::Ymm>::emu_gather(const Xbyak::Reg64 &src_reg,
     // Here while loading words of bf16, the words are interleaved,
     // and in convert_to_f32, they are shifted-left to finally convert to f32
     // For f16 we do not need such interleaving.
-    const int xmm_size_elem = (data_type_ == data_type::f16) ? 8 : 4;
+    const int xmm_size_elem = 4;
     const int number_of_xmms = tail
             ? utils::div_up(tail_conf_->tail_size_, xmm_size_elem)
             : utils::div_up(gather_conf_->simd_w_, xmm_size_elem);
@@ -343,7 +343,8 @@ void jit_io_helper_t<Xbyak::Ymm>::emu_gather(const Xbyak::Reg64 &src_reg,
                 }
                 case data_type::f16:
                     assert(f16_supported_ && "Unsupported data type.");
-                    host_->vpinsrw(xmm_dst, xmm_dst, host_->ptr[src_reg], j);
+                    host_->vpinsrw(xmm_dst, xmm_dst, host_->ptr[src_reg],
+                            i * xmm_size_elem + j);
                     break;
                 case data_type::bf16:
                     assert(bf16_supported_ && "Unsupported data type.");
@@ -361,9 +362,9 @@ void jit_io_helper_t<Xbyak::Ymm>::emu_gather(const Xbyak::Reg64 &src_reg,
             host_->mov(src_reg, gather_conf_->reg_tmp1_);
         }
 
-        if (data_type_ == data_type::f32 || data_type_ == data_type::s32) {
+        if (utils::one_of(data_type_, data_type::f32, data_type::s32,
+                    data_type::bf16))
             host_->vinsertf128(dst_vmm, dst_vmm, xmm_dst, i);
-        }
     }
 
     if (data_type_ == data_type::s32 || data_type_ == data_type::bf16)
@@ -384,12 +385,7 @@ void jit_io_helper_t<Xbyak::Xmm>::emu_gather(const Xbyak::Reg64 &src_reg,
     host_->mov(gather_conf_->reg_tmp_, 0);
     host_->mov(gather_conf_->reg_tmp1_, src_reg);
 
-    // The conversion of bf16->f32 here is split into two parts.
-    // Here while loading words of bf16, the words are interleaved,
-    // and in convert_to_f32, they are shifted-left to finally convert to f32
-    // For f16 we do not need such interleaving.
-    const unsigned xmm_size_elem = (data_type_ == data_type::f16) ? 8 : 4;
-
+    const unsigned xmm_size_elem = 4;
     const unsigned number_of_values_to_load
             = tail ? tail_conf_->tail_size_ : xmm_size_elem;
     for (unsigned j = 0; j < number_of_values_to_load; j++) {
@@ -448,7 +444,7 @@ void jit_io_helper_t<Vmm>::prepare_full_mask() {
     if (is_superset(isa_, avx512_core))
         prepare_opmask(gather_conf_->simd_w_, gather_conf_->reg_tmp_,
                 gather_conf_->full_opmask_);
-    else if (isa_ == avx2)
+    else if (is_superset(isa_, avx2))
         prepare_vmm_mask(gather_conf_->simd_w_, gather_conf_->simd_w_,
                 gather_conf_->reg_tmp_, Vmm(gather_conf_->full_vmm_mask_idx_));
 }
@@ -457,7 +453,7 @@ template <typename Vmm>
 void jit_io_helper_t<Vmm>::init_full_mask() {
     assert(gather_conf_.has_value() && "Config for loading with the use of gather instruction is not set.");
 
-    if (isa_ == avx2) {
+    if (is_superset(isa_, avx2)) {
         const Vmm vmm_mask = Vmm(gather_conf_->full_vmm_mask_idx_);
         host_->uni_vxorps(vmm_mask, vmm_mask, vmm_mask);
     }
@@ -487,20 +483,20 @@ void jit_io_helper_t<Vmm>::gather(const Xbyak::Reg64 &src_reg,
     const Vmm dst_vmm_with_mask = tail ? dst_vmm | tail_conf_->tail_opmask_
                                        : dst_vmm | gather_conf_->full_opmask_;
 
-    const bool can_use_gather_instruction
-            = isa_ == avx2 || is_superset(isa_, avx512_core);
+    const bool is_avx512 = is_superset(isa_, avx512_core);
+    const bool can_use_gather_instruction = is_superset(isa_, avx2);
 
-    if ((data_type_ == data_type::f32 || data_type_ == data_type::s32)
+    if (utils::one_of(data_type_, data_type::f32, data_type::s32)
             && can_use_gather_instruction) {
         if (data_type_ == data_type::f32) {
-            if (isa_ == avx2)
+            if (!is_avx512)
                 host_->vgatherdps(
                         dst_vmm, host_->ptr[src_reg + indices_vmm], mask);
             else
                 host_->vgatherdps(
                         dst_vmm_with_mask, host_->ptr[src_reg + indices_vmm]);
         } else {
-            if (isa_ == avx2)
+            if (!is_avx512)
                 host_->vpgatherdd(
                         dst_vmm, host_->ptr[src_reg + indices_vmm], mask);
             else
