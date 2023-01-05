@@ -621,9 +621,8 @@ int doit(const prb_t *prb, res_t *res) {
                      ref_mem_map, mem_map, prim, prb, res, FLAG_BWD),
                 WARN);
 
-        args.clear();
-        ref_args.clear();
-        args_t args(mem_map), ref_args(ref_mem_map);
+        args = args_t(mem_map);
+        ref_args = args_t(ref_mem_map);
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
