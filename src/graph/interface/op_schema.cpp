@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <limits>
 #include <memory>
 
@@ -132,20 +133,33 @@ op_schema_t::get_outputs() const {
 }
 
 op_schema_t &op_schema_t::set_attr(op_attr_t name, std::string &&description,
-        bool required, attribute_kind_t attr_kind) {
+        bool required, attribute_kind_t attr_kind,
+        const std::vector<const char *> &candidates) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
-    attributes_[name]
-            = attribute_t(name, std::move(description), required, attr_kind);
+    std::vector<utils::attribute_value_t> candidates_tmp(candidates.size());
+    std::transform(candidates.begin(), candidates.end(), candidates_tmp.begin(),
+            [](const char *c) {
+                return utils::attribute_value_t {std::string(c)};
+            });
+    attributes_[name] = attribute_t(name, std::move(description), required,
+            attr_kind, std::move(candidates_tmp));
     return *this;
 }
 
 op_schema_t &op_schema_t::set_attr(op_attr_t name, std::string &&description,
-        bool required, attribute_kind_t attr_kind, const char *value) {
+        bool required, attribute_kind_t attr_kind, const char *value,
+        const std::vector<const char *> &candidates) {
     assertm(attributes_.count(name) == 0,
             "provided attribute has already been set");
+    std::vector<utils::attribute_value_t> candidates_tmp(candidates.size());
+    std::transform(candidates.begin(), candidates.end(), candidates_tmp.begin(),
+            [](const char *c) {
+                return utils::attribute_value_t {std::string(c)};
+            });
     attributes_[name] = attribute_t(name, std::move(description), required,
-            attr_kind, {std::string(value)});
+            attr_kind, utils::attribute_value_t {std::string(value)},
+            std::move(candidates_tmp));
     return *this;
 }
 
@@ -262,12 +276,24 @@ bool op_schema_t::verify_attributes(
     // check if the data types of actual attributes meet requirements
     for (const auto &elem : actual_attrs) {
         const op_attr_t attr_name = elem.first;
-        if (expected_attrs.count(attr_name) != 0
-                && elem.second.get_kind()
-                        != expected_attrs.at(attr_name).attr_kind_) {
+        if (expected_attrs.count(attr_name) == 0) continue;
+        if (elem.second.get_kind() != expected_attrs.at(attr_name).attr_kind_) {
             DEBUG_PRINT_ERROR("attribute \"" + op_t::attr2str(elem.first)
                     + "\" has invalid type");
             return false;
+        }
+
+        // check if user set valid attribute value
+        const auto &candidates
+                = expected_attrs.find(attr_name)->second.candidates_;
+        if (!candidates.empty()) {
+            if (std::find(candidates.begin(), candidates.end(), elem.second)
+                    == candidates.end()) {
+                DEBUG_PRINT_ERROR("attribute \"" + op_t::attr2str(elem.first)
+                        + "\" has invalid value: "
+                        + elem.second.get<std::string>());
+                return false;
+            }
         }
     }
 

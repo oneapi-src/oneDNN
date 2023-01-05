@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -4591,6 +4591,8 @@ TEST(OpSchema, InferInterpolateShape) {
     // test normal ncx sizes case
     op_.set_attr<dims>(op_attr::sizes, {10, 20});
     op_.set_attr<std::string>(op_attr::data_format, "NXC");
+    op_.set_attr<std::string>(
+            op_attr::coordinate_transformation_mode, "align_corners");
     logical_tensor_t lt_in = logical_tensor_init(
             0, {6, 7, 8, 9}, data_type::f32, layout_type::strided);
     std::vector<logical_tensor_t *> in {&lt_in};

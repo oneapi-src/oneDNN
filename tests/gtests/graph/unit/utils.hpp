@@ -344,7 +344,7 @@ static inline void set_convtranspose_common_attr(
         std::vector<int64_t> pads_begin = {0, 0},
         std::vector<int64_t> pads_end = {0, 0},
         std::vector<int64_t> dilations = {1, 1}, std::string auto_pad = "None",
-        std::string data_format = "NXC", std::string filter_format = "XIO",
+        std::string data_format = "NXC", std::string filter_format = "XOI",
         int64_t groups = 1, std::vector<int64_t> output_padding = {0, 0}) {
     set_conv_common_attr(convtranspose, strides, pads_begin, pads_end,
             dilations, auto_pad, data_format, filter_format, groups);

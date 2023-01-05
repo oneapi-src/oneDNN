@@ -13268,13 +13268,10 @@ TEST(Pass, SingleInterpolatePass) {
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
-    op_t interpolate_coordinate_transformation_mode_fail = interpolate;
-    interpolate_coordinate_transformation_mode_fail.set_attr(
-            op_attr::coordinate_transformation_mode,
-            std::string("pytorch_half_pixel "));
+    interpolate.set_attr(op_attr::coordinate_transformation_mode,
+            std::string("align_corners"));
     graph_t fgraph;
-    ASSERT_EQ(fgraph.add_op(&interpolate_coordinate_transformation_mode_fail),
-            status::success);
+    ASSERT_EQ(fgraph.add_op(&interpolate), status::success);
     ASSERT_EQ(fgraph.finalize(), status::success);
     apass->run(fgraph);
     ASSERT_EQ(fgraph.get_num_partitions(), 0U);
@@ -14922,7 +14919,7 @@ TEST(Pass, ConvtransposePostops) {
 
                     graph_t agraph;
                     op_t convtranspose {0, ConvTranspose, "convtranspose"};
-                    set_conv_common_attr(convtranspose);
+                    set_convtranspose_common_attr(convtranspose);
                     op_t biasadd {1, BiasAdd, "biasadd"};
                     op_t activation {2, Activation, "activation"};
 
@@ -15057,7 +15054,7 @@ TEST(Pass, Convtranspose3Postops) {
     for (auto pop_seq : post_op_seqs) {
         graph_t agraph;
         op_t convtranspose {0, ConvTranspose, "convtranspose"};
-        set_conv_common_attr(convtranspose);
+        set_convtranspose_common_attr(convtranspose);
         op_t biasadd {1, BiasAdd, "biasadd"};
 
         std::vector<logical_tensor_t> lt_vec = create_logical_tensors(11);

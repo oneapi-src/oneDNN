@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,6 +56,41 @@ TEST(Graph, AddOp) {
 
     auto ret = agraph.get_ops()[0];
     ASSERT_EQ(*ret, op1);
+}
+
+TEST(Graph, FailAddOpWithInvalidAttrValue) {
+    using namespace dnnl::impl::graph;
+    using namespace dnnl::impl::graph::op_kind;
+    using namespace dnnl::graph::tests::unit::utils;
+
+    graph_t agraph;
+    op_t op0 {0, Convolution, std::string("conv0")};
+
+    op0.set_attr<std::vector<int64_t>>(op_attr::strides, {4, 4});
+    op0.set_attr<std::vector<int64_t>>(op_attr::pads_begin, {111, 111});
+    op0.set_attr<std::vector<int64_t>>(op_attr::pads_end, {111, 111});
+    op0.set_attr<std::string>(op_attr::auto_pad, "VALID");
+    op0.set_attr<std::vector<int64_t>>(op_attr::dilations, {1, 1});
+    op0.set_attr<std::string>(op_attr::data_format, "NCX");
+    op0.set_attr<std::string>(op_attr::weights_format, "OIX");
+    op0.set_attr<int64_t>(op_attr::groups, 1);
+
+    // prepare logical tensor
+    logical_tensor_t src = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t weight = logical_tensor_init(1, data_type::f32);
+    logical_tensor_t bias = logical_tensor_init(2, data_type::f32);
+    logical_tensor_t conv_dst = logical_tensor_init(4, data_type::f32);
+
+    op0.add_input(src);
+    op0.add_input(weight);
+    op0.add_input(bias);
+    op0.add_output(conv_dst);
+
+    ASSERT_EQ(agraph.add_op(&op0), status::success);
+
+    op0.set_attr<std::string>(op_attr::weights_format, "IOX");
+    graph_t agraph1;
+    ASSERT_EQ(agraph1.add_op(&op0), status::invalid_graph_op);
 }
 
 TEST(Graph, AddNullOp) {

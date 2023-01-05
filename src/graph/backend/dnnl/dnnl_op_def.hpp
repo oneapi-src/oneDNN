@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,6 +49,32 @@ namespace dnnl_impl {
 
 #define SET_LAYOUT_PROPAGATOR(func) \
     set_additional_item<layout_propagator_func>("layout_propagator", {func})
+
+#define SET_DNNL_CONVTRANSPOSE_COMMON_ATTRS \
+    set_attr(op_attr::strides, "the distance to slide the filter", true, \
+            attribute_kind::is) \
+            .set_attr(op_attr::pads_begin, "top and left padding", true, \
+                    attribute_kind::is) \
+            .set_attr(op_attr::pads_end, "bottom and right padding", true, \
+                    attribute_kind::is) \
+            .set_attr(op_attr::dilations, \
+                    "the distance in width and height between elements " \
+                    "in the filter", \
+                    true, attribute_kind::is) \
+            .set_attr(op_attr::auto_pad, "how the padding is calculated", \
+                    false, attribute_kind::s, "None", \
+                    {"None", "SAME_UPPER", "SAME_LOWER", "VALID"}) \
+            .set_attr(op_attr::groups, \
+                    "the number of groups input / output channels are " \
+                    "divided into", \
+                    false, attribute_kind::i, (int64_t)1) \
+            .set_attr(op_attr::data_format, \
+                    "the data format of input / output, the options are " \
+                    "NCX and NXC", \
+                    false, attribute_kind::s, "NXC", {"NXC", "NCX"}) \
+            .set_attr(op_attr::weights_format, \
+                    "the format of weight, the options are IOX, XOI and OIX", \
+                    false, attribute_kind::s, "XOI", {"XOI", "IOX", "OIX"})
 
 template <typename T>
 op_schema_t get_op_schema();
@@ -345,7 +371,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose, 1,
                         "spatial axis in the output tensor",
                         false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_MAX_NDIMS, 0))
-                .SET_CONVTRANSPOSE_COMMON_ATTRS
+                .SET_DNNL_CONVTRANSPOSE_COMMON_ATTRS
                 // New added attributes
                 .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
@@ -380,7 +406,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_data, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 // Attributes inherited from ConvTransposeBackwardData.
-                .SET_CONVTRANSPOSE_COMMON_ATTRS
+                .SET_DNNL_CONVTRANSPOSE_COMMON_ATTRS
                 // New added attributes
                 .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
@@ -416,7 +442,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_convtranspose_bwd_weights, 1,
                 .set_attr(op_attr::weights_shape, "describing filter shape",
                         false, attribute_kind::is,
                         std::vector<int64_t>(DNNL_MAX_NDIMS, 0))
-                .SET_CONVTRANSPOSE_COMMON_ATTRS
+                .SET_DNNL_CONVTRANSPOSE_COMMON_ATTRS
                 // New added attributes
                 .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
@@ -462,12 +488,13 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_attr(op_attr::rounding_type,
                         "a type of rounding to be applied", false,
                         attribute_kind::s, "floor")
                 .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None")
+                        false, attribute_kind::s, "None",
+                        {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
                 // New added attributes
                 .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
@@ -515,7 +542,8 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool_bwd, 1,
                 .set_attr(op_attr::kernel, "size of each filter", true,
                         attribute_kind::is)
                 .set_attr(op_attr::auto_pad, "how the padding is calculated",
-                        false, attribute_kind::s, "None")
+                        false, attribute_kind::s, "None",
+                        {"None", "SAME_UPPER", "SAME_LOWER", "VALID"})
                 .set_attr(op_attr::dilations,
                         "the distance in width and height between elements "
                         "in the filter",
@@ -524,7 +552,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_pool_bwd, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_attr(op_attr::src_shape, "describing input shape", true,
                         attribute_kind::is)
                 // New added attributes
@@ -551,7 +579,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_prelu, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_attr(op_attr::per_channel_broadcast,
                         "whether to apply per channel broadcast when slope is "
                         "1D tensor",
@@ -589,7 +617,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_prelu_bwd, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 // New added attributes
                 .set_attr(op_attr::canonicalized,
                         "additional flag to indicate whether the op can be "
@@ -632,10 +660,10 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_bn_folding, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_attr(op_attr::weights_format,
                         "the format of weight, the options are OIX, XIO", false,
-                        attribute_kind::s, "XIO")
+                        attribute_kind::s, "XIO", {"XIO", "OIX"})
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(infer_bn_folding_output_shape)
                 .SET_LAYOUT_PROPAGATOR(layout_propagator_for_bn_folding)
@@ -747,7 +775,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 // New added attributes
                 .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
@@ -809,7 +837,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_batchnorm_bwd, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 .set_shape_inference_function(
                         infer_dnnl_batchnorm_bwd_output_shape)
@@ -837,12 +865,14 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_resampling_bwd, 1,
                         "scratchpad tensor, which is a temporary output and "
                         "not connected to any other ops")
                 .set_attr(op_attr::mode, "specifies type of interpolation",
-                        true, attribute_kind::s)
+                        true, attribute_kind::s,
+                        {"nearest", "linear", "bilinear", "trilinear"})
                 .set_attr(op_attr::coordinate_transformation_mode,
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
-                        false, attribute_kind::s, "half_pixel")
+                        false, attribute_kind::s, "half_pixel",
+                        {"half_pixel", "align_corners"})
                 .set_attr(op_attr::sizes,
                         "describing output shape for spatial axes", false,
                         attribute_kind::is)
@@ -851,7 +881,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_resampling_bwd, 1,
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
                         "generated by fusion passes.",
@@ -896,13 +926,13 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_binary, 1,
                 .set_attr(op_attr::auto_broadcast,
                         "specifies rules used for auto-broadcasting of input "
                         "tensors",
-                        false, attribute_kind::s, "numpy")
+                        false, attribute_kind::s, "numpy", {"none", "numpy"})
                 // Attributes inherited from front BiasAdd ops, will only take
                 // effect when is_bias_add attr is true
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 // New added attributes
                 .set_attr(op_attr::is_bias_add,
                         "additional flag to indicate whether the op is lowered "
@@ -1139,7 +1169,8 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_resampling, 1,
                         "not connected to any other ops")
                 // Attributes inherited from Interpolate.
                 .set_attr(op_attr::mode, "specifies type of interpolation",
-                        true, attribute_kind::s)
+                        true, attribute_kind::s,
+                        {"nearest", "linear", "bilinear", "trilinear"})
                 .set_attr(op_attr::sizes,
                         "describing output shape for spatial axes", false,
                         attribute_kind::is)
@@ -1149,11 +1180,12 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_resampling, 1,
                         "specifies how to transform the coordinate in the "
                         "resized tensor to the coordinate in the original "
                         "tensor",
-                        false, attribute_kind::s, "half_pixel")
+                        false, attribute_kind::s, "half_pixel",
+                        {"half_pixel", "align_corners"})
                 .set_attr(op_attr::data_format,
                         "the data format of input / output, the options are "
                         "NCX and NXC",
-                        false, attribute_kind::s, "NXC")
+                        false, attribute_kind::s, "NXC", {"NXC", "NCX"})
                 // New added attributes
                 .set_attr(op_attr::fusion_info_key,
                         "fusion information (such as zps, post-ops, ...) "
