@@ -157,7 +157,7 @@ stmt_t maybe_strip_prefetches(
     //strip prefetches when they exceed available registers
     if (regs > ir_ctx.exec_cfg().regs()) {
         ret = remove_stmt_group(s, stmt_label_t::prefetch());
-        ir_warning() << "Dropping prefetches due to too lack of available "
+        ir_warning() << "Dropping prefetches due to lack of available "
                         "registers.\n";
     }
     trace_pass("maybe_strip_prefetches", ret, ir_ctx);
