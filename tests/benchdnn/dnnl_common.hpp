@@ -843,9 +843,16 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 int md_query_arg = exec_arg;
                 if (exec_arg == DNNL_ARG_WEIGHTS) md_query_arg = DNNL_ARG_DST;
                 const auto &md = query_md(const_pd, md_query_arg);
-                const auto dims = md2dims(md);
-                const auto ndims = static_cast<int>(dims.size());
-                count = dims_nelems(dims, ndims, mask);
+                if (has_runtime_dims(md)) {
+                    const auto prb_md = prb->get_md(exec_arg);
+                    const auto dims = md2dims(prb_md);
+                    const auto ndims = static_cast<int>(dims.size());
+                    count = dims_nelems(dims, ndims, mask);
+                } else {
+                    const auto dims = md2dims(md);
+                    const auto ndims = static_cast<int>(dims.size());
+                    count = dims_nelems(dims, ndims, mask);
+                }
             }
             auto scales_md = dnn_mem_t::init_md(1, &count, dnnl_f32, tag::abx);
             mem_map.emplace(exec_sc_arg, dnn_mem_t(scales_md, test_engine));
@@ -877,9 +884,16 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
 
             if (mask > 0) {
                 const auto &md = query_md(const_pd, exec_arg);
-                const auto dims = md2dims(md);
-                const auto ndims = static_cast<int>(dims.size());
-                count = dims_nelems(dims, ndims, mask);
+                if (has_runtime_dims(md)) {
+                    const auto prb_md = prb->get_md(exec_arg);
+                    const auto dims = md2dims(prb_md);
+                    const auto ndims = static_cast<int>(dims.size());
+                    count = dims_nelems(dims, ndims, mask);
+                } else {
+                    const auto dims = md2dims(md);
+                    const auto ndims = static_cast<int>(dims.size());
+                    count = dims_nelems(dims, ndims, mask);
+                }
             }
             auto zp_md = dnn_mem_t::init_md(1, &count, dnnl_s32, tag::abx);
             mem_map.emplace(exec_zp_arg, dnn_mem_t(zp_md, test_engine));
