@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,13 @@
  ******************************************************************************/
 
 #include "matmul.hpp"
+#include <algorithm>
 #include <numeric>
 #include <utility>
 #include "compiler/ir/graph/fusible_op.hpp"
 #include "matmul_core.hpp"
 #include "templates/utils.hpp"
+#include <compiler/ir/graph/quantization/quantize_info.hpp>
 #include <util/math_utils.hpp>
 
 namespace sc {
@@ -176,17 +178,23 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     int K = trans0->details_.get_plain_dims().back();
     int N = trans1->details_.get_plain_dims().back();
     bool use_mmm = attrs_.get_or_else("use_mmm", true);
-
+    // manual define output channel axis here for NDxND cases.
+    int output_channel_axis = static_cast<int>(
+            std::max(trans0_plain_dims.size(), trans1_plain_dims.size()) - 1);
     if (is_dynamic() || trans0->details_.get_plain_dims().size() > 2
             || trans1->details_.get_plain_dims().size() > 2) {
-        matmul = graph->make("matmul_core", {trans0, trans1}, {}, {});
+        matmul = graph->make("matmul_core", {trans0, trans1}, {},
+                {{attr_keys::output_channel_axis, output_channel_axis}});
     } else {
         if (use_mmm) {
             matmul = graph->make("managed_matmul_core", {trans0, trans1}, {},
                     {{"transposed_a", transposed_a},
-                            {"transposed_b", transposed_b}});
+                            {"transposed_b", transposed_b},
+                            {attr_keys::output_channel_axis,
+                                    output_channel_axis}});
         } else {
-            matmul = graph->make("matmul_core", {trans0, trans1}, {}, {});
+            matmul = graph->make("matmul_core", {trans0, trans1}, {},
+                    {{attr_keys::output_channel_axis, output_channel_axis}});
         }
     }
 
