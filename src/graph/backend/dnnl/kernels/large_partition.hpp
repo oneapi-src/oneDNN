@@ -96,6 +96,7 @@ public:
         // lowered subgraph. We need to improve them.
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_concat);
 
+        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
         // Fusion and canonicalization passes begin
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
@@ -116,8 +117,6 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_to_int8_pool);
 
         BACKEND_DNNL_ADD_PASS(pipeline, combine_binary_post_op_scales);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);
@@ -129,6 +128,7 @@ public:
                 pipeline, insert_unsqueeze_and_squeeze_for_reduction);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
+        BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_zero_points);

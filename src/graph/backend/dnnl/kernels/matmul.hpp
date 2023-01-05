@@ -112,6 +112,7 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
 
         if (quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_bias_to_f32);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_scales);

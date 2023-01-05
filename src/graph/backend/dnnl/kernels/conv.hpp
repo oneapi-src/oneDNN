@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -278,6 +278,7 @@ public:
         if (!quantized) {
             BACKEND_DNNL_ADD_PASS(pipeline, insert_bn_folding);
         } else {
+            BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
             BACKEND_DNNL_ADD_PASS(

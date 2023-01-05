@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -277,6 +277,7 @@ public:
 
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         if (quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
             BACKEND_DNNL_ADD_PASS(pipeline, expand_convtranspose_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_scales);
             BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_scales);
