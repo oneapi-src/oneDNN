@@ -1003,6 +1003,9 @@ const memory_desc_t *output_md(const convolution_pd_t *pd) {
 }
 
 void maybe_override_from_lookup_table(conv_config_t &cfg) {
+#ifdef GEN_CONV_DEBUG
+    if (ir_utils::getenv_bool("lookup", true)) return;
+#endif
     static conv_config_lookup_table_t table;
     auto *s_params = table.find(cfg);
     if (s_params) cfg.override_set(s_params, /*is_env=*/false);
@@ -1022,6 +1025,7 @@ void maybe_override(conv_config_t &cfg) {
 }
 
 status_t init_fma_kind(conv_config_t &cfg) {
+    if (cfg.fma_kind_param().is_overridden()) return status::success;
     const auto &prb = cfg.prb();
     auto fma_kind = fma_kind::get_supported_kind(
             cfg.hw(), prb.a_data_type, prb.b_data_type, prb.acc_data_type);
