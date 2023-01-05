@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -618,7 +618,6 @@ impl::status_t insert_runtime_u8_to_s8_for_matmul(
                     *const_data_op, 0, const_data_dst_lt, true);
             const_data_dst_value->set_data_type(graph::data_type::s32);
             const_data_dst_value->set_layout_type(layout_type::strided);
-            const_data_dst_value->set_property(property_type::constant);
             const_data_dst_value->set_strides({1});
             const_data_op->add_output(const_data_dst_value);
 
