@@ -77,6 +77,10 @@ The following modes are supported:
   running correctness when it is not needed. This mode is compatible with
   correctness or performance mode, though it will no longer be a run mode, but
   correctness or performance one.
+* Initialization mode: This flow executes steps 1-3 above. It allows to check
+  successful primitive creation for large problems that take excessive memory
+  and/or time to execute. This mode is standalone and is not compatible with
+  other modes.
 * Listing mode: This flow executes steps 1-2 above. It allows to validate input
   files by parsing syntax and check if all problem repro lines are expected.
   This mode is standalone and is not compatible with other modes.
@@ -99,6 +103,8 @@ problem):
   a requested problem. It is treated as a failure.
   Note: All Nvidia backend `unimplemented` status errors are always treated as
   `SKIPPED (CASE_NOT_SUPPORTED)` to simplify validation.
+* `INITIALIZED`. It means that a problem was initialized, and the primitive
+  creation was successful, but there was no execution call or validation.
 * `EXECUTED`. It means that a problem was run, and the library execution call
   was successful, but the correctness was not validated.
 * `PASSED`. It means that a problem passed the correctness validation, and the

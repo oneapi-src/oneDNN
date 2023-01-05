@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -133,6 +133,7 @@ int doit(const prb_t *prb, res_t *res) {
     auto data_md = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->dt, prb->tag);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (is_bench_mode(INIT)) return res->state = INITIALIZED, OK;
 
     SAFE(check_mem_size(data_md, res), WARN);
     if (res->state == SKIPPED) return OK;

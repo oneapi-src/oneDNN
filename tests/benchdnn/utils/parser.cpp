@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -645,12 +645,16 @@ static bool parse_memory_kind(
 static bool parse_mode(
         const char *str, const std::string &option_name = "mode") {
     static const std::string help
-            = "MODE    (Default: `C`)\n    Specifies a `MODE` for "
-              "benchmarking.\n    `MODE` values are:\n    * `C` for "
-              "correctness testing.\n    * `P` for performance testing.\n    * "
-              "`CP` for both correctness and performance testing.\n    * `R` "
-              "for run mode or no correctness validation.\n    * `L` for "
-              "listing mode.\n    More details at "
+            = "MODE    (Default: `C`)\n"
+              "    Specifies a `MODE` for benchmarking.\n"
+              "    `MODE` values are:\n"
+              "    * `C` for correctness testing.\n"
+              "    * `P` for performance testing.\n"
+              "    * `CP` for both correctness and performance testing.\n"
+              "    * `R` for run mode or no correctness validation.\n"
+              "    * `I` for initialization mode.\n"
+              "    * `L` for listing mode.\n"
+              "    More details at "
             + doc_url + "benchdnn_general_info.md\n";
 
     const auto str2bench_mode = [](const std::string &_str) {
@@ -667,6 +671,8 @@ static bool parse_mode(
                 case 'L': mode |= LIST; break;
                 case 'o':
                 case 'O': mode |= PROF; break;
+                case 'i':
+                case 'I': mode |= INIT; break;
                 default: {
                     fprintf(stderr,
                             "ERROR: Unsupported character for `--mode` "
@@ -680,6 +686,12 @@ static bool parse_mode(
             fprintf(stderr,
                     "ERROR: LIST mode is incompatible with any other modes. "
                     "Please use just `--mode=L` instead.\n");
+            exit(2);
+        }
+        if (!(mode & INIT).none() && mode.count() > 1) {
+            fprintf(stderr,
+                    "ERROR: INIT mode is incompatible with any other modes. "
+                    "Please use just `--mode=I` instead.\n");
             exit(2);
         }
         if (mode.none()) {

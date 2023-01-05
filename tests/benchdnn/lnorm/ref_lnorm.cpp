@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,8 +35,14 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
-    assert(src_scale.nelems() == 1 && dst_scale.nelems() == 1);
-    const float output_scale = src_scale.get_elem(0) / dst_scale.get_elem(0);
+    const bool has_src_scale = !prb->attr.scales.get(DNNL_ARG_SRC).is_def();
+    const bool has_dst_scale = !prb->attr.scales.get(DNNL_ARG_DST).is_def();
+    assert(IMPLICATION(has_src_scale, src_scale.nelems() == 1));
+    assert(IMPLICATION(has_dst_scale, dst_scale.nelems() == 1));
+
+    const float src_scale_val = has_src_scale ? src_scale.get_elem(0) : 1.f;
+    const float dst_scale_val = has_dst_scale ? dst_scale.get_elem(0) : 1.f;
+    const float output_scale = src_scale_val / dst_scale_val;
 
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         float smean = mean.get_elem(n);
@@ -63,10 +69,6 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &d_sc = args.find(DNNL_ARG_DIFF_SCALE);
     const dnn_mem_t &d_sh = args.find(DNNL_ARG_DIFF_SHIFT);
 
-    float *d_src_ptr = (float *)d_src;
-    float *d_sc_ptr = (float *)d_sc;
-    float *d_sh_ptr = (float *)d_sh;
-
     const bool use_sc = prb->use_sc();
     const bool use_sh = prb->use_sh();
 
@@ -85,8 +87,8 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
                 d_beta += dd;
             }
 
-            if (use_sc) d_sc_ptr[c] = d_gamma;
-            if (use_sh) d_sh_ptr[c] = d_beta;
+            if (use_sc && (prb->dir & FLAG_WEI)) d_sc.set_elem(c, d_gamma);
+            if (use_sh && (prb->dir & FLAG_WEI)) d_sh.set_elem(c, d_beta);
         });
     }
 
@@ -115,7 +117,7 @@ void compute_ref_bwd(const prb_t *prb, const args_t &args) {
                 ds -= (dd_gamma + x * dd_gamma_x * rcp_denom) / prb->c;
             }
 
-            d_src_ptr[off] = rcp_denom * ds;
+            d_src.set_elem(off, rcp_denom * ds);
         }
     });
 }

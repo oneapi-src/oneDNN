@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
 * Copyright 2021 Arm Ltd. and affiliates
 *
@@ -328,8 +328,9 @@ int fill_dst(
     // Change mem dt to sum dt, so we can save sum data properly.
     if (diff_sum_dst_types) { mem_dt.set_dt(sum_dt); }
 
-    fill_dst_with_params(prb, mem_dt, mem_fp, sum_dt, c.f_sparsity, f_min,
-            f_max, c.f_base, c.f_step, res);
+    SAFE(fill_dst_with_params(prb, mem_dt, mem_fp, sum_dt, c.f_sparsity, f_min,
+                 f_max, c.f_base, c.f_step, res),
+            WARN);
 
     // Return dst data type back.
     if (diff_sum_dst_types) { mem_dt.set_dt(dst_dt); }
@@ -461,11 +462,17 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
                 || prb->get_dt_conf(DST).dt == dnnl_u8;
         const bool is_f32f32x8 = is_f32_src && is_f32_wei && is_int8_dst;
         const bool is_bf16bf16x8 = is_bf16_src && is_bf16_wei && is_int8_dst;
-        const bool is_valid_f16 = is_f16
-                && (prb->get_dt_conf(DST).dt == dnnl_f32
+        const bool is_valid_f16 = IMPLICATION(is_f16,
+                prb->get_dt_conf(DST).dt == dnnl_f32
                         || prb->get_dt_conf(DST).dt == dnnl_f16);
+        const bool is_int8_src = prb->get_dt_conf(SRC).dt == dnnl_s8
+                || prb->get_dt_conf(SRC).dt == dnnl_u8;
+        const bool is_int8_wei = prb->get_dt_conf(WEI).dt == dnnl_s8
+                || prb->get_dt_conf(WEI).dt == dnnl_u8;
+        const bool is_f16_dst = prb->get_dt_conf(DST).dt == dnnl_f16;
+        const bool is_x8x8f16 = is_int8_src && is_int8_wei && is_f16_dst;
 
-        if (is_f32f32x8 || is_bf16bf16x8 || !is_valid_f16) {
+        if (is_f32f32x8 || is_bf16bf16x8 || is_x8x8f16 || !is_valid_f16) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -506,6 +513,7 @@ int doit(const prb_t *prb, res_t *res) {
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (is_bench_mode(INIT)) return OK;
 
     auto const_pd = query_pd(prim);
 

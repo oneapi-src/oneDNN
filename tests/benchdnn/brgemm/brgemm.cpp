@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -142,12 +142,16 @@ std::string prepare_wei_format_string(
     // `dt` affects the choice of last inner block (for VNNI-friendliness).
     // `n` affects the choice of B block.
     std::string wtag("BA16a");
-    wtag += std::to_string(n) + "b";
+    if (n <= 16)
+        wtag += "16b";
+    else
+        wtag += std::to_string(n) + "b";
     if (is_vnni_layout) {
         switch (dt) {
             case dnnl_f32: break;
             case dnnl_f16:
             case dnnl_bf16: wtag += "2a"; break;
+            case dnnl_u8:
             case dnnl_s8: wtag += "4a"; break;
             default: assert(!"unsupported data type");
         }
@@ -214,6 +218,14 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
+    auto is_xf16 = [](dnnl_data_type_t dt) {
+        return dt == dnnl_bf16 || dt == dnnl_f16;
+    };
+    if (!IMPLICATION(is_xf16(prb->bia_dt) || is_xf16(prb->dst_dt()),
+                is_xf16(prb->wei_dt()))) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
     skip_unimplemented_data_type(
             {prb->src_dt(), prb->wei_dt(), prb->bia_dt, prb->dst_dt()},
             prb->dir, res);
@@ -411,6 +423,8 @@ int doit(const prb_t *prb, res_t *res) {
                 prb->ndims, bia_dims, prb->bia_dt, tag::abx);
     }
 
+    if (is_bench_mode(INIT)) return res->state = INITIALIZED, OK;
+
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
 
@@ -476,6 +490,7 @@ int doit(const prb_t *prb, res_t *res) {
         case dnnl_f32: block_size = 16; break;
         case dnnl_f16: block_size = 16; break;
         case dnnl_bf16: block_size = 32; break;
+        case dnnl_u8:
         case dnnl_s8: block_size = 64; break;
         default: break;
     }

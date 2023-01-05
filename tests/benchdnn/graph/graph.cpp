@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -90,6 +90,7 @@ void get_combination(const std::vector<std::vector<int64_t>> &candidate,
 }
 
 int doit(const prb_t *prb, res_t *res) {
+    if (bench_mode == LIST) return res->state = LISTED, OK;
     deserialized_graph dg = prb->dg;
     bool has_dynamic_dim = dg.has_dynamic_dim;
     std::map<size_t, std::vector<std::vector<int64_t>>> real_shape_candidates
@@ -294,6 +295,8 @@ int doit(const prb_t *prb, res_t *res) {
             }
         }
     }
+
+    if (is_bench_mode(INIT)) return res->state = INITIALIZED, OK;
 
     if (is_bench_mode(PERF)) {
         SAFE(measure_perf(res->timer_map.perf_timer(), c_partitions, tensors_in,

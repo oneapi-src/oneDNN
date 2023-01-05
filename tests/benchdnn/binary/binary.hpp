@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,6 +82,13 @@ struct prb_t : public prb_vdims_t {
     bool inplace;
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
+
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
+        assert(!"No runtime dimensions support for this driver!");
+        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
+    }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
@@ -127,14 +134,13 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         bool only_positive_values = false, bool only_integer_values = false);
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
-
-void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
-        const args_t &ref_args);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

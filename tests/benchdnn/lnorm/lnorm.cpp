@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,8 +36,10 @@ using namespace bnorm;
 
 namespace lnorm {
 
-int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
-        dnn_mem_t &var, dnn_mem_t &sc, dnn_mem_t &sh) {
+int prepare_fwd(const prb_t *prb, dnn_mem_t &src_dt, dnn_mem_t &mean_dt,
+        dnn_mem_t &var_dt, dnn_mem_t &sc_dt, dnn_mem_t &sh_dt,
+        const dnn_mem_t &src, const dnn_mem_t &mean, const dnn_mem_t &var,
+        const dnn_mem_t &sc, const dnn_mem_t &sh, res_t *res) {
     /** Idea: choose src[] values so that both mean and variance are computed
      * exactly (independently of the order of the computations).
      *
@@ -72,7 +74,10 @@ int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
     const int64_t flex_bits = alg == ALG_0
             ? want_flex_bits
             : MIN2(exact_bits, (exact_bits - logL) / 2 - 1);
-    if (flex_bits < min_flex_bits) return FAIL;
+    if (flex_bits < min_flex_bits) {
+        res->state = UNTESTED;
+        return FAIL;
+    }
 
     if (exact_bits / 2 == flex_bits) alg = ALG_2;
 
@@ -172,12 +177,27 @@ int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &mean,
         ((float *)sc)[c] = use_sc ? sc_value : 1.0f;
         ((float *)sh)[c] = use_sh ? sh_value : 0.0f;
     });
+
+    SAFE(src_dt.reorder(src), WARN);
+    if (prb->flags & GLOB_STATS) {
+        /* prepare mean & var if they are inputs */
+        SAFE(mean_dt.reorder(mean), WARN);
+        SAFE(var_dt.reorder(var), WARN);
+    }
+    if (prb->use_sc()) { SAFE(sc_dt.reorder(sc), WARN); }
+    if (prb->use_sh()) { SAFE(sh_dt.reorder(sh), WARN); }
+
     return OK;
 }
 
-int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
-        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &sc) {
-    if (prb->c < 2) return FAIL;
+int prepare_bwd(const prb_t *prb, dnn_mem_t &src_dt, dnn_mem_t &d_dst_dt,
+        dnn_mem_t &mean_dt, dnn_mem_t &var_dt, dnn_mem_t &sc_dt,
+        const dnn_mem_t &src, const dnn_mem_t &d_dst, const dnn_mem_t &mean,
+        const dnn_mem_t &var, const dnn_mem_t &sc, res_t *res) {
+    if (prb->c < 2) {
+        res->state = UNTESTED;
+        return FAIL;
+    }
 
     const bool use_sc = prb->use_sc();
 
@@ -228,6 +248,12 @@ int prepare_bwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &d_dst,
                     c_shift + c, round_to_nearest_representable(prb->dt[0], s));
         }
     });
+
+    SAFE(src_dt.reorder(src), WARN);
+    SAFE(d_dst_dt.reorder(d_dst), WARN);
+    SAFE(mean_dt.reorder(mean), WARN);
+    SAFE(var_dt.reorder(var), WARN);
+    if (use_sc) { SAFE(sc_dt.reorder(sc), WARN); }
 
     return OK;
 }
@@ -391,6 +417,7 @@ int doit(const prb_t *prb, res_t *res) {
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (is_bench_mode(INIT)) return OK;
 
     auto const_pd = query_pd(prim);
 
@@ -447,18 +474,9 @@ int doit(const prb_t *prb, res_t *res) {
             placeholder_dst_dt = dnn_mem_t(dst_md, test_engine);
         }
 
-        if (prepare_fwd(prb, src_fp, mean_fp, var_fp, sc_fp, sh_fp) != OK) {
-            return res->state = MISTRUSTED, OK;
-        }
-
-        SAFE(src_dt.reorder(src_fp), WARN);
-        if (prb->flags & GLOB_STATS) {
-            /* prepare mean & var if they are inputs */
-            SAFE(mean_dt.reorder(mean_fp), WARN);
-            SAFE(var_dt.reorder(var_fp), WARN);
-        }
-        if (use_sc) { SAFE(sc_dt.reorder(sc_fp), WARN); }
-        if (use_sh) { SAFE(sh_dt.reorder(sh_fp), WARN); }
+        SAFE(prepare_fwd(prb, src_dt, mean_dt, var_dt, sc_dt, sh_dt, src_fp,
+                     mean_fp, var_fp, sc_fp, sh_fp, res),
+                WARN);
 
         dnn_mem_t src_scales_fp(scales_md, ref_engine);
         dnn_mem_t dst_scales_fp(scales_md, ref_engine);
@@ -515,16 +533,9 @@ int doit(const prb_t *prb, res_t *res) {
         dnn_mem_t d_sh_fp(
                 sh_md, dnnl_f32, use_sh ? tag::x : tag::abx, ref_engine);
 
-        if (prepare_bwd(prb, src_fp, d_dst_fp, mean_fp, var_fp, sc_fp) != OK) {
-            return res->state = MISTRUSTED, OK;
-        }
-
-        SAFE(src_dt.reorder(src_fp), WARN);
-        SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
-        SAFE(mean_dt.reorder(mean_fp), WARN);
-        SAFE(var_dt.reorder(var_fp), WARN);
-        if (use_sc) { SAFE(sc_dt.reorder(sc_fp), WARN); }
-        if (use_sh) { SAFE(sh_dt.reorder(sh_fp), WARN); }
+        SAFE(prepare_bwd(prb, src_dt, d_dst_dt, mean_dt, var_dt, sc_dt, src_fp,
+                     d_dst_fp, mean_fp, var_fp, sc_fp, res),
+                WARN);
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);

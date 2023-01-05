@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -141,7 +141,13 @@ struct prb_t : public prb_vdims_t {
 
     const dims_t &src_dims() const { return vdims[0]; }
     const dims_t &weights_dims() const { return vdims[1]; }
-    // const dims_t &prb_vdims_t::dst_dims() const;
+    dims_t bia_dims() const {
+        dims_t dims(ndims, 1);
+        for (int d = 0; d < ndims; ++d)
+            if (bia_mask & (1 << d)) dims[d] = dst_dims[d];
+        return dims;
+    }
+    // dims_t prb_vdims_t::dst_dims; // A member in `prb_vdims_t`.
 
     const dims_mask_t &src_runtime_dim_mask() const { return rt_dims_masks[0]; }
     const dims_mask_t &weights_runtime_dim_mask() const {
@@ -165,6 +171,10 @@ struct prb_t : public prb_vdims_t {
     float *generate_scales(int arg) const;
     int32_t *generate_zero_points(
             int arg, const attr_t::zero_points_t &zero_points, int N) const;
+
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 
@@ -236,7 +246,7 @@ struct cfg_t : public base_cfg_t {
         }
     }
 
-    const cfg_entry_t::cfg_map_t &get_cfg_map(data_kind_t kind) const;
+    cfg_entry_t::cfg_map_t get_cfg_map(data_kind_t kind) const override;
 
     float get_density(const density_args_t &density_args) const override;
 };
@@ -256,13 +266,14 @@ inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t m, int64_t n) {
 void handle_legacy_cfg(
         std::vector<dnnl_data_type_t> &dt, const std::string &cfg);
 
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
+
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
-
-void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
-        const args_t &ref_args);
 
 int doit(const prb_t *prb, res_t *res);
 
@@ -270,8 +281,6 @@ int bench(int argc, char **argv);
 
 int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *res);
-
-dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 
 } // namespace matmul
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -157,7 +157,10 @@ struct prb_t : public prb_vdims_t {
             assert(ld[1] >= n);
             return ld[1];
         }
-        return n;
+        // weights are blocked by at least 16b, so this is needed to avoid
+        // explicitly setting ldb for tail n in input files and command line
+        const int64_t min_n = 16;
+        return MAX2(min_n, n);
     }
     int64_t get_ldc(bool use_dst_as_acc) const {
         if (use_dst_as_acc) return get_ldd();
@@ -174,6 +177,13 @@ struct prb_t : public prb_vdims_t {
     void generate_oscales();
     int32_t *generate_zero_points(
             int arg, const attr_t::zero_points_t &zero_points, int N);
+
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
+        assert(!"No runtime dimensions support for this driver!");
+        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
+    }
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
@@ -213,17 +223,9 @@ private:
 };
 
 struct cfg_t : public base_cfg_t {
-    cfg_t(const prb_t *prb, std::vector<data_kind_t> kinds) {
-        for (const auto kind : kinds) {
-            auto orig_data_type = prb->get_dt(kind);
-            auto data_type
-                    = deduce_cfg_data_type(orig_data_type, prb->attr, kind);
-            cfg_entry_.push_back(cfg_entry_t(
-                    kind, orig_data_type, data_type, get_cfg_map(kind)));
-        }
-    }
+    cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds);
 
-    const cfg_entry_t::cfg_map_t &get_cfg_map(data_kind_t kind) const;
+    cfg_entry_t::cfg_map_t get_cfg_map(data_kind_t kind) const override;
 
     float get_density(const density_args_t &density_args) const override;
 };

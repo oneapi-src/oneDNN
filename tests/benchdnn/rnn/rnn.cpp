@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -209,6 +209,7 @@ int fill_memory(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         bool flip_sign = false) {
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
+
     assert(mem_dt.nelems() == mem_fp.nelems());
 
     // For non-int8 RNN the data is filled according to cfg directly.
@@ -330,6 +331,9 @@ int fill_memory(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
 int fill_activation(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
+    const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return OK;
+
     // In general, we mostly want to use positive values to avoid
     // cancellation from happening during computation.  The only case
     // where we actually want negative values to appear is for 1 layer
@@ -346,6 +350,9 @@ int fill_activation(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
 int fill_src_iter_c(const prb_t &prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         const_dnnl_primitive_attr_t attr = nullptr) {
+    const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return OK;
+
     const bool special_case = prb.prop == dnnl_backward && prb.skip_nonlinear;
     if (!special_case)
         return fill_memory(prb, SRC_ITER_C, mem_dt, mem_fp, attr);
@@ -421,6 +428,7 @@ int fill_weights(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
+
     const dt_conf_t::entry_t &c = prb.cfg[kind];
 
     assert(kind == WEIGHTS_PROJECTION ? mem_fp.ndims() == 4
@@ -476,6 +484,9 @@ int fill_weights(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
 int fill_bias(const prb_t &prb, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
+    const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return OK;
+
     // To reduce likelihood of cancellation happening in bwd by bias,
     // (especially for GRU), we want diff_bias to be sparse
     const auto &dims = mem_fp.dims();
@@ -731,9 +742,12 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     static auto isa = dnnl_get_effective_cpu_isa();
-    const bool is_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16
-            && dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core_fp16);
-    if (is_f16_not_ok) {
+    // f16 is not implemented on any x64 platform yet.
+    const bool is_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16;
+    // bf16 is currently supported only on avx512_core[+] platforms
+    const bool is_bf16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_bf16
+            && !dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core);
+    if (is_f16_not_ok || is_bf16_not_ok) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
@@ -904,6 +918,7 @@ int doit(const prb_t &prb, res_t *res) {
                  is_service_prim),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (!is_service_prim && is_bench_mode(INIT)) return OK;
 
     auto const_fpd = query_pd(prim);
 
@@ -1030,7 +1045,7 @@ int doit(const prb_t &prb, res_t *res) {
     args.set(DNNL_ARG_WORKSPACE, workspace_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    SAFE(execute_and_wait(prim, args, res), WARN);
+    if (!is_bench_mode(INIT)) SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (prb.prop != dnnl_backward) {
         if (is_bench_mode(CORR)) {
@@ -1059,6 +1074,7 @@ int doit(const prb_t &prb, res_t *res) {
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
         SAFE(init_prim(tmp_prim, init_pd, &prb, res, FLAG_BWD), WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+        if (is_bench_mode(INIT)) return OK;
         prim.reset(tmp_prim.release());
 
         auto const_bpd = query_pd(prim);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,6 +95,27 @@ int32_t *prb_t::generate_zero_points(
     for (int i = 0; i < N; ++i)
         zp[i] = e.value + i % 3;
     return zp;
+}
+
+benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> prb_t::get_md(int arg) const {
+    switch (arg) {
+        case DNNL_ARG_SRC:
+            assert(src_runtime_dim_mask().any());
+            return dnn_mem_t::init_md(ndims, src_dims().data(), src_dt(), stag);
+        case DNNL_ARG_WEIGHTS:
+            assert(weights_runtime_dim_mask().any());
+            return dnn_mem_t::init_md(
+                    ndims, weights_dims().data(), wei_dt(), wtag);
+        case DNNL_ARG_BIAS:
+            return dnn_mem_t::init_md(
+                    ndims, bia_dims().data(), bia_dt, tag::abx);
+        case DNNL_ARG_DST:
+            assert(dst_runtime_dim_mask().any());
+            return dnn_mem_t::init_md(ndims, dst_dims.data(), dst_dt(), dtag);
+        default:
+            assert(!"unsupported arg");
+            return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
+    }
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb) {

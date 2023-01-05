@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -738,6 +738,7 @@ std::ostream &operator<<(std::ostream &s, bench_mode_t mode) {
     if (is_bench_mode(PERF)) s << "P";
     if (is_bench_mode(LIST)) s << "L";
     if (is_bench_mode(PROF)) s << "O";
+    if (is_bench_mode(INIT)) s << "I";
     return s;
 }
 
@@ -969,7 +970,10 @@ dnnl_primitive_attr_t create_dnnl_attr(
                 int wei_mask = attr_t::get_default_mask(
                         wei_policy, DNNL_ARG_WEIGHTS);
                 // dw conv always has group dim
-                if (wei_mask) wei_mask = 1 << wei_mask;
+                if (wei_mask > 0) {
+                    assert(wei_mask == 1);
+                    wei_mask = 3;
+                }
                 if (e.convolution.wei_scale.runtime)
                     DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(dnnl_attr,
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
@@ -1082,10 +1086,9 @@ int check_abc_tag(const std::string &tag_, bool check_enum_tags_only) {
         // Check rules related to lowercase/uppercase/block order.
         int dim_idx = std::tolower(c) - 'a';
         dim_state_t prev_state = dim_states[dim_idx];
-        dim_state_t cur_state = is_upper
-                ? dim_state_t::upper
-                : block != 0 ? dim_state_t::lower_with_block
-                             : dim_state_t::lower;
+        dim_state_t cur_state = is_upper ? dim_state_t::upper
+                : block != 0             ? dim_state_t::lower_with_block
+                                         : dim_state_t::lower;
 
         switch (cur_state) {
             case dim_state_t::upper:

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ extern std::string driver_name;
     T &operator=(const T &) = delete;
 
 using bench_mode_t = std::bitset<8>;
-extern bench_mode_t RUN, CORR, PERF, LIST, PROF; // pre-defined modes
+extern bench_mode_t RUN, CORR, PERF, LIST, PROF, INIT; // pre-defined modes
 extern bench_mode_t bench_mode; // user mode
 
 bool is_bench_mode(bench_mode_t user_mode);
@@ -161,6 +161,7 @@ enum res_state_t {
     FAILED,
     LISTED,
     EXECUTED,
+    INITIALIZED,
 };
 const char *state2str(res_state_t state);
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@
 namespace resampling {
 
 int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res) {
+        dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     const auto dt = mem_dt.dt();
     const int range = 16;
@@ -52,14 +52,12 @@ int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
-int fill_src(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    return fill_dat(prb, SRC, mem_dt, mem_fp, res);
+int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    return fill_dat(prb, SRC, mem_dt, mem_fp);
 }
 
-int fill_dst(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    return fill_dat(prb, DST, mem_dt, mem_fp, res);
+int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    return fill_dat(prb, DST, mem_dt, mem_fp);
 }
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
@@ -128,6 +126,7 @@ int doit(const prb_t *prb, res_t *res) {
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (is_bench_mode(INIT)) return OK;
 
     auto const_pd = query_pd(prim);
 
@@ -151,7 +150,7 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t dst_fp(dst_md, fp, tag, ref_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
-        SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
+        SAFE(fill_dst(prb, dst_dt, dst_fp), WARN);
 
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
@@ -174,7 +173,7 @@ int doit(const prb_t *prb, res_t *res) {
     args_t args, ref_args;
 
     if (prb->dir & FLAG_FWD) {
-        SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
+        SAFE(fill_src(prb, src_dt, src_fp), WARN);
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DST, dst_dt);
@@ -191,7 +190,7 @@ int doit(const prb_t *prb, res_t *res) {
             check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
         }
     } else {
-        SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
+        SAFE(fill_dst(prb, dst_dt, dst_fp), WARN);
 
         args.set(DNNL_ARG_DIFF_DST, dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, src_dt);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -162,8 +162,18 @@ struct attr_t {
         int operator[](int arg) const { return get(arg).value; }
         bool runtime(int arg) const { return get(arg).runtime; }
 
-        bool is_def(int arg) const { return get(arg).is_def(); }
-        bool is_def() const { return points.empty(); }
+        bool is_def(int arg) const {
+            return points.empty() || get(arg).is_def();
+        }
+        bool is_def() const {
+            if (points.empty()) return true;
+
+            bool def = true;
+            for (const auto &e : points) {
+                def = def && is_def(e.first);
+            }
+            return def;
+        }
 
         void set(int arg, policy_t policy, int value, bool runtime) {
             set(arg, entry_t(policy, value, runtime));
@@ -199,6 +209,8 @@ struct attr_t {
             return scales.empty() || get(arg).is_def();
         }
         bool is_def() const {
+            if (scales.empty()) return true;
+
             bool def = true;
             for (const auto &e : scales) {
                 def = def && is_def(e.first);
@@ -354,7 +366,7 @@ struct attr_t {
         , fpmath_mode(dnnl_fpmath_mode_strict) {}
 
     template <typename First, typename... Rest>
-    void insert(const First &first, const Rest &... rest) {
+    void insert(const First &first, const Rest &...rest) {
         this->insert(first);
         if (sizeof...(rest) > 0) this->insert(rest...);
     }

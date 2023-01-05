@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,12 +32,6 @@
 
 namespace matmul {
 
-void prep_bia_dims(const prb_t *prb, dims_t &bia_dims) {
-    bia_dims.resize(prb->ndims);
-    for (int d = 0; d < prb->ndims; ++d)
-        bia_dims[d] = (prb->bia_mask & (1 << d)) ? prb->dst_dims[d] : 1;
-}
-
 dims_t get_runtime_dims(const dims_t &dims, const dims_mask_t &mask) {
     if (mask.none() || dims.empty()) return dims;
     dims_t runtime_dims;
@@ -67,9 +61,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> bia_d {};
     if (prb->bia_dt != dnnl_data_type_undef) {
-        dims_t bia_dims;
-        prep_bia_dims(prb, bia_dims);
-        bia_dims = get_runtime_dims(bia_dims, prb->dst_runtime_dim_mask());
+        auto bia_dims = get_runtime_dims(
+                prb->bia_dims(), prb->dst_runtime_dim_mask());
         bia_d = dnn_mem_t::init_md(prb->ndims, bia_dims.data(), prb->bia_dt,
                 prb->dst_runtime_dim_mask() != 0 ? tag::abx : tag::any);
     }
@@ -304,6 +297,7 @@ int doit(const prb_t *prb, res_t *res) {
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (is_bench_mode(INIT)) return OK;
 
     auto const_pd = query_pd(prim);
 
@@ -342,10 +336,8 @@ int doit(const prb_t *prb, res_t *res) {
     }
     if (prb->bia_dt != dnnl_data_type_undef
             && dnnl_memory_desc_equal(bia_md, def_md)) {
-        dims_t bia_dims;
-        prep_bia_dims(prb, bia_dims);
         bia_md = dnn_mem_t::init_md(
-                prb->ndims, bia_dims.data(), prb->bia_dt, tag::abx);
+                prb->ndims, prb->bia_dims().data(), prb->bia_dt, tag::abx);
     }
 
     const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);

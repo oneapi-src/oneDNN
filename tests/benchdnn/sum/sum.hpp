@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,6 +94,13 @@ struct prb_t : public prb_dims_t {
     thr_ctx_t ctx_init, ctx_exe;
 
     int n_inputs() const { return (int)sdt.size(); }
+
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
+        assert(!"No runtime dimensions support for this driver!");
+        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
+    }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
@@ -129,6 +136,10 @@ private:
     std::vector<std::string> stag_;
     std::string dtag_;
 };
+
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);

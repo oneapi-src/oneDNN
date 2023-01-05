@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ enum {
     STRIDES_SIZE = 3,
 };
 
+int64_t dims_nelems(const dims_t &dims, int ndims, int mask);
 dims_t off2dims_idx(const dims_t &dims, int64_t off);
 std::string dims2str(const dims_t &dims);
 std::string vdims2str(const vdims_t &vdims);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 #include <functional>
 #include <stddef.h>
 #include <stdint.h>
-
 #include <vector>
 
 #include "oneapi/dnnl/dnnl.h"
@@ -297,6 +296,9 @@ extern memory_kind_ext_t memory_kind;
 void init_isa_settings();
 
 struct args_t {
+    args_t() = default;
+    args_t(const dnn_mem_map_t &mem_map);
+
     args_t &set(int arg, const dnn_mem_t &mem);
     args_t &set(
             const std::vector<int> &args, const std::vector<dnn_mem_t> &mems);
@@ -590,7 +592,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     if (res->state == SKIPPED) return OK;
 
     auto pd = query_pd(primw);
-    SAFE(check_mem_size(pd, res), WARN);
+    if (!is_bench_mode(INIT)) SAFE(check_mem_size(pd, res), WARN);
     if (res->state == SKIPPED) return OK;
 
     // Further checks are only for tested primitives.
@@ -615,7 +617,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     SAFE(test_persistent_cache_api(primw, pd, res), WARN);
 
     user_prim.reset(primw.release());
-    return OK;
+    return res->state = INITIALIZED, OK;
 }
 
 template <typename func_t, typename prb_t>
@@ -761,7 +763,7 @@ bool check_md_consistency_with_tag(
 memory_kind_ext_t str2memory_kind(const char *str);
 
 float reorder_rescale_factor();
-dims_t md2dims(const dnnl_memory_desc_t &md);
+dims_t md2dims(const_dnnl_memory_desc_t md);
 
 // Function adjusts data type if fpmath mode is present or sum_dt is different
 // from destination_dt. It is used in `cfg` objects that regulate filling.

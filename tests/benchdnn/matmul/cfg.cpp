@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,8 +45,7 @@ float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
 }
 
 // Using pow2 values allows to avoid catastrophic cancellation.
-const cfg_t::cfg_entry_t::cfg_map_t &cfg_t::get_cfg_map(
-        data_kind_t kind) const {
+cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
     static const cfg_t::cfg_entry_t::cfg_map_t src_cfg_map = {
             {{dnnl_f32}, {-64, 64}},
             {{dnnl_bf16}, {-4, 4}},

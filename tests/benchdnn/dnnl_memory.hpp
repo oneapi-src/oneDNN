@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #ifndef DNNL_MEMORY_HPP
 #define DNNL_MEMORY_HPP
+
+#include <unordered_map>
 
 #include "oneapi/dnnl/dnnl.h"
 
@@ -204,6 +206,8 @@ private:
 
     int cleanup();
 };
+
+using dnn_mem_map_t = std::unordered_map<int, dnn_mem_t>;
 
 dnnl_memory_desc_t clone_md(const_dnnl_memory_desc_t md);
 

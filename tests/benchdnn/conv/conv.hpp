@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -210,6 +210,13 @@ struct prb_t : public desc_t {
         return cfg[dk];
     }
 
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
+        assert(!"No runtime dimensions support for this driver!");
+        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
+    }
+
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 
 private:
@@ -307,6 +314,7 @@ int fill_bia(
 int fill_dst(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
 
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args);
 
@@ -320,7 +328,6 @@ int fill_dst_with_params(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         int step, res_t *res);
 int compare_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *res);
-dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

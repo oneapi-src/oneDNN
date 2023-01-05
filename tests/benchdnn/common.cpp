@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,6 +53,8 @@ bench_mode_t PERF {0x4}; // Performance mode. May be combined with CORR.
 bench_mode_t LIST {0x8}; // Listing mode. Standalone mode to only create prb.
 bench_mode_t PROF {
         0x10}; // Profiling-based performance mode (may be only combined with performance mode).
+bench_mode_t INIT {
+        0x20}; // Initialization mode. Standalone mode to only create primitive.
 
 bool is_bench_mode(bench_mode_t user_mode) {
     return !(bench_mode & user_mode).none();
@@ -93,6 +95,7 @@ const char *state2str(res_state_t state) {
     CASE(FAILED);
     CASE(LISTED);
     CASE(EXECUTED);
+    CASE(INITIALIZED);
 #undef CASE
     assert(!"unknown res state");
     return "STATE_UNDEF";
@@ -158,12 +161,16 @@ void parse_result(res_t &res, const char *pstr) {
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             bs.listed++;
             break;
+        case INITIALIZED:
+            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            bs.passed++;
+            break;
         default: assert(!"unknown state"); SAFE_V(FAIL);
     }
 
     bs.tests++;
-    assert(bs.tests == (bs.passed + bs.skipped + bs.mistrusted + bs.failed)
-            || bs.tests == bs.listed);
+    assert(bs.tests
+            == bs.passed + bs.skipped + bs.mistrusted + bs.failed + bs.listed);
 
     if (is_bench_mode(PERF)) {
         using bt = timer::timer_t;

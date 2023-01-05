@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,34 @@
 
 namespace reduction {
 
+// first: nonneutral elements
+// second: maximum range
+using problem_bounds = std::pair<const int, const int>;
+
+// int | acc | elems | value_range | worst case
+//  Y  | mul |  10   |       3     |     3^10=2^16, out of 2^30 (max integer)
+//  N  | mul |  30   |       3     | (2^3)^30=2^90, out of 2^128 (max exponent)
+//  Y  | sum | 10000 |      50     | 10000*50=2^19, out of 2^30 (max integer)
+//  N  | sum | 10000 |      16     | 10000*16=2^18, out of 2^23 (max mantissa/integer)
+//  min/max  |  all  |    1000     | no limits on accumulation chain
+const problem_bounds MUL_INT = problem_bounds(10, 3);
+const problem_bounds MUL_FP = problem_bounds(30, 3);
+const problem_bounds SUM_INT = problem_bounds(10000, 50);
+const problem_bounds SUM_FP = problem_bounds(10000, 16);
+const problem_bounds MINMAX_INT = problem_bounds(-1, 1000);
+const problem_bounds MINMAX_FP = problem_bounds(-1, 1000);
+
+problem_bounds get_problem_bounds(alg_t alg, dnnl_data_type_t dt) {
+    const bool is_int = is_integral_dt(dt);
+    switch (alg) {
+        case alg_t::max:
+        case alg_t::min: return is_int ? MINMAX_INT : MINMAX_FP;
+        case alg_t::mul: return is_int ? MUL_INT : MUL_FP;
+        // All remaining cases accumulate via sum
+        default: return is_int ? SUM_INT : SUM_FP;
+    }
+}
+
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
@@ -56,17 +84,26 @@ bool is_norm_alg(const alg_t alg) {
 }
 
 int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        float non_neutral_prob, bool use_reduced_range,
+        float non_neutral_prob, bool expanded_range,
         bool only_positive_values) {
     const auto sdt = mem_dt.dt();
+    const auto ddt = prb->ddt;
     const auto nelems = mem_fp.nelems();
     const float neutral_value = prb->alg == alg_t::mul ? 1.0f : 0.0f;
-    const float mean_shift = prb->alg == alg_t::mean ? 1.0f : 0.0f;
-    const bool is_signed = sdt != dnnl_u8;
+    // include ddt in is_signed to avoid mistrusted rounding negative -> 0
+    const bool is_signed = sdt != dnnl_u8 && ddt != dnnl_u8;
+    float shift = 0.0f;
+    if (prb->alg == alg_t::mean || (prb->alg == alg_t::min && !is_signed))
+        shift = 1.0f;
     const bool is_int = is_integral_dt(sdt);
 
-    int value_range = use_reduced_range ? 16 : 1000;
-    if (is_int) value_range = use_reduced_range ? 3 : max_dt(dnnl_s8);
+    // Follow table in comments of fill_src
+    int value_range = get_problem_bounds(prb->alg, sdt).second;
+
+    if (expanded_range) value_range = 1000;
+
+    const bool is_mul_fp = prb->alg == alg_t::mul && !is_int;
+    const int min_range = is_mul_fp ? -value_range : 1;
 
     const int64_t n_chunks = 16;
     const int64_t chunk_size = div_up(nelems, n_chunks);
@@ -77,17 +114,19 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
         std::minstd_rand msr(idx_start + 1);
         msr.discard(1);
-        std::uniform_int_distribution<> igen(1, value_range);
+        std::uniform_int_distribution<> igen(min_range, value_range);
+        std::uniform_int_distribution<> fifty_fifty(0, 1);
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             float value = neutral_value;
             if (flip_coin(idx, non_neutral_prob)) {
                 const int gen = igen(msr);
-                value = is_int ? gen : gen / 8.f;
-                if (!only_positive_values && is_signed && flip_coin(gen, 0.5f))
+                value = is_mul_fp ? std::pow(2, gen) : gen;
+
+                if (!only_positive_values && is_signed && fifty_fifty(msr) == 1)
                     value = -value;
             }
-            value += mean_shift;
+            value += shift;
             mem_fp.set_elem(idx, round_to_nearest_representable(sdt, value));
         }
     });
@@ -97,7 +136,7 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
 int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
-    const auto ddt = prb->ddt;
+    const auto sdt = prb->sdt;
     if (!nelems) return OK;
 
     int nelems_to_reduce = 1;
@@ -106,27 +145,20 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
             nelems_to_reduce *= prb->vdims[0][dim];
         }
     }
-    // There is no accumulation error in case of min or max algorithm
-    const bool is_min_or_max = prb->alg == alg_t::min || prb->alg == alg_t::max;
-    // Number of elements that should not exceed datatype limit after reduction
-    int safe_to_reduce_elems = nelems_to_reduce;
-    if (!is_min_or_max) { // Other algs do computations, reduce final values
-        safe_to_reduce_elems = prb->alg == alg_t::mul ? 10 : 1000;
-        // Integral values easily reach border values,
-        // shrink their final values more
-        if (is_integral_dt(ddt))
-            safe_to_reduce_elems = prb->alg == alg_t::mul ? 3 : 10;
-    }
+
+    // Determine number of non-neutral elements to have in the reduction chain
+    int safe_to_reduce_elems = get_problem_bounds(prb->alg, sdt).first;
+    if (safe_to_reduce_elems == -1) safe_to_reduce_elems = nelems_to_reduce;
+
     const float non_neutral_prob
             = 1.f * safe_to_reduce_elems / nelems_to_reduce;
 
-    return fill_mem(
-            prb, mem_dt, mem_fp, non_neutral_prob, !is_min_or_max, false);
+    return fill_mem(prb, mem_dt, mem_fp, non_neutral_prob, false, false);
 }
 
 int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const bool only_positive_values = is_norm_alg(prb->alg);
-    return fill_mem(prb, mem_dt, mem_fp, 1.0f, false, only_positive_values);
+    return fill_mem(prb, mem_dt, mem_fp, 1.0f, true, only_positive_values);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
@@ -148,10 +180,9 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
-    // `5` is a temporary magic const for GPU to pass norm algs.
-    // TODO: consider change the filling with power-of-two values for better
-    // answer precision.
-    cmp.set_threshold(5 * epsilon_dt(prb->ddt));
+    // accounts for inaccurate rootn/pow functions in norm algs.
+    float scale = is_norm_alg(prb->alg) ? 5.0f : 1.0f;
+    cmp.set_threshold(scale * epsilon_dt(prb->ddt));
     if (is_amd_gpu()) {
         // MIOpen implementation is less accurate for f16 data type therefore
         // adjust the threshold.
@@ -166,6 +197,7 @@ int doit(const prb_t *prb, res_t *res) {
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (is_bench_mode(INIT)) return OK;
 
     auto const_pd = query_pd(prim);
 
@@ -186,7 +218,12 @@ int doit(const prb_t *prb, res_t *res) {
     if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
         SAFE(fill_dst(prb, dst_dt, dst_fp), WARN);
 
-    const bool binary_po_only_positive_vals = is_norm_alg(prb->alg);
+    const auto sdt = prb->sdt;
+    const auto ddt = prb->ddt;
+    // include ddt in is_signed to avoid mistrusted rounding negative -> 0
+    const bool is_signed = sdt != dnnl_u8 && ddt != dnnl_u8;
+    const bool binary_po_only_positive_vals
+            = is_norm_alg(prb->alg) || !is_signed;
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
     std::vector<int> binary_po_args;
     SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,

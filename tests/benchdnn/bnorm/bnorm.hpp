@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -132,6 +132,13 @@ struct prb_t : public desc_t {
         return flags & (FUSE_NORM_RELU | FUSE_NORM_ADD_RELU);
     }
     bool fuse_add_relu() const { return flags & FUSE_NORM_ADD_RELU; }
+
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
+        assert(!"No runtime dimensions support for this driver!");
+        return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
+    }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
@@ -175,18 +182,21 @@ inline size_t data_off(const prb_t *prb, int64_t mb, int64_t c, int64_t d,
     return (((mb * prb->ic + c) * prb->id + d) * prb->ih + h) * prb->iw + w;
 }
 
-int prepare_fwd(const prb_t *prb, dnn_mem_t &src, dnn_mem_t &src_add,
-        dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss, dnn_mem_t &sh);
+int prepare_fwd(const prb_t *prb, dnn_mem_t &src_dt, dnn_mem_t &src_add_dt,
+        dnn_mem_t &mean_dt, dnn_mem_t &var_dt, dnn_mem_t &sc_dt,
+        dnn_mem_t &sh_dt, const dnn_mem_t &src, const dnn_mem_t &src_add,
+        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &sc,
+        const dnn_mem_t &sh, res_t *res);
 int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp);
+
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
-
-void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
-        const args_t &ref_args);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);

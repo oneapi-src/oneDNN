@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,8 +32,14 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     int64_t outer_size {0}, inner_size {0}, axis_size {0};
     get_sizes(prb, outer_size, inner_size, axis_size);
 
-    assert(src_scale.nelems() == 1 && dst_scale.nelems() == 1);
-    const float output_scale = src_scale.get_elem(0) / dst_scale.get_elem(0);
+    const bool has_src_scale = !prb->attr.scales.get(DNNL_ARG_SRC).is_def();
+    const bool has_dst_scale = !prb->attr.scales.get(DNNL_ARG_DST).is_def();
+    assert(IMPLICATION(has_src_scale, src_scale.nelems() == 1));
+    assert(IMPLICATION(has_dst_scale, dst_scale.nelems() == 1));
+
+    const float src_scale_val = has_src_scale ? src_scale.get_elem(0) : 1.f;
+    const float dst_scale_val = has_dst_scale ? dst_scale.get_elem(0) : 1.f;
+    const float output_scale = src_scale_val / dst_scale_val;
 
     benchdnn_parallel_nd(outer_size, inner_size, [&](int64_t ou, int64_t in) {
         float space_denom = 0.;

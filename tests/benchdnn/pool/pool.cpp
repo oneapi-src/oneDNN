@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,7 +33,7 @@
 namespace pool {
 
 int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res) {
+        dnn_mem_t &mem_fp) {
     const int64_t MB {prb->mb};
     const int64_t IC {prb->ic};
     const int64_t D {kind == SRC ? prb->id : prb->od};
@@ -68,22 +68,14 @@ int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
-int fill_src(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    return fill_dat(prb, SRC, mem_dt, mem_fp, res);
-}
-
-int fill_dst(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    return fill_dat(prb, DST, mem_dt, mem_fp, res);
-}
-
 // fill ws with big numbers to reliably cause a correctness issue (and not
 // anything else) in case of a bug in the library
-int fill_ws(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    benchdnn_parallel_nd(mem_fp.nelems(),
-            [&](int64_t i) { mem_fp.set_elem(i, (1 << 24) - 1); });
+int fill_ws(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const size_t nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    benchdnn_parallel_nd(
+            nelems, [&](int64_t i) { mem_fp.set_elem(i, (1 << 24) - 1); });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
@@ -192,6 +184,7 @@ int doit(const prb_t *prb, res_t *res) {
                  is_service_prim),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (!is_service_prim && is_bench_mode(INIT)) return OK;
 
     auto const_fpd = query_pd(prim);
 
@@ -226,7 +219,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t d_src_dt, d_dst_dt;
 
-    SAFE(fill_src(prb, src_dt, src_fp, res), WARN);
+    SAFE(fill_dat(prb, SRC, src_dt, src_fp), WARN);
 
     args_t args, ref_args;
 
@@ -236,7 +229,7 @@ int doit(const prb_t *prb, res_t *res) {
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
     args.set(binary_po_args, binary_po_dt);
 
-    SAFE(execute_and_wait(prim, args, res), WARN);
+    if (!is_bench_mode(INIT)) SAFE(execute_and_wait(prim, args, res), WARN);
 
     // want this pass on backward to get ws_fp filled properly
     if (is_bench_mode(CORR)) {
@@ -254,6 +247,7 @@ int doit(const prb_t *prb, res_t *res) {
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
         SAFE(init_prim(tmp_prim, init_pd, prb, res, FLAG_BWD, const_fpd), WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+        if (is_bench_mode(INIT)) return OK;
         prim.reset(tmp_prim.release());
 
         auto const_bpd = query_pd(prim);
@@ -270,7 +264,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         scratchpad_dt = dnn_mem_t(d_scratchpad_md, test_engine);
 
-        SAFE(fill_dst(prb, d_dst_dt, d_dst_fp, res), WARN);
+        SAFE(fill_dat(prb, DST, d_dst_dt, d_dst_fp), WARN);
 
         args.clear();
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -293,12 +293,19 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
     scratchpad_t sp {};
     SAFE_V(init_scratchpad(prb, sp));
 
-    array_offset_calculator_t<float, 4> U(
-            sp._u_ptr, sp.alpha, sp.alpha, prb->oc, prb->ic);
-    array_offset_calculator_t<float, 6> V(sp._v_ptr, sp.alpha, sp.alpha,
-            prb->ic, prb->mb, sp.h_tiles, sp.w_tiles);
-    array_offset_calculator_t<float, 6> M(sp._m_ptr, sp.alpha, sp.alpha,
-            prb->oc, prb->mb, sp.h_tiles, sp.w_tiles);
+    const int64_t MB = prb->mb;
+    const int64_t G = prb->g;
+    const int64_t OC = prb->oc;
+    const int64_t IC = prb->ic;
+    const int64_t OCG = OC / G;
+    const int64_t ICG = IC / G;
+
+    array_offset_calculator_t<float, 5> U(
+            sp._u_ptr, sp.alpha, sp.alpha, G, OCG, ICG);
+    array_offset_calculator_t<float, 7> V(
+            sp._v_ptr, sp.alpha, sp.alpha, G, ICG, MB, sp.h_tiles, sp.w_tiles);
+    array_offset_calculator_t<float, 7> M(
+            sp._m_ptr, sp.alpha, sp.alpha, G, OCG, MB, sp.h_tiles, sp.w_tiles);
 
     SAFE_V(prb->kh == 3 ? OK : FAIL);
     SAFE_V(prb->kw == 3 ? OK : FAIL);
@@ -310,8 +317,8 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
     const int64_t hp_max = prb->ih + t_pad;
     const int64_t p_dim = prb->mb * sp.h_tiles * sp.w_tiles;
 
-    benchdnn_parallel_nd(prb->mb, prb->ic, sp.h_tiles, sp.w_tiles,
-            [&](int64_t img, int64_t c, int64_t hfm, int64_t wfm) {
+    benchdnn_parallel_nd(G, MB, ICG, sp.h_tiles, sp.w_tiles,
+            [&](int64_t g, int64_t img, int64_t c, int64_t hfm, int64_t wfm) {
                 float I[6][6] = {};
                 float _v[6][6] = {};
                 /* src_transform v <- B_t * d * B */
@@ -321,7 +328,7 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
                         for (int64_t k = 0; k < sp.alpha; k++) {
                             int64_t xdim = wfm * sp.out_dim + k;
                             if ((l_pad <= xdim) && (xdim < wp_max)) {
-                                size_t src_off = src_off_f(prb, img, 0, c, 0,
+                                size_t src_off = src_off_f(prb, img, g, c, 0,
                                         ydim - t_pad, xdim - l_pad);
                                 I[j][k] = ((float *)src_m)[src_off];
                             }
@@ -333,18 +340,18 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
                 /* scatter v:V */
                 for (int64_t j = 0; j < sp.alpha; j++) {
                     for (int64_t k = 0; k < sp.alpha; k++) {
-                        V(j, k, c, img, hfm, wfm) = _v[j][k];
+                        V(j, k, g, c, img, hfm, wfm) = _v[j][k];
                     }
                 }
             });
 
-    benchdnn_parallel_nd(prb->oc, prb->ic, [&](int64_t oc, int64_t ic) {
+    benchdnn_parallel_nd(G, OCG, ICG, [&](int64_t g, int64_t oc, int64_t ic) {
         float F[3][3] = {};
         float _u[6][6] = {};
         /* wei_transform u <- G * g * G_t */
         for_(int64_t j = 0; j < prb->kh; j++)
         for (int64_t i = 0; i < prb->kw; i++) {
-            size_t wei_off = wei_off_f(prb, 0, oc, ic, 0, j, i);
+            size_t wei_off = wei_off_f(prb, g, oc, ic, 0, j, i);
             F[j][i] = ((float *)wei_m)[wei_off];
         }
         trans_W_4x4_3x3(_u, F);
@@ -352,27 +359,28 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
         /* scatter u:U */
         for_(int64_t j = 0; j < sp.alpha; j++)
         for (int64_t k = 0; k < sp.alpha; k++) {
-            U(j, k, oc, ic) = _u[j][k];
+            U(j, k, g, oc, ic) = _u[j][k];
         }
     });
 
-    benchdnn_parallel_nd(sp.alpha, sp.alpha, [&](int64_t j, int64_t k) {
-        /* M = U * V */
-        gemm("C", "N", "N", prb->oc, p_dim, prb->ic, 1.0,
-                (float *)&(U(j, k, 0, 0)), prb->ic,
-                (float *)&(V(j, k, 0, 0, 0, 0)), p_dim, 1.0,
-                (float *)&(M(j, k, 0, 0, 0, 0)), p_dim);
-    });
+    benchdnn_parallel_nd(
+            sp.alpha, sp.alpha, G, [&](int64_t j, int64_t k, int64_t g) {
+                /* M = U * V */
+                gemm("C", "N", "N", OCG, p_dim, ICG, 1.0,
+                        (float *)&(U(j, k, g, 0, 0)), ICG,
+                        (float *)&(V(j, k, g, 0, 0, 0, 0)), p_dim, 1.0,
+                        (float *)&(M(j, k, g, 0, 0, 0, 0)), p_dim);
+            });
 
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
-    benchdnn_parallel_nd(prb->oc, prb->mb, sp.h_tiles, sp.w_tiles,
-            [&](int64_t oc, int64_t img, int64_t hfm, int64_t wfm) {
+    benchdnn_parallel_nd(G, MB, OCG, sp.h_tiles, sp.w_tiles,
+            [&](int64_t g, int64_t img, int64_t oc, int64_t hfm, int64_t wfm) {
                 float O[4][4] = {};
                 float _m[6][6] = {};
                 /* Y = A_t *m * A */
                 for_(int64_t j = 0; j < sp.alpha; j++)
                 for (int64_t k = 0; k < sp.alpha; k++) {
-                    _m[j][k] = M(j, k, oc, img, hfm, wfm);
+                    _m[j][k] = M(j, k, g, oc, img, hfm, wfm);
                 }
                 trans_O_4x4_3x3(_m, O);
 
@@ -386,10 +394,10 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
                         if (xdim >= prb->ow) continue;
 
                         const size_t dst_off
-                                = dst_off_f(prb, img, 0, oc, 0, ydim, xdim);
+                                = dst_off_f(prb, img, g, oc, 0, ydim, xdim);
                         float &dst = ((float *)dst_m)[dst_off];
 
-                        const size_t bia_off = bia_off_f(prb, 0, oc);
+                        const size_t bia_off = bia_off_f(prb, g, oc);
                         conv_res += with_bias ? ((float *)bia_m)[bia_off] : 0.f;
 
                         const auto v_po_vals = prepare_po_vals(

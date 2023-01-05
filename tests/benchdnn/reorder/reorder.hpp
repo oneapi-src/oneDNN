@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -127,6 +127,10 @@ struct prb_t : public prb_dims_t {
     float *generate_scales(int arg) const;
     dt_conf_t get_conf(data_kind_t kind) const;
 
+    // Used to construct memory desc when dimensions are runtime since such mds
+    // can't be used directly from query and memory objects can't be constructed.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const;
+
 private:
     void get_compensation_parameters(
             dims_t &comp_dims, int &mask, flag_bit_t flag) const;
@@ -175,13 +179,14 @@ private:
     std::string dtag_;
 };
 
+dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
+void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
+        const args_t &ref_args);
+
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
-
-void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
-        const args_t &ref_args);
 
 int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
@@ -191,7 +196,6 @@ int ref_reorder(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst,
         dnn_mem_t &s8_comp, dnn_mem_t &zp_comp);
 int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
         dnn_mem_t &mem_zp_comp_ref, dnn_mem_t &mem_got, res_t *res);
-dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 
 } // namespace reorder
 
