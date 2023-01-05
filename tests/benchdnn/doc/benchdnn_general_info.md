@@ -27,7 +27,7 @@ These tests target specific oneDNN features and are based on benchdnn
 configurable executions.
 
 The available tests can be found in the oneDNN directory:
-tests/benchdnn/inputs/<primitive_name>/test_<test-name>.
+tests/benchdnn/inputs/<driver>/<test-name>.
 
 ## Glossary
 
@@ -41,12 +41,13 @@ tests/benchdnn/inputs/<primitive_name>/test_<test-name>.
 
 ## Modes
 
-**benchdnn** supports several execution flows ("modes"). Driver takes the
+**benchdnn** supports several execution flows, or "modes". The driver takes the
 following steps to execute any flow:
 1. Parse user input.
 2. Iterate over multiple selected options for each problem descriptor and create
-   a driver problem object for each setup. Each setup continues doing next
-   steps.
+   a driver problem object (benchdnn internal abstraction) for each unique set
+   of all options available for the driver. Each problem object continues
+   performing the next steps.
 3. Call backend API to create backend objects to execute.
 4. Create memory objects for backend and reference paths and fill them with
    reasonable data.
@@ -66,22 +67,26 @@ following steps to execute any flow:
 9. Repeat steps 2-7 until all setups are validated.
 10. Report the summary and return the status.
 
-The following modes are supported:
-* Correctness mode: This is the default driver flow. It executes steps above
+Each mode is standalone since most of them include one another, unless specified
+otherwise. The following modes (`--mode`) are supported:
+* Listing (`L`). This flow executes steps 1-2. It allows to verify input
+  files by parsing syntax and check, if all problem repro lines are valid.
+* Initialization (`I`). This flow executes steps 1-3. It allows to verify
+  successful backend objects creation (especially large problems that take
+  excessive memory and/or time to execute).
+* Execution (`R`). This flow executes steps 1-5. It saves time from running
+  correctness when it is not needed.
+* Correctness (`C`). This is the default driver flow. It executes all steps,
   skipping step 7.
-* Performance mode: This flow executes steps above skipping step 6.
-* Correctness & performance mode: This flow executes all step above.
-* Run mode: This flow executes steps 1-5 above. It allows to save time from
-  running correctness when it is not needed. This mode is compatible with
-  correctness or performance mode, though it will no longer be a run mode, but
-  correctness or performance one.
-* Initialization mode: This flow executes steps 1-3 above. It allows to check
-  successful primitive creation for large problems that take excessive memory
-  and/or time to execute. This mode is standalone and is not compatible with
-  other modes.
-* Listing mode: This flow executes steps 1-2 above. It allows to validate input
-  files by parsing syntax and check if all problem repro lines are expected.
-  This mode is standalone and is not compatible with other modes.
+* Performance (`P`): This flow executes all steps, skipping step 6.
+* Correctness & performance (`CP`). This flow executes all steps above.
+
+## Mode modifiers
+
+Modes may have extensions to their default behavior. Those extensions may be
+enabled by special mode modifiers (`--mode-modifier`). They have limited scope
+and applicability. See details next to each modifier to know their limits.
+The following modifiers are supported:
 
 ## Problem Statuses
 

@@ -189,7 +189,7 @@ void record_queried_logical_tensors(
 }
 
 int doit(const prb_t *prb, res_t *res) {
-    if (bench_mode == LIST) return res->state = LISTED, OK;
+    if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
 
     skip_start(res);
     if (res->state == SKIPPED) return OK;
@@ -260,7 +260,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Mark partition outputs id to set as ANY layout. Used in perf mode only
     // to connect partitions in most optimized way avoiding extra reorder.
-    if (is_bench_mode(PERF)) {
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
         set_any_layout(partitions, id_to_set_any_layout);
     }
 
@@ -274,7 +274,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         // Update output logical tensors with ANY layout. See `set_any_layout`
         // comment above.
-        if (is_bench_mode(PERF)) {
+        if (has_bench_mode_bit(mode_bit_t::perf)) {
             update_tensors_with_any_layout(outputs, id_to_set_any_layout);
         }
 
@@ -285,7 +285,7 @@ int doit(const prb_t *prb, res_t *res) {
         record_queried_logical_tensors(
                 outputs, c_partitions[i], id_to_queried_logical_tensors);
     }
-    if (is_bench_mode(INIT)) return res->state = INITIALIZED, OK;
+    if (bench_mode == bench_mode_t::init) return res->state = INITIALIZED, OK;
 
     for (size_t i = 0; i < partitions.size(); ++i) {
         auto inputs = partitions[i].get_input_ports();
@@ -305,7 +305,7 @@ int doit(const prb_t *prb, res_t *res) {
         tensors_out.emplace_back(output_ts);
 
         ref_partition_t ref_partition;
-        if (is_bench_mode(CORR)) {
+        if (has_bench_mode_bit(mode_bit_t::corr)) {
             ref_partition = ref_partition_t(dg, partitions[i], inputs, outputs);
             ref_partition.run(input_ts, output_ts, res);
         }
@@ -315,12 +315,12 @@ int doit(const prb_t *prb, res_t *res) {
         strm.wait();
         if (res) res->state = EXECUTED;
 
-        if (is_bench_mode(CORR)) {
+        if (has_bench_mode_bit(mode_bit_t::corr)) {
             ref_partition.check_partition_correctness(res);
         }
     }
 
-    if (is_bench_mode(PERF)) {
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
         SAFE(measure_perf(res->timer_map.perf_timer(), c_partitions, tensors_in,
                      tensors_out, res),
                 WARN);

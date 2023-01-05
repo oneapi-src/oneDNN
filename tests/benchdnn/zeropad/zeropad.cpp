@@ -123,7 +123,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 }
 
 int doit(const prb_t *prb, res_t *res) {
-    if (bench_mode == LIST) return res->state = LISTED, OK;
+    if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
 
     skip_unimplemented_prb(prb, res);
     if (res->state == SKIPPED) return OK;
@@ -131,7 +131,7 @@ int doit(const prb_t *prb, res_t *res) {
     auto data_md = dnn_mem_t::init_md(
             prb->ndims, prb->dims.data(), prb->dt, prb->tag);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (is_bench_mode(INIT)) return res->state = INITIALIZED, OK;
+    if (bench_mode == bench_mode_t::init) return res->state = INITIALIZED, OK;
 
     SAFE(check_mem_size(data_md, res), WARN);
     if (res->state == SKIPPED) return OK;
@@ -146,8 +146,10 @@ int doit(const prb_t *prb, res_t *res) {
 
     execute_and_wait(perf_func_, test_engine, args, res);
 
-    if (is_bench_mode(CORR)) { SAFE(compare(test_mem, res), WARN); }
-    if (is_bench_mode(PERF)) {
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
+        SAFE(compare(test_mem, res), WARN);
+    }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
         // Get plain memory desc size to have a proper padded area size.
         auto plain_data_md = dnn_mem_t::init_md(
                 prb->ndims, prb->dims.data(), prb->dt, tag::abx);

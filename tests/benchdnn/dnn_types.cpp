@@ -790,16 +790,6 @@ std::ostream &operator<<(
 }
 #endif
 
-std::ostream &operator<<(std::ostream &s, bench_mode_t mode) {
-    if (is_bench_mode(RUN) && !(is_bench_mode(CORR) || is_bench_mode(PERF)))
-        s << "R";
-    if (is_bench_mode(CORR)) s << "C";
-    if (is_bench_mode(PERF)) s << "P";
-    if (is_bench_mode(LIST)) s << "L";
-    if (is_bench_mode(INIT)) s << "I";
-    return s;
-}
-
 std::ostream &operator<<(std::ostream &s, memory_kind_ext_t memory_kind) {
     switch (memory_kind) {
         case memory_kind_ext_t::usm: s << "usm"; break;
@@ -812,6 +802,12 @@ std::ostream &operator<<(std::ostream &s, memory_kind_ext_t memory_kind) {
 }
 
 std::ostream &dump_global_params(std::ostream &s) {
+    // Need to dump mode and modifiers in front of the driver name to make all
+    // updated default values take effect before parsing a state of a problem.
+    if (canonical || bench_mode != default_bench_mode)
+        s << "--mode=" << bench_mode << " ";
+    if (canonical || bench_mode_modifier != default_bench_mode_modifier)
+        s << "--mode-modifier=" << bench_mode_modifier << " ";
     if (canonical || max_ms_per_prb != default_max_ms_per_prb)
         s << "--max-ms-per-prb=" << max_ms_per_prb << " ";
     if (canonical || fix_times_per_prb != default_fix_times_per_prb)
@@ -833,7 +829,6 @@ std::ostream &dump_global_params(std::ostream &s) {
         s << "--allow-enum-tags-only=" << bool2str(allow_enum_tags_only) << " ";
     if (canonical || hints.get() != isa_hints_t::none)
         s << "--cpu-isa-hints=" << isa_hints_t::hints2str(hints) << " ";
-    if (canonical || bench_mode != CORR) s << "--mode=" << bench_mode << " ";
     if (canonical || attr_same_pd_check != false)
         s << "--attr-same-pd-check=" << bool2str(attr_same_pd_check) << " ";
 #if defined(DNNL_WITH_SYCL) || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL

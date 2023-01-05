@@ -531,7 +531,8 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
 
     auto pd = query_pd(primw);
     // Check memory requirements if only execution happens.
-    if (!is_bench_mode(INIT)) SAFE(check_mem_size(pd, res), WARN);
+    if (bench_mode != bench_mode_t::init) SAFE(check_mem_size(pd, res), WARN);
+
     if (res->state == SKIPPED) return OK;
 
     // Further checks are only for tested primitives.
@@ -545,7 +546,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     // Collect memory footprint (perf report) for a given primitive descriptor.
     SAFE(get_memory_footprint(pd, res), WARN);
 
-    if (is_bench_mode(CORR)) {
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
         // Check if adding attributes doesn't cause a fall back to another impl.
         SAFE(check_pd_w_and_wo_attr(
                      get_test_engine(), init_pd_func, prb, res, dir, hint),

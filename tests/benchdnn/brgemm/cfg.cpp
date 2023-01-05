@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,7 +42,8 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
 // Adjust density based on accumulation chain.
 float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
     float density = 1.f;
-    if (!is_bench_mode(CORR) || density_args.data_kind != SRC) return density;
+    if (!has_bench_mode_bit(mode_bit_t::corr) || density_args.data_kind != SRC)
+        return density;
 
     // Find the number of accumulators safe to use with the following equations:
     // Integer value can be expressed exactly with floating-point is

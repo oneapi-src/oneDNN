@@ -203,7 +203,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             } break;
         }
         // Don't keep reference memory if it is not used further.
-        if (!is_bench_mode(CORR)) ref_mem_map.clear();
+        if (!has_bench_mode_bit(mode_bit_t::corr)) ref_mem_map.clear();
     }
 
     // Drop destination memory for in-place case. `args` will take care of rest.
@@ -213,12 +213,12 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 }
 
 int doit(const prb_t *prb, res_t *res) {
-    if (bench_mode == LIST) return res->state = LISTED, OK;
+    if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (is_bench_mode(INIT)) return OK;
+    if (bench_mode == bench_mode_t::init) return OK;
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
@@ -229,7 +229,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
-    if (is_bench_mode(CORR)) {
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 

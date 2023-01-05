@@ -47,17 +47,6 @@
 #include <sys/mman.h>
 #endif
 
-bench_mode_t RUN {0x1}; // Run mode.
-bench_mode_t CORR {0x2}; // Correctness mode. The default one.
-bench_mode_t PERF {0x4}; // Performance mode. May be combined with CORR.
-bench_mode_t LIST {0x8}; // Listing mode. Standalone mode to only create prb.
-bench_mode_t INIT {
-        0x10}; // Initialization mode. Standalone mode to only create primitive.
-
-bool is_bench_mode(bench_mode_t user_mode) {
-    return !(bench_mode & user_mode).none();
-}
-
 /* result structure */
 const char *state2str(res_state_t state) {
     if (state == UNTESTED) return "UNTESTED_FAILED"; // for easier fail search
@@ -101,7 +90,7 @@ void parse_result(res_t &res, const char *pstr) {
             bs.failed++;
             break;
         case EXECUTED:
-            if (is_bench_mode(RUN))
+            if (bench_mode == bench_mode_t::exec)
                 BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             bs.passed++;
             break;
@@ -149,14 +138,14 @@ void parse_result(res_t &res, const char *pstr) {
     assert(bs.tests
             == bs.passed + bs.skipped + bs.mistrusted + bs.failed + bs.listed);
 
-    if (is_bench_mode(PERF)) {
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
         using bt = timer::timer_t;
         const auto &t = res.timer_map.perf_timer();
         for (int mode = 0; mode < (int)bt::n_modes; ++mode)
             bs.ms[mode] += t.ms((bt::mode_t)mode);
     }
 
-    if (is_bench_mode(CORR)) {
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
         using bt = timer::timer_t;
         const auto &t = res.timer_map.get_timer(timer::timer_t::ref_timer);
         bs.ms[bt::mode_t::sum] += t.sec(bt::mode_t::sum);
@@ -225,7 +214,7 @@ static void zfree_protect(void *ptr) {
 
 void *zmalloc(size_t size, size_t align) {
 #ifdef BENCHDNN_MEMORY_CHECK
-    if (is_bench_mode(CORR)) { return zmalloc_protect(size); }
+    if (has_bench_mode_bit(mode_bit_t::corr)) { return zmalloc_protect(size); }
 #endif
 
     void *ptr;
@@ -240,7 +229,7 @@ void *zmalloc(size_t size, size_t align) {
 
     // TODO. Heuristics: Increasing the size to alignment increases
     // the stability of performance results.
-    if (is_bench_mode(PERF) && (size < align)) size = align;
+    if (has_bench_mode_bit(mode_bit_t::perf) && (size < align)) size = align;
     int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
     return rc == 0 ? ptr : nullptr;
@@ -248,7 +237,7 @@ void *zmalloc(size_t size, size_t align) {
 
 void zfree(void *ptr) {
 #ifdef BENCHDNN_MEMORY_CHECK
-    if (is_bench_mode(CORR)) {
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
         zfree_protect(ptr);
         return;
     }

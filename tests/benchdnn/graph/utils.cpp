@@ -144,7 +144,7 @@ inline int measure_perf_individual(timer::timer_t &t, dnnl::stream &stream,
 int measure_perf(timer::timer_t &t, std::vector<perf_function_t> &perf_func_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &inputs_v,
         const std::vector<std::vector<dnnl::graph::tensor>> &outputs_v) {
-    if (is_bench_mode(PERF)) {
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
         dnnl::stream stream = get_test_stream();
         if (is_cpu() && !is_sycl_engine()) {
             return measure_perf_individual(
@@ -234,7 +234,7 @@ void test_sycl_free_wrapper(
 
 void *sycl_malloc_wrapper(
         size_t size, size_t alignment, const void *dev, const void *ctx) {
-    void *ptr = is_bench_mode(CORR) || is_cpu()
+    void *ptr = has_bench_mode_bit(mode_bit_t::corr) || is_cpu()
             ? test_sycl_malloc_wrapper(size, alignment, dev, ctx)
             : s_mm_mgr.sycl_alloc_mm(size, alignment, dev, ctx);
 
@@ -245,7 +245,7 @@ void *sycl_malloc_wrapper(
 // test finished.
 void sycl_free_wrapper(
         void *ptr, const void *device, const void *context, void *event) {
-    if (is_bench_mode(CORR) || is_cpu()) {
+    if (has_bench_mode_bit(mode_bit_t::corr) || is_cpu()) {
         test_sycl_free_wrapper(ptr, device, context, event);
     } else {
         s_mm_mgr.sycl_free_mm(ptr, device, context, event);

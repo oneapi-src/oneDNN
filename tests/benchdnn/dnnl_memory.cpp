@@ -372,7 +372,9 @@ dnn_mem_t dnn_mem_t::create_from_host_ptr(
 size_t dnn_mem_t::pad_memory_size(
         size_t sz, dnnl_engine_kind_t engine_kind, bool *was_padded) {
     if (was_padded) *was_padded = false;
-    if (sz == 0 || !is_bench_mode(CORR) || engine_kind == dnnl_cpu) return sz;
+    if (sz == 0 || !has_bench_mode_bit(mode_bit_t::corr)
+            || engine_kind == dnnl_cpu)
+        return sz;
 
     const int pad_size = 4096;
     if (was_padded) *was_padded = true;
@@ -383,7 +385,8 @@ dnnl_memory_desc_t dnn_mem_t::pad_memory_desc(const_dnnl_memory_desc_t md,
         dnnl_engine_kind_t engine_kind, bool *was_padded) {
     if (was_padded) *was_padded = false;
     size_t old_sz = dnnl_memory_desc_get_size(md);
-    if (old_sz == 0 || !is_bench_mode(CORR) || engine_kind == dnnl_cpu)
+    if (old_sz == 0 || !has_bench_mode_bit(mode_bit_t::corr)
+            || engine_kind == dnnl_cpu)
         return nullptr;
 
     size_t sz = pad_memory_size(old_sz, engine_kind, was_padded);

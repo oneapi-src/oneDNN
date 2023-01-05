@@ -279,7 +279,7 @@ dnnl_status_t brgemm_kernel_execute_postops_wrapper(
 }
 
 int doit(const prb_t *prb, res_t *res) {
-    if (bench_mode == LIST) return res->state = LISTED, OK;
+    if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
 
     skip_start(res);
     if (res->state == SKIPPED) return OK;
@@ -424,7 +424,7 @@ int doit(const prb_t *prb, res_t *res) {
                 prb->ndims, bia_dims, prb->bia_dt, tag::abx);
     }
 
-    if (is_bench_mode(INIT)) return res->state = INITIALIZED, OK;
+    if (bench_mode == bench_mode_t::init) return res->state = INITIALIZED, OK;
 
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
@@ -587,7 +587,7 @@ int doit(const prb_t *prb, res_t *res) {
             scratchpad_ptr);
     if (res) res->state = EXECUTED;
 
-    if (is_bench_mode(CORR)) {
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
         ref_args.set(DNNL_ARG_SRC, src_fp);
         ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
         if (prb->bia_dt != dnnl_data_type_undef)

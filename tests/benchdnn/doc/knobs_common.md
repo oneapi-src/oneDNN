@@ -61,6 +61,11 @@ The following common options are supported:
     - `L` or `l` for listing mode.
   Refer to [modes](benchdnn_general_info.md) for details.
 
+* `--mode-modifier=MODIFIER` -- Specifies a mode modifier to update the mode
+  used for benchmarking. `MODIFIER` values can be:
+    - empty for no modifiers (the default).
+  Refer to [mode modifiers](benchdnn_general_info.md) for details.
+
 * `--reset` -- Instructs the driver to reset DRIVER-OPTIONS (not
   COMMON-OPTIONS!) to their default values. The only exception is
   `--perf-template` option which will not be reset.

@@ -488,28 +488,29 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
 
 int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
         args_t &args) {
+    if (!has_bench_mode_bit(mode_bit_t::perf)) return OK;
+
+    const auto &engine = get_test_engine();
+    stream_t stream(engine, ctx.get_interop_obj());
+    std::vector<dnnl_exec_arg_t> dnnl_args;
+    execute_unmap_args(args, dnnl_args);
+
+    auto &t = res->timer_map.perf_timer();
+    // For non-DPCPP CPU: measure individual iterations.
+    // For DPCPP CPU and GPU: measure iterations in batches to hide driver
+    // overhead. DPCPP CPU follows the model of GPU, thus, handled similar.
     int ret = OK;
-    if (is_bench_mode(PERF)) {
-        const auto &engine = get_test_engine();
-        stream_t stream(engine, ctx.get_interop_obj());
-        std::vector<dnnl_exec_arg_t> dnnl_args;
-        execute_unmap_args(args, dnnl_args);
-
-        auto &t = res->timer_map.perf_timer();
-        // For non-DPCPP CPU: measure individual iterations.
-        // For DPCPP CPU and GPU: measure iterations in batches to hide driver
-        // overhead. DPCPP CPU follows the model of GPU, thus, handled similar.
-        if (is_cpu() && !is_sycl_engine(engine)) {
-            ret = execute_in_thr_ctx(ctx, measure_perf_individual, t, stream,
-                    perf_func, dnnl_args);
-        } else {
-            ret = execute_in_thr_ctx(ctx, measure_perf_aggregate, t, stream,
-                    perf_func, dnnl_args);
-        }
-
-        if (ret != OK) res->state = FAILED;
-        execute_map_args(args);
+    if (is_cpu() && !is_sycl_engine(engine)) {
+        ret = execute_in_thr_ctx(
+                ctx, measure_perf_individual, t, stream, perf_func, dnnl_args);
+    } else {
+        ret = execute_in_thr_ctx(
+                ctx, measure_perf_aggregate, t, stream, perf_func, dnnl_args);
     }
+
+    if (ret != OK) res->state = FAILED;
+    execute_map_args(args);
+
     return ret;
 }
 

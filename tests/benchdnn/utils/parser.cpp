@@ -633,60 +633,87 @@ static bool parse_mode(
             = "MODE    (Default: `C`)\n"
               "    Specifies a `MODE` for benchmarking.\n"
               "    `MODE` values are:\n"
+              "    * `L` for listing mode.\n"
+              "    * `I` for initialization mode.\n"
+              "    * `R` for execution mode (no correctness validation).\n"
               "    * `C` for correctness testing.\n"
               "    * `P` for performance testing.\n"
               "    * `CP` for both correctness and performance testing.\n"
-              "    * `R` for run mode or no correctness validation.\n"
-              "    * `I` for initialization mode.\n"
-              "    * `L` for listing mode.\n"
               "    More details at "
             + doc_url + "benchdnn_general_info.md\n";
 
     const auto str2bench_mode = [](const std::string &_str) {
-        bench_mode_t mode;
-        for (size_t i = 0; i < _str.size(); i++) {
-            switch (_str[i]) {
-                case 'r':
-                case 'R': mode |= RUN; break;
-                case 'c':
-                case 'C': mode |= CORR; break;
-                case 'p':
-                case 'P': mode |= PERF; break;
-                case 'l':
-                case 'L': mode |= LIST; break;
-                case 'i':
-                case 'I': mode |= INIT; break;
-                default: {
-                    fprintf(stderr,
-                            "ERROR: Unsupported character for `--mode` "
-                            "option: `%c`.\n",
-                            _str[i]);
-                    exit(2);
+        bench_mode_t mode = default_bench_mode;
+        if (_str.size() > 2) {
+            BENCHDNN_PRINT(
+                    0, "%s\n%s", "Error: mode value is invalid.", help.c_str());
+            exit(2);
+        } else if (_str.size() == 2) {
+            for (size_t i = 0; i < _str.size(); i++) {
+                switch (_str[i]) {
+                    case 'c':
+                    case 'C':
+                    case 'p':
+                    case 'P': break;
+                    default:
+                        BENCHDNN_PRINT(0, "%s\n%s",
+                                "Error: mode value is invalid.", help.c_str());
+                        exit(2);
                 }
             }
-        }
-        if (!(mode & LIST).none() && mode.count() > 1) {
-            fprintf(stderr,
-                    "ERROR: LIST mode is incompatible with any other modes. "
-                    "Please use just `--mode=L` instead.\n");
-            exit(2);
-        }
-        if (!(mode & INIT).none() && mode.count() > 1) {
-            fprintf(stderr,
-                    "ERROR: INIT mode is incompatible with any other modes. "
-                    "Please use just `--mode=I` instead.\n");
-            exit(2);
-        }
-        if (mode.none()) {
-            fprintf(stderr, "ERROR: empty mode is not allowed.\n");
-            exit(2);
+            mode = bench_mode_t::corr_perf;
+        } else if (_str.size() == 1) {
+            switch (_str[0]) {
+                case 'l':
+                case 'L': mode = bench_mode_t::list; break;
+                case 'i':
+                case 'I': mode = bench_mode_t::init; break;
+                case 'r':
+                case 'R': mode = bench_mode_t::exec; break;
+                case 'c':
+                case 'C': mode = bench_mode_t::corr; break;
+                case 'p':
+                case 'P': mode = bench_mode_t::perf; break;
+                default:
+                    BENCHDNN_PRINT(0, "%s\n%s", "Error: mode value is invalid.",
+                            help.c_str());
+                    exit(2);
+            }
         }
 
         return mode;
     };
 
-    return parse_single_value_option(
-            bench_mode, CORR, str2bench_mode, str, option_name, help);
+    return parse_single_value_option(bench_mode, default_bench_mode,
+            str2bench_mode, str, option_name, help);
+}
+
+static bool parse_mode_modifier(
+        const char *str, const std::string &option_name = "mode-modifier") {
+    static const std::string help
+            = "MODIFIER    (Default: empty)\n"
+              "    Specifies a `MODIFIER` for selected benchmarking mode.\n"
+              "    `MODIFIER` values are:\n"
+              "    More details at "
+            + doc_url + "benchdnn_general_info.md\n";
+
+    const auto str2mode_modifier = [](const std::string &_str) {
+        mode_modifier_t modifier = default_bench_mode_modifier;
+        for (auto s : _str) {
+            switch (s) {
+                default:
+                    BENCHDNN_PRINT(0, "%s\n%s",
+                            "Error: modifier value is invalid.", help.c_str());
+                    exit(2);
+            }
+        }
+
+        return modifier;
+    };
+
+    return parse_single_value_option(bench_mode_modifier,
+            default_bench_mode_modifier, str2mode_modifier, str, option_name,
+            help);
 }
 
 static bool parse_skip_impl(
@@ -761,7 +788,8 @@ bool parse_bench_settings(const char *str) {
             || parse_cpu_isa_hints(str) || parse_engine(str)
             || parse_fast_ref_gpu(str) || parse_fix_times_per_prb(str)
             || parse_max_ms_per_prb(str) || parse_mem_check(str)
-            || parse_memory_kind(str) || parse_mode(str) || parse_skip_impl(str)
+            || parse_memory_kind(str) || parse_mode(str)
+            || parse_mode_modifier(str) || parse_skip_impl(str)
             || parse_start(str) || parse_verbose(str);
 
     // Last condition makes this help message to be triggered once driver_name

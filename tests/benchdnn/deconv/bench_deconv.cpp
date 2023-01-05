@@ -53,7 +53,7 @@ void check_correctness(const settings_t &s) {
 
         parse_result(res, prb.str());
 
-        if (is_bench_mode(PERF)) {
+        if (has_bench_mode_bit(mode_bit_t::perf)) {
             perf_report_t pr(&prb, s.perf_template);
             pr.report(&res, prb.str());
         }

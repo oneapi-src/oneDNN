@@ -139,27 +139,27 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
         switch (exec_arg) {
             case DNNL_ARG_SRC:
                 SAFE(fill_src(prb0, mem, ref_mem, res), WARN);
-                if (is_bench_mode(CORR))
+                if (has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                 break;
             case DNNL_ARG_WEIGHTS:
                 SAFE(fill_wei(prb0, mem, ref_mem, res), WARN);
-                if (is_bench_mode(CORR))
+                if (has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                 break;
             case DNNL_ARG_BIAS:
                 SAFE(fill_bia(prb0, mem, ref_mem, res), WARN);
-                if (ref_mem.ndims() > 0 && is_bench_mode(CORR))
+                if (ref_mem.ndims() > 0 && has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                 break;
             case (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS):
                 SAFE(fill_wei(prb1, mem, ref_mem, res), WARN);
-                if (is_bench_mode(CORR))
+                if (has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map1.at(DNNL_ARG_WEIGHTS).reorder(ref_mem), WARN);
                 break;
             case (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS):
                 SAFE(fill_bia(prb1, mem, ref_mem, res), WARN);
-                if (ref_mem.ndims() > 0 && is_bench_mode(CORR))
+                if (ref_mem.ndims() > 0 && has_bench_mode_bit(mode_bit_t::corr))
                     SAFE(mem_map1.at(DNNL_ARG_BIAS).reorder(ref_mem), WARN);
                 break;
             default: { // Process all attributes here
@@ -241,7 +241,7 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
     }
 
     // Don't keep reference memory if it is not used further.
-    if (!is_bench_mode(CORR)) {
+    if (!has_bench_mode_bit(mode_bit_t::corr)) {
         mem_map0.clear();
         mem_map1.clear();
     }
@@ -250,13 +250,13 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
 }
 
 int doit(const prb_t *prb, res_t *res) {
-    if (bench_mode == LIST) return res->state = LISTED, OK;
+    if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
 
     // Original problem with fusion attributes
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, conv::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (is_bench_mode(INIT)) return OK;
+    if (bench_mode == bench_mode_t::init) return OK;
 
     dnn_mem_map_t mem_map;
     init_memory_args<prb_t>(
@@ -300,7 +300,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (prb->dir & FLAG_FWD) {
         SAFE(execute_and_wait(prim, args, res), WARN);
 
-        if (is_bench_mode(CORR)) {
+        if (has_bench_mode_bit(mode_bit_t::corr)) {
             SAFE(execute_and_wait(prim0, args0), WARN);
             SAFE(mem_map1.at(DNNL_ARG_SRC).reorder(mem_map0.at(DNNL_ARG_DST)),
                     WARN);

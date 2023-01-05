@@ -548,7 +548,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     }
 
     // Don't keep reference memory if it is not used further.
-    if (!is_bench_mode(CORR)) {
+    if (!has_bench_mode_bit(mode_bit_t::corr)) {
         ref_mem_map.clear();
         return OK;
     }
@@ -571,7 +571,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 }
 
 int doit(const prb_t *prb, res_t *res) {
-    if (bench_mode == LIST) return res->state = LISTED, OK;
+    if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     bool is_service_prim = prb->dir & FLAG_BWD;
@@ -579,7 +579,7 @@ int doit(const prb_t *prb, res_t *res) {
                  is_service_prim),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (!is_service_prim && is_bench_mode(INIT)) return OK;
+    if (!is_service_prim && bench_mode == bench_mode_t::init) return OK;
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(FLAG_FWD));
@@ -588,11 +588,12 @@ int doit(const prb_t *prb, res_t *res) {
 
     args_t args(mem_map), ref_args(ref_mem_map);
 
-    if (!is_bench_mode(INIT)) SAFE(execute_and_wait(prim, args, res), WARN);
+    if (bench_mode != bench_mode_t::init)
+        SAFE(execute_and_wait(prim, args, res), WARN);
 
     // Running ref to collect src_hat (used instead of src + mean) and ws, if
     // fuse_relu flag is requested.
-    if (is_bench_mode(CORR)) {
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
         if (prb->dir & FLAG_FWD) {
             std::vector<data_kind_t> kinds {DST};
             if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
@@ -612,7 +613,7 @@ int doit(const prb_t *prb, res_t *res) {
                      query_pd(prim)),
                 WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-        if (is_bench_mode(INIT)) return OK;
+        if (bench_mode == bench_mode_t::init) return OK;
         prim.reset(tmp_prim.release());
 
         // Pass same memory map as we need data from forward on backward.
@@ -627,7 +628,7 @@ int doit(const prb_t *prb, res_t *res) {
 
         SAFE(execute_and_wait(prim, args, res), WARN);
 
-        if (is_bench_mode(CORR)) {
+        if (has_bench_mode_bit(mode_bit_t::corr)) {
             std::vector<data_kind_t> kinds {SRC};
             if (prb->use_sc() && (prb->dir & FLAG_WEI)) kinds.push_back(SC);
             if (prb->use_sh() && (prb->dir & FLAG_WEI)) kinds.push_back(SH);

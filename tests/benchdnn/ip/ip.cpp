@@ -89,7 +89,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
 int init_prim_ref(
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref, const prb_t *prb) {
-    if (!(is_bench_mode(CORR) && is_gpu() && fast_ref_gpu)) return OK;
+    if (!(has_bench_mode_bit(mode_bit_t::corr) && is_gpu() && fast_ref_gpu))
+        return OK;
 
     // Create a new copy of prb to avoid potentially corrupting the test by
     // modifying prb in place.
@@ -126,7 +127,9 @@ int fill_src(
     const auto &c = prb->get_dt_conf(SRC);
     const int range = c.f_max - c.f_min + 1;
     const float sparsity
-            = (!is_bench_mode(CORR) || prb->ic < 5) ? 1.f : c.f_sparsity;
+            = (!has_bench_mode_bit(mode_bit_t::corr) || prb->ic < 5)
+            ? 1.f
+            : c.f_sparsity;
 
     benchdnn_parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
@@ -152,7 +155,9 @@ int fill_wei(
     const auto &c = prb->get_dt_conf(WEI);
     const int range = c.f_max - c.f_min + 1;
     const float sparsity
-            = (!is_bench_mode(CORR) || prb->ic < 5) ? 1.f : c.f_sparsity;
+            = (!has_bench_mode_bit(mode_bit_t::corr) || prb->ic < 5)
+            ? 1.f
+            : c.f_sparsity;
 
     benchdnn_parallel_nd(prb->oc, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t oc, int64_t ic, int64_t kd, int64_t kh, int64_t kw) {
@@ -343,7 +348,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             } break;
         }
         // Don't keep reference memory if it is not used further.
-        if (!is_bench_mode(CORR)) ref_mem_map.clear();
+        if (!has_bench_mode_bit(mode_bit_t::corr)) ref_mem_map.clear();
     }
 
     return OK;
@@ -366,12 +371,12 @@ std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
 }
 
 int doit(const prb_t *prb, res_t *res) {
-    if (bench_mode == LIST) return res->state = LISTED, OK;
+    if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
     SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (is_bench_mode(INIT)) return OK;
+    if (bench_mode == bench_mode_t::init) return OK;
 
     // Use CPU prim as the reference in GPU testing to reduce testing time.
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim_ref;
@@ -387,7 +392,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
-    if (is_bench_mode(CORR)) {
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
         check_correctness(prb, get_kinds_to_check(prb), args, ref_args,
                 setup_cmp, res, prim_ref);
     }

@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <bitset>
 #include <cinttypes>
 #include <functional>
 #include <string>
@@ -33,6 +32,7 @@
 
 #include "src/common/z_magic.hpp"
 
+#include "utils/bench_mode.hpp"
 #include "utils/timer.hpp"
 
 #define ABS(a) ((a) > 0 ? (a) : (-(a)))
@@ -107,12 +107,6 @@ extern std::string driver_name;
 #define BENCHDNN_DISALLOW_COPY_AND_ASSIGN(T) \
     T(const T &) = delete; \
     T &operator=(const T &) = delete;
-
-using bench_mode_t = std::bitset<8>;
-extern bench_mode_t RUN, CORR, PERF, LIST, INIT; // pre-defined modes
-extern bench_mode_t bench_mode; // user mode
-
-bool is_bench_mode(bench_mode_t user_mode);
 
 /* perf */
 extern double max_ms_per_prb; // max time spend per prb in ms

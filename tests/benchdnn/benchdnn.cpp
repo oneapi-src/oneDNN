@@ -58,7 +58,6 @@ int verbose {0};
 bool canonical {false};
 bool mem_check {true};
 std::string skip_impl;
-bench_mode_t bench_mode {CORR};
 stat_t benchdnn_stat {0};
 std::string driver_name;
 
@@ -150,12 +149,12 @@ int main(int argc, char **argv) {
             benchdnn_stat.mistrusted, benchdnn_stat.unimplemented,
             benchdnn_stat.invalid_arguments, benchdnn_stat.failed,
             benchdnn_stat.listed);
-    if (is_bench_mode(PERF)) {
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
         printf("total perf: min(ms):%g avg(ms):%g\n",
                 benchdnn_stat.ms[timer::timer_t::min],
                 benchdnn_stat.ms[timer::timer_t::avg]);
     }
-    if (is_bench_mode(CORR)) {
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
         const auto compute_ref_time_s = benchdnn_stat.ms[timer::timer_t::sum];
         printf("total compute_ref: sum(s):%.2f\n", compute_ref_time_s);
     }
