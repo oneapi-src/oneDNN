@@ -1797,7 +1797,8 @@ struct op_traits_t<op_kind_t::_div> {
 
 template <>
 struct op_traits_t<op_kind_t::_mod> {
-    template <typename T>
+    template <typename T,
+            typename = typename std::enable_if<is_int_t<T>::value>::type>
     static auto compute(T a, T b) -> decltype(a % b) {
         ir_assert(b > 0);
         int r = a % b;
