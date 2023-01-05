@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2108,6 +2108,29 @@ struct helper_bcast_tail_t<avx2, Vmm> {
     }
 };
 
+template <typename Vmm>
+struct helper_bcast_tail_t<avx2_vnni_2, Vmm> {
+    static void execute_broadcast_tail_statically(jit_generator *host,
+            const size_t tail_size, const data_type_t &data_type,
+            const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr) {
+        if (utils::one_of(data_type, data_type::bf16, data_type::f16)) {
+            const auto tmp_lower_vmm =
+                    typename vreg_traits<Vmm>::Vmm_lower_t(tmp_vmm.getIdx());
+            host->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
+            host->load_bytes(
+                    tmp_lower_vmm, rhs_addr, tail_size * sizeof(bfloat16_t));
+            if (data_type == data_type::bf16) {
+                host->vpmovzxwd(tmp_vmm, tmp_lower_vmm);
+                host->vpslld(tmp_vmm, tmp_vmm, 16);
+            } else // f16
+                host->vcvtph2ps(tmp_vmm, tmp_lower_vmm);
+        } else {
+            helper_bcast_tail_t<avx2, Vmm>::execute_broadcast_tail_statically(
+                    host, tail_size, data_type, tmp_vmm, rhs_addr);
+        }
+    }
+};
+
 template <cpu_isa_t isa, typename Vmm>
 void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_statically(
         const data_type_t &data_type, const Vmm &tmp_vmm,
@@ -2121,20 +2144,9 @@ void jit_uni_binary_injector_t<avx2_vnni_2,
                                                                &data_type,
         const Xbyak::Ymm &tmp_vmm, const Xbyak::Address &rhs_addr,
         const std::size_t tail_size) const {
-    if (utils::one_of(data_type, data_type::bf16, data_type::f16)) {
-        const auto tmp_xmm = Xbyak::Xmm(tmp_vmm.getIdx());
-        host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
-        host_->load_bytes(tmp_xmm, rhs_addr, tail_size * sizeof(bfloat16_t));
-        if (data_type == data_type::bf16) {
-            host_->vpmovzxwd(tmp_vmm, tmp_xmm);
-            host_->vpslld(tmp_vmm, tmp_vmm, 16);
-        } else // f16
-            host_->vcvtph2ps(tmp_vmm, tmp_xmm);
-    } else {
-        helper_bcast_tail_t<avx2,
-                Xbyak::Ymm>::execute_broadcast_tail_statically(host_, tail_size,
-                data_type, tmp_vmm, rhs_addr);
-    }
+    helper_bcast_tail_t<avx2_vnni_2,
+            Xbyak::Ymm>::execute_broadcast_tail_statically(host_, tail_size,
+            data_type, tmp_vmm, rhs_addr);
 }
 
 template <>
@@ -2143,20 +2155,9 @@ void jit_uni_binary_injector_t<avx2_vnni_2,
                                                                &data_type,
         const Xbyak::Xmm &tmp_vmm, const Xbyak::Address &rhs_addr,
         const std::size_t tail_size) const {
-    if (utils::one_of(data_type, data_type::bf16, data_type::f16)) {
-        const auto tmp_xmm = Xbyak::Xmm(tmp_vmm.getIdx());
-        host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
-        host_->load_bytes(tmp_xmm, rhs_addr, tail_size * sizeof(bfloat16_t));
-        if (data_type == data_type::bf16) {
-            host_->vpmovzxwd(tmp_vmm, tmp_xmm);
-            host_->vpslld(tmp_vmm, tmp_vmm, 16);
-        } else // f16
-            host_->vcvtph2ps(tmp_vmm, tmp_xmm);
-    } else {
-        helper_bcast_tail_t<avx2,
-                Xbyak::Xmm>::execute_broadcast_tail_statically(host_, tail_size,
-                data_type, tmp_vmm, rhs_addr);
-    }
+    helper_bcast_tail_t<avx2_vnni_2,
+            Xbyak::Xmm>::execute_broadcast_tail_statically(host_, tail_size,
+            data_type, tmp_vmm, rhs_addr);
 }
 
 template <>
@@ -2442,6 +2443,29 @@ struct helper_load_tail_t<avx2, Vmm> {
     }
 };
 
+template <typename Vmm>
+struct helper_load_tail_t<avx2_vnni_2, Vmm> {
+    static void load_rhs_tail_statically(jit_generator *host,
+            const size_t tail_size, const Xbyak::Reg64 &rhs_addr_reg,
+            const data_type_t &data_type, const Vmm &tmp_vmm,
+            const Xbyak::Address &rhs_addr) {
+        if (utils::one_of(data_type, data_type::bf16, data_type::f16)) {
+            const auto tmp_lower_vmm =
+                    typename vreg_traits<Vmm>::Vmm_lower_t(tmp_vmm.getIdx());
+            host->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
+            host->load_bytes(tmp_lower_vmm, rhs_addr_reg, 0,
+                    tail_size * sizeof(bfloat16_t));
+            if (data_type == data_type::bf16) {
+                host->vpmovzxwd(tmp_vmm, tmp_lower_vmm);
+                host->vpslld(tmp_vmm, tmp_vmm, 16);
+            } else //f16
+                host->vcvtph2ps(tmp_vmm, tmp_lower_vmm);
+        } else
+            helper_load_tail_t<avx2, Vmm>::load_rhs_tail_statically(host,
+                    tail_size, rhs_addr_reg, data_type, tmp_vmm, rhs_addr);
+    }
+};
+
 template <>
 void jit_uni_binary_injector_t<avx2, Xbyak::Ymm>::load_rhs_tail_statically(
         const data_type_t &data_type, const Xbyak::Ymm &tmp_vmm,
@@ -2470,21 +2494,8 @@ void jit_uni_binary_injector_t<avx2_vnni_2,
         const Xbyak::Ymm &tmp_vmm, const Xbyak::Address &rhs_addr) const {
     const auto &tail_size = rhs_arg_static_params_.tail_size;
     const auto &rhs_addr_reg = rhs_arg_static_params_.rhs_addr_reg;
-    const Xbyak::Xmm tmp_xmm = Xbyak::Xmm(tmp_vmm.getIdx());
-
-    if (utils::one_of(data_type, data_type::bf16, data_type::f16)) {
-        host_->uni_vxorps(tmp_xmm, tmp_xmm, tmp_xmm);
-        host_->load_bytes(
-                tmp_xmm, rhs_addr_reg, 0, tail_size * sizeof(bfloat16_t));
-        if (data_type == data_type::bf16) {
-            host_->vpmovzxwd(tmp_vmm, tmp_xmm);
-            host_->vpslld(tmp_vmm, tmp_vmm, 16);
-        } else //f16
-            host_->vcvtph2ps(tmp_vmm, tmp_xmm);
-    } else {
-        helper_load_tail_t<avx2, Xbyak::Ymm>::load_rhs_tail_statically(
-                host_, tail_size, rhs_addr_reg, data_type, tmp_vmm, rhs_addr);
-    }
+    helper_load_tail_t<avx2_vnni_2, Xbyak::Ymm>::load_rhs_tail_statically(
+            host_, tail_size, rhs_addr_reg, data_type, tmp_vmm, rhs_addr);
 }
 
 template <>
@@ -2493,21 +2504,8 @@ void jit_uni_binary_injector_t<avx2_vnni_2,
         const Xbyak::Xmm &tmp_vmm, const Xbyak::Address &rhs_addr) const {
     const auto &tail_size = rhs_arg_static_params_.tail_size;
     const auto &rhs_addr_reg = rhs_arg_static_params_.rhs_addr_reg;
-    const Xbyak::Xmm tmp_xmm = Xbyak::Xmm(tmp_vmm.getIdx());
-
-    if (utils::one_of(data_type, data_type::bf16, data_type::f16)) {
-        host_->uni_vxorps(tmp_xmm, tmp_xmm, tmp_xmm);
-        host_->load_bytes(
-                tmp_xmm, rhs_addr_reg, 0, tail_size * sizeof(bfloat16_t));
-        if (data_type == data_type::bf16) {
-            host_->vpmovzxwd(tmp_vmm, tmp_xmm);
-            host_->vpslld(tmp_vmm, tmp_vmm, 16);
-        } else //f16
-            host_->vcvtph2ps(tmp_vmm, tmp_xmm);
-    } else {
-        helper_load_tail_t<avx2, Xbyak::Xmm>::load_rhs_tail_statically(
-                host_, tail_size, rhs_addr_reg, data_type, tmp_vmm, rhs_addr);
-    }
+    helper_load_tail_t<avx2_vnni_2, Xbyak::Xmm>::load_rhs_tail_statically(
+            host_, tail_size, rhs_addr_reg, data_type, tmp_vmm, rhs_addr);
 }
 
 template <>
