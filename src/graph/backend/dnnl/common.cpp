@@ -437,13 +437,26 @@ memory::desc to_ncx_format(const memory::desc &adesc) {
             get_ncx_format(adesc.get_ndims()));
 }
 
+inline bool maybe_reorder_value(const value_t *val) {
+    for (const auto &consumer : val->get_consumers()) {
+        if (consumer.get_op().get_kind() == graph::op_kind::Reorder) {
+            return true;
+        }
+    }
+    bool is_out_value = val->has_producer()
+            && val->get_producer().get_kind() == graph::op_kind::Reorder;
+    return is_out_value;
+}
+
 void set_all_layout_to_any(std::vector<std::shared_ptr<op_t>> &subgraph) {
     for (auto &cur_op : subgraph) {
         for (const auto &val : cur_op->get_input_values()) {
+            if (maybe_reorder_value(val.get())) continue;
             val->set_layout_type(layout_type::any);
         }
 
         for (const auto &val : cur_op->get_output_values()) {
+            if (maybe_reorder_value(val.get())) continue;
             val->set_layout_type(layout_type::any);
         }
     }

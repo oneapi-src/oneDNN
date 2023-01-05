@@ -569,6 +569,27 @@ bool with_runtime_scales(const op_ptr &op, const fusion_info_mgr_t &mgr,
     }
 }
 
+bool is_layout_reorder(const op_t *op) {
+    bool is_layout_reorder = op->get_kind() == dnnl_impl::op_kind::dnnl_reorder
+            && op->get_attr<bool>(op_attr::change_layout)
+            && (!op->has_attr(op_attr::qtype)
+                    || op->get_attr<std::string>(op_attr::qtype)
+                            == "per_tensor")
+            && (!op->has_attr(op_attr::axis)
+                    || op->get_attr<int64_t>(op_attr::axis) == -1)
+            && !op->has_attr(op_attr::scales) && !op->has_attr(op_attr::src_zps)
+            && !op->has_attr(op_attr::dst_zps)
+            && (!op->has_attr(op_attr::with_runtime_scales)
+                    || !op->get_attr<bool>(op_attr::with_runtime_scales))
+            && (!op->has_attr(op_attr::with_runtime_src_zps)
+                    || !op->get_attr<bool>(op_attr::with_runtime_src_zps))
+            && (!op->has_attr(op_attr::with_runtime_dst_zps)
+                    || !op->get_attr<bool>(op_attr::with_runtime_dst_zps))
+            && op->get_input_value(0)->get_logical_tensor().data_type
+                    == op->get_output_value(0)->get_logical_tensor().data_type;
+    return is_layout_reorder;
+}
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl
