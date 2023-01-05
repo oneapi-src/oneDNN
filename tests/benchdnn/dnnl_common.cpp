@@ -486,7 +486,8 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
             ret = execute_in_thr_ctx(ctx, measure_perf_aggregate, t, stream,
                     perf_func, dnnl_args);
 
-        if (ret == OK) execute_map_args(args);
+        if (ret != OK) res->state = FAILED;
+        execute_map_args(args);
     }
     return ret;
 }
