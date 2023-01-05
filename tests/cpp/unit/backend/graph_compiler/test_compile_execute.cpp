@@ -671,6 +671,20 @@ TEST(GCGraphTest, INT8MLPDynamicGraphCompileExecution) {
             3);
 }
 
+TEST(GCGraphTest, INT8BF16MLPDynamicGraphCompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_int8_mlp_subgraph(
+            &agraph, {-2, 384}, 1, {1024, 1024}, {impl::op_kind::ReLU}, true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_mlp_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {1, 64, 128}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
+}
+
 TEST(GCGraphTest, BF16MLPDynamicGraphCompileExecution) {
     REQUIRE_BF16_AMXBF16();
     impl::graph_t agraph;

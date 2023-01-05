@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #define BACKEND_GRAPH_COMPILER_PATTERNS_MLP_PATTERN_HPP
 
 #include <memory>
+#include <utility>
 
 #include "backend/graph_compiler/patterns/fusions.hpp"
 
@@ -31,6 +32,72 @@ using FCreatePattern = impl::pass::FCreatePattern;
 
 #define MLP_NUM_LAYER_LOWER_BOUND 2
 #define MLP_NUM_LAYER_UPPER_BOUND 11
+
+std::pair<pm::pb_node_t *, pm::pb_node_t *> single_layer_mlp(
+        const std::shared_ptr<pb_graph_t> &pgraph, bool is_bf16 = false,
+        bool is_int8 = false) {
+    pm::pb_node_t *layer_input, *layer_output;
+    in_edges_t matmul_in_edges;
+    if (is_int8) {
+        auto dequantize_input = pgraph->append_op(
+                impl::op_kind::Dequantize, "dequantize_input");
+        auto dequantize_weight = pgraph->append_op(
+                impl::op_kind::Dequantize, "dequantize_weight");
+        if (is_bf16) {
+            auto typecast_input = pgraph->append_op(impl::op_kind::TypeCast,
+                    {in_edge(0, dequantize_input, 0)}, "typecast_input");
+            auto typecast_weight = pgraph->append_op(impl::op_kind::TypeCast,
+                    {in_edge(0, dequantize_weight, 0)}, "typecast_weight");
+            matmul_in_edges = in_edges_t {in_edge(0, typecast_input, 0),
+                    in_edge(1, typecast_weight, 0)};
+        } else {
+            matmul_in_edges = in_edges_t {in_edge(0, dequantize_input, 0),
+                    in_edge(1, dequantize_weight, 0)};
+        }
+        layer_input = dequantize_input;
+    }
+    auto matmul = pgraph->append_op(
+            impl::op_kind::MatMul, matmul_in_edges, "matmul");
+    matmul->append_decision_function(is_bf16
+                    ? check_input_dtype<impl::data_type::bf16>
+                    : check_input_dtype<impl::data_type::f32>);
+    matmul->allow_external_outputs();
+    if (!is_int8) { layer_input = matmul; }
+
+    /* optional add/biasAdd after matmul */
+    auto add_subgraph = std::make_shared<pb_graph_t>("add_subgraph");
+    auto add = add_subgraph->append_alternation(
+            {impl::op_kind::Add, impl::op_kind::BiasAdd}, "add");
+    add->allow_external_outputs();
+    add_subgraph->create_input_port(0, add, 0);
+    add_subgraph->create_output_port(0, add, 0);
+    auto optional_add = pgraph->append_optional(
+            add_subgraph, {in_edge(0, matmul, 0)}, "optional_add");
+
+    /* optional activation */
+    auto activation_subgraph
+            = std::make_shared<pb_graph_t>("activation_subgraph");
+    auto activation = activation_subgraph->append_alternation(
+            {impl::op_kind::ReLU, impl::op_kind::Sigmoid}, "activation");
+    activation->allow_external_outputs();
+    activation_subgraph->create_input_port(0, activation, 0);
+    activation_subgraph->create_output_port(0, activation, 0);
+    auto optional_activation = pgraph->append_optional(activation_subgraph,
+            {in_edge(0, optional_add, 0)}, "optional_activation");
+    layer_output = optional_activation;
+
+    if (is_int8) {
+        if (is_bf16) {
+            auto typecast_output = pgraph->append_op(impl::op_kind::TypeCast,
+                    {in_edge(0, layer_output, 0)}, "typecast_output");
+            layer_output = typecast_output;
+        }
+        auto quantize_output = pgraph->append_op(impl::op_kind::Quantize,
+                {in_edge(0, layer_output, 0)}, "quantize_output");
+        layer_output = quantize_output;
+    }
+    return std::make_pair(layer_input, layer_output);
+}
 
 pm::pb_node_t *weight_grad_alternation_unit(
         const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op_t *activation) {
@@ -68,6 +135,23 @@ pm::pb_node_t *weight_grad_alternation_unit(
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_mlp_pattern)
 
 /*
+      (f32)[IN0]   [IN1](f32)
+              \     /
+               MatMul
+                 |
+                Add (optional)
+                 |
+             Activation (optional)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mlp_single_layer)
+        .set_priority(3.5f)
+        .set_kind(impl::partition_kind::mlp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    single_layer_mlp(pgraph, false, false);
+                });
+
+/*
 repetition unit:
   (f32)[REP_IN0]   [REP_IN1](f32)
               \     /
@@ -82,43 +166,15 @@ repetition unit:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_forward_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
-                    auto matmul = mlp_layer->append_op(
-                            impl::op_kind::MatMul, "matmul");
-                    matmul->append_decision_function(
-                            check_input_dtype<impl::data_type::f32>);
-                    matmul->allow_external_outputs();
-
-                    /* optional add/biasAdd after matmul */
-                    auto add_subgraph
-                            = std::make_shared<pb_graph_t>("add_subgraph");
-                    auto add = add_subgraph->append_alternation(
-                            {impl::op_kind::Add, impl::op_kind::BiasAdd},
-                            "add");
-                    add->allow_external_outputs();
-                    add_subgraph->create_input_port(0, add, 0);
-                    add_subgraph->create_output_port(0, add, 0);
-                    auto optional_add = mlp_layer->append_optional(add_subgraph,
-                            {in_edge(0, matmul, 0)}, "optional_add");
-
-                    /* optional activation */
-                    auto activation_subgraph = std::make_shared<pb_graph_t>(
-                            "activation_subgraph");
-                    auto activation = activation_subgraph->append_alternation(
-                            {impl::op_kind::ReLU, impl::op_kind::Sigmoid},
-                            "activation");
-                    activation->allow_external_outputs();
-                    activation_subgraph->create_input_port(0, activation, 0);
-                    activation_subgraph->create_output_port(0, activation, 0);
-                    auto optional_activation = mlp_layer->append_optional(
-                            activation_subgraph, {in_edge(0, optional_add, 0)},
-                            "optional_activation");
-
+                    pm::pb_node_t *matmul, *optional_activation;
+                    std::tie(matmul, optional_activation)
+                            = single_layer_mlp(mlp_layer, false, false);
                     mlp_layer->create_input_port(0, matmul, 0);
                     mlp_layer->create_output_port(0, optional_activation, 0);
-
                     // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
                     pgraph->append_repetition(mlp_layer, {0, 0},
                             MLP_NUM_LAYER_LOWER_BOUND,
@@ -158,6 +214,7 @@ pattern:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_backward_pattern)
         .set_priority(5.1f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto bwd_mlp_layer
@@ -253,6 +310,7 @@ pattern:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_backward_pattern_v2)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto bwd_mlp_layer
@@ -340,6 +398,29 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_mlp_pattern)
 
 /*
+   (int8)[IN0]        [IN1](int8)
+           |            |
+      Dequantize    Dequantize
+              \     /
+               MatMul
+                 |
+                Add (optional)
+                 |
+             Activation (optional)
+                 |
+              Quantize
+                 |
+              [OUT0](int8)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_single_layer)
+        .set_priority(4.0f)
+        .set_kind(impl::partition_kind::quantized_mlp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    single_layer_mlp(pgraph, false, true);
+                });
+
+/*
 repetition unit:
  (int8)[REP_IN0]    [REP_IN1](int8)
            |            |
@@ -357,46 +438,13 @@ repetition unit:
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
         .set_priority(6.0f)
+        .set_kind(impl::partition_kind::quantized_mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
-
-                    auto dequantize_input = mlp_layer->append_op(
-                            impl::op_kind::Dequantize, "dequantize_input");
-                    auto dequantize_weight = mlp_layer->append_op(
-                            impl::op_kind::Dequantize, "dequantize_weight");
-                    auto matmul = mlp_layer->append_op(impl::op_kind::MatMul,
-                            {in_edge(0, dequantize_input, 0),
-                                    in_edge(1, dequantize_weight, 0)},
-                            "matmul");
-
-                    /* optional add/biasAdd after matmul */
-                    auto add_subgraph
-                            = std::make_shared<pb_graph_t>("add_subgraph");
-                    auto add = add_subgraph->append_alternation(
-                            {impl::op_kind::Add, impl::op_kind::BiasAdd},
-                            "add");
-                    add_subgraph->create_input_port(0, add, 0);
-                    add_subgraph->create_output_port(0, add, 0);
-                    auto optional_add = mlp_layer->append_optional(add_subgraph,
-                            {in_edge(0, matmul, 0)}, "optional_add");
-
-                    /* optional activation */
-                    auto activation_subgraph = std::make_shared<pb_graph_t>(
-                            "activation_subgraph");
-                    auto activation = activation_subgraph->append_alternation(
-                            {impl::op_kind::ReLU, impl::op_kind::Sigmoid},
-                            "activation");
-                    activation_subgraph->create_input_port(0, activation, 0);
-                    activation_subgraph->create_output_port(0, activation, 0);
-                    auto optional_activation = mlp_layer->append_optional(
-                            activation_subgraph, {in_edge(0, optional_add, 0)},
-                            "optional_activation");
-
-                    auto quantize_output
-                            = mlp_layer->append_op(impl::op_kind::Quantize,
-                                    {in_edge(0, optional_activation, 0)},
-                                    "quantize_output");
+                    pm::pb_node_t *dequantize_input, *quantize_output;
+                    std::tie(dequantize_input, quantize_output)
+                            = single_layer_mlp(mlp_layer, false, true);
 
                     mlp_layer->create_input_port(0, dequantize_input, 0);
                     mlp_layer->create_output_port(0, quantize_output, 0);
@@ -407,9 +455,56 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
                             MLP_NUM_LAYER_UPPER_BOUND, "rep_unit");
                 });
 
+/*
+   (int8)[IN0]        [IN1](int8)
+           |            |
+      Dequantize    Dequantize
+           |            |
+        TypeCast    TypeCast
+              \      /
+               MatMul
+                 |
+                Add (optional)
+                 |
+             Activation (optional)
+                 |
+              TypeCast
+                 |
+              Quantize
+                 |
+              [OUT0](int8)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, int8_bf16_mlp_single_layer)
+        .set_priority(4.0f)
+        .set_kind(impl::partition_kind::quantized_mlp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    single_layer_mlp(pgraph, true, true);
+                });
+
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_mlp_pattern)
+
+/*
+     (bf16)[IN0]   [IN1](bf16)
+              \     /
+               MatMul
+                 |
+                Add (optional)
+                 |
+             Activation (optional)
+                 |
+               [OUT0](bf16)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mlp_single_layer)
+        .set_priority(3.5f)
+        .set_kind(impl::partition_kind::mlp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    single_layer_mlp(pgraph, true, false);
+                });
 
 /*
 repetition unit:
@@ -426,43 +521,15 @@ repetition unit:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_forward_pattern)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
-                    auto matmul = mlp_layer->append_op(
-                            impl::op_kind::MatMul, "matmul");
-                    matmul->append_decision_function(
-                            check_input_dtype<impl::data_type::bf16>);
-                    matmul->allow_external_outputs();
-
-                    /* optional add/biasAdd after matmul */
-                    auto add_subgraph
-                            = std::make_shared<pb_graph_t>("add_subgraph");
-                    auto add = add_subgraph->append_alternation(
-                            {impl::op_kind::Add, impl::op_kind::BiasAdd},
-                            "add");
-                    add->allow_external_outputs();
-                    add_subgraph->create_input_port(0, add, 0);
-                    add_subgraph->create_output_port(0, add, 0);
-                    auto optional_add = mlp_layer->append_optional(add_subgraph,
-                            {in_edge(0, matmul, 0)}, "optional_add");
-
-                    /* optional activation */
-                    auto activation_subgraph = std::make_shared<pb_graph_t>(
-                            "activation_subgraph");
-                    auto activation = activation_subgraph->append_alternation(
-                            {impl::op_kind::ReLU, impl::op_kind::Sigmoid},
-                            "activation");
-                    activation->allow_external_outputs();
-                    activation_subgraph->create_input_port(0, activation, 0);
-                    activation_subgraph->create_output_port(0, activation, 0);
-                    auto optional_activation = mlp_layer->append_optional(
-                            activation_subgraph, {in_edge(0, optional_add, 0)},
-                            "optional_activation");
-
+                    pm::pb_node_t *matmul, *optional_activation;
+                    std::tie(matmul, optional_activation)
+                            = single_layer_mlp(mlp_layer, true, false);
                     mlp_layer->create_input_port(0, matmul, 0);
                     mlp_layer->create_output_port(0, optional_activation, 0);
-
                     // repeat layer for [LOWER_BOUND, UPPER_BOUND) times
                     pgraph->append_repetition(mlp_layer, {0, 0},
                             MLP_NUM_LAYER_LOWER_BOUND,
@@ -502,6 +569,7 @@ pattern:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_backward_pattern)
         .set_priority(5.1f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto bwd_mlp_layer
@@ -597,6 +665,7 @@ pattern:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_backward_pattern_v2)
         .set_priority(5.0f)
+        .set_kind(impl::partition_kind::mlp)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto bwd_mlp_layer

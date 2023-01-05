@@ -70,16 +70,27 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
                 "bf16_mha_pattern_alternative", "fp32_distill_bert_mha_pattern",
                 "int8_bf16_distill_bert_mha_pattern",
                 "bf16_distill_bert_mha_pattern"};
+        std::unordered_set<std::string> dynamic_only_list
+                = {"fp32_mlp_single_layer", "int8_mlp_single_layer",
+                        "int8_bf16_mlp_single_layer", "bf16_mlp_single_layer"};
         // check if those candidate ops have dynamic input shape && the pattern
         // does not support dynamic
+        bool is_dynamic_partition = false;
         for (const auto &c : candidate_fusion) {
             for (const auto &in_val : c->get_input_values()) {
                 auto in_lt = in_val->get_logical_tensor();
-                if (impl::logical_tensor_wrapper_t(in_lt).has_dynamic_dim()
-                        && dynamic_shape_allowlist.find(pname)
-                                == dynamic_shape_allowlist.end())
-                    return status::success;
+                if (impl::logical_tensor_wrapper_t(in_lt).has_dynamic_dim()) {
+                    is_dynamic_partition = true;
+                    break;
+                }
             }
+        }
+
+        if (dynamic_only_list.find(pname) != dynamic_only_list.end()) {
+            if (!is_dynamic_partition) return status::success;
+        } else if (dynamic_shape_allowlist.find(pname)
+                == dynamic_shape_allowlist.end()) {
+            if (is_dynamic_partition) return status::success;
         }
 
         fusion_ops.emplace_back(candidate_fusion);

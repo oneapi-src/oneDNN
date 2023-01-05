@@ -1060,7 +1060,7 @@ TEST(GCPatternTests, FP32IdenticalBottleneckTrainingPattern) {
     ASSERT_EQ(partitions[1]->get_outputs().size(), 10U);
 }
 
-TEST(GCPatternTests, DynamicShapePartitions) {
+TEST(GCPatternTests, StaticOnlyPartitions) {
     REQUIRE_AVX512();
     utils::id_generator id_gen;
     impl::graph_t agraph;
@@ -1080,4 +1080,86 @@ TEST(GCPatternTests, DynamicShapePartitions) {
     apass->run(agraph);
     auto partitions = agraph.get_partitions();
     ASSERT_EQ(partitions.size(), 1U);
+}
+
+TEST(GCPatternTests, DynamicOnlyPartitions) {
+    REQUIRE_AVX512();
+    {
+        impl::graph_t agraph;
+        compiler_utils::add_mlp_subgraph(
+                &agraph, false, -2, 1, {13, 512}, {impl::op_kind::ReLU});
+        agraph.build_graph();
+
+        auto &compiler_backend_ptr
+                = compiler_impl::compiler_backend_t::get_singleton();
+        pass::pass_base_ptr apass
+                = get_pass(compiler_backend_ptr, "fp32_mlp_single_layer");
+
+        apass->run(agraph);
+        auto partitions = agraph.get_partitions();
+        ASSERT_EQ(partitions.size(), 1U);
+        ASSERT_EQ(partitions[0]->get_ops().size(), 2U);
+    }
+    {
+        impl::graph_t agraph;
+        compiler_utils::add_mlp_subgraph(
+                &agraph, false, 1, 1, {13, 512}, {impl::op_kind::ReLU});
+        agraph.build_graph();
+
+        auto &compiler_backend_ptr
+                = compiler_impl::compiler_backend_t::get_singleton();
+        pass::pass_base_ptr apass
+                = get_pass(compiler_backend_ptr, "fp32_mlp_single_layer");
+
+        apass->run(agraph);
+        auto partitions = agraph.get_partitions();
+        ASSERT_EQ(partitions.size(), 0U);
+    }
+    REQUIRE_VNNI_AMXINT8();
+    {
+        impl::graph_t agraph;
+        compiler_utils::add_int8_mlp_subgraph(
+                &agraph, -2, 1, {13, 512}, {impl::op_kind::ReLU});
+        agraph.build_graph();
+
+        auto &compiler_backend_ptr
+                = compiler_impl::compiler_backend_t::get_singleton();
+        pass::pass_base_ptr apass
+                = get_pass(compiler_backend_ptr, "int8_mlp_single_layer");
+
+        apass->run(agraph);
+        auto partitions = agraph.get_partitions();
+        ASSERT_EQ(partitions.size(), 1U);
+        ASSERT_EQ(partitions[0]->get_ops().size(), 5U);
+    }
+    {
+        impl::graph_t agraph;
+        compiler_utils::add_int8_mlp_subgraph(
+                &agraph, 1, 1, {13, 512}, {impl::op_kind::ReLU});
+        agraph.build_graph();
+
+        auto &compiler_backend_ptr
+                = compiler_impl::compiler_backend_t::get_singleton();
+        pass::pass_base_ptr apass
+                = get_pass(compiler_backend_ptr, "int8_mlp_single_layer");
+
+        apass->run(agraph);
+        auto partitions = agraph.get_partitions();
+        ASSERT_EQ(partitions.size(), 0U);
+    }
+    {
+        impl::graph_t agraph;
+        compiler_utils::add_int8_mlp_subgraph(
+                &agraph, -2, 1, {13, 512}, {impl::op_kind::ReLU}, true);
+        agraph.build_graph();
+
+        auto &compiler_backend_ptr
+                = compiler_impl::compiler_backend_t::get_singleton();
+        pass::pass_base_ptr apass
+                = get_pass(compiler_backend_ptr, "int8_bf16_mlp_single_layer");
+
+        apass->run(agraph);
+        auto partitions = agraph.get_partitions();
+        ASSERT_EQ(partitions.size(), 1U);
+    }
 }

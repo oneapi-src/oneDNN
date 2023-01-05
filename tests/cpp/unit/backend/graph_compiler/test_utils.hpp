@@ -1980,47 +1980,58 @@ inline void add_mlp_subgraph(impl::graph_t *agraph, bool use_bf16 = false,
     }
 }
 
-inline void add_int8_mlp_subgraph(impl::graph_t *agraph, int batch_size = 1,
-        int layer = 1, std::vector<int> hidden_size = {13, 512},
-        std::vector<impl::op_kind_t> act_type = {impl::op_kind::ReLU}) {
+inline void add_int8_mlp_subgraph(impl::graph_t *agraph,
+        std::vector<impl::dim_t> batch_dims = {1, 384}, int layer = 1,
+        std::vector<impl::dim_t> hidden_size = {1024, 1024},
+        std::vector<impl::op_kind_t> act_type = {impl::op_kind::ReLU},
+        bool mixed_dtype = false) {
     size_t lt_idx = 0;
     size_t op_idx = 0;
 
-    std::vector<impl::dim_t> layer_input_size {batch_size, hidden_size[0]};
-    impl::logical_tensor_t input_desc = utils::logical_tensor_init(
-            lt_idx++, layer_input_size, impl::data_type::f32);
+    auto dtype = mixed_dtype ? impl::data_type::bf16 : impl::data_type::f32;
+    std::vector<impl::dim_t> layer_input_size(batch_dims);
+    layer_input_size.push_back(hidden_size[0]);
+    impl::logical_tensor_t input_desc
+            = utils::logical_tensor_init(lt_idx++, layer_input_size, dtype);
 
     for (int i = 0; i < layer; ++i) {
         std::vector<impl::dim_t> layer_weight_size {
                 hidden_size[i], hidden_size[i + 1]};
         std::vector<impl::dim_t> layer_bias_size {hidden_size[i + 1]};
-        std::vector<impl::dim_t> layer_dst_size {
-                batch_size, hidden_size[i + 1]};
-
-        impl::logical_tensor_t quant_input_desc, dequant_input_desc,
-                weight_desc, quant_weight_desc, dequant_weight_desc, bias_desc,
-                matmul_dst_desc, act_dst_desc;
-
+        std::vector<impl::dim_t> layer_dst_size(batch_dims);
+        layer_dst_size.push_back(hidden_size[i + 1]);
+        // creating logical tensors of each layer
+        impl::logical_tensor_t casted_input_desc, quant_input_desc,
+                dequant_input_desc, casted_dequant_input_desc,
+                quant_weight_desc, dequant_weight_desc,
+                casted_dequant_weight_desc, bias_desc, matmul_dst_desc,
+                act_dst_desc;
+        casted_input_desc = utils::logical_tensor_init(
+                lt_idx++, layer_input_size, impl::data_type::f32);
         quant_input_desc = utils::logical_tensor_init(
                 lt_idx++, layer_input_size, impl::data_type::u8);
         dequant_input_desc = utils::logical_tensor_init(
                 lt_idx++, layer_input_size, impl::data_type::f32);
-        weight_desc = utils::logical_tensor_init(
-                lt_idx++, layer_weight_size, impl::data_type::f32);
+        casted_dequant_input_desc
+                = utils::logical_tensor_init(lt_idx++, layer_input_size, dtype);
         quant_weight_desc = utils::logical_tensor_init(
                 lt_idx++, layer_weight_size, impl::data_type::s8);
         quant_weight_desc.property = impl::property_type::constant;
         dequant_weight_desc = utils::logical_tensor_init(
                 lt_idx++, layer_weight_size, impl::data_type::f32);
-        bias_desc = utils::logical_tensor_init(
-                lt_idx++, layer_bias_size, impl::data_type::f32);
+        casted_dequant_weight_desc = utils::logical_tensor_init(
+                lt_idx++, layer_weight_size, dtype);
+        bias_desc
+                = utils::logical_tensor_init(lt_idx++, layer_bias_size, dtype);
         bias_desc.property = impl::property_type::constant;
-        matmul_dst_desc = utils::logical_tensor_init(
-                lt_idx++, layer_dst_size, impl::data_type::f32);
-        act_dst_desc = utils::logical_tensor_init(
-                lt_idx++, layer_dst_size, impl::data_type::f32);
-
+        matmul_dst_desc
+                = utils::logical_tensor_init(lt_idx++, layer_dst_size, dtype);
+        act_dst_desc
+                = utils::logical_tensor_init(lt_idx++, layer_dst_size, dtype);
+        // defining ops of each layer
         std::string layer_suffix = "_layer" + std::to_string(i);
+        impl::op_t typecast_input_f32 {op_idx++, impl::op_kind::TypeCast,
+                "typecast_input_f32" + layer_suffix};
         impl::op_t quant_input {op_idx++, impl::op_kind::Quantize,
                 "quantize_input" + layer_suffix};
         quant_input.set_attr(
@@ -2035,14 +2046,8 @@ inline void add_int8_mlp_subgraph(impl::graph_t *agraph, int batch_size = 1,
         dequant_input.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
         dequant_input.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
         dequant_input.set_attr(impl::op_attr::axis, (int64_t)0);
-        impl::op_t quant_weight {op_idx++, impl::op_kind::Quantize,
-                "quantize_weight" + layer_suffix};
-        quant_weight.set_attr(impl::op_attr::scales,
-                std::vector<float>(hidden_size[i + 1], 0.12f));
-        quant_weight.set_attr(impl::op_attr::zps,
-                std::vector<int64_t>(hidden_size[i + 1], 0));
-        quant_weight.set_attr(impl::op_attr::qtype, std::string("per_channel"));
-        quant_weight.set_attr(impl::op_attr::axis, (int64_t)1);
+        impl::op_t typecast_input_bf16 {op_idx++, impl::op_kind::TypeCast,
+                "typecast_input_bf16" + layer_suffix};
         impl::op_t dequant_weight {op_idx++, impl::op_kind::Dequantize,
                 "dequantize_weight" + layer_suffix};
         dequant_weight.set_attr(impl::op_attr::scales,
@@ -2052,21 +2057,34 @@ inline void add_int8_mlp_subgraph(impl::graph_t *agraph, int batch_size = 1,
         dequant_weight.set_attr(
                 impl::op_attr::qtype, std::string("per_channel"));
         dequant_weight.set_attr(impl::op_attr::axis, (int64_t)1);
+        impl::op_t typecast_weight_bf16 {op_idx++, impl::op_kind::TypeCast,
+                "typecast_input_bf16" + layer_suffix};
         impl::op_t matmul {
                 op_idx++, impl::op_kind::MatMul, "matmul" + layer_suffix};
         impl::op_t activation {
                 op_idx++, act_type[i], "activation" + layer_suffix};
-
-        quant_input.add_input(input_desc);
+        // defining op connection of each layer
         quant_input.add_output(quant_input_desc);
         dequant_input.add_input(quant_input_desc);
         dequant_input.add_output(dequant_input_desc);
-        quant_weight.add_input(weight_desc);
-        quant_weight.add_output(quant_weight_desc);
         dequant_weight.add_input(quant_weight_desc);
         dequant_weight.add_output(dequant_weight_desc);
-        matmul.add_input(dequant_input_desc);
-        matmul.add_input(dequant_weight_desc);
+        if (mixed_dtype) {
+            typecast_input_f32.add_input(input_desc);
+            typecast_input_f32.add_output(casted_input_desc);
+            quant_input.add_input(casted_input_desc);
+            typecast_input_bf16.add_input(dequant_input_desc);
+            typecast_input_bf16.add_output(casted_dequant_input_desc);
+            typecast_weight_bf16.add_input(dequant_weight_desc);
+            typecast_weight_bf16.add_output(casted_dequant_weight_desc);
+            matmul.add_input(casted_dequant_input_desc);
+            matmul.add_input(casted_dequant_weight_desc);
+        } else {
+            quant_input.add_input(input_desc);
+            matmul.add_input(dequant_input_desc);
+            matmul.add_input(dequant_weight_desc);
+        }
+
         matmul.add_input(bias_desc);
         matmul.add_output(matmul_dst_desc);
 
@@ -2077,13 +2095,16 @@ inline void add_int8_mlp_subgraph(impl::graph_t *agraph, int batch_size = 1,
             activation.add_output(act_dst_desc);
             input_desc = act_dst_desc;
         }
-
+        // adding ops of each layer
+        if (mixed_dtype) {
+            agraph->add_op(&typecast_input_f32);
+            agraph->add_op(&typecast_input_bf16);
+            agraph->add_op(&typecast_weight_bf16);
+        }
         agraph->add_op(&quant_input);
         agraph->add_op(&dequant_input);
-        agraph->add_op(&quant_weight);
         agraph->add_op(&dequant_weight);
         agraph->add_op(&matmul);
-
         if (act_type[i] != impl::op_kind::Wildcard) {
             agraph->add_op(&activation);
         }
@@ -2091,11 +2112,18 @@ inline void add_int8_mlp_subgraph(impl::graph_t *agraph, int batch_size = 1,
         layer_input_size = layer_dst_size;
     }
 
+    // defining output layer logical tensors
+    impl::logical_tensor_t casted_output_desc = utils::logical_tensor_init(
+            lt_idx++, layer_input_size, impl::data_type::f32);
     impl::logical_tensor_t quant_output_desc = utils::logical_tensor_init(
             lt_idx++, layer_input_size, impl::data_type::u8);
     impl::logical_tensor_t dequant_output_desc = utils::logical_tensor_init(
             lt_idx++, layer_input_size, impl::data_type::f32);
-
+    impl::logical_tensor_t casted_dequant_output_desc
+            = utils::logical_tensor_init(lt_idx++, layer_input_size, dtype);
+    // defining output layer ops
+    impl::op_t typecast_output_f32 {
+            op_idx++, impl::op_kind::TypeCast, "typecast_output_f32"};
     impl::op_t quant_output {
             op_idx++, impl::op_kind::Quantize, "quantize_output"};
     quant_output.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
@@ -2108,14 +2136,37 @@ inline void add_int8_mlp_subgraph(impl::graph_t *agraph, int batch_size = 1,
     dequant_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
     dequant_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
     dequant_output.set_attr(impl::op_attr::axis, (int64_t)0);
-
-    quant_output.add_input(input_desc);
+    impl::op_t typecast_output_bf16 {
+            op_idx++, impl::op_kind::TypeCast, "typecast_output_bf16"};
+    // defining connection between output ops
     quant_output.add_output(quant_output_desc);
     dequant_output.add_input(quant_output_desc);
     dequant_output.add_output(dequant_output_desc);
-
+    if (mixed_dtype) {
+        typecast_output_f32.add_input(input_desc);
+        typecast_output_f32.add_output(casted_output_desc);
+        quant_output.add_input(casted_output_desc);
+        typecast_output_bf16.add_input(dequant_output_desc);
+        typecast_output_bf16.add_output(casted_dequant_output_desc);
+    } else {
+        quant_output.add_input(input_desc);
+    }
+    // adding ops
     agraph->add_op(&quant_output);
     agraph->add_op(&dequant_output);
+    if (mixed_dtype) {
+        agraph->add_op(&typecast_output_f32);
+        agraph->add_op(&typecast_output_bf16);
+    }
+}
+
+inline void add_int8_mlp_subgraph(impl::graph_t *agraph,
+        impl::dim_t batch_size = 1, int layer = 1,
+        std::vector<impl::dim_t> hidden_size = {13, 512},
+        std::vector<impl::op_kind_t> act_type = {impl::op_kind::ReLU},
+        bool mixed_dtype = false) {
+    add_int8_mlp_subgraph(agraph, std::vector<impl::dim_t> {batch_size}, layer,
+            hidden_size, act_type, mixed_dtype);
 }
 
 static bool apply_use_dst(bool use_dst, impl::op_kind_t op_kind) {
