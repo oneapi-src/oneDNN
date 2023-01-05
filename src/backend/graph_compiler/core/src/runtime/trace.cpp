@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,12 +29,15 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #endif
+#include <runtime/env_vars.hpp>
 #include <runtime/microkernel/cpu/kernel_timer.hpp>
 #include <runtime/runtime.hpp>
 #include <runtime/thread_locals.hpp>
 #include <util/string_utils.hpp>
 
 namespace sc {
+
+SC_MODULE(runtime.trace);
 
 static struct trace_env_t {
     std::mutex name_lock_;
@@ -99,12 +102,23 @@ static void write_compact_traces(FILE *outf,
 
 void write_traces(const std::list<thread_local_buffer_t *> &tls_buffers) {
     std::string &tracep = sc::runtime_config_t::get().trace_out_path_;
+    size_t trace_cap = sc::runtime_config_t::get().trace_initial_cap_;
     if (tracep.empty()) { return; }
     size_t trace_size = 0;
     int64_t min_val = std::numeric_limits<uint64_t>::max();
     bool main_thread_found = false;
+    bool already_warned = false;
     for (auto v : tls_buffers) {
-        trace_size += v->additional_->trace_.trace_logs_.size();
+        auto cur_trace_size = v->additional_->trace_.trace_logs_.size();
+        trace_size += cur_trace_size;
+        if (!already_warned && cur_trace_size > trace_cap) {
+            already_warned = true;
+            SC_MODULE_WARN << "Received too many traces: " << cur_trace_size
+                           << ". The initial capacity is " << trace_cap
+                           << ". This will cause inaccurate result. Please "
+                              "consider enlarge "
+                           << env_names[env_key::SC_TRACE_INIT_CAP];
+        }
         if (v->additional_->is_main_thread_) { main_thread_found = true; }
         for (auto &log : v->additional_->trace_.trace_logs_) {
             min_val = std::min(log.tick_, min_val);

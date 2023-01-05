@@ -54,31 +54,6 @@ extern "C" void print_str(char *f) {
     fputs(f, stdout);
 }
 
-extern "C" uint64_t boundary_check(const char *name, uint64_t idx,
-        uint64_t acc_len, uint64_t mask, uint64_t tsr_len) {
-    // no actual load/store.
-    if (mask == 0) { return idx; }
-    if (mask != std::numeric_limits<uint64_t>::max()) {
-        uint16_t mask_len = 0;
-        while (mask) {
-            mask = mask >> 1;
-            mask_len++;
-        }
-        acc_len = mask_len;
-    }
-
-    if (idx >= tsr_len || idx + acc_len > tsr_len) {
-        fprintf(stderr,
-                "Boundary check for tensor %s failed. idx=%llu acc_len=%llu "
-                "tsr_len=%llu\n",
-                name, static_cast<unsigned long long>(idx), // NOLINT
-                static_cast<unsigned long long>(acc_len), // NOLINT
-                static_cast<unsigned long long>(tsr_len)); // NOLINT
-        abort();
-    }
-    return idx;
-}
-
 extern "C" void *sc_global_aligned_alloc(size_t sz, size_t align) {
     return aligned_alloc(align, (sz / align + 1) * align);
 }
@@ -109,12 +84,11 @@ runtime_config_t &runtime_config_t::get() {
 using namespace env_key;
 runtime_config_t::runtime_config_t() {
     thread_pool_table_ = &sc_pool_table;
-    managed_thread_pool_
-            = (utils::getenv_int(env_names[SC_MANAGED_THREAD_POOL], 1) != 0);
     if (managed_thread_pool_) {
         thread_pool_table_->parallel_call_managed = &sc_parallel_call_managed;
     }
-    trace_initial_cap_ = 2048 * 1024;
+    trace_initial_cap_
+            = sc::utils::getenv_int(env_names[SC_TRACE_INIT_CAP], 4096);
     trace_out_path_ = utils::getenv_string(env_names[SC_TRACE]);
     char mode = 0;
 
@@ -143,8 +117,6 @@ runtime_config_t::runtime_config_t() {
             trace_out_path_ = "";
             break;
     }
-    execution_verbose_
-            = (utils::getenv_int(env_names[SC_EXECUTION_VERBOSE], 0) == 1);
 
     constexpr int default_verbose = 0;
     int tmp_get_verbose_level
@@ -155,15 +127,3 @@ runtime_config_t::runtime_config_t() {
     verbose_level_ = tmp_get_verbose_level;
 }
 } // namespace sc
-
-extern "C" void sc_value_check(void *tsr, const char *name, size_t size) {
-    // temporarily assume dtype is float32
-    float *buf = reinterpret_cast<float *>(tsr);
-    for (size_t i = 0; i < size / sizeof(float); i++) {
-        float val = static_cast<float>(buf[i]);
-        if (std::isnan(val) || std::isinf(val)) {
-            SC_MODULE_WARN << "Invalid value (nan or inf) found in tensor "
-                           << name << " idx=" << i;
-        }
-    }
-}

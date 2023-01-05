@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -119,7 +119,7 @@ std::shared_ptr<jit_module> xbyak_jit_engine::make_jit_module(
     auto ir_mod2 = xbyak_passes(ir_mod1);
     assert(ir_mod2);
 
-    if (ir_mod2->ctx_->flags_.xbyak_jit_asm_listing_) {
+    if (utils::compiler_configs_t::get().xbyak_jit_asm_listing_) {
         xbyak_printer_t printer(ir_mod2, target_profile);
         std::ofstream f("xbyak_ir.txt");
         f << printer.get_stream().rdbuf();

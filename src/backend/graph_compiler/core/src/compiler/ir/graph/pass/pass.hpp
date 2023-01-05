@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,12 +38,6 @@ constexpr int global_const = 2;
 SC_INTERNAL_API void print_graph(const sc_graph_t &mgr, std::ostream &os,
         bool print_shape = false, bool print_attr = false,
         bool print_name = false, bool print_stride = false);
-
-void visualize(const std::string &filename, const sc_graph_t &opmg);
-
-SC_INTERNAL_API void save_graph_to_json(
-        const sc_graph_t &graph, std::ostream &os);
-SC_INTERNAL_API sc_graph_t load_graph_from_json(std::istream &is);
 
 SC_INTERNAL_API sc_graph_t copy_graph(const sc_graph_t &graph);
 

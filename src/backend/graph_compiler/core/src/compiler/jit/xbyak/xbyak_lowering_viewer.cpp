@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ static const bool log_module_info_enabled
 // Adds an asm-listing comment at the current Xbyak insertion point, using
 // the current asm-listing indentation level.
 #define ASM_COMMENT(S1, ...) \
-    if (p_ir_mod_->ctx_->flags_.xbyak_jit_asm_listing_) { \
+    if (utils::compiler_configs_t::get().xbyak_jit_asm_listing_) { \
         ostringstream os; \
         os << asm_listing_ind_ << S1 __VA_ARGS__; \
         add_code_comment(os.str()); \
@@ -67,7 +67,7 @@ static const bool log_module_info_enabled
 
 // Like ASM_COMMENT, but add file:line information in the output text.
 #define ASM_COMMENT_V(S1, ...) \
-    if (p_ir_mod_->ctx_->flags_.xbyak_jit_asm_listing_) { \
+    if (utils::compiler_configs_t::get().xbyak_jit_asm_listing_) { \
         ostringstream os; \
         os << asm_listing_ind_ << S1 __VA_ARGS__; \
         os << " [" << brief_lineloc(__FILE__, __LINE__) << "]"; \
@@ -76,7 +76,7 @@ static const bool log_module_info_enabled
 
 // Like ASM_COMMENT, but add simd constant and dtype in the output text.
 #define ASM_CONSTANT_COMMENT(MAP) \
-    if (p_ir_mod_->ctx_->flags_.xbyak_jit_asm_listing_) { \
+    if (utils::compiler_configs_t::get().xbyak_jit_asm_listing_) { \
         for (const auto &kv : (MAP)) { \
             ostringstream os; \
             os << asm_listing_ind_ << c2s(kv.first); \
@@ -211,7 +211,8 @@ xbyak_lowering_viewer::xbyak_lowering_viewer(const xbyak_jit_engine &xje,
     : xje_(xje)
     , p_ir_mod_(&ir_mod)
     , profile_(profile)
-    , sf_model_(p_ir_mod_->ctx_->flags_.xbyak_jit_log_stack_frame_model_)
+    , sf_model_(
+              utils::compiler_configs_t::get().xbyak_jit_log_stack_frame_model_)
     , logging_ind_(4)
     , asm_listing_ind_(4) {
     gen_.reset(new sc_xbyak_jit_generator);
@@ -244,20 +245,20 @@ xbyak_lowering_viewer::xbyak_lowering_viewer(const xbyak_jit_engine &xje,
         SC_MODULE_INFO << "function '" << iter.first << "' has entry address "
                        << utils::as_hex_t(entry_point);
     };
-
-    if (p_ir_mod_->ctx_->flags_.xbyak_jit_pause_after_codegen_) {
+    auto &config = utils::compiler_configs_t::get();
+    if (config.xbyak_jit_pause_after_codegen_) {
         std::cout << "Hit ENTER to continue." << std::endl;
         std::cin.get();
     }
 
-    if (p_ir_mod_->ctx_->flags_.xbyak_jit_asm_listing_) {
+    if (config.xbyak_jit_asm_listing_) {
         string fname = "asm_comments.txt";
         std::ofstream f(fname);
         f << "Code comments:" << endl;
         dump_code_comments(f);
     }
 
-    if (p_ir_mod_->ctx_->flags_.xbyak_jit_save_obj_) {
+    if (config.xbyak_jit_save_obj_) {
         // Save the generated object code to a file.
         // Embed the code's starting virtual address in the
         // filename, to help with disassembly.

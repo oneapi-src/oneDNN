@@ -75,20 +75,6 @@ void print_str(const std::string &v);
 void print_str(const char *v);
 
 /**
- * Generates a call to boundary_check
- * @param name the tensor name, should be a string
- * @param idx the index to check
- * @param access_len the length of the access in number of elements, for
- * accessing 1 element, this parameter should be 1
- * @param mask the mask of indexing load/store. Its bit width is equal to the
- * step of index. If there is no mask, pass the max value of uint64_t here.
- * @param boundary_len max boundary in number of elements
- * @return the return value of boundary_check, should equal to `idx`
- * */
-expr boundary_check(
-        expr name, expr idx, expr access_len, expr mask, expr boundary_len);
-
-/**
  * Generates a evaluate_call to sc_make_trace
  * @param func_id the function id, s32
  * @param in_or_out s32, if 0, this is the entry trace of the function. if 1,
@@ -378,13 +364,6 @@ std::pair<func_t, func_t> get_brgemm_creator_and_call_func(
 // returns <update, init_update> pair
 std::pair<func_t, func_t> get_brgemm_update_funcs(
         brgemm_mode mode, scflags_t::brgemm_t backend);
-
-// makes a call node to sc_dump_tensor function
-expr call_dump_tensor(expr tsr, expr name, expr shape, expr size, expr limit,
-        expr outpath, expr format, expr dtype, expr is_dynamic);
-
-// makes a call node to sc_value_check function
-expr call_value_check(expr tsr, expr name, expr size);
 
 // dynamic query format function evaluation at runtime.
 expr call_matmul_core_query_format(const expr &tb, const expr &out0,

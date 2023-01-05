@@ -40,7 +40,6 @@ struct scflags_t {
     int backend_opt_level = 3;
     bool tensor_inplace_ = true;
     bool bf16_fast_trunc_ = false;
-    bool boundary_check_ = false;
     bool trace_ = false;
     bool dead_write_elimination_ = true;
     int buffer_schedule_ = 3; // 0 off, 1 whole reuse, 2 size first, 3 hot first
@@ -52,16 +51,9 @@ struct scflags_t {
     bool ssa_passes_ = false;
     bool brgemm_use_amx_ = false;
     bool prefetch_ = false;
-    std::string dump_graph_;
-    std::string graph_dump_results_;
-    bool value_check_ = false;
     bool mixed_fusion_ = true;
     bool use_cost_model_ = true;
     bool debug_info_ = false;
-    bool xbyak_jit_save_obj_ = false;
-    bool xbyak_jit_asm_listing_ = false;
-    bool xbyak_jit_log_stack_frame_model_ = false;
-    bool xbyak_jit_pause_after_codegen_ = false;
     bool jit_support_amx_intrinsics_
             = false; // whether jit supports directly generating amx intrinsics
             // instead of using dnnl

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,11 +50,11 @@ struct SC_API runtime_config_t {
     int get_num_threads() { return thread_pool_table_->get_num_threads(); }
     void set_num_threads(int num) { thread_pool_table_->set_num_threads(num); }
     std::string trace_out_path_;
-    int trace_initial_cap_;
-    trace_mode_t trace_mode_;
-    bool execution_verbose_;
-    bool managed_thread_pool_;
-    int verbose_level_;
+    int trace_initial_cap_ = 4096;
+    trace_mode_t trace_mode_ = OFF;
+    bool execution_verbose_ = false;
+    bool managed_thread_pool_ = true;
+    int verbose_level_ = 0;
     static runtime_config_t &get();
 
 private:

@@ -55,57 +55,6 @@ namespace sc {
 
 SC_MODULE(graph.lowering)
 
-struct result_dump_config_t {
-    bool enabled_ = false;
-    std::vector<std::string> filter_;
-    std::string path_ = "./dump";
-    bool binary_format_ = false;
-    size_t bytes_per_dump_ = 0;
-
-    bool should_function_dump(const std::string &name) {
-        if (filter_.empty()) { return true; }
-        for (auto &f : filter_) {
-            if (utils::string_startswith(name, f)) { return true; }
-        }
-        return false;
-    }
-
-    result_dump_config_t(const std::string &cfg) {
-        if (cfg.empty()) { return; }
-        auto configs = utils::string_split(cfg, ",");
-        for (auto &c : configs) {
-            auto kv = utils::string_split(c, "=");
-            if (kv.size() != 2) {
-                SC_MODULE_WARN << "Bad graph result dump config: " << c;
-                continue;
-            }
-            if (kv[0] == "filter") {
-                enabled_ = true;
-                filter_ = utils::string_split(kv[1], ":");
-            } else if (kv[0] == "path") {
-                enabled_ = true;
-                path_ = kv[1];
-            } else if (kv[0] == "format") {
-                enabled_ = true;
-                binary_format_ = std::stoi(kv[1]);
-            } else if (kv[0] == "bytes") {
-                enabled_ = true;
-                bytes_per_dump_ = std::stoull(kv[1]);
-            } else {
-                SC_MODULE_WARN << "Bad dump config key name " << kv[0];
-                continue;
-            }
-        }
-        if (enabled_) {
-            SC_MODULE_WARN << "The generated code will dump tensor results to "
-                           << path_
-                           << ", filter=" << utils::print_vector(filter_)
-                           << ", binaryformat=" << binary_format_
-                           << ", byteslimit=" << bytes_per_dump_;
-        }
-    }
-};
-
 static expr make_global_string(
         const ir_module_ptr &mod, const std::string &v, int &counter) {
     std::string name = "__gstring";
@@ -117,56 +66,6 @@ static expr make_global_string(
             ret, linkage::private_global);
     mod->add_global_var(def.checked_as<define>());
     return ret;
-}
-
-static void make_dump_tensor_call(const std::vector<expr> &outs,
-        const sc_op_ptr &node, const ir_module_ptr &ret_mod,
-        const std::string &callee_name, int &global_str_counter,
-        result_dump_config_t &dump_config, const expr &dump_out_path,
-        stmts_node_t *target_body, bool is_graph_dynamic) {
-    for (size_t i = 0; i < outs.size(); i++) {
-        auto &out = outs[i];
-        auto &graph_tsr = node->get_outputs()[i];
-        if (!out.isa<tensor>()) continue;
-        auto tsr = out.checked_as<tensor>();
-        std::stringstream tensor_name;
-        tensor_name << callee_name << '.' << tsr->name_ << '.'
-                    << graph_tsr->details_.get_format();
-        auto namestr = make_global_string(
-                ret_mod, tensor_name.str(), global_str_counter);
-        std::stringstream shape_name;
-        size_t total_shape1 = utils::get_sizeof_type(tsr->elem_dtype_);
-        for (auto &dim : graph_tsr->details_.get_blocking_dims()) {
-            total_shape1 *= dim;
-            shape_name << dim << ',';
-        }
-        auto shapestr = make_global_string(
-                ret_mod, shape_name.str(), global_str_counter);
-        auto the_call = builtin::call_dump_tensor(out, namestr, shapestr,
-                total_shape1, dump_config.bytes_per_dump_, dump_out_path,
-                dump_config.binary_format_,
-                static_cast<uint64_t>(tsr->elem_dtype_), is_graph_dynamic);
-        target_body->seq_.emplace_back(
-                builder::make_evaluate_unattached(the_call));
-    }
-}
-
-static void make_value_check_call(const std::vector<expr> &outs,
-        const ir_module_ptr &ret_mod, const std::string &callee_name,
-        int &global_str_counter, stmts_node_t *target_body) {
-    for (auto &out : outs) {
-        auto tsr = out.checked_as<tensor>();
-        if (tsr->elem_dtype_.type_code_ != sc_data_etype::F32) { continue; }
-        auto namestr = make_global_string(
-                ret_mod, callee_name + "." + tsr->name_, global_str_counter);
-        size_t total_shape1 = utils::get_sizeof_type(tsr->elem_dtype_);
-        for (auto &dimv : tsr->dims_) {
-            total_shape1 *= get_const_as_int(dimv.checked_as<constant_c>());
-        }
-        auto the_call = builtin::call_value_check(out, namestr, total_shape1);
-        target_body->seq_.emplace_back(
-                builder::make_evaluate_unattached(the_call));
-    }
 }
 
 static graph_tensor_ptr get_linked_output_tsr(const graph_tensor_ptr &ltensor) {
@@ -1158,11 +1057,6 @@ static void add_func_doc_string(const func_t &f) {
 ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         const std::vector<sc_op_ptr> &args, bool mark_as_main) {
     auto timer = SC_SCOPED_TIMER_INFO("graph.driver.time.lowering", "");
-    if (!ctx->flags_.dump_graph_.empty()) {
-        SC_INFO << "visualize graph to a dot file and a json file";
-        visualize(ctx->flags_.dump_graph_, graph);
-    }
-    result_dump_config_t dump_config {ctx->flags_.graph_dump_results_};
     lowering_visitor_state_t visiter_state(graph);
     op_visitor_t vis {
             visiter_state.get_selector(), visiter_state.get_updater()};
@@ -1187,12 +1081,6 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     auto ret_mod = ir_module_t::from_entry_func(ctx, func);
 
     expr dump_out_path;
-    int global_str_counter = 0;
-    if (dump_config.enabled_) {
-        dump_out_path = make_global_string(
-                ret_mod, dump_config.path_, global_str_counter);
-    }
-
     if (graph.attrs_.get_or_else("folded_input", false)) {
         ret_mod->attr_.set("folded_input", true);
     }
@@ -1383,16 +1271,6 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     executed_in_main_body = true;
                     op_execution_log.emplace_back(
                             node, target_body->seq_.back());
-                }
-                if (ctx->flags_.value_check_) {
-                    make_value_check_call(outs, ret_mod, callee_name,
-                            global_str_counter, target_body);
-                }
-                if (dump_config.enabled_
-                        && dump_config.should_function_dump(callee_name)) {
-                    make_dump_tensor_call(outs, node, ret_mod, callee_name,
-                            global_str_counter, dump_config, dump_out_path,
-                            target_body, is_graph_dynamic);
                 }
             }
         }

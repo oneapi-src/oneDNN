@@ -129,10 +129,6 @@ SC_INTERNAL_API bool create_process(const std::string &program,
 // waits for the termination of the process. Returns true if succeeded
 SC_INTERNAL_API bool wait_process(uintptr_t outhandle, int &exit_code);
 
-// Gets the SC_HOME path by env variables. Returns empty string if
-// SC_HOME is not set
-SC_INTERNAL_API const std::string &get_sc_home_path();
-
 #define MACRO_2_STR_HELPER(x) #x
 #define MACRO_2_STR(name) MACRO_2_STR_HELPER(name)
 
@@ -208,6 +204,10 @@ struct SC_INTERNAL_API compiler_configs_t {
     std::string dump_gen_code_;
     std::string jit_cc_options_;
     std::vector<std::string> cpu_jit_flags_;
+    bool xbyak_jit_save_obj_ = false;
+    bool xbyak_jit_asm_listing_ = false;
+    bool xbyak_jit_log_stack_frame_model_ = false;
+    bool xbyak_jit_pause_after_codegen_ = false;
     bool diagnose_ = false;
     bool printer_print_address_ = false;
     bool print_pass_time_;

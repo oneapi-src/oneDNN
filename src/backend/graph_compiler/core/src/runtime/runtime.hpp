@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,16 +26,10 @@ SC_API void print_float(float f);
 SC_API void print_index(uint64_t f);
 SC_API void print_int(int f);
 SC_API void print_str(char *f);
-SC_API uint64_t boundary_check(const char *name, uint64_t idx, uint64_t acc_len,
-        uint64_t mask, uint64_t tsr_len);
 SC_API void *sc_global_aligned_alloc(size_t sz, size_t align);
 SC_API void sc_global_aligned_free(void *ptr, size_t align);
 SC_API void sc_make_trace(int id, int in_or_out, int arg);
 SC_API void sc_make_trace_kernel(int id, int in_or_out, int arg);
-SC_API void sc_dump_tensor(void *tsr, const char *name, const char *shape,
-        size_t size, size_t limit, const char *path, bool binary_fmt,
-        uint64_t idtype, bool is_dynamic = false);
-SC_API void sc_value_check(void *tsr, const char *name, size_t size);
 // dynamic
 SC_API void *sc_extract_dyn_base(void *tsr);
 SC_API void *sc_extract_dyn_shape(void *tsr);

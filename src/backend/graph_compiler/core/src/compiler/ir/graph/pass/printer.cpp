@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,32 +127,6 @@ SC_INTERNAL_API void print_graph(const sc_graph_t &mgr, std::ostream &os,
                 }
             });
     os << '}' << '\n';
-}
-
-void visualize(const std::string &filename, const sc_graph_t &opmg) {
-    std::ofstream out;
-    std::stringstream name_maker;
-    static size_t i = 0;
-    name_maker << std::to_string(i++) << "_" << filename + ".dot";
-    std::string unique_name = name_maker.str();
-    out.open(unique_name);
-    out << "digraph G {\n";
-    op_visitor_t vis {op_visitor_t::pop_back_selector,
-            op_visitor_t::create_DAG_updater_post(opmg.ops_.size())};
-    vis.post_visit_graph(opmg, [&](const sc_op_ptr &aop) {
-        auto current_op_name
-                = aop->op_name_ + std::to_string(aop->logical_op_id_);
-        for (auto &ltensor : aop->get_inputs()) {
-            if (ltensor->producer_owner_) {
-                auto input_op_name = ltensor->producer_owner_->op_name_
-                        + std::to_string(
-                                ltensor->producer_owner_->logical_op_id_);
-                out << input_op_name << " -> " << current_op_name << ";\n";
-            }
-        }
-    });
-    out << "}\n";
-    out.close();
 }
 
 } // namespace sc

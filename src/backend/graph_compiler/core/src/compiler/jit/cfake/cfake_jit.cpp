@@ -71,22 +71,41 @@ cfake_jit_module_t::~cfake_jit_module_t() {
 
 #else
 
+static std::string get_include_path_() {
+    std::string path;
+    char home_path[512];
+    if (utils::getenv(
+                env_names[env_key::SC_C_INCLUDE], home_path, sizeof(home_path))
+            != 0) {
+        path = home_path;
+    } else {
+#ifdef SC_HOME
+        path = MACRO_2_STR(SC_HOME) "/src";
+#else
+        std::cerr << "environment variable " << env_names[env_key::SC_C_INCLUDE]
+                  << " is not set";
+#endif
+    }
+    return path;
+}
+
+static const std::string &get_include_path() {
+    static std::string path = get_include_path_();
+    return path;
+}
+
 std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         const std::string &inpath, const std::string &outpath,
         statics_table_t &&globals, bool has_generic_wrapper,
         bool managed_thread_pool) const {
     auto timer = SC_SCOPED_TIMER_INFO("pass.time.cfake_jit", "");
-    auto &home_path = utils::get_sc_home_path();
-    if (home_path.empty()) {
-        throw std::runtime_error("environment variable SC_HOME is not set");
-    }
+    auto &home_inc = get_include_path();
     const auto &compiler_config = utils::compiler_configs_t::get();
     if (compiler_config.print_gen_code_) {
         std::ifstream f(inpath);
         if (f.is_open()) std::cerr << f.rdbuf();
     }
 
-    const std::string home_inc = home_path + "/src";
     const std::string &command = cfake_jit::get_compiler_command();
     // Mandatory compiler options...
     std::vector<std::string> option = {command, "-I", home_inc, "-o", outpath,

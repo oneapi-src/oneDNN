@@ -52,7 +52,6 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"print_index", (void *)print_index},
             {"print_int", (void *)print_int},
             {"print_str", (void *)print_str},
-            {"boundary_check", (void *)boundary_check},
             {"sc_global_aligned_alloc", (void *)sc_global_aligned_alloc},
             {"sc_global_aligned_free", (void *)sc_global_aligned_free},
             {"sc_thread_aligned_malloc", (void *)sc_thread_aligned_malloc},
@@ -61,8 +60,6 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"sc_aligned_free", (void *)sc_aligned_free},
             {"sc_make_trace", (void *)sc_make_trace},
             {"sc_make_trace_kernel", (void *)sc_make_trace_kernel},
-            {"sc_dump_tensor", (void *)sc_dump_tensor},
-            {"sc_value_check", (void *)sc_value_check},
             {"sc_parallel_call_cpu_with_env",
                     (void *)runtime_config_t::get()
                             .thread_pool_table_->parallel_call},

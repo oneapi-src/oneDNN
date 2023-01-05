@@ -124,7 +124,7 @@ context_ptr get_default_context() {
         jit_kind jit = jit_kind::cfake;
 #endif
         {
-            const char *jit_env_var_name = "DNNL_GRAPH_SC_CPU_JIT";
+            const char *jit_env_var_name = env_names[SC_CPU_JIT];
             const char *cfakejit_switch_name = "c";
             auto buf = sc::utils::getenv_string(jit_env_var_name);
             if (!buf.empty()) {
@@ -170,24 +170,6 @@ context_ptr get_default_context() {
             SC_MODULE_WARN << "Trace is ON";
         }
 
-        std::string dumped = sc::utils::getenv_string(env_names[SC_DUMP_GRAPH]);
-        if (!dumped.empty()) {
-            if (dumped == "1") {
-                flags.dump_graph_ = "sc_graph";
-            } else {
-                flags.dump_graph_ = dumped;
-            }
-            SC_MODULE_WARN << "Dump graph is ON";
-        }
-
-        flags.graph_dump_results_
-                = sc::utils::getenv_string(env_names[SC_GRAPH_DUMP_TENSORS]);
-
-        if (sc::utils::getenv_int(env_names[SC_VALUE_CHECK])) {
-            flags.value_check_ = true;
-            SC_MODULE_WARN << "Enabled value check";
-        }
-
         int opt_level = sc::utils::getenv_int(env_names[SC_OPT_LEVEL], 3);
         check_within(
                 opt_level, 0, 3, 3, "Bad optimization level in SC_OPT_LEVEL: ");
@@ -200,49 +182,6 @@ context_ptr get_default_context() {
             flags.index2var_ = false;
             flags.tensor_inplace_ = false;
         }
-
-        auto buf_sched_str
-                = sc::utils::getenv_string(env_names[SC_BUFFER_SCHEDULE]);
-        if (!buf_sched_str.empty()) {
-            flags.buffer_schedule_ = std::stoi(buf_sched_str);
-            check_within(flags.buffer_schedule_, 0, 3, 3,
-                    "Bad buffer schedule level in SC_BUFFER_SCHEDULE: ");
-        }
-
-        auto backend = sc::utils::getenv_string(env_names[SC_KERNEL]);
-        if (backend.empty() || backend == "dnnl") {
-            flags.brgemm_backend_ = scflags_t::brgemm_t::dnnl;
-        } else {
-            flags.brgemm_backend_ = scflags_t::brgemm_t::dnnl;
-            SC_MODULE_WARN << "Unknown SC_KERNEL: " << backend
-                           << ", set to default = dnnl";
-        }
-
-        parse_value(env_names[SC_TENSOR_INPLACE], flags.tensor_inplace_);
-        parse_value(env_names[SC_DEAD_WRITE_ELIMINATION],
-                flags.dead_write_elimination_);
-        parse_value(env_names[SC_DEBUG_INFO], flags.debug_info_);
-        parse_value(env_names[SC_PREFETCH], flags.prefetch_);
-        parse_value(env_names[SC_INDEX2VAR], flags.index2var_);
-        parse_value(env_names[SC_PRINT_IR], flags.print_ir_);
-        parse_value(env_names[SC_MIXED_FUSION], flags.mixed_fusion_);
-        parse_value(env_names[SC_COST_MODEL], flags.use_cost_model_);
-        parse_value(env_names[SC_SSA_PASSES], flags.ssa_passes_);
-        parse_value(
-                env_names[SC_XBYAK_JIT_SAVE_OBJ], flags.xbyak_jit_save_obj_);
-        parse_value(env_names[SC_XBYAK_JIT_ASM_LISTING],
-                flags.xbyak_jit_asm_listing_);
-        parse_value(env_names[SC_XBYAK_JIT_LOG_STACK_FRAME_MODEL],
-                flags.xbyak_jit_log_stack_frame_model_);
-        parse_value(env_names[SC_XBYAK_JIT_PAUSE_AFTER_CODEGEN],
-                flags.xbyak_jit_pause_after_codegen_);
-
-        parse_value(env_names[SC_MICRO_KERNEL_OPTIM], flags.kernel_optim_);
-
-        if (sc::utils::getenv_int(env_names[SC_BOUNDARY_CHECK])) {
-            flags.boundary_check_ = true;
-            SC_MODULE_WARN << "Enabled boundary check";
-        };
 
         reset_cpu_flags_by_dnnl_envs(tm);
         flags.brgemm_use_amx_ = tm.cpu_flags_.fAVX512AMXTILE

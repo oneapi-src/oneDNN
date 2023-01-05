@@ -63,28 +63,6 @@ std::string get_dyn_lib_path(void *addr) {
     return std::string();
 }
 
-static std::string get_sc_home_path_() {
-    std::string path;
-    char home_path[512];
-    if (utils::getenv(
-                env_names[env_key::SC_HOME_], home_path, sizeof(home_path))
-            != 0) {
-        path = home_path;
-    } else {
-#ifdef SC_HOME
-        path = MACRO_2_STR(SC_HOME);
-#else
-        std::cerr << "environment variable SC_HOME is not set";
-#endif
-    }
-    return path;
-}
-
-const std::string &get_sc_home_path() {
-    static std::string path = get_sc_home_path_();
-    return path;
-}
-
 uint32_t get_sizeof_etype(sc_data_etype etype) {
     switch (etype) {
         case sc_data_etype::S8:
@@ -141,16 +119,16 @@ const std::string &compiler_configs_t::get_temp_dir_path() {
     return temp_dir;
 }
 
+template <typename T>
+static void parse_value(const char *name, T &v) {
+    auto strv = sc::utils::getenv_string(name);
+    if (!strv.empty()) { v = T(std::stoi(strv)); };
+}
+
 using namespace env_key;
 compiler_configs_t::compiler_configs_t() {
-    print_gen_code_ = utils::getenv_int(env_names[SC_PRINT_GENCODE], 0);
     dump_gen_code_ = utils::getenv_string(env_names[SC_DUMP_GENCODE]);
-    jit_cc_options_ = utils::getenv_string(env_names[SC_JIT_CC_OPTIONS_GROUP]);
-    cpu_jit_flags_ = utils::string_split(
-            utils::getenv_string(env_names[SC_CPU_JIT_FLAGS]), " ");
-    print_pass_time_ = utils::getenv_int(env_names[SC_PRINT_PASS_TIME], 0);
     print_pass_result_ = utils::getenv_int(env_names[SC_PRINT_PASS_RESULT], 0);
-    jit_profile_ = utils::getenv_int(env_names[SC_JIT_PROFILE], 0);
 
     if (temp_dir_.empty()) {
 #ifndef _WIN32

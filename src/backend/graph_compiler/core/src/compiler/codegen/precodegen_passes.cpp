@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@
 #include <compiler/ir/transform/cpu/target_specific_lower.hpp>
 #include <compiler/ir/transform/dead_write_eliminate.hpp>
 #include <compiler/ir/transform/dessa_transform.hpp>
-#include <compiler/ir/transform/dyn_boundary_check.hpp>
 #include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/func_inline.hpp>
 #include <compiler/ir/transform/index2var.hpp>
@@ -122,9 +121,6 @@ sequential_module_pass_t get_default_precodegen_passes(
     }
     ret.emplace_back(utils::make_unique<kernel_lowering_cpu_t>(
             ctx->flags_.kernel_optim_));
-    if (ctx->flags_.boundary_check_) {
-        ret.emplace_back(module_function_pass_t::make<dyn_boundary_check_t>());
-    }
     ret.emplace_back(utils::make_unique<closurizer_cpu_t>(
             runtime_config_t::get().get_num_threads() == 1));
     ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(false));

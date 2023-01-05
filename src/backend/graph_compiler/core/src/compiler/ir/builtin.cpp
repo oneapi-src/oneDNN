@@ -81,19 +81,6 @@ void print_str(const char *v) {
     print_str(std::string(v));
 }
 
-expr boundary_check(
-        expr name, expr idx, expr access_len, expr mask, expr boundary_len) {
-    static func_t boundary_check_f = make_func("boundary_check",
-            {make_var(datatypes::pointer, "name"),
-                    make_var(datatypes::index, "idx"),
-                    make_var(datatypes::index, "access_len"),
-                    make_var(datatypes::index, "mask"),
-                    make_var(datatypes::index, "boundary_len")},
-            stmt(), datatypes::index);
-    return boundary_check_f(std::move(name), std::move(idx),
-            std::move(access_len), std::move(mask), std::move(boundary_len));
-}
-
 expr make_trace(expr func_name, expr in_or_out, expr arg) {
     static func_t make_trace_f = make_func("sc_make_trace",
             {make_var(datatypes::s32, "func_name"),
@@ -112,33 +99,6 @@ expr make_trace_kernel(expr func_name, expr in_or_out, expr arg) {
             stmt(), datatypes::void_t);
     return make_trace_f(
             std::move(func_name), std::move(in_or_out), std::move(arg));
-}
-
-expr call_dump_tensor(expr tsr, expr name, expr shape, expr size, expr limit,
-        expr outpath, expr format, expr dtype, expr is_dynamic) {
-    static func_t dump_tensor_f = make_func("sc_dump_tensor",
-            {make_var(datatypes::pointer, "tsr"),
-                    make_var(datatypes::pointer, "name"),
-                    make_var(datatypes::pointer, "shape"),
-                    make_var(datatypes::index, "size"),
-                    make_var(datatypes::index, "limit"),
-                    make_var(datatypes::pointer, "outpath"),
-                    make_var(datatypes::boolean, "format"),
-                    make_var(datatypes::index, "dtype"),
-                    make_var(datatypes::boolean, "is_dynamic")},
-            stmt(), datatypes::void_t);
-    return dump_tensor_f(std::move(tsr), std::move(name), std::move(shape),
-            std::move(size), std::move(limit), std::move(outpath),
-            std::move(format), std::move(dtype), std::move(is_dynamic));
-}
-
-expr call_value_check(expr tsr, expr name, expr size) {
-    static func_t value_check_f = make_func("sc_value_check",
-            {make_var(datatypes::pointer, "tsr"),
-                    make_var(datatypes::pointer, "name"),
-                    make_var(datatypes::index, "size")},
-            stmt(), datatypes::void_t);
-    return value_check_f(std::move(tsr), std::move(name), std::move(size));
 }
 
 func_t get_brgemm_init_func() {
