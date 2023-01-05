@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ void print_ir_and_annotate_source_pos(const func_c &v, std::ostream &os);
 // printing the IR and print the position of "v". Useful for debugging
 void print_ir_and_annotate_position_in_source(
         const func_c &scope, const node_base *v, std::ostream &os);
-
+void print_func_comments(const func_c &f, std::ostream &os);
 } // namespace sc
 
 #endif

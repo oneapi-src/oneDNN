@@ -1141,6 +1141,20 @@ static func_t insert_prefetch(const context_ptr &ctx,
     return ret;
 }
 
+static void add_func_doc_string(const func_t &f) {
+    std::vector<std::string> comments;
+    comments.reserve(f->params_.size() + 1);
+    comments.emplace_back(f->name_);
+    for (auto &p : f->params_) {
+        std::stringstream ss;
+        ss << "@param " << p << ' '
+           << p->attr().get<std::string>("temp.comments");
+        comments.emplace_back(ss.str());
+        p->attr().remove("temp.comments");
+    }
+    f->attr()["comments"] = std::move(comments);
+}
+
 ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         const std::vector<sc_op_ptr> &args, bool mark_as_main) {
     auto timer = SC_SCOPED_TIMER_INFO("graph.driver.time.lowering", "");
@@ -1257,14 +1271,24 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         bool executed_in_main_body = false;
         switch (kind) {
             case kinput: {
-                for (auto &v : outs) {
+                auto &op_outs = node->get_outputs();
+                for (size_t i = 0; i < outs.size(); i++) {
+                    auto &v = outs[i];
                     params.emplace_back(v);
+                    std::stringstream ss;
+                    op_outs[i]->details_.to_string(ss);
+                    v->attr()["temp.comments"] = ss.str();
                 }
                 break;
             }
             case koutput: {
-                for (auto &v : ins) {
+                auto &op_ins = node->get_inputs();
+                for (size_t i = 0; i < ins.size(); i++) {
+                    auto &v = ins[i];
                     params.emplace_back(v);
+                    std::stringstream ss;
+                    op_ins[i]->details_.to_string(ss);
+                    v->attr()["temp.comments"] = ss.str();
                 }
                 break;
             }
@@ -1427,6 +1451,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     func->decl_->params_ = func->params_;
     func->body_ = std::move(func_body);
     func->attr()[function_attrs::top_level] = true;
+    add_func_doc_string(func);
     if (mark_as_main) func->attr()[function_attrs::is_main] = true;
     if (utils::compiler_configs_t::get().print_pass_result_) {
         SC_MODULE_INFO << ret_mod;

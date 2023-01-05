@@ -16,6 +16,7 @@
 #include <unordered_map>
 
 #include <string>
+#include <utility>
 #include <vector>
 #include "../builder.hpp"
 #include "../easy_build.hpp"
@@ -64,9 +65,25 @@ const_ir_module_ptr interface_generalizer_t::operator()(
             }
             wrapper_func->name_ = wrapper_name;
             wrapper_func->decl_->name_ = wrapper_name;
-            if (f->attr_
-                    && f->attr_->get_or_else(function_attrs::is_main, false)) {
-                wrapper_func->attr()[function_attrs::is_main] = true;
+            if (f->attr_) {
+                if (f->attr_->get_or_else(function_attrs::is_main, false)) {
+                    wrapper_func->attr()[function_attrs::is_main] = true;
+                }
+                if (auto comments
+                        = f->attr_->get_or_null<std::vector<std::string>>(
+                                "comments")) {
+                    std::vector<std::string> new_comments = {comments->at(0),
+                            "@param args The array of arguments. It should "
+                            "contain the following:"};
+                    for (size_t i = 1; i < comments->size(); i++) {
+                        auto &comment = (*comments)[i];
+                        new_comments.emplace_back("  " + comment);
+                        if (!comment.empty() && comment[0] == '@') {
+                            new_comments.back()[2] = '-';
+                        }
+                    }
+                    wrapper_func->attr()["comments"] = std::move(new_comments);
+                }
             }
             ret->add_func({wrapper_func});
         }

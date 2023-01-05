@@ -27,6 +27,7 @@
 #include "precodegen_passes.hpp"
 #include <compiler/ir/intrinsics.hpp>
 #include <compiler/ir/pass/func_dependency.hpp>
+#include <compiler/ir/pass/printer.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/pointer_alias_info.hpp>
 #include <compiler/jit/symbol_resolver.hpp>
@@ -178,6 +179,7 @@ static const std::string &get_func_name(const func_c &v) {
 }
 
 func_c codegen_c_vis::dispatch(func_c v) {
+    if (prototype_only) { print_func_comments(v, *os); }
     bool is_symbol_in_runtime
             = !is_offline_ && default_external_symbol_resolve(v->name_);
     if (!is_symbol_in_runtime) {
@@ -1052,6 +1054,11 @@ static void generate_dumped_source(const const_ir_module_ptr &mod,
     for (auto &f : mod->get_contents()) {
         if (f->name_ == "__sc_init__") {
             f->attr()["temp.replace_func_name"] = "sc_init_" + module_name;
+            f->attr()["comments"]
+                    = std::vector<std::string> {"Initialize the " + module_name,
+                            "@param __stream the stream pointer, usually "
+                            "get_default_stream()",
+                            "@param __module_data the module global data"};
             break;
         }
     }

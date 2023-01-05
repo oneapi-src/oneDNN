@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -306,7 +306,21 @@ static ostream &print_single_arg(ir_printer_t &p, const expr &arg) {
     return p.os_;
 }
 
+void print_func_comments(const func_c &f, std::ostream &os) {
+    if (f->attr_) {
+        if (auto comments
+                = f->attr_->get_or_null<std::vector<std::string>>("comments")) {
+            os << "/**\n";
+            for (auto &line : *comments) {
+                os << " * " << line << '\n';
+            }
+            os << "*/\n";
+        }
+    }
+}
+
 func_c ir_printer_t::dispatch(func_c f) {
+    print_func_comments(f, os_);
     os_ << "func " << f->name_ << '(';
     if (!f->params_.empty()) {
         for (unsigned i = 0; i < f->params_.size() - 1; i++) {

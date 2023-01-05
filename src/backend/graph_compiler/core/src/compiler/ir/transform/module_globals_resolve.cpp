@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -273,6 +273,25 @@ const_ir_module_ptr module_globals_resolver_t::operator()(
         params[1] = builder::make_tensor("__module_data", {0UL}, datatypes::s8);
         auto retf = builder::make_func(f->name_, params,
                 builder::make_stmts_unattached({}), f->ret_type_);
+        if (f->attr_) {
+            // we added new args, we need to update the comments
+            if (auto comments = f->attr_->get_or_null<std::vector<std::string>>(
+                        "comments")) {
+                if (comments->size() >= 2
+                        && utils::string_startswith((*comments)[1], "@param")) {
+                    std::vector<std::string> new_comments = {comments->at(0),
+                            "@param __stream the stream pointer, usually "
+                            "get_default_stream()",
+                            "@param __module_data the module global data"};
+                    for (size_t i = 1; i < comments->size(); i++) {
+                        auto &comment = (*comments)[i];
+                        new_comments.emplace_back(comment);
+                    }
+                    retf->decl_->attr()["comments"] = new_comments;
+                    retf->attr()["comments"] = std::move(new_comments);
+                }
+            }
+        }
         auto *funcp = retf.get();
         replace_map[f->name_] = copy_attr(*f, std::move(retf));
         funcp->decl_ = copy_attr(*f, std::move(funcp->decl_));
