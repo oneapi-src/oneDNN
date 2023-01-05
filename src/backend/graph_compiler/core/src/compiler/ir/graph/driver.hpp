@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <vector>
 #include "analysis/analysis.hpp"
 #include "transform/transform.hpp"
+#include <unordered_map>
 
 namespace sc {
 
@@ -118,6 +119,12 @@ SC_API void graph_driver(sc_graph_t &graph,
         tuner_creator *tune_creator = nullptr,
         std::vector<basic_graph_pass_ptr> *pre_tune_pass = nullptr,
         std::vector<basic_graph_pass_ptr> *post_tune_pass = nullptr);
+
+// util function to create mapping of ops in the copied graph
+std::unordered_map<sc_op_ptr, std::vector<sc_op_ptr>> create_op_map(
+        sc_graph_t &lg, sc_graph_t &rg);
+void run_graph_passes(sc_graph_t &graph, const context_ptr &ctx,
+        const std::vector<basic_graph_pass_ptr> &passes);
 
 } // namespace sc
 

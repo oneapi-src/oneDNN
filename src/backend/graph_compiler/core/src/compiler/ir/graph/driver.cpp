@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -159,7 +159,7 @@ get_graph_passes(const context_ptr &ctx) {
     return create_default_graph_flow(ctx);
 }
 
-static void run_passes(sc_graph_t &graph, const context_ptr &ctx,
+void run_graph_passes(sc_graph_t &graph, const context_ptr &ctx,
         const std::vector<basic_graph_pass_ptr> &passes) {
     bool need_time = utils::compiler_configs_t::get().print_pass_time_;
     bool need_result = utils::compiler_configs_t::get().print_pass_result_;
@@ -232,10 +232,10 @@ void graph_driver(sc_graph_t &graph, const context_ptr &ctx,
     const std::vector<basic_graph_pass_ptr> *postpass
             = post_tune_pass ? post_tune_pass : &std::get<1>(passes_tuple);
     // run pre_processing passes
-    run_passes(graph, ctx, *prepass);
+    run_graph_passes(graph, ctx, *prepass);
 
     // run post tune passes
-    run_passes(graph, ctx, *postpass);
+    run_graph_passes(graph, ctx, *postpass);
 }
 
 void graph_driver(
