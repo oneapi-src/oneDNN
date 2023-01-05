@@ -51,11 +51,16 @@ void set_default_format(memory_desc_t &md, const std::string &tag) {
     md = make_layout(md, tag).to_dnnl(md.dims);
 }
 
-bool matches_tag(const layout_t &layout, const std::string &tag) {
+bool matches_tag(const layout_t &layout, const std::string &tag,
+        const std::vector<dim_t> &dims) {
     if (layout.is_empty()) return false;
-    auto tag_layout = make_layout(layout.type(), layout.dims(), tag);
+    auto tag_layout = make_layout(layout.type(), dims, tag);
     if (layout != tag_layout) return false;
     return true;
+}
+
+bool matches_tag(const layout_t &layout, const std::string &tag) {
+    return matches_tag(layout, tag, layout.dims());
 }
 
 bool matches_tag_strict(const layout_t &layout, const std::string &tag) {
@@ -67,7 +72,8 @@ bool matches_tag_strict(const layout_t &layout, const std::string &tag) {
 
 bool matches_tag(const memory_desc_t &md, const std::string &tag) {
     if (md.format_kind == format_kind::any) return false;
-    return matches_tag(make_layout(md), tag);
+    std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
+    return matches_tag(make_layout(md), tag, dims);
 }
 
 bool matches_tag_strict(const memory_desc_t &md, const std::string &tag) {
