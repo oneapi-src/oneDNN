@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1966,7 +1966,9 @@ typedef const struct dnnl_memory *const_dnnl_memory_t;
 /// Flags for RNN cell.
 typedef enum {
     /// Undefined RNN flags
-    dnnl_rnn_flags_undef = 0x0
+    dnnl_rnn_flags_undef = 0x0,
+    /// Do not add weights gradient to existing diff_weights memory
+    dnnl_rnn_flags_diff_weights_overwrite = 0x1,
 } dnnl_rnn_flags_t;
 
 /// A direction of RNN primitive execution.

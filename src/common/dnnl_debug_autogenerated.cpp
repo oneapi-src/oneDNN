@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1485,6 +1485,7 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
 
 const char *dnnl_rnn_flags2str(dnnl_rnn_flags_t v) {
     if (v == dnnl_rnn_flags_undef) return "undef";
+    if (v == dnnl_rnn_flags_diff_weights_overwrite) return "rnn_flags_diff_weights_overwrite";
     assert(!"unknown rnn_flags");
     return "unknown rnn_flags";
 }

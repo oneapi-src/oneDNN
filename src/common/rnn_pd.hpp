@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -180,6 +180,10 @@ struct rnn_pd_t : public primitive_desc_t {
 
     bool is_lstm_projection() const {
         return !memory_desc_wrapper(weights_projection_md_).is_zero();
+    }
+
+    bool diff_weights_overwrite() const {
+        return desc_.flags & rnn_flags::diff_weights_overwrite;
     }
 
     dnnl_rnn_direction_t direction() const { return desc_.direction; }

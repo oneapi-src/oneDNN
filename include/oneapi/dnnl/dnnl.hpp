@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -545,7 +545,9 @@ inline dnnl_normalization_flags_t convert_to_c(normalization_flags flags) {
 /// RNN cell flags.
 enum class rnn_flags : unsigned {
     /// Undefined RNN flags
-    undef = dnnl_rnn_flags_undef
+    undef = dnnl_rnn_flags_undef,
+    /// Do not add weights gradient to existing diff_weights memory
+    diff_weights_overwrite = dnnl_rnn_flags_diff_weights_overwrite,
 };
 
 /// Converts RNN cell flags enum value from C++ API to C API type.

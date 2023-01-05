@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1497,6 +1497,13 @@ const normalization_flags_t use_shift = dnnl_use_shift;
 const normalization_flags_t fuse_norm_relu = dnnl_fuse_norm_relu;
 const normalization_flags_t fuse_norm_add_relu = dnnl_fuse_norm_add_relu;
 } // namespace normalization_flags
+
+using rnn_flags_t = dnnl_rnn_flags_t;
+namespace rnn_flags {
+const rnn_flags_t undef = dnnl_rnn_flags_undef;
+const rnn_flags_t diff_weights_overwrite
+        = dnnl_rnn_flags_diff_weights_overwrite;
+} // namespace rnn_flags
 
 using engine_kind_t = dnnl_engine_kind_t;
 namespace engine_kind {

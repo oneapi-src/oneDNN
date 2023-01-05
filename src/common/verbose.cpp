@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -201,13 +201,19 @@ std::ostream &operator<<(std::ostream &ss, format_kind_t format_kind) {
     return ss;
 }
 
-std::string flags2str(unsigned flags) {
+std::string normalization_flags2str(unsigned flags) {
     std::string s;
     if (flags & normalization_flags::use_global_stats) s += "G";
     if (flags & normalization_flags::use_scale) s += "C";
     if (flags & normalization_flags::use_shift) s += "H";
     if (flags & normalization_flags::fuse_norm_relu) s += "R";
     if (flags & normalization_flags::fuse_norm_add_relu) s += "A";
+    return s;
+}
+
+std::string rnn_flags2str(unsigned flags) {
+    std::string s;
+    if (flags & rnn_flags::diff_weights_overwrite) s += "O";
     return s;
 }
 
@@ -536,7 +542,7 @@ static std::string init_info_batch_normalization(
     ss << ",";
 
     ss << pd->attr() << ",";
-    ss << "flags:" << flags2str(pd->desc()->flags) << ",";
+    ss << "flags:" << normalization_flags2str(pd->desc()->flags) << ",";
     ss << md2desc_str(src_md);
 
     return ss.str();
@@ -695,7 +701,7 @@ static std::string init_info_layer_normalization(
     ss << ",";
 
     ss << pd->attr() << ",";
-    ss << "flags:" << flags2str(pd->desc()->flags) << ",";
+    ss << "flags:" << normalization_flags2str(pd->desc()->flags) << ",";
     ss << md2dim_str(src_md);
 
     return ss.str();
@@ -921,7 +927,8 @@ static std::string init_info_rnn(const engine_t *e, const pd_t *pd) {
     ss << pd->attr() << ",";
     ss << "alg:" << pd->cell_kind()
        << " direction:" << dnnl_rnn_direction2str(pd->direction())
-       << " activation:" << pd->activation_kind() << ",";
+       << " activation:" << pd->activation_kind()
+       << " flags:" << rnn_flags2str(pd->desc()->flags) << ",";
 
     ss << "l" << pd->L() << "t" << pd->T() << "mb" << pd->MB() << "sic"
        << pd->SIC() << "slc" << pd->SLC() << "dhc" << pd->DHC() << "dic"
