@@ -1845,7 +1845,8 @@ inline void construct_int8_convolutional_bottleneck_resblock(
 
 inline void construct_int8_resnet50_stage2_block(
         dnnl::impl::graph::graph_t *agraph, id_generator &id_gen,
-        size_t three_conv_block_num = 2) {
+        size_t three_conv_block_num = 2, bool use_biasadd = false,
+        bool is_quantize_wei = false) {
     int64_t ic = 8, oc = 8, ks = 1;
     std::vector<int64_t> src_shape {1, ic, 12, 12};
 
@@ -1860,22 +1861,22 @@ inline void construct_int8_resnet50_stage2_block(
     auto int8_conv0 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
             1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
             true, scale_src, zp_src, scale_out, zp_out, scale_wei,
-            impl::graph::data_type::u8);
+            impl::graph::data_type::u8, true, use_biasadd, is_quantize_wei);
     auto int8_conv1 = create_int8_convolution(id_gen, *agraph, int8_conv0, ic,
             ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
             false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out, scale_wei,
-            impl::graph::data_type::u8);
+            impl::graph::data_type::u8, true, use_biasadd, is_quantize_wei);
 
     auto int8_conv2 = create_int8_convolution(id_gen, *agraph, src, ic, ks, oc,
             1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true, false, 1e-6f,
             /*no relu*/ false, scale_src, zp_src, scale_out, zp_out, scale_wei,
-            impl::graph::data_type::u8);
+            impl::graph::data_type::u8, true, use_biasadd, is_quantize_wei);
 
     auto int8_conv3 = create_int8_convolution(id_gen, *agraph, int8_conv1, ic,
             ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
             false, 1e-6f, /*no relu*/ false, scale_src, zp_src, scale_out,
             zp_out, scale_wei, impl::graph::data_type::u8,
-            /*not quantize dst*/ false);
+            /*not quantize dst*/ false, use_biasadd, is_quantize_wei);
     auto dq3 = create_dequantize(id_gen, *agraph, int8_conv2, "per_tensor",
             {zp_src}, {scale_src}, 0);
     auto add0 = create_add(id_gen, *agraph, int8_conv3, dq3);
@@ -1890,17 +1891,19 @@ inline void construct_int8_resnet50_stage2_block(
         auto int8_conv0 = create_int8_convolution(id_gen, *agraph, tmp, ic, ks,
                 oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX", true,
                 false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out,
-                scale_wei, impl::graph::data_type::u8);
+                scale_wei, impl::graph::data_type::u8, true, use_biasadd,
+                is_quantize_wei);
         auto int8_conv1 = create_int8_convolution(id_gen, *agraph, int8_conv0,
                 ic, ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX",
                 true, false, 1e-6f, true, scale_src, zp_src, scale_out, zp_out,
-                scale_wei, impl::graph::data_type::u8);
+                scale_wei, impl::graph::data_type::u8, true, use_biasadd,
+                is_quantize_wei);
 
         auto int8_conv2 = create_int8_convolution(id_gen, *agraph, int8_conv1,
                 ic, ks, oc, 1, {1, 1}, {1, 1}, {0, 0}, {0, 0}, "NCX", "OIX",
                 true, false, 1e-6f, /*no relu*/ false, scale_src, zp_src,
                 scale_out, zp_out, scale_wei, impl::graph::data_type::u8,
-                /*not quantize dst*/ false);
+                /*not quantize dst*/ false, use_biasadd, is_quantize_wei);
         auto dq3 = create_dequantize(
                 id_gen, *agraph, tmp, "per_tensor", {zp_src}, {scale_src}, 0);
         auto add0 = create_add(id_gen, *agraph, int8_conv2, dq3);

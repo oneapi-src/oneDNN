@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,6 +36,69 @@ TEST(Execute, Int8Resnet50Stage2Block) {
     g.finalize();
 
     ASSERT_EQ(g.get_ops().size(), 72U);
+
+    graph::pass::pass_base_ptr apass = get_pass("int8_resnet50_stage_2_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 28U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, graph::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    using ltw = graph::logical_tensor_wrapper_t;
+
+    std::vector<test::vector<float>> inputs_data, outputs_data;
+    std::vector<graph::tensor_t> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_data.emplace_back(
+                test::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_ts.emplace_back(*lt, eng, inputs_data.back().data());
+    }
+
+    for (auto &lt : outputs) {
+        graph::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_data.emplace_back(test::vector<float>(
+                utils::product(ltw(compiled_output).vdims())));
+        outputs_ts.emplace_back(
+                compiled_output, eng, outputs_data.back().data());
+    }
+
+    ASSERT_EQ(cp.execute(strm, inputs_ts, outputs_ts), graph::status::success);
+    strm->wait();
+}
+
+TEST(Execute, Int8Resnet50Stage2BlockWithQuantWei) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    utils::id_generator id_gen;
+    graph::graph_t g(eng->kind());
+    utils::construct_int8_resnet50_stage2_block(&g, id_gen, 3, true, true);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 98U);
 
     graph::pass::pass_base_ptr apass = get_pass("int8_resnet50_stage_2_fusion");
     apass->run(g);
