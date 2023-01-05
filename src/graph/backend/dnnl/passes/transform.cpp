@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -937,57 +937,12 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
                     rewriter.fuse_op_to_successor(
                             mul_scale_op.shared_from_this());
 
-                    fusion_info.append_post_sum(post_op->shared_from_this(),
+                    fusion_info.append_post_binary(post_op->shared_from_this(),
                             std::vector<size_t> {base_op->num_inputs()},
                             scales[0], zp);
-                    assertm(!base_op->has_attr(op_attr::with_sum)
-                                    || !base_op->get_attr<bool>(
-                                            op_attr::with_sum),
-                            "not support multiple post sum ops "
-                            "currently.");
-                    base_op->set_attr<bool>(op_attr::with_sum, true);
                 } else {
-                    // - the add operation may need broadcast
-                    auto fused_in = post_op->get_input_value(
-                            fuse_op_predecessor_offset);
-                    auto other_in = post_op->get_input_value(
-                            1 - fuse_op_predecessor_offset);
-                    auto dst = post_op->get_output_value(0);
-
-                    if (ltw(fused_in->get_logical_tensor()).vdims()
-                            == ltw(other_in->get_logical_tensor()).vdims()) {
-                        if (base_op->get_kind() == op_kind::dnnl_eltwise
-                                || base_op->get_kind() == op_kind::dnnl_pool) {
-                            fusion_info.append_post_binary(
-                                    post_op->shared_from_this(),
-                                    std::vector<size_t> {
-                                            base_op->num_inputs()});
-                        } else {
-                            // use sum post-ops for no-broadcast add
-                            // map non-first post-sum to post-binary_add
-                            if (base_op->has_attr(op_attr::with_sum)
-                                    && base_op->get_attr<bool>(
-                                            op_attr::with_sum)) {
-                                fusion_info.append_post_binary(
-                                        post_op->shared_from_this(),
-                                        std::vector<size_t> {
-                                                base_op->num_inputs()});
-                            } else {
-                                fusion_info.append_post_sum(
-                                        post_op->shared_from_this(),
-                                        std::vector<size_t> {
-                                                base_op->num_inputs()},
-                                        1.0f, 0);
-                                base_op->set_attr<bool>(
-                                        op_attr::with_sum, true);
-                            }
-                        }
-                    } else {
-                        // use binary post-ops for broadcast add
-                        fusion_info.append_post_binary(
-                                post_op->shared_from_this(),
-                                std::vector<size_t> {base_op->num_inputs()});
-                    }
+                    fusion_info.append_post_binary(post_op->shared_from_this(),
+                            std::vector<size_t> {base_op->num_inputs()});
                 }
             } else if (post_op->get_kind() == op_kind::dnnl_binary
                     && static_cast<dnnl::algorithm>(
