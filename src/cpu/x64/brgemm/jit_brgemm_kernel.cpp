@@ -320,6 +320,10 @@ private:
     void restore_A_B_matrices();
     void set_A_B_matrices();
 
+    void compute_int8_compensation(int rd_loop, int bd_b, int bd_e,
+            int bd_block, int ld_block2, bool is_ld_tail, int vpad);
+
+    void dot_product(Vmm v1, Vmm v2, Vmm v3);
     void gemm_microkernel(int bd_block2, bool is_bdb_tail, int ld_block,
             bool is_rd_tail, bool is_ld_tail, int vpad, int rows_for_rd_tail);
     void gemm_microkernel_amx(int bd_block2, bool is_bdb_tail, int ld_block,
@@ -1707,32 +1711,108 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel_amx(int bd_block2,
 }
 
 template <cpu_isa_t isa, typename Wmm>
+void jit_brgemm_kernel_t<isa, Wmm>::dot_product(Vmm v1, Vmm v2, Vmm v3) {
+    if (brg.is_f32 || brg.is_f16
+            || (brg.is_bf16 && brg.isa_impl == avx2_vnni_2))
+        uni_vfmadd231ps(v1, v2, v3);
+    else if (brg.is_bf16)
+        vdpbf16ps(v1, v2, v3);
+    else if (brg.is_int8) {
+        if (brg.isa_impl == avx2_vnni_2 && brg.dt_a == data_type::s8)
+            vpdpbssd(v1, v3, v2);
+        else if (brg.has_vnni)
+            vpdpbusd(v1, v3, v2,
+                    is_superset(isa, avx512_core) ? EvexEncoding : VexEncoding);
+        else {
+            vpmaddubsw(int8_dot_product_temp(), v3, v2);
+            vpmaddwd(int8_dot_product_temp(), int8_dot_product_temp(),
+                    int8_ones_words());
+            vpaddd(v1, v1, int8_dot_product_temp());
+        }
+    }
+}
+
+template <cpu_isa_t isa, typename Wmm>
+void jit_brgemm_kernel_t<isa, Wmm>::compute_int8_compensation(int rd_loop,
+        int bd_b, int bd_e, int bd_block, int ld_block2, bool is_ld_tail,
+        int vpad) {
+    assert(brg.is_int8);
+
+    auto compensation_padding
+            = [=](Vmm vmm_load, Vmm vmm_tmp, int ld, int bd_b, int bd_e) {
+                  // req_cal_comp_pads -> only calculate compensation along with
+                  // computation and do not use pre-calculated compensation.
+                  // Calculate comp padding as:
+                  // accum - inp_shift * conv(1, wei_s32)
+                  if (brg.req_s8s8_compensation) {
+                      if (brg.req_cal_comp_pads) {
+                          uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
+                          dot_product(vmm_tmp, vmm_load, vmm_inp_shift());
+                      }
+
+                      for (int bd = bd_b; bd < bd_e; bd++) {
+                          auto vmm = accm(ld_block2, bd, ld);
+                          if (brg.req_cal_comp_pads) {
+                              uni_vpsubd(vmm, vmm, vmm_tmp);
+                          } else {
+                              dot_product(vmm, vmm_load, vmm_inp_shift());
+                          }
+                      }
+                  }
+
+                  if (brg.zp_type_a != brgemm_broadcast_t::none) {
+                      uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
+                      dot_product(vmm_tmp, vmm_load, vmm_one_bytes());
+                      uni_vpmulld(vmm_tmp, vmm_tmp, vmm_zp_a_shift());
+
+                      for (int bd = bd_b; bd < bd_e; bd++) {
+                          auto vmm = accm(ld_block2, bd, ld);
+                          if (brg.req_cal_comp_pads) {
+                              uni_vpsubd(vmm, vmm, vmm_tmp);
+                          } else {
+                              uni_vpaddd(vmm, vmm, vmm_tmp);
+                          }
+                      }
+                  }
+              };
+
+    if (n_bcast_1_load && brg.zp_type_a != brgemm_broadcast_t::none) {
+        mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
+        const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
+        mov(reg32_scratch, 0x1010101);
+        uni_vpbroadcastd(vmm_one_bytes(), reg32_scratch);
+        mov(reg32_scratch, ptr[rsp + reg_zp_a_val_offs_]);
+        uni_vpbroadcastd(vmm_zp_a_shift(), reg32_scratch);
+        mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
+    }
+
+    for_(int rd = 0; rd < rd_loop; rd += brg.rd_step)
+    for (int ld = 0; ld < ld_block2; ++ld) {
+        const auto addr = ptr[reg_aux_B + B_offset(ld, rd)];
+        const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
+        if (IMPLICATION(is_tail, is_superset(brg.isa_impl, avx512_core))) {
+            auto vmm_store = vmm_mask(load(), is_tail, false, ld_tail_mask);
+            uni_vmovups(vmm_store, addr);
+        } else {
+            load_bytes(
+                    load(), addr, brg.typesize_B * brg.ldb_tail * brg.ld_step);
+        }
+
+        if (brg.req_cal_comp_pads) {
+            compensation_padding(load(), bcst(), ld, bd_b, bd_e);
+        } else if (vpad != 0) {
+            if (bd_b > 0) compensation_padding(load(), bcst(), ld, 0, bd_b);
+            if (bd_e < bd_block)
+                compensation_padding(load(), bcst(), ld, bd_e, bd_block);
+        }
+    }
+}
+
+template <cpu_isa_t isa, typename Wmm>
 void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
         bool is_bdb_tail, int ld_block2, bool is_rd_tail, bool is_ld_tail,
         int vpad, int rows_for_rd_tail) {
     MAYBE_UNUSED(bd_block2);
-    auto dot_product = [=](Vmm v1, Vmm v2, Vmm v3) {
-        if (brg.is_f32 || brg.is_f16
-                || (brg.is_bf16 && brg.isa_impl == avx2_vnni_2))
-            uni_vfmadd231ps(v1, v2, v3);
-        else if (brg.is_bf16)
-            vdpbf16ps(v1, v2, v3);
-        else if (brg.is_int8) {
-            if (brg.isa_impl == avx2_vnni_2 && brg.dt_a == data_type::s8)
-                vpdpbssd(v1, v3, v2);
-            else if (brg.has_vnni)
-                vpdpbusd(v1, v3, v2,
-                        is_superset(isa, avx512_core) ? EvexEncoding
-                                                      : VexEncoding);
-            else {
-                vpmaddubsw(int8_dot_product_temp(), v3, v2);
-                vpmaddwd(int8_dot_product_temp(), int8_dot_product_temp(),
-                        int8_ones_words());
-                vpaddd(v1, v1, int8_dot_product_temp());
-            }
-        }
-    };
-
     int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
     const auto bd_b = nstl::max(0, vpad);
     const auto bd_e = nstl::min(bd_block, bd_block + vpad);
@@ -1782,80 +1862,12 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
         if (brg.req_s8s8_compensation) uni_vpaddb(v1, v1, vmm_inp_shift());
     };
 
-    auto compensation_padding
-            = [=](Vmm vmm_load, Vmm vmm_tmp, int ld, int bd_b, int bd_e) {
-                  /* req_cal_comp_pads -> only calculate compensation along with computation
-         * and do not use pre-calculate compensation, calculate comp padding as: 
-         * accum - inp_shift * conv(1, wei_s32) */
-                  if (brg.req_s8s8_compensation) {
-                      if (brg.req_cal_comp_pads) {
-                          uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
-                          dot_product(vmm_tmp, vmm_load, vmm_inp_shift());
-                      }
-
-                      for (int bd = bd_b; bd < bd_e; bd++) {
-                          auto vmm = accm(ld_block2, bd, ld);
-                          if (brg.req_cal_comp_pads) {
-                              uni_vpsubd(vmm, vmm, vmm_tmp);
-                          } else {
-                              dot_product(vmm, vmm_load, vmm_inp_shift());
-                          }
-                      }
-                  }
-
-                  if (brg.zp_type_a != brgemm_broadcast_t::none) {
-                      uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
-                      dot_product(vmm_tmp, vmm_load, vmm_one_bytes());
-                      uni_vpmulld(vmm_tmp, vmm_tmp, vmm_zp_a_shift());
-
-                      for (int bd = bd_b; bd < bd_e; bd++) {
-                          auto vmm = accm(ld_block2, bd, ld);
-                          if (brg.req_cal_comp_pads) {
-                              uni_vpsubd(vmm, vmm, vmm_tmp);
-                          } else {
-                              uni_vpaddd(vmm, vmm, vmm_tmp);
-                          }
-                      }
-                  }
-              };
-
-    if (brg.req_cal_comp_pads
-            || (vpad != 0
-                    && (brg.req_s8s8_compensation
-                            || brg.zp_type_a != brgemm_broadcast_t::none))) {
-        // only used for int8 compensation related things.
-        assert(brg.is_int8);
-        if (n_bcast_1_load && brg.zp_type_a != brgemm_broadcast_t::none) {
-            mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
-            const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
-            mov(reg32_scratch, 0x1010101);
-            uni_vpbroadcastd(vmm_one_bytes(), reg32_scratch);
-            mov(reg32_scratch, ptr[rsp + reg_zp_a_val_offs_]);
-            uni_vpbroadcastd(vmm_zp_a_shift(), reg32_scratch);
-            mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
-        }
-
-        for_(int rd = 0; rd < rd_loop; rd += brg.rd_step)
-        for (int ld = 0; ld < ld_block2; ++ld) {
-            const auto addr = ptr[reg_aux_B + B_offset(ld, rd)];
-            const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
-            if (IMPLICATION(is_tail, is_superset(brg.isa_impl, avx512_core))) {
-                auto vmm_store = vmm_mask(load(), is_tail, false, ld_tail_mask);
-                uni_vmovups(vmm_store, addr);
-            } else {
-                load_bytes(load(), addr,
-                        brg.typesize_B * brg.ldb_tail * brg.ld_step);
-            }
-
-            if (brg.req_cal_comp_pads) {
-                compensation_padding(load(), bcst(), ld, bd_b, bd_e);
-            } else if (vpad != 0) {
-                if (bd_b > 0) compensation_padding(load(), bcst(), ld, 0, bd_b);
-                if (bd_e < bd_block)
-                    compensation_padding(load(), bcst(), ld, bd_e, bd_block);
-            }
-        }
-    }
+    const bool comp_vpad = vpad != 0
+            && (brg.req_s8s8_compensation
+                    || brg.zp_type_a != brgemm_broadcast_t::none);
+    if (brg.req_cal_comp_pads || comp_vpad)
+        compute_int8_compensation(
+                rd_loop, bd_b, bd_e, bd_block, ld_block2, is_ld_tail, vpad);
 
     bool maybe_load_bytes = (rows_for_rd_tail > 0 || brg.brgattr.wary_tail_read)
             && is_rd_tail && rd_tail_size != 0 && (brg.is_bf16 || brg.is_int8);
