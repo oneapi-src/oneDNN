@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -143,10 +143,10 @@ dnnl_status_t gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     // 4. calculate diff weights
     // dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)
     CHECK(gemm_weights_iter_f((rnn.n_gates - 1) * rnn.dhc, rnn.sic, rnn.mb,
-            scratch_gates_, src_iter_, src_iter_ld, 1.0f, diff_w_iter_));
+            scratch_gates_, src_iter_, src_iter_ld, diff_w_iter_));
     CHECK(gemm_weights_iter_f(rnn.dhc, rnn.sic, rnn.mb,
             &(scratch_gates(0, 2, 0)), scratch_cell_, rnn.ws_states_layer_ld,
-            1.0f, &(diff_w_iter(0, 2, 0))));
+            &(diff_w_iter(0, 2, 0))));
 
     // 5. calculate diff states
     // dht-1 += dG1 * W1h + dG0 * W0h
@@ -163,7 +163,7 @@ dnnl_status_t gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
         CHECK(gemm_layer_f(w_layer_[0], scratch_gates_, diff_src_layer_));
 
     // 6. calculate diff bias
-    gates_reduction(rnn, scratch_gates_, diff_bias_);
+    gates_reduction(rnn, cell_position, scratch_gates_, diff_bias_);
 
     return dnnl_success;
 }
@@ -185,15 +185,17 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru) {
     };
     auto gemm_weights_layer_f = [&](const gemm_data_t *A, const weights_t *B,
                                         int ldb, gemm_acc_t *C) {
+        const float beta = rnn.diff_weights_beta(cell_position);
         return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb, 1.0, A,
-                rnn.scratch_gates_ld, B, ldb, 1.0, C,
+                rnn.scratch_gates_ld, B, ldb, beta, C,
                 rnn.diff_weights_layer_ld);
     };
     auto gemm_weights_iter_f
             = [&](int m, int n, int k, const weights_t *A, const gemm_data_t *B,
-                      int ldb, float beta, gemm_acc_t *C) {
+                      int ldb, gemm_acc_t *C) {
+                  const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', m, n, k, 1.0f, A, rnn.ws_gates_ld, B,
-                          ldb, 1.0f, C, rnn.diff_weights_iter_ld);
+                          ldb, beta, C, rnn.diff_weights_iter_ld);
               };
 
     return gru_bwd_cell_exec_template(gemm_layer_f, gemm_iter_f,
@@ -222,15 +224,17 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru) {
     };
     auto gemm_weights_layer_f = [&](const gemm_data_t *A, const weights_t *B,
                                         int ldb, gemm_acc_t *C) {
+        const float beta = rnn.diff_weights_beta(cell_position);
         return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb, 1.0, A,
-                rnn.scratch_gates_ld, B, ldb, 1.0, C,
+                rnn.scratch_gates_ld, B, ldb, beta, C,
                 rnn.diff_weights_layer_ld);
     };
     auto gemm_weights_iter_f
             = [&](int m, int n, int k, const weights_t *A, const gemm_data_t *B,
-                      int ldb, float beta, gemm_acc_t *C) {
+                      int ldb, gemm_acc_t *C) {
+                  const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', m, n, k, 1.0f, A, rnn.ws_gates_ld, B,
-                          ldb, 1.0f, C, rnn.diff_weights_iter_ld);
+                          ldb, beta, C, rnn.diff_weights_iter_ld);
               };
 
     return gru_bwd_cell_exec_template(gemm_layer_f, gemm_iter_f,

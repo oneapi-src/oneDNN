@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -215,6 +215,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
                   cell_position_t cell_position = middle_cell;
                   if (lay == 0) cell_position |= first_layer;
+                  cell_position |= merged_layer;
 
                   const src_layer_t *src_layer
                           = lay == 0 && rnn.skip_src_layer_copy()
@@ -399,6 +400,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
         CHECK(compute_merged_layer_part_if_applicable(
                 prop_kind::backward, dir, lay));
+
 #undef SAFE_PTR
 
         if ((aprop == prop_kind::backward) && rnn.merge_gemm_iter) {
@@ -426,7 +428,8 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                                 + rnn.skip_src_iter_copy()
                                         * rnn.scratch_gates_nld
                                         * rnn.scratch_gates_ld,
-                        rnn.scratch_gates_ld, states_iter, states_iter_ld, 1.0,
+                        rnn.scratch_gates_ld, states_iter, states_iter_ld,
+                        rnn.diff_weights_beta(cell_position_t::merged_iter),
                         &(diff_weights_iter(lay, dir, 0)),
                         rnn.diff_weights_iter_ld));
             }
@@ -434,11 +437,12 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             if (rnn.skip_src_iter_copy()) {
                 states_iter = src_iter_ + src_iter_mdw.off(lay, dir, 0, 0);
                 states_iter_ld = rnn.src_iter_ld_;
-                niter_merge_gemm_iter = 1;
-                CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic,
-                        rnn.mb * niter_merge_gemm_iter, 1.0,
-                        (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
-                        states_iter, states_iter_ld, 1.0,
+                CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb,
+                        1.0, (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
+                        states_iter, states_iter_ld,
+                        rnn.diff_weights_beta(niter_merge_gemm_iter
+                                        ? cell_position_t::middle_cell
+                                        : cell_position_t::merged_iter),
                         &(diff_weights_iter(lay, dir, 0)),
                         rnn.diff_weights_iter_ld));
             }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -128,6 +128,8 @@ void lstm_bwd_weights_peephole_and_bias(const rnn_utils::rnn_conf_t &rnn,
                         = g < 2 ? rnn.src_iter_c_dt : rnn.dst_iter_c_dt;
 
                 const int scratch_g = g < 2 ? g : 3;
+                if (rnn.diff_weights_overwrite && (cell_position & last_iter))
+                    diff_weights_peephole(g, dhc) = 0;
                 for (int mb = 0; mb < rnn.mb; ++mb) {
                     diff_weights_peephole(g, dhc)
                             += to_float(c_states(mb, dhc), c_states_dt)
@@ -137,10 +139,15 @@ void lstm_bwd_weights_peephole_and_bias(const rnn_utils::rnn_conf_t &rnn,
                 // bias
                 const int bias_g_start = 2 * (g - 3);
                 const int bias_g_end = bias_g_start + 2;
-                for_(int bias_g = bias_g_start; bias_g < bias_g_end; ++bias_g)
-                for (int mb = 0; mb < rnn.mb; ++mb)
-                    diff_bias_[bias_g * rnn.dhc + dhc]
-                            += scratch_gates(mb, bias_g, dhc);
+                for (int bias_g = bias_g_start; bias_g < bias_g_end; ++bias_g) {
+                    if (rnn.diff_weights_overwrite
+                            && (cell_position & last_iter))
+                        diff_bias_[bias_g * rnn.dhc + dhc] = 0;
+
+                    for (int mb = 0; mb < rnn.mb; ++mb)
+                        diff_bias_[bias_g * rnn.dhc + dhc]
+                                += scratch_gates(mb, bias_g, dhc);
+                }
             }
             if (++dhc == rnn.dhc) {
                 dhc = 0;
@@ -213,7 +220,7 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
                 diff_bias_);
     } else {
         /// bwd by bias we just accumulate diffs from the gates
-        gates_reduction(rnn, scratch_gates_, diff_bias_);
+        gates_reduction(rnn, cell_position, scratch_gates_, diff_bias_);
     }
     return dnnl_success;
 }
@@ -238,21 +245,24 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref) {
     const auto gemm_weights_layer
             = [&](const float *A, const float *B, float *C) {
                   auto src_layer_ld = rnn.src_layer_ld(cell_position);
+                  const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb,
-                          1.0, A, rnn.scratch_gates_ld, B, src_layer_ld, 1.0, C,
-                          rnn.diff_weights_layer_ld);
+                          1.0, A, rnn.scratch_gates_ld, B, src_layer_ld, beta,
+                          C, rnn.diff_weights_layer_ld);
               };
     const auto gemm_weights_iter
             = [&](const float *A, const float *B, float *C) {
                   auto src_iter_ld = rnn.src_iter_ld(cell_position);
+                  const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb,
-                          1.0, A, rnn.scratch_gates_ld, B, src_iter_ld, 1.0, C,
+                          1.0, A, rnn.scratch_gates_ld, B, src_iter_ld, beta, C,
                           rnn.diff_weights_iter_ld);
               };
     const auto gemm_weights_proj
             = [&](const float *A, const float *B, float *C) {
+                  const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', rnn.dlc, rnn.dhc, rnn.mb, 1.0f, A,
-                          rnn.scratch_diff_ht_ld, B, rnn.ws_ht_ld, 1.0f, C,
+                          rnn.scratch_diff_ht_ld, B, rnn.ws_ht_ld, beta, C,
                           rnn.diff_weights_projection_ld);
               };
     return common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_proj,
@@ -288,15 +298,17 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_ref) {
     const auto gemm_weights_layer
             = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
                   auto src_layer_ld = rnn.src_layer_ld(cell_position);
+                  const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb,
-                          1.0, A, rnn.scratch_gates_ld, B, src_layer_ld, 1.0, C,
-                          rnn.diff_weights_layer_ld);
+                          1.0, A, rnn.scratch_gates_ld, B, src_layer_ld, beta,
+                          C, rnn.diff_weights_layer_ld);
               };
     const auto gemm_weights_iter
             = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
                   auto src_iter_ld = rnn.src_iter_ld(cell_position);
+                  const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb,
-                          1.0, A, rnn.scratch_gates_ld, B, src_iter_ld, 1.0, C,
+                          1.0, A, rnn.scratch_gates_ld, B, src_iter_ld, beta, C,
                           rnn.diff_weights_iter_ld);
               };
     const auto gemm_weights_proj
@@ -330,6 +342,7 @@ rnn_merged_layer_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             = (cell_position & first_layer) && rnn.skip_src_layer_copy()
             ? rnn.n_iter
             : rnn.n_iter - (rnn.skip_dst_iter_copy() ? 1 : 0);
+    cell_position |= merged_layer;
 
     if (aprop == prop_kind::forward) {
         CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc,
@@ -341,9 +354,10 @@ rnn_merged_layer_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 rnn.n_gates * rnn.dhc, 1.0, w_layer_[0], rnn.weights_layer_ld,
                 (gates_t *)scratch_gates_, rnn.scratch_gates_ld, 0.0,
                 diff_src_layer_, rnn.ws_diff_states_layer_ld));
+        const float beta = rnn.diff_weights_beta(cell_position);
         CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb * n_iter,
                 1.0, (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
-                src_layer_, src_layer_ld, 1.0, diff_w_layer_,
+                src_layer_, src_layer_ld, beta, diff_w_layer_,
                 rnn.diff_weights_layer_ld));
     } else {
         assert(!"unimplemented");

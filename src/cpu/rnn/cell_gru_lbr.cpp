@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -116,9 +116,12 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
 
     // db1-3 += e * dG
     // db4 += e * (r * dG2)
-    gates_reduction(rnn, scratch_gates_, diff_bias_);
+    gates_reduction(rnn, cell_position, scratch_gates_, diff_bias_);
 
     parallel_nd(rnn.dhc, [&](dim_t j) {
+        if (rnn.diff_weights_overwrite
+                && (cell_position & rnn_utils::last_iter))
+            diff_bias_[3 * rnn.dhc + j] = 0.0f;
         for (int i = 0; i < rnn.mb; i++) {
             diff_bias_[3 * rnn.dhc + j] += scratch_gates_r(i, 2, j);
         }
@@ -143,14 +146,16 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr) {
     };
     const auto gemm_weights_layer
             = [&](const float *A, const float *B, int ldb, float *C) {
+                  const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb,
-                          1.0f, A, rnn.scratch_gates_ld, B, ldb, 1.0f, C,
+                          1.0f, A, rnn.scratch_gates_ld, B, ldb, beta, C,
                           rnn.diff_weights_layer_ld);
               };
     const auto gemm_weights_iter = [&](const float *A, const float *B, int ldb,
                                            float *C) {
+        const float beta = rnn.diff_weights_beta(cell_position);
         return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb, 1.0f, A,
-                rnn.ws_gates_ld, B, ldb, 1.0f, C, rnn.diff_weights_iter_ld);
+                rnn.ws_gates_ld, B, ldb, beta, C, rnn.diff_weights_iter_ld);
     };
 
     common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_weights_layer,
@@ -180,14 +185,16 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr) {
     };
     const auto gemm_weights_layer
             = [&](const bfloat16_t *A, const bfloat16_t *B, int ldb, float *C) {
+                  const float beta = rnn.diff_weights_beta(cell_position);
                   return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb,
-                          1.0f, A, rnn.scratch_gates_ld, B, ldb, 1.0f, C,
+                          1.0f, A, rnn.scratch_gates_ld, B, ldb, beta, C,
                           rnn.diff_weights_layer_ld);
               };
     const auto gemm_weights_iter = [&](const bfloat16_t *A, const bfloat16_t *B,
                                            int ldb, float *C) {
+        const float beta = rnn.diff_weights_beta(cell_position);
         return gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb, 1.0f, A,
-                rnn.ws_gates_ld, B, ldb, 1.0f, C, rnn.diff_weights_iter_ld);
+                rnn.ws_gates_ld, B, ldb, beta, C, rnn.diff_weights_iter_ld);
     };
 
     common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_weights_layer,

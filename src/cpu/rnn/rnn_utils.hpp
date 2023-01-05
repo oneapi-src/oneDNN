@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -190,7 +190,9 @@ enum cell_position_t {
     last_layer = 0x4,
     last_iter = 0x8,
     c_state_first_iter = 0x10,
-    c_state_last_iter = 0x20
+    c_state_last_iter = 0x20,
+    merged_iter = 0x40,
+    merged_layer = 0x80
 };
 
 enum class weights_type_t {
@@ -377,6 +379,8 @@ struct rnn_conf_t {
          use_iter_packed_gemm = false, use_projection_packed_gemm = false;
     int n_iter_scratch_gates = 0;
 
+    bool diff_weights_overwrite = false;
+
     inline bool is_int8_conf() const {
         return is_signed_int8_conf() || is_unsigned_int8_conf();
     }
@@ -554,6 +558,20 @@ struct rnn_conf_t {
                 skip_dst_iter_copy() && (cell_position & last_iter)
                         && !(cell_position & first_layer));
     }
+
+    // get diff_weights_beta based on cell position
+    inline float diff_weights_beta(cell_position_t cell_position) const {
+        if (diff_weights_overwrite) {
+            // Initialize diff weights if needed
+            if (cell_position & merged_iter) return 0.0f;
+            if ((cell_position & merged_layer)
+                    && !need_gemm_layer(cell_position | last_iter))
+                return 0.0f;
+            if (cell_position & last_iter) return 0.0f;
+        }
+        return 1.0f;
+    }
+
     bool is_brgemm;
 
     diff_src_brgemm_conf_t diff_src_brgemm;
@@ -852,6 +870,8 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                     && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
                             || rnn.is_int8_conf() || is_bf16)
             : false;
+
+    rnn.diff_weights_overwrite = rd.flags & rnn_flags::diff_weights_overwrite;
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
     // XXX: Threadpool runtime may use different number of threads at execute

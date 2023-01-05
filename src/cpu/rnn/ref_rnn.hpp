@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,7 +45,10 @@ template <typename gates_t, typename acc_t>
 // The loop body needs to be put in a function as some versions of icc have
 // an issue with lambdas & macros inside omp simd loops
 inline void body_loop(int i, int k, const gates_t *ws_gates, acc_t *diff_bias,
-        const rnn_utils::rnn_conf_t &rnn) {
+        const rnn_utils::rnn_conf_t &rnn,
+        rnn_utils::cell_position_t cell_position) {
+    if (rnn.diff_weights_overwrite && (cell_position & rnn_utils::last_iter))
+        diff_bias[i * rnn.dhc + k] = 0.0f;
     for (int j = 0; j < rnn.mb; j++)
         diff_bias[i * rnn.dhc + k]
                 += ws_gates[j * rnn.scratch_gates_ld + i * rnn.dhc + k];
@@ -53,7 +56,8 @@ inline void body_loop(int i, int k, const gates_t *ws_gates, acc_t *diff_bias,
 } // namespace
 
 template <typename gates_t, typename acc_t>
-void gates_reduction(const rnn_utils::rnn_conf_t &rnn, const gates_t *ws_gates_,
+void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
+        rnn_utils::cell_position_t cell_position, const gates_t *ws_gates_,
         acc_t *diff_bias_) {
 
     // @todo block k on simd-width to enable vectorization in
@@ -63,10 +67,10 @@ void gates_reduction(const rnn_utils::rnn_conf_t &rnn, const gates_t *ws_gates_,
 #pragma omp parallel for simd collapse(2)
     for (int i = 0; i < rnn.n_gates; i++)
         for (int k = 0; k < rnn.dhc; k++)
-            body_loop(i, k, ws_gates_, diff_bias_, rnn);
+            body_loop(i, k, ws_gates_, diff_bias_, rnn, cell_position);
 #else
     parallel_nd(rnn.n_gates, rnn.dhc, [&](dim_t i, dim_t k) {
-        body_loop(i, k, ws_gates_, diff_bias_, rnn);
+        body_loop(i, k, ws_gates_, diff_bias_, rnn, cell_position);
     });
 #endif
 }
@@ -271,6 +275,9 @@ struct _ref_rnn_common_t : public primitive_t {
                                     forward_inference))
                     && IMPLICATION(aprop == backward,
                             one_of(this->desc()->prop_kind, backward))
+                    // TODO: Enable diff_weights_overwrite support
+                    && IMPLICATION(aprop == backward,
+                            this->diff_weights_overwrite() == false)
                     // cell_type (or src_type) and primitive data type should
                     // match, except for the bf32 case.
                     && IMPLICATION(
