@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,6 +82,12 @@ class fusion_info_t {
 
         bool is_post_binary() const {
             return op_->get_kind() == op_kind::dnnl_binary && !is_post_sum_;
+        }
+
+        void to_post_binary() {
+            assertm(scale_ == 1.0f && zp_ == 0,
+                    "post bianry cannot support scale and zp!");
+            is_post_sum_ = false;
         }
 
     private:
