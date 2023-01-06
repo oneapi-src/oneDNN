@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,8 @@ bool dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PATTERN_CALL(binary_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(bn_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(concat_fusion, pass_registry_);
-    DNNL_BACKEND_REGISTER_PATTERN_CALL(conv_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(conv_block_fusion, pass_registry_);
+    DNNL_BACKEND_REGISTER_PATTERN_CALL(conv_post_ops_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(convtranspose_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(matmul_fusion, pass_registry_);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(single_op_pass, pass_registry_);
