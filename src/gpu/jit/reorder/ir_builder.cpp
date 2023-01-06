@@ -752,7 +752,7 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     read_params.try_legacy = false;
     auto read = make_access_builder(
             ir_ctx, src_thr_view, src_buf, reg_buf, read_params);
-    auto read_stmt = read.stmt();
+    auto &read_stmt = read.stmt();
 
     auto write_params = get_send_params(
             exec_cfg_, send_op_t::store, send_address_t::a64, dst_thr_view);
@@ -761,8 +761,8 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
             ir_ctx, dst_thr_view, dst_buf, reg_buf, write_params);
     auto write_stmt = write.stmt();
 
-    auto read_layout = read.reg_layout();
-    auto write_layout = write.reg_layout();
+    auto &read_layout = read.reg_layout();
+    auto &write_layout = write.reg_layout();
     int read_buf_size = read.reg_buf_size();
     int write_buf_size = write.reg_buf_size();
     int reg_buf_size = std::max(read_buf_size, write_buf_size);
