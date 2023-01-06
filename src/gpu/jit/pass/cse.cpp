@@ -229,6 +229,7 @@ private:
 
     template <typename T>
     void visit_stmt(const T &obj) {
+        cur_depth_++;
         int obj_bytes = 0;
         if (auto *alloc = obj.template as_ptr<alloc_t>()) {
             if (alloc->kind == alloc_kind_t::grf)
@@ -243,12 +244,23 @@ private:
         auto it = entries_.find(&obj);
         if (it != entries_.end()) entry = &it->second;
         if (entry) {
-            entry->set_bytes(cur_bytes_);
             if (!path_.empty()) entry->set_parent(path_.back());
             path_.push_back(entry);
         }
         ir_visitor_t::_visit(obj);
-        if (entry) path_.pop_back();
+        auto peak_it = peak_down_bytes_.find(cur_depth_ + 1);
+        int cur_peak_bytes = obj_bytes;
+        if (peak_it != peak_down_bytes_.end()) {
+            cur_peak_bytes += peak_it->second;
+            peak_down_bytes_.erase(peak_it);
+        }
+        peak_down_bytes_[cur_depth_]
+                = std::max(peak_down_bytes_[cur_depth_], cur_peak_bytes);
+        if (entry) {
+            path_.pop_back();
+            entry->set_bytes(cur_bytes_ + cur_peak_bytes);
+        }
+        cur_depth_--;
     }
 
     std::unordered_map<const object_impl_t *, cse_stmt_entry_t> &entries_;
@@ -256,6 +268,9 @@ private:
 
     int cur_bytes_ = 0;
     std::vector<cse_stmt_entry_t *> path_;
+
+    int cur_depth_ = 0;
+    std::unordered_map<int, int> peak_down_bytes_; // depth -> bytes
 };
 
 // Stores information about all expressions subject to CSEing.
