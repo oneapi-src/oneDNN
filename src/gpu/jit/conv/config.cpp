@@ -1046,7 +1046,7 @@ status_t init_fma_kind(conv_config_t &cfg) {
     auto fma_kind = fma_kind::get_supported_kind(
             cfg.hw(), prb.a_data_type, prb.b_data_type, prb.acc_data_type);
     // Force mad for some cases.
-    if (prb.is_dw || (prb.g > 1 && prb.ic < 4 && prb.oc < 4 && prb.mb < 8))
+    if (prb.is_dw || (prb.ic < 3 && prb.oc < 3 && prb.mb < 8))
         fma_kind = fma_kind_t::mad;
     if (fma_kind == fma_kind_t::unknown) return status::unimplemented;
     cfg.set_fma_kind(fma_kind);
