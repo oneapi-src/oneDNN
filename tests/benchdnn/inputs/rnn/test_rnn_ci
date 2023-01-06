@@ -50,3 +50,13 @@
 --activation=LOGISTIC
 --direction=sum
 --batch=shapes_small
+
+
+# flags
+--scaling=
+--flags=O
+--cfg=f32
+--prop=BWD_DW
+
+--direction=right2left,concat,sum
+--batch=shapes_small
