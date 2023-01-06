@@ -2332,7 +2332,8 @@ std::string conv_config_t::str() const {
 
 std::string pad_str(std::string s, int pad) {
     auto pos = (pad >= 0 ? 0 : s.length());
-    s.insert(pos, std::abs(pad) - s.length(), ' ');
+    int off = std::abs(pad) - s.length();
+    s.insert(pos, std::max(off, 0), ' ');
     return s;
 }
 
