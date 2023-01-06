@@ -158,7 +158,7 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 
 int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const bool only_positive_values = is_norm_alg(prb->alg);
-    return fill_mem(prb, mem_dt, mem_fp, 1.0f, true, only_positive_values);
+    return fill_mem(prb, mem_dt, mem_fp, 1.0f, false, only_positive_values);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {

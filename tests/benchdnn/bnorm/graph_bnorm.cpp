@@ -221,6 +221,14 @@ int doit(const ::bnorm::prb_t *prb, res_t *res) {
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
     dnn_mem_t r_mean_dt, r_var_dt, b_mean_dt, b_var_dt;
 
+    // initialize
+    for (auto idx = 0; idx < scale_dt.nelems(); idx++) {
+        scale_fp.set_elem(idx, 1.0f);
+    }
+    for (auto idx = 0; idx < shift_dt.nelems(); idx++) {
+        shift_fp.set_elem(idx, 0.0f);
+    }
+
     if (::bnorm::prepare_fwd(prb, src_dt, src_add_dt, mean_dt, var_dt, scale_dt,
                 shift_dt, src_fp, src_add_fp, mean_fp, var_fp, scale_fp,
                 shift_fp, res)
