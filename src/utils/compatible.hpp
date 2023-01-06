@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ public:
     }
 
     template <typename T, typename T1, typename... Args>
-    bool match(T defaults, T1 func1, Args &&... args) const {
+    bool match(T defaults, T1 func1, Args &&...args) const {
         using MatchedT = first_argument<T1>;
         if (type() == typeid(MatchedT)) {
             func1(static_cast<vtable_t<MatchedT> *>(avtable_.get())->value_);
@@ -188,7 +188,7 @@ inline T any_cast(any_t &&v) {
 }
 
 template <typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args &&... args) {
+std::unique_ptr<T> make_unique(Args &&...args) {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 

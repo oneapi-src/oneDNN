@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -168,8 +168,8 @@ impl::status_t replace_quant_data_with_binary_post_op(
             auto algo = (quant_data_op->get_kind() == op_kind::dnnl_mul_scales)
                     ? dnnl::algorithm::binary_mul
                     : quant_data_op->get_kind() == op_kind::dnnl_add_zps
-                            ? dnnl::algorithm::binary_add
-                            : dnnl::algorithm::binary_sub;
+                    ? dnnl::algorithm::binary_add
+                    : dnnl::algorithm::binary_sub;
             op_ptr bin_op = std::make_shared<op_t>(op_kind::dnnl_binary);
             bin_op->set_attr<int64_t>(
                     op_attr::alg_kind, static_cast<int64_t>(algo));

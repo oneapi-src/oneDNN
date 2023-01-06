@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,8 +83,7 @@ fill_status_t append_graph_with_block(const ::eltwise::prb_t *prb) {
     const auto dnnl_kind = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
     const auto op_kind = convert_alg_kind(dnnl_kind, prb->dir & FLAG_FWD);
     int64_t softplus_beta = 0;
-    if (dnnl_kind == dnnl_eltwise_soft_relu)
-        softplus_beta = 1;
+    if (dnnl_kind == dnnl_eltwise_soft_relu) softplus_beta = 1;
 
     dnnl::graph::op eltw_op(op_id, op_kind, graph.stringify_id(op_id));
 

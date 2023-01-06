@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -333,7 +333,8 @@ public:
                           || (policy == impl::partition_policy::fusion
                                   && enable_large_partition))
                 ? std::numeric_limits<float>::max()
-                : policy == impl::partition_policy::fusion ? 20.0f : 8.0f;
+                : policy == impl::partition_policy::fusion ? 20.0f
+                                                           : 8.0f;
         impl::pass::pass_registry_t filtered_registry;
         for (auto &pass : get_pass_registry().get_passes()) {
             if (pass->get_priority() > priority_ths) continue;
