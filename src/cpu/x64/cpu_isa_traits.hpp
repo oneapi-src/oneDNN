@@ -25,6 +25,7 @@
 
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include "cpu/platform.hpp"
 
 #define XBYAK64
 #define XBYAK_NO_OP_NAMES
@@ -103,7 +104,11 @@ static unsigned cvt2mask(dnnl_cpu_isa_hints_t hints) {
 }
 
 static bool is_hints_bit_set(cpu_isa_bit_t hint_bit, bool soft) {
+#if DNNL_X64
     const dnnl_cpu_isa_hints_t hints = get_cpu_isa_hints(soft);
+#else
+    const dnnl_cpu_isa_hints_t hints = dnnl_cpu_isa_no_hints;
+#endif
     const unsigned cur_hints_mask = cpu_isa_hints_utils::cvt2mask(hints);
     return (cur_hints_mask & hint_bit) == hint_bit;
 }
@@ -345,8 +350,11 @@ namespace {
 
 static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     using namespace Xbyak::util;
-
+#if DNNL_X64
     unsigned cpu_isa_mask = x64::get_max_cpu_isa_mask(soft);
+#else
+    unsigned cpu_isa_mask = isa_all;
+#endif
     unsigned cpu_isa_no_hints = cpu_isa & ~cpu_isa_hints_utils::hints_mask;
 
     if ((cpu_isa_mask & cpu_isa_no_hints) != cpu_isa_no_hints) return false;
@@ -378,7 +386,11 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
                     && mayiuse(avx512_core_bf16, soft)
                     && mayiuse(avx2_vnni, soft);
         case amx_tile:
+#if DNNL_X64
             return cpu().has(Cpu::tAMX_TILE) && x64::amx::is_available();
+#else
+            return false;
+#endif
         case amx_int8:
             return mayiuse(amx_tile, soft) && cpu().has(Cpu::tAMX_INT8);
         case amx_bf16:
