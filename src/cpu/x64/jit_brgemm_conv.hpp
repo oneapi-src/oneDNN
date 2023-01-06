@@ -257,9 +257,7 @@ private:
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_trans_kernel_t>
             copy_to_pbuffer_;
-    std::unique_ptr<jit_avx512_core_brgemm_conv_comp_pad_kernel::
-                    jit_avx512_core_brgemm_conv_comp_pad_kernel_t>
-            comp_vpad_pbuffer_;
+    std::unique_ptr<jit_generator> comp_vpad_pbuffer_;
 
     size_t acc_dsz, bia_dsz, src_dsz, wei_dsz, dst_dsz;
 

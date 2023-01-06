@@ -833,7 +833,8 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
 
     if (jcp.req_cal_comp_pad) {
         CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
-                new jit_avx512_core_brgemm_conv_comp_pad_kernel_t(jcp)));
+                new jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Xbyak::Zmm>(
+                        jcp)));
         CHECK(comp_vpad_pbuffer_->create_kernel());
     }
 

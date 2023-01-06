@@ -30,7 +30,8 @@ namespace jit_avx512_core_brgemm_conv_comp_pad_kernel {
 
 #define GET_OFF(field) offsetof(jit_brgemm_conv_comp_pad_call_s, field)
 
-jit_avx512_core_brgemm_conv_comp_pad_kernel_t::
+template <typename Vmm>
+jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::
         jit_avx512_core_brgemm_conv_comp_pad_kernel_t(
                 const jit_brgemm_conv_conf_t &ajcp)
     : jit_generator(jit_name())
@@ -41,33 +42,38 @@ jit_avx512_core_brgemm_conv_comp_pad_kernel_t::
     , inp_ic_sz_(static_cast<size_t>(inp_dsz_) * jcp_.oc_block * 4)
     , inp_kw_sz_(static_cast<size_t>(inp_dsz_) * jcp_.icp * jcp_.oc_block)
     , inp_kh_sz_(static_cast<size_t>(jcp_.kw) * inp_kw_sz_)
-    , inp_kd_sz_(static_cast<size_t>(jcp_.kh) * inp_kh_sz_) {}
+    , inp_kd_sz_(static_cast<size_t>(jcp_.kh) * inp_kh_sz_)
+    , isa_max_regs(cpu_isa_traits<avx512_core>::n_vregs) {}
 
-size_t jit_avx512_core_brgemm_conv_comp_pad_kernel_t::out_oc_offset(
+template <typename Vmm>
+size_t jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::out_oc_offset(
         const int n) const {
     return static_cast<size_t>(out_dsz_) * n * m_block2_;
 }
-size_t jit_avx512_core_brgemm_conv_comp_pad_kernel_t::inp_ic_offset(
+template <typename Vmm>
+size_t jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::inp_ic_offset(
         const int m_block, const int icb, const int m, const int n) const {
     return static_cast<size_t>(inp_dsz_) * n * m_block2_ * last_ic_block_
             + ((icb * m_block) + m) * inp_ic_sz_;
 }
-Xbyak::Zmm jit_avx512_core_brgemm_conv_comp_pad_kernel_t::accum(
+template <typename Vmm>
+Vmm jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::accum(
         const int n_block, const int m, const int n) const {
-    return Xbyak::Zmm(m * n_block + n);
+    return Vmm(m * n_block + n);
 }
 
-void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::store_accumulators(
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::store_accumulators(
         const int m_block, const int n_block) {
     if (jcp_.src_zero_point) {
         for_(int m = 0; m < m_block; m++)
         for (int n = 0; n < n_block; n++) {
             auto zmm = accum(n_block, m, n);
-            auto zmm_tmp = zmm_tmp_1();
+            auto zmm_tmp = vmm_tmp_1();
             const auto offset = out_oc_offset(n);
             auto zp_addr = ptr[reg_zp_comp_out + offset];
 
-            vpmulld(zmm_tmp, zmm, zmm_zp_shift);
+            vpmulld(zmm_tmp, zmm, vmm_zp_shift);
             vpaddd(zmm_tmp, zmm_tmp, zp_addr);
             vmovups(zp_addr, zmm_tmp);
         }
@@ -77,18 +83,19 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::store_accumulators(
         for_(int m = 0; m < m_block; m++)
         for (int n = 0; n < n_block; n++) {
             auto zmm = accum(n_block, m, n);
-            auto zmm_tmp = zmm_tmp_1();
+            auto zmm_tmp = vmm_tmp_1();
             const auto offset = out_oc_offset(n);
             auto cp_addr = ptr[reg_comp_out + offset];
 
-            vpmulld(zmm_tmp, zmm, zmm_cp_shift);
+            vpmulld(zmm_tmp, zmm, vmm_cp_shift);
             vpaddd(zmm_tmp, zmm_tmp, cp_addr);
             vmovups(cp_addr, zmm_tmp);
         }
     }
 }
 
-void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::zero_accumulators(
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::zero_accumulators(
         const int m_block, const int n_block) {
     for_(int m = 0; m < m_block; m++)
     for (int n = 0; n < n_block; n++) {
@@ -97,9 +104,10 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::zero_accumulators(
     }
 }
 
-void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::compute(const int ic_step,
-        const int m_block, const int n_block, const int m_tail,
-        const bool is_mb_tail) {
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::compute(
+        const int ic_step, const int m_block, const int n_block,
+        const int m_tail, const bool is_mb_tail) {
 
     for_(int ic = 0; ic < ic_step; ++ic)
     for (int m = 0; m < m_block; ++m) {
@@ -109,9 +117,9 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::compute(const int ic_step,
             const auto oc_offset = inp_ic_offset(m_block, ic, m, n);
             auto addr = EVEX_compress_addr(reg_aux_in, oc_offset);
             if (jcp_.has_vnni) {
-                vpdpbusd(zmm, zmm_one_bytes, addr);
+                vpdpbusd(zmm, vmm_one_bytes, addr);
             } else {
-                vpmaddubsw(zmm_int8_temp, zmm_one_bytes, addr);
+                vpmaddubsw(zmm_int8_temp, vmm_one_bytes, addr);
                 vpmaddwd(zmm_int8_temp, zmm_int8_temp, zmm_one_words);
                 vpaddd(zmm, zmm, zmm_int8_temp);
             }
@@ -119,7 +127,8 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::compute(const int ic_step,
     }
 }
 
-void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::icb_loop(const int icb,
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::icb_loop(const int icb,
         const int icb_tail, const int ic_step, const int m_block,
         const int mb_tail, const int n_block) {
     Xbyak::Label label_icb_loop, label_loop_end;
@@ -141,7 +150,8 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::icb_loop(const int icb,
     if (icb_tail) compute(ic_step, mb_tail, n_block, icb_tail, true);
 }
 
-void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::khw_loop(const int icb,
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::khw_loop(const int icb,
         const int icb_tail, const int ic_step, const int m_block,
         const int mb_tail, const int n_block) {
     Xbyak::Label label_kw_loop, label_kw_end, label_kh_loop, label_kh_end;
@@ -172,13 +182,15 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::khw_loop(const int icb,
     L_aligned(label_kh_end);
 }
 
-void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::load_params() {
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::load_params() {
     mov(reg_in, ptr[param1 + GET_OFF(ptr_in)]);
     mov(reg_zp_comp_out, ptr[param1 + GET_OFF(ptr_zp_out)]);
     mov(reg_comp_out, ptr[param1 + GET_OFF(ptr_cp_out)]);
 }
 
-int jit_avx512_core_brgemm_conv_comp_pad_kernel_t::compute_ic_step(
+template <typename Vmm>
+int jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::compute_ic_step(
         const int m_max_regs, const int m_block, const int n_block) const {
     int best_ic_step = 1;
     float best_block_eff = 0.f;
@@ -208,7 +220,8 @@ int jit_avx512_core_brgemm_conv_comp_pad_kernel_t::compute_ic_step(
     return best_ic_step;
 }
 
-void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::generate() {
+template <typename Vmm>
+void jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Vmm>::generate() {
     preamble();
 
     load_params();
@@ -216,14 +229,14 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::generate() {
     // fill registers with byte ones
     const auto reg32_scratch = reg_tmp.cvt32();
     mov(reg32_scratch, 0x1010101);
-    vpbroadcastd(zmm_one_bytes, reg32_scratch);
+    uni_vpbroadcastd(vmm_one_bytes, reg32_scratch);
 
     // fill register with -128 && -1
     mov(reg32_scratch, -128);
-    vpbroadcastd(zmm_cp_shift, reg32_scratch);
+    uni_vpbroadcastd(vmm_cp_shift, reg32_scratch);
 
     mov(reg32_scratch, -1);
-    vpbroadcastd(zmm_zp_shift, reg32_scratch);
+    uni_vpbroadcastd(vmm_zp_shift, reg32_scratch);
 
     const bool is_int8_avx512_core = utils::one_of(jcp_.src_dt, s8, u8)
             && jcp_.wei_dt == s8 && !jcp_.has_vnni;
@@ -232,9 +245,9 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::generate() {
         vpbroadcastw(zmm_one_words, reg_tmp.cvt16());
     }
 
-    const int max_regs = is_int8_avx512_core
-            ? 26
-            : (jcp_.s8s8_compensation_required ? 28 : 29);
+    const int max_regs = isa_max_regs
+            - (is_int8_avx512_core ? 6
+                                   : (jcp_.s8s8_compensation_required ? 4 : 3));
     const int nb = div_up(nstl::min(jcp_.oc, jcp_.oc_block), m_block2_);
     const int nb2 = nb / n_max_regs_;
     const int nb2_tail = nb % n_block2_;
@@ -269,6 +282,8 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::generate() {
 
     postamble();
 }
+
+template struct jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Xbyak::Zmm>;
 
 } // namespace jit_avx512_core_brgemm_conv_comp_pad_kernel
 

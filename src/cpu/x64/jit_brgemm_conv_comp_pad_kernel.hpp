@@ -35,6 +35,7 @@ struct jit_brgemm_conv_comp_pad_call_s {
     size_t kd_l;
 };
 
+template <typename Vmm>
 struct jit_avx512_core_brgemm_conv_comp_pad_kernel_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_brgemm_conv_comp_pad_kernel_t)
 
@@ -54,6 +55,7 @@ protected:
     const size_t inp_kw_sz_;
     const size_t inp_kh_sz_;
     const size_t inp_kd_sz_;
+    const int isa_max_regs;
 
     // Register decomposition
     const reg64_t param1 = abi_param1;
@@ -71,9 +73,10 @@ protected:
     const reg64_t reg_aux_kw_in = rsi;
     const reg64_t reg_tmp = rax;
 
-    Xbyak::Zmm zmm_one_bytes = Xbyak::Zmm(30);
-    Xbyak::Zmm zmm_zp_shift = Xbyak::Zmm(29);
-    Xbyak::Zmm zmm_cp_shift = Xbyak::Zmm(28);
+    Vmm vmm_tmp = Vmm(isa_max_regs - 1);
+    Vmm vmm_one_bytes = Vmm(isa_max_regs - 2);
+    Vmm vmm_zp_shift = Vmm(isa_max_regs - 3);
+    Vmm vmm_cp_shift = Vmm(isa_max_regs - 4);
 
     Xbyak::Zmm zmm_one_words = Xbyak::Zmm(27);
     Xbyak::Zmm zmm_int8_temp = Xbyak::Zmm(26);
@@ -83,9 +86,9 @@ protected:
     const int m_block2_ = 16;
     const int n_max_regs_ = 4;
 
-    const Xbyak::Zmm &zmm_tmp_1() const noexcept { return this->zmm31; }
+    const Vmm &vmm_tmp_1() const noexcept { return vmm_tmp; }
 
-    Xbyak::Zmm accum(const int n_block, const int m, const int n) const;
+    Vmm accum(const int n_block, const int m, const int n) const;
     size_t out_oc_offset(const int n) const;
     size_t inp_ic_offset(
             const int m_block, const int icb, const int m, const int n) const;
