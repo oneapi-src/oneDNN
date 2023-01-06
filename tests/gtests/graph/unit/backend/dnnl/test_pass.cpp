@@ -5463,8 +5463,7 @@ TEST(Pass, FuseToInt8Fp32Conv) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -5662,8 +5661,7 @@ TEST(Pass, FuseToInt8ConvBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -5807,8 +5805,7 @@ TEST(Pass, FuseToInt8ConvRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -5890,8 +5887,7 @@ TEST(Pass, FuseToInt8ConvSwish) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6041,8 +6037,7 @@ TEST(Pass, FuseToInt8ConvBiasRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6207,8 +6202,7 @@ TEST(Pass, FuseToInt8ConvBiasAdd) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6306,7 +6300,7 @@ TEST(Pass, FuseToInt8ConvBinary) {
             agraph.finalize();
 
             pass::pass_base_ptr apass
-                    = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+                    = get_pass("int8_conv_post_ops_fusion_cpu");
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6423,8 +6417,7 @@ TEST(Pass, FuseInt8ConvBiasWithTwoAdd) {
     agraph.finalize();
     ASSERT_EQ(agraph.get_ops().size(), 8U);
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 8U);
@@ -6447,88 +6440,99 @@ TEST(PassSystem, TestInt8ConvBiasAdd) {
             conv_with_bias
              | (f32)
              |     | (s8)
-             |   dequant
+             |   dequant*
              |  / (f32)
             add
              | (f32)
            quant
              | (u8/s8)
     */
-    graph_t agraph;
-    std::vector<int64_t> zps = {0};
-    std::vector<float> scales = {3.1f};
-    op_t dequant1 {0, Dequantize, "dequant"};
-    dequant1.set_attr(op_attr::scales, scales);
-    dequant1.set_attr(op_attr::zps, zps);
-    op_t dequant2 {1, Dequantize, "dequant"};
-    dequant2.set_attr(op_attr::scales, scales);
-    dequant2.set_attr(op_attr::zps, zps);
-    op_t dequant3 {2, Dequantize, "dequant"};
-    dequant3.set_attr(op_attr::scales, scales);
-    dequant3.set_attr(op_attr::zps, zps);
-    op_t conv {3, Convolution, "conv"};
-    set_conv_common_attr(conv);
-    op_t add {5, Add, "add"};
-    op_t quant {6, Quantize, "quant"};
-    quant.set_attr(op_attr::scales, scales);
-    quant.set_attr(op_attr::zps, zps);
+    std::vector<bool> dequant_for_add = {true, false};
+    for (auto with_dequant_for_add : dequant_for_add) {
+        graph_t agraph;
+        std::vector<int64_t> zps = {0};
+        std::vector<float> scales = {3.1f};
+        op_t dequant1 {0, Dequantize, "dequant"};
+        dequant1.set_attr(op_attr::scales, scales);
+        dequant1.set_attr(op_attr::zps, zps);
+        op_t dequant2 {1, Dequantize, "dequant"};
+        dequant2.set_attr(op_attr::scales, scales);
+        dequant2.set_attr(op_attr::zps, zps);
+        op_t dequant3 {2, Dequantize, "dequant"};
+        dequant3.set_attr(op_attr::scales, scales);
+        dequant3.set_attr(op_attr::zps, zps);
+        op_t conv {3, Convolution, "conv"};
+        set_conv_common_attr(conv);
+        op_t add {5, Add, "add"};
+        op_t quant {6, Quantize, "quant"};
+        quant.set_attr(op_attr::scales, scales);
+        quant.set_attr(op_attr::zps, zps);
 
-    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
-    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
-    dequant1.add_input(int8_data);
-    dequant1.add_output(fp32_data);
+        logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+        logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+        dequant1.add_input(int8_data);
+        dequant1.add_output(fp32_data);
 
-    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
-    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
-    dequant2.add_input(s8_weight);
-    dequant2.add_output(fp32_weight);
+        logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+        logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+        dequant2.add_input(s8_weight);
+        dequant2.add_output(fp32_weight);
 
-    logical_tensor_t int8_other = logical_tensor_init(4, data_type::u8);
-    logical_tensor_t fp32_other = logical_tensor_init(5, data_type::f32);
-    dequant3.add_input(int8_other);
-    dequant3.add_output(fp32_other);
+        logical_tensor_t int8_other = logical_tensor_init(4, data_type::u8);
+        logical_tensor_t fp32_other = logical_tensor_init(5, data_type::f32);
+        if (with_dequant_for_add) {
+            dequant3.add_input(int8_other);
+            dequant3.add_output(fp32_other);
+        }
 
-    logical_tensor_t fp32_bias = logical_tensor_init(6, data_type::f32);
-    logical_tensor_t fp32_conv_out = logical_tensor_init(7, data_type::f32);
-    conv.add_input(fp32_data);
-    conv.add_input(fp32_weight);
-    conv.add_input(fp32_bias);
-    conv.add_output(fp32_conv_out);
+        logical_tensor_t fp32_bias = logical_tensor_init(6, data_type::f32);
+        logical_tensor_t fp32_conv_out = logical_tensor_init(7, data_type::f32);
+        conv.add_input(fp32_data);
+        conv.add_input(fp32_weight);
+        conv.add_input(fp32_bias);
+        conv.add_output(fp32_conv_out);
 
-    logical_tensor_t fp32_add_out = logical_tensor_init(8, data_type::f32);
-    add.add_input(fp32_conv_out);
-    add.add_input(fp32_other);
-    add.add_output(fp32_add_out);
+        logical_tensor_t fp32_add_out = logical_tensor_init(8, data_type::f32);
+        add.add_input(fp32_conv_out);
+        add.add_input(fp32_other);
+        add.add_output(fp32_add_out);
 
-    logical_tensor_t int8_out = logical_tensor_init(9, data_type::u8);
-    quant.add_input(fp32_add_out);
-    quant.add_output(int8_out);
+        logical_tensor_t int8_out = logical_tensor_init(9, data_type::u8);
+        quant.add_input(fp32_add_out);
+        quant.add_output(int8_out);
 
-    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
-    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
-    ASSERT_EQ(agraph.add_op(&dequant3), status::success);
-    ASSERT_EQ(agraph.add_op(&conv), status::success);
-    ASSERT_EQ(agraph.add_op(&add), status::success);
-    ASSERT_EQ(agraph.add_op(&quant), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+        ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+        if (with_dequant_for_add) {
+            ASSERT_EQ(agraph.add_op(&dequant3), status::success);
+        }
+        ASSERT_EQ(agraph.add_op(&conv), status::success);
+        ASSERT_EQ(agraph.add_op(&add), status::success);
+        ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-    agraph.finalize();
+        agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
-    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    pm.run_passes(agraph, "no_config");
+        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+        pm.run_passes(agraph, "no_config");
 
-    ASSERT_EQ(agraph.get_num_partitions(), 1U);
-    ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-            partition_kind_t::quantized_convolution_post_ops);
+        ASSERT_EQ(agraph.get_num_partitions(), 1U);
+        ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+                partition_kind_t::quantized_convolution_post_ops);
 
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 6U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 4U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 6U);
+        if (with_dequant_for_add) {
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 4U);
+        } else {
+            ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 5U);
+        }
 
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
+        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
+    }
 }
 
 TEST(Pass, FuseToInt8ConvBiasAddRelu) {
@@ -6613,8 +6617,7 @@ TEST(Pass, FuseToInt8ConvBiasAddRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6713,8 +6716,7 @@ TEST(Pass, FuseToInt8ConvBiasDivAdd) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7017,8 +7019,7 @@ TEST(Pass, FuseToInt8ConvBiasAddReluWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7074,8 +7075,7 @@ TEST(Pass, FuseToX8s8f32Conv) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7132,8 +7132,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7196,8 +7195,7 @@ TEST(Pass, FuseToX8s8f32ConvReluWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7261,8 +7259,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasReluWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7349,8 +7346,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasAddRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7439,8 +7435,7 @@ TEST(Pass, FuseToX8s8f32ConvBiasAddReluWithAsymmetricZp) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_cpu");
+    pass::pass_base_ptr apass = get_pass("int8_conv_post_ops_fusion_cpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
