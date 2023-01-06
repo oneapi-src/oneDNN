@@ -1088,8 +1088,33 @@ struct fma_config_t {
     bool is_src1_broadcast;
 };
 
+bool check_k_blocks_order(layout_t &a, layout_t &b,
+        const bmnk_mapper_t &bmnk_mapper, bool overwrite_a_b = false) {
+    object_map_t<expr_t, int> k_vars;
+    auto k_sub_layout = [&](abc_kind_t abc_kind, const layout_t &l) {
+        layout_t k_layout = layout_t(
+                type_t::u8(), 0, std::vector<dim_t>(layout_t::max_ndims, 1));
+        for (auto &b : l.blocks()) {
+            auto bmnk_kind = bmnk_mapper.bmnk_kind(abc_kind, b.dim_idx);
+            if (bmnk_kind != bmnk_kind_t::k) continue;
+            auto &var = bmnk_mapper.var(abc_kind, b.dim_idx);
+            auto ret = k_vars.emplace(var, (int)k_vars.size());
+            k_layout = k_layout.add_outer_block(ret.first->second, b.block);
+        }
+        return k_layout;
+    };
+    auto a_k = k_sub_layout(abc_kind_t::a, a);
+    auto b_k = k_sub_layout(abc_kind_t::b, b);
+    if (overwrite_a_b) {
+        a = a_k;
+        b = b_k;
+    }
+    return (a_k == b_k);
+}
+
 layout_t get_fma_friendly_layout(const fma_config_t &fma_cfg, abc_kind_t abc,
-        const bmnk_mapper_t &mapper, const layout_t &layout) {
+        const bmnk_mapper_t &mapper, const layout_t &layout,
+        layout_t other_layout = layout_t()) {
     auto simd = fma_cfg.simd;
     auto fma = fma_cfg.fma;
     bool is_mad = (fma == fma_kind_t::mad);
@@ -1123,7 +1148,42 @@ layout_t get_fma_friendly_layout(const fma_config_t &fma_cfg, abc_kind_t abc,
         auto bmnk_layout = mapper.map_to_bmnk(abc, bmnks, layout).retype(type);
         auto fma_layout
                 = bmnk_layout.make_with_block(layout_t(type, 0, blocks));
+        auto bmnk_mapper = mapper;
         auto abc_layout = mapper.map_from_bmnk(abc, bmnks, fma_layout, layout);
+        if (!other_layout.is_empty()) {
+            auto other_kind
+                    = abc == abc_kind_t::a ? abc_kind_t::b : abc_kind_t::a;
+            bmnk_block_mapper_t from_bmnk_mapper(bmnk_mapper);
+            from_bmnk_mapper.push_blocks(abc, layout.blocks());
+            from_bmnk_mapper.push_blocks(other_kind, other_layout.blocks());
+            bool k_order;
+            if (abc == abc_kind_t::a)
+                k_order = check_k_blocks_order(
+                        fma_layout, other_layout, bmnk_mapper);
+            else
+                k_order = check_k_blocks_order(
+                        other_layout, fma_layout, bmnk_mapper);
+            if (k_order && fma_layout == bmnk_layout) return abc_layout;
+            bmnk_block_mapper_t to_bmnk_mapper(bmnk_mapper);
+
+            for (auto &b : layout.blocks()) {
+                if (bmnk_mapper.bmnk_kind(abc, b.dim_idx) == bmnk_kind_t::k)
+                    continue;
+                to_bmnk_mapper.push_block(abc, b);
+            }
+            for (auto a : other_layout.blocks()) {
+                if (bmnk_mapper.bmnk_kind(other_kind, a.dim_idx)
+                        == bmnk_kind_t::k) {
+                    //map a to b dim
+                    a.dim_idx = bmnk_mapper.dim_idx(
+                            abc, bmnk_mapper.var(other_kind, a.dim_idx));
+                    to_bmnk_mapper.push_block(abc, a);
+                }
+            }
+            fma_layout = to_bmnk_mapper.map_from_bmnk(abc, bmnks, fma_layout);
+            fma_layout = fma_layout.make_dense();
+            return fma_layout;
+        }
         return abc_layout;
     }
 
@@ -1850,8 +1910,8 @@ private:
             const tensor_t &abs_thr_tile, send_plan_t &load,
             reorder_plan_t &reorder, layout_t &layout,
             reduce_mask_t reduce_mask = reduce_mask_t(),
-            reduce_plan_t *reduce = nullptr,
-            tensor_t *reduce_tile = nullptr) const {
+            reduce_plan_t *reduce = nullptr, tensor_t *reduce_tile = nullptr,
+            const layout_t &other_layout = layout_t()) const {
         if (has_x_slm) return plan_status_t::success;
         auto gmem_view = tg_view.create_sub_view(thr_tile);
 
@@ -1877,8 +1937,8 @@ private:
         }
 
         fma_config_t fma_cfg(cfg_);
-        layout = get_fma_friendly_layout(
-                fma_cfg, abc, gemm_schedule_.bmnk_mapper(), reg_layout);
+        layout = get_fma_friendly_layout(fma_cfg, abc,
+                gemm_schedule_.bmnk_mapper(), reg_layout, other_layout);
         auto &src = reg_layout;
         auto &dst = layout;
         reorder = create_reorder_plan(cfg_.hw(), src, dst);
@@ -1896,23 +1956,11 @@ private:
     }
 
     plan_status_t fixup_k_blocks_order(layout_t &a, layout_t &b) const {
-        auto &bmnk_mapper = gemm_schedule_.bmnk_mapper();
-        object_map_t<expr_t, int> k_vars;
-        auto k_sub_layout = [&](abc_kind_t abc_kind, const layout_t &l) {
-            layout_t k_layout = layout_t(type_t::u8(), 0,
-                    std::vector<dim_t>(layout_t::max_ndims, 1));
-            for (auto &b : l.blocks()) {
-                auto bmnk_kind = bmnk_mapper.bmnk_kind(abc_kind, b.dim_idx);
-                if (bmnk_kind != bmnk_kind_t::k) continue;
-                auto &var = bmnk_mapper.var(abc_kind, b.dim_idx);
-                auto ret = k_vars.emplace(var, (int)k_vars.size());
-                k_layout = k_layout.add_outer_block(ret.first->second, b.block);
-            }
-            return k_layout;
-        };
-        auto a_k = k_sub_layout(abc_kind_t::a, a);
-        auto b_k = k_sub_layout(abc_kind_t::b, b);
-        if (a_k == b_k) return plan_status_t::success;
+        auto bmnk_mapper = gemm_schedule_.bmnk_mapper();
+        auto a_k = a;
+        auto b_k = b;
+        if (check_k_blocks_order(a_k, b_k, bmnk_mapper, true))
+            return plan_status_t::success;
         if (cfg_.fma_kind() != fma_kind_t::mad)
             return plan_status_t::ab_layout_mismatch;
 
@@ -1959,12 +2007,16 @@ private:
         PLAN_CHECK(init_x_g2r_plan(abc_kind_t::a, slm.has_a(),
                 gemm_schedule_.a_tg_view(), gemm_schedule_.a_thr_tile(),
                 gemm_schedule_.a_thr_tile(/*is_relative=*/false), plan.a_load,
-                plan.a_reorder, plan.a_layout));
+                plan.a_reorder, plan.a_layout, reduce_mask_t(), nullptr,
+                nullptr, slm.has_b() ? plan.b_layout : layout_t()));
         PLAN_CHECK(init_x_g2r_plan(abc_kind_t::b, slm.has_b(),
                 gemm_schedule_.b_tg_view(), gemm_schedule_.b_thr_tile(),
                 gemm_schedule_.b_thr_tile(/*is_relative=*/false), plan.b_load,
                 plan.b_reorder, plan.b_layout, reduce_mask(cfg_, abc_kind_t::b),
-                &plan.b_reduce, &plan.b_reduce_tile));
+                &plan.b_reduce, &plan.b_reduce_tile,
+                (slm.has_a() && !slm.has_b()) || !(slm.has_a() && slm.has_b())
+                        ? plan.a_layout
+                        : layout_t()));
         PLAN_CHECK(verify_2d());
         PLAN_CHECK(fixup_k_blocks_order(plan.a_layout, plan.b_layout));
         return plan_status_t::success;
