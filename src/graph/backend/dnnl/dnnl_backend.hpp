@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #define GRAPH_BACKEND_DNNL_DNNL_BACKEND_HPP
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -297,12 +298,17 @@ public:
         // FIXME(xx): Here we only changes the passes in registry. If json file
         // existed, pm will run passes according to the json file, the env var
         // will not take effect.
-        const float priority_ths = 20.f;
+        // - priority > 20.f: large fusion pattern
+        // - 20.f >= priority > 8.f: normal fusion pattern
+        // - priority <= 8.f: debug fusion pattern (single op fusion)
+        const float priority_ths = (policy == graph::partition_policy::fusion
+                                           && enable_large_partition)
+                ? std::numeric_limits<float>::max()
+                : policy == graph::partition_policy::fusion ? 20.0f
+                                                            : 8.0f;
         graph::pass::pass_registry_t filtered_registry;
         for (auto &pass : get_pass_registry().get_passes()) {
-            const bool is_large_partition
-                    = pass->get_priority() >= priority_ths;
-            if (!enable_large_partition && is_large_partition) continue;
+            if (pass->get_priority() > priority_ths) continue;
             filtered_registry.register_pass(pass);
         }
 

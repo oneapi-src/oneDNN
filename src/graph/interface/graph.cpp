@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -377,6 +377,14 @@ status_t DNNL_API dnnl_graph_graph_filter(
     if (graph == nullptr || (!graph->is_finalized())) {
         return status::invalid_graph;
     }
+
+    // recover the ops to unmatched status and clean the partition_impl list to
+    // make the function reentrant
+    for (auto &op : graph->get_ops()) {
+        op->remove_attr(op_attr::matched);
+        op->set_partition(nullptr);
+    }
+    graph->clean_partitions();
 
 #ifdef DNNL_ENABLE_GRAPH_DUMP
     if (dnnl::impl::getenv_int_user("GRAPH_DUMP", 0) > 0
