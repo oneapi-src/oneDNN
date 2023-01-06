@@ -143,20 +143,6 @@ bool get_verbose_timestamp() {
 #endif
 }
 
-double get_msec() {
-#ifdef _WIN32
-    static LARGE_INTEGER frequency;
-    if (frequency.QuadPart == 0) QueryPerformanceFrequency(&frequency);
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    return 1e+3 * now.QuadPart / frequency.QuadPart;
-#else
-    struct timeval time;
-    gettimeofday(&time, nullptr);
-    return 1e+3 * time.tv_sec + 1e-3 * time.tv_usec;
-#endif
-}
-
 #if defined(DISABLE_VERBOSE)
 void pd_info_t::init(
         dnnl::impl::engine_t *, const dnnl::impl::primitive_desc_t *) {}

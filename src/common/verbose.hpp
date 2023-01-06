@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,6 @@ struct verbose_t {
 
 int get_verbose();
 bool get_verbose_timestamp();
-double get_msec();
 
 /// A container for primitive desc verbose string.
 struct primitive_desc_t;

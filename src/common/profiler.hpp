@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <assert.h>
+#include <atomic>
 #include <cstddef>
 #include <iomanip>
 #include <sstream>
@@ -34,6 +35,20 @@
 
 namespace dnnl {
 namespace impl {
+
+static double get_msec() {
+#ifdef _WIN32
+    static LARGE_INTEGER frequency;
+    if (frequency.QuadPart == 0) QueryPerformanceFrequency(&frequency);
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return 1e+3 * now.QuadPart / frequency.QuadPart;
+#else
+    struct timeval time;
+    gettimeofday(&time, nullptr);
+    return 1e+3 * time.tv_sec + 1e-3 * time.tv_usec;
+#endif
+}
 
 // Record custom profiling information within a single thread.
 //
@@ -84,21 +99,21 @@ struct profiler_t {
     void start() {
         _run_data.clear();
         _state = RUNNING;
-        _start_time = get_time();
+        _start_time = get_msec();
         optimization_barrier();
     }
 
     // Recording data
     void stamp(const char *name) {
         optimization_barrier();
-        _run_data.emplace_back(record_t<const char *>(name, get_time()));
+        _run_data.emplace_back(record_t<const char *>(name, get_msec()));
         assert(_state == RUNNING);
         optimization_barrier();
     }
 
     void stop(const char *name) {
         optimization_barrier();
-        _run_data.emplace_back(record_t<const char *>(name, get_time()));
+        _run_data.emplace_back(record_t<const char *>(name, get_msec()));
         stop();
     }
 
@@ -120,7 +135,7 @@ struct profiler_t {
 
         std::sort(print_data.begin(), print_data.end());
 
-        time_t total_time = 0;
+        prof_time_t total_time = 0;
         for (auto &record : print_data) {
             total_time += record.time;
         }
@@ -143,16 +158,18 @@ struct profiler_t {
     }
 
 private:
-    using time_t = double;
+    using prof_time_t = double;
 
-    static void inline optimization_barrier() { asm volatile("" ::: "memory"); }
+    static void inline optimization_barrier() {
+        atomic_signal_fence(std::memory_order_seq_cst);
+    }
 
     template <typename T>
     struct record_t {
         T name;
-        time_t time;
-        record_t(T name, time_t time) : name(name), time(time) {}
-        record_t(std::pair<T, time_t> record)
+        prof_time_t time;
+        record_t(T name, prof_time_t time) : name(name), time(time) {}
+        record_t(std::pair<T, prof_time_t> record)
             : name(record.first), time(record.second) {}
         // Reversed time ordering
         bool operator<(const record_t &b) const { return this->time > b.time; }
@@ -168,28 +185,14 @@ private:
     // recording has stopped.
     std::string _profile_name;
     std::vector<record_t<const char *>> _run_data;
-    std::unordered_map<std::string, time_t> _data;
+    std::unordered_map<std::string, prof_time_t> _data;
 
     state_t _state = STOPPED;
-    time_t _start_time = 0;
-
-    static time_t get_time() {
-#ifdef _WIN32
-        static LARGE_INTEGER frequency;
-        if (frequency.QuadPart == 0) QueryPerformanceFrequency(&frequency);
-        LARGE_INTEGER now;
-        QueryPerformanceCounter(&now);
-        return 1e+3 * now.QuadPart / frequency.QuadPart;
-#else
-        struct timeval time;
-        gettimeofday(&time, nullptr);
-        return 1e+3 * time.tv_sec + 1e-3 * time.tv_usec;
-#endif
-    }
+    prof_time_t _start_time = 0;
 
     void collate() {
         assert(_state == STOPPED);
-        time_t last_stamp = _start_time;
+        prof_time_t last_stamp = _start_time;
         for (const auto &record : _run_data) {
             _data[std::string(record.name)] += record.time - last_stamp;
             last_stamp = record.time;
