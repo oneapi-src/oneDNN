@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2022 Intel Corporation
+# Copyright 2016-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,7 +62,13 @@ append(CMAKE_CXX_FLAGS "${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 
 append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_CXX_NOWARN_FLAGS}")
 
-if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE" AND NOT DNNL_ENABLE_STACK_CHECKER)
+if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE" AND
+   NOT DNNL_ENABLE_STACK_CHECKER AND
+   # TBB threading runtime requires explicit finalization for tests used
+   # under CTest. Since TBB doesn't provide C API to perform finalization
+   # we have to skip C tests.
+   NOT DNNL_CPU_RUNTIME STREQUAL "TBB" AND
+   NOT DNNL_CPU_SYCL)
     find_libm(LIBM)
     register_exe(api-c api.c "test" "${LIBM}")
 endif()
