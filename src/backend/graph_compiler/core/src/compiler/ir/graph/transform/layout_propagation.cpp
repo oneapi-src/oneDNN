@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -278,10 +278,9 @@ SC_INTERNAL_API void layout_propagation(
     std::vector<std::vector<format_stride_pair>> format_backup;
     std::vector<sc_op *> input_ops;
 
-    op_visitor_t vis {op_visitor_t::pop_back_selector,
-            op_visitor_t::create_DAG_updater(graph.ops_.size())};
+    op_visitor_t vis = op_visitor_t::dfs_topology_sort(graph.ops_.size());
     // stage 1, collect all ops and the number of choices of formats
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         sorted_ops.emplace_back(node);
         if (is_graph_dynamic) { return; }
         if (auto input_node = node->dyn_cast<input_op>()) {
@@ -665,7 +664,7 @@ SC_INTERNAL_API void layout_propagation(
     // it should be refactor to one standalone pass to finally fix constant
     // value
     auto vis2 = op_visitor_t::bfs();
-    vis2.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis2.visit_graph(graph, [&](op_visitor_t *vis2, const sc_op_ptr &node) {
         if (node->isa<constant_op_t>() && node->attrs_.has_key("temp.var")) {
             auto const_op = node->dyn_cast<constant_op_t>();
             const_op->reset_const_values();

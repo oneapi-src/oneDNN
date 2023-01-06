@@ -220,7 +220,7 @@ static std::atomic<int> out_idx(0);
 void collect_shrinked_graph_lt_map(
         const sc_graph_t &graph, gt2gt_map &lt_map, int shrink_size) {
     op_visitor_t pre_vis = op_visitor_t::bfs();
-    pre_vis.visit_graph(graph, [&](const sc_op_ptr &op) {
+    pre_vis.visit_graph(graph, [&](op_visitor_t *pre_vis, const sc_op_ptr &op) {
         if (op->isa<input_op>() || op->isa<output_op>()
                 || op->isa<constant_op_t>()) {
             return;
@@ -236,7 +236,7 @@ void collect_shrinked_graph_lt_map(
 void collect_shrinked_graph_axis_map(
         const sc_graph_t &graph, gt2axis_map &axis_map, int shrink_size) {
     op_visitor_t pre_vis = op_visitor_t::bfs();
-    pre_vis.visit_graph(graph, [&](const sc_op_ptr &op) {
+    pre_vis.visit_graph(graph, [&](op_visitor_t *pre_vis, const sc_op_ptr &op) {
         if (op->isa<input_op>() || op->isa<output_op>()
                 || op->isa<constant_op_t>()) {
             return;
@@ -253,10 +253,9 @@ void collect_shrinked_graph_axis_map(
 sc_graph_t shrink_graph(const sc_graph_t &graph, gt2gt_map &lt_map) {
     sc_graph_t shrinked_graph;
     shrinked_graph.sync_dynamic_info_with_graph(graph);
-    op_visitor_t vis(op_visitor_t::dequeue_selector,
-            op_visitor_t::create_DAG_updater(graph.ops_.size()));
+    op_visitor_t vis = op_visitor_t::bfs_topology_sort(graph.ops_.size());
     std::unordered_map<sc_op_ptr, int> op_id_map;
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         sc_op_ptr new_node;
         if (node->dyn_cast<input_op>()) {
             new_node = shrinked_graph.make_input(
@@ -283,9 +282,8 @@ sc_graph_t shrink_graph(const sc_graph_t &graph, gt2gt_map &lt_map) {
 fusion_mgr_ptr shrink_fmgr(const fusion_mgr_ptr &fmgr, gt2gt_map &lt_map) {
     auto &graph = fmgr->get_graph();
     auto new_fmgr = std::make_shared<fusion_manager>();
-    op_visitor_t vis(op_visitor_t::dequeue_selector,
-            op_visitor_t::create_DAG_updater(graph.ops_.size()));
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    op_visitor_t vis = op_visitor_t::bfs_topology_sort(graph.ops_.size());
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         sc_op_ptr new_node;
         if (node->dyn_cast<input_op>()) {
             new_node = new_fmgr->make_input(
@@ -1623,19 +1621,20 @@ static op_traits::may_prefetch_t *find_prefetch_op(const sc_graph_t &graph) {
     // find the first tunable & prefetchable op
     op_traits::may_prefetch_t *found_op = nullptr;
     op_visitor_t::dfs_topology_sort(graph.ops_.size())
-            .visit_graph(graph, [&found_op](const sc_op_ptr &op) {
-                if (found_op) { return; }
-                if (op->isa<tunable_op_t>()
-                        && op->isa<op_traits::may_prefetch_t>()) {
-                    for (auto &ins : op->get_inputs()) {
-                        if (ins->producer_owner_->isa<input_op>()) {
-                            found_op
-                                    = op->dyn_cast<op_traits::may_prefetch_t>();
-                            return;
+            .visit_graph(
+                    graph, [&found_op](op_visitor_t *vis, const sc_op_ptr &op) {
+                        if (found_op) { return; }
+                        if (op->isa<tunable_op_t>()
+                                && op->isa<op_traits::may_prefetch_t>()) {
+                            for (auto &ins : op->get_inputs()) {
+                                if (ins->producer_owner_->isa<input_op>()) {
+                                    found_op = op->dyn_cast<
+                                            op_traits::may_prefetch_t>();
+                                    return;
+                                }
+                            }
                         }
-                    }
-                }
-            });
+                    });
     return found_op;
 }
 

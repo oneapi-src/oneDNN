@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,8 +41,8 @@ namespace sc {
         |
       [b1]
 */
-static bool do_swap(
-        sc_graph_t &mgr, sc_op *bcast, sc_op *other, int bcast_tsr_idx) {
+static bool do_swap(sc_graph_t &mgr, sc_op *bcast, sc_op *other,
+        int bcast_tsr_idx, op_visitor_t *visitor) {
     assert(bcast->get_inputs().size() == 2 && other->get_inputs().size() == 2);
     assert(bcast->get_outputs().size() == 1
             && other->get_outputs().size() == 1);
@@ -62,32 +62,34 @@ static bool do_swap(
             {new_bcast->get_outputs()[0], v1}, {}, other->attrs_);
     bcast->replace_uses_with_and_remove(new_other);
     other->remove();
+    visitor->update_state_for_visited(new_other);
     return true;
 }
 
 static bool check_and_swap(sc_graph_t &mgr, add_op_t *bcast_node,
-        int index_in_bcast, int bcast_input_idx) {
+        int index_in_bcast, int bcast_input_idx, op_visitor_t *visitor) {
     auto parent = bcast_node->get_inputs()[index_in_bcast]->producer_owner_;
     if (auto parent_add = parent->dyn_cast<add_op_t>()) {
         if (parent_add->get_broadcast_input() == -1) {
-            return do_swap(mgr, bcast_node, parent_add, bcast_input_idx);
+            return do_swap(
+                    mgr, bcast_node, parent_add, bcast_input_idx, visitor);
         }
     }
     return false;
 }
 
 void elemwise_bcast_swap(sc_graph_t &mgr, const context_ptr &ctx) {
-    op_visitor_t::dfs_topology_sort().visit_graph(
-            mgr, [&mgr](const sc_op_ptr &node) {
-                if (auto add_node = node->dyn_cast<add_op_t>()) {
-                    auto bcast_idx = add_node->get_broadcast_input();
-                    if (bcast_idx != -1) {
-                        assert(add_node->get_inputs().size() == 2);
-                        if (!check_and_swap(mgr, add_node, 0, bcast_idx)) {
-                            check_and_swap(mgr, add_node, 1, bcast_idx);
-                        }
-                    }
+    op_visitor_t vis = op_visitor_t::dfs_topology_sort();
+    vis.visit_graph(mgr, [&mgr](op_visitor_t *vis, const sc_op_ptr &node) {
+        if (auto add_node = node->dyn_cast<add_op_t>()) {
+            auto bcast_idx = add_node->get_broadcast_input();
+            if (bcast_idx != -1) {
+                assert(add_node->get_inputs().size() == 2);
+                if (!check_and_swap(mgr, add_node, 0, bcast_idx, vis)) {
+                    check_and_swap(mgr, add_node, 1, bcast_idx, vis);
                 }
-            });
+            }
+        }
+    });
 }
 } // namespace sc

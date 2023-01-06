@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,81 +106,78 @@ static void infer_aligned_shape(const logical_tensor_t &a,
    (x,y,z,w)[v3]
 */
 void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
-    op_visitor_t::dfs_topology_sort().visit_graph(
-            graph, [&](const sc_op_ptr &node) {
-                if (auto binary_node
-                        = node->dyn_cast<binary_elementwise_op_t>()) {
-                    COMPILE_ASSERT(binary_node->info_.inputs_.size() == 2,
-                            "Wrong number of inputs for binary_elementwise_op");
-                    const auto &lhs = binary_node->info_.inputs_[0]->details_;
-                    const auto &rhs = binary_node->info_.inputs_[1]->details_;
-                    sc_dims shape;
-                    std::vector<int> aligned_axis;
-                    sc_data_format_t format;
-                    if (lhs.get_plain_dims().size()
-                            < rhs.get_plain_dims().size()) {
-                        infer_aligned_shape(rhs, lhs,
-                                binary_node->get_plain_bc_axis(), shape,
-                                aligned_axis, format);
-                        if (!shape.empty()) {
-                            // insert tensor view
-                            auto ret = graph.make("tensor_view",
-                                    {binary_node->info_.inputs_[0]}, {},
-                                    {{"shape", shape}, {"format", format},
-                                            {"expand_dim", aligned_axis}});
-                            node->replace_input(0, ret->get_outputs()[0]);
-                        }
-                    } else if (lhs.get_plain_dims().size()
-                            > rhs.get_plain_dims().size()) {
-                        infer_aligned_shape(lhs, rhs,
-                                binary_node->get_plain_bc_axis(), shape,
-                                aligned_axis, format);
-                        if (!shape.empty()) {
-                            // insert tensor view
-                            auto ret = graph.make("tensor_view",
-                                    {binary_node->info_.inputs_[1]}, {},
-                                    {{"shape", shape}, {"format", format},
-                                            {"expand_dim", aligned_axis}});
-                            node->replace_input(1, ret->get_outputs()[0]);
-                        }
-                    }
-                } else if (auto select_node = node->dyn_cast<select_op_t>()) {
-                    COMPILE_ASSERT(select_node->info_.inputs_.size() == 3,
-                            "Wrong number of inputs for select_op");
-                    const auto &cond = select_node->info_.inputs_[0]->details_;
-                    const auto &els = select_node->info_.inputs_[2]->details_;
-                    sc_dims shape;
-                    std::vector<int> aligned_axis;
-                    sc_data_format_t format;
-                    if (cond.get_plain_dims().size()
-                            < els.get_plain_dims().size()) {
-                        infer_aligned_shape(els, cond,
-                                select_node->get_plain_bc_axis(), shape,
-                                aligned_axis, format);
-                        if (!shape.empty()) {
-                            // insert tensor view
-                            auto ret = graph.make("tensor_view",
-                                    {select_node->info_.inputs_[0]}, {},
-                                    {{"shape", shape}, {"format", format},
-                                            {"expand_dim", true}});
-                            node->replace_input(0, ret->get_outputs()[0]);
-                        }
-                    } else if (cond.get_plain_dims().size()
-                            > els.get_plain_dims().size()) {
-                        infer_aligned_shape(cond, els,
-                                select_node->get_plain_bc_axis(), shape,
-                                aligned_axis, format);
-                        if (!shape.empty()) {
-                            // insert tensor view
-                            auto ret = graph.make("tensor_view",
-                                    {select_node->info_.inputs_[2]}, {},
-                                    {{"shape", shape}, {"format", format},
-                                            {"expand_dim", true}});
-                            node->replace_input(2, ret->get_outputs()[0]);
-                        }
-                    }
+    op_visitor_t vis = op_visitor_t::dfs_topology_sort();
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
+        if (auto binary_node = node->dyn_cast<binary_elementwise_op_t>()) {
+            COMPILE_ASSERT(binary_node->info_.inputs_.size() == 2,
+                    "Wrong number of inputs for binary_elementwise_op");
+            const auto &lhs = binary_node->info_.inputs_[0]->details_;
+            const auto &rhs = binary_node->info_.inputs_[1]->details_;
+            sc_dims shape;
+            std::vector<int> aligned_axis;
+            sc_data_format_t format;
+            if (lhs.get_plain_dims().size() < rhs.get_plain_dims().size()) {
+                infer_aligned_shape(rhs, lhs, binary_node->get_plain_bc_axis(),
+                        shape, aligned_axis, format);
+                if (!shape.empty()) {
+                    // insert tensor view
+                    auto ret = graph.make("tensor_view",
+                            {binary_node->info_.inputs_[0]}, {},
+                            {{"shape", shape}, {"format", format},
+                                    {"expand_dim", aligned_axis}});
+                    node->replace_input(0, ret->get_outputs()[0]);
+                    vis->update_state_for_visited(ret);
                 }
-            });
+            } else if (lhs.get_plain_dims().size()
+                    > rhs.get_plain_dims().size()) {
+                infer_aligned_shape(lhs, rhs, binary_node->get_plain_bc_axis(),
+                        shape, aligned_axis, format);
+                if (!shape.empty()) {
+                    // insert tensor view
+                    auto ret = graph.make("tensor_view",
+                            {binary_node->info_.inputs_[1]}, {},
+                            {{"shape", shape}, {"format", format},
+                                    {"expand_dim", aligned_axis}});
+                    node->replace_input(1, ret->get_outputs()[0]);
+                    vis->update_state_for_visited(ret);
+                }
+            }
+        } else if (auto select_node = node->dyn_cast<select_op_t>()) {
+            COMPILE_ASSERT(select_node->info_.inputs_.size() == 3,
+                    "Wrong number of inputs for select_op");
+            const auto &cond = select_node->info_.inputs_[0]->details_;
+            const auto &els = select_node->info_.inputs_[2]->details_;
+            sc_dims shape;
+            std::vector<int> aligned_axis;
+            sc_data_format_t format;
+            if (cond.get_plain_dims().size() < els.get_plain_dims().size()) {
+                infer_aligned_shape(els, cond, select_node->get_plain_bc_axis(),
+                        shape, aligned_axis, format);
+                if (!shape.empty()) {
+                    // insert tensor view
+                    auto ret = graph.make("tensor_view",
+                            {select_node->info_.inputs_[0]}, {},
+                            {{"shape", shape}, {"format", format},
+                                    {"expand_dim", true}});
+                    node->replace_input(0, ret->get_outputs()[0]);
+                    vis->update_state_for_visited(ret);
+                }
+            } else if (cond.get_plain_dims().size()
+                    > els.get_plain_dims().size()) {
+                infer_aligned_shape(cond, els, select_node->get_plain_bc_axis(),
+                        shape, aligned_axis, format);
+                if (!shape.empty()) {
+                    // insert tensor view
+                    auto ret = graph.make("tensor_view",
+                            {select_node->info_.inputs_[2]}, {},
+                            {{"shape", shape}, {"format", format},
+                                    {"expand_dim", true}});
+                    node->replace_input(2, ret->get_outputs()[0]);
+                    vis->update_state_for_visited(ret);
+                }
+            }
+        }
+    });
     graph.reset_op_ids();
 }
 } // namespace sc

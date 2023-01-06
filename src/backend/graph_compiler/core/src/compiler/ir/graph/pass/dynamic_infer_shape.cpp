@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,70 +83,74 @@ SC_API void dynamic_infer_shape_by_graph(sc_graph_t &graph,
         ltsr_dtsr.insert(std::make_pair(in, &inner_dyn_tsr.back()));
         return &inner_dyn_tsr.back();
     };
-    op_visitor_t vis(op_visitor_t::pop_back_selector,
-            op_visitor_t::create_DAG_updater(graph.ops_.size()));
-    vis.visit_graph(graph, [&get_or_create_dyn_tsr](const sc_op_ptr &node) {
-        if (node->isa<input_op>() || node->isa<output_op>()) {
-            return;
-        } else if (node->isa<constant_op_t>()) {
-            // don't need to infer.
-            get_or_create_dyn_tsr(node->get_outputs()[0]);
-        } else if (node->isa<matmul_core_op_t>()
-                || node->isa<managed_matmul_core_op_t>()) {
-            auto *data = get_or_create_dyn_tsr(node->get_inputs()[0]);
-            auto *weight = get_or_create_dyn_tsr(node->get_inputs()[1]);
-            auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
-            infer_shape_matmul_op(out, data, weight);
-            print_shapes(node->op_name_, out);
-        } else if (node->isa<unary_elementwise_op_t>()
-                || node->isa<reorder_op_t>()
-                || node->isa<quantize::quantize_op_t>()
-                || node->isa<quantize::dequantize_op_t>()) {
-            auto *in = get_or_create_dyn_tsr(node->get_inputs()[0]);
-            auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
-            infer_shape_unary_fusible_op(out, in);
-            print_shapes(node->op_name_, out);
-        } else if (node->isa<binary_elementwise_op_t>()) {
-            auto *in0 = get_or_create_dyn_tsr(node->get_inputs()[0]);
-            auto *in1 = get_or_create_dyn_tsr(node->get_inputs()[1]);
-            auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
-            infer_shape_binary_fusible_op(out, in0, in1);
-            print_shapes(node->op_name_, out);
-        } else if (node->isa<reduce_op_t>()) {
-            auto *in = get_or_create_dyn_tsr(node->get_inputs()[0]);
-            auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
-            auto rd_axis = node->attrs_.get<std::vector<int>>("rd_axis");
-            infer_shape_reduce_op(
-                    out, in, rd_axis.data(), static_cast<int>(rd_axis.size()));
-            print_shapes(node->op_name_, out);
-        } else if (node->isa<transpose_op_t>()) {
-            auto *in = get_or_create_dyn_tsr(node->get_inputs()[0]);
-            auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
-            auto order = node->attrs_.get<std::vector<int>>("order");
-            infer_shape_transpose_op(
-                    out, in, order.data(), static_cast<int>(order.size()));
-            print_shapes(node->op_name_, out);
-        } else if (node->isa<tensor_view_op_t>()) {
-            auto *in = get_or_create_dyn_tsr(node->get_inputs()[0]);
-            auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
-            auto new_shape = node->attrs_.get<std::vector<sc_dim>>("shape");
-            auto input_plain_dims
-                    = node->get_inputs()[0]->details_.get_plain_dims();
-            infer_shape_tensor_view_op(out, in, input_plain_dims.data(),
-                    static_cast<int>(input_plain_dims.size()), new_shape.data(),
-                    static_cast<int>(new_shape.size()));
-            print_shapes(node->op_name_, out);
-        } else if (node->isa<select_op_t>()) {
-            auto *in0 = get_or_create_dyn_tsr(node->get_inputs()[0]);
-            auto *in1 = get_or_create_dyn_tsr(node->get_inputs()[1]);
-            auto *in2 = get_or_create_dyn_tsr(node->get_inputs()[2]);
-            auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
-            infer_shape_select_op(out, in0, in1, in2);
-            print_shapes(node->op_name_, out);
-        } else {
-            COMPILE_ASSERT(false,
-                    "Unsupported op for shape inference: " << node->op_name_);
-        }
-    });
+    op_visitor_t vis = op_visitor_t::dfs_topology_sort(graph.ops_.size());
+    vis.visit_graph(graph,
+            [&get_or_create_dyn_tsr](op_visitor_t *vis, const sc_op_ptr &node) {
+                if (node->isa<input_op>() || node->isa<output_op>()) {
+                    return;
+                } else if (node->isa<constant_op_t>()) {
+                    // don't need to infer.
+                    get_or_create_dyn_tsr(node->get_outputs()[0]);
+                } else if (node->isa<matmul_core_op_t>()
+                        || node->isa<managed_matmul_core_op_t>()) {
+                    auto *data = get_or_create_dyn_tsr(node->get_inputs()[0]);
+                    auto *weight = get_or_create_dyn_tsr(node->get_inputs()[1]);
+                    auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
+                    infer_shape_matmul_op(out, data, weight);
+                    print_shapes(node->op_name_, out);
+                } else if (node->isa<unary_elementwise_op_t>()
+                        || node->isa<reorder_op_t>()
+                        || node->isa<quantize::quantize_op_t>()
+                        || node->isa<quantize::dequantize_op_t>()) {
+                    auto *in = get_or_create_dyn_tsr(node->get_inputs()[0]);
+                    auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
+                    infer_shape_unary_fusible_op(out, in);
+                    print_shapes(node->op_name_, out);
+                } else if (node->isa<binary_elementwise_op_t>()) {
+                    auto *in0 = get_or_create_dyn_tsr(node->get_inputs()[0]);
+                    auto *in1 = get_or_create_dyn_tsr(node->get_inputs()[1]);
+                    auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
+                    infer_shape_binary_fusible_op(out, in0, in1);
+                    print_shapes(node->op_name_, out);
+                } else if (node->isa<reduce_op_t>()) {
+                    auto *in = get_or_create_dyn_tsr(node->get_inputs()[0]);
+                    auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
+                    auto rd_axis
+                            = node->attrs_.get<std::vector<int>>("rd_axis");
+                    infer_shape_reduce_op(out, in, rd_axis.data(),
+                            static_cast<int>(rd_axis.size()));
+                    print_shapes(node->op_name_, out);
+                } else if (node->isa<transpose_op_t>()) {
+                    auto *in = get_or_create_dyn_tsr(node->get_inputs()[0]);
+                    auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
+                    auto order = node->attrs_.get<std::vector<int>>("order");
+                    infer_shape_transpose_op(out, in, order.data(),
+                            static_cast<int>(order.size()));
+                    print_shapes(node->op_name_, out);
+                } else if (node->isa<tensor_view_op_t>()) {
+                    auto *in = get_or_create_dyn_tsr(node->get_inputs()[0]);
+                    auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
+                    auto new_shape
+                            = node->attrs_.get<std::vector<sc_dim>>("shape");
+                    auto input_plain_dims
+                            = node->get_inputs()[0]->details_.get_plain_dims();
+                    infer_shape_tensor_view_op(out, in, input_plain_dims.data(),
+                            static_cast<int>(input_plain_dims.size()),
+                            new_shape.data(),
+                            static_cast<int>(new_shape.size()));
+                    print_shapes(node->op_name_, out);
+                } else if (node->isa<select_op_t>()) {
+                    auto *in0 = get_or_create_dyn_tsr(node->get_inputs()[0]);
+                    auto *in1 = get_or_create_dyn_tsr(node->get_inputs()[1]);
+                    auto *in2 = get_or_create_dyn_tsr(node->get_inputs()[2]);
+                    auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
+                    infer_shape_select_op(out, in0, in1, in2);
+                    print_shapes(node->op_name_, out);
+                } else {
+                    COMPILE_ASSERT(false,
+                            "Unsupported op for shape inference: "
+                                    << node->op_name_);
+                }
+            });
 }
 } // namespace sc

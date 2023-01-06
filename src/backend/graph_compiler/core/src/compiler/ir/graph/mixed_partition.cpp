@@ -2582,7 +2582,7 @@ static bool do_partition(const context_ptr &ctx, sc_graph_t &g,
     // a speculative DFS visitor
     op_visitor_t visitor
             = op_visitor_t::dfs_topology_speculative_sort(g.ops_.size());
-    visitor.visit_graph(g, [&](const sc_op_ptr &op) {
+    visitor.visit_graph(g, [&](op_visitor_t *visitor, const sc_op_ptr &op) {
         if (op->isa<input_op>() || op->isa<output_op>()
                 || op->attrs_.get_or_else(op_attr_key::no_fuse, false)) {
             if (op->attrs_.get_or_else(op_attr_key::no_fuse, false)) {
@@ -2953,7 +2953,7 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
     };
     auto visitor = op_visitor_t::dfs_topology_sort(g.ops_.size());
     std::unordered_set<graph_tensor_ptr> input_tsr_set;
-    visitor.visit_graph(g, [&](const sc_op_ptr &op) {
+    visitor.visit_graph(g, [&](op_visitor_t *visitor, const sc_op_ptr &op) {
         if (parti.ops.find(op) == parti.ops.end()) { return; }
         std::vector<graph_tensor_ptr> new_graph_in, new_graph_ou;
         for (auto &in : op->get_inputs()) {

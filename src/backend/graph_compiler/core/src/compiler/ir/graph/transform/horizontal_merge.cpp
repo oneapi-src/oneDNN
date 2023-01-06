@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ namespace sc {
 static std::map<int, std::vector<sc_op_ptr>> get_merge_map(sc_graph_t &graph) {
     auto vis = op_visitor_t::bfs();
     std::map<int, std::vector<sc_op_ptr>> to_merge;
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->attrs_.get_or_else(
                     "horizontal_merge", horizontal_merge_type::no_merge)
                 != horizontal_merge_type::no_merge) {

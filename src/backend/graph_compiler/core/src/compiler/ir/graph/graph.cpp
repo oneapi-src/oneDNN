@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -499,9 +499,8 @@ sc_graph_t &sc_graph_t::operator=(sc_graph_t &&other) {
 
 size_t sc_graph_t::hash_contents() const {
     size_t seed = 0;
-    op_visitor_t vis(op_visitor_t::dequeue_selector,
-            op_visitor_t::create_DAG_updater(this->ops_.size()));
-    vis.visit_graph(*this, [&](const sc_op_ptr &op) {
+    op_visitor_t vis = op_visitor_t::bfs_topology_sort(this->ops_.size());
+    vis.visit_graph(*this, [&](op_visitor_t *vis, const sc_op_ptr &op) {
         hash_combine(seed, op->hash_contents());
     });
     return seed;

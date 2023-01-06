@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,9 +46,8 @@ void set_graph_config(sc_graph_t &g, const graph_config &tcfg) {
 
 graph_config get_graph_default_config(context_ptr ctx, const sc_graph_t &g) {
     graph_config cfg;
-    op_visitor_t vis(op_visitor_t::dequeue_selector,
-            op_visitor_t::create_DAG_updater(g.ops_.size()));
-    vis.visit_graph(g, [&](const sc_op_ptr &op) {
+    op_visitor_t vis = op_visitor_t::bfs_topology_sort(g.ops_.size());
+    vis.visit_graph(g, [&](op_visitor_t *vis, const sc_op_ptr &op) {
         if (auto tune_op = op->dyn_cast<op_traits::configurable_t>()) {
             auto obj = tune_op->get_default_config(ctx);
             cfg.op_cfgs_.emplace_back(std::move(obj));

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ namespace sc {
    [b1]
 */
 
-void insert_rcp(sc_graph_t &graph, div_op_t *node) {
+sc_op_ptr insert_rcp(sc_graph_t &graph, div_op_t *node) {
     auto dtype = node->get_inputs()[1]->details_.dtype_;
     if (dtype.type_code_ == sc_data_etype::F32
             || dtype.type_code_ == sc_data_etype::BF16) {
@@ -49,16 +49,20 @@ void insert_rcp(sc_graph_t &graph, div_op_t *node) {
         auto v2 = graph.make("reciprocal", {v1}, {}, {})->get_outputs()[0];
         auto new_node = graph.make("mul", {v0, v2}, {}, node->attrs_);
         node->replace_uses_with_and_remove(new_node);
+        return new_node;
     }
+    return nullptr;
 }
 
 void div_bcast_transform(sc_graph_t &graph, const context_ptr &ctx) {
-    op_visitor_t::bfs().visit_graph(graph, [&graph](const sc_op_ptr &node) {
+    op_visitor_t vis = op_visitor_t::bfs();
+    vis.visit_graph(graph, [&graph](op_visitor_t *vis, const sc_op_ptr &node) {
         if (auto div_node = node->dyn_cast<div_op_t>()) {
             auto bcast_idx = div_node->get_broadcast_input();
             if (bcast_idx == 1) {
                 assert(div_node->get_inputs().size() == 2);
-                insert_rcp(graph, div_node);
+                auto inserted_op = insert_rcp(graph, div_node);
+                if (inserted_op) { vis->update_state_for_visited(inserted_op); }
             }
         }
     });

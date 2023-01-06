@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,9 +24,8 @@ namespace sc {
 
 SC_INTERNAL_API void graph_constant_input_folding(
         sc_graph_t &mgr, const context_ptr &ctx) {
-    op_visitor_t vis(op_visitor_t::pop_back_selector,
-            op_visitor_t::create_DAG_updater(mgr.ops_.size()));
-    vis.visit_graph(mgr, [](const sc_op_ptr &node) {
+    op_visitor_t vis = op_visitor_t::dfs_topology_sort(mgr.ops_.size());
+    vis.visit_graph(mgr, [](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<constant_op_t>()
                 || node->attrs_.get_or_else(
                         "constant", const_kind::not_const)) {

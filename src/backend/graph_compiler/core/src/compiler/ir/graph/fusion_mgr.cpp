@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,11 +55,10 @@ fusion_mgr_ptr fusion_manager::copy() const {
             return new_fmgr;
         }
     }
-    op_visitor_t vis(op_visitor_t::dequeue_selector,
-            op_visitor_t::create_DAG_updater(graph.ops_.size()));
+    op_visitor_t vis = op_visitor_t::bfs_topology_sort(graph.ops_.size());
     std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> old_new_lt_map;
     std::unordered_map<sc_op_ptr, int> op_id_map;
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         sc_op_ptr new_node;
         if (node->dyn_cast<input_op>()) {
             new_node = new_fmgr->make_input(
@@ -1398,7 +1397,7 @@ void fusion_manager::init_sorted_ops() {
     sorted_ops_.clear();
     // default sorted by dfs_topology_sort
     op_visitor_t::dfs_topology_sort(graph_.ops_.size())
-            .visit_graph(graph_, [&](const sc_op_ptr &cur) {
+            .visit_graph(graph_, [&](op_visitor_t *vis, const sc_op_ptr &cur) {
                 if (cur->isa<input_op>()) {
                     if (get_input_idx(cur.get()) >= static_cast<int>(
                                 fanchor_list_[0].anchor_slice_.first.size())) {

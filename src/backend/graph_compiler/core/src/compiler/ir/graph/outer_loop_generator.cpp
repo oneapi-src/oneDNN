@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -155,7 +155,7 @@ static std::vector<int> move_reduce_axis_to_inner(
     std::vector<int> out_axis(in_axis.begin(), in_axis.end());
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(graph.ops_.size());
     bool can_move = true;
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         std::vector<int> reduce_axis;
         if (auto reduce_node = node->dyn_cast<reduce_op_t>()) {
             reduce_axis = reduce_node->get_rd_axis();

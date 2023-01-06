@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -119,9 +119,8 @@ SC_INTERNAL_API void shape_relationship_binding(
     // initialize disjoint-set.
     int cur_old_plhd = graph.dyn_info_->cur_dynamic_placeholder_;
     dyn_plhd_union_t dyn_un(cur_old_plhd);
-    op_visitor_t vis {op_visitor_t::pop_back_selector,
-            op_visitor_t::create_DAG_updater(graph.ops_.size())};
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    op_visitor_t vis = op_visitor_t::dfs_topology_sort(graph.ops_.size());
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         std::vector<std::pair<sc_dim, sc_dim>> shape_relations
                 = node->get_dynamic_shape_relations();
         for (auto &it : shape_relations) {
@@ -158,9 +157,8 @@ SC_INTERNAL_API void shape_relationship_binding(
     assert(plhd_count == 0);
     // stage 4: replace old placeholders in graph with map.
     std::unordered_map<graph_tensor_ptr, bool> visited;
-    op_visitor_t vis2 {op_visitor_t::pop_back_selector,
-            op_visitor_t::create_DAG_updater(graph.ops_.size())};
-    vis2.visit_graph(graph, [&](const sc_op_ptr &node) {
+    op_visitor_t vis2 = op_visitor_t::dfs_topology_sort(graph.ops_.size());
+    vis2.visit_graph(graph, [&](op_visitor_t *vis2, const sc_op_ptr &node) {
         auto ins = node->get_inputs();
         auto outs = node->get_outputs();
         SC_MODULE_INFO << "Op " << node->op_name_ << "\n Inputs:";

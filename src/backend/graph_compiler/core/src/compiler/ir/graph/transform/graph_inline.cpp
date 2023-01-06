@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -113,11 +113,11 @@ const std::set<std::string> &get_op_blocked_lists() {
 void graph_inline(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
     auto &blocked_list = get_op_blocked_lists();
-    vis.visit_graph(graph, [&](sc_op_ptr node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, sc_op_ptr node) {
         if (auto graph_node = node->dyn_cast<graph_op_t>()) {
             if (blocked_list.find(node->op_name_) == blocked_list.end()) {
                 auto sub_graph = graph_node->get_graph();
-                vis.update_state_for_visited(node);
+                vis->update_state_for_visited(node);
                 do_inline_graph(graph, node, *sub_graph);
                 node->remove();
             }
@@ -130,10 +130,10 @@ void graph_inline(sc_graph_t &graph, const context_ptr &ctx) {
 namespace quantize {
 void quantize_inline(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
-    vis.visit_graph(graph, [&](sc_op_ptr node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, sc_op_ptr node) {
         if (auto graph_node = node->dyn_cast<graph_op_t>()) {
             auto sub_graph = graph_node->get_graph();
-            vis.update_state_for_visited(node);
+            vis->update_state_for_visited(node);
             do_inline_graph(graph, node, *sub_graph);
             node->remove();
         }

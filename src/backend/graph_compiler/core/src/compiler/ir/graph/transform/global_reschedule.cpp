@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ static void collect_bypass(sc_graph_t &graph, const context_ptr &ctx,
         std::vector<std::vector<sc_op_ptr>> &bypass_ops_list) {
     auto vis = op_visitor_t::bfs();
     op_dep_matrix_t dep(graph);
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<constant_op_t>()) return;
         for (auto &out : node->get_outputs()) {
             if (out->uses_.size() > 1) {
@@ -65,7 +65,7 @@ static void collect_linked_ops_nearby_input_until_opT(sc_graph_t &graph,
         std::vector<std::vector<sc_op_ptr>> &target_ops_list) {
     auto vis = op_visitor_t::bfs();
     constexpr int max_step = 5;
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (!node->isa<input_op>()) return;
         for (auto &user : node->get_outputs()[0]->uses_) {
             sc_op_ptr next_node = user.second;

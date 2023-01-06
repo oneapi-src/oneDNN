@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,12 +31,12 @@ namespace sc {
 namespace quantize {
 void dequantize_elimination(sc_graph_t &mgr, const context_ptr &ctx) {
     op_visitor_t vis = op_visitor_t::bfs();
-    vis.visit_graph(mgr, [&](const sc_op_ptr &node) {
+    vis.visit_graph(mgr, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<dequantize_op_t>()
                 || node->isa<dynamic_dequantize_op_t>()) {
             auto dequantize_input = node->info_.inputs_[0];
             auto dequantize_output = node->get_outputs()[0];
-            vis.update_state_for_visited(node);
+            vis->update_state_for_visited(node);
 
             auto cld_nodes = dequantize_output->uses_;
             std::vector<sc_op_ptr> node_to_remove = {node};
@@ -48,11 +48,15 @@ void dequantize_elimination(sc_graph_t &mgr, const context_ptr &ctx) {
             //           matmul  cast
             //               \   /
             //                add
-            if (cld_nodes.size() == 1 && cld_nodes[0].second->isa<cast_op_t>()
-                    && cld_nodes[0].second->attrs_.get_or_else(
-                            attr_keys::mixed_dtype, false)) {
-                node_to_remove.emplace_back(cld_nodes[0].second);
-                cld_nodes = cld_nodes[0].second->get_outputs()[0]->uses_;
+            if (cld_nodes.size() == 1) {
+                auto cast_op = cld_nodes[0].second;
+                if (cast_op->isa<cast_op_t>()
+                        && cast_op->attrs_.get_or_else(
+                                attr_keys::mixed_dtype, false)) {
+                    vis->update_state_for_visited(cast_op);
+                    node_to_remove.emplace_back(cast_op);
+                    cld_nodes = cast_op->get_outputs()[0]->uses_;
+                }
             }
             int use_count = cld_nodes.size();
             for (auto &cld_node : cld_nodes) {
@@ -76,7 +80,7 @@ void dequantize_elimination(sc_graph_t &mgr, const context_ptr &ctx) {
 
 void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(mgr.ops_.size());
-    vis.visit_graph(mgr, [&](const sc_op_ptr &node) {
+    vis.visit_graph(mgr, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->dyn_cast<op_traits::may_quantize_t>()) {
             if (node->isa<tunable_op_t>()) {
                 // create a new quantized node every time may confuse
@@ -91,7 +95,7 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                         && node->get_inputs()[0]->details_.dtype_.is_etype(
                                 sc_data_etype::BF16)) {
                     may_quantize_node->is_quantized_ = true;
-                    vis.update_state_for_visited(node);
+                    vis->update_state_for_visited(node);
                     return;
                 }
                 node->get_outputs()[0]->details_.dtype_.type_code_
@@ -221,7 +225,7 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                     }
                     cur_child.second->replace_input(
                             cur_child.first, dequantize_node->get_outputs()[0]);
-                    vis.update_state_for_visited(dequantize_node);
+                    vis->update_state_for_visited(dequantize_node);
                 }
             } else {
                 // align output datatype with input
@@ -272,7 +276,7 @@ void insert_back_dequantize(sc_graph_t &mgr, const context_ptr &ctx) {
                             }
                             cld_op->replace_input(use.first,
                                     dequantize_node->get_outputs()[0]);
-                            vis.update_state_for_visited(dequantize_node);
+                            vis->update_state_for_visited(dequantize_node);
                         }
                     }
                 }

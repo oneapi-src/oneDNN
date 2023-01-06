@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,8 @@ namespace sc {
  * the `to_visit_` "queue". Different selectors and updaters results in
  * different visiting orders. This class has some pre-defined selectors and
  * updaters.
+ * Note: `op_visitor_t::visit_graph()` can be called only once. Please create a
+ * new object for each visit.
  * */
 class SC_INTERNAL_API op_visitor_t {
 public:
@@ -41,28 +43,33 @@ public:
     // id
     std::vector<bool> visited_;
 
+    using visitor_func = std::function<void(op_visitor_t *, sc_op_ptr)>;
     using updater_func = std::function<void(op_visitor_t *, sc_op_ptr)>;
     using selector_func = std::function<sc_op_ptr(op_visitor_t *)>;
     // the selector to return the next node to visit in `to_visit_` list. It
     // should also remove the node from the list. It can return null if it finds
     // a node that has been visited. The visitor will try to call it again
-    std::function<sc_op_ptr(op_visitor_t *)> select_next_node;
+    selector_func select_next_node;
     // will be called after a node has been visited. Usually it should update
     // the `visited_`, and push/enqueue the sub-nodes to the `to_visit_`
-    std::function<void(op_visitor_t *, sc_op_ptr)> update_visit_list;
+    updater_func update_visit_list;
+    // if true, when the user call `visit_graph()` or `post_visit_graph()`, we
+    // will check whether all ops in the graph are visited (not including the
+    // ops which are newly created and inserted into the graph during the
+    // visit). If any ops are not visited, an exception will be thrown
+    const bool check_all_ops_visited_;
 
-    void visit(const std::function<void(sc_op_ptr)> &f);
+    void visit(const visitor_func &f);
 
     // set a node as visited
     void set_visited(int id);
     // returns if an id is in the visited node set
     bool has_visited(int id);
 
-    void visit_graph(
-            const sc_graph_t &mgr, const std::function<void(sc_op_ptr)> &f);
+    void visit_graph(const sc_graph_t &mgr, const visitor_func &f);
 
     op_visitor_t(selector_func select_next_node_func,
-            updater_func update_visit_list_func);
+            updater_func update_visit_list_func, bool check_all_ops_visited);
 
     // updates the visitor states after a node is visited. It can be also used
     // when a new node replaces an old one. Users should call this function with
@@ -81,8 +88,7 @@ public:
             size_t total_nodes_hint);
     // create_DAG_updatater_post;
     // post order traversing
-    void post_visit_graph(
-            const sc_graph_t &mgr, const std::function<void(sc_op_ptr)> &f);
+    void post_visit_graph(const sc_graph_t &mgr, const visitor_func &f);
 
     // the selector which pops a node in `to_visit_` from back
     static sc_op_ptr pop_back_selector(op_visitor_t *v);
@@ -101,6 +107,20 @@ public:
     static op_visitor_t dfs_topology_sort(size_t total_nodes_hint = 30);
     static op_visitor_t dfs_topology_speculative_sort(
             size_t total_nodes_hint = 30);
+    // constructs a topology sort visitor in BFS order, using
+    // create_DAG_updater and dequeue_selector
+    static op_visitor_t bfs_topology_sort(size_t total_nodes_hint = 30);
+    // constructs a BFS visitor, and do not check whether all ops are visited
+    static op_visitor_t bfs_unchecked();
+    // constructs a topology sort visitor in BFS order, and do not check whether
+    // all ops are visited
+    static op_visitor_t dfs_topology_sort_unchecked(
+            size_t total_nodes_hint = 30);
+
+private:
+    // asserts that all ops in the graph whose index is within
+    // [0, concerned_size) have been visited
+    void assert_all_ops_visited(const sc_graph_t &mgr, size_t concerned_size);
 };
 
 /** Op Depenency Matrix

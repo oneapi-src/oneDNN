@@ -68,7 +68,7 @@ int get_minibatch(const int &bs, const int &min_os) {
 int minimum_spatial_shape(sc_graph_t &graph) {
     auto vis = op_visitor_t::bfs();
     int min_spatial = std::numeric_limits<int>::max();
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (auto op = node->dyn_cast<ops::conv_fwd_core_op_t>()) {
             int spatial_size = 1;
             auto plain_shape = op->get_inputs()[0]->details_.get_plain_dims();
@@ -86,7 +86,7 @@ int minimum_spatial_shape(sc_graph_t &graph) {
 void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
     auto minimum_os = minimum_spatial_shape(graph);
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (auto op = node->dyn_cast<ops::conv_fwd_core_op_t>()) {
             auto data_plain_shape
                     = op->get_inputs()[0]->details_.get_plain_dims();
@@ -127,8 +127,8 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
                                     {"format", sc_data_format_t::NSC()},
                                     {"expand_dim", std::vector<int> {}}});
                     op->replace_input(0, view->get_outputs()[0]);
-                    vis.update_state_for_visited(reorder_op);
-                    vis.update_state_for_visited(view);
+                    vis->update_state_for_visited(reorder_op);
+                    vis->update_state_for_visited(view);
                 }
                 { // pre tensor_view(weight)
                     auto shape = get_conv1d_flatten_shape(
@@ -143,8 +143,8 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
                                     {"format", sc_data_format_t::KCS()},
                                     {"expand_dim", std::vector<int> {}}});
                     op->replace_input(1, view->get_outputs()[0]);
-                    vis.update_state_for_visited(reorder_op);
-                    vis.update_state_for_visited(view);
+                    vis->update_state_for_visited(reorder_op);
+                    vis->update_state_for_visited(view);
                 }
                 { // post tensor view(output)
                     auto origin_out = op->get_outputs()[0]->copy();
@@ -171,8 +171,8 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
                                     {"push_back", true}});
                     origin_out->replace_with(view->get_outputs()[0]);
                     view->get_dispatch_key_set() = op->get_dispatch_key_set();
-                    vis.update_state_for_visited(reorder_op);
-                    vis.update_state_for_visited(view);
+                    vis->update_state_for_visited(reorder_op);
+                    vis->update_state_for_visited(view);
                 }
                 if (op->attrs_.has_key("pads_begin")) {
                     op->attrs_.get<sc_dims>("pads_begin") = {0};

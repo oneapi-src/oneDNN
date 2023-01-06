@@ -108,7 +108,7 @@ SC_INTERNAL_API void print_graph(const sc_graph_t &mgr, std::ostream &os,
     os << "] {\n";
 
     op_visitor_t::dfs_topology_sort().visit_graph(
-            mgr, [&](const sc_op_ptr &node) {
+            mgr, [&](op_visitor_t *vis, const sc_op_ptr &node) {
                 if (!node->isa<input_op>() && !node->isa<output_op>()) {
                     print_indents(os, 1);
 

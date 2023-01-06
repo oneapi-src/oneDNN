@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ static void do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
         if (!op_mask.empty() && !op_mask[op->logical_op_id_]) { return false; }
         return true;
     };
-    visitor.visit_graph(g, [&](const sc_op_ptr &op) {
+    visitor.visit_graph(g, [&](op_visitor_t *visitor, const sc_op_ptr &op) {
         if (!is_in_subset(op.get())) { return; }
         if (auto fusible = op->dyn_cast<fusible_op_t>()) {
             if (op->isa<input_op>() || op->isa<output_op>()) { return; }
@@ -206,7 +206,7 @@ static std::vector<graph_tensor_ptr> copy_partition_to_fmgr(sc_graph_t &g,
     std::vector<graph_tensor_ptr> additional_args;
     auto visitor = op_visitor_t::dfs_topology_sort(g.ops_.size());
     std::unordered_set<graph_tensor_ptr> additional_args_set;
-    visitor.visit_graph(g, [&](const sc_op_ptr &op) {
+    visitor.visit_graph(g, [&](op_visitor_t *visitor, const sc_op_ptr &op) {
         if (partition.ops.find(op) == partition.ops.end()) { return; }
         std::vector<graph_tensor_ptr> fmgr_in, fmgr_out;
         for (auto &in : op->get_inputs()) {

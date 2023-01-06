@@ -1059,7 +1059,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     auto timer = SC_SCOPED_TIMER_INFO("graph.driver.time.lowering", "");
     lowering_visitor_state_t visiter_state(graph);
     op_visitor_t vis {
-            visiter_state.get_selector(), visiter_state.get_updater()};
+            visiter_state.get_selector(), visiter_state.get_updater(), true};
     visiter_state.input_op_itr = vis.to_visit_.end();
     std::vector<expr> params;
     stmts func_body = make_stmt<stmts_node_t>(std::vector<stmt>());
@@ -1093,7 +1093,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     // record the node, index is op id.
     std::vector<bool> query_visited(graph.ops_.size(), false);
     std::vector<std::pair<sc_op_ptr, stmt>> op_execution_log;
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         std::vector<expr> ins, outs;
         // special kinds of Ops that we need to take care of
         op_kinds kind = kother;

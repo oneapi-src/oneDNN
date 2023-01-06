@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ void calculate_op_compensation(sc_graph_t &mgr, const context_ptr &ctx) {
     if (!mgr.attrs_.get_or_else(sc_graph_t::attr_key_t::quantize, false))
         return;
     op_visitor_t vis = op_visitor_t::dfs();
-    vis.visit_graph(mgr, [&](const sc_op_ptr &node) {
+    vis.visit_graph(mgr, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (auto qnode = node->dyn_cast<op_traits::may_quantize_t>()) {
             if (qnode->is_quantized_ && qnode->need_compensation_) {
                 std::vector<std::pair<int, sc_op_weak_ptr_t>> uses;
@@ -41,7 +41,7 @@ void calculate_op_compensation(sc_graph_t &mgr, const context_ptr &ctx) {
                 for (auto &use : uses) {
                     use.second->replace_input(use.first, new_out);
                 }
-                vis.update_state_for_visited(compensation_qnode);
+                vis->update_state_for_visited(compensation_qnode);
             }
         }
 /* I want to keep this comment now in case we do bias add in s32
@@ -77,7 +77,7 @@ void calculate_op_compensation(sc_graph_t &mgr, const context_ptr &ctx) {
 
                     bst_node->need_compensation_ = false;
                     bst_node->replace_uses_with_and_remove(bst_new);
-                    vis.update_state_for_visited(bst_new);
+                    vis->update_state_for_visited(bst_new);
                 }
             }
         }

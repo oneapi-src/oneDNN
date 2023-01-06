@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -123,7 +123,7 @@ void drop_same_op_on_output(sc_graph_t &graph, const graph_tensor_ptr &output) {
 void useless_tensor_view_elimination(
         sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<tensor_view_op_t>()
                 && !node->get_inputs()[0]->producer_owner_->isa<input_op>()) {
             const auto &in_tensor = node->get_inputs()[0]->details_;
@@ -136,6 +136,7 @@ void useless_tensor_view_elimination(
             const auto &out_format = out_tensor.get_format();
             if (in_real_shape == out_real_shape && in_shape == out_shape
                     && in_format == out_format) {
+                vis->update_state_for_visited(node);
                 node->get_outputs()[0]->replace_with(node->get_inputs()[0]);
                 node->remove();
             }
@@ -147,7 +148,7 @@ void useless_tensor_view_elimination(
 // eliminate horizontal same ops, e.g. qkv input reorder
 void horizontal_same_op_elimination(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (!node->isa<output_op>()) {
             for (size_t i = 0; i < node->get_outputs().size(); i++) {
                 auto output = node->get_outputs()[i];
@@ -186,7 +187,7 @@ static void merge_dispatch_key_sets(const sc_op_ptr &op0, sc_op_ptr &op1) {
 // eliminate excess tensor view, e.g. tensor_view->tensor_view->tensor_view
 void excess_tensor_view_elimination(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<tensor_view_op_t>() && is_single_use(node)) {
             sc_op_ptr next_node
                     = node->get_outputs()[0]->uses_[0].second.get_shared();
@@ -220,7 +221,7 @@ void excess_tensor_view_elimination(sc_graph_t &graph, const context_ptr &ctx) {
                 }
                 if (pre_node->isa<tensor_view_op_t>()) { pre_node->remove(); }
             }
-            vis.update_state_for_visited(node);
+            vis->update_state_for_visited(node);
         }
     });
     graph.reset_op_ids();
@@ -230,7 +231,8 @@ void excess_tensor_view_elimination(sc_graph_t &graph, const context_ptr &ctx) {
 void redundant_binary_op_elimination(
         sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
+        vis->update_state_for_visited(node);
         // x + 0 or 0 + x or x * 1 or 1 * x
         if (node->isa<add_op_t>() || node->isa<mul_op_t>()) {
             for (size_t i = 0; i < node->get_inputs().size(); i++) {
@@ -350,7 +352,7 @@ static bool is_all_positive(const sc_op *node) {
 static void exchange_binary_const_ops(
         sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::dfs_topology_sort();
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<mul_op_t>() || node->isa<add_op_t>()) {
             if (node->get_inputs()[0]->producer_owner_->attrs_.get_or_else(
                         "constant", const_kind::not_const)
@@ -363,6 +365,7 @@ static void exchange_binary_const_ops(
                         {node->get_inputs()[1], node->get_inputs()[0]}, {},
                         node->attrs_);
                 node->replace_uses_with_and_remove(new_node);
+                vis->update_state_for_visited(new_node);
             }
         }
     });
@@ -372,8 +375,8 @@ static void exchange_binary_const_ops(
 // For case like: mul + add + relu + (mul/div), change to mul + add + (mul/div)
 // + relu for more folding opportunities.
 static void push_relu_back(sc_graph_t &graph, const context_ptr &ctx) {
-    auto vis = op_visitor_t::dfs_topology_sort();
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    auto vis = op_visitor_t::dfs_topology_sort_unchecked();
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<relu_op_t>()) {
             sc_op_ptr cur_node = node, pre_node = node;
             while (cur_node->is_single_output_single_use()
@@ -554,7 +557,7 @@ static sc_op_ptr diff_priority_pattern_fold(
 static void fold_polynomial(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
     constexpr const int MAX_TRY_TIMES = 100;
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         sc_op_ptr last_folded = node, pre_folded = last_folded;
         for (int i = 0; i < MAX_TRY_TIMES; i++) {
             auto same_folded = same_priority_pattern_fold(graph, last_folded);
@@ -564,7 +567,7 @@ static void fold_polynomial(sc_graph_t &graph, const context_ptr &ctx) {
             if (pre_folded == last_folded) { break; }
             pre_folded = last_folded;
         }
-        vis.update_state_for_visited(last_folded);
+        vis->update_state_for_visited(last_folded);
     });
     graph.reset_op_ids();
 }

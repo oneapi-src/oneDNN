@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,34 +15,77 @@
  *******************************************************************************/
 #include "visitor.hpp"
 #include <algorithm>
+#include <sstream>
 #include <utility>
 #include "fusible_op.hpp"
 #include "fusion_mgr.hpp"
 #include "tunable_op.hpp"
+#include <compiler/ir/graph/pass/pass.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <unordered_map>
+#include <util/assert.hpp>
+#include <util/def.hpp>
 namespace sc {
 
-void op_visitor_t::visit_graph(
-        const sc_graph_t &mgr, const std::function<void(sc_op_ptr)> &f) {
+void op_visitor_t::visit_graph(const sc_graph_t &mgr, const visitor_func &f) {
     for (auto &v : mgr.ops_) {
         if (v->isa<input_op>() || v->isa<constant_op_t>()) {
             to_visit_.emplace_back(v);
         }
     }
+    int original_number_of_ops = mgr.ops_.size();
     visit(f);
+    if (check_all_ops_visited_) {
+        assert_all_ops_visited(mgr, original_number_of_ops);
+    }
 }
 
-void op_visitor_t::visit(const std::function<void(sc_op_ptr)> &f) {
+void op_visitor_t::visit(const visitor_func &f) {
     while (!to_visit_.empty()) {
         auto ptr = select_next_node(this);
         // if selector fails (e.g. found a node that has already been visited),
         // try again
         if (!ptr || ptr->is_removed_) { continue; }
-        f(ptr);
+        f(this, ptr);
         update_state_for_visited(std::move(ptr));
     }
+}
+
+void op_visitor_t::assert_all_ops_visited(
+        const sc_graph_t &mgr, size_t concerned_size) {
+#ifndef NDEBUG
+    std::vector<sc_op_ptr> not_visited_ops;
+    for (size_t i = 0; i < concerned_size; i++) {
+        // check whether all non-removed ops within concerned_size are visited
+        const auto &op = mgr.ops_[i];
+        if (!op->is_removed_ && !has_visited(op->logical_op_id_)) {
+            not_visited_ops.emplace_back(op);
+        }
+    }
+    if (!not_visited_ops.empty()) {
+        // some ops are not visited, assertion failed
+        std::stringstream error_message;
+        error_message << "Illegal state for op_visitor_t. The following "
+                      << not_visited_ops.size()
+                      << " ops were not visited, possibly due to changing the "
+                         "graph during the visit without calling "
+                         "update_state_for_visited(): ";
+        for (const auto &op : not_visited_ops) {
+            auto name = op->op_name_ + std::to_string(op->logical_op_id_);
+            error_message << name << ' ';
+        }
+        COMPILE_ASSERT(false, error_message.str());
+    }
+#else
+    for (size_t i = 0; i < concerned_size; i++) {
+        const auto &op = mgr.ops_[i];
+        COMPILE_ASSERT(op->is_removed_ || has_visited(op->logical_op_id_),
+                "Illegal state for op_visitor_t. Some ops were not visited, "
+                "possibly due to changing the graph during the visit without "
+                "calling update_state_for_visited().");
+    }
+#endif
 }
 
 void op_dep_matrix_t::update(const sc_op_ptr &cur) {
@@ -130,8 +173,10 @@ op_dep_matrix_t::op_dep_matrix_t(const sc_graph_t &graph)
     : op_dep_matrix_t(graph.ops_.size()) {
     int op_size = graph.ops_.size();
     auto &dep_matrix = *this;
-    op_visitor_t::dfs_topology_sort(op_size).visit_graph(graph,
-            [&dep_matrix](const sc_op_ptr &cur) { dep_matrix.update(cur); });
+    op_visitor_t::dfs_topology_sort(op_size).visit_graph(
+            graph, [&dep_matrix](op_visitor_t *vis, const sc_op_ptr &cur) {
+                dep_matrix.update(cur);
+            });
 }
 
 void op_sorting_visitor_t::visit_by_rules(sc_graph_t &graph,
@@ -142,8 +187,8 @@ void op_sorting_visitor_t::visit_by_rules(sc_graph_t &graph,
     op_dep_matrix_t dep_matrix(op_size);
     std::vector<sc_op_ptr> op_seq;
     // Step 1: visit whole graph and update Adj-Matrix.
-    op_visitor_t::dfs_topology_sort(op_size).visit_graph(
-            graph, [&op_seq, &dep_matrix](const sc_op_ptr &cur) {
+    op_visitor_t::dfs_topology_sort(op_size).visit_graph(graph,
+            [&op_seq, &dep_matrix](op_visitor_t *vis, const sc_op_ptr &cur) {
                 op_seq.emplace_back(cur);
                 dep_matrix.update(cur);
             });
@@ -179,11 +224,11 @@ void op_visitor_t::update_state_for_visited(sc_op_ptr node) {
     update_visit_list(this, std::move(node));
 }
 
-op_visitor_t::op_visitor_t(
-        std::function<sc_op_ptr(op_visitor_t *)> select_next_node_func,
-        std::function<void(op_visitor_t *, sc_op_ptr)> update_visit_list_func)
+op_visitor_t::op_visitor_t(selector_func select_next_node_func,
+        updater_func update_visit_list_func, bool check_all_ops_visited)
     : select_next_node(std::move(select_next_node_func))
-    , update_visit_list(std::move(update_visit_list_func)) {
+    , update_visit_list(std::move(update_visit_list_func))
+    , check_all_ops_visited_(check_all_ops_visited) {
     visited_.reserve(256);
 }
 
@@ -487,7 +532,7 @@ sc_op_ptr op_visitor_t::pop_back_selector(op_visitor_t *v) {
 }
 
 op_visitor_t op_visitor_t::dfs() {
-    return op_visitor_t(pop_back_selector, push_back_updater);
+    return op_visitor_t(pop_back_selector, push_back_updater, true);
 }
 
 sc_op_ptr op_visitor_t::dequeue_selector(op_visitor_t *v) {
@@ -498,29 +543,48 @@ sc_op_ptr op_visitor_t::dequeue_selector(op_visitor_t *v) {
 }
 
 op_visitor_t op_visitor_t::bfs() {
-    return op_visitor_t(dequeue_selector, push_back_updater);
+    return op_visitor_t(dequeue_selector, push_back_updater, true);
 }
 
 op_visitor_t op_visitor_t::dfs_topology_sort(size_t total_nodes_hint) {
     return op_visitor_t(
-            pop_back_selector, create_DAG_updater(total_nodes_hint));
+            pop_back_selector, create_DAG_updater(total_nodes_hint), true);
 }
 
 op_visitor_t op_visitor_t::dfs_topology_speculative_sort(
         size_t total_nodes_hint) {
     return op_visitor_t(pop_back_selector,
-            create_DAG_updater_speculate_tuneop(total_nodes_hint));
+            create_DAG_updater_speculate_tuneop(total_nodes_hint), true);
+}
+
+op_visitor_t op_visitor_t::bfs_topology_sort(size_t total_nodes_hint) {
+    return op_visitor_t(
+            dequeue_selector, create_DAG_updater(total_nodes_hint), true);
+}
+
+op_visitor_t op_visitor_t::bfs_unchecked() {
+    return op_visitor_t(dequeue_selector, push_back_updater, false);
+}
+
+op_visitor_t op_visitor_t::dfs_topology_sort_unchecked(
+        size_t total_nodes_hint) {
+    return op_visitor_t(
+            pop_back_selector, create_DAG_updater(total_nodes_hint), false);
 }
 
 void op_visitor_t::post_visit_graph(
-        const sc_graph_t &mgr, const std::function<void(sc_op_ptr)> &f) {
+        const sc_graph_t &mgr, const visitor_func &f) {
     for (auto &v : mgr.ops_) {
         if (dynamic_cast<output_op *>(v.get())
                 || dynamic_cast<constant_op_t *>(v.get())) {
             to_visit_.emplace_back(v);
         }
     }
+    int original_number_of_ops = mgr.ops_.size();
     visit(f);
+    if (check_all_ops_visited_) {
+        assert_all_ops_visited(mgr, original_number_of_ops);
+    }
 }
 
 sc_op_ptr search_tuneop_linearly(const sc_op_ptr &start_node, int max_step) {

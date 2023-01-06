@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -214,7 +214,7 @@ static void check_and_set_mixed_dtype(const sc_op_ptr &cast_node) {
 // Do cast u8/s8 => s32 for dynamic zero points
 void change_dyn_zp_to_s32(sc_graph_t &mgr, const context_ptr &ctx) {
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(mgr.ops_.size());
-    vis.visit_graph(mgr, [&](const sc_op_ptr &node) {
+    vis.visit_graph(mgr, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<dynamic_quantize_op_t>()
                 || node->isa<dynamic_dequantize_op_t>()) {
             if (node->get_inputs().size() == 3
@@ -236,7 +236,7 @@ void change_weight_u8_to_s8(sc_graph_t &mgr, const context_ptr &ctx) {
             && ctx->flags_.brgemm_use_amx_;
     if (is_amx) { return; }
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(mgr.ops_.size());
-    vis.visit_graph(mgr, [&](const sc_op_ptr &node) {
+    vis.visit_graph(mgr, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<dequantize_op_t>()
                 || node->isa<dynamic_dequantize_op_t>()) {
             bool dyn_quan_cur = node->isa<dynamic_dequantize_op_t>();
@@ -352,6 +352,7 @@ void change_weight_u8_to_s8(sc_graph_t &mgr, const context_ptr &ctx) {
                                                             new_zero_point}}});
                         }
                         node->replace_uses_with_and_remove(deq);
+                        vis->update_state_for_visited(deq);
                     }
                 }
             }
@@ -369,7 +370,7 @@ SC_INTERNAL_API void quantize_info_propagation(
     change_dyn_zp_to_s32(mgr, ctx);
     change_weight_u8_to_s8(mgr, ctx);
     op_visitor_t vis = op_visitor_t::dfs_topology_sort(mgr.ops_.size());
-    vis.visit_graph(mgr, [&](const sc_op_ptr &node) {
+    vis.visit_graph(mgr, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<dequantize_op_t>() || node->isa<dynamic_dequantize_op_t>()
                 || node->isa<op_traits::may_quantize_t>()
                 || node->isa<cast_op_t>()) {

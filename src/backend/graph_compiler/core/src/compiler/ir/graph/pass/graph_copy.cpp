@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,11 +29,10 @@ SC_INTERNAL_API sc_graph_t copy_graph(const sc_graph_t &graph) {
         }
     }
     sc_graph_t copied_graph;
-    op_visitor_t vis(op_visitor_t::dequeue_selector,
-            op_visitor_t::create_DAG_updater(graph.ops_.size()));
+    op_visitor_t vis = op_visitor_t::bfs_topology_sort(graph.ops_.size());
     std::unordered_map<graph_tensor_ptr, graph_tensor_ptr> old_new_lt_map;
     std::unordered_map<sc_op_ptr, int> op_id_map;
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         sc_op_ptr new_node;
         if (node->dyn_cast<input_op>()) {
             new_node = copied_graph.make_input(

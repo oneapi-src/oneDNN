@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -225,7 +225,7 @@ static bool should_transform_transpose(const sc_op_ptr &node) {
 void convert_to_tensor_view(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
     int reorder2tv = graph.attrs_.get_or_else("temp.reorder2tv", 1);
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (node->isa<reorder_op_t>() && reorder2tv
                 && should_transform_reorder(node)) {
             auto tensor_view_out = node->get_outputs()[0]->copy();
@@ -235,7 +235,7 @@ void convert_to_tensor_view(sc_graph_t &graph, const context_ptr &ctx) {
                     {{"shape", tensor_view_out->details_.get_blocking_dims()}});
             view->get_dispatch_key_set() = node->get_dispatch_key_set();
             node->replace_uses_with_and_remove(view);
-            vis.update_state_for_visited(view);
+            vis->update_state_for_visited(view);
         } else if (node->isa<transpose_op_t>()
                 && should_transform_transpose(node)) {
             auto tensor_view_out = node->get_outputs()[0]->copy();
@@ -245,7 +245,7 @@ void convert_to_tensor_view(sc_graph_t &graph, const context_ptr &ctx) {
                     {{"shape", tensor_view_out->details_.get_blocking_dims()}});
             view->get_dispatch_key_set() = node->get_dispatch_key_set();
             node->replace_uses_with_and_remove(view);
-            vis.update_state_for_visited(view);
+            vis->update_state_for_visited(view);
         }
     });
     graph.reset_op_ids();

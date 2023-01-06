@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,17 +27,19 @@ namespace sc {
 bool check_graph_connection(sc_graph_t &graph) {
     try {
         op_visitor_t post_vis {op_visitor_t::pop_back_selector,
-                op_visitor_t::create_DAG_updater_post(graph.ops_.size())};
+                op_visitor_t::create_DAG_updater_post(graph.ops_.size()), true};
         // {logical op id, visited num} map
         std::unordered_map<int, int> visited_ops;
-        post_vis.post_visit_graph(graph, [&](const sc_op_ptr &aop) {
-            visited_ops[aop->logical_op_id_]++;
-        });
+        post_vis.post_visit_graph(
+                graph, [&](op_visitor_t *post_vis, const sc_op_ptr &aop) {
+                    visited_ops[aop->logical_op_id_]++;
+                });
 
         op_visitor_t::dfs_topology_sort(graph.ops_.size())
-                .visit_graph(graph, [&](const sc_op_ptr &aop) {
-                    visited_ops[aop->logical_op_id_]--;
-                });
+                .visit_graph(
+                        graph, [&](op_visitor_t *vis, const sc_op_ptr &aop) {
+                            visited_ops[aop->logical_op_id_]--;
+                        });
         for (auto op : visited_ops) {
             if (op.second) { return false; }
         }

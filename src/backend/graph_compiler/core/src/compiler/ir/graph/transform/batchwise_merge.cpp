@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ using bw_merge_map = std::unordered_map<sc_op_ptr, sc_dims>;
 static void init_batchwise_merge(
         const context_ptr &ctx, sc_graph_t &graph, bw_merge_map &bw_map) {
     op_visitor_t vis = op_visitor_t::bfs();
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         // Due to this pass is behind `fuse_op` pass, if reorder op is found, it
         // is `no_fused` op. It will decide `use_output_loop` which also affect
         // batchwise dims.
@@ -123,7 +123,7 @@ static bool do_partition(sc_graph_t &g, const op_dep_matrix_t &dep,
     // a DFS visitor which only visits masked ops and skips unmasked ones
     op_visitor_t visitor = op_visitor_t::dfs_topology_sort(g.ops_.size());
 
-    visitor.visit_graph(g, [&](const sc_op_ptr &op) {
+    visitor.visit_graph(g, [&](op_visitor_t *visitor, const sc_op_ptr &op) {
         if (op->isa<input_op>() || op->isa<output_op>()
                 || op->attrs_.get_or_else(op_attr_key::bwise_no_fuse, false)
                 || op->attrs_.get_or_else(op_attr_key::bwise_skip_fuse, false)
@@ -273,7 +273,7 @@ static std::vector<graph_tensor_ptr> copy_partition_to_graph(sc_graph_t &g,
     std::vector<graph_tensor_ptr> input_tsr;
     auto visitor = op_visitor_t::dfs_topology_sort(g.ops_.size());
     std::unordered_set<graph_tensor_ptr> input_tsr_set;
-    visitor.visit_graph(g, [&](const sc_op_ptr &op) {
+    visitor.visit_graph(g, [&](op_visitor_t *visitor, const sc_op_ptr &op) {
         if (partition.ops.find(op) == partition.ops.end()) { return; }
         std::vector<graph_tensor_ptr> new_graph_in, new_graph_ou;
         for (auto &in : op->get_inputs()) {

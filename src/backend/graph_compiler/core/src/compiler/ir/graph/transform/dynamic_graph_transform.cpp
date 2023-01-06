@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,8 +35,8 @@ void tensor_view_push_back(sc_graph_t &graph, const context_ptr &ctx) {
     constexpr const int max_try_times = 10;
     for (int i = 0; i < max_try_times; i++) {
         bool changed = false;
-        auto vis = op_visitor_t::bfs();
-        vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+        auto vis = op_visitor_t::bfs_unchecked();
+        vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
             if (node->isa<tensor_view_op_t>() || node->isa<transpose_op_t>()
                     || node->isa<ops::dynamic_reshape_op>()) {
                 auto cur_node = node;
@@ -76,7 +76,7 @@ void tensor_view_push_back(sc_graph_t &graph, const context_ptr &ctx) {
                     }
                 }
             }
-            vis.update_state_for_visited(node);
+            vis->update_state_for_visited(node);
         });
         if (!changed) { break; }
     }

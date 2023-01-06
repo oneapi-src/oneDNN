@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,9 +62,8 @@ static bool need_to_reorder(const sc_data_format_t &format) {
 }
 
 void permute_propagation(sc_graph_t &graph, const context_ptr &ctx) {
-    op_visitor_t vis {op_visitor_t::pop_back_selector,
-            op_visitor_t::create_DAG_updater(graph.ops_.size())};
-    vis.visit_graph(graph, [&](const sc_op_ptr &node) {
+    op_visitor_t vis = op_visitor_t::dfs_topology_sort(graph.ops_.size());
+    vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         for (size_t i = 0; i < node->get_inputs().size(); ++i) {
             auto in = node->get_inputs()[i];
             if (in->details_.get_format().is_any()) {
