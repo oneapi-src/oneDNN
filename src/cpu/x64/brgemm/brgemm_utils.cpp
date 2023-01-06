@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -133,7 +133,8 @@ void set_isa_impl(brgemm_t *brg) {
     } else if (brg->is_int8) {
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_amx),
                 avx512_core_amx, is_isa_ok(avx512_core_vnni), avx512_core_vnni,
-                is_isa_ok(avx2_vnni), avx2_vnni);
+                is_isa_ok(avx512_core), avx512_core, is_isa_ok(avx2_vnni),
+                avx2_vnni);
     }
 }
 
@@ -195,6 +196,8 @@ status_t brgemm_blocking(brgemm_t *brg) {
         if (brg->is_bf16_emu)
             max_block
                     = nstl::min(max_block, 28); // bf16_emu only for avx512_core
+        // non-VNNI INT8 dot product required 2 temp vectors
+        if (brg->is_int8 && !brg->has_vnni) max_block -= 2;
         max_block /= adj_ld_block;
         const int min_block = 1;
         float best_bd_block_eff = 0.f;
@@ -755,6 +758,11 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->is_bf32 = is_bf32
             && utils::one_of(brg->isa_user, isa_undef, avx512_core_amx)
             && mayiuse(avx512_core_amx);
+
+    brg->has_vnni = is_superset(brg->isa_impl, avx512_core_vnni)
+            || is_superset(brg->isa_impl, avx2_vnni)
+            || is_superset(brg->isa_impl, avx2_vnni_2);
+
     set_brg_vmm(brg); // TODO: Investigate if it is really needed here.
     brg->req_s8s8_compensation
             = brg->is_int8 && !brg->is_int8_tmm && brg->dt_a == data_type::s8;

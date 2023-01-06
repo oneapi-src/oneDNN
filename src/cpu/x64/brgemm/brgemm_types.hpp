@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -221,6 +221,8 @@ struct brgemm_t {
     bool is_f16 = false, is_f16_tmm = false;
     bool is_f32 = false;
     bool is_bf32 = false;
+
+    bool has_vnni = false;
 
     dim_t stride_a = 0; // Offset in bytes
     dim_t stride_b = 0;

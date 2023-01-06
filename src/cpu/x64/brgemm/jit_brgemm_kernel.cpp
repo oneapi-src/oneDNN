@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -237,13 +237,16 @@ private:
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
 
+    int max_effective_vregs = max_vregs;
+
     Vmm accm(int ld_block, int bd, int ld) {
-        return Vmm(max_vregs - 1 - (bd * ld_block + ld));
+        return Vmm(max_effective_vregs - 1 - (bd * ld_block + ld));
     }
 
     Vmm bcst(int bd = 0) {
         if (n_bcast_1_load) {
-            int idx = max_vregs - 1 - (brg.ld_block2 * brg.bd_block) - bd;
+            int idx = max_effective_vregs - 1 - (brg.ld_block2 * brg.bd_block)
+                    - bd;
             assert(idx > 0);
             return Vmm(idx);
         } else
@@ -254,7 +257,8 @@ private:
         if (n_bcast_1_load) {
             return Vmm(0);
         } else {
-            int idx = max_vregs - 1 - (brg.ld_block2 * brg.bd_block) - ld;
+            int idx = max_effective_vregs - 1 - (brg.ld_block2 * brg.bd_block)
+                    - ld;
             assert(idx > 0);
             return Vmm(idx);
         }
@@ -272,6 +276,10 @@ private:
     Zmm bf16_emu_reserv_3() const noexcept { return Zmm(2); }
     Zmm bf16_emu_reserv_4() const noexcept { return Zmm(3); }
     // note: zmm reserv_5 is not necessary since it's only used for 'vdpbf16ps'
+
+    // Required in every dot product for INT8 non-VNNI computation.
+    Vmm int8_ones_words() const noexcept { return Vmm(max_vregs - 1); }
+    Vmm int8_dot_product_temp() const noexcept { return Vmm(max_vregs - 2); }
 
     Vmm vmm_mask(const Vmm vmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask) const;
@@ -1111,7 +1119,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_post_ops(
     }
 
     postops_injector_->compute_vector_range(
-            max_vregs - bd_block * ld_block2, max_vregs, rhs_arg_params);
+            max_effective_vregs - bd_block * ld_block2, max_effective_vregs,
+            rhs_arg_params);
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1670,8 +1679,17 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
             uni_vfmadd231ps(v1, v2, v3);
         else if (brg.is_bf16)
             vdpbf16ps(v1, v2, v3);
-        else if (brg.is_int8)
-            vpdpbusd(v1, v3, v2, isa == avx2_vnni ? VexEncoding : EvexEncoding);
+        else if (brg.is_int8) {
+            if (brg.has_vnni)
+                vpdpbusd(v1, v3, v2,
+                        isa == avx2_vnni ? VexEncoding : EvexEncoding);
+            else {
+                vpmaddubsw(int8_dot_product_temp(), v3, v2);
+                vpmaddwd(int8_dot_product_temp(), int8_dot_product_temp(),
+                        int8_ones_words());
+                vpaddd(v1, v1, int8_dot_product_temp());
+            }
+        }
     };
 
     int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
@@ -2179,7 +2197,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::bdb_loop() {
         auto ld_block2 = (brg.ldb2 > 0)
                 ? brg.ld_block2
                 : ((brg.ldb2_tail > 0) ? brg.ldb2_tail : 1);
-        const int free_vregs = max_vregs - brg.req_s8s8_compensation;
+        const int free_vregs = max_effective_vregs - brg.req_s8s8_compensation;
         n_bcast_1_load = brg.is_int8
                 && ((brg.bd_block * (ld_block2 + 1) < free_vregs)
                         && (bd_blocks_for_rd_tail == 0)
@@ -2347,6 +2365,12 @@ void jit_brgemm_kernel_t<isa, Wmm>::generate() {
         kmovq(ld_full_mask, reg_mask);
         mov(reg_mask, tail_mask);
         kmovq(ld_tail_mask, reg_mask);
+    }
+
+    if (brg.is_int8 && !brg.has_vnni) {
+        max_effective_vregs = max_vregs - 2;
+        mov(reg_tmp_gpr.cvt16(), 0x1);
+        vpbroadcastw(int8_ones_words(), reg_tmp_gpr.cvt16());
     }
 
     read_params();
