@@ -2074,6 +2074,11 @@ private:
                                    vec_size, a_layout, b_layout, 1, -1)) {
                     m_blk = vec_size;
                     c_blk_layout = c_blk_layout.add_outer_block(1, vec_size);
+                } else if (cfg_.prb().g > 1
+                        && (a_layout.blocks()[0].block
+                                   * a_layout.blocks()[1].block)
+                                        % vec_size
+                                == 0) {
                 } else {
                     return plan_status_t::invalid_layout;
                 }
