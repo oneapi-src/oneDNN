@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -118,6 +118,11 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
             && (2 * input_sz_mb > (size_t)conf.mb)) {
         conf.num_batches = utils::div_up(conf.mb_padded, conf.mb_block_size);
     }
+    // for IO bytes less than 256 KB fall back into ocl ref kernel for better performance.
+    size_t io_bytes = src_mdw.nelems() * src_mdw.data_type_size()
+            + dst_mdw.nelems() * dst_mdw.data_type_size();
+    if (io_bytes < 256 * 1024) return status::unimplemented;
+
     if (conf.num_batches > 1) {
         conf.dispatch.define_dim("MB", 0,
                 nstl::min(conf.mb_block_size, conf.mb_padded),
