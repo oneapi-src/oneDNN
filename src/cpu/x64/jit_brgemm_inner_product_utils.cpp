@@ -379,6 +379,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         jbgp.nb_os_blocking = saturate(1, nstl::min(8, jbgp.nb_os),
                 nstl::min(nstl::max(jbgp.oc / jbgp.os / 2, 1),
                         div_up(jbgp.nb_os * jbgp.nb_oc, 2 * jbgp.nthr)));
+        jbgp.nb_os_blocking = max_div(jbgp.nb_os, jbgp.nb_os_blocking);
     }
 
     if (jbgp.nthr == 1 && is_f32_compute) {
