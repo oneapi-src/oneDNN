@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -208,7 +208,7 @@ void lru_compiled_partition_cache_t::update_entry(const key_t &key,
 void lru_compiled_partition_cache_t::evict(size_t n) {
     using v_t = std::unordered_map<key_t, timed_entry_t>::value_type;
 
-    if (n == capacity_) {
+    if (n == cache_mapper().size()) {
         cache_mapper().clear();
         return;
     }

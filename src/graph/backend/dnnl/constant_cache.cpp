@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ value_t constant_cache_t::get(const key_t &key) {
 
 // Evict n size of cached buffers
 void constant_cache_t::evict(size_t n) const {
-    if (n == capacity_) {
+    if (n == get_size()) {
         constant_map_.clear();
         return;
     }
@@ -166,10 +166,10 @@ void constant_cache_t::evict(size_t n) const {
                             < right.second.timestamp_.load(
                                     std::memory_order::memory_order_relaxed);
                 });
+        evicted_size += it->second.value_.get()->size();
         auto res = constant_map_.erase(it->first);
         UNUSED(res);
         assert(res);
-        evicted_size += it->second.value_.get()->size();
     }
 }
 
