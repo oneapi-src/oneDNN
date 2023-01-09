@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -126,10 +126,15 @@ void set_isa_impl(brgemm_t *brg) {
                 avx512_core_amx, is_isa_ok(avx512_core_bf16), avx512_core_bf16,
                 is_isa_ok(avx2_vnni_2), avx2_vnni_2);
     } else if (brg->is_f16) {
-        brg->isa_impl
-                = utils::map(true, isa_undef, is_isa_ok(avx512_core_amx_fp16),
-                        avx512_core_amx_fp16, is_isa_ok(avx512_core_fp16),
-                        avx512_core_fp16, is_isa_ok(avx2_vnni_2), avx2_vnni_2);
+        if (everyone_is(data_type::f16, brg->dt_a, brg->dt_b)) {
+            brg->isa_impl = utils::map(true, isa_undef,
+                    is_isa_ok(avx512_core_amx_fp16), avx512_core_amx_fp16,
+                    is_isa_ok(avx512_core_fp16), avx512_core_fp16,
+                    is_isa_ok(avx2_vnni_2), avx2_vnni_2);
+        } else {
+            brg->isa_impl = utils::map(true, isa_undef,
+                    is_isa_ok(avx512_core_fp16), avx512_core_fp16);
+        }
     } else if (brg->is_int8) {
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_amx),
                 avx512_core_amx, is_isa_ok(avx512_core_vnni), avx512_core_vnni,
