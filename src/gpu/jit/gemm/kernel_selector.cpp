@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns,
     const kcatalog::Entry *bestEntry = nullptr;
     int bestIPattern = -1;
 
-    bool verbose = (get_verbose() >= 5);
+    bool verbose = (verbose_devinfo() >= 5);
 
     // TODO: omit evaluation if only one match, if aux output not needed.
     for (int ipattern = 0; ipattern < npatterns; ipattern++) {

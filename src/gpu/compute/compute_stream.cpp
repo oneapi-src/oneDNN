@@ -67,7 +67,7 @@ status_t compute_stream_t::zero_pad(
     // is available only with incoming memory at execution point here, that's
     // why separate logic is written apart from a common place.
     // XXX: re-consider, once zeropad appears in other places in the library.
-    if (get_verbose()) {
+    if (verbose_has_profile_exec()) {
         CHECK(this->wait());
         double start_ms = get_msec();
         CHECK(zero_pad_primitive->execute(zero_pad_ctx));

@@ -72,15 +72,28 @@
 namespace dnnl {
 namespace impl {
 
-static setting_t<int> verbose {0};
-int get_verbose() {
+static setting_t<uint32_t> verbose {0};
+struct verbose_t {
+    enum flag_kind {
+        // we reserve the 24 lower bits for user info
+        none = 0,
+        error = 1 << 0,
+        profile_create = 1 << 1,
+        profile_exec = 1 << 2,
+        dispatch = 1 << 3,
+        // the upper 8 bits are reserved for devinfo levels
+        devinfo = 1 << 24,
+    };
+};
+
+uint32_t get_verbose() {
 #if defined(DISABLE_VERBOSE)
     return 0;
 #else
     if (!verbose.initialized()) {
         // Assumes that all threads see the same environment
         static int val = getenv_int_user("VERBOSE", verbose.get());
-        verbose.set(val);
+        dnnl_set_verbose(val);
     }
 
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
@@ -124,6 +137,22 @@ int get_verbose() {
     }
     return verbose.get();
 #endif
+}
+
+bool verbose_has_error() {
+    return get_verbose() & verbose_t::error;
+};
+bool verbose_has_profile_create() {
+    return get_verbose() & verbose_t::profile_create;
+};
+bool verbose_has_profile_exec() {
+    return get_verbose() & verbose_t::profile_exec;
+};
+bool verbose_has_dispatch() {
+    return get_verbose() & verbose_t::dispatch;
+};
+int verbose_devinfo() {
+    return get_verbose() >> 24;
 }
 
 static setting_t<bool> verbose_timestamp {false};
@@ -1045,8 +1074,15 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
 
 dnnl_status_t dnnl_set_verbose(int level) {
     using namespace dnnl::impl::status;
+    using namespace dnnl::impl;
     if (level < 0 || level > 2) return invalid_arguments;
-    dnnl::impl::verbose.set(level);
+    uint32_t verbose_level = 0;
+    if (level >= 1) verbose_level = verbose_t::error | verbose_t::profile_exec;
+    if (level >= 2)
+        verbose_level |= verbose_t::profile_create | verbose_t::dispatch;
+    // we put the lower byte of level as devinfo
+    verbose_level |= (level << 24);
+    verbose.set(verbose_level);
     return success;
 }
 

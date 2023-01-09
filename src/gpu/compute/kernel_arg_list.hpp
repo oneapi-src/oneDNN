@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -270,7 +270,7 @@ inline status_t check_scalar_arguments(const kernel_arg_list_t &arg_list,
             }
 
             if (req_arg_type != arg.scalar_type()) {
-                if (get_verbose()) {
+                if (verbose_has_error()) {
                     printf("onednn_verbose,gpu,error,type of a scalar kernel "
                            "argument #%d is different from the type of the "
                            "given scalar\n",

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ status_t sycl_engine_factory_t::engine_create(
 
     auto exception_handler = [](const ::sycl::exception_list &eptr_list) {
         for (auto &eptr : eptr_list) {
-            if (get_verbose()) {
+            if (verbose_has_error()) {
                 try {
                     std::rethrow_exception(eptr);
                 } catch (const ::sycl::exception &e) {

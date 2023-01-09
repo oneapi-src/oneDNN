@@ -415,7 +415,7 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
         }
     }
 
-    if (get_verbose() >= 2) {
+    if (verbose_devinfo() >= 2) {
         printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d\n",
                 pd()->unroll_m(), pd()->unroll_n(), compute_info_.wg[LoopM],
                 compute_info_.wg[LoopN], compute_info_.wg[LoopK]);

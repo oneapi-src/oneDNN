@@ -68,7 +68,7 @@ std::string get_descriptor(dim_t M, dim_t N, dim_t K) {
 #endif
 
 #define MAYBE_VERBOSE(status, sdt_, wdt_, ddt_, ...) \
-    if (get_verbose() >= 1) { \
+    if (verbose_has_profile_exec()) { \
         double start_ms = get_msec(); \
         status = __VA_ARGS__; \
         double duration_ms = get_msec() - start_ms; \

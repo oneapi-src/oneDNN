@@ -55,7 +55,7 @@ namespace {
     do { \
         ze_result_t res_ = (f); \
         if (res_ != ZE_RESULT_SUCCESS) { \
-            if (get_verbose()) { \
+            if (verbose_has_error()) { \
                 printf("onednn_verbose,gpu,ze_error,%d\n", (int)(res_)); \
                 fflush(nullptr); \
             } \
@@ -75,7 +75,7 @@ void *find_ze_symbol(const char *symbol) {
             "ze_loader.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
 #endif
     if (!handle) {
-        if (get_verbose())
+        if (verbose_has_error())
             printf("onednn_verbose,gpu,error,cannot find Level Zero loader "
                    "library\n");
         assert(!"not expected");
@@ -96,7 +96,7 @@ void *find_ze_symbol(const char *symbol) {
     ZE_CHECK_VP(ze_result);
 
     if (!f) {
-        if (get_verbose())
+        if (verbose_has_error())
             printf("onednn_verbose,gpu,error,cannot find symbol: %s\n", symbol);
         assert(!"not expected");
     }

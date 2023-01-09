@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ status_t sycl_stream_t::init() {
 
     if (gpu::is_profiling_enabled() && sycl_dev.is_gpu()
             && !queue_->is_in_order()) {
-        if (get_verbose()) {
+        if (verbose_has_error()) {
             printf("onednn_verbose,gpu,error,DPC++ kernel profiling is not "
                    "supported with out-of-order queues\n");
             fflush(nullptr);

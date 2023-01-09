@@ -29,11 +29,12 @@
 namespace dnnl {
 namespace impl {
 
-struct verbose_t {
-    int level;
-};
+bool verbose_has_error();
+bool verbose_has_profile_create();
+bool verbose_has_profile_exec();
+bool verbose_has_dispatch();
+int verbose_devinfo();
 
-int get_verbose();
 bool get_verbose_timestamp();
 
 /// A container for primitive desc verbose string.
