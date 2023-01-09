@@ -357,6 +357,8 @@ outputs (namely \diffweightslayer, \diffweightsiter,
 \diffweightspeephole, \diffweightsprojection, \diffbias). Hence, these
 tensors should be properly initialized to zero before their first use,
 and can be reused across calls to accumulate gradients if need be.
+This behavior can be altered by the RNN flag `diff_weights_overwrite`. If this
+flag is set weight gradients will be initialized by zeros by the RNN primitive.
 
 @anchor dg_rnn_impl_limits
 
@@ -471,6 +473,7 @@ details on how to use and set these quantization parameters.
    - No support for Peephole LSTM and Projection LSTM.
    - Int8 support is provided for LSTM only.
    - Bias and cell state of bf16 data type is not supported.
+   - No support for diff weights overwrite.
 
 ## Example
 
