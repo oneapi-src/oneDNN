@@ -1345,7 +1345,7 @@ void init_common_blocking(conv_config_t &cfg, block_helper_t &bh) {
         }
     } else if (prb.is_bwd_w) {
         bh.set_base_iter_block("g", wei_layout.inner_block(0));
-        int wei_oc_blk = wei_layout.inner_block(2);
+        int wei_oc_blk = wei_layout.inner_block(1);
         int dst_oc_blk = dst_layout.inner_block(2);
         bh.set_base_iter_block("oc", wei_oc_blk, dst_oc_blk);
         int src_ic_blk = src_layout.inner_block(2);
