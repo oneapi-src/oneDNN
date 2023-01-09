@@ -41,104 +41,6 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-class tile_helper_t {
-public:
-    tile_helper_t(const layout_t &l)
-        : l_(l)
-        , running_blocks_(l.blocks().size(), 1)
-        , blocks_(l.blocks().size(), 1) {
-        const auto &l_blocks = l.blocks();
-        const auto size = l_blocks.size();
-        while (block_idx_ < size && l_blocks[block_idx_].block == 1)
-            block_idx_++;
-    }
-
-    bool has_next() const { return block_idx_ < running_blocks_.size(); }
-
-    dim_t size() const {
-        dim_t ret = l_.size();
-        for (auto b : blocks_)
-            ret *= b;
-        return ret;
-    }
-
-    bool is_dense() const {
-        bool is_end = false;
-        for (size_t i = 0; i < blocks_.size(); i++) {
-            if (blocks_[i] == l_.blocks()[i].block) continue;
-            if (blocks_[i] != 1 && is_end) return false;
-            is_end = true;
-        }
-        return true;
-    }
-
-    tensor_t tile() const {
-        std::vector<dim_t> dims(l_.ndims(), 1);
-        for (size_t i = 0; i < blocks_.size(); i++) {
-            int dim_idx = l_.blocks()[i].dim_idx;
-            dims[dim_idx] *= blocks_[i];
-        }
-        return tensor_t(dims);
-    }
-
-    tensor_t next() {
-        dim_t l_block = l_.blocks()[block_idx_].block;
-        for (dim_t b = running_blocks_[block_idx_] + 1; b <= l_block; b++) {
-            if (l_block % b == 0) {
-                running_blocks_[block_idx_] = b;
-                return running_tile();
-            }
-        }
-        block_idx_++;
-        if (has_next()) return next();
-        return tensor_t();
-    }
-
-    void accept() { blocks_[block_idx_] = running_blocks_[block_idx_]; }
-
-    static bool can_be_mapped(const layout_t &l, const tensor_t &t) {
-        std::vector<dim_t> rem_dims = t.dims();
-        for (auto &b : l.blocks()) {
-            auto &rem_dim = rem_dims[b.dim_idx];
-            if (rem_dim >= b.block) {
-                if (rem_dim % b.block != 0) return false;
-                rem_dim /= b.block;
-                continue;
-            }
-            if (b.block % rem_dim != 0) return false;
-            rem_dim = 1;
-        }
-        for (auto d : rem_dims)
-            ir_assert(d == 1);
-        return true;
-    }
-
-    static tensor_t merge(const tensor_t &a, const tensor_t &b) {
-        std::vector<dim_t> dims(a.ndims());
-        for (int i = 0; i < a.ndims(); i++) {
-            dims[i] = std::max(a(i), b(i));
-        }
-        return tensor_t(dims);
-    }
-
-private:
-    tensor_t running_tile() const {
-        std::vector<dim_t> dims(l_.ndims(), 1);
-        for (size_t i = 0; i < block_idx_; i++) {
-            int dim_idx = l_.blocks()[i].dim_idx;
-            dims[dim_idx] *= blocks_[i];
-        }
-        int dim_idx = l_.blocks()[block_idx_].dim_idx;
-        dims[dim_idx] *= running_blocks_[block_idx_];
-        return tensor_t(dims);
-    }
-
-    const layout_t &l_;
-    std::vector<dim_t> running_blocks_;
-    std::vector<dim_t> blocks_;
-    size_t block_idx_ = 0;
-};
-
 void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
         const layout_t &src, const layout_t &dst, std::vector<int> &iter_blocks,
         std::vector<int> &loop_blocks, std::vector<int> &tg_blocks,
@@ -180,61 +82,84 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
     dim_t max_thr_tile_elems
             = std::min(max_thr_tile_bytes / max_type_size, elems);
 
-    tile_helper_t src_th(padded_src);
-    tile_helper_t dst_th(padded_dst);
+    using tile_pair_t = std::array<tensor_t, 2>;
+
+    auto can_be_mapped = [](const layout_t &l, const tensor_t &t) {
+        std::vector<dim_t> rem_dims = t.dims();
+        for (auto &b : l.blocks()) {
+            auto &rem_dim = rem_dims[b.dim_idx];
+            if (rem_dim >= b.block) {
+                if (rem_dim % b.block != 0) return false;
+                rem_dim /= b.block;
+                continue;
+            }
+            if (b.block % rem_dim != 0) return false;
+            rem_dim = 1;
+        }
+        for (auto d : rem_dims)
+            ir_assert(d == 1);
+        return true;
+    };
+
+    auto add_pseudo_dimension = [](const layout_t &l) {
+        auto layout_size = l.size();
+        return [=](const tensor_t &t) {
+            auto dims = t.dims();
+            dims.push_back(layout_size);
+            return tensor_t(dims);
+        };
+    };
+
+    auto mappable_tiles = [&](const tensor_t &t) {
+        return can_be_mapped(padded_src, t) && can_be_mapped(padded_dst, t);
+    };
+
+    auto merge_tiles = [](const tile_pair_t &p) {
+        auto ndims = p[0].ndims() - 1;
+        std::vector<dim_t> dims(ndims);
+        for (int i = 0; i < ndims; ++i)
+            dims[i] = std::max(p[0](i), p[1](i));
+        return tensor_t(dims);
+    };
+
+    auto take_smaller = [](const tensor_t &a, const tensor_t &b) {
+        return a.elems() < b.elems();
+    };
 
     // Incrementally increase subtiles in src and dst. The goal is to find the
     // maximum src/dst tiles so that the final combined tile covers dense
     // regions as big as possible in src/dst layouts.
     std::vector<tensor_t> candidate_tiles;
-    // To ensure there is at least one candidate.
-    candidate_tiles.emplace_back(std::vector<dim_t>(ndims, 1));
-    for (;;) {
-        if (!src_th.has_next() || !dst_th.has_next()) break;
-        tile_helper_t *th = &src_th;
-        bool src_dense = src_th.is_dense();
-        bool dst_dense = dst_th.is_dense();
-        // When both sublayouts are dense, try to increase the smallest tile.
-        // Otherwise, if there is a dense sublayout try to increase it.
-        if (src_dense && dst_dense && dst_th.size() < src_th.size()) {
-            th = &dst_th;
-        } else if (dst_dense && !src_dense) {
-            th = &dst_th;
-        }
-
-        auto tile = th->next();
-        auto &other_th = (th == &src_th ? dst_th : src_th);
-        tile = tile_helper_t::merge(tile, other_th.tile());
-        if (tile_helper_t::can_be_mapped(padded_src, tile)
-                && tile_helper_t::can_be_mapped(padded_dst, tile)) {
-            th->accept();
-            candidate_tiles.push_back(tile);
-        }
-        if (tile.elems() >= max_thr_tile_elems) break;
+    auto a_tiles = inner_tiles(padded_src.blocks(), padded_src.ndims())
+            | filter(mappable_tiles)
+            | transform(add_pseudo_dimension(padded_src));
+    auto b_tiles = inner_tiles(padded_dst.blocks(), padded_dst.ndims())
+            | filter(mappable_tiles)
+            | transform(add_pseudo_dimension(padded_dst));
+    auto tiles = merge(a_tiles, b_tiles, take_smaller) | transform(merge_tiles);
+    for (auto tile : tiles) {
+        if (tile.elems() > max_thr_tile_elems) break;
+        candidate_tiles.push_back(tile);
     }
 
+    ir_assert(!candidate_tiles.empty());
     std::sort(candidate_tiles.begin(), candidate_tiles.end(),
             [](const tensor_t &a, const tensor_t &b) {
                 return a.elems() > b.elems();
             });
 
-    const tensor_t *thr_tile = nullptr;
-    const tensor_t *iter_tile = nullptr;
-    for (size_t i = 0; i < candidate_tiles.size(); i++) {
-        auto &t = candidate_tiles[i];
-        if (!thr_tile && t.elems() <= max_thr_tile_elems) thr_tile = &t;
-        if (thr_tile && !iter_tile && t.elems() <= max_iter_tile_elems
-                && thr_tile->is_divisible(t)) {
-            iter_tile = &t;
-        }
-        if (thr_tile && iter_tile) break;
+    tensor_t thr_tile = candidate_tiles[0];
+    tensor_t iter_tile;
+    for (auto &tile : candidate_tiles) {
+        if (tile.elems() > max_iter_tile_elems || !thr_tile.is_divisible(tile))
+            continue;
+        if (iter_tile.is_empty() || tile.elems() > iter_tile.elems())
+            iter_tile = tile;
     }
 
-    ir_assert(thr_tile);
-    ir_assert(iter_tile);
-    std::vector<int> thr_blocks(
-            thr_tile->dims().begin(), thr_tile->dims().end());
-    iter_blocks.assign(iter_tile->dims().begin(), iter_tile->dims().end());
+    ir_assert(!iter_tile.is_empty());
+    std::vector<int> thr_blocks(thr_tile.dims().begin(), thr_tile.dims().end());
+    iter_blocks.assign(iter_tile.dims().begin(), iter_tile.dims().end());
 
     ir_assert(utils::array_product(iter_blocks) <= max_iter_tile_elems);
     ir_assert(utils::array_product(thr_blocks) <= max_thr_tile_elems);
