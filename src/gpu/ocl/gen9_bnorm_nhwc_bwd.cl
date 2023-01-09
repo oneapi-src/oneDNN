@@ -22,7 +22,7 @@
 // 1) Reduction over scratchpad (reduce_temp) with SLM use, implemented by
 //    gen9_reduce_stats_nhwc kernel.
 // 2) Atomics-based reduction with SLM use (FUSED_ATOMICS_REDUCTION definition),
-//    implemented as part of calc kernels, see gem9_*_fused_reduction()
+//    implemented as part of calc kernels, see gen9_*_fused_reduction()
 //    functions in gen9_bnorm.h. This reduction implementation requires
 //    zeroing and finalization steps, see gen9_fused_reduce_* kernels
 //    in gen9_bnorm_reduce.cl
