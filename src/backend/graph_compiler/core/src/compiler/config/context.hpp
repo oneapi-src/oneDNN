@@ -54,9 +54,9 @@ struct scflags_t {
     bool mixed_fusion_ = true;
     bool use_cost_model_ = true;
     bool debug_info_ = false;
-    bool jit_support_amx_intrinsics_
-            = false; // whether jit supports directly generating amx intrinsics
-            // instead of using dnnl
+    // whether jit supports directly generating amx intrinsics instead of using
+    // dnnl
+    bool jit_support_amx_intrinsics_ = false;
 };
 
 struct context_t {

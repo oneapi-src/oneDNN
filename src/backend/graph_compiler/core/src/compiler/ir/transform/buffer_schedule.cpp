@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,9 +127,9 @@ struct tensor_tick_info_t {
     int64_t create_ = TICK_NOT_EXIST; // tensor creation tick
     int64_t delete_ = TICK_NOT_EXIST; // the tick that the tensor scope is done
     bool is_arg_ = false; // if is the tensor defined in function args
-    bool is_already_scheduled_
-            = false; // if the tensor is already scheduled, infered from the
-            // define stmt's init_.defined()
+    // if the tensor is already scheduled, infered from the define stmt's
+    // init_.defined()
+    bool is_already_scheduled_ = false;
     uint64_t scope_ = NOT_THREAD_LOCAL; // parallel scope id
     bool has_hint_ = false; // if the tensor has hint tick info
     // the tensors that the current tensor can inplace reuse buffer with. Not
