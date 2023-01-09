@@ -64,9 +64,6 @@ namespace impl {
     T(const T &) = delete; \
     T &operator=(const T &) = delete;
 
-// Sanity check for 64 bits
-static_assert(sizeof(void *) == 8, "oneDNN supports 64-bit architectures only");
-
 #define CHECK(f) \
     do { \
         dnnl::impl::status_t _status_ = f; \

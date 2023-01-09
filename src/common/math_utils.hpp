@@ -74,7 +74,10 @@ inline int ilog2q(size_t v) {
             p += pw; \
         } \
     } while (0)
+
+#if INTPTR_MAX == INT64_MAX
     CP(32);
+#endif
     CP(16);
     CP(8);
     CP(4);
