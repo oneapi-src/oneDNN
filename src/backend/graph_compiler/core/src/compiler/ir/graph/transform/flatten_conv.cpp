@@ -65,15 +65,15 @@ int get_minibatch(const int &bs, const int &min_os) {
     return bs % minibatch == 0 ? minibatch : 1;
 }
 
-int minimum_spatial_shape(sc_graph_t &graph) {
+int minimum_spatial_shape(sc_graph_t &graph, bool &is_support) {
     auto vis = op_visitor_t::bfs();
     int min_spatial = std::numeric_limits<int>::max();
     vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (auto op = node->dyn_cast<ops::conv_fwd_core_op_t>()) {
             int spatial_size = 1;
             auto plain_shape = op->get_inputs()[0]->details_.get_plain_dims();
-            COMPILE_ASSERT(plain_shape.size() == 4,
-                    "Conv1d flatten only support 2d case");
+            if (plain_shape.size() != 4) { is_support = false; }
+
             for (auto i = 2UL; i < plain_shape.size(); i++) {
                 spatial_size *= plain_shape[i];
             }
@@ -85,7 +85,9 @@ int minimum_spatial_shape(sc_graph_t &graph) {
 
 void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
     auto vis = op_visitor_t::bfs();
-    auto minimum_os = minimum_spatial_shape(graph);
+    bool is_support = true;
+    auto minimum_os = minimum_spatial_shape(graph, is_support);
+    if (!is_support) return;
     vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         if (auto op = node->dyn_cast<ops::conv_fwd_core_op_t>()) {
             auto data_plain_shape

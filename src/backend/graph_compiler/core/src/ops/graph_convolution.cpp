@@ -63,6 +63,17 @@ static void permute_shape_XIO2OIX(sc_dims &shape) {
     shape[1] = in_channel;
 }
 
+static sc_data_type_t infer_out_dtype(
+        const sc_data_type_t &src_dtype, const sc_data_type_t &wei_dtype) {
+    if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)
+            && wei_dtype == datatypes::s8) {
+        return datatypes::s32;
+    } else {
+        // both f32 and bf16 inputs generate f32 output
+        return datatypes::f32;
+    }
+}
+
 sc_dims conv_fwd_op_t::infer_out_dims(sc_graph_t &owner_graph,
         const sc_dims &input_dims, const sc_dims &filter_dims,
         const sc_dims &pads_begin, const sc_dims &pads_end,
@@ -133,7 +144,8 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     auto expected_out_shape
             = infer_out_dims(get_owner_graph(), input_dims, filter_dims,
                     pads_begin, pads_end, strides, data_format, filter_format);
-    auto out_dtype = info_.inputs_[0]->details_.dtype_;
+    auto out_dtype = infer_out_dtype(info_.inputs_[0]->details_.dtype_,
+            info_.inputs_[1]->details_.dtype_);
     if (outs.empty()) {
         info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
                 this, sc_data_format_t(), expected_out_shape, out_dtype));

@@ -69,12 +69,17 @@ normalize_common_t::normalize_common_t(const normalize_kind &kind,
         }
         COMPILE_ASSERT(ins.size() == 3UL,
                 op_name_ + ": Expecting 3 inputs for use_affine=True");
-        COMPILE_ASSERT(
-                expected_affine_shape == ins[1]->details_.get_plain_dims()
-                        && expected_affine_shape
-                                == ins[2]->details_.get_plain_dims(),
-                op_name_ + ": Wrong input shape for beta and gamma. Expecting "
-                        << utils::print_vector(expected_affine_shape));
+        auto gamma_shape = ins[1]->details_.get_plain_dims();
+        auto beta_shape = ins[2]->details_.get_plain_dims();
+        COMPILE_ASSERT((expected_affine_shape == gamma_shape)
+                        && (expected_affine_shape == beta_shape),
+                "Wrong shape for beta and gamma of op "
+                        << op_name_.c_str() << ". Expecting "
+                        << utils::print_vector(expected_affine_shape)
+                        << ", but got gamma with shape: "
+                        << utils::print_vector(gamma_shape)
+                        << ", and beta with shape: "
+                        << utils::print_vector(beta_shape));
     } else {
         COMPILE_ASSERT(ins.size() == 1UL,
                 op_name_ + ": Expecting 1 input for use_affine=False");

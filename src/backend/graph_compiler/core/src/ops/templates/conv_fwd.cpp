@@ -1151,9 +1151,9 @@ void gen_conv_fwd_t::compute_conv3d_no_padding(CONV_ARG_LIST) const {
     if (fusion) {
       fusion->create_output_fusion_anchor({tensor_slice(output,
         blocking_output_
-          ? slice_range {{n, 1}, {0, K_num_block}, {0, oh_}, {0, ow_},
+          ? slice_range {{n, 1}, {0, K_num_block}, {0, od_}, {0, oh_}, {0, ow_},
             {0, config.K_block}}
-          : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, oc_}})});
+          : slice_range {{n, 1}, {0, od_}, {0, oh_}, {0, ow_}, {0, oc_}})});
     }
   }
 }
