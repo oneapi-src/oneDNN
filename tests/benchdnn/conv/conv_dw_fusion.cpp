@@ -23,6 +23,8 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "utils/fill.hpp"
+
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
@@ -276,20 +278,9 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
                     }
                 } else if (is_pre_dw_scales_arg && !is_post_dw_scales_arg) {
                     int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    float *prb_ptr = nullptr;
-                    switch (local_exec_arg) {
-                        case DNNL_ARG_SRC: prb_ptr = prb0->src_scales; break;
-                        case DNNL_ARG_WEIGHTS:
-                            prb_ptr = prb0->wei_scales;
-                            break;
-                        case DNNL_ARG_DST: prb_ptr = prb0->dst_scales; break;
-                        default: break;
-                    }
-                    // Fill library scales directly.
-                    for (int64_t idx = 0; idx < mem.nelems(); ++idx) {
-                        mem.set_elem(idx, prb_ptr[idx]);
-                        mem_map0.at(exec_arg).set_elem(idx, prb_ptr[idx]);
-                    }
+                    SAFE(fill_scales(prb0->attr, local_exec_arg, mem, ref_mem),
+                            WARN);
+                    SAFE(mem_map0.at(exec_arg).reorder(mem), WARN);
                 }
             } break;
         }
@@ -334,11 +325,9 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
         int dw_wei_scale_arg = DNNL_ARG_ATTR_POST_OP_DW | wei_scale_arg;
         const auto &wei_scale_md = mem_map1.at(wei_scale_arg).md_;
         mem_map[dw_wei_scale_arg] = dnn_mem_t(wei_scale_md, get_test_engine());
-        for (int64_t idx = 0; idx < mem_map.at(dw_wei_scale_arg).nelems();
-                ++idx) {
-            mem_map.at(dw_wei_scale_arg).set_elem(idx, prb1->wei_scales[idx]);
-            mem_map1.at(wei_scale_arg).set_elem(idx, prb1->wei_scales[idx]);
-        }
+        SAFE(fill_scales(prb1->attr, DNNL_ARG_WEIGHTS,
+                     mem_map.at(dw_wei_scale_arg), mem_map1.at(wei_scale_arg)),
+                WARN);
     }
     if (!prb1->attr.scales.get(DNNL_ARG_DST).is_def()) {
         // Scales after dw can't be queried, create them from scratch.
@@ -346,11 +335,9 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
         int dw_dst_scale_arg = DNNL_ARG_ATTR_POST_OP_DW | dst_scale_arg;
         const auto &dst_scale_md = mem_map1.at(dst_scale_arg).md_;
         mem_map[dw_dst_scale_arg] = dnn_mem_t(dst_scale_md, get_test_engine());
-        for (int64_t idx = 0; idx < mem_map.at(dw_dst_scale_arg).nelems();
-                ++idx) {
-            mem_map.at(dw_dst_scale_arg).set_elem(idx, prb1->dst_scales[idx]);
-            mem_map1.at(dst_scale_arg).set_elem(idx, prb1->dst_scales[idx]);
-        }
+        SAFE(fill_scales(prb1->attr, DNNL_ARG_DST, mem_map.at(dw_dst_scale_arg),
+                     mem_map1.at(dst_scale_arg)),
+                WARN);
     }
 
     return OK;

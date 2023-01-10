@@ -321,61 +321,6 @@ void prb_t::count_ops() {
     ops = 2 * this->mb * this->oc * this->ic / this->g * sp_ops;
 }
 
-float *prb_t::generate_scales(int arg) const {
-    const auto &scales = attr.scales;
-    if (scales.is_def()) return nullptr;
-
-    const auto &e = scales.get(arg);
-    if (e.policy == policy_t::COMMON) {
-        float *s = (float *)zmalloc(sizeof(float), 4);
-        SAFE_V(s != nullptr ? OK : FAIL);
-        s[0] = e.scale;
-        return s;
-    }
-
-    assert(e.policy == policy_t::PER_OC);
-    auto mask = e.policy2mask(arg, dnnl_convolution, has_groups);
-    int64_t s_nelems = desc_nelems(arg, mask);
-
-    float *s = (float *)zmalloc(sizeof(float) * s_nelems, 64);
-    SAFE_V(s != nullptr ? OK : FAIL);
-
-    const float K = 32;
-    /* scale in [1/K .. K], with starting point at e.scale */
-    float s_val[2] = {e.scale, e.scale / 2};
-    for (int64_t i = 0; i < s_nelems; ++i) {
-        int64_t si = i % 2; // 0 -> left, 1 -> right
-        s[i] = s_val[si];
-        if (si == 0) {
-            s_val[si] /= 2.;
-            // turn around to become ~K
-            if (s_val[si] < 1. / K) s_val[si] *= K * K;
-        } else {
-            s_val[si] *= 2.;
-            // turn around to become ~K
-            if (s_val[si] > K) s_val[si] /= K * K;
-        }
-    }
-    return s;
-}
-
-int32_t *prb_t::generate_zero_points(int arg) const {
-    const auto &zp = attr.zero_points;
-    if (zp.is_def(arg)) return nullptr;
-
-    const auto &e = zp.get(arg);
-    const auto mask = attr_t::get_default_mask(e.policy);
-    int64_t zp_nelems = desc_nelems(arg, mask);
-
-    int32_t *ptr = (int32_t *)zmalloc(sizeof(int32_t) * zp_nelems, 64);
-    SAFE_V(ptr != nullptr ? OK : FAIL);
-
-    for (int i = 0; i < zp_nelems; ++i)
-        ptr[i] = e.value + i % 3;
-
-    return ptr;
-}
-
 std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;

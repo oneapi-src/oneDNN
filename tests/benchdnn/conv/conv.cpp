@@ -27,6 +27,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "utils/fill.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
@@ -110,6 +111,11 @@ int fill_src(
     const float sparsity
             = (!is_bench_mode(CORR) || src_nelems < 100) ? 1.f : c.f_sparsity;
 
+    const auto &e_zp_src = prb->attr.zero_points.get(DNNL_ARG_SRC);
+    const bool has_src_zp = !e_zp_src.is_def();
+    const int src_zp_mask = attr_t::get_default_mask(e_zp_src.policy);
+    int src_zp = has_src_zp && src_zp_mask == 0 ? e_zp_src.value : 0;
+
     benchdnn_parallel_nd(prb->mb, prb->ic, prb->id, prb->ih, prb->iw,
             [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
                 const int64_t gen
@@ -117,9 +123,7 @@ int fill_src(
                 const bool non_base = flip_coin(gen, sparsity);
                 float value = non_base ? c.f_min + gen * c.f_step % range
                                        : c.f_base;
-
-                maybe_zero_point(
-                        prb->attr, value, prb->src_zp, ic, DNNL_ARG_SRC, true);
+                value += src_zp; // Add zp so that it will be subtracted.
 
                 ((float *)mem_00)[src_off_f(prb, mb, 0, ic, id, ih, iw)]
                         = round_to_nearest_representable(mem_dt.dt(), value);
@@ -568,27 +572,13 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                         SAFE(prelu::fill_data(WEI, mem, ref_mem), WARN);
                 } else if (is_scales_arg) {
                     int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    float *prb_ptr = nullptr;
-                    switch (local_exec_arg) {
-                        case DNNL_ARG_SRC: prb_ptr = prb->src_scales; break;
-                        case DNNL_ARG_WEIGHTS: prb_ptr = prb->wei_scales; break;
-                        case DNNL_ARG_DST: prb_ptr = prb->dst_scales; break;
-                        default: break;
-                    }
-                    // Fill library scales directly.
-                    for (int64_t idx = 0; idx < mem.nelems(); ++idx) {
-                        ref_mem.set_elem(idx, prb_ptr[idx]);
-                        mem.reorder(ref_mem);
-                    }
+                    SAFE(fill_scales(prb->attr, local_exec_arg, mem, ref_mem),
+                            WARN);
                 } else if (is_zero_point_arg) {
                     int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
-                    const auto *prb_ptr = (local_exec_arg == DNNL_ARG_SRC)
-                            ? prb->src_zp
-                            : (local_exec_arg == DNNL_ARG_DST) ? prb->dst_zp
-                                                               : nullptr;
-                    // Fill library zero points directly.
-                    for (int64_t idx = 0; idx < mem.nelems(); ++idx)
-                        mem.set_elem(idx, prb_ptr[idx]);
+                    SAFE(fill_zero_points(
+                                 prb->attr, local_exec_arg, mem, ref_mem),
+                            WARN);
                 }
             } break;
         }
