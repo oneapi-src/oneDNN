@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,10 @@ using prb_t = conv::prb_t;
 using alg_t = conv::alg_t;
 using dt_conf_t = conv::dt_conf_t;
 
-int doit(const prb_t *prb, res_t *res);
+int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        const prb_t *prb, res_t *res);
+int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        const prb_t *prb, res_t *res);
 
 } // namespace conv_dw_fusion
 

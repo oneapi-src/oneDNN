@@ -20,6 +20,7 @@
 
 #include "dnnl_common.hpp"
 #include "utils/parser.hpp"
+#include "utils/task_executor.hpp"
 
 #include "bnorm/bnorm.hpp"
 #include "lnorm/lnorm.hpp"
@@ -28,7 +29,17 @@ using namespace bnorm;
 
 namespace lnorm {
 
-void check_correctness(const settings_t &s) {
+using create_func_t = std::function<int(
+        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, const prb_t *,
+        res_t *)>;
+using do_func_t = std::function<int(
+        const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &,
+        const prb_t *, res_t *)>;
+using driver_task_executor_t
+        = task_executor_t<prb_t, perf_report_t, create_func_t, do_func_t>;
+
+void check_correctness(
+        const settings_t &s, driver_task_executor_t &task_executor) {
     for_(const auto &i_dir : s.dir)
     for_(const auto &i_dt : s.dt)
     for_(const auto &i_tag : s.tag)
@@ -44,17 +55,8 @@ void check_correctness(const settings_t &s) {
         const prb_t prb(s.prb_dims, i_tag, i_stat_tag, i_dir, i_dt, i_flags,
                 attr, i_ctx_init, i_ctx_exe, i_inplace, s.check_alg);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
-        BENCHDNN_PRINT(1, "run: %s\n", prb.str());
 
-        res_t res {};
-        doit(&prb, &res);
-
-        parse_result(res, prb.str());
-
-        if (has_bench_mode_bit(mode_bit_t::perf)) {
-            perf_report_t pr(&prb, s.perf_template);
-            pr.report(&res, prb.str());
-        }
+        task_executor.submit(prb, s.perf_template, createit, doit);
     }
 }
 
@@ -92,6 +94,7 @@ int bench(int argc, char **argv) {
     using namespace parser;
     static settings_t s;
     static const settings_t def {};
+    driver_task_executor_t task_executor;
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])
@@ -117,9 +120,11 @@ int bench(int argc, char **argv) {
             parse_prb_dims(s.prb_dims, argv[0]);
 
             SAFE(verify_input(s), WARN);
-            check_correctness(s);
+            check_correctness(s, task_executor);
         }
     }
+
+    task_executor.flush();
 
     return parse_last_argument();
 }

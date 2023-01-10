@@ -370,17 +370,19 @@ std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
     return check_kinds;
 }
 
-int doit(const prb_t *prb, res_t *res) {
-    if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
-
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
-    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (bench_mode == bench_mode_t::init) return OK;
-
+int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        const prb_t *prb, res_t *res) {
+    v_prim.resize(2); // regular + cpu_ref
+    SAFE(init_prim(prb->ctx_init, v_prim[0], init_pd, prb, res), WARN);
     // Use CPU prim as the reference in GPU testing to reduce testing time.
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim_ref;
-    SAFE(init_prim_ref(prim_ref, prb), WARN);
+    SAFE(init_prim_ref(v_prim[1], prb), WARN);
+    return OK;
+}
+
+int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        const prb_t *prb, res_t *res) {
+    const auto &prim = v_prim[0];
+    const auto &prim_ref = v_prim[1];
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));

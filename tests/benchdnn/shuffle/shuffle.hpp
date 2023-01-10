@@ -156,7 +156,10 @@ void skip_invalid_prb(const prb_t *prb, res_t *res);
 void compute_ref(const prb_t *prb, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
 
-int doit(const prb_t *prb, res_t *res);
+int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        const prb_t *prb, res_t *res);
+int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 } // namespace shuffle
 

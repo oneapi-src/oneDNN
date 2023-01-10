@@ -249,14 +249,38 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
     return OK;
 }
 
-int doit(const prb_t *prb, res_t *res) {
-    if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
+int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        const prb_t *prb, res_t *res) {
+    v_prim.resize(3); // fused + 2 unfused
 
-    // Original problem with fusion attributes
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prb->ctx_init, prim, conv::init_pd, prb, res), WARN);
-    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (bench_mode == bench_mode_t::init) return OK;
+    SAFE(init_prim(prb->ctx_init, v_prim[0], conv::init_pd, prb, res), WARN);
+
+    // Fill first convolution
+    std::unique_ptr<prb_t> prb0 = get_first_conv_prb(prb);
+    if (!prb0) SAFE(FAIL, WARN);
+
+    SAFE(init_prim(prb->ctx_init, v_prim[1], conv::init_pd, prb0.get(), res,
+                 FLAG_FWD, nullptr,
+                 /* is_service_prim = */ true),
+            WARN);
+
+    // Fill next convolution
+    std::unique_ptr<prb_t> prb1 = get_fused_conv_prb(prb);
+    if (!prb1) SAFE(FAIL, WARN);
+
+    SAFE(init_prim(prb->ctx_init, v_prim[2], conv::init_pd, prb1.get(), res,
+                 FLAG_FWD, nullptr,
+                 /* is_service_prim = */ true),
+            WARN);
+
+    return OK;
+}
+
+int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        const prb_t *prb, res_t *res) {
+    const auto &prim = v_prim[0];
+    const auto &prim0 = v_prim[1];
+    const auto &prim1 = v_prim[2];
 
     dnn_mem_map_t mem_map;
     init_memory_args<prb_t>(
@@ -264,13 +288,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Fill first convolution
     std::unique_ptr<prb_t> prb0 = get_first_conv_prb(prb);
-
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim0;
-    SAFE(init_prim(prb->ctx_init, prim0, conv::init_pd, prb0.get(), res,
-                 FLAG_FWD, nullptr,
-                 /* is_service_prim = */ true),
-            WARN);
-    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (!prb0) SAFE(FAIL, WARN);
 
     dnn_mem_map_t mem_map0;
     init_memory_args<prb_t>(
@@ -279,13 +297,6 @@ int doit(const prb_t *prb, res_t *res) {
     // Fill next convolution
     std::unique_ptr<prb_t> prb1 = get_fused_conv_prb(prb);
     if (!prb1) SAFE(FAIL, WARN);
-
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim1;
-    SAFE(init_prim(prb->ctx_init, prim1, conv::init_pd, prb1.get(), res,
-                 FLAG_FWD, nullptr,
-                 /* is_service_prim = */ true),
-            WARN);
-    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     dnn_mem_map_t mem_map1;
     init_memory_args<prb_t>(

@@ -570,26 +570,34 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     return OK;
 }
 
-int doit(const prb_t *prb, res_t *res) {
-    if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
-
-    benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    bool is_service_prim = prb->dir & FLAG_BWD;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res, FLAG_FWD, nullptr,
-                 is_service_prim),
+int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        const prb_t *prb, res_t *res) {
+    v_prim.resize(2); // just fwd or fwd + bwd.
+    SAFE(init_prim(prb->ctx_init, v_prim[0], init_pd, prb, res, FLAG_FWD,
+                 nullptr, /* is_service_prim = */ prb->dir & FLAG_BWD),
             WARN);
-    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    if (!is_service_prim && bench_mode == bench_mode_t::init) return OK;
+    if (prb->dir & FLAG_BWD) {
+        SAFE(init_prim(prb->ctx_init, v_prim[1], init_pd, prb, res, FLAG_BWD,
+                     query_pd(v_prim[0])),
+                WARN);
+    }
+    return OK;
+}
+
+int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        const prb_t *prb, res_t *res) {
+    const auto &prim = prb->dir & FLAG_FWD ? v_prim[0] : v_prim[1];
 
     dnn_mem_map_t mem_map, ref_mem_map;
-    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(FLAG_FWD));
-    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, FLAG_FWD),
+    init_memory_args<prb_t>(
+            mem_map, prb, v_prim[0], supported_exec_args(FLAG_FWD));
+    SAFE(init_ref_memory_args(
+                 ref_mem_map, mem_map, v_prim[0], prb, res, FLAG_FWD),
             WARN);
 
     args_t args(mem_map), ref_args(ref_mem_map);
 
-    if (bench_mode != bench_mode_t::init)
-        SAFE(execute_and_wait(prim, args, res), WARN);
+    SAFE(execute_and_wait(v_prim[0], args, res), WARN);
 
     // Running ref to collect src_hat (used instead of src + mean) and ws, if
     // fuse_relu flag is requested.
@@ -601,6 +609,7 @@ int doit(const prb_t *prb, res_t *res) {
                 kinds.push_back(VAR);
             }
 
+            // TODO: make kinds empty for BWD?
             check_correctness(prb, kinds, args, ref_args, setup_cmp, res);
 
             if (prb->debug_check_ws) check_fwd_ws(mem_map, res);
@@ -608,25 +617,17 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     if (prb->dir & FLAG_BWD) {
-        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> tmp_prim;
-        SAFE(init_prim(prb->ctx_init, tmp_prim, init_pd, prb, res, FLAG_BWD,
-                     query_pd(prim)),
-                WARN);
-        if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-        if (bench_mode == bench_mode_t::init) return OK;
-        prim.reset(tmp_prim.release());
-
         // Pass same memory map as we need data from forward on backward.
         init_memory_args<prb_t>(
-                mem_map, prb, prim, supported_exec_args(FLAG_BWD));
+                mem_map, prb, v_prim[1], supported_exec_args(FLAG_BWD));
         SAFE(init_ref_memory_args(
-                     ref_mem_map, mem_map, prim, prb, res, FLAG_BWD),
+                     ref_mem_map, mem_map, v_prim[1], prb, res, FLAG_BWD),
                 WARN);
 
         args = args_t(mem_map);
         ref_args = args_t(ref_mem_map);
 
-        SAFE(execute_and_wait(prim, args, res), WARN);
+        SAFE(execute_and_wait(v_prim[1], args, res), WARN);
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
             std::vector<data_kind_t> kinds {SRC};
