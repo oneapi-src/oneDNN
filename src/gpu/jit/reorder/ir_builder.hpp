@@ -79,6 +79,13 @@ private:
         return (hw_cfg.hw() <= ngen::HW::XeHPG && dst != src) ? 1024 : 2048;
     }
 
+    static dim_t count_block_messages(
+            const exec_config_t &exec_cfg, dim_t bytes, dim_t iterations);
+    static dim_t count_scattered_messages(
+            const exec_config_t &exec_cfg, dim_t bytes, dim_t iterations);
+    static dim_t message_latency(const exec_config_t &exec_cfg,
+            const layout_t &l, const tensor_t &t);
+
     exec_config_t exec_cfg_;
     grid_info_t kernel_grid_;
     grid_info_t tg_grid_;

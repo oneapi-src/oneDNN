@@ -41,6 +41,91 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
+dim_t reorder_ir_builder_t::count_block_messages(
+        const exec_config_t &exec_cfg, dim_t inner_bytes, dim_t iterations) {
+    const auto max_block_owords = exec_cfg.grf_size() / 2;
+    const auto oword_size = 16;
+    const auto owords_per_grf = exec_cfg.grf_size() / oword_size;
+
+    dim_t block_owords = max_block_owords / 2;
+    auto inner_owords = inner_bytes / oword_size;
+    dim_t messages = inner_owords / max_block_owords;
+    inner_owords -= messages * max_block_owords;
+    // If iterations != 1, tail block messages must end on a grf boundary
+    const dim_t lower_bound = iterations == 1 ? 1 : owords_per_grf;
+    for (; block_owords >= lower_bound; block_owords >>= 1) {
+        if (inner_owords >= block_owords) {
+            inner_owords -= block_owords;
+            messages++;
+        }
+    }
+    ir_assert(inner_owords == 0);
+    return messages * iterations;
+}
+
+dim_t reorder_ir_builder_t::count_scattered_messages(
+        const exec_config_t &exec_cfg, dim_t inner_bytes, dim_t iterations) {
+    const auto max_block_items = exec_cfg.grf_size() / 2;
+    int item_size = 8;
+
+    // Find the largest uint size we can use
+    for (; item_size > 1; item_size >>= 1) {
+        if (inner_bytes % item_size == 0) break;
+    }
+
+    dim_t block_items = max_block_items / 2;
+    auto inner_items = (iterations * inner_bytes) / item_size;
+    dim_t messages = (inner_items + (block_items - 1)) / max_block_items;
+    inner_items -= std::min(inner_items, messages * max_block_items);
+    for (; block_items >= (dim_t)2; block_items >>= 1) {
+        if (inner_items > block_items / 2) {
+            inner_items -= std::min(inner_items, block_items);
+            messages++;
+        }
+    }
+    if (inner_items) messages++;
+    return messages;
+}
+
+dim_t reorder_ir_builder_t::message_latency(
+        const exec_config_t &exec_cfg, const layout_t &l, const tensor_t &t) {
+    const auto grf_size = exec_cfg.grf_size();
+    const int scattered_message_penalty = 4;
+    bool can_use_block_messages = true;
+    std::vector<dim_t> outer = t.dims();
+    dim_t inner_elems = 1;
+
+    for (auto &blk : l.blocks()) {
+        auto block = blk.block;
+        auto dim_idx = blk.dim_idx;
+        if (block == 1) continue;
+        if (outer[dim_idx] < block) {
+            if (block % outer[dim_idx] == 0) {
+                inner_elems *= outer[dim_idx];
+                outer[dim_idx] = 1;
+            }
+            break;
+        }
+
+        can_use_block_messages &= (outer[dim_idx] % block == 0);
+        inner_elems *= block;
+        outer[dim_idx] = utils::div_up(outer[dim_idx], block);
+    }
+
+    auto type_size = l.type().scalar().size();
+    auto inner_bytes = inner_elems * type_size;
+    auto iterations = tensor_t(outer).elems();
+    can_use_block_messages &= (inner_bytes % 16 == 0);
+    can_use_block_messages &= (iterations == 1 || inner_bytes % grf_size == 0);
+
+    if (inner_bytes == 0 || iterations == 0) return 0;
+
+    return can_use_block_messages
+            ? count_block_messages(exec_cfg, inner_bytes, iterations)
+            : count_scattered_messages(exec_cfg, inner_bytes, iterations)
+                    * scattered_message_penalty;
+}
+
 void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
         const layout_t &src, const layout_t &dst, std::vector<int> &iter_blocks,
         std::vector<int> &loop_blocks, std::vector<int> &tg_blocks,
@@ -141,10 +226,29 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
         if (tile.elems() > max_thr_tile_elems) break;
         candidate_tiles.push_back(tile);
     }
-
     ir_assert(!candidate_tiles.empty());
+
+    const auto eu_count = exec_cfg.hw_cfg().eu_count();
     std::sort(candidate_tiles.begin(), candidate_tiles.end(),
-            [](const tensor_t &a, const tensor_t &b) {
+            [&](const tensor_t &a, const tensor_t &b) {
+                auto a_threads_reqd = padded_src.elems() / a.elems();
+                auto b_threads_reqd = padded_src.elems() / b.elems();
+                auto a_eu_util = utils::div_up(a_threads_reqd, eu_count);
+                auto b_eu_util = utils::div_up(b_threads_reqd, eu_count);
+                auto a_msg_load = message_latency(exec_cfg, padded_src, a)
+                        + message_latency(exec_cfg, padded_dst, a);
+                auto b_msg_load = message_latency(exec_cfg, padded_src, b)
+                        + message_latency(exec_cfg, padded_dst, b);
+
+                // Choose tiles with less message overhead per thread
+                if (a_eu_util * a_msg_load != b_eu_util * b_msg_load)
+                    return (a_eu_util * a_msg_load < b_eu_util * b_msg_load);
+
+                // Choose tiles with more bytes per message
+                if (a.elems() * b_msg_load != b.elems() * a_msg_load)
+                    return (a.elems() * b_msg_load > b.elems() * a_msg_load);
+
+                // If all else fails, go with the bigger tile
                 return a.elems() > b.elems();
             });
 
