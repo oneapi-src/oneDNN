@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -155,7 +155,9 @@ struct ip_convolution_fwd_t : public primitive_t {
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         pd_t(const pd_t &other)
-            : cpu_convolution_fwd_pd_t(other), ip_pd_(other.ip_pd_->clone()) {}
+            : cpu_convolution_fwd_pd_t(other)
+            , ip_pd_(other.ip_pd_->clone())
+            , name_(other.name_) {}
 
         ~pd_t() = default;
 
