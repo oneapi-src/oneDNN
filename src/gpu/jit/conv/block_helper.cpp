@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -429,7 +429,9 @@ void block_helper_t::init_bmnk_blocks() {
             ir_assert(vectorize_by_n())
                     << "dpas can support N vectorization only.";
             int max_iter_dim = prb_max_dim('M', tile_level_t::iter);
-            int target_m_blk = reduce_m_block ? 16 : 32;
+            int target_m_blk = reduce_m_block ? 16
+                    : expand_m_block_hint_    ? 64
+                                              : 32;
             if (max_iter_dim % target_m_blk != 0 && max_iter_dim > 32) {
                 float max_utilization_rate = 0.;
                 for (int i

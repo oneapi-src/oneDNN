@@ -1442,6 +1442,8 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
         bh.set_base_iter_block(osp_name, 16);
     }
 
+    if (prb.oc == 1 && prb.ic == 1) { bh.set_expand_m_block_hint(); }
+
     if (cfg.ow_kw_grf_cache()) {
         bh.set_base_iter_block("mb", 1);
         bh.dim("mb").set_iter_dim(1);
@@ -1514,6 +1516,12 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
         if (!cfg.send_2d_nhwc() && prb.mb >= 128
                 && (spatial_dim % 4 != 0 || spatial_dim < 64))
             bh.allow_split({"mb"});
+        if (bh.expand_m_block_hint()) {
+            // allow splitting for m tg dim
+            bh.allow_split({osp_name, "mb"});
+            // allow fusing for m iter dim
+            bh.allow_fuse({osp_name, "mb"});
+        }
     }
 
     if (prb.mb < 8 && !bh.any_pref_tg_block())

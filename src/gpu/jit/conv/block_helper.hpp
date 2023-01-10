@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -453,6 +453,9 @@ public:
         return false;
     }
 
+    void set_expand_m_block_hint() { expand_m_block_hint_ = true; }
+    bool expand_m_block_hint() { return expand_m_block_hint_; }
+
     void set_reduce_m_block_hint(bool value = true) {
         reduce_m_block_hint_ = value;
         reduce_m_block_hint_set_ = true;
@@ -716,6 +719,8 @@ private:
     // BMNK dimensions.
     static const int bmnk_length = 4;
     dim_info_t bmnk_dims_[bmnk_length];
+
+    bool expand_m_block_hint_ = false;
 
     bool reduce_m_block_hint_;
     bool reduce_m_block_hint_set_ = false;
