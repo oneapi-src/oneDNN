@@ -209,7 +209,12 @@ struct ip_convolution_fwd_t : public primitive_t {
     private:
         std::string name_ = "ip:";
 
-        void init_name() { name_.append(ip_pd_->name()); }
+        void init_name() {
+            const std::string ips(ip_pd_->name());
+            const std::string prefix = "x64:";
+            const size_t pos = ips.find(prefix);
+            name_.append(ips, pos + prefix.length(), std::string::npos);
+        }
 
         void init_scratchpad() {
             using namespace memory_tracking::names;
