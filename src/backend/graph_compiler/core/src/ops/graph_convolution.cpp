@@ -63,13 +63,23 @@ static void permute_shape_XIO2OIX(sc_dims &shape) {
     shape[1] = in_channel;
 }
 
-static sc_data_type_t infer_out_dtype(
+static sc_data_type_t check_and_infer_out_dtype(
         const sc_data_type_t &src_dtype, const sc_data_type_t &wei_dtype) {
-    if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)
-            && wei_dtype == datatypes::s8) {
-        return datatypes::s32;
+    if (utils::is_one_of(src_dtype, datatypes::u8, datatypes::s8)) {
+        COMPILE_ASSERT(wei_dtype == datatypes::s8,
+                "wei_dtype expected to be s8 when src_dtype is u8/s8,but got "
+                        << wei_dtype << ".");
+        return src_dtype;
+    } else if (src_dtype == datatypes::bf16) {
+        COMPILE_ASSERT(wei_dtype == datatypes::bf16,
+                "wei_dtype expected to be bf16 when src_dtype is bf16, but got "
+                        << wei_dtype << ".");
+        return datatypes::bf16;
     } else {
-        // both f32 and bf16 inputs generate f32 output
+        COMPILE_ASSERT(
+                src_dtype == datatypes::f32 && wei_dtype == datatypes::f32,
+                " src_dtype and wei_dtype are expected to be f32, but got "
+                        << src_dtype << " and " << wei_dtype << ".");
         return datatypes::f32;
     }
 }
@@ -79,8 +89,8 @@ sc_dims conv_fwd_op_t::infer_out_dims(sc_graph_t &owner_graph,
         const sc_dims &pads_begin, const sc_dims &pads_end,
         const sc_dims &strides, const std::string &data_format,
         const std::string &filter_format) {
-    // logic besides conv_fwd_core_op_t::infer_out_dims will not be affected by
-    // dynamic shape
+    // logic besides conv_fwd_core_op_t::infer_out_dims will not be affected
+    // by dynamic shape
     sc_dims input_dims_copy = input_dims;
     sc_dims filter_dims_copy = filter_dims;
     if (data_format == "NXC") { permute_shape_NXC2NCX(input_dims_copy); }
@@ -118,9 +128,9 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
             attrs_.set<sc_dims>("pads_begin", sc_dims(ndims - 2, 0));
             attrs_.set<sc_dims>("pads_end", sc_dims(ndims - 2, 0));
         } else if (pad_type == "SAME_UPPER" || pad_type == "SAME_LOWER") {
-            // we must infer_auto_pad here instead of passing the infer_auto_pad
-            // logic to conv_fwd_core after lowering, because infer_out_dims
-            // below depends on pads_begin and pads_end
+            // we must infer_auto_pad here instead of passing the
+            // infer_auto_pad logic to conv_fwd_core after lowering, because
+            // infer_out_dims below depends on pads_begin and pads_end
             sc_dims input_dims_copy = input_dims;
             sc_dims filter_dims_copy = filter_dims;
             if (data_format == "NXC") {
@@ -139,23 +149,25 @@ conv_fwd_op_t::conv_fwd_op_t(const std::vector<graph_tensor_ptr> &ins,
     // use pads related attributes
     sc_dims pads_begin = attrs_.get<sc_dims>("pads_begin");
     sc_dims pads_end = attrs_.get<sc_dims>("pads_end");
-    // we must infer_out_dims even when pad_type is SAME_UPPER or SAME_LOWER,
-    // because output shape will be different from inputs shape when stride > 1
+    // we must infer_out_dims even when pad_type is SAME_UPPER or
+    // SAME_LOWER, because output shape will be different from inputs shape
+    // when stride > 1
     auto expected_out_shape
             = infer_out_dims(get_owner_graph(), input_dims, filter_dims,
                     pads_begin, pads_end, strides, data_format, filter_format);
-    auto out_dtype = infer_out_dtype(info_.inputs_[0]->details_.dtype_,
-            info_.inputs_[1]->details_.dtype_);
+    auto expected_out_dtype
+            = check_and_infer_out_dtype(info_.inputs_[0]->details_.dtype_,
+                    info_.inputs_[1]->details_.dtype_);
     if (outs.empty()) {
-        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(
-                this, sc_data_format_t(), expected_out_shape, out_dtype));
+        info_.outputs_.emplace_back(std::make_shared<graph_tensor>(this,
+                sc_data_format_t(), expected_out_shape, expected_out_dtype));
     } else {
         COMPILE_ASSERT(
                 info_.outputs_.size() == 1, "convolution expects 1 output.");
         COMPILE_ASSERT(info_.outputs_[0]->details_.get_plain_dims()
                         == expected_out_shape,
                 "Bad output shape for convolution");
-        COMPILE_ASSERT(info_.outputs_[0]->details_.dtype_ == out_dtype,
+        COMPILE_ASSERT(info_.outputs_[0]->details_.dtype_ == expected_out_dtype,
                 "Bad output dtype for convolution");
     }
 }
@@ -169,15 +181,11 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     sc_op_ptr conv, graph_out;
     graph_tensor_ptr input = inputs[0], filter = inputs[1];
 
-    bool is_bf16 = inputs[0]->details_.dtype_ == datatypes::bf16;
-    if (is_bf16) {
-        COMPILE_ASSERT(inputs[1]->details_.dtype_ == datatypes::bf16,
-                "weights shall have the same datatype as input.")
-    }
+    bool is_bf16 = input->details_.dtype_ == datatypes::bf16;
     auto data_format = attrs_.get_or_else("data_format", std::string("NXC"));
     auto filter_format
             = attrs_.get_or_else("weights_format", std::string("XIO"));
-    auto dim = inputs[0]->details_.get_plain_dims().size();
+    auto dim = input->details_.get_plain_dims().size();
     COMPILE_ASSERT(dim == 3 || dim == 4 || dim == 5,
             "Only support conv1D, conv2D and conv3D.");
     auto is_3D = (dim == 5);
@@ -229,7 +237,8 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                 "Convolution op's bias shall be 1D tensor.")
         if (is_bf16) {
             COMPILE_ASSERT(inputs[2]->details_.dtype_ == datatypes::bf16,
-                    "Bias should have the same data type as input and filter.")
+                    "Bias should have the same data type as input and "
+                    "filter.")
         }
 
         int channel_axis = data_format == "NCX" ? 1 : dim - 1;
@@ -252,14 +261,16 @@ void conv_fwd_op_t::query_format(context_ptr ctx,
 conv_bwd_data_op_t::conv_bwd_data_op_t(const std::vector<graph_tensor_ptr> &ins,
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     COMPILE_ASSERT(ins.size() == 2 || ins.size() == 3,
-            "conv_bwd_data's inputs size should be 2(output_delta, filter) or "
+            "conv_bwd_data's inputs size should be 2(output_delta, filter) "
+            "or "
             "3(output_delta, filter, output_shape).");
     info_.inputs_ = ins;
     info_.outputs_ = outs;
     attrs_ = attrs;
     op_name_ = "conv_bwd_data";
     COMPILE_ASSERT(attrs_.has_key("dst_shape"),
-            "conv_bwd_data currently does not support reading dynamic shape "
+            "conv_bwd_data currently does not support reading dynamic "
+            "shape "
             "passed as one of the input.");
     auto out_shape = attrs_.get<sc_dims>("dst_shape");
     auto out_dtype = info_.inputs_[0]->details_.dtype_;
@@ -376,13 +387,15 @@ conv_bwd_weight_op_t::conv_bwd_weight_op_t(
         const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
     COMPILE_ASSERT(ins.size() == 2 || ins.size() == 3,
             "conv_bwd_weight's inputs size should be 2(input_forward, "
-            "output_delta) or 3(input_forward, output_delta, filter_shape).");
+            "output_delta) or 3(input_forward, output_delta, "
+            "filter_shape).");
     info_.inputs_ = ins;
     info_.outputs_ = outs;
     attrs_ = attrs;
     op_name_ = "conv_bwd_weight";
     COMPILE_ASSERT(attrs_.has_key("weights_shape"),
-            "conv_bwd_weight currently does not support reading dynamic shape "
+            "conv_bwd_weight currently does not support reading dynamic "
+            "shape "
             "passed as one of the input.");
     auto out_shape = attrs_.get<sc_dims>("weights_shape");
     auto out_dtype = info_.inputs_[0]->details_.dtype_;

@@ -1304,7 +1304,9 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
         }
         COMPILE_ASSERT(new_param.size() == params.size(),
                 "The args count does not match the count of in/out "
-                "tensors");
+                "tensors, new_param.size="
+                        << new_param.size()
+                        << ", param.size()=" << params.size() << ".");
         params = std::move(new_param);
     }
     if (!init_body->seq_.empty()) {
