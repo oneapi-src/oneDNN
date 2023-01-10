@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,13 +29,17 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
+#define VCHECK_IP(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, ip, (cond), status::invalid_arguments, \
+            msg, ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc) {
-    bool args_ok = !any_null(ip_desc, src_desc, weights_desc, dst_desc);
-    if (!args_ok) return invalid_arguments;
+    VCHECK_IP(!any_null(ip_desc, src_desc, weights_desc, dst_desc),
+            VERBOSE_NULL_ARG);
 
     auto id = inner_product_desc_t();
     id.primitive_kind = primitive_kind::inner_product;
@@ -57,7 +61,8 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
     if (with_bias)
         runtime_dims_or_strides = runtime_dims_or_strides
                 || memory_desc_wrapper(bias_desc).has_runtime_dims_or_strides();
-    if (runtime_dims_or_strides) return unimplemented;
+    VCONDCHECK(create, check, ip, !runtime_dims_or_strides,
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     (prop_kind == backward_data ? id.diff_src_desc : id.src_desc) = *src_desc;
     (is_fwd ? id.dst_desc : id.diff_dst_desc) = *dst_desc;
@@ -69,18 +74,27 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
 
     id.accum_data_type = types::default_accum_data_type(src_desc->data_type,
             weights_desc->data_type, dst_desc->data_type, prop_kind);
-    if (id.accum_data_type == data_type::undef) return invalid_arguments;
+    VCHECK_IP(id.accum_data_type != data_type::undef, VERBOSE_INVALID_DATATYPE,
+            "accumulation");
 
-    bool consistency = true && memory_desc_wrapper(weights_desc).nelems()
-            && one_of(src_desc->ndims, 2, 3, 4, 5) && dst_desc->ndims == 2
-            && weights_desc->ndims == src_desc->ndims
-            && (with_bias ? bias_desc->ndims == 1 : true)
-            && (with_bias ? bias_desc->dims[0] == dst_desc->dims[1] : true)
-            && src_desc->dims[0] == dst_desc->dims[0]
-            && array_cmp(&src_desc->dims[1], &weights_desc->dims[1],
-                    src_desc->ndims - 1)
-            && dst_desc->dims[1] == weights_desc->dims[0];
-    if (!consistency) return invalid_arguments;
+    VCHECK_IP(memory_desc_wrapper(weights_desc).nelems(), VERBOSE_EMPTY_TENSOR,
+            "weights");
+    VCHECK_IP(one_of(src_desc->ndims, 2, 3, 4, 5), VERBOSE_BAD_NDIMS, "src",
+            src_desc->ndims);
+    VCHECK_IP(dst_desc->ndims == 2, VERBOSE_BAD_NDIMS, "dst", dst_desc->ndims);
+    VCHECK_IP(weights_desc->ndims == src_desc->ndims,
+            VERBOSE_INCONSISTENT_NDIMS, "weights", "src");
+    VCHECK_IP((with_bias ? bias_desc->ndims == 1 : true), VERBOSE_BAD_NDIMS,
+            "bias", bias_desc->ndims);
+    VCHECK_IP((with_bias ? bias_desc->dims[0] == dst_desc->dims[1] : true),
+            VERBOSE_INCONSISTENT_DIM, "bias", 0, "dst", 1);
+    VCHECK_IP(src_desc->dims[0] == dst_desc->dims[0], VERBOSE_INCONSISTENT_DIM,
+            "src", 0, "dst", 0);
+    VCHECK_IP(array_cmp(&src_desc->dims[1], &weights_desc->dims[1],
+                      src_desc->ndims - 1),
+            VERBOSE_INCONSISTENT_DIM, "src", -1, "weights", -1);
+    VCHECK_IP(dst_desc->dims[1] == weights_desc->dims[0],
+            VERBOSE_INCONSISTENT_DIM, "dst", 1, "weights", 0);
 
     *ip_desc = id;
     return success;
