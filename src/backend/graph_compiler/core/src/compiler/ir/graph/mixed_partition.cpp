@@ -2740,11 +2740,12 @@ static bool validate_optimized_reduce(
     return true;
 }
 
-bool need_optimize_loop_order_for_ops(const mixed_parti_t *parti) {
+bool need_optimize_loop_order_for_ops(
+        const mixed_parti_t *parti, bool allow_tensorview) {
     return parti->contain_op_with_type<reduce_op_t>()
             && std::all_of(parti->ops.begin(), parti->ops.end(),
-                    [&parti](const sc_op_ptr &op) {
-                        if (op->isa<tensor_view_op_t>()) {
+                    [&parti, allow_tensorview](const sc_op_ptr &op) {
+                        if (allow_tensorview && op->isa<tensor_view_op_t>()) {
                             return parti->is_parti_out(op->get_outputs()[0])
                                     || parti->is_parti_inp(op->get_inputs()[0]);
                         } else {

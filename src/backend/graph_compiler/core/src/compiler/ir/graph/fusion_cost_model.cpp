@@ -82,8 +82,8 @@ bool fusion_cost_model::make_decision_for_parti(const mixed_parti_t *parti,
     COMPILE_ASSERT(merge_kind == parti_merge_kind::vertical,
             "No cost metric found for parallel merge")
     // in avoid of loss for loop optimize opportunity
-    if (need_optimize_loop_order_for_ops(binded_mxp_)
-            ^ need_optimize_loop_order_for_ops(parti)) {
+    if (need_optimize_loop_order_for_ops(binded_mxp_, true)
+            ^ need_optimize_loop_order_for_ops(parti, true)) {
         return false;
     }
 

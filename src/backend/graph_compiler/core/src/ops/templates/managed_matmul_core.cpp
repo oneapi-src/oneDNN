@@ -128,7 +128,22 @@ config_ptr gen_managed_matmul_core_t::get_default_config(
   }
   cfg.M_split_num = num_threads / split_n;
   cfg.N_split_num = split_n;
-  if (is_int8 && N <= 512 && K <= 512) {
+  if (M == iim_block && num_threads <= 4) {
+    cfg.M_split_num = 1;
+    // magic number = 4096, needs to be further discussed for pretty big K
+    if (K < 4096) {
+      cfg.N_split_num = num_threads;
+    } else {
+      for (auto i : get_splits(num_threads)) {
+        float new_cost
+          = std::abs(float(i * i) / float(num_threads) - float(N) / float(K));
+        if (new_cost < cost) {
+          cfg.N_split_num = i;
+          cost = new_cost;
+        }
+      }
+    }
+  } else if (is_int8 && N <= 512 && K <= 512) {
     // for int8 datatype and small N/Ks, we prefer to give splits only on M
     cfg.M_split_num = num_threads;
     cfg.N_split_num = 1;

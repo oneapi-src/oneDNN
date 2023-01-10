@@ -405,7 +405,8 @@ size_t get_buffer_usage_from_trace(
         const std::vector<memory_optim::memory_alloc_trace_t> &mem_trace,
         const context_ptr &ctx);
 
-bool need_optimize_loop_order_for_ops(const mixed_parti_t *parti);
+bool need_optimize_loop_order_for_ops(
+        const mixed_parti_t *parti, bool allow_tensorview = false);
 
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph);
 

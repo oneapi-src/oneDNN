@@ -193,7 +193,7 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
     attrs_ = attrs;
     auto shapes = attrs_.get<sc_dims>("shape");
     auto format = attrs.get_or_else("format", sc_data_format_t());
-    int total_shape1 = 1, total_shape2 = 1;
+    int total_shape1 = 1, total_shape2 = 1, total_shape3 = 1;
     for (auto &dim : sc_data_format_t::get_padded_plain_shapes(
                  ins[0]->details_.get_blocking_dims(), cache_input_format)) {
         total_shape1 *= dim;
@@ -201,7 +201,15 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
     for (auto &dim : shapes) {
         total_shape2 *= dim;
     }
-    COMPILE_ASSERT(is_dynamic() || total_shape1 == total_shape2,
+    if (!outs.empty()) {
+        for (auto &dim : sc_data_format_t::get_padded_plain_shapes(
+                     outs[0]->details_.get_blocking_dims(),
+                     outs[0]->details_.get_format())) {
+            total_shape3 *= dim;
+        }
+    }
+    COMPILE_ASSERT(is_dynamic() || total_shape1 == total_shape2
+                    || (!outs.empty() && total_shape1 == total_shape3),
             "Wrong total size of input shapes, can not do reshape plain dims "
             "from " << utils::print_vector(ins[0]->details_.get_plain_dims())
                     << " to " << utils::print_vector(shapes));
