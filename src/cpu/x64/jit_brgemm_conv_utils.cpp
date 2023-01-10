@@ -48,7 +48,7 @@ using namespace data_type;
 namespace brgemm_convolution_utils {
 
 bool is_any_eligible(const jit_brgemm_conv_conf_t &jcp) {
-    return (jcp.prop_kind == prop_kind::forward_inference
+    return (jcp.prop_kind == prop_kind::forward_inference || jcp.wei_plain
             || one_of(jcp.wei_dt, data_type::s8, data_type::f16)
             || (jcp.isa == avx2_vnni_2) || is_amx(jcp.isa));
 }
@@ -123,17 +123,17 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
     const bool is_3d = jcp.ndims == 5;
 
     if (jcp.wei_plain) {
-        jcp.LDB = jcp.oc;
+        jcp.LDB = jcp.oc_without_padding;
         if (is_3d) {
             switch (vnni_granularity) {
-                case 1: wei_tag = with_groups ? gdhwio : dhwio; break;
+                case 1: wei_tag = with_groups ? dhwigo : dhwio; break;
                 case 2: wei_tag = with_groups ? gdhwIo2i : dhwIo2i; break;
                 case 4: wei_tag = with_groups ? gdhwIo4i : dhwIo4i; break;
                 default: return status::unimplemented;
             }
         } else if (is_1d) {
             switch (vnni_granularity) {
-                case 1: wei_tag = with_groups ? gwio : wio; break;
+                case 1: wei_tag = with_groups ? wigo : wio; break;
                 case 2: wei_tag = with_groups ? gwIo2i : wIo2i; break;
                 case 4: wei_tag = with_groups ? gwIo4i : wIo4i; break;
                 default: return status::unimplemented;
@@ -142,7 +142,7 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
             assert(is_2d);
             UNUSED(is_2d);
             switch (vnni_granularity) {
-                case 1: wei_tag = with_groups ? ghwio : hwio; break;
+                case 1: wei_tag = with_groups ? hwigo : hwio; break;
                 case 2: wei_tag = with_groups ? ghwIo2i : hwIo2i; break;
                 case 4: wei_tag = with_groups ? ghwIo4i : hwIo4i; break;
                 default: return status::unimplemented;
@@ -719,7 +719,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
             : (kh_sets > 1 ? kh_sets : 1) * (kw_sets > 1 ? kw_sets : stride_w)
                     * (exec_type == exec_trans ? ic_block
                                                : ngroups * ic_without_padding);
-    LDB = oc_block;
+    LDB = wei_plain ? oc_without_padding : oc_block;
     LDC = use_buffer ? oc_block : oc_without_padding;
 
     // Configure matrix sizes
@@ -1819,6 +1819,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.acc_simd_w = isa_max_vlen(isa) / jcp.acc_dsz;
     jcp.is_bf32 = everyone_is(f32, jcp.src_dt, jcp.wei_dt)
             && attr.fpmath_mode_ == fpmath_mode::bf16 && isa == avx512_core_amx;
+    jcp.wei_plain = everyone_is(true, jcp.wei_dt == data_type::f32,
+            is_superset(isa, avx512_core), weights_d.is_plain());
+    if (jcp.wei_plain)
+        CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
 
     brg_blocking_t::last_ic_block_size
             = (jcp.wei_dt == f16 && isa == avx512_core_fp16)
@@ -1918,7 +1922,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf_default;
     jcp.brgemm_bd_loop_innermost = false;
 
-    if (jcp.prop_kind != prop_kind::backward_weights) {
+    if (!jcp.wei_plain && jcp.prop_kind != prop_kind::backward_weights) {
         // fast check data layout before spending time for blocking selection
         format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
         CHECK(init_tag(
@@ -2067,10 +2071,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     // precise calculation of jcp.max_batch
     jcp.max_batch = jcp.kd * jcp.kh * jcp.kw;
 
-    //TODO: check wei plain
-    jcp.wei_plain = false;
-    jcp.wei_plain = jcp.exec_type == exec_vpad ? jcp.wei_plain : false;
-
     bool try_exec_type_res = false;
 
     if (try_exec_vpad) {
@@ -2130,6 +2130,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (try_exec_type_res == false) return status::unimplemented;
 
+    // TODO(keola): Check if other execution types support plain weights.
+    if (jcp.exec_type != exec_vpad && jcp.wei_plain)
+        return status::unimplemented;
+
     // ============ end blocking ===========================================
     if (jcp.exec_type == exec_vpad)
         jcp.max_vpad = nstl::max(jcp.l_pad, jcp.r_pad);
@@ -2147,7 +2151,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.adjusted_batch_size
             = div_up(rnd_up(jcp.gemm_batch_size * sc_size, P4K), sc_size);
 
-    CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
+    if (!jcp.wei_plain)
+        CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
     CHECK(attr.set_default_formats(&dst_md));
 
     const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
@@ -2306,8 +2311,6 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.max_batch = 1;
     jcp.max_vpad = 0;
 
-    jcp.wei_plain = false;
-
     brg_blocking_t best_brgb = zero<decltype(best_brgb)>();
     best_brgb.oc_block = min_oc_block;
     brg_blocking_t cur_brgb = zero<decltype(cur_brgb)>();
@@ -2335,7 +2338,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     // =============== end blocking =================================
     jcp.brg_stride_a = jcp.ic_block * jcp.src_dsz;
-    jcp.brg_stride_b = jcp.ic_block * jcp.oc * jcp.wei_dsz;
+    jcp.brg_stride_b = jcp.ic_block * jcp.oc_without_padding * jcp.wei_dsz;
 
     if (jcp.ic_block == 0 || jcp.oc_block == 0) return status::unimplemented;
 
@@ -2381,7 +2384,8 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (jcp.use_uker)
         jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf1;
-    CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
+    if (!jcp.wei_plain)
+        CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
     CHECK(attr.set_default_formats(&dst_md));
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;

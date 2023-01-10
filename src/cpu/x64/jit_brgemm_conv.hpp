@@ -234,7 +234,7 @@ private:
             KD_BLOCK_PAD, KH_BLOCK_PAD, ID, IH, IW, IDP, IHP, IWP, OD, OH, OW,
             SD, SH, SW, FP, TP, LP, DD, DH, DW;
     dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz;
-    dim_t wei_g_stride, wei_ocb_stride;
+    dim_t wei_g_stride, wei_ic_stride, wei_ocb_stride;
     dim_t wei_kw_stride, wei_kh_stride, wei_kd_stride;
     dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
     dim_t ker_vpad_sz, comp_ocb_sz, comp_ker_sz, comp_kw_sz;

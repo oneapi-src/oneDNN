@@ -190,12 +190,11 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
             ? 1
             : data_type_vnni_granularity(src_type);
 
-    wei_ic_stride = jcp.wei_plain ? jcp.oc : jcp.oc_block;
+    wei_ic_stride = jcp.wei_plain ? jcp.oc_without_padding : jcp.oc_block;
     wei_ocb_stride = jcp.wei_plain
-            ? (dim_t)rnd_up(jcp.ic, last_ic_block) * jcp.oc
+            ? jcp.oc_block
             : (dim_t)rnd_up(jcp.ic, last_ic_block) * jcp.oc_block;
-    wei_g_stride = jcp.wei_plain ? jcp.oc_block * last_ic_block
-                                 : jcp.nb_oc * wei_ocb_stride;
+    wei_g_stride = jcp.wei_plain ? jcp.oc : jcp.nb_oc * wei_ocb_stride;
 
     for (int i = 0; i < 16; i++)
         brg_kernels_[i] = nullptr;

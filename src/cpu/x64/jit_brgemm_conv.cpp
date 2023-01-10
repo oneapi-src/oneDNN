@@ -565,11 +565,13 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     dst_h_sz = OH * dst_w_sz;
     dst_d_sz = OD * dst_h_sz;
 
-    wei_kw_stride = static_cast<dim_t>(jcp.icp) * jcp.oc_block;
+    wei_kw_stride = static_cast<dim_t>(jcp.icp)
+            * (jcp.wei_plain ? jcp.oc_without_padding : jcp.oc_block);
     wei_kh_stride = KW * wei_kw_stride;
     wei_kd_stride = KH * wei_kh_stride;
-    wei_ocb_stride = KD * wei_kd_stride;
-    wei_g_stride = jcp.nb_oc * wei_ocb_stride;
+    wei_ocb_stride = jcp.wei_plain ? jcp.oc_block : KD * wei_kd_stride;
+    wei_g_stride = jcp.wei_plain ? jcp.oc : jcp.nb_oc * wei_ocb_stride;
+    wei_ic_stride = jcp.wei_plain ? jcp.oc_without_padding : jcp.oc_block;
 
     comp_kw_sz = static_cast<dim_t>(jcp.oc_block);
     comp_ker_sz = jcp.ker_ranges_size * comp_kw_sz;
@@ -1491,7 +1493,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
             const auto wei_ic = ic + ic_off;
             const auto n_icb_off = i_icb * k_l;
             const auto src_base_ic = src_base + src_dsz * src_ic;
-            const auto wei_base_ic = wei_base + wei_dsz * wei_ic * jcp.oc_block;
+            const auto wei_base_ic
+                    = wei_base + wei_dsz * wei_ic * wei_ic_stride;
 
             auto k = 0;
             for (int kd = kd_b; kd < kd_e; kd++) {
@@ -1716,7 +1719,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
             const auto pbuf_base_ic = pbuf_base
                     + src_dsz
                             * ((jcp.copy_block_only ? 0 : (i_icb * pbuf_d_sz)));
-            const auto wei_base_ic = wei_base + wei_dsz * wei_ic * jcp.oc_block;
+            const auto wei_base_ic
+                    = wei_base + wei_dsz * wei_ic * wei_ic_stride;
 
             auto k = 0;
             for (int kd = kd_b; kd < kd_e; kd++) {
@@ -1860,7 +1864,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
             const char *const __restrict src_base_ic
                     = src_base + src_dsz * src_ic;
             const char *const __restrict wei_base_ic
-                    = wei_base + wei_dsz * wei_ic * jcp.oc_block;
+                    = wei_base + wei_dsz * wei_ic * wei_ic_stride;
             brgemm_batch_element_t *const __restrict icb_batch
                     = btc.brg_batch + n_icb_off;
 
