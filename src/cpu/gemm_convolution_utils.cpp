@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -446,31 +446,29 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
             // because innermost loop is by width
             for (dim_t ic = 0; ic < cb; ic++) {
                 const data_t *__restrict im_ic = _im + (ic + cs) * im_step;
-                for (dim_t kh = 0; kh < jcp.kh; kh++) {
-                    for (dim_t kw = 0; kw < jcp.kw; kw++) {
-                        data_t *__restrict col_k = _col + ic * col_step
-                                + (kh * jcp.kw + kw) * sb;
-                        for (dim_t oh = oh_begin; oh < oh_end; oh++) {
-                            const dim_t ih = oh * sh - tp + kh * dh;
-                            const data_t *__restrict im_
-                                    = im_ic + ih * jcp.iw - lp + kw * dw;
-                            const dim_t ow_begin
-                                    = (oh == first_oh) ? first_ow : 0;
-                            const dim_t ow_end
-                                    = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
-                            data_t *__restrict col_ = col_k + oh * jcp.ow - ss;
-                            if (ih < 0 || ih >= jcp.ih)
-                                for (dim_t ow = ow_begin; ow < ow_end; ow++)
+                for_(dim_t kh = 0; kh < jcp.kh; kh++)
+                for (dim_t kw = 0; kw < jcp.kw; kw++) {
+                    data_t *__restrict col_k
+                            = _col + ic * col_step + (kh * jcp.kw + kw) * sb;
+                    for (dim_t oh = oh_begin; oh < oh_end; oh++) {
+                        const dim_t ih = oh * sh - tp + kh * dh;
+                        const data_t *__restrict im_
+                                = im_ic + ih * jcp.iw - lp + kw * dw;
+                        const dim_t ow_begin = (oh == first_oh) ? first_ow : 0;
+                        const dim_t ow_end
+                                = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
+                        data_t *__restrict col_ = col_k + oh * jcp.ow - ss;
+                        if (ih < 0 || ih >= jcp.ih)
+                            for (dim_t ow = ow_begin; ow < ow_end; ow++)
+                                col_[ow] = zero_val;
+                        else {
+                            for (dim_t ow = ow_begin; ow < ow_end; ++ow) {
+                                const dim_t iw = ow;
+                                if (iw < lp - kw * dw
+                                        || iw >= jcp.iw + lp - kw * dw)
                                     col_[ow] = zero_val;
-                            else {
-                                for (dim_t ow = ow_begin; ow < ow_end; ++ow) {
-                                    const dim_t iw = ow;
-                                    if (iw < lp - kw * dw
-                                            || iw >= jcp.iw + lp - kw * dw)
-                                        col_[ow] = zero_val;
-                                    else
-                                        col_[ow] = im_[iw];
-                                }
+                                else
+                                    col_[ow] = im_[iw];
                             }
                         }
                     }
@@ -479,33 +477,29 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
         } else {
             for (dim_t ic = 0; ic < cb; ic++) {
                 const data_t *__restrict im_ = _im + (ic + cs) * im_step;
-                for (dim_t kh = 0; kh < jcp.kh; kh++) {
-                    for (dim_t kw = 0; kw < jcp.kw; kw++) {
-                        data_t *__restrict col_k = _col + ic * col_step
-                                + (kh * jcp.kw + kw) * sb;
-                        for (dim_t oh = oh_begin; oh < oh_end; oh++) {
-                            const dim_t ih = oh * sh - tp + kh * dh;
-                            const dim_t ow_begin
-                                    = (oh == first_oh) ? first_ow : 0;
-                            const dim_t ow_end
-                                    = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
-                            data_t *__restrict col_oh
-                                    = col_k + oh * jcp.ow - ss;
-                            if (ih < 0 || ih >= jcp.ih)
-                                for (dim_t ow = ow_begin; ow < ow_end; ow++)
+                for_(dim_t kh = 0; kh < jcp.kh; kh++)
+                for (dim_t kw = 0; kw < jcp.kw; kw++) {
+                    data_t *__restrict col_k
+                            = _col + ic * col_step + (kh * jcp.kw + kw) * sb;
+                    for (dim_t oh = oh_begin; oh < oh_end; oh++) {
+                        const dim_t ih = oh * sh - tp + kh * dh;
+                        const dim_t ow_begin = (oh == first_oh) ? first_ow : 0;
+                        const dim_t ow_end
+                                = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
+                        data_t *__restrict col_oh = col_k + oh * jcp.ow - ss;
+                        if (ih < 0 || ih >= jcp.ih)
+                            for (dim_t ow = ow_begin; ow < ow_end; ow++)
+                                col_oh[ow] = zero_val;
+                        else
+                            for (dim_t ow = ow_begin; ow < ow_end; ow++) {
+                                const dim_t iw = ow * sw - lp + kw * dw;
+                                if (iw < 0 || iw >= jcp.iw)
                                     col_oh[ow] = zero_val;
-                            else
-                                for (dim_t ow = ow_begin; ow < ow_end; ow++) {
-                                    const dim_t iw = ow * sw - lp + kw * dw;
-                                    if (iw < 0 || iw >= jcp.iw)
-                                        col_oh[ow] = zero_val;
-                                    else {
-                                        const ptrdiff_t im_idx
-                                                = ih * jcp.iw + iw;
-                                        col_oh[ow] = im_[im_idx];
-                                    }
+                                else {
+                                    const ptrdiff_t im_idx = ih * jcp.iw + iw;
+                                    col_oh[ow] = im_[im_idx];
                                 }
-                        }
+                            }
                     }
                 }
             }
