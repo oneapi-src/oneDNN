@@ -45,6 +45,15 @@ using namespace dnnl::impl::utils;
 using namespace prop_kind;
 using namespace data_type;
 
+namespace {
+bool allow_perf_heuristics(const jit_brgemm_conv_conf_t &jcp) {
+    // Disable performance heuristics for plain weights as there are no other
+    // optimized implementations.
+    if (jcp.wei_plain) return false;
+    return true;
+}
+} // namespace
+
 namespace brgemm_convolution_utils {
 
 bool is_any_eligible(const jit_brgemm_conv_conf_t &jcp) {
@@ -1832,7 +1841,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     // TODO: optimize depthwise convolutions (for now direct approach is faster)
     const bool is_depthwise
             = with_groups && jcp.ngroups > 1 && everyone_is(1, jcp.ic, jcp.oc);
-    if (is_depthwise) return status::unimplemented;
+    if (is_depthwise)
+        if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
     // TODO: optimize grouped convolutions with small ic
     const bool is_grouped_small_ic
@@ -1845,7 +1855,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                             && !jcp.is_1x1)
             // Enable the shapes not supported in direct convs
             && IMPLICATION(with_groups, is_groups_ok(jcp));
-    if (is_grouped_small_ic) return status::unimplemented;
+    if (is_grouped_small_ic)
+        if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
     // Dispatch the shapes to VNNI for better performance
     // TODO: optimize the perf of 3d shape with small ic and large spatial
@@ -1860,7 +1871,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (one_of(jcp.prop_kind, prop_kind::forward_training,
                 prop_kind::forward_inference)
             && (is_small_shape || is_3d_small_ic))
-        return status::unimplemented;
+        if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
     jcp.s8s8_avx512 = jcp.src_dt == s8 && !is_amx(jcp.isa);
 
@@ -1956,7 +1967,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     CHECK(init_jcp(
             jcp, isa, cd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
 
-    if (jcp.is_1x1) return status::unimplemented;
+    if (jcp.is_1x1)
+        if (allow_perf_heuristics(jcp)) return status::unimplemented;
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
@@ -1969,7 +1981,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         // disabled for two convolutions from ssd_resnet34
         if ((jcp.ic == jcp.oc) && (jcp.ic == 128 || jcp.ic == 256)
                 && (jcp.oh == jcp.ow) && (jcp.oh == 150))
-            return status::unimplemented;
+            if (allow_perf_heuristics(jcp)) return status::unimplemented;
         // disabled for first convolutions excepting 3d
         const bool is_real_3d = (jcp.ndims == 5
                 && (jcp.id > 1 || jcp.od > 1 || jcp.kd > 1
@@ -1977,7 +1989,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
         if (jcp.ic <= 4 && !is_real_3d
                 && IMPLICATION(with_groups, is_groups_ok(jcp)))
-            return status::unimplemented;
+            if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
         if (jcp.f_pad >= jcp.ext_kd || jcp.t_pad >= jcp.ext_kh
                 || jcp.r_pad >= jcp.ext_kw)
@@ -2218,7 +2230,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                     && utils::everyone_is(1, jcp.od, jcp.oh, jcp.kd, jcp.kh)
                     && jcp.ow >= 595 && jcp.kw <= 5);
     if (one_of(jcp.src_dt, u8, s8) && !is_ok_large_spatial)
-        return status::unimplemented;
+        if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
     // For padding shapes, we calculate the comp along with the computation
     // inside brgemm kernel when output size is small to get optimal perf
