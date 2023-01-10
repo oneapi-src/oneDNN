@@ -765,11 +765,18 @@ public:
         auto args = flat_object.as<nary_op_t>().args;
         std::vector<expr_t> new_args;
         for (size_t i = 0; i < args.size(); i++) {
-            auto *nary = args[i].as_ptr<nary_op_t>();
+            auto arg = args[i];
+            if (arg.is<cast_t>()) arg = args[i].as<cast_t>().expr;
+            auto *nary = arg.as_ptr<nary_op_t>();
             if (nary && nary->op_kind != op_kind_t::_add) {
                 ir_error_not_expected();
             }
-            auto i_args = cvt_expr_to_nary_op_args(args[i]);
+            auto i_args = cvt_expr_to_nary_op_args(arg);
+            if (arg.type() != args[i].type()) {
+                for (size_t j = 0; j < i_args.size(); j++) {
+                    i_args[j] = cast_t::make(args[i].type(), i_args[j]);
+                }
+            }
             if (new_args.empty()) {
                 new_args = i_args;
                 continue;
