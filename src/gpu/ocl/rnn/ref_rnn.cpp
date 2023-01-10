@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -487,6 +487,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     bool ok = true
             && one_of(cell_kind, alg_kind::vanilla_rnn, alg_kind::vanilla_lstm,
                     alg_kind::lbr_gru, alg_kind::vanilla_gru)
+            // diff_weights_overwrite is not supported
+            && this->desc()->flags == rnn_flags::undef
             && !this->is_lstm_peephole() && !this->is_lstm_projection()
             && IMPLICATION(aprop == prop_kind::forward,
                     one_of(this->desc()->prop_kind, forward_training,
