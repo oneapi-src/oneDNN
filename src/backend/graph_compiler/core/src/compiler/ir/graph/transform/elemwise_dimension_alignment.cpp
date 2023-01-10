@@ -126,7 +126,6 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                             {{"shape", shape}, {"format", format},
                                     {"expand_dim", aligned_axis}});
                     node->replace_input(0, ret->get_outputs()[0]);
-                    vis->update_state_for_visited(ret);
                 }
             } else if (lhs.get_plain_dims().size()
                     > rhs.get_plain_dims().size()) {
@@ -139,7 +138,6 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                             {{"shape", shape}, {"format", format},
                                     {"expand_dim", aligned_axis}});
                     node->replace_input(1, ret->get_outputs()[0]);
-                    vis->update_state_for_visited(ret);
                 }
             }
         } else if (auto select_node = node->dyn_cast<select_op_t>()) {
@@ -160,7 +158,6 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                             {{"shape", shape}, {"format", format},
                                     {"expand_dim", true}});
                     node->replace_input(0, ret->get_outputs()[0]);
-                    vis->update_state_for_visited(ret);
                 }
             } else if (cond.get_plain_dims().size()
                     > els.get_plain_dims().size()) {
@@ -173,7 +170,6 @@ void elemwise_dimension_alignment(sc_graph_t &graph, const context_ptr &ctx) {
                             {{"shape", shape}, {"format", format},
                                     {"expand_dim", true}});
                     node->replace_input(2, ret->get_outputs()[0]);
-                    vis->update_state_for_visited(ret);
                 }
             }
         }
