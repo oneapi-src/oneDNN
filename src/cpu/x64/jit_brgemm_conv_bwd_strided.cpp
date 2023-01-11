@@ -392,6 +392,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
 
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
             src_scales, wei_scales, _pd->IC(), _pd->attr());
@@ -475,6 +476,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
             btc.ihb = ihb;
             btc.iwb = iwb;
             btc.oscales = oscales;
+            btc.dst_scales = dst_scales;
 
             auto id_begin = idb * jcp.id_block;
             auto id_end = nstl::min(ID, id_begin + jcp.id_block);
@@ -550,7 +552,7 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::call_brgemm_kernel(
                 static_cast<size_t>(g_ic), 0, btc.brgemm_ctx.dst, 0,
                 static_cast<void *>(src_zp_ptr), nullptr,
                 static_cast<void *>(dst_zp_ptr), do_skip_accm, src_zp_vals,
-                do_only_comp, do_only_pass_comp};
+                do_only_comp, do_only_pass_comp, btc.dst_scales};
 
         void *scratch = is_amx ? static_cast<void *>(btc.wsp_tile)
                                : static_cast<void *>(s8s8_comp);

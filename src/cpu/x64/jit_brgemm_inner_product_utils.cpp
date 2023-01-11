@@ -320,6 +320,7 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
         jbgp.is_oc_scale = wei_scales.mask_ != 0;
     }
+
     const int min_ic_divisor = is_amx_int8 ? 4 : is_amx_xf16 ? 2 : 1;
 
     jbgp.use_buffer_a = jbgp.ic % min_ic_divisor != 0;
@@ -1084,6 +1085,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     if (is_int8) {
         jbgp.acc_dt = s32;
         jbgp.with_scales = true;
+        jbgp.with_dst_scales = true;
     } else
         jbgp.acc_dt = f32;
 

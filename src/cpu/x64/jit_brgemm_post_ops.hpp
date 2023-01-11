@@ -322,6 +322,7 @@ struct brgemm_kernel_post_ops_t {
     int32_t *c_zp_values;
     int32_t *s8s8_compensation;
     const void *dst_orig;
+    void *ptr_dst_scales;
 };
 
 template <cpu_isa_t isa>
@@ -445,6 +446,8 @@ private:
     const reg64_t aux_reg_s8s8_comp = rbx;
     const reg64_t reg_zp_a_val = rbx;
     const reg64_t reg_apply_comp = rbx;
+    const reg64_t reg_dst_scales = rbx;
+    const reg64_t aux_reg_dst_scales = rbx;
     const reg64_t reg_tmp = abi_not_param1;
 
     constexpr static int reg_zp_c_values_offs_ = 0;
@@ -455,7 +458,8 @@ private:
     constexpr static int aux_reg_s8s8_comp_offs_ = 40;
     constexpr static int reg_zp_a_val_offs_ = 48;
     constexpr static int reg_apply_comp_offs_ = 56;
-    constexpr static int stack_space_needed_ = 64;
+    constexpr static int reg_dst_scales_offs_ = 64;
+    constexpr static int stack_space_needed_ = 72;
 
     /* bf16 emulation */
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(27);
@@ -716,6 +720,24 @@ private:
 
         if (postops_injector_) inject_attr_postops(m_block, n_block, tail);
 
+        if (brg.beta != 0 && brg.with_dst_scales) {
+            mov(aux_reg_dst_scales, ptr[rsp + reg_dst_scales_offs_]);
+            const auto addr = ptr[aux_reg_dst_scales];
+            auto vmm_scales = vmm_tmp(0);
+            if (!isa_has_masks(isa)) vmovups(vmm_scales, addr);
+
+            for_(int m = 0; m < m_block; m++)
+            for (int n = 0; n < n_block; n++) {
+                auto vmm = vector(m, n);
+                if (isa_has_masks(isa)) {
+                    vmm = maybe_mask(vector(m, n), tail > 0, false, k_mask);
+                    vmulps(vmm, vmm, addr);
+                } else {
+                    vmulps(vmm, vmm, vmm_scales);
+                }
+            }
+        }
+
         if (brg.beta != 0 && brg.zp_type_c != brgemm_broadcast_t::none) {
             mov(aux_reg_zp_c_values, ptr[rsp + aux_reg_zp_c_values_offs_]);
             auto vmm_zp_c = vmm_tmp(0);
@@ -960,6 +982,10 @@ private:
             if (brg.req_s8s8_compensation) {
                 mov(reg_s8s8_comp, ptr[param1 + GET_OFF(s8s8_compensation)]);
                 mov(ptr[rsp + reg_s8s8_comp_offs_], reg_s8s8_comp);
+            }
+            if (brg.with_dst_scales) {
+                mov(reg_dst_scales, ptr[param1 + GET_OFF(ptr_dst_scales)]);
+                mov(ptr[rsp + reg_dst_scales_offs_], reg_dst_scales);
             }
         }
         mov(reg_out, ptr[param1 + GET_OFF(ptr_out)]);

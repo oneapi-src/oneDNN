@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -194,7 +194,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
             || !wei_scales.has_default_values();
     jcp.is_oc_scale = wei_scales.mask_ != 0;
 
-    const bool scales_ok = attr_scales_ok({DNNL_ARG_SRC, DNNL_ARG_WEIGHTS});
+    const bool scales_ok
+            = attr_scales_ok({DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST});
     if (!scales_ok) return status::unimplemented;
 
     // strd is only feasible for 1D (i.e., height dim is one)
@@ -387,6 +388,7 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
 
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
             src_scales, wei_scales, pd()->OC(), pd()->attr());
@@ -515,6 +517,7 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
                 post_ops_data.bias = bias + ch * jcp.bia_dsz;
                 post_ops_data.scales = &oscales[jcp.is_oc_scale * ch];
                 post_ops_data.oc_logical_off = ch;
+                post_ops_data.dst_scales = dst_scales;
                 brgemm_kernel_execute_postops(kernel, bs, ptr_A, ptr_B,
                         brg_batch, ptr_C, ptr_C, post_ops_data,
                         nullptr /*scratch*/);

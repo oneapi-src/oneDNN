@@ -323,7 +323,8 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
         char *const c_buffer, const char *inp_buffer, int g, int n, int ocb,
         int od, int oh, int ow, int icc, int *last_palette_idx,
         const float *oscales, int32_t src_zp_vals, int32_t *src_zp_comp,
-        int32_t *dst_zp_vals, int32_t *s8s8_compensation) const {
+        int32_t *dst_zp_vals, int32_t *s8s8_compensation,
+        const float *dst_scales) const {
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md());
@@ -433,7 +434,8 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
                     post_ops_binary_rhs_arg_vec.data(),
                     static_cast<size_t>(g_oc), 0, dst, 0,
                     static_cast<void *>(src_zp_comp_ptr), nullptr,
-                    static_cast<void *>(dst_zp_vals), false, src_zp_vals};
+                    static_cast<void *>(dst_zp_vals), false, src_zp_vals, false,
+                    false, dst_scales};
 
             void *scratch = is_amx ? static_cast<void *>(wsp_tile)
                                    : static_cast<void *>(s8s8_comp_ptr);
@@ -478,6 +480,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
 
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
             src_scales, wei_scales, pd()->OC(), pd()->attr());
@@ -558,7 +561,8 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
                     exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, \
                             inp_buffer_sp, g, n, ocb, od, oh, ow, icc, \
                             &last_palette_idx, oscales, src_zero_point, \
-                            zp_compensation, dst_zp_vals, s8s8_compensation); \
+                            zp_compensation, dst_zp_vals, s8s8_compensation, \
+                            dst_scales); \
                 } \
             } \
             last_n = n; \
@@ -600,7 +604,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
                 exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, nullptr, g, n, \
                         ocb, od, oh, ow, icc, &last_palette_idx, oscales, \
                         src_zero_point, zp_compensation, dst_zp_vals, \
-                        s8s8_compensation); \
+                        s8s8_compensation, dst_scales); \
             } \
             nd_iterator_step(__VA_ARGS__); \
         } \

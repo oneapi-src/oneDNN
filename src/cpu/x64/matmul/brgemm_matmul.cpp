@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
     auto check_attr_scales = [&]() -> bool {
         const std::vector<int> supported_args
-                = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS};
+                = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
         bool ok = attr_scales_ok(supported_args);
         if (!attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
                 && !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()
@@ -221,13 +221,14 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     auto &scratchpad = ctx.get_scratchpad_grantor();
     const float *oscales = precompute_scales(
             scratchpad, src_scales, wei_scales, pd()->N(), pd()->attr());
 
-    brg_matmul_exec_ctx_t brgmm_ctx(
-            ctx, pd(), oscales, src_zero_point, wei_zero_point, dst_zero_point);
+    brg_matmul_exec_ctx_t brgmm_ctx(ctx, pd(), oscales, src_zero_point,
+            wei_zero_point, dst_zero_point, dst_scales);
 
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
     const bool use_buffer_a
@@ -358,7 +359,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
                     first_mb_matrix_addr_off,
                     static_cast<const void *>(zp_comp_a),
                     static_cast<const void *>(zp_comp_b),
-                    static_cast<const void *>(zp_c_val_ptr)};
+                    static_cast<const void *>(zp_c_val_ptr), false, 1, false,
+                    false, brgmm_ctx.get_dst_scales_ptr()};
 
             brgemm_kernel_execute_postops(brg_kernel, gemm_batch, addr_batch,
                     (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);
@@ -399,7 +401,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
                     first_mb_matrix_addr_off,
                     static_cast<const void *>(zp_comp_a),
                     static_cast<const void *>(zp_comp_b),
-                    static_cast<const void *>(zp_c_val_ptr)};
+                    static_cast<const void *>(zp_c_val_ptr), false, 1, false,
+                    false, brgmm_ctx.get_dst_scales_ptr()};
 
             brgemm_kernel_execute_postops(brg_kernel_k_tail, 1, addr_batch,
                     (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);
@@ -516,7 +519,8 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
                                 static_cast<const void *>(zp_comp_a),
                                 static_cast<const void *>(zp_comp_b),
                                 static_cast<const void *>(zp_c_val_ptr),
-                                skip_accumulation};
+                                skip_accumulation, 1, false, false,
+                                brgmm_ctx.get_dst_scales_ptr()};
 
                         brgemm_kernel_execute_postops(brg_kernel, 0, nullptr,
                                 (void *)ptr_C, (void *)ptr_D, post_ops_data,
@@ -648,7 +652,7 @@ template <cpu_isa_t isa>
 struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     brg_matmul_exec_ctx_t(const exec_ctx_t &ctx, const pd_t *pd,
             const float *oscales, int32_t src_zp, int32_t wei_zp,
-            int32_t dst_zp)
+            int32_t dst_zp, const float *dst_scales)
         : bgmmc_(pd->get_brgemm_matmul_conf()) {
 
         data_A_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
@@ -657,6 +661,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
 
         bias_ptr_ = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
         oscales_ptr_ = oscales;
+        dst_scales_ptr_ = dst_scales;
         memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
         const auto &bgmmc = pd->get_brgemm_matmul_conf();
 
@@ -994,6 +999,8 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         return oscales_ptr_ + bgmmc_.is_oscale_per_n * n;
     }
 
+    const float *get_dst_scales_ptr() const { return dst_scales_ptr_; }
+
     const int32_t *get_zp_a_neg_val_ptr() const {
         return &zero_point_a_negative_val_;
     }
@@ -1105,6 +1112,7 @@ private:
     char *wsp_tile_ptr_;
     const char *bias_ptr_;
     const float *oscales_ptr_;
+    const float *dst_scales_ptr_;
     int32_t *s8s8_compensation_ptr_;
 
     int32_t *zero_point_a_compensations_ptr_;

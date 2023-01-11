@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,6 +88,7 @@ struct jit_brgemm_primitive_conf_t {
     brgemm_kernel_prefetching_t hint_prefetching
             = brgemm_kernel_prefetching_t::brgemm_prf_default;
     bool ip_bwd_w_local_buffers_for_input_tensors;
+    bool with_dst_scales;
 };
 
 } // namespace x64
