@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,6 +89,7 @@ private:
     const reg64_t reg_total_padding = reg_table_base;
     const reg64_t reg_aux_bias = reg_table_base;
     const reg64_t reg_aux_scales = reg_table_base;
+    const reg64_t reg_aux_dst_scales = reg_table_base;
     const reg64_t reg_binary_params = abi_param1; // default for binary ops
     const reg64_t reg_ptr_sum_scale = reg_aux_A_vpad_top;
     const reg64_t reg_ptr_sum_zp = reg_aux_A_vpad_bottom;
@@ -116,7 +117,8 @@ private:
     constexpr static int reg_A_offs_ = 24; // brgemm_strd
     constexpr static int reg_B_offs_ = 32; // brgemm_strd
     constexpr static int abi_param1_offs_ = 40;
-    constexpr static int stack_space_needed_ = 48;
+    constexpr static int reg_dst_scales_offs_ = 48;
+    constexpr static int stack_space_needed_ = 56;
 
     bool with_binary_non_scalar_bcast_ = false;
 

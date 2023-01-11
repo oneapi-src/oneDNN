@@ -128,6 +128,7 @@ private:
     const reg64_t reg_BS_loop = r9;
     const reg64_t reg_bias = rbx;
     const reg64_t reg_scales = rbx;
+    const reg64_t reg_dst_scales = rbx;
 
     const reg64_t reg_stride_ld_block = rdx;
     const reg64_t reg_do_post_ops = rbx;
@@ -1163,18 +1164,39 @@ void jit_brgemm_amx_uker_base_t::process_output_range(brgemm_iteration_t &bi,
     if (postops_injector_) {
         apply_post_ops_to_range(bi, bd_start, bd_finish, bd_inp_bdb, ldb);
     }
+
+    if (brg.with_dst_scales) {
+        mov(reg_dst_scales, ptr[param1 + GET_OFF(ptr_dst_scales)]);
+        auto zmm_dst_scales = zmm_tmp_1();
+        vbroadcastss(zmm_dst_scales, ptr[reg_dst_scales]);
+        for (int bd = bd_start; bd < bd_finish; bd++) {
+            const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
+            if (bd_out_bd == -1) continue;
+
+            auto zmm = accm(bd);
+            vmulps(zmm, zmm, zmm_dst_scales);
+        }
+    }
+
+    if (brg.zp_type_c != brgemm_broadcast_t::none) {
+        for (int bd = bd_start; bd < bd_finish; bd++) {
+            const auto bd_out_bd = get_out_bd(bd_inp_bdb, bd);
+            if (bd_out_bd == -1) continue;
+
+            auto zmm = accm(bd);
+            vaddps(zmm, zmm, zmm_zp_c);
+        }
+    }
 }
 
 void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(const int idx,
         const Address &addr, const int bd, const int ldb, bool is_ld_tail) {
     auto zmm = Zmm(idx);
-    auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
-
-    if (brg.zp_type_c != brgemm_broadcast_t::none) vaddps(zmm, zmm, zmm_zp_c);
 
     maybe_saturation(zmm);
 
     auto ymm = Xbyak::Ymm(idx);
+    auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
     const Xbyak::Zmm r_zmm = zmm_mask(zmm, true, true, k_mask);
     const Xbyak::Ymm r_ymm = ymm_mask(ymm, true, true, k_mask);
 
@@ -2104,7 +2126,7 @@ void jit_brgemm_amx_uker_base_t::generate() {
             brg.zp_type_a, brg.zp_type_b, brg.zp_type_c);
     are_post_ops_applicable_ = one_of(true, brg.with_eltwise, brg.with_binary,
             brg.with_scales, brg.with_bias, brg.with_sum, brg.dt_d != brg.dt_c,
-            has_zero_points);
+            has_zero_points, brg.with_dst_scales);
 
     // second level blocking eligible only if we don't use store by vectors for now
     assert(IMPLICATION(are_post_ops_applicable_ || need_to_apply_alpha_beta_

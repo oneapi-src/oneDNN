@@ -268,6 +268,7 @@ struct brgemm_t {
     bool interleave_tilestores_ = false;
 
     brgemm_prf_t prfA, prfB, prfC;
+    bool with_dst_scales = false;
 
     bool is_row_major() const {
         assert(layout != brgemm_layout_undef);
@@ -386,6 +387,7 @@ struct brgemm_kernel_params_t {
     const void *c_zp_values = nullptr;
     size_t skip_accm = 0;
     int32_t zp_a_val = 1;
+    const void *ptr_dst_scales = nullptr;
 };
 
 template <cpu_isa_t isa, typename Vmm>
@@ -443,7 +445,10 @@ private:
 };
 
 /// @param bias Vector of bias (vector length is N)
-/// @param scales Vector of scales (vector length is N)
+/// @param scales - Vector of scale factor values which represents combination
+///     scale factors for matrixes A and B. If brgemm_t::is_oc_scale = true
+///     vector length is N otherwise it must be broadcasted to vector of simd
+///     width length
 /// @param binary_post_ops_rhs - Ptr to table of pointers to tensors used as rhs
 ///     in binary post-operation { void* binary_op_tensor1, ...,
 ///      void* binary_op_tensor_n}
@@ -459,6 +464,15 @@ private:
 /// @param skip_accumulation - specifies whether to skip accumulation when
 ///    computing post-ops. `Beta` value from descriptor affects final
 ///    accumulator values taken.
+/// @param do_only_comp - specifies whether to perform accumulation only and skip
+///    post-ops.
+/// @param do_only_zp_a_val - specifies to apply pre-calculated compensation for
+///     A zero point only and skip the rest post-ops.
+/// @param zp_a_val - zero point value for A, required to adjust compensation
+///     values if do_only_zp_a_val = true.
+/// @param dst_scales - Vector of inverted scale factor values for matix C,
+///     common scale vector type only is supported, it must be broadcasted to
+///     vector of simd width length.
 ///
 struct brgemm_post_ops_data_t {
     brgemm_post_ops_data_t() = default;
@@ -470,7 +484,7 @@ struct brgemm_post_ops_data_t {
             const void *b_zp_compensations = nullptr,
             const void *c_zp_values = nullptr, bool skip_accumulation = false,
             int32_t zp_a_val = 1, bool do_only_comp = false,
-            bool do_only_zp_a_val = false)
+            bool do_only_zp_a_val = false, const float *dst_scales = nullptr)
         : bias(bias)
         , scales(scales)
         , binary_post_ops_rhs(binary_post_ops_rhs)
@@ -484,7 +498,8 @@ struct brgemm_post_ops_data_t {
         , skip_accumulation(skip_accumulation)
         , zp_a_val {zp_a_val}
         , do_only_comp {do_only_comp}
-        , do_only_zp_a_val {do_only_zp_a_val} {}
+        , do_only_zp_a_val {do_only_zp_a_val}
+        , dst_scales(dst_scales) {}
 
     const void *bias = nullptr;
     const float *scales = nullptr;
@@ -500,6 +515,7 @@ struct brgemm_post_ops_data_t {
     int32_t zp_a_val = 1;
     const bool do_only_comp = false;
     const bool do_only_zp_a_val = false;
+    const float *dst_scales = nullptr;
 };
 
 } // namespace x64

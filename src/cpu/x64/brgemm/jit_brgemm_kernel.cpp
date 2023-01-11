@@ -163,6 +163,7 @@ private:
     const reg64_t reg_bias = reg_rdb_loop;
     const reg64_t reg_scales = reg_rdb_loop;
     const reg64_t reg_aux_bias = reg_rdb_loop;
+    const reg64_t reg_dst_scales = reg_rdb_loop;
     const reg64_t reg_binary_postops_oc_l = reg_rdb_loop;
     const reg64_t reg_aux_binary_postops_oc_l = reg_rdb_loop;
     const reg64_t reg_aux_binary_postops_sp = reg_rdb_loop;
@@ -175,6 +176,7 @@ private:
     const reg64_t reg_aux_zp_c_values = reg_rdb_loop;
 
     const reg64_t reg_aux_scales = reg_aux_B;
+    const reg64_t reg_aux_dst_scales = reg_aux_B;
     const reg64_t reg_do_post_ops = reg_rdb_loop;
     const reg64_t reg_do_comp = reg_rdb_loop;
     const reg64_t reg_skip_accm = reg_rdb_loop;
@@ -222,7 +224,8 @@ private:
     constexpr static int reg_skip_accm_offs_ = 192;
     constexpr static int reg_zp_a_val_offs_ = 200;
     constexpr static int reg_do_comp_offs_ = 208;
-    constexpr static int stack_space_needed_ = 216;
+    constexpr static int reg_dst_scales_offs_ = 216;
+    constexpr static int stack_space_needed_ = 224;
 
     bool is_ldb_loop_ = false;
     bool handle_binary_po_offset_ = false;
@@ -924,6 +927,11 @@ void jit_brgemm_kernel_t<isa, Wmm>::read_params() {
         mov(ptr[rsp + reg_zp_c_values_offs_], reg_zp_c_values);
     }
 
+    if (brg.with_dst_scales) {
+        mov(reg_dst_scales, ptr[param1 + GET_OFF(ptr_dst_scales)]);
+        mov(ptr[rsp + reg_dst_scales_offs_], reg_dst_scales);
+    }
+
     mov(reg_do_post_ops, ptr[param1 + GET_OFF(do_post_ops)]);
     mov(ptr[rsp + reg_do_post_ops_offs_], reg_do_post_ops);
 
@@ -1177,6 +1185,19 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
     if (postops_injector_)
         apply_post_ops(bd_block, ld_block2, ldb_and_bdb_offset, is_ld_tail);
 
+    if (brg.with_dst_scales) {
+        mov(reg_aux_dst_scales, ptr[rsp + reg_dst_scales_offs_]);
+        auto vmm_dst_scales = vmm_tmp(0);
+        vbroadcastss(vmm_dst_scales, ptr[reg_aux_dst_scales]);
+
+        for (int ld = 0; ld < ld_block2; ld++) {
+            for (int bd = 0; bd < bd_block; bd++) {
+                auto vmm = accm(ld_block2, bd, ld);
+                vmulps(vmm, vmm, vmm_dst_scales);
+            }
+        }
+    }
+
     if (brg.zp_type_c != brgemm_broadcast_t::none) {
         mov(reg_aux_zp_c_values, ptr[rsp + reg_aux_zp_c_values_offs_]);
         auto vmm_zp_c = vmm_tmp(0);
@@ -1394,7 +1415,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
             brg.zp_type_a, brg.zp_type_b, brg.zp_type_c);
     const bool are_post_ops_applicable = one_of(true, brg.with_eltwise,
             brg.with_binary, brg.with_scales, brg.with_bias, brg.with_sum,
-            brg.dt_d != brg.dt_c, brg.req_s8s8_compensation, has_zero_points);
+            brg.dt_d != brg.dt_c, brg.req_s8s8_compensation, has_zero_points,
+            brg.with_dst_scales);
     const bool need_to_apply_alpha_beta = brg.beta != 0.f || brg.alpha != 1.f;
 
     maybe_set_avx_mask(is_ld_tail);
@@ -1468,7 +1490,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators(int bd_block2,
                         post_processed |= utils::one_of(true, brg.with_bias,
                                 brg.with_scales, with_binary_per_oc_bcast_,
                                 brg.zp_type_a != brgemm_broadcast_t::none,
-                                brg.zp_type_c == brgemm_broadcast_t::per_n);
+                                brg.zp_type_c == brgemm_broadcast_t::per_n,
+                                brg.with_dst_scales);
                     }
                     if (bdb < bd_block2 - 1) {
                         advance_bdb_post_op_regs(adj_bd_block);
