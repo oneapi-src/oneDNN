@@ -2022,9 +2022,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const bool small_amx_job = est_amx_job < 64 || jcp.oc < 256;
         auto start_ocb
                 = (is_amx(isa) && jcp.is_os_blocking && small_amx_job) ? 2 : 4;
-        if (jcp.wei_plain)
-            start_ocb = nstl::min(jcp.ic > 128 ? (jcp.ic > 256 ? 8 : 16) : 32,
-                    div_up(jcp.oc, jcp.acc_simd_w));
         start_ocb = nstl::min(div_up(jcp.oc, jcp.acc_simd_w), start_ocb);
 
         auto finish_ocb = 1;
@@ -2328,9 +2325,6 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     brg_blocking_t cur_brgb = zero<decltype(cur_brgb)>();
     cur_brgb.get_from_jcp(jcp);
     auto start_ocb = 4;
-    if (jcp.wei_plain)
-        start_ocb = nstl::min(jcp.ic > 128 ? (jcp.ic > 256 ? 8 : 16) : 32,
-                div_up(jcp.oc, jcp.acc_simd_w));
     start_ocb = nstl::min(div_up(jcp.oc, jcp.acc_simd_w), start_ocb);
 
     auto finish_ocb = 1;
