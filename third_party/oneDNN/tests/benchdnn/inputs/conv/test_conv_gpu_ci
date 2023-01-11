@@ -1,0 +1,65 @@
+--reset
+
+--mb=2,16
+--stag=any,axb
+--dtag=any,axb
+--alg=direct
+
+# Training
+## Forward
+--dir=FWD_B
+--cfg=f32,bf16bf16bf16,f16
+--attr-post-ops=,relu,sum:0.25+relu:0.5
+--batch=shapes_basic_gpu
+## Backward
+--dir=BWD_D,BWD_WB
+--cfg=f32,bf16bf16bf16
+--attr-post-ops=
+--batch=shapes_basic_gpu
+
+## Fpmath-mode
+--dir=FWD_B,BWD_D,BWD_WB
+--cfg=f32
+--attr-fpmath=tf32,bf16
+--attr-post-ops=
+--batch=shapes_basic_gpu
+
+# Inference
+--reset
+--dir=FWD_I
+--attr-oscale=,common:0.25,per_oc:5,per_oc:5*
+
+## All inference configs
+--cfg=s8s8f32,s8s8bf16,s8s8f16,s8s8s32,s8s8s8,s8s8u8, \
+      u8s8f32,u8s8bf16,u8s8f16,u8s8s32,u8s8s8,u8s8u8
+--batch=shapes_basic_gpu
+
+## Attributes
+--cfg=u8s8s32,s8s8f16
+--stag=any,axb
+--dtag=any,axb
+--attr-post-ops=,sum:0.5:3+add:f32:per_oc+add:f32:per_tensor
+--attr-zero-points=
+--batch=shapes_basic_gpu
+--attr-post-ops=
+--attr-zero-points=,src:common:2+dst:common:1,src:per_dim_1:1*+dst:per_dim_1:1*
+--batch=shapes_basic_gpu
+
+# Wino
+--reset
+--mb=2,32
+--stag=any,axb
+--alg=wino
+--cfg=f16,f32
+--attr-post-ops=,sum:0.25+relu:0.5
+--batch=shapes_basic_gpu
+
+# f64
+--reset
+--mb=2,16
+--stag=any,axb
+--dtag=any,axb
+--alg=direct
+--dir=FWD_B,BWD_D,BWD_W
+--cfg=f64
+--batch=shapes_basic_gpu

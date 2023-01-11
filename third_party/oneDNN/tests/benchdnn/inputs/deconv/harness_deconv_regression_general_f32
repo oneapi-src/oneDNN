@@ -1,0 +1,2 @@
+# f32 regression : long accumulation chains
+--reset --cfg=f32 --dir=bwd_w mb28_ic16oc16_id10od10kd3

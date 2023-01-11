@@ -1,0 +1,8 @@
+--reset
+
+--cfg=f32
+--stag=ab,ba --wtag=ba --dtag=AB16b16a
+11x13:13x16:11x16_n"zeropad_blocked_dtag"
+
+--stag=ba --wtag=ab --dtag=ab
+13x262144:262144x1:13x1_n"long_acc_chain"

@@ -1,0 +1,9 @@
+--reset
+
+--dt=bf16,bf16:bf16:f32
+--bia_dt=undef,f32,bf16
+--alpha=1,2
+--beta=0
+--attr-post-ops=,sum:2,relu
+--brgemm-attr=,use_uker:1
+--batch=option_set_bf16

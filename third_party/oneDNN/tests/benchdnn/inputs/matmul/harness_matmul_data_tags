@@ -1,0 +1,23 @@
+# data-tags or non-trivial strides
+--reset
+--skip-impl=ref
+--allow-enum-tags-only=0
+--cfg=f32,s8s8f32
+--stag=acbde,bacde,cabde,abced,abdce
+--dtag=acbde,bacde,cabde,abced,abdce
+--wtag=abcde,acbde
+3x5x7x11x13:1x1x1x13x13
+
+--stag=ab --dtag=ab
+--cfg=f32
+--attr-fpmath=,bf16
+--wtag=BA16a64b,BA16a48b,BA16a32b,BA16a16b
+--batch=shapes_2d
+
+--cfg=bf16bf16bf16
+--wtag=BA16a64b2a,BA16a48b2a,BA16a32b2a,BA16a16b2a
+--batch=shapes_2d
+
+--cfg=u8s8f32
+--wtag=BA16a64b4a,BA16a48b4a,BA16a32b4a,BA16a16b4a
+--batch=shapes_2d

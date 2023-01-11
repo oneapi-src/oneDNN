@@ -1,0 +1,38 @@
+--reset
+
+--sdt=f32,bf16
+--dir=FWD_D
+--alg=SOFTMAX,LOGSOFTMAX
+--inplace=true,false
+--dir=FWD_D,BWD_D
+--stag=aBx16b
+--axis=0,1,2,3     --batch=shapes_2d
+
+--stag=abx
+--axis=0,1         --batch=shapes_0d
+--axis=0,1,2,3,4   --batch=shapes_3d
+
+--sdt=f16
+--ddt=f16
+--dir=FWD_I
+--stag=aBx16b --axis=2,3 --batch=shapes_2d
+
+--reset
+--dir=FWD_D,FWD_I
+--alg=SOFTMAX,LOGSOFTMAX
+--sdt=bf16,f16,f32
+--inplace=true,false
+--stag=abx
+--axis=0,1     --batch=shapes_0d
+--axis=0,1,2,3 --batch=shapes_2d
+
+--reset
+--sdt=s8,u8
+--ddt=s8,u8
+--dir=FWD_I
+--attr-oscale=,common:128,common:128* --batch=shapes_2d
+
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu

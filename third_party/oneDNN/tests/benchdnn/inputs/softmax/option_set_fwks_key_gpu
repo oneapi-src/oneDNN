@@ -1,0 +1,8 @@
+#bert.tr.fp32.tf.mb128
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 128x12x128x128n"bert.tr.fp32.tf.mb128*24"
+#cosmictagger.tr.fp32.tf.mb14
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 14x640x1024x3n"cosmictagger.tr.fp32.tf.mb14*3"
+#unet-3d.tr.bf16.tf.mb2
+--reset --allow-enum-tags-only=0 --sdt=bf16 --ddt=bf16 --dir=FWD_D --stag=aBcde16b --dtag=aBcde16b --axis=1 2x4x128x128x128n"unet-3d.tr.bf16.tf.mb2*1"
+#bert.tr.bf16.tf.mb32
+--reset --allow-enum-tags-only=0 --sdt=f32 --ddt=f32 --dir=FWD_D --stag=abcd --dtag=abcd --axis=3 32x12x128x128n"bert.tr.bf16.tf.mb32*12"
