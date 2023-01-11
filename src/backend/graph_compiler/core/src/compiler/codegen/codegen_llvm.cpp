@@ -201,6 +201,7 @@ public:
                 is_private ? Function::InternalLinkage
                            : Function::ExternalLinkage,
                 v->name_, module_.get());
+        assert(FT == F->getFunctionType());
         for (size_t i = 0; i < v->params_.size(); i++) {
             (F->arg_begin() + i)
                     ->setName(get_node_name(v->params_[i]) + "_arg");
@@ -208,7 +209,9 @@ public:
         name_to_func_.insert(std::make_pair(v->name_, F));
         if (v->attr_ && v->attr_->get_or_else(function_attrs::pure, false)) {
             F->addFnAttr(llvm::Attribute::AttrKind::ReadNone);
+#if SC_LLVM_BACKEND > 10
             F->addFnAttr(llvm::Attribute::AttrKind::Speculatable);
+#endif
         }
         if (v->attr_
                 && v->attr_->get_or_else(function_attrs::no_alias, false)) {
@@ -626,8 +629,7 @@ public:
                 current_val_ = ret;
             } else {
                 current_val_ = builder_.CreateLoad(
-                        ret->getType()->getPointerElementType(), ret,
-                        v->name_ + "_v");
+                        get_type(v->dtype_), ret, v->name_ + "_v");
             }
         }
     }
@@ -667,8 +669,13 @@ public:
                                     /*mask*/
                                     builder_.CreateVectorSplat(
                                             4, builder_.getInt1(true))});
+#if SC_LLVM_BACKEND == 11
+                    current_val_ = builder_.CreateShuffleVector(current_val_,
+                            current_val_, ArrayRef<int>({0, 1, 2, 3}));
+#else
                     current_val_ = builder_.CreateShuffleVector(
                             current_val_, {0, 1, 2, 3});
+#endif
                     break;
                 case 8:
                     current_val_ = builder_.CreateIntrinsic(
@@ -687,7 +694,8 @@ public:
             }
             return;
 #else
-            throw std::runtime_error("LLVM-8 cannot handle bf16");
+            throw std::runtime_error(
+                    "Current version of LLVM cannot handle bf16");
 #endif
         }
         switch (cate_in) {
@@ -914,14 +922,16 @@ public:
         is_lvalue_mode_ = false;
         COMPILE_ASSERT(v->idx_.size() == 1, "Expecting 1D array: " << v);
         auto base = generate_expr(v->ptr_);
-        auto ptr = builder_.CreateGEP(base->getType()->getPointerElementType(),
-                base, generate_expr(v->idx_.front()));
+        assert(v->ptr_->dtype_.is_pointer());
+        auto element_type = get_type(v->ptr_->dtype_.get_pointer_element());
+        auto ptr = builder_.CreateGEP(
+                element_type, base, generate_expr(v->idx_.front()));
         auto target_type = get_type(v->dtype_);
-        if (target_type != ptr->getType()->getPointerElementType()) {
+        if (target_type != element_type) {
             // allow pointer to pointer
             assert(v->dtype_ == datatypes::pointer
                     || llvm::cast<VectorType>(*target_type).getElementType()
-                            == ptr->getType()->getPointerElementType());
+                            == element_type);
             ptr = builder_.CreatePointerCast(ptr, target_type->getPointerTo());
         }
         if (is_lvalue_mode) {
@@ -941,10 +951,14 @@ public:
                 }
                 auto znode = make_expr<constant_node>(0UL, v->dtype_);
                 auto zero = generate_expr(znode);
-#if SC_LLVM_BACKEND > 10
+#if SC_LLVM_BACKEND > 12
                 current_val_ = set_alias(
                         builder_.CreateMaskedLoad(get_type(v->dtype_), ptr,
                                 SC_LLVM_ALIGN(1), mask, zero),
+                        v->ptr_);
+#elif SC_LLVM_BACKEND >= 11
+                current_val_ = set_alias(builder_.CreateMaskedLoad(ptr,
+                                                 SC_LLVM_ALIGN(1), mask, zero),
                         v->ptr_);
 #else
                 current_val_ = set_alias(
@@ -1253,7 +1267,7 @@ public:
             case intrin_type::reduce_max:
             case intrin_type::reduce_min: {
                 Intrinsic::ID cur_intrinsic = Intrinsic::not_intrinsic;
-#if SC_LLVM_BACKEND > 10
+#if SC_LLVM_BACKEND > 11
 #define LLVM_INTRINSIC_EXP_V2(name) Intrinsic::vector_reduce_##name
 #define LLVM_INTRINSIC_EXP LLVM_INTRINSIC_EXP_V2
 #elif SC_LLVM_BACKEND > 8
@@ -1299,10 +1313,11 @@ public:
                             || v->type_ == intrin_type::reduce_mul)
                         && cate == CATE_FLOAT) {
                     current_val_ = builder_.CreateIntrinsic(
-#if SC_LLVM_BACKEND > 10
+#if SC_LLVM_BACKEND > 11
                             cur_intrinsic, {inval->getType()},
 #elif SC_LLVM_BACKEND > 8
-                            cur_intrinsic, {inval->getType()},
+                            cur_intrinsic,
+                            {get_type(v->dtype_), inval->getType()},
 #else
                             cur_intrinsic,
                             {get_type(v->dtype_), get_type(v->dtype_),
@@ -1315,7 +1330,7 @@ public:
                             .setFastMathFlags(builder_.getFastMathFlags());
                 } else {
                     current_val_ = builder_.CreateIntrinsic(
-#if SC_LLVM_BACKEND > 10
+#if SC_LLVM_BACKEND >= 10
                             cur_intrinsic, {inval->getType()},
 #else
                             cur_intrinsic,
@@ -1544,11 +1559,11 @@ public:
         std::vector<Value *> args;
         auto the_func = std::dynamic_pointer_cast<func_base>(v->func_);
         Value *ll_func;
-        FunctionType *ft;
+        FunctionType *ft = nullptr;
         if (the_func) {
-            ll_func = get_or_create_func(the_func);
-            ft = &llvm::cast<FunctionType>(
-                    *ll_func->getType()->getPointerElementType());
+            auto F = get_or_create_func(the_func);
+            ll_func = F;
+            ft = F->getFunctionType();
         } else {
             auto the_expr = std::dynamic_pointer_cast<expr_base>(v->func_);
             assert(the_expr);
@@ -1698,9 +1713,8 @@ public:
                         attr_keys::module_global_offset);
                 Argument *module_ptr = current_func_->arg_begin() + 1;
                 assert(module_ptr->getName() == "__module_data_arg");
-                auto ptr = builder_.CreateGEP(
-                        module_ptr->getType()->getPointerElementType(),
-                        module_ptr, builder_.getInt64(offset));
+                auto ptr = builder_.CreateGEP(builder_.getInt8Ty(), module_ptr,
+                        builder_.getInt64(offset));
                 ptr = builder_.CreatePointerCast(ptr,
                         get_type(thevar->dtype_)->getPointerTo(),
                         thevar->name_);
@@ -1785,8 +1799,8 @@ public:
             builder_.SetInsertPoint(chk);
             auto cate = get_type_category(v->var_->dtype_);
             auto end_v = generate_expr(v->iter_end_);
-            auto itr_value = builder_.CreateLoad(
-                    itr_v->getType()->getPointerElementType(), itr_v);
+            auto itr_value
+                    = builder_.CreateLoad(get_type(v->var_->dtype_), itr_v);
             Value *cond;
             if (cate == CATE_INT) {
                 cond = builder_.CreateICmpSLT(itr_value, end_v);
@@ -1801,8 +1815,8 @@ public:
             dispatch(v->body_);
             if (body->empty() || !llvm::isa<llvm::ReturnInst>(body->back())) {
                 auto step_v = generate_expr(v->step_);
-                Value *itr_value = builder_.CreateLoad(
-                        itr_v->getType()->getPointerElementType(), itr_v);
+                Value *itr_value
+                        = builder_.CreateLoad(get_type(v->var_->dtype_), itr_v);
                 itr_value = builder_.CreateAdd(itr_value, step_v);
                 builder_.CreateStore(itr_value, itr_v);
                 builder_.CreateBr(chk);
