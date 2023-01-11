@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,7 +64,8 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
 
     protected:
         bool arg_scales_ok() const {
-            std::vector<int> supported_args = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS};
+            std::vector<int> supported_args
+                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
             return attr_scales_ok(supported_args);
         }
         bool zero_points_ok() const {
@@ -121,7 +122,8 @@ private:
             char *const c_buffer, const char *inp_buffer, int g, int n, int ocb,
             int od, int oh, int ow, int icc, int *last_brg_idx,
             const float *oscales, int32_t src_zp_vals, int32_t *src_zp_comp,
-            int32_t *dst_zp_vals, int32_t *s8s8_compensation) const;
+            int32_t *dst_zp_vals, int32_t *s8s8_compensation,
+            const float *dst_scales) const;
     status_t execute_forward_all(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 

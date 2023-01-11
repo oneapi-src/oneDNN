@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -105,7 +105,8 @@ struct brgemm_convolution_fwd_t : public primitive_t {
 
     protected:
         bool arg_scales_ok() const {
-            std::vector<int> supported_args = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS};
+            std::vector<int> supported_args
+                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
             return attr_scales_ok(supported_args);
         }
 
@@ -181,7 +182,7 @@ private:
             const void *post_ops_binary_rhs_arg_vec, const float *oscales,
             int32_t src_zp_vals, int32_t *src_zp_ptr, int32_t *dst_zp_ptr,
             int32_t *s8s8_compensation, bool maybe_do_init, bool do_postwork,
-            bool do_post_comp) const;
+            bool do_post_comp, const float *dst_scales) const;
 
     void call_brgemm_kernel(brgemm_thread_ctx_t &btc, int brg_idx,
             int batch_size, char *ptr_C, char *ptr_D, const char *bias_w,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,6 +78,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
             src_scales, wei_scales, pd()->OC(), pd()->attr());
@@ -108,7 +109,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
     const bool are_post_ops_applicable = one_of(true, jbgp.with_sum,
             jbgp.with_bias, jbgp.with_scales, jbgp.with_eltwise,
-            jbgp.with_binary, jbgp.acc_dt != jbgp.dst_dt, jbgp.signed_input);
+            jbgp.with_binary, jbgp.acc_dt != jbgp.dst_dt, jbgp.signed_input,
+            jbgp.with_dst_scales);
 
     size_t offset = types::data_type_size(jbgp.wei_dt)
             * (weights_d.size() - weights_d.additional_buffer_size());
@@ -221,7 +223,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                         static_cast<const void *>(ptr_bias),
                         &oscales[jbgp.is_oc_scale * oc],
                         post_ops_binary_rhs_arg_vec.data(),
-                        static_cast<size_t>(oc), 0, dst};
+                        static_cast<size_t>(oc), 0, dst, 0, nullptr, nullptr,
+                        nullptr, false, 1, false, false, dst_scales};
 
                 brgemm_kernel_execute_postops(brg_kernel, gemm_batch,
                         addr_batch, (void *)ptr_C, (void *)ptr_D, post_ops_data,
@@ -264,7 +267,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                         static_cast<const void *>(ptr_bias),
                         &oscales[jbgp.is_oc_scale * oc],
                         post_ops_binary_rhs_arg_vec.data(),
-                        static_cast<size_t>(oc), 0, dst};
+                        static_cast<size_t>(oc), 0, dst, 0, nullptr, nullptr,
+                        nullptr, false, 1, false, false, dst_scales};
 
                 brgemm_kernel_execute_postops(brg_kernel_ic_tail, 1, addr_batch,
                         (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);
@@ -457,7 +461,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                                     &oscales[jbgp.is_oc_scale * oc],
                                     post_ops_binary_rhs_arg_vec.data(),
                                     static_cast<size_t>(oc), 0, dst, 0, nullptr,
-                                    nullptr, nullptr, true /* skip_accm */};
+                                    nullptr, nullptr, true /* skip_accm */, 1,
+                                    false, false, dst_scales};
+
                             brgemm_kernel_execute_postops(brg_kernel, 0,
                                     nullptr, (void *)ptr_C, (void *)ptr_D,
                                     post_ops_data, scratch);

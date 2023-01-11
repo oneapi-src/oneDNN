@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/scale_utils.hpp"
 
 #include "cpu/x64/jit_brgemm_conv_bwd_strided.hpp"
 #include "cpu/x64/jit_brgemm_conv_bwd_utils.hpp"
@@ -369,8 +370,12 @@ status_t brgemm_convolution_bwd_strided_t<isa, enable_postops>::execute(
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
 
-    // XXX: brgemm requires scales to be passed, so passing default wei scales
-    DEFINE_ARG_SCALES_BUFFER(oscales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
+
+    const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
+            src_scales, wei_scales, _pd->IC(), _pd->attr());
 
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
     brgemm_batch_element_t *const __restrict brg_batch_global
@@ -451,6 +456,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, enable_postops>::execute(
             btc.ihb = ihb;
             btc.iwb = iwb;
             btc.oscales = oscales;
+            btc.dst_scales = dst_scales;
 
             auto id_begin = idb * jcp.id_block;
             auto id_end = nstl::min(ID, id_begin + jcp.id_block);
@@ -526,7 +532,7 @@ void brgemm_convolution_bwd_strided_t<isa, enable_postops>::call_brgemm_kernel(
                 static_cast<size_t>(g_ic), 0, btc.brgemm_ctx.dst, 0,
                 static_cast<void *>(src_zp_ptr), nullptr,
                 static_cast<void *>(dst_zp_ptr), do_skip_accm, src_zp_vals,
-                do_only_comp, do_only_pass_comp};
+                do_only_comp, do_only_pass_comp, btc.dst_scales};
 
         void *scratch = is_amx ? static_cast<void *>(btc.wsp_tile)
                                : static_cast<void *>(s8s8_comp);
