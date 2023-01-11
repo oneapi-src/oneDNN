@@ -755,7 +755,7 @@ void conv_ir_builder_t::build() {
     stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = optimize_alloc_let(stmt_, ir_ctx);
 
-    stmt_ = optimize_peephole(stmt_, ir_ctx);
+    if (cfg_.hw() > ngen::HW::XeLP) stmt_ = optimize_peephole(stmt_, ir_ctx);
     stmt_ = optimize_barrier(stmt_, ir_ctx);
     if (cfg_.fma_kind() == fma_kind_t::dp4a) stmt_ = inject_dp4a(stmt_, ir_ctx);
     stmt_ = inject_bank_conflict_attribute(stmt_, ir_ctx);
