@@ -116,7 +116,7 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
         cfg.im_w_block = utils::get_blocks(ow_, 1, 256).back();
       } else {
         auto os_blocks = get_os_blocks(ow_, adj_os_);
-        for (auto i = os_blocks.size() - 1; i >= 0; i--) {
+        for (int i = os_blocks.size() - 1; i >= 0; i--) {
           if (os_blocks[i] < 800) {
             cfg.im_w_block = os_blocks[i];
             break;

@@ -153,7 +153,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   if (ic_ % 32 != 0) {
     cfg.C_block = ic_ > 32 ? 32 : utils::rnd_up(ic_, 4);
   } else {
-    for (unsigned i = C_block_list.size() - 1; i >= 0; i--) {
+    for (int i = C_block_list.size() - 1; i >= 0; i--) {
       if (C_block_list[i] <= 128) {
         max_ic_block = C_block_list[i];
         break;
@@ -165,7 +165,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
   if (oc_ % 32 != 0) {
     cfg.K_block = oc_ > 32 ? 32 : utils::rnd_up(oc_, 4);
   } else {
-    for (unsigned i = K_block_list.size() - 1; i >= 0; i--) {
+    for (int i = K_block_list.size() - 1; i >= 0; i--) {
       if (K_block_list[i] <= 128) {
         max_oc_block = K_block_list[i];
         break;
@@ -229,7 +229,7 @@ config_ptr gen_conv_fwd_t::get_default_config(context_ptr ctx) const {
     auto os_choices = get_os_blocks(ow_, adj_os_);
     std::sort(os_choices.begin(), os_choices.end());
     if (ow_ < 28 && ow_ % 16 != 0) {
-      for (unsigned i = os_choices.size() - 1; i >= 0; i--) {
+      for (int i = os_choices.size() - 1; i >= 0; i--) {
         if (nthreads <= adj_os_ / os_choices[i] * mb_) {
           cfg.tile_os = os_choices[i];
           break;
