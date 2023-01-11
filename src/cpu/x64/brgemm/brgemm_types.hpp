@@ -262,6 +262,7 @@ struct brgemm_t {
     bool embd_bcst = false;
     bool with_bias = false;
     bool req_s8s8_compensation = false;
+    bool with_weights_scale_adjust = false;
     brgemm_kernel_innermost_loop_t innermost_loop = brgemm_ld_loop_innermost;
     int is_M_tail;
     bool interleave_tilestores_ = false;

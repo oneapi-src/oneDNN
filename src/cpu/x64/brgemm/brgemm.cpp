@@ -323,7 +323,8 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr->scales_.get(DNNL_ARG_WEIGHTS);
     brg->with_scales = !src_scales.has_default_values()
-            || !wei_scales.has_default_values();
+            || !wei_scales.has_default_values()
+            || brg->with_weights_scale_adjust;
     if (brg->with_scales) {
         // Note. the current version supports only two different output scale
         // types:

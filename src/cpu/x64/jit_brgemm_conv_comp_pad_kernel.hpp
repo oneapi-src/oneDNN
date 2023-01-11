@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,6 +74,9 @@ protected:
     Xbyak::Zmm zmm_one_bytes = Xbyak::Zmm(30);
     Xbyak::Zmm zmm_zp_shift = Xbyak::Zmm(29);
     Xbyak::Zmm zmm_cp_shift = Xbyak::Zmm(28);
+
+    Xbyak::Zmm zmm_one_words = Xbyak::Zmm(27);
+    Xbyak::Zmm zmm_int8_temp = Xbyak::Zmm(26);
 
     const int last_ic_block_ = 4;
     const int n_block2_ = 4;

@@ -547,7 +547,8 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     auto scratchpad = scratchpad_registry().registrar();
     brgemm_convolution_utils::init_scratchpad(scratchpad, jcp_);
     if (jcp_.with_scales)
-        book_precomputed_scales(scratchpad, attr()->scales_, OC());
+        book_precomputed_scales(scratchpad, attr()->scales_, OC(),
+                jcp_.scale_adjust_factor != 1.0f);
 
     return status::success;
 }
@@ -1117,7 +1118,8 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, _pd->OC(), _pd->attr());
+            src_scales, wei_scales, _pd->OC(), _pd->attr(),
+            jcp.scale_adjust_factor);
 
     brgemm_exec_ctx_t brgemm_ctx(ctx, _pd);
 

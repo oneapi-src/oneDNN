@@ -65,6 +65,7 @@ void init_common_conf(brgemm_t *brg, brgemm_batch_kind_t type, float alpha,
     brg->with_bias = false;
     brg->with_eltwise = false;
     brg->with_sum = false;
+    brg->with_weights_scale_adjust = false;
     brg->sum_scale = 0;
     brg->sum_zp = 0;
     brg->with_scales = false;

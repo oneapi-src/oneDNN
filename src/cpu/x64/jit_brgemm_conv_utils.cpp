@@ -1874,8 +1874,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         if (allow_perf_heuristics(jcp)) return status::unimplemented;
 
     jcp.s8s8_avx512 = jcp.src_dt == s8 && !is_amx(jcp.isa);
+    jcp.has_vnni = is_superset(jcp.isa, avx512_core_vnni)
+            || is_superset(jcp.isa, avx2_vnni);
 
-    if (!IMPLICATION(jcp.wei_dt == s8, mayiuse(avx512_core_vnni)))
+    if (!IMPLICATION(jcp.wei_dt == s8, mayiuse(avx512_core)))
         return status::unimplemented;
     if (!IMPLICATION(jcp.wei_dt == bf16,
                 mayiuse(avx512_core_bf16) || mayiuse(avx2_vnni_2)))
@@ -2165,7 +2167,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     jcp.with_scales = !src_scales.has_default_values()
-            || !wei_scales.has_default_values();
+            || !wei_scales.has_default_values()
+            || jcp.scale_adjust_factor != 1.0f;
     jcp.is_oc_scale = wei_scales.mask_ != 0;
 
     jcp.buffer_size = jcp.LDC * jcp.M;
@@ -2202,7 +2205,14 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.s8s8_avx512) {
         weights_md.extra.flags = 0 | memory_extra_flags::compensation_conv_s8s8;
         weights_md.extra.compensation_mask = with_groups ? 0x3 : 0x1;
+        if (!jcp.has_vnni) {
+            weights_md.extra.flags |= memory_extra_flags::scale_adjust;
+            weights_md.extra.scale_adjust = 0.5f;
+        }
     }
+    jcp.scale_adjust_factor = (jcp.s8s8_avx512 && !jcp.has_vnni)
+            ? 1 / weights_md.extra.scale_adjust
+            : 1.0f;
     if (jcp.src_zero_point && !is_amx(jcp.isa)) {
         weights_md.extra.flags
                 |= memory_extra_flags::compensation_conv_asymmetric_src;
@@ -2397,7 +2407,8 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     jcp.with_scales = !src_scales.has_default_values()
-            || !wei_scales.has_default_values();
+            || !wei_scales.has_default_values()
+            || jcp.scale_adjust_factor != 1.0f;
     jcp.is_oc_scale = wei_scales.mask_ != 0;
 
     // no inp buffer or brgemm_vpad for 1x1
@@ -2414,7 +2425,14 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.s8s8_avx512) {
         weights_md.extra.flags = 0 | memory_extra_flags::compensation_conv_s8s8;
         weights_md.extra.compensation_mask = with_groups ? 0x3 : 0x1;
+        if (!jcp.has_vnni) {
+            weights_md.extra.flags |= memory_extra_flags::scale_adjust;
+            weights_md.extra.scale_adjust = 0.5f;
+        }
     }
+    jcp.scale_adjust_factor = (jcp.s8s8_avx512 && !jcp.has_vnni)
+            ? 1 / weights_md.extra.scale_adjust
+            : 1.0f;
     if (jcp.src_zero_point) {
         weights_md.extra.flags
                 |= memory_extra_flags::compensation_conv_asymmetric_src;

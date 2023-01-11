@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -108,7 +108,13 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::compute(const int ic_step,
             auto zmm = accum(n_block, m, n);
             const auto oc_offset = inp_ic_offset(m_block, ic, m, n);
             auto addr = EVEX_compress_addr(reg_aux_in, oc_offset);
-            vpdpbusd(zmm, zmm_one_bytes, addr);
+            if (jcp_.has_vnni) {
+                vpdpbusd(zmm, zmm_one_bytes, addr);
+            } else {
+                vpmaddubsw(zmm_int8_temp, zmm_one_bytes, addr);
+                vpmaddwd(zmm_int8_temp, zmm_int8_temp, zmm_one_words);
+                vpaddd(zmm, zmm, zmm_int8_temp);
+            }
         }
     }
 }
@@ -219,7 +225,14 @@ void jit_avx512_core_brgemm_conv_comp_pad_kernel_t::generate() {
     mov(reg32_scratch, -1);
     vpbroadcastd(zmm_zp_shift, reg32_scratch);
 
-    const int max_regs = jcp_.s8s8_avx512 ? 28 : 29;
+    const bool is_int8_avx512_core = utils::one_of(jcp_.src_dt, s8, u8)
+            && jcp_.wei_dt == s8 && !jcp_.has_vnni;
+    if (is_int8_avx512_core) {
+        mov(reg_tmp.cvt16(), 0x1);
+        vpbroadcastw(zmm_one_words, reg_tmp.cvt16());
+    }
+
+    const int max_regs = jcp_.s8s8_avx512 ? is_int8_avx512_core ? 26 : 28 : 29;
     const int nb = div_up(nstl::min(jcp_.oc, jcp_.oc_block), m_block2_);
     const int nb2 = nb / n_max_regs_;
     const int nb2_tail = nb % n_block2_;

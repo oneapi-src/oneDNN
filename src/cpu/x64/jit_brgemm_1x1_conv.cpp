@@ -137,6 +137,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         CHECK(brgemm_desc_set_attr(&brg, brgattr));
         auto LDD = jcp_.oc_without_padding;
         brg.with_sum = with_sum;
+        brg.with_weights_scale_adjust = jcp_.scale_adjust_factor != 1.0f;
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
         jcp_.amx_buf_size_per_thread = nstl::max(
@@ -148,7 +149,8 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     auto scratchpad = scratchpad_registry().registrar();
     brgemm_convolution_utils::init_scratchpad(scratchpad, jcp_);
     if (jcp_.with_scales)
-        book_precomputed_scales(scratchpad, attr()->scales_, OC());
+        book_precomputed_scales(scratchpad, attr()->scales_, OC(),
+                jcp_.scale_adjust_factor != 1.0f);
 
     return status::success;
 }
@@ -448,7 +450,8 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, pd()->OC(), pd()->attr());
+            src_scales, wei_scales, pd()->OC(), pd()->attr(),
+            jcp.scale_adjust_factor);
 
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
