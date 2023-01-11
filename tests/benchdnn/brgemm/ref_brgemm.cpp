@@ -104,6 +104,7 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
 
         maybe_post_ops(prb->attr, tmp, dst, v_po_vals);
 
+        maybe_scale(prb->attr, tmp, prb->dst_scales, n, DNNL_ARG_DST, true);
         maybe_zero_point(prb->attr, tmp, prb->dst_zp, n, DNNL_ARG_DST, true);
         dst = tmp;
     });
