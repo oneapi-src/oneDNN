@@ -107,6 +107,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.a_zp_compensations = post_ops_data.a_zp_compensations;
     brgemm_p.b_zp_compensations = post_ops_data.b_zp_compensations;
     brgemm_p.c_zp_values = post_ops_data.c_zp_values;
+    brgemm_p.ptr_dst_scales = post_ops_data.dst_scales;
     assert(brg_kernel);
     (*brg_kernel)(&brgemm_p);
 }
@@ -140,6 +141,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.a_zp_compensations = post_ops_data.a_zp_compensations;
     brgemm_p.b_zp_compensations = post_ops_data.b_zp_compensations;
     brgemm_p.c_zp_values = post_ops_data.c_zp_values;
+    brgemm_p.ptr_dst_scales = post_ops_data.dst_scales;
     assert(brg_kernel);
     (*brg_kernel)(&brgemm_p);
 }
@@ -330,9 +332,12 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         // that mask has correct value for this case
         brg->is_oc_scale = wei_scales.mask_ != 0;
     }
-    const bool scales_ok = src_scales.mask_ == 0
+
+    const auto &dst_scales = attr->scales_.get(DNNL_ARG_DST);
+    brg->with_dst_scales = !dst_scales.has_default_values();
+    const bool scales_ok = src_scales.mask_ == 0 && dst_scales.mask_ == 0
             && attr->scales_.has_default_values(
-                    {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS});
+                    {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST});
     if (!scales_ok) return status::unimplemented;
 
     auto init_zp_type

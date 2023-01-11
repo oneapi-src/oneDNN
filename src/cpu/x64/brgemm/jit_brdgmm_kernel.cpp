@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -119,6 +119,11 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::read_params() {
     if (brg.with_scales) {
         mov(reg_tmp, ptr[param1 + GET_OFF(ptr_scales)]);
         mov(ptr[rsp + reg_scales_offs_], reg_tmp);
+    }
+
+    if (brg.with_dst_scales) {
+        mov(reg_tmp, ptr[param1 + GET_OFF(ptr_dst_scales)]);
+        mov(ptr[rsp + reg_dst_scales_offs_], reg_tmp);
     }
 
     if (brg.with_binary) mov(ptr[rsp + abi_param1_offs_], param1);
@@ -373,6 +378,23 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
 
     if (postops_injector_) apply_post_ops(m_blocks, n_blocks, has_n_tail);
 
+    if (brg.with_dst_scales) {
+        mov(reg_aux_dst_scales, ptr[rsp + reg_dst_scales_offs_]);
+        auto vmm_dst_scales = vmm_tmp(0);
+        vbroadcastss(vmm_dst_scales, ptr[reg_aux_dst_scales]);
+
+        for_(int m = 0; m < m_blocks; m++)
+        for_(int n = 0; n < n_blocks; n++)
+        for (int v_i = 0; v_i < v_substep; ++v_i) {
+            const int substep_simd = get_substep_simd(n, v_i, has_n_tail);
+            if (substep_simd <= 0) continue;
+            const bool mask_flag = substep_simd < simd_w_;
+            const Vmm vmm = maybe_mask(
+                    accm(m_blocks, n_blocks, m, n, v_i), mask_flag, false);
+            vmulps(vmm, vmm, ptr_b[reg_aux_dst_scales]);
+        }
+    }
+
     const bool dt_requires_saturation
             = one_of(brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
     auto vmm_lbound = vmm_tmp(0);
@@ -517,9 +539,9 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators(
         }
     }
 
-    const bool are_post_ops_applicable
-            = one_of(true, brg.with_eltwise, brg.with_binary, brg.with_scales,
-                    brg.with_bias, brg.with_sum, brg.dt_d != brg.dt_c);
+    const bool are_post_ops_applicable = one_of(true, brg.with_eltwise,
+            brg.with_binary, brg.with_scales, brg.with_bias, brg.with_sum,
+            brg.dt_d != brg.dt_c, brg.with_dst_scales);
 
     Label label_done;
     if (are_post_ops_applicable) {
