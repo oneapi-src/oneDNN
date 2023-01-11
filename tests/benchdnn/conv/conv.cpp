@@ -340,8 +340,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         // oihw: per_oc: 1 << 0 -> 1
         // goihw: per_oc: 1 << 1 + 1 << 0 -> 3
         auto wei_mask = prb->has_groups ? 3 : 1;
-        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, prb->wei_scales,
-                prb->oc, wei_mask);
+        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
     }
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));

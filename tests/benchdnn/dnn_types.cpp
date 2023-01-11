@@ -830,11 +830,6 @@ dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {
 #undef CASE
 }
 
-void attr_args_t::prepare_scales(const attr_t &attr, int arg, const void *vals,
-        int64_t count, int mask) {
-    insert(arg, vals, count, mask, attr.scales.get(arg).runtime);
-}
-
 struct post_ops_rhs_tensor_entry_t {
     dnnl_data_type_t dt;
     policy_t policy;
@@ -908,19 +903,12 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (as.is_def(arg_name)) continue;
 
             if (arg_name == DNNL_ARG_WEIGHTS
-                    && arg.second.policy == policy_t::PER_OC
-                    && !attr_args.get(arg_name).is_def()) {
-                const auto &e = attr_args.get(arg_name);
-                // Only RT scales are supported.
-                SAFE_V(e.runtime ? OK : FAIL);
-                int mask = e.mask;
-
+                    && arg.second.policy == policy_t::PER_OC) {
+                int mask = attr_args.get_mask(arg_name);
                 DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
                         dnnl_attr, arg_name, mask));
             } else {
                 const auto &e = arg.second;
-                // Only RT scales are supported.
-                SAFE_V(e.runtime ? OK : FAIL);
                 // Only common policy is supported in the library at this point
                 int mask = attr_t::get_default_mask(e.policy, arg_name);
 

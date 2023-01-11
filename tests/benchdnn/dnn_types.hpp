@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -441,34 +441,6 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 // A container for additional data and info, not available from user's input at
 // parse time, but which are required to create the library attributes.
 struct attr_args_t {
-    struct entry_t {
-        entry_t(const void *vals = NULL, int64_t count = 1, int mask = -1,
-                bool runtime = false)
-            : vals(vals), count(count), mask(mask), runtime(runtime) {}
-
-        bool is_def() const {
-            return vals == NULL && count == 1 && mask == -1 && runtime == false;
-        }
-
-        int64_t get_count(policy_t policy) const {
-            return (policy == policy_t::COMMON || runtime) ? 1 : count;
-        }
-
-        int get_mask(policy_t policy) const {
-            return mask == -1 ? attr_t::get_default_mask(policy) : mask;
-        }
-
-        const float *get_float_ptr() const {
-            return runtime ? &DNNL_RUNTIME_F32_VAL
-                           : static_cast<const float *>(vals);
-        }
-
-        const void *vals = NULL;
-        int64_t count = 1;
-        int mask = -1;
-        bool runtime = false;
-    };
-
     struct dw_t {
         dnnl_data_type_t wei_dt = dnnl_data_type_undef;
         dnnl_data_type_t bia_dt = dnnl_data_type_undef;
@@ -476,11 +448,9 @@ struct attr_args_t {
 
     attr_args_t() = default;
 
-    void prepare_output_scales(
-            const attr_t &attr, const void *vals, int64_t count, int mask = -1);
-
-    void prepare_scales(const attr_t &attr, int arg, const void *vals,
-            int64_t count, int mask = -1);
+    void prepare_scales(const attr_t &attr, int arg, int mask = -1) {
+        entries.insert(std::make_pair(arg, mask));
+    };
 
     int prepare_post_ops_mds(
             const attr_t &attr, int ndims, const dnnl_dims_t dims);
@@ -488,9 +458,10 @@ struct attr_args_t {
     void prepare_dw_post_op(const attr_t &attr, dnnl_data_type_t wei_dt,
             dnnl_data_type_t bia_dt);
 
-    entry_t get(int arg) const {
+    // Returns mask set for correspondent `arg`. The default value is `-1`.
+    int get_mask(int arg) const {
         const auto it = entries.find(arg);
-        return it == entries.end() ? entry_t() : it->second;
+        return it == entries.end() ? -1 : it->second;
     }
 
     dnnl_memory_desc_t get_md(int arg) const {
@@ -510,13 +481,7 @@ struct attr_args_t {
     }
 
 private:
-    void insert(
-            int arg, const void *vals, int64_t count, int mask, bool runtime) {
-        entries.insert(
-                std::make_pair(arg, entry_t(vals, count, mask, runtime)));
-    }
-
-    std::map<int, entry_t> entries;
+    std::map<int, int /* mask*/> entries;
     std::map<int, benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>> mds;
     dw_t dw_entry; // only single dw fusion is supported
 };
