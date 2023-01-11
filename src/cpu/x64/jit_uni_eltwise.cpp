@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,7 +82,9 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
         , is_fwd_(pd_->is_fwd()) {
 
         const auto &desc = *pd_->desc();
-        // there's no auxiliary vregs on fwd path
+        // we can consider that there's no auxiliary vregs on fwd path
+        // using the first 7 vregs can be considered volatile during the call
+        // to eltwise injector
         const bool save_state = is_fwd_ ? false : true;
         eltwise_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
                 desc.alg_kind, desc.alpha, desc.beta, 1.f, save_state,
@@ -238,11 +240,14 @@ private:
     Vmm vmm_src = Vmm(1);
     Vmm vmm_diff_dst = Vmm(2);
     Vmm vmm_tmp = Vmm(3);
-    Vmm vmm_tail_mask = Vmm(6);
+    // vmm_tail_mask for load/store data with tail
+    // vmm_src_odd/vmm_src_even for load/store xf16 data with NE_CONVERT
+    // instructions
+    Vmm vmm_tail_mask = Vmm(7);
     Vmm vmm_src_even = vmm_src;
-    Vmm vmm_src_odd = Vmm(7);
+    Vmm vmm_src_odd = Vmm(8);
     Vmm vmm_diff_dst_even = vmm_diff_dst;
-    Vmm vmm_diff_dst_odd = Vmm(8);
+    Vmm vmm_diff_dst_odd = Vmm(9);
     std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> eltwise_injector_;
     io::jit_io_multi_dt_helper_t<Vmm> io_;
 
