@@ -178,26 +178,9 @@ struct prb_t : public desc_t {
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
         , user_mb(mb)
-        , ops(0)
-        , src_scales(NULL)
-        , wei_scales(NULL)
-        , dst_scales(NULL)
-        , src_zp(NULL)
-        , dst_zp(NULL) {
+        , ops(0) {
         if (mb) this->mb = mb;
         count_ops();
-        src_scales = generate_scales(DNNL_ARG_SRC);
-        wei_scales = generate_scales(DNNL_ARG_WEIGHTS);
-        dst_scales = generate_scales(DNNL_ARG_DST);
-        src_zp = generate_zero_points(DNNL_ARG_SRC);
-        dst_zp = generate_zero_points(DNNL_ARG_DST);
-    }
-    ~prb_t() {
-        if (src_scales) zfree(src_scales);
-        if (wei_scales) zfree(wei_scales);
-        if (dst_scales) zfree(dst_scales);
-        if (src_zp) zfree(src_zp);
-        if (dst_zp) zfree(dst_zp);
     }
 
     dir_t dir;
@@ -209,8 +192,6 @@ struct prb_t : public desc_t {
     int64_t user_mb;
 
     double ops;
-    float *src_scales, *wei_scales, *dst_scales;
-    int32_t *src_zp, *dst_zp;
 
     void count_ops();
 
@@ -233,12 +214,6 @@ struct prb_t : public desc_t {
         assert(!"No runtime dimensions support for this driver!");
         return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
     }
-
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
-
-private:
-    float *generate_scales(int arg);
-    int32_t *generate_zero_points(int arg);
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
