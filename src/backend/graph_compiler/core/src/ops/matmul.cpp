@@ -140,37 +140,40 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         is_bf16 = true;
     }
 
-    // For Nd*2d and 2d*Nd cases, ND input will be reshaped into 2D to meet more
-    // possibilities of M_block or N_block
-    // check Nd*2d cases
+    // For Nd*2d and 2d*Nd non-dynamic cases, ND input will be reshaped into 2D
+    // to meet more possibilities of M_block or N_block
     sc_dims trans0_plain_dims = trans0->details_.get_plain_dims(),
             trans1_plain_dims = trans1->details_.get_plain_dims();
-    if (trans0_plain_dims.size() > 2 && trans1_plain_dims.size() == 2) {
-        sc_dims reshape_dest = {
-                math_utils::get_dims_product(sc_dims {trans0_plain_dims.begin(),
-                        trans0_plain_dims.end() - 1}),
-                trans0_plain_dims.back()};
-        auto reshape_node = graph->make("tensor_view", {trans0},
-                {graph_tensor::make(reshape_dest, sc_data_format_t(),
-                        trans0->details_.dtype_)},
-                {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
-        trans0 = reshape_node->get_outputs()[0];
-    }
-    // check 2d*Nd cases
-    if (trans0_plain_dims.size() == 2 && trans1_plain_dims.size() > 2) {
-        sc_dims reshape_dest = {
-                trans1_plain_dims.at(trans1_plain_dims.size() - 2),
-                math_utils::get_dims_product(sc_dims {
-                        trans1_plain_dims.begin(), trans1_plain_dims.end() - 2})
-                        * trans1_plain_dims.back()};
-        auto reshape_fmt = sc_data_format_t::NKkn(
-                trans1_plain_dims.at(trans1_plain_dims.size() - 2),
-                trans1_plain_dims.back());
-        sc_op_ptr reshape_node = graph->make("tensor_view", {trans1},
-                {graph_tensor::make(
-                        reshape_dest, reshape_fmt, trans1->details_.dtype_)},
-                {{"shape", reshape_dest}, {"format", reshape_fmt}});
-        trans1 = reshape_node->get_outputs()[0];
+    if (!is_dynamic()) {
+        // check Nd*2d cases
+        if (trans0_plain_dims.size() > 2 && trans1_plain_dims.size() == 2) {
+            sc_dims reshape_dest = {math_utils::get_dims_product(sc_dims {
+                                            trans0_plain_dims.begin(),
+                                            trans0_plain_dims.end() - 1}),
+                    trans0_plain_dims.back()};
+            auto reshape_node = graph->make("tensor_view", {trans0},
+                    {graph_tensor::make(reshape_dest, sc_data_format_t(),
+                            trans0->details_.dtype_)},
+                    {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
+            trans0 = reshape_node->get_outputs()[0];
+        }
+        // check 2d*Nd cases
+        if (trans0_plain_dims.size() == 2 && trans1_plain_dims.size() > 2) {
+            sc_dims reshape_dest
+                    = {trans1_plain_dims.at(trans1_plain_dims.size() - 2),
+                            math_utils::get_dims_product(
+                                    sc_dims {trans1_plain_dims.begin(),
+                                            trans1_plain_dims.end() - 2})
+                                    * trans1_plain_dims.back()};
+            auto reshape_fmt = sc_data_format_t::NKkn(
+                    trans1_plain_dims.at(trans1_plain_dims.size() - 2),
+                    trans1_plain_dims.back());
+            sc_op_ptr reshape_node = graph->make("tensor_view", {trans1},
+                    {graph_tensor::make(reshape_dest, reshape_fmt,
+                            trans1->details_.dtype_)},
+                    {{"shape", reshape_dest}, {"format", reshape_fmt}});
+            trans1 = reshape_node->get_outputs()[0];
+        }
     }
     int M = trans0->details_
                     .get_plain_dims()[trans0->details_.get_plain_dims().size()
@@ -204,27 +207,29 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     }
 
     // view the shape back
-    // Nd*2d cases
-    if (trans0_plain_dims.size() > 2 && trans1_plain_dims.size() == 2) {
-        sc_dims reshape_dest
-                = {trans0_plain_dims.begin(), trans0_plain_dims.end() - 1};
-        reshape_dest.emplace_back(trans1_plain_dims.back());
-        matmul = graph->make("tensor_view", {matmul->get_outputs()[0]},
-                {graph_tensor::make(reshape_dest, sc_data_format_t(),
-                        matmul->get_outputs()[0]->details_.dtype_)},
-                {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
-    }
-    // 2d*Nd cases
-    if (trans0_plain_dims.size() == 2 && trans1_plain_dims.size() > 2) {
-        sc_dims reshape_dest
-                = {trans1_plain_dims.begin(), trans1_plain_dims.end() - 2};
-        reshape_dest.emplace_back(trans0_plain_dims[0]);
-        reshape_dest.emplace_back(trans1_plain_dims.back());
+    if (!is_dynamic()) {
+        // Nd*2d cases
+        if (trans0_plain_dims.size() > 2 && trans1_plain_dims.size() == 2) {
+            sc_dims reshape_dest
+                    = {trans0_plain_dims.begin(), trans0_plain_dims.end() - 1};
+            reshape_dest.emplace_back(trans1_plain_dims.back());
+            matmul = graph->make("tensor_view", {matmul->get_outputs()[0]},
+                    {graph_tensor::make(reshape_dest, sc_data_format_t(),
+                            matmul->get_outputs()[0]->details_.dtype_)},
+                    {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
+        }
+        // 2d*Nd cases
+        if (trans0_plain_dims.size() == 2 && trans1_plain_dims.size() > 2) {
+            sc_dims reshape_dest
+                    = {trans1_plain_dims.begin(), trans1_plain_dims.end() - 2};
+            reshape_dest.emplace_back(trans0_plain_dims[0]);
+            reshape_dest.emplace_back(trans1_plain_dims.back());
 
-        matmul = graph->make("tensor_view", {matmul->get_outputs()[0]},
-                {graph_tensor::make(reshape_dest, sc_data_format_t(),
-                        matmul->get_outputs()[0]->details_.dtype_)},
-                {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
+            matmul = graph->make("tensor_view", {matmul->get_outputs()[0]},
+                    {graph_tensor::make(reshape_dest, sc_data_format_t(),
+                            matmul->get_outputs()[0]->details_.dtype_)},
+                    {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
+        }
     }
 
     // check optional input lotgical tensor: bias

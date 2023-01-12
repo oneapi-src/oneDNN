@@ -41,7 +41,7 @@ extern "C" void infer_shape_matmul_op(void *out, void *data, void *weight) {
     int weight_ndims = weight_dyn_tsr->ndims_;
     int &out_ndims = out_dyn_tsr->ndims_;
     // Currently not support  2D x ND
-    assert(data_ndims == weight_ndims);
+    assert(data_ndims >= weight_ndims);
     out_dyn_tsr->ndims_ = data_ndims;
 
     // batch dims
