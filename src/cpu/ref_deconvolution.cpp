@@ -331,13 +331,13 @@ static void compute_src_zp_compensation(const exec_ctx_t &ctx,
                 const int32_t wei32 = static_cast<int32_t>(wei[weights_offset]);
 
                 if (is_src_zp_common)
-                    acc += wei32;
+                    acc += wei32 * src_zero_point[0];
                 else
                     acc += wei32 * src_zero_point[g * IC + ic];
             }
         }
 
-        zp_compensation[out_offset] = acc * src_zero_point[0];
+        zp_compensation[out_offset] = acc;
     });
 }
 
