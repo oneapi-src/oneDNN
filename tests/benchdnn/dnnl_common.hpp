@@ -834,22 +834,18 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
     if (!prb->attr.scales.is_def()) {
         const auto &sc = prb->attr.scales;
 
+        const auto &src_md = query_md(const_pd, DNNL_ARG_SRC);
+        const auto &wei_md = query_md(const_pd, DNNL_ARG_WEIGHTS);
+        const bool has_groups
+                = (query_md_ndims(src_md) + 1) == query_md_ndims(wei_md);
+
         const auto append_scales = [&](int exec_arg) {
             const int exec_sc_arg = DNNL_ARG_ATTR_SCALES | exec_arg;
-            const auto &e = sc.get(exec_arg);
             int64_t count = 1;
-            // `get_default_mask` doesn't work for new per argument scaling
-            // when weights (esp. grouped) are involved, since library
-            // returns different values for G and OC and also doesn't
-            // reflect proper position of dimensions.
-            const auto mask = attr_t::get_default_mask(e.policy);
+            const auto mask = sc.get_mask(exec_arg, prim_kind, has_groups);
 
             if (mask > 0) {
-                // Hack for (grouped) weights to use DST as queried md.
-                // TODO: replace with proper logic or higher level logic.
-                int md_query_arg = exec_arg;
-                if (exec_arg == DNNL_ARG_WEIGHTS) md_query_arg = DNNL_ARG_DST;
-                const auto &md = query_md(const_pd, md_query_arg);
+                const auto &md = query_md(const_pd, exec_arg);
                 if (has_runtime_dims(md)) {
                     const auto prb_md = prb->get_md(exec_arg);
                     const auto dims = md2dims(prb_md);

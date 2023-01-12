@@ -198,12 +198,10 @@ const char *attr_t::policy2str(policy_t policy) {
     return "unknown attr_t::policy_t policy";
 }
 
-int attr_t::get_default_mask(policy_t policy, int arg) {
+int attr_t::get_default_mask(policy_t policy) {
     switch (policy) {
         case PER_DIM_0: return (1 << 0);
         case PER_OC:
-            if (arg == DNNL_ARG_WEIGHTS) return get_default_mask(PER_DIM_0);
-
         case PER_DIM_1: return (1 << 1);
         case PER_DIM_01: return (1 << 0) + (1 << 1);
         case PER_DIM_2: return (1 << 2);
@@ -236,6 +234,40 @@ int parse_value_and_runtime(float &value, const std::string &s) {
     if (scale_pos == s.size()) return OK;
     if (s.back() != '*') return FAIL;
     return OK;
+}
+
+int attr_t::arg_scales_t::entry_t::policy2mask(
+        int arg, dnnl_primitive_kind_t prim_kind, bool has_groups) const {
+    const auto policy = this->policy;
+
+    if (arg != DNNL_ARG_WEIGHTS || policy == policy_t::COMMON)
+        return attr_t::get_default_mask(policy);
+
+    // Handle of weights mask for various primitives.
+    if (prim_kind == dnnl_convolution || prim_kind == dnnl_deconvolution
+            || prim_kind == dnnl_inner_product) {
+        switch (policy) {
+            case PER_OC:
+                if (has_groups)
+                    return attr_t::get_default_mask(PER_DIM_01);
+                else
+                    return attr_t::get_default_mask(PER_DIM_0);
+            default: SAFE(FAIL, CRIT); return -1;
+        }
+    } else if (prim_kind == dnnl_matmul) {
+        switch (policy) {
+            // TODO: add batch dimension?
+            case PER_OC: return attr_t::get_default_mask(PER_DIM_1);
+            default: SAFE(FAIL, CRIT); return -1;
+        }
+    } else {
+        assert(prim_kind == dnnl_undefined_primitive);
+        assert(!"Weights may have specific mask for a given primitive. "
+                "Please re-direct new primitive to one of two branches "
+                "above");
+        SAFE(FAIL, CRIT);
+        return -1;
+    }
 }
 
 int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
@@ -901,18 +933,16 @@ dnnl_primitive_attr_t create_dnnl_attr(
             const int arg_name = arg.first;
             if (as.is_def(arg_name)) continue;
 
-            if (arg_name == DNNL_ARG_WEIGHTS
-                    && arg.second.policy == policy_t::PER_OC) {
-                int mask = attr_args.get_mask(arg_name);
-                DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
-                        dnnl_attr, arg_name, mask));
-            } else {
-                const auto &e = arg.second;
-                int mask = attr_t::get_default_mask(e.policy, arg_name);
+            const auto &e = arg.second;
+            // Weights mask differs from primitive to primitive, that's why it
+            // is stashed in `attr_args` at primitive creation time.
+            int mask = (arg_name == DNNL_ARG_WEIGHTS
+                               && e.policy != policy_t::COMMON)
+                    ? attr_args.get_mask(arg_name)
+                    : e.policy2mask(arg_name);
 
-                DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
-                        dnnl_attr, arg_name, mask));
-            }
+            DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
+                    dnnl_attr, arg_name, mask));
         }
     }
 
@@ -949,21 +979,15 @@ dnnl_primitive_attr_t create_dnnl_attr(
                         e.convolution.stride, e.convolution.padding));
 
                 const auto &wei_scale = e.convolution.wei_scale;
-                int wei_mask = attr_t::get_default_mask(
-                        wei_scale.policy, DNNL_ARG_WEIGHTS);
-                // dw conv always has group dim
-                if (wei_mask > 0) {
-                    assert(wei_mask == 1);
-                    wei_mask = 3;
-                }
+                int wei_mask = wei_scale.policy2mask(DNNL_ARG_WEIGHTS,
+                        dnnl_convolution, /* has_groups = */ true);
                 if (!wei_scale.is_def())
                     DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(dnnl_attr,
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
                             wei_mask));
 
                 const auto &dst_scale = e.convolution.dst_scale;
-                int dst_mask = attr_t::get_default_mask(
-                        dst_scale.policy, DNNL_ARG_DST);
+                int dst_mask = dst_scale.policy2mask(DNNL_ARG_DST);
                 if (!dst_scale.is_def())
                     DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(dnnl_attr,
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST, dst_mask));

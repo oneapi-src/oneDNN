@@ -47,6 +47,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, 2, prb->dst_dims().data());
+    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
+    if (wei_scale.policy == policy_t::PER_OC) {
+        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, 1);
+    }
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 

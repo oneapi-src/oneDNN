@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ float *prb_t::generate_scales(int arg) const {
     }
 
     assert(e.policy == policy_t::PER_OC);
-    const auto mask = attr_t::get_default_mask(e.policy, arg);
+    const auto mask = e.policy2mask(arg, dnnl_inner_product);
     int64_t s_nelems = desc_nelems(arg, mask);
 
     float *s = (float *)zmalloc(sizeof(float) * s_nelems, 64);
