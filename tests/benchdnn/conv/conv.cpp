@@ -92,13 +92,8 @@ double get_non_zero_trust_percent(const prb_t *prb, data_kind_t kind) {
 
 int fill_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const bool check_reorder
-            = (is_bench_mode(CORR)) && (mem_dt.dt() != mem_fp.dt());
-    dnn_mem_t extra_mem;
-    if (check_reorder) {
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_cpu_engine());
-    }
-    dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
+    const size_t nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
 
     // Use dense filling for small problems.
     int src_nelems_mask = powf(2.f, prb->ndims) - 1;
@@ -125,27 +120,19 @@ int fill_src(
                                        : c.f_base;
                 value += src_zp; // Add zp so that it will be subtracted.
 
-                ((float *)mem_00)[src_off_f(prb, mb, 0, ic, id, ih, iw)]
+                ((float *)mem_fp)[src_off_f(prb, mb, 0, ic, id, ih, iw)]
                         = round_to_nearest_representable(mem_dt.dt(), value);
             });
 
-    SAFE(mem_dt.reorder(mem_00), WARN);
-    if (check_reorder) {
-        SAFE(mem_fp.reorder(mem_dt), WARN);
-        int rc = std::memcmp((void *)mem_fp, (void *)mem_00, mem_00.size());
-        if (rc != 0) {
-            res->state = FAILED;
-            SAFE(FAIL, WARN);
-        }
-    }
+    SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
 
 int fill_wei(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const bool is_def_zp = prb->attr.zero_points.is_def(DNNL_ARG_SRC);
-    const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
+    const size_t nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
 
     dnnl_data_type_t dt_check = dnnl_s8;
 #if defined(DNNL_AARCH64) && (DNNL_AARCH64 == 1)
@@ -165,17 +152,6 @@ int fill_wei(
     if (res->impl_name.find("jit", 0) == 0) dt_check = dnnl_u8;
 #endif
 
-    const bool wei_x8x8 = prb->get_dt_conf(WEI).dt == dnnl_s8
-            && prb->get_dt_conf(SRC).dt == dt_check;
-    const bool check_reorder
-            = (is_bench_mode(CORR)) && diff_data_type && !wei_x8x8 && is_def_zp;
-
-    dnn_mem_t extra_mem;
-    if (check_reorder) {
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_cpu_engine());
-    }
-    dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
-
     const auto &c = prb->get_dt_conf(WEI);
     const int range = c.f_max - c.f_min + 1;
     const float sparsity = !is_bench_mode(CORR) ? 1.f : c.f_sparsity;
@@ -189,19 +165,15 @@ int fill_wei(
                 const bool non_base = flip_coin(gen, sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
                                              : c.f_base;
-                ((float *)mem_00)[wei_off_f(prb, g, oc, ic, kd, kh, kw)]
-                        = value;
+                ((float *)mem_fp)[wei_off_f(prb, g, oc, ic, kd, kh, kw)]
+                        = round_to_nearest_representable(mem_dt.dt(), value);
             });
 
-    SAFE(mem_dt.reorder(mem_00), WARN);
-    if (check_reorder) {
-        SAFE(mem_fp.reorder(mem_dt), WARN);
-        int rc = std::memcmp((void *)mem_fp, (void *)mem_00, mem_00.size());
-        if (rc != 0) {
-            res->state = FAILED;
-            SAFE(FAIL, WARN);
-        }
-    }
+    SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    const bool wei_x8x8 = prb->get_dt_conf(WEI).dt == dnnl_s8
+            && prb->get_dt_conf(SRC).dt == dt_check;
+    const bool is_def_zp = prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     if ((wei_x8x8 || !is_def_zp) && is_cpu()) {
         // Check that s8 -> s8_comp exists in the library since users may have
         // already quantized data.
@@ -213,19 +185,13 @@ int fill_wei(
         int rc = std::memcmp((void *)mem_dt, (void *)mem_dt_s8, mem_dt.size());
         SAFE(rc == 0 ? OK : FAIL, WARN);
     }
+
     return OK;
 }
 
 int fill_bia(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const bool check_reorder
-            = (is_bench_mode(CORR)) && (mem_dt.dt() != mem_fp.dt());
-    dnn_mem_t extra_mem;
-    if (check_reorder)
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::x, get_cpu_engine());
-    dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
-
-    const size_t nelems = mem_00.nelems();
+    const size_t nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
     const auto &c = prb->get_dt_conf(BIA);
@@ -237,32 +203,21 @@ int fill_bia(
         const float value
                 = non_base ? c.f_min + gen * c.f_step % range : c.f_base;
 
-        ((float *)mem_00)[i] = value;
+        ((float *)mem_fp)[i]
+                = round_to_nearest_representable(mem_dt.dt(), value);
     }
 
-    SAFE(mem_dt.reorder(mem_00), WARN);
-    if (check_reorder) {
-        SAFE(mem_fp.reorder(mem_dt), WARN);
-        int rc = std::memcmp((void *)mem_fp, (void *)mem_00, mem_00.size());
-        if (rc != 0) {
-            res->state = FAILED;
-            SAFE(FAIL, WARN);
-        }
-    }
+    SAFE(mem_dt.reorder(mem_fp), WARN);
+
     return OK;
 }
 
 int fill_dst_with_params(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         dnnl_data_type_t dt, double sparsity, int min, int max, int base,
         int step, res_t *res) {
-    const bool check_reorder
-            = (is_bench_mode(CORR)) && (mem_dt.dt() != mem_fp.dt());
-    dnn_mem_t extra_mem;
-    if (check_reorder) {
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_cpu_engine());
-    }
+    const size_t nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
 
-    dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
     const int range = max - min + 1;
 
     benchdnn_parallel_nd(prb->mb, prb->oc, prb->od, prb->oh, prb->ow,
@@ -272,19 +227,11 @@ int fill_dst_with_params(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
                 const bool non_base = flip_coin(gen, sparsity);
                 const float value = non_base ? min + gen * step % range : base;
 
-                ((float *)mem_00)[dst_off_f(prb, mb, 0, oc, od, oh, ow)]
-                        = value;
+                ((float *)mem_fp)[dst_off_f(prb, mb, 0, oc, od, oh, ow)]
+                        = round_to_nearest_representable(mem_dt.dt(), value);
             });
 
-    SAFE(mem_dt.reorder(mem_00), WARN);
-    if (check_reorder) {
-        SAFE(mem_fp.reorder(mem_dt), WARN);
-        int rc = std::memcmp((void *)mem_fp, (void *)mem_00, mem_00.size());
-        if (rc != 0) {
-            res->state = FAILED;
-            SAFE(FAIL, WARN);
-        }
-    }
+    SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
