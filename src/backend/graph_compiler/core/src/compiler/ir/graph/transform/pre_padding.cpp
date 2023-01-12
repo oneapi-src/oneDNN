@@ -85,8 +85,7 @@ void pre_padding(sc_graph_t &graph, const context_ptr &ctx) {
                     if (node->get_inputs()[0]->details_.get_plain_dims()[0]
                             == 1) {
                         padding_node->attrs_.set(
-                                op_attr_key::bwise_break_post_fuse, true);
-                        node->attrs_.set(op_attr_key::break_pre_fuse, true);
+                                op_attr_key::break_post_fuse, true);
                     }
 
                     // clear paddings from original conv node

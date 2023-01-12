@@ -106,7 +106,7 @@ void padding_op_t::infer_slice_ranges(
     slice_range_map known_ranges_map
             = search_known_slice_ranges(this, fsmap, stat_map);
 
-    if (attrs_.get_or_else(op_attr_key::bwise_break_post_fuse, false)) {
+    if (attrs_.get_or_else(op_attr_key::break_post_fuse, false)) {
         fsmap.get(get_outputs()[0]) = known_ranges_map[0];
         return;
     }
