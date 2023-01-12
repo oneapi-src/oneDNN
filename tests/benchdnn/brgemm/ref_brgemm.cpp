@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -92,12 +92,12 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
         float &dst = ((float *)dst_m)[dst_off];
 
         float tmp = ((float *)dst_tmp)[dst_off];
+        maybe_scale(prb->attr, tmp, prb->scales, n, attr_scale_arg);
         if (prb->bia_dt != dnnl_data_type_undef) {
             int64_t bia_off = dst_m.get_scale_idx(dst_off, bias_broadcast_mask);
             float *bia_ptr = (float *)bia_m;
             tmp += bia_ptr[bia_off];
         }
-        maybe_scale(prb->attr, tmp, prb->scales, n, attr_scale_arg);
 
         const auto v_po_vals
                 = prepare_po_vals(dst_m, args, v_po_masks, dst_off);
