@@ -20,6 +20,7 @@
 #include "../viewer.hpp"
 #include <compiler/ir/intrinsics.hpp>
 #include <compiler/ir/ir_module.hpp>
+#include <util/bf16.hpp>
 
 namespace sc {
 
@@ -27,6 +28,9 @@ void ir_printer_t::view(constant_c v) {
     if (v->is_vector()) { os_ << '('; }
     for (unsigned i = 0; i < v->value_.size(); i++) {
         switch (v->dtype_.type_code_) {
+            case sc_data_etype::BF16: {
+                os_ << bf16_t(v->value_[i].f32).storage_ << "UL";
+            } break;
             case sc_data_etype::F32: {
                 if (v->value_[i].f32 - static_cast<int>(v->value_[i].f32)
                         == 0) {
@@ -42,7 +46,6 @@ void ir_printer_t::view(constant_c v) {
             case sc_data_etype::U8:
             case sc_data_etype::U16:
             case sc_data_etype::U32:
-            case sc_data_etype::BF16:
             case sc_data_etype::INDEX: os_ << v->value_[i].u64 << "UL"; break;
             case sc_data_etype::BOOLEAN:
                 os_ << (v->value_[0].u64 ? "true" : "false");

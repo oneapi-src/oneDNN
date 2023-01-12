@@ -580,31 +580,6 @@ public:
         return ret;
     }
 
-    expr_c visit(constant_c v) override {
-        if (v->dtype_.is_etype(sc_data_etype::BF16)) {
-            union float_caster {
-                float f32;
-                uint32_t u32;
-            };
-            std::vector<union_val> new_value;
-            new_value.reserve(v->value_.size());
-            for (size_t i = 0; i < v->value_.size(); i++) {
-                float_caster caster;
-                caster.f32 = v->value_[i].f32;
-                if (ctx_->flags_.bf16_fast_trunc_) {
-                    new_value.emplace_back((uint64_t)(caster.u32 >> 16));
-                } else {
-                    uint32_t rounding_bias
-                            = ((caster.u32 >> 16) & 1) + (uint32_t)0x7FFF;
-                    new_value.emplace_back(
-                            (uint64_t)((caster.u32 + rounding_bias) >> 16));
-                }
-            }
-            return copy_attr(*v, builder::make_constant(new_value, v->dtype_));
-        }
-        return v;
-    }
-
     std::vector<stmt_c> insert_seq_before_;
     stmt_c visit(stmts_c v) override {
         bool changed = false;

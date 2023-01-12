@@ -53,6 +53,7 @@
 #include <llvm/Target/TargetOptions.h>
 #include <unordered_set>
 #include <util/any_map.hpp>
+#include <util/bf16.hpp>
 #include <util/file.hpp>
 #include <util/scoped_timer.hpp>
 
@@ -574,15 +575,21 @@ public:
         std::vector<Constant *> vals;
         vals.reserve(v->value_.size());
         auto cate = get_etype_category_nothrow(v->dtype_.type_code_);
-        if (v->dtype_.type_code_ == sc_data_etype::BF16) { cate = CATE_UINT; }
+        bool is_bf16 = v->dtype_.type_code_ == sc_data_etype::BF16;
         sc_data_type_t base_type = v->dtype_;
         base_type.lanes_ = 1;
         auto llvm_base_type = get_type(base_type);
         switch (cate) {
             case CATE_FLOAT: {
                 for (auto &val : v->value_) {
-                    vals.push_back(
-                            ConstantFP::get(llvm_base_type, APFloat(val.f32)));
+                    if (is_bf16) {
+                        uint64_t val_u64 = bf16_t(val.f32).storage_;
+                        vals.push_back(ConstantInt::get(
+                                llvm_base_type, val_u64, false));
+                    } else {
+                        vals.push_back(ConstantFP::get(
+                                llvm_base_type, APFloat(val.f32)));
+                    }
                 }
             } break;
             case CATE_UINT:

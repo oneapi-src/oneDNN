@@ -963,6 +963,8 @@ location_manager::encode_simd_constant() {
             = [](union_val u) -> int32_t { return (int32_t)u.s64; };
     std::function<float(union_val)> select_f32
             = [](union_val u) -> float { return (float)u.f32; };
+    std::function<uint16_t(union_val)> select_bf16
+            = [](union_val u) -> uint16_t { return bf16_t(u.f32).storage_; };
     uint8_t buffer[64];
     for (auto &simd_kv : simd_constant_map_) {
         auto v = simd_kv.first.static_as<constant_c>();
@@ -973,7 +975,7 @@ location_manager::encode_simd_constant() {
         switch (type_code) {
             case sc_data_etype::BF16: {
                 encode_simd_to_buffer(
-                        (uint16_t *)buffer, lanes, v->value_, select_u16);
+                        (uint16_t *)buffer, lanes, v->value_, select_bf16);
             } break;
             case sc_data_etype::U8: {
                 encode_simd_to_buffer(
