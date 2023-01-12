@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -288,8 +288,9 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const bool has_s8 = prb->sdt == dnnl_s8 || prb->ddt == dnnl_s8;
     const bool has_u8 = prb->sdt == dnnl_u8 || prb->ddt == dnnl_u8;
     // For u8 4/7 inputs becomes 0, for s32/s8 3/7 inputs becomes 0;
-    const float zero_trust_percent
-            = has_u8 ? 58.f : (has_s32 || has_s8) ? 43.f : 30.f;
+    const float zero_trust_percent = has_u8 ? 58.f
+            : (has_s32 || has_s8)           ? 43.f
+                                            : 30.f;
     cmp.set_zero_trust_percent(zero_trust_percent);
 
     // Additional check to avoid false-positive result from f32->s32 conversion
