@@ -2137,6 +2137,12 @@ private:
         return ret;
     }
 
+    static expr_t remove_bcast(const expr_t &e) {
+        auto *shuffle = e.as_ptr<shuffle_t>();
+        if (shuffle && shuffle->is_broadcast()) return shuffle->vec[0];
+        return e;
+    }
+
     static stmt_t merge(const std::vector<stmt_t> &calls, int start, int stop) {
         ir_assert(start < stop);
         int len = stop - start;
@@ -2159,8 +2165,9 @@ private:
             auto &mask = send_t::arg_mask(new_args);
             std::vector<expr_t> vec_mask;
             for (int i = start; i < stop; i++) {
-                auto &i_mask = send_t::arg_mask(calls[i]);
+                auto i_mask = remove_bcast(send_t::arg_mask(calls[i]));
                 ir_assert(!i_mask.is_empty());
+                ir_assert(i_mask.type().is_scalar());
                 for (int i = 0; i < size / 4; i++) {
                     vec_mask.push_back(i_mask);
                 }
