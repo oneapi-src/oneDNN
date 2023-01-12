@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2021 Intel Corporation
+# Copyright 2019-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ get_filename_component(cl_file_name ${CL_FILE} NAME_WE)
 get_filename_component(cl_file_ext ${CL_FILE} EXT)
 
 # Split string into concatenated parts to circumvent the limitation on Windows
-string(REGEX REPLACE "\n" " )==\"\"\\\\n\"\nR\"==(" cl_file_lines "${cl_file_lines}")
+string(REGEX REPLACE "\n" ")==\"\"\\\\n\"\nR\"==(" cl_file_lines "${cl_file_lines}")
 
 if(cl_file_ext STREQUAL ".cl")
     set(cl_file_contents  "const char *${cl_file_name}_kernel = R\"==(${cl_file_lines})==\";")
