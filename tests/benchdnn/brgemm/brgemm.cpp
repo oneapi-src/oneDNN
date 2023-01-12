@@ -233,25 +233,13 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
-    const bool is_src_zp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
-    const bool is_dst_zp = !prb->attr.zero_points.is_def(DNNL_ARG_DST);
-
-    // Only runtime zero points are supported by this driver
-    const bool is_runtime_src_zp = prb->attr.zero_points.runtime(DNNL_ARG_SRC);
-    const bool is_runtime_dst_zp = prb->attr.zero_points.runtime(DNNL_ARG_DST);
-    const bool is_static_zp = (is_src_zp && !is_runtime_src_zp)
-            || (is_dst_zp && !is_runtime_dst_zp);
-    if (is_static_zp) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
-
     // AMX kernel only supports SRC zero points in unrolled kernel,
     // and only for values of 0 or 1.
     // Note: this check must be done here due to the fact that zero point value
     // in brgemm API is a runtime argument.
     // TODO: remove once AMX kernel fully supports zero points.
     const bool is_amx = dnnl::mayiuse(dnnl_cpu_isa_avx512_core_amx);
+    const bool is_src_zp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     const int src_zp_value = prb->attr.zero_points.get(DNNL_ARG_SRC).value;
     if (is_amx && is_src_zp && src_zp_value != 0 && src_zp_value != 1) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
@@ -336,6 +324,10 @@ int doit(const prb_t *prb, res_t *res) {
         return res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED, OK;
 
     attr_args_t attr_args;
+    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
+    if (wei_scale.policy == policy_t::PER_OC) {
+        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, 2);
+    }
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -504,8 +496,7 @@ int doit(const prb_t *prb, res_t *res) {
     // scales attributes. This helps to reuse attributes from primitives, but
     // requires them to pre-compute oscale = src_scale * wei_scale[:]
     auto src_scale = prb->attr.scales.get(DNNL_ARG_SRC);
-    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
-    auto attr_scale = wei_scale.runtime ? wei_scale : src_scale;
+    auto attr_scale = !wei_scale.is_def() ? wei_scale : src_scale;
 
     const int64_t count = attr_scale.policy == policy_t::COMMON ? 1 : prb->n;
     dnn_mem_t scales(1, &count, dnnl_f32, tag::x, get_test_engine());

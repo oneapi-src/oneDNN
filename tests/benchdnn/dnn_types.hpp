@@ -121,46 +121,23 @@ struct attr_t {
     static const char *policy2str(policy_t policy);
     static int get_default_mask(policy_t policy, int arg = DNNL_ARG_DST);
 
-    struct scale_t {
-        scale_t(policy_t apolicy = COMMON, float ascale = 1.,
-                bool aruntime = false)
-            : policy(apolicy), scale(ascale), runtime(aruntime) {}
-
-        int from_str(const std::string &s);
-
-        bool is_def() const {
-            return policy == COMMON && scale == 1. && runtime == false;
-        }
-
-        policy_t policy = COMMON;
-        float scale = 1.;
-        bool runtime = false;
-    };
-
     struct zero_points_t {
         struct entry_t {
-            entry_t(policy_t apolicy = COMMON, int avalue = 0,
-                    bool aruntime = false)
-                : policy(apolicy), value(avalue), runtime(aruntime) {}
+            entry_t(policy_t apolicy = COMMON, int avalue = 0)
+                : policy(apolicy), value(avalue) {}
 
             entry_t(const entry_t &other)
-                : policy(other.policy)
-                , value(other.value)
-                , runtime(other.runtime) {}
+                : policy(other.policy), value(other.value) {}
 
-            bool is_def() const {
-                return policy == COMMON && value == 0 && runtime == false;
-            }
+            bool is_def() const { return policy == COMMON && value == 0; }
 
             policy_t policy = COMMON;
             int value = 0;
-            bool runtime = false;
         };
 
         int from_str(const std::string &s);
 
         int operator[](int arg) const { return get(arg).value; }
-        bool runtime(int arg) const { return get(arg).runtime; }
 
         bool is_def(int arg) const {
             return points.empty() || get(arg).is_def();
@@ -175,8 +152,8 @@ struct attr_t {
             return def;
         }
 
-        void set(int arg, policy_t policy, int value, bool runtime) {
-            set(arg, entry_t(policy, value, runtime));
+        void set(int arg, policy_t policy, int value) {
+            set(arg, entry_t(policy, value));
         }
         void set(int arg, const entry_t &entry) {
             if (!entry.is_def()) points[arg] = entry;
@@ -198,11 +175,23 @@ struct attr_t {
     };
 
     struct arg_scales_t {
-        void set(int arg, scale_t scale) { scales[arg] = scale; }
+        struct entry_t {
+            entry_t(policy_t apolicy = COMMON, float ascale = 1.f)
+                : policy(apolicy), scale(ascale) {}
 
-        scale_t get(int arg) const {
+            int from_str(const std::string &s);
+
+            bool is_def() const { return policy == COMMON && scale == 1.f; }
+
+            policy_t policy = COMMON;
+            float scale = 1.f;
+        };
+
+        void set(int arg, entry_t scale) { scales[arg] = scale; }
+
+        entry_t get(int arg) const {
             const auto &s = scales.find(arg);
-            return s == scales.end() ? scale_t() : s->second;
+            return s == scales.end() ? entry_t() : s->second;
         }
 
         bool is_def(int arg) const {
@@ -221,7 +210,7 @@ struct attr_t {
 
         arg_scales_t() : scales() {} // needed for debug icc190 build;
 
-        std::map<int, scale_t> scales;
+        std::map<int, entry_t> scales;
     };
 
     struct post_ops_t {
@@ -293,9 +282,9 @@ struct attr_t {
                 } else if (is_eltwise_kind()) {
                     eltwise.alg = kind2dnnl_kind(kind);
                 } else if (is_convolution_kind()) {
-                    convolution.src_scale = scale_t();
-                    convolution.wei_scale = scale_t();
-                    convolution.dst_scale = scale_t();
+                    convolution.src_scale = arg_scales_t::entry_t();
+                    convolution.wei_scale = arg_scales_t::entry_t();
+                    convolution.dst_scale = arg_scales_t::entry_t();
                     if (kind != DW) {
                         convolution.kernel = 3;
                         convolution.stride = kind == DW_K3S1P1 ? 1 : 2;
@@ -322,9 +311,9 @@ struct attr_t {
                 int stride = 0;
                 int padding = 0;
                 dnnl_data_type_t dst_dt = dnnl_f32;
-                scale_t src_scale;
-                scale_t wei_scale;
-                scale_t dst_scale;
+                arg_scales_t::entry_t src_scale;
+                arg_scales_t::entry_t wei_scale;
+                arg_scales_t::entry_t dst_scale;
             } convolution;
             struct {
                 dnnl_alg_kind_t alg = dnnl_alg_kind_undef;
@@ -428,7 +417,6 @@ struct isa_hints_t {
 using policy_t = attr_t::policy_t;
 
 std::ostream &operator<<(std::ostream &s, const policy_t &policy);
-std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
 std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points);
 std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales);

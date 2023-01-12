@@ -83,7 +83,7 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
     }
 
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
-    auto attr_scale_arg = wei_scale.runtime ? DNNL_ARG_WEIGHTS : DNNL_ARG_SRC;
+    auto attr_scale_arg = !wei_scale.is_def() ? DNNL_ARG_WEIGHTS : DNNL_ARG_SRC;
 
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
     static constexpr int bias_broadcast_mask = 2;

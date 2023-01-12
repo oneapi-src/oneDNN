@@ -152,9 +152,6 @@ struct settings_t : public base_settings_t {
     }
 };
 
-// moved out of prb_t to support fusion
-float *generate_oscales(const attr_t::scale_t &oscale, int N);
-
 struct prb_t : public desc_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)

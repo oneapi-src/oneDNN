@@ -217,9 +217,10 @@ int attr_t::get_default_mask(policy_t policy, int arg) {
     }
 }
 
-// This function takes input string, extracts float value and runtime, if
-// present, from the string. Updates @value and @runtime with extracted values.
-int parse_value_and_runtime(float &value, bool &runtime, const std::string &s) {
+// This function takes input string, extracts float value and asteriks, if
+// present, from the string. Updates @value with extracted values.
+// TODO: remove asteriks from all inputs and update doc.
+int parse_value_and_runtime(float &value, const std::string &s) {
     // process value
     size_t scale_pos = 0;
     try {
@@ -231,16 +232,14 @@ int parse_value_and_runtime(float &value, bool &runtime, const std::string &s) {
                 "Expected input: \'VAL[*]\'. See help for proper syntax.");
         exit(1);
     }
-    runtime = false;
     if (scale_pos + 1 < s.size()) return FAIL;
     if (scale_pos == s.size()) return OK;
     if (s.back() != '*') return FAIL;
-    runtime = true;
     return OK;
 }
 
-int attr_t::scale_t::from_str(const std::string &s) {
-    *this = scale_t();
+int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
+    *this = arg_scales_t::entry_t();
     if (s.empty()) return OK;
 
     size_t start_pos = 0;
@@ -250,8 +249,8 @@ int attr_t::scale_t::from_str(const std::string &s) {
     if (start_pos == std::string::npos) return OK;
     if (start_pos >= s.size()) return FAIL; // to catch dangling ':'
 
-    SAFE(parse_value_and_runtime(this->scale, this->runtime,
-                 parser::get_substr(s, start_pos, ':')),
+    SAFE(parse_value_and_runtime(
+                 this->scale, parser::get_substr(s, start_pos, ':')),
             WARN);
     if (this->scale < 0) return FAIL;
     return OK;
@@ -277,11 +276,10 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
             return FAIL;
 
         float zp = 0;
-        bool runtime = false;
         SAFE(parse_value_and_runtime(
-                     zp, runtime, parser::get_substr(subs, subs_pos, '\0')),
+                     zp, parser::get_substr(subs, subs_pos, '\0')),
                 WARN);
-        set(arg, policy, static_cast<int>(zp), runtime);
+        set(arg, policy, static_cast<int>(zp));
     }
     return OK;
 }
@@ -305,7 +303,7 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
                 || subs_pos >= s.size())
             return FAIL;
 
-        scale_t arg_scale;
+        arg_scales_t::entry_t arg_scale;
         SAFE(arg_scale.from_str(parser::get_substr(subs, subs_pos, '\0')),
                 WARN);
         set(arg, arg_scale);
@@ -618,20 +616,21 @@ std::ostream &operator<<(std::ostream &s, const policy_t &policy) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale) {
-    s << scale.policy << ":" << scale.scale;
-    if (scale.runtime) s << '*';
+std::ostream &operator<<(
+        std::ostream &s, const attr_t::arg_scales_t::entry_t &scale) {
+    // TODO: remove '*'
+    s << scale.policy << ":" << scale.scale << '*';
     return s;
 }
 
 std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points) {
     const char *delim = "";
+    // TODO: remove '*'
     for (const auto &point : zero_points.points) {
         s << delim;
         s << arg2str(point.first) << ":" << point.second.policy << ":"
-          << point.second.value;
-        if (point.second.runtime) s << '*';
+          << point.second.value << '*';
         delim = "+";
     }
 
@@ -909,7 +908,6 @@ dnnl_primitive_attr_t create_dnnl_attr(
                         dnnl_attr, arg_name, mask));
             } else {
                 const auto &e = arg.second;
-                // Only common policy is supported in the library at this point
                 int mask = attr_t::get_default_mask(e.policy, arg_name);
 
                 DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
@@ -925,10 +923,6 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (zp.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
-            // Only RT scales are supported.
-            SAFE_V(e.runtime ? OK : FAIL);
-            // Only common policy/single RT value are supported in the library
-            // at this point
             int mask = attr_t::get_default_mask(e.policy);
 
             DNN_SAFE_V(dnnl_primitive_attr_set_zero_points_mask(
@@ -954,23 +948,23 @@ dnnl_primitive_attr_t create_dnnl_attr(
                         e.convolution.dst_dt, e.convolution.kernel,
                         e.convolution.stride, e.convolution.padding));
 
-                const auto &wei_policy = e.convolution.wei_scale.policy;
+                const auto &wei_scale = e.convolution.wei_scale;
                 int wei_mask = attr_t::get_default_mask(
-                        wei_policy, DNNL_ARG_WEIGHTS);
+                        wei_scale.policy, DNNL_ARG_WEIGHTS);
                 // dw conv always has group dim
                 if (wei_mask > 0) {
                     assert(wei_mask == 1);
                     wei_mask = 3;
                 }
-                if (e.convolution.wei_scale.runtime)
+                if (!wei_scale.is_def())
                     DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(dnnl_attr,
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
                             wei_mask));
 
-                const auto &dst_policy = e.convolution.dst_scale.policy;
-                int dst_mask
-                        = attr_t::get_default_mask(dst_policy, DNNL_ARG_DST);
-                if (e.convolution.dst_scale.runtime)
+                const auto &dst_scale = e.convolution.dst_scale;
+                int dst_mask = attr_t::get_default_mask(
+                        dst_scale.policy, DNNL_ARG_DST);
+                if (!dst_scale.is_def())
                     DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(dnnl_attr,
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST, dst_mask));
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -142,16 +142,6 @@ bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
               "specified in a problem descriptor with `UINT` value.\n    When "
               "set to `0`, takes no effect.\n";
     return parse_vector_option(mb, def_mb, atoi, str, option_name, help);
-}
-
-bool parse_attr_oscale(std::vector<attr_t::scale_t> &oscale, const char *str,
-        const std::string &option_name /* = "attr-oscale"*/) {
-    static const std::string help
-            = "POLICY[:SCALE[*]]\n    Specifies output scale attribute.\n    "
-              "More details at "
-              "https://github.com/oneapi-src/oneDNN/blob/master/tests/benchdnn/"
-              "doc/knobs_attr.md\n";
-    return parse_subattr(oscale, str, option_name, help);
 }
 
 bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,

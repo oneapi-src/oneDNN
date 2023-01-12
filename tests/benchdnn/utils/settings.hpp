@@ -24,7 +24,6 @@ struct base_settings_t {
 
     std::vector<int64_t> mb {0};
     std::vector<bool> inplace {false};
-    std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
     std::vector<attr_t::arg_scales_t> scales {attr_t::arg_scales_t()};
     std::vector<attr_t::zero_points_t> zero_points {attr_t::zero_points_t()};
     std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
@@ -58,11 +57,10 @@ struct base_settings_t {
 
     // Returns `true` if all vector members in this class have capacity of one.
     virtual bool has_single_setup() const {
-        return mb.size() == 1 && inplace.size() == 1 && oscale.size() == 1
-                && scales.size() == 1 && zero_points.size() == 1
-                && post_ops.size() == 1 && scratchpad_mode.size() == 1
-                && fpmath_mode.size() == 1 && ctx_init.size() == 1
-                && ctx_exe.size() == 1;
+        return mb.size() == 1 && inplace.size() == 1 && scales.size() == 1
+                && zero_points.size() == 1 && post_ops.size() == 1
+                && scratchpad_mode.size() == 1 && fpmath_mode.size() == 1
+                && ctx_init.size() == 1 && ctx_exe.size() == 1;
     }
 };
 
