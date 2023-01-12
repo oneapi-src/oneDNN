@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,6 +25,22 @@ void compute_ref_fwd_ip(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
     const dnn_mem_t &bia_m = args.find(DNNL_ARG_BIAS);
     const dnn_mem_t &dst_m = args.find(DNNL_ARG_DST);
+    const dnn_mem_t &src_scales
+            = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    const dnn_mem_t &wei_scales
+            = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+    const dnn_mem_t &dst_scales
+            = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+
+    const bool has_src_scale = !prb->attr.scales.get(DNNL_ARG_SRC).is_def();
+    const bool has_wei_scale = !prb->attr.scales.get(DNNL_ARG_WEIGHTS).is_def();
+    const bool has_dst_scale = !prb->attr.scales.get(DNNL_ARG_DST).is_def();
+    assert(IMPLICATION(has_src_scale, src_scales.nelems() == 1));
+    assert(IMPLICATION(has_dst_scale, dst_scales.nelems() == 1));
+    float src_scale = has_src_scale ? src_scales.get_elem(0) : 1.f;
+    float dst_scale = has_dst_scale ? 1.f / dst_scales.get_elem(0) : 1.f;
+    const int wei_scale_mask
+            = prb->attr.scales.get_mask(DNNL_ARG_WEIGHTS, dnnl_inner_product);
 
     int64_t M = prb->mb;
     int64_t N = prb->oc;
@@ -42,8 +58,11 @@ void compute_ref_fwd_ip(const prb_t *prb, const args_t &args) {
 
         float d = ((float *)dst_tmp)[dst_off];
 
-        maybe_scale(prb->attr, d, prb->src_scales, 0, DNNL_ARG_SRC);
-        maybe_scale(prb->attr, d, prb->wei_scales, oc, DNNL_ARG_WEIGHTS);
+        float wei_scale = 1.f;
+        if (has_wei_scale)
+            wei_scale = wei_scales.get_elem(wei_scale_mask > 0 ? oc : 0);
+
+        d *= src_scale * wei_scale;
 
         if (prb->dir & FLAG_BIA) {
             size_t bia_off = bia_off_f(prb, oc);
@@ -55,8 +74,7 @@ void compute_ref_fwd_ip(const prb_t *prb, const args_t &args) {
 
         maybe_post_ops(prb->attr, d, dst, v_po_vals);
 
-        maybe_scale(prb->attr, d, prb->dst_scales, oc, DNNL_ARG_DST, true);
-        dst = d;
+        dst = d * dst_scale;
     });
 }
 

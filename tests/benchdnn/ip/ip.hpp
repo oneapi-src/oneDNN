@@ -108,20 +108,9 @@ struct prb_t : public desc_t {
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
         , user_mb(mb)
-        , ops(0)
-        , src_scales(NULL)
-        , wei_scales(NULL)
-        , dst_scales(NULL) {
+        , ops(0) {
         if (mb) this->mb = mb;
         count_ops();
-        src_scales = generate_scales(DNNL_ARG_SRC);
-        wei_scales = generate_scales(DNNL_ARG_WEIGHTS);
-        dst_scales = generate_scales(DNNL_ARG_DST);
-    }
-    ~prb_t() {
-        if (src_scales) zfree(src_scales);
-        if (wei_scales) zfree(wei_scales);
-        if (dst_scales) zfree(dst_scales);
     }
 
     dir_t dir;
@@ -132,7 +121,6 @@ struct prb_t : public desc_t {
     int64_t user_mb;
 
     double ops;
-    float *src_scales, *wei_scales, *dst_scales;
 
     void count_ops() {
         if (ops > 0) return;
@@ -145,16 +133,12 @@ struct prb_t : public desc_t {
                 : cfg[dk];
     }
 
-    float *generate_scales(int arg) const;
-
     // Used to construct memory desc when dimensions are runtime since such mds
     // can't be used directly from query and memory objects can't be constructed.
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const {
         assert(!"No runtime dimensions support for this driver!");
         return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
     }
-
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
