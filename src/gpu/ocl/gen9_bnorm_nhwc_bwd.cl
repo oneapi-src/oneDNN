@@ -235,7 +235,7 @@ __kernel void gen9_bnorm_bwd_nhwc(__global DATA_T *src, __global float *mean,
 #endif
 
     const int sp_block_idx = GWS_GET_SP();
-    const int offset = ic_block_offset + sp_block_idx * STAT_SP_BLOCK * IC;
+    const int offset = ic_block_offset + sp_block_idx * UPDATE_SP_BLOCK * IC;
 
     src += offset;
     diff_dst += offset;
@@ -245,34 +245,54 @@ __kernel void gen9_bnorm_bwd_nhwc(__global DATA_T *src, __global float *mean,
     diff_src_add += offset;
 #endif
 
-#if HAS_STAT_SP_BLOCK_TAIL
-    for (int sp = 0; sp < min(STAT_SP_BLOCK, SP - sp_block_idx * STAT_SP_BLOCK);
-            ++sp) {
+#if HAS_UPDATE_SP_BLOCK_TAIL
+    for (int sp = 0;
+            sp < min(UPDATE_SP_BLOCK, SP - sp_block_idx * UPDATE_SP_BLOCK);
+            sp += UPDATE_SP_UNROLL) {
 #else
-    for (int sp = 0; sp < STAT_SP_BLOCK; ++sp) {
+    for (int sp = 0; sp < UPDATE_SP_BLOCK; sp += UPDATE_SP_UNROLL) {
 #endif
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
             const int sg_idx = sg * 16 * VECT_SIZE;
-            VECT_FLOAT_T src_vect = LOAD_VECT_DATA(&src[sg_idx]);
-            VECT_FLOAT_T dd_vect = LOAD_VECT_DATA(&diff_dst[sg_idx]);
+
+            VECT_FLOAT_T src_vect[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                src_vect[i] = LOAD_VECT_DATA(&src[sg_idx + IC * i]);
+            }
+            VECT_FLOAT_T dd_vect[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                dd_vect[i] = LOAD_VECT_DATA(&diff_dst[sg_idx + IC * i]);
+            }
 
 #if FUSE_BN_RELU
-            VECT_CHAR_T ws_vect = LOAD_VECT_CHAR(&ws[sg_idx]);
-            dd_vect = select(
-                    (VECT_FLOAT_T)0.0f, dd_vect, CONVERT_VECT_INT_T(ws_vect));
+            VECT_CHAR_T ws_vect[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                ws_vect[i] = LOAD_VECT_CHAR(&ws[sg_idx + IC * i]);
+                dd_vect[i] = select((VECT_FLOAT_T)0.0f, dd_vect[i],
+                        CONVERT_VECT_INT_T(ws_vect[i]));
+            }
 #if FUSE_BN_ADD_RELU
-            STORE_VECT_DATA(&diff_src_add[sg_idx], dd_vect);
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                STORE_VECT_DATA(&diff_src_add[sg_idx + IC * i], dd_vect[i]);
+            }
 #endif
 #endif
 
 #if CALCULATE_DIFF_STATS == 1
-            dd_vect -= (diff_beta[sg]
-                               + (src_vect - v_mean[sg]) * diff_gamma[sg]
-                                       * sqrt_variance[sg])
-                    / (MB * ID * IH * IW);
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                dd_vect[i]
+                        -= (diff_beta[sg]
+                                   + (src_vect[i] - v_mean[sg]) * diff_gamma[sg]
+                                           * sqrt_variance[sg])
+                        / (MB * ID * IH * IW);
+            }
 #endif // #if CALCULATE_DIFF_STATS == 1
-            dd_vect *= gamma[sg] * sqrt_variance[sg];
-            STORE_VECT_DATA(&diff_src[sg_idx], dd_vect);
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                dd_vect[i] *= gamma[sg] * sqrt_variance[sg];
+            }
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                STORE_VECT_DATA(&diff_src[sg_idx + IC * i], dd_vect[i]);
+            }
         }
 #if HAS_IC_VECT_TAIL
         for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
@@ -297,14 +317,14 @@ __kernel void gen9_bnorm_bwd_nhwc(__global DATA_T *src, __global float *mean,
             STORE_DATA_1x16(&diff_src[sg_idx], dd_tail);
         }
 #endif
-        src += IC;
-        diff_dst += IC;
-        diff_src += IC;
+        src += IC * UPDATE_SP_UNROLL;
+        diff_dst += IC * UPDATE_SP_UNROLL;
+        diff_src += IC * UPDATE_SP_UNROLL;
 #if FUSE_BN_RELU
 #if FUSE_BN_ADD_RELU
-        diff_src_add += IC;
+        diff_src_add += IC * UPDATE_SP_UNROLL;
 #endif
-        ws += IC;
+        ws += IC * UPDATE_SP_UNROLL;
 #endif
     }
 }

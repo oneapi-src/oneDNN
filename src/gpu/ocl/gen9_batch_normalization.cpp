@@ -23,6 +23,40 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+using namespace bn_lookup_table;
+
+// Gets bnorm parameters from BN_PARAMS env value
+// Only used during tuning procedure, BN_TUNING env var must be set
+void maybe_override_bn_conf_params_env(bnorm_conf_t &conf) {
+    auto s_params = getenv_str("BN_PARAMS", "");
+    assert(!s_params.empty());
+    assert(conf.bn_tuning);
+    bnorm_params_t params(s_params);
+    params.override_params(conf);
+}
+// Gets bnorm parameters from a lookup table
+// BN_TUNING env var must be unset or zero;
+void maybe_override_bn_conf_params_table(bnorm_conf_t &conf, engine_t *engine) {
+    assert(!conf.bn_tuning);
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto gpu_arch = compute_engine->device_info()->gpu_arch();
+    static bnorm_lookup_table_t table;
+    auto *s_params = table.find(conf, gpu_arch);
+    if (s_params) {
+        bnorm_params_t params(s_params);
+        params.override_params(conf);
+    }
+}
+void maybe_override_bn_conf_params(bnorm_conf_t &conf, engine_t *engine) {
+    if (conf.bn_tuning) {
+        maybe_override_bn_conf_params_env(conf);
+    } else {
+        // TODO: extend to 1pass
+        if (!conf.use_stats_one_pass) {
+            maybe_override_bn_conf_params_table(conf, engine);
+        }
+    }
+}
 
 bool use_fused_atomics_reduction(bnorm_conf_t &conf, engine_t *engine) {
     // Currently the fused atomics reduction is targeting to PVC only.
@@ -39,6 +73,11 @@ inline float get_ss_utilization(int max_ss, const size_t *gws, size_t *lws) {
     const size_t lws_size = lws[0] * lws[1] * lws[2];
     const size_t used_ss = utils::div_up(gws_size, lws_size);
     return (float)used_ss / max_ss;
+}
+inline float get_thr_utilization(
+        int eu_count, int threads_per_eu, int sg_size, const size_t *gws) {
+    const size_t gws_size = gws[0] * gws[1] * gws[2];
+    return ((float)gws_size / sg_size) / (eu_count * threads_per_eu);
 }
 
 // Local group size adjustment.
@@ -85,12 +124,13 @@ void adjust_lws_calc_kernel(bnorm_conf_t &conf, engine_t *engine) {
     conf.dispatch_calc_stat.set_lws(tuned_lws);
 }
 
-int get_nhwc_ic_block(int ic, int max_vect_size = 8) {
-    const int nblocks = ic / (max_vect_size * 16);
+int get_nhwc_ic_block(int ic, int max_ocl_vect_size = 8) {
+    const int nblocks = ic / (max_ocl_vect_size * 16);
     return nblocks < 2 || (ic / nblocks) % 16 ? ic : ic / nblocks;
 }
-int get_nhwc_vect_size(int ic, int simd = 16) {
-    int vect_size = 8;
+
+int get_nhwc_vect_size(int ic, int max_vect_size, int simd = 16) {
+    int vect_size = max_vect_size;
     while (true) {
         if (ic / (vect_size * simd)) return vect_size;
         vect_size /= 2;
@@ -207,13 +247,13 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.mb_block = 1;
 
     const bool has_padding = !data_mdw.is_dense();
-    const bool is_blocked_16c
+    conf.is_blocked_16c
             = data_mdw.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c);
-    const bool is_blocked_16n16c
+    conf.is_blocked_16n16c
             = data_mdw.matches_one_of_tag(NCw16n16c, NChw16n16c, NCdhw16n16c);
-    const bool is_blocked_32n16c
+    conf.is_blocked_32n16c
             = data_mdw.matches_one_of_tag(NCw32n16c, NChw32n16c, NCdhw32n16c);
-    const bool is_nhwc
+    conf.is_nhwc
             = conf.ic % 8 == 0 && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc);
 
     // Due to intel_sub_group_write_uc requires 16-bytes alignment,
@@ -234,11 +274,14 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     if (conf.ic % 8 == 0 && conf.ic % 16 && conf.use_stats_one_pass)
         conf.use_stats_one_pass = false;
 
-    conf.use_nhwc = is_nhwc;
+    // Used in old universal kernels (blocked or nhwc layout)
+    // TODO: remove once IC tail processing is implemented for NHWC-optimized
+    // kernels and nhwc part is removed from universal kernels
+    conf.use_nhwc = conf.is_nhwc;
 
     if (has_padding
-            || !(is_blocked_16c || is_blocked_16n16c || is_blocked_32n16c
-                    || is_nhwc))
+            || !(conf.is_blocked_16c || conf.is_blocked_16n16c
+                    || conf.is_blocked_32n16c || conf.is_nhwc))
         return status::unimplemented;
 
     // IC tail processing is not implemented yet for NHWC optimized kernels
@@ -254,18 +297,49 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.use_workaround = conf.data_type == data_type::f32
             && gpu_arch == compute::gpu_arch_t::xe_hpg;
 
-    conf.use_fused_atomics_reduction
-            = use_fused_atomics_reduction(conf, engine);
+    // Flags string for lookup table
+    if (pd->use_scale()) conf.flags += 'C';
+    if (pd->use_shift()) conf.flags += 'H';
+    if (pd->stats_is_src() || pd->use_global_stats()) conf.flags += 'G';
+    if (pd->fuse_norm_relu()) conf.flags += 'R';
+    if (pd->fuse_norm_add_relu()) conf.flags += 'A';
+
+    // Default value is equal to OCL supported max vector size
+    // but can be overridden due to performance reason.
+    conf.max_vect_size = 8;
+
+    conf.is_overrided_use_fused_atomics_reduction = false;
+    conf.is_overrided_ic_block = false;
+    conf.is_overrided_max_vect_size = false;
+    conf.is_overrided_stat_sp_block = false;
+    conf.is_overrided_update_sp_block = false;
+    conf.is_overrided_update_sp_unroll = false;
+
+    // Environment var BN_TUNING turns ON/OFF tuning mode
+    conf.bn_tuning = getenv_int("BN_TUNING", 0);
+
+    // Attempt to get tunable parameters from a lookup table
+    // or from environment in tuning mode
+    maybe_override_bn_conf_params(conf, engine);
+
+    if (!conf.is_overrided_use_fused_atomics_reduction) {
+        conf.use_fused_atomics_reduction
+                = use_fused_atomics_reduction(conf, engine);
+    }
 
     if (conf.nhwc_optimized) {
-        conf.ic_block = get_nhwc_ic_block(utils::rnd_up(conf.ic, 16));
+        if (!conf.is_overrided_ic_block) {
+            conf.ic_block = get_nhwc_ic_block(utils::rnd_up(conf.ic, 16));
+        }
     } else {
         conf.ic_block = 16;
     }
 
-    conf.mb_block = is_blocked_32n16c ? 32 : is_blocked_16n16c ? 16 : 1;
+    conf.mb_block = conf.is_blocked_32n16c ? 32
+            : conf.is_blocked_16n16c       ? 16
+                                           : 1;
 
-    if (is_nhwc) {
+    if (conf.is_nhwc) {
         // reshape to xc
         conf.nn = 1;
         conf.sp = conf.mb * conf.id * conf.ih * conf.iw;
@@ -277,7 +351,8 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
     // The case IC==8 requires spacial dim to be even because of using one
     // block read/write operation for 2 spacial rows at once
-    if (is_nhwc && conf.ic == 8 && conf.sp % 2) return status::unimplemented;
+    if (conf.is_nhwc && conf.ic == 8 && conf.sp % 2)
+        return status::unimplemented;
 
     conf.calc_stat_ic = conf.nhwc_optimized
             ? utils::div_up(conf.ic, conf.ic_block) * 16
@@ -290,29 +365,47 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             conf.nn, utils::rnd_up(conf.ic, 16), conf.sp);
 
     if (conf.nn == 1)
-        conf.stat_sp_block = conf.nhwc_optimized
-                ? get_nhwc_sp_block_size(
-                        conf.sp, conf.calc_stat_ic, eu_count, threads_per_eu)
-                : max_sp_block_size;
+        if (conf.nhwc_optimized) {
+            if (!conf.is_overrided_stat_sp_block) {
+                conf.stat_sp_block = get_nhwc_sp_block_size(
+                        conf.sp, conf.calc_stat_ic, eu_count, threads_per_eu);
+            }
+        } else {
+            conf.stat_sp_block = max_sp_block_size;
+        }
     else
         conf.stat_sp_block
                 = nstl::min(utils::rnd_up(conf.sp, 16), max_sp_block_size);
+
+    if (!conf.is_overrided_update_sp_block) {
+        conf.update_sp_block = conf.stat_sp_block;
+    }
+
+    if (!conf.is_overrided_update_sp_unroll) conf.update_sp_unroll = 1;
+    assert(conf.update_sp_block % conf.update_sp_unroll == 0);
+    assert((conf.sp % conf.update_sp_block) % conf.update_sp_unroll == 0);
 
     conf.stat_sp_nblocks
             = utils::rnd_up(conf.sp, conf.stat_sp_block) / conf.stat_sp_block;
     conf.stat_sp_tail
             = utils::rnd_dn(conf.sp, conf.stat_sp_block) / conf.stat_sp_block;
 
+    conf.update_sp_nblocks = utils::rnd_up(conf.sp, conf.update_sp_block)
+            / conf.update_sp_block;
+    conf.update_sp_tail = utils::rnd_dn(conf.sp, conf.update_sp_block)
+            / conf.update_sp_block;
+
     conf.reduce_stat_nblocks = conf.nn * conf.stat_sp_nblocks;
 
-    conf.vect_size
-            = conf.nhwc_optimized ? get_nhwc_vect_size(conf.ic_block) : 8;
+    conf.vect_size = conf.nhwc_optimized
+            ? get_nhwc_vect_size(conf.ic_block, conf.max_vect_size)
+            : 8;
 
     conf.dispatch_calc_stat = compute_engine->create_dispatch();
     conf.dispatch_calc_stat.define_dim("STAT_MB", 0, conf.nn);
     conf.dispatch_calc_stat.define_dim("STAT_SP", 1, conf.stat_sp_nblocks);
     conf.dispatch_calc_stat.define_dim_with_nesting_level(
-            "STAT_IC", 1, conf.calc_stat_ic);
+            "STAT_IC", 1024, conf.calc_stat_ic);
     CHECK(conf.dispatch_calc_stat.vectorize_dim("STAT_IC", 16));
     conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
     conf.dispatch_calc_stat.generate();
@@ -339,10 +432,9 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
     conf.dispatch.define_dim("MB", 0, conf.nn);
     conf.dispatch.define_dim("SP", 1,
-            conf.nhwc_optimized ? conf.stat_sp_nblocks
+            conf.nhwc_optimized ? conf.update_sp_nblocks
                                 : sp_pad / conf.vect_size);
-    conf.dispatch.define_dim("IC", 2, conf.calc_stat_ic);
-
+    conf.dispatch.define_dim_with_nesting_level("IC", 1024, conf.calc_stat_ic);
     CHECK(conf.dispatch.vectorize_dim("IC", 16));
     conf.dispatch.generate();
 
@@ -374,6 +466,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("VECT_SIZE", conf.vect_size);
 
     kernel_ctx.define_int("STAT_SP_BLOCK", conf.stat_sp_block);
+    kernel_ctx.define_int("UPDATE_SP_BLOCK", conf.update_sp_block);
     kernel_ctx.define_int("STAT_SP_NBLOCKS", conf.stat_sp_nblocks);
     kernel_ctx.define_int("STAT_SP_TAIL", conf.stat_sp_tail);
     kernel_ctx.define_int("REDUCE_STAT_NBLOCKS", conf.reduce_stat_nblocks);
@@ -397,6 +490,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("REDUCE_IC_SUB_GROUPS", conf.stat_ic / 16);
     kernel_ctx.define_int("USE_STATS_ONE_PASS", conf.use_stats_one_pass);
     kernel_ctx.define_int("NHWC_OPTIMIZED", conf.nhwc_optimized);
+    kernel_ctx.define_int("UPDATE_SP_UNROLL", conf.update_sp_unroll);
     kernel_ctx.define_int(
             "FUSED_ATOMICS_REDUCTION", conf.use_fused_atomics_reduction);
     kernel_ctx.define_int("USE_WORKAROUND", conf.use_workaround);

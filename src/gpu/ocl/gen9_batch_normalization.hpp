@@ -23,6 +23,7 @@
 #include "gpu/gpu_batch_normalization_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
+#include "gpu/ocl/gen9_bnorm_lookup_table.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {

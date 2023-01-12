@@ -237,7 +237,7 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
 
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
-    const int sp = GWS_GET_SP() * STAT_SP_BLOCK;
+    const int sp = GWS_GET_SP() * UPDATE_SP_BLOCK;
 
     const int ic_block_offset = (c / 16) * IC_BLOCK;
     mean += ic_block_offset;
@@ -299,33 +299,53 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
     }
 #endif
 
-#if HAS_STAT_SP_BLOCK_TAIL
-    for (int sp_idx = 0; sp_idx < min(STAT_SP_BLOCK, SP - sp); ++sp_idx) {
+#if HAS_UPDATE_SP_BLOCK_TAIL
+    for (int sp_idx = 0; sp_idx < min(UPDATE_SP_BLOCK, SP - sp);
+            sp_idx += UPDATE_SP_UNROLL) {
 #else
-    for (int sp_idx = 0; sp_idx < STAT_SP_BLOCK; ++sp_idx) {
+    for (int sp_idx = 0; sp_idx < UPDATE_SP_BLOCK; sp_idx += UPDATE_SP_UNROLL) {
 #endif
         // vectorized part
         for (int sg = 0; sg < IC_BLOCK_SGROUPS / VECT_SIZE; ++sg) {
             const int sg_idx = sg * 16 * VECT_SIZE;
-            VECT_FLOAT_T s_vect = LOAD_VECT_DATA(&src[sg_idx]);
-            VECT_FLOAT_T d_vect
-                    = fma(s_vect - v_mean[sg], sqrt_variance[sg], sv[sg]);
+
+            VECT_FLOAT_T s_vect[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                s_vect[i] = LOAD_VECT_DATA(&src[sg_idx + IC * i]);
+            }
+
+            VECT_FLOAT_T d_vect[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                d_vect[i] = fma(
+                        s_vect[i] - v_mean[sg], sqrt_variance[sg], sv[sg]);
+            }
 
 #if FUSE_BN_RELU
 #if FUSE_BN_ADD_RELU
-            VECT_FLOAT_T s_add_vect = LOAD_VECT_DATA(&src_add[sg_idx]);
-            d_vect += s_add_vect;
+            VECT_FLOAT_T s_add_vect[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                s_add_vect[i] = LOAD_VECT_DATA(&src_add[sg_idx + IC * i]);
+                d_vect[i] += s_add_vect[i];
+            }
 #endif
-            VECT_INT_T ws_vect = isgreater(d_vect, (VECT_FLOAT_T)0.0f);
-            d_vect = select((VECT_FLOAT_T)0.0f, d_vect, ws_vect);
+            VECT_INT_T ws_vect[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                ws_vect[i] = isgreater(d_vect[i], (VECT_FLOAT_T)0.0f);
+                d_vect[i] = select((VECT_FLOAT_T)0.0f, d_vect[i], ws_vect[i]);
+            }
 #if IS_TRAINING
-            STORE_VECT_CHAR(&ws[sg_idx], ws_vect);
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                STORE_VECT_CHAR(&ws[sg_idx + IC * i], ws_vect[i]);
+            }
+
 #endif // IS_TRAINING
 #endif // FUSE_BN_RELU
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
 #if WITH_RELU
-            d_vect = max(d_vect, (VECT_FLOAT_T)0.0f);
+                d_vect[i] = max(d_vect[i], (VECT_FLOAT_T)0.0f);
 #endif
-            STORE_VECT_DATA(&dst[sg_idx], d_vect);
+                STORE_VECT_DATA(&dst[sg_idx + IC * i], d_vect[i]);
+            }
         }
 
 #if HAS_IC_VECT_TAIL
@@ -352,13 +372,13 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
             STORE_DATA_1x16(&dst[sg_idx], d_tail);
         }
 #endif
-        src += IC;
+        src += IC * UPDATE_SP_UNROLL;
 #if FUSE_BN_ADD_RELU
-        src_add += IC;
+        src_add += IC * UPDATE_SP_UNROLL;
 #endif
-        dst += IC;
+        dst += IC * UPDATE_SP_UNROLL;
 #if FUSE_BN_RELU && IS_TRAINING
-        ws += IC;
+        ws += IC * UPDATE_SP_UNROLL;
 #endif
     }
 }

@@ -520,6 +520,7 @@ struct bnorm_conf_t {
     int id, ih, iw;
     int nn, sp, sp_tail, vect_size;
     int stat_sp_nblocks, stat_sp_tail, stat_sp_block;
+    int update_sp_nblocks, update_sp_tail, update_sp_block;
     int reduce_stat_nblocks;
     bool with_relu, use_16mb_unroll, use_nhwc;
     int stat_ic;
@@ -537,6 +538,21 @@ struct bnorm_conf_t {
     int calc_stat_ic;
     bool use_fused_atomics_reduction;
     bool use_workaround;
+    int update_sp_unroll;
+    int max_vect_size;
+
+    std::string flags;
+    bool bn_tuning;
+    bool is_blocked_16c;
+    bool is_blocked_16n16c;
+    bool is_blocked_32n16c;
+    bool is_nhwc;
+    bool is_overrided_use_fused_atomics_reduction;
+    bool is_overrided_ic_block;
+    bool is_overrided_max_vect_size;
+    bool is_overrided_stat_sp_block;
+    bool is_overrided_update_sp_block;
+    bool is_overrided_update_sp_unroll;
 
     compute::dispatch_t dispatch_calc_stat;
     compute::dispatch_t dispatch_reduce_stat;

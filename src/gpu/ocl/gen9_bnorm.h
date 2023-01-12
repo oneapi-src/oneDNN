@@ -22,6 +22,11 @@
 #define IS_IC_EQ_8 (IC == 8)
 #define HAS_IC_TAIL (IC != IC16)
 #define HAS_STAT_SP_BLOCK_TAIL (SP % STAT_SP_BLOCK)
+#define HAS_UPDATE_SP_BLOCK_TAIL (SP % UPDATE_SP_BLOCK)
+
+#if HAS_UPDATE_SP_BLOCK_TAIL % UPDATE_SP_UNROLL
+#error "UPDATE_SP_UNROLL value not expected"
+#endif
 
 #if NHWC_OPTIMIZED
 #if HAS_IC_TAIL

@@ -58,7 +58,7 @@ __kernel void gen9_fused_reduce_final(
             0.0f, (variance[c] / (MB * ID * IH * IW)) - (mean[c] * mean[c]));
     variance[c] = tmp_var;
 #else
-    data_reduce[c] = data_reduce[c] / (MB * ID * IH * IW);
+    data_reduce[c] /= (MB * ID * IH * IW);
 #endif
     return;
 }
