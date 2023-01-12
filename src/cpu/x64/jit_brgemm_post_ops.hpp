@@ -685,18 +685,6 @@ private:
 
         if (req_comp) maybe_apply_comp(m_block, n_block, tail);
 
-        if (brg.beta != 0 && jcp.with_bias) {
-            for (int n = 0; n < n_block; n++) {
-                auto vmm_bias = vmm_tmp(0);
-                auto bias_addr = ptr[aux_reg_bias
-                        + bia_typesize_ * (n * brg.ld_block)];
-                cvt2ps(bia_dt_, vmm_bias, bias_addr, tail, false, k_mask);
-                for (int m = 0; m < m_block; m++) {
-                    vaddps(vector(m, n), vmm_bias);
-                }
-            }
-        }
-
         if (brg.beta != 0) {
             for_(int m = 0; m < m_block; m++)
             for (int n = 0; n < n_block; n++) {
@@ -710,6 +698,18 @@ private:
                     auto vmm_scales = vmm_tmp(0);
                     load_data(data_type::f32, vmm_scales, addr, tail);
                     vmulps(vmm, vmm, vmm_scales);
+                }
+            }
+        }
+
+        if (brg.beta != 0 && jcp.with_bias) {
+            for (int n = 0; n < n_block; n++) {
+                auto vmm_bias = vmm_tmp(0);
+                auto bias_addr = ptr[aux_reg_bias
+                        + bia_typesize_ * (n * brg.ld_block)];
+                cvt2ps(bia_dt_, vmm_bias, bias_addr, tail, false, k_mask);
+                for (int m = 0; m < m_block; m++) {
+                    vaddps(vector(m, n), vmm_bias);
                 }
             }
         }
