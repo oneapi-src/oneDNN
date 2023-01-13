@@ -364,15 +364,6 @@ struct normalization_stage_t {
 
     bool is_dense() const { return curr.stride == last.stride * last.block; }
 
-    bool blocks_match(const block_t &l, const block_t &r) const {
-        return l.dim_idx == r.dim_idx && l.block == r.block;
-    }
-
-    bool operator==(const normalization_stage_t &o) const {
-        return curr.dim_idx == o.curr.dim_idx && blocks_match(last, o.last)
-                && tile[0] == o.tile[0] && tile[1] == o.tile[1];
-    }
-
     dim_t elems() const { return tile[0]; }
 
     normalization_stage_t() = default;
@@ -383,6 +374,30 @@ struct normalization_stage_t {
         , last(last)
         , tile({tile[curr.dim_idx], tile[last.dim_idx]}) {}
 };
+
+struct merge_info_t {
+    enum class merge_direction_t { none = 0, forward, backward };
+
+    int iter_idx;
+    merge_direction_t direction;
+
+    merge_info_t(int iter_idx, merge_direction_t direction)
+        : iter_idx(iter_idx), direction(direction) {}
+};
+
+merge_info_t::merge_direction_t merge_direction(
+        const normalization_stage_t &l, const normalization_stage_t &r) {
+    using direction_t = merge_info_t::merge_direction_t;
+    if (l.curr.dim_idx != r.curr.dim_idx) return direction_t::none;
+    if (l.last.dim_idx != r.last.dim_idx) return direction_t::none;
+    if (l.tile[0] != r.tile[0]) return direction_t::none;
+    if (l.curr.block == r.curr.block
+            && l.tile[1] * l.last.block == r.tile[1] * r.last.block)
+        return direction_t::backward;
+    if (l.tile[1] == r.tile[1] && l.last.block == r.last.block)
+        return direction_t::forward;
+    return direction_t::none;
+}
 
 struct layout_normalization_t {
     using blocks_t = std::vector<block_t>;
@@ -426,19 +441,25 @@ struct layout_normalization_t {
         return false;
     }
 
-    void merge(std::vector<int> merges) {
+    void merge(std::vector<merge_info_t> merges) {
+        using direction_t = merge_info_t::merge_direction_t;
         if (empty()) {
             if (blocks_.empty()) blocks_.emplace_back(0, 1, 1);
             return;
         }
 
-        std::sort(merges.begin(), merges.end());
+        std::sort(merges.begin(), merges.end(),
+                [](const merge_info_t &l, const merge_info_t &r) {
+                    return l.iter_idx < r.iter_idx;
+                });
         auto merge_it = merges.begin();
         auto merge_end = merges.end();
         std::vector<block_t> blocks;
         block_t last = (*begin()).last;
         for (auto s : *this) {
-            if (merge_it != merge_end && *merge_it == s.idx) {
+            if (merge_it != merge_end && merge_it->iter_idx == s.idx) {
+                if (merge_it->direction == direction_t::backward)
+                    s.curr.dim_idx = last.dim_idx;
                 s.curr.block *= last.block;
                 s.curr.stride = last.stride;
                 ++merge_it;
@@ -513,6 +534,7 @@ private:
 // 2. The b dimension no longer appears, so we can remove it from the layout and
 //    re-index the dimensions so that the new layouts are 2D.
 void reorder_ir_builder_t::normalize_reorder_layouts(layout_t &a, layout_t &b) {
+    using direction_t = merge_info_t::merge_direction_t;
     int ndims = a.ndims();
     auto cmp = [](const normalization_stage_t &a,
                        const normalization_stage_t &b) {
@@ -523,10 +545,6 @@ void reorder_ir_builder_t::normalize_reorder_layouts(layout_t &a, layout_t &b) {
             return s.curr.dim_idx == dim_idx;
         };
     };
-    auto matching_inner_tile
-            = [](const std::array<normalization_stage_t, 2> &p) {
-                  return p[0].is_dense() && p[1].is_dense() && p[0] == p[1];
-              };
 
     std::vector<bool> empty_dimension(ndims, true);
     for (auto &blk : a.blocks())
@@ -537,18 +555,19 @@ void reorder_ir_builder_t::normalize_reorder_layouts(layout_t &a, layout_t &b) {
     layout_normalization_t a_normalization {a, empty_dimension};
     layout_normalization_t b_normalization {b, empty_dimension};
 
-    std::vector<int> a_merges;
-    std::vector<int> b_merges;
+    std::vector<merge_info_t> a_merges;
+    std::vector<merge_info_t> b_merges;
     // Find pairs of consecutive blocks which can be combined
     for (int i = 0; i < ndims; ++i) {
         auto dim_i_blocks = dim_blocks(i);
         auto a_stages = a_normalization | filter(dim_i_blocks);
         auto b_stages = b_normalization | filter(dim_i_blocks);
-        auto stage_pairs
-                = merge(a_stages, b_stages, cmp) | filter(matching_inner_tile);
-        for (auto p : stage_pairs) {
-            a_merges.push_back(p[0].idx);
-            b_merges.push_back(p[1].idx);
+        for (auto p : merge(a_stages, b_stages, cmp)) {
+            if (!p[0].is_dense() || !p[1].is_dense()) continue;
+            direction_t direction = merge_direction(p[0], p[1]);
+            if (direction == direction_t::none) continue;
+            a_merges.emplace_back(p[0].idx, direction);
+            b_merges.emplace_back(p[1].idx, direction);
         }
     }
     a_normalization.merge(a_merges);
