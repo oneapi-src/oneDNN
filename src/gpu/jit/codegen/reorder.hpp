@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@
 #include "gpu/jit/ir/reorder.hpp"
 #include "gpu/jit/ir/tensor.hpp"
 #include "gpu/jit/ngen/ngen.hpp"
+#include "gpu/jit/utils/iterator.hpp"
+#include "gpu/jit/utils/range.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -1337,175 +1339,6 @@ private:
     tensor_t tile_;
 };
 
-class dense_2d_block_filter_t {
-public:
-    bool operator()(const block_t &b) {
-        if (b.block == 1) return false;
-        if ((dim_t)b.stride != stride_) return false;
-        stride_ *= b.block;
-        if (!have_seen(b.dim_idx)) non_one_ndims_++;
-        return non_one_ndims_ <= 2;
-    }
-
-    dense_2d_block_filter_t() = default;
-
-private:
-    bool have_seen(int idx) {
-        auto ret = seen_.insert(idx);
-        return !ret.second;
-    }
-
-    dim_t stride_ = 1;
-    int non_one_ndims_ = 0;
-    std::unordered_set<int> seen_;
-};
-
-template <typename IterT>
-class filter_t {
-    using inner_iter_t = decltype(std::declval<const IterT>().begin());
-    using iter_value_t = decltype(*std::declval<inner_iter_t>());
-    using predicate_t = std::function<bool(const iter_value_t &)>;
-
-public:
-    class iterator_t {
-    public:
-        bool operator==(const iterator_t &it) const { return it_ == it.it_; }
-        bool operator!=(const iterator_t &it) const { return !operator==(it); }
-        const iter_value_t &operator*() const { return *it_; }
-        iterator_t &operator++() {
-            if (it_ == end_) return *this;
-            while (++it_ != end_ && !predicate_(*it_))
-                ;
-            return *this;
-        }
-
-        iterator_t(inner_iter_t it, inner_iter_t end, predicate_t predicate)
-            : it_(it), end_(end), predicate_(predicate) {
-            if (it_ != end_ && !predicate_(*it_)) operator++();
-        }
-
-    private:
-        inner_iter_t it_, end_;
-        std::function<bool(const iter_value_t &)> predicate_;
-    };
-
-    iterator_t begin() const { return {begin_, end_, predicate_}; }
-    iterator_t end() const { return {end_, end_, predicate_}; }
-
-    filter_t(const IterT &it, predicate_t predicate)
-        : begin_(it.begin()), end_(it.end()), predicate_(predicate) {}
-
-private:
-    inner_iter_t begin_, end_;
-    predicate_t predicate_;
-};
-
-class shared_inner_tiles_t {
-    using blocks_t = std::vector<block_t>;
-    using block_iterator_t = filter_t<blocks_t>::iterator_t;
-
-    class inner_tile_iterator_t {
-    public:
-        bool operator==(const inner_tile_iterator_t &it) const {
-            return curr_ == it.curr_;
-        }
-        bool operator!=(const inner_tile_iterator_t &it) const {
-            return !operator==(it);
-        }
-
-        inner_tile_iterator_t &operator++() {
-            if (curr_ == end_) return *this;
-
-            auto size = (*curr_).block;
-            while (++factor_ <= size) {
-                if (size % factor_ == 0) return *this;
-            }
-
-            dims_[(*curr_).dim_idx] *= size;
-            ++curr_;
-            factor_ = 1;
-            return operator++();
-        }
-
-        tensor_t operator*() const {
-            auto dims = dims_;
-            dims[(*curr_).dim_idx] *= factor_;
-            return tensor_t(dims);
-        }
-
-        inner_tile_iterator_t(block_iterator_t curr, block_iterator_t end,
-                const tensor_t &tile)
-            : curr_(std::move(curr))
-            , end_(std::move(end))
-            , dims_(tile.dims())
-            , factor_(1) {}
-
-    private:
-        block_iterator_t curr_, end_;
-        std::vector<dim_t> dims_;
-        dim_t factor_;
-    };
-
-    class iterator_t {
-    public:
-        bool operator==(const iterator_t &it) const {
-            return a_it_ == it.a_it_ && b_it_ == it.b_it_;
-        }
-        bool operator!=(const iterator_t &it) const { return !operator==(it); }
-
-        iterator_t &operator++() {
-            bool adv_a = true, adv_b = true;
-            while (adv_a || adv_b) {
-                adv_a = (a_it_ != a_end_)
-                        && (b_it_ == b_end_
-                                || (*a_it_).elems() <= (*b_it_).elems());
-                adv_b = (b_it_ != b_end_)
-                        && (a_it_ == a_end_
-                                || (*b_it_).elems() <= (*a_it_).elems());
-                if (adv_a) ++a_it_;
-                if (adv_b) ++b_it_;
-                if (a_it_ != a_end_) a_tile_ = *a_it_;
-                if (b_it_ != b_end_) b_tile_ = *b_it_;
-                if (a_tile_.is_equal(b_tile_)) break;
-            }
-            return *this;
-        }
-
-        const tensor_t &operator*() const { return a_tile_; }
-
-        iterator_t(const block_iterator_t &a_it, const block_iterator_t &a_end,
-                const block_iterator_t &b_it, const block_iterator_t &b_end,
-                const tensor_t &tile)
-            : a_it_(a_it, a_end, tile)
-            , a_end_(a_end, a_end, tile)
-            , b_it_(b_it, b_end, tile)
-            , b_end_(b_end, b_end, tile) {}
-
-    private:
-        inner_tile_iterator_t a_it_, a_end_;
-        inner_tile_iterator_t b_it_, b_end_;
-        tensor_t a_tile_, b_tile_;
-    };
-
-public:
-    iterator_t begin() const {
-        return {a_.begin(), a_.end(), b_.begin(), b_.end(), default_tile_};
-    }
-    iterator_t end() const {
-        return {a_.end(), a_.end(), b_.end(), b_.end(), default_tile_};
-    }
-
-    shared_inner_tiles_t(const layout_t &a, const layout_t &b)
-        : a_(a.blocks(), dense_2d_block_filter_t())
-        , b_(b.blocks(), dense_2d_block_filter_t())
-        , default_tile_(std::vector<dim_t>(a.ndims(), 1)) {}
-
-private:
-    filter_t<blocks_t> a_;
-    filter_t<blocks_t> b_;
-    tensor_t default_tile_;
-};
-
 class reorder_impl_t {
 public:
     reorder_impl_t(ngen::HW hw, const reorder_t &reorder)
@@ -1553,9 +1386,40 @@ private:
         });
     }
 
-    static tensor_t find_max_2d_dense_tile(const layout_t &a_layout,
-            const layout_t &b_layout, dim_t max_elems) {
-        shared_inner_tiles_t tiles {a_layout, b_layout};
+    static tensor_t find_max_2d_dense_tile(
+            const layout_t &a, const layout_t &b, dim_t max_elems) {
+        using tile_pair_t = std::array<tensor_t, 2>;
+        auto dense_2d_blocks = []() {
+            dim_t stride = 1;
+            int non_one_dims = 0;
+            std::unordered_set<int> seen;
+            return [=](const block_t &b) mutable {
+                if ((dim_t)b.stride != stride) return false;
+                if (b.block != 1) {
+                    stride *= b.block;
+                    auto ret = seen.insert(b.dim_idx);
+                    if (ret.second) non_one_dims++;
+                }
+                return non_one_dims <= 2;
+            };
+        };
+
+        auto take_smaller = [](const tensor_t &a, const tensor_t &b) {
+            return a.elems() <= b.elems();
+        };
+
+        auto equal_tiles
+                = [](const tile_pair_t &p) { return p[0].is_equal(p[1]); };
+
+        auto to_single_tile = [](const tile_pair_t &p) { return p[0]; };
+
+        auto a_tiles = inner_tiles(
+                a.blocks() | filter(dense_2d_blocks()), a.ndims());
+        auto b_tiles = inner_tiles(
+                b.blocks() | filter(dense_2d_blocks()), b.ndims());
+        auto shared_inner_tiles = merge(a_tiles, b_tiles, take_smaller)
+                | filter(equal_tiles) | transform(to_single_tile);
+
         tensor_t max_tile;
         auto all_pow2 = [](const tensor_t &tile) {
             for (auto d : tile.dims())
@@ -1563,7 +1427,7 @@ private:
             return true;
         };
 
-        for (auto &tile : tiles) {
+        for (auto tile : shared_inner_tiles) {
             if (tile.elems() > max_elems) break;
             if (all_pow2(tile)) max_tile = tile;
         }
