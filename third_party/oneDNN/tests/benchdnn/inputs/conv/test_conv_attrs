@@ -20,6 +20,9 @@
 
 --attr-post-ops=prelu:per_oc,sum+prelu:per_oc --batch=shapes_tails
 
+# Same post-op with different alpha/beta
+--attr-post-ops=linear:1:2+linear:1:3,linear:2:0+linear:3:0 --batch=shapes_tails
+
 # f32_wino
 --reset --alg=wino --cfg=f32_wino
 --mb=2

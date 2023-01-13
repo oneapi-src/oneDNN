@@ -7285,7 +7285,7 @@ private:
 void reorder_kernel_builder_t::compute_blocks(const layout_t &src,
         const layout_t &dst, std::vector<int> &iter_blocks,
         std::vector<int> &loop_blocks, std::vector<int> &tg_blocks,
-        int max_iter_tile_bytes, int max_thr_tile_bytes) {
+        dim_t max_iter_tile_bytes, dim_t max_thr_tile_bytes) {
     if (max_iter_tile_bytes <= 0)
         max_iter_tile_bytes = default_max_iter_tile_bytes;
     if (max_thr_tile_bytes <= 0)
@@ -7316,7 +7316,7 @@ void reorder_kernel_builder_t::compute_blocks(const layout_t &src,
     layout_t padded_dst = pad_layout(dst);
     ir_assert(ir_utils::is_equal(padded_src.dims(), padded_dst.dims()));
 
-    int elems = padded_src.elems();
+    dim_t elems = padded_src.elems();
     int max_type_size = std::max(src.type().size(), dst.type().size());
     dim_t max_iter_tile_elems
             = std::min(max_iter_tile_bytes / max_type_size, elems);

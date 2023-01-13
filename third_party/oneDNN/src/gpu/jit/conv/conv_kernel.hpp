@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -641,8 +641,7 @@ public:
         , kernel_info_(kernel_info)
         , require_dpas_(require_dpas)
         , require_global_atomics_(require_global_atomics)
-        , regs_((grf_mode == grf_mode_t::large)
-                          ? 256
+        , regs_((grf_mode == grf_mode_t::large)             ? 256
                           : (grf_mode == grf_mode_t::small) ? 128
                                                             : hw_cfg.regs())
         , ra_(hw, kernel_name,

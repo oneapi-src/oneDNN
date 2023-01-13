@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -426,9 +426,9 @@ protected:
                 : nullptr;
         const auto bias_mapped_mem
                 = use_bias ? map_memory<const float>(bias) : nullptr;
-        auto bias_data = use_bias
-                ? &bias_mapped_mem[0]
-                : use_weights_bias ? &weights_data[bias_off] : nullptr;
+        auto bias_data = use_bias  ? &bias_mapped_mem[0]
+                : use_weights_bias ? &weights_data[bias_off]
+                                   : nullptr;
         auto mean_data = (!calculate_stats || is_training)
                 ? map_memory<const float>(mean)
                 : nullptr;
@@ -544,9 +544,9 @@ protected:
         const memory::desc diff_weights_d = use_weights || use_weights_bias
                 ? diff_weights.get_desc()
                 : memory::desc();
-        const memory::desc diff_bias_d = use_bias
-                ? diff_bias.get_desc()
-                : use_weights_bias ? diff_weights.get_desc() : memory::desc();
+        const memory::desc diff_bias_d = use_bias ? diff_bias.get_desc()
+                : use_weights_bias                ? diff_weights.get_desc()
+                                                  : memory::desc();
 
         const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
         const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);

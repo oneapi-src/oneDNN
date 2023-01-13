@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,9 +73,9 @@ int fill_data(data_kind_t kind, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
                     default: assert(!"unexpected"); break;
                 }
             }
-            float sign = mem_dt.dt() == dnnl_u8
-                    ? 1.f
-                    : flip_coin(idx, 0.1f) ? -1.f : 1.f;
+            float sign = mem_dt.dt() == dnnl_u8 ? 1.f
+                    : flip_coin(idx, 0.1f)      ? -1.f
+                                                : 1.f;
             value = round_to_nearest_representable(mem_dt.dt(), sign * value);
             mem_fp.set_elem(idx, value);
         }

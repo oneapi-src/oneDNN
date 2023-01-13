@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -370,7 +370,8 @@ void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
                 float *bias_ptr = wants_padded_bias
                                 && M_blk == jcp.dimM / jcp.dimM_simd_block - 1
                         ? last_slice_bias
-                        : jcp.with_bias ? &bias(M_blk, 0) : nullptr;
+                        : jcp.with_bias ? &bias(M_blk, 0)
+                                        : nullptr;
                 output_transform_data(img, jcp, p_ops,
                         &(M(0, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
                         &(output(img, M_blk, 0, 0, 0)), bias_ptr);
@@ -491,7 +492,8 @@ void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
                                                 == jcp.dimM / jcp.dimM_simd_block
                                                         - 1
                                 ? last_slice_bias
-                                : jcp.with_bias ? &bias(M_blk, 0) : nullptr;
+                                : jcp.with_bias ? &bias(M_blk, 0)
+                                                : nullptr;
 
                         output_transform_tileblock_data(tile_block, jcp, p_ops,
                                 &(M(ithr, M_blk1, 0, 0, 0, M_blk2, 0, 0)),

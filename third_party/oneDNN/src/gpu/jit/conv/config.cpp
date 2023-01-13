@@ -831,9 +831,9 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
 
     // If src/dst is nhwc then set the other one with any to nhwc too (except
     // 1st convolution).
-    bool is_small_ic_non_dw = is_small_ic() && g == 1;
-    bool is_small_oc_non_dw = is_small_oc() && g == 1;
-    bool propagate_nhwc = (matches_tag(src_md, "axb") && !is_small_ic_non_dw)
+    bool is_small_ic_g1 = is_small_ic() && g == 1;
+    bool is_small_oc_g1 = is_small_oc() && g == 1;
+    bool propagate_nhwc = (matches_tag(src_md, "axb") && !is_small_ic_g1)
             || matches_tag(dst_md, "axb");
     if (propagate_nhwc) {
         set_default_format(src_md, "axb");
@@ -849,7 +849,8 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     bool allow_dst_reorder = false;
     bool src_abx = matches_tag(src_md, "abx");
     bool src_axb = matches_tag(src_md, "axb");
-    if ((src_abx || src_axb) && (is_fwd || is_bwd_w) && is_small_ic_non_dw) {
+    if (src_abx) allow_src_reorder = true;
+    if ((src_abx || src_axb) && (is_fwd || is_bwd_w) && is_small_ic_g1) {
         allow_src_reorder = true;
     }
 
@@ -862,10 +863,10 @@ status_t conv_config_t::init_data_layouts(convolution_pd_t *conv_pd) {
     }
 
     // Prefer nhwc for small-channel inputs.
-    if (user_src_tag.empty() && is_fwd && is_small_ic_non_dw) {
+    if (user_src_tag.empty() && is_fwd && is_small_ic_g1) {
         if (!matches_tag(src_md, src_tag)) user_src_tag = "axb";
     }
-    if (user_dst_tag.empty() && is_bwd_d && is_small_oc_non_dw) {
+    if (user_dst_tag.empty() && is_bwd_d && is_small_oc_g1) {
         if (!matches_tag(dst_md, dst_tag)) user_dst_tag = "axb";
     }
 

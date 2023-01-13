@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -4133,9 +4133,9 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
                 && (kernel_size < L2_cache_size / 2);
     }
 
-    jcp.harness = use_nxc_harness
-            ? harness_nxc
-            : ndims == 5 ? harness_3d_reduction : harness_mb_reduction;
+    jcp.harness = use_nxc_harness ? harness_nxc
+            : ndims == 5          ? harness_3d_reduction
+                                  : harness_mb_reduction;
     if (jcp.dilate_h == 0 && jcp.ndims == 4 && jcp.oh > min_oh_reduce
             && !jcp.is_hw_transp && !is_data_layout_nxc)
         jcp.harness = harness_2d_reduction; // 2d harness with oh reduction

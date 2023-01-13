@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -682,9 +682,9 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 pd->attr()->post_ops_, ctx);
         base_brg_ker_idx_
                 = pd->get_brg_kernel_idx(false, true, false, false, false);
-        vnni_factor = isa == avx512_core_bf16_amx_int8
-                ? 4
-                : isa == avx512_core_bf16_amx_bf16 ? 2 : 1;
+        vnni_factor = isa == avx512_core_bf16_amx_int8 ? 4
+                : isa == avx512_core_bf16_amx_bf16     ? 2
+                                                       : 1;
 
         reorder_zp_a_comp_ptr_ = nullptr;
         if (bgmmc_.has_zero_point_a && bgmmc_.blocked_B) {

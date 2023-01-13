@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -315,12 +315,12 @@ bool xe_hp_systolic_gemm_t::pd_t::set_default_formats(data_type_t dt) {
             d->b_type(), d->c_type(), d->m(), d->n(), d->k(), d->batch(),
             unroll_m_, unroll_n_, alt_);
 
-    format_tag_t a_packed_tag = (unroll_m_ == 64)
-            ? a_packed_tag_64
-            : (unroll_m_ == 32) ? a_packed_tag_32 : a_packed_tag_16;
-    format_tag_t b_packed_tag = (unroll_n_ == 48)
-            ? b_packed_tag_48
-            : (unroll_n_ == 32) ? b_packed_tag_32 : b_packed_tag_16;
+    format_tag_t a_packed_tag = (unroll_m_ == 64) ? a_packed_tag_64
+            : (unroll_m_ == 32)                   ? a_packed_tag_32
+                                                  : a_packed_tag_16;
+    format_tag_t b_packed_tag = (unroll_n_ == 48) ? b_packed_tag_48
+            : (unroll_n_ == 32)                   ? b_packed_tag_32
+                                                  : b_packed_tag_16;
     format_tag_t c_packed_tag = b_packed_tag;
 
     packed_a_ = packed_b_ = packed_c_ = false;

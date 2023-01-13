@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,8 +45,9 @@ private:
             isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
     using reg64_t = const Xbyak::Reg64;
     using mask_t = const Xbyak::Opmask;
-    const Xbyak::AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const Xbyak::AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                             ? yword
+                                                        : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     // dw convolution
@@ -209,8 +210,9 @@ private:
     const int max_unroll_w_ = 30;
     const int block_size_ = 15;
 
-    const Xbyak::AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
+    const Xbyak::AddressFrame &vmmword = (isa == sse41) ? xword
+            : (isa == avx2)                             ? yword
+                                                        : zword;
 
     /* Offset between input and accummulators is 3, therefore, assume 'kw'
      * is no larger than 3*/

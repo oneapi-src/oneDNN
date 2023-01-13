@@ -89,8 +89,8 @@ public:
 
     static void compute_blocks(const layout_t &src, const layout_t &dst,
             std::vector<int> &iter_blocks, std::vector<int> &loop_blocks,
-            std::vector<int> &tg_blocks, int max_iter_tile_bytes = 0,
-            int max_thr_tile_bytes = 0);
+            std::vector<int> &tg_blocks, dim_t max_iter_tile_bytes = 0,
+            dim_t max_thr_tile_bytes = 0);
 
     static void compute_blocks(const layout_t &src, const layout_t &dst,
             std::vector<int> &tile_blocks, std::vector<int> &tg_blocks);
@@ -110,8 +110,8 @@ private:
             const std::vector<int> &loop_blocks,
             const std::vector<int> &tg_blocks);
 
-    static const int default_max_iter_tile_bytes = 2048;
-    static const int default_max_thr_tile_bytes = 2048;
+    static const dim_t default_max_iter_tile_bytes = 2048;
+    static const dim_t default_max_thr_tile_bytes = 2048;
 
     hw_config_t hw_cfg_;
     const kernel_info_t &kernel_info_;

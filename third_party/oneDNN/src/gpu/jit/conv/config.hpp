@@ -340,7 +340,7 @@ public:
         CHECK(attr->set_default_formats(output_md));
 
         if (!zero_points_ok(conv_pd)) return status::unimplemented;
-        if (!post_ops_ok(conv_pd)) return status::unimplemented;
+        if (!post_ops_ok(conv_pd, hw_cfg)) return status::unimplemented;
 
         CHECK(init_extra_tensor_layouts(conv_pd));
 
@@ -423,7 +423,8 @@ public:
                 && (mask_dst == 0 || mask_dst == 1 << 1);
     }
 
-    bool post_ops_ok(const convolution_pd_t *pd) const {
+    bool post_ops_ok(
+            const convolution_pd_t *pd, const hw_config_t &hw_cfg) const {
         auto *attr = pd->attr();
 
         // No post-ops are supported for f64
@@ -448,6 +449,13 @@ public:
             auto &po = attr->post_ops_.entry_[i];
             if (po.is_eltwise()) {
                 if (!jit_eltwise_injector_f32_is_supported(po.eltwise.alg))
+                    return false;
+                else if (po.eltwise.alg == alg_kind::eltwise_tanh
+                        && hw_cfg.hw() == ngen::HW::XeHPG
+                        && hw_cfg.eu_count() <= 128)
+                    // Workaround for hard to reproduce issue in end to end
+                    // workloads. It is unclear what the actual issue is as the
+                    // kernel always works correctly in benchdnn.
                     return false;
             } else if (po.is_binary() || po.is_prelu()) {
                 int mask = po.is_prelu()

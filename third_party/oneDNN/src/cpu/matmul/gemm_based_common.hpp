@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ struct params_t {
 
     // indicates if src batch dims can be fused into M, so that a single
     // GeMM call can be made
-    bool can_fuse_src_batch_dims_ = false;
+    bool use_single_gemm_call_optimization_ = false;
 
     // an attribute for post processing kernel
     primitive_attr_t pp_attr_;
@@ -111,13 +111,14 @@ inline bool check_gemm_binary_per_oc_compatible_formats(const matmul_pd_t &pd) {
     return ok && strides[0] == utils::array_product(dims + 1, ndims - 1);
 }
 
-inline size_t get_scratchpad_size(const dim_t batch, dim_t M, const dim_t N,
-        const bool can_fuse_src_batch_dims, const int nthr) {
+inline size_t get_scratchpad_block_elements(const dim_t batch, dim_t M,
+        const dim_t N, const bool use_single_gemm_call_optimization,
+        const int nthr) {
     assert(batch > 0);
     assert(M > 0);
     assert(N > 0);
     size_t buffer_size;
-    if (can_fuse_src_batch_dims || batch == 1) {
+    if (use_single_gemm_call_optimization) {
         buffer_size = (size_t)batch * M * N;
     } else {
         const size_t work_per_thr = utils::div_up((size_t)batch * M * N, nthr);
@@ -131,20 +132,29 @@ inline size_t get_scratchpad_size(const dim_t batch, dim_t M, const dim_t N,
     return utils::rnd_up(buffer_size, 64);
 }
 
+inline size_t get_scratchpad_num_elements(const dim_t batch, dim_t M,
+        const dim_t N, const bool use_single_gemm_call_optimization,
+        const int nthr) {
+    const int num_scratchpad_blocks
+            = use_single_gemm_call_optimization ? 1 : nthr;
+    return get_scratchpad_block_elements(
+                   batch, M, N, use_single_gemm_call_optimization, nthr)
+            * num_scratchpad_blocks;
+}
+
 inline void book_acc_scratchpad(matmul_pd_t &pd, const params_t &params,
         size_t sizeof_acc_data, const int nthr) {
 
-    if (!params.dst_is_acc_
-            && !memory_desc_wrapper(pd.dst_md()).has_runtime_dims()) {
-        const size_t buffer_size = get_scratchpad_size(pd.batch(), pd.M(),
-                pd.N(), params.can_fuse_src_batch_dims_, nthr);
-        const size_t sp_size = params.can_fuse_src_batch_dims_
-                ? buffer_size
-                : buffer_size * nthr;
-        auto scratchpad = pd.scratchpad_registry().registrar();
-        scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
-                sp_size, sizeof_acc_data);
-    }
+    if (params.dst_is_acc_) return; // scratchpad buffer is not required
+
+    // scratchpad buffer must be allocated on execution stage
+    if (pd.has_runtime_dims_or_strides()) return;
+
+    const size_t buffer_size = get_scratchpad_num_elements(pd.batch(), pd.M(),
+            pd.N(), params.use_single_gemm_call_optimization_, nthr);
+    auto scratchpad = pd.scratchpad_registry().registrar();
+    scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
+            buffer_size, sizeof_acc_data);
 }
 
 } // namespace gemm_based
