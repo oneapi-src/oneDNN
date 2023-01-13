@@ -398,8 +398,8 @@ expr call_fused_op_query_combined(const expr &tb, const expr &combined_keys,
         const expr &combined_algs, const expr &each_op_num_key,
         const expr &op_num, const expr &kernel);
 expr call_cal_blocking_dims(const expr &placeholder, const expr &format);
-// runtime op shape of tensor
-func_t get_cal_shape_of_tensor_op_func();
+// Get single config by input shape of matmul.
+expr call_get_matmul_dyn_cfg_single(const expr &in, const expr &is_batch);
 
 // gets the IR func for get_thread_id. @see thread_pool_table::get_thread_id
 func_t get_thread_id_func();

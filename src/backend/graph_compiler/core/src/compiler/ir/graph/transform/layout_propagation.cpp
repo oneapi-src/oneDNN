@@ -22,7 +22,6 @@
 #include "../fusible_op.hpp"
 #include "../graph_op.hpp"
 #include "../pass/pass.hpp"
-#include "../runtime_op.hpp"
 #include "../tunable_op.hpp"
 #include "../visitor.hpp"
 #include <ops/fusible/memory_movement.hpp>
@@ -592,11 +591,6 @@ SC_INTERNAL_API void layout_propagation(
                     inputs[0]->details_.set_format(old_format);
                 }
                 reset_in_out_supported_pairs();
-                node->query_format(
-                        ctx, in_supported_pairs, out_supported_pairs);
-                update_output_formats(node->info_.outputs_, out_supported_pairs,
-                        cur_layout_choice);
-            } else if (node->isa<runtime_op_t>()) {
                 node->query_format(
                         ctx, in_supported_pairs, out_supported_pairs);
                 update_output_formats(node->info_.outputs_, out_supported_pairs,

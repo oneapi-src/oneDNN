@@ -112,9 +112,9 @@ extern "C" void query_format_matmul_core_op(void *table, void *out, void *data,
     int a = weight_fmt_st->get(0);
 
     int M_blk, N_blk, K_blk;
-    M_blk = runtime::get_dyn_cfg_single(M, true);
-    K_blk = runtime::get_dyn_cfg_single(K);
-    N_blk = runtime::get_dyn_cfg_single(N);
+    M_blk = get_matmul_dyn_cfg_single(M, true);
+    K_blk = get_matmul_dyn_cfg_single(K);
+    N_blk = get_matmul_dyn_cfg_single(N);
 
     auto &format_table = op_table->format_table_;
     if (data_fmt_st->is_plain() || data_fmt_st->ndims() == data_ndims) {

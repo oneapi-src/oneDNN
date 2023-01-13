@@ -45,6 +45,7 @@
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <ops/fusible/reduce.hpp>
+#include <ops/fusible/shape_of_tensor.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
 #include <ops/matmul_core.hpp>
@@ -1028,6 +1029,8 @@ void create_query_function_by_graph(general_fused_params_t &gp,
                     op_ins[2].tensor_, op_outs[0].format_, op_ins[0].format_,
                     op_ins[1].format_, op_ins[2].format_, op_outs[0].size_,
                     dummy_kernel));
+        } else if (op->isa<shape_of_tensor_op_t>()) {
+            // do nothing
         } else {
             COMPILE_ASSERT(false,
                     "Currently dynamic fusbile op only support "

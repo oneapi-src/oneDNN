@@ -33,7 +33,7 @@
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <ops/fusible/memory_movement.hpp>
-#include <ops/shape_of_tensor.hpp>
+#include <ops/fusible/shape_of_tensor.hpp>
 #include <runtime/config.hpp>
 #include <unordered_set>
 #include <util/reflection.hpp>
@@ -714,7 +714,26 @@ sc_op_ptr matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
     COMPILE_ASSERT(attrs_.has_key("temp.padded_A_K"),
             "No related VConst set, which maybe cause correctness error")
     sc_op_ptr ret_node;
+    if (is_dyn_quan) {
+        if (!dyn_data_zero_points || !dyn_weight_zero_points) {
+            return nullptr;
+        }
+    } else {
+        if (data_zero_points.empty() || weight_zero_points.empty()) {
+            return nullptr;
+        }
+        if ((std::all_of(data_zero_points.begin(), data_zero_points.end(),
+                    [](int i) { return i == 0; }))
+                || (std::all_of(weight_zero_points.begin(),
+                        weight_zero_points.end(),
+                        [](int i) { return i == 0; }))) {
+            return nullptr;
+        }
+    }
     if (is_dynamic_dim(K_orig)) {
+        COMPILE_ASSERT(!is_dyn_quan,
+                "Currently dynamic shape hasn't integrated with dynamic "
+                "quantize.");
         ret_node = mgr.make("constant", {}, {},
                 {{"values",
                          std::make_shared<static_data_t>(std::vector<int> {
@@ -722,21 +741,18 @@ sc_op_ptr matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
                         {"dtype", datatypes::s32}, {"plain_dims", sc_dims {1}},
                         {"format", sc_data_format_t()}});
         auto weight = info_.inputs_[1];
-        std::vector<int> shape_idxs = {
-                static_cast<int>(weight->details_.get_plain_dims().size() - 2)};
-        auto find_ltsr = [](const sc_op *node) { return node->get_inputs(); };
-        auto reduce_shape = mgr.make(
-                "shape_of_tensor", {weight}, {}, {{"shape_idxs", shape_idxs}});
-        reduce_shape->stc_cast<ops::shape_of_tensor_op_t>()->set_find_ltsr_func(
-                find_ltsr);
+        int shape_idx = static_cast<int>(
+                weight->details_.get_plain_dims().size() - 2);
+        auto reduce_shape = mgr.make("shape_of_tensor", {weight}, {},
+                {{"shape_idx", shape_idx},
+                        {attr_keys::padding_shape_type,
+                                static_cast<int>(padding_shape_etype_t::
+                                                matmul_padding)}});
         ret_node = mgr.make("mul",
                 {ret_node->get_outputs()[0], reduce_shape->get_outputs()[0]},
                 {}, {});
     } else {
         if (is_dyn_quan) {
-            if (!dyn_data_zero_points || !dyn_weight_zero_points) {
-                return nullptr;
-            }
             ret_node = mgr.make("mul",
                     {dyn_data_zero_points, dyn_weight_zero_points}, {}, {});
             auto const_reduce = mgr.make("constant", {}, {},
@@ -752,16 +768,6 @@ sc_op_ptr matmul_core_op_t::get_constant_compensation(sc_graph_t &mgr) {
                             const_reduce->get_outputs()[0]},
                     {}, {});
         } else {
-            if (data_zero_points.empty() || weight_zero_points.empty()) {
-                return nullptr;
-            }
-            if ((std::all_of(data_zero_points.begin(), data_zero_points.end(),
-                        [](int i) { return i == 0; }))
-                    || (std::all_of(weight_zero_points.begin(),
-                            weight_zero_points.end(),
-                            [](int i) { return i == 0; }))) {
-                return nullptr;
-            }
             COMPILE_ASSERT(data_zero_points.size() == 1
                             && weight_zero_points.size() == 1,
                     "matmul_core does not support per channel data/weight zero "

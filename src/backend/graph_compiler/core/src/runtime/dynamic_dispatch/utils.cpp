@@ -21,9 +21,7 @@
 #include <util/simple_math.hpp>
 
 namespace sc {
-namespace runtime {
-
-int get_dyn_cfg_single(int in, bool is_batch) {
+extern "C" int get_matmul_dyn_cfg_single(int in, bool is_batch) {
     assert(in > 0);
     const int blk_step = 16;
     int blk = 16;
@@ -55,7 +53,7 @@ int get_dyn_cfg_single(int in, bool is_batch) {
     }
     return blk;
 }
-
+namespace runtime {
 void deep_copy_dynamic_tensor(
         runtime::dynamic_tensor_t *out, const runtime::dynamic_tensor_t *in) {
     out->ndims_ = in->ndims_;

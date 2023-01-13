@@ -113,17 +113,17 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
     if (is_dynamic_dim(M)) {
       cfg.M_block = dimensions::dynamic_any;
     } else {
-      cfg.M_block = runtime::get_dyn_cfg_single(M, true);
+      cfg.M_block = get_matmul_dyn_cfg_single(M, true);
     }
     if (is_dynamic_dim(N)) {
       cfg.N_block = dimensions::dynamic_any;
     } else {
-      cfg.N_block = runtime::get_dyn_cfg_single(N);
+      cfg.N_block = get_matmul_dyn_cfg_single(N);
     }
     if (is_dynamic_dim(K)) {
       cfg.K_block = dimensions::dynamic_any;
     } else {
-      cfg.K_block = runtime::get_dyn_cfg_single(K);
+      cfg.K_block = get_matmul_dyn_cfg_single(K);
     }
     return std::move(ret);
   }

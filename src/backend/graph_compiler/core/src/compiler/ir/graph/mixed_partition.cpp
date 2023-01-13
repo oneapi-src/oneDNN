@@ -31,7 +31,6 @@
 #include <compiler/ir/graph/fused_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/lowering.hpp>
-#include <compiler/ir/graph/runtime_op.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/buffer_schedule.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
@@ -2129,8 +2128,7 @@ mixed_parti_t::mixed_parti_t(
         const context_ptr &ctx, const sc_op_ptr &op, const dep_mat_ptr &dep_m)
     : dep_m_(dep_m), ctx_(ctx) {
     if (op->get_owner_graph().is_dynamic()) cost_.disable();
-    if (!op->isa<constant_op_t>() && !op->isa<tensor_view_op_t>()
-            && !op->isa<runtime_op_t>()) {
+    if (!op->isa<constant_op_t>() && !op->isa<tensor_view_op_t>()) {
         SC_MODULE_INFO << "================  create new partition: "
                        << op->op_name_ << "_" << op->logical_op_id_
                        << " ================";
@@ -2158,7 +2156,6 @@ bool mixed_parti_t::is_ok_to_add(sc_op *op) {
     if (op->isa<tunable_op_t>() && contain_nested_parallel_for()) {
         return false;
     }
-    if (op->isa<runtime_op_t>()) { return false; }
     // search suitable anchor for op
     auto mixed_op = op->dyn_cast<op_traits::mixed_partition_acceptable>();
     mixed_op->search_anchor(this);

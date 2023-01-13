@@ -24,7 +24,6 @@
 #include "fusible_op.hpp"
 #include "graph.hpp"
 #include "pass/pass.hpp"
-#include "runtime_op.hpp"
 #include "visitor.hpp"
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
@@ -1114,29 +1113,6 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 || node->isa<ops::dynamic_reshape_op>()) {
             kind = kreshape;
         }
-        // fixme(jingze): Use jit instead of runtime op.
-        auto update_runtime_op_args = [&](const sc_op_ptr &node,
-                                              std::vector<expr> &exprargs) {
-            std::vector<graph_tensor_ptr> ins, outs;
-            auto extra_infos
-                    = node->stc_cast<runtime_op_t>()->get_extra_lower_infos(
-                            graph, ret_mod);
-            ins = extra_infos.in_ltsrs_;
-            outs = extra_infos.out_ltsrs_;
-            exprargs.clear();
-            int const_type = node->attrs_.get_or_else(
-                    "constant", const_kind::not_const);
-            for (auto &out : outs) {
-                exprargs.emplace_back(get_or_create_tensor(
-                        gp, out, false, const_type, info_etype_t::real_tensor));
-            }
-            for (auto &in : ins) {
-                exprargs.emplace_back(get_or_create_tensor(
-                        gp, in, false, const_type, info_etype_t::real_tensor));
-            }
-            exprargs.insert(exprargs.end(), extra_infos.attrs_.begin(),
-                    extra_infos.attrs_.end());
-        };
 
         // if the node is reorder or has tail reorder in its internal graph,
         // query its uses op first.
@@ -1192,10 +1168,6 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                 std::vector<expr> exprargs;
                 exprargs.insert(exprargs.end(), outs.begin(), outs.end());
                 exprargs.insert(exprargs.end(), ins.begin(), ins.end());
-                if (node->isa<runtime_op_t>()) {
-                    exprargs.clear();
-                    update_runtime_op_args(node, exprargs);
-                }
                 expr kernel_call;
                 std::string callee_name;
                 if (is_graph_dynamic && can_op_be_dispatched(node)) {
@@ -1244,11 +1216,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     }
                     ret_mod->merge(*mod);
                     auto callee = mod->get_entry_func();
-                    if (!callee) {
-                        // runtime op
-                        assert(mod->attr_.has_key("temp.runtime_func"));
-                        callee = mod->attr_.get<func_t>("temp.runtime_func");
-                    } else if (graph.is_dynamic()) {
+                    if (graph.is_dynamic()) {
                         // don't use is_graph_dynamic here.
                         callee->attr().set(attr_keys::always_trans, true);
                         callee->decl_->attr().set(

@@ -611,14 +611,12 @@ expr call_cal_blocking_dims(const expr &placeholder, const expr &format) {
     return cal_blocking_f(placeholder, format);
 }
 
-func_t get_cal_shape_of_tensor_op_func() {
-    static func_t cal_shapeof_f = make_func("calculate_shape_of_tensor_op",
-            {make_var(datatypes::pointer, "out"),
-                    make_var(datatypes::pointer, "in"),
-                    make_var(datatypes::pointer, "shape_idxs"),
-                    make_var(datatypes::s32, "shape_size")},
-            stmt(), datatypes::void_t);
-    return cal_shapeof_f;
+expr call_get_matmul_dyn_cfg_single(const expr &in, const expr &is_batch) {
+    static func_t matmul_dyn_cfg_f = make_func("get_matmul_dyn_cfg_single",
+            {make_var(datatypes::s32, "in"),
+                    make_var(datatypes::boolean, "is_batch")},
+            stmt(), datatypes::s32);
+    return matmul_dyn_cfg_f(in, is_batch);
 }
 
 static func_t set_pure_function(func_t f) {

@@ -23,6 +23,7 @@
 #include <runtime/barrier.hpp>
 #include <runtime/config.hpp>
 #include <runtime/dynamic_dispatch/op_func_decl.hpp>
+#include <runtime/dynamic_dispatch/utils.hpp>
 #include <runtime/managed_thread_pool_exports.hpp>
 #include <runtime/memorypool.hpp>
 #include <runtime/parallel.hpp>
@@ -88,8 +89,7 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
                     (void *)query_format_tensor_view_op},
             {"query_format_select_op", (void *)query_format_select_op},
             {"query_combined_fused_op", (void *)query_combined_fused_op},
-            {"calculate_shape_of_tensor_op",
-                    (void *)calculate_shape_of_tensor_op},
+            {"get_matmul_dyn_cfg_single", (void *)get_matmul_dyn_cfg_single},
     };
     return table;
 }

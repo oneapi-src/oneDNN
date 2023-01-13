@@ -17,18 +17,19 @@
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_DYNAMIC_DISPATCH_UTILS_HPP
 
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
-
+#include <util/def.hpp>
 namespace sc {
-namespace runtime {
 /**
  * @brief Get the dynamic config single block from the plain dynamic dimension
+ * for matmul
  *
  * @param in the dynamic dimension
  * @param is_batch default false, candidates are [16, 32, 64], if true,
  * candidates are [2, 4, 8, 16, 32, 64].
  * @return the selected block config
  */
-int get_dyn_cfg_single(int in, bool is_batch = false);
+extern "C" SC_API int get_matmul_dyn_cfg_single(int in, bool is_batch = false);
+namespace runtime {
 
 void deep_copy_dynamic_tensor(
         dynamic_tensor_t *out, const dynamic_tensor_t *in);

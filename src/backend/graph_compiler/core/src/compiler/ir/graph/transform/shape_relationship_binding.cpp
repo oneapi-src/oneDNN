@@ -22,7 +22,6 @@
 #include "../fusible_op.hpp"
 #include "../graph_op.hpp"
 #include "../pass/pass.hpp"
-#include "../runtime_op.hpp"
 #include "../tunable_op.hpp"
 #include "../visitor.hpp"
 #include <compiler/ir/graph/dynamic_lower_info.hpp>
