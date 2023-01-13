@@ -193,6 +193,12 @@ bool bnorm_problem_filter_t::matches_desc(const bnorm_conf_t &conf) const {
     return get_desc_str(conf) == desc_;
 }
 
+// Lookup table is a result of tuning procedure which can be implemented by
+// some script that runs some given testcase with many different values of
+// tunenable parameters and than parses the best results.
+// Env varibles BN_TUNING and BN_PARAMS must be set.
+// BN_PARAMS sintax is {key=val,...}, for example
+// BN_PARAMS="far=0 mv=4 sspb=14 uspb=4 uspu=4"
 bnorm_lookup_table_t::bnorm_lookup_table_t() {
     // clang-format off
 // resnet-50.tr.fp32.pt.mb16_pvc
