@@ -84,7 +84,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                                              : dnnl_forward_training;
         DNN_SAFE_STATUS(dnnl_resampling_forward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, prop_kind, alg, nullptr,
-                src_d, dst_d, dnnl_attr));
+                init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
+                dnnl_attr));
     } else {
         DNN_SAFE_STATUS(dnnl_resampling_backward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, alg, nullptr, src_d,
@@ -120,6 +121,77 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_zero_trust_percent(99.f);
 }
 
+std::vector<int> supported_exec_args(dir_t dir) {
+    static const std::vector<int> exec_fwd_args = {
+            DNNL_ARG_SRC,
+            DNNL_ARG_DST,
+    };
+    static const std::vector<int> exec_bwd_args = {
+            DNNL_ARG_DIFF_SRC,
+            DNNL_ARG_DIFF_DST,
+    };
+    return (dir & FLAG_FWD) ? exec_fwd_args : exec_bwd_args;
+};
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref) {
+    const auto &ref_engine = get_cpu_engine();
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second; // `mem` is modified by filler (reorder).
+
+        ref_mem_map.emplace(
+                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_SRC: SAFE(fill_src(prb, mem, ref_mem), WARN); break;
+            case DNNL_ARG_DST:
+                if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM)
+                        >= 0)
+                    SAFE(fill_dst(prb, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DIFF_DST:
+                SAFE(fill_dst(prb, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_SCRATCHPAD: break;
+            default: { // Process all attributes here
+                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+                bool is_post_ops_arg = (exec_arg & post_ops_range);
+                if (is_post_ops_arg) {
+                    // Use only positive values for linear to avoid cancellation
+                    // and bigger rdiff error values.
+                    const bool only_positive_values = prb->alg == linear;
+                    SAFE(binary::fill_mem(
+                                 exec_arg, mem, ref_mem, only_positive_values),
+                            WARN);
+                }
+            } break;
+        }
+        // Don't keep reference memory if it is not used further.
+        if (!is_bench_mode(CORR)) ref_mem_map.clear();
+    }
+
+    return OK;
+}
+
+std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
+    std::vector<data_kind_t> check_kinds;
+    if (prb->dir & FLAG_FWD) {
+        check_kinds = {DST};
+    } else if (prb->dir & FLAG_BWD) {
+        check_kinds = {SRC};
+    } else {
+        assert(!"unexpected!");
+        SAFE_V(FAIL);
+    }
+    assert(!check_kinds.empty());
+    return check_kinds;
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -128,82 +200,18 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     if (is_bench_mode(INIT)) return OK;
 
-    auto const_pd = query_pd(prim);
-
-    const auto &src_md = prb->dir == BWD_D
-            ? query_md(const_pd, DNNL_ARG_DIFF_SRC)
-            : query_md(const_pd, DNNL_ARG_SRC);
-    const auto &dst_md = prb->dir == BWD_D
-            ? query_md(const_pd, DNNL_ARG_DIFF_DST)
-            : query_md(const_pd, DNNL_ARG_DST);
-    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-
-    const auto fp = dnnl_f32;
-    const auto tag = tag::abx;
-
-    const auto &test_engine = get_test_engine();
-    const auto &ref_engine = get_cpu_engine();
-
-    dnn_mem_t src_fp(src_md, fp, tag, ref_engine);
-    dnn_mem_t src_dt(src_md, test_engine);
-
-    dnn_mem_t dst_fp(dst_md, fp, tag, ref_engine);
-    dnn_mem_t dst_dt(dst_md, test_engine);
-    if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
-        SAFE(fill_dst(prb, dst_dt, dst_fp), WARN);
-
-    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
-    std::vector<int> binary_po_args;
-    // When post-ops occur, the relative difference can change
-    // between the output from reference and the kernel. The compare
-    // function usually uses to compare a relative difference.
-    // Therefore, we should not lead to a situation where the
-    // relative difference is very small after executing a
-    // post-ops operation. Therefore, all values for binary post_ops
-    // are positive when the linear algorithm is present. This is
-    // important because there may be small differences in the result
-    // between the expected value and the gotten value with this algorithm.
-    const bool only_positive_values = prb->alg == linear;
-    SAFE(binary::setup_binary_po(const_pd, binary_po_args, binary_po_dt,
-                 binary_po_fp, only_positive_values),
+    dnn_mem_map_t mem_map, ref_mem_map;
+    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
+    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
             WARN);
 
-    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
+    args_t args(mem_map), ref_args(ref_mem_map);
 
-    args_t args, ref_args;
+    SAFE(execute_and_wait(prim, args, res), WARN);
 
-    if (prb->dir & FLAG_FWD) {
-        SAFE(fill_src(prb, src_dt, src_fp), WARN);
-
-        args.set(DNNL_ARG_SRC, src_dt);
-        args.set(DNNL_ARG_DST, dst_dt);
-        args.set(binary_po_args, binary_po_dt);
-        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-
-        SAFE(execute_and_wait(prim, args, res), WARN);
-
-        if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_SRC, src_fp);
-            ref_args.set(DNNL_ARG_DST, dst_fp);
-            ref_args.set(binary_po_args, binary_po_fp);
-
-            check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
-        }
-    } else {
-        SAFE(fill_dst(prb, dst_dt, dst_fp), WARN);
-
-        args.set(DNNL_ARG_DIFF_DST, dst_dt);
-        args.set(DNNL_ARG_DIFF_SRC, src_dt);
-        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-
-        SAFE(execute_and_wait(prim, args, res), WARN);
-
-        if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_DIFF_DST, dst_fp);
-            ref_args.set(DNNL_ARG_DIFF_SRC, src_fp);
-
-            check_correctness(prb, {SRC}, args, ref_args, setup_cmp, res);
-        }
+    if (is_bench_mode(CORR)) {
+        check_correctness(
+                prb, get_kinds_to_check(prb), args, ref_args, setup_cmp, res);
     }
 
     return measure_perf(prb->ctx_exe, res, prim, args);

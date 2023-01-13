@@ -55,6 +55,15 @@ struct base_settings_t {
         attr.insert(args...);
         return attr;
     }
+
+    // Returns `true` if all vector members in this class have capacity of one.
+    virtual bool has_single_setup() const {
+        return mb.size() == 1 && inplace.size() == 1 && oscale.size() == 1
+                && scales.size() == 1 && zero_points.size() == 1
+                && post_ops.size() == 1 && scratchpad_mode.size() == 1
+                && fpmath_mode.size() == 1 && ctx_init.size() == 1
+                && ctx_exe.size() == 1;
+    }
 };
 
 #endif

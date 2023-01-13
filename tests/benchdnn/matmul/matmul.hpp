@@ -62,9 +62,27 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
+
+    bool has_single_setup() const override {
+        return cfg.size() && dt.size() == 1 && stag.size() == 1
+                && wtag.size() == 1 && dtag.size() == 1 && strides.size() == 1
+                && bia_dt.size() == 1 && bia_mask.size() == 1
+                && rt_dims_masks.size() == 1
+                && base_settings_t::has_single_setup();
+    }
 };
 
 struct prb_t : public prb_vdims_t {
+    // A ctor with common interface across all drivers.
+    prb_t(const settings_t &s)
+        : prb_t(s.prb_vdims, s.dt[0], s.stag[0], s.wtag[0], s.dtag[0],
+                s.strides[0], s.bia_dt[0], s.bia_mask[0], s.rt_dims_masks[0],
+                settings_t::get_attr(s.scales[0], s.zero_points[0],
+                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
+                s.ctx_init[0], s.ctx_exe[0]) {
+        SAFE_V(s.has_single_setup() ? OK : FAIL);
+    }
+
     prb_t(const prb_vdims_t &prb_vdims, const std::vector<dnnl_data_type_t> &dt,
             const std::string &stag, const std::string &wtag,
             const std::string &dtag, const vdims_t &strides,
@@ -269,6 +287,10 @@ void handle_legacy_cfg(
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args);
+std::vector<int> supported_exec_args(dir_t dir);
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref = nullptr);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);

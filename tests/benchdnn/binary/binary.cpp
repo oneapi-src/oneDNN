@@ -57,45 +57,14 @@ int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     return OK;
 }
 
-int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
-        std::vector<dnn_mem_t> &mem_dt, std::vector<dnn_mem_t> &mem_fp,
-        bool only_positive_values, bool only_integer_values) {
-    // TODO: currently run-time dimensions are not supported in binary post-op.
-    // To add a support two ways are possible: 1) add query support to the
-    // library and extract expected md from pd; 2) pass a vector of pre-defined
-    // (no run-time values) of `po_md`s and create memories from them in case
-    // the library will lack of query mechanism.
-    auto const_attr_po = query_post_ops(pd);
-    auto po_len = dnnl_post_ops_len(const_attr_po);
-    for (int idx = 0; idx < po_len; ++idx) {
-        auto kind = dnnl_post_ops_get_kind(const_attr_po, idx);
-        if (kind != dnnl_binary) continue;
-
-        int po_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1;
-        const auto &po_md = query_md(pd, po_idx);
-
-        // Following call can not be executed if po_md has runtime dimension due
-        // to undefined size.
-        mem_fp.emplace_back(po_md, dnnl_f32, tag::abx, get_cpu_engine());
-        mem_dt.emplace_back(po_md, get_test_engine());
-        args.push_back(po_idx);
-        fill_mem(po_idx, mem_dt.back(), mem_fp.back(), only_positive_values,
-                only_integer_values);
-    }
-    return OK;
-}
-
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    std::vector<benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>> src_d(
-            prb->n_inputs());
+    auto src0_d = dnn_mem_t::init_md(
+            prb->ndims, prb->vdims[0].data(), prb->sdt[0], prb->stag[0]);
 
-    for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
-        const dims_t &i_vdims = prb->vdims[i_input];
-        src_d[i_input] = dnn_mem_t::init_md(prb->ndims, i_vdims.data(),
-                prb->sdt[i_input], prb->stag[i_input]);
-    }
+    auto src1_d = dnn_mem_t::init_md(
+            prb->ndims, prb->vdims[1].data(), prb->sdt[1], prb->stag[1]);
 
     auto dst_d = dnn_mem_t::init_md(
             prb->ndims, prb->dst_dims.data(), prb->ddt, prb->dtag);
@@ -108,7 +77,9 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args));
 
     DNN_SAFE_STATUS(dnnl_binary_primitive_desc_create(&init_pd_args.pd,
-            init_pd_args.engine, alg, src_d[0], src_d[1], dst_d, dnnl_attr));
+            init_pd_args.engine, alg,
+            init_pd_args.src_md ? init_pd_args.src_md : src0_d, src1_d, dst_d,
+            dnnl_attr));
 
     return dnnl_success;
 }
@@ -184,6 +155,63 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     if (is_cmp) cmp.set_zero_trust_percent(99.f);
 }
 
+std::vector<int> supported_exec_args(dir_t dir) {
+    static const std::vector<int> exec_args = {
+            DNNL_ARG_SRC_0,
+            DNNL_ARG_SRC_1,
+            DNNL_ARG_DST,
+    };
+    return exec_args;
+};
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref) {
+    const auto &ref_engine = get_cpu_engine();
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second; // `mem` is modified by filler (reorder).
+
+        ref_mem_map.emplace(
+                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_SRC_0: SAFE(fill_mem(0, mem, ref_mem), WARN); break;
+            case DNNL_ARG_SRC_1: SAFE(fill_mem(1, mem, ref_mem), WARN); break;
+            case DNNL_ARG_DST:
+                if (prb->attr.post_ops.find(alg_t::SUM) >= 0) {
+                    SAFE(fill_mem(2, mem, ref_mem), WARN);
+                }
+                break;
+            case DNNL_ARG_SCRATCHPAD: break;
+            default: { // Process all attributes here
+                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+                bool is_post_ops_arg = (exec_arg & post_ops_range);
+                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
+                if (is_post_ops_arg) {
+                    SAFE(binary::fill_mem(exec_arg, mem, ref_mem), WARN);
+                } else if (is_scales_arg) {
+                    int exec_src_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
+                    // Leave hard coded until supported mask is 0 only.
+                    ref_mem.set_elem(
+                            0, prb->attr.scales.get(exec_src_arg).scale);
+                    mem.reorder(ref_mem);
+                }
+            } break;
+        }
+        // Don't keep reference memory if it is not used further.
+        if (!is_bench_mode(CORR)) ref_mem_map.clear();
+    }
+
+    // Drop destination memory for in-place case. `args` will take care of rest.
+    if (prb->inplace) { mem_map[DNNL_ARG_DST] = dnn_mem_t(); }
+
+    return OK;
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -192,65 +220,16 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     if (is_bench_mode(INIT)) return OK;
 
-    auto const_pd = query_pd(prim);
-
-    const auto &src0_md = query_md(const_pd, DNNL_ARG_SRC_0);
-    const auto &src1_md = query_md(const_pd, DNNL_ARG_SRC_1);
-    const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
-    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-
-    const auto fp = dnnl_f32;
-    const auto tag = tag::abx;
-
-    const auto &test_engine = get_test_engine();
-    const auto &ref_engine = get_cpu_engine();
-
-    dnn_mem_t src0_fp(src0_md, fp, tag, ref_engine);
-    dnn_mem_t src0_dt(src0_md, test_engine);
-    SAFE(fill_mem(0, src0_dt, src0_fp), WARN);
-
-    dnn_mem_t src1_fp(src1_md, fp, tag, ref_engine);
-    dnn_mem_t src1_dt(src1_md, test_engine);
-    SAFE(fill_mem(1, src1_dt, src1_fp), WARN);
-
-    dnn_mem_t dst_fp(dst_md, fp, tag, ref_engine);
-    dnn_mem_t dst_dt(dst_md, test_engine);
-    if (prb->attr.post_ops.find(alg_t::SUM) >= 0 || is_amd_gpu())
-        SAFE(fill_mem(2, dst_dt, dst_fp), WARN);
-
-    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
-    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
-    std::vector<int> binary_po_args;
-    SAFE(setup_binary_po(const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+    dnn_mem_map_t mem_map, ref_mem_map;
+    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
+    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
             WARN);
 
-    args_t args, ref_args;
-
-    args.set(DNNL_ARG_SRC_0, src0_dt);
-    args.set(DNNL_ARG_SRC_1, src1_dt);
-    args.set(DNNL_ARG_DST, dst_dt);
-    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-    args.set(binary_po_args, binary_po_dt);
-
-    dnn_mem_t input_scales_m0;
-    float scale0 = prb->attr.scales.get(DNNL_ARG_SRC_0).scale;
-    maybe_prepare_runtime_scales(
-            input_scales_m0, prb->attr.scales.get(DNNL_ARG_SRC_0), 1, &scale0);
-    args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0, input_scales_m0);
-    dnn_mem_t input_scales_m1;
-    float scale1 = prb->attr.scales.get(DNNL_ARG_SRC_1).scale;
-    maybe_prepare_runtime_scales(
-            input_scales_m1, prb->attr.scales.get(DNNL_ARG_SRC_1), 1, &scale1);
-    args.set(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1, input_scales_m1);
+    args_t args(mem_map), ref_args(ref_mem_map);
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     if (is_bench_mode(CORR)) {
-        ref_args.set(DNNL_ARG_SRC_0, src0_fp);
-        ref_args.set(DNNL_ARG_SRC_1, src1_fp);
-        ref_args.set(DNNL_ARG_DST, dst_fp);
-        ref_args.set(binary_po_args, binary_po_fp);
-
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 

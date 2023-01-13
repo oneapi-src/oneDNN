@@ -166,7 +166,8 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
     dnn_mem_t got_f32(got_mem, dnnl_f32, tag::abx, get_cpu_engine());
     const auto dt = got_mem.dt();
-    const bool has_eltwise = attr.post_ops.eltwise_index() != -1;
+    const bool has_eltwise
+            = attr.post_ops.eltwise_index() != -1 || has_eltwise_post_op_;
     const bool has_exp_eltwise
             = attr.post_ops.find(attr_t::post_ops_t::kind_t::EXP) >= 0;
     const bool has_dst_scale = !attr.scales.get(DNNL_ARG_DST).is_def();

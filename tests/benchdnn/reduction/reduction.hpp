@@ -75,9 +75,25 @@ struct settings_t : public base_settings_t {
     }
 
     void reset() { *this = settings_t(perf_template); }
+
+    bool has_single_setup() const override {
+        return sdt.size() == 1 && ddt.size() == 1 && stag.size() == 1
+                && dtag.size() == 1 && alg.size() == 1 && p.size() == 1
+                && eps.size() == 1 && base_settings_t::has_single_setup();
+    }
 };
 
 struct prb_t : public prb_vdims_t {
+    // A ctor with common interface across all drivers.
+    prb_t(const settings_t &s)
+        : prb_t(s.prb_vdims, s.sdt[0], s.ddt[0], s.stag[0], s.dtag[0], s.alg[0],
+                s.p[0], s.eps[0],
+                settings_t::get_attr(s.scales[0], s.zero_points[0],
+                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
+                s.ctx_init[0], s.ctx_exe[0]) {
+        SAFE_V(s.has_single_setup() ? OK : FAIL);
+    }
+
     prb_t(const prb_vdims_t &prb_vdims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::string &stag,
             const std::string &dtag, alg_t alg, float p, float eps,
@@ -148,6 +164,10 @@ private:
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args);
+std::vector<int> supported_exec_args(dir_t dir);
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref = nullptr);
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);

@@ -137,7 +137,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
         DNN_SAFE_STATUS(dnnl_prelu_forward_primitive_desc_create(
-                &init_pd_args.pd, init_pd_args.engine, prop, src_d, weights_d,
+                &init_pd_args.pd, init_pd_args.engine, prop,
+                init_pd_args.src_md ? init_pd_args.src_md : src_d, weights_d,
                 dst_d, dnnl_attr));
     } else {
         auto diff_src_d = dnn_mem_t::init_md(
@@ -174,6 +175,67 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_zero_trust_percent(zero_trust_percent);
 }
 
+std::vector<int> supported_exec_args(dir_t dir) {
+    static const std::vector<int> exec_fwd_args = {
+            DNNL_ARG_SRC,
+            DNNL_ARG_WEIGHTS,
+            DNNL_ARG_DST,
+    };
+    static const std::vector<int> exec_bwd_args = {
+            DNNL_ARG_SRC,
+            DNNL_ARG_WEIGHTS,
+            DNNL_ARG_DIFF_SRC,
+            DNNL_ARG_DIFF_WEIGHTS,
+            DNNL_ARG_DIFF_DST,
+    };
+    return (dir & FLAG_FWD) ? exec_fwd_args : exec_bwd_args;
+};
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim_ref) {
+    const auto &ref_engine = get_cpu_engine();
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second; // `mem` is modified by filler (reorder).
+
+        ref_mem_map.emplace(
+                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_SRC: SAFE(fill_data(SRC, mem, ref_mem), WARN); break;
+            case DNNL_ARG_WEIGHTS:
+                SAFE(fill_data(WEI, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_DIFF_DST:
+                SAFE(fill_data(DST, mem, ref_mem), WARN);
+                break;
+            case DNNL_ARG_SCRATCHPAD: break;
+            default: break;
+        }
+        // Don't keep reference memory if it is not used further.
+        if (!is_bench_mode(CORR)) ref_mem_map.clear();
+    }
+
+    return OK;
+}
+
+std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
+    std::vector<data_kind_t> check_kinds;
+    if (prb->dir & FLAG_FWD) {
+        check_kinds = {DST};
+    } else if (prb->dir & FLAG_BWD) {
+        check_kinds = {SRC, WEI};
+    } else {
+        assert(!"unexpected!");
+        SAFE_V(FAIL);
+    }
+    assert(!check_kinds.empty());
+    return check_kinds;
+}
+
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
@@ -182,77 +244,18 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     if (is_bench_mode(INIT)) return OK;
 
-    auto const_pd = query_pd(prim);
+    dnn_mem_map_t mem_map, ref_mem_map;
+    init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
+    SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res, prb->dir),
+            WARN);
 
-    const auto &data_md = query_md(const_pd, DNNL_ARG_SRC);
-    const auto &weight_md = query_md(const_pd, DNNL_ARG_WEIGHTS);
-    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-    const auto &test_engine = get_test_engine();
-    const auto &ref_engine = get_cpu_engine();
+    args_t args(mem_map), ref_args(ref_mem_map);
 
-    dnn_mem_t src_fp(data_md, dnnl_f32, tag::abx, ref_engine);
-    dnn_mem_t weights_fp(weight_md, dnnl_f32, tag::abx, ref_engine);
+    SAFE(execute_and_wait(prim, args, res), WARN);
 
-    dnn_mem_t src_dt(data_md, test_engine);
-    dnn_mem_t weights_dt(weight_md, test_engine);
-    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
-
-    SAFE(fill_data(SRC, src_dt, src_fp), WARN);
-    SAFE(fill_data(WEI, weights_dt, weights_fp), WARN);
-
-    args_t args, ref_args;
-
-    args.set(DNNL_ARG_SRC, src_dt);
-    args.set(DNNL_ARG_WEIGHTS, weights_dt);
-    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
-
-    dnn_mem_t dst_dt, d_src_fp, d_src_dt, d_dst_fp, d_dst_dt, d_weights_fp,
-            d_weights_dt;
-
-    if (prb->dir & FLAG_FWD) {
-        dnn_mem_t dst_fp(data_md, dnnl_f32, tag::abx, ref_engine);
-        dst_dt = dnn_mem_t(data_md, test_engine);
-
-        args.set(DNNL_ARG_DST, dst_dt);
-
-        SAFE(execute_and_wait(prim, args, res), WARN);
-
-        if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_SRC, src_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS, weights_fp);
-            ref_args.set(DNNL_ARG_DST, dst_fp);
-
-            check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
-        }
-    } else {
-        const auto &d_data_md = query_md(const_pd, DNNL_ARG_DIFF_DST);
-        const auto &d_weights_md = query_md(const_pd, DNNL_ARG_DIFF_WEIGHTS);
-
-        dnn_mem_t d_src_fp(d_data_md, dnnl_f32, tag::abx, ref_engine);
-        dnn_mem_t d_weights_fp(d_weights_md, dnnl_f32, tag::abx, ref_engine);
-        dnn_mem_t d_dst_fp(d_data_md, dnnl_f32, tag::abx, ref_engine);
-
-        d_src_dt = dnn_mem_t(d_data_md, test_engine);
-        d_weights_dt = dnn_mem_t(d_weights_md, test_engine);
-        d_dst_dt = dnn_mem_t(d_data_md, test_engine);
-
-        SAFE(fill_data(DST, d_dst_dt, d_dst_fp), WARN);
-
-        args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
-        args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
-        args.set(DNNL_ARG_DIFF_WEIGHTS, d_weights_dt);
-
-        SAFE(execute_and_wait(prim, args, res), WARN);
-
-        if (is_bench_mode(CORR)) {
-            ref_args.set(DNNL_ARG_SRC, src_fp);
-            ref_args.set(DNNL_ARG_WEIGHTS, weights_fp);
-            ref_args.set(DNNL_ARG_DIFF_DST, d_dst_fp);
-            ref_args.set(DNNL_ARG_DIFF_SRC, d_src_fp);
-            ref_args.set(DNNL_ARG_DIFF_WEIGHTS, d_weights_fp);
-
-            check_correctness(prb, {SRC, WEI}, args, ref_args, setup_cmp, res);
-        }
+    if (is_bench_mode(CORR)) {
+        check_correctness(
+                prb, get_kinds_to_check(prb), args, ref_args, setup_cmp, res);
     }
 
     return measure_perf(prb->ctx_exe, res, prim, args);

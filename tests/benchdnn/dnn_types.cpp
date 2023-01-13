@@ -1471,7 +1471,7 @@ void update_cpu_ref_attrs(attr_t &attr, dnnl_data_type_t new_dt) {
         if (!e.is_binary_kind()) continue;
 
         e.binary.src1_dt = new_dt;
-        e.binary.tag = tag::abx; // Hardcoded in setup_binary_po as well.
+        e.binary.tag = tag::abx; // Hardcoded in local fill functions.
     }
 }
 

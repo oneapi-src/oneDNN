@@ -308,20 +308,21 @@ args_t &args_t::set(int arg, const dnn_mem_t &mem) {
     return *this;
 }
 
-args_t &args_t::set(
-        const std::vector<int> &args, const std::vector<dnn_mem_t> &mems) {
-    assert(args.size() == mems.size());
-    for (size_t i = 0; i < mems.size(); ++i)
-        args_.emplace_back(args[i], &mems[i]);
-    return *this;
-}
-
 const dnn_mem_t &args_t::find(int arg) const {
     static dnn_mem_t empty_stub;
     for (const auto &e : args_) {
         if (e.first == arg) return *(e.second);
     }
     return empty_stub;
+}
+
+void args_t::replace(int arg, const dnn_mem_t *mem) {
+    for (auto &e : args_) {
+        if (e.first == arg) {
+            e.second = mem;
+            break;
+        }
+    }
 }
 
 // Unmap before passing the memory to execute
@@ -509,7 +510,8 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
             ret = execute_in_thr_ctx(ctx, measure_perf_aggregate, t, stream,
                     perf_func, dnnl_args);
 
-        if (ret == OK) execute_map_args(args);
+        if (ret != OK) res->state = FAILED;
+        execute_map_args(args);
     }
     return ret;
 }
@@ -520,53 +522,6 @@ int measure_perf(
             std::placeholders::_1, std::placeholders::_2);
 
     return measure_perf(ctx, res, perf_func, args);
-}
-
-void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
-        const attr_t::scale_t &scale, int64_t scale_cnt, const float *scales) {
-    if (!scale.runtime) return;
-
-    const int64_t count = scale.policy == policy_t::COMMON ? 1 : scale_cnt;
-
-    scales_m = dnn_mem_t(1, &count, dnnl_f32, tag::x, get_test_engine());
-    for (int64_t c = 0; c < count; ++c)
-        ((float *)scales_m)[c] = scales[c];
-}
-
-void maybe_prepare_runtime_scales_v2(dnn_mem_t &scales_dt, dnn_mem_t &scales_fp,
-        const attr_t::scale_t &scale, int64_t scale_cnt, const float *scales) {
-    if (!scale.runtime) return;
-    maybe_prepare_runtime_scales(scales_dt, scale, scale_cnt, scales);
-    const int64_t count = scale.policy == policy_t::COMMON ? 1 : scale_cnt;
-    scales_fp = dnn_mem_t(1, &count, dnnl_f32, tag::x, get_cpu_engine());
-    for (int64_t c = 0; c < count; ++c)
-        ((float *)scales_fp)[c] = ((float *)scales_dt)[c];
-}
-
-void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
-        const attr_t &attr, int arg, int64_t count,
-        const int32_t *zero_points) {
-    if (!attr.zero_points.runtime(arg)) return;
-
-    const auto e = attr.zero_points.get(arg);
-    const int64_t cnt = e.policy == policy_t::COMMON ? 1 : count;
-
-    zero_points_m = dnn_mem_t(1, &cnt, dnnl_s32, tag::x, get_test_engine());
-    for (int64_t c = 0; c < cnt; ++c)
-        ((int32_t *)zero_points_m)[c] = zero_points[c];
-}
-
-void maybe_prepare_runtime_zero_points_v2(dnn_mem_t &zero_points_dt,
-        dnn_mem_t &zero_points_fp, const attr_t &attr, int arg, int64_t count,
-        const int32_t *zero_points) {
-    if (!attr.zero_points.runtime(arg)) return;
-    maybe_prepare_runtime_zero_points(
-            zero_points_dt, attr, arg, count, zero_points);
-    const auto e = attr.zero_points.get(arg);
-    const int64_t cnt = e.policy == policy_t::COMMON ? 1 : count;
-    zero_points_fp = dnn_mem_t(1, &cnt, dnnl_s32, tag::x, get_cpu_engine());
-    for (int64_t c = 0; c < cnt; ++c)
-        ((int32_t *)zero_points_fp)[c] = ((int32_t *)zero_points_dt)[c];
 }
 
 std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
@@ -758,7 +713,7 @@ bool is_amd_gpu(const dnnl_engine_t &engine) {
 
 bool is_f64_supported(const dnnl_engine_t &engine) {
     if (!is_gpu(engine)) return false;
-    if (is_nvidia_gpu(engine) || is_amd_gpu()) return false;
+    if (is_nvidia_gpu(engine) || is_amd_gpu(engine)) return false;
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
     if (is_sycl_engine(engine)) {
         auto eng = dnnl::engine(engine, true);
