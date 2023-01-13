@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,65 +36,6 @@ dnnl_data_type_t prb_t::get_dt(data_kind_t data_kind) const {
         case DST: return dst_dt();
         default: assert(!"unexpected"); return dnnl_data_type_undef;
     }
-}
-
-float *prb_t::generate_scales(int arg) const {
-    const auto &scales = attr.scales;
-    if (scales.is_def()) return nullptr;
-
-    const auto &e = scales.get(arg);
-    if (e.policy == policy_t::COMMON) {
-        float *s = (float *)zmalloc(sizeof(float), 4);
-        SAFE_V(s != nullptr ? OK : FAIL);
-        s[0] = e.scale;
-        return s;
-    }
-
-    assert(arg == DNNL_ARG_WEIGHTS);
-    assert(e.policy == policy_t::PER_OC);
-
-    float *s = (float *)zmalloc(sizeof(float) * n, 64);
-    SAFE_V(s != nullptr ? OK : FAIL);
-
-    const float K = 32;
-    /* scale in [1/K .. K], with starting point at e.scale */
-    float s_val[2] = {e.scale, e.scale / 2};
-    for (int64_t i = 0; i < n; ++i) {
-        int64_t si = i % 2; // 0 -> left, 1 -> right
-        s[i] = s_val[si];
-        if (si == 0) {
-            s_val[si] /= 2.;
-            // turn around to become ~K
-            if (s_val[si] < 1. / K) s_val[si] *= K * K;
-        } else {
-            s_val[si] *= 2.;
-            // turn around to become ~K
-            if (s_val[si] > K) s_val[si] /= K * K;
-        }
-    }
-    return s;
-}
-
-int32_t *prb_t::generate_zero_points(
-        int arg, const attr_t::zero_points_t &zero_points, int N) const {
-    if (zero_points.is_def(arg)) return nullptr;
-
-    const auto &e = zero_points.get(arg);
-    if (e.policy == policy_t::COMMON) {
-        int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t), 4);
-        SAFE_V(zp != nullptr ? OK : FAIL);
-        zp[0] = e.value;
-        return zp;
-    }
-
-    assert(e.policy == policy_t::PER_DIM_1);
-
-    int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t) * N, 64);
-    SAFE_V(zp != nullptr ? OK : FAIL);
-
-    for (int i = 0; i < N; ++i)
-        zp[i] = e.value + i % 3;
-    return zp;
 }
 
 benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> prb_t::get_md(int arg) const {

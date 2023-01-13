@@ -22,6 +22,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "utils/fill.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
@@ -356,31 +357,13 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                                 WARN);
                 } else if (is_scales_arg) {
                     int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    float *prb_ptr = nullptr;
-                    switch (local_exec_arg) {
-                        case DNNL_ARG_SRC: prb_ptr = prb->src_scales; break;
-                        case DNNL_ARG_WEIGHTS: prb_ptr = prb->wei_scales; break;
-                        case DNNL_ARG_DST: prb_ptr = prb->dst_scales; break;
-                        default: break;
-                    }
-                    // Fill library scales directly.
-                    for (int64_t idx = 0; idx < mem.nelems(); ++idx) {
-                        ref_mem.set_elem(idx, prb_ptr[idx]);
-                        mem.reorder(ref_mem);
-                    }
+                    SAFE(fill_scales(prb->attr, local_exec_arg, mem, ref_mem),
+                            WARN);
                 } else if (is_zero_point_arg) {
                     int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
-                    if (local_exec_arg == DNNL_ARG_SRC) {
-                        for (int64_t idx = 0; idx < mem.nelems(); ++idx)
-                            mem.set_elem(idx, prb->src_zp[idx]);
-                    } else if (local_exec_arg == DNNL_ARG_DST) {
-                        for (int64_t idx = 0; idx < mem.nelems(); ++idx)
-                            mem.set_elem(idx, prb->dst_zp[idx]);
-                    } else if (local_exec_arg == DNNL_ARG_WEIGHTS) {
-                        mem.set_elem(0,
-                                prb->attr.zero_points.get(DNNL_ARG_WEIGHTS)
-                                        .value);
-                    }
+                    SAFE(fill_zero_points(
+                                 prb->attr, local_exec_arg, mem, ref_mem),
+                            WARN);
                 }
             } break;
         }
