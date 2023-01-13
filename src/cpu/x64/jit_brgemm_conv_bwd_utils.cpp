@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1420,6 +1420,14 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
     if (has_zero_points || jcp.s8s8_avx512) return status::unimplemented;
+
+    if (is_deconv) {
+        const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
+        const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
+        jcp.with_scales = !src_scales.has_default_values()
+                || !wei_scales.has_default_values();
+        jcp.is_ic_scale = wei_scales.mask_ != 0;
+    }
 
     jcp.nthr = nthreads;
     jcp.kh_sets = 1;

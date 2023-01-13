@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -231,6 +231,8 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
 
     auto scratchpad = scratchpad_registry().registrar();
     brgemm_convolution_bwd_utils::init_scratchpad(scratchpad, jcp_);
+    if (jcp_.with_scales)
+        book_precomputed_scales(scratchpad, attr()->scales_, IC());
 
     return status::success;
 }
@@ -392,7 +394,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
 
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
-            src_scales, wei_scales, _pd->OC(), _pd->attr());
+            src_scales, wei_scales, _pd->IC(), _pd->attr());
 
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
     brgemm_batch_element_t *const __restrict brg_batch_global
