@@ -562,17 +562,20 @@ public:
 
     const std::vector<block_t> &blocks() const { return blocks_; }
 
-    dim_t inner_block(int dim_idx, bool skip_outer = true) const {
-        dim_t block0 = -1;
-        int nblocks = 0;
+    dim_t inner_block(
+            int dim_idx, bool skip_outer = true, bool inner_only = true) const {
+        std::vector<dim_t> dim_blocks;
         for (auto &b : blocks_) {
-            if (b.dim_idx == dim_idx) {
-                nblocks++;
-                if (!skip_outer) return b.block;
-                if (block0 == -1) block0 = b.block;
-            }
+            if (b.dim_idx == dim_idx) dim_blocks.push_back(b.block);
         }
-        return nblocks > 1 ? block0 : 1;
+        dim_t ret = 1;
+        int nblocks = (int)dim_blocks.size();
+        int lo = 0;
+        int hi = skip_outer ? nblocks - 1 : nblocks;
+        if (inner_only) hi = std::min(hi, 1);
+        for (int i = lo; i < hi; i++)
+            ret *= dim_blocks[i];
+        return ret;
     }
 
     void set_offset(const expr_t &offset) { offset_ = offset; }
@@ -1599,8 +1602,7 @@ public:
 
     void set_tlayout(const layout_t &tlayout) { tlayout_ = tlayout; }
 
-    void set_tmasks(const std::unordered_map<std::string, int> &padded_dims,
-            const std::unordered_map<std::string, int> &dim_blocks) {
+    void set_tmasks(const std::unordered_map<std::string, int> &padded_dims) {
         using namespace ir_utils;
         auto &x = placeholder_var();
         for (int i = 0; i < ntdims(); i++) {
@@ -1612,10 +1614,9 @@ public:
             int padded_dim = get_or_default(padded_dims, dim_name, 1);
             if (dim >= padded_dim) continue;
             int inner_blk = ir_utils::max_pow2_divisor(dim);
-            int dim_blk = get_or_default(dim_blocks, dim_name, 1);
-            if (math::is_pow2(dim_blk)) {
-                inner_blk = std::min(inner_blk, dim_blk);
-            }
+            int dim_blk = ir_utils::max_pow2_divisor(tlayout_.inner_block(
+                    i, /*skip_outer=*/true, /*inner_only=*/false));
+            inner_blk = std::min(inner_blk, dim_blk);
             auto tmask = (inner_blk == 1) ? (x < dim)
                                           : (x / inner_blk < dim / inner_blk);
             tdim.set_mask(tmask);

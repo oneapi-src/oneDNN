@@ -223,7 +223,7 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     src_view.set_tdim(4, oh * prb_.sh - prb_.ph + kh * (1 + prb_.dh), ih_mask);
     src_view.set_tdim(5, ow * prb_.sw - prb_.pw + kw * (1 + prb_.dw), iw_mask);
     src_view.set_tlayout(src_layout);
-    src_view.set_tmasks(cfg_.padded_dims().get(), cfg_.iter_dims().get());
+    src_view.set_tmasks(cfg_.padded_dims().get());
 
     // Weights.
     wei_view = view_t({g, oc, ic, kd, kh, kw}, 6);
@@ -240,7 +240,7 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     wei_view.set_tdim(4, kh);
     wei_view.set_tdim(5, kw);
     wei_view.set_tlayout(wei_layout);
-    wei_view.set_tmasks(cfg_.padded_dims().get(), cfg_.iter_dims().get());
+    wei_view.set_tmasks(cfg_.padded_dims().get());
 
     // Destination.
     if (cfg_.fuse_spatial()) {
@@ -265,7 +265,7 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     dst_view.set_tdim(4, oh, oh_mask);
     dst_view.set_tdim(5, ow, ow_mask);
     dst_view.set_tlayout(dst_layout);
-    dst_view.set_tmasks(cfg_.padded_dims().get(), cfg_.iter_dims().get());
+    dst_view.set_tmasks(cfg_.padded_dims().get());
 
     // Initialize GEMM schedule.
     gemm_schedule.set_a_view(src_view);
@@ -398,7 +398,7 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     dst_view.set_tdim(5, ow / prb_.sw, ow_mask);
 
     dst_view.set_tlayout(dst_layout);
-    dst_view.set_tmasks(cfg_.padded_dims().get(), cfg_.iter_dims().get());
+    dst_view.set_tmasks(cfg_.padded_dims().get());
 
     // Weights.
     wei_view = view_t({g, oc, ic, kd, kh, kw}, 6);
@@ -415,7 +415,7 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     wei_view.set_tdim(4, kh);
     wei_view.set_tdim(5, kw);
     wei_view.set_tlayout(wei_layout);
-    wei_view.set_tmasks(cfg_.padded_dims().get(), cfg_.iter_dims().get());
+    wei_view.set_tmasks(cfg_.padded_dims().get());
 
     // Source.
     src_view = view_t({mb, g, ic, id, ih, iw}, 6);
@@ -432,7 +432,7 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     src_view.set_tdim(4, ih);
     src_view.set_tdim(5, iw_mapping(iw));
     src_view.set_tlayout(src_layout);
-    src_view.set_tmasks(cfg_.padded_dims().get(), cfg_.iter_dims().get());
+    src_view.set_tmasks(cfg_.padded_dims().get());
 
     // Initialize GEMM schedule.
     gemm_schedule.set_a_view(dst_view);
@@ -549,7 +549,7 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     src_view.set_tdim(4, oh * prb_.sh - prb_.ph + kh * (1 + prb_.dh), ih_mask);
     src_view.set_tdim(5, ow * prb_.sw - prb_.pw + kw * (1 + prb_.dw), iw_mask);
     src_view.set_tlayout(src_layout);
-    src_view.set_tmasks(cfg_.padded_dims().get(), cfg_.iter_dims().get());
+    src_view.set_tmasks(cfg_.padded_dims().get());
 
     // Weights.
     wei_view = view_t({g, oc, ic, kd, kh, kw}, 6);
@@ -566,7 +566,7 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     wei_view.set_tdim(4, kh);
     wei_view.set_tdim(5, kw);
     wei_view.set_tlayout(wei_layout);
-    wei_view.set_tmasks(cfg_.padded_dims().get(), cfg_.iter_dims().get());
+    wei_view.set_tmasks(cfg_.padded_dims().get());
 
     // Destination.
     dst_view = view_t({mb, g, oc, od, oh, ow}, 6);
@@ -583,7 +583,7 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     dst_view.set_tdim(4, oh);
     dst_view.set_tdim(5, ow);
     dst_view.set_tlayout(dst_layout);
-    dst_view.set_tmasks(cfg_.padded_dims().get(), cfg_.iter_dims().get());
+    dst_view.set_tmasks(cfg_.padded_dims().get());
 
     // Bias.
     if (prb_.with_bias) {
@@ -593,7 +593,7 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
         bia_view.set_tdim(0, g);
         bia_view.set_tdim(1, oc);
         bia_view.set_tlayout(bia_layout);
-        bia_view.set_tmasks(cfg_.padded_dims().get(), cfg_.iter_dims().get());
+        bia_view.set_tmasks(cfg_.padded_dims().get());
     }
 
     // Initialize GEMM schedule.

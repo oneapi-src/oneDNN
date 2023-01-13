@@ -631,17 +631,6 @@ void reorder_ir_builder_t::build() {
     ir_error_not_expected();
 }
 
-expr_t get_bound_mask(
-        const layout_t &layout, int idx, dim_t padded_dim, int block) {
-    auto dim = layout.dim(idx);
-    if (dim == padded_dim) return expr_t();
-    int d0 = (int)ir_utils::max_pow2_divisor(dim);
-    int d1 = (int)ir_utils::max_pow2_divisor(block);
-    int inner_blk = std::min(d0, d1);
-    auto &x = view_t::placeholder_var();
-    return (inner_blk == 1) ? (x < dim) : (x / inner_blk < dim / inner_blk);
-}
-
 bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
         const std::vector<int> &loop_blocks,
         const std::vector<int> &tg_blocks) {
@@ -666,22 +655,26 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     for (int i = 0; i < ndims; i++) {
         vdims[i] = std::max(src_layout_.dim(i), dst_layout_.dim(i));
     }
+    std::unordered_map<std::string, int> vdim_map;
+    for (int i = 0; i < ndims; i++) {
+        vdim_map[vars[i].as<var_t>().name] = vdims[i];
+    }
 
     view_t src_view(vars, ndims);
     for (int i = 0; i < ndims; i++) {
         src_view.set_vdim(vars[i], vdims[i]);
-        auto mask = get_bound_mask(src_layout_, i, vdims[i], iter_blocks[i]);
-        src_view.set_tdim(i, vars[i], mask);
+        src_view.set_tdim(i, vars[i]);
     }
     src_view.set_tlayout(src_layout_);
+    src_view.set_tmasks(vdim_map);
 
     view_t dst_view(vars, ndims);
     for (int i = 0; i < ndims; i++) {
         dst_view.set_vdim(vars[i], vdims[i]);
-        auto mask = get_bound_mask(dst_layout_, i, vdims[i], iter_blocks[i]);
-        dst_view.set_tdim(i, vars[i], mask);
+        dst_view.set_tdim(i, vars[i]);
     }
     dst_view.set_tlayout(dst_layout_);
+    dst_view.set_tmasks(vdim_map);
 
     gemm_schedule_t schedule(init_cset, kernel_grid_, tg_grid_);
 
