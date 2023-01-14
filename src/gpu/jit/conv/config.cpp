@@ -124,6 +124,11 @@ bool is_small_oc(const conv_problem_t &prb) {
         return prb.oc * size <= 16;
 }
 
+bool is_mad_g_small_oc(const conv_config_t &cfg) {
+    return (cfg.prb().g > 1 && cfg.fma_kind() == fma_kind_t::mad
+            && is_small_oc(cfg.prb()));
+}
+
 bool is_dw_large_mb(const conv_problem_t &prb) {
     return prb.is_dw && prb.mb >= 16;
 }
@@ -1347,7 +1352,9 @@ void init_common_blocking(conv_config_t &cfg, block_helper_t &bh) {
         bh.set_base_iter_block("g", wei_layout.inner_block(0));
         int wei_oc_blk = wei_layout.inner_block(1);
         int dst_oc_blk = dst_layout.inner_block(2);
-        bh.set_base_iter_block("oc", wei_oc_blk, dst_oc_blk);
+        if (!is_mad_g_small_oc(cfg)) {
+            bh.set_base_iter_block("oc", wei_oc_blk, dst_oc_blk);
+        }
         int src_ic_blk = src_layout.inner_block(2);
         int wei_ic_blk = wei_layout.inner_block(2);
         bh.set_base_iter_block("ic", src_ic_blk, wei_ic_blk);
@@ -1579,12 +1586,13 @@ void init_bwd_w(conv_config_t &cfg, block_helper_t &bh) {
     bh.allow_k_grid_slicing();
 
     bh.set_block_dims({"g", "oc", "ic", "mb", "oh", "ow"});
-    bh.set_vector_dim(prb.is_dw ? "g" : "oc");
+    bool vectorize_g = is_mad_g_small_oc(cfg) || prb.is_dw;
+    bh.set_vector_dim(vectorize_g ? "g" : "oc");
 
     if (prb.oc <= 32) bh.set_max_iter_dim("oc", 16);
     if (prb.ic <= 32) bh.set_max_iter_dim("ic", 16);
 
-    if (is_small_ic(prb) && !prb.is_dw) {
+    if (is_small_ic(prb) && !vectorize_g) {
         bh.set_block_dims({"kw"});
         bh.set_max_tg_dim("kw", 1);
         bh.set_max_iter_dim("kw", 8);
