@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -255,6 +255,8 @@ status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
                 if (ocp < OC) {
                     dim_t dst_l_off = (mb * OC + ocp) * OD * OH * OW
                             + od * OH * OW + oh * OW + ow;
+                    msan_unpoison(
+                            (void *)(&conv_output[dst_off]), sizeof(float));
                     tmp_result = conv_output[dst_off];
 
                     ref_post_ops_t::args_t args;
