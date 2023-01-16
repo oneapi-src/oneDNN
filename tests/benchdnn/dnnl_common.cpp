@@ -308,6 +308,14 @@ args_t &args_t::set(int arg, const dnn_mem_t &mem) {
     return *this;
 }
 
+args_t &args_t::set(
+        const std::vector<int> &args, const std::vector<dnn_mem_t> &mems) {
+    assert(args.size() == mems.size());
+    for (size_t i = 0; i < mems.size(); ++i)
+        args_.emplace_back(args[i], &mems[i]);
+    return *this;
+}
+
 const dnn_mem_t &args_t::find(int arg) const {
     static dnn_mem_t empty_stub;
     for (const auto &e : args_) {

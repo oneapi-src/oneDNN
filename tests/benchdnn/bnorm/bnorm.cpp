@@ -186,6 +186,29 @@ static int prepare_fwd_no_stats(const prb_t *prb, const dnn_mem_t &src,
     return OK;
 }
 
+int prepare_fwd(const prb_t *prb, dnn_mem_t &src_dt, dnn_mem_t &src_add_dt,
+        dnn_mem_t &mean_dt, dnn_mem_t &var_dt, dnn_mem_t &sc_dt,
+        dnn_mem_t &sh_dt, const dnn_mem_t &src, const dnn_mem_t &src_add,
+        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &sc,
+        const dnn_mem_t &sh, res_t *res) {
+    if (prb->flags & GLOB_STATS)
+        SAFE(prepare_fwd_with_stats(prb, src, src_add, mean, var, sc, sh, res),
+                WARN);
+    else
+        SAFE(prepare_fwd_no_stats(prb, src, src_add, mean, var, sc, sh, res),
+                WARN);
+
+    SAFE(src_dt.reorder(src), WARN);
+    if (prb->fuse_add_relu()) SAFE(src_add_dt.reorder(src_add), WARN);
+    if (prb->flags & GLOB_STATS) {
+        SAFE(mean_dt.reorder(mean), WARN);
+        SAFE(var_dt.reorder(var), WARN);
+    }
+    if (prb->use_sc()) { SAFE(sc_dt.reorder(sc), WARN); }
+    if (prb->use_sh()) { SAFE(sh_dt.reorder(sh), WARN); }
+    return OK;
+}
+
 int prepare_fwd(const prb_t *prb, dnn_mem_map_t &mem_map,
         dnn_mem_map_t &ref_mem_map, res_t *res) {
     const auto &ref_src = ref_mem_map[DNNL_ARG_SRC];
@@ -221,6 +244,48 @@ int prepare_fwd(const prb_t *prb, dnn_mem_map_t &mem_map,
 
     auto &sh = mem_map[DNNL_ARG_SHIFT];
     if (sh) SAFE(sh.reorder(ref_sh), WARN);
+
+    return OK;
+}
+
+int prepare_bwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    // Idea behind filling: integer diff_dst values decrease norms unlike fp32
+    // values in [-1.f, 1.f] range. To decrease norms more, make data pretty
+    // sparse as answers sum all diff_dst values.
+
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand msr(idx_start + 1);
+        msr.discard(1);
+
+        std::uniform_int_distribution<> igen_val(-2, 2);
+        std::uniform_int_distribution<> igen_coin(0, 256 * 1024);
+
+        // at least 20 non-zero elems
+        float sparsity = MAX2(0.05f, MIN2(1.f, 20.f / nelems));
+
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            float value = flip_coin(igen_coin(msr), sparsity)
+                    ? round_to_nearest_representable(prb->dt, igen_val(msr))
+                    : 0;
+            mem_fp.set_elem(idx, value);
+        }
+    });
+
+    SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }

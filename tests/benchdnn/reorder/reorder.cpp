@@ -79,6 +79,51 @@ dnn_mem_t setup_compensation_memory(const prb_t *prb, flag_bit_t flag) {
     return m;
 };
 
+int compare_compensation(const prb_t *prb, dnn_mem_t &mem_s8_comp_ref,
+        dnn_mem_t &mem_zp_comp_ref, dnn_mem_t &mem_got, res_t *res) {
+    // Note: following check relies on certain assumptions on CPU. These
+    // assumptions may not hold for GPU. In addition, it's prohibit to work
+    // with raw pointers directly for buffer type of memory.
+    if (!is_cpu(get_test_engine())) return FAIL;
+
+    const auto padded_nelems = mem_got.nelems(true);
+    // Note: internally offset is aligned on 4, otherwise it's UB.
+    size_t first_comp_offset = div_up(padded_nelems, 4) * 4;
+    int *comp_handle
+            = reinterpret_cast<int *>((char *)mem_got + first_comp_offset);
+
+    const auto cmp_compensation = [&](const dnn_mem_t &mem_ref, int comp_mask) {
+        // Idea behind this check:
+        // Using knowledge from the library where `comp_handle` starts, and that
+        // memory utilizes blocking over OC and G, if present, we wrap that
+        // piece of memory which is described by shortened tag coming from prb
+        // into a separate memory and reorder it to plain so that it is a
+        // straight comparison of values in native plain layout.
+        auto comp_md = dnn_mem_t::init_md(mem_ref.ndims(), mem_ref.dims(),
+                mem_ref.dt(), trim_tag_by_mask(prb->dtag, comp_mask));
+        dnn_mem_t comp_m(comp_md, mem_ref.engine(), {false, comp_handle});
+
+        compare::compare_t cmp;
+        cmp.set_zero_trust_percent(100.f); // No sense in zero trust test.
+        int status = cmp.compare(mem_ref, comp_m, attr_t(), res);
+
+        // Shift original compensation pointer for next compensation
+        comp_handle += comp_m.nelems(true);
+        return status;
+    };
+
+    if (mem_s8_comp_ref.ndims())
+        SAFE(cmp_compensation(mem_s8_comp_ref,
+                     prb->get_compensation_mask(FLAG_S8S8_COMP)),
+                WARN);
+    if (mem_zp_comp_ref.ndims())
+        SAFE(cmp_compensation(
+                     mem_zp_comp_ref, prb->get_compensation_mask(FLAG_ZP_COMP)),
+                WARN);
+
+    return res->state == FAILED ? FAIL : OK;
+}
+
 int compare_compensation(const prb_t *prb, dnn_mem_map_t &mem_map,
         dnn_mem_map_t &ref_mem_map, res_t *res) {
     // Note: following check relies on certain assumptions on CPU. These

@@ -35,6 +35,159 @@
 using namespace bnorm;
 
 namespace lnorm {
+int prepare_fwd(const prb_t *prb, dnn_mem_t &src_dt, dnn_mem_t &mean_dt,
+        dnn_mem_t &var_dt, dnn_mem_t &sc_dt, dnn_mem_t &sh_dt,
+        const dnn_mem_t &src, const dnn_mem_t &mean, const dnn_mem_t &var,
+        const dnn_mem_t &sc, const dnn_mem_t &sh, res_t *res) {
+    /** Idea: choose src[] values so that both mean and variance are computed
+     * exactly (independently of the order of the computations).
+     *
+     * The `exactness` is achieved via [a1]: src[i] + src[i+1] = 2 * mean.
+     *
+     * The variation in src is allowed in the last flex_bits bits.
+     * If the sequence (L) is too big (flex_bits <= min_flex_bits), the mean
+     * value is set to 0 and src is partially filled with zeros (according to
+     * density so that at least want_flex_bits is reserved for src variation.
+     * Once src is set, variance is computed.
+     *
+     * ALG_0: mean is set to 0
+     * ALG_1: mean is set to 2^prb, where prb \in {-2, -1, ..., 4}
+     * ALG_AUTO: choose between ALG_0 and ALG_1 automatically
+     * ALG_2: if fall back to ALG_0 gives only one non-zero element, use the
+     *        filling which doesn't use strict approach.
+     */
+    const int64_t exact_bits = digits_dt(prb->dt[0]);
+    const int64_t L = prb->c;
+    const int64_t logL = (int64_t)ceilf(log2f(L));
+
+    assert(logL <= 0 || (1LL << (logL - 1)) < L);
+    assert(L <= (1LL << logL));
+
+    const int64_t min_flex_bits = 3;
+    const int64_t want_flex_bits = MIN2(6, exact_bits / 2);
+
+    check_alg_t alg = prb->check_alg;
+    if (alg == ALG_AUTO) /* choose appropriate checking algorithm */
+        alg = (exact_bits - logL) / 2 - 1 >= min_flex_bits ? ALG_1 : ALG_0;
+
+    const int64_t flex_bits = alg == ALG_0
+            ? want_flex_bits
+            : MIN2(exact_bits, (exact_bits - logL) / 2 - 1);
+    if (flex_bits < min_flex_bits) {
+        res->state = UNTESTED;
+        return FAIL;
+    }
+
+    if (exact_bits / 2 == flex_bits) alg = ALG_2;
+
+    if ((alg == ALG_0 || alg == ALG_1) && !is_integral_dt(prb->dt[0])) {
+        const int64_t flex_mask = (1 << flex_bits) - 1;
+
+        /* density: (exact_bits - log_2(L * density)) / 2 >= flex_bits */
+        const float density = alg == ALG_0
+                ? 1.f * (1 << (exact_bits - 2 * flex_bits)) / L
+                : 1.f;
+        assert((exact_bits - ceilf(log2f(L * density))) / 2 >= flex_bits);
+
+        BENCHDNN_PRINT(99, "check_alg: %s, density = %g, flex_bits = %ld\n",
+                check_alg2str(alg), density, (long)flex_bits);
+
+        benchdnn_parallel_nd(prb->n, [&](int64_t n) {
+            const float m = alg == ALG_0 ? 0.f : 0.25f * (1 << (n % 7));
+            float v = 0; /* current variance */
+
+            float *s = (float *)src + n * prb->c;
+            for (int64_t c = 0; c < prb->c; ++c) {
+                const int64_t l = c + n * 239 * 2; // l[0] must be even
+
+                if (alg == ALG_0 && !flip_coin(l / 2 * 257ULL, density)) {
+                    s[c] = 0;
+                    continue;
+                }
+
+                const int64_t gen = (l / 2 * 1637) & flex_mask;
+                const int sgn = l % 2 == 0 ? 1 : -1; /* [a1] */
+                const float f = 1.f * sgn * gen / (1 << flex_bits);
+
+                src.set_elem(n * prb->c + c, alg == ALG_0 ? f : m * (1.f + f));
+                if (L % 2 && (c == L - 1)) { s[c] = m; }
+                v += (s[c] - m) * (s[c] - m);
+            }
+            mean.set_elem(n, m);
+            var.set_elem(n, v / prb->c);
+        });
+    } else {
+        assert(alg == ALG_2);
+
+        benchdnn_parallel_nd(prb->n, [&](int64_t n) {
+            // Note: we use a different seed for each chunk to avoid
+            // repeating patterns. We could use discard(idx_start) too but
+            // it has a complexity in O(idx_start). We also add 1 to avoid
+            // seeding with 0.
+            std::minstd_rand int_seed(n + 1);
+            int_seed.discard(1);
+            std::minstd_rand b_seed(n + 1);
+            b_seed.discard(2);
+
+            const float val_coeff = is_integral_dt(prb->dt[0]) ? 4.f : 1.f;
+            const int distr_shift = prb->dt[0] == dnnl_u8 ? 2 : 0;
+            std::uniform_int_distribution<> int_dist(0 + distr_shift, 6);
+            std::bernoulli_distribution b_dist(0.5f);
+            const float m = val_coeff * 0.25f * (1 << int_dist(int_seed));
+            float v = 0; /* current variance */
+
+            const int64_t c_shift = n * prb->c;
+            float *s = (float *)src + c_shift;
+
+            bool bigger_val = false;
+            float val = 0.f;
+
+            for (int64_t c = 0; c < prb->c; ++c) {
+                const int64_t idx = c_shift + c;
+
+                if (c % 2 == 0) {
+                    bigger_val = b_dist(b_seed);
+                    val = bigger_val ? (m + val_coeff * 1.f)
+                                     : (m + val_coeff * 0.25f);
+                } else {
+                    val = bigger_val ? (m - val_coeff * 1.f)
+                                     : (m - val_coeff * 0.25f);
+                }
+                src.set_elem(idx, val);
+
+                v += (s[c] - m) * (s[c] - m);
+            }
+            // Update last element with s[c] = m.
+            if (prb->c % 2 == 1) {
+                v -= (s[prb->c - 1] - m) * (s[prb->c - 1] - m);
+                s[prb->c - 1] = m;
+            }
+            mean.set_elem(n, m);
+            var.set_elem(n, v / prb->c);
+        });
+    }
+
+    const bool use_sc = prb->use_sc();
+    const bool use_sh = prb->use_sh();
+
+    benchdnn_parallel_nd(prb->c, [&](int64_t c) {
+        float sc_value = 1.f / 8 * (1 << (c % 7));
+        float sh_value = (c % 3 + 1) * sc_value / 64;
+        ((float *)sc)[c] = use_sc ? sc_value : 1.0f;
+        ((float *)sh)[c] = use_sh ? sh_value : 0.0f;
+    });
+
+    SAFE(src_dt.reorder(src), WARN);
+    if (prb->flags & GLOB_STATS) {
+        /* prepare mean & var if they are inputs */
+        SAFE(mean_dt.reorder(mean), WARN);
+        SAFE(var_dt.reorder(var), WARN);
+    }
+    if (prb->use_sc()) { SAFE(sc_dt.reorder(sc), WARN); }
+    if (prb->use_sh()) { SAFE(sh_dt.reorder(sh), WARN); }
+
+    return OK;
+}
 
 int prepare_fwd(const prb_t *prb, const dnn_mem_t &src, const dnn_mem_t &mean,
         const dnn_mem_t &var, const dnn_mem_t &sc, const dnn_mem_t &sh,
@@ -176,6 +329,74 @@ int prepare_fwd(const prb_t *prb, const dnn_mem_t &src, const dnn_mem_t &mean,
         ((float *)sc)[c] = use_sc ? sc_value : 1.0f;
         ((float *)sh)[c] = use_sh ? sh_value : 0.0f;
     });
+
+    return OK;
+}
+
+int prepare_bwd(const prb_t *prb, dnn_mem_t &src_dt, dnn_mem_t &d_dst_dt,
+        dnn_mem_t &mean_dt, dnn_mem_t &var_dt, dnn_mem_t &sc_dt,
+        const dnn_mem_t &src, const dnn_mem_t &d_dst, const dnn_mem_t &mean,
+        const dnn_mem_t &var, const dnn_mem_t &sc, res_t *res) {
+    if (prb->c < 2) {
+        res->state = UNTESTED;
+        return FAIL;
+    }
+
+    const bool use_sc = prb->use_sc();
+
+    // fill gamma
+    for (int64_t c = 0; c < prb->c; ++c) {
+        const float sc_value = 0.125f * (1 << (c % 7));
+        ((float *)sc)[c] = use_sc ? sc_value : 1.0f;
+    }
+
+    benchdnn_parallel_nd(prb->n, [&](int64_t n) {
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand int_seed(n + 1);
+        int_seed.discard(1);
+        std::minstd_rand b_seed(n + 1);
+        b_seed.discard(2);
+
+        // Idea behind the filling is to reduce a possibility of cancellation
+        // when subtracting a part accumulated over N. For that, we simplify
+        // src data to (m+1) and (m-1) points, d_dst data is more or less
+        // random but we keep all values as pow2 values to have almost exact
+        // summation result.
+        std::uniform_int_distribution<> stat_dist(0, 2);
+        std::uniform_int_distribution<> data_dist(0, 6);
+        std::bernoulli_distribution half_dist(0.5f);
+
+        // mean = {-0.5f, 0.f, 0.5f}
+        const float m = 0.5f * (stat_dist(int_seed) - 1);
+        mean.set_elem(n, m);
+
+        // final variance = {0.25f, 1.f, 4.f}
+        const float v = 0.25f * (1 << (stat_dist(int_seed) * 2));
+        var.set_elem(n, v - prb->eps);
+
+        const int64_t c_shift = n * prb->c;
+
+        for (int64_t c = 0; c < prb->c; ++c) {
+            int sign = half_dist(b_seed) ? 1.f : -1.f;
+            // d_dst = powf(2, {-4, ... , 2})
+            float dd = sign * 0.0625f * (1LL << data_dist(int_seed));
+            d_dst.set_elem(c_shift + c,
+                    round_to_nearest_representable(prb->dt[1], dd));
+
+            float s = c % 2 == 0 ? (m - 1.f) : (m + 1.f);
+            src.set_elem(
+                    c_shift + c, round_to_nearest_representable(prb->dt[0], s));
+        }
+    });
+
+    SAFE(src_dt.reorder(src), WARN);
+    SAFE(d_dst_dt.reorder(d_dst), WARN);
+    SAFE(mean_dt.reorder(mean), WARN);
+    SAFE(var_dt.reorder(var), WARN);
+    if (use_sc) { SAFE(sc_dt.reorder(sc), WARN); }
 
     return OK;
 }

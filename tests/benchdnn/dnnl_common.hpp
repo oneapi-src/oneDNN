@@ -300,6 +300,8 @@ struct args_t {
     args_t(const dnn_mem_map_t &mem_map);
 
     args_t &set(int arg, const dnn_mem_t &mem);
+    args_t &set(
+            const std::vector<int> &args, const std::vector<dnn_mem_t> &mems);
     void clear() { args_.clear(); }
 
     int size() const { return (int)args_.size(); }
@@ -371,7 +373,7 @@ int measure_prim_create(timer::timer_t &ct,
 #else
     engine_t engine(engine_tgt_kind);
 #endif
-    init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint);
+    init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint, nullptr);
     auto status = init_pd_func(init_pd_args);
 
     if (!init_pd_args.pd) status = dnnl_invalid_arguments;
@@ -388,7 +390,7 @@ int measure_prim_create(timer::timer_t &ct,
         // The second (if the cache is enabled) primitive creation using
         // the global test engine.
         init_pd_args_t<prb_t> init_pd_args(
-                res, get_test_engine(), prb, dir, hint);
+                res, get_test_engine(), prb, dir, hint, nullptr);
         status = init_pd_func(init_pd_args);
 
         if (!init_pd_args.pd) status = dnnl_invalid_arguments;
