@@ -51,6 +51,7 @@ enum pass_id {
     tensor_init,
     parallel_workload_dispatcher,
     simple_loop_invariant_code_motion,
+    simple_loop_function_motion,
     index2var,
     bf16_eliminator,
     loop_unroller,

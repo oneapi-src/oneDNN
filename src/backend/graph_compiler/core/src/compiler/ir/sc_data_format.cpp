@@ -19,6 +19,7 @@
 #include <compiler/ir/graph/graph.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/simple_licm.hpp>
 #include <runtime/dynamic_dispatch/ops/impl_type.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
@@ -425,6 +426,7 @@ std::vector<expr> get_blocking_shapes_expr(sc_graph_t &g,
                 ? g.dim_to_expr(new_shape)
                 : divide_and_ceil(g.dim_to_expr(new_shape),
                         g.dim_to_expr(next_blocking_number));
+        dim->attr().set(attr_key::const_attr, true);
         ret.push_back(dim);
     };
     get_blocking_shapes_impl(plain_shapes, format, base_out_dim,

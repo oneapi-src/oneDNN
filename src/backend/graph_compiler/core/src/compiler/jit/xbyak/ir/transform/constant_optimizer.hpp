@@ -26,6 +26,9 @@ namespace attr_keys {
 // attr for constant value, mark if constant value need to be encoded
 // data type: bool
 constexpr const char *force_simd_encode = "force_simd_encode";
+// attr for constant value, mark if simd will be directly load from memory
+// data type: bool
+constexpr const char *load_simd_value = "load_simd_value";
 } // namespace attr_keys
 
 #define FORCE_SIMD_ENCODE(EXPR) \

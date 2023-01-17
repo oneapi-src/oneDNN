@@ -177,14 +177,16 @@ private:
  * */
 class virtual_slots_map_t {
 public:
-    virtual_slots_map_t(const x86_64::target_profile_t &profile) {
+    // When fp_regs_volatile is true
+    // Ignore abi profile and does not treat fp regs as callee-saved
+    virtual_slots_map_t(const x86_64::target_profile_t &profile,
+            bool fp_regs_volatile = false) {
         // Map all allocatable regs to virtual slot indexes
         virt_reg_index_t virt_index = 0;
         // Allocatable slot indexes
         allocatable_indexes_.resize(static_cast<int>(virt_reg_type::NUM_TYPES));
-        cvallee_saved_indexes_.resize(
-                static_cast<int>(virt_reg_type::NUM_TYPES));
-
+        callee_save_indexes_.resize(static_cast<int>(virt_reg_type::NUM_TYPES));
+        callee_save_sets_.resize(static_cast<int>(virt_reg_type::NUM_TYPES));
         // ========================================
         // Get allocatable regs from target profile
         // ========================================
@@ -223,34 +225,18 @@ public:
                       auto type_index = static_cast<int>(reg_type);
                       for (auto &reg : callee_saved_regs) {
                           auto index = get_reg_index(reg);
-                          cvallee_saved_indexes_[type_index].insert(index);
+                          callee_save_indexes_[type_index].push_back(index);
+                          callee_save_sets_[type_index].insert(index);
                       }
                   };
         // Allocatable gp regs to virtual indexes
         get_callee_saved_regs(
                 virt_reg_type::gp_reg, profile.callee_saved_gp_regs_);
         // Allocatable fp regs to virtual indexes
-        get_callee_saved_regs(
-                virt_reg_type::fp_reg, profile.callee_saved_xmm_regs_);
-
-        // ===========================================
-        // Prioritize callee saved regs in slots index
-        // ===========================================
-        auto prioritize_callee_save = [&](const virt_reg_type &reg_type) {
-            auto type_index = static_cast<int>(reg_type);
-            auto &callee_save = cvallee_saved_indexes_[type_index];
-            auto &allocatable = allocatable_indexes_[type_index];
-            std::vector<virt_reg_index_t> new_vec(
-                    callee_save.begin(), callee_save.end());
-            for (auto i : allocatable) {
-                if (callee_save.find(i) == callee_save.end()) {
-                    new_vec.push_back(i);
-                }
-            }
-            allocatable.swap(new_vec);
-        };
-        // Prioritize callee saved gp regs
-        prioritize_callee_save(virt_reg_type::gp_reg);
+        if (!fp_regs_volatile) {
+            get_callee_saved_regs(
+                    virt_reg_type::fp_reg, profile.callee_saved_xmm_regs_);
+        }
     }
 
     Xbyak::Reg get_reg_physical(virt_reg_index_t idx) {
@@ -278,16 +264,22 @@ public:
         return allocatable_indexes_[static_cast<int>(type)];
     }
 
-    const std::set<virt_reg_index_t> &get_callee_save(virt_reg_type type) {
+    const std::vector<virt_reg_index_t> &get_callee_save(virt_reg_type type) {
         assert(type != virt_reg_type::NUM_TYPES);
-        return cvallee_saved_indexes_[static_cast<int>(type)];
+        return callee_save_indexes_[static_cast<int>(type)];
+    }
+
+    const std::set<virt_reg_index_t> &get_callee_save_set(virt_reg_type type) {
+        assert(type != virt_reg_type::NUM_TYPES);
+        return callee_save_sets_[static_cast<int>(type)];
     }
 
     virt_reg_index_t get_slots_sum() { return slots_sum_; }
 
 private:
     std::vector<std::vector<virt_reg_index_t>> allocatable_indexes_;
-    std::vector<std::set<virt_reg_index_t>> cvallee_saved_indexes_;
+    std::vector<std::vector<virt_reg_index_t>> callee_save_indexes_;
+    std::vector<std::set<virt_reg_index_t>> callee_save_sets_;
     std::vector<std::string> allocatable_regs_name_;
     std::vector<Xbyak::Reg> allocatable_regs_;
     std::unordered_map<Xbyak::Reg, virt_reg_index_t, xbyak_reg_hasher_t>

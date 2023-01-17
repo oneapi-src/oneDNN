@@ -119,6 +119,7 @@ ostream &operator<<(ostream &os, intrin_type val) {
         HANDLE_CASE(shl)
         HANDLE_CASE(shr)
         HANDLE_CASE(permutex2var)
+        HANDLE_CASE(mem_load)
         HANDLE_CASE(brgemm)
         HANDLE_CASE(list_brgemm)
         HANDLE_CASE(NUM_INTRINSICS)

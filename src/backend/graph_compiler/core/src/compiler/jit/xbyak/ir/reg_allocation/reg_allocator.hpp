@@ -59,8 +59,12 @@ class reg_allocator_t {
 public:
     reg_allocator_t(const x86_64::target_profile_t &profile)
         : target_profile_(profile), require_resolve_(false) {
+        // Win64 ABI considers registers XMM6-XMM15 nonvolatile, but the
+        // upper portions of YMM0-YMM15 and ZMM0-ZMM15 still volatile.
+        // This will introduce unnecessary design complexity, so we treat
+        // all of them as volatile in xbyak generated callers.
         virtual_slots_map_
-                = std::make_shared<virtual_slots_map_t>(target_profile_);
+                = std::make_shared<virtual_slots_map_t>(target_profile_, true);
         virtual_slots_array_ = std::make_shared<virtual_slots_array_t>(
                 virtual_slots_map_->get_slots_sum());
     }
@@ -78,56 +82,55 @@ public:
     }
 
     // Allocation routine
-    void run_allocator(const live_range_t &local_range = live_range_t()) {
-        bool alloc_local = local_range.defined_;
+    void run_allocator() {
         // Go through queue and allocate every unassigned virtual_regs
         while (!queue_empty()) {
             // Get the virtual_reg on front of queue
             auto virt_reg = dequeue();
             // Try to allocate virtual_reg, if interference exists
             std::set<virtual_reg_t *> evicted;
-            auto index = try_assign(virt_reg, evicted, alloc_local);
+            auto index = try_assign(virt_reg, evicted);
             // Evict confilct virt_regs with less spill weight
             for (auto &vr : evicted) {
-                evict(vr, local_range);
+                unassign(vr);
             }
             // Assign or spill virtual reg
             if (index == virt_reg_const::invalid) {
-                spill(virt_reg, local_range);
+                spill(virt_reg);
             } else {
                 allocate(virt_reg, index);
             }
             // Resolve address mode and get new virtual_regs created
-            if (require_resolve()) {
-                live_range_t range
-                        = alloc_local ? local_range : virt_reg->live_range_;
-                resolve_spill(range, alloc_local);
-            }
+            if (require_resolve()) { resolve_spill(virt_reg->live_range_); }
         }
     }
 
     // Heuristics for determining virtual_reg assign/spill
-    virt_reg_index_t try_assign(virtual_reg_t *virt_reg,
-            std::set<virtual_reg_t *> &evicted, bool alloc_local) {
+    virt_reg_index_t try_assign(
+            virtual_reg_t *virt_reg, std::set<virtual_reg_t *> &evicted) {
         // Initial value for interference check
         virt_reg_index_t index = virt_reg_const::invalid;
         spill_weight_t weight = spill_weight_const::infinity;
 
         // Check interference for hint reg
-        auto check_interference_hint = [&]() {
+        auto check_interference_hint = [&](bool preserved) {
+            auto &callee_save
+                    = slots_map().get_callee_save_set(virt_reg->type_);
             index = virt_reg->index_hint_;
-            weight = slots_array().interfered_weights(virt_reg, index);
+            bool check = preserved
+                    ? callee_save.find(index) != callee_save.end()
+                    : true;
+            if (check) {
+                weight = slots_array().interfered_weights(virt_reg, index);
+            }
         };
         // Check interference for all regs
-        auto check_interference_all = [&]() {
-            auto &slots_index = slots_map().get_slots_index(virt_reg->type_);
-            auto &callee_save = slots_map().get_callee_save(virt_reg->type_);
-            for (auto &i : slots_index) {
+        auto check_interference_all = [&](bool preserved) {
+            const auto &candidates = preserved
+                    ? slots_map().get_callee_save(virt_reg->type_)
+                    : slots_map().get_slots_index(virt_reg->type_);
+            for (const auto &i : candidates) {
                 auto w = slots_array().interfered_weights(virt_reg, i);
-                if (alloc_local && w > spill_weight_const::null
-                        && callee_save.find(i) != callee_save.end()) {
-                    continue;
-                }
                 if (w <= weight) {
                     index = i;
                     weight = w;
@@ -139,15 +142,15 @@ public:
         // Check interference for different types of virtual reg
         switch (virt_reg->hint_) {
             case virt_reg_hint::strong: {
-                check_interference_hint();
+                check_interference_hint(virt_reg->preserved_);
             } break;
             case virt_reg_hint::weak: {
-                check_interference_hint();
+                check_interference_hint(virt_reg->preserved_);
                 if (weight == spill_weight_const::null) { break; }
-                check_interference_all();
+                check_interference_all(virt_reg->preserved_);
             } break;
             case virt_reg_hint::none: {
-                check_interference_all();
+                check_interference_all(virt_reg->preserved_);
             } break;
         }
 
@@ -171,24 +174,13 @@ public:
     }
 
     // Check instruction format and create new load/store interval if needed
-    void resolve_spill(
-            const live_range_t &spill_range, bool alloc_local = false) {
+    void resolve_spill(const live_range_t &spill_range) {
         std::vector<virtual_reg_t *> virtual_regs;
-        resolve_spill_impl(spill_range, virtual_regs, alloc_local);
+        resolve_spill_impl(spill_range, virtual_regs);
         for (auto &vr : virtual_regs) {
             enqueue(vr);
         }
         require_resolve_ = false;
-    }
-
-    // Evict assigned virt_reg and clear the interval on slot
-    void evict(virtual_reg_t *virt_reg, const live_range_t &local_range) {
-        if (local_range.defined_
-                && !local_range.encompasses(virt_reg->live_range_)) {
-            spill(virt_reg, local_range);
-        } else {
-            unassign(virt_reg);
-        }
     }
 
     // Unassign virtual_reg and put back to the queue
@@ -234,17 +226,13 @@ public:
     }
 
     // Spill virtual_reg on stack
-    void spill(virtual_reg_t *virt_reg, const live_range_t &range) {
+    void spill(virtual_reg_t *virt_reg) {
         assert(virt_reg);
         switch (virt_reg->stat_) {
             case virt_reg_stat::unassigned: {
                 virt_reg->set_spilled();
             } break;
-            case virt_reg_stat::allocated: {
-                assert(range.defined_);
-                slots_array().divide_interval(
-                        virt_reg, range, virt_reg->index_);
-            } break;
+            case virt_reg_stat::allocated:
             case virt_reg_stat::disabled:
             case virt_reg_stat::buffered:
             case virt_reg_stat::designated:
@@ -271,7 +259,7 @@ public:
 
     // Virtual function for allocator_impl to create spill resolver
     virtual void resolve_spill_impl(const live_range_t &spill_range,
-            std::vector<virtual_reg_t *> &virtual_regs, bool alloc_local)
+            std::vector<virtual_reg_t *> &virtual_regs)
             = 0;
 
 private:

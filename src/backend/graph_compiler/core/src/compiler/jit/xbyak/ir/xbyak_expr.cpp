@@ -51,6 +51,7 @@ struct xbyak_intrinsic_handler_t {
 #define _3A_ 2 // three address intrinsic
 #define _4A_ 3 // four address intrinsic
 
+// TODO(longsheng): use func instead of marco
 #define TO_INDEX(X, B) (static_cast<size_t>(X) - static_cast<int>(B))
 #define ISA_TO_INDEX(X) TO_INDEX(X, 0)
 #define INTRIN_TO_INDEX(X) TO_INDEX(X, low_level_intrin_type::NUM_INTRINSICS)
@@ -228,24 +229,6 @@ std::ostream &operator<<(std::ostream &os, const xbyak_condition t) {
         case xbyak_condition::ge: os << "GE"; break;
     }
     return os;
-}
-
-//=========================================================================
-// xbyak_expr utils
-//=========================================================================
-
-/**
- * If constant node scalar intger value exceeds 32bit
- * */
-bool const_exceed_32bit(const expr_c &v) {
-    if (utils::is_one_of(v->dtype_, datatypes::index, datatypes::generic,
-                datatypes::pointer)
-            && v.isa<constant>()) {
-        const auto c = v.static_as<constant_c>();
-        const uint64_t x = c->value_[0].u64;
-        return !Xbyak::inner::IsInInt32(x);
-    }
-    return false;
 }
 
 //=========================================================================

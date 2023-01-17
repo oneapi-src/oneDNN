@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,27 +14,21 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_TRANSFORM_CONSTANT_PROPAGATION_HPP
-#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_JIT_XBYAK_IR_TRANSFORM_CONSTANT_PROPAGATION_HPP
+#ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_LOOP_FUNCTION_MOTION_HPP
+#define BACKEND_GRAPH_COMPILER_CORE_SRC_COMPILER_IR_TRANSFORM_LOOP_FUNCTION_MOTION_HPP
 
-#include <compiler/ir/function_pass.hpp>
+#include "../function_pass.hpp"
 
 namespace sc {
-namespace sc_xbyak {
-
-/* *
- * A prototype of constant propagation, substituting the values of known
- * constants in expr to eliminate some redundant data movement.
+/**
+ * Simple non-SSA LICM for pure function version, hoist pure function call
+ * inside loop. If the function has args related to loop vars, do not hoist.
  * */
-class constant_propagation_t : public function_pass_t {
+class simple_loop_function_motion_t : public function_pass_t {
 public:
-    constant_propagation_t() = default;
-    func_c operator()(func_c v) override;
-
-private:
+    func_c operator()(func_c f) override;
+    SC_DECL_PASS_INFO_FUNC();
 };
-
-} // namespace sc_xbyak
 } // namespace sc
 
 #endif

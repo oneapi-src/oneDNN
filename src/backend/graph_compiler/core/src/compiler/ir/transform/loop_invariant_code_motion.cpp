@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <util/any_map.hpp>
+#include <util/utils.hpp>
 
 namespace sc {
 
@@ -37,22 +38,98 @@ struct licm_analysis_data_t {
     bool volatile_ = false;
     // The loop vars stmt depends on
     std::unordered_set<expr_c> dep_vars_;
+    std::unordered_set<expr_c> dep_tensors_;
 
     licm_analysis_data_t(const stmt_base_t *parent) : parent_(parent) {}
 };
+
+static bool unordered_intersects(const std::unordered_set<expr_c> &a,
+        const std::unordered_set<expr_c> &b) {
+    for (const auto &elem : a) {
+        if (b.end() != std::find_if(b.begin(), b.end(), [&](const expr_c &v) {
+                return v.ptr_same(elem);
+            })) {
+            return true;
+        }
+    }
+    return false;
+}
 
 // Currently tensor/indexing/tptr/call/intrin_call can not be hoisted.
 static bool expr_can_hoist(const expr_c &s) {
     return s.isa<var_c>() || s.isa<cast_c>() || (s.instanceof <binary_c>())
             || (s.instanceof <cmp_c>()) || (s.instanceof <logic_c>())
             || s.isa<select_c>() || s.isa<constant_c>() || s.isa<ssa_phi_c>()
-            || s.isa<intrin_call>();
+            || s.isa<intrin_call>() || s.isa<tensor>() || s.isa<indexing>();
 }
 
 static bool stmt_can_hoist(const stmt_c &s) {
     return s.isa<define_c>() || s.isa<if_else_c>() || s.isa<for_loop_c>()
             || s.isa<stmts_c>();
 }
+
+// Analyze call and tensor volatility in loops for licm promotion assessment
+struct loop_analysis_viewer_t : public ssa_viewer_t {
+    using ssa_viewer_t::dispatch;
+    using ssa_viewer_t::view;
+    // non-volatile tensor criteria: load data form indexing
+    bool non_volatile_tensor_ = false;
+    std::vector<expr_c> cur_loop_vars_;
+    std::unordered_map<expr_c, bool> call_volatile_map_;
+    std::unordered_map<expr_c, std::unordered_set<expr_c>> tensor_volatile_map_;
+
+    void view(for_loop_c v) override {
+        cur_loop_vars_.emplace_back(v->var_);
+        call_volatile_map_[v->var_] = false;
+        tensor_volatile_map_[v->var_] = std::unordered_set<expr_c>();
+        ssa_viewer_t::view(v);
+        // If inner loop call volatile, mark outer nested loops as call volatile
+        if (call_volatile_map_[v->var_]) {
+            for (const auto &loop_var : cur_loop_vars_) {
+                call_volatile_map_[loop_var] = true;
+            }
+        }
+        cur_loop_vars_.pop_back();
+    }
+
+    // If loop contain call, mark this loop as call volatile
+    void view(call_c v) override {
+        ssa_viewer_t::view(v);
+        if (!cur_loop_vars_.empty()) {
+            call_volatile_map_[cur_loop_vars_.back()] = true;
+        }
+    }
+
+    // If loop contain volatile tensor, mark this loop and
+    // outer nested loops with this volatile tensor
+    void view(tensor_c v) override {
+        if (!cur_loop_vars_.empty() && !non_volatile_tensor_) {
+            for (const auto &loop_var : cur_loop_vars_) {
+                tensor_volatile_map_[loop_var].insert(v);
+            }
+        }
+    }
+
+    void view(define_c v) override {
+        // In x = A[i], A considered non-volatile
+        if (v->init_.defined() && v->init_.isa<indexing>()) {
+            assert(v->var_.isa<var>());
+            non_volatile_tensor_ = true;
+        }
+        ssa_viewer_t::view(v);
+        non_volatile_tensor_ = false;
+    }
+
+    void view(assign_c v) override {
+        // In x = A[i], A considered non-volatile
+        if (v->value_.isa<indexing>()) {
+            assert(v->var_.isa<var>());
+            non_volatile_tensor_ = true;
+        }
+        ssa_viewer_t::view(v);
+        non_volatile_tensor_ = false;
+    }
+};
 
 struct licm_analysis_viewer_t : public ssa_viewer_t {
     using ssa_viewer_t::dispatch;
@@ -67,6 +144,16 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
     // be inserted just before their correspond loop vars.
     std::unordered_map<expr_c, std::vector<stmt_c>> loop_invariant_map_;
     std::unordered_set<stmt_c> stmt_to_remove_set_;
+    // input map: call and tensor info
+    std::unordered_map<expr_c, bool> &call_volatile_map_;
+    std::unordered_map<expr_c, std::unordered_set<expr_c>>
+            &tensor_volatile_map_;
+    //
+    licm_analysis_viewer_t(std::unordered_map<expr_c, bool> &call_volatile_map,
+            std::unordered_map<expr_c, std::unordered_set<expr_c>>
+                    &tensor_volatile_map)
+        : call_volatile_map_(call_volatile_map)
+        , tensor_volatile_map_(tensor_volatile_map) {}
     void register_loop_invariant_stmt() {
         assert(current_ != nullptr);
         // if the stmt is not in loop, return.
@@ -75,28 +162,35 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
         if (if_scope_depth_ > 0) { return; }
         auto &st_data = current_->temp_data().get<licm_analysis_data_t>();
         if (st_data.volatile_) { return; }
-        stmt_c s = current_->node_ptr_from_this();
-        // hoist out of outmost loop
-        if (st_data.dep_vars_.empty()) {
-            loop_invariant_map_[cur_loop_vars_[0]].emplace_back(s);
-            stmt_to_remove_set_.insert(s);
-            return;
-        }
-        for (auto it = cur_loop_vars_.rbegin(); it != cur_loop_vars_.rend();
-                it++) {
-            if (std::find_if(st_data.dep_vars_.begin(), st_data.dep_vars_.end(),
-                        [&](const expr_c &v) { return v.ptr_same(*it); })
-                    != st_data.dep_vars_.end()) {
-                if (it != cur_loop_vars_.rbegin()) {
-                    loop_invariant_map_[*(it - 1)].emplace_back(s);
-                    stmt_to_remove_set_.insert(s);
-                }
-                return;
+        // Find the loop to promote, from inner-most to out-most
+        auto it = cur_loop_vars_.rbegin();
+        for (; it != cur_loop_vars_.rend(); it++) {
+            // If any dep_tensors_ is defined or to be stored in the loop
+            // cannot promote
+            bool volatile_by_tensor = unordered_intersects(
+                    st_data.dep_tensors_, tensor_volatile_map_[*it]);
+            // If any dep_vars_ is the loop var, cannot promote
+            bool volatile_by_var = //
+                    st_data.dep_vars_.end()
+                    != std::find_if(st_data.dep_vars_.begin(),
+                            st_data.dep_vars_.end(),
+                            [&](const expr_c &v) { return v.ptr_same(*it); });
+            // If loop contains call node, cannot promote
+            bool volatile_by_call = call_volatile_map_[*it];
+            // If depends not volatile, continue find the loop to promote
+            if (volatile_by_tensor || volatile_by_var || volatile_by_call) {
+                break;
             }
         }
-        COMPILE_ASSERT(false,
-                "Stmt " << current_ << " has unknown loop var "
-                        << *st_data.dep_vars_.begin());
+        if (it != cur_loop_vars_.rbegin()) {
+            stmt_c s = current_->node_ptr_from_this();
+            loop_invariant_map_[*(it - 1)].emplace_back(s);
+            stmt_to_remove_set_.insert(s);
+            return;
+        } else {
+            // current_ is volatile in its loop, cannot promote
+            return;
+        }
     }
     stmt_c dispatch(stmt_c s) override {
         if (!s->get_temp_data().isa<licm_analysis_data_t>()) {
@@ -138,6 +232,8 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
         v_data.volatile_ |= body_data.volatile_;
         v_data.dep_vars_.insert(
                 body_data.dep_vars_.begin(), body_data.dep_vars_.end());
+        v_data.dep_tensors_.insert(
+                body_data.dep_tensors_.begin(), body_data.dep_tensors_.end());
     }
     void view(stmts_c v) override {
         ssa_viewer_t::view(v);
@@ -148,6 +244,8 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
             auto &st_data = st->temp_data().get<licm_analysis_data_t>();
             v_data.dep_vars_.insert(
                     st_data.dep_vars_.begin(), st_data.dep_vars_.end());
+            v_data.dep_tensors_.insert(
+                    st_data.dep_tensors_.begin(), st_data.dep_tensors_.end());
             if (st_data.volatile_) {
                 v_data.volatile_ = true;
                 break;
@@ -175,12 +273,16 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
         st_data.volatile_ |= then_data.volatile_;
         st_data.dep_vars_.insert(
                 then_data.dep_vars_.begin(), then_data.dep_vars_.end());
+        st_data.dep_tensors_.insert(
+                then_data.dep_tensors_.begin(), then_data.dep_tensors_.end());
         if (v->else_case_.defined()) {
             auto &else_data
                     = v->else_case_->temp_data().get<licm_analysis_data_t>();
             st_data.volatile_ |= else_data.volatile_;
             st_data.dep_vars_.insert(
                     else_data.dep_vars_.begin(), else_data.dep_vars_.end());
+            st_data.dep_tensors_.insert(else_data.dep_tensors_.begin(),
+                    else_data.dep_tensors_.end());
         }
         if_scope_depth_--;
         if (if_scope_depth_ == 0) {
@@ -189,6 +291,8 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
                 var_data.volatile_ |= st_data.volatile_;
                 var_data.dep_vars_.insert(
                         st_data.dep_vars_.begin(), st_data.dep_vars_.end());
+                var_data.dep_tensors_.insert(st_data.dep_tensors_.begin(),
+                        st_data.dep_tensors_.end());
             }
             vars_in_if_scope_.clear();
         }
@@ -209,6 +313,8 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
         }
         st_data.dep_vars_.insert(
                 var_data.dep_vars_.begin(), var_data.dep_vars_.end());
+        st_data.dep_tensors_.insert(
+                var_data.dep_tensors_.begin(), var_data.dep_tensors_.end());
         // param can be considered as invariant.
         // if a var is used before defined, treat it as volatile.
         if (owner.defined()
@@ -218,6 +324,22 @@ struct licm_analysis_viewer_t : public ssa_viewer_t {
             var_data.volatile_ = true;
             st_data.volatile_ = true;
         }
+    }
+    void view(tensor_c v) override {
+        auto &is_param = v->ssa_data_->is_param_;
+        if (current_ == nullptr) {
+            assert(is_param);
+            return;
+        }
+        auto &st_data = current_->temp_data().get<licm_analysis_data_t>();
+        auto &var_data = v->temp_data().get<licm_analysis_data_t>();
+        if (var_data.volatile_) {
+            st_data.volatile_ = true;
+            return;
+        }
+        // param can be considered as invariant.
+        // if a var is used before defined, treat it as volatile.
+        st_data.dep_tensors_.insert(v);
     }
     void view(ssa_phi_c v) override {
         ssa_viewer_t::view(v);
@@ -283,8 +405,8 @@ struct licm_hoister_t : public ssa_visitor_t {
             // if an stmt is inserted, the IR is changed
             changed |= sz_before != ret_vec.size();
             changed |= !ret.ptr_same(s);
-            if (stmt_to_remove_.find(ret) != stmt_to_remove_.end()) {
-                assert(ret->temp_data().get<licm_analysis_data_t>().volatile_
+            if (stmt_to_remove_.find(s) != stmt_to_remove_.end()) {
+                assert(s->temp_data().get<licm_analysis_data_t>().volatile_
                         == false);
                 changed = true;
                 continue;
@@ -309,8 +431,14 @@ struct licm_hoister_t : public ssa_visitor_t {
 };
 
 func_c loop_invariant_code_motion_t::operator()(func_c f) {
-    licm_analysis_viewer_t analyzer;
+    // Analyze loop first
+    loop_analysis_viewer_t loop_analyzer;
+    loop_analyzer.dispatch(f);
+    // Mark loop-invariant code
+    licm_analysis_viewer_t analyzer(loop_analyzer.call_volatile_map_,
+            loop_analyzer.tensor_volatile_map_);
     analyzer.dispatch(f);
+    // Move code
     filter_stmt_by_volatile(
             analyzer.loop_invariant_map_, analyzer.stmt_to_remove_set_);
     licm_hoister_t hoister(

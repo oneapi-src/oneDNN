@@ -20,6 +20,7 @@
 #include <compiler/jit/xbyak/gen_operation/operations.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/register_allocation.hpp>
+#include <compiler/jit/xbyak/utils.hpp>
 #include <compiler/jit/xbyak/x86_64/type_mapping.hpp>
 #include <compiler/jit/xbyak/xbyak_jit_engine.hpp>
 #include <util/utils.hpp>
@@ -917,8 +918,8 @@ inline bool is_lane_macth(sc_data_type_t dst_dtype, sc_data_type_t src_dtype, //
 }
 
 inline uint64_t scalar_bit(sc_data_type_t dtype) {
-    return is_simd_data(dtype) ? UINT64_C(0)
-                               : UINT64_C(8) * utils::get_sizeof_type(dtype);
+    return is_x86_simd(dtype) ? UINT64_C(0)
+                              : UINT64_C(8) * utils::get_sizeof_type(dtype);
 }
 
 void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
@@ -1097,7 +1098,7 @@ void xbyak_lowering_viewer::handle_reinterpret(
             }
         } break;
         case 8: { // 64-bit
-            COMPILE_ASSERT(!is_simd_data(dtype_dst) && !is_simd_data(dtype_src),
+            COMPILE_ASSERT(!is_x86_simd(dtype_dst) && !is_x86_simd(dtype_src),
                     FUNC_INFO << "Invalid type: " << dtype_dst << " <- "
                               << dtype_src);
             handle_x86_mov(op_dst, op_src);
@@ -2007,23 +2008,13 @@ void xbyak_lowering_viewer::handle_pre_call(const stmts_c &v) {
     // Get attrs
     assert(v->attr_);
     assert(v->attr_->has_key(attr_keys::abi_interface));
-    assert(v->attr_->has_key(attr_keys::local_spilled));
-    assert(v->attr_->has_key(attr_keys::caller_saved));
 
-    auto local_spilled = v->attr_->get<std::shared_ptr<std::vector<expr_c>>>(
-            attr_keys::local_spilled);
-    auto caller_saved = v->attr_->get<std::shared_ptr<std::vector<expr_c>>>(
-            attr_keys::caller_saved);
     auto callee_iface = v->attr_->get<abi_function_interface::ptr>(
             attr_keys::abi_interface);
 
-    // STEP 1: Save caller-save regs
-    location_manager_->push_caller_saved(*caller_saved);
-    // STEP 2: Save stack info before call prepare
+    // STEP 1: Save stack info before call prepare
     location_manager_->conserve_stack_size();
-    // STEP 3: Create local scope
-    location_manager_->prepare_local_scope(*local_spilled);
-    // STEP 4: Align stack before call
+    // STEP 2: Align stack before call
     location_manager_->align_call_stack(*callee_iface);
 }
 
@@ -2097,11 +2088,6 @@ void xbyak_lowering_viewer::handle_call(const expr_c &lhs, const call_c &v) {
             handle_x86_mov(op_ret, operand(reg_ret));
         }
     }
-
-    // STEP 5: Restore any caller-saved registers
-    location_manager_->pop_caller_saved();
-    // STEP 6: Exit local scope
-    location_manager_->conclude_local_scope();
 }
 
 //==============================================================================

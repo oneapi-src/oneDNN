@@ -28,7 +28,9 @@
 #include <compiler/codegen/precodegen_passes.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <compiler/ir/transform/dessa_transform.hpp>
+#include <compiler/ir/transform/loop_function_motion.hpp>
 #include <compiler/ir/transform/loop_invariant_code_motion.hpp>
+#include <compiler/ir/transform/simplify.hpp>
 #include <compiler/ir/transform/ssa_transform.hpp>
 #include <compiler/ir/transform/value_numbering.hpp>
 
@@ -37,7 +39,6 @@
 #include <compiler/jit/xbyak/ir/pass/live_interval.hpp>
 #include <compiler/jit/xbyak/ir/transform/call_transform.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
-#include <compiler/jit/xbyak/ir/transform/constant_propagation.hpp>
 #include <compiler/jit/xbyak/ir/transform/low_level_legalizer.hpp>
 #include <compiler/jit/xbyak/ir/transform/module_var_resolver.hpp>
 #include <compiler/jit/xbyak/ir/transform/register_allocation.hpp>
@@ -55,7 +56,9 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
     ret.emplace_back(module_function_pass_t::make<module_var_resolver_t>());
     ret.emplace_back(module_function_pass_t::make<low_level_legalizer_t>());
     ret.emplace_back(module_function_pass_t::make<constant_optimizer_t>());
-    ret.emplace_back(module_function_pass_t::make<call_transform_t>(profile));
+    ret.emplace_back(
+            module_function_pass_t::make<simple_loop_function_motion_t>());
+    ret.emplace_back(module_function_pass_t::make<ir_simplifier_t>(false));
 
     ret.emplace_back(module_function_pass_t::make<ssa_transform_t>());
     ret.emplace_back(module_function_pass_t::make<value_numbering_t>());
@@ -65,7 +68,7 @@ sequential_module_pass_t get_xbyak_precodegen_passes(
     ret.emplace_back(module_function_pass_t::make<dessa_transform_t>());
     ret.emplace_back(utils::make_unique<constant_folder_t>(false));
 
-    ret.emplace_back(module_function_pass_t::make<constant_propagation_t>());
+    ret.emplace_back(module_function_pass_t::make<call_transform_t>(profile));
     ret.emplace_back(module_function_pass_t::make<x86_intrinsics_lowering_t>(
             ctx->machine_));
 

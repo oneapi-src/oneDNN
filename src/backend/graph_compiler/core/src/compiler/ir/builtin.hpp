@@ -29,6 +29,7 @@
 namespace sc {
 SC_INTERNAL_API expr get_ir_null();
 SC_INTERNAL_API expr get_ir_zero_index();
+SC_INTERNAL_API bool is_pure_func_call(const expr_c &v);
 namespace builtin {
 
 /**
