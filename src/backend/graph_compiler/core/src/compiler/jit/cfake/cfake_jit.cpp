@@ -120,7 +120,8 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
 
     std::vector<std::string> discretionary_options;
     if (options_group.empty() || (options_group == "default")) {
-        discretionary_options = std::vector<std::string> {"-march=native"};
+        discretionary_options
+                = std::vector<std::string> {"-march=native", "-w"};
         assert(opt_level_ >= 0 && opt_level_ <= 3);
         discretionary_options.emplace_back("-O");
         discretionary_options.back() += std::to_string(opt_level_);
@@ -128,7 +129,6 @@ std::shared_ptr<jit_module> cfake_jit::make_jit_module(
         for (const auto &i : envflags) {
             discretionary_options.emplace_back(i);
         }
-
         if (debug_info_) { discretionary_options.emplace_back("-g"); }
     } else if (options_group == "xbyak-dev") {
         discretionary_options = std::vector<std::string> {"-O3",

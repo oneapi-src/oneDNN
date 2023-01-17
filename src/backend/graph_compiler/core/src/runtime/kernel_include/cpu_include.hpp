@@ -16,6 +16,19 @@
 #ifndef BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_KERNEL_INCLUDE_CPU_INCLUDE_HPP
 #define BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_KERNEL_INCLUDE_CPU_INCLUDE_HPP
 
+#if defined(__GNUC__)
+#if __GNUC__ >= 12
+#define _IS_GCC_12_ABOVE
+#endif
+#endif
+
+#ifdef _IS_GCC_12_ABOVE
+// gcc 12 cannot compile its own x86 intrinsic header!!!
+// bypass the check here
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
@@ -47,6 +60,10 @@
 #include "x86simd/vec_u16x8.hpp"
 #include "x86simd/vec_u32x4.hpp"
 #include "x86simd/vec_u8x16.hpp"
+#endif
+
+#ifdef _IS_GCC_12_ABOVE
+#pragma GCC diagnostic pop
 #endif
 
 #include <runtime/generic_val.hpp>

@@ -2803,7 +2803,10 @@ static bool try_optimize_reduce(const mixed_parti_t *parti, sc_graph_t &g) {
                     // pre-check
                     if (auto rd_op = op->dyn_cast<reduce_compute_op_t>()) {
                         auto rd_axis = rd_op->get_rd_axis();
-                        rd_axis.erase(rd_axis.begin());
+                        // check if empty to make g++12 happy
+                        if (!rd_axis.empty()) {
+                            rd_axis.erase(rd_axis.begin());
+                        }
                         if (!rd_axis.empty()) {
                             sc_dim prod = 1;
                             for (auto &ax : rd_axis) {
