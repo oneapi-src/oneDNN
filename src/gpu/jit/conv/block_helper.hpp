@@ -637,6 +637,10 @@ private:
         return a_type_ == data_type::tf32 && b_type_ == data_type::tf32
                 && c_type_ == data_type::f32;
     }
+    bool is_f64() const {
+        return a_type_ == data_type::f64 && b_type_ == data_type::f64
+                && c_type_ == data_type::f64;
+    }
 
     bool vectorize_by_b() const { return vectorize_by_bmnk('B'); }
     bool vectorize_by_m() const { return vectorize_by_bmnk('M'); }

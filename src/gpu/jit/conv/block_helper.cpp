@@ -26,8 +26,9 @@ namespace jit {
 class block_assigner_t {
 public:
     block_assigner_t(const dim_info_t &bmnk_dim,
-            const std::vector<dim_info_t *> &prb_dims)
-        : bmnk_dim_(bmnk_dim), prb_dims_(prb_dims) {
+            const std::vector<dim_info_t *> &prb_dims,
+            const hw_config_t &hw_cfg)
+        : bmnk_dim_(bmnk_dim), prb_dims_(prb_dims), hw_cfg_(hw_cfg) {
         move_to_next_bmnk_level();
         move_to_next_prb_dim();
     }
@@ -161,9 +162,11 @@ private:
             double target_eff = 0.75) const {
         if (target_dim.is_unlimited()) return dim;
 
+        bool is_xe_lp = hw_cfg_.hw() <= ngen::HW::XeLP;
+        if (is_xe_lp) target_eff = .85;
         bool require_pow_2 = false;
         if (level == tile_level_t::tg) require_pow_2 = true;
-        if (level == tile_level_t::iter
+        if (level == tile_level_t::iter && !is_xe_lp
                 && (bmnk_dim_.bmnk() == 'N'
                         || (bmnk_dim_.bmnk() == 'M'
                                 && bmnk_dim_.inner_dims() == 1)))
@@ -175,7 +178,8 @@ private:
             rem_target_base_blk
                     = target_base_blk / math::gcd(level_dim, target_base_blk);
             step = base_iter_block;
-            ir_assert(rem_target_base_blk % base_iter_block == 0);
+            ir_assert(rem_target_base_blk == 1
+                    || rem_target_base_blk % base_iter_block == 0);
             if (is_last_dim) step = rem_target_base_blk;
         }
 
@@ -315,6 +319,7 @@ private:
     dim_value_t rem_bmnk_dim_;
 
     std::vector<dim_info_t *> prb_dims_;
+    hw_config_t hw_cfg_;
     int prb_dim_idx_ = -1;
     dim_value_t rem_prb_dim_ = 0;
 };
@@ -381,6 +386,8 @@ void block_helper_t::init_bmnk_blocks() {
     int k_inst_blk = 0;
     int bn_inst_blk = 0;
     bool is_ge_hpc = (hw_cfg_.hw() >= ngen::HW::XeHPC);
+    bool is_xe_lp = hw_cfg_.hw() <= ngen::HW::XeLP;
+    bool is_gen9 = hw_cfg_.hw() < ngen::HW::XeLP;
     bool reduce_m_block = false;
     if (reduce_m_block_hint_set_) {
         reduce_m_block = reduce_m_block_hint_;
@@ -397,20 +404,36 @@ void block_helper_t::init_bmnk_blocks() {
     switch (fma_kind_) {
         case fma_kind_t::mad: {
             int max_m_iter_dim = prb_max_dim('M', tile_level_t::iter);
-            m_inst_blk = std::min(8, utils::rnd_down_pow2(max_m_iter_dim));
-            bn_inst_blk = vec_size_;
+            m_inst_blk = std::min(
+                    is_xe_lp ? std::min(m_dim().base_iter_block(), 8) : 8,
+                    utils::rnd_down_pow2(max_m_iter_dim));
+            auto bn_blk_size
+                    = std::min(utils::rnd_up_pow2(bn_dim.size()), vec_size_);
+            bn_inst_blk = bn_blk_size;
             k_inst_blk = 1;
-            bool use_small_m_block = hw_cfg_.hw() <= ngen::HW::XeHP
-                    && m_dim().base_iter_block() == 1;
-            m_blk = (is_x8x8s32() || use_small_m_block ? 8 : 16);
+            int bn_k_dim_sum
+                    = bn_dim.base_iter_block() + k_dim().base_iter_block();
+            bool use_small_m_block = (hw_cfg_.hw() == ngen::HW::XeHP
+                                             && m_dim().base_iter_block() == 1)
+                    || (is_xe_lp && bn_k_dim_sum >= 32 && is_x8x8s32());
+
+            m_blk = ((!is_xe_lp && is_x8x8s32()) || (is_gen9 && is_f64())
+                                    || use_small_m_block
+                            ? is_gen9 && bn_k_dim_sum >= 48 ? 2
+                                    : is_gen9 && is_f64()   ? 4
+                                                            : 8
+                            : 16);
             bool small_m_tg = m_dim().base_iter_block() == 1
                     && hw_cfg_.hw() == ngen::HW::XeHPG
                     && !m_dim().pref_tg_block();
             if (!m_dim().pref_tg_block())
                 m_dim().set_max_dim(tile_level_t::tg, small_m_tg ? 1 : 4);
-            bn_blk = vec_size_;
+            if (is_xe_lp && !m_dim().pref_tg_block())
+                m_dim().set_max_dim(tile_level_t::tg, 1);
+            bn_blk = bn_blk_size;
             k_blk = compute_mad_k_block();
-            if (!allow_k_grid_slicing_ && !allow_k_tg_slicing_) {
+            if (is_xe_lp) k_blk = 1;
+            if (!allow_k_grid_slicing_ && !allow_k_tg_slicing_ && !is_xe_lp) {
                 do {
                     int est_bmn_threads = 1;
                     est_bmn_threads *= utils::div_up(m_dim().size(), m_blk);
@@ -432,7 +455,9 @@ void block_helper_t::init_bmnk_blocks() {
             int target_m_blk = reduce_m_block ? 16
                     : expand_m_block_hint_    ? 64
                                               : 32;
-            if (max_iter_dim % target_m_blk != 0 && max_iter_dim > 32) {
+            if (is_xe_lp) target_m_blk /= 2;
+            if (max_iter_dim % target_m_blk != 0 && max_iter_dim > 32
+                    && !is_xe_lp) {
                 float max_utilization_rate = 0.;
                 for (int i
                         = min(32, utils::rnd_dn((int)(1.5 * target_m_blk), 4));
@@ -451,7 +476,7 @@ void block_helper_t::init_bmnk_blocks() {
             m_inst_blk = m_blk % 8 == 0 ? 8 : m_blk;
             bn_inst_blk = 8;
             k_inst_blk = is_x8x8s32() ? 32 : 16;
-            bn_blk = is_ge_hpc ? 64 : 32;
+            bn_blk = is_ge_hpc ? 64 : is_xe_lp ? 16 : 32;
             int est_bmn_threads = 1;
             est_bmn_threads *= utils::div_up(m_dim().size(), m_blk);
             est_bmn_threads *= utils::div_up(bn_dim.size(), bn_blk);
@@ -504,7 +529,8 @@ void block_helper_t::init_bmnk_blocks() {
 
     m_blk = compute_block(m_dim().size(), m_blk, m_dim().base_iter_block());
     // Require pow2 when only one m dim is non-trivial
-    if (m_dim().inner_dims() == 1) m_blk = utils::rnd_down_pow2(m_blk);
+    if (m_dim().inner_dims() == 1 && !is_xe_lp)
+        m_blk = utils::rnd_down_pow2(m_blk);
     k_blk = compute_block(k_dim().size(), k_blk, k_dim().base_iter_block());
     bn_blk = compute_block(bn_dim.size(), bn_blk, bn_dim.base_iter_block());
 
@@ -715,7 +741,7 @@ void block_helper_t::init_prb_blocks() {
             cur_dims[0]->set_size(base_blk);
         }
 
-        block_assigner_t assigner(bmnk_dim(bmnk), cur_dims);
+        block_assigner_t assigner(bmnk_dim(bmnk), cur_dims, hw_cfg_);
         while (assigner.has_blocks()) {
             assigner.assign_block();
         }

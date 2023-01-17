@@ -1109,7 +1109,7 @@ void init_pipeline(conv_config_t &cfg) {
     bool do_unroll = true;
     bool reuse_headers = false;
     if (prb.is_fwd) {
-        const int max_unroll = 9;
+        const int max_unroll = cfg.hw() <= ngen::HW::XeLP ? 4 : 9;
         if (prb.ksp > max_unroll) do_unroll = false;
     } else if (prb.is_bwd_d) {
         // Do not perform full unrolling when there are too many inner
@@ -1388,12 +1388,13 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
 
     const auto &prb = cfg.prb();
     const char *osp_name = cfg.fuse_spatial() ? "osp" : "ow";
+    bool is_xe_lp = cfg.hw() <= ngen::HW::XeLP;
 
     //set iter block for cases with no m block and large spatial
     if (!cfg.is_ge_xe_hpc() && cfg.src_layout().compute().inner_block(0) == 1
             && prb.mb > 1 && (prb.oh == prb.ow && prb.ow == prb.od)
             && prb.osp >= 512 && !cfg.is_g_mad()) {
-        bh.set_base_iter_block(osp_name, 16);
+        bh.set_base_iter_block(osp_name, is_xe_lp ? 8 : 16);
     }
 
     if (prb.oc == 1 && prb.ic == 1) { bh.set_expand_m_block_hint(); }
@@ -1402,7 +1403,7 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
         bh.set_base_iter_block("mb", 1);
         bh.dim("mb").set_iter_dim(1);
         bh.set_max_iter_dim("mb", 1);
-        bh.set_max_m_tg_dim(2);
+        if (!is_xe_lp) bh.set_max_m_tg_dim(2);
         bh.set_max_n_tg_dim(2);
     }
     if (cfg.is_g_mad()) {
@@ -1430,10 +1431,14 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
     bh.allow_fuse({"ic", "kw"});
     bh.allow_split({"oc", "ic", "kw"});
 
+    //scattered send messages use too much GRF for XeLP
+    if (is_xe_lp && prb.is_dw && prb.g < 32) bh.set_base_iter_block("g", 16);
     int mb_base_iter_blk = bh.dim("mb").base_iter_block();
     // mb blocking is always outer so we can safely use a smaller divisor to
     // have more flexible blocking for some cases.
-    int mb_base_iter_divisor = is_dw_large_mb(prb) ? 32 : 8;
+    int mb_base_iter_divisor = is_dw_large_mb(prb) && !is_xe_lp ? 32
+            : cfg.hw() < ngen::HW::XeLP                         ? 2
+                                                                : 8;
     mb_base_iter_blk = math::gcd(mb_base_iter_divisor, mb_base_iter_blk);
 
     bh.set_base_iter_block("mb", mb_base_iter_blk);
@@ -1457,7 +1462,8 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
         if (!prb.is_int8_dst() && !cfg.fuse_spatial() && prb.mb < 16
                 && prb.iw % 8 != 0 && !prb.is_dw) {
             int max_dim = (prb.ic < 3 && prb.oc < 3) ? 2 : 1;
-            bh.set_max_m_tg_dim(max_dim);
+            if (!is_xe_lp) bh.set_max_m_tg_dim(max_dim);
+            if (is_xe_lp) bh.set_max_n_tg_dim(8);
         }
     } else {
         const int large_sp_threshold = cfg.is_ge_xe_hpc() ? 128 : 256;
@@ -1478,8 +1484,10 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
         }
     }
 
-    if (prb.mb < 8 && !bh.any_pref_tg_block())
+    if (!is_xe_lp && prb.mb < 8 && !bh.any_pref_tg_block())
         bh.set_pref_tg_block(prb.ow > prb.oc ? osp_name : "oc");
+    if (is_xe_lp && prb.oc < 8 && prb.ow > prb.oc)
+        bh.set_pref_tg_block(osp_name);
 
     bh.reorder({"ic", "kw"});
 
@@ -1527,7 +1535,7 @@ void init_bwd_d(conv_config_t &cfg, block_helper_t &bh) {
         bh.reorder({"iw", "mb"});
     } else {
         bh.reorder({"mb", "iw"});
-        bh.set_base_iter_block("mb", 8);
+        bh.set_base_iter_block("mb", cfg.hw() < ngen::HW::XeLP ? 4 : 8);
     }
 
     if (cfg.send_2d_nhwc()) {
@@ -1554,8 +1562,15 @@ void init_bwd_w(conv_config_t &cfg, block_helper_t &bh) {
     bool vectorize_g = is_mad_g_small_oc(cfg) || prb.is_dw;
     bh.set_vector_dim(vectorize_g ? "g" : "oc");
 
+    bool is_xe_lp = cfg.hw() <= ngen::HW::XeLP;
     int size = (int)types::data_type_size(prb.src_data_type);
     if (size >= 4) {
+        if (is_xe_lp && size > 4) {
+            if (vectorize_g)
+                bh.set_base_iter_block("g", 8);
+            else
+                bh.set_base_iter_block("ic", 4);
+        }
         if (prb.oc <= 32) bh.set_max_iter_dim("oc", 16);
         if (prb.ic <= 32) bh.set_max_iter_dim("ic", 16);
     } else {
@@ -1584,7 +1599,7 @@ void init_bwd_w(conv_config_t &cfg, block_helper_t &bh) {
     bh.allow_fuse({"mb", "oh", "ow"});
     bh.set_max_loop_dim("mb", 2);
     bh.set_base_iter_block("mb", math::gcd(16, bh.dim("mb").base_iter_block()));
-
+    if (is_xe_lp) bh.set_base_iter_block("mb", std::min(16, prb.mb));
     bh.reorder({"mb", "ow", "oh"});
 
     if (cfg.send_2d_nhwc()) bh.set_reduce_m_block_hint(false);
