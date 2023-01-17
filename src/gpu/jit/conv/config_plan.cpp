@@ -1125,7 +1125,8 @@ layout_t get_fma_friendly_layout(const fma_config_t &fma_cfg, abc_kind_t abc,
     auto simd = fma_cfg.simd;
     auto fma = fma_cfg.fma;
     bool is_mad = (fma == fma_kind_t::mad);
-    bool is_dpas = utils::one_of(fma, fma_kind_t::dpas, fma_kind_t::dpasw);
+    bool is_dpas = utils::one_of(
+            fma, fma_kind_t::dpas, fma_kind_t::dpasw, fma_kind_t::dp4a);
     bool is_a = (abc == abc_kind_t::a);
     bool is_b = !is_a;
     auto type = (is_a ? fma_cfg.a_type : fma_cfg.b_type);

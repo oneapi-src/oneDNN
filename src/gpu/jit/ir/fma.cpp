@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,6 +51,8 @@ fma_kind_t fma_kind::get_supported_kind(
         else
             return fma_kind_t::dpasw;
     }
+    if (hw == ngen::HW::XeLP && (a.is_x8() && b.is_x8() && c.is_s32()))
+        return fma_kind_t::dp4a;
     if (mad_t::matches_types(hw, a, b, c)) return fma_kind_t::mad;
     return fma_kind_t::unknown;
 }
@@ -60,8 +62,6 @@ int fma_kind::get_simd_size(ngen::HW hw, const fma_kind_t kind, const type_t &a,
     int ret = 0;
     switch (kind) {
         case fma_kind_t::dp4a:
-            ret = mad_t::get_simd_size(hw, a.with_elems(4), b.with_elems(4), c);
-            break;
         case fma_kind_t::dpas:
         case fma_kind_t::dpasw: ret = hw >= ngen::HW::XeHPC ? 16 : 8; break;
         case fma_kind_t::mad: ret = mad_t::get_simd_size(hw, a, b, c); break;
@@ -160,7 +160,7 @@ bool dpas_t::matches_types(
 
 bool mad_t::matches_types(
         ngen::HW hw, const type_t &a, const type_t &b, const type_t &c) {
-    if (a != b) return false;
+    if (a != b && !(a.is_x8() && b.is_x8())) return false;
 
     if (a.is_f64() && c.is_f64()) return true;
     if (a.is_f32() && c.is_f32()) return true;
