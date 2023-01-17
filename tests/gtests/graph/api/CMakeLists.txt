@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2022 Intel Corporation
+# Copyright 2021-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,24 +15,24 @@
 #===============================================================================
 
 set(API_TEST_SRCS
+    ${CMAKE_CURRENT_SOURCE_DIR}/api_test_main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_api_common.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_add_op.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile_parametrized.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_constant_cache.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_filter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_graph.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_logical_tensor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_op.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_compile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_logical_tensor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_tensor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_op.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_partition.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_compile.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_graph.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_add_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_filter.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_logical_tensor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_compile_parametrized.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_c_api_constant_cache.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_api_common.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/api_test_main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cpp_api_tensor.cpp
     ${TEST_ALLOCATOR}
-    )
+)
 
 set(sycl_rt_pattern "(SYCL|DPCPP)")
 if(DNNL_CPU_RUNTIME MATCHES ${sycl_rt_pattern} OR DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})

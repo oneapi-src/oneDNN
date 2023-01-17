@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2022 Intel Corporation
+# Copyright 2021-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,13 +17,16 @@ set(OBJ_LIB graph_unit_test_interface)
 
 add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_op.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern_matcher.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_op.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_partition_hashing.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_shape_infer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_tensor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_type_constraint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
 )
 

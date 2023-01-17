@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -158,4 +158,64 @@ TEST(LogicalTensor, IdenticalSimilar) {
             2, {1, 2, 1}, graph::data_type::f32, graph::layout_type::strided);
     ASSERT_EQ(ltw(lt4).is_similar(ltw(lt9)), true);
     ASSERT_EQ(ltw(lt4).is_similar(ltw(lt10)), false);
+}
+
+TEST(LogicalTensor, GetWeightSpatialDims) {
+    using ltw = graph::logical_tensor_wrapper_t;
+    graph::logical_tensor_t lt = utils::logical_tensor_init(0, {1, 2, 2, 1},
+            graph::data_type::f32, graph::layout_type::strided);
+
+    auto wrap = ltw(lt);
+    ASSERT_EQ(wrap.get_weight_spatial_dims("XXX").empty(), true);
+    ASSERT_EQ(wrap.get_weight_spatial_dims("XIO")[0], 1);
+    ASSERT_EQ(wrap.get_weight_spatial_dims("XIO")[1], 2);
+    ASSERT_EQ(wrap.get_weight_spatial_dims("OIX")[0], 2);
+    ASSERT_EQ(wrap.get_weight_spatial_dims("OIX")[1], 1);
+}
+
+TEST(LogicalTensor, GetSrcSpatialDims) {
+    using ltw = graph::logical_tensor_wrapper_t;
+    graph::logical_tensor_t lt = utils::logical_tensor_init(0, {1, 2, 2, 1},
+            graph::data_type::f32, graph::layout_type::strided);
+
+    auto wrap = ltw(lt);
+    ASSERT_EQ(wrap.get_src_spatial_dims("XXX").size(), 0U);
+    ASSERT_EQ(wrap.get_src_spatial_dims("NCX")[0], 2);
+    ASSERT_EQ(wrap.get_src_spatial_dims("NCX")[1], 1);
+    ASSERT_EQ(wrap.get_src_spatial_dims("NXC")[0], 2);
+    ASSERT_EQ(wrap.get_src_spatial_dims("NXC")[1], 2);
+}
+
+TEST(LogicalTensor, GetWeightOrSrcIO) {
+    using ltw = graph::logical_tensor_wrapper_t;
+    graph::logical_tensor_t lt = utils::logical_tensor_init(0, {1, 2, 2, 1},
+            graph::data_type::f32, graph::layout_type::strided);
+
+    auto wrap = ltw(lt);
+    ASSERT_EQ(wrap.get_weight_i("XXX"), DNNL_GRAPH_UNKNOWN_DIM);
+    ASSERT_EQ(wrap.get_weight_i("OIX"), 2);
+    ASSERT_EQ(wrap.get_weight_i("XIO"), 2);
+
+    ASSERT_EQ(wrap.get_weight_o("XXX"), DNNL_GRAPH_UNKNOWN_DIM);
+    ASSERT_EQ(wrap.get_weight_o("OIX"), 1);
+    ASSERT_EQ(wrap.get_weight_o("XIO"), 1);
+
+    ASSERT_EQ(wrap.get_src_c("XXX"), DNNL_GRAPH_UNKNOWN_DIM);
+    ASSERT_EQ(wrap.get_src_c("NCX"), 2);
+    ASSERT_EQ(wrap.get_src_c("NXC"), 1);
+}
+
+TEST(LogicalTensor, IsIdentical) {
+    using ltw = graph::logical_tensor_wrapper_t;
+    graph::logical_tensor_t lt1 = utils::logical_tensor_init(
+            0, {1, 2, 2, 1}, graph::data_type::f32, graph::layout_type::undef);
+    graph::logical_tensor_t lt2 = utils::logical_tensor_init(
+            0, {1, 2, 2, 1}, graph::data_type::f32, graph::layout_type::undef);
+    graph::logical_tensor_t lt3 = utils::logical_tensor_init(
+            1, {1, 2, 2, 1}, graph::data_type::f32, graph::layout_type::undef);
+    graph::logical_tensor_t lt4 = utils::logical_tensor_init(
+            1, {1, 2, 2, 1}, graph::data_type::f32, graph::layout_type::opaque);
+    ASSERT_EQ(ltw(lt1).is_identical(lt2), true);
+    ASSERT_EQ(ltw(lt1).is_identical(lt3), false);
+    ASSERT_EQ(ltw(lt3).is_identical(lt4), false);
 }

@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2022 Intel Corporation
+# Copyright 2021-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ list(APPEND COMMON_UNIT_TESTS ${TEST_ALLOCATOR})
 
 add_subdirectory(interface)
 add_subdirectory(backend)
+add_subdirectory(utils)
 
 get_property(UNIT_TEST_DEPS GLOBAL PROPERTY GRAPH_UNIT_TEST_DEPS)
 get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)

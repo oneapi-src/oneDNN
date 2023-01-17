@@ -33,6 +33,7 @@
 #include "backend/dnnl/passes/lower.hpp"
 #include "backend/dnnl/passes/memory_planning.hpp"
 #include "backend/dnnl/passes/transform.hpp"
+#include "backend/dnnl/subgraph.hpp"
 
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
@@ -59,6 +60,13 @@ dnnl::impl::graph::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     return *find;
 }
 } // namespace
+
+TEST(Subgraph, Kind2Str) {
+    ASSERT_EQ(graph::dnnl_impl::kind2str(graph::op_kind::Abs), "Abs");
+    ASSERT_EQ(
+            graph::dnnl_impl::kind2str(graph::dnnl_impl::op_kind::dnnl_add_zps),
+            "Dnnl_add_zps");
+}
 
 TEST(SubgraphPass, LowerDownToInt8Conv) {
     /*
@@ -1805,4 +1813,45 @@ TEST(SubgraphPass, CheckUndefinedOpAttribute) {
     dnnl_impl::lower_down(subgraph);
     dnnl_impl::subgraph_validator_t validator;
     ASSERT_EQ(validator.run(subgraph), status::invalid_graph_op);
+}
+
+TEST(SubgraphPass, CommonReorderElimination) {
+    graph::engine_t &g_eng = *get_engine();
+    dnnl::engine p_eng = graph::dnnl_impl::make_dnnl_engine(g_eng);
+    size_t id = 0;
+    auto lt1 = logical_tensor_init(id++, {1, 3, 5, 5}, graph::data_type::f32);
+    auto lt2 = logical_tensor_init(id++, {1, 3, 5, 5}, graph::data_type::f32);
+
+    auto lt3 = logical_tensor_init(id++, {1, 3, 5, 5}, graph::data_type::f32);
+    auto lt4 = logical_tensor_init(id++, {1, 3, 5, 5}, graph::data_type::f32);
+    auto lt5 = logical_tensor_init(id++, {1, 3, 5, 5}, graph::data_type::f32);
+
+    graph::op_t op0 {0, graph::op_kind::Wildcard, "wild_card"};
+    op0.add_input(lt1);
+    op0.add_output(lt2);
+
+    graph::op_t reorder_op1 {1, graph::op_kind::Reorder, "reorder_op1"};
+    reorder_op1.add_input(lt2);
+    reorder_op1.add_output(lt3);
+
+    graph::op_t reorder_op2 {2, graph::op_kind::Reorder, "reorder2"};
+    reorder_op2.add_input(lt2);
+    reorder_op2.add_output(lt4);
+
+    graph::op_t op1 {id++, graph::op_kind::Wildcard, "op2"};
+    op1.add_input(lt3);
+    op1.add_input(lt4);
+    op1.add_output(lt5);
+
+    graph::graph_t g;
+    g.add_op(&op0);
+    g.add_op(&reorder_op1);
+    g.add_op(&reorder_op2);
+    g.add_op(&op1);
+    g.finalize();
+    auto subgraph = std::make_shared<graph::dnnl_impl::subgraph_t>(g.get_ops(),
+            p_eng, graph::fpmath_mode::any, /* reset_layout */ false);
+    ASSERT_EQ(graph::dnnl_impl::common_reorder_elimination(subgraph),
+            graph::status::success);
+    ASSERT_EQ(subgraph->get_ops().size(), 3U);
 }

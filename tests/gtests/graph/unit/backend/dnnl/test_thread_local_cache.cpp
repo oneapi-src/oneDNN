@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -98,4 +98,15 @@ TEST(ThreadLocalCache, Multithreading) {
     t1.join();
     t2.join();
     t3.join();
+}
+
+TEST(ThreadLocalCache, Clear) {
+    thread_local_cache_t<test_resource_t> cache;
+    size_t key1 = (size_t)1;
+    cache.get_or_add(
+            key1, []() { return std::make_shared<test_resource_t>(10); });
+    size_t key2 = (size_t)2;
+    cache.get_or_add(
+            key2, []() { return std::make_shared<test_resource_t>(20); });
+    ASSERT_NO_THROW(cache.clear());
 }

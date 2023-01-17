@@ -85,6 +85,28 @@ TEST(OpSchema, ExceededNumOutputs) {
 
 #endif
 
+TEST(OpSchemaDeath, OpschemaMethod) {
+    auto op_schema = op_schema_t(op_kind::Add, 1);
+
+    ASSERT_NO_THROW({ op_schema.set_doc(std::string("this is conv")); });
+    ASSERT_NO_THROW({ op_schema.get_doc(); });
+    ASSERT_NO_THROW({ op_schema.set_num_inputs(2); });
+    ASSERT_NO_THROW({ op_schema.set_num_outputs(1); });
+    ASSERT_NO_THROW(
+            { op_schema.set_input(0, "a", "first input tensor", "T"); });
+    ASSERT_NO_THROW(
+            { op_schema.set_input(1, "b", "second input tensor", "T"); });
+    ASSERT_NO_THROW({ op_schema.get_inputs(); });
+    ASSERT_NO_THROW(
+            { op_schema.set_output(0, "output", "output tensor", "T"); });
+
+    ASSERT_NO_THROW({
+        op_schema.set_type_constraints(
+                "T", {data_type::f32, data_type::bf16, data_type::f16});
+    });
+    ASSERT_NO_THROW({ op_schema.get_outputs(); });
+}
+
 TEST(OpSchema, Convolution) {
     const op_kind_t op_kind_ = op_kind::Convolution;
     const std::set<size_t> expected_in_sizes = {2, 3};

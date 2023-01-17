@@ -13,20 +13,34 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#include "gtest/gtest.h"
 
 #include "backend/dnnl/constant_cache.hpp"
 
 #include "interface/value.hpp"
 
-#include "utils/utils.hpp"
-
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
 
-#include "gtest/gtest.h"
+#include "utils/utils.hpp"
 
 namespace graph = dnnl::impl::graph;
 namespace dnnl_impl = graph::dnnl_impl;
+
+TEST(ConstantCache, SetGetCapacity) {
+    graph::dnnl_impl::constant_cache_t cache;
+    ASSERT_EQ(cache.set_capacity(11), graph::status::success);
+    ASSERT_EQ(cache.get_capacity(), 11U);
+}
+
+TEST(ConstantCache, GetOrAddEmpty) {
+    using key_t = graph::dnnl_impl::constant_cache_t::key_t;
+    using value_t = graph::dnnl_impl::constant_cache_t::value_t;
+
+    graph::dnnl_impl::constant_cache_t cache;
+    ASSERT_EQ(cache.set_capacity(0), graph::status::success);
+    ASSERT_FALSE(cache.get_or_add(key_t(), value_t()).valid());
+}
 
 TEST(ConstantCache, Evict) {
     graph::engine_t &engine = *get_engine();

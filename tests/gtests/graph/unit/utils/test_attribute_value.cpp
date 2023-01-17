@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,4 +106,14 @@ TEST(AttributeValue, Equal) {
     const std::vector<float> fs2 {0.5, 0.5};
     attribute_value_t v3 {fs2};
     ASSERT_NE(v1, v3);
+}
+
+TEST(AttributeValue, AttributeValueAssignOperator) {
+    using namespace dnnl::impl::graph;
+    using namespace dnnl::impl::graph::utils;
+
+    const attribute_value_t v1 {int64_t(3)};
+    attribute_value_t v2 {int64_t(1)};
+    v2 = v1;
+    ASSERT_EQ(v1, v2);
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -202,4 +202,62 @@ TEST(APILogicalTensor, TestProperty) {
     logical_tensor lt1 {1, data_type::f32, {1, 2, 3}, layout_type::strided,
             property_type::constant};
     ASSERT_EQ(lt1.get_property_type(), property_type::constant);
+}
+
+TEST(APILogicalTensor, CreateWith0Dims) {
+    using logical_tensor = dnnl::graph::logical_tensor;
+    using data_type = logical_tensor::data_type;
+    using layout_type = logical_tensor::layout_type;
+    const size_t id = 123;
+    ASSERT_NO_THROW(
+            { logical_tensor(id, data_type::f32, {}, layout_type::strided); });
+}
+
+TEST(APILogicalTensor, GetDimsWithError) {
+    using logical_tensor = dnnl::graph::logical_tensor;
+    dnnl_graph_logical_tensor_t c_lt;
+    c_lt.id = 0;
+    c_lt.ndims = -1;
+    logical_tensor lt(c_lt);
+    ASSERT_THROW(lt.get_dims(), dnnl::error);
+}
+
+TEST(APILogicalTensor, GetLayoutIdWithError) {
+    using logical_tensor = dnnl::graph::logical_tensor;
+    dnnl_graph_logical_tensor_t c_lt;
+    c_lt.id = 0;
+    c_lt.ndims = -1;
+    c_lt.data_type = dnnl_f16;
+    c_lt.property = dnnl_graph_tensor_property_undef;
+    c_lt.layout_type = dnnl_graph_layout_type_strided;
+    c_lt.layout.layout_id = 1;
+    logical_tensor lt(c_lt);
+    ASSERT_THROW(lt.get_layout_id(), dnnl::error);
+}
+
+TEST(APILogicalTensor, GetStridesWithError) {
+    using logical_tensor = dnnl::graph::logical_tensor;
+    {
+        dnnl_graph_logical_tensor_t c_lt;
+        c_lt.id = 0;
+        c_lt.ndims = -1;
+        c_lt.data_type = dnnl_f16;
+        c_lt.property = dnnl_graph_tensor_property_undef;
+        c_lt.layout_type = dnnl_graph_layout_type_opaque;
+        c_lt.layout.layout_id = 1;
+
+        logical_tensor lt(c_lt);
+        ASSERT_THROW(lt.get_strides(), dnnl::error);
+    }
+    {
+        dnnl_graph_logical_tensor_t c_lt;
+        c_lt.id = 0;
+        c_lt.ndims = -1;
+        c_lt.data_type = dnnl_f16;
+        c_lt.property = dnnl_graph_tensor_property_undef;
+        c_lt.layout_type = dnnl_graph_layout_type_strided;
+        c_lt.layout.layout_id = 1;
+        logical_tensor lt(c_lt);
+        ASSERT_THROW(lt.get_strides(), dnnl::error);
+    }
 }

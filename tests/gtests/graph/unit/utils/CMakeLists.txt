@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2022-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,16 @@
 # limitations under the License.
 #===============================================================================
 
-set(OBJ_LIB graph_unit_test_fake_backend)
+set(OBJ_LIB graph_unit_test_utils)
 
 add_library(${OBJ_LIB} OBJECT
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_fake_backend.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_partition.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_pass.cpp
-    )
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_compatible.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_debug.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern_matcher.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_verbose.cpp
+)
 
-set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS
-    $<TARGET_OBJECTS:${OBJ_LIB}>)
+set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS $<TARGET_OBJECTS:${OBJ_LIB}>)

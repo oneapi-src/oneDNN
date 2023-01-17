@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
+
 #include "interface/backend.hpp"
 #include "interface/logical_tensor.hpp"
 #include "interface/op.hpp"
@@ -134,6 +135,60 @@ TEST(CompiledPartitionCache, SingleOpCase) {
     ASSERT_EQ(get_compiled_partition_cache_size(), 0);
 #else
     ASSERT_EQ(get_compiled_partition_cache_size(), new_capacity);
+    ASSERT_EQ(impl::graph::compiled_partition_cache().get_capacity(),
+            new_capacity);
+#endif
+}
+
+TEST(LruCompiledPartitionCache, Method) {
+    namespace graph = dnnl::impl::graph;
+
+    graph::engine_t &eng = *get_engine();
+    std::vector<graph::op_kind_t> kind_set {
+            graph::op_kind::ReLU, graph::op_kind::ReLU, graph::op_kind::Tanh};
+
+    graph::logical_tensor_t input = utils::logical_tensor_init(0, {1, 1, 1, 1},
+            graph::data_type::f32, graph::layout_type::strided);
+    graph::logical_tensor_t output = utils::logical_tensor_init(1, {1, 1, 1, 1},
+            graph::data_type::f32, graph::layout_type::strided);
+    // Create op
+    auto elt = std::make_shared<graph::op_t>(1, graph::op_kind::Abs, "elt");
+    elt->add_input(input);
+    elt->add_output(output);
+
+    // Create graph
+    graph::graph_t g {eng.kind()};
+    g.add_op(elt.get());
+    g.finalize();
+
+    // Create single-op partition
+    std::vector<const graph::backend *> &backends
+            = graph::backend_registry_t::get_singleton()
+                      .get_registered_backends();
+    for (const auto &cbkd : backends) {
+        graph::backend *bkd = const_cast<graph::backend *>(cbkd);
+        bkd->get_partitions(g, graph::partition_policy::fusion);
+    }
+
+    // wrap into the partition
+    graph::partition_t par = graph::partition_t();
+    std::vector<graph::partition_t *> parts {&par};
+    g.get_ordered_partitions(parts);
+
+    graph::compiled_partition_t cp(par);
+    std::pair<graph::compiled_partition_t *, bool> cpcache {&cp, false};
+    std::vector<const graph::logical_tensor_t *> inputs {&input};
+    std::vector<const graph::logical_tensor_t *> outputs {&output};
+    // Partition compilation
+    par.compile(cpcache, inputs, outputs, &eng);
+
+#ifndef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
+    graph::partition_hashing::key_t key {
+            par.id(), eng.kind(), {elt}, inputs, outputs};
+    auto &cache_mapper = graph::compiled_partition_cache();
+    ASSERT_NO_THROW(cache_mapper.get_partition(key));
+
+    ASSERT_NO_THROW(cache_mapper.update_entry(key, &par, inputs, outputs));
 #endif
 }
 

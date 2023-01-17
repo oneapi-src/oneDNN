@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "interface/tensor.hpp"
 
 #include "backend/dnnl/dnnl_partition_impl.hpp"
+#include "backend/dnnl/kernels/pool.hpp"
 
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
@@ -292,5 +293,78 @@ TEST(CompiledPartition, AllowRepeatedInputs) {
 
     for (size_t i = 0; i < ref_out.size(); i++) {
         ASSERT_FLOAT_EQ(ref_out[i], data_out[i]);
+    }
+}
+
+TEST(CompiledPartition, GetAndInfoMethod) {
+    using ltw = graph::logical_tensor_wrapper_t;
+
+    graph::engine_t &engine = *get_engine();
+    size_t id = 0;
+
+    graph::logical_tensor_t lt1 = utils::logical_tensor_init(
+            id++, graph::data_type::f32, graph::layout_type::any);
+    graph::logical_tensor_t lt2 = utils::logical_tensor_init(
+            id++, graph::data_type::f32, graph::layout_type::any);
+    graph::logical_tensor_t lt3 = utils::logical_tensor_init(
+            id++, graph::data_type::f32, graph::layout_type::any);
+
+    std::vector<graph::logical_tensor_t> inputs {lt1, lt2};
+    std::vector<graph::logical_tensor_t> outputs {lt3};
+    graph::dnnl_impl::kernel_ptr kernel
+            = std::make_shared<graph::dnnl_impl::float_pooling_fwd>();
+    auto cp_impl = std::make_shared<
+            graph::dnnl_impl::dnnl_compiled_partition_impl_t>(
+            engine, inputs, outputs, kernel);
+    graph::partition_t par;
+    auto par_impl = std::make_shared<graph::dnnl_impl::dnnl_partition_impl_t>(
+            engine.kind(), graph::fpmath_mode::strict,
+            graph::partition_kind_t::undef);
+    par.init(par_impl);
+    graph::compiled_partition_t cp(par);
+    cp.init(cp_impl);
+
+    ASSERT_EQ(cp.get_inputs().size(), inputs.size());
+    for (size_t i = 0; i < inputs.size(); ++i) {
+        ASSERT_TRUE(ltw(cp.get_inputs()[i]).is_identical(ltw(inputs[i])));
+    }
+
+    ASSERT_EQ(cp.get_outputs().size(), outputs.size());
+    for (size_t i = 0; i < outputs.size(); ++i) {
+        ASSERT_TRUE(ltw(cp.get_outputs()[i]).is_identical(ltw(outputs[i])));
+    }
+    graph::utils::partition_info_t info;
+    info.init(&engine, &cp);
+    ASSERT_EQ(std::string(cp.info()), std::string(info.c_str()));
+}
+
+TEST(CompiledPartition, GetInputsAndOutputs) {
+    using ltw = graph::logical_tensor_wrapper_t;
+    graph::engine_t &engine = *get_engine();
+    size_t id = 0;
+
+    graph::logical_tensor_t lt1
+            = utils::logical_tensor_init(id++, graph::data_type::f32);
+    graph::logical_tensor_t lt2
+            = utils::logical_tensor_init(id++, graph::data_type::f32);
+    graph::logical_tensor_t lt3
+            = utils::logical_tensor_init(id++, graph::data_type::f32);
+
+    std::vector<graph::logical_tensor_t> inputs {lt1, lt2};
+    std::vector<graph::logical_tensor_t> outputs {lt3};
+    graph::dnnl_impl::kernel_ptr kernel
+            = std::make_shared<graph::dnnl_impl::float_pooling_fwd>();
+    auto cp = std::make_shared<
+            graph::dnnl_impl::dnnl_compiled_partition_impl_t>(
+            engine, inputs, outputs, kernel);
+
+    ASSERT_EQ(cp->get_inputs().size(), inputs.size());
+    for (size_t i = 0; i < cp->get_inputs().size(); ++i) {
+        ASSERT_EQ(ltw(cp->get_inputs()[i]).is_identical(ltw(inputs[i])), true);
+    }
+    ASSERT_EQ(cp->get_outputs().size(), outputs.size());
+    for (size_t i = 0; i < outputs.size(); ++i) {
+        ASSERT_EQ(
+                ltw(cp->get_outputs()[i]).is_identical(ltw(outputs[i])), true);
     }
 }

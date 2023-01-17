@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,6 +34,16 @@ void api_test_dnnl_engine_create(
                               dnnl::graph::testing::sycl_malloc_wrapper,
                               dnnl::graph::testing::sycl_free_wrapper),
                     dnnl_success);
+
+            ASSERT_EQ(dnnl_graph_sycl_interop_allocator_create(
+                              &allocator_handle.allocator, nullptr,
+                              dnnl::graph::testing::sycl_free_wrapper),
+                    dnnl_success);
+
+            ASSERT_EQ(dnnl_graph_sycl_interop_allocator_create(
+                              &allocator_handle.allocator, nullptr, nullptr),
+                    dnnl_success);
+
             ASSERT_EQ(dnnl_graph_sycl_interop_make_engine_with_allocator(
                               &engine_handle.engine, &dev, &ctx,
                               allocator_handle.allocator),
