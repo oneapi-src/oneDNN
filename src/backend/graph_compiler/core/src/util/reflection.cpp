@@ -16,6 +16,7 @@
 #include "reflection.hpp"
 #include <common/compiler_workarounds.hpp>
 #include <compiler/ir/sc_data_type.hpp>
+#include <util/compiler_macros.hpp>
 #include <util/string_utils.hpp>
 
 namespace sc {
@@ -306,13 +307,21 @@ void set_metadata(const std::string &name, class_metadata *meta,
         array_depth = 0;
         btype = basic_type::t_class;
     } else {
+#if SC_GNUC_VERSION_GE(12)
+// Disable gcc's warning. We already checked the vector_kind_. meta must be
+// vector_metadata
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
         auto vec_meta = static_cast<vector_metadata *>(meta);
         array_depth = vec_meta->array_depth_;
         btype = vec_meta->element_type_.base_;
+#if SC_GNUC_VERSION_GE(12)
+#pragma GCC diagnostic pop
+#endif
     }
     set_rtti_map_to_type(rtti_data, type {btype, array_depth, meta}, &name);
 }
-
 void dummy_class_metadata_deleter(class_metadata *) {}
 
 general_ref_t general_ref_t::from(general_object_t &obj) {
