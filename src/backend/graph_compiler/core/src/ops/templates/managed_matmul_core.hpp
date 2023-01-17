@@ -79,10 +79,6 @@ public:
   sc_data_type_t get_B_dtype() const { return in_tensors_[1].dtype_; }
   sc_data_type_t get_C_dtype() const { return out_tensors_[0].dtype_; }
 
-  void vnni_reorder_B(context_ptr ctx, expr &B, expr &B_vnni_tensor,
-    const expr kidx, const expr nidx, const expr K_num_blocks,
-    bool is_plain = false) const;
-
   bool generate(context_ptr ctx, const managed_matmul_core_config_t &config,
     fusion_manager *fusion, const std::vector<expr> &inputs,
     const std::vector<expr> &outputs,

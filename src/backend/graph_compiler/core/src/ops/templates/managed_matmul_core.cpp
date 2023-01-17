@@ -456,6 +456,7 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
 
   bool is_bf16 = get_A_dtype() == datatypes::bf16;
   bool is_f32 = get_A_dtype() == datatypes::f32;
+  bool is_int8 = utils::is_one_of(get_A_dtype(), datatypes::u8, datatypes::s8);
   int64_t M_block_default = 64;
   int64_t N_block_default = 64;
   int64_t K_block_default = 64;
@@ -493,8 +494,16 @@ gen_managed_matmul_core_t::gen_managed_matmul_core_t(sc_op *owner,
     iim_block_ = suggest_aligned_block(plain_M, M_block_default);
   }
   iin_block_ = suggest_aligned_block(plain_N, N_block_default, 1, 16);
-  iik_block_ = suggest_aligned_block(
-    plain_K, K_block_default, is_bf16 ? 2 : (is_f32 ? 1 : 4), 16);
+  // f32 small M with small even K prefers padding iik_block to align 16
+  // int8 perfers padding iik_block_ to algin 16 when M <=2048
+  if (((is_f32 && plain_K < 16 && plain_K % 2 == 0 && plain_M <= 128)
+        || (is_int8 && plain_M < 2048))
+    && !is_special_fm) {
+    iik_block_ = 16;
+  } else {
+    iik_block_
+      = suggest_aligned_block(plain_K, K_block_default, is_f32 ? 1 : 4, 16);
+  }
 }
 
 bool gen_managed_matmul_core_t::is_okay_to_prefetch(
