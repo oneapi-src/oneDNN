@@ -18,6 +18,7 @@
 #include <functional>
 #include <utility>
 #include <vector>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/ir_utils.hpp>
 #include <compiler/ir/ssa_data.hpp>
 
@@ -41,6 +42,8 @@ static bool expr_can_hoist(const expr_base *s) {
         case sc_expr_type::select:
         case sc_expr_type::constant:
         case sc_expr_type::ssa_phi: return true; break;
+        case sc_expr_type::call:
+            return is_pure_func_call(s->node_ptr_from_this());
         case sc_expr_type::intrin_call: {
             switch (static_cast<const intrin_call_node *>(s)->type_) {
                 case intrin_type::min:

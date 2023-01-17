@@ -647,8 +647,10 @@ void location_manager::emit_callee_prologue(
         if (reg_type == virt_reg_type::gp_reg) {
             return x86_64::cpu_data_type::uint_64;
         } else if (reg_type == virt_reg_type::fp_reg) {
-            // TODO(XXX): non-AVX512 callee save
-            return x86_64::cpu_data_type::float_32_x16;
+            // XMM6-XMM15 nonvolatile
+            // Upper portions of YMM0-YMM15 and ZMM0-ZMM15 volatile
+            // Thus only save 128-bit
+            return x86_64::cpu_data_type::float_32_x4;
         } else {
             COMPILE_ASSERT(false, "Invalid callee save type.");
         }

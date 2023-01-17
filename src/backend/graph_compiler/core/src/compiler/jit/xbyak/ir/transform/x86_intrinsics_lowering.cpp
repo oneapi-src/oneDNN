@@ -22,6 +22,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_visitor.hpp>
+#include <compiler/jit/xbyak/utils.hpp>
 #include <compiler/jit/xbyak/x86_64/registers.hpp>
 #include <util/any_map.hpp>
 #include <util/array_ref.hpp>
@@ -335,6 +336,11 @@ public:
                         transform_intrin(xbyak_intrin_type::round_and_cast),
                         transform_intrin(xbyak_intrin_type::round_and_cast));
             } break;
+            case intrin_type::mem_load: {
+                transform(dst, {intrin->args_[0]},
+                        dst->dtype_, //
+                        transform_disabled("mem_load"), transform_assign());
+            } break;
             default: add_assignment(dst, intrin); break;
         }
     }
@@ -461,6 +467,12 @@ public:
                        xbyak_intrin_isa isa) {
             COMPILE_ASSERT(false, "Transform disabled: " << str);
         };
+    }
+
+    transform_func transform_assign() {
+        return [this](const expr &dst, array_ref<expr> src,
+                       sc_data_type_t dtype,
+                       xbyak_intrin_isa isa) { add_assignment(dst, src[0]); };
     }
 
     transform_func transform_intrin(xbyak_intrin_type intrin) {
@@ -744,7 +756,7 @@ public:
     }
 
     bool convert_x86_operation(const sc_data_type_t &dtype) {
-        return !is_simd_data(dtype);
+        return !is_x86_simd(dtype);
     }
 
     bool is_const_zero(const expr &v) {

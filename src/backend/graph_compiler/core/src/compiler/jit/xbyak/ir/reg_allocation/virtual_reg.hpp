@@ -19,6 +19,8 @@
 
 #include <compiler/ir/sc_data_type.hpp>
 #include <compiler/jit/xbyak/configured_xbyak.hpp>
+#include <compiler/jit/xbyak/utils.hpp>
+#include <util/utils.hpp>
 
 #include "live_range.hpp"
 
@@ -87,9 +89,21 @@ struct virtual_reg_t {
 
     spill_weight_t spill_weight_ = spill_weight_const::initial;
 
-    spill_weight_t range_weight() {
+    // need to be preserved across function calls
+    bool preserved_ = false;
+
+    spill_weight_t extra_weight() {
         auto range = live_range_.end_ - live_range_.start_;
-        return range == 0 ? 1 : 1 + (stmt_index_const::increment * 256 / range);
+        spill_weight_t range_weight = range > 0 //
+                ? 1 + (stmt_index_const::increment * 256 / range)
+                : 0;
+        spill_weight_t preserve_weight = preserved_ //
+                ? stmt_index_const::increment * 128
+                : 0;
+        spill_weight_t hint_weight = hint_ != virt_reg_hint::none //
+                ? stmt_index_const::increment * 16
+                : 0;
+        return range_weight + preserve_weight + hint_weight;
     }
 
     bool intersects(const virtual_reg_t &b) {
@@ -106,6 +120,8 @@ struct virtual_reg_t {
         return stat_ == virt_reg_stat::designated
                 || stat_ == virt_reg_stat::allocated;
     }
+
+    void set_preserved() { preserved_ = true; }
 
     void set_type(virt_reg_type type) { type_ = type; }
 
@@ -158,7 +174,9 @@ struct virtual_reg_t {
         static const char *type_enum_str[] = {"gp", "fp", "k", "tmm"};
         static const char *stat_enum_str[] = {"x", "B", "D", "U", "A", "S"};
         static const char *hint_enum_str[] = {"", "h", "H"};
-        os << m.live_range_ << ": " << m.spill_weight_ << ": "
+        os << m.live_range_ << ": " //
+           << m.spill_weight_ << ": " //
+           << m.preserved_ << ": " //
            << stat_enum_str[static_cast<int>(m.stat_)]
            << hint_enum_str[static_cast<int>(m.hint_)];
         switch (m.stat_) {
@@ -176,14 +194,10 @@ struct virtual_reg_t {
     virtual_reg_t(virt_reg_type type) : type_(type) {}
 };
 
-inline bool is_simd_data(const sc_data_type_t &t) {
-    return !t.is_tile() && (t.type_code_ == sc_data_etype::F32 || t.lanes_ > 1);
-}
-
 inline virt_reg_type get_virt_reg_type(const sc_data_type_t &t) {
     if (t.type_code_ == sc_data_etype::BOOLEAN && t.lanes_ > 1) {
         return virt_reg_type::mask_reg;
-    } else if (is_simd_data(t)) {
+    } else if (is_x86_simd(t)) {
         return virt_reg_type::fp_reg;
     } else if (t.is_tile()) {
         return virt_reg_type::tile_reg;

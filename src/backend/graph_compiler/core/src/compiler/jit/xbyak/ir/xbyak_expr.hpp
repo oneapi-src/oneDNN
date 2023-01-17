@@ -162,11 +162,6 @@ xbyak_condition get_xbyak_condition(sc_expr_type t);
 std::ostream &operator<<(std::ostream &os, const xbyak_condition t);
 
 /**
- * If constant node scalar intger value exceeds 32bit
- * */
-SC_INTERNAL_API bool const_exceed_32bit(const expr_c &v);
-
-/**
  * Modifier for xbyak_intrin_node
  * Reserved for cmp_set, cmov, blend, etc.
  * */

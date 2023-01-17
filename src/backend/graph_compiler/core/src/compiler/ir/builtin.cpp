@@ -39,6 +39,11 @@ expr get_ir_null() {
 expr get_ir_zero_index() {
     return make_expr<constant_node>(UINT64_C(0), datatypes::index);
 }
+bool is_pure_func_call(const expr_c &v) {
+    if (!v.isa<call>()) { return false; }
+    auto func = v.static_as<call_c>()->get_prototype();
+    return func->attr_ && func->attr_->get_or_else(function_attrs::pure, false);
+}
 
 namespace builtin {
 sc_data_type_t infer_output_dtype(sc_data_type_t dtype_A) {

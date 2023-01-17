@@ -105,19 +105,9 @@ void xbyak_printer_t::view(stmts_c v) {
     ss_ << "{ \n";
     if (TRANSFORMED_CALL(v)) {
         assert(v->attr_);
-        // print caller_saved
-        assert(v->attr_->has_key(attr_keys::caller_saved));
-        auto caller_saved = v->attr_->get<std::shared_ptr<std::vector<expr_c>>>(
-                attr_keys::caller_saved);
+        // print func call
         print_padding_indents();
-        print_expr_vec(ss_ << "--CALLER_SAVED: ", *caller_saved);
-        // print local_spilled
-        assert(v->attr_->has_key(attr_keys::local_spilled));
-        auto local_spilled
-                = v->attr_->get<std::shared_ptr<std::vector<expr_c>>>(
-                        attr_keys::local_spilled);
-        print_padding_indents();
-        print_expr_vec(ss_ << "--LOCAL_SPILLED: ", *local_spilled);
+        ss_ << "--FUNC_CALL\n";
     }
 
     indent_++;

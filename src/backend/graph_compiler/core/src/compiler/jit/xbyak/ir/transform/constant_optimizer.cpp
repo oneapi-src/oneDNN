@@ -19,7 +19,9 @@
 
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/visitor.hpp>
+#include <compiler/jit/xbyak/utils.hpp>
 #include <util/any_map.hpp>
+#include <util/utils.hpp>
 
 #include "constant_optimizer.hpp"
 
@@ -30,6 +32,9 @@
 #define HAS_KEY_ENCODE(EXPR) \
     ((EXPR)->attr_ && (EXPR)->attr_->has_key(attr_keys::force_simd_encode))
 
+#define HAS_KEY_LOAD(EXPR) \
+    ((EXPR)->attr_ && (EXPR)->attr_->has_key(attr_keys::load_simd_value))
+
 namespace sc {
 namespace sc_xbyak {
 
@@ -37,6 +42,21 @@ class constant_optimizer_impl_t : public ir_visitor_t {
 public:
     using ir_visitor_t::dispatch;
     using ir_visitor_t::visit;
+
+    stmt_c visit(define_c v) override {
+        if (v->init_.defined() && v->init_.isa<constant>()
+                && is_x86_simd(v->init_->dtype_)) {
+            v->init_->attr().set(attr_keys::load_simd_value, true);
+        }
+        return ir_visitor_t::visit(std::move(v));
+    }
+
+    stmt_c visit(assign_c v) override {
+        if (v->value_.isa<constant>() && is_x86_simd(v->value_->dtype_)) {
+            v->value_->attr().set(attr_keys::load_simd_value, true);
+        }
+        return ir_visitor_t::visit(std::move(v));
+    }
 
     expr_c visit(tensor_c v) override {
         // avoid constant_optimizer for loop index dependent tensor
@@ -52,6 +72,9 @@ public:
             auto new_const = single_lane_constant(v);
             new_const->attr().set(attr_keys::force_simd_encode, true);
             return builder::make_broadcast(new_const, dtype.lanes_);
+        } else if (HAS_KEY_LOAD(v)) {
+            return make_expr<intrin_call_node>(intrin_type::mem_load,
+                    std::vector<expr> {v.remove_const()}, any_map_t());
         } else {
             return v;
         }

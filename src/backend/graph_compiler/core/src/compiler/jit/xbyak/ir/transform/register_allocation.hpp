@@ -30,12 +30,6 @@ constexpr const char *global_spilled = "global_spilled";
 // attr for func, contains all utilized registers inside func
 // data type: std::set<virt_reg_index_t>
 constexpr const char *register_usage = "register_usage";
-// attr for call scope, contains local spilled exprs for local scope
-// data type: std::shared_ptr<std::vector<expr_c>>
-constexpr const char *local_spilled = "local_spilled";
-// attr for call scope, contains caller saved exprs cross call scope
-// data type: std::shared_ptr<std::vector<expr_c>>
-constexpr const char *caller_saved = "caller_saved";
 // attr for for_loop, contains load assign for spilled iter_begin_
 // data type: stmt
 constexpr const char *load_loop_begin = "load_loop_begin";

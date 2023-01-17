@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <atomic>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -29,6 +30,7 @@
 #include <compiler/jit/xbyak/ir/reg_allocation/reg_allocator.hpp>
 #include <compiler/jit/xbyak/ir/transform/constant_optimizer.hpp>
 #include <compiler/jit/xbyak/ir/xbyak_visitor.hpp>
+#include <compiler/jit/xbyak/utils.hpp>
 #include <compiler/jit/xbyak/x86_64/abi_function_interface.hpp>
 
 #include "call_transform.hpp"
@@ -41,12 +43,15 @@ namespace sc_xbyak {
 
 SC_MODULE(xbyakjit.register_allocation)
 
+// atomic accumulator for temp var name
+std::atomic<int32_t> temp_index_(0);
+
 void prepare_virtual_reg(reg_allocator_t *allocator, virtual_reg_t *virt_reg,
         const Xbyak::Reg &phy_reg, sc_data_type_t dtype) {
     if (phy_reg.isNone()) {
         virt_reg->set_type(get_virt_reg_type(dtype));
         virt_reg->set_unassigned();
-        virt_reg->add_weight(virt_reg->range_weight());
+        virt_reg->add_weight(virt_reg->extra_weight());
     } else {
         auto &slots_map = allocator->slots_map();
         virt_reg->set_type(get_virt_reg_type(dtype));
@@ -56,21 +61,38 @@ void prepare_virtual_reg(reg_allocator_t *allocator, virtual_reg_t *virt_reg,
 }
 
 /* *
- * Pre-allocation pass: assign hints for each expr,
- * prepare physical regs and enqueue all virtual regs to be assigned.
+ * enclose_set_t: check if any stmt index in a set enclosed by a live range.
  * */
-class pre_allocation_t : public xbyak_visitor_t {
+class enclose_set_t {
+public:
+    enclose_set_t() = default;
+    void insert(stmt_index_t index) { index_map_.insert(index); }
+    void erase(stmt_index_t index) { index_map_.erase(index); }
+    bool enclosed_by(const live_range_t &range) {
+        auto iter = index_map_.lower_bound(range.start_);
+        if (iter != index_map_.begin()) { iter--; }
+        while (iter != index_map_.end()) {
+            if (range.end_ <= *iter) { break; }
+            if (range.enclose(*iter)) { return true; }
+            iter++;
+        }
+        return false;
+    }
+
+private:
+    std::set<stmt_index_t> index_map_;
+};
+
+/* *
+ * Pre-allocation pass: analyze call index for reg allocation, assign hints.
+ * */
+class call_analysis_t : public xbyak_visitor_t {
 public:
     using xbyak_visitor_t::dispatch;
     using xbyak_visitor_t::visit;
 
-    pre_allocation_t(reg_allocator_t *allocator,
-            std::vector<live_range_t> &call_scopes,
-            std::map<virtual_reg_t *, expr_c> &virt_reg_map)
-        : allocator_(allocator)
-        , call_scopes_(call_scopes)
-        , virt_reg_map_(virt_reg_map)
-        , is_local_scope_(false) {}
+    call_analysis_t(reg_allocator_t *allocator, enclose_set_t &call_index_set)
+        : allocator_(allocator), call_index_set_(call_index_set) {}
 
     func_c operator()(func_c v) { return dispatch(std::move(v)); }
 
@@ -81,81 +103,34 @@ public:
         return xbyak_visitor_t::dispatch(std::move(v));
     }
 
-    expr_c dispatch(expr_c v) override {
-        // If need reg allocation
-        if (v.isa<var>() || v.isa<tensor>()) {
-            auto &live_range = GET_LIVE_RANGE(v);
-            auto &virt_reg = GET_VIRTUAL_REG(v);
-            auto &phy_reg = GET_PHYSICAL_REG(v);
-            virt_reg_map_[&virt_reg] = v;
-            if (is_local_scope_
-                    && call_scopes_.back().encompasses(live_range)) {
-                return v;
-            }
-            if (virt_reg.stat_ == virt_reg_stat::disabled) {
-                prepare_virtual_reg(allocator_, &virt_reg, phy_reg, v->dtype_);
-            }
-            return v;
-        }
-        return xbyak_visitor_t::dispatch(std::move(v));
-    }
-
-    stmt_c visit(stmts_c v) override {
-        if (TRANSFORMED_CALL(v)) {
-            if (v->size() == 0) {
-                GET_STMT_DATA(v).optimized_out_ = true;
-                return v;
-            }
-            stmt_index_t beg = GET_STMT_INIT_INDEX(v);
-            stmt_index_t end = GET_STMT_INDEX(v);
-            call_scopes_.emplace_back(live_range_t(beg, end));
-            is_local_scope_ = true;
-        }
-        auto ret = xbyak_visitor_t::visit(std::move(v));
-        is_local_scope_ = false;
-        return ret;
-    }
-
-    stmt_c visit(define_c v) override {
-        if (GET_LIVE_RANGE(v->var_).empty()) {
-            GET_STMT_DATA(v).optimized_out_ = true;
-            return v;
-        }
-        if (v->var_.isa<tensor>() && !v->init_.defined()) {
-            auto &virt_reg = GET_VIRTUAL_REG(v->var_);
-            virt_reg.set_buffered();
-            allocator_->spilled_virt_regs().insert(&virt_reg);
+    stmt_c visit(returns_c v) override {
+        if (v->value_.defined()) {
+            set_func_return_hint(v->value_, func_iface_);
         }
         return xbyak_visitor_t::visit(std::move(v));
     }
 
     stmt_c visit(assign_c v) override {
-        auto &live_range = GET_LIVE_RANGE(v->var_);
-        if (v->var_.isa<var>() && live_range.empty()) {
-            GET_STMT_DATA(v).optimized_out_ = true;
-            return v;
-        }
         if (v->value_.isa<call>()) {
-            if (call_scopes_.back().encompasses(live_range)) {
-                auto call_v = v->value_.static_as<call_c>();
-                auto &callee_iface = *cached_call_abi_interface(call_v);
-                GET_PHYSICAL_REG(v->var_)
-                        = callee_iface.return_val_loc_.get_register();
-            }
-            // TODO(xxx): better way to check liveness cross call
-            call_scopes_.back().end_ = GET_STMT_INDEX(v);
+            auto call_v = v->value_.static_as<call_c>();
+            auto func_abi = cached_call_abi_interface(call_v);
+            set_func_return_hint(v->var_, func_abi);
+            call_index_set_.insert(GET_STMT_INDEX(v));
         }
         return xbyak_visitor_t::visit(std::move(v));
     }
 
-    stmt_c visit(returns_c v) override {
-        if (v->value_.defined()) { set_func_return_hint(v->value_); }
+    stmt_c visit(define_c v) override {
+        if (v->init_.defined() && v->init_.isa<call>()) {
+            call_index_set_.insert(GET_STMT_INDEX(v));
+        }
         return xbyak_visitor_t::visit(std::move(v));
     }
 
-    expr_c visit(tensorptr_c v) override {
-        // TODO(XXX): why this temp_data go missing?
-        v->base_->temp_data() = xbyak_expr_data_t();
+    stmt_c visit(evaluate_c v) override {
+        if (v->value_.isa<call>()) {
+            call_index_set_.insert(GET_STMT_INDEX(v));
+        }
         return xbyak_visitor_t::visit(std::move(v));
     }
 
@@ -178,31 +153,9 @@ public:
         return xbyak_visitor_t::visit(std::move(v));
     }
 
-    expr_c visit(indexing_c v) override {
-        GET_VIRTUAL_REG(v).set_spilled();
-        return xbyak_visitor_t::visit(std::move(v));
-    }
-
-    expr_c visit(func_addr_c v) override {
-        GET_VIRTUAL_REG(v).set_spilled();
-        return xbyak_visitor_t::visit(std::move(v));
-    }
-
-    expr_c visit(constant_c v) override {
-        auto &virt_reg = GET_VIRTUAL_REG(v);
-        virt_reg.set_type(get_virt_reg_type(v->dtype_));
-        if (is_simd_data(v->dtype_) || FORCE_SIMD_ENCODE(v)) {
-            virt_reg.set_spilled();
-        }
-        return v;
-    }
-
 private:
     reg_allocator_t *allocator_;
-    std::vector<live_range_t> &call_scopes_;
-    std::map<virtual_reg_t *, expr_c> &virt_reg_map_;
-
-    bool is_local_scope_;
+    enclose_set_t &call_index_set_;
     abi_function_interface::ptr func_iface_;
 
     void set_func_args_hint(const std::vector<expr> &params) {
@@ -227,13 +180,114 @@ private:
         }
     }
 
-    void set_func_return_hint(const expr &v) {
+    void set_func_return_hint(
+            const expr &v, const abi_function_interface::ptr &func_abi) {
         auto &slots_map = allocator_->slots_map();
         auto &virt_reg = GET_VIRTUAL_REG(v);
-        auto ret_reg = func_iface_->return_val_loc_.get_register();
+        auto ret_reg = func_abi->return_val_loc_.get_register();
         virt_reg.set_hint(
                 virt_reg_hint::weak, slots_map.get_reg_index(ret_reg));
     }
+};
+
+/* *
+ * Pre-allocation pass:
+ * prepare physical regs and enqueue all virtual regs to be assigned.
+ * */
+class pre_allocation_t : public xbyak_visitor_t {
+public:
+    using xbyak_visitor_t::dispatch;
+    using xbyak_visitor_t::visit;
+
+    pre_allocation_t(reg_allocator_t *allocator,
+            std::map<virtual_reg_t *, expr_c> &virt_reg_map)
+        : allocator_(allocator), virt_reg_map_(virt_reg_map) {}
+
+    func_c operator()(func_c v) {
+        call_analysis_t call_analysis(allocator_, call_index_set_);
+        return dispatch(call_analysis(std::move(v)));
+    }
+
+    expr_c dispatch(expr_c v) override {
+        // If need reg allocation
+        if (v.isa<var>() || v.isa<tensor>()) {
+            auto &live_range = GET_LIVE_RANGE(v);
+            auto &virt_reg = GET_VIRTUAL_REG(v);
+            auto &phy_reg = GET_PHYSICAL_REG(v);
+            virt_reg_map_[&virt_reg] = v;
+            if (virt_reg.stat_ == virt_reg_stat::disabled) {
+                if (call_index_set_.enclosed_by(live_range)) {
+                    virt_reg.set_preserved();
+                }
+                prepare_virtual_reg(allocator_, &virt_reg, phy_reg, v->dtype_);
+            }
+            return v;
+        }
+        return xbyak_visitor_t::dispatch(std::move(v));
+    }
+
+    stmt_c visit(stmts_c v) override {
+        if (TRANSFORMED_CALL(v)) {
+            if (v->size() == 0) {
+                GET_STMT_DATA(v).optimized_out_ = true;
+                return v;
+            }
+        }
+        auto ret = xbyak_visitor_t::visit(std::move(v));
+        return ret;
+    }
+
+    stmt_c visit(define_c v) override {
+        if (GET_LIVE_RANGE(v->var_).empty()) {
+            GET_STMT_DATA(v).optimized_out_ = true;
+            return v;
+        }
+        if (v->var_.isa<tensor>() && !v->init_.defined()) {
+            auto &virt_reg = GET_VIRTUAL_REG(v->var_);
+            virt_reg.set_buffered();
+            allocator_->spilled_virt_regs().insert(&virt_reg);
+        }
+        return xbyak_visitor_t::visit(std::move(v));
+    }
+
+    stmt_c visit(assign_c v) override {
+        auto &live_range = GET_LIVE_RANGE(v->var_);
+        if (v->var_.isa<var>() && live_range.empty()) {
+            GET_STMT_DATA(v).optimized_out_ = true;
+            return v;
+        }
+        return xbyak_visitor_t::visit(std::move(v));
+    }
+
+    expr_c visit(tensorptr_c v) override {
+        // TODO(XXX): why this temp_data go missing?
+        v->base_->temp_data() = xbyak_expr_data_t();
+        return xbyak_visitor_t::visit(std::move(v));
+    }
+
+    expr_c visit(indexing_c v) override {
+        GET_VIRTUAL_REG(v).set_spilled();
+        return xbyak_visitor_t::visit(std::move(v));
+    }
+
+    expr_c visit(func_addr_c v) override {
+        GET_VIRTUAL_REG(v).set_spilled();
+        return xbyak_visitor_t::visit(std::move(v));
+    }
+
+    expr_c visit(constant_c v) override {
+        auto &virt_reg = GET_VIRTUAL_REG(v);
+        virt_reg.set_type(get_virt_reg_type(v->dtype_));
+        if (is_x86_simd(v->dtype_) || FORCE_SIMD_ENCODE(v)) {
+            virt_reg.set_spilled();
+        }
+        return v;
+    }
+
+private:
+    reg_allocator_t *allocator_;
+    std::map<virtual_reg_t *, expr_c> &virt_reg_map_;
+    enclose_set_t call_index_set_;
 };
 
 /* *
@@ -246,13 +300,8 @@ public:
     using xbyak_visitor_t::visit;
 
     spill_resolver_t(const live_range_t &spill_range,
-            std::vector<virtual_reg_t *> &virtual_regs,
-            std::set<virtual_reg_t *> &spilled_regs, bool alloc_local)
-        : spill_range_(spill_range)
-        , virtual_regs_(virtual_regs)
-        , spilled_regs_(spilled_regs)
-        , alloc_local_(alloc_local)
-        , is_local_scope_(false) {}
+            std::vector<virtual_reg_t *> &virtual_regs)
+        : spill_range_(spill_range), virtual_regs_(virtual_regs) {}
 
     func_c operator()(func_c v) {
         return xbyak_visitor_t::dispatch(std::move(v));
@@ -276,7 +325,6 @@ public:
     }
 
     stmt_c visit(stmts_c v) override {
-        if (TRANSFORMED_CALL(v)) { is_local_scope_ = true; }
         std::vector<stmt> new_seq;
         for (auto &s : v->seq_) {
             // dispatch stmt
@@ -296,7 +344,6 @@ public:
             }
             insert_after_.clear();
         }
-        is_local_scope_ = false;
         return copy_attr(*v, make_stmt<stmts_node_t>(std::move(new_seq)));
     }
 
@@ -306,7 +353,6 @@ public:
         auto ret = xbyak_visitor_t::visit(std::move(v))
                            .remove_const()
                            .static_as<assign>();
-        if (ret->value_.isa<call>()) { is_local_scope_ = false; }
         if (dst_is_mem_) {
             if (resolve_dst_ == resolve_dst::store) {
                 return insert_store(std::move(ret), cur_index_);
@@ -620,10 +666,8 @@ private:
         new_virt_reg.spill_weight_ = spill_weight_const::infinity;
         new_virt_reg.live_range_ = live_range_t(start, end);
         // add to new virtual_regs
-        if (is_local_scope_ == alloc_local_) {
-            new_virt_reg.set_unassigned();
-            virtual_regs_.push_back(&new_virt_reg);
-        }
+        new_virt_reg.set_unassigned();
+        virtual_regs_.push_back(&new_virt_reg);
         return new_var;
     }
 
@@ -640,10 +684,8 @@ private:
         new_virt_reg.spill_weight_ = spill_weight_const::infinity;
         new_virt_reg.live_range_ = live_range_t(start, end);
         // add to new virtual_regs
-        if (is_local_scope_ == alloc_local_) {
-            new_virt_reg.set_unassigned();
-            virtual_regs_.push_back(&new_virt_reg);
-        }
+        new_virt_reg.set_unassigned();
+        virtual_regs_.push_back(&new_virt_reg);
         return new_tensor;
     }
 
@@ -680,11 +722,7 @@ private:
 
     bool is_spilled(const expr &v) {
         auto &virt_reg = GET_VIRTUAL_REG(v);
-        if (alloc_local_) {
-            return spilled_regs_.find(&virt_reg) != spilled_regs_.end();
-        } else {
-            return virt_reg.spilled();
-        }
+        return GET_VIRTUAL_REG(v).spilled();
     }
 
     std::vector<stmt> insert_before_;
@@ -692,7 +730,6 @@ private:
 
     const live_range_t &spill_range_;
     std::vector<virtual_reg_t *> &virtual_regs_;
-    std::set<virtual_reg_t *> &spilled_regs_;
 
     enum class resolve_dst {
         none,
@@ -703,80 +740,7 @@ private:
 
     bool dst_is_mem_ = false;
 
-    bool alloc_local_;
-    bool is_local_scope_;
-
     stmt_index_t cur_index_ = 0;
-
-    static int32_t temp_index_;
-};
-
-int32_t spill_resolver_t::temp_index_ = 0;
-
-/* *
- * Prepare local allocation in call scpoe.
- * */
-class call_scope_info_t : public xbyak_visitor_t {
-public:
-    using xbyak_visitor_t::dispatch;
-    using xbyak_visitor_t::visit;
-
-    call_scope_info_t(
-            reg_allocator_t *allocator, const live_range_t &call_range)
-        : allocator_(allocator), call_range_(call_range) {}
-
-    func_c operator()(func_c v) {
-        return xbyak_visitor_t::dispatch(std::move(v));
-    }
-
-    void swap_caller_save(std::vector<expr_c> &caller_save) {
-        caller_save_->swap(caller_save);
-    }
-
-    void swap_local_spill(std::vector<expr_c> &local_spill) {
-        local_spill_->swap(local_spill);
-    }
-
-    expr_c dispatch(expr_c v) override {
-        // If need reg allocation
-        if (v.isa<var>() || v.isa<tensor>()) {
-            auto &virt_reg = GET_VIRTUAL_REG(v);
-            auto &phy_reg = GET_PHYSICAL_REG(v);
-            if (virt_reg.stat_ == virt_reg_stat::disabled) {
-                prepare_virtual_reg(allocator_, &virt_reg, phy_reg, v->dtype_);
-            }
-            return v;
-        }
-        return xbyak_visitor_t::dispatch(std::move(v));
-    }
-
-    stmt_c dispatch(stmt_c v) override {
-        auto stmt_data = GET_STMT_DATA(v);
-        // if current index out of call_range, skip
-        if (stmt_data.index_ < call_range_.start_
-                || stmt_data.init_index_ > call_range_.end_) {
-            return v;
-        }
-        return xbyak_visitor_t::dispatch(std::move(v));
-    }
-
-    stmt_c visit(stmts_c v) override {
-        if (TRANSFORMED_CALL(v)) {
-            auto vv = v.remove_const();
-            local_spill_ = std::make_shared<std::vector<expr_c>>();
-            caller_save_ = std::make_shared<std::vector<expr_c>>();
-            vv->attr().set(attr_keys::local_spilled, local_spill_);
-            vv->attr().set(attr_keys::caller_saved, caller_save_);
-        }
-        return xbyak_visitor_t::visit(std::move(v));
-    }
-
-private:
-    reg_allocator_t *allocator_;
-    const live_range_t &call_range_;
-
-    std::shared_ptr<std::vector<expr_c>> caller_save_;
-    std::shared_ptr<std::vector<expr_c>> local_spill_;
 };
 
 /* *
@@ -793,26 +757,20 @@ public:
         resolve_spill(live_range_t());
         run_allocator();
         set_global_spilled();
-        for (auto &scope : call_scopes_) {
-            allocate_call_scope(scope);
-        }
         set_register_usage();
         return std::move(func_);
     }
 
     // Enqueue all virtual regs and prepare for spill insertion
     func_c pre_allocation(func_c v) {
-        pre_allocation_t pre_allocation(this, call_scopes_, virt_reg_map_);
+        pre_allocation_t pre_allocation(this, virt_reg_map_);
         return pre_allocation(std::move(v));
     }
 
     // Check intrin format and create load/store
     void resolve_spill_impl(const live_range_t &spill_range,
-            std::vector<virtual_reg_t *> &virtual_regs,
-            bool alloc_local) override {
-        auto &spilled_regs = spilled_virt_regs();
-        spill_resolver_t spill_resolver(
-                spill_range, virtual_regs, spilled_regs, alloc_local);
+            std::vector<virtual_reg_t *> &virtual_regs) override {
+        spill_resolver_t spill_resolver(spill_range, virtual_regs);
         func_ = spill_resolver(std::move(func_));
     }
 
@@ -825,40 +783,6 @@ public:
         func_t func = std::const_pointer_cast<func_base>(func_);
         func->attr().set(
                 attr_keys::register_usage, slots_array().utilized_slots());
-    }
-
-    void allocate_call_scope(const live_range_t &call_scope) {
-        // Gather all caller saved expr
-        auto caller_save = extract_caller_save(call_scope);
-        // Prepare call scope for local allocation
-        call_scope_info_t call_scope_info(this, call_scope);
-        func_ = call_scope_info(std::move(func_));
-        // run local allocation
-        run_allocator(call_scope);
-        // Set caller save and local spill
-        auto local_spill = spilled_expr_vec();
-        call_scope_info.swap_local_spill(local_spill);
-        call_scope_info.swap_caller_save(caller_save);
-    }
-
-    std::vector<expr_c> extract_caller_save(const live_range_t &range) {
-        // Go through all slots index, divide caller saved reg intervals
-        auto divide_caller_save = [this](const virt_reg_type &reg_type,
-                                          const live_range_t &range) {
-            auto &slots_index = slots_map().get_slots_index(reg_type);
-            auto &callee_save = slots_map().get_callee_save(reg_type);
-            for (auto &i : slots_index) {
-                if (callee_save.find(i) == callee_save.end()) {
-                    auto virt_reg = slots_array().encompassing_reg(range, i);
-                    if (virt_reg) { spill(virt_reg, range); }
-                }
-            }
-        };
-        divide_caller_save(virt_reg_type::gp_reg, range);
-        divide_caller_save(virt_reg_type::fp_reg, range);
-        if (require_resolve()) { resolve_spill(range, true); }
-        // return all caller_saved
-        return spilled_expr_vec();
     }
 
     std::vector<expr_c> spilled_expr_vec() {
@@ -874,7 +798,6 @@ public:
 
 private:
     func_c func_;
-    std::vector<live_range_t> call_scopes_;
     std::map<virtual_reg_t *, expr_c> virt_reg_map_;
 };
 
