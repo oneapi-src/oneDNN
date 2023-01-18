@@ -297,24 +297,39 @@ __kernel void gen9_bnorm_bwd_nhwc(__global DATA_T *src, __global float *mean,
 #if HAS_IC_VECT_TAIL
         for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
             const int sg_idx = (IC_VECT_SGROUPS + sg) * 16;
-            float src_tail = LOAD_DATA_1x16(&src[sg_idx]);
-            float dd_tail = LOAD_DATA_1x16(&diff_dst[sg_idx]);
+            float src_tail[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                src_tail[i] = LOAD_DATA_1x16(&src[sg_idx + IC * i]);
+            }
+            float dd_tail[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                dd_tail[i] = LOAD_DATA_1x16(&diff_dst[sg_idx + IC * i]);
+            }
 #if FUSE_BN_RELU
-            char ws_tail = LOAD_CHAR_1x16(&ws[sg_idx]);
-            dd_tail = select(0.0f, dd_tail, convert_int(ws_tail));
+            char ws_tail[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                ws_tail[i] = LOAD_CHAR_1x16(&ws[sg_idx + IC * i]);
+                dd_tail[i] = select(0.0f, dd_tail[i], convert_int(ws_tail[i]));
+            }
 #if FUSE_BN_ADD_RELU
-            STORE_DATA_1x16(&diff_src_add[sg_idx], dd_tail);
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                STORE_DATA_1x16(&diff_src_add[sg_idx + IC * i], dd_tail[i]);
+            }
 #endif
 #endif
 #if CALCULATE_DIFF_STATS == 1
-            dd_tail -= (diff_beta_tail[sg]
-                               + (src_tail - v_mean_tail[sg])
-                                       * diff_gamma_tail[sg]
-                                       * sqrt_variance_tail[sg])
-                    / (MB * ID * IH * IW);
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                dd_tail[i] -= (diff_beta_tail[sg]
+                                      + (src_tail[i] - v_mean_tail[sg])
+                                              * diff_gamma_tail[sg]
+                                              * sqrt_variance_tail[sg])
+                        / (MB * ID * IH * IW);
+            }
 #endif // #if CALCULATE_DIFF_STATS == 1
-            dd_tail *= gamma_tail[sg] * sqrt_variance_tail[sg];
-            STORE_DATA_1x16(&diff_src[sg_idx], dd_tail);
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                dd_tail[i] *= gamma_tail[sg] * sqrt_variance_tail[sg];
+                STORE_DATA_1x16(&diff_src[sg_idx + IC * i], dd_tail[i]);
+            }
         }
 #endif
         src += IC * UPDATE_SP_UNROLL;

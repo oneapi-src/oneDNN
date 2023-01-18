@@ -352,24 +352,37 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
         // tails
         for (int sg = 0; sg < IC_TAIL_SGROUPS; ++sg) {
             const int sg_idx = (IC_VECT_SGROUPS + sg) * 16;
-            float s_tail = LOAD_DATA_1x16(&src[sg_idx]);
-            float d_tail = fma(s_tail - v_mean_tail[sg], sqrt_variance_tail[sg],
-                    sv_tail[sg]);
+            float s_tail[UPDATE_SP_UNROLL], d_tail[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                s_tail[i] = LOAD_DATA_1x16(&src[sg_idx + IC * i]);
+                d_tail[i] = fma(s_tail[i] - v_mean_tail[sg],
+                        sqrt_variance_tail[sg], sv_tail[sg]);
+            }
 #if FUSE_BN_RELU
 #if FUSE_BN_ADD_RELU
-            float s_add_tail = LOAD_DATA_1x16(&src_add[sg_idx]);
-            d_tail += s_add_tail;
+            float s_add_tail[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                s_add_tail[i] = LOAD_DATA_1x16(&src_add[sg_idx + IC * i]);
+                d_tail[i] += s_add_tail[i];
+            }
 #endif
-            int ws_tail = isgreater(d_tail, 0.0f);
-            d_tail = select(0.0f, d_tail, ws_tail);
+            int ws_tail[UPDATE_SP_UNROLL];
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                ws_tail[i] = isgreater(d_tail[i], 0.0f);
+                d_tail[i] = select(0.0f, d_tail[i], ws_tail[i]);
+            }
 #if IS_TRAINING
-            STORE_CHAR_1x16(&ws[sg_idx], convert_char(ws_tail));
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
+                STORE_CHAR_1x16(&ws[sg_idx + IC * i], convert_char(ws_tail[i]));
+            }
 #endif // IS_TRAINING
 #endif // FUSE_BN_RELU
+            unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
 #if WITH_RELU
-            d_tail = max(d_tail, 0.0f);
+                d_tail[i] = max(d_tail[i], 0.0f);
 #endif
-            STORE_DATA_1x16(&dst[sg_idx], d_tail);
+                STORE_DATA_1x16(&dst[sg_idx + IC * i], d_tail[i]);
+            }
         }
 #endif
         src += IC * UPDATE_SP_UNROLL;
