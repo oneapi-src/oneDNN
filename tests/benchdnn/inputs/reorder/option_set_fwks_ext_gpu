@@ -823,6 +823,8 @@
 --reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x3x240x135n"wdsr.inf.fp16.ov.mb1*1"
 #wdsr-small-x4.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --sdt=u8 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x3x240x135n"wdsr-small-x4.inf.fp16.ov.mb1*1"
+#yolo_v5m_onnx.inf.fp16.ov.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x12x320x320n"yolo_v5m_onnx.inf.fp16.ov.mb1*1"
 #began_onnx.inf.fp16.ov.b1
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=abcd --dtag=aBcd16b 1x128x8x8n"began_onnx.inf.fp16.ov.b1*1"
 #began_onnx.inf.fp16.ov.b32

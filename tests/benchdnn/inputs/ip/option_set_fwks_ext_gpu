@@ -42,8 +42,8 @@
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab mb12288ic1024ih1iw1oc2n"bert-large-uncased-whole-word-masking-squad-0001_onnx.inf.fp16.ov.b32*1"
 #bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32
 --reset --allow-enum-tags-only=0 --cfg=s8s8f32 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab mb12288ic1024ih1iw1oc1024n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*72"
---reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=add:f32:common+gelu_tanh+linear:24.0938:-0.0625 mb12288ic1024ih1iw1oc4096n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*16"
---reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=add:f32:common+gelu_tanh+linear:47.25 mb12288ic1024ih1iw1oc4096n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*8"
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=add:f32:common+gelu_tanh+linear:2:1 mb12288ic1024ih1iw1oc4096n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*16"
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=add:f32:common+gelu_tanh+linear:2:1 mb12288ic1024ih1iw1oc4096n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*8"
 --reset --allow-enum-tags-only=0 --cfg=s8s8f32 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab mb12288ic1024ih1iw1oc2n"bert-large-uncased-whole-word-masking-squad-int8-0001_onnx.inf.fp16.ov.b32*1"
 #common-sign-language-0001_onnx.inf.fp16.ov.b32
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab mb32ic256ih1iw1oc27n"common-sign-language-0001_onnx.inf.fp16.ov.b32*1"
@@ -137,7 +137,7 @@
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab mb1024ic3072ih1iw1oc768n"gpt-2_onnx.inf.int8.ov.b1*12"
 #instance-segmentation-security-0010_onnx.inf.int8.ov.b1
 --reset --allow-enum-tags-only=0 --cfg=u8s8f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=add:f32:per_dim_0 mb1000ic12544ih1iw1oc1024n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*3"
---reset --allow-enum-tags-only=0 --cfg=s8s8f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0+round+linear:0.104596:-13.3882+clip:-13.3882:13.2836 mb1000ic12544ih1iw1oc1024n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0+round+linear:2:1+clip:-13.3882:13.2836 mb1000ic12544ih1iw1oc1024n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
 --reset --allow-enum-tags-only=0 --cfg=u8s8f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=add:f32:per_dim_0 mb1000ic1024ih1iw1oc81n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
 --reset --allow-enum-tags-only=0 --cfg=u8s8f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=add:f32:per_dim_0 mb1000ic1024ih1iw1oc324n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
 --reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0 mb100ic25088ih1iw1oc784n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
@@ -150,7 +150,7 @@
 #mobilebert_onnx.inf.fp16.ov.b32
 --reset --allow-enum-tags-only=0 --cfg=s8s8f32 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab mb12288ic512ih1iw1oc128n"mobilebert_onnx.inf.fp16.ov.b32*24"
 --reset --allow-enum-tags-only=0 --cfg=s8s8f32 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab mb12288ic128ih1iw1oc128n"mobilebert_onnx.inf.fp16.ov.b32*48"
---reset --allow-enum-tags-only=0 --cfg=s8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=linear:0.00601284 mb12288ic128ih1iw1oc512n"mobilebert_onnx.inf.fp16.ov.b32*96"
+--reset --allow-enum-tags-only=0 --cfg=s8s8u8 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=linear:2:1 mb12288ic128ih1iw1oc512n"mobilebert_onnx.inf.fp16.ov.b32*96"
 --reset --allow-enum-tags-only=0 --cfg=s8s8f32 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab mb12288ic512ih1iw1oc2n"mobilebert_onnx.inf.fp16.ov.b32*1"
 #pp-ocr-rec_paddle.inf.fp16.ov.b32
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab mb5120ic96ih1iw1oc6625n"pp-ocr-rec_paddle.inf.fp16.ov.b32*1"
@@ -235,9 +235,9 @@
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab mb6304ic512ih1iw1oc256n"t2t-vit-7_onnx.inf.fp16.ov.b32*7"
 --reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab mb32ic256ih1iw1oc1000n"t2t-vit-7_onnx.inf.fp16.ov.b32*1"
 #t2t-vit-7_onnx.inf.int8.ov.b32
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=linear:3.73242:-0.0625 mb100352ic64ih1iw1oc32n"t2t-vit-7_onnx.inf.int8.ov.b32*2"
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=linear:9.32812 mb25088ic64ih1iw1oc32n"t2t-vit-7_onnx.inf.int8.ov.b32*1"
---reset --allow-enum-tags-only=0 --cfg=f16f16s8 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=linear:9.10938:-0.0625 mb25088ic64ih1iw1oc32n"t2t-vit-7_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=linear:2:1 mb100352ic64ih1iw1oc32n"t2t-vit-7_onnx.inf.int8.ov.b32*2"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=linear:2:1 mb25088ic64ih1iw1oc32n"t2t-vit-7_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16f16s8 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=linear:2:1 mb25088ic64ih1iw1oc32n"t2t-vit-7_onnx.inf.int8.ov.b32*1"
 --reset --allow-enum-tags-only=0 --cfg=s8s8f16 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=add:f32:per_dim_0 mb6304ic256ih1iw1oc768n"t2t-vit-7_onnx.inf.int8.ov.b32*7"
 --reset --allow-enum-tags-only=0 --cfg=s8s8f16 --dir=FWD_B --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=add:f32:per_dim_0 mb32ic256ih1iw1oc1000n"t2t-vit-7_onnx.inf.int8.ov.b32*1"
 #tedlium_dnn4_smbr_nnet.inf.fp16.ov.b32

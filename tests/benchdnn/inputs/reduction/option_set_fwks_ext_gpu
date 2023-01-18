@@ -69,7 +69,7 @@
 #resnext101-32x16d-swsl.inf.fp16.ov.mb1
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x2048x7x7:1x2048x1x1n"resnext101-32x16d-swsl.inf.fp16.ov.mb1*1"
 #ssd-mobilenet-v1-25.inf.int8.ov.mb1
---reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b --attr-post-ops=linear:1.14884 1x256x4x4:1x256x1x1n"ssd-mobilenet-v1-25.inf.int8.ov.mb1*2"
+--reset --allow-enum-tags-only=0 --sdt=u8 --ddt=u8 --alg=mean --p=0 --eps=0 --stag=aBcd32b --dtag=aBcd32b --attr-post-ops=linear:2:1 1x256x4x4:1x256x1x1n"ssd-mobilenet-v1-25.inf.int8.ov.mb1*2"
 #deeplabv3_tf.inf.fp16.ov.b1
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --alg=mean --p=0 --eps=0 --stag=aBcd16b --dtag=aBcd16b 1x320x65x65:1x320x1x1n"deeplabv3_tf.inf.fp16.ov.b1*1"
 #deeplabv3_tf.inf.fp16.ov.b32
