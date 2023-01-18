@@ -248,6 +248,26 @@ bool get_binary_alg(const deserialized_op &base_op_ref, ::binary::alg_t &alg) {
     return op_setting;
 }
 
+void set_s8u8_for_prb(::binary::prb_t *prb,
+        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
+        res_t *res) {
+
+    auto src0_dt = map_off_to_dt.find(0) == map_off_to_dt.end()
+            ? dnnl_s8
+            : convert_dt(get_data_type(map_off_to_dt.at(0)));
+    auto src1_dt = map_off_to_dt.find(1) == map_off_to_dt.end()
+            ? dnnl_s8
+            : convert_dt(get_data_type(map_off_to_dt.at(1)));
+
+    auto is_quantized_dt = [](dnnl_data_type_t &src_dt) {
+        return src_dt == dnnl_u8 || src_dt == dnnl_s8;
+    };
+
+    prb->sdt[0] = is_quantized_dt(src0_dt) ? src0_dt : src1_dt;
+    prb->sdt[1] = is_quantized_dt(src1_dt) ? src1_dt : src0_dt;
+    prb->ddt = prb->sdt[0];
+}
+
 } // namespace binary
 
 namespace bnorm {
@@ -591,6 +611,18 @@ bool get_conv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
     return op_setting;
 }
 
+void set_s8u8_for_prb(::conv::prb_t *prb,
+        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
+        res_t *res) {
+    std::string cfg_str;
+    for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
+        cfg_str += map_off_to_dt.at(offset);
+    }
+    // add output datatype
+    cfg_str += "f32";
+    prb->cfg = ::conv::str2cfg(cfg_str.c_str());
+}
+
 } // namespace conv
 
 namespace deconv {
@@ -796,6 +828,18 @@ bool get_deconv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
     return op_setting;
 }
 
+void set_s8u8_for_prb(::deconv::prb_t *prb,
+        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
+        res_t *res) {
+    std::string cfg_str;
+    for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
+        cfg_str += map_off_to_dt.at(offset);
+    }
+    // add output datatype
+    cfg_str += "f32";
+    prb->cfg = ::deconv::str2cfg(cfg_str.c_str());
+}
+
 } // namespace deconv
 
 namespace eltwise {
@@ -811,15 +855,19 @@ get_eltwise_kind_map() {
             {"Exp", ::eltwise::alg_t::EXP},
             {"GELU", ::eltwise::alg_t::GELU_ERF},
             {"GELUBackward", ::eltwise::alg_t::GELU_ERF},
+            {"HardSigmoid", ::eltwise::alg_t::HARDSIGMOID},
+            {"HardSigmoidBackward", ::eltwise::alg_t::HARDSIGMOID},
             {"HardSwish", ::eltwise::alg_t::HARDSWISH},
             {"HardSwishBackward", ::eltwise::alg_t::HARDSWISH},
             {"LeakyReLU", ::eltwise::alg_t::RELU},
-            {"Log", ::eltwise::alg_t::LOG}, {"Mish", ::eltwise::alg_t::MISH},
+            {"Log", ::eltwise::alg_t::LOG},
+            {"Mish", ::eltwise::alg_t::MISH},
             {"MishBackward", ::eltwise::alg_t::MISH},
             {"Reciprocal", ::eltwise::alg_t::POW},
             {"ReLU", ::eltwise::alg_t::RELU},
             {"ReLUBackward", ::eltwise::alg_t::RELU},
-            {"Round", ::eltwise::alg_t::ROUND}, {"Log", ::eltwise::alg_t::LOG},
+            {"Round", ::eltwise::alg_t::ROUND},
+            {"Log", ::eltwise::alg_t::LOG},
             {"Sigmoid", ::eltwise::alg_t::LOGISTIC},
             {"SigmoidBackward", ::eltwise::alg_t::LOGISTIC},
             {"SoftPlus", ::eltwise::alg_t::SRELU},
@@ -828,7 +876,8 @@ get_eltwise_kind_map() {
             {"SqrtBackward", ::eltwise::alg_t::SQRT},
             {"Square", ::eltwise::alg_t::SQUARE},
             {"Tanh", ::eltwise::alg_t::TANH},
-            {"TanhBackward", ::eltwise::alg_t::TANH}};
+            {"TanhBackward", ::eltwise::alg_t::TANH},
+    };
     return map_;
 }
 
@@ -888,7 +937,8 @@ bool get_eltwise_alpha(const deserialized_op &base_op_ref, float &alpha) {
     if (op_kind == "Clamp" || op_kind == "ClampBackward") {
         base_op_ref.get_attr_f32(alpha, "min");
     } else if (op_kind == "Elu" || op_kind == "EluBackward"
-            || op_kind == "LeakyReLU") {
+            || op_kind == "LeakyReLU" || op_kind == "HardSigmoid"
+            || op_kind == "HardSigmoidBackward") {
         base_op_ref.get_attr_f32(alpha, "alpha");
     } else if (op_kind == "Reciprocal") {
         alpha = 1; // Reciprocal is pow(-1)
@@ -907,6 +957,8 @@ bool get_eltwise_beta(const deserialized_op &base_op_ref, float &beta) {
         beta = -1; // Reciprocal is pow(-1)
     } else if (op_kind == "Clamp" || op_kind == "ClampBackward") {
         base_op_ref.get_attr_f32(beta, "max");
+    } else if (op_kind == "HardSigmoid" || op_kind == "HardSigmoidBackward") {
+        base_op_ref.get_attr_f32(beta, "beta");
     } else if (op_kind == "HardSwish" || op_kind == "HardSwishBackward") {
         beta = 1.f / 2.f;
     }
@@ -1167,6 +1219,21 @@ bool get_matmul_bia_dt_mask(const deserialized_op &base_op_ref,
     return op_setting;
 }
 
+void set_s8u8_for_prb(::matmul::prb_t *prb,
+        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
+        res_t *res) {
+    // The logic below covers cases when one of quantized matmul inputs is not
+    // int8, like u8:f32:dst or f32:s8:dst. Force successful primitive creation
+    // by making both data types of int8 type.
+    for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
+        const auto &dt_str = map_off_to_dt.at(offset);
+        if (dt_str == "u8")
+            prb->dt[offset] = convert_dt(get_data_type(dt_str));
+        else
+            prb->dt[offset] = convert_dt(get_data_type("s8"));
+    }
+}
+
 } // namespace matmul
 
 namespace pool {
@@ -1317,6 +1384,16 @@ bool get_pool_alg(const deserialized_op &base_op_ref, ::pool::alg_t &alg) {
             get_driver_tag(base_op_ref, op_setting.tag.front()), res);
 
     return op_setting;
+}
+
+void set_s8u8_for_prb(::pool::prb_t *prb,
+        const std::unordered_map<size_t, const std::string> &map_off_to_dt,
+        res_t *res) {
+    std::string cfg_str;
+    for (size_t offset = 0; offset < map_off_to_dt.size(); offset++) {
+        cfg_str += map_off_to_dt.at(offset);
+    }
+    prb->cfg = ::pool::str2cfg(cfg_str.c_str());
 }
 
 } //namespace pool
@@ -1573,16 +1650,25 @@ bool get_reorder_attrs(const deserialized_op &base_op_ref,
         std::vector<float> scales {};
         base_op_ref.get_attr_f32_vector(scales, "scales");
         arg_scales.set(arg, {scale_policy, scales.front()});
+        std::vector<int64_t> zps;
+        base_op_ref.get_attr_s64_vector(zps, "zps");
+        // currently, zps only support per_tensor quantization in primitive
+        zp.set(arg, attr_t::policy_t::COMMON, zps.front());
     } else if (op_kind == "DynamicDequantize" || op_kind == "DynamicQuantize") {
-        arg_scales.set(arg, {scale_policy});
+        //  TODO: benchdnn needs to alloc memory based on is_def() function.
+        //  so add tmp value for per_tensor scales && zps to make is_def()
+        //  return false to alloc memory.
+        if (qtype == "per_tensor") {
+            arg_scales.set(arg, {scale_policy, 2});
+        } else {
+            arg_scales.set(arg, {scale_policy});
+        }
+        // zps is optional for DynamicDequantize/DynamicQuantize, default is
+        // symmetric quantization
+        if (base_op_ref.in_lts_.size() == 3) {
+            zp.set(arg, attr_t::policy_t::COMMON, 1);
+        }
     }
-
-    // zps
-    const auto e = zp.get(arg);
-    if (e.policy != policy_t::COMMON) return false;
-    std::vector<int64_t> zps;
-    base_op_ref.get_attr_s64_vector(zps, "zps");
-    zp.set(arg, attr_t::policy_t::COMMON, zps.front());
     return true;
 }
 

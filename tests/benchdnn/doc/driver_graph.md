@@ -87,6 +87,12 @@ partition numbers and so on.
 ./benchdnn --mode=P -v1 --graph --mb=1,2,3 --case=op/f32/conv_2d.json
 ```
 
+Use `--mode=C` or `--mode=c` for correctness testing:
+
+```shell
+./benchdnn --mode=C --graph --case=op/f32/conv_2d.json
+```
+
 ## Demo Cases
 
 There are some demo JSON files in [inputs/graph](../inputs/graph), including
@@ -96,12 +102,6 @@ data type folders for ops and patterns. In general, a JSON file named as
 for workload name, `pattern_name` stands for fusion pattern returned by the
 library, and `additional_info` differentiates cases based on other settings.
 Single op JSON file was named with op name directly.
-
-## Note
-
-The development of graph driver *correctness check* mode is still in progress.
-Will be ready soon. Currently, it can only support performance benchmark mode
-with `--mode=P`.
 
 ## JSON File Example
 <details>

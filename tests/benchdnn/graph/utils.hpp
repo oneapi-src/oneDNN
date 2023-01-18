@@ -28,6 +28,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "oneapi/dnnl/dnnl.hpp"
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
@@ -153,6 +154,77 @@ std::string strides2memory_tag(const size_t ndims,
 dnnl::graph::logical_tensor::dims memory_tag2strides(
         const dnnl::graph::logical_tensor::dims &shape, const std::string &tag);
 
+inline bool is_plain(dnnl_format_tag_t fmt_tag) {
+    return fmt_tag >= dnnl_a && fmt_tag <= dnnl_abcdefghijlk;
+}
+
+dnnl::graph::op::kind opstr2kind(const std::string &kind);
+dnnl::graph::op::attr attrstr2kind(const std::string &attr_name);
+
+enum class dnnl_driver_t {
+    binary,
+    bnorm,
+    concat,
+    conv,
+    deconv,
+    eltwise,
+    lnorm,
+    matmul,
+    pool,
+    prelu,
+    reduction,
+    reorder,
+    resampling,
+    softmax,
+    others
+};
+
+dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind);
+
+// permute functions
+dnnl::memory::desc permute_NXC2NCX(const dnnl::memory::desc &adesc);
+dnnl::memory::desc permute_NCX2NXC(const dnnl::memory::desc &adesc);
+dnnl::memory::desc permute_OIX2XIO(const dnnl::memory::desc &adesc);
+dnnl::memory::desc permute_XIO2OIX(const dnnl::memory::desc &adesc);
+dnnl::memory::desc permute_OIX2XOI(const dnnl::memory::desc &adesc);
+dnnl::memory::desc permute_IOX2OIX(const dnnl::memory::desc &adesc);
+dnnl::memory::desc permute_XOI2OIX(const dnnl::memory::desc &adesc);
+dnnl::memory::desc permute_OIX2IOX(const dnnl::memory::desc &adesc);
+
+// permute vector of transpose
+std::vector<int64_t> get_transpose_permutation_vec(int ndims);
+// permute md using above permute functions
+void permute_md(dnn_mem_t &mem,
+        dnnl::memory::desc (*permute_func)(const dnnl::memory::desc &));
+// permute md based on permutation
+void permute_md(dnn_mem_t &mem, std::vector<int64_t> permutation);
+
+// reshape functions
+// reshape from [G, O/G, I/G, X] to [O, I/G, X] for conv, or
+// reshape from [G, O/G, I/G, X] to [O/G, I, X] for deconv
+dnnl::memory::desc reshape_GOIX2OIX(
+        const dnnl::memory::desc &adesc, int64_t groups, bool is_convtranspose);
+// reshape from [O, I/G, X] to [G, O/G, I/G, X] for conv, or
+// reshape from [O/G, I, X] to [G, O/G, I/G, X] for deconv
+dnnl::memory::desc reshape_OIX2GOIX(
+        const dnnl::memory::desc &adesc, int64_t groups, bool is_convtranspose);
+// reshape md based on reshape functions
+void reshape_md(dnn_mem_t &mem,
+        dnnl::memory::desc (*reshape_func)(
+                const dnnl::memory::desc &, int64_t, bool),
+        int64_t groups, bool is_convtranspose);
+
+// get primitive's arg name according to graph op's output offset
+// i.e. If BatchNormForwardTraining's 2-nd output is ReLU's 1-st input
+//      the output offset of 2 needs to be mapped to primitive's
+//      output arg of DNNL_ARG_VARIANCE
+int get_prim_arg_name_from_graph_op_output_offset(
+        dnnl::graph::op::kind op_kind, size_t output_offset);
+// get primitive's arg name according to graph op's input offset
+int get_prim_arg_name_from_graph_op_input_offset(
+        dnnl::graph::op::kind op_kind, int input_offset, bool use_dst = false);
+
+// TODO: remove fill_buffer?
 // fill the memory according to the given value
 //  src -> target memory buffer
 //  total_size -> total number of bytes of this buffer

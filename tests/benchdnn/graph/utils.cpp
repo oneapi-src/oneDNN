@@ -500,6 +500,150 @@ dnnl::graph::op::attr attrstr2kind(const std::string &attr_name) {
     }
 }
 
+class op_kind_hash_t {
+public:
+    std::size_t operator()(const dnnl::graph::op::kind &op_kind) const {
+        return std::hash<int>()(static_cast<int>(op_kind));
+    }
+};
+
+dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
+    const static std::unordered_map<dnnl::graph::op::kind, dnnl_driver_t,
+            op_kind_hash_t>
+            op_map = {
+                    {dnnl::graph::op::kind::Abs, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::AbsBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Add, dnnl_driver_t::binary},
+                    {dnnl::graph::op::kind::AvgPool, dnnl_driver_t::pool},
+                    {dnnl::graph::op::kind::AvgPoolBackward,
+                            dnnl_driver_t::pool},
+                    {dnnl::graph::op::kind::BatchNormForwardTraining,
+                            dnnl_driver_t::bnorm},
+                    {dnnl::graph::op::kind::BatchNormInference,
+                            dnnl_driver_t::bnorm},
+                    {dnnl::graph::op::kind::BatchNormTrainingBackward,
+                            dnnl_driver_t::bnorm},
+                    {dnnl::graph::op::kind::BiasAdd, dnnl_driver_t::binary},
+                    {dnnl::graph::op::kind::BiasAddBackward,
+                            dnnl_driver_t::binary},
+                    {dnnl::graph::op::kind::Clamp, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::ClampBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Concat, dnnl_driver_t::concat},
+                    {dnnl::graph::op::kind::Convolution, dnnl_driver_t::conv},
+                    {dnnl::graph::op::kind::ConvolutionBackwardData,
+                            dnnl_driver_t::conv},
+                    {dnnl::graph::op::kind::ConvolutionBackwardWeights,
+                            dnnl_driver_t::conv},
+                    {dnnl::graph::op::kind::ConvTranspose,
+                            dnnl_driver_t::deconv},
+                    {dnnl::graph::op::kind::ConvTransposeBackwardData,
+                            dnnl_driver_t::deconv},
+                    {dnnl::graph::op::kind::ConvTransposeBackwardWeights,
+                            dnnl_driver_t::deconv},
+                    {dnnl::graph::op::kind::Dequantize, dnnl_driver_t::reorder},
+                    {dnnl::graph::op::kind::Divide, dnnl_driver_t::binary},
+                    {dnnl::graph::op::kind::DynamicDequantize,
+                            dnnl_driver_t::reorder},
+                    {dnnl::graph::op::kind::DynamicQuantize,
+                            dnnl_driver_t::reorder},
+                    {dnnl::graph::op::kind::Elu, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::EluBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::End, dnnl_driver_t::others},
+                    //{dnnl::graph::op::kind::Erf, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Exp, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::GELU, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::GELUBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::HardSigmoid,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::HardSigmoidBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::HardSwish, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::HardSwishBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Interpolate,
+                            dnnl_driver_t::resampling},
+                    {dnnl::graph::op::kind::InterpolateBackward,
+                            dnnl_driver_t::resampling},
+                    {dnnl::graph::op::kind::LayerNorm, dnnl_driver_t::lnorm},
+                    {dnnl::graph::op::kind::LayerNormBackward,
+                            dnnl_driver_t::lnorm},
+                    {dnnl::graph::op::kind::LeakyReLU, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Log, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::LogSoftmax, dnnl_driver_t::softmax},
+                    {dnnl::graph::op::kind::LogSoftmaxBackward,
+                            dnnl_driver_t::softmax},
+                    {dnnl::graph::op::kind::MatMul, dnnl_driver_t::matmul},
+                    {dnnl::graph::op::kind::Maximum, dnnl_driver_t::binary},
+                    {dnnl::graph::op::kind::MaxPool, dnnl_driver_t::pool},
+                    {dnnl::graph::op::kind::MaxPoolBackward,
+                            dnnl_driver_t::pool},
+                    {dnnl::graph::op::kind::Minimum, dnnl_driver_t::binary},
+                    {dnnl::graph::op::kind::Mish, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::MishBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Multiply, dnnl_driver_t::binary},
+                    {dnnl::graph::op::kind::PReLU, dnnl_driver_t::prelu},
+                    {dnnl::graph::op::kind::PReLUBackward,
+                            dnnl_driver_t::prelu},
+                    {dnnl::graph::op::kind::Quantize, dnnl_driver_t::reorder},
+                    {dnnl::graph::op::kind::Reciprocal, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::ReduceL1, dnnl_driver_t::reduction},
+                    {dnnl::graph::op::kind::ReduceL2, dnnl_driver_t::reduction},
+                    {dnnl::graph::op::kind::ReduceMax,
+                            dnnl_driver_t::reduction},
+                    {dnnl::graph::op::kind::ReduceMean,
+                            dnnl_driver_t::reduction},
+                    {dnnl::graph::op::kind::ReduceMin,
+                            dnnl_driver_t::reduction},
+                    {dnnl::graph::op::kind::ReduceProd,
+                            dnnl_driver_t::reduction},
+                    {dnnl::graph::op::kind::ReduceSum,
+                            dnnl_driver_t::reduction},
+                    {dnnl::graph::op::kind::ReLU, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::ReLUBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Reorder, dnnl_driver_t::reorder},
+                    {dnnl::graph::op::kind::Round, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Sigmoid, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::SigmoidBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::SoftMax, dnnl_driver_t::softmax},
+                    {dnnl::graph::op::kind::SoftMaxBackward,
+                            dnnl_driver_t::softmax},
+                    {dnnl::graph::op::kind::SoftPlus, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::SoftPlusBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Sqrt, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::SqrtBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::Square, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::SquaredDifference,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::StaticReshape,
+                            dnnl_driver_t::reorder},
+                    {dnnl::graph::op::kind::StaticTranspose,
+                            dnnl_driver_t::reorder},
+                    {dnnl::graph::op::kind::Subtract, dnnl_driver_t::binary},
+                    {dnnl::graph::op::kind::Tanh, dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::TanhBackward,
+                            dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::TypeCast, dnnl_driver_t::reorder},
+                    {dnnl::graph::op::kind::Wildcard, dnnl_driver_t::others},
+            };
+    const auto it = op_map.find(kind);
+    if (it != op_map.end()) {
+        return it->second;
+    } else {
+        fprintf(stderr, "graph: ERROR: Unsupported opkind: `%d`, exiting...\n",
+                static_cast<int>(kind));
+        exit(2);
+    }
+}
+
 std::string strides2memory_tag(const size_t ndims,
         const dnnl::graph::logical_tensor::dims &strides, bool use_x_tag) {
     std::string template_tag = "abcdefghijk";
@@ -585,6 +729,663 @@ void change_format_to_ncx(dims_t &dims) {
     const auto ndims = static_cast<int>(dims.size());
     dims.insert(dims.begin() + 1, dims[ndims - 1]);
     dims.erase(dims.end() - 1);
+}
+
+// permute the NXC format adesc to NCX format
+/// \note
+/// The logical axes will be permuted in the following manner:
+/// for (i = 0; i < ndims(); i++)
+///     new_desc.dims()[permutation[i]] = dims()[i];
+/// if we want to permute nhwc to nchw, we need:
+///     permutation[0] = 0
+///     permutation[1] = 2
+///     permutation[2] = 3
+///     permutation[3] = 1
+dnnl::memory::desc permute_NXC2NCX(const dnnl::memory::desc &adesc) {
+    assert(adesc.get_ndims() > 2);
+    int count = 0;
+    std::vector<int> axes(adesc.get_ndims());
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    axes.push_back(axes[1]);
+    axes.erase(axes.begin() + 1);
+    dnnl::memory::desc ret = adesc.permute_axes(axes);
+    return ret;
+}
+
+dnnl::memory::desc permute_NCX2NXC(const dnnl::memory::desc &adesc) {
+    assert(adesc.get_ndims() > 2);
+    int count = 0;
+    std::vector<int> axes(adesc.get_ndims());
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    axes.insert(axes.begin() + 1, axes.back());
+    axes.pop_back();
+    dnnl::memory::desc ret = adesc.permute_axes(axes);
+    return ret;
+}
+
+// permute the XIO format adesc to OIX format
+/// \note
+/// The logical axes will be permuted in the following manner:
+/// for (i = 0; i < ndims(); i++)
+///     new_desc.dims()[permutation[i]] = dims()[i];
+/// if we want to permute hwio to oihw, we need:
+///     permutation[0] = 2
+///     permutation[1] = 3
+///     permutation[2] = 1
+///     permutation[3] = 0
+dnnl::memory::desc permute_XIO2OIX(const dnnl::memory::desc &adesc) {
+    assert(adesc.get_ndims() > 2);
+    int count = 0;
+    std::vector<int> axes(adesc.get_ndims());
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    axes.push_back(axes[1]);
+    axes.push_back(axes[0]);
+    axes.erase(axes.begin());
+    axes.erase(axes.begin());
+    return adesc.permute_axes(axes);
+}
+
+// permute the OIX format adesc to XIO format
+/// \note
+/// The logical axes will be permuted in the following manner:
+/// for (i = 0; i < ndims(); i++)
+///     new_desc.dims()[permutation[i]] = dims()[i];
+/// if we want to permute oihw to hwio, we need:
+///     permutation[0] = 3
+///     permutation[1] = 2
+///     permutation[2] = 0
+///     permutation[3] = 1
+dnnl::memory::desc permute_OIX2XIO(const dnnl::memory::desc &adesc) {
+    int count = 0;
+    std::vector<int> axes(adesc.get_ndims());
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    axes.insert(axes.begin(), axes[axes.size() - 2]);
+    axes.insert(axes.begin(), axes[axes.size() - 1]);
+    axes.pop_back();
+    axes.pop_back();
+    return adesc.permute_axes(axes);
+}
+
+dnnl::memory::desc permute_IOX2OIX(const dnnl::memory::desc &adesc) {
+    int count = 0;
+    std::vector<int> axes(adesc.get_ndims());
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    std::swap(axes[0], axes[1]);
+
+    return adesc.permute_axes(axes);
+}
+
+dnnl::memory::desc permute_OIX2IOX(const dnnl::memory::desc &adesc) {
+    int count = 0;
+    std::vector<int> axes(adesc.get_ndims());
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    std::swap(axes[0], axes[1]);
+
+    return adesc.permute_axes(axes);
+}
+
+dnnl::memory::desc permute_XOI2OIX(const dnnl::memory::desc &adesc) {
+    int count = 0;
+    std::vector<int> axes(adesc.get_ndims());
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    axes.push_back(axes[0]);
+    axes.push_back(axes[1]);
+    axes.erase(axes.begin());
+    axes.erase(axes.begin());
+
+    return adesc.permute_axes(axes);
+}
+
+dnnl::memory::desc permute_OIX2XOI(const dnnl::memory::desc &adesc) {
+    int count = 0;
+    std::vector<int> axes(adesc.get_ndims());
+    std::generate(axes.begin(), axes.end(), [&count]() { return count++; });
+    axes.insert(axes.begin(), axes[axes.size() - 1]);
+    axes.insert(axes.begin(), axes[axes.size() - 2]);
+    axes.pop_back();
+    axes.pop_back();
+
+    return adesc.permute_axes(axes);
+}
+
+// transpose happens on the last 2 dims
+std::vector<int64_t> get_transpose_permutation_vec(int ndims) {
+    int count = 0;
+    std::vector<int64_t> permutation(ndims);
+    std::generate(permutation.begin(), permutation.end(),
+            [&count]() { return count++; });
+    std::swap(permutation[ndims - 1], permutation[ndims - 2]);
+    return permutation;
+}
+
+void permute_md(dnn_mem_t &mem,
+        dnnl::memory::desc (*permute_func)(const dnnl::memory::desc &)) {
+    dnnl::memory::desc md(clone_md(mem.md_));
+    dnnl::memory::desc permuted_md = permute_func(md);
+    // Dirty hack to replace md with another one.
+    // TODO: replace it with a better solution.
+    auto st = dnnl_memory_desc_destroy(mem.md_);
+    (void)st;
+    assert(st == dnnl_success);
+    mem.md_ = clone_md(permuted_md.get());
+}
+
+void permute_md(dnn_mem_t &mem, std::vector<int64_t> permutation) {
+    std::vector<int> axes(permutation.size(), -1);
+    for (int i = 0; i < static_cast<int>(permutation.size()); i++) {
+        axes[permutation[i]] = i;
+    }
+    dnnl::memory::desc md(clone_md(mem.md_));
+    dnnl::memory::desc permuted_md = md.permute_axes(axes);
+    // Dirty hack to replace md with another one.
+    // TODO: replace it with a better solution.
+    auto st = dnnl_memory_desc_destroy(mem.md_);
+    (void)st;
+    assert(st == dnnl_success);
+    mem.md_ = clone_md(permuted_md.get());
+}
+
+dnnl::memory::desc reshape_GOIX2OIX(const dnnl::memory::desc &adesc,
+        int64_t groups, bool is_convtranspose) {
+    dnnl::memory::dims dims = adesc.get_dims();
+    if (is_convtranspose) {
+        // from [G, O/G, I/G, X] to [G, I/G, O/G, X]
+        std::vector<int> axes(dims.size());
+        std::iota(axes.begin(), axes.end(), 0);
+        std::swap(axes[1], axes[2]);
+        dnnl::memory::desc permuted_md = adesc.permute_axes(axes);
+        // from [G, I/G, O/G, X] to [I, O/G, X]
+        dnnl::memory::dims permuted_dims = permuted_md.get_dims();
+        permuted_dims[0] = groups * permuted_dims[1];
+        permuted_dims.erase(permuted_dims.begin() + 1);
+        dnnl::memory::desc reshaped_md = permuted_md.reshape(permuted_dims);
+        // from [I, O/G, X] to [O/G, I, X]
+        dnnl::memory::dims reshaped_dims = reshaped_md.get_dims();
+        std::vector<int> reshaped_axes(reshaped_dims.size());
+        std::iota(reshaped_axes.begin(), reshaped_axes.end(), 0);
+        std::swap(reshaped_axes[0], reshaped_axes[1]);
+        return reshaped_md.permute_axes(reshaped_axes);
+    } else {
+        // from [G, O/G, I/G, X] to [O, I/G, X]
+        dims[0] = groups * dims[1];
+        dims.erase(dims.begin() + 1);
+        return adesc.reshape(dims);
+    }
+}
+
+dnnl::memory::desc reshape_OIX2GOIX(const dnnl::memory::desc &adesc,
+        int64_t groups, bool is_convtranspose) {
+    dnnl::memory::dims dims = adesc.get_dims();
+    if (is_convtranspose) {
+        // from [O/G, I, X] to [I, O/G, X]
+        std::vector<int> axes(dims.size());
+        std::iota(axes.begin(), axes.end(), 0);
+        std::swap(axes[0], axes[1]);
+        dnnl::memory::desc permuted_md = adesc.permute_axes(axes);
+        // from [I, O/G, X] to [G, I/G, O/G, X]
+        dnnl::memory::dims permuted_dims = permuted_md.get_dims();
+        permuted_dims[0] = permuted_dims[0] / groups;
+        permuted_dims.insert(permuted_dims.begin(), groups);
+        dnnl::memory::desc reshaped_md = permuted_md.reshape(permuted_dims);
+        // from [G, I/G, O/G, X] to [G, O/G, I/G, X]
+        std::vector<int> reshaped_axes(permuted_dims.size());
+        std::iota(reshaped_axes.begin(), reshaped_axes.end(), 0);
+        std::swap(reshaped_axes[1], reshaped_axes[2]);
+        return reshaped_md.permute_axes(reshaped_axes);
+    } else {
+        // from [O, I/G, X] to [G, O/G, I/G, X]
+        dims[0] = dims[0] / groups;
+        dims.insert(dims.begin(), groups);
+        return adesc.reshape(dims);
+    }
+}
+
+void reshape_md(dnn_mem_t &mem,
+        dnnl::memory::desc (*reshape_func)(
+                const dnnl::memory::desc &, int64_t, bool),
+        int64_t groups, bool is_convtranspose) {
+    dnnl::memory::desc md(clone_md(mem.md_));
+    dnnl::memory::desc reshaped_md = reshape_func(md, groups, is_convtranspose);
+    // Dirty hack to replace md with another one.
+    // TODO: replace it with a better solution.
+    auto st = dnnl_memory_desc_destroy(mem.md_);
+    (void)st;
+    assert(st == dnnl_success);
+    mem.md_ = clone_md(reshaped_md.get());
+}
+
+int get_prim_arg_name_from_graph_op_output_offset(
+        dnnl::graph::op::kind op_kind, size_t output_offset) {
+    switch (op_kind) {
+        case dnnl::graph::op::kind::AbsBackward:
+        case dnnl::graph::op::kind::AvgPoolBackward:
+        case dnnl::graph::op::kind::ClampBackward:
+        case dnnl::graph::op::kind::ConvolutionBackwardData:
+        case dnnl::graph::op::kind::ConvTransposeBackwardData:
+        case dnnl::graph::op::kind::EluBackward:
+        case dnnl::graph::op::kind::GELUBackward:
+        case dnnl::graph::op::kind::HardSigmoidBackward:
+        case dnnl::graph::op::kind::HardSwishBackward:
+        case dnnl::graph::op::kind::InterpolateBackward:
+        case dnnl::graph::op::kind::LogSoftmaxBackward:
+        case dnnl::graph::op::kind::MaxPoolBackward:
+        case dnnl::graph::op::kind::MishBackward:
+        case dnnl::graph::op::kind::ReLUBackward:
+        case dnnl::graph::op::kind::SigmoidBackward:
+        case dnnl::graph::op::kind::SoftMaxBackward:
+        case dnnl::graph::op::kind::SoftPlusBackward:
+        case dnnl::graph::op::kind::SqrtBackward:
+        case dnnl::graph::op::kind::TanhBackward: {
+            return DNNL_ARG_DIFF_SRC;
+        } break;
+        case dnnl::graph::op::kind::BatchNormForwardTraining: {
+            if (output_offset == 0)
+                return DNNL_ARG_DST;
+            else if (output_offset == 1)
+                return 0; // running mean is not supported for now
+            else if (output_offset == 2)
+                return 0; // running var is not supported for now
+            else if (output_offset == 3)
+                return DNNL_ARG_MEAN;
+            else if (output_offset == 4)
+                return DNNL_ARG_VARIANCE;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        static_cast<int>(output_offset));
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::LayerNorm: {
+            if (output_offset == 0)
+                return DNNL_ARG_DST;
+            else if (output_offset == 1)
+                return DNNL_ARG_MEAN;
+            else if (output_offset == 2)
+                return DNNL_ARG_VARIANCE;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        static_cast<int>(output_offset));
+                assert(false);
+                return -1;
+            }
+
+        } break;
+        case dnnl::graph::op::kind::BatchNormTrainingBackward:
+        case dnnl::graph::op::kind::LayerNormBackward: {
+            if (output_offset == 0)
+                return DNNL_ARG_DIFF_SRC;
+            else if (output_offset == 1)
+                return DNNL_ARG_DIFF_SCALE;
+            else if (output_offset == 2)
+                return DNNL_ARG_DIFF_SHIFT;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        static_cast<int>(output_offset));
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::BiasAddBackward: {
+            return DNNL_ARG_DIFF_BIAS;
+        } break;
+        case dnnl::graph::op::kind::ConvolutionBackwardWeights:
+        case dnnl::graph::op::kind::ConvTransposeBackwardWeights: {
+            return DNNL_ARG_DIFF_WEIGHTS;
+        } break;
+        case dnnl::graph::op::kind::Quantize:
+        case dnnl::graph::op::kind::Dequantize:
+        case dnnl::graph::op::kind::DynamicDequantize:
+        case dnnl::graph::op::kind::DynamicQuantize:
+        case dnnl::graph::op::kind::TypeCast:
+        case dnnl::graph::op::kind::Reorder: {
+            return DNNL_ARG_TO;
+        } break;
+        case dnnl::graph::op::kind::PReLUBackward: {
+            if (output_offset == 0)
+                return DNNL_ARG_DIFF_SRC;
+            else if (output_offset == 1)
+                return DNNL_ARG_DIFF_WEIGHTS;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        static_cast<int>(output_offset));
+                assert(false);
+                return -1;
+            }
+        } break;
+        default: {
+            return DNNL_ARG_DST;
+        } break;
+    }
+}
+
+int get_prim_arg_name_from_graph_op_input_offset(
+        dnnl::graph::op::kind op_kind, int input_offset, bool use_dst) {
+    switch (op_kind) {
+        case dnnl::graph::op::kind::Add:
+        case dnnl::graph::op::kind::BiasAdd:
+        case dnnl::graph::op::kind::Divide:
+        case dnnl::graph::op::kind::Maximum:
+        case dnnl::graph::op::kind::Minimum:
+        case dnnl::graph::op::kind::Multiply:
+        case dnnl::graph::op::kind::Subtract: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC_0;
+            else if (input_offset == 1)
+                return DNNL_ARG_SRC_1;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        }
+        case dnnl::graph::op::kind::Concat: {
+            return DNNL_ARG_MULTIPLE_SRC + input_offset;
+        } break;
+        case dnnl::graph::op::kind::Convolution:
+        case dnnl::graph::op::kind::ConvTranspose:
+        case dnnl::graph::op::kind::MatMul: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_WEIGHTS;
+            else if (input_offset == 2)
+                return DNNL_ARG_BIAS;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::ConvolutionBackwardData:
+        case dnnl::graph::op::kind::ConvTransposeBackwardData: {
+            if (input_offset == 0)
+                return DNNL_ARG_DIFF_DST;
+            else if (input_offset == 1)
+                return DNNL_ARG_WEIGHTS;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::ConvolutionBackwardWeights:
+        case dnnl::graph::op::kind::ConvTransposeBackwardWeights: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_DIFF_DST;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::PReLU: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_WEIGHTS;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::PReLUBackward: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_WEIGHTS;
+            else if (input_offset == 2)
+                return DNNL_ARG_DIFF_DST;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::AvgPoolBackward: {
+            if (input_offset == 0)
+                return DNNL_ARG_DIFF_DST;
+            else if (input_offset == 1) {
+                BENCHDNN_PRINT(0,
+                        "Error: no support for input %d of Avg Pool Backward",
+                        input_offset);
+                assert(false);
+                return -1;
+            } else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::MaxPoolBackward: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_DIFF_DST;
+            else if (input_offset == 2) {
+                BENCHDNN_PRINT(0,
+                        "Error: no support for input %d of Max Pool Backward",
+                        input_offset);
+                assert(false);
+                return -1;
+            } else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::SoftMaxBackward:
+        case dnnl::graph::op::kind::LogSoftmaxBackward: {
+            if (input_offset == 0)
+                return DNNL_ARG_DIFF_DST;
+            else if (input_offset == 1)
+                return DNNL_ARG_DST;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::LayerNorm: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_SCALE;
+            else if (input_offset == 2)
+                return DNNL_ARG_SHIFT;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::LayerNormBackward: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_DIFF_DST;
+            else if (input_offset == 2)
+                return DNNL_ARG_MEAN;
+            else if (input_offset == 3)
+                return DNNL_ARG_VARIANCE;
+            else if (input_offset == 4)
+                return DNNL_ARG_SCALE;
+            else if (input_offset == 5)
+                return DNNL_ARG_SHIFT;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::BatchNormForwardTraining: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_MEAN;
+            else if (input_offset == 2)
+                return DNNL_ARG_VARIANCE;
+            else if (input_offset == 3)
+                return DNNL_ARG_SCALE;
+            else if (input_offset == 4)
+                return DNNL_ARG_SHIFT;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::BatchNormInference: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_SCALE;
+            else if (input_offset == 2)
+                return DNNL_ARG_SHIFT;
+            else if (input_offset == 3)
+                return DNNL_ARG_MEAN;
+            else if (input_offset == 4)
+                return DNNL_ARG_VARIANCE;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::BatchNormTrainingBackward: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_DIFF_DST;
+            else if (input_offset == 2)
+                return DNNL_ARG_MEAN;
+            else if (input_offset == 3)
+                return DNNL_ARG_VARIANCE;
+            else if (input_offset == 4)
+                return DNNL_ARG_SCALE;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::InterpolateBackward: {
+            if (input_offset == 0)
+                return DNNL_ARG_DIFF_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_DIFF_DST;
+            else if (input_offset == 2) {
+                BENCHDNN_PRINT(0,
+                        "Error: no support for input %d of Resampling Backward",
+                        input_offset);
+                assert(false);
+                return -1;
+            } else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::ReduceL1:
+        case dnnl::graph::op::kind::ReduceL2:
+        case dnnl::graph::op::kind::ReduceMax:
+        case dnnl::graph::op::kind::ReduceMin:
+        case dnnl::graph::op::kind::ReduceMean:
+        case dnnl::graph::op::kind::ReduceProd:
+        case dnnl::graph::op::kind::ReduceSum: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1) {
+                BENCHDNN_PRINT(0, "Error: no support for input %d of Reduction",
+                        input_offset);
+                assert(false);
+                return -1;
+            } else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::AbsBackward:
+        case dnnl::graph::op::kind::ClampBackward:
+        case dnnl::graph::op::kind::EluBackward:
+        case dnnl::graph::op::kind::GELUBackward:
+        case dnnl::graph::op::kind::HardSigmoidBackward:
+        case dnnl::graph::op::kind::HardSwishBackward:
+        case dnnl::graph::op::kind::MishBackward:
+        case dnnl::graph::op::kind::ReLUBackward:
+        case dnnl::graph::op::kind::SigmoidBackward:
+        case dnnl::graph::op::kind::SoftPlusBackward:
+        case dnnl::graph::op::kind::SqrtBackward:
+        case dnnl::graph::op::kind::TanhBackward: {
+            if (input_offset == 0)
+                return use_dst ? DNNL_ARG_DST : DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_DIFF_DST;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::Quantize:
+        case dnnl::graph::op::kind::Dequantize:
+        case dnnl::graph::op::kind::TypeCast:
+        case dnnl::graph::op::kind::Reorder: {
+            return DNNL_ARG_FROM;
+        } break;
+        case dnnl::graph::op::kind::DynamicDequantize: {
+            if (input_offset == 0)
+                return DNNL_ARG_FROM;
+            else if (input_offset == 1)
+                return DNNL_ARG_ATTR_SCALES | DNNL_ARG_FROM;
+            else if (input_offset == 2)
+                return DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_FROM;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::DynamicQuantize: {
+            if (input_offset == 0)
+                return DNNL_ARG_FROM;
+            else if (input_offset == 1)
+                return DNNL_ARG_ATTR_SCALES | DNNL_ARG_TO;
+            else if (input_offset == 2)
+                return DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_TO;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        default: {
+            return DNNL_ARG_SRC;
+        } break;
+    }
 }
 
 } // namespace graph

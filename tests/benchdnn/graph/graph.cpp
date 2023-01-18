@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "dnnl_common.hpp"
 #include "execution_context.hpp"
 #include "graph.hpp"
+#include "ref_partition.hpp"
 
 namespace graph {
 
@@ -189,6 +190,10 @@ void record_queried_logical_tensors(
 
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
+
+    skip_start(res);
+    if (res->state == SKIPPED) return OK;
+
     const auto &dg = prb->dg;
     auto ograph = dg.to_graph(prb->fpmath_mode);
     DNN_GRAPH_SAFE(ograph.finalize(), WARN);
@@ -239,6 +244,7 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const auto &eng = get_test_engine();
+    dnnl::stream strm {eng};
 
     // mark the output logical tensors of partition as ANY layout enabled
     std::unordered_set<size_t> id_to_set_any_layout;
@@ -252,8 +258,11 @@ int doit(const prb_t *prb, res_t *res) {
     // record the logical tensors that are previously enabled with ANY layout
     std::unordered_map<size_t, logical_tensor> id_to_queried_logical_tensors;
 
-    // mark partition outputs id to set as ANY layout
-    set_any_layout(partitions, id_to_set_any_layout);
+    // Mark partition outputs id to set as ANY layout. Used in perf mode only
+    // to connect partitions in most optimized way avoiding extra reorder.
+    if (is_bench_mode(PERF)) {
+        set_any_layout(partitions, id_to_set_any_layout);
+    }
 
     for (size_t i = 0; i < partitions.size(); ++i) {
         auto inputs = partitions[i].get_input_ports();
@@ -263,29 +272,53 @@ int doit(const prb_t *prb, res_t *res) {
         replace_with_queried_logical_tensors(
                 inputs, id_to_queried_logical_tensors);
 
-        // update output logical tensors with ANY layout
-        update_tensors_with_any_layout(outputs, id_to_set_any_layout);
+        // Update output logical tensors with ANY layout. See `set_any_layout`
+        // comment above.
+        if (is_bench_mode(PERF)) {
+            update_tensors_with_any_layout(outputs, id_to_set_any_layout);
+        }
 
-        // compile to generate compiled partition
         DNN_GRAPH_SAFE(c_partitions.emplace_back(
                                partitions[i].compile(inputs, outputs, eng)),
-                CRIT);
+                WARN);
 
         record_queried_logical_tensors(
-                outputs, c_partitions.back(), id_to_queried_logical_tensors);
-
-        // Creating tensors and allocating memory buffer
-        auto input_ts = tm.construct_and_initialize_tensors(
-                inputs, c_partitions.back(), eng, 128);
-        auto output_ts = tm.construct_and_initialize_tensors(
-                outputs, c_partitions.back(), eng, 0);
-        tensors_in.emplace_back(input_ts);
-        tensors_out.emplace_back(output_ts);
+                outputs, c_partitions[i], id_to_queried_logical_tensors);
     }
-
     if (is_bench_mode(INIT)) return res->state = INITIALIZED, OK;
 
-    SAFE(execute_and_wait(c_partitions, tensors_in, tensors_out, res), WARN);
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        auto inputs = partitions[i].get_input_ports();
+        auto outputs = partitions[i].get_output_ports();
+
+        // replace input logical tensor with the queried one
+        replace_with_queried_logical_tensors(
+                inputs, id_to_queried_logical_tensors);
+
+        // Creating tensors and allocating memory buffer
+        // TODO: initialization value should be removed from this interface.
+        auto input_ts = tm.construct_and_initialize_tensors(
+                inputs, c_partitions[i], eng, 128);
+        auto output_ts = tm.construct_and_initialize_tensors(
+                outputs, c_partitions[i], eng, 0);
+        tensors_in.emplace_back(input_ts);
+        tensors_out.emplace_back(output_ts);
+
+        ref_partition_t ref_partition;
+        if (is_bench_mode(CORR)) {
+            ref_partition = ref_partition_t(dg, partitions[i], inputs, outputs);
+            ref_partition.run(input_ts, output_ts, res);
+        }
+        if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+
+        c_partitions[i].execute(strm, input_ts, output_ts);
+        strm.wait();
+        if (res) res->state = EXECUTED;
+
+        if (is_bench_mode(CORR)) {
+            ref_partition.check_partition_correctness(res);
+        }
+    }
 
     if (is_bench_mode(PERF)) {
         SAFE(measure_perf(res->timer_map.perf_timer(), c_partitions, tensors_in,
