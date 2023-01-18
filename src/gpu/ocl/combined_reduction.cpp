@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,6 +121,14 @@ private:
     extended_dims_t perm_, strides_;
     extended_dims_t dims_, padded_dims_;
 };
+
+// Returns the next factor of big_num less than (or equal to) target
+dim_t get_previous_factor(dim_t big_num, dim_t target) {
+    for (dim_t i = 0; i < target; i++) {
+        if (big_num % (target - i) == 0) return target - i;
+    }
+    return 1;
+}
 
 status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     // To start, check for compatibility
@@ -248,25 +256,12 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
 
     conf.attr_info = attr_info_t::create(attr());
 
-    // Heuristics based on testing on PVC
     conf.sub_group_size = compute_engine->device_info()->max_subgroup_size();
 
-    // Each phase will attempt to perform this many horizontal reductions
-    int target_horiz_reductions = 16;
-    // Increase work per wi past target so we spawn less than max_subgroups subgroups
-    const int max_subgroups = 1024;
-    // If there are fewer than this many horizontal reductions,
-    // perform all remaining reductions in a single phase
-    const int single_phase_threshold = 40;
-
-    // LP algs require more flops, so they should do fewer reductions
-    switch (conf.alg) {
-        case reduction_norm_lp_max:
-        case reduction_norm_lp_sum:
-        case reduction_norm_lp_power_p_max:
-        case reduction_norm_lp_power_p_sum: target_horiz_reductions = 4;
-        default: break;
-    }
+    // Heuristic:
+    // If reduction_size*inner_dim_size < single_phase_threshold,
+    // it doesn't help to add another phase, regardless EU saturation
+    const float single_phase_threshold = 1900;
 
     // Pad the inner dim to a multiple of subgroup size
     conf.inner_dim_per_sg = std::min(composite_dims[1],
@@ -288,58 +283,40 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
         data_type_t dst_data_type = types::default_accum_data_type(
                 src_mdw.data_type(), data_type::undef);
 
-        // Heuristic:
-        // Keep horizontal reductions at the target:
-        dim_t reduction_size = target_horiz_reductions * conf.inner_dim_per_sg;
-
-        // Except when:
-        // 1) total horizontal_reductions < minimum: reduce everything (another phase isn't worth it)
-        const dim_t horiz_reductions
-                = utils::div_up(reduced_dim_size, conf.inner_dim_per_sg);
-        if (horiz_reductions <= single_phase_threshold) {
-            reduction_size = reduced_dim_size;
+        // Heuristically determine reduction_end using num_subgroups
+        int num_subgroups = conf.outer_dim_size * sg_per_inner_dim;
+        dim_t reduction_end;
+        if (reduced_dim_size * conf.inner_dim_size < single_phase_threshold) {
+            // If reduction + inner_size is small, do a single phase
+            reduction_end = 1;
+        } else {
+            // Compute number of remaining phases based on this threshold, and split evenly
+            const int N = std::ceil(std::log2(reduced_dim_size)
+                    / std::log2(single_phase_threshold / conf.inner_dim_size));
+            reduction_end = static_cast<dim_t>(
+                    std::pow(reduced_dim_size, (float)(N - 1) / N));
         }
-
-        // 2) total subgroups > max: increase reduction since some parallelism is lost due to high dispatching
-        dim_t reduction_end = utils::div_up(reduced_dim_size, reduction_size);
-        dim_t num_dst_elems
-                = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
-        int num_subgroups = utils::div_up(
-                num_dst_elems * sg_per_inner_dim, conf.inner_dim_size);
-
-        // Outer dims are independent, so base this heuristic on "subgroups per outer dim"
-        if (num_subgroups
-                > max_subgroups * conf.outer_dim_size * sg_per_inner_dim) {
-            reduction_size *= (float)num_subgroups
-                    / (max_subgroups * conf.outer_dim_size * sg_per_inner_dim);
-
-            reduction_end = utils::div_up(reduced_dim_size, reduction_size);
-            num_dst_elems
-                    = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
-            num_subgroups = utils::div_up(
-                    num_dst_elems * sg_per_inner_dim, conf.inner_dim_size);
-        }
+        num_subgroups *= reduction_end;
         // End Heuristic
 
-        reduction_end = utils::div_up(reduced_dim_size, reduction_size);
-
-        // Shrink reduction_size without changing the final shape
-        // ex: div_up(41,16)=3, div_up(41,3)=14 - only 14 reductions needed, not 16
-        reduction_size = utils::div_up(reduced_dim_size, reduction_end);
-        reduction_size = utils::rnd_up(reduction_size, conf.inner_dim_per_sg);
+        // To help the compiler, only allow reduction_end which is a FACTOR of reduced_dim_size.
+        // This results in not needing padding due to reduction chunks
+        reduction_end = get_previous_factor(reduced_dim_size, reduction_end);
+        dim_t reduction_size = reduced_dim_size / reduction_end;
 
         // Clamp reduction size according to 2-phase kernel
         reduction_size = std::min(reduced_dim_size,
                 std::max(conf.inner_dim_per_sg, reduction_size));
 
-        num_dst_elems
+        const dim_t num_dst_elems
                 = conf.outer_dim_size * conf.inner_dim_size * reduction_end;
         num_subgroups = utils::div_up(
                 num_dst_elems * sg_per_inner_dim, conf.inner_dim_size);
 
+        // Start assembling the phase, now that the start/end conditions have been set
         const dim_t phase_start = reduced_dim_size;
         const dim_t phase_reductions = reduction_size;
-        const dim_t phase_end = utils::div_up(phase_start, phase_reductions);
+        const dim_t phase_end = reduction_end;
 
         // Set scratchpad sizes
         const int phase_num = static_cast<int>(conf.phases.size());
@@ -360,6 +337,9 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
                 phase_reductions, src_data_type, dst_data_type, nd_range));
 
         reduced_dim_size = phase_end;
+
+        // To break out of potentially infinite while loops
+        if (conf.phases.size() > 20) return status::runtime_error;
     }
 
     // Set variables that matter for first/last phases
