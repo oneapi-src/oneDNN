@@ -28,6 +28,7 @@
 
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
+#include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
 #include "cpu/x64/jit_brgemm_conv_trans_kernel.hpp"
@@ -53,7 +54,7 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine);
 
-        brgemm_t brgs_[16];
+        std::shared_ptr<brgemm_containers::brgemm_desc_container_t> brgs_;
         bool with_sum;
         float sum_scale;
 
@@ -139,12 +140,9 @@ private:
         return (int)is_M_tail * 2 + (int)is_N_tail;
     }
 
-    std::unique_ptr<brgemm_kernel_t> brg_kernels_[16];
-    struct amx_palette_t {
-        char p[AMX_PALETTE_SIZE];
-    };
-    std::vector<amx_palette_t> brg_kernel_palette_;
-    int brg_kernel_palette_idx_[16];
+    brgemm_containers::brgemm_kernel_container_t brg_kernels_ {16};
+    brgemm_containers::brgemm_palette_container_t brgemm_palettes_ {16};
+
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_rtus_kernel_t>
             rtus_kernel_;

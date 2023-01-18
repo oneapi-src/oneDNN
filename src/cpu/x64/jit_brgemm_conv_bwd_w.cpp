@@ -73,8 +73,8 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
 
     const auto adj_M = nstl::max(jcp_.M, jcp_.M_tail);
     brgs_sz_ = bs_c * (adj_M + 1) * 2 * 2 * 2;
-    brgs_.resize(brgs_sz_);
-    bd_masks.resize(brgs_sz_);
+    brgs_ = std::make_shared<brgemm_containers::brgemm_desc_container_t>();
+    brgs_->resize(brgs_sz_);
 
     const float alpha = 1.0;
     const float beta = 1.0;
@@ -106,10 +106,9 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
                 if (vN == 0 || vK == 0) continue;
                 auto brg_idx = get_brg_idx(bs, M, i_init, i_N, i_K);
                 // if brgemm_t already created then skip this iteration
-                if (brgs_[brg_idx] != nullptr) continue;
-                brgs_[brg_idx] = std::make_shared<brgemm_t>();
-                brgemm_t *brg = brgs_[brg_idx].get();
-                CHECK(brgemm_desc_init(brg, jcp_.isa, jcp_.brg_type, src_type,
+                if ((*brgs_)[brg_idx] != nullptr) continue;
+                brgemm_t brg;
+                CHECK(brgemm_desc_init(&brg, jcp_.isa, jcp_.brg_type, src_type,
                         wei_type, false, false, brgemm_row_major, alpha, vbeta,
                         jcp_.LDA, jcp_.LDB, jcp_.LDC, M, vN, vK, nullptr));
 
@@ -139,7 +138,9 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
                 brgattr.LDC2_N = jcp_.nb_ic * jcp_.ic_block * jcp_.oc_block
                         * jcp_.kd * jcp_.kh * jcp_.kw;
 
-                CHECK(brgemm_desc_set_attr(brg, brgattr));
+                CHECK(brgemm_desc_set_attr(&brg, brgattr));
+
+                brgs_->insert(brg_idx, brg);
             }
         }
     }
@@ -211,7 +212,7 @@ status_t brgemm_convolution_bwd_weights_t::add_brg_kernel(
     if (M <= 0) return status::success;
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
-    const auto &brgs = _pd->brgs_;
+    const auto &brgs = *(_pd->brgs_);
 
     auto N = (i_N) ? jcp.N_tail : jcp.N;
     auto K = (i_K) ? jcp.K_tail : jcp.K;
@@ -220,10 +221,8 @@ status_t brgemm_convolution_bwd_weights_t::add_brg_kernel(
     auto brg = brgs[brg_idx];
     if (!brg_kernels_[brg_idx] && brg && brg->bcast_dim > 0 && brg->load_dim > 0
             && brg->reduce_dim > 0) {
-        brgemm_kernel_t *brg_kernel = nullptr;
-        CHECK(brgemm_kernel_create(&brg_kernel, *brg));
-        CHECK(safe_ptr_assign(brg_kernels_[brg_idx], brg_kernel));
-        CHECK(brgemm_init_tiles(*brg, &brg_kernel_palettes_[brg_idx].a[0]));
+        CHECK(brg_kernels_.insert(brg_idx, brg));
+        brgemm_palettes_.insert(brg_idx, brg);
     }
     return status::success;
 }
@@ -257,10 +256,7 @@ status_t brgemm_convolution_bwd_weights_t::init(engine_t *engine) {
     }
 
     brg_kernels_.resize(_pd->brgs_sz_);
-    brg_kernel_palettes_.resize(_pd->brgs_sz_);
-
-    for (int i = 0; i < _pd->brgs_sz_; i++)
-        brg_kernels_[i] = nullptr;
+    brgemm_palettes_.resize(_pd->brgs_sz_);
 
     int M_begin = 0;
     int M_end = (jcp.M_tail == jcp.M || jcp.M_tail == 0) ? 1 : 2;
@@ -775,18 +771,10 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
 void brgemm_convolution_bwd_weights_t::call_brgemm_kernel(
         thread_info_t &btc, int brg_idx, int batch_size, void *ptr_C) const {
 
-    const auto brg_ker = brg_kernels_[brg_idx].get();
+    const auto brg_ker = brg_kernels_[brg_idx];
     assert(brg_ker != nullptr);
 
-    // TODO: avoid costly tile reconfigurations
-    if (btc.cur_brg_idx != brg_idx) {
-        if (btc.cur_brg_idx == -1
-                || std::memcmp(brg_kernel_palettes_[btc.cur_brg_idx].a,
-                           brg_kernel_palettes_[brg_idx].a, AMX_PALETTE_SIZE)
-                        != 0)
-            amx_tile_configure(brg_kernel_palettes_[brg_idx].a);
-        btc.cur_brg_idx = brg_idx;
-    }
+    brgemm_palettes_.maybe_tile_configure(true, btc.cur_brg_idx, brg_idx);
 
     brgemm_kernel_execute(brg_ker, batch_size, btc.brg_batch, ptr_C,
             static_cast<void *>(btc.wsp_tile));

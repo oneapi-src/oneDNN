@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
+#include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
 #include "cpu/x64/jit_brgemm_conv_comp_pad_kernel.hpp"
@@ -54,31 +55,9 @@ struct brgemm_convolution_bwd_weights_t : public primitive_t {
 
         ~pd_t() = default;
 
-        // ------- DECLARE_COMMON_PD_t -----
-        pd_t *clone() const override {
-            auto new_pd = utils::make_unique<pd_t>(*this);
-            if (!new_pd->is_initialized()) return nullptr;
-            new_pd->brgs_.resize(brgs_sz_);
-            for (int i = 0; i < brgs_sz_; i++) {
-                new_pd->brgs_[i] = brgs_[i];
-                new_pd->bd_masks[i] = bd_masks[i];
-            }
-            return new_pd.release();
-        }
-
-        status_t create_primitive(
-                std::pair<std::shared_ptr<primitive_t>, bool> &primitive,
-                engine_t *engine,
-                const cache_blob_t &cache_blob) const override {
-            return primitive_t::create_primitive_common<
-                    brgemm_convolution_bwd_weights_t, pd_t>(
-                    primitive, this, engine, false, cache_blob);
-        }
-
-        const char *name() const override {
-            return JIT_IMPL_NAME_HELPER("brgconv_bwd_w:", jcp_.isa, "");
-        }
-        // ---------------------------------
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("brgconv_bwd_w:", jcp_.isa, ""),
+                brgemm_convolution_bwd_weights_t);
 
         status_t init(engine_t *engine);
 
@@ -87,8 +66,7 @@ struct brgemm_convolution_bwd_weights_t : public primitive_t {
         void copy2jit_jcp();
 
         int brgs_sz_;
-        std::vector<std::shared_ptr<brgemm_t>> brgs_;
-        std::vector<std::shared_ptr<std::vector<char>>> bd_masks;
+        std::shared_ptr<brgemm_containers::brgemm_desc_container_t> brgs_;
 
         int bs_c;
         std::vector<int> batchsizes;
@@ -179,11 +157,8 @@ private:
     std::unique_ptr<jit_trans_dst_t> trans_dst_kernel_;
     std::unique_ptr<jit_avx512_core_amx_bwd_bias_kernel_t> diff_bias_kernel_;
 
-    std::vector<std::unique_ptr<brgemm_kernel_t>> brg_kernels_;
-    struct S_t {
-        char a[AMX_PALETTE_SIZE];
-    };
-    std::vector<S_t> brg_kernel_palettes_;
+    brgemm_containers::brgemm_kernel_container_t brg_kernels_;
+    brgemm_containers::brgemm_palette_container_t brgemm_palettes_;
 
     status_t add_brg_kernel(int bs, int M, int i_N, int i_K, int i_init);
     void call_brgemm_kernel(

@@ -28,6 +28,7 @@
 
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
+#include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/jit_brgemm_conv_bwd_trans_kernel.hpp"
 #include "cpu/x64/jit_brgemm_post_ops.hpp"
 
@@ -46,37 +47,14 @@ struct brgemm_convolution_bwd_strided_t : public primitive_t {
 
         ~pd_t() = default;
 
-        // ------- DECLARE_COMMON_PD_t -------
-        pd_t *clone() const override {
-            auto new_pd = utils::make_unique<pd_t>(*this);
-            if (!new_pd->is_initialized()) return nullptr;
-            new_pd->brgs_.resize(brgs_sz_);
-            for (int i = 0; i < brgs_sz_; i++) {
-                new_pd->brgs_[i] = brgs_[i];
-                new_pd->bd_masks[i] = bd_masks[i];
-            }
-            return new_pd.release();
-        }
-
-        status_t create_primitive(
-                std::pair<std::shared_ptr<primitive_t>, bool> &primitive,
-                engine_t *engine,
-                const cache_blob_t &cache_blob) const override {
-            return primitive_t::create_primitive_common<
-                    brgemm_convolution_bwd_strided_t, pd_t>(
-                    primitive, this, engine, false, cache_blob);
-        }
-
-        const char *name() const override {
-            return JIT_IMPL_NAME_HELPER("brgconv_strided:", isa, "");
-        }
-        // ---------------------------------
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgconv_strided:", isa, ""),
+                brgemm_convolution_bwd_strided_t);
 
         status_t init(engine_t *engine);
 
         int brgs_sz_;
-        std::vector<std::shared_ptr<brgemm_t>> brgs_;
-        std::vector<std::shared_ptr<std::vector<char>>> bd_masks;
+        std::shared_ptr<brgemm_containers::brgemm_desc_container_t> brgs_;
+
         jit_brgemm_conv_conf_t jcp_;
         // batch sizes info for unrolled kernels
         int bs_c, first_bs;
@@ -104,10 +82,6 @@ protected:
     status_t init(engine_t *engine) override;
 
 private:
-    struct S_t {
-        char a[AMX_PALETTE_SIZE];
-    };
-
     //  brgemm convolution execution context
     struct brgemm_bwd_exec_ctx_t {
         brgemm_bwd_exec_ctx_t(const exec_ctx_t &ctx, const pd_t *pd)
@@ -139,7 +113,7 @@ private:
         brgemm_batch_element_t *__restrict brg_batch;
         char *c_buffer;
         char *wsp_tile;
-        S_t cur_palette;
+        int cur_brg_idx = -1;
         int g, n, icb;
         int id, idb, ih, ihb, iwb;
         int occ;
@@ -168,11 +142,12 @@ private:
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
 
-    std::vector<std::unique_ptr<brgemm_kernel_t>> brg_kernels_;
+    brgemm_containers::brgemm_kernel_container_t brg_kernels_;
+    brgemm_containers::brgemm_palette_container_t brgemm_palettes_;
+
     std::unique_ptr<jit_avx512_core_brgemm_conv_bwd_trans_kernel::
                     jit_avx512_core_brgemm_conv_bwd_trans_kernel_t>
             copy_to_pbuffer_;
-    std::vector<S_t> brg_kernel_palettes_;
 
     size_t acc_dsz, bia_dsz, src_dsz, wei_dsz, dst_dsz;
 

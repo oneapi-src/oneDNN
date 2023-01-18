@@ -73,8 +73,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     CHECK(brgemm_convolution_utils::init_1x1_conf(jcp_, isa, *desc(), src_md_,
             weights_md_, dst_md_, bias_md_, attr_, dnnl_get_max_threads()));
 
-    for (int i = 0; i < 16; i++)
-        brgs_[i].bcast_dim = brgs_[i].load_dim = brgs_[i].reduce_dim = 0;
+    brgs_ = std::make_shared<brgemm_containers::brgemm_desc_container_t>(16);
 
     const float alpha = 1.0;
     const float beta = 1.0;
@@ -99,8 +98,9 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         auto vM = (i_M) ? jcp_.M_tail : jcp_.M;
         auto vN = (i_N) ? jcp_.N_tail : jcp_.N;
         auto vK = (i_K) ? jcp_.K_tail : jcp_.K;
-        brgemm_t &brg = brgs_[get_brg_idx(i_init, i_M, i_N, i_K)];
+        const auto brg_idx = get_brg_idx(i_init, i_M, i_N, i_K);
         if (vM == 0 || vN == 0 || vK == 0) continue;
+        brgemm_t brg;
         brgemm_strides_t brg_strides;
         brg_strides.stride_a = jcp_.brg_stride_a;
         brg_strides.stride_b = jcp_.brg_stride_b;
@@ -141,6 +141,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                 &brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
         jcp_.amx_buf_size_per_thread = nstl::max(
                 brg.get_wsp_buffer_size(), jcp_.amx_buf_size_per_thread);
+        brgs_->insert(brg_idx, brg);
     }
 
     brgemm_convolution_utils::set_amx_wsp_per_thread(jcp_);
@@ -196,9 +197,6 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
             : (dim_t)rnd_up(jcp.ic, last_ic_block) * jcp.oc_block;
     wei_g_stride = jcp.wei_plain ? jcp.oc : jcp.nb_oc * wei_ocb_stride;
 
-    for (int i = 0; i < 16; i++)
-        brg_kernels_[i] = nullptr;
-
     if (jcp.is_rtus) {
         CHECK(safe_ptr_assign(rtus_kernel_,
                 new jit_avx512_core_brgemm_conv_trans_kernel::
@@ -208,39 +206,19 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
     int i_init_begin = (pd()->ic_chunks == 1) ? 1 : 0;
     int i_init_end = 2;
 
+    const auto &brgs = *(pd()->brgs_);
+
     const bool is_amx = brgemm_convolution_utils::is_amx(isa);
     for_(int i_M = 0; i_M < 2; i_M++)
     for_(int i_N = 0; i_N < 2; i_N++)
     for_(int i_K = 0; i_K < 2; i_K++)
     for (int i_init = i_init_begin; i_init < i_init_end; i_init++) {
         auto brg_idx = get_brg_idx(i_init, i_M, i_N, i_K);
-        auto &brg = pd()->brgs_[brg_idx];
-        if (brg.bcast_dim > 0 && brg.load_dim > 0 && brg.reduce_dim > 0
-                && !brg_kernels_[brg_idx]) {
-            brgemm_kernel_t *brg_kernel = nullptr;
-            CHECK(brgemm_kernel_create(&brg_kernel, brg));
-            CHECK(safe_ptr_assign(brg_kernels_[brg_idx], brg_kernel));
-            if (is_amx) {
-                amx_palette_t tmp;
-                int &palette_idx = brg_kernel_palette_idx_[brg_idx];
-                palette_idx = -1;
-                CHECK(brgemm_init_tiles(brg, tmp.p));
-                // check if it's in set of tile configs
-                for (size_t i = 0; i < brg_kernel_palette_.size(); i++) {
-                    const bool is_match = 0
-                            == std::memcmp(brg_kernel_palette_[i].p, tmp.p,
-                                    AMX_PALETTE_SIZE);
-                    if (is_match) {
-                        palette_idx = i;
-                        break;
-                    }
-                }
-                // add to set of tile configs if needed
-                if (palette_idx == -1) {
-                    palette_idx = brg_kernel_palette_.size();
-                    brg_kernel_palette_.push_back(tmp);
-                }
-            }
+        auto brg = brgs[brg_idx];
+        if (brg != nullptr && brg->bcast_dim > 0 && brg->load_dim > 0
+                && brg->reduce_dim > 0 && !brg_kernels_[brg_idx]) {
+            CHECK(brg_kernels_.insert(brg_idx, brg));
+            if (is_amx) brgemm_palettes_.insert(brg_idx, brg);
         }
     }
     return status::success;
@@ -320,7 +298,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
         const brgemm_exec_ctx_t &brgemm_ctx, int ithr,
         brgemm_batch_element_t *const __restrict brg_batch,
         char *const c_buffer, const char *inp_buffer, int g, int n, int ocb,
-        int od, int oh, int ow, int icc, int *last_palette_idx,
+        int od, int oh, int ow, int icc, int *last_brg_idx,
         const float *oscales, int32_t src_zp_vals, int32_t *src_zp_comp,
         int32_t *dst_zp_vals, int32_t *s8s8_compensation,
         const float *dst_scales) const {
@@ -399,18 +377,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
         // NOTE: avoid some costly tile reconfigurations here by keeping track
         //       of the previous brg kernel tile configuration palette
         // TODO: adjust harness to avoid even more tile reconfigurations
-        if (is_amx) {
-            const int curr_palette_idx = brg_kernel_palette_idx_[brg_idx];
-            if (curr_palette_idx != *last_palette_idx) {
-                if (*last_palette_idx == -1
-                        || std::memcmp(brg_kernel_palette_[curr_palette_idx].p,
-                                   brg_kernel_palette_[*last_palette_idx].p,
-                                   AMX_PALETTE_SIZE)
-                                != 0)
-                    amx_tile_configure(brg_kernel_palette_[curr_palette_idx].p);
-                *last_palette_idx = curr_palette_idx;
-            }
-        }
+        brgemm_palettes_.maybe_tile_configure(is_amx, *last_brg_idx, brg_idx);
 
         for (int k = 0; k < n_ic_blocks; k++) {
             const auto ic_off = (ic_block_s + k) * jcp.ic_block;
@@ -424,7 +391,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
             brg_batch[k].vvpad.bottom = 0;
         }
 
-        const brgemm_kernel_t *brg_ker = brg_kernels_[brg_idx].get();
+        const auto brg_ker = brg_kernels_[brg_idx];
         if (do_postops) {
             const brgemm_post_ops_data_t post_ops_data {
                     static_cast<const void *>(bias_w),
@@ -533,7 +500,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
                 : nullptr; \
         int last_n = -1; \
         int last_g = -1; \
-        int last_palette_idx = -1; \
+        int last_brg_idx = -1; \
         int start {0}, end {0}; \
         balance211(work_amount, nthr, ithr, start, end); \
         int n {0}, g {0}, ocb {0}, oss {0}; \
@@ -558,7 +525,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
                                 inp_buffer_mask, g, n, icc, od, oh, ow); \
                     exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, \
                             inp_buffer_sp, g, n, ocb, od, oh, ow, icc, \
-                            &last_palette_idx, oscales, src_zero_point, \
+                            &last_brg_idx, oscales, src_zero_point, \
                             zp_compensation, dst_zp_vals, s8s8_compensation, \
                             dst_scales); \
                 } \
@@ -591,7 +558,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
         char *const c_buffer = (jcp.use_buffer) \
                 ? c_buffer_global + ithr * acc_dsz * jcp.LDC * jcp.M \
                 : nullptr; \
-        int last_palette_idx = -1; \
+        int last_brg_idx = -1; \
         int start {0}, end {0}; \
         balance211(work_amount, nthr, ithr, start, end); \
         int n {0}, g {0}, ocb {0}, od {0}, oh {0}, owb {0}; \
@@ -600,7 +567,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
             for (int icc = 0; icc < pd()->ic_chunks; icc++) { \
                 const int ow = owb * jcp.ow_block; \
                 exec_ker(brgemm_ctx, ithr, brg_batch, c_buffer, nullptr, g, n, \
-                        ocb, od, oh, ow, icc, &last_palette_idx, oscales, \
+                        ocb, od, oh, ow, icc, &last_brg_idx, oscales, \
                         src_zero_point, zp_compensation, dst_zp_vals, \
                         s8s8_compensation, dst_scales); \
             } \

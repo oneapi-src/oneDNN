@@ -118,8 +118,8 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
     bs_c++;
 
     brgs_sz_ = bs_c * adj_M * 2 * 2 * 2;
-    brgs_.resize(brgs_sz_);
-    bd_masks.resize(brgs_sz_);
+    brgs_ = std::make_shared<brgemm_containers::brgemm_desc_container_t>();
+    brgs_->resize(brgs_sz_);
 
     const float alpha = 1.0;
     const float beta = 1.0;
@@ -127,19 +127,6 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
     const auto &p = attr()->post_ops_;
     const int sum_idx = p.find(primitive_kind::sum);
     const bool with_sum = (sum_idx != -1);
-
-    auto maybe_M_mask
-            = [&](int brg_idx, brgemm_attr_t &brgattr, int vM, int vbrgM) {
-                  if (!jcp_.use_M_mask) return;
-                  auto sm_size = vbrgM;
-                  bd_masks[brg_idx] = std::make_shared<std::vector<char>>();
-                  bd_masks[brg_idx]->resize(sm_size);
-                  char *bd_mask = bd_masks[brg_idx]->data();
-                  for (int ibrgM = 0; ibrgM < sm_size; ibrgM++) {
-                      bd_mask[ibrgM] = 1;
-                  }
-                  brgattr.bd_mask = bd_mask;
-              };
 
     const auto M_end = nstl::max(jcp_.M, jcp_.M_tail);
     for (int i = 0; i < M_end; i++) {
@@ -161,19 +148,18 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
                         : vM;
                 auto brg_idx = get_brg_idx(bs, i, i_init, i_N, i_K);
                 // if brgemm_t already created then skip this iteration
-                if (brgs_[brg_idx] != nullptr) continue;
-                brgs_[brg_idx] = std::make_shared<brgemm_t>();
-                brgemm_t *brg = brgs_[brg_idx].get();
+                if ((*brgs_)[brg_idx] != nullptr) continue;
+                brgemm_t brg;
                 if (vN == 0 || vK == 0) continue;
                 brgemm_strides_t brg_strides;
                 brg_strides.stride_a = jcp_.brg_stride_a;
                 brg_strides.stride_b = jcp_.brg_stride_b;
-                brg->req_cal_comp_pads = jcp_.req_brg_comp_pad
+                brg.req_cal_comp_pads = jcp_.req_brg_comp_pad
                         && nstl::max(jcp_.l_pad, jcp_.r_pad);
                 const auto strides_ptr = (jcp_.brg_type == brgemm_strd)
                         ? &brg_strides
                         : nullptr;
-                CHECK(brgemm_desc_init(brg, isa, jcp_.brg_type, diff_dst_type,
+                CHECK(brgemm_desc_init(&brg, isa, jcp_.brg_type, diff_dst_type,
                         wei_type, false, false, brgemm_row_major, alpha, vbeta,
                         jcp_.LDA, jcp_.LDB, jcp_.LDC, vbrgM, vN, vK,
                         strides_ptr));
@@ -203,7 +189,8 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
                 }
 
                 brgattr.wary_tail_read = false;
-                maybe_M_mask(brg_idx, brgattr, vM, vbrgM);
+                // use_M_mask is always 0 for brgemm_convolution_bwd_strided_t
+                brgattr.bd_mask = nullptr;
                 brgattr.bd_mask_level = jcp_.use_M_mask;
 
                 if (is_amx) {
@@ -214,15 +201,16 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
                     brgattr.max_bottom_vpad = jcp_.max_vpad;
                 }
                 brgattr.generate_skip_accumulation = true;
-                CHECK(brgemm_desc_set_attr(brg, brgattr));
+                CHECK(brgemm_desc_set_attr(&brg, brgattr));
 
                 auto LDD = jcp_.stride_w * jcp_.ic_without_padding;
-                brg->with_sum = with_sum;
+                brg.with_sum = with_sum;
                 CHECK(brgemm_desc_set_postops(
-                        brg, attr(), &diff_src_md_, LDD, jcp_.bia_dt));
+                        &brg, attr(), &diff_src_md_, LDD, jcp_.bia_dt));
                 jcp_.amx_buf_size_per_thread
-                        = nstl::max(brg->get_wsp_buffer_size(),
+                        = nstl::max(brg.get_wsp_buffer_size(),
                                 jcp_.amx_buf_size_per_thread);
+                brgs_->insert(brg_idx, brg);
             }
         }
     }
@@ -241,7 +229,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::add_brg_kernel(
     if (M <= 0) return status::success;
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
-    const auto &brgs = _pd->brgs_;
+    const auto &brgs = *(_pd->brgs_);
 
     auto N = (i_N) ? jcp.N_tail : jcp.N;
     auto K = (i_K) ? jcp.K_tail : jcp.K;
@@ -250,12 +238,8 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::add_brg_kernel(
     auto brg = brgs[brg_idx];
     if (!brg_kernels_[brg_idx] && brg && brg->bcast_dim > 0 && brg->load_dim > 0
             && brg->reduce_dim > 0) {
-        brgemm_kernel_t *brg_kernel = nullptr;
-        CHECK(brgemm_kernel_create(&brg_kernel, *brg));
-        CHECK(safe_ptr_assign(brg_kernels_[brg_idx], brg_kernel));
-        if (is_amx) {
-            CHECK(brgemm_init_tiles(*brg, &brg_kernel_palettes_[brg_idx].a[0]));
-        }
+        CHECK(brg_kernels_.insert(brg_idx, brg));
+        if (is_amx) brgemm_palettes_.insert(brg_idx, brg);
     }
     return status::success;
 }
@@ -334,10 +318,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::init(
 
     // ---- Initialize arrays ---------------------
     brg_kernels_.resize(_pd->brgs_sz_);
-    brg_kernel_palettes_.resize(_pd->brgs_sz_);
-
-    for (int i = 0; i < _pd->brgs_sz_; i++)
-        brg_kernels_[i] = nullptr;
+    brgemm_palettes_.resize(_pd->brgs_sz_);
 
     CHECK(safe_ptr_assign(copy_to_pbuffer_,
             new jit_avx512_core_brgemm_conv_bwd_trans_kernel_t(jcp)));
@@ -458,7 +439,6 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::execute(
 
         brgemm_bwd_thread_ctx_t btc(
                 brgemm_ctx, ithr, brg_batch, c_buffer, wsp_tile);
-        std::memset(btc.cur_palette.a, 0, AMX_PALETTE_SIZE);
 
         int last_n = -1;
         int last_g = -1;
@@ -523,20 +503,12 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::call_brgemm_kernel(
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
 
-    const auto brg_ker = brg_kernels_[brg_idx].get();
+    const auto brg_ker = brg_kernels_[brg_idx];
     assert(brg_ker != nullptr);
 
     if (is_first_call_postops) return;
 
-    if (is_amx) {
-        if (std::memcmp(btc.cur_palette.a, brg_kernel_palettes_[brg_idx].a,
-                    AMX_PALETTE_SIZE)
-                != 0) {
-            amx_tile_configure(brg_kernel_palettes_[brg_idx].a);
-            std::memcpy(btc.cur_palette.a, brg_kernel_palettes_[brg_idx].a,
-                    AMX_PALETTE_SIZE);
-        }
-    }
+    brgemm_palettes_.maybe_tile_configure(is_amx, btc.cur_brg_idx, brg_idx);
 
     const auto do_only_pass_comp = !do_postops && jcp.src_zero_point
             && (jcp.req_brg_comp_pad || jcp.max_vpad > 0);
