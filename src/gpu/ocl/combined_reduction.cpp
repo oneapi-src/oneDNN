@@ -443,8 +443,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         default: return status::invalid_arguments;
     }
 
-    kernel_ctx.define_int("UNROLL_AMOUNT", std::min(sg_reduction_per_wi, 8));
-
     def_data_type(kernel_ctx, phase.src_type, "SRC");
     def_data_type(kernel_ctx, phase.dst_type, "DST");
 

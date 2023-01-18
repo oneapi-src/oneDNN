@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -116,10 +116,24 @@ __kernel void combined_reduce(
             = _DST_OFF(outer_idx, reduction_chunk + red_off, inner_idx);
     DEF_ACC_DATA_T acc = INIT_ACC;
 
-    __attribute__((opencl_unroll_hint(UNROLL_AMOUNT))) // attr:no-format
-    for (int off = 0; off < REDUCTIONS_PER_WI
-            && off * INNER_DIMS_PER_WI + reduction_idx < REDUCTION_START_SIZE;
-            off++) {
+    int off = 0;
+    for (; off < REDUCTIONS_PER_WI - 1; off++) {
+        // Load
+#if WITH_BLOCK_READ
+        const int src_off = _SRC_OFF(outer_idx,
+                off * INNER_DIMS_PER_WI + reduction_idx_start, inner_idx_start);
+        const SRC_DATA_T src_val = AS_DATA_T(
+                BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off]));
+#else
+        const int src_off = _SRC_OFF(
+                outer_idx, off * INNER_DIMS_PER_WI + reduction_idx, inner_idx);
+        const SRC_DATA_T src_val = src[src_off];
+#endif
+        // Accumulate
+        acc = ACCUMULATE(acc, TO_DEF_ACC_DATA_T(src_val));
+    }
+    // Check final iteration -- some work items skip this one
+    if (off * INNER_DIMS_PER_WI + reduction_idx < REDUCTION_START_SIZE) {
         // Load
 #if WITH_BLOCK_READ
         const int src_off = _SRC_OFF(outer_idx,
