@@ -352,6 +352,14 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     return status::success;
 }
 
+static bool can_block_read(dim_t upper_bound, dim_t stride, data_type_t dt) {
+    // If size-1 dimension, can always block read
+    if (upper_bound == 1) return true;
+
+    // Otherwise, the stride has to be 4-byte aligned
+    return (stride * types::data_type_size(dt) % 4 == 0);
+}
+
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const reduction_conf_t &conf, const reduction_phase_t &phase) {
     using namespace alg_kind;
@@ -387,13 +395,32 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("IS_FINAL", phase.is_final);
     kernel_ctx.define_int("IS_FIRST", phase.is_first);
 
-    // Block loading is supported when inner dims are a multiple of 4 bytes
-    const size_t src_dt_size = types::data_type_size(phase.src_type);
-    const int nelems_per_sg = conf.inner_dim_size * conf.inner_dim_per_sg;
-    const size_t read_bytes = src_dt_size * nelems_per_sg;
-    const bool use_block_reads = (read_bytes % 4 == 0)
-            && (phase.initial_size % nelems_per_sg == 0);
-    kernel_ctx.define_int("WITH_BLOCK_READ", use_block_reads ? 1 : 0);
+    // Block loading
+    // 2 requirements:
+    //  1) Pointer is 4-byte aligned (pointer has 4 access patterns, one for each dimension)
+    const bool can_block_read_outer = can_block_read(conf.outer_dim_size,
+            phase.initial_size * conf.inner_dim_size, phase.src_type);
+    const bool can_block_read_reduction = can_block_read(sg_reduction_per_wi,
+            conf.inner_dim_per_sg * conf.inner_dim_size, phase.src_type);
+    const bool can_block_read_red_chunk
+            = can_block_read(phase.num_reduction_chunks,
+                    phase.reduction_size * conf.inner_dim_size, phase.src_type);
+    const bool can_block_read_inner = can_block_read(
+            conf.inner_dim_size, conf.sub_group_size, phase.src_type);
+
+    //  2) All work items in a subgroup call the load function (inner dim and reduction sizes are coherent with subgroup size)
+    const bool using_all_simd_channels
+            = (conf.inner_dim_size * conf.inner_dim_per_sg % conf.sub_group_size
+                    == 0);
+    const bool aligned_reduction = (phase.reduction_size
+            == sg_reduction_per_wi * conf.inner_dim_per_sg);
+
+    const bool can_use_block_reads = can_block_read_outer
+            && can_block_read_reduction && can_block_read_red_chunk
+            && can_block_read_inner && using_all_simd_channels
+            && aligned_reduction;
+
+    kernel_ctx.define_int("WITH_BLOCK_READ", can_use_block_reads ? 1 : 0);
 
     switch (conf.alg) {
         case reduction_max: kernel_ctx.define_int("IS_MAX", 1); break;
