@@ -57,19 +57,6 @@ void copy_data_chunk(ker_type &ker, char *tr_data, const char *data,
     (*ker)(&ctx);
 }
 
-void maybe_tile_configure(bool is_amx,
-        const char brg_kernel_palettes[][AMX_PALETTE_SIZE], int brg_ker_idx,
-        int &prev_ker_idx) {
-    if (!is_amx) return;
-    if (brg_ker_idx == prev_ker_idx) return;
-    // TODO: more accurately estimate the costs of memcmp and tile configuration
-    if (prev_ker_idx == -1
-            || std::memcmp(&brg_kernel_palettes[brg_ker_idx][0],
-                       &brg_kernel_palettes[prev_ker_idx][0], AMX_PALETTE_SIZE)
-                    != 0)
-        amx_tile_configure(&brg_kernel_palettes[brg_ker_idx][0]);
-    prev_ker_idx = brg_ker_idx;
-}
 } // namespace
 
 template <cpu_isa_t isa>
@@ -207,8 +194,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                     is_os_tail ? jbgp.mb - n : jbgp.os_block, is_last_ic_chunk);
         }
         if (gemm_batch > 0 && brg_kernel != nullptr) {
-            maybe_tile_configure(
-                    is_amx, brg_kernel_palettes_, brg_ker_idx, prev_ker_idx);
+            brgemm_palettes_.maybe_tile_configure(
+                    is_amx, prev_ker_idx, brg_ker_idx);
             const int ic_blocks_per_batch = jbgp.K / jbgp.ic_block;
             for (int b = 0; b < gemm_batch; b++) {
                 auto A_ptr = jbgp.use_buffer_a
@@ -256,8 +243,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             int brg_ker_ic_tail_idx
                     = brgemm_inner_product_utils::get_brg_kernel_index(jbgp,
                             false, use_init_ker, is_os_tail, is_oc_tail, true);
-            maybe_tile_configure(is_amx, brg_kernel_palettes_,
-                    brg_ker_ic_tail_idx, prev_ker_idx);
+            brgemm_palettes_.maybe_tile_configure(
+                    is_amx, prev_ker_idx, brg_ker_ic_tail_idx);
 
             int ic_block = gemm_batch * jbgp.K / jbgp.ic_block;
             addr_batch[0].ptr.A = src
@@ -391,8 +378,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             order = icc_occ_osc_ocb_osb;
 
         int prev_ker_idx = -1;
-        maybe_tile_configure(
-                is_amx, brg_kernel_palettes_, base_brg_ker_idx, prev_ker_idx);
+        brgemm_palettes_.maybe_tile_configure(
+                is_amx, prev_ker_idx, base_brg_ker_idx);
 
         int icc {0}, occ {0}, osc {0};
         int start {start_init};
@@ -570,8 +557,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                             const int brg_ker_idx = brgemm_inner_product_utils::
                                     get_brg_kernel_index(jbgp, false, false,
                                             is_os_tail, is_oc_tail, false);
-                            maybe_tile_configure(is_amx, brg_kernel_palettes_,
-                                    brg_ker_idx, prev_ker_idx);
+                            brgemm_palettes_.maybe_tile_configure(
+                                    is_amx, prev_ker_idx, brg_ker_idx);
                             const auto brg_kernel
                                     = brg_kernels_[brg_ker_idx].get();
                             const int os = osb * jbgp.os_block;
@@ -823,8 +810,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
                     is_os_tail ? jbgp.os - n : jbgp.os_block, is_last_oc_chunk);
 
         if (nb_oc_b > 0 && brg_kernel != nullptr) {
-            maybe_tile_configure(
-                    is_amx, brg_kernel_palettes_, brg_ker_idx, prev_ker_idx);
+            brgemm_palettes_.maybe_tile_configure(
+                    is_amx, prev_ker_idx, brg_ker_idx);
             for (int oc_block = 0; oc_block < nb_oc_b; oc_block++) {
                 addr_batch[oc_block].ptr.A = jbgp.use_buffer_a ? a_buffer
                                 + oc_block * jbgp.oc_block
@@ -862,8 +849,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             const int brg_kernel_oc_tail_idx
                     = brgemm_inner_product_utils::get_brg_kernel_index(jbgp,
                             false, use_init_ker, is_os_tail, is_ic_tail, true);
-            maybe_tile_configure(is_amx, brg_kernel_palettes_,
-                    brg_kernel_oc_tail_idx, prev_ker_idx);
+            brgemm_palettes_.maybe_tile_configure(
+                    is_amx, prev_ker_idx, brg_kernel_oc_tail_idx);
 
             const int oc_block = nb_oc_b;
             addr_batch[0].ptr.A = diff_dst
@@ -953,8 +940,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
             balance211(oc_chunks, nthr_oc, ithr_oc, occ_start, occ_end);
 
         int prev_ker_idx = -1;
-        maybe_tile_configure(
-                is_amx, brg_kernel_palettes_, base_brg_ker_idx, prev_ker_idx);
+        brgemm_palettes_.maybe_tile_configure(
+                is_amx, prev_ker_idx, base_brg_ker_idx);
 
         int icb {0}, oss {0};
         nd_iterator_init(start, oss, os_chunks, icb, jbgp.nb_ic);
@@ -1465,8 +1452,8 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                     types::data_type_size(jbgp.acc_dt) * jbgp.ic_block
                             * jbgp.oc_block);
         if (nb_os_b > 0 && brg_kernel != nullptr) {
-            maybe_tile_configure(jbgp.is_amx, brg_kernel_palettes_, brg_ker_idx,
-                    prev_ker_idx);
+            brgemm_palettes_.maybe_tile_configure(
+                    jbgp.is_amx, prev_ker_idx, brg_ker_idx);
             if (transform_a) {
                 const memory_desc_wrapper src_d(pd()->src_md());
                 auto src_ptr = ti->src
@@ -1526,8 +1513,8 @@ void brgemm_inner_product_bwd_weights_t<isa>::compute_diff_weights_and_bias(
                             false, use_init_ker, is_ic_tail, is_oc_tail, true);
             auto brg_kernel_os_tail = brg_kernels_[brg_ker_idx_os_tail].get();
             if (brg_kernel_os_tail != nullptr)
-                maybe_tile_configure(jbgp.is_amx, brg_kernel_palettes_,
-                        brg_ker_idx_os_tail, prev_ker_idx);
+                brgemm_palettes_.maybe_tile_configure(
+                        jbgp.is_amx, prev_ker_idx, brg_ker_idx_os_tail);
             int os_block = nb_os_b;
             auto a_ptr = a_buffer + os_block * a_buf_osb_shift;
 

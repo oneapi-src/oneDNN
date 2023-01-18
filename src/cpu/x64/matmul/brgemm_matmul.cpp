@@ -41,22 +41,6 @@ using namespace nstl;
 
 using namespace data_type;
 
-namespace {
-void maybe_tile_configure(bool is_amx,
-        const char brg_kernel_palettes[][AMX_PALETTE_SIZE], int brg_ker_idx,
-        int &prev_ker_idx) {
-    if (!is_amx) return;
-    if (brg_ker_idx == prev_ker_idx) return;
-    // TODO: more accurately estimate the costs of memcmp and tile configuration
-    if (prev_ker_idx == -1
-            || std::memcmp(&brg_kernel_palettes[brg_ker_idx][0],
-                       &brg_kernel_palettes[prev_ker_idx][0], AMX_PALETTE_SIZE)
-                    != 0)
-        amx_tile_configure(&brg_kernel_palettes[brg_ker_idx][0]);
-    prev_ker_idx = brg_ker_idx;
-}
-} // namespace
-
 template <cpu_isa_t isa>
 status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     const auto src_dt = src_md_.data_type;
@@ -191,8 +175,7 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
         CHECK(brgemm_kernel_create(&ker, pd()->get_brg_desc(idx)));
         CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
         if (is_superset(isa, avx512_core_amx))
-            CHECK(brgemm_init_tiles(
-                    pd()->get_brg_desc(idx), &brg_kernel_palettes_[idx][0]));
+            brgemm_palettes_.insert(idx, pd()->get_brg_desc(idx));
     }
 
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
@@ -250,8 +233,8 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                     ithr_k, kc_start, kc_end);
 
         int prev_ker_idx = -1;
-        maybe_tile_configure(is_amx, brg_kernel_palettes_,
-                brgmm_ctx.get_base_brgemm_kernel_idx(), prev_ker_idx);
+        brgemm_palettes_.maybe_tile_configure(
+                is_amx, prev_ker_idx, brgmm_ctx.get_base_brgemm_kernel_idx());
 
         int b {0}, mc {0}, nc {0};
         nd_iterator_init(
@@ -333,8 +316,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
     if (gemm_batch > 0 && brg_ker_idx >= 0) {
         const auto brg_kernel = brg_kernels_[brg_ker_idx].get();
         assert(brg_kernel != nullptr);
-        maybe_tile_configure(
-                is_amx, brg_kernel_palettes_, brg_ker_idx, prev_ker_idx);
+        brgemm_palettes_.maybe_tile_configure(
+                is_amx, prev_ker_idx, brg_ker_idx);
 
         brgmm_ctx.init_brgemm_batch_elements_values(
                 ithr, 0, gemm_batch, b_idx, m_blk_idx, k_blk_idx, n_blk_idx);
@@ -377,8 +360,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
         const bool use_init_ker = (do_init && gemm_batch == 0);
         const int brg_ker_idx = pd()->get_brg_kernel_idx(
                 false, use_init_ker, is_M_tail, is_N_tail, true);
-        maybe_tile_configure(
-                is_amx, brg_kernel_palettes_, brg_ker_idx, prev_ker_idx);
+        brgemm_palettes_.maybe_tile_configure(
+                is_amx, prev_ker_idx, brg_ker_idx);
         const auto brg_kernel_k_tail = brg_kernels_[brg_ker_idx].get();
 
         if (post_ops_applicable) {
@@ -479,8 +462,8 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
                                 = (bgmmc.N - nb * bgmmc.N_blk < bgmmc.N_blk);
                         const int brg_ker_idx = pd()->get_brg_kernel_idx(
                                 false, false, is_M_tail, is_N_tail, false);
-                        maybe_tile_configure(is_amx, brg_kernel_palettes_,
-                                brg_ker_idx, prev_ker_idx);
+                        brgemm_palettes_.maybe_tile_configure(
+                                is_amx, prev_ker_idx, brg_ker_idx);
                         const auto brg_kernel = brg_kernels_[brg_ker_idx].get();
                         const int m = mb * bgmmc.M_blk;
                         const int n = nb * bgmmc.N_blk;

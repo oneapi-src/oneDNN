@@ -27,6 +27,7 @@
 
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
+#include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
 #include "cpu/x64/jit_brgemm_inner_product_utils.hpp"
@@ -192,8 +193,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             CHECK(brgemm_kernel_create(&ker, pd()->brg_descs_[idx]));
             CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
             if (pd()->jbgp_.is_amx)
-                CHECK(brgemm_init_tiles(
-                        pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
+                brgemm_palettes_.insert(idx, pd()->brg_descs_[idx]);
         }
         if (pd()->jbgp_.use_buffer_a)
             CHECK(create_brgemm_copy_to_coarse(copy_src_kernel_, &pd()->jbgp_));
@@ -217,8 +217,8 @@ private:
             brg_kernels_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
     std::unique_ptr<jit_brgemm_copy_to_coarse_t> copy_src_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
-    char brg_kernel_palettes_[brgemm_inner_product_utils::
-                    max_num_brg_kernels_ip][AMX_PALETTE_SIZE];
+    brgemm_containers::brgemm_palette_container_t brgemm_palettes_ {
+            brgemm_inner_product_utils::max_num_brg_kernels_ip};
 };
 
 template <cpu_isa_t isa>
@@ -353,8 +353,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             CHECK(brgemm_kernel_create(&ker, pd()->brg_descs_[idx]));
             CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
             if (jbgp.is_amx)
-                CHECK(brgemm_init_tiles(
-                        pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
+                brgemm_palettes_.insert(idx, pd()->brg_descs_[idx]);
         }
 
         if (pd()->jbgp_.use_buffer_a)
@@ -386,8 +385,8 @@ private:
     std::unique_ptr<jit_brgemm_copy_to_coarse_t> copy_diff_dst_kernel_;
     std::unique_ptr<jit_brgemm_trans_wei_t> trans_B_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
-    char brg_kernel_palettes_[brgemm_inner_product_utils::
-                    max_num_brg_kernels_ip][AMX_PALETTE_SIZE];
+    brgemm_containers::brgemm_palette_container_t brgemm_palettes_ {
+            brgemm_inner_product_utils::max_num_brg_kernels_ip};
 };
 
 template <cpu_isa_t isa>
@@ -515,8 +514,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             CHECK(brgemm_kernel_create(&ker, pd()->brg_descs_[idx]));
             CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
             if (jbgp.is_amx)
-                CHECK(brgemm_init_tiles(
-                        pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
+                brgemm_palettes_.insert(idx, pd()->brg_descs_[idx]);
 
             if (jbgp.with_bias && i_M == 0 && i_init == 0) {
                 kernels_db_[i_K][i_N] = nullptr;
@@ -588,8 +586,8 @@ private:
             const int icb, int oc_size, int ic_size,
             bool is_reduction = false) const;
 
-    char brg_kernel_palettes_[brgemm_inner_product_utils::
-                    max_num_brg_kernels_ip][AMX_PALETTE_SIZE];
+    brgemm_containers::brgemm_palette_container_t brgemm_palettes_ {
+            brgemm_inner_product_utils::max_num_brg_kernels_ip};
     dim_t get_wei_offset(int ocb, int icb) const;
     char *get_wei_acc_ptr(const thread_info_t *ti, int ocb, int icb,
             int reduction_buf_idx = -1) const;

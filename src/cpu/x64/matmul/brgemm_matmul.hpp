@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 #include "cpu/matmul/cpu_matmul_pd.hpp"
 
 #include "cpu/x64/brgemm/brgemm.hpp"
+#include "cpu/x64/brgemm/brgemm_containers.hpp"
+#include "cpu/x64/brgemm/brgemm_utils.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_copy_utils.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
@@ -115,7 +117,9 @@ private:
             char *result_ptr, const char *reduce_ptr, size_t size) const;
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_matmul];
-    char brg_kernel_palettes_[max_num_brg_kernels_matmul][64];
+    brgemm_containers::brgemm_palette_container_t brgemm_palettes_ {
+            max_num_brg_kernels_matmul};
+
     std::unique_ptr<jit_brgemm_matmul_copy_b_t> copy_B_kernel_;
     std::unique_ptr<jit_brgemm_matmul_copy_a_t> copy_A_kernel_;
     std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_f32_;
