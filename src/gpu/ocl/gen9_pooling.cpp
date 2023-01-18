@@ -84,8 +84,14 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         conf.vect_dt_n = 1;
         conf.nvect = 2;
         if (!pd->attr()->post_ops_.has_default_values()) { conf.nvect = 1; }
+        if ((conf.c_padded / c_block_size) % conf.nvect != 0) {
+            conf.nvect = 1;
+        }
         conf.chunks_per_c_block = conf.nvect * conf.vect_dt_n;
         conf.chunks_per_mb_block = 1;
+        // heuristics: ocl ref kernel is faster for small filters.
+        if (((float)conf.kh / (float)conf.ih) < 0.5)
+            return status::unimplemented;
     } else {
         conf.use_only_c_block = true;
         const size_t num_c_blocks = c_padded / conf.sub_group_size;
@@ -99,10 +105,10 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         conf.nvect = 1;
         conf.chunks_per_c_block = conf.nvect * conf.vect_dt_n;
         conf.chunks_per_mb_block = 1;
-    }
-    if (conf.vect_dt_n < 4) {
-        // fallback to ref_pooling kernel for better perf.
-        return status::unimplemented;
+        if (conf.vect_dt_n < 4) {
+            // fallback to ref_pooling kernel for better perf.
+            return status::unimplemented;
+        }
     }
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(
