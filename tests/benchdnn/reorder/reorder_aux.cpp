@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,35 +121,6 @@ int prb_t::get_compensation_mask(flag_bit_t flag) const {
     int mask = 0;
     get_compensation_parameters(comp_dims, mask, flag);
     return mask;
-}
-
-float *prb_t::generate_scales(int arg) const {
-    const auto &scales = attr.scales;
-    if (scales.is_def()) return nullptr;
-
-    const auto &e = scales.get(arg);
-    const int mask = attr_t::get_default_mask(e.policy);
-    int64_t uniq_scales = nelems(mask);
-
-    float *values = (float *)zmalloc(sizeof(float) * uniq_scales, 64);
-    SAFE_V(values != nullptr ? OK : FAIL);
-    for (int d = 0; d < uniq_scales; ++d)
-        values[d] = e.scale;
-    if (uniq_scales > 1) values[uniq_scales - 1] /= 2.f;
-    return values;
-}
-
-int32_t *prb_t::generate_zero_points(int arg) const {
-    const attr_t::zero_points_t &zero_points = this->attr.zero_points;
-    if (zero_points.is_def(arg)) return nullptr;
-
-    const auto &e = zero_points.get(arg);
-    assert(e.policy == policy_t::COMMON);
-
-    int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t), 4);
-    SAFE_V(zp != nullptr ? OK : FAIL);
-    zp[0] = e.value;
-    return zp;
 }
 
 dt_conf_t prb_t::get_conf(data_kind_t kind) const {
