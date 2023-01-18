@@ -357,14 +357,13 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_data_type({prb->dt}, prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res);
 
-    // Non-zero alpha is not supported on GPU and for training in general.
+    // Non-zero alpha is not supported for training in general.
     const auto &po = prb->attr.post_ops;
     const auto relu_idx = po.find(attr_t::post_ops_t::kind_t::RELU);
     if (relu_idx >= 0) {
         const auto &e = po.entry[relu_idx];
         float alpha = e.eltwise.alpha;
-        bool alpha_ok
-                = IMPLICATION(alpha != 0.f, (prb->dir & FLAG_INF) && is_cpu());
+        bool alpha_ok = IMPLICATION(alpha != 0.f, (prb->dir & FLAG_INF));
         if (!alpha_ok) {
             res->state = SKIPPED;
             res->reason = CASE_NOT_SUPPORTED;

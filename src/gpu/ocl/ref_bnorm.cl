@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -252,7 +252,7 @@ KERNEL_ATTR
 __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst, __global float *scale,
         __global float *shift, __global char *ws, float eps,
-        __global DATA_T *src_add) {
+        __global DATA_T *src_add, float relu_alpha) {
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
     const int d = GWS_GET_ID();
@@ -292,9 +292,14 @@ __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #endif
     }
 #endif
+
 #if WITH_RELU
+#if WITH_LEAKY_RELU
+    if (bn_res < 0) { bn_res *= relu_alpha; }
+#else
     bn_res = max(bn_res, 0.0f);
-#endif
+#endif //WITH_LEAKY_RELU
+#endif //WITH_RELU
 
     dst[off] = TO_DATA_T(bn_res);
 }

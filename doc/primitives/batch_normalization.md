@@ -240,7 +240,8 @@ correctly. Hence, in case of training one should use the #dnnl_fuse_norm_relu or
    variance must be provided by a user (i.e., #dnnl_use_global_stats is set).
 
 3. **GPU**
-   - ReLU eltwise post-op doesn't support non-zero \f$\alpha\f$ parameter.
+   - ReLU eltwise post-op supports non-zero \f$\alpha\f$ parameter in reference
+   implementation only.
 
 4. CPU implementations do not support the fusion with binary addition and ReLU
    activation (#dnnl_fuse_norm_add_relu).

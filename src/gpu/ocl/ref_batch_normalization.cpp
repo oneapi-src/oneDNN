@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,7 +59,8 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.fuse_norm_relu = pd->fuse_norm_relu() || pd->fuse_norm_add_relu();
     conf.fuse_norm_add_relu = pd->fuse_norm_add_relu();
     conf.calculate_stats = !pd->stats_is_src();
-    conf.with_relu = pd->with_relu_post_op();
+    conf.with_relu = pd->with_relu_post_op(pd->is_training());
+    conf.relu_negative_slope = pd->alpha();
     conf.eps = bd.batch_norm_epsilon;
     conf.calculate_diff_stats = !pd->use_global_stats();
     conf.diff_scale = (pd->use_scale() && bd.prop_kind == prop_kind::backward);
@@ -247,6 +248,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         kernel_ctx.define_int("IS_BWD", 1);
 
     kernel_ctx.define_int("WITH_RELU", conf.with_relu);
+    if (conf.with_relu && conf.relu_negative_slope != 0.f)
+        kernel_ctx.define_int("WITH_LEAKY_RELU", 1);
+
     kernel_ctx.define_int("SAVE_STATS", conf.save_stats);
     kernel_ctx.define_int("IS_TRAINING", conf.is_training);
     kernel_ctx.define_int("FUSE_BN_RELU", conf.fuse_norm_relu);
@@ -272,7 +276,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         def_dispatch(kernel_ctx, conf.dispatch_reduce_stat);
     }
     def_dispatch(kernel_ctx, conf.dispatch);
-
     return status::success;
 }
 
@@ -408,6 +411,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
     arg_list.set(6, ws);
     arg_list.set(7, conf.eps);
     arg_list.set(8, src_add);
+    arg_list.set(9, conf.relu_negative_slope);
 
     auto nd_range = conf.dispatch.nd_range();
 
