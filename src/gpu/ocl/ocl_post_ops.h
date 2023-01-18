@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -254,15 +254,12 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         is_burstable; \
     })
 
-#define BINARY_ARG_IS_SCALAR(idx) ({ false; })
-
 #define APPLY_PO_BINARY(idx, accumulator, acc_elem_dt, x0, x0_s, x1, x1_s, \
         x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, is_burst) \
     { \
-        const unsigned bin_arg_size = BINARY_ARG_IS_SCALAR(idx) \
-                ? 1 \
-                : sizeof(accumulator) / sizeof(acc_elem_dt); \
-        float bin_arg[bin_arg_size]; \
+        const unsigned bin_arg_size \
+                = sizeof(accumulator) / sizeof(acc_elem_dt); \
+        float bin_arg[sizeof(accumulator) / sizeof(acc_elem_dt)]; \
         float *bin_arg_ptr = &bin_arg[0]; \
         const bool use_burst_read = IS_BURSTABLE(idx, x0, x0_s, x1, x1_s, x2, \
                 x2_s, x3, x3_s, x4, x4_s, x5, x5_s, is_burst); \
