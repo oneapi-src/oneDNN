@@ -133,7 +133,7 @@ __kernel void combined_reduce(
         acc = ACCUMULATE(acc, TO_DEF_ACC_DATA_T(src_val));
     }
     // Check final iteration -- some work items skip this one
-    if (off * INNER_DIMS_PER_WI + reduction_idx < REDUCTION_START_SIZE) {
+    if (off * INNER_DIMS_PER_WI + red_off < REDUCTION_SIZE) {
         // Load
 #if WITH_BLOCK_READ
         const int src_off = _SRC_OFF(outer_idx,
