@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,15 +40,6 @@ public:
     virtual status_t fill(
             const memory_storage_t &dst, uint8_t pattern, size_t size)
             = 0;
-    virtual status_t parallel_for(const nd_range_t &range,
-            const kernel_t &kernel, const kernel_arg_list_t &arg_list) {
-        return kernel.parallel_for(*this, range, arg_list);
-    }
-
-    virtual status_t parallel_for(
-            const kernel_t &kernel, const std::function<void(void *)> &cgf) {
-        return kernel.parallel_for(*this, cgf);
-    }
 
 protected:
     bool has_zero_pad_primitive() const {
