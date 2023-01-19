@@ -254,6 +254,18 @@ int ip_fwd_get_nb_oc_blocking(
         return 1;
 }
 
+// Check if work amount is balanced between threads.
+bool is_balanced(int work, int min_work, int nthrs, int goal_nthrs = 0) {
+    if (goal_nthrs <= 0) goal_nthrs = nthrs;
+    int eff_nthrs = work % nthrs;
+    if (!eff_nthrs) return true;
+    int work_per_thread = work / nthrs;
+
+    bool imbalanced = work_per_thread <= min_work && eff_nthrs < goal_nthrs;
+
+    return !imbalanced;
+}
+
 bool ip_fwd_adjust_thread_balance(const jit_brgemm_primitive_conf_t &jbgp) {
     if (IMPLICATION(jbgp.is_wei_layout_any, !jbgp.is_amx)) return false;
 
@@ -264,14 +276,9 @@ bool ip_fwd_adjust_thread_balance(const jit_brgemm_primitive_conf_t &jbgp) {
     int oc_chunks = div_up(nb_oc, nb_oc_blocking);
 
     int work_amount = oc_chunks * os_chunks;
-    const auto work_per_thread = work_amount / jbgp.nthr;
-    float wb_ratio = static_cast<float>(work_amount % jbgp.nthr) / jbgp.nthr;
 
-    // return true if work distribution between threads has significant
-    // imbalance - amount of work per thread is small and the last iteration
-    // is able to load less than half of threads available for the current
-    // block sizes
-    return (work_per_thread < 3 && wb_ratio > 0.0f && wb_ratio < .5f);
+    const int min_work = 2; // Minimum work per thread.
+    return !is_balanced(work_amount, min_work, jbgp.nthr, jbgp.nthr / 2);
 }
 
 int ip_fwd_get_adjusted_oc_block(const jit_brgemm_primitive_conf_t &jbgp) {
