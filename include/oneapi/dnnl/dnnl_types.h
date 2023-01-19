@@ -29,6 +29,8 @@ extern "C" {
 #include <stdint.h>
 /// @endcond
 
+#include "oneapi/dnnl/dnnl_config.h"
+
 #include "oneapi/dnnl/dnnl_common_types.h"
 
 /// @addtogroup dnnl_api
