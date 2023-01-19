@@ -70,6 +70,10 @@ if(DNNL_EXPERIMENTAL)
     message(STATUS "Experimental features are enabled")
 endif()
 
+if(DNNL_EXPERIMENTAL_SPARSE)
+    message(STATUS "Experimental functionality for sparse domain is enabled")
+endif()
+
 if(DNNL_ENABLE_ITT_TASKS AND NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
     # Only supported for certain architectures (see src/common/CMakeLists.txt)
     if(DNNL_TARGET_ARCH STREQUAL "AARCH64" OR DNNL_TARGET_ARCH STREQUAL "X64")

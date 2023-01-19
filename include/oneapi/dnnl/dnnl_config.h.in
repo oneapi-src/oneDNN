@@ -115,6 +115,9 @@
 // When defined, experimental features are enabled.
 #cmakedefine DNNL_EXPERIMENTAL
 
+// When defined, experimental functionality for sparse domain is enabled.
+#cmakedefine DNNL_EXPERIMENTAL_SPARSE
+
 // List of configurating build controls
 // Workload controls
 #cmakedefine01 BUILD_TRAINING

@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018-2022 Intel Corporation
+# Copyright 2018-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -168,6 +168,11 @@ option(DNNL_EXPERIMENTAL
     "Enables experimental features in oneDNN.
     When enabled, each experimental feature has to be individually selected
     using environment variables."
+    OFF) # disabled by default
+
+option(DNNL_EXPERIMENTAL_SPARSE
+    "Enable experimental functionality for sparse domain. This option works
+    independetly from DNNL_EXPERIMENTAL."
     OFF) # disabled by default
 
 # ======================
