@@ -24,6 +24,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "utils/fill.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
@@ -299,45 +300,6 @@ int prepare_bwd(const prb_t *prb, dnn_mem_map_t &mem_map,
 
     auto &sh = mem_map[DNNL_ARG_SHIFT];
     if (sh) SAFE(sh.reorder(ref_sh), WARN);
-
-    return OK;
-}
-
-int fill_scales(
-        const attr_t &attr, int arg, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-    const auto nelems = mem_fp.nelems();
-    if (nelems == 0) return OK;
-
-    assert(mem_dt.nelems() == mem_fp.nelems());
-
-    const auto &scales = attr.scales.get(arg);
-
-    /* Do fixed partitioning to have same filling for any number of threads */
-    const int64_t n_chunks = 16;
-    const int64_t chunk_size = div_up(nelems, n_chunks);
-    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
-        int64_t idx_start = idx_chunk * chunk_size;
-        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
-        // Note: we use a different seed for each chunk to avoid
-        // repeating patterns. We could use discard(idx_start) too but
-        // it has a complexity in O(idx_start). We also add 1 to avoid
-        // seeding with 0.
-        std::minstd_rand int_seed(idx_start + 1);
-        int_seed.discard(1);
-
-        std::uniform_int_distribution<> gen(-5, 5);
-
-        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            int pow2 = gen(int_seed);
-            int pow2_shift = 1 << std::abs(pow2);
-            const float gen_val = pow2 < 0 ? (1.f / pow2_shift) : pow2_shift;
-            const float fixed_val = scales.scale;
-            const float val = nelems == 1 ? fixed_val : gen_val;
-            mem_fp.set_elem(idx, val);
-        }
-    });
-
-    SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
