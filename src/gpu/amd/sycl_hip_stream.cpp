@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -94,7 +94,7 @@ status_t sycl_hip_stream_t::interop_task(
         std::function<void(::sycl::handler &)> sycl_hip_interop_) {
     try {
         this->set_deps({queue().submit([&](::sycl::handler &cgh) {
-            cgh.depends_on(get_deps());
+            cgh.depends_on(sycl_ctx().get_sycl_deps().events);
             sycl_hip_interop_(cgh);
         })});
         return status::success;

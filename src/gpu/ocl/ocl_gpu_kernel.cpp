@@ -205,7 +205,8 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
 
     cl_event event;
     if (ocl_stream->flags() & stream_flags::out_of_order) {
-        const auto &event_wrappers = ocl_stream->get_deps();
+        const auto &event_wrappers
+                = ocl_stream->ocl_ctx().get_ocl_deps().events;
         std::vector<cl_event> events(
                 event_wrappers.begin(), event_wrappers.end());
 
@@ -215,7 +216,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                 range.global_range(), range.local_range(), num_events,
                 events_data, &event);
         OCL_CHECK(err);
-        ocl_stream->set_deps({ocl_wrapper_t<cl_event>(event, true)});
+        ocl_stream->ocl_ctx().set_deps({ocl_wrapper_t<cl_event>(event, true)});
     } else {
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
                 range.global_range(), range.local_range(), 0, nullptr,

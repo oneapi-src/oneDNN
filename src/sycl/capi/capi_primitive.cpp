@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,8 +44,9 @@ status_t dnnl_sycl_interop_primitive_execute(
     sycl_stream->before_exec_hook();
 
     if (deps_ != nullptr) {
-        const auto &deps = *(const std::vector<::sycl::event> *)deps_;
-        sycl_stream->set_deps(deps);
+        auto deps = dnnl::impl::sycl::sycl_event_t(
+                *(const std::vector<::sycl::event> *)deps_);
+        sycl_stream->sycl_ctx().set_deps(std::move(deps));
     }
 
     // run primitive

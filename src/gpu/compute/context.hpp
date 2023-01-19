@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,43 +14,27 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_COMPUTE_STREAM_HPP
-#define GPU_COMPUTE_COMPUTE_STREAM_HPP
+#ifndef GPU_COMPUTE_CONTEXT_HPP
+#define GPU_COMPUTE_CONTEXT_HPP
 
-#include <memory>
-
-#include "common/stream.hpp"
-#include "gpu/compute/context.hpp"
-#include "gpu/compute/kernel.hpp"
+#include "common/primitive_exec_types.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace compute {
 
-class nd_range_t;
-class kernel_arg_list_t;
-
-class compute_stream_t : public stream_t {
+class event_t {
 public:
-    using stream_t::stream_t;
+    virtual ~event_t() = 0;
+};
+inline event_t::~event_t() = default;
 
-    virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size)
-            = 0;
-    virtual status_t fill(
-            const memory_storage_t &dst, uint8_t pattern, size_t size)
-            = 0;
-
-    virtual context_t &ctx() = 0;
-    virtual const context_t &ctx() const = 0;
-
-protected:
-    bool has_zero_pad_primitive() const {
-        return engine()->kind() == dnnl_gpu;
-    };
-
-    status_t zero_pad(const memory_t *memory, const exec_ctx_t &ctx) override;
+// Abstract class for runtime inputs and outputs
+class context_t {
+public:
+    virtual event_t &get_deps() = 0;
+    virtual const event_t &get_deps() const = 0;
 };
 
 } // namespace compute

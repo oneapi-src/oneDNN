@@ -120,7 +120,7 @@ void ocl_stream_t::before_exec_hook() {
 }
 
 void ocl_stream_t::after_exec_hook() {
-    set_deps({});
+    ocl_ctx().set_deps(ocl_event_t());
 }
 
 status_t ocl_stream_t::copy(

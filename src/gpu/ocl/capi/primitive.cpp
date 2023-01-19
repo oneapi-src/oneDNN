@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ status_t dnnl_ocl_interop_primitive_execute(
         for (int i = 0; i < ndeps; i++) {
             events[i] = gpu::ocl::ocl_wrapper_t<cl_event>(deps[i], true);
         }
-        ocl_stream->set_deps(events);
+        ocl_stream->ocl_ctx().set_deps(events);
     }
 
     // run primitive

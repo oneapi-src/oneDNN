@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -88,7 +88,7 @@ status_t cudnn_matmul_t::execute(const exec_ctx_t &ctx) const {
             output_scale_, scratchpad_size);
 
     if (has_runtime_args) {
-        auto &evts = cuda_stream->get_deps();
+        auto &evts = cuda_stream->sycl_ctx().get_sycl_deps().events;
         for (auto e : evts) {
             e.wait();
         }

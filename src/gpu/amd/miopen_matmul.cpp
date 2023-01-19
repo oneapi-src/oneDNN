@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -62,7 +62,7 @@ status_t miopen_matmul_t::execute(const exec_ctx_t &ctx) const {
             ctx, ctx.stream()->engine(), matmul_impl_, scratchpad_size);
 
     if (has_runtime_args) {
-        auto &evts = hip_stream->get_deps();
+        auto &evts = hip_stream->sycl_ctx().get_sycl_deps().events;
         for (auto e : evts) {
             e.wait();
         }

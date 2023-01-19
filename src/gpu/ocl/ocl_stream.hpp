@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/ocl/mdapi_utils.hpp"
+#include "gpu/ocl/ocl_context.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -87,21 +88,20 @@ struct ocl_stream_t : public compute::compute_stream_t {
         if (queue_) { clReleaseCommandQueue(queue_); }
     }
 
-    std::vector<ocl_wrapper_t<cl_event>> &get_deps() {
-        auto &deps = const_cast<const ocl_stream_t *>(this)->get_deps();
-        return const_cast<std::vector<ocl_wrapper_t<cl_event>> &>(deps);
+    const ocl_context_t &ocl_ctx() const {
+        static ocl_context_t empty_ctx {};
+        return ctx_.get(empty_ctx);
     }
-    const std::vector<ocl_wrapper_t<cl_event>> &get_deps() const {
-        static std::vector<ocl_wrapper_t<cl_event>> empty_deps;
-        return deps_tls_.get(empty_deps);
+    ocl_context_t &ocl_ctx() {
+        const ocl_context_t &ctx
+                = const_cast<const ocl_stream_t *>(this)->ocl_ctx();
+        return *const_cast<ocl_context_t *>(&ctx);
     }
-
-    void set_deps(const std::vector<ocl_wrapper_t<cl_event>> &deps) {
-        get_deps() = deps;
-    }
+    gpu::compute::context_t &ctx() override { return ocl_ctx(); }
+    const gpu::compute::context_t &ctx() const override { return ocl_ctx(); }
 
     const ocl_wrapper_t<cl_event> &get_output_event() const {
-        auto &deps = get_deps();
+        auto &deps = ocl_event_t::from(ctx().get_deps());
         assert(deps.size() == 1);
         return deps[0];
     }
@@ -132,8 +132,7 @@ private:
 
     cl_command_queue queue_;
     std::unique_ptr<mdapi_helper_t> mdapi_helper_;
-    mutable utils::thread_local_storage_t<std::vector<ocl_wrapper_t<cl_event>>>
-            deps_tls_;
+    mutable utils::thread_local_storage_t<ocl_context_t> ctx_;
 };
 
 } // namespace ocl

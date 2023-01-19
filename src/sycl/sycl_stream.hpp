@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 #include "gpu/profile.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
 #include "sycl/profile.hpp"
+#include "sycl/sycl_context.hpp"
 #include "sycl/sycl_memory_storage.hpp"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
@@ -95,7 +96,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                     register_deps(cgh);
                     submit_cpu_primitive(this, prim_iface, exec_ctx, cgh);
                 });
-                set_deps({event});
+                sycl_ctx().set_deps({event});
 #else
                 assert(!"not expected");
                 return status::runtime_error;
@@ -202,7 +203,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             });
         }
         if (gpu::is_profiling_enabled()) register_profile_event(e);
-        set_deps({e});
+        sycl_ctx().set_deps({e});
 
         return status::success;
     }
@@ -240,24 +241,25 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             });
         }
         if (gpu::is_profiling_enabled()) register_profile_event(out_event);
-        set_deps({out_event});
+        sycl_ctx().set_deps({out_event});
         return status::success;
     }
 
-    std::vector<::sycl::event> &get_deps() {
-        auto &deps = const_cast<const sycl_stream_t *>(this)->get_deps();
-        return const_cast<std::vector<::sycl::event> &>(deps);
+    const sycl_context_t &sycl_ctx() const {
+        static sycl_context_t empty_ctx {};
+        return ctx_.get(empty_ctx);
     }
-    const std::vector<::sycl::event> &get_deps() const {
-        static std::vector<::sycl::event> empty_deps;
-        return deps_tls_.get(empty_deps);
+    sycl_context_t &sycl_ctx() {
+        const sycl_context_t &ctx
+                = const_cast<const sycl_stream_t *>(this)->sycl_ctx();
+        return *const_cast<sycl_context_t *>(&ctx);
     }
+    gpu::compute::context_t &ctx() override { return sycl_ctx(); }
+    const gpu::compute::context_t &ctx() const override { return sycl_ctx(); }
 
-    void set_deps(const std::vector<::sycl::event> &deps) { get_deps() = deps; }
-    void add_dep(const ::sycl::event &dep) { get_deps().push_back(dep); }
     ::sycl::event get_output_event() const {
         // Fast path: if only one event, return it.
-        auto &deps = get_deps();
+        auto &deps = sycl_ctx().get_sycl_deps();
         if (deps.size() == 1) return deps[0];
 
         // Otherwise, we run a trivial kernel to gather all deps. The
@@ -270,7 +272,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return e;
     }
     void register_deps(::sycl::handler &cgh) const {
-        cgh.depends_on(get_deps());
+        cgh.depends_on(sycl_ctx().get_sycl_deps().events);
     }
 
     template <::sycl::access_mode mode>
@@ -293,7 +295,7 @@ protected:
     }
 
     std::unique_ptr<::sycl::queue> queue_;
-    mutable utils::thread_local_storage_t<std::vector<::sycl::event>> deps_tls_;
+    mutable utils::thread_local_storage_t<sycl_context_t> ctx_;
 
     // XXX: this is a temporary solution to make sycl_memory_arg_t
     // default constructible.
