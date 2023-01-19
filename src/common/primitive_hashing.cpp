@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -154,6 +154,16 @@ size_t get_md_hash(const memory_desc_t &md) {
                     seed, md.format_desc.rnn_packed_desc.offset_compensation);
             seed = hash_combine(seed, md.format_desc.rnn_packed_desc.size);
             break;
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        case format_kind::sparse:
+            seed = hash_combine(seed,
+                    static_cast<size_t>(md.format_desc.sparse_desc.encoding));
+            seed = hash_combine(seed, md.format_desc.sparse_desc.nnz);
+            seed = get_array_hash(seed,
+                    md.format_desc.sparse_desc.metadata_types,
+                    sparse_desc_t::max_metadata_types);
+            break;
+#endif
         default: assert(!"unknown format_kind");
     }
 

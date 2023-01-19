@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,6 +46,9 @@ const char *dnnl_fmt_kind2str(dnnl_format_kind_t v) {
     if (v == dnnl_format_kind_undef) return "undef";
     if (v == dnnl_format_kind_any) return "any";
     if (v == dnnl_blocked) return "blocked";
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    if (v == dnnl_format_kind_sparse) return "sparse";
+#endif
     if (v == format_kind::wino || v == format_kind::rnn_packed) return "opaque";
     if (v == dnnl_format_kind_max) return "max";
     assert(!"unknown fmt_kind");

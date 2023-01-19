@@ -169,12 +169,32 @@ const scratchpad_mode_t library = dnnl_scratchpad_mode_library;
 const scratchpad_mode_t user = dnnl_scratchpad_mode_user;
 } // namespace scratchpad_mode
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+using sparse_encoding_t = dnnl_sparse_encoding_t;
+namespace sparse_encoding {
+const sparse_encoding_t undef = dnnl_sparse_encoding_undef;
+const sparse_encoding_t csr = dnnl_csr;
+} // namespace sparse_encoding
+#else
+// Declare dummy values to avoid guarding internal implementation.
+using sparse_encoding_t = int;
+namespace sparse_encoding {
+const sparse_encoding_t undef = 0;
+const sparse_encoding_t csr = 1;
+} // namespace sparse_encoding
+#endif
+
 using format_kind_t = dnnl_format_kind_t;
 namespace format_kind {
 const format_kind_t undef = dnnl_format_kind_undef;
 const format_kind_t any = dnnl_format_kind_any;
 const format_kind_t blocked = dnnl_blocked;
 const format_kind_t opaque = dnnl_format_kind_opaque;
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+const format_kind_t sparse = dnnl_format_kind_sparse;
+#else
+const format_kind_t sparse = dnnl_format_kind_undef;
+#endif
 
 // Internal only format kinds.
 const format_kind_t internal_only_start = (format_kind_t)(1 << 8);
@@ -1628,6 +1648,14 @@ const query_t format_kind = dnnl_query_format_kind;
 const query_t inner_nblks_s32 = dnnl_query_inner_nblks_s32;
 const query_t inner_blks = dnnl_query_inner_blks;
 const query_t inner_idxs = dnnl_query_inner_idxs;
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+const query_t sparse_encoding = dnnl_query_sparse_encoding;
+const query_t nnz_s64 = dnnl_query_nnz_s64;
+#else
+const query_t sparse_encoding = dnnl_query_undef;
+const query_t nnz_s64 = dnnl_query_undef;
+#endif
 
 // Internal only query kinds.
 const query_t internal_only_start = (query_t)(1 << 12);

@@ -51,11 +51,25 @@ typedef enum {
     dnnl_blocked,
     /// A special format kind that indicates that tensor format is opaque.
     dnnl_format_kind_opaque,
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    /// Format kind for sparse tensors.
+    dnnl_format_kind_sparse,
+#endif
     /// Parameter to allow internal only format kinds without undefined
     /// behavior. This parameter is chosen to be valid for so long as
     /// sizeof(int) >= 2.
     dnnl_format_kind_max = 0x7fff,
 } dnnl_format_kind_t;
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+/// Sparse encodings.
+typedef enum {
+    /// Undefined sparse encoding kind, used for empty memory descriptors.
+    dnnl_sparse_encoding_undef = 0,
+    /// Compressed Sparse Row (CSR) encoding.
+    dnnl_csr,
+} dnnl_sparse_encoding_t;
+#endif
 
 /// Memory format tag specification.
 ///
@@ -2349,6 +2363,7 @@ typedef struct {
 /// dnnl_query_format_kind          | #dnnl_format_kind_t *
 /// dnnl_query_inner_blks           | const #dnnl_dims_t **
 /// dnnl_query_inner_idxs           | const #dnnl_dims_t **
+/// dnnl_query_sparse_encoding      | #dnnl_sparse_encoding_t *
 ///
 /// @note
 ///     Rule of thumb: all opaque types and structures are returned by
@@ -2430,7 +2445,10 @@ typedef enum {
     dnnl_query_inner_nblks_s32, ///< number of innermost blocks
     dnnl_query_inner_blks, ///< vector of sizes of the innermost blocks
     dnnl_query_inner_idxs, ///< vector of logical indices of the blocks
-
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    dnnl_query_sparse_encoding, ///< Sparse encoding
+    dnnl_query_nnz_s64, ///< Number of non-zero entries
+#endif
     // Max value to prevent UB for internal use only dnnl_query_t
     dnnl_query_max = 0x7fff,
 } dnnl_query_t;

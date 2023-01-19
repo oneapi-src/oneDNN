@@ -715,6 +715,12 @@ enum class query {
     inner_blks = dnnl_query_inner_blks,
     /// vector of logical indices of the blocks
     inner_idxs = dnnl_query_inner_idxs,
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    /// Sparse encoding
+    sparse_encoding = dnnl_query_sparse_encoding,
+    /// Number of non-zero entries
+    nnz_s64 = dnnl_query_nnz_s64,
+#endif
 };
 
 /// Converts query enum value from C++ API to C API type.
@@ -861,6 +867,16 @@ struct memory : public handle<dnnl_memory_t> {
         /// A special format kind that indicates that tensor format is opaque.
         opaque = dnnl_format_kind_opaque,
     };
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    /// Sparse encodings.
+    enum class sparse_encoding {
+            /// Undefined sparse encoding kind, used for empty memory descriptors.
+            undef = dnnl_sparse_encoding_undef,
+            /// Compressed Sparse Row (CSR) encoding.
+            csr = dnnl_csr,
+    };
+#endif
 
     /// Memory format tag specification.
     ///
@@ -2414,7 +2430,41 @@ struct memory : public handle<dnnl_memory_t> {
                         "strides");
             reset(md);
         }
-
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        /// Function for creating a memory descriptor for CSR sparse encoding.
+        ///
+        /// The created memory descriptor will describe a memory object that
+        /// contains 3 buffers. The buffers have the following meaning and
+        /// assigned numbers (index):
+        ///  - 0: values
+        ///  - 1: indices
+        ///  - 2: pointers
+        ///
+        /// @param adims Tensor dimensions.
+        /// @param adata_type Data precision/type.
+        /// @param nnz Number of non-zero entries.
+        /// @param index_dt Data type of indices.
+        /// @param pointer_dt Data type of pointers.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case a
+        ///     zero memory descriptor will be constructed. This flag is
+        ///     optional and defaults to false.
+        static desc csr(const dims &adims, data_type adata_type, dim nnz,
+                data_type index_dt, data_type pointer_dt,
+                bool allow_empty = false) {
+            validate_dims(adims);
+            dnnl_memory_desc_t md = nullptr;
+            dnnl_status_t status = dnnl_memory_desc_create_with_csr_encoding(
+                    &md, (int)adims.size(), adims.data(),
+                    convert_to_c(adata_type), nnz, convert_to_c(index_dt),
+                    convert_to_c(pointer_dt));
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a memory descriptor for CSR sparse "
+                        "encoding");
+            return desc {md};
+        }
+#endif
         /// Construct a memory descriptor from a C API ::dnnl_memory_desc_t
         /// handle. The resulting handle is not weak and the C handle will be
         /// destroyed during the destruction of the C++ object.
@@ -2626,6 +2676,45 @@ struct memory : public handle<dnnl_memory_t> {
             return query_dims(query::inner_idxs);
         }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        /// Returns a number of non-zero entries of the memory descriptor.
+        ///
+        /// @returns A number non-zero entries.
+        dim get_nnz() const {
+            dnnl_dim_t nnz;
+            dnnl_status_t status = dnnl_memory_desc_query_v2(
+                    get(), dnnl_query_nnz_s64, 0, &nnz);
+            return status == dnnl_success ? nnz : 0;
+        }
+
+        /// Returns the sparse encoding of the memory descriptor.
+        ///
+        /// @returns the sparse encoding kind.
+        memory::sparse_encoding get_sparse_encoding() const {
+            dnnl_sparse_encoding_t sparse_encoding;
+            dnnl_status_t status = dnnl_memory_desc_query_v2(
+                    get(), dnnl_query_sparse_encoding, 0, &sparse_encoding);
+            return status == dnnl_success
+                    ? static_cast<dnnl::memory::sparse_encoding>(
+                            sparse_encoding)
+                    : dnnl::memory::sparse_encoding::undef;
+        }
+
+        /// Returns the data type of the memory descriptor.
+        ///
+        /// @returns The data type.
+        memory::data_type get_data_type(int index = 0) const {
+            return query_data_type(query::data_type, index);
+        }
+#else
+        /// Returns the data type of the memory descriptor.
+        ///
+        /// @returns The data type.
+        memory::data_type get_data_type() const {
+            return query_data_type(query::data_type);
+        }
+#endif
+
         /// Returns the format kind of the memory descriptor.
         ///
         /// @returns the format kind.
@@ -2636,18 +2725,6 @@ struct memory : public handle<dnnl_memory_t> {
             return status == dnnl_success
                     ? static_cast<dnnl::memory::format_kind>(format_kind)
                     : dnnl::memory::format_kind::undef;
-        }
-
-        /// Returns the data type of the memory descriptor.
-        ///
-        /// @returns The data type.
-        memory::data_type get_data_type() const {
-            dnnl_data_type_t data_type;
-            dnnl_status_t status = dnnl_memory_desc_query(
-                    get(), dnnl_query_data_type, &data_type);
-            return status == dnnl_success
-                    ? static_cast<dnnl::memory::data_type>(data_type)
-                    : dnnl::memory::data_type::undef;
         }
 
         /// Returns dimensions of the memory descriptor.
@@ -2682,6 +2759,26 @@ struct memory : public handle<dnnl_memory_t> {
         bool operator!=(const desc &other) const { return !operator==(other); }
 
     private:
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        memory::data_type query_data_type(query what, int index) const {
+            dnnl_data_type_t data_type;
+            dnnl_status_t status = dnnl_memory_desc_query_v2(
+                    get(), dnnl::convert_to_c(what), index, &data_type);
+            return status == dnnl_success
+                    ? static_cast<dnnl::memory::data_type>(data_type)
+                    : dnnl::memory::data_type::undef;
+        }
+#else
+        memory::data_type query_data_type(query what) const {
+            dnnl_data_type_t data_type;
+            dnnl_status_t status = dnnl_memory_desc_query(
+                    get(), dnnl::convert_to_c(what), &data_type);
+            return status == dnnl_success
+                    ? static_cast<dnnl::memory::data_type>(data_type)
+                    : dnnl::memory::data_type::undef;
+        }
+#endif
+
         int query_s32(query what) const {
             int res;
             dnnl_status_t status = dnnl_memory_desc_query(

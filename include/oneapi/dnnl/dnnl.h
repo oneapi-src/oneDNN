@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -699,6 +699,24 @@ dnnl_status_t DNNL_API dnnl_memory_desc_create_with_tag(
         dnnl_memory_desc_t *memory_desc, int ndims, const dnnl_dims_t dims,
         dnnl_data_type_t data_type, dnnl_format_tag_t tag);
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+/// Creates a memory descriptor for CSR encoding.
+///
+/// @param memory_desc Output memory descriptor.
+/// @param ndims Number of dimensions
+/// @param dims Array of dimensions.
+/// @param data_type Elements data type.
+/// @param nnz Number of non-zero entries.
+/// @param indices_dt Data type of indices.
+/// @param pointers_dt Data type of pointers.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_desc_create_with_csr_encoding(
+        dnnl_memory_desc_t *memory_desc, int ndims, const dnnl_dims_t dims,
+        dnnl_data_type_t data_type, dnnl_dim_t nnz, dnnl_data_type_t indices_dt,
+        dnnl_data_type_t pointers_dt);
+#endif
+
 /// Creates a memory descriptor for a region inside an area
 /// described by an existing memory descriptor.
 ///
@@ -862,6 +880,66 @@ dnnl_status_t DNNL_API dnnl_memory_desc_permute_axes(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_desc_query(
         const_dnnl_memory_desc_t memory_desc, dnnl_query_t what, void *result);
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+/// Queries a memory descriptor for various pieces of information. This version
+/// support additional queries #dnnl_query_sparse_encoding, #dnnl_query_nnz_s64
+/// #dnnl_query_num_handles_s32 and #dnnl_query_data_type for a particular
+/// buffer.
+///
+/// The following information can be queried:
+///  - Number of dimensions (#dnnl_query_ndims_s32)
+///  - Dimensions (#dnnl_query_dims) in the following order:
+///    - CNN data tensors: mini-batch, channel, spatial
+///      (<code>{N, C, [[D,] H,] W}</code>)
+///    - CNN weight tensors: group (optional), output channel, input channel,
+///      spatial (<code>{[G,] O, I, [[D,] H,] W}</code>)
+///    - RNN data tensors: time, mini-batch, channels (<code>{T, N, C}</code>)
+///      or layers, directions, states, mini-batch, channels
+///      (<code>{L, D, S, N, C}</code>)
+///    - RNN weight tensor: layers, directions, input channel, gates, output
+///      channels (<code>{L, D, I, G, O}</code>)
+///  - Data type of the tensor elements (#dnnl_query_data_type)
+///  - Padded dimensions (#dnnl_query_padded_dims) - size of the data including
+///    padding in each dimension
+///  - Padded offsets (#dnnl_query_padded_offsets) - per-dimension offset from
+///    the padding to actual data, the top-level tensor with offsets applied
+///    must lie within the padding area.
+///  - Submemory offset (#dnnl_query_submemory_offset_s64) - offset from memory
+///    origin to the current block, non-zero only in a description of a memory
+///    sub-block.
+///  - Format kind (#dnnl_query_format_kind) - memory format kind
+///
+/// @note
+///    The order of dimensions does not depend on the memory format, so
+///    whether the data is laid out in #dnnl_nchw or #dnnl_nhwc
+///    the dims for 4D CN data tensor would be <code>{N, C, H, W}</code>.
+///
+/// The following queries are applicable only to format kind #dnnl_blocked.
+///  - Strides (#dnnl_query_strides) between the outermost blocks or in case
+///    of plain (non-blocked) formats the strides between dimensions
+///  - Number of innermost blocks (#dnnl_query_inner_nblks_s32), e.g.
+///    `{4, 16, 4}` in case of `OIhw_4i16o4i`
+///  - Size of the innermost blocks (#dnnl_query_inner_blks), e.g. 3 in case
+///    of `OIhw_4i16o4i_`
+///  - Logical indices of the blocks (#dnnl_query_inner_idxs), e.g. `{1, 0, 1}`
+///    in case of `4i16o4i`, because `i` is the 1st dim and `o` is the 0st dim
+///
+/// @param memory_desc Memory descriptor.
+/// @param what Parameter to query.
+/// @param index Index of the parameter to query for. It is mostly used with
+///     #dnnl_query_data_type to specify which data type is being queried.
+///     The main data type (data type of values) has always index 0. For other
+///     indices please refer to the API for creating a memory descriptor for
+///     sparse encoding.
+/// @param result Output result. The type depends on the query. For example,
+///     it must be a @c dnnl_dims_t** if querying for a strides.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_desc_query_v2(
+        const_dnnl_memory_desc_t memory_desc, dnnl_query_t what, int index,
+        void *result);
+#endif
 
 /// Compares two memory descriptors.
 ///

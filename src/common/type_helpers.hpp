@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -233,6 +233,17 @@ inline bool rnn_packed_desc_is_equal(
     return ok;
 }
 
+inline bool sparse_desc_is_equal(
+        const sparse_desc_t &lhs, const sparse_desc_t &rhs) {
+    bool ok = lhs.encoding == rhs.encoding && lhs.nnz == rhs.nnz;
+    if (!ok) return false;
+
+    for (int i = 0; i < sparse_desc_t::max_metadata_types; i++)
+        ok = ok && lhs.metadata_types[i] == rhs.metadata_types[i];
+
+    return ok;
+}
+
 inline memory_desc_t zero_md() {
     auto zero = memory_desc_t();
     return zero;
@@ -366,6 +377,9 @@ inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     else if (lhs.format_kind == format_kind::rnn_packed)
         return types::rnn_packed_desc_is_equal(lhs.format_desc.rnn_packed_desc,
                 rhs.format_desc.rnn_packed_desc);
+    else if (lhs.format_kind == format_kind::sparse)
+        return types::sparse_desc_is_equal(
+                lhs.format_desc.sparse_desc, rhs.format_desc.sparse_desc);
     return true;
 }
 

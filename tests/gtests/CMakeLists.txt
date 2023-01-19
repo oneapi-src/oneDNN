@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2022 Intel Corporation
+# Copyright 2016-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -94,6 +94,10 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_lrn.cpp
                               test_prelu.cpp
                               )
+
+if(DNNL_EXPERIMENTAL_SPARSE)
+    list(APPEND PRIM_TEST_CASES_SRC test_iface_sparse.cpp)
+endif()
 
 if(DNNL_CPU_RUNTIME STREQUAL "NONE")
     list(APPEND PRIM_TEST_CASES_SRC test_iface_gpu_only.cpp)

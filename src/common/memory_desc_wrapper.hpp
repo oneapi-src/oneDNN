@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ struct memory_desc_wrapper : public c_compatible {
     bool is_rnn_packed_desc() const {
         return format_kind() == format_kind::rnn_packed;
     }
+    bool is_sparse_desc() const { return format_kind() == format_kind::sparse; }
 
     const blocking_desc_t &blocking_desc() const {
         assert(is_blocking_desc());
@@ -69,6 +70,26 @@ struct memory_desc_wrapper : public c_compatible {
     const rnn_packed_desc_t &rnn_packed_desc() const {
         assert(is_rnn_packed_desc());
         return md_->format_desc.rnn_packed_desc;
+    }
+
+    const sparse_desc_t &sparse_desc() const {
+        assert(is_sparse_desc());
+        return md_->format_desc.sparse_desc;
+    }
+
+    const data_type_t metadata_type(int idx = 0) const {
+        assert(is_sparse_desc() && idx < sparse_desc_t::max_metadata_types);
+        return sparse_desc().metadata_types[idx];
+    }
+
+    sparse_encoding_t encoding() const {
+        assert(is_sparse_desc());
+        return sparse_desc().encoding;
+    }
+
+    dim_t nnz() const {
+        assert(is_sparse_desc());
+        return sparse_desc().nnz;
     }
 
     const memory_extra_desc_t &extra() const { return md_->extra; }

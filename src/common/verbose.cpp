@@ -110,6 +110,12 @@ int get_verbose() {
                 experimental::use_bnorm_stats_one_pass() ? "enabled"
                                                          : "disabled");
 #endif
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        printf("onednn_verbose,info,experimental functionality for sparse "
+               "domain is enabled\n");
+#endif
+
         printf("onednn_verbose,info,prim_template:");
         printf("%soperation,engine,primitive,implementation,prop_"
                "kind,memory_descriptors,attributes,auxiliary,problem_desc,exec_"
@@ -201,6 +207,13 @@ std::ostream &operator<<(std::ostream &ss, format_kind_t format_kind) {
     return ss;
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+std::ostream &operator<<(std::ostream &ss, sparse_encoding_t encoding) {
+    ss << dnnl_sparse_encoding2str(encoding);
+    return ss;
+}
+#endif
+
 std::string normalization_flags2str(unsigned flags) {
     std::string s;
     if (flags & normalization_flags::use_global_stats) s += "G";
@@ -274,13 +287,16 @@ std::string md2fmt_tag_str(const memory_desc_t *md) {
 
 // Forms a format string for a given memory descriptor.
 //
-// The format is defined as: 'dt:[p|o|0]:fmt_kind:fmt:extra'.
+// There are two formats:
+// - dense: defined as: 'dt:[p|o|0]:fmt_kind:fmt:extra'.
+// - sparse: defined as: 'dt:[p|o|0]:fmt_kind:encoding:extra'.
 // Here:
 //  - dt       -- data type
 //  - p        -- indicates there is non-trivial padding
 //  - o        -- indicates there is non-trivial padding offset
 //  - 0        -- indicates there is non-trivial offset0
 //  - fmt_kind -- format kind (blocked, wino, etc...)
+//  - encoding -- sparse encoding (csr, etc...)
 //  - fmt      -- extended format string (format_kind specific)
 //  - extra    -- shows extra fields (underspecified)
 std::string md2fmt_str(const memory_desc_t *md) {
@@ -303,6 +319,7 @@ std::string md2fmt_str(const memory_desc_t *md) {
     ss << (offset0 ? "0" : "") << ":" << mdw.format_kind() << ":";
 
     if (mdw.is_blocking_desc()) ss << md2fmt_tag_str(md);
+    if (mdw.is_sparse_desc()) ss << mdw.encoding();
 
     ss << mdw.extra();
 

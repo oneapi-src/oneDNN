@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -104,6 +104,34 @@ status_t memory_desc_init_by_strides(memory_desc_t &memory_desc, int ndims,
     if (!memory_desc_strides_check(md, strides)) return invalid_arguments;
 
     array_copy(md.format_desc.blocking.strides, strides, md.ndims);
+
+    memory_desc = md;
+
+    return success;
+}
+
+status_t memory_desc_init_by_csr_encoding(memory_desc_t &memory_desc, int ndims,
+        const dims_t dims, data_type_t data_type, dim_t nnz,
+        data_type_t indices_dt, data_type_t pointers_dt) {
+    if (ndims == 0) {
+        memory_desc = types::zero_md();
+        return success;
+    }
+
+    bool args_ok = memory_desc_sanity_check(
+            ndims, dims, data_type, format_kind::undef);
+    if (!args_ok) return invalid_arguments;
+
+    auto md = memory_desc_t();
+    md.ndims = ndims;
+    array_copy(md.dims, dims, ndims);
+    md.data_type = data_type;
+    array_copy(md.padded_dims, dims, ndims);
+    md.format_kind = format_kind::sparse;
+    md.format_desc.sparse_desc.encoding = sparse_encoding::csr;
+    md.format_desc.sparse_desc.nnz = nnz;
+    md.format_desc.sparse_desc.metadata_types[0] = indices_dt;
+    md.format_desc.sparse_desc.metadata_types[1] = pointers_dt;
 
     memory_desc = md;
 
@@ -502,6 +530,19 @@ status_t dnnl_memory_desc_create_with_strides(memory_desc_t **memory_desc,
     return success;
 }
 
+status_t dnnl_memory_desc_create_with_csr_encoding(memory_desc_t **memory_desc,
+        int ndims, const dims_t dims, data_type_t data_type, dim_t nnz,
+        data_type_t indices_dt, data_type_t pointers_dt) {
+    if (any_null(memory_desc)) return invalid_arguments;
+
+    auto md = utils::make_unique<memory_desc_t>();
+    if (!md) return out_of_memory;
+    CHECK(memory_desc_init_by_csr_encoding(
+            *md, ndims, dims, data_type, nnz, indices_dt, pointers_dt));
+    (*memory_desc) = md.release();
+    return success;
+}
+
 status_t dnnl_memory_desc_create_submemory(memory_desc_t **memory_desc,
         const memory_desc_t *parent_memory_desc, const dims_t dims,
         const dims_t offsets) {
@@ -567,12 +608,13 @@ status_t dnnl_memory_desc_query(
             *(const dims_t **)result = &md->padded_offsets;
             break;
         case query::format_kind:
-            if (one_of(md->format_kind, format_kind::rnn_packed,
-                        format_kind::wino)) {
-                *(format_kind_t *)result = format_kind::opaque;
-                break;
+            switch ((int)md->format_kind) {
+                case format_kind::rnn_packed:
+                case format_kind::wino:
+                    *(format_kind_t *)result = format_kind::opaque;
+                    break;
+                default: *(format_kind_t *)result = md->format_kind;
             }
-            *(format_kind_t *)result = md->format_kind;
             break;
         case query::strides:
             if (!is_blocked) return status::invalid_arguments;
@@ -594,6 +636,34 @@ status_t dnnl_memory_desc_query(
     }
     return status::success;
 }
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+status_t dnnl_memory_desc_query_v2(
+        const memory_desc_t *md, query_t what, int index, void *result) {
+    const bool is_sparse = md->format_kind == format_kind::sparse;
+    if ((!is_sparse && index > 0)
+            || (is_sparse && index > 0 && what != query::data_type))
+        return status::invalid_arguments;
+
+    switch (what) {
+        case query::sparse_encoding:
+            if (!is_sparse) return status::invalid_arguments;
+            *(sparse_encoding_t *)result = md->format_desc.sparse_desc.encoding;
+            break;
+        case query::nnz_s64:
+            if (!is_sparse) return status::invalid_arguments;
+            *(dim_t *)result = md->format_desc.sparse_desc.nnz;
+            break;
+        case query::data_type:
+            *(data_type_t *)result = (index == 0)
+                    ? md->data_type
+                    : md->format_desc.sparse_desc.metadata_types[index - 1];
+            break;
+        default: return dnnl_memory_desc_query(md, what, result);
+    }
+    return status::success;
+}
+#endif
 
 status_t dnnl_memory_desc_destroy(memory_desc_t *memory_desc) {
     delete memory_desc;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -135,6 +135,18 @@ struct rnn_packed_desc_t {
     size_t size;
 };
 
+struct sparse_desc_t {
+    static constexpr int max_metadata_types = 2;
+    // Sparse encoding.
+    sparse_encoding_t encoding;
+    // Number of non-zero entries.
+    dnnl_dim_t nnz;
+    // Metadata types. Each encoding defines how to interpret these.
+    // - CSR: 0th - index data type
+    //        1st - pointer data type
+    dnnl_data_type_t metadata_types[max_metadata_types];
+};
+
 // Description of extra information stored in memory
 struct memory_extra_desc_t {
     // The flags contain arbitrary extra information, such as compensation.
@@ -216,6 +228,8 @@ struct dnnl_memory_desc : public dnnl::impl::c_compatible {
         dnnl::impl::wino_desc_t wino_desc;
         // Tensor of packed weights for RNN.
         dnnl::impl::rnn_packed_desc_t rnn_packed_desc;
+        // Description of the sparse encodings.
+        dnnl::impl::sparse_desc_t sparse_desc;
         // ... other descriptions possible
     } format_desc;
 

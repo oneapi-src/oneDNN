@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,6 +110,15 @@ inline size_t get_array_hash(
         size_t seed, const std::vector<const memory_desc_t *> &mds) {
     for (const auto *md : mds)
         seed = hash_combine(seed, get_md_hash(*md));
+    return seed;
+}
+
+template <>
+inline size_t get_array_hash<data_type_t>(
+        size_t seed, const data_type_t *v, int size) {
+    for (int i = 0; i < size; i++) {
+        seed = hash_combine(seed, static_cast<size_t>(v[i]));
+    }
     return seed;
 }
 
