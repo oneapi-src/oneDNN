@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,11 +35,11 @@ using namespace dnnl::impl::data_type;
 #define INSTANCE(...) \
     impl_list_item_t(impl_list_item_t::sum_type_deduction_helper_t< \
             __VA_ARGS__::pd_t>()),
-#define INSTANCE_X64(...) DNNL_X64_ONLY(INSTANCE(__VA_ARGS__))
+#define SUM_INSTANCE_AVX512(...) REG_AVX512_ISA(INSTANCE(__VA_ARGS__))
 // clang-format off
 constexpr impl_list_item_t cpu_sum_impl_list[] = REG_SUM_P({
-        INSTANCE_X64(jit_bf16_sum_t<bf16, bf16>)
-        INSTANCE_X64(jit_bf16_sum_t<bf16, f32>)
+        SUM_INSTANCE_AVX512(jit_bf16_sum_t<bf16, bf16>)
+        SUM_INSTANCE_AVX512(jit_bf16_sum_t<bf16, f32>)
         INSTANCE(simple_sum_t<f16>)
         INSTANCE(simple_sum_t<f16, f32>)
         INSTANCE(simple_sum_t<bf16>)
