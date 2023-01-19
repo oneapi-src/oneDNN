@@ -31,6 +31,9 @@ namespace x64 {
 struct jit_sum_conf_t {
     int num_srcs;
     cpu_isa_t isa;
+    data_type_t src_dt;
+    data_type_t dst_dt;
+    int unroll_reg_count;
     int is_bf16_dst;
     int typesize_in;
     int typesize_out;
@@ -194,6 +197,54 @@ protected:
     void index_tables() override;
 };
 
+struct jit_avx2_vnni_2_xf16_sum_kernel_t
+    : jit_uni_xf16_sum_kernel_t<Xbyak::Ymm> {
+    jit_avx2_vnni_2_xf16_sum_kernel_t(jit_sum_conf_t ajsp)
+        : jit_uni_xf16_sum_kernel_t<Xbyak::Ymm>(ajsp, ajsp.num_srcs) {}
+
+    ~jit_avx2_vnni_2_xf16_sum_kernel_t() {}
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_vnni_2_xf16_sum_kernel_t)
+
+    static status_t init_conf(jit_sum_conf_t &jsp, const int num_srcs,
+            const std::vector<memory_desc_t> &src_d,
+            const memory_desc_t &dst_d);
+
+    static constexpr unsigned int max_num_arrs = 4;
+
+protected:
+    int scale_vreg_idx(int i_acc_iter) override { return i_acc_iter; }
+
+    int acc_vreg_idx(int i_unroll, int i_acc) override {
+        return jsp.num_srcs
+                + ((i_unroll * jsp.unroll_reg_count + i_acc)
+                        % (16 - jsp.num_srcs));
+    }
+
+    int src_vreg_idx(int i_unroll, int i_inp) override {
+        return jsp.num_srcs
+                + ((i_unroll * jsp.unroll_reg_count + 2 + i_inp)
+                        % (16 - jsp.num_srcs));
+    }
+
+    // max 2 tmp registers in a given unroll.
+    int tmp_vreg_idx(int i_unroll, int i_acc_iter) override {
+        // scale + unroll_window(max 12 registers i.e. 16 - num_srcs)
+        return jsp.num_srcs
+                + ((i_unroll * jsp.unroll_reg_count + 2 + 2 * jsp.num_srcs
+                           + i_acc_iter)
+                        % (16 - jsp.num_srcs));
+    }
+
+    void pre_compute_init() override {}
+    void broadcast_scale(int scale_iter) override;
+    void read_iter(int acc_iter, int u_idx, int shift) override;
+    void add_iter(int acc_iter, int u_idx) override;
+    void write_iter(int u_idx, int shift) override;
+    void tail_iteration() override;
+    void index_tables() override {}
+};
+
 template <data_type_t src_data_type, data_type_t dst_data_type, cpu_isa_t isa>
 struct jit_xf16_sum_t : public primitive_t {
     struct pd_t : public cpu_sum_pd_t {
@@ -204,11 +255,16 @@ struct jit_xf16_sum_t : public primitive_t {
 
         status_t init(engine_t *engine) {
 
-            const unsigned int max_num_arrs
-                    = jit_avx512_core_bf16_sum_kernel_t::max_num_arrs;
+            unsigned int max_num_arrs;
+            if (!mayiuse(isa)) return status::unimplemented;
+            if (is_superset(isa, avx512_core)) {
+                max_num_arrs = jit_avx512_core_bf16_sum_kernel_t::max_num_arrs;
+            } else {
+                assert(isa == avx2_vnni_2);
+                max_num_arrs = jit_avx2_vnni_2_xf16_sum_kernel_t::max_num_arrs;
+            }
 
-            bool ok = true && mayiuse(isa)
-                    && cpu_sum_pd_t::init(engine) == status::success
+            bool ok = true && cpu_sum_pd_t::init(engine) == status::success
                     && src_mds_.size() <= (long unsigned int)max_num_arrs;
             if (!ok) return status::unimplemented;
 
@@ -220,15 +276,22 @@ struct jit_xf16_sum_t : public primitive_t {
                 const memory_desc_wrapper i_d(&src_mds_[i]);
                 ok = true && src_data_type == i_d.data_type()
                         && o_d.similar_to(i_d, true, false, 0)
-                        && i_d.is_dense(true)
-                        // are scales representable in their respective xfloat16 datatype? scales will be down
-                        // converted to xf16.
-                        && scales_[i] == float(bfloat16_t(scales_[i]));
+                        && i_d.is_dense(true);
+                // are scales representable in their respective xfloat16 datatype? scales will be down
+                // converted to xf16.
+                if (src_data_type == data_type::bf16)
+                    ok = ok && scales_[i] == float(bfloat16_t(scales_[i]));
+                else
+                    ok = ok && scales_[i] == float(float16_t(scales_[i]));
+
                 if (!ok) return status::unimplemented;
             }
 
-            return jit_avx512_core_bf16_sum_kernel_t::init_conf(
-                    jsp_, src_mds_.size(), dst_md_);
+            return is_superset(isa, avx512_core)
+                    ? jit_avx512_core_bf16_sum_kernel_t::init_conf(
+                            jsp_, src_mds_.size(), dst_md_)
+                    : jit_avx2_vnni_2_xf16_sum_kernel_t::init_conf(
+                            jsp_, src_mds_.size(), src_mds_, dst_md_);
         }
         jit_sum_conf_t jsp_;
     };
@@ -236,8 +299,14 @@ struct jit_xf16_sum_t : public primitive_t {
     jit_xf16_sum_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        CHECK(safe_ptr_assign(
-                kernel_, new jit_avx512_core_bf16_sum_kernel_t(pd()->jsp_)));
+        if (is_superset(isa, avx512_core)) {
+            CHECK(safe_ptr_assign(kernel_,
+                    new jit_avx512_core_bf16_sum_kernel_t(pd()->jsp_)));
+        } else {
+            assert(isa == avx2_vnni_2);
+            CHECK(safe_ptr_assign(kernel_,
+                    new jit_avx2_vnni_2_xf16_sum_kernel_t(pd()->jsp_)));
+        }
 
         return kernel_->create_kernel();
     }

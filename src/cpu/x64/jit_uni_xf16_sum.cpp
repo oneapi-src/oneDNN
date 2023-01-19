@@ -207,6 +207,143 @@ status_t jit_avx512_core_bf16_sum_kernel_t::init_conf(
     return status::success;
 }
 
+void jit_avx2_vnni_2_xf16_sum_kernel_t::broadcast_scale(int scale_iter) {
+    Ymm vscale = Ymm(scale_vreg_idx(scale_iter));
+    if (jsp.src_dt == data_type::bf16)
+        vbcstnebf162ps(vscale, ptr[reg_scales + scale_iter * jsp.typesize_in]);
+    else
+        vbcstnesh2ps(vscale, ptr[reg_scales + scale_iter * jsp.typesize_in]);
+}
+
+void jit_avx2_vnni_2_xf16_sum_kernel_t::read_iter(
+        int acc_iter, int u_idx, int src_shift) {
+    Ymm vsrc0 = Ymm(src_vreg_idx(u_idx, 2 * acc_iter));
+    Ymm vsrc1 = Ymm(src_vreg_idx(u_idx, 2 * acc_iter + 1));
+    if (jsp.src_dt == data_type::bf16) {
+        vcvtneebf162ps(vsrc0, ptr[reg_src[acc_iter] + u_idx * src_shift]);
+        vcvtneobf162ps(vsrc1, ptr[reg_src[acc_iter] + u_idx * src_shift]);
+    } else {
+        vcvtneeph2ps(vsrc0, ptr[reg_src[acc_iter] + u_idx * src_shift]);
+        vcvtneoph2ps(vsrc1, ptr[reg_src[acc_iter] + u_idx * src_shift]);
+    }
+}
+
+void jit_avx2_vnni_2_xf16_sum_kernel_t::add_iter(int acc_iter, int u_idx) {
+    Ymm vscale = Ymm(scale_vreg_idx(acc_iter));
+    Ymm vsrc0 = Ymm(src_vreg_idx(u_idx, 2 * acc_iter));
+    Ymm vsrc1 = Ymm(src_vreg_idx(u_idx, 2 * acc_iter + 1));
+    Ymm vacc0 = Ymm(acc_vreg_idx(u_idx, 0));
+    Ymm vacc1 = Ymm(acc_vreg_idx(u_idx, 1));
+    vfmadd231ps(vacc0, vsrc0, vscale);
+    vfmadd231ps(vacc1, vsrc1, vscale);
+}
+
+void jit_avx2_vnni_2_xf16_sum_kernel_t::write_iter(int u_idx, int dst_shift) {
+    Ymm vacc0 = Ymm(acc_vreg_idx(u_idx, 0));
+    Ymm vacc1 = Ymm(acc_vreg_idx(u_idx, 1));
+    Ymm vtmp0 = Ymm(tmp_vreg_idx(u_idx, 0));
+    Ymm vtmp1 = Ymm(tmp_vreg_idx(u_idx, 1));
+    vunpcklps(vtmp0, vacc0, vacc1);
+    vunpckhps(vtmp1, vacc0, vacc1);
+    vperm2f128(vacc0, vtmp0, vtmp1, 0x20);
+    vperm2f128(vacc1, vtmp0, vtmp1, 0x31);
+    store_data<Ymm>(jsp.dst_dt, vacc0, reg_dst, 2 * u_idx * dst_shift, 8);
+    store_data<Ymm>(jsp.dst_dt, vacc1, reg_dst, (2 * u_idx + 1) * dst_shift, 8);
+}
+
+void jit_avx2_vnni_2_xf16_sum_kernel_t::tail_iteration() {
+    Label tail_label, tail_unroll_labels[4], shift_ptrs_label;
+
+    L(tail_label);
+
+    cmp(reg_sz, 0);
+    jle(exit_label, T_NEAR);
+    for (int unroll = 3; unroll >= 0; unroll--) {
+        const unsigned char process_elems = 1 << unroll;
+        mov(rsi, process_elems);
+        cmp(reg_sz, rsi);
+        jge(tail_unroll_labels[unroll], T_NEAR);
+    }
+
+    for (int unroll = 3; unroll >= 0; unroll--) {
+        const unsigned char process_elems = 1 << unroll;
+        L(tail_unroll_labels[unroll]);
+        if (process_elems == 8) {
+            Xmm vacc0l = Xmm(acc_vreg_idx(unroll, 0));
+            Xmm vacc1l = Xmm(acc_vreg_idx(unroll, 1));
+            uni_vpxor(vacc0l, vacc0l, vacc0l);
+            uni_vpxor(vacc1l, vacc1l, vacc1l);
+            for (int acc_iter = 0; acc_iter < num_acc_iters; acc_iter++) {
+                Xmm vscale = Xmm(scale_vreg_idx(acc_iter));
+                Xmm vsrc0 = Xmm(src_vreg_idx(unroll, 2 * acc_iter));
+                Xmm vsrc1 = Xmm(src_vreg_idx(unroll, 2 * acc_iter + 1));
+                if (jsp.src_dt == data_type::bf16) {
+                    vcvtneebf162ps(vsrc0, ptr[reg_src[acc_iter]]);
+                    vcvtneobf162ps(vsrc1, ptr[reg_src[acc_iter]]);
+                } else {
+                    vcvtneeph2ps(vsrc0, ptr[reg_src[acc_iter]]);
+                    vcvtneoph2ps(vsrc1, ptr[reg_src[acc_iter]]);
+                }
+                vfmadd231ps(vacc0l, vsrc0, vscale);
+                vfmadd231ps(vacc1l, vsrc1, vscale);
+            }
+            Xmm vtmp0 = Xmm(tmp_vreg_idx(unroll, 0));
+            Xmm vtmp1 = Xmm(tmp_vreg_idx(unroll, 1));
+            vunpcklps(vtmp0, vacc0l, vacc1l);
+            vunpckhps(vtmp1, vacc0l, vacc1l);
+            store_data<Xmm>(jsp.dst_dt, vtmp0, reg_dst, 0, 4);
+            store_data<Xmm>(
+                    jsp.dst_dt, vtmp1, reg_dst, 4 * jsp.typesize_out, 4);
+        } else {
+            Xmm vacc0l = Xmm(acc_vreg_idx(unroll, 0));
+            uni_vpxor(vacc0l, vacc0l, vacc0l);
+            for (int acc_iter = 0; acc_iter < num_acc_iters; acc_iter++) {
+                Xmm vscale = Xmm(scale_vreg_idx(acc_iter));
+                Xmm vsrc0 = Xmm(src_vreg_idx(unroll, acc_iter));
+                Ymm vsrc0h = Ymm(src_vreg_idx(unroll, acc_iter));
+                load_data<Xmm>(jsp.src_dt, vsrc0h, ptr[reg_src[acc_iter]],
+                        process_elems);
+                vfmadd231ps(vacc0l, vsrc0, vscale);
+            }
+            store_data<Xmm>(jsp.dst_dt, vacc0l, reg_dst, 0, process_elems);
+        }
+        jmp(shift_ptrs_label, T_NEAR);
+    }
+
+    L(shift_ptrs_label);
+    sub(reg_sz, rsi);
+    mov(rdi, rsi);
+    shl(rsi, jsp.typesize_in / 2); // src shift
+    shl(rdi, jsp.typesize_out / 2); // dst shift
+    for (int s = 0; s < jsp.num_srcs; s++)
+        add(reg_src[s], rsi);
+    add(reg_dst, rdi);
+    jmp(tail_label, T_NEAR);
+}
+
+status_t jit_avx2_vnni_2_xf16_sum_kernel_t::init_conf(jit_sum_conf_t &jsp,
+        const int num_srcs, const std::vector<memory_desc_t> &src_d,
+        const memory_desc_t &dst_d) {
+    jsp.num_srcs = num_srcs;
+    jsp.loop_unroll = 0;
+    jsp.isa = avx2_vnni_2;
+    jsp.loop_unroll = 6;
+    jsp.unroll_reg_count = 2 * num_srcs + 4;
+    jsp.size_blocking = (vreg_traits<Ymm>::vlen / 2) * jsp.loop_unroll;
+
+    const memory_desc_wrapper i_d(&(src_d.front()));
+    const memory_desc_wrapper o_d(&dst_d);
+    jsp.is_bf16_dst = data_type::bf16 == o_d.data_type();
+
+    jsp.src_dt = i_d.data_type();
+    jsp.dst_dt = o_d.data_type();
+
+    jsp.typesize_in = types::data_type_size(i_d.data_type());
+    jsp.typesize_out = types::data_type_size(o_d.data_type());
+
+    return status::success;
+}
+
 template <typename Vmm>
 void jit_uni_xf16_sum_kernel_t<Vmm>::loop_iteration(int current_unroll) {
     Label loop_label, loop_exit_label;
@@ -283,9 +420,13 @@ status_t jit_xf16_sum_t<src_data_type, dst_data_type, isa>::execute(
                 = CTX_IN_MEM(const src_data_t *, DNNL_ARG_MULTIPLE_SRC + a)
                 + i_d.blk_off(0);
     }
-    cvt_float_to_bfloat16(scales, &pd()->scales()[0], num_arrs);
+    if (src_data_type == data_type::bf16)
+        cvt_float_to_bfloat16(
+                (bfloat16_t *)scales, &pd()->scales()[0], num_arrs);
+    else
+        cvt_float_to_float16((float16_t *)scales, &pd()->scales()[0], num_arrs);
 
-    if (num_arrs % 2 != 0) scales[num_arrs] = 0.0f;
+    if (isa == avx512_core && num_arrs % 2 != 0) scales[num_arrs] = 0.0f;
 
     const dim_t half_L1 = 16 * 1024; // bytes
     const dim_t num_elems_in_block = utils::rnd_up(
@@ -345,8 +486,13 @@ status_t jit_xf16_sum_t<src_data_type, dst_data_type, isa>::execute(
 
 template struct jit_xf16_sum_t<data_type::bf16, data_type::f32, avx512_core>;
 template struct jit_xf16_sum_t<data_type::bf16, data_type::bf16, avx512_core>;
+template struct jit_xf16_sum_t<data_type::bf16, data_type::f32, avx2_vnni_2>;
+template struct jit_xf16_sum_t<data_type::bf16, data_type::bf16, avx2_vnni_2>;
+template struct jit_xf16_sum_t<data_type::f16, data_type::f32, avx2_vnni_2>;
+template struct jit_xf16_sum_t<data_type::f16, data_type::f16, avx2_vnni_2>;
 
 template struct jit_uni_xf16_sum_kernel_t<Xbyak::Zmm>;
+template struct jit_uni_xf16_sum_kernel_t<Xbyak::Ymm>;
 
 } // namespace x64
 } // namespace cpu
