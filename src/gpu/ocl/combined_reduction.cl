@@ -80,20 +80,23 @@
 #endif
 
 #define _SRC_OFF(outer, reduction, inner) \
-    (outer) * REDUCTION_START_SIZE *INNER_DIM_SIZE \
-            + (reduction)*INNER_DIM_SIZE + (inner)
+    (outer) * REDUCTION_SIZE *INNER_DIM_SIZE + (reduction)*INNER_DIM_SIZE \
+            + (inner)
 
-#define _DST_OFF(outer, reduction_chunk, inner) \
-    (outer) * INNER_DIM_SIZE *REDUCTION_END_SIZE \
-            + (reduction_chunk)*INNER_DIM_SIZE + inner
+#define _DST_OFF(outer, inner) (outer) * INNER_DIM_SIZE + (inner)
 
-KERNEL_ATTR
-__kernel void combined_reduce(
-        __global SRC_DATA_T *src, __global DST_DATA_T *dst) {
+__attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) // attr:no-format
+__kernel void
+combined_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
+    // Compute constants deriving from defined constants
+    const int sg_per_inner_dim = div_up(INNER_DIM_SIZE, SUBGROUP_SIZE);
+    const int inner_dims_per_sg
+            = min(REDUCTION_SIZE, max(1, SUBGROUP_SIZE / INNER_DIM_SIZE));
+    const int num_horiz_reductions
+            = min(DIV, div_up(REDUCTION_SIZE, inner_dims_per_sg));
+
     // Direct indices from gws
     const int outer_idx = (get_global_id(0) / OUTER_DIM_STRIDE);
-    const int reduction_chunk
-            = (get_global_id(0) / PADDED_INNER_DIM_SIZE) % REDUCTION_CHUNK_SIZE;
     const int inner = (get_global_id(0) % PADDED_INNER_DIM_SIZE);
 
     // Handle padded GWS
@@ -103,46 +106,43 @@ __kernel void combined_reduce(
     // Break out components that change within each subgroup
     const int inner_idx = inner % INNER_DIM_SIZE;
     const int red_off = inner / INNER_DIM_SIZE;
-    const int reduction_idx = reduction_chunk * REDUCTION_SIZE + red_off;
 
-    // outer idx needs no sg adjusting
-    const int reduction_idx_start = reduction_idx - red_off;
+    // for block reads, inner_idx may change within the subgroup
     const int inner_idx_start = inner - get_sub_group_local_id();
 
     // Deal with padded inner dims
     if (inner >= INNER_DIMS_PER_WI * INNER_DIM_SIZE) return;
 
-    const int dst_off
-            = _DST_OFF(outer_idx, reduction_chunk + red_off, inner_idx);
+    const int dst_off = _DST_OFF(outer_idx, inner_idx);
     DEF_ACC_DATA_T acc = INIT_ACC;
 
     int off = 0;
-    for (; off < REDUCTIONS_PER_WI - 1; off++) {
+    for (; off < NUM_HORIZ_REDUCTIONS - 1; off++) {
         // Load
 #if WITH_BLOCK_READ
-        const int src_off = _SRC_OFF(outer_idx,
-                off * INNER_DIMS_PER_WI + reduction_idx_start, inner_idx_start);
+        const int src_off = _SRC_OFF(
+                outer_idx, off * INNER_DIMS_PER_WI + red_off, inner_idx_start);
         const SRC_DATA_T src_val = AS_DATA_T(
                 BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off]));
 #else
         const int src_off = _SRC_OFF(
-                outer_idx, off * INNER_DIMS_PER_WI + reduction_idx, inner_idx);
+                outer_idx, off * INNER_DIMS_PER_WI + red_off, inner_idx);
         const SRC_DATA_T src_val = src[src_off];
 #endif
         // Accumulate
         acc = ACCUMULATE(acc, TO_DEF_ACC_DATA_T(src_val));
     }
     // Check final iteration -- some work items skip this one
-    if (off * INNER_DIMS_PER_WI + red_off < REDUCTION_SIZE) {
+    if (off * inner_dims_per_sg + red_off < REDUCTION_SIZE) {
         // Load
 #if WITH_BLOCK_READ
-        const int src_off = _SRC_OFF(outer_idx,
-                off * INNER_DIMS_PER_WI + reduction_idx_start, inner_idx_start);
+        const int src_off = _SRC_OFF(
+                outer_idx, off * INNER_DIMS_PER_WI + red_off, inner_idx_start);
         const SRC_DATA_T src_val = AS_DATA_T(
                 BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off]));
 #else
         const int src_off = _SRC_OFF(
-                outer_idx, off * INNER_DIMS_PER_WI + reduction_idx, inner_idx);
+                outer_idx, off * INNER_DIMS_PER_WI + red_off, inner_idx);
         const SRC_DATA_T src_val = src[src_off];
 #endif
         // Accumulate
