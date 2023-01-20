@@ -2448,6 +2448,8 @@ typedef enum {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     dnnl_query_sparse_encoding, ///< Sparse encoding
     dnnl_query_nnz_s64, ///< Number of non-zero entries
+    dnnl_query_num_handles_s32, ///< Number of buffers required for a memory
+///  descriptor
 #endif
     // Max value to prevent UB for internal use only dnnl_query_t
     dnnl_query_max = 0x7fff,

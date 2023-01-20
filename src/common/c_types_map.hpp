@@ -1652,9 +1652,11 @@ const query_t inner_idxs = dnnl_query_inner_idxs;
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 const query_t sparse_encoding = dnnl_query_sparse_encoding;
 const query_t nnz_s64 = dnnl_query_nnz_s64;
+const query_t num_handles_s32 = dnnl_query_num_handles_s32;
 #else
 const query_t sparse_encoding = dnnl_query_undef;
 const query_t nnz_s64 = dnnl_query_undef;
+const query_t num_handles_s32 = dnnl_query_undef;
 #endif
 
 // Internal only query kinds.

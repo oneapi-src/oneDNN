@@ -720,6 +720,8 @@ enum class query {
     sparse_encoding = dnnl_query_sparse_encoding,
     /// Number of non-zero entries
     nnz_s64 = dnnl_query_nnz_s64,
+    /// Number of buffers required for a memory descriptor
+    num_handles_s32 = dnnl_query_num_handles_s32,
 #endif
 };
 

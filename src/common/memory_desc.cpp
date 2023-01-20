@@ -664,6 +664,15 @@ status_t dnnl_memory_desc_query_v2(
                     ? md->data_type
                     : md->format_desc.sparse_desc.metadata_types[index - 1];
             break;
+        case query::num_handles_s32:
+            if (is_sparse) {
+                switch (md->format_desc.sparse_desc.encoding) {
+                    case sparse_encoding::csr: *(int *)result = 3; break;
+                    default: assert(!"unknown encoding"); *(int *)result = 0;
+                }
+            } else
+                *(int *)result = 1;
+            break;
         default: return dnnl_memory_desc_query(md, what, result);
     }
     return status::success;
