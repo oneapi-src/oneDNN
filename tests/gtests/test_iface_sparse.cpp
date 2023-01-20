@@ -107,4 +107,30 @@ TEST(iface_sparse_test_t, TestSparseMDSize) {
     ASSERT_EQ(md.get_size(2), exp_pointers_size);
 }
 
+TEST(iface_sparse_test_t, TestSparseMemoryCreation) {
+    engine eng = get_test_engine();
+
+    const bool is_unimplemented = (eng.get_kind() == engine::kind::gpu
+            || DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL);
+    if (is_unimplemented) return;
+
+    const int nnz = 12;
+    memory::desc md;
+    ASSERT_NO_THROW(
+            md = memory::desc::csr({64, 128}, dt::f32, nnz, dt::s32, dt::s32));
+    memory mem;
+
+    // Default memory constructor.
+    EXPECT_NO_THROW(mem = memory(md, eng));
+    // User provided buffers.
+    {
+        std::vector<float> values(1);
+        std::vector<int> indices(1);
+        std::vector<int> pointers(1);
+        EXPECT_NO_THROW(
+                mem = memory(md, eng,
+                        {values.data(), indices.data(), pointers.data()}));
+    }
+}
+
 } // namespace dnnl

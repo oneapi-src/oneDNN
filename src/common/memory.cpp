@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,16 +70,23 @@ size_t memory_desc_map_size(const memory_desc_t *md) {
 } // namespace
 
 dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
-        const dnnl::impl::memory_desc_t *md, unsigned flags, void *handle)
+        const dnnl::impl::memory_desc_t *md, const std::vector<unsigned> &flags,
+        const std::vector<void *> &handles)
     : engine_(engine), md_(*md) {
-    const size_t size = memory_desc_wrapper(md_).size();
 
-    memory_storage_t *memory_storage_ptr;
-    status_t status = engine->create_memory_storage(
-            &memory_storage_ptr, flags, size, handle);
-    if (status != success) return;
+    const size_t nhandles = handles.size();
+    std::vector<std::unique_ptr<dnnl::impl::memory_storage_t>> mem_storages(
+            nhandles);
+    for (size_t i = 0; i < nhandles; i++) {
+        const size_t size = memory_desc_wrapper(md_).size((int)i);
+        memory_storage_t *memory_storage_ptr;
+        status_t status = engine->create_memory_storage(
+                &memory_storage_ptr, flags[i], size, handles[i]);
+        if (status != success) return;
+        mem_storages[i].reset(memory_storage_ptr);
+    }
 
-    memory_storage_.reset(memory_storage_ptr);
+    memory_storages_ = std::move(mem_storages);
 }
 
 dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
@@ -96,7 +103,7 @@ status_t dnnl_memory::set_data_handle(void *handle) {
     CHECK(memory_storage()->get_data_handle(&old_handle));
 
     if (handle != old_handle) {
-        CHECK(memory_storage_->set_data_handle(handle));
+        CHECK(memory_storage(0)->set_data_handle(handle));
     }
     return status::success;
 }
@@ -104,14 +111,20 @@ status_t dnnl_memory::set_data_handle(void *handle) {
 status_t dnnl_memory::reset_memory_storage(
         std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage) {
     if (memory_storage) {
-        memory_storage_ = std::move(memory_storage);
+        if (memory_storages_.empty())
+            memory_storages_.emplace_back(std::move(memory_storage));
+        else
+            memory_storages_[0] = std::move(memory_storage);
     } else {
         memory_storage_t *memory_storage_ptr;
         status_t status = engine_->create_memory_storage(
                 &memory_storage_ptr, use_runtime_ptr, 0, nullptr);
         if (status != status::success) return status;
 
-        memory_storage_.reset(memory_storage_ptr);
+        if (memory_storages_.empty())
+            memory_storages_.emplace_back(memory_storage_ptr);
+        else
+            memory_storages_[0].reset(memory_storage_ptr);
     }
 
     return status::success;
@@ -144,6 +157,47 @@ status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
     if (_memory->memory_storage() == nullptr) {
         delete _memory;
         return out_of_memory;
+    }
+    *memory = _memory;
+    return success;
+}
+
+status_t dnnl_memory_create_v2(memory_t **memory, const memory_desc_t *md,
+        engine_t *engine, int nhandles, void **handles) {
+    const bool args_ok = !any_null(memory, engine, handles) && nhandles > 0;
+    if (!args_ok) return invalid_arguments;
+#ifdef DNNL_WITH_SYCL
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (engine->kind() == engine_kind::gpu)
+#endif
+        return dnnl_sycl_interop_memory_create(
+                memory, md, engine, dnnl_sycl_interop_usm, handles[0]);
+#endif
+    memory_desc_t z_md = types::zero_md();
+    if (md == nullptr) md = &z_md;
+
+    const auto mdw = memory_desc_wrapper(md);
+    if (mdw.format_any() || mdw.has_runtime_dims_or_strides())
+        return invalid_arguments;
+
+    std::vector<unsigned> flags_vec(nhandles);
+    std::vector<void *> handles_vec(nhandles);
+    for (size_t i = 0; i < handles_vec.size(); i++) {
+        unsigned f = (handles[i] == DNNL_MEMORY_ALLOCATE)
+                ? memory_flags_t::alloc
+                : memory_flags_t::use_runtime_ptr;
+        void *h = (handles[i] == DNNL_MEMORY_ALLOCATE) ? nullptr : handles[i];
+        flags_vec[i] = f;
+        handles_vec[i] = h;
+    }
+
+    auto _memory = new memory_t(engine, md, flags_vec, handles_vec);
+    if (_memory == nullptr) return out_of_memory;
+    for (size_t i = 0; i < handles_vec.size(); i++) {
+        if (_memory->memory_storage((int)i) == nullptr) {
+            delete _memory;
+            return out_of_memory;
+        }
     }
     *memory = _memory;
     return success;

@@ -866,6 +866,10 @@ struct memory : public handle<dnnl_memory_t> {
         /// A tensor in a generic format described by the stride and blocking
         /// values in each dimension.
         blocked = dnnl_blocked,
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        /// Format kind for sparse tensors.
+        sparse = dnnl_format_kind_sparse,
+#endif
         /// A special format kind that indicates that tensor format is opaque.
         opaque = dnnl_format_kind_opaque,
     };
@@ -2679,6 +2683,16 @@ struct memory : public handle<dnnl_memory_t> {
         }
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
+        /// Returns number of handles.
+        ///
+        /// @returns A number of handles.
+        int get_num_handles() const {
+            int nhandles;
+            dnnl_status_t status = dnnl_memory_desc_query_v2(
+                    get(), dnnl_query_num_handles_s32, 0, &nhandles);
+            return status == dnnl_success ? nhandles : 0;
+        }
+
         /// Returns a number of non-zero entries of the memory descriptor.
         ///
         /// @returns A number non-zero entries.
@@ -2821,6 +2835,76 @@ struct memory : public handle<dnnl_memory_t> {
     /// absence of a parameter.
     memory() = default;
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    /// Constructs a memory object.
+    ///
+    /// Unless @p handle is equal to #DNNL_MEMORY_NONE, the constructed memory
+    /// object will have the underlying buffer set. In this case, the buffer
+    /// will be initialized as if #dnnl::memory::set_data_handle() had been
+    /// called.
+    ///
+    /// @sa memory::set_data_handle()
+    ///
+    /// @param md Memory descriptor.
+    /// @param aengine Engine to store the data on.
+    /// @param handle Handle of the memory buffer to use.
+    ///     - A pointer to the user-allocated buffer. In this case the library
+    ///       doesn't own the buffer.
+    ///     - The #DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+    ///       allocate the buffer for the memory object. In this case the
+    ///       library owns the buffer.
+    ///     - #DNNL_MEMORY_NONE to create dnnl::memory without an underlying
+    ///       buffer.
+    memory(const desc &md, const engine &aengine, void *handle)
+        : memory(md, aengine, std::vector<void *> {handle}) {}
+
+    /// Constructs a memory object with multiple handles.
+    ///
+    /// Unless @p handle is equal to #DNNL_MEMORY_NONE, the constructed memory
+    /// object will have the underlying buffer set. In this case, the buffer
+    /// will be initialized as if #dnnl::memory::set_data_handle() had been
+    /// called.
+    ///
+    /// @sa memory::set_data_handle()
+    ///
+    /// @param md Memory descriptor.
+    /// @param aengine Engine to store the data on.
+    /// @param handles Handles of the memory buffers to use.
+    ///     For each element of the @p handles vector the following applies:
+    ///     - A pointer to the user-allocated buffer. In this case the library
+    ///       doesn't own the buffer.
+    ///     - The #DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+    ///       allocate the buffer for the memory object. In this case the
+    ///       library owns the buffer.
+    ///     - #DNNL_MEMORY_NONE Instructs the library to skip allocation of the
+    ///       memory buffer.
+    memory(const desc &md, const engine &aengine, std::vector<void *> handles) {
+        dnnl_memory_t result;
+        dnnl_status_t status = dnnl_memory_create_v2(&result, md.get(),
+                aengine.get(), (int)handles.size(), handles.data());
+        error::wrap_c_api(status, "could not create a memory object");
+        reset(result);
+    }
+
+    /// Constructs a memory object.
+    ///
+    /// The underlying buffer(s) for the memory will be allocated by the
+    /// library.
+    /// @param md Memory descriptor.
+    /// @param aengine Engine to store the data on.
+    memory(const desc &md, const engine &aengine) {
+        dnnl_status_t status;
+        dnnl_memory_t result;
+        const int nhandles = md.get_num_handles();
+
+        std::vector<void *> handles(nhandles, DNNL_MEMORY_ALLOCATE);
+        status = dnnl_memory_create_v2(&result, md.get(), aengine.get(),
+                (int)handles.size(), handles.data());
+
+        error::wrap_c_api(status, "could not create a memory object");
+        reset(result);
+    }
+#else
     /// Constructs a memory object.
     ///
     /// Unless @p handle is equal to #DNNL_MEMORY_NONE, the constructed memory
@@ -2856,6 +2940,7 @@ struct memory : public handle<dnnl_memory_t> {
     /// @param aengine Engine to store the data on.
     memory(const desc &md, const engine &aengine)
         : memory(md, aengine, DNNL_MEMORY_ALLOCATE) {}
+#endif
 
     /// Returns the associated memory descriptor.
     desc get_desc() const {

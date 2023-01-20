@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,13 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
     /** XXX: Parameter flags must contain either alloc or use_runtime_ptr from
      * memory_flags_t. */
     dnnl_memory(dnnl::impl::engine_t *engine,
-            const dnnl::impl::memory_desc_t *md, unsigned flags, void *handle);
+            const dnnl::impl::memory_desc_t *md,
+            const std::vector<unsigned> &flags,
+            const std::vector<void *> &handles);
+    dnnl_memory(dnnl::impl::engine_t *engine,
+            const dnnl::impl::memory_desc_t *md, unsigned flags, void *handle)
+        : dnnl_memory(engine, md, std::vector<unsigned> {flags},
+                std::vector<void *> {handle}) {}
     dnnl_memory(dnnl::impl::engine_t *engine,
             const dnnl::impl::memory_desc_t *md,
             std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage);
@@ -52,21 +58,23 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
     /** returns memory's description */
     const dnnl::impl::memory_desc_t *md() const { return &md_; }
     /** returns the underlying memory storage */
-    dnnl::impl::memory_storage_t *memory_storage() const {
-        return memory_storage_.get();
+    dnnl::impl::memory_storage_t *memory_storage(int index = 0) const {
+        if (index >= (int)memory_storages_.size()) return nullptr;
+        return memory_storages_[index].get();
     }
+
     /** returns the underlying memory storage */
     dnnl::impl::memory_storage_t *memory_storage_clean(
             const dnnl::impl::exec_ctx_t &ctx,
             dnnl::impl::status_t &status) const {
         status = zero_pad(ctx);
-        return memory_storage_.get();
+        return memory_storage(0);
     }
     /** returns the underlying memory storage */
     dnnl::impl::memory_storage_t *memory_storage_clean(
             const dnnl::impl::exec_ctx_t &ctx) const {
         zero_pad(ctx);
-        return memory_storage_.get();
+        return memory_storage(0);
     }
     /** returns data handle */
     dnnl::impl::status_t get_data_handle(void **handle) const {
@@ -90,7 +98,8 @@ private:
     dnnl_memory() = delete;
     DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_memory);
 
-    std::unique_ptr<dnnl::impl::memory_storage_t> memory_storage_;
+    // Number of storages is larger than 1 only for sparse memory.
+    std::vector<std::unique_ptr<dnnl::impl::memory_storage_t>> memory_storages_;
 };
 
 #endif
