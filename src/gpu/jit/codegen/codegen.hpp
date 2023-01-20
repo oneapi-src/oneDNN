@@ -1202,9 +1202,15 @@ private:
             };
             std::vector<conjunct_t> cv;
             split_by_and(cast->expr, cv, cast->type);
+            for (size_t i = 0; i < cv.size(); i++) {
+                if (cv[i].op_ == op_kind_t::undef) {
+                    ir_assert(i == cv.size() - 1);
+                }
+            }
+
             ar_op(mod, cv[0]);
             mod |= flags.flag_register();
-            for (int i = 1; i < int(cv.size()); i++)
+            for (size_t i = 1; i < cv.size(); i++)
                 ar_op(mod, cv[i]);
             retn = -retn;
         }
