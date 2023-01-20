@@ -56,15 +56,15 @@ namespace {
 //    no one will do concurrent mapping for overlapping memory objects.
 //
 // XXX: remove limitation mentioned in 2nd bullet.
-size_t memory_desc_map_size(const memory_desc_t *md) {
+size_t memory_desc_map_size(const memory_desc_t *md, int index = 0) {
     auto mdw = memory_desc_wrapper(md);
 
     if (mdw.has_runtime_dims_or_strides()) return DNNL_RUNTIME_SIZE_VAL;
-    if (mdw.offset0() == 0) return mdw.size();
+    if (mdw.offset0() == 0) return mdw.size(index);
 
     memory_desc_t md_no_offset0 = *md;
     md_no_offset0.offset0 = 0;
-    return memory_desc_wrapper(md_no_offset0).size()
+    return memory_desc_wrapper(md_no_offset0).size(index)
             + md->offset0 * mdw.data_type_size();
 }
 } // namespace
@@ -246,13 +246,15 @@ status_t dnnl_memory_set_data_handle_v2(
     return status::success;
 }
 
-status_t dnnl_memory_map_data(const memory_t *memory, void **mapped_ptr) {
-    bool args_ok = !any_null(memory, mapped_ptr);
+status_t dnnl_memory_map_data_v2(
+        const memory_t *memory, void **mapped_ptr, int index) {
+    const bool args_ok = !any_null(memory, mapped_ptr)
+            && (index >= 0 && index < (int)memory->get_num_handles());
     if (!args_ok) return invalid_arguments;
 
     const memory_desc_t *md = memory->md();
     // See caveats in the comment to `memory_desc_map_size()` function.
-    const size_t map_size = memory_desc_map_size(md);
+    const size_t map_size = memory_desc_map_size(md, index);
 
     if (map_size == 0) {
         *mapped_ptr = nullptr;
@@ -261,14 +263,24 @@ status_t dnnl_memory_map_data(const memory_t *memory, void **mapped_ptr) {
         return invalid_arguments;
     }
 
-    return memory->memory_storage()->map_data(mapped_ptr, nullptr, map_size);
+    return memory->memory_storage(index)->map_data(
+            mapped_ptr, nullptr, map_size);
+}
+
+status_t dnnl_memory_unmap_data_v2(
+        const memory_t *memory, void *mapped_ptr, int index) {
+    const bool args_ok = !any_null(memory)
+            && (index >= 0 && index < (int)memory->get_num_handles());
+    if (!args_ok) return invalid_arguments;
+    return memory->memory_storage(index)->unmap_data(mapped_ptr, nullptr);
+}
+
+status_t dnnl_memory_map_data(const memory_t *memory, void **mapped_ptr) {
+    return dnnl_memory_map_data_v2(memory, mapped_ptr, 0);
 }
 
 status_t dnnl_memory_unmap_data(const memory_t *memory, void *mapped_ptr) {
-    bool args_ok = !any_null(memory);
-    if (!args_ok) return invalid_arguments;
-
-    return memory->memory_storage()->unmap_data(mapped_ptr, nullptr);
+    return dnnl_memory_unmap_data_v2(memory, mapped_ptr, 0);
 }
 
 status_t dnnl_memory_destroy(memory_t *memory) {

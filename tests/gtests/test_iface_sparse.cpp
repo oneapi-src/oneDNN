@@ -180,4 +180,44 @@ TEST(iface_sparse_test_t, TestSparseMemorySetGetDataHandles) {
     }
 }
 
+TEST(iface_sparse_test_t, TestSparseMemoryMapUnmap) {
+    engine eng = get_test_engine();
+
+    const bool is_unimplemented = (eng.get_kind() == engine::kind::gpu
+            || DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL);
+    if (is_unimplemented) return;
+
+    const int nnz = 2;
+    memory::desc md;
+    ASSERT_NO_THROW(
+            md = memory::desc::csr({2, 2}, dt::f32, nnz, dt::s32, dt::s32));
+
+    std::vector<float> values = {1.5, 2.5};
+    std::vector<int> indices = {0, 1};
+    std::vector<int> pointers = {0, 1, 2};
+
+    memory mem(md, eng, {values.data(), indices.data(), pointers.data()});
+
+    float *mapped_values = nullptr;
+    int *mapped_indices = nullptr;
+    int *mapped_pointers = nullptr;
+
+    ASSERT_NO_THROW(mapped_values = mem.map_data<float>(0));
+    ASSERT_NO_THROW(mapped_indices = mem.map_data<int>(1));
+    ASSERT_NO_THROW(mapped_pointers = mem.map_data<int>(2));
+
+    for (size_t i = 0; i < values.size(); i++)
+        ASSERT_EQ(values[i], mapped_values[i]);
+
+    for (size_t i = 0; i < indices.size(); i++)
+        ASSERT_EQ(indices[i], mapped_indices[i]);
+
+    for (size_t i = 0; i < pointers.size(); i++)
+        ASSERT_EQ(pointers[i], mapped_pointers[i]);
+
+    ASSERT_NO_THROW(mem.unmap_data(mapped_values, 0));
+    ASSERT_NO_THROW(mem.unmap_data(mapped_indices, 1));
+    ASSERT_NO_THROW(mem.unmap_data(mapped_pointers, 2));
+}
+
 } // namespace dnnl

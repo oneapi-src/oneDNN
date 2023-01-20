@@ -1068,6 +1068,36 @@ dnnl_status_t DNNL_API dnnl_memory_get_engine(
 dnnl_status_t DNNL_API dnnl_memory_map_data(
         const_dnnl_memory_t memory, void **mapped_ptr);
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+/// Maps a memory object and returns a host-side pointer to a memory buffer
+/// with a copy of its contents. The memory buffer corresponds to the given
+/// index.
+///
+/// Mapping enables explicit direct access to memory contents for the engines
+/// that do not support it implicitly.
+///
+/// Mapping is an exclusive operation - a memory object cannot be used in
+/// other operations until this memory object is unmapped.
+///
+/// @note
+///     Any primitives working with @p memory should be completed before
+///     the memory is mapped. Use dnnl_stream_wait to synchronize the
+///     corresponding execution stream.
+///
+/// @note
+///     The dnnl_memory_map_data() and dnnl_memory_unmap_data() functions are
+///     mainly provided for debug and testing purposes, and their performance
+///     may be suboptimal.
+///
+/// @param memory Memory object.
+/// @param mapped_ptr Output pointer to the mapped buffer.
+/// @param index Index of the buffer.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_map_data_v2(
+        const_dnnl_memory_t memory, void **mapped_ptr, int index);
+#endif
+
 /// Unmaps a memory object and writes back any changes made to the previously
 /// mapped memory buffer. The pointer to the mapped buffer must be obtained
 /// via the dnnl_memory_map_data() call.
@@ -1084,6 +1114,27 @@ dnnl_status_t DNNL_API dnnl_memory_map_data(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_unmap_data(
         const_dnnl_memory_t memory, void *mapped_ptr);
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+/// Unmaps a memory object and writes back any changes made to the previously
+/// mapped memory buffer. The pointer to the mapped buffer must be obtained
+/// via the dnnl_memory_map_data() call. The buffer corresponds to the given
+/// index.
+///
+/// @note
+///     The dnnl_memory_map_data() and dnnl_memory_unmap_data() functions are
+///     mainly provided for debug and testing purposes, and their performance
+///     may be suboptimal.
+///
+/// @param memory Memory object.
+/// @param mapped_ptr Pointer to the mapped buffer that must have been
+///     obtained using the dnnl_memory_map_data() function.
+/// @param index Index of the buffer.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_unmap_data_v2(
+        const_dnnl_memory_t memory, void *mapped_ptr, int index);
+#endif
 
 /// Returns memory object's data handle.
 ///

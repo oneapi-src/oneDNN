@@ -2983,6 +2983,54 @@ struct memory : public handle<dnnl_memory_t> {
         error::wrap_c_api(dnnl_memory_set_data_handle_v2(get(), handle, index),
                 "could not set native handle of a memory object");
     }
+
+    /// Maps a memory object and returns a host-side pointer to a memory
+    /// buffer with a copy of its contents. The memory buffer corresponds to
+    /// the given index.
+    ///
+    /// Mapping enables read/write directly from/to the memory contents for
+    /// engines that do not support direct memory access.
+    ///
+    /// Mapping is an exclusive operation - a memory object cannot be used in
+    /// other operations until it is unmapped via #dnnl::memory::unmap_data()
+    /// call.
+    ///
+    /// @note
+    ///     Any primitives working with the memory should be completed before
+    ///     the memory is mapped. Use #dnnl::stream::wait() to synchronize the
+    ///     corresponding execution stream.
+    ///
+    /// @note
+    ///     The map_data and unmap_data functions are provided mainly for
+    ///     debug and testing purposes and their performance may be suboptimal.
+    ///
+    /// @tparam T Data type to return a pointer to.
+    /// @param index Index of the buffer. Defaults to 0.
+    /// @returns Pointer to the mapped memory.
+    template <typename T = void>
+    T *map_data(int index = 0) const {
+        void *mapped_ptr;
+        error::wrap_c_api(dnnl_memory_map_data_v2(get(), &mapped_ptr, index),
+                "could not map memory object data");
+        return static_cast<T *>(mapped_ptr);
+    }
+
+    /// Unmaps a memory object and writes back any changes made to the
+    /// previously mapped memory buffer. The memory buffer corresponds to
+    /// the given index.
+    ///
+    /// @note
+    ///     The map_data and unmap_data functions are provided mainly for
+    ///     debug and testing purposes and their performance may be
+    ///     suboptimal.
+    ///
+    /// @param mapped_ptr A pointer previously returned by
+    ///     #dnnl::memory::map_data().
+    /// @param index Index of the buffer. Defaults to 0.
+    void unmap_data(void *mapped_ptr, int index = 0) const {
+        error::wrap_c_api(dnnl_memory_unmap_data_v2(get(), mapped_ptr, index),
+                "could not unmap memory object data");
+    }
 #else
     /// Returns the underlying memory buffer.
     ///
@@ -3005,7 +3053,6 @@ struct memory : public handle<dnnl_memory_t> {
         error::wrap_c_api(dnnl_memory_set_data_handle(get(), handle),
                 "could not set native handle of a memory object");
     }
-#endif
 
     /// Maps a memory object and returns a host-side pointer to a memory
     /// buffer with a copy of its contents.
@@ -3050,6 +3097,7 @@ struct memory : public handle<dnnl_memory_t> {
         error::wrap_c_api(dnnl_memory_unmap_data(get(), mapped_ptr),
                 "could not unmap memory object data");
     }
+#endif
 
     static dnnl_data_type_t convert_to_c(data_type adata_type) {
         return static_cast<dnnl_data_type_t>(adata_type);
