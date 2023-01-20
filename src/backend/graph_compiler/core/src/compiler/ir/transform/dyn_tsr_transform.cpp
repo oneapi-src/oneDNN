@@ -127,7 +127,7 @@ public:
     // function.
     std::unordered_map<expr, expr> tsr_replace_map_;
     // for second pass callee func decl replacement
-    std::unordered_map<func_t, func_t> func_decl_replace_map_;
+    std::unordered_map<std::string, func_t> func_decl_replace_map_;
     // def stmts to insert before call node
     std::vector<stmt> def_stmts_;
     expr_c visit(intrin_call_c v) override {
@@ -371,11 +371,9 @@ public:
             auto new_func = copy_attr(*v,
                     builder::make_func(v->name_, new_params,
                             body.remove_const(), v->ret_type_));
-            // save both funcs and their decl map.
-            func_decl_replace_map_.insert(std::make_pair(
-                    std::const_pointer_cast<func_base>(v), new_func));
+            // save map from symbol to decl.
             func_decl_replace_map_.insert(
-                    std::make_pair(v->decl_, new_func->decl_));
+                    std::make_pair(v->name_, new_func->decl_));
             return std::move(new_func);
         }
         return v;
@@ -387,11 +385,12 @@ public:
     using ir_visitor_t::dispatch;
     using ir_visitor_t::visit;
     // inherit from tensor_transform pass
-    std::unordered_map<func_t, func_t> &func_decl_replace_map_;
+    std::unordered_map<std::string, func_t> &func_decl_replace_map_;
+
     expr_c visit(call_c v) override {
         func_t the_func = std::dynamic_pointer_cast<func_base>(v->func_);
         if (the_func) {
-            auto it = func_decl_replace_map_.find(the_func);
+            auto it = func_decl_replace_map_.find(the_func->name_);
             if (it != func_decl_replace_map_.end()) {
                 return copy_attr(*v,
                         builder::make_call(
@@ -400,7 +399,7 @@ public:
             }
         } else {
             func_t proto_func = v->get_prototype();
-            auto it = func_decl_replace_map_.find(proto_func);
+            auto it = func_decl_replace_map_.find(proto_func->name_);
             if (it != func_decl_replace_map_.end()) {
                 auto new_func = std::dynamic_pointer_cast<expr_base>(v->func_)
                                         ->remake();
@@ -410,7 +409,8 @@ public:
         }
         return v;
     }
-    func_decl_replace_impl_t(std::unordered_map<func_t, func_t> &replace_map)
+    func_decl_replace_impl_t(
+            std::unordered_map<std::string, func_t> &replace_map)
         : func_decl_replace_map_(replace_map) {}
 };
 

@@ -319,6 +319,26 @@ void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
     auto in1_format = info_.inputs_[1]->details_.get_format();
 
     int bc_input_idx = get_broadcast_input();
+    if (attrs_.has_key(op_attr_key::layout_input_index)) {
+        bc_input_idx = 1 - attrs_.get<int>(op_attr_key::layout_input_index);
+    }
+    if (bc_input_idx == -1) {
+        // if the shapes are equal, find which side has blocking format.
+        if (is_dynamic()) {
+            bc_input_idx
+                    = info_.inputs_[0]->details_.get_format_candidates().size()
+                            > info_.inputs_[1]
+                                      ->details_.get_format_candidates()
+                                      .size()
+                    ? 1
+                    : 0;
+        } else {
+            bc_input_idx = info_.inputs_[0]->details_.get_format().is_blocking()
+                    ? 1
+                    : 0;
+        }
+    }
+    attrs_.set<int>(op_attr_key::layout_input_index, 1 - bc_input_idx);
 
     if (info_.inputs_[0]->details_.get_plain_dims().size()
             != info_.inputs_[1]->details_.get_plain_dims().size()) {
@@ -331,12 +351,14 @@ void binary_elementwise_op_impl_t::query_format(context_ptr ctx,
         out_formats.push_back({!bc_input_idx ? in1_format : in0_format});
     } else {
         if (!bc_input_idx) {
+            // propagate layout from input 0 to 1.
             auto target_format = infer_broadcast_format(
                     info_.inputs_[1]->details_, info_.inputs_[0]->details_);
             in_formats.push_back({target_format});
             in_formats.push_back({in1_format});
             out_formats.push_back({in1_format});
         } else {
+            // propagate layout from input 1 to 0.
             auto target_format = infer_broadcast_format(
                     info_.inputs_[0]->details_, info_.inputs_[1]->details_);
             in_formats.push_back({in0_format});

@@ -26,6 +26,7 @@
 #include <ops/fusible/unary_elemwise.hpp>
 #include <ops/managed_matmul_core.hpp>
 #include <ops/matmul_core.hpp>
+#include <ops/reduce_mean.hpp>
 #include <ops/reshape.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 #include <runtime/dynamic_dispatch/op_func_decl.hpp>
@@ -112,7 +113,8 @@ SC_API void dynamic_infer_shape_by_graph(sc_graph_t &graph,
                     auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
                     infer_shape_binary_fusible_op(out, in0, in1);
                     print_shapes(node->op_name_, out);
-                } else if (node->isa<reduce_op_t>()) {
+                } else if (node->isa<reduce_op_t>()
+                        || node->isa<reduce_mean_op_t>()) {
                     auto *in = get_or_create_dyn_tsr(node->get_inputs()[0]);
                     auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
                     auto rd_axis

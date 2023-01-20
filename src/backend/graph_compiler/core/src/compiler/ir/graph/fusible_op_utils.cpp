@@ -710,14 +710,16 @@ cmp_res cmp_slice_range(const slice_range_list &left_slice_range_list,
                             && right_shape.isa<constant>()
                             && get_expr_as_int(left_shape)
                                     == get_expr_as_int(right_shape))) {
-                assert((left_shape.isa<constant>()
-                               && get_expr_as_int(left_shape) == 1)
-                        || (right_shape.isa<constant>()
-                                && get_expr_as_int(right_shape) == 1));
-                if (left_shape.isa<constant>()
-                        && get_expr_as_int(left_shape) == 1) {
+                if (left_shape.isa<constant>() && right_shape.isa<constant>()) {
+                    if (get_expr_as_int(left_shape)
+                            > get_expr_as_int(right_shape)) {
+                        left_slice_size++;
+                    } else {
+                        right_slice_size++;
+                    }
+                } else if (left_shape.isa<constant>()) {
                     right_slice_size++;
-                } else {
+                } else if (right_shape.isa<constant>()) {
                     left_slice_size++;
                 }
             }
