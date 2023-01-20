@@ -104,4 +104,7 @@ inline thread_local_buffer_t &get_tls(runtime::stream_t *stream) {
 } // namespace runtime
 } // namespace sc
 
+extern "C" SC_API void *sc_get_tls_amx_buffer(
+        sc::runtime::stream_t *stream) noexcept;
+
 #endif

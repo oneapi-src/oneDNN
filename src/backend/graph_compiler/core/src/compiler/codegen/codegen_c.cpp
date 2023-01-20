@@ -38,6 +38,8 @@
 #include <util/utils.hpp>
 
 namespace sc {
+static constexpr const char *wrapper_postfix = "_0wrapper";
+
 static std::string get_closure_wrapper_name(const std::string &name) {
     return name + "_0closurewrapper";
 }
@@ -100,6 +102,35 @@ ostream &codegen_c_vis::print_param(const expr &e) {
         print_cpp_var_def(e.static_as<var>());
     } else {
         print_tensor_def(e.checked_as<tensor>());
+    }
+    return *os;
+}
+
+ostream &codegen_c_vis::print_func_params(const func_c &v, bool with_type) {
+    if (!v->params_.empty()) {
+        for (size_t i = 0; i < v->params_.size() - 1; i++) {
+            expr e = v->params_[i];
+            if (with_type) {
+                print_param(e);
+            } else {
+                if (e.isa<var>()) {
+                    *os << e.static_as<var>()->name_;
+                } else {
+                    *os << e.checked_as<tensor>()->name_;
+                }
+            }
+            *os << ", ";
+        }
+        expr e = v->params_.back();
+        if (with_type) {
+            print_param(e);
+        } else {
+            if (e.isa<var>()) {
+                *os << e.static_as<var>()->name_;
+            } else {
+                *os << e.checked_as<tensor>()->name_;
+            }
+        }
     }
     return *os;
 }
@@ -192,19 +223,28 @@ func_c codegen_c_vis::dispatch(func_c v) {
     } else {
         *os << " " << real_name << '(';
     }
-    if (!v->params_.empty()) {
-        for (size_t i = 0; i < v->params_.size() - 1; i++) {
-            expr e = v->params_[i];
-            print_param(e);
-            *os << ", ";
-        }
-        print_param(v->params_.back());
-    }
+    print_func_params(v);
     *os << ") noexcept";
     if (prototype_only) {
         if (v->attr_) {
             if (v->attr_->get_or_else(function_attrs::pure, false)) {
-                *os << " __attribute__((const))";
+                if (is_symbol_in_runtime) {
+                    // create a wrapper to symbol fptr for compiler function opt
+                    *os << ";\n";
+                    print_type(v->ret_type_);
+                    *os << " __" << real_name << wrapper_postfix << '(';
+                    print_func_params(v);
+                    *os << ") noexcept __attribute__((const));\n";
+
+                    print_type(v->ret_type_);
+                    *os << " __" << real_name << wrapper_postfix << '(';
+                    print_func_params(v);
+                    *os << ") noexcept { return " << real_name << "_fptr(";
+                    print_func_params(v, false);
+                    *os << "); }";
+                } else {
+                    *os << " __attribute__((const))";
+                }
             }
             if (v->attr_->get_or_else(function_attrs::no_alias, false)) {
                 *os << " __attribute__((returns_nonnull))  ";
@@ -649,10 +689,18 @@ void codegen_c_vis::view(call_c v) {
         *os << v->args_[0] << ')';
     } else {
         if (the_func) {
-            *os << the_func->name_;
             if (!is_offline_
                     && default_external_symbol_resolve(the_func->name_)) {
-                *os << "_fptr";
+                // if set gcc attributes, call func wrapper instead
+                if (!the_func->attr_
+                        || !the_func->attr_->get_or_else(
+                                function_attrs::pure, false)) {
+                    *os << the_func->name_ << "_fptr";
+                } else {
+                    *os << "__" << the_func->name_ << wrapper_postfix;
+                }
+            } else {
+                *os << the_func->name_;
             }
         } else {
             auto func = the_expr->attr().get_or_else("prototype", func_t());
@@ -893,7 +941,6 @@ static void prepare_include(std::ostream *source) {
 )";
 }
 
-static constexpr const char *wrapper_postfix = "_0wrapper";
 static bool is_main_func_wrapper(const func_c &f) {
     return f->attr_ && f->attr_->get_or_else(function_attrs::is_main, false)
             && utils::string_endswith(f->name_, wrapper_postfix);

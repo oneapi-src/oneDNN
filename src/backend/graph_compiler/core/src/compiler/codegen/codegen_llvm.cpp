@@ -803,9 +803,7 @@ public:
         auto cate = get_etype_category_nothrow(l->dtype_.type_code_);
         auto lhs = generate_expr(l);
         auto rhs = generate_expr(r);
-        COMPILE_ASSERT(cate != CATE_OTHER,
-                "Cannot generate binary op for this type: " << v);
-#define HANDLE_BIN_OP2(scname, intname, fpname) \
+#define HANDLE_BIN_OP2(scname, intname, fpname, case_other) \
     case sc_expr_type::scname: \
         switch (cate) { \
             case CATE_INT: \
@@ -815,11 +813,24 @@ public:
             case CATE_FLOAT: \
                 current_val_ = builder_.Create##fpname(lhs, rhs); \
                 break; \
-            default: assert(0); \
+            case CATE_OTHER: { \
+                case_other \
+            } \
+            default: \
+                COMPILE_ASSERT(false, \
+                        "Cannot generate binary op for this type: " << v); \
         } \
         break
+#define HANDLE_POINTER_CMP(llvm_name) \
+    if (l->dtype_.type_code_ == sc_data_etype::POINTER \
+            && r->dtype_.type_code_ == sc_data_etype::POINTER) { \
+        current_val_ = builder_.Create##llvm_name(lhs, rhs); \
+        break; \
+    }
+#define HANDLE_POINTER_EQ HANDLE_POINTER_CMP(ICmpEQ)
+#define HANDLE_POINTER_NE HANDLE_POINTER_CMP(ICmpNE)
 #define HANDLE_BIN_OP(scname, intname) \
-    HANDLE_BIN_OP2(scname, intname, F##intname)
+    HANDLE_BIN_OP2(scname, intname, F##intname, )
 #define HANDLE_BIN_SIGNED_OP2(scname, intname1, intname2, fpname) \
     case sc_expr_type::scname: \
         switch (cate) { \
@@ -834,7 +845,9 @@ public:
             case CATE_FLOAT: \
                 current_val_ = builder_.Create##fpname(lhs, rhs); \
                 break; \
-            default: assert(0); \
+            default: \
+                COMPILE_ASSERT(false, \
+                        "Cannot generate binary op for this type: " << v); \
         } \
         break
 #define HANDLE_BIN_SIGNED_OP(scname, intname) \
@@ -847,8 +860,8 @@ public:
             HANDLE_BIN_OP(mul, Mul);
             HANDLE_BIN_SIGNED_OP(div, Div);
             HANDLE_BIN_SIGNED_OP(mod, Rem);
-            HANDLE_BIN_OP2(cmp_eq, ICmpEQ, FCmpOEQ);
-            HANDLE_BIN_OP2(cmp_ne, ICmpNE, FCmpONE);
+            HANDLE_BIN_OP2(cmp_eq, ICmpEQ, FCmpOEQ, HANDLE_POINTER_EQ);
+            HANDLE_BIN_OP2(cmp_ne, ICmpNE, FCmpONE, HANDLE_POINTER_NE);
             HANDLE_CMP_SIGNED_OP(cmp_lt, LT);
             HANDLE_CMP_SIGNED_OP(cmp_le, LE);
             HANDLE_CMP_SIGNED_OP(cmp_gt, GT);
