@@ -760,6 +760,15 @@ public:
         return true;
     }
 
+    bool is_blocked_by(int dim_idx, int block) const {
+        if (block == 1) return true;
+        if (nblocks() == 0) return false;
+        auto &b0 = blocks()[0];
+        if (b0.dim_idx != dim_idx) return false;
+        if (b0.block % block != 0) return false;
+        return true;
+    }
+
     layout_t innermost_block_layout() const {
         int block_count[layout_t::max_ndims] = {0};
         for (auto &b : blocks_)
