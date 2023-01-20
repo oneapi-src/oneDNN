@@ -1562,9 +1562,8 @@ bool is_mad_compatible(int vec_size, const layout_t &a, const layout_t &b,
     return true;
 }
 
-// TODO: Remove mapper.
 layout_t get_c_layout(const layout_t &a_layout, const layout_t &b_layout,
-        const layout_t &c_blk_layout, const bmnk_mapper_t &mapper) {
+        const layout_t &c_blk_layout) {
     std::vector<block_t> blocks;
     const bmnk_kind_t a_bmnks[3]
             = {bmnk_kind_t::b, bmnk_kind_t::m, bmnk_kind_t::k};
@@ -2077,7 +2076,7 @@ private:
             default: ir_error_not_expected();
         }
 
-        auto c_layout = get_c_layout(a_layout, b_layout, c_blk_layout, mapper);
+        auto c_layout = get_c_layout(a_layout, b_layout, c_blk_layout);
         bmnk_block_mapper_t c_mapper(mapper);
         c_mapper.push_blocks(abc_kind_t::a, x2r.a_layout.blocks());
         c_mapper.push_blocks(abc_kind_t::b, x2r.b_layout.blocks());
