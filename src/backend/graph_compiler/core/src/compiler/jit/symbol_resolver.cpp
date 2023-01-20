@@ -28,6 +28,7 @@
 #include <runtime/memorypool.hpp>
 #include <runtime/parallel.hpp>
 #include <runtime/runtime.hpp>
+#include <runtime/thread_locals.hpp>
 #include <unordered_map>
 
 namespace sc {
@@ -61,6 +62,7 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
             {"sc_aligned_free", (void *)sc_aligned_free},
             {"sc_make_trace", (void *)sc_make_trace},
             {"sc_make_trace_kernel", (void *)sc_make_trace_kernel},
+            {"sc_get_tls_amx_buffer", (void *)sc_get_tls_amx_buffer},
             {"sc_parallel_call_cpu_with_env",
                     (void *)runtime_config_t::get()
                             .thread_pool_table_->parallel_call},

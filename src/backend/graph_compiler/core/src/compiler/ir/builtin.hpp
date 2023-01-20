@@ -417,6 +417,8 @@ func_t get_init_barrier_func();
 // gets the IR func for sc_set_idle_func_managed
 func_t get_set_idle_func_managed_func();
 
+func_t get_tls_amx_buffer_func();
+
 func_t get_brgemm_init_func();
 
 /**

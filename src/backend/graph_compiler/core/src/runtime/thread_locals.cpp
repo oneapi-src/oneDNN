@@ -108,3 +108,9 @@ SC_API void release_runtime_memory(runtime::engine_t *engine) {
 }
 
 } // namespace sc
+
+extern "C" SC_API void *sc_get_tls_amx_buffer(
+        sc::runtime::stream_t *stream) noexcept {
+    auto &tls = sc::runtime::get_tls(stream);
+    return &tls.amx_buffer_;
+}

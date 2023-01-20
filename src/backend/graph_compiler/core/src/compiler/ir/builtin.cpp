@@ -662,6 +662,12 @@ func_t get_set_idle_func_managed_func() {
     return f;
 }
 
+func_t get_tls_amx_buffer_func() {
+    static func_t f = set_pure_function(_decl_func("sc_get_tls_amx_buffer",
+            datatypes::pointer, {_arg_("stream", datatypes::pointer)}));
+    return f;
+}
+
 // get the sum of elements with indices [0,1,...,gid] of the
 // array: [A,A,..., A, B, B,...,B], where the count of element "A" is num_A
 static expr generate_balance211_job_id_base(const expr &gid, const expr &num_A,
@@ -792,5 +798,4 @@ uint64_t generate_balance211(int num_threads, const expr &start_e,
 }
 
 } // namespace builtin
-
 } // namespace sc

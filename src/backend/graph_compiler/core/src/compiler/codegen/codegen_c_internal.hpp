@@ -33,6 +33,7 @@ protected:
     bool prototype_only;
     bool is_static;
     ostream &print_param(const expr &v);
+    ostream &print_func_params(const func_c &v, bool with_type = true);
     void trinary_func_codegen_c(
             const std::vector<expr> &args, const char *funcname);
     void binary_func_codegen_c(
