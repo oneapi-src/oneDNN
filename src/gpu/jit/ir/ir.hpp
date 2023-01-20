@@ -64,6 +64,76 @@ private:
     std::unordered_map<std::string, int> prefix_ids_;
 };
 
+class var_manager_t {
+public:
+    var_manager_t() = default;
+    var_manager_t(ir_context_t &ir_ctx) : ir_ctx_(&ir_ctx) {}
+
+    expr_t get_buffer(const std::string &name, int size, bool create = true) {
+        auto it = entries_.find(name);
+        if (it != entries_.end()) {
+            auto &e = it->second;
+            ir_assert(e.size == size) << e.str();
+            return e.expr;
+        }
+        if (!create) return expr_t();
+        auto buf = ir_ctx_->create_tmp_var(type_t::byte_ptr(), name);
+        entries_[name] = entry_t(buf, size);
+        return buf;
+    }
+
+    expr_t get_var(
+            const std::string &name, const type_t &type, bool create = true) {
+        auto it = entries_.find(name);
+        if (it != entries_.end()) {
+            auto &e = it->second;
+            ir_assert(e.type == type) << e.str();
+            return e.expr;
+        }
+        if (!create) return expr_t();
+        auto var = ir_ctx_->create_tmp_var(type, name);
+        entries_[name] = entry_t(var, type);
+        return var;
+    }
+
+    stmt_t inject_buffer_allocs(const stmt_t &_stmt) const {
+        auto stmt = _stmt;
+        for (auto &kv : entries_) {
+            auto &e = kv.second;
+            if (!e.is_buffer()) continue;
+            stmt = alloc_t::make(e.expr, e.size, alloc_kind_t::grf, stmt);
+        }
+        return stmt;
+    }
+
+private:
+    struct entry_t {
+        entry_t() = default;
+        entry_t(const expr_t &buf, int size) : expr(buf), size(size) {}
+        entry_t(const expr_t &var, const type_t &type)
+            : expr(var), type(type) {}
+
+        bool is_buffer() const { return size != 0; }
+
+        std::string str() const {
+            std::ostringstream oss;
+            if (size != 0) {
+                oss << "buf: " << expr << " size: " << size;
+            } else {
+                oss << "var: " << expr << " type: " << type;
+            }
+            return oss.str();
+        }
+
+        expr_t expr;
+        type_t type;
+        int size = 0;
+    };
+
+    ir_context_t *ir_ctx_ = nullptr;
+    std::unordered_map<std::string, entry_t> entries_;
+};
+
 class alloc_updater_t : public ir_mutator_t {
 public:
     void resize(const expr_t &buf, int new_size) {
