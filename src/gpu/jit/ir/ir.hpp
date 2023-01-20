@@ -268,6 +268,8 @@ object_t const_fold(const object_t &obj);
 // Performs constant folding non-recursively to an expression.
 expr_t const_fold_non_recursive(const expr_t &e);
 
+std::vector<expr_t> split_by_and(const expr_t &e);
+
 template <typename T>
 std::vector<object_t> find_objects(const object_t &root);
 

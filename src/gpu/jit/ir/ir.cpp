@@ -468,6 +468,16 @@ stmt_t inject_let_stmts(const stmt_t &stmt, const std::vector<stmt_t> &lets) {
     return ret;
 }
 
+std::vector<expr_t> split_by_and(const expr_t &e) {
+    auto *binary = e.as_ptr<binary_op_t>();
+    if (!binary || binary->op_kind != op_kind_t::_and) return {e};
+    auto a = split_by_and(binary->a);
+    auto b = split_by_and(binary->b);
+    auto ret = std::move(a);
+    ret.insert(ret.end(), b.begin(), b.end());
+    return ret;
+}
+
 expr_t abs(const expr_t &e) {
     ir_assert(is_const(e)) << e;
     if (to_cpp<bool>(e >= 0)) return e;
