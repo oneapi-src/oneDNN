@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -243,7 +243,7 @@ constexpr size_t get_number_args() {
 template <size_t i, typename R>
 struct params_pack_helper_t {
     template <typename F, typename T, typename... Args_t>
-    static R expand_and_call(F &&f, T &packed_args, Args_t &... unpacked_args) {
+    static R expand_and_call(F &&f, T &packed_args, Args_t &...unpacked_args) {
         constexpr size_t cnt = (i == SIZE_MAX)
                 ? get_number_args<decltype(packed_args)>()
                 : i;
@@ -256,7 +256,7 @@ struct params_pack_helper_t {
 template <typename R>
 struct params_pack_helper_t<0, R> {
     template <typename F, typename T, typename... Args_t>
-    static R expand_and_call(F &&f, T &packed_args, Args_t &... unpacked_args) {
+    static R expand_and_call(F &&f, T &packed_args, Args_t &...unpacked_args) {
         return (R)f(unpacked_args...);
     }
 };
