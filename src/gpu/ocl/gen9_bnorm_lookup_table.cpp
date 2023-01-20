@@ -76,7 +76,7 @@ type_filter_t::type_filter_t(const std::string &s) {
 }
 
 bool type_filter_t::matches(const data_type_t &dt) const {
-    if (pattern_.empty() == 0)
+    if (pattern_.empty())
         return (dt == data_type::f32);
     else if (pattern_ == "s8")
         return (dt == data_type::s8);
