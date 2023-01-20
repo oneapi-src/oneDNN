@@ -1704,6 +1704,12 @@ private:
         PLAN_CHECK(init_prefetch_plan(plan_.prefetch));
         PLAN_CHECK(init_x2r_plan(plan_.slm, plan_.x2r));
         PLAN_CHECK(init_fma_plan(plan_.x2r, plan_.fma));
+        if (cfg_.subtiles().is_env_overridden()) {
+            int a = cfg_.subtiles().a();
+            int b = cfg_.subtiles().b();
+            if (a > 1) plan_.set_split(abc_kind_t::a, a);
+            if (b > 1) plan_.set_split(abc_kind_t::b, b);
+        }
         PLAN_CHECK(fixup_grf_usage(plan_));
         set_plan();
         return plan_status_t::success;
@@ -1733,6 +1739,8 @@ private:
     plan_status_t try_apply_ab_split(conv_plan_t &plan, int bound) const {
         auto &x2r = plan.x2r;
         auto &fma = plan.fma;
+        if (cfg_.subtiles().is_env_overridden())
+            return plan_status_t::out_of_registers;
         int min_regs = plan.grf_usage().total();
         auto min_split = std::make_pair(abc_kind_t::undef, 1);
         for (int factor : {2, 4}) {
