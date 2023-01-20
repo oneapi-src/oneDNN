@@ -98,7 +98,9 @@ sc_op_ptr find_parent_dispatch_node(const graph_tensor_ptr &in) {
     auto cur_op = in->producer_owner_;
     while (!(cur_op->isa<tunable_op_t>() || cur_op->isa<input_op>()
             || cur_op->isa<reorder_op_t>())) {
-        cur_op = cur_op->get_inputs()[0]->producer_owner_;
+        int layout_input_idx = cur_op->attrs_.get_or_else(
+                op_attr_key::layout_input_index, 0);
+        cur_op = cur_op->get_inputs()[layout_input_idx]->producer_owner_;
     };
     return cur_op->shared_from_this();
 }

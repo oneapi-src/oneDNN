@@ -203,6 +203,8 @@ constexpr const char *not_redundant = "temp.not_redundant";
 // Fusible op marked inplace_optimized will be directly inplaced and will not
 // call compute_block
 constexpr const char *inplace_optimized = "temp.inplace_optimized";
+// binary/ternary elementwise op layout propagation source input index.
+constexpr const char *layout_input_index = "layout_input_index";
 }; // namespace op_attr_key
 
 class sc_graph_t;
