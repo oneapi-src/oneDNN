@@ -537,7 +537,6 @@ struct bnorm_conf_t {
     bool nhwc_optimized;
     int calc_stat_ic;
     bool use_fused_atomics_reduction;
-    bool use_workaround;
     int update_sp_unroll;
     int max_vect_size;
 
