@@ -647,19 +647,6 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     gemm_schedule.tensorize(kw_tile.iter_idx());
 }
 
-std::string add_indent(const std::string &tag, const std::string &s) {
-    std::ostringstream oss;
-    oss << tag << ":" << std::endl;
-    oss << ir_utils::add_indent(s, "  ");
-    return oss.str();
-}
-
-layout_t split(const layout_t &layout, int factor) {
-    auto tile = layout.split_exact(factor);
-    if (tile.is_empty()) return layout_t();
-    return layout.map(tile);
-}
-
 reorder_plan_t create_reorder_plan(
         ngen::HW hw, const layout_t &src, const layout_t &dst) {
     if (src == dst) return reorder_plan_t();
@@ -750,7 +737,7 @@ int reduce_plan_t::estimate_regs() const {
     if (!*this) return 0;
 
     int ret = 0;
-    ret += utils::rnd_up(dst.size(), grf_size());
+    ret += dst_buf_size();
     return utils::div_up(ret, grf_size());
 }
 
@@ -819,6 +806,7 @@ void x2r_plan_t::set_split(abc_kind_t abc, int factor) {
 int x2r_plan_t::estimate_regs(bool reuse_headers) const {
     int a_size = a_load.reg_buf_size();
     int b_size = b_load.reg_buf_size();
+    // TODO: Check split factors.
     if (a_reorder) a_size += utils::rnd_up(a_layout.size(), grf_size());
     if (b_reorder) b_size += utils::rnd_up(b_layout.size(), grf_size());
     int ret = 0;
@@ -937,6 +925,7 @@ std::string fma_plan_t::str() const {
 bool conv_plan_t::can_split(abc_kind_t abc, int factor) const {
     if (!fma.can_split(abc, factor)) return false;
     if (!x2r.can_split(abc, factor)) return false;
+    if (zp && !zp.can_split(abc, factor)) return false;
     return true;
 }
 
@@ -945,6 +934,7 @@ void conv_plan_t::set_split(abc_kind_t abc, int factor) {
     split_factor = factor;
     x2r.set_split(abc, factor);
     fma.set_split(abc, factor);
+    if (zp) zp.set_split(abc, factor);
 }
 
 grf_usage_t conv_plan_t::grf_usage() const {
@@ -1025,6 +1015,8 @@ grf_usage_t conv_plan_t::grf_usage() const {
         }
     }
 
+    int zp_regs = zp.estimate_regs();
+
     grf_usage_t info(grf_size());
     info.add(grf_usage_label_t::out_buf, out_buf_regs);
     info.add(grf_usage_label_t::gmem_load, gmem_load_regs);
@@ -1033,7 +1025,7 @@ grf_usage_t conv_plan_t::grf_usage() const {
     info.add(grf_usage_label_t::reorder, reorder_regs);
     info.add(grf_usage_label_t::reused_headers, reused_header_regs);
     info.add(grf_usage_label_t::reserved, constants::reserved_regs);
-    info.add(grf_usage_label_t::zero_points, 0);
+    info.add(grf_usage_label_t::zero_points, zp_regs);
     return info;
 }
 
@@ -1055,6 +1047,7 @@ std::string conv_plan_t::str() const {
     if (prefetch) oss << prefetch << std::endl;
     oss << x2r << std::endl;
     oss << fma << std::endl;
+    if (zp) oss << zp << std::endl;
     oss << "a_can_split (2): " << to_string(can_split(abc_kind_t::a, 2))
         << std::endl;
     oss << "a_can_split (4): " << to_string(can_split(abc_kind_t::a, 4))
@@ -1562,22 +1555,14 @@ int get_dpas_block_rcount(const layout_t &layout, int dim_idx) {
     return block_rcount;
 }
 
-bool is_blocked(const layout_t &layout, int dim_idx, int block) {
-    if (block == 1) return true;
-    if (layout.nblocks() == 0) return false;
-    auto &b0 = layout.blocks()[0];
-    if (b0.dim_idx != dim_idx) return false;
-    if (b0.block % block != 0) return false;
-    return true;
-}
-
 bool is_mad_compatible(int vec_size, const layout_t &a, const layout_t &b,
         int a_vec_idx, int b_vec_idx) {
-    if (a_vec_idx != -1 && !is_blocked(a, a_vec_idx, vec_size)) return false;
-    if (b_vec_idx != -1 && !is_blocked(b, b_vec_idx, vec_size)) return false;
+    if (a_vec_idx != -1 && !a.is_blocked_by(a_vec_idx, vec_size)) return false;
+    if (b_vec_idx != -1 && !b.is_blocked_by(b_vec_idx, vec_size)) return false;
     return true;
 }
 
+// TODO: Remove mapper.
 layout_t get_c_layout(const layout_t &a_layout, const layout_t &b_layout,
         const layout_t &c_blk_layout, const bmnk_mapper_t &mapper) {
     std::vector<block_t> blocks;
@@ -1704,6 +1689,7 @@ private:
         PLAN_CHECK(init_prefetch_plan(plan_.prefetch));
         PLAN_CHECK(init_x2r_plan(plan_.slm, plan_.x2r));
         PLAN_CHECK(init_fma_plan(plan_.x2r, plan_.fma));
+        PLAN_CHECK(init_zp_plan(plan_.x2r, plan_.fma, plan_.zp));
         if (cfg_.subtiles().is_env_overridden()) {
             int a = cfg_.subtiles().a();
             int b = cfg_.subtiles().b();
@@ -1737,15 +1723,13 @@ private:
     }
 
     plan_status_t try_apply_ab_split(conv_plan_t &plan, int bound) const {
-        auto &x2r = plan.x2r;
-        auto &fma = plan.fma;
         if (cfg_.subtiles().is_env_overridden())
             return plan_status_t::out_of_registers;
         int min_regs = plan.grf_usage().total();
         auto min_split = std::make_pair(abc_kind_t::undef, 1);
         for (int factor : {2, 4}) {
             for (abc_kind_t abc : {abc_kind_t::a, abc_kind_t::b}) {
-                if (x2r.can_split(abc, factor) && fma.can_split(abc, factor)) {
+                if (plan.can_split(abc, factor)) {
                     plan.set_split(abc, factor);
                     int regs = plan.grf_usage().total();
                     if (regs < bound) return plan_status_t::success;
@@ -1758,8 +1742,7 @@ private:
         }
         auto abc = min_split.first;
         auto factor = min_split.second;
-        x2r.set_split(abc, factor);
-        fma.set_split(abc, factor);
+        plan.set_split(abc, factor);
         return plan_status_t::out_of_registers;
     }
 
@@ -2110,6 +2093,39 @@ private:
         plan.m_blk = m_blk;
         plan.n_blk = n_blk;
         plan.k_blk = k_blk;
+        return plan_status_t::success;
+    }
+
+    plan_status_t init_zp_plan(const x2r_plan_t &x2r, const fma_plan_t &fma,
+            zp_plan_t &plan) const {
+        auto &prb = cfg_.prb();
+        auto &zp_cfg = prb.zp_cfg;
+        if (!zp_cfg.do_src_compensation) return plan_status_t::success;
+
+        auto b_tile = gemm_schedule_.b_thr_tile(/*is_relative=*/false);
+
+        int g_idx = 0;
+        int ic_idx = 2;
+        expr_t zp_off;
+        dim_t zp_g_dim, zp_ic_dim;
+        if (zp_cfg.is_common_src_zero_point) {
+            zp_off = expr_t(0);
+            zp_g_dim = 1;
+            zp_ic_dim = 1;
+        } else {
+            auto &w_g = b_tile.start()[g_idx];
+            auto &w_ic = b_tile.start()[ic_idx];
+            zp_off = w_g * prb.ic + w_ic;
+            zp_g_dim = b_tile(g_idx);
+            zp_ic_dim = b_tile(ic_idx);
+        }
+
+        layout_t zp_layout(type_t::s32(), zp_off,
+                std::vector<dim_t> {zp_g_dim, zp_ic_dim});
+        view_t zp_view(zp_layout);
+
+        plan.init(cfg_, gemm_schedule_, zp_view, x2r.a_layout, x2r.b_layout,
+                fma.c_prb_layout);
         return plan_status_t::success;
     }
 

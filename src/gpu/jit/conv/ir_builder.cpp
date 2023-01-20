@@ -2683,13 +2683,13 @@ private:
         return utils::one_of(buf_name, "b_reduce", "c");
     }
 
-    const expr_t &get_buffer(const std::string &tag, int size = 0) {
+    expr_t get_buffer(const std::string &tag, int size = 0) {
         size = utils::rnd_up(size, cfg_.grf_size());
         auto it = allocs_.find(tag);
         if (it != allocs_.end()) {
             return get_buffer(set_alloc_size(it->second, size));
         }
-        ir_assert(size > 0);
+        if (size == 0) return expr_t();
         auto buf = make_buffer(tag);
         auto ret = allocs_.emplace(
                 tag, alloc_t::make(buf, size, get_alloc_kind(buf)));
@@ -2789,7 +2789,12 @@ private:
         ir_assert(x2r.split_factor == fma.split_factor);
         for (int i = 0; i < x2r.split_factor; i++) {
             build_x2r(i);
-            build_mul(i);
+            stmt_t mul_stmt;
+            build_zp_init(i, mul_stmt);
+            build_mul(i, mul_stmt);
+            build_zp_apply(i, mul_stmt);
+            mul_stmt = stmt_group_t::make(stmt_label_t::mul(i), mul_stmt);
+            x2r_mul_stmt_ = x2r_mul_stmt_.append(mul_stmt);
         }
     }
 
@@ -2809,6 +2814,36 @@ private:
                 stmt_label_t::s2r_load(subtile_idx), s2r_load_stmt);
         x2r_mul_stmt_ = x2r_mul_stmt_.append(g2r_load_stmt);
         x2r_mul_stmt_ = x2r_mul_stmt_.append(s2r_load_stmt);
+    }
+
+    void build_zp_init(int subtile_idx, stmt_t &mul_stmt) {
+        auto &zp = plan_.zp;
+        if (!zp) return;
+
+        auto zp_mem_buf = kernel_info_.find_arg("src_zero_points");
+        auto zp_buf = get_buffer("src_zp", zp.load_reg_buf_size());
+        auto wei_buf = get_buffer("b");
+        auto zp_mask_buf = get_buffer("zp_mask", zp.mask_reg_buf_size());
+        auto zp_comp_buf = get_buffer("zp_comp", zp.comp_reg_buf_size());
+        auto load = zp.load_create_stmt(zp_mem_buf, zp_buf, subtile_idx);
+        auto zp_mask_init = zp.mask_init_create_stmt(zp_mask_buf, subtile_idx);
+        auto zp_comp_init = zp.comp_init_create_stmt(
+                ir_ctx_, zp_buf, wei_buf, zp_comp_buf, subtile_idx);
+        mul_stmt = mul_stmt.append(load);
+        mul_stmt = mul_stmt.append(zp_mask_init);
+        mul_stmt = mul_stmt.append(zp_comp_init);
+    }
+
+    void build_zp_apply(int subtile_idx, stmt_t &mul_stmt) {
+        auto &zp = plan_.zp;
+        if (!zp) return;
+
+        auto c_buf = get_buffer("c");
+        auto zp_comp_buf = get_buffer("zp_comp");
+        auto zp_mask_buf = get_buffer("zp_mask");
+        auto zp_comp_apply = zp.comp_apply_create_stmt(
+                zp_comp_buf, zp_mask_buf, c_buf, subtile_idx);
+        mul_stmt = mul_stmt.append(zp_comp_apply);
     }
 
     void build_x2r_x(const std::string &prefix, const expr_t &x_buf,
@@ -2837,14 +2872,14 @@ private:
         load_stmt = load_stmt.append(reorder);
     }
 
-    void build_mul(int subtile_idx) {
+    void build_mul(int subtile_idx, stmt_t &mul_stmt) {
         auto &fma = plan_.fma;
         auto &a_layout = fma.a_layout;
         auto &b_layout = fma.b_layout;
         auto &c_layout = fma.c_layout;
-        auto &a_buf = get_buffer("a");
-        auto &b_buf = get_buffer("b");
-        auto &c_buf = get_buffer("c", c_layout.size());
+        auto a_buf = get_buffer("a");
+        auto b_buf = get_buffer("b");
+        auto c_buf = get_buffer("c", c_layout.size());
         int b0 = fma.bmnk_start_idx(bmnk_kind_t::b, subtile_idx);
         int b1 = fma.bmnk_stop_idx(bmnk_kind_t::b, subtile_idx);
         int m0 = fma.bmnk_start_idx(bmnk_kind_t::m, subtile_idx);
@@ -2880,8 +2915,7 @@ private:
                 }
             }
         }
-        stmt = stmt_group_t::make(stmt_label_t::mul(subtile_idx), stmt);
-        x2r_mul_stmt_ = x2r_mul_stmt_.append(stmt);
+        mul_stmt = mul_stmt.append(stmt);
     }
 
     void build_c_store() {

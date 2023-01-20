@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,6 +99,12 @@ public:
     static func_t make_dpasw(const dpas_t &dpas) {
         return func_t(new dpas_t(true, dpas.exec_size, dpas.sdepth, dpas.rcount,
                 dpas.dst_type, dpas.src1_type, dpas.src2_type));
+    }
+
+    static func_t make_dp4a(int exec_size, const type_t &dst_type,
+            const type_t &src1_type, const type_t &src2_type) {
+        return make(/*is_dpasw=*/false, exec_size, /*sdepth=*/1, /*rcount=*/1,
+                dst_type, src1_type, src2_type);
     }
 
     static bool is_dp4a_call(const stmt_t &s) {

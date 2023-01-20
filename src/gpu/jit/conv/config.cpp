@@ -2339,8 +2339,6 @@ status_t init_cfg(conv_config_t &cfg, const convolution_pd_t *pd) {
 }
 
 bool use_conv_plan(const conv_config_t &cfg) {
-    // XXX: Convolution plan doesn't support zero points yet.
-    if (cfg.prb().with_zero_points()) return false;
     return true;
 }
 

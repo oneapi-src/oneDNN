@@ -21,6 +21,8 @@
 #include <string>
 
 #include "gpu/jit/conv/grf_usage.hpp"
+#include "gpu/jit/conv/plan_utils.hpp"
+#include "gpu/jit/conv/zp_plan.hpp"
 #include "gpu/jit/ir/fma.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
 #include "gpu/jit/ir/send_plan.hpp"
@@ -31,17 +33,6 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
-
-struct base_plan_t {
-    base_plan_t(ngen::HW hw = ngen::HW::Unknown) : hw(hw) {}
-
-    int grf_size() const {
-        ir_assert(hw != ngen::HW::Unknown);
-        return ngen::GRF::bytes(hw);
-    }
-
-    ngen::HW hw;
-};
 
 struct reorder_plan_t : public base_plan_t {
     layout_t src;
@@ -225,13 +216,14 @@ struct conv_plan_t : public base_plan_t {
     prefetch_plan_t prefetch;
     x2r_plan_t x2r;
     fma_plan_t fma;
+    zp_plan_t zp;
     abc_kind_t split_abc = abc_kind_t::undef;
     int split_factor = 1;
     bool reuse_headers = false;
     int max_gmem_bufs = 0;
 
     conv_plan_t(ngen::HW hw)
-        : base_plan_t(hw), slm(hw), prefetch(hw), x2r(hw), fma(hw) {}
+        : base_plan_t(hw), slm(hw), prefetch(hw), x2r(hw), fma(hw), zp(hw) {}
 
     const tensor_t &b_reduce_tile() const {
         if (!x2r.b_reduce_tile.is_empty()) return x2r.b_reduce_tile;

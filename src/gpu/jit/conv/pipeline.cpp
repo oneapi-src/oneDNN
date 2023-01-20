@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1789,8 +1789,9 @@ private:
         }
 
         if (it.is_first_mul() && fuse_zero_out_with_fma_) {
-            mul = sub_fma_acc_with_zero(
-                    mul, cfg_.fma_kind() == fma_kind_t::mad);
+            for (auto &m : mul) {
+                m = sub_fma_acc_with_zero(m);
+            }
         }
 
         if (it.is_last_g2s_store())
@@ -1899,119 +1900,61 @@ private:
         return ret;
     }
 
-    static std::vector<stmt_t> sub_fma_acc_with_zero(
-            const std::vector<stmt_t> &stmt, const bool is_mad) {
-        auto is_from_block = [is_mad](const stmt_t &curr,
-                                     const std::vector<stmt_t> &vec, int bgn) {
-            if (is_mad) return false;
-            if (is_func_call<mad_t>(curr)) {
-                return (mad_t::arg_dst(curr).is_equal(mad_t::arg_src0(curr)))
-                        && (!bgn || is_func_call<mad_t>(vec[bgn - 1]));
-            } else if (const auto *s = curr.as_ptr<store_t>()) {
-                const auto *bs
-                        = (bgn) ? vec[bgn - 1].as_ptr<store_t>() : nullptr;
-                if (const auto *t = s->value.as_ptr<ternary_op_t>()) {
-                    const auto *a = t->a.as_ptr<load_t>();
-                    return (t->op_kind == op_kind_t::_mad) && a
-                            && (a->buf[a->off].is_equal(s->buf[s->off]))
-                            && (!bgn || (bs && bs->value.is<ternary_op_t>()));
-                } else if (const auto *b = s->value.as_ptr<binary_op_t>()) {
-                    const auto *a = b->a.as_ptr<load_t>();
-                    return (b->op_kind == op_kind_t::_sub) && a
-                            && (a->buf[a->off].is_equal(s->buf[s->off]))
-                            && (!bgn || (bs && bs->value.is<binary_op_t>()));
-                }
-            }
-            return false;
-        };
-        auto process_block = [is_mad](stmt_t &root,
-                                     object_eq_set_t<expr_t> &seen,
-                                     std::vector<stmt_t> &vec, int bgn,
-                                     int end) {
-            bgn += is_mad;
-            end += is_mad;
-            bool never_seen = (bgn > 0);
-            for (int i = bgn - 1; never_seen && (i < end); i++) {
-                if (is_func_call<mad_t>(vec[i])) {
-                    never_seen &= seen.insert(mad_t::arg_dst(vec[i])).second;
-                } else if (const auto *s = vec[i].as_ptr<store_t>()) {
-                    never_seen &= seen.insert(s->buf[s->off]).second;
-                }
-            }
-            for (int i = bgn - 1; never_seen && (i < end); i++) {
-                if (is_func_call<mad_t>(vec[i])) {
-                    auto &call = vec[i].as<func_call_t>();
-                    auto &mad = call.func.as<mad_t>();
-                    auto *m = call.attr.as_ptr<instruction_modifier_attr_t>();
-                    ir_assert(!m
-                            || (!m->mod.is_atomic && m->mod.sbid.is_empty()));
-                    ir_assert(mad.src1_stride == 0);
-                    auto a_load = load_t::make(
-                            mad.src1_type.kind(), mad_t::arg_src1(vec[i]), 0);
-                    auto a = shuffle_t::make_broadcast(a_load, mad.exec_size);
-                    auto b_stride = mad.src2_stride * mad.src2_type.size();
-                    auto b = load_t::make(
-                            type_t(mad.src2_type.kind(), mad.exec_size),
-                            mad_t::arg_src2(vec[i]), 0, b_stride);
-                    auto mul = binary_op_t::make(op_kind_t::_mul, a, b,
-                            type_t(mad.dst_type.kind(), mad.exec_size));
-                    auto store = store_t::make(mad_t::arg_dst(vec[i]), 0, mul);
-                    root = substitute(root, vec[i], store, 1);
-                } else if (const auto *s = vec[i].as_ptr<store_t>()) {
-                    if (const auto *t = s->value.as_ptr<ternary_op_t>()) {
-                        ir_assert(s->mask.is_empty());
-                        auto mul = binary_op_t::make(
-                                op_kind_t::_mul, t->b, t->c, t->type);
-                        root = substitute(root, vec[i],
-                                store_t::make(s->buf, s->off, mul), 1);
-                    } else if (const auto *b = s->value.as_ptr<binary_op_t>()) {
-                        auto store = store_t::make(s->buf, s->off, -b->b,
-                                s->stride, s->mask, true);
-                        root = substitute(root, vec[i], store, 1);
-                    } else {
-                        ir_error_not_expected();
-                    }
-                } else {
-                    ir_error_not_expected();
-                }
-            }
-            return (is_mad) ? end : 0;
-        };
-        std::vector<stmt_t> retn;
+    static stmt_t sub_fma_acc_with_zero(const stmt_t &stmt) {
+        auto stmt_vec = flatten_statements(stmt);
 
-        for (const auto &s : stmt) {
-            ir_assert(s.is<stmt_group_t>());
-            const auto &group = s.as<stmt_group_t>();
-            auto body = group.body;
-            auto stmt_vec = flatten_statements(body);
-            object_eq_set_t<expr_t> seen_dst;
+        object_eq_set_t<expr_t> seen_dst;
+        stmt_t ret = stmt;
+        for (auto &s : stmt_vec) {
+            if (is_zero_points_call(s)) continue;
+            if (is_func_call<dpas_t>(s) && !dpas_t::is_dp4a_call(s)) {
+                auto &call = s.as<func_call_t>();
 
-            int bgn = 0;
-            for (int i = 0; i < int(stmt_vec.size()); i++) {
-                stmt_t curr = stmt_vec[i];
-                const bool ifb = is_from_block(curr, stmt_vec, bgn);
-                bgn = (ifb) ? (!bgn) ? i + 1 : bgn
-                            : process_block(body, seen_dst, stmt_vec, bgn, i);
-                if (is_func_call<dpas_t>(curr) && !dpas_t::is_dp4a_call(curr)) {
-                    auto &call = curr.as<func_call_t>();
+                auto &dst = dpas_t::arg_dst(s);
+                auto src0 = expr_t(0); // Will be translated to null register.
+                auto &src1 = dpas_t::arg_src1(s);
+                auto &src2 = dpas_t::arg_src2(s);
 
-                    auto &dst = dpas_t::arg_dst(curr);
-                    auto src0 = expr_t(0); // Will be translated to null reg
-                    auto &src1 = dpas_t::arg_src1(curr);
-                    auto &src2 = dpas_t::arg_src2(curr);
+                if (!seen_dst.insert(dst).second) continue;
 
-                    if (seen_dst.insert(dst).second)
-                        body = substitute(body, curr,
-                                func_call_t::make(call.func,
-                                        {dst, src0, src1, src2}, call.attr),
-                                1);
-                }
+                auto new_call = func_call_t::make(
+                        call.func, {dst, src0, src1, src2}, call.attr);
+                ret = substitute(ret, s, new_call, 1);
+            } else if (is_func_call<mad_t>(s)) {
+                auto &call = s.as<func_call_t>();
+
+                auto &dst = mad_t::arg_dst(s);
+                auto src0 = expr_t(0); // Will be translated to null register.
+                auto &src1 = mad_t::arg_src1(s);
+                auto &src2 = mad_t::arg_src2(s);
+
+                if (!seen_dst.insert(dst).second) continue;
+
+                auto new_call = func_call_t::make(
+                        call.func, {dst, src0, src1, src2}, call.attr);
+                ret = substitute(ret, s, new_call, 1);
             }
-            process_block(body, seen_dst, stmt_vec, bgn,
-                    (int)stmt_vec.size() - is_mad);
-            retn.emplace_back(stmt_group_t::make(group.label, body));
         }
-        return retn;
+        return ret;
+    }
+
+    static bool is_zero_points_call(const stmt_t &s) {
+        auto is_zp_var = [&](const expr_t &e) {
+            auto &base = get_base(e);
+            auto &name = base.as<var_t>().name;
+            return name.find("zp_") == 0;
+        };
+        if (is_func_call<dpas_t>(s)) {
+            auto &src1 = dpas_t::arg_src1(s);
+            auto &src2 = dpas_t::arg_src2(s);
+            return is_zp_var(src1) || is_zp_var(src2);
+        }
+        if (is_func_call<mad_t>(s)) {
+            auto &src1 = mad_t::arg_src1(s);
+            auto &src2 = mad_t::arg_src2(s);
+            return is_zp_var(src1) || is_zp_var(src2);
+        }
+        return false;
     }
 
     // Returns memory buffers if is_mem is true and register buffers otherwise.
