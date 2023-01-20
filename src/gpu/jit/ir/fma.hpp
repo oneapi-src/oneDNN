@@ -126,7 +126,11 @@ public:
     std::string str() const override {
         std::ostringstream oss;
         oss << (is_dpasw ? "dpasw" : is_dp4a() ? "dp4a" : "dpas");
-        if (!is_dp4a()) oss << "." << sdepth << "x" << rcount;
+        if (!is_dp4a()) {
+            oss << "." << sdepth << "x" << rcount;
+        } else {
+            oss << ".x" << exec_size;
+        }
         return oss.str();
     }
 
@@ -212,7 +216,7 @@ public:
 
     std::string str() const override {
         std::ostringstream oss;
-        oss << "mad";
+        oss << "madx" << exec_size;
         return oss.str();
     }
 
