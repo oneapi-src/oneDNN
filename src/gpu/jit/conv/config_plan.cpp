@@ -806,9 +806,8 @@ void x2r_plan_t::set_split(abc_kind_t abc, int factor) {
 int x2r_plan_t::estimate_regs(bool reuse_headers) const {
     int a_size = a_load.reg_buf_size();
     int b_size = b_load.reg_buf_size();
-    // TODO: Check split factors.
-    if (a_reorder) a_size += utils::rnd_up(a_layout.size(), grf_size());
-    if (b_reorder) b_size += utils::rnd_up(b_layout.size(), grf_size());
+    if (a_reorder) a_size += a_load.reg_buf_size();
+    if (b_reorder) b_size += b_load.reg_buf_size();
     int ret = 0;
     ret += utils::div_up(a_size, grf_size());
     ret += utils::div_up(b_size, grf_size());
