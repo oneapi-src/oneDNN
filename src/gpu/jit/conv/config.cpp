@@ -937,12 +937,6 @@ bool zero_points_ok(const conv_problem_t &prb) {
     auto *pd = prb.conv_pd;
     auto *attr = pd->attr();
 
-    // TODO: implement the rest of the cases and remove this 'if'
-    bool ic_kdhw
-            = (prb.ic <= 8) && (prb.kd * prb.kh * prb.kw > 1) && !prb.is_dw;
-    if (!attr->zero_points_.has_default_values(DNNL_ARG_SRC) && ic_kdhw)
-        return false;
-
     using namespace data_type;
     const auto input_type = (prb.is_fwd) ? pd->invariant_src_md()->data_type
                                          : pd->invariant_dst_md()->data_type;
