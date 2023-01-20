@@ -116,8 +116,8 @@ private:
 
     const reg64_t reg_addr_batch = r13;
     const reg64_t reg_aux1_batch = rbp;
-    const reg64_t reg_aux_A = r11;
-    const reg64_t reg_aux_B = r10;
+    const reg64_t reg_A = r11;
+    const reg64_t reg_B = r10;
     const reg64_t reg_stride_lda = r14;
     const reg64_t reg_stride_ldb = abi_not_param1;
     const reg64_t reg_C = r15;
@@ -983,7 +983,7 @@ void jit_brgemm_amx_uker_base_t::prefetch_A(brgemm_iteration_t &bi,
 
         //TODO: looks like we have to prefetch in each bs separately
         const auto ptr_A = EVEX_compress_addr(
-                reg_aux_A, A_offset(pfo_bi, bdb) + bd * LDA_size_);
+                reg_A, A_offset(pfo_bi, bdb) + bd * LDA_size_);
         uni_prefetch(ptr_A, prf.pft);
         prf.vec++;
     }
@@ -1007,7 +1007,7 @@ void jit_brgemm_amx_uker_base_t::prefetch_B(brgemm_iteration_t &bi,
         const auto rb = prf.vec % pfo_bi.rdi.block(0);
         //TODO: looks like we have to prefetch in each bs separately
         const auto ptr_B = EVEX_compress_addr(
-                reg_aux_B, B_offset(pfo_bi, ldb) + rb * LDB_size_);
+                reg_B, B_offset(pfo_bi, ldb) + rb * LDB_size_);
 
         uni_prefetch(ptr_B, prf.pft);
         prf.vec++;
@@ -1396,37 +1396,37 @@ void jit_brgemm_amx_uker_base_t::set_A_B_matrices(int bs) {
     auto batch_offset = (size_t)bs * sizeof(brgemm_batch_element_t);
     if (brg.type == brgemm_addr) {
         if (brg.layout == brgemm_row_major) {
-            mov(reg_aux_A,
+            mov(reg_A,
                     EVEX_compress_addr(reg_addr_batch,
                             batch_offset + GET_OFF_BATCH_ELEMENT(ptr.A)));
-            mov(reg_aux_B,
+            mov(reg_B,
                     EVEX_compress_addr(reg_addr_batch,
                             batch_offset + GET_OFF_BATCH_ELEMENT(ptr.B)));
         } else {
-            mov(reg_aux_A,
+            mov(reg_A,
                     EVEX_compress_addr(reg_addr_batch,
                             batch_offset + GET_OFF_BATCH_ELEMENT(ptr.B)));
-            mov(reg_aux_B,
+            mov(reg_B,
                     EVEX_compress_addr(reg_addr_batch,
                             batch_offset + GET_OFF_BATCH_ELEMENT(ptr.A)));
         }
     } else if (brg.type == brgemm_offs) {
         if (brg.layout == brgemm_row_major) {
-            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_A)]);
-            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_B)]);
-            add(reg_aux_A,
+            mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);
+            mov(reg_B, ptr[param1 + GET_OFF(ptr_B)]);
+            add(reg_A,
                     EVEX_compress_addr(reg_addr_batch,
                             batch_offset + GET_OFF_BATCH_ELEMENT(offset.A)));
-            add(reg_aux_B,
+            add(reg_B,
                     EVEX_compress_addr(reg_addr_batch,
                             batch_offset + GET_OFF_BATCH_ELEMENT(offset.B)));
         } else {
-            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_B)]);
-            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_A)]);
-            add(reg_aux_A,
+            mov(reg_A, ptr[param1 + GET_OFF(ptr_B)]);
+            mov(reg_B, ptr[param1 + GET_OFF(ptr_A)]);
+            add(reg_A,
                     EVEX_compress_addr(reg_addr_batch,
                             batch_offset + GET_OFF_BATCH_ELEMENT(offset.B)));
-            add(reg_aux_B,
+            add(reg_B,
                     EVEX_compress_addr(reg_addr_batch,
                             batch_offset + GET_OFF_BATCH_ELEMENT(offset.A)));
         }
@@ -1441,27 +1441,23 @@ void jit_brgemm_amx_uker_base_t::set_A_B_matrices() {
 
     if (brg.type == brgemm_addr) {
         if (brg.layout == brgemm_row_major) {
-            mov(reg_aux_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
-            mov(reg_aux_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
+            mov(reg_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
+            mov(reg_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
         } else {
-            mov(reg_aux_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
-            mov(reg_aux_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
+            mov(reg_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
+            mov(reg_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
         }
     } else if (brg.type == brgemm_offs) {
         if (brg.layout == brgemm_row_major) {
-            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_A)]);
-            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_B)]);
-            add(reg_aux_A,
-                    ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.A)]);
-            add(reg_aux_B,
-                    ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.B)]);
+            mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);
+            mov(reg_B, ptr[param1 + GET_OFF(ptr_B)]);
+            add(reg_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.A)]);
+            add(reg_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.B)]);
         } else {
-            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_B)]);
-            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_A)]);
-            add(reg_aux_A,
-                    ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.B)]);
-            add(reg_aux_B,
-                    ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.A)]);
+            mov(reg_A, ptr[param1 + GET_OFF(ptr_B)]);
+            mov(reg_B, ptr[param1 + GET_OFF(ptr_A)]);
+            add(reg_A, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.B)]);
+            add(reg_B, ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(offset.A)]);
         }
     }
 }
@@ -1474,7 +1470,7 @@ void jit_brgemm_amx_uker_base_t::maybe_tileloadd_nt(
 
     auto t1 = Tmm(is_A ? brg.get_A_tensor(xdb, bi.bdi.is_tail(xdb))
                        : brg.get_B_tensor(xdb, bi.ldi.is_tail(xdb)));
-    auto reg_base = is_A ? reg_aux_A : reg_aux_B;
+    auto reg_base = is_A ? reg_A : reg_B;
     auto reg_stride = is_A ? reg_stride_lda : reg_stride_ldb;
 
     if (brg.is_bf32)
@@ -1997,37 +1993,37 @@ void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
 
     if (brg.type == brgemm_static_offs) {
         if (brg.layout == brgemm_row_major) {
-            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_A)]);
-            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_B)]);
+            mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);
+            mov(reg_B, ptr[param1 + GET_OFF(ptr_B)]);
         } else {
-            mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_B)]);
-            mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_A)]);
+            mov(reg_A, ptr[param1 + GET_OFF(ptr_B)]);
+            mov(reg_B, ptr[param1 + GET_OFF(ptr_A)]);
         }
     } else if (brg.brgattr.max_bs == 1) {
         assert(one_of(brg.type, brgemm_addr, brgemm_offs));
         if (brg.type == brgemm_addr) {
             if (brg.layout == brgemm_row_major) {
-                mov(reg_aux_A,
+                mov(reg_A,
                         EVEX_compress_addr(
                                 reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.A)));
-                mov(reg_aux_B,
+                mov(reg_B,
                         EVEX_compress_addr(
                                 reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.B)));
             } else {
-                mov(reg_aux_A,
+                mov(reg_A,
                         EVEX_compress_addr(
                                 reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.B)));
-                mov(reg_aux_B,
+                mov(reg_B,
                         EVEX_compress_addr(
                                 reg_addr_batch, GET_OFF_BATCH_ELEMENT(ptr.A)));
             }
         } else if (brg.type == brgemm_offs) {
             if (brg.layout == brgemm_row_major) {
-                mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_A)]);
-                mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_B)]);
+                mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);
+                mov(reg_B, ptr[param1 + GET_OFF(ptr_B)]);
             } else {
-                mov(reg_aux_A, ptr[param1 + GET_OFF(ptr_B)]);
-                mov(reg_aux_B, ptr[param1 + GET_OFF(ptr_A)]);
+                mov(reg_A, ptr[param1 + GET_OFF(ptr_B)]);
+                mov(reg_B, ptr[param1 + GET_OFF(ptr_A)]);
             }
         }
     }
