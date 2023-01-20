@@ -2961,6 +2961,29 @@ struct memory : public handle<dnnl_memory_t> {
         return engine(c_engine, true);
     }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    /// Returns an underlying memory buffer that corresponds to the given index.
+    ///
+    /// On the CPU engine, or when using USM, this is a pointer to the
+    /// allocated memory.
+    void *get_data_handle(int index = 0) const {
+        void *handle;
+        error::wrap_c_api(dnnl_memory_get_data_handle_v2(get(), &handle, index),
+                "could not get a native handle from a memory object");
+        return handle;
+    }
+
+    /// Sets an underlying memory buffer that corresponds to the given index.
+    ///
+    /// @param handle Memory buffer to use. On the CPU engine or when USM is
+    ///     used, the memory buffer is a pointer to the actual data. For OpenCL
+    ///     it is a cl_mem. It must have at least
+    ///     #dnnl::memory::desc::get_size() bytes allocated.
+    void set_data_handle(void *handle, int index = 0) const {
+        error::wrap_c_api(dnnl_memory_set_data_handle_v2(get(), handle, index),
+                "could not set native handle of a memory object");
+    }
+#else
     /// Returns the underlying memory buffer.
     ///
     /// On the CPU engine, or when using USM, this is a pointer to the
@@ -2982,6 +3005,7 @@ struct memory : public handle<dnnl_memory_t> {
         error::wrap_c_api(dnnl_memory_set_data_handle(get(), handle),
                 "could not set native handle of a memory object");
     }
+#endif
 
     /// Maps a memory object and returns a host-side pointer to a memory
     /// buffer with a copy of its contents.

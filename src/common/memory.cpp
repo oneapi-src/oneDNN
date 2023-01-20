@@ -96,14 +96,12 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     this->reset_memory_storage(std::move(memory_storage));
 }
 
-status_t dnnl_memory::set_data_handle(void *handle) {
+status_t dnnl_memory::set_data_handle(void *handle, int index) const {
     using namespace dnnl::impl;
-
     void *old_handle;
-    CHECK(memory_storage()->get_data_handle(&old_handle));
-
+    CHECK(memory_storage(index)->get_data_handle(&old_handle));
     if (handle != old_handle) {
-        CHECK(memory_storage(0)->set_data_handle(handle));
+        CHECK(memory_storage(index)->set_data_handle(handle));
     }
     return status::success;
 }
@@ -228,6 +226,23 @@ status_t dnnl_memory_get_data_handle(const memory_t *memory, void **handle) {
 status_t dnnl_memory_set_data_handle(memory_t *memory, void *handle) {
     if (any_null(memory)) return invalid_arguments;
     CHECK(memory->set_data_handle(handle));
+    return status::success;
+}
+
+status_t dnnl_memory_get_data_handle_v2(
+        const memory_t *memory, void **handle, int index) {
+    if (any_null(handle)) return invalid_arguments;
+    if (memory == nullptr) {
+        *handle = nullptr;
+        return success;
+    }
+    return memory->get_data_handle(handle, index);
+}
+
+status_t dnnl_memory_set_data_handle_v2(
+        memory_t *memory, void *handle, int index) {
+    if (any_null(memory)) return invalid_arguments;
+    CHECK(memory->set_data_handle(handle, index));
     return status::success;
 }
 

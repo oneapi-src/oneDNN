@@ -133,4 +133,51 @@ TEST(iface_sparse_test_t, TestSparseMemoryCreation) {
     }
 }
 
+TEST(iface_sparse_test_t, TestSparseMemorySetGetDataHandles) {
+    engine eng = get_test_engine();
+
+    const bool is_unimplemented = (eng.get_kind() == engine::kind::gpu
+            || DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL);
+    if (is_unimplemented) return;
+
+    const int nnz = 12;
+    memory::desc md;
+    ASSERT_NO_THROW(
+            md = memory::desc::csr({64, 128}, dt::f32, nnz, dt::s32, dt::s32));
+    memory mem;
+
+    const int nhandles = 3;
+    // Default memory constructor.
+    EXPECT_NO_THROW(mem = memory(md, eng));
+    for (int i = 0; i < nhandles; i++) {
+        void *h = mem.get_data_handle(i);
+        ASSERT_NE(h, nullptr);
+    }
+
+    // Creating a memory object without underlying buffers.
+    for (int i = 0; i < nhandles; i++) {
+        EXPECT_NO_THROW(mem.set_data_handle(DNNL_MEMORY_NONE, i));
+    }
+
+    for (int i = 0; i < nhandles; i++) {
+        void *h = mem.get_data_handle(i);
+        ASSERT_EQ(h, nullptr);
+    }
+
+    // User provided buffers.
+    {
+        std::vector<float> values(1);
+        std::vector<int> indices(1);
+        std::vector<int> pointers(1);
+
+        ASSERT_NO_THROW(mem.set_data_handle(values.data(), 0));
+        ASSERT_NO_THROW(mem.set_data_handle(indices.data(), 1));
+        ASSERT_NO_THROW(mem.set_data_handle(pointers.data(), 2));
+
+        ASSERT_EQ(mem.get_data_handle(0), values.data());
+        ASSERT_EQ(mem.get_data_handle(1), indices.data());
+        ASSERT_EQ(mem.get_data_handle(2), pointers.data());
+    }
+}
+
 } // namespace dnnl

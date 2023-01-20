@@ -1106,6 +1106,32 @@ dnnl_status_t DNNL_API dnnl_memory_get_data_handle(
 dnnl_status_t DNNL_API dnnl_memory_set_data_handle(
         dnnl_memory_t memory, void *handle);
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+/// Returns an underlying memory buffer that corresponds to the given index.
+///
+/// @param memory Memory object.
+/// @param handle Data handle. For the CPU engine or when USM is used, the
+///     memory buffer is a pointer to the actual data. For OpenCL it is a
+///     `cl_mem`.
+/// @param index Index of the buffer.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_get_data_handle_v2(
+        const_dnnl_memory_t memory, void **handle, int index);
+
+/// Sets an underlying memory buffer that corresponds to the given index.
+///
+/// @param memory Memory object.
+/// @param handle Data handle. For the CPU engine or when USM is used, the
+///     memory buffer is a pointer to the actual data. For OpenCL it is a
+///     `cl_mem`.
+/// @param index Index of the buffer.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_set_data_handle_v2(
+        dnnl_memory_t memory, void *handle, int index);
+#endif
+
 /// Destroys a memory object.
 ///
 /// @param memory Memory object to destroy.

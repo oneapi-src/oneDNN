@@ -77,18 +77,20 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
         return memory_storage(0);
     }
     /** returns data handle */
-    dnnl::impl::status_t get_data_handle(void **handle) const {
-        return memory_storage()->get_data_handle(handle);
+    dnnl::impl::status_t get_data_handle(void **handle, int index = 0) const {
+        return memory_storage(index)->get_data_handle(handle);
     }
 
     /** sets data handle */
-    dnnl::impl::status_t set_data_handle(void *handle);
+    dnnl::impl::status_t set_data_handle(void *handle, int index = 0) const;
 
     /** zeros padding */
     dnnl::impl::status_t zero_pad(const dnnl::impl::exec_ctx_t &ctx) const;
 
     dnnl::impl::status_t reset_memory_storage(
             std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage);
+
+    size_t get_num_handles() const { return memory_storages_.size(); }
 
 protected:
     dnnl::impl::engine_t *engine_;
