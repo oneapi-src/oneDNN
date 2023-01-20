@@ -188,18 +188,24 @@ struct memory_desc_wrapper : public c_compatible {
 
     /** returns the size required to store described memory
      * note: if offset0 != 0 returns 0 (need to specify the behavior) */
-    size_t size() const {
+    size_t size(int index = 0) const {
         if (utils::one_of(format_kind(), format_kind::undef, format_kind::any)
                 || is_zero() || has_zero_dim())
             return 0;
 
+        if (utils::one_of(format_kind(), format_kind::blocked,
+                    format_kind::wino, format_kind::rnn_packed)
+                && index != 0) {
+            return 0;
+        }
+
         if (has_runtime_dims_or_strides()) return DNNL_RUNTIME_SIZE_VAL;
 
-        if (format_kind() == format_kind::wino) {
+        if (is_wino_desc()) {
             return wino_desc().size;
-        } else if (format_kind() == format_kind::rnn_packed) {
+        } else if (is_rnn_packed_desc()) {
             return rnn_packed_desc().size;
-        } else {
+        } else if (is_blocking_desc()) {
             if (offset0() != 0) return 0;
 
             dims_t blocks = {0};
@@ -228,6 +234,30 @@ struct memory_desc_wrapper : public c_compatible {
                 data_size = utils::rnd_up(data_size, alignment_in_bytes);
             }
             return data_size + additional_buffer_size();
+        } else if (is_sparse_desc()) {
+            if (sparse_desc().encoding == sparse_encoding::csr) {
+                switch (index) {
+                    // Return size for values.
+                    case 0: return nnz() * data_type_size();
+                    // Return size for indices.
+                    case 1: {
+                        const auto idx_dt = metadata_type(0);
+                        return nnz() * types::data_type_size(idx_dt);
+                    }
+                    // Return size for pointers.
+                    case 2: {
+                        const auto ptr_dt = metadata_type(1);
+                        return (dims()[0] + 1) * types::data_type_size(ptr_dt);
+                    }
+                    default: assert(!"unknown component"); return 0;
+                }
+            } else {
+                assert(!"unknown sparse encoding");
+                return 0;
+            }
+        } else {
+            assert(!"unknown format kind");
+            return 0;
         }
     }
 

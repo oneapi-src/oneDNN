@@ -588,6 +588,11 @@ size_t dnnl_memory_desc_get_size(const memory_desc_t *md) {
     return memory_desc_wrapper(*md).size();
 }
 
+size_t dnnl_memory_desc_get_size_v2(const memory_desc_t *md, int index) {
+    if (md == nullptr) return 0;
+    return memory_desc_wrapper(*md).size(index);
+}
+
 size_t dnnl_data_type_size(dnnl_data_type_t data_type) {
     return types::data_type_size(data_type);
 }

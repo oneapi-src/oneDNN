@@ -960,6 +960,17 @@ int DNNL_API dnnl_memory_desc_equal(
 ///     descriptor.
 size_t DNNL_API dnnl_memory_desc_get_size(const_dnnl_memory_desc_t memory_desc);
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+/// Returns the size of the data that corresponds to the given index.
+///
+/// @param memory_desc Memory descriptor.
+/// @param index Index of the buffer.
+///
+/// @returns The number of bytes required for the requested data.
+size_t DNNL_API dnnl_memory_desc_get_size_v2(
+        const_dnnl_memory_desc_t memory_desc, int index);
+#endif
+
 /// Returns the size of data type.
 ///
 /// @param data_type Data type.

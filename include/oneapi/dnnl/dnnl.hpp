@@ -2733,11 +2733,22 @@ struct memory : public handle<dnnl_memory_t> {
         /// @returns A copy of the dimensions vector.
         memory::dims get_dims() const { return query_dims(query::dims); }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        /// Returns size of the memory descriptor in bytes.
+        /// @param index Data index. Defaults to 0.
+        /// @returns The number of bytes required to allocate a memory buffer
+        ///     for data with a particular @p index described by this memory
+        ///     descriptor including the padding area.
+        size_t get_size(int index = 0) const {
+            return dnnl_memory_desc_get_size_v2(get(), index);
+        }
+#else
         /// Returns size of the memory descriptor in bytes.
         /// @returns The number of bytes required to allocate a memory buffer
         ///     for the memory object described by this memory descriptor
         ///     including the padding area.
         size_t get_size() const { return dnnl_memory_desc_get_size(get()); }
+#endif
 
         /// Checks whether the memory descriptor is zero (empty).
         /// @returns @c true if the memory descriptor describes an empty

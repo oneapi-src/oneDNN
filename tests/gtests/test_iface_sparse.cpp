@@ -83,4 +83,28 @@ TEST(iface_sparse_test_t, TestSparseMDQueries) {
     ASSERT_EQ(md.get_data_type(2), pointers_dt);
 }
 
+TEST(iface_sparse_test_t, TestSparseMDSize) {
+    const int nnz = 12;
+    memory::desc md;
+    ASSERT_NO_THROW(
+            md = memory::desc::csr({64, 128}, dt::f32, nnz, dt::s32, dt::s32));
+    // Size of values.
+    const size_t exp_values_size
+            = nnz * memory::data_type_size(md.get_data_type());
+    // Default.
+    ASSERT_EQ(md.get_size(), exp_values_size);
+    // Explicit.
+    ASSERT_EQ(md.get_size(0), exp_values_size);
+
+    // Size of indices.
+    const size_t exp_indices_size
+            = nnz * memory::data_type_size(md.get_data_type(1));
+    ASSERT_EQ(md.get_size(1), exp_indices_size);
+
+    // Size of  pointers.
+    const size_t exp_pointers_size = (md.get_dims()[0] + 1)
+            * memory::data_type_size(md.get_data_type(2));
+    ASSERT_EQ(md.get_size(2), exp_pointers_size);
+}
+
 } // namespace dnnl
