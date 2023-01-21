@@ -75,10 +75,12 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
 
     const auto adj_M = nstl::max(jcp_.M, jcp_.M_tail);
 
-    // 1. Use unrolled kernel for exec_trans only to avoid creation a lot of
-    //    kernels for each kw range
+    // 1. The unrolled kernel can be used for exec_trans and exec_base and for
+    // amx only. For exec_base it makes sense to use unrolled kernel only if
+    // there is no padding by width.
     // 2. For exec_trans block by kw is always KW
-    assert(IMPLICATION(jcp_.use_uker, is_amx && jcp_.exec_type == exec_trans));
+    assert(IMPLICATION(jcp_.use_uker,
+            is_amx && one_of(jcp_.exec_type, exec_base, exec_trans)));
     assert(IMPLICATION(jcp_.use_interleave_stores, jcp_.use_uker));
 
     batchsizes.resize(jcp_.max_batch + 1);
