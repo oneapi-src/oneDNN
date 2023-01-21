@@ -1042,7 +1042,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
             ? pick_by_prop_kind(jbgp.prop_kind, ipd.bias_desc.data_type,
                     data_type::undef, ipd.diff_bias_desc.data_type)
             : data_type::undef;
-    jbgp.signed_input
+    jbgp.req_s8s8_compensation
             = one_of(isa, avx512_core_vnni, avx512_core_bf16, avx2_vnni)
             && jbgp.src_dt == s8;
     const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
@@ -1136,7 +1136,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
         if (jbgp.wei_tag == format_tag::undef) return status::unimplemented;
         CHECK(memory_desc_init_by_tag(want_wei_md, jbgp.wei_tag));
 
-        if (jbgp.signed_input) {
+        if (jbgp.req_s8s8_compensation) {
             want_wei_md.extra.flags = 0
                     | memory_extra_flags::compensation_conv_s8s8
                     | memory_extra_flags::scale_adjust;

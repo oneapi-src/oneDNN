@@ -123,12 +123,12 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
     const bool are_post_ops_applicable = one_of(true, jbgp.with_sum,
             jbgp.with_bias, jbgp.with_scales, jbgp.with_eltwise,
-            jbgp.with_binary, jbgp.acc_dt != jbgp.dst_dt, jbgp.signed_input,
-            jbgp.with_dst_scales);
+            jbgp.with_binary, jbgp.acc_dt != jbgp.dst_dt,
+            jbgp.req_s8s8_compensation, jbgp.with_dst_scales);
 
     size_t offset = types::data_type_size(jbgp.wei_dt)
             * (weights_d.size() - weights_d.additional_buffer_size());
-    auto compensation = (jbgp.signed_input)
+    auto compensation = jbgp.req_s8s8_compensation
             ? reinterpret_cast<const int32_t *>(&weights[offset])
             : nullptr;
 
@@ -228,9 +228,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                     && is_last_ic_chunk && !is_ic_tail) {
                 void *scratch = is_amx
                         ? static_cast<void *>(wsp_tile)
-                        : (jbgp.signed_input ? static_cast<void *>(
+                        : (jbgp.req_s8s8_compensation ? static_cast<void *>(
                                    const_cast<int *>(&compensation[oc]))
-                                             : nullptr);
+                                                      : nullptr);
                 auto ptr_bias
                         = jbgp.with_bias ? bias + bia_dt_size * oc : nullptr;
                 const brgemm_post_ops_data_t post_ops_data {
@@ -271,9 +271,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             if (jbgp.nthr_ic_b == 1 && are_post_ops_applicable) {
                 void *scratch = is_amx
                         ? static_cast<void *>(wsp_tile)
-                        : (jbgp.signed_input ? static_cast<void *>(
+                        : (jbgp.req_s8s8_compensation ? static_cast<void *>(
                                    const_cast<int *>(&compensation[oc]))
-                                             : nullptr);
+                                                      : nullptr);
                 auto ptr_bias
                         = jbgp.with_bias ? bias + bia_dt_size * oc : nullptr;
                 const brgemm_post_ops_data_t post_ops_data {
@@ -519,10 +519,10 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
                             void *scratch = is_amx
                                     ? static_cast<void *>(wsp_tile)
-                                    : (jbgp.signed_input ? static_cast<void *>(
-                                               const_cast<int *>(
-                                                       &compensation[oc]))
-                                                         : nullptr);
+                                    : (jbgp.req_s8s8_compensation ? static_cast<
+                                                    void *>(const_cast<int *>(
+                                               &compensation[oc]))
+                                                                  : nullptr);
 
                             const brgemm_post_ops_data_t post_ops_data {
                                     static_cast<const void *>(ptr_bias),

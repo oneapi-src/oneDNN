@@ -81,7 +81,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             bool are_post_ops_applicable = one_of(true, jbgp_.with_sum,
                     jbgp_.with_bias, jbgp_.with_scales, jbgp_.with_eltwise,
                     jbgp_.with_binary, jbgp_.acc_dt != jbgp_.dst_dt,
-                    jbgp_.signed_input, jbgp_.with_dst_scales);
+                    jbgp_.req_s8s8_compensation, jbgp_.with_dst_scales);
 
             const float alpha = 1.0;
             const float beta = 1.0;

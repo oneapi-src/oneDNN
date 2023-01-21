@@ -46,7 +46,7 @@ struct jit_brgemm_primitive_conf_t {
     bool with_eltwise;
     bool with_binary;
     bool with_scales;
-    bool signed_input;
+    bool req_s8s8_compensation;
     int nb_ic, ic_block, ic_block_ext;
     int nb_oc, oc_block, oc_block_ext;
     int nb_iw, iw_block;
