@@ -60,7 +60,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.fuse_norm_add_relu = pd->fuse_norm_add_relu();
     conf.calculate_stats = !pd->stats_is_src();
     conf.with_relu = pd->with_relu_post_op(pd->is_training());
-    conf.relu_negative_slope = pd->alpha();
+    conf.relu_negative_slope = conf.with_relu ? pd->alpha() : 0.f;
     conf.eps = bd.batch_norm_epsilon;
     conf.calculate_diff_stats = !pd->use_global_stats();
     conf.diff_scale = (pd->use_scale() && bd.prop_kind == prop_kind::backward);
