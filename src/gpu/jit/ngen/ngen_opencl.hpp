@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,8 +81,8 @@ static inline std::vector<uint8_t> getOpenCLCProgramBinary(cl_context context, c
         throw opencl_error();
 
     detail::handleCL(clBuildProgram(program, 1, &device, options, nullptr, nullptr));
-    size_t nDevices = 0;
-    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES, sizeof(size_t), &nDevices, nullptr));
+    cl_uint nDevices = 0;
+    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES, sizeof(cl_uint), &nDevices, nullptr));
     std::vector<cl_device_id> devices(nDevices);
     detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_DEVICES, sizeof(cl_device_id) * nDevices, devices.data(), nullptr));
     size_t deviceIdx = std::distance(devices.begin(), std::find(devices.begin(), devices.end(), device));
