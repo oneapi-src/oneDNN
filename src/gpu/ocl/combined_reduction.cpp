@@ -289,9 +289,10 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
             // If reduction + inner_size is small, do a single phase
             reduction_end = 1;
         } else {
-            // Compute number of remaining phases based on this threshold, and split evenly
-            const int N = std::ceil(std::log2(reduced_dim_size)
+            // Approximation of the number of remaining phases
+            int N = std::ceil(std::log2(reduced_dim_size)
                     / std::log2(single_phase_threshold / inner_dim_size));
+            N = std::max(N, 1); // avoid negative N for large inner_dim_size
             reduction_end = static_cast<dim_t>(
                     std::pow(reduced_dim_size, (float)(N - 1) / N));
         }
