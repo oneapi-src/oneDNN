@@ -237,24 +237,27 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
         switch (exec_arg) {
             case DNNL_ARG_SRC:
                 SAFE(fill_src(prb0, mem, ref_mem, res), WARN);
-                SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
+                if (is_bench_mode(CORR))
+                    SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                 break;
             case DNNL_ARG_WEIGHTS:
                 SAFE(fill_wei(prb0, mem, ref_mem, res), WARN);
-                SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
+                if (is_bench_mode(CORR))
+                    SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                 break;
             case DNNL_ARG_BIAS:
                 SAFE(fill_bia(prb0, mem, ref_mem, res), WARN);
-                if (ref_mem.ndims() > 0)
+                if (ref_mem.ndims() > 0 && is_bench_mode(CORR))
                     SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                 break;
             case (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS):
                 SAFE(fill_wei(prb1, mem, ref_mem, res), WARN);
-                SAFE(mem_map1.at(DNNL_ARG_WEIGHTS).reorder(ref_mem), WARN);
+                if (is_bench_mode(CORR))
+                    SAFE(mem_map1.at(DNNL_ARG_WEIGHTS).reorder(ref_mem), WARN);
                 break;
             case (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS):
                 SAFE(fill_bia(prb1, mem, ref_mem, res), WARN);
-                if (ref_mem.ndims() > 0)
+                if (ref_mem.ndims() > 0 && is_bench_mode(CORR))
                     SAFE(mem_map1.at(DNNL_ARG_BIAS).reorder(ref_mem), WARN);
                 break;
             default: { // Process all attributes here
@@ -283,11 +286,6 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
                     SAFE(mem_map0.at(exec_arg).reorder(mem), WARN);
                 }
             } break;
-        }
-        // Don't keep reference memory if it is not used further.
-        if (!is_bench_mode(CORR)) {
-            mem_map0.clear();
-            mem_map1.clear();
         }
     }
 
@@ -338,6 +336,12 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
         SAFE(fill_scales(prb1->attr, DNNL_ARG_DST, mem_map.at(dw_dst_scale_arg),
                      mem_map1.at(dst_scale_arg)),
                 WARN);
+    }
+
+    // Don't keep reference memory if it is not used further.
+    if (!is_bench_mode(CORR)) {
+        mem_map0.clear();
+        mem_map1.clear();
     }
 
     return OK;
