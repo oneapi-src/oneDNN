@@ -293,6 +293,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         auto wei_mask = prb->has_groups ? 3 : 1;
         attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
     }
+    const auto dw_bia_dt = prb->dir == FWD_B ? dnnl_f32 : dnnl_data_type_undef;
+    attr_args.prepare_dw_post_op(prb->attr, prb->cfg[WEI].dt, dw_bia_dt);
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -414,6 +416,12 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
+
+    // GPU does not support depthwise fusion
+    if (is_gpu() && prb->attr.post_ops.convolution_index() != -1) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {}
@@ -442,6 +450,8 @@ std::vector<int> supported_exec_args(dir_t dir) {
             DNNL_ARG_WEIGHTS,
             DNNL_ARG_BIAS,
             DNNL_ARG_DST,
+            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
+            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS,
     };
     static const std::vector<int> exec_bwd_d_args = {
             DNNL_ARG_DIFF_SRC,

@@ -33,79 +33,6 @@
 
 namespace conv_dw_fusion {
 
-dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
-    const prb_t *prb = init_pd_args.prb;
-
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->src_dims().data(), prb->cfg[SRC].dt, prb->stag);
-    auto wei_d = dnn_mem_t::init_md(prb->ndims + prb->has_groups,
-            prb->wei_dims().data(), prb->cfg[WEI].dt, prb->wtag);
-    auto bia_d = dnn_mem_t::init_md(
-            1, prb->bia_dims().data(), prb->cfg[BIA].dt, tag::any);
-    auto dst_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dst_dims().data(), prb->cfg[DST].dt, prb->dtag);
-
-    dnnl_alg_kind_t alg = dnnl_convolution_direct;
-    if (prb->alg == alg_t::WINO) alg = dnnl_convolution_winograd;
-    if (prb->alg == alg_t::AUTO) alg = dnnl_convolution_auto;
-
-    attr_args_t attr_args;
-
-    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
-    if (wei_scale.policy == policy_t::PER_OC) {
-        auto wei_mask = prb->has_groups ? 3 : 1;
-        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
-    }
-    const auto dw_bia_dt = prb->dir == FWD_B ? dnnl_f32 : dnnl_data_type_undef;
-    attr_args.prepare_dw_post_op(prb->attr, prb->cfg[WEI].dt, dw_bia_dt);
-    attr_args.prepare_post_ops_mds(
-            prb->attr, prb->ndims, prb->dst_dims().data());
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args));
-
-    switch (prb->dir) {
-        case FWD_D:
-        case FWD_B:
-        case FWD_I:
-            if (prb->dir != FWD_B) bia_d.reset(nullptr);
-            DNN_SAFE_STATUS(dnnl_convolution_forward_primitive_desc_create(
-                    &init_pd_args.pd, init_pd_args.engine,
-                    prb->dir == FWD_I ? dnnl_forward_inference
-                                      : dnnl_forward_training,
-                    alg, src_d, wei_d, bia_d, dst_d, prb->strides().data(),
-                    prb->dilations().data(), prb->padding().data(),
-                    prb->padding_r().data(), dnnl_attr));
-            break;
-        case BWD_D:
-            DNN_SAFE_STATUS(
-                    dnnl_convolution_backward_data_primitive_desc_create(
-                            &init_pd_args.pd, init_pd_args.engine, alg, src_d,
-                            wei_d, dst_d, prb->strides().data(),
-                            prb->dilations().data(), prb->padding().data(),
-                            prb->padding_r().data(), init_pd_args.hint,
-                            dnnl_attr));
-            break;
-        case BWD_W:
-        case BWD_WB:
-            if (prb->dir == BWD_W) bia_d.reset(nullptr);
-            DNN_SAFE_STATUS(
-                    dnnl_convolution_backward_weights_primitive_desc_create(
-                            &init_pd_args.pd, init_pd_args.engine, alg, src_d,
-                            wei_d, bia_d, dst_d, prb->strides().data(),
-                            prb->dilations().data(), prb->padding().data(),
-                            prb->padding_r().data(), init_pd_args.hint,
-                            dnnl_attr));
-            break;
-        default: DNN_SAFE_STATUS(dnnl_invalid_arguments);
-    }
-
-    // TODO: add query in od fir accum type.
-    //DNN_SAFE_STATUS(cd.accum_data_type == prb->cfg[ACC].dt
-    //                ? dnnl_success
-    //                : dnnl_unimplemented);
-    return dnnl_success;
-}
-
 std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *prb) {
     const auto &po = prb->attr.post_ops;
     int fusion_index = po.convolution_index();
@@ -192,31 +119,6 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
             tag::any, prb->dtag, alg_t::DIRECT, fusion_attr, prb->ctx_init,
             prb->ctx_exe, prb->mb));
 }
-
-void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
-    skip_unimplemented_data_type(
-            {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
-            res);
-    skip_unimplemented_sum_po(prb->attr, res);
-
-    // GPU does not support depthwise fusion
-    if (is_gpu() && prb->attr.post_ops.convolution_index() != -1) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
-}
-
-std::vector<int> supported_fused_exec_args(dir_t dir) {
-    static const std::vector<int> exec_fwd_args = {
-            DNNL_ARG_SRC,
-            DNNL_ARG_WEIGHTS,
-            DNNL_ARG_BIAS,
-            DNNL_ARG_DST,
-            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
-            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS,
-    };
-    return exec_fwd_args;
-};
 
 int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
         dnn_mem_map_t &mem_map, dnnl_primitive_t prim0, const prb_t *prb0,
@@ -350,24 +252,22 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
 int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == LIST) return res->state = LISTED, OK;
 
-    conv_dw_fusion::skip_unimplemented_prb(prb, res);
-    if (res->state == SKIPPED) return OK;
-
     // Original problem with fusion attributes
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim;
-    SAFE(init_prim(prb->ctx_init, prim, init_pd, prb, res), WARN);
+    SAFE(init_prim(prb->ctx_init, prim, conv::init_pd, prb, res), WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
+    if (is_bench_mode(INIT)) return OK;
 
     dnn_mem_map_t mem_map;
     init_memory_args<prb_t>(
-            mem_map, prb, prim, supported_fused_exec_args(prb->dir));
+            mem_map, prb, prim, conv::supported_exec_args(prb->dir));
 
     // Fill first convolution
     std::unique_ptr<prb_t> prb0 = get_first_conv_prb(prb);
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim0;
-    SAFE(init_prim(prb->ctx_init, prim0, init_pd, prb0.get(), res, FLAG_FWD,
-                 nullptr,
+    SAFE(init_prim(prb->ctx_init, prim0, conv::init_pd, prb0.get(), res,
+                 FLAG_FWD, nullptr,
                  /* is_service_prim = */ true),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
@@ -381,8 +281,8 @@ int doit(const prb_t *prb, res_t *res) {
     if (!prb1) SAFE(FAIL, WARN);
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_t> prim1;
-    SAFE(init_prim(prb->ctx_init, prim1, init_pd, prb1.get(), res, FLAG_FWD,
-                 nullptr,
+    SAFE(init_prim(prb->ctx_init, prim1, conv::init_pd, prb1.get(), res,
+                 FLAG_FWD, nullptr,
                  /* is_service_prim = */ true),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
