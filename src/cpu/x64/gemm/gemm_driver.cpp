@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1926,21 +1926,24 @@ static dnnl_status_t gemm_threading_driver(
                         assert(arg->packing == pack_type::none);
 
                         if (mayiuse(avx512_core)) {
-                            avx512_common_gemm_f32::sgemm_nocopy_driver(
-                                    arg->transa == no_trans ? "N" : "T",
-                                    arg->transb == no_trans ? "N" : "T", m, n,
-                                    k, &arg->alpha, (float *)a, arg->lda,
-                                    (float *)b, arg->ldb, &beta_eff,
-                                    (float *)c_eff, ldc_eff, nullptr);
+                            thread_arg[ithr].result = avx512_common_gemm_f32::
+                                    sgemm_nocopy_driver(
+                                            arg->transa == no_trans ? "N" : "T",
+                                            arg->transb == no_trans ? "N" : "T",
+                                            m, n, k, &arg->alpha, (float *)a,
+                                            arg->lda, (float *)b, arg->ldb,
+                                            &beta_eff, (float *)c_eff, ldc_eff,
+                                            nullptr);
                         } else {
-                            avx_gemm_f32::sgemm_nocopy_driver(
-                                    arg->transa == no_trans ? "N" : "T",
-                                    arg->transb == no_trans ? "N" : "T", m, n,
-                                    k, &arg->alpha, (float *)a, arg->lda,
-                                    (float *)b, arg->ldb, &beta_eff,
-                                    (float *)c_eff, ldc_eff, nullptr);
+                            thread_arg[ithr].result
+                                    = avx_gemm_f32::sgemm_nocopy_driver(
+                                            arg->transa == no_trans ? "N" : "T",
+                                            arg->transb == no_trans ? "N" : "T",
+                                            m, n, k, &arg->alpha, (float *)a,
+                                            arg->lda, (float *)b, arg->ldb,
+                                            &beta_eff, (float *)c_eff, ldc_eff,
+                                            nullptr);
                         }
-                        thread_arg[ithr].result = dnnl_success;
                         break;
                 }
 
