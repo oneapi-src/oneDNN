@@ -396,12 +396,14 @@ struct jit_brgemm_kernel_t;
 struct jit_brgemm_amx_uker_base_t;
 template <cpu_isa_t isa, typename Vmm>
 struct jit_brdgmm_kernel_base_t;
+class jit_generator;
 
 struct brgemm_kernel_t {
     brgemm_kernel_t() {};
     virtual ~brgemm_kernel_t() {};
     virtual status_t create_kernel() = 0;
     virtual void operator()(brgemm_kernel_params_t *) const = 0;
+    virtual const jit_generator *get_jit_generator() const = 0;
 };
 
 template <cpu_isa_t isa, typename Vmm>
@@ -411,6 +413,7 @@ struct brgemm_kernel_common_t : public brgemm_kernel_t {
 
     status_t create_kernel();
     void operator()(brgemm_kernel_params_t *) const;
+    virtual const jit_generator *get_jit_generator() const;
 
 private:
     jit_brgemm_kernel_t<isa, Vmm> *brgemm_kernel_ = nullptr;
@@ -424,6 +427,7 @@ struct brgemm_amx_uker_t : public brgemm_kernel_t {
 
     status_t create_kernel();
     void operator()(brgemm_kernel_params_t *) const;
+    virtual const jit_generator *get_jit_generator() const;
 
 private:
     jit_brgemm_amx_uker_base_t *brgemm_kernel_ = nullptr;
@@ -438,6 +442,7 @@ struct brdgmm_kernel_t : public brgemm_kernel_t {
 
     status_t create_kernel();
     void operator()(brgemm_kernel_params_t *) const;
+    virtual const jit_generator *get_jit_generator() const;
 
 private:
     jit_brdgmm_kernel_base_t<isa, Vmm> *brgemm_kernel_ = nullptr;

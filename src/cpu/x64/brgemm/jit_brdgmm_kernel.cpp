@@ -1022,6 +1022,11 @@ void brdgmm_kernel_t<isa, Wmm>::operator()(
 }
 
 template <cpu_isa_t isa, typename Wmm>
+const jit_generator *brdgmm_kernel_t<isa, Wmm>::get_jit_generator() const {
+    return brgemm_kernel_;
+}
+
+template <cpu_isa_t isa, typename Wmm>
 brdgmm_kernel_t<isa, Wmm>::~brdgmm_kernel_t() {
     delete brgemm_kernel_;
 }

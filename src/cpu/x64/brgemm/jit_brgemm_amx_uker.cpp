@@ -2206,6 +2206,10 @@ void brgemm_amx_uker_t::operator()(brgemm_kernel_params_t *params) const {
     (*brgemm_kernel_)(params);
 }
 
+const jit_generator *brgemm_amx_uker_t::get_jit_generator() const {
+    return brgemm_kernel_;
+}
+
 brgemm_amx_uker_t::~brgemm_amx_uker_t() {
     delete brgemm_kernel_;
 }
