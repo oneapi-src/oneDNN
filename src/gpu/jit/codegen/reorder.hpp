@@ -1439,6 +1439,8 @@ private:
     bool try_emit_2d(GeneratorT *host, ngen_register_scope_t &scope,
             const reg_buf_data_t &src_rd, const reg_buf_data_t &dst_rd) {
         if (src_layout_.type() != dst_layout_.type()) return false;
+        // long / f64 swizzle emits scalar instructions
+        if (src_layout_.type().scalar().size() >= 8) return false;
         if (!src_layout_.is_dense()) return false;
         if (!dst_layout_.is_dense()) return false;
 
