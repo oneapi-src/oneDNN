@@ -479,7 +479,7 @@ KERNEL_ATTR
 __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global float *shift, __global char *ws,
-        float eps, __global DATA_T *src_add) {
+        float eps, __global DATA_T *src_add, float relu_alpha) {
 
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
@@ -564,8 +564,13 @@ __kernel void gen9_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #endif // FUSE_BN_RELU
 
 #if WITH_RELU
+#if WITH_LEAKY_RELU
+    int8 blockWS0_2 = isless(blockD0, (float8)0.0f);
+    blockD0 = select(blockD0, blockD0 * (float8)relu_alpha, blockWS0_2);
+#else
     blockD0 = max(blockD0, (VECT_FLOAT_T)0.0f);
-#endif
+#endif //WITH_LEAKY_RELU
+#endif //WITH_RELU
 
 #if HAS_SP_TAIL
     if (sp == SP_TAIL) {

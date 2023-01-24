@@ -233,7 +233,7 @@ KERNEL_ATTR
 __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global float *shift, __global char *ws,
-        float eps, __global DATA_T *src_add) {
+        float eps, __global DATA_T *src_add, float relu_alpha) {
 
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
@@ -340,10 +340,20 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
 
 #endif // IS_TRAINING
 #endif // FUSE_BN_RELU
+
+#if WITH_RELU && WITH_LEAKY_RELU
+            VECT_INT_T l_vect[UPDATE_SP_UNROLL];
+#endif //WITH_RELU && WITH_LEAKY_RELU
             unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
 #if WITH_RELU
+#if WITH_LEAKY_RELU
+                l_vect[i] = isless(d_vect[i], 0.0f);
+                d_vect[i]
+                        = select(d_vect[i], d_vect[i] * relu_alpha, l_vect[i]);
+#else
                 d_vect[i] = max(d_vect[i], (VECT_FLOAT_T)0.0f);
-#endif
+#endif //WITH_LEAKY_RELU
+#endif //WITH_RELU
                 STORE_VECT_DATA(&dst[sg_idx + IC * i], d_vect[i]);
             }
         }
@@ -377,10 +387,20 @@ __kernel void gen9_bnorm_fwd_nhwc(__global DATA_T *src, __global float *mean,
             }
 #endif // IS_TRAINING
 #endif // FUSE_BN_RELU
+
+#if WITH_RELU && WITH_LEAKY_RELU
+            int l_tail[UPDATE_SP_UNROLL];
+#endif //WITH_RELU && WITH_LEAKY_RELU
             unroll_for(int i = 0; i < UPDATE_SP_UNROLL; i++) {
 #if WITH_RELU
+#if WITH_LEAKY_RELU
+                l_tail[i] = isless(d_tail[i], 0.0f);
+                d_tail[i]
+                        = select(d_tail[i], d_tail[i] * relu_alpha, l_tail[i]);
+#else
                 d_tail[i] = max(d_tail[i], 0.0f);
-#endif
+#endif //WITH_LEAKY_RELU
+#endif //WITH_RELU
                 STORE_DATA_1x16(&dst[sg_idx + IC * i], d_tail[i]);
             }
         }

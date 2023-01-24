@@ -63,7 +63,8 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
                     && check_scale_shift_data_type()
                     && attr()->has_default_values(attr_skip_mask)
                     && IMPLICATION(!attr()->has_default_values(),
-                            attr()->post_ops_.len() == 1 && with_relu_post_op())
+                            attr()->post_ops_.len() == 1
+                                    && with_relu_post_op(is_training()))
                     && set_default_formats_common()
                     && memory_desc_wrapper(src_md())
                             == memory_desc_wrapper(dst_md())
