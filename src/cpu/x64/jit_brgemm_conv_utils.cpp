@@ -2049,8 +2049,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     //-----------------------------------------------------------------------
 
     jcp.exec_type = exec_base;
-    jcp.brg_type = brgemm_addr; // TODO: Choose right type of BRGEMM
-
     bool try_exec_vpad = false;
     bool try_exec_trans = false;
     bool try_exec_base = true;
@@ -2140,6 +2138,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (try_exec_type_res == false) return status::unimplemented;
 
     // ============ end blocking ===========================================
+
+    jcp.brg_type = (jcp.use_uker && jcp.exec_type == exec_trans)
+            ? brgemm_static_offs
+            : brgemm_addr; // TODO: Choose right type of BRGEMM
     if (jcp.exec_type == exec_vpad)
         jcp.max_vpad = nstl::max(jcp.l_pad, jcp.r_pad);
     else
@@ -2435,6 +2437,7 @@ void set_amx_wsp_per_thread(jit_brgemm_conv_conf_t &jcp) {
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_conv_conf_t &jcp) {
     if (jcp.brg_type == brgemm_addr || jcp.brg_type == brgemm_offs
+            || jcp.brg_type == brgemm_static_offs
             || (jcp.brg_type == brgemm_strd && jcp.exec_type == exec_vpad))
         scratchpad.book(key_brgemm_primitive_batch,
                 static_cast<size_t>(jcp.nthr) * jcp.adjusted_batch_size,
@@ -2794,8 +2797,7 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     jcp.spatial_blk_size = optimal_blk_size;
 
     const int tr_round = 32; // To load full tile register
-    int tr_pad
-            = rnd_up(nstl::max(jcp.l_pad, jcp.r_pad + 1), tr_round); //!!! why?
+    int tr_pad = rnd_up(nstl::max(jcp.l_pad, jcp.r_pad + 1), tr_round);
     jcp.tr_iw = rnd_up(div_up(jcp.iw + jcp.l_pad + jcp.r_pad, jcp.stride_w),
                         tr_round)
             * jcp.stride_w;
