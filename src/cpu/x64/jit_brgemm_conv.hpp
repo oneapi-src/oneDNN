@@ -87,6 +87,9 @@ struct brgemm_convolution_fwd_t : public primitive_t {
 
         int ic_chunks;
         bool need_postwork;
+        dim_t wei_g_stride, wei_ic_stride, wei_ocb_stride;
+        dim_t wei_kw_stride, wei_kh_stride, wei_kd_stride;
+        dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
 
         // batch sizes info for unrolled kernels
         int bs_c, first_bs;
@@ -103,6 +106,17 @@ struct brgemm_convolution_fwd_t : public primitive_t {
                     + static_cast<int>(is_K_tail);
         }
 
+        inline int maybe_invert(int k, int K) const {
+            return use_inversion ? K - 1 - k : k;
+        };
+        void init_batch(int icc, const char *src_base, const char *wei_base,
+                int n_ic_blocks, int ic_block_s, int iid_b, int iih_b,
+                int iiw_b, const dim_t *const __restrict kw_top_vpads,
+                const dim_t *const __restrict kw_bottom_vpads, int kd_b,
+                int kd_e, int kh_b, int kh_e, int kw_b, int kw_e, int k_l,
+                brgemm_batch_element_t *brg_batch) const;
+        int ndims = 0;
+
     protected:
         bool arg_scales_ok() const {
             std::vector<int> supported_args
@@ -118,6 +132,14 @@ struct brgemm_convolution_fwd_t : public primitive_t {
             return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
                     && mask_src == 0 && mask_dst == 0;
         }
+        int KD, KH, KW, EXT_KD, EXT_KH, EXT_KW, KS, KD_BLOCK, KH_BLOCK,
+                KW_BLOCK, KD_BLOCK_PAD, KH_BLOCK_PAD, ID, IH, IW, IDP, IHP, IWP,
+                OD, OH, OW, SD, SH, SW, FP, TP, LP, DD, DH, DW;
+        size_t acc_dsz, bia_dsz, src_dsz, wei_dsz, dst_dsz;
+        dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz,
+                wei_ocb_sz;
+        dim_t adj_src_h_sz, adj_src_h_offset, src_iw_offset, src_d_offset,
+                wei_ic_offset, wei_kd_offset, wei_kh_offset, wei_kw_offset;
     };
 
     brgemm_convolution_fwd_t(const pd_t *apd);
@@ -165,9 +187,6 @@ private:
         return res;
     }
 
-    int maybe_invert(int k, int K) const {
-        return use_inversion ? K - 1 - k : k;
-    };
     void get_kw_range(
             int ow, int &kw_s, int &kw_full_s, int &kw_full_e, int &kw_e) const;
     void get_ow_range(int ow, int kw, int &ow_s, int &ow_e) const;
@@ -234,9 +253,6 @@ private:
             KD_BLOCK_PAD, KH_BLOCK_PAD, ID, IH, IW, IDP, IHP, IWP, OD, OH, OW,
             SD, SH, SW, FP, TP, LP, DD, DH, DW;
     dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz;
-    dim_t wei_g_stride, wei_ic_stride, wei_ocb_stride;
-    dim_t wei_kw_stride, wei_kh_stride, wei_kd_stride;
-    dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
     dim_t ker_vpad_sz, comp_ocb_sz, comp_ker_sz, comp_kw_sz;
 
     bool need_compensation;

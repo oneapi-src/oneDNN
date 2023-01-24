@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ jit_avx512_core_brgemm_conv_trans_kernel_t::
     : jit_generator(name), jcp(ajcp) {
     inp_dsz = jcp.src_dsz;
     ic_block_sz = inp_dsz * jcp.ic_block;
-    dst_w_block = dst_w(jcp.ow_block);
+    dst_w_block = dst_w(jcp, jcp.ow_block);
     dst_stride = jcp.copy_block_only ? dst_w_block : jcp.iwp;
     dst_w_offset = jcp.kh_sets * jcp.kw_sets * ic_block_sz;
     dst_h_offset = dst_stride * dst_w_offset;
@@ -63,13 +63,14 @@ int jit_avx512_core_brgemm_conv_trans_kernel_t::inp_w(int out_w) const {
     return inp_w(out_w, jcp.ext_kw);
 }
 
-int jit_avx512_core_brgemm_conv_trans_kernel_t::dst_w(int out_w) const {
+int jit_avx512_core_brgemm_conv_trans_kernel_t::dst_w(
+        const jit_brgemm_conv_conf_t &ajcp, int out_w) {
     int res = 0;
-    if (jcp.kw_sets > 1)
-        res = get_inp_size(out_w, 1, 1, jcp.dilate_w);
+    if (ajcp.kw_sets > 1)
+        res = get_inp_size(out_w, 1, 1, ajcp.dilate_w);
     else
-        res = get_inp_size(out_w, jcp.ext_kw, jcp.stride_w, jcp.dilate_w);
-    if (jcp.is_os_blocking) res = rnd_up(res, jcp.stride_w);
+        res = get_inp_size(out_w, ajcp.ext_kw, ajcp.stride_w, ajcp.dilate_w);
+    if (ajcp.is_os_blocking) res = rnd_up(res, ajcp.stride_w);
     return res;
 }
 
@@ -375,7 +376,7 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ow_block(
 
 void jit_avx512_core_brgemm_conv_trans_kernel_t::copy_ow_block_body(
         int lpad, int ow_len, int iw_len, bool is_ic_tail) {
-    const auto dst_width = dst_w(ow_len);
+    const auto dst_width = dst_w(jcp, ow_len);
     const auto iw_stride = jcp.kw_sets > 1 ? jcp.stride_w : 1;
     for_(int kw = 0; kw < jcp.kw_sets; kw++)
     for (dim_t ind_w = 0; ind_w < dst_width; ind_w++) {

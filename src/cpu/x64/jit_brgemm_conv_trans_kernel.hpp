@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ struct jit_avx512_core_brgemm_conv_trans_kernel_t : public jit_generator {
     jit_avx512_core_brgemm_conv_trans_kernel_t(
             const jit_brgemm_conv_conf_t &ajcp, const char *name = jit_name());
 
-    int dst_w(int out_w) const;
+    static int dst_w(const jit_brgemm_conv_conf_t &ajcp, int out_w);
 
 protected:
     jit_brgemm_conv_conf_t jcp;
