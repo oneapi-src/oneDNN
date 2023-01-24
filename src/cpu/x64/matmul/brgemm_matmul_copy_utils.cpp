@@ -250,12 +250,14 @@ void jit_brgemm_matmul_copy_a_impl_t<Vmm>::copy_K_loop(
     auto maybe_compute_compensation = [=](int k_idx, Vmm vmm_copy) {
         if (do_compute_compensation_) {
             const auto vmm_comp_acc = get_vmm_comp_acc(k_idx % num_acc);
+            const bool use_evex = mayiuse(avx512_core_vnni);
+            assert(use_evex || mayiuse(avx2_vnni));
             if (conf_->src_dt == data_type::s8)
                 vpdpbusd(vmm_comp_acc, vmm_comp_mul, vmm_copy,
-                        mayiuse(avx2_vnni) ? VexEncoding : EvexEncoding);
+                        use_evex ? EvexEncoding : VexEncoding);
             else
                 vpdpbusd(vmm_comp_acc, vmm_copy, vmm_comp_mul,
-                        mayiuse(avx2_vnni) ? VexEncoding : EvexEncoding);
+                        use_evex ? EvexEncoding : VexEncoding);
         }
     };
 
