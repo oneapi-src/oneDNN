@@ -19,18 +19,16 @@ namespace cpu {
 namespace rv64 {
 
 namespace {
-#define MAX_KERNEL_WIDTH 32
-
 void MaxPooling(const float *src, float *dst, const dim_t batch,
         const dim_t channels, const dim_t outD, const dim_t outH,
         const dim_t outW, const dim_t inD, const dim_t inH, const dim_t inW,
         const dim_t kerD, const dim_t kerH, const dim_t kerW,
         const dim_t strideD, const dim_t strideH, const dim_t strideW,
         const dim_t padFront, const dim_t padTop, const dim_t padLeft) {
-    assert(kerW < MAX_KERNEL_WIDTH);
-
-    float arr_flt_min[MAX_KERNEL_WIDTH];
-    for (int i = 0; i < MAX_KERNEL_WIDTH; i++)
+    float arr_flt_min
+            [riscv_nchw_pooling_fwd_t<data_type::f32>::max_kernel_width];
+    for (int i = 0;
+            i < riscv_nchw_pooling_fwd_t<data_type::f32>::max_kernel_width; i++)
         arr_flt_min[i] = __FLT_MIN__;
 
     for (int mb = 0; mb < batch; mb++)

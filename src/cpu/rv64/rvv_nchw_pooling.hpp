@@ -49,7 +49,9 @@ struct riscv_nchw_pooling_fwd_t : public primitive_t {
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
                     && memory_desc_matches_tag(*dst_md(), desired_fmt_tag)
                     && attr_.set_default_formats(dst_md(0)) == status::success
-                    && attr()->post_ops_.len() == 0 && !is_training;
+                    && attr()->post_ops_.len() == 0 && !is_training
+                    && KW() < riscv_nchw_pooling_fwd_t<
+                               d_type>::max_kernel_width;
 
             if (!ok) return status::unimplemented;
 
@@ -64,6 +66,8 @@ struct riscv_nchw_pooling_fwd_t : public primitive_t {
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
+
+    constexpr static int max_kernel_width = 32;
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
