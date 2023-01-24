@@ -302,6 +302,22 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     }
 }
 
+bool eltwise_alg_returns_nan_or_inf(alg_t alg) {
+    static const std::vector<alg_t> nan_inf_alg
+            = {alg_t::EXP, alg_t::EXP_DST, alg_t::LOG, alg_t::POW, alg_t::SQRT,
+                    alg_t::SQRT_DST, alg_t::SQUARE};
+    return std::any_of(nan_inf_alg.cbegin(), nan_inf_alg.cend(),
+            [alg](const alg_t _alg) { return (_alg == alg); });
+}
+
+bool eltwise_alg_returns_nan_or_inf(const attr_t &attr) {
+    const auto &po = attr.post_ops;
+    for (int i = 0; i < po.len(); i++) {
+        if (eltwise_alg_returns_nan_or_inf(po.entry[i].kind)) return true;
+    }
+    return false;
+}
+
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
     const float trh
@@ -309,6 +325,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_threshold(trh);
 
     cmp.set_zero_trust_percent(get_eltwise_zero_trust_percent(prb));
+    cmp.set_op_output_has_nans(eltwise_alg_returns_nan_or_inf(prb->alg));
 
     // Since lambda is called when stack is unavailable, need to capture `prb`
     // by value to avoid using dangling references.

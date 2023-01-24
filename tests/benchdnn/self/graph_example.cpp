@@ -66,7 +66,7 @@ void fill_eltwise_desc(settings_t &s) {
     prb_dims.dims = {2, 128, 3, 3};
     prb_dims.ndims = 4;
     auto &alg = s.alg;
-    alg[0] = eltwise::alg_t::EXP;
+    alg[0] = eltwise::alg_t::RELU;
 }
 
 template <typename settings_t>

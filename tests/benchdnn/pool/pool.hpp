@@ -172,6 +172,12 @@ struct prb_t : public desc_t {
     int64_t user_mb;
 
     int64_t kernel_size() const { return kd * kh * kw; }
+    bool has_ker_in_pad() const {
+        bool ker_in_pad_d = pd >= kd || pd_r >= kd;
+        bool ker_in_pad_h = ph >= kh || ph_r >= kh;
+        bool ker_in_pad_w = pw >= kw || pw_r >= kw;
+        return ker_in_pad_d || ker_in_pad_h || ker_in_pad_w;
+    }
 
     // Used to construct memory desc when dimensions are runtime since such mds
     // can't be used directly from query and memory objects can't be constructed.

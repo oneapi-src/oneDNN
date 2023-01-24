@@ -184,6 +184,11 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     // accounts for inaccurate rootn/pow functions in norm algs.
     float scale = is_norm_alg(prb->alg) ? 5.0f : 1.0f;
     cmp.set_threshold(scale * epsilon_dt(prb->ddt));
+    // TODO: remove condition once alg=mul with sum post-op filling is fixed.
+    bool has_sum_po
+            = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0;
+    cmp.set_op_output_has_nans(prb->alg == alg_t::mul && has_sum_po);
+
     if (is_amd_gpu()) {
         // MIOpen implementation is less accurate for f16 data type therefore
         // adjust the threshold.
