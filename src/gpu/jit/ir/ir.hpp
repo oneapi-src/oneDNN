@@ -64,71 +64,99 @@ private:
     std::unordered_map<std::string, int> prefix_ids_;
 };
 
-class var_manager_t {
-public:
-    var_manager_t() = default;
-    var_manager_t(ir_context_t &ir_ctx) : ir_ctx_(&ir_ctx) {}
+expr_t make_buffer(const std::string &name);
 
-    expr_t get_buffer(const std::string &name, int size, bool create = true) {
+class buffer_manager_t {
+public:
+    struct entry_t {
+        entry_t() = default;
+        entry_t(const expr_t &buf, int size) : buf(buf), size(size) {}
+
+        bool is_empty() const { return buf.is_empty(); }
+        std::string name() const { return buf.as<var_t>().name; }
+        bool is_slm() const { return name().find("slm") != std::string::npos; }
+
+        stmt_t create_alloc_stmt(const stmt_t &body = stmt_t()) const {
+            auto kind = (is_slm() ? alloc_kind_t::slm : alloc_kind_t::grf);
+            return alloc_t::make(buf, size, kind, attrs, body);
+        }
+
+        std::string str() const {
+            std::ostringstream oss;
+            oss << "buf: " << buf << " size: " << size;
+            return oss.str();
+        }
+
+        expr_t buf;
+        std::vector<alloc_attr_t> attrs;
+        int size = 0;
+    };
+
+    buffer_manager_t() = default;
+    buffer_manager_t(ir_context_t &ir_ctx) : ir_ctx_(&ir_ctx) {}
+
+    ir_context_t &ir_ctx() const { return *ir_ctx_; }
+    std::unordered_map<std::string, entry_t> &entries() { return entries_; }
+
+    expr_t get(const std::string &name, int size = 0) {
+        size = utils::rnd_up(size, ir_ctx_->grf_size());
         auto it = entries_.find(name);
         if (it != entries_.end()) {
             auto &e = it->second;
-            ir_assert(e.size == size) << e.str();
-            return e.expr;
+            if (e.size < size) e.size = size;
+            return e.buf;
         }
-        if (!create) return expr_t();
-        auto buf = ir_ctx_->create_tmp_var(type_t::byte_ptr(), name);
+        if (size == 0) return expr_t();
+        auto buf = make_buffer(name);
         entries_[name] = entry_t(buf, size);
         return buf;
     }
 
-    expr_t get_var(
-            const std::string &name, const type_t &type, bool create = true) {
+    entry_t find(const std::string &name, bool allow_empty = false) const {
         auto it = entries_.find(name);
-        if (it != entries_.end()) {
-            auto &e = it->second;
-            ir_assert(e.type == type) << e.str();
-            return e.expr;
-        }
-        if (!create) return expr_t();
-        auto var = ir_ctx_->create_tmp_var(type, name);
-        entries_[name] = entry_t(var, type);
-        return var;
+        if (it != entries_.end()) return it->second;
+        if (!allow_empty) ir_error_not_expected() << "Not found: " << name;
+        return entry_t();
     }
 
-    stmt_t inject_buffer_allocs(const stmt_t &_stmt) const {
+    entry_t find(const expr_t &buf, bool allow_empty = false) const {
+        return find(buf.as<var_t>().name, allow_empty);
+    }
+
+    entry_t &find_ref(const std::string &name) {
+        auto it = entries_.find(name);
+        ir_assert(it != entries_.end());
+        return it->second;
+    }
+
+    entry_t &find_ref(const expr_t &buf) {
+        return find_ref(buf.as<var_t>().name);
+    }
+
+    int size(const expr_t &buf) const {
+        auto e = find(buf);
+        return e.size;
+    }
+
+    void remove(const expr_t &buf) {
+        auto &e = find_ref(buf);
+        entries_.erase(e.name());
+    }
+
+    template <typename FilterFuncT>
+    stmt_t inject_allocs(const stmt_t &_stmt,
+            const FilterFuncT &filter = default_filter) const {
         auto stmt = _stmt;
         for (auto &kv : entries_) {
             auto &e = kv.second;
-            if (!e.is_buffer()) continue;
-            stmt = alloc_t::make(e.expr, e.size, alloc_kind_t::grf, stmt);
+            if (!filter(e.buf)) continue;
+            stmt = e.create_alloc_stmt(stmt);
         }
         return stmt;
     }
 
 private:
-    struct entry_t {
-        entry_t() = default;
-        entry_t(const expr_t &buf, int size) : expr(buf), size(size) {}
-        entry_t(const expr_t &var, const type_t &type)
-            : expr(var), type(type) {}
-
-        bool is_buffer() const { return size != 0; }
-
-        std::string str() const {
-            std::ostringstream oss;
-            if (size != 0) {
-                oss << "buf: " << expr << " size: " << size;
-            } else {
-                oss << "var: " << expr << " type: " << type;
-            }
-            return oss.str();
-        }
-
-        expr_t expr;
-        type_t type;
-        int size = 0;
-    };
+    static bool default_filter(const expr_t &) { return true; }
 
     ir_context_t *ir_ctx_ = nullptr;
     std::unordered_map<std::string, entry_t> entries_;
@@ -155,6 +183,25 @@ public:
     }
 
     stmt_t update(const stmt_t &stmt) { return mutate(stmt); }
+
+    void update(buffer_manager_t &buf_mgr) {
+        for (auto &kv : buf_mgr.entries()) {
+            auto &e = kv.second;
+            auto old_stmt = e.create_alloc_stmt();
+            auto new_stmt = mutate(old_stmt);
+            if (new_stmt.is_empty()) {
+                buf_mgr.remove(e.buf);
+                continue;
+            } else if (!new_stmt.is_same(old_stmt)) {
+                auto &new_a = new_stmt.as<alloc_t>();
+                auto &entry = buf_mgr.find_ref(e.buf);
+                ir_assert(entry.attrs.empty());
+                entry.size = new_a.size;
+                entry.attrs = new_a.attrs;
+                continue;
+            }
+        }
+    }
 
     object_t _mutate(const alloc_t &obj) override {
         auto new_obj = ir_mutator_t::_mutate(obj);
@@ -357,8 +404,6 @@ bool is_minus_one(const expr_t &e);
 bool is_const_broadcast(const expr_t &e);
 
 bool is_const_broadcast(const expr_t &e, const expr_t &value);
-
-expr_t make_buffer(const std::string &name);
 
 // Utility functions for nary_op_t.
 expr_t nary_op_back_transform(const expr_t &e);

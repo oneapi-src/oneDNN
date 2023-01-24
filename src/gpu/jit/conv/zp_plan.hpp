@@ -46,8 +46,8 @@ struct zp_plan_t : public base_plan_t {
     int comp_reg_buf_size() const;
     stmt_t load_create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
             int subtile_idx) const;
-    stmt_t comp_init_create_stmt(ir_context_t &ir_ctx, const expr_t &zp_buf,
-            const expr_t &wei_buf, const expr_t &comp_buf,
+    stmt_t comp_init_create_stmt(buffer_manager_t &buf_mgr,
+            const expr_t &zp_buf, const expr_t &wei_buf, const expr_t &comp_buf,
             int subtile_idx) const;
     stmt_t mask_init_create_stmt(const expr_t &mask_buf, int subtile_idx) const;
     stmt_t comp_apply_create_stmt(const expr_t &comp_buf,

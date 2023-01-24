@@ -154,11 +154,10 @@ public:
         return utils::div_up(ret, grf_size());
     }
 
-    stmt_t create_stmt(ir_context_t &ir_ctx, const expr_t &zp_buf,
+    stmt_t create_stmt(buffer_manager_t &buf_mgr, const expr_t &zp_buf,
             const expr_t &wei_buf, const expr_t &comp_buf,
             int subtile_idx) const {
         if (split_factor_ == 1 && subtile_idx > 0) return stmt_t();
-        var_manager_t var_mgr(ir_ctx);
         stmt_t stmt;
         int ck_blk = 1;
         switch (kind_) {
@@ -175,20 +174,18 @@ public:
                         auto zp = zp_buf[get_zp_off(start, ck)];
                         auto wei = wei_buf[get_wei_off(start, ck)];
                         stmt = stmt.append(
-                                create_tile_stmt(zp, wei, comp, var_mgr));
+                                create_tile_stmt(zp, wei, comp, buf_mgr));
                     }
                     stmt = stmt.append(create_zp_common_mul_stmt(zp_buf, comp));
                 });
-        auto zp_1x4
-                = var_mgr.get_buffer("zp_1x4", grf_size(), /*create=*/false);
+        auto zp_1x4 = buf_mgr.get("zp_1x4");
         if (!zp_1x4.is_empty()) {
             auto init = store_t::make(zp_1x4, 0, 0x01010101);
             stmt = init.append(stmt);
         }
-        auto comp_zero_out
-                = create_zero_out_stmt(ir_ctx, comp_buf, comp_reg_buf_size());
+        auto comp_zero_out = create_zero_out_stmt(
+                buf_mgr.ir_ctx(), comp_buf, comp_reg_buf_size());
         stmt = comp_zero_out.append(stmt);
-        stmt = var_mgr.inject_buffer_allocs(stmt);
         return stmt;
     }
 
@@ -326,13 +323,13 @@ private:
     }
 
     stmt_t create_tile_stmt(const expr_t &zp, const expr_t &wei,
-            const expr_t &comp, var_manager_t &var_mgr) const {
+            const expr_t &comp, buffer_manager_t &buf_mgr) const {
         switch (kind_) {
             case zp_comp_kind_t::wei_Xn4k_x8_zp_common:
                 return create_tile_wei_Xn4k_x8_zp_common(
-                        zp, wei, comp, var_mgr);
+                        zp, wei, comp, buf_mgr);
             case zp_comp_kind_t::wei_Xn4k_x8_zp_per_k:
-                return create_tile_wei_Xn4k_x8_zp_per_k(zp, wei, comp, var_mgr);
+                return create_tile_wei_Xn4k_x8_zp_per_k(zp, wei, comp, buf_mgr);
             case zp_comp_kind_t::wei_Xb_s16:
             case zp_comp_kind_t::wei_Xn_s16:
                 return create_tile_wei_Xy_s16(zp, wei, comp);
@@ -356,19 +353,19 @@ private:
 
     stmt_t create_tile_wei_Xn4k_x8_zp_common(const expr_t &zp,
             const expr_t &wei, const expr_t &comp,
-            var_manager_t &var_mgr) const {
+            buffer_manager_t &buf_mgr) const {
         UNUSED(zp);
         auto comp_type = comp_layout_.type();
         auto wei_type
                 = wei_layout_.type().is_s8() ? type_t::s32() : type_t::u32();
         auto _1x4_type = type_t::s32();
         auto dp4a = dpas_t::make_dp4a(simd_, comp_type, wei_type, _1x4_type);
-        auto zp_1x4 = var_mgr.get_buffer("zp_1x4", grf_size());
+        auto zp_1x4 = buf_mgr.get("zp_1x4", grf_size());
         return dp4a.call({comp, comp, wei, zp_1x4});
     }
 
     stmt_t create_tile_wei_Xn4k_x8_zp_per_k(const expr_t &zp, const expr_t &wei,
-            const expr_t &comp, var_manager_t &var_mgr) const {
+            const expr_t &comp, buffer_manager_t &buf_mgr) const {
         int zp_stride = 0;
         int wei_s16_stride = 2;
         auto zp_type = zp_layout_.type();
@@ -377,7 +374,7 @@ private:
         auto comp_type = comp_layout_.type();
         auto mad = mad_t::make(hw, comp_type, simd_, zp_type, zp_stride,
                 wei_s16_type, wei_s16_stride);
-        auto wei_s16_buf = var_mgr.get_buffer(
+        auto wei_s16_buf = buf_mgr.get(
                 "zp_wei_s16", simd_ * wei_s16_type.size() * wei_s16_stride);
         stmt_t ret;
         for (int ic = 0; ic < 4; ic++) {
@@ -1220,11 +1217,11 @@ stmt_t zp_plan_t::load_create_stmt(
     return impl->load.create_stmt(mem_buf, reg_buf, subtile_idx);
 }
 
-stmt_t zp_plan_t::comp_init_create_stmt(ir_context_t &ir_ctx,
+stmt_t zp_plan_t::comp_init_create_stmt(buffer_manager_t &buf_mgr,
         const expr_t &zp_buf, const expr_t &wei_buf, const expr_t &comp_buf,
         int subtile_idx) const {
     return impl->comp_init.create_stmt(
-            ir_ctx, zp_buf, wei_buf, comp_buf, subtile_idx);
+            buf_mgr, zp_buf, wei_buf, comp_buf, subtile_idx);
 }
 
 stmt_t zp_plan_t::mask_init_create_stmt(
