@@ -28,6 +28,7 @@
 
 #include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
+#include "cpu/x64/brgemm/brgemm_containers.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
 #include "cpu/x64/jit_brgemm_conv_comp_pad_kernel.hpp"
@@ -43,6 +44,8 @@ namespace x64 {
 template <cpu_isa_t isa, bool use_inversion = false>
 struct brgemm_convolution_fwd_t : public primitive_t {
 
+    struct brgemm_thread_ctx_t;
+
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::hint_class *hint_fwd_pd)
@@ -51,37 +54,14 @@ struct brgemm_convolution_fwd_t : public primitive_t {
 
         ~pd_t() = default;
 
-        // ------- DECLARE_COMMON_PD_t -----
-        pd_t *clone() const override {
-            auto new_pd = utils::make_unique<pd_t>(*this);
-            if (!new_pd->is_initialized()) return nullptr;
-            new_pd->brgs_.resize(brgs_sz_);
-            for (int i = 0; i < brgs_sz_; i++) {
-                new_pd->brgs_[i] = brgs_[i];
-                new_pd->bd_masks[i] = bd_masks[i];
-            }
-            return new_pd.release();
-        }
-
-        status_t create_primitive(
-                std::pair<std::shared_ptr<primitive_t>, bool> &primitive,
-                engine_t *engine,
-                const cache_blob_t &cache_blob) const override {
-            return primitive_t::create_primitive_common<
-                    brgemm_convolution_fwd_t, pd_t>(
-                    primitive, this, engine, false, cache_blob);
-        }
-
-        const char *name() const override {
-            return JIT_IMPL_NAME_HELPER("brgconv:", isa, "");
-        }
-        // ---------------------------------
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgconv:", isa, ""),
+                brgemm_convolution_fwd_t);
 
         status_t init(engine_t *engine);
 
         int brgs_sz_;
-        std::vector<std::shared_ptr<brgemm_t>> brgs_;
-        std::vector<std::shared_ptr<std::vector<char>>> bd_masks;
+        std::shared_ptr<brgemm_containers::brgemm_desc_container_t>
+                brgemm_descriptors_;
         bool with_sum;
         jit_brgemm_conv_conf_t jcp_;
 
@@ -92,12 +72,24 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         dim_t pbuf_w_sz, pbuf_h_sz, pbuf_d_sz;
 
         // batch sizes info for unrolled kernels
-        int bs_c, first_bs;
+        int bs_c;
         std::vector<int> batchsizes;
-        int get_brg_idx(int bs, int m, bool do_initialization, bool is_N_tail,
-                bool is_K_tail) const {
-            auto bs_idx = jcp_.use_uker ? batchsizes[bs] : 0;
-            assert(bs_idx >= 0);
+
+        inline size_t get_bs_idx(int kd_b, int kd_e, int kh_b, int kh_e) const {
+            assert(0 <= kd_b && kd_b < KD);
+            assert(1 <= kd_e && kd_e < KD + 1);
+            assert(0 <= kh_b && kh_b < KH);
+            assert(1 <= kh_e && kh_e < KH + 1);
+            return (((size_t)kd_b * KD + (kd_e - 1)) * KH + kh_b) * KH + kh_e
+                    - 1;
+        }
+
+        inline size_t get_brg_idx(int m, bool do_initialization, bool is_N_tail,
+                bool is_K_tail, int kd_b, int kd_e, int kh_b, int kh_e) const {
+            auto bs_idx = jcp_.use_uker
+                    ? batchsizes[get_bs_idx(kd_b, kd_e, kh_b, kh_e)]
+                    : 0;
+            if (bs_idx < 0) return 0;
             return (((m * bs_c + bs_idx) * 2
                             + static_cast<int>(do_initialization))
                                    * 2
@@ -106,15 +98,42 @@ struct brgemm_convolution_fwd_t : public primitive_t {
                     + static_cast<int>(is_K_tail);
         }
 
+        int get_any_brg_idx(bool is_N_tail, bool is_K_tail) const {
+            // return first defined brgemm_descriptor for specified parameters
+            const int M_end = nstl::max(jcp_.M, jcp_.M_tail);
+            const bool N_begin = (jcp_.N == jcp_.N_tail) ? false : is_N_tail;
+            const bool N_end = (jcp_.N == jcp_.N_tail) ? true : is_N_tail;
+            const bool K_begin = (jcp_.K == jcp_.K_tail) ? false : is_K_tail;
+            const bool K_end = (jcp_.K == jcp_.K_tail) ? true : is_K_tail;
+            for_(int m = 0; m < M_end; m++)
+            for_(bool i_init : {false, true})
+            for_(bool i_N_tail : {N_begin, N_end})
+            for_(bool i_K_tail : {K_begin, K_end})
+            for_(int kd_b = 0; kd_b < KD; kd_b++)
+            for_(int kd_e = 1; kd_e <= KD; kd_e++)
+            for_(int kh_b = 0; kh_b < KH; kh_b++)
+            for (int kh_e = 1; kh_e <= KH; kh_e++) {
+                const auto brg_idx = get_brg_idx(
+                        m, i_init, i_N_tail, i_K_tail, kd_b, kd_e, kh_b, kh_e);
+                if ((*brgemm_descriptors_)[brg_idx]) return brg_idx;
+            }
+            return 0;
+        }
+
         inline int maybe_invert(int k, int K) const {
             return use_inversion ? K - 1 - k : k;
         };
+
         void init_batch(int icc, const char *src_base, const char *wei_base,
                 int n_ic_blocks, int ic_block_s, int iid_b, int iih_b,
                 int iiw_b, const dim_t *const __restrict kw_top_vpads,
                 const dim_t *const __restrict kw_bottom_vpads, int kd_b,
                 int kd_e, int kh_b, int kh_e, int kw_b, int kw_e, int k_l,
                 brgemm_batch_element_t *brg_batch) const;
+
+        status_t add_brg_descriptor(int M, int i_N, int i_K, int i_init,
+                int kd_b, int kd_e, int kh_b, int kh_e);
+
         int ndims = 0;
 
     protected:
@@ -132,6 +151,7 @@ struct brgemm_convolution_fwd_t : public primitive_t {
             return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
                     && mask_src == 0 && mask_dst == 0;
         }
+
         int KD, KH, KW, EXT_KD, EXT_KH, EXT_KW, KS, KD_BLOCK, KH_BLOCK,
                 KW_BLOCK, KD_BLOCK_PAD, KH_BLOCK_PAD, ID, IH, IW, IDP, IHP, IWP,
                 OD, OH, OW, SD, SH, SW, FP, TP, LP, DD, DH, DW;
@@ -152,10 +172,6 @@ protected:
     status_t init(engine_t *engine) override;
 
 private:
-    struct S_t {
-        char a[AMX_PALETTE_SIZE];
-    };
-
     //  brgemm convolution execution context
     struct brgemm_exec_ctx_t {
         brgemm_exec_ctx_t(const exec_ctx_t &ctx, const pd_t *pd)
@@ -172,14 +188,12 @@ private:
         const std::vector<const void *> post_ops_binary_rhs_arg_vec;
     };
 
-    struct brgemm_thread_ctx_t;
-
-    static int get_ker_po_idx(int m, bool do_postwork, bool is_N_tail) {
+    inline static int get_ker_po_idx(int m, bool do_postwork, bool is_N_tail) {
         return (m * 2 + static_cast<int>(do_postwork)) * 2
                 + static_cast<int>(is_N_tail);
     }
 
-    static int get_inp_size(
+    inline static int get_inp_size(
             int max_src_size, int dst_size, int k, int stride, int dilate) {
         const auto res = nstl::min(max_src_size,
                 calculate_end_padding(0, dst_size, 0, stride,
@@ -203,8 +217,9 @@ private:
             int32_t *s8s8_compensation, bool maybe_do_init, bool do_postwork,
             bool do_post_comp, const float *dst_scales) const;
 
-    void call_brgemm_kernel(brgemm_thread_ctx_t &btc, int brg_idx,
-            int batch_size, char *ptr_C, char *ptr_D, const char *bias_w,
+    void call_brgemm_kernel(brgemm_thread_ctx_t &btc,
+            const brgemm_kernel_t *brg_ker, int batch_size, const void *ptrA,
+            const void *ptrB, char *ptr_C, char *ptr_D, const char *bias_w,
             int g_oc, bool do_postops, const void *binary_post_ops_rhs,
             int32_t src_zp_vals, int32_t *src_zp_ptr, int32_t *dst_zp_ptr,
             int32_t *s8s8_comp, bool do_only_comp) const;
@@ -217,7 +232,8 @@ private:
 
     status_t add_po_kernel(brgemm_t *bcfg, int ker_idx, bool is_init);
     void add_po_kernels(int i_N, int init_bcast_dim, int po_bcast_dim);
-    status_t add_brg_kernel(int bs, int M, int i_N, int i_K, int i_init);
+    status_t add_brg_kernel(int M, int i_N, int i_K, int i_init, int kd_b,
+            int kd_e, int kh_b, int kh_e);
 
     status_t cal_compensation(const char *__restrict weights,
             int32_t *src_zp_buffer, int32_t *s8s8_comp_buffer) const;
@@ -226,11 +242,13 @@ private:
     int get_comp_offset(const int g, const int ocb, const int ow,
             const int kd_b, const int kd_e, const int kh_b, const int kh_e,
             const int kw_b, const int kw_e) const;
-    const pd_t *pd() const {
+    inline const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
 
-    std::vector<std::unique_ptr<brgemm_kernel_t>> brg_kernels_;
+    brgemm_containers::brgemm_kernel_container_t brgemm_kernels_;
+    brgemm_containers::brgemm_palette_container_t brgemm_palettes_;
+
     std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops<isa>>> kernels_po_;
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_trans_kernel_t>
@@ -238,7 +256,6 @@ private:
     std::unique_ptr<jit_avx512_core_brgemm_conv_comp_pad_kernel::
                     jit_avx512_core_brgemm_conv_comp_pad_kernel_t>
             comp_vpad_pbuffer_;
-    std::vector<S_t> brg_kernel_palettes_;
 
     size_t acc_dsz, bia_dsz, src_dsz, wei_dsz, dst_dsz;
 
