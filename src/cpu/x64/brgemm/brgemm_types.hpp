@@ -133,12 +133,6 @@ struct DNNL_API brgemm_attr_t {
 
     bool wary_tail_read;
     bool generate_skip_accumulation;
-    // bd_mask is char array in which each element is a boolean value that
-    // determines whether to write this row to the result matrix or skip
-    const char *bd_mask;
-    // static_offsets is a static array of fixed offsets used for
-    // brgemm_static_offs batch kind
-    const brgemm_batch_element_t *static_offsets;
     // Value of bd_mask_level specifies how bd_mask is used in brgemm kernel
     // 0 – bd_mask is not used
     // 1 – bd_mask is used on storing stage only
@@ -176,6 +170,12 @@ struct DNNL_API brgemm_attr_t {
     // this flag may be used to omit some actions on calling from blocking
     // in convolutions init_conf
     bool test_call = false;
+    // bd_mask is char array in which each element is a boolean value that
+    // determines whether to write this row to the result matrix or skip
+    const char *bd_mask;
+    // static_offsets is a static array of fixed offsets used for
+    // brgemm_static_offs batch kind
+    const brgemm_batch_element_t *static_offsets;
 };
 
 struct brgemm_t {
@@ -192,12 +192,43 @@ struct brgemm_t {
     // is created, as calls to set_attr can affect this variable. Ex: bf32
     impl::cpu::x64::cpu_isa_t isa_user = isa_undef;
     impl::cpu::x64::cpu_isa_t isa_impl = isa_undef;
-
-    int LDA2 {0}, LDB2 {0}, LDC2_M {0}, LDC2_N {0};
-    bool is_blocked = false;
-
     float alpha = 0.0f;
     float beta = 0.0f;
+
+    impl::data_type_t dt_a = data_type::undef;
+    impl::data_type_t dt_c = data_type::undef;
+    impl::data_type_t dt_b = data_type::undef;
+    impl::data_type_t dt_d = data_type::undef;
+    impl::data_type_t dt_bias = data_type::undef;
+
+    dim_t stride_a = 0; // Offset in bytes
+    dim_t stride_b = 0;
+
+    brgemm_layout_t layout = brgemm_layout_undef;
+    brgemm_batch_kind_t type;
+    bool is_dgmm = false; // set to true in brdgmm_desc_init
+    bool with_sum = false;
+    bool req_cal_comp_pads = false;
+
+    brgemm_attr_t brgattr;
+
+    float sum_scale = 0.0f;
+    int32_t sum_zp = 0;
+    impl::data_type_t sum_dt;
+    bool with_eltwise = false;
+    bool with_binary = false;
+    bool with_scales = false;
+
+    brgemm_broadcast_t zp_type_a = brgemm_broadcast_t::none;
+    brgemm_broadcast_t zp_type_b = brgemm_broadcast_t::none;
+    brgemm_broadcast_t zp_type_c = brgemm_broadcast_t::none;
+
+    int is_oc_scale = 0;
+    bool with_dst_scales = false;
+
+    // Derived  parameters
+    int LDA2 {0}, LDB2 {0}, LDC2_M {0}, LDC2_N {0};
+    bool is_blocked = false;
 
     int bdb = 0, bd_block = 0, bdb_tail = 0;
     int bdb2 = 0, bd_block2 = 0, bdb2_tail = 0;
@@ -205,12 +236,6 @@ struct brgemm_t {
     int ldb2 = 0, ld_block2 = 0, ldb2_tail = 0;
     int rdb = 0, rd_block = 0, rdb_tail = 0;
     int rd_step = 0, ld_step = 0;
-
-    impl::data_type_t dt_a = data_type::undef;
-    impl::data_type_t dt_c = data_type::undef;
-    impl::data_type_t dt_b = data_type::undef;
-    impl::data_type_t dt_d = data_type::undef;
-    impl::data_type_t dt_bias = data_type::undef;
 
     int typesize_A = 0;
     int typesize_B = 0;
@@ -229,46 +254,22 @@ struct brgemm_t {
 
     bool has_vnni = false;
 
-    dim_t stride_a = 0; // Offset in bytes
-    dim_t stride_b = 0;
-
-    brgemm_layout_t layout = brgemm_layout_undef;
-    brgemm_batch_kind_t type;
-
     bool load_nt_A = false;
     bool load_nt_B = false;
+
     bool embd_bcst = false;
-    bool is_dgmm = false; // set to true in brdgmm_desc_init
     bool with_bias = false;
-    bool with_sum = false;
-    float sum_scale = 0.0f;
-    int32_t sum_zp = 0;
-    impl::data_type_t sum_dt;
-    bool with_eltwise = false;
-    bool with_binary = false;
-    bool with_scales = false;
-    bool req_cal_comp_pads = false;
     bool req_s8s8_compensation = false;
-    brgemm_broadcast_t zp_type_a = brgemm_broadcast_t::none;
-    brgemm_broadcast_t zp_type_b = brgemm_broadcast_t::none;
-    brgemm_broadcast_t zp_type_c = brgemm_broadcast_t::none;
     brgemm_kernel_innermost_loop_t innermost_loop = brgemm_ld_loop_innermost;
+    int is_M_tail;
+    bool interleave_tilestores_ = false;
+    brgemm_prf_t prfA, prfB, prfC;
 
-    int is_oc_scale = 0;
-
-    const primitive_attr_t *attr = nullptr;
-    const memory_desc_t *dst_md = nullptr;
-
-    brgemm_attr_t brgattr;
     static constexpr int MAX_VPAD = 100;
     static constexpr int AMX_TILES_NUM = 8;
 
-    int is_M_tail;
-
-    bool interleave_tilestores_ = false;
-
-    brgemm_prf_t prfA, prfB, prfC;
-    bool with_dst_scales = false;
+    const primitive_attr_t *attr = nullptr;
+    const memory_desc_t *dst_md = nullptr;
 
     bool is_row_major() const {
         assert(layout != brgemm_layout_undef);

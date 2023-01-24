@@ -2453,14 +2453,15 @@ brgemm_attr_t::brgemm_attr_t()
     , hint_prefetching(brgemm_kernel_prefetching_t::brgemm_prf_default)
     , wary_tail_read(true)
     , generate_skip_accumulation(false)
-    , bd_mask(nullptr)
     , bd_mask_level(0)
     , use_uker(false)
     , use_interleave_stores(false)
     , LDA2(0)
     , LDB2(0)
     , LDC2_M(0)
-    , LDC2_N(0) {}
+    , LDC2_N(0)
+    , bd_mask(nullptr)
+    , static_offsets(nullptr) {}
 
 template <cpu_isa_t isa, typename Wmm>
 brgemm_kernel_common_t<isa, Wmm>::brgemm_kernel_common_t(const brgemm_t abrd) {
