@@ -293,6 +293,11 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
             && gpu_arch >= compute::gpu_arch_t::xe_hpg;
 
+    // Compiler issue workaround
+    // TODO: remove it after fixing the issue
+    conf.use_workaround = conf.data_type == data_type::f32
+            && gpu_arch == compute::gpu_arch_t::xe_hpg;
+
     // Flags string for lookup table
     if (pd->use_scale()) conf.flags += 'C';
     if (pd->use_shift()) conf.flags += 'H';
@@ -492,6 +497,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("UPDATE_SP_UNROLL", conf.update_sp_unroll);
     kernel_ctx.define_int(
             "FUSED_ATOMICS_REDUCTION", conf.use_fused_atomics_reduction);
+    kernel_ctx.define_int("USE_WORKAROUND", conf.use_workaround);
 
     kernel_ctx.add_option("-cl-std=CL2.0");
     if (conf.data_type == data_type::s8)
