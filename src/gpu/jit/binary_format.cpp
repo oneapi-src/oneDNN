@@ -253,7 +253,9 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
 
     auto nd_range = compute::nd_range_t(gws, lws);
 
-    status = kernel.parallel_for(*stream, nd_range, arg_list);
+    auto compute_stream = utils::downcast<compute::compute_stream_t *>(stream);
+    status = kernel.parallel_for(*stream, nd_range, arg_list,
+            compute_stream->ctx().get_deps(), compute_stream->ctx().get_deps());
 
     if (status != status::success) return status::runtime_error;
 

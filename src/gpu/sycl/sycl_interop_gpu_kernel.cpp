@@ -59,7 +59,8 @@ static void set_scalar_arg(
 
 status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
         const gpu::compute::nd_range_t &range,
-        const gpu::compute::kernel_arg_list_t &arg_list) {
+        const gpu::compute::kernel_arg_list_t &arg_list,
+        const gpu::compute::event_t &deps, gpu::compute::event_t &out_dep) {
     if (range.is_zero()) return status::success;
     auto *sycl_stream = utils::downcast<sycl_stream_t *>(&stream);
     auto &queue = sycl_stream->queue();
@@ -86,7 +87,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
     CHECK(gpu::compute::check_scalar_arguments(arg_list, arg_types_));
 
     auto event = queue.submit([&](::sycl::handler &cgh) {
-        cgh.depends_on(sycl_stream->sycl_ctx().get_sycl_deps().events);
+        cgh.depends_on(sycl_event_t::from(deps).events);
         for (int i = 0; i < arg_list.nargs(); ++i) {
             auto &arg = arg_list.get(i);
             if (arg.is_global()) {
@@ -139,7 +140,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
     });
 
     if (gpu::is_profiling_enabled()) register_profile_event(event);
-    sycl_stream->sycl_ctx().set_deps({event});
+    sycl_event_t::from(out_dep).events = {event};
     return status::success;
 }
 

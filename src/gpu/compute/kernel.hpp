@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "common/stream.hpp"
+#include "gpu/compute/context.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/compute/utils.hpp"
 
@@ -46,7 +47,8 @@ public:
     kernel_impl_t *impl() const { return impl_.get(); }
 
     status_t parallel_for(stream_t &stream, const nd_range_t &range,
-            const kernel_arg_list_t &arg_list) const;
+            const kernel_arg_list_t &arg_list, const event_t &deps,
+            event_t &out_dep) const;
 
     status_t parallel_for(
             stream_t &stream, const std::function<void(void *)> &cgf) const;
@@ -70,7 +72,8 @@ public:
     virtual ~kernel_impl_t() = default;
 
     virtual status_t parallel_for(stream_t &stream, const nd_range_t &range,
-            const kernel_arg_list_t &arg_list) {
+            const kernel_arg_list_t &arg_list, const event_t &deps,
+            event_t &out_dep) {
         assert(!"unexpected");
         return status::runtime_error;
     }
@@ -99,8 +102,9 @@ public:
 };
 
 inline status_t kernel_t::parallel_for(stream_t &stream,
-        const nd_range_t &range, const kernel_arg_list_t &arg_list) const {
-    return impl_->parallel_for(stream, range, arg_list);
+        const nd_range_t &range, const kernel_arg_list_t &arg_list,
+        const event_t &deps, event_t &out_dep) const {
+    return impl_->parallel_for(stream, range, arg_list, deps, out_dep);
 }
 inline status_t kernel_t::parallel_for(
         stream_t &stream, const std::function<void(void *)> &cgf) const {

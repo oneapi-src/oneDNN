@@ -22,6 +22,7 @@
 
 #include "common/rw_mutex.hpp"
 #include "common/utils.hpp"
+#include "gpu/ocl/ocl_context.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_usm_utils.hpp"
@@ -131,7 +132,8 @@ status_t ocl_gpu_kernel_t::get_binary_size(
 
 status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         const compute::nd_range_t &range,
-        const compute::kernel_arg_list_t &arg_list) {
+        const compute::kernel_arg_list_t &arg_list,
+        const compute::event_t &deps, compute::event_t &out_dep) {
 
     auto *ocl_stream = utils::downcast<ocl_stream_t *>(&stream);
     cl_command_queue queue = ocl_stream->queue();
@@ -205,8 +207,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
 
     cl_event event;
     if (ocl_stream->flags() & stream_flags::out_of_order) {
-        const auto &event_wrappers
-                = ocl_stream->ocl_ctx().get_ocl_deps().events;
+        const auto &event_wrappers = ocl_event_t::from(deps).events;
         std::vector<cl_event> events(
                 event_wrappers.begin(), event_wrappers.end());
 
@@ -216,7 +217,8 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                 range.global_range(), range.local_range(), num_events,
                 events_data, &event);
         OCL_CHECK(err);
-        ocl_stream->ocl_ctx().set_deps({ocl_wrapper_t<cl_event>(event, true)});
+        ocl_event_t::from(out_dep).events
+                = {ocl_wrapper_t<cl_event>(event, true)};
     } else {
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
                 range.global_range(), range.local_range(), 0, nullptr,

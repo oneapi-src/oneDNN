@@ -45,7 +45,8 @@ public:
             const engine_t *engine, size_t *binary_size) const override;
 
     status_t parallel_for(stream_t &stream, const compute::nd_range_t &range,
-            const compute::kernel_arg_list_t &arg_list) override;
+            const compute::kernel_arg_list_t &arg_list,
+            const compute::event_t &deps, compute::event_t &out_dep) override;
 
     const std::vector<gpu::compute::scalar_type_t> &arg_types() const override {
         return arg_types_;

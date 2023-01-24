@@ -181,13 +181,21 @@ protected:
     status_t parallel_for(const gemm_exec_ctx_t &ctx,
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
             const compute::kernel_arg_list_t &arg_list) const {
-        return parallel_for(*ctx.stream(), range, kernel, arg_list);
+        auto compute_stream
+                = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+        return parallel_for(*compute_stream, range, kernel, arg_list,
+                compute_stream->ctx().get_deps(),
+                compute_stream->ctx().get_deps());
     }
 
     status_t parallel_for(const exec_ctx_t &ctx,
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
             const compute::kernel_arg_list_t &arg_list) const {
-        return parallel_for(*ctx.stream(), range, kernel, arg_list);
+        auto compute_stream
+                = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+        return parallel_for(*compute_stream, range, kernel, arg_list,
+                compute_stream->ctx().get_deps(),
+                compute_stream->ctx().get_deps());
     }
 
 private:
@@ -197,8 +205,9 @@ private:
 
     status_t parallel_for(stream_t &stream, const compute::nd_range_t &range,
             const compute::kernel_t &kernel,
-            const compute::kernel_arg_list_t &arg_list) const {
-        return kernel.parallel_for(stream, range, arg_list);
+            const compute::kernel_arg_list_t &arg_list,
+            const compute::event_t &deps, compute::event_t &out_dep) const {
+        return kernel.parallel_for(stream, range, arg_list, deps, out_dep);
     }
 
     std::vector<compute_block_t> registered_compute_blocks_;
