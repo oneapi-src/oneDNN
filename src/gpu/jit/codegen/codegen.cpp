@@ -1140,8 +1140,9 @@ private:
         // Expression is not bound yet, allocate new storage and bind.
         ngen_operand_t op;
         if (e.type().is_bool()) {
-            op = ngen_operand_t(
-                    scope_.alloc_flag(e.type().elems()), e.type().elems());
+            int elems = std::max(
+                    e.type().elems(), std::max(16, host_->getSIMD()));
+            op = ngen_operand_t(scope_.alloc_flag(elems), elems);
         } else {
             op = ngen_operand_t(
                     scope_.alloc_reg_data(e.type()), e.type().elems());
