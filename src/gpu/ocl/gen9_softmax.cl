@@ -135,7 +135,8 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         for (int i = 0; i < VECT_SIZE; ++i) {
             int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
                     + get_sub_group_local_id();
-            d[k][i] = (off < SOFTMAX_AXIS_SIZE ? src[off] : -FLT_MAX);
+            d[k][i] = (off < SOFTMAX_AXIS_SIZE ? DATA_TO_FLOAT(SRC, src[off])
+                                               : -FLT_MAX);
             max_ = max(d[k][i], max_);
         }
     }
@@ -199,7 +200,8 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         for (int i = 0; i < VECT_SIZE; i++) {
             int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
                     + get_sub_group_local_id();
-            if (off < SOFTMAX_AXIS_SIZE) dst[off] = scale * d[k][i];
+            if (off < SOFTMAX_AXIS_SIZE)
+                dst[off] = FLOAT_TO_DATA(DST, scale * d[k][i]);
         }
     }
 #endif
