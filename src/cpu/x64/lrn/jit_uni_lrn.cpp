@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -382,15 +382,15 @@ status_t jit_uni_lrn_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     return args_ok_across || args_ok_within ? success : unimplemented;
 }
 
-template struct jit_uni_lrn_fwd_t<avx512_core, dnnl::impl::data_type::f32>;
-template struct jit_uni_lrn_fwd_t<avx512_core, dnnl::impl::data_type::bf16>;
-template struct jit_uni_lrn_fwd_t<avx512_core_fp16, dnnl::impl::data_type::f16>;
-template struct jit_uni_lrn_fwd_t<avx2, dnnl::impl::data_type::f32>;
-template struct jit_uni_lrn_fwd_t<sse41, dnnl::impl::data_type::f32>;
-template struct jit_uni_lrn_bwd_t<avx512_core, dnnl::impl::data_type::f32>;
-template struct jit_uni_lrn_bwd_t<avx512_core, dnnl::impl::data_type::bf16>;
-template struct jit_uni_lrn_bwd_t<avx512_core_fp16, dnnl::impl::data_type::f16>;
-template struct jit_uni_lrn_bwd_t<avx2, dnnl::impl::data_type::f32>;
+template struct jit_uni_lrn_fwd_t<avx512_core, data_type::f32>;
+template struct jit_uni_lrn_fwd_t<avx512_core, data_type::bf16>;
+template struct jit_uni_lrn_fwd_t<avx512_core_fp16, data_type::f16>;
+template struct jit_uni_lrn_fwd_t<avx2, data_type::f32>;
+template struct jit_uni_lrn_fwd_t<sse41, data_type::f32>;
+template struct jit_uni_lrn_bwd_t<avx512_core, data_type::f32>;
+template struct jit_uni_lrn_bwd_t<avx512_core, data_type::bf16>;
+template struct jit_uni_lrn_bwd_t<avx512_core_fp16, data_type::f16>;
+template struct jit_uni_lrn_bwd_t<avx2, data_type::f32>;
 
 } // namespace x64
 } // namespace cpu
