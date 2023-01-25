@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -130,8 +130,6 @@ std::string to_string(op_kind_t kind) {
         case op_kind_t::_add3: return "add3";
         case op_kind_t::_mad: return "mad";
         case op_kind_t::_prelu: return "prelu";
-
-        case op_kind_t::_dp4a: return "dp4a";
 
         default: ir_error_not_expected() << "Unknown op_kind_t value.";
     }

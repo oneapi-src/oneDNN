@@ -1019,7 +1019,6 @@ public:
 
     void _visit(const ternary_op_t &obj) override {
         switch (obj.op_kind) {
-            case op_kind_t::_dp4a:
             case op_kind_t::_add3:
             case op_kind_t::_mad: {
                 flag_setter_t no_vs(&allow_vert_stride_region_, false);
@@ -1028,9 +1027,7 @@ public:
                 auto src0_op = eval(obj.a);
                 auto src1_op = eval(obj.b);
                 auto src2_op = eval(obj.c);
-                if (obj.op_kind == op_kind_t::_dp4a) {
-                    host_->edp4a(mod, dst_op, src0_op, src1_op, src2_op);
-                } else if (obj.op_kind == op_kind_t::_add3) {
+                if (obj.op_kind == op_kind_t::_add3) {
                     host_->eadd3(mod, dst_op, src0_op, src1_op, src2_op);
                 } else {
                     host_->emad(mod, dst_op, src0_op, src1_op, src2_op);

@@ -1291,35 +1291,6 @@ private:
     version_t ver_;
 };
 
-class slm_zp_mask_extractor_t : public ir_visitor_t {
-public:
-    slm_zp_mask_extractor_t(
-            std::vector<stmt_t> &retn, object_eq_set_t<expr_t> &bufs)
-        : retn_(retn), bufs_(bufs), outer_(true) {}
-
-    void _visit(const store_t &obj) override {
-        if (obj.buf.str().find("zp_mask") == 0) {
-            if (outer_) retn_.emplace_back(obj);
-            bufs_.insert(obj.buf);
-        }
-    }
-
-    void _visit(const let_t &obj) override {
-        if ((obj.var.str().find("zp_mask") == 0)) {
-            if (outer_) retn_.emplace_back(obj);
-            auto outer_prev = outer_;
-            outer_ = false;
-            visit(obj.body);
-            outer_ = outer_prev;
-        }
-    }
-
-private:
-    std::vector<stmt_t> &retn_;
-    object_eq_set_t<expr_t> &bufs_;
-    bool outer_;
-};
-
 class simple_slm_buffering_injector_t {
 public:
     simple_slm_buffering_injector_t(const stmt_t &root, ir_context_t &ir_ctx,
@@ -1405,14 +1376,6 @@ public:
 
         loop = remove_synchronization(loop);
 
-        object_eq_set_t<expr_t> mask_bufs;
-        std::vector<stmt_t> masks;
-
-        slm_zp_mask_extractor_t(masks, mask_bufs).visit(s2r_mul);
-        if (!mask_bufs.empty())
-            for (auto &m : masks)
-                s2r_mul = substitute(s2r_mul, m, stmt_t());
-
         s2r_mul = sub_slm_bufs(s2r_mul, slm_idx_load(1, 1));
         g2s_store = sub_slm_bufs(g2s_store, slm_idx_load(0, 1));
         g2s_store = g2s_store.append(slm_idx_update);
@@ -1443,35 +1406,13 @@ public:
             loop = substitute(loop, g2s_load_orig, g2s_load, 1);
         }
 
-        alloc_updater_t alloc_updater;
-
-        int slm_bufs = cfg_.slm().bufs();
-        for (auto &mbuf : mask_bufs) {
-            auto sz = alloc_mgr_.alloc_size(mbuf);
-            alloc_updater.resize(mbuf, sz * slm_bufs);
-            for (auto &m : masks)
-                m = substitute(m, mbuf, mbuf[sz * (slm_bufs - 1)]);
-            layout_t comp_layout(type_t::u8(), 0, std::vector<dim_t> {sz});
-            for (int b = 1; b < slm_bufs; b++) {
-                auto reorder = create_reorder_stmt(comp_layout, comp_layout,
-                        mbuf + b * sz, mbuf + (b - 1) * sz);
-                s2r_mul_body = s2r_mul_body.append(reorder);
-                if ((slm_bufs == 3) && (b == 1))
-                    s2r_mul_tail = s2r_mul_tail.append(reorder);
-            }
-        }
-        if (!mask_bufs.empty()) {
-            stmt_t all_masks;
-            for (auto &m : masks)
-                all_masks = all_masks.append(m);
-            s2r_mul_body = all_masks.append(s2r_mul_body);
-        }
         loop = substitute(
                 loop, g2s_store_orig, s2r_mul_body.append(g2s_store), 1);
 
         loop = slm_sync_mgr_.before_loop_prepend(loop);
 
         // Complete the remaining iterations.
+        int slm_bufs = cfg_.slm().bufs();
         int rem_iters = slm_bufs - 1;
         int mul_start = std::max(0, rem_iters - loop_nest_.size());
         multi_loop_iterator_t multi(loop_nest_.loops());
@@ -1498,6 +1439,7 @@ public:
         const auto grf_size = ir_ctx_.hw_cfg().grf_size();
         loop = alloc_t::make(slm_idx_buf, grf_size, alloc_kind_t::grf, loop);
 
+        alloc_updater_t alloc_updater;
         auto slm_buffers = alloc_mgr_.find_buffers(alloc_kind_t::slm);
         ir_assert(slm_buffers.size() == 1);
         auto &slm_buf = slm_buffers[0];

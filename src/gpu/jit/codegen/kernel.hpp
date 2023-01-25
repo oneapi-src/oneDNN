@@ -455,22 +455,6 @@ public:
         }
     }
 
-    void edp4a(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
-            const ngen_operand_t &src0, const ngen_operand_t &src1,
-            const ngen_operand_t &src2) {
-        ir_assert(!src0.is_immediate() || !src2.is_immediate());
-        if (src0.is_immediate()) {
-            dp4a(mod, dst.reg_data(), src0.immediate(), src1.reg_data(),
-                    src2.reg_data());
-        } else if (src2.is_immediate()) {
-            dp4a(mod, dst.reg_data(), src0.reg_data(), src1.reg_data(),
-                    src2.immediate());
-        } else {
-            dp4a(mod, dst.reg_data(), src0.reg_data(), src1.reg_data(),
-                    src2.reg_data());
-        }
-    }
-
     void eadd3(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
             const ngen_operand_t &src0, const ngen_operand_t &src1,
             const ngen_operand_t &src2) {

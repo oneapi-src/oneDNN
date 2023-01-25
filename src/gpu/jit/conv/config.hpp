@@ -883,16 +883,6 @@ private:
     bool b_ = false;
 };
 
-class reduce_grf_usage_param_t : public bool_param_t {
-public:
-    reduce_grf_usage_param_t() : bool_param_t(true) {}
-    std::string name() const override { return "reduce-grf-usage"; }
-    std::string short_name() const override { return "r"; }
-    std::string desc() const override {
-        return "Whether to try to reduce GRF usage based on heuristics.";
-    }
-};
-
 // TODO: Remove this parameter and enable 2D block messages based on the
 // generation flow.
 class send_2d_nhwc_param_t : public bool_param_t {
@@ -1105,7 +1095,6 @@ public:
     DECL_PARAM(ow_kw_grf_cache)
     DECL_PARAM(pad_slm)
     DECL_PARAM(prb)
-    DECL_PARAM(reduce_grf_usage)
     DECL_PARAM(send_2d_nhwc)
     DECL_PARAM(shrink_tg_dims)
     DECL_PARAM(thread_group_grid)
@@ -1315,7 +1304,6 @@ private:
     INIT_PARAM(pipeline)
     INIT_PARAM(prb)
     INIT_PARAM(prefetch)
-    INIT_PARAM(reduce_grf_usage)
     INIT_PARAM(send_2d_nhwc)
     INIT_PARAM(shrink_tg_dims)
     INIT_PARAM(slm)

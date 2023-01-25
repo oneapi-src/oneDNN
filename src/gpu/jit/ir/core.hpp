@@ -951,7 +951,6 @@ enum class op_kind_t {
     _prelu, // binary relu(a, b)
     _add3, // a + b + c
     _mad, // a + b * c
-    _dp4a, // dpas.1x1
 };
 
 std::string to_string(op_kind_t kind);
