@@ -38,6 +38,14 @@ using namespace dnnl::impl::format_tag;
 
 using namespace Xbyak;
 
+cpu_isa_t get_io_isa(cpu_isa_t isa, data_type_t d_type) {
+    // re-using avx512_core instantiation for bf16
+    return isa == avx512_core && d_type == data_type::bf16
+                    && mayiuse(avx512_core_bf16)
+            ? avx512_core_bf16
+            : isa;
+}
+
 template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
         cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
@@ -49,7 +57,12 @@ jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
               emulate_bfloat_ ? utils::make_unique<bf16_emulation_t>(this,
                       bf16_emu_reserv_1_, bf16_emu_reserv_2_,
                       bf16_emu_reserv_3_, bf16_emu_scratch_, bf16_emu_reserv_4_)
-                              : nullptr) {}
+                              : nullptr)
+    , io_(this, get_io_isa(isa, d_type), {d_type}, {},
+              io::io_tail_conf_t {simd_w_, 0, this->k1, 0, this->reg_tmp_},
+              io::io_emu_bf16_conf_t {bf16_emu_reserv_1_, bf16_emu_reserv_2_,
+                      bf16_emu_reserv_3_, bf16_emu_scratch_,
+                      bf16_emu_reserv_4_}) {}
 
 template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
         cpu_isa_t isa, data_type_t d_type>
@@ -168,89 +181,6 @@ void jit_uni_lrn_kernel_t<Derived<isa, d_type>>::within_body_reg_blocked(
 
 template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
         cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_kernel_t<Derived<isa, d_type>>::load_data(
-        const Vmm &reg, const Xbyak::Address &p) {
-    this->uni_vmovups(reg, p);
-}
-
-template <typename Gen, typename Reg, typename Addr>
-void load_bf16_data(Gen generator, const Reg &reg, const Addr &p) {
-    generator->vpmovzxwd(reg, p);
-    generator->vpslld(reg, reg, 0x10);
-}
-
-template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<avx512_core,
-        data_type::bf16>>::load_data(const Vmm &reg, const Xbyak::Address &p) {
-    load_bf16_data(this, reg, p);
-}
-
-template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<avx512_core,
-        data_type::bf16>>::load_data(const Vmm &reg, const Xbyak::Address &p) {
-    load_bf16_data(this, reg, p);
-}
-
-template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<avx512_core_fp16,
-        data_type::f16>>::load_data(const Vmm &reg, const Xbyak::Address &p) {
-    vcvtph2ps(reg, p);
-}
-
-template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<avx512_core_fp16,
-        data_type::f16>>::load_data(const Vmm &reg, const Xbyak::Address &p) {
-    vcvtph2ps(reg, p);
-}
-
-template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
-        cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_kernel_t<Derived<isa, d_type>>::store_data(
-        const Xbyak::Address &addr, const Vmm &reg) {
-    this->uni_vmovups(addr, reg);
-}
-
-template <typename Gen, typename Bf16Emu>
-void store_bf16_data(
-        Gen generator, Bf16Emu emu, const Xbyak::Address &addr, const Zmm &zr) {
-    const Ymm yr = Ymm(zr.getIdx());
-    if (mayiuse(avx512_core_bf16))
-        generator->vcvtneps2bf16(yr, zr);
-    else
-        emu->vcvtneps2bf16(yr, zr);
-    generator->vmovdqu16(addr, yr);
-}
-
-template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<avx512_core,
-        data_type::bf16>>::store_data(const Xbyak::Address &addr,
-        const Zmm &zr) {
-    store_bf16_data(this, bf16_emu_.get(), addr, zr);
-}
-
-template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<avx512_core,
-        data_type::bf16>>::store_data(const Xbyak::Address &addr,
-        const Zmm &zr) {
-    store_bf16_data(this, bf16_emu_.get(), addr, zr);
-}
-
-template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<avx512_core_fp16,
-        data_type::f16>>::store_data(const Xbyak::Address &addr,
-        const Zmm &zr) {
-    vcvtps2ph(addr, zr, _op_mxcsr);
-}
-
-template <>
-void jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<avx512_core_fp16,
-        data_type::f16>>::store_data(const Xbyak::Address &addr,
-        const Zmm &zr) {
-    vcvtps2ph(addr, zr, _op_mxcsr);
-}
-
-template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
-        cpu_isa_t isa, data_type_t d_type>
 void jit_uni_lrn_kernel_t<Derived<isa, d_type>>::load_constant(
         float constant, const Vmm &v_constant, const Xbyak::Xmm &x_constant) {
     this->mov(this->imm_addr64_, float2int(constant));
@@ -289,9 +219,10 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
     for (int i = hoff; i <= Hoff; ++i) {
         for (int j = woff; j <= Woff; ++j) {
             const auto vdata = (i == 0 && j == 0) ? vdst : vtmp;
-            IRB_LOOP(this->load_data(vdata[irb],
+            IRB_LOOP(this->io_.at(d_type)->load(
                     this->ptr[(src_ + pixel_offset + irb_off)
-                            + (i * stride + j) * this->single_pixel_offset_]));
+                            + (i * stride + j) * this->single_pixel_offset_],
+                    vdata[irb], false));
             IRB_LOOP(this->vfmadd231ps(vsum[irb], vdata[irb], vdata[irb]));
         }
     }
@@ -310,16 +241,16 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
             vdst[irb], vdst[irb], vsum[irb])); // ydst <- ydst / ysum
 
     if (pk_ != prop_kind::forward_inference) {
-        IRB_LOOP(this->store_data(
-                this->ptr[scratch_ + pixel_offset + irb_off], vsum[irb]));
+        IRB_LOOP(this->io_.at(d_type)->store(vsum[irb],
+                this->ptr[scratch_ + pixel_offset + irb_off], false));
         IRB_LOOP(this->vdivps(vscratch[irb], vdst[irb], vscratch[irb]));
-        IRB_LOOP(this->store_data(
+        IRB_LOOP(this->io_.at(d_type)->store(vscratch[irb],
                 this->ptr[bwd_intermediate_res_ + pixel_offset + irb_off],
-                vscratch[irb]));
+                false));
     }
 
-    IRB_LOOP(this->store_data(
-            this->ptr[dst_ + pixel_offset + irb_off], vdst[irb]));
+    IRB_LOOP(this->io_.at(d_type)->store(
+            vdst[irb], this->ptr[dst_ + pixel_offset + irb_off], false));
 }
 
 template <>
@@ -422,7 +353,7 @@ template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(
         const within_config_t &config) {
     this->preamble();
-    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
+    if (this->emulate_bfloat_) this->io_.init_bf16();
 
 #define GET_OFF(field) offsetof(jit_args_fwd_t, field)
     this->mov(src_, this->ptr[this->param1 + GET_OFF(src)]);
@@ -474,7 +405,7 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(const nchw8c_across_t &J) {
     const Xbyak::Ymm &ybase = this->ymm12;
 
     this->preamble();
-    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
+    if (this->emulate_bfloat_) this->io_.init_bf16();
 
     this->mov(src_, this->ptr[this->param1 + 0]);
     this->mov(dst_, this->ptr[this->param1 + 8]);
@@ -582,7 +513,7 @@ void jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>::generate(
     const Xbyak::Xmm &xbase_hi = this->xmm15;
 
     this->preamble();
-    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
+    if (this->emulate_bfloat_) this->io_.init_bf16();
 
     this->mov(src_, this->ptr[this->param1 + 0]);
     this->mov(dst_, this->ptr[this->param1 + 8]);
@@ -714,7 +645,7 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(const nhwc_across_t &J) {
     const Xbyak::Ymm &ymask = this->ymm10;
 
     this->preamble();
-    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
+    if (this->emulate_bfloat_) this->io_.init_bf16();
 
     this->mov(src_, this->ptr[this->param1 + 0]);
     this->mov(dst_, this->ptr[this->param1 + 8]);
@@ -846,7 +777,7 @@ void jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>::generate(
     const Xbyak::Xmm &xbase_hi = this->xmm15;
 
     this->preamble();
-    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
+    if (this->emulate_bfloat_) this->io_.init_bf16();
 
     this->mov(src_, this->ptr[this->param1 + 0]);
     this->mov(dst_, this->ptr[this->param1 + 8]);
@@ -1240,7 +1171,7 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(const nchw_across_t &J) {
     const Xbyak::Ymm &ysum = this->ymm8;
 
     this->preamble();
-    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
+    if (this->emulate_bfloat_) this->io_.init_bf16();
 
     if (J.tail != 0) {
         this->mov(
@@ -1376,7 +1307,7 @@ void jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>::generate(
     size_t l_shift = 0;
 
     this->preamble();
-    if (this->bf16_emu_) this->bf16_emu_->init_vcvtneps2bf16();
+    if (this->emulate_bfloat_) this->io_.init_bf16();
 
     this->mov(src_, this->ptr[this->param1 + 0]);
     this->mov(dst_, this->ptr[this->param1 + 8]);
@@ -1674,17 +1605,20 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
     IRB_LOOP(this->uni_vxorps(vsum[irb], vsum[irb], vsum[irb]));
     for (int i = hoff; i <= Hoff; ++i) {
         for (int j = woff; j <= Woff; ++j) {
-            IRB_LOOP(this->load_data(diff_dst[irb],
+            IRB_LOOP(this->io_.at(d_type)->load(
                     this->ptr[(diffdst_ + pixel_offset + irb_off)
-                            + (i * stride + j) * this->single_pixel_offset_]));
-            IRB_LOOP(this->load_data(ws1[irb],
+                            + (i * stride + j) * this->single_pixel_offset_],
+                    diff_dst[irb], false));
+            IRB_LOOP(this->io_.at(d_type)->load(
                     this->ptr[(bwd_intermediate_res_ + pixel_offset + irb_off)
-                            + (i * stride + j) * this->single_pixel_offset_]));
+                            + (i * stride + j) * this->single_pixel_offset_],
+                    ws1[irb], false));
 
             if (i == 0 && j == 0) {
                 if (utils::one_of(d_type, data_type::bf16, data_type::f16)) {
-                    IRB_LOOP(this->load_data(ws0[irb],
-                            this->ptr[(scratch_ + pixel_offset + irb_off)]));
+                    IRB_LOOP(this->io_.at(d_type)->load(
+                            this->ptr[(scratch_ + pixel_offset + irb_off)],
+                            ws0[irb], false));
                     IRB_LOOP(this->vdivps(a[irb], diff_dst[irb], ws0[irb]));
                 } else {
                     IRB_LOOP(this->vdivps(a[irb], diff_dst[irb],
@@ -1697,8 +1631,8 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
     }
 
     if (utils::one_of(d_type, data_type::bf16, data_type::f16)) {
-        IRB_LOOP(this->load_data(
-                src[irb], this->ptr[(src_ + pixel_offset + irb_off)]));
+        IRB_LOOP(this->io_.at(d_type)->load(
+                this->ptr[(src_ + pixel_offset + irb_off)], src[irb], false));
         IRB_LOOP(this->vmulps(src[irb], this->vnalphabeta_, src[irb]));
     } else {
         IRB_LOOP(this->vmulps(src[irb], this->vnalphabeta_,
@@ -1707,8 +1641,8 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
 
     IRB_LOOP(this->vfmadd231ps(a[irb], src[irb], vsum[irb]));
 
-    IRB_LOOP(this->store_data(
-            this->ptr[diffsrc_ + pixel_offset + irb_off], a[irb]));
+    IRB_LOOP(this->io_.at(d_type)->store(
+            a[irb], this->ptr[diffsrc_ + pixel_offset + irb_off], false));
 }
 
 template <cpu_isa_t isa, data_type_t d_type>

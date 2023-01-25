@@ -21,6 +21,7 @@
 #include "common/type_helpers.hpp"
 
 #include "cpu/x64/jit_generator.hpp"
+#include "cpu/x64/utils/jit_io_helper.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -97,13 +98,10 @@ public:
             = (isa & avx512_core_bit) == avx512_core_bit ? 16 : 8;
 
 protected:
-    using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm,
-            Xbyak::Zmm>::type;
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
     void load_constant(float constant, const Vmm &v_constant,
             const Xbyak::Xmm &x_constant);
-    void load_data(const Vmm &reg, const Xbyak::Address &p);
-    void store_data(const Xbyak::Address &p, const Vmm &reg);
     void within_loop(
             const within_config_t &config, int max_reg_blocks, prop_kind_t pk);
     void within_body_reg_blocked(int loop_count, int max_reg_block, int hoff,
@@ -119,8 +117,12 @@ protected:
     const Xbyak::Reg64 h_ = this->r9;
     const Xbyak::Reg64 w_ = this->r10;
     const Xbyak::Reg64 imm_addr64_ = this->rbx;
+    const Xbyak::Reg64 reg_tmp_ = this->rsi;
+    static constexpr size_t simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
     int single_pixel_offset_
             = VECTOR_LENGTH * sizeof(typename prec_traits<d_type>::type);
+
+    io::jit_io_multi_dt_helper_t<Vmm> io_;
 };
 
 template <cpu_isa_t isa, data_type_t d_type>
