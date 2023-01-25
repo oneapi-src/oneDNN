@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -277,27 +277,25 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::apply_sum(
 
 template <cpu_isa_t isa, typename Vmm>
 void jit_uni_resampling_kernel_t<isa, Vmm>::apply_postops(
-        const int data_idx, const bool is_tail, const Reg64 *reg_c) {
+        const int data_idx, const bool is_tail) {
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-    const bool is_preserving_zero_padding_needed = is_tail && conf_.with_eltwise
-            && conf_.tag_kind == tag_kind::blocked;
-    bool update_c_offset = false;
+    const bool is_preserving_zero_padding_needed
+            = is_tail && conf_.tag_kind == tag_kind::blocked;
+    const bool apply_rhs_binary = conf_.with_binary
+            && (any_binary_postop_is_per_oc_bcast_type_
+                    || any_binary_postop_is_per_oc_sp_bcast_type_);
 
     if (conf_.with_sum) apply_sum(data_idx, is_tail);
 
-    if (conf_.with_binary) {
-        if (any_binary_postop_is_per_oc_bcast_type_
-                || any_binary_postop_is_per_oc_sp_bcast_type_) {
-            rhs_arg_params.vmm_idx_to_out_reg.emplace(data_idx, reg_dst_);
-        }
-        if (is_tail) { rhs_arg_params.vmm_tail_idx_.emplace(data_idx); }
-    }
+    if (apply_rhs_binary) {
+        rhs_arg_params.vmm_idx_to_out_reg.emplace(data_idx, reg_dst_);
+        if (is_tail) rhs_arg_params.vmm_tail_idx_.emplace(data_idx);
+        postops_injector_->compute_vector(data_idx, rhs_arg_params);
+    } else
+        postops_injector_->compute_vector(data_idx);
 
-    if (update_c_offset) add(reg_c_offset, *reg_c);
-    postops_injector_->compute_vector(data_idx, rhs_arg_params);
     if (is_preserving_zero_padding_needed)
         preserve_zero_padding_in_post_ops(data_idx);
-    if (update_c_offset) sub(reg_c_offset, *reg_c);
 }
 
 template <cpu_isa_t isa, typename Vmm>
@@ -428,8 +426,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::nearest_c_oriented_format(
         io_.at(conf_.src_data_type)
                 ->load(ptr[reg_src_shifted], vmm_src_,
                         load_and_store_with_tail);
-        if (conf_.with_postops)
-            apply_postops(vmm_src_.getIdx(), is_tail, &reg_c);
+        if (conf_.with_postops) apply_postops(vmm_src_.getIdx(), is_tail);
         io_.at(conf_.dst_data_type)
                 ->store(vmm_src_, ptr[reg_dst_], load_and_store_with_tail);
     };
@@ -601,8 +598,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::linear_c_oriented_format(
             uni_vfmadd231ps(src_ftl_, src_btl_, weight_back_);
         }
 
-        if (conf_.with_postops)
-            apply_postops(src_ftl_.getIdx(), is_tail, &reg_c);
+        if (conf_.with_postops) apply_postops(src_ftl_.getIdx(), is_tail);
 
         if (conf_.is_saturation_needed && conf_.ndims == 5
                 && !is_superset(conf_.isa, avx512_core)) {

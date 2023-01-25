@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,8 +85,7 @@ private:
 
     void preserve_zero_padding_in_post_ops(int data_idx);
     void apply_sum(const int data_idx, const bool is_tail);
-    void apply_postops(const int data_idx, const bool is_tail,
-            const Reg64 *reg_c = nullptr);
+    void apply_postops(const int data_idx, const bool is_tail);
 
     void preserve_zero_padding(
             int c_to_compute_without_tail, const bool is_tail);
