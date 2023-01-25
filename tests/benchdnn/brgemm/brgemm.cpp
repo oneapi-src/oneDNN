@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -232,8 +232,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         return dt == dnnl_bf16 || dt == dnnl_f16;
     };
     if (!IMPLICATION(is_xf16(prb->bia_dt) || is_xf16(prb->dst_dt()),
-                dnnl::mayiuse(dnnl_cpu_isa_avx512_core)
-                        || is_xf16(prb->wei_dt()))) {
+                is_xf16(prb->wei_dt()))) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
