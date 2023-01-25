@@ -179,6 +179,8 @@ struct DNNL_API brgemm_attr_t {
 };
 
 struct brgemm_t {
+    // Note: new added parameters must be taken into account in the brgemm
+    // comparison function
     int bcast_dim = 0; // M;
     int load_dim = 0; // N;
     int reduce_dim = 0; // K;
@@ -210,8 +212,6 @@ struct brgemm_t {
     bool with_sum = false;
     bool req_cal_comp_pads = false;
 
-    brgemm_attr_t brgattr;
-
     float sum_scale = 0.0f;
     int32_t sum_zp = 0;
     impl::data_type_t sum_dt;
@@ -225,6 +225,8 @@ struct brgemm_t {
 
     int is_oc_scale = 0;
     bool with_dst_scales = false;
+
+    brgemm_attr_t brgattr;
 
     // Derived  parameters
     int LDA2 {0}, LDB2 {0}, LDC2_M {0}, LDC2_N {0};
@@ -349,6 +351,9 @@ struct brgemm_t {
         // and transparent to user.
         return !(dt_b == data_type::f16 && isa_impl == avx512_core_fp16);
     }
+
+    bool operator==(const brgemm_t &rhs) const;
+    bool operator<(const brgemm_t &rhs) const;
 };
 
 struct brgemm_kernel_params_t {

@@ -600,6 +600,123 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
     return status::success;
 }
 
+namespace {
+template <typename T>
+static inline int sign(T v) {
+    return (v > 0) ? 1 : ((v < 0) ? -1 : 0);
+}
+
+int brgemm_cmp(const brgemm_t &lhs, const brgemm_t &rhs) {
+    // The macro CMP_BRGEMM_FIELD is designed to compare numerical parameters.
+    // Float parameters must not be NaN
+#define CMP_BRGEMM_FIELD(x) \
+    if ((lhs.x) != (rhs.x)) return sign((lhs.x) - (rhs.x))
+
+    // This function compares brgemm_t objects within a single brgemm primitive.
+    // Comparison of objects from different primitives is not guaranteed due to
+    // dependencies of brgemm descriptor on a primitive attributes.
+
+    // Compare all non-pointer parameters of brgemm_t except derived
+    CMP_BRGEMM_FIELD(bcast_dim);
+    CMP_BRGEMM_FIELD(load_dim);
+    CMP_BRGEMM_FIELD(reduce_dim);
+    CMP_BRGEMM_FIELD(LDA);
+    CMP_BRGEMM_FIELD(LDB);
+    CMP_BRGEMM_FIELD(LDC);
+    CMP_BRGEMM_FIELD(LDD);
+    CMP_BRGEMM_FIELD(isa_user);
+    CMP_BRGEMM_FIELD(isa_impl);
+    CMP_BRGEMM_FIELD(alpha);
+    CMP_BRGEMM_FIELD(beta);
+    CMP_BRGEMM_FIELD(dt_a);
+    CMP_BRGEMM_FIELD(dt_b);
+    CMP_BRGEMM_FIELD(dt_c);
+    CMP_BRGEMM_FIELD(dt_d);
+    CMP_BRGEMM_FIELD(dt_bias);
+    CMP_BRGEMM_FIELD(stride_a);
+    CMP_BRGEMM_FIELD(stride_b);
+    CMP_BRGEMM_FIELD(layout);
+    CMP_BRGEMM_FIELD(type);
+    CMP_BRGEMM_FIELD(is_dgmm);
+    CMP_BRGEMM_FIELD(with_sum);
+    CMP_BRGEMM_FIELD(req_cal_comp_pads);
+
+    CMP_BRGEMM_FIELD(sum_scale);
+    CMP_BRGEMM_FIELD(sum_zp);
+    CMP_BRGEMM_FIELD(sum_dt);
+    CMP_BRGEMM_FIELD(with_eltwise);
+    CMP_BRGEMM_FIELD(with_binary);
+    CMP_BRGEMM_FIELD(with_scales);
+
+    CMP_BRGEMM_FIELD(zp_type_a);
+    CMP_BRGEMM_FIELD(zp_type_b);
+    CMP_BRGEMM_FIELD(zp_type_c);
+
+    CMP_BRGEMM_FIELD(is_oc_scale);
+    CMP_BRGEMM_FIELD(with_dst_scales);
+
+    // Compare all non-pointer parameters of brgemm_attr_t except derived
+    CMP_BRGEMM_FIELD(brgattr.max_bs);
+    CMP_BRGEMM_FIELD(brgattr.max_top_vpad);
+    CMP_BRGEMM_FIELD(brgattr.max_bottom_vpad);
+    CMP_BRGEMM_FIELD(brgattr.hint_expected_A_size);
+    CMP_BRGEMM_FIELD(brgattr.hint_expected_B_size);
+    CMP_BRGEMM_FIELD(brgattr.hint_expected_C_size);
+    CMP_BRGEMM_FIELD(brgattr.hint_innermost_loop);
+    CMP_BRGEMM_FIELD(brgattr.hint_loop_order);
+    CMP_BRGEMM_FIELD(brgattr.hint_prefetching);
+    CMP_BRGEMM_FIELD(brgattr.hint_prfA.dist1);
+    CMP_BRGEMM_FIELD(brgattr.hint_prfA.dist2);
+    CMP_BRGEMM_FIELD(brgattr.hint_prfB.dist1);
+    CMP_BRGEMM_FIELD(brgattr.hint_prfB.dist2);
+    CMP_BRGEMM_FIELD(brgattr.hint_prfC.dist1);
+    CMP_BRGEMM_FIELD(brgattr.hint_prfC.dist2);
+    CMP_BRGEMM_FIELD(brgattr.wary_tail_read);
+    CMP_BRGEMM_FIELD(brgattr.generate_skip_accumulation);
+    CMP_BRGEMM_FIELD(brgattr.bd_mask_level);
+    CMP_BRGEMM_FIELD(brgattr.use_uker);
+    CMP_BRGEMM_FIELD(brgattr.use_interleave_stores);
+    CMP_BRGEMM_FIELD(brgattr.fpmath_mode);
+    CMP_BRGEMM_FIELD(brgattr.LDA2);
+    CMP_BRGEMM_FIELD(brgattr.LDB2);
+    CMP_BRGEMM_FIELD(brgattr.LDC2_M);
+    CMP_BRGEMM_FIELD(brgattr.LDC2_N);
+    CMP_BRGEMM_FIELD(brgattr.var_bs);
+    CMP_BRGEMM_FIELD(brgattr.postops_only);
+
+    CMP_BRGEMM_FIELD(brgattr.hint_bd_block);
+    CMP_BRGEMM_FIELD(brgattr.hint_ld_block);
+    CMP_BRGEMM_FIELD(brgattr.hint_bd_block2);
+    CMP_BRGEMM_FIELD(brgattr.hint_ld_block2);
+
+    CMP_BRGEMM_FIELD(brgattr.hint_load_nt_A);
+    CMP_BRGEMM_FIELD(brgattr.hint_load_nt_B);
+    CMP_BRGEMM_FIELD(brgattr.K_koef);
+
+    if (lhs.brgattr.bd_mask_level > 0)
+        for (int i = 0; i < lhs.bcast_dim; i++) {
+            CMP_BRGEMM_FIELD(brgattr.bd_mask[i]);
+        }
+
+    if (lhs.type == brgemm_static_offs)
+        for (int i = 0; i < lhs.brgattr.max_bs; i++) {
+            CMP_BRGEMM_FIELD(brgattr.static_offsets[i].offset.A);
+            CMP_BRGEMM_FIELD(brgattr.static_offsets[i].offset.B);
+        }
+
+#undef CMP_BRGEMM_FIELD
+    return 0;
+}
+} // namespace
+
+bool brgemm_t::operator==(const brgemm_t &rhs) const {
+    return (brgemm_cmp(*this, rhs) == 0);
+}
+
+bool brgemm_t::operator<(const brgemm_t &rhs) const {
+    return (brgemm_cmp(*this, rhs) < 0);
+}
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl
