@@ -29,6 +29,9 @@ struct task_executor_t {
             const create_func_t &create_func,
             const do_func_t &do_func) {
         tasks_.emplace_back(prb, perf_template, create_func, do_func);
+        if (has_bench_mode_modifier(mode_modifier_t::par_create)
+                && static_cast<int>(tasks_.size()) < dnnl_get_max_threads())
+            return;
         flush();
     }
 

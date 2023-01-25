@@ -377,8 +377,15 @@ struct attr_t {
     void insert(dnnl_scratchpad_mode_t sm) { this->scratchpad_mode = sm; }
     void insert(dnnl_fpmath_mode_t fpm) { this->fpmath_mode = fpm; }
 
+    // When parallel creation modifier is enabled, the library scratchpad mode
+    // can't be used unless "-DDNNL_ENABLE_CONCURRENT_EXEC=ON" is enabled at the
+    // build time, otherwise scratchpad pointers are invalidated (as were
+    // created inside threads that no longer exist when execution time comes).
+    // Relevant for both engines since GPU uses CPU for faster validation.
     static dnnl_scratchpad_mode_t get_default_scratchpad_mode() {
-        return dnnl_scratchpad_mode_library;
+        return has_bench_mode_modifier(mode_modifier_t::par_create)
+                ? dnnl_scratchpad_mode_user
+                : dnnl_scratchpad_mode_library;
     }
 
     arg_scales_t scales;

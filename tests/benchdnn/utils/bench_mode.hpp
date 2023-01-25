@@ -41,6 +41,9 @@ enum class mode_bit_t : unsigned {
 enum class mode_modifier_t : unsigned {
     // No modification to the final flow.
     none = 0x0,
+    // Enable parallel test object creation. Uses as many threads as identified
+    // by `dnnl_get_max_threads()`.
+    par_create = 0x1,
 };
 
 mode_modifier_t operator|(mode_modifier_t lhs, mode_modifier_t rhs);

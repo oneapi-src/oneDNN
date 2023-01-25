@@ -87,6 +87,16 @@ Modes may have extensions to their default behavior. Those extensions may be
 enabled by special mode modifiers (`--mode-modifier`). They have limited scope
 and applicability. See details next to each modifier to know their limits.
 The following modifiers are supported:
+* Parallel test object creation (`P`). This is an extension of step 4, when
+  several backend objects, up to the number of threads identified on the system,
+  are created in parallel and then executed in order. This allows to overlap
+  creation overhead. Applicable for both CPU and GPU and for all modes but
+  listing.
+  Note: this modifier changes the default scratchpad mode from `library` to
+  `mode` because of thread-safety issue. The library scratchpad mode can't be
+  used  unless "-DDNNL_ENABLE_CONCURRENT_EXEC=ON" is enabled at the build time.
+  Otherwise scratchpad pointers are invalidated due to threads used for creation
+  are no longer alive at the point when execution time comes.
 
 ## Problem Statuses
 

@@ -694,6 +694,10 @@ static bool parse_mode_modifier(
             = "MODIFIER    (Default: empty)\n"
               "    Specifies a `MODIFIER` for selected benchmarking mode.\n"
               "    `MODIFIER` values are:\n"
+              "    * `P` to enable parallel test objects creation.\n"
+              "          The flow will create as many primitives in parallel \n"
+              "          as number of threads identified on the system \n"
+              "          first, then execute them one by one.\n"
               "    More details at "
             + doc_url + "benchdnn_general_info.md\n";
 
@@ -701,6 +705,8 @@ static bool parse_mode_modifier(
         mode_modifier_t modifier = default_bench_mode_modifier;
         for (auto s : _str) {
             switch (s) {
+                case 'p':
+                case 'P': modifier |= mode_modifier_t::par_create; break;
                 default:
                     BENCHDNN_PRINT(0, "%s\n%s",
                             "Error: modifier value is invalid.", help.c_str());

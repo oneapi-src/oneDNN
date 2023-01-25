@@ -64,7 +64,15 @@ The following common options are supported:
 * `--mode-modifier=MODIFIER` -- Specifies a mode modifier to update the mode
   used for benchmarking. `MODIFIER` values can be:
     - empty for no modifiers (the default).
+    - `P` or `p` for parallel backend object creation.
   Refer to [mode modifiers](benchdnn_general_info.md) for details.
+  Note: The `P` modifier flips the default value of scratchpad mode passed to
+  the library. In order to have the functionality working properly, it is
+  recommended to pass this option **before** the driver name so that the
+  modifier is processed before the execution flow starts and can propagate a new
+  scratchpad value. The flow is affected when users pass descriptors directly.
+  When using batch files, no difference will be observed because batch file
+  starts a new cycle underneath, and a scratchpad value will be propagated.
 
 * `--reset` -- Instructs the driver to reset DRIVER-OPTIONS (not
   COMMON-OPTIONS!) to their default values. The only exception is
