@@ -1432,7 +1432,7 @@ void init_fwd(conv_config_t &cfg, block_helper_t &bh) {
     //set iter block for cases with no m block and large spatial
     if (!cfg.is_ge_xe_hpc() && cfg.src_layout().compute().inner_block(0) == 1
             && prb.mb > 1 && (prb.oh == prb.ow && prb.ow == prb.od)
-            && prb.osp >= 512) {
+            && prb.osp >= 512 && !cfg.is_g_mad()) {
         bh.set_base_iter_block(osp_name, 16);
     }
 
