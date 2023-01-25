@@ -1595,8 +1595,14 @@ void init_bwd_w(conv_config_t &cfg, block_helper_t &bh) {
     bool vectorize_g = is_mad_g_small_oc(cfg) || prb.is_dw;
     bh.set_vector_dim(vectorize_g ? "g" : "oc");
 
-    if (prb.oc <= 32) bh.set_max_iter_dim("oc", 16);
-    if (prb.ic <= 32) bh.set_max_iter_dim("ic", 16);
+    int size = (int)types::data_type_size(prb.src_data_type);
+    if (size >= 4) {
+        if (prb.oc <= 32) bh.set_max_iter_dim("oc", 16);
+        if (prb.ic <= 32) bh.set_max_iter_dim("ic", 16);
+    } else {
+        if (prb.oc < 32) bh.set_max_iter_dim("oc", 16);
+        if (prb.ic < 32) bh.set_max_iter_dim("ic", 16);
+    }
 
     if (is_small_ic(prb) && !vectorize_g) {
         bh.set_block_dims({"kw"});
