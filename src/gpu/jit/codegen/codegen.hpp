@@ -869,7 +869,13 @@ public:
         ir_assert(from_type != to_type) << "Equal types are not expected.";
 
         if (is_const(obj.expr) && !to_type.is_bool()) {
-            bind(obj, to_ngen(obj.expr, to_type));
+            if (obj.expr.type().is_bool()) {
+                bind(obj,
+                        to_ngen(expr_t(to_cpp<bool>(obj.expr) ? 1 : 0),
+                                to_type));
+            } else {
+                bind(obj, to_ngen(obj.expr, to_type));
+            }
             return;
         }
 
