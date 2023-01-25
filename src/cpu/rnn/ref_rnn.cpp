@@ -1161,7 +1161,7 @@ rnn_weights_assign_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 //********************* Execution function *********************//
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
         data_type_t acc_type>
-void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
+status_t _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute(
         const exec_ctx_t &ctx) const {
     const rnn_conf_t &rnn = this->pd()->rnn_;
     auto src_layer = CTX_IN_MEM(const src_layer_t *, DNNL_ARG_SRC_LAYER);
@@ -1291,12 +1291,12 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     const auto tag = rnn.n_block == 64 ? format_tag::ldgOI64o2i
                                        : format_tag::ldgOI32o2i;
     memory_desc_t wei_layer_desc;
-    memory_desc_init_by_tag(wei_layer_desc, weights_layer_md->ndims,
-            weights_layer_md->dims, data_type::bf16, tag);
+    CHECK(memory_desc_init_by_tag(wei_layer_desc, weights_layer_md->ndims,
+            weights_layer_md->dims, data_type::bf16, tag));
 
     memory_desc_t wei_iter_desc;
-    memory_desc_init_by_tag(wei_iter_desc, weights_iter_md->ndims,
-            weights_iter_md->dims, data_type::bf16, tag);
+    CHECK(memory_desc_init_by_tag(wei_iter_desc, weights_iter_md->ndims,
+            weights_iter_md->dims, data_type::bf16, tag));
 
 #if DNNL_X64
     if (rnn.is_bf32()) {
@@ -1388,7 +1388,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
 
     // run the execution on the grid
 #if DNNL_X64
-    (this->*grid_computation)(ctx, rnn, ptr_wei_layer, ptr_wei_iter,
+    CHECK((this->*grid_computation)(ctx, rnn, ptr_wei_layer, ptr_wei_iter,
             ptr_wei_projection, weights_peephole, w_projection_comp, ptr_bias,
             src_layer, augru_attention, (const src_iter_t *)src_iter,
             src_iter_c, (dst_layer_t *)dst_layer, (dst_iter_t *)dst_iter,
@@ -1399,9 +1399,9 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
             scratch_src_layer, scratch_src_iter, diff_augru_attention,
             diff_weights_layer, diff_weights_iter, diff_weights_projection,
             diff_weights_peephole, diff_bias, amx_scratchpad,
-            addr_batch_global);
+            addr_batch_global));
 #else
-    (this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter,
+    CHECK((this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter,
             ptr_wei_projection, weights_peephole, w_projection_comp, ptr_bias,
             src_layer, augru_attention, (const src_iter_t *)src_iter,
             src_iter_c, (dst_layer_t *)dst_layer, (dst_iter_t *)dst_iter,
@@ -1410,7 +1410,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
             ws_gates, ws_ht, ws_grid, scratch_gates, scratch_ht,
             scratch_diff_ht, scratch_cell, diff_augru_attention,
             diff_weights_layer, diff_weights_iter, diff_weights_projection,
-            diff_weights_peephole, diff_bias, amx_scratchpad);
+            diff_weights_peephole, diff_bias, amx_scratchpad));
 #endif
 
     // Finally we copy the results to the result buffers
@@ -1435,8 +1435,9 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
                     ws_states_iter_c, ws_diff_states_iter,
                     ws_diff_states_iter_c);
     }
-};
 
+    return status::success;
+};
 /* Fix for MSVS warning C4661 */
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_ref);

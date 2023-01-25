@@ -640,10 +640,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
     ~_ref_rnn_common_t() { delete rnn_postgemm_; }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
-        execute_(ctx);
-        return status::success;
-    }
+    status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
 #if DNNL_X64
@@ -651,7 +648,6 @@ private:
     std::shared_ptr<primitive_t> bf32_wei_layer_reorder_;
     std::shared_ptr<primitive_t> bf32_wei_iter_reorder_;
 #endif
-    void execute_(const exec_ctx_t &ctx) const;
 
     rnn_grid_execution_sig(linear_execution);
     rnn_cell_execution_sig(cell_execution_ref);
