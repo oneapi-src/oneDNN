@@ -1150,7 +1150,6 @@ void init_pipeline(conv_config_t &cfg) {
     if (prb.is_fwd) {
         const int max_unroll = 9;
         if (prb.ksp > max_unroll) do_unroll = false;
-        if (is_small_ic(prb)) do_unroll = false;
     } else if (prb.is_bwd_d) {
         // Do not perform full unrolling when there are too many inner
         // iterations.
