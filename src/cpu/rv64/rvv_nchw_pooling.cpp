@@ -1,12 +1,17 @@
 /******************************************************************************
-* Copyright (c), 2022, KNS Group LLC (YADRO).
-* All Rights Reserved.
+* Copyright 2023 KNS Group LLC (YADRO)
 *
-* This software contains the intellectual property of YADRO
-* or is licensed to YADRO from third parties.  Use of this
-* software and the intellectual property contained therein is expressly
-* limited to the terms and conditions of the License Agreement under which
-* it is provided by YADRO.
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
 *******************************************************************************/
 
 #include "rvv_nchw_pooling.hpp"
