@@ -544,8 +544,9 @@ public:
             auto tmp = ra_.alloc_range(tmp_regs);
             auto tmp_buf = reg_buf_t(hw, tmp);
             auto tmp_reg_buf = reg_buf_data_t(tmp_buf).format(
-                    0, src1.reg_buf_data().type(), esize);
-            inv(mod, tmp[0].f(), src1.reg_buf_data());
+                    0, src1.reg_buf_data().type());
+            ir_assert(src1.reg_buf_data().hs() == 0);
+            inv(1, tmp[0].f(0), src1.reg_buf_data());
             emul(mod, dst, src0, ngen_operand_t(tmp_reg_buf));
             ra_.safeRelease(tmp);
             return;
