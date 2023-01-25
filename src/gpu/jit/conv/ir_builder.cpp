@@ -413,8 +413,12 @@ private:
             tile_dims[block_loop.a_idx] = block;
             auto layout = a_view_.create_pseudo_vlayout();
             auto tile = layout.map(tensor_t(tile_dims));
-            if (!is_1d_strided(tile)) return false;
-            a_stride = tile.blocks()[0].stride;
+            a_stride
+                    = min(tile.blocks()[0].block, (int)tile.blocks()[0].stride);
+            if (a_stride > std::max(1, 4 / layout.type().size())) {
+                a_stride = 1;
+                block_loop.block = 1;
+            }
         }
 
         // Ensure that B tile is dense.
@@ -423,8 +427,12 @@ private:
             tile_dims[block_loop.b_idx] = block;
             auto layout = b_view_.create_pseudo_vlayout();
             auto tile = layout.map(tensor_t(tile_dims));
-            if (!is_1d_strided(tile)) return false;
-            b_stride = tile.blocks()[0].stride;
+            b_stride
+                    = min(tile.blocks()[0].block, (int)tile.blocks()[0].stride);
+            if (b_stride > std::max(1, 4 / layout.type().size())) {
+                b_stride = 1;
+                block_loop.block = 1;
+            }
         }
 
         build_mad(loops, block_loop, a_stride, b_stride);
