@@ -79,12 +79,18 @@
 #define FINALIZE(x) (x)
 #endif
 
+#define BLOCK_READ_DATA_T(data_ptr) \
+    AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T *)data_ptr))
+
 #define _SRC_OFF(outer, reduction, inner) \
     (outer) * REDUCTION_SIZE *INNER_DIM_SIZE + (reduction)*INNER_DIM_SIZE \
             + (inner)
 
 #define _DST_OFF(outer, inner) (outer) * INNER_DIM_SIZE + (inner)
 
+// Specifying wg size since larger work groups reduce performance.
+// TODO: Look into why this is the case
+__attribute__((reqd_work_group_size(SUBGROUP_SIZE, 1, 1))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) // attr:no-format
 __kernel void
 combined_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
@@ -96,62 +102,50 @@ combined_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
             = min(DIV, div_up(REDUCTION_SIZE, inner_dims_per_sg));
 
     // Direct indices from gws
-    const int outer_idx = (get_global_id(0) / OUTER_DIM_STRIDE);
-    const int inner = (get_global_id(0) % PADDED_INNER_DIM_SIZE);
+    const int sgid = get_global_id(0) / SUBGROUP_SIZE;
+    const int inner_idx_start = (sgid % sg_per_inner_dim) * SUBGROUP_SIZE;
+    const int outer_idx = sgid / sg_per_inner_dim;
 
-    // Handle padded GWS
-    if (outer_idx >= OUTER_DIM_SIZE) return;
+    // Handle inner vector packing into subgroups
+    const int sglid = get_sub_group_local_id();
+    const int inner_idx = inner_idx_start + (sglid % INNER_DIM_SIZE);
+    const int red_off = sglid / INNER_DIM_SIZE;
 
-    // Only inner changes within a subgroup - unpack to inner_idx and reduction index
-    // Break out components that change within each subgroup
-    const int inner_idx = inner % INNER_DIM_SIZE;
-    const int red_off = inner / INNER_DIM_SIZE;
-
-    // for block reads, inner_idx may change within the subgroup
-    const int inner_idx_start = inner - get_sub_group_local_id();
-
-    // Deal with padded inner dims
-    if (inner >= INNER_DIMS_PER_WI * INNER_DIM_SIZE) return;
+    // Case happens when inner_dim_size is not a multiple/factor of subgroup size
+    if (inner_idx >= INNER_DIM_SIZE
+            || sglid >= INNER_DIM_SIZE * inner_dims_per_sg)
+        return;
 
     const int dst_off = _DST_OFF(outer_idx, inner_idx);
     DEF_ACC_DATA_T acc = INIT_ACC;
 
+    int src_off = _SRC_OFF(
+            outer_idx, red_off, WITH_BLOCK_READ ? inner_idx_start : inner_idx);
     int off = 0;
-    for (; off < NUM_HORIZ_REDUCTIONS - 1; off++) {
+    for (; off < num_horiz_reductions - 1;
+            off++, src_off += _SRC_OFF(0, inner_dims_per_sg, 0)) {
         // Load
-#if WITH_BLOCK_READ
-        const int src_off = _SRC_OFF(
-                outer_idx, off * INNER_DIMS_PER_WI + red_off, inner_idx_start);
-        const SRC_DATA_T src_val = AS_DATA_T(
-                BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off]));
-#else
-        const int src_off = _SRC_OFF(
-                outer_idx, off * INNER_DIMS_PER_WI + red_off, inner_idx);
-        const SRC_DATA_T src_val = src[src_off];
-#endif
+        const DATA_T src_val = WITH_BLOCK_READ
+                ? BLOCK_READ_DATA_T(&src[src_off])
+                : src[src_off];
+
         // Accumulate
         acc = ACCUMULATE(acc, TO_DEF_ACC_DATA_T(src_val));
     }
+
     // Check final iteration -- some work items skip this one
     if (off * inner_dims_per_sg + red_off < REDUCTION_SIZE) {
         // Load
-#if WITH_BLOCK_READ
-        const int src_off = _SRC_OFF(
-                outer_idx, off * INNER_DIMS_PER_WI + red_off, inner_idx_start);
-        const SRC_DATA_T src_val = AS_DATA_T(
-                BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off]));
-#else
-        const int src_off = _SRC_OFF(
-                outer_idx, off * INNER_DIMS_PER_WI + red_off, inner_idx);
-        const SRC_DATA_T src_val = src[src_off];
-#endif
+        const DATA_T src_val = WITH_BLOCK_READ
+                ? BLOCK_READ_DATA_T(&src[src_off])
+                : src[src_off];
         // Accumulate
         acc = ACCUMULATE(acc, TO_DEF_ACC_DATA_T(src_val));
     }
 
     // Potentially accumulate within the subgroup too
-    // TODO: Change to tree-based reduce to help large INNER_DIMS_PER_WI cases
-    unroll_for(int i = 1; i < INNER_DIMS_PER_WI; i++) {
+    // TODO: Change to tree-based reduce to help large inner_dims_per_sg cases
+    unroll_for(int i = 1; i < inner_dims_per_sg; i++) {
         const DEF_ACC_DATA_T other
                 = intel_sub_group_shuffle_down(acc, INIT_ACC, INNER_DIM_SIZE);
         if (get_sub_group_local_id() < INNER_DIM_SIZE) {

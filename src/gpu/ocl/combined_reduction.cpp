@@ -40,12 +40,7 @@ static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
             = utils::div_up(phase.inner_dim_size, subgroup_size);
     const int num_subgroups = phase.outer_dim_size * sg_per_inner_dim;
     gws[0] = num_subgroups * subgroup_size;
-
-    // Set lws + pad gws simultaneously
-    // - lws multiple of sub_group_size
-    // - gws multiple of lws
     lws[0] = subgroup_size;
-    gws[0] = utils::rnd_up(gws[0], lws[0]);
     phase.nd_range = compute::nd_range_t(gws, lws);
 
     phase.src_type = src_type;
@@ -349,31 +344,17 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             std::max((dim_t)1, conf.sub_group_size / phase.inner_dim_size));
     int num_sg_reductions
             = utils::div_up(phase.reduction_size, inner_dim_per_sg);
-    const dim_t gws_inner_dim_size = utils::rnd_up(
-            inner_dim_per_sg * phase.inner_dim_size, conf.sub_group_size);
 
-    // 1 ==> Use subgroups
-    kernel_ctx.define_int("GWS_WITH_SG_DEFAULT", 1);
-    kernel_ctx.define_int("GWS_SGS_DEFAULT", conf.sub_group_size);
-    kernel_ctx.define_int("GWS_LWS0_DEFAULT", phase.nd_range.local_range()[0]);
-    kernel_ctx.define_int("GWS_LWS1_DEFAULT", 1);
-    kernel_ctx.define_int("GWS_LWS2_DEFAULT", 1);
-    kernel_ctx.define_int("INNER_DIMS_PER_WI", inner_dim_per_sg);
+    kernel_ctx.define_int("SUBGROUP_SIZE", conf.sub_group_size);
 
-    kernel_ctx.define_int("OUTER_DIM_STRIDE", gws_inner_dim_size);
     kernel_ctx.define_int("DIV", conf.div);
-    kernel_ctx.define_int("OUTER_DIM_SIZE", phase.outer_dim_size);
-    kernel_ctx.define_int("INNER_DIM_SIZE", phase.inner_dim_size);
-    kernel_ctx.define_int("PADDED_INNER_DIM_SIZE", gws_inner_dim_size);
-    kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("POWER", conf.power);
     kernel_ctx.define_float("EPS", conf.eps);
 
-    // Different values in case not all reduction elements should be reduced
-    // (i.e. zero-padding with non-zero-preserving algs)
+    kernel_ctx.define_int("OUTER_DIM_SIZE", phase.outer_dim_size);
     kernel_ctx.define_int("REDUCTION_SIZE", phase.reduction_size);
+    kernel_ctx.define_int("INNER_DIM_SIZE", phase.inner_dim_size);
 
-    kernel_ctx.define_int("NUM_HORIZ_REDUCTIONS", num_sg_reductions);
     kernel_ctx.define_int("IS_FINAL", phase.is_final);
     kernel_ctx.define_int("IS_FIRST", phase.is_first);
 
