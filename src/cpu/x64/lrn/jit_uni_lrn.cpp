@@ -204,8 +204,10 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
                                : MAX_LOCAL_SIZE)
             && src_d.dims()[2] >= desc()->local_size
             && src_d.dims()[3] >= desc()->local_size
-            && IMPLICATION(d_type == data_type::bf16, mayiuse(avx512_core))
-            && IMPLICATION(d_type == data_type::f16, mayiuse(avx512_core_fp16))
+            && IMPLICATION(d_type == data_type::bf16,
+                    mayiuse(avx512_core) || mayiuse(avx2_vnni_2))
+            && IMPLICATION(d_type == data_type::f16,
+                    mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2))
             && (is_superset(isa, avx512_core) ? one_of(dat_tag_, nhwc, nChw16c)
                                               : one_of(dat_tag_, nhwc, nChw8c));
 
@@ -385,6 +387,8 @@ status_t jit_uni_lrn_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 template struct jit_uni_lrn_fwd_t<avx512_core, data_type::f32>;
 template struct jit_uni_lrn_fwd_t<avx512_core, data_type::bf16>;
 template struct jit_uni_lrn_fwd_t<avx512_core_fp16, data_type::f16>;
+template struct jit_uni_lrn_fwd_t<avx2_vnni_2, data_type::bf16>;
+template struct jit_uni_lrn_fwd_t<avx2_vnni_2, data_type::f16>;
 template struct jit_uni_lrn_fwd_t<avx2, data_type::f32>;
 template struct jit_uni_lrn_fwd_t<sse41, data_type::f32>;
 template struct jit_uni_lrn_bwd_t<avx512_core, data_type::f32>;

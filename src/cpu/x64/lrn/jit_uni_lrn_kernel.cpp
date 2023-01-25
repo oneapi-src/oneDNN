@@ -214,16 +214,34 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
             {Vmm(5), Vmm(10), Vmm(15), Vmm(20), Vmm(25)}};
     static const std::array<Vmm, 5> vscratch {
             {Vmm(6), Vmm(11), Vmm(16), Vmm(21), Vmm(26)}};
+    static const std::array<Vmm, 2> vtmp2 {{Vmm(12), Vmm(13)}};
+    static const Vmm vaux = Vmm(14);
+    const bool has_ne_convert_xf16_support = isa == avx2_vnni_2
+            && utils::one_of(d_type, data_type::bf16, data_type::f16);
 
     IRB_LOOP(this->uni_vxorps(vsum[irb], vsum[irb], vsum[irb]));
     for (int i = hoff; i <= Hoff; ++i) {
         for (int j = woff; j <= Woff; ++j) {
-            const auto vdata = (i == 0 && j == 0) ? vdst : vtmp;
-            IRB_LOOP(this->io_.at(d_type)->load(
-                    this->ptr[(src_ + pixel_offset + irb_off)
-                            + (i * stride + j) * this->single_pixel_offset_],
-                    vdata[irb], false));
-            IRB_LOOP(this->vfmadd231ps(vsum[irb], vdata[irb], vdata[irb]));
+            const auto p_off = pixel_offset
+                    + (i * stride + j) * this->single_pixel_offset_;
+            const bool can_load_two_simdw = has_ne_convert_xf16_support
+                    && Woff - j >= 2 && !(i == 0 && (j == 0 || j + 1 == 0));
+            if (can_load_two_simdw) {
+                IRB_LOOP(this->io_.at(d_type)->load_two_simdw_xf16(
+                        this->ptr[src_ + p_off + irb_off], vtmp[irb],
+                        vtmp2[irb]));
+                IRB_LOOP(this->io_.at(d_type)->merge_interleaved_to_plain(
+                        vtmp[irb], vtmp2[irb], vaux));
+                IRB_LOOP(this->vfmadd231ps(vsum[irb], vtmp[irb], vtmp[irb]));
+                IRB_LOOP(this->vfmadd231ps(vsum[irb], vtmp2[irb], vtmp2[irb]));
+                ++j;
+            } else {
+                const auto vdata = (i == 0 && j == 0) ? vdst : vtmp;
+                IRB_LOOP(this->io_.at(d_type)->load(
+                        this->ptr[(src_ + p_off + irb_off)], vdata[irb],
+                        false));
+                IRB_LOOP(this->vfmadd231ps(vsum[irb], vdata[irb], vdata[irb]));
+            }
         }
     }
 
@@ -1658,6 +1676,8 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::move_data_pointers(
 
 template class jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>;
 template class jit_uni_lrn_fwd_kernel_t<avx2, data_type::f32>;
+template class jit_uni_lrn_fwd_kernel_t<avx2_vnni_2, data_type::bf16>;
+template class jit_uni_lrn_fwd_kernel_t<avx2_vnni_2, data_type::f16>;
 template class jit_uni_lrn_fwd_kernel_t<avx512_core, data_type::f32>;
 template class jit_uni_lrn_fwd_kernel_t<avx512_core, data_type::bf16>;
 template class jit_uni_lrn_fwd_kernel_t<avx512_core_fp16, data_type::f16>;
@@ -1666,6 +1686,10 @@ template class jit_uni_lrn_kernel_t<
         jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>>;
 template class jit_uni_lrn_kernel_t<
         jit_uni_lrn_fwd_kernel_t<avx2, data_type::f32>>;
+template class jit_uni_lrn_kernel_t<
+        jit_uni_lrn_fwd_kernel_t<avx2_vnni_2, data_type::bf16>>;
+template class jit_uni_lrn_kernel_t<
+        jit_uni_lrn_fwd_kernel_t<avx2_vnni_2, data_type::f16>>;
 template class jit_uni_lrn_kernel_t<
         jit_uni_lrn_fwd_kernel_t<avx512_core, data_type::f32>>;
 template class jit_uni_lrn_kernel_t<
