@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,9 +22,6 @@
 #else
 #define CASE_3D 0
 #endif
-
-#define DIV_UP(a, b) (((a) + (b)-1) / (b))
-#define RND_UP(a, b) (DIV_UP(a, b) * (b))
 
 #if BWD_WEIGHTS == 1
 
@@ -71,11 +68,11 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
 
     const int chunk = get_global_id(2) % NCHUNK;
     const int icb_ocb = get_global_id(2) / NCHUNK;
-    const int icb = icb_ocb % DIV_UP(IC, ICB);
-    const int ocb = icb_ocb / DIV_UP(IC, ICB);
+    const int icb = icb_ocb % div_up(IC, ICB);
+    const int ocb = icb_ocb / div_up(IC, ICB);
 
-    const int ic_padded = RND_UP(IC, IC_BLOCK);
-    const int oc_padded = RND_UP(OC, OC_BLOCK);
+    const int ic_padded = rnd_up(IC, IC_BLOCK);
+    const int oc_padded = rnd_up(OC, OC_BLOCK);
 
 #if IS_DW
     const int g = 0;
@@ -84,8 +81,8 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
     const int ic = oc;
 #else
     const int g_ic_oc = get_global_id(0);
-    const int g = g_ic_oc / (oc_padded * DIV_UP(IC, IC_BLOCK));
-    const int io = g_ic_oc % (oc_padded * DIV_UP(IC, IC_BLOCK));
+    const int g = g_ic_oc / (oc_padded * div_up(IC, IC_BLOCK));
+    const int io = g_ic_oc % (oc_padded * div_up(IC, IC_BLOCK));
     const int oc = (io % OCB) / OC_BLOCK + ocb * (OCB / OC_BLOCK);
     const int ic = (IC == 3) ? 0 : (io / OCB + icb * (ICB / IC_BLOCK));
 #endif
