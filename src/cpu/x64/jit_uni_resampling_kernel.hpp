@@ -96,6 +96,14 @@ private:
     void nearest_c_oriented_format(const bool is_tail_in_blocked_format);
     void linear_ncsp_format();
     void linear_c_oriented_format(const bool is_tail_in_blocked_format);
+    void compute_nearest_c_interpolate(
+            const int c_to_compute_without_tail, const bool is_tail);
+    void compute_ne_xf16_nearest_c_interpolate(
+            const int c_to_compute_without_tail);
+    void compute_linear_c_interpolate(
+            const int c_to_compute_without_tail, const bool is_tail);
+    void compute_ne_xf16_linear_c_interpolate(
+            const int c_to_compute_without_tail);
 
     void generate() override;
 
@@ -115,6 +123,8 @@ private:
     const Vmm vmm_post_op_helper_ = Vmm(9);
     const Vmm vmm_zero_saturation_ = isa == avx512_core ? Vmm(18) : Vmm(10);
     const Vmm vmm_saturation_ubound_ = isa == avx512_core ? Vmm(19) : Vmm(11);
+    const Vmm vmm_src_even_ = vmm_src_;
+    const Vmm vmm_src_odd_ = Vmm(12);
 
     const Zmm vmm_bf16_emu_1_ = Zmm(20);
     const Zmm vmm_bf16_emu_2_ = Zmm(21);
@@ -170,6 +180,19 @@ private:
     const Reg64 reg_src_btr_ = r13;
     const Reg64 reg_src_bbl_ = r14;
     const Reg64 reg_src_bbr_ = r15;
+
+    const Vmm src_ftl_even_ = Vmm(vmm_idx(0));
+    const Vmm src_ftl_odd_ = Vmm(vmm_idx(1));
+    const Vmm src_ftr_even_ = Vmm(vmm_idx(2));
+    const Vmm src_ftr_odd_ = Vmm(vmm_idx(3));
+    const Vmm src_fbl_even_ = Vmm(vmm_idx(4));
+    const Vmm src_fbl_odd_ = Vmm(vmm_idx(5));
+    const Vmm src_fbr_even_ = Vmm(vmm_idx(2));
+    const Vmm src_fbr_odd_ = Vmm(vmm_idx(3));
+
+    const std::vector<std::reference_wrapper<const Reg64>> src_regs_
+            = {reg_src_ftl_, reg_src_ftr_, reg_src_fbl_, reg_src_fbr_,
+                    reg_src_btl_, reg_src_btr_, reg_src_bbl_, reg_src_bbr_};
 
     static constexpr bool is_zmm_ = std::is_same<Vmm, Xbyak::Zmm>::value;
     static constexpr bool is_ymm_ = std::is_same<Vmm, Xbyak::Ymm>::value;

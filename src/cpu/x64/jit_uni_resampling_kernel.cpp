@@ -408,14 +408,8 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::nearest_ncsp_format() {
 }
 
 template <cpu_isa_t isa, typename Vmm>
-void jit_uni_resampling_kernel_t<isa, Vmm>::nearest_c_oriented_format(
-        const bool is_tail_in_blocked_format) {
-    const int c_to_compute_without_tail
-            = get_channels_to_compute_without_tail(is_tail_in_blocked_format);
-    const bool insert_tail_processsing_code
-            = (conf_.tag_kind == tag_kind::nspc && tail_size_ > 0)
-            || is_tail_in_blocked_format;
-
+void jit_uni_resampling_kernel_t<isa, Vmm>::compute_nearest_c_interpolate(
+        const int c_to_compute_without_tail, const bool is_tail) {
     const Reg64 &reg_c = reg_tmp_;
     const Reg64 &reg_src_shifted = reg_aux_src_0_;
 
@@ -431,6 +425,93 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::nearest_c_oriented_format(
                 ->store(vmm_src_, ptr[reg_dst_], load_and_store_with_tail);
     };
 
+    Label c_loop_begin, c_loop_end;
+    xor_(reg_c, reg_c);
+    L(c_loop_begin);
+    {
+        cmp(reg_c, c_to_compute_without_tail);
+        je(c_loop_end, T_NEAR);
+
+        nearest_interpolation(false);
+
+        add(reg_src_shifted, simd_w_ * conf_.src_dt_size);
+        add(reg_dst_, simd_w_ * conf_.dst_dt_size);
+
+        add(reg_c, simd_w_);
+        jmp(c_loop_begin, T_NEAR);
+    }
+    L(c_loop_end);
+
+    if (is_tail) {
+        nearest_interpolation(true);
+        if (conf_.tag_kind == tag_kind::nspc)
+            add(reg_dst_, tail_size_ * conf_.dst_dt_size);
+        else if (conf_.tag_kind == tag_kind::blocked)
+            add(reg_dst_, simd_w_ * conf_.dst_dt_size);
+    }
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_resampling_kernel_t<isa,
+        Vmm>::compute_ne_xf16_nearest_c_interpolate(const int
+                c_to_compute_without_tail) {
+    const Reg64 &reg_c = reg_tmp_;
+    const Reg64 &reg_src_shifted = reg_aux_src_0_;
+
+    auto nearest_ne_xf16_interpolation = [&](const bool is_tail) {
+        io_.at(conf_.src_data_type)
+                ->load_two_simdw_xf16(
+                        ptr[reg_src_shifted], vmm_src_even_, vmm_src_odd_);
+        io_.at(conf_.src_data_type)
+                ->merge_interleaved_to_plain(
+                        vmm_src_even_, vmm_src_odd_, vmm_tmp_);
+        if (conf_.with_postops) {
+            apply_postops(vmm_src_even_.getIdx(), false);
+            apply_postops(vmm_src_odd_.getIdx(), false);
+        }
+        io_.at(conf_.dst_data_type)->store(vmm_src_even_, ptr[reg_dst_], false);
+        io_.at(conf_.dst_data_type)
+                ->store(vmm_src_odd_,
+                        ptr[reg_dst_ + simd_w_ * conf_.dst_dt_size], false);
+    };
+
+    Label c_loop_begin, c_loop_end;
+    xor_(reg_c, reg_c);
+    L(c_loop_begin);
+    {
+        cmp(reg_c, c_to_compute_without_tail);
+        je(c_loop_end, T_NEAR);
+
+        nearest_ne_xf16_interpolation(false);
+
+        add(reg_src_shifted, 2 * simd_w_ * conf_.src_dt_size);
+        add(reg_dst_, 2 * simd_w_ * conf_.dst_dt_size);
+
+        add(reg_c, 2 * simd_w_);
+        jmp(c_loop_begin, T_NEAR);
+    }
+    L(c_loop_end);
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_resampling_kernel_t<isa, Vmm>::nearest_c_oriented_format(
+        const bool is_tail_in_blocked_format) {
+    const bool has_ne_xf16_supported = isa == avx2_vnni_2
+            && utils::one_of(
+                    conf_.src_data_type, data_type::bf16, data_type::f16);
+    const int total_c_to_compute_without_tail
+            = get_channels_to_compute_without_tail(is_tail_in_blocked_format);
+    const int c_to_compute_ne_xf16_without_tail = has_ne_xf16_supported
+            ? utils::rnd_dn(total_c_to_compute_without_tail, 2 * simd_w_)
+            : 0;
+    const int c_to_compute_without_tail = total_c_to_compute_without_tail
+            - c_to_compute_ne_xf16_without_tail;
+    const bool insert_tail_processsing_code
+            = (conf_.tag_kind == tag_kind::nspc && tail_size_ > 0)
+            || is_tail_in_blocked_format;
+
+    const Reg64 &reg_src_shifted = reg_aux_src_0_;
+
     Label loop_begin, loop_end;
 
     L(loop_begin);
@@ -442,36 +523,18 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::nearest_c_oriented_format(
         mov(reg_tmp1_.cvt32(), dword[reg_indices_]);
         add(reg_src_shifted, reg_tmp1_);
 
-        Label c_loop_begin, c_loop_end;
-        xor_(reg_c, reg_c);
-        L(c_loop_begin);
-        {
-            cmp(reg_c, c_to_compute_without_tail);
-            je(c_loop_end, T_NEAR);
+        if (has_ne_xf16_supported)
+            compute_ne_xf16_nearest_c_interpolate(
+                    c_to_compute_ne_xf16_without_tail);
 
-            nearest_interpolation(false);
-
-            add(reg_src_shifted, simd_w_ * conf_.src_dt_size);
-            add(reg_dst_, simd_w_ * conf_.dst_dt_size);
-
-            add(reg_c, simd_w_);
-            jmp(c_loop_begin, T_NEAR);
-        }
-        L(c_loop_end);
+        compute_nearest_c_interpolate(c_to_compute_without_tail, false);
 
         if (insert_tail_processsing_code) {
-            if (tail_size_ > 0) {
-                nearest_interpolation(true);
-                if (conf_.tag_kind == tag_kind::nspc)
-                    add(reg_dst_, tail_size_ * conf_.dst_dt_size);
-                else if (conf_.tag_kind == tag_kind::blocked) {
-                    add(reg_dst_, simd_w_ * conf_.dst_dt_size);
-                }
-            }
+            if (tail_size_ > 0) compute_nearest_c_interpolate(0, true);
 
             if (conf_.tag_kind == tag_kind::blocked)
-                preserve_zero_padding(
-                        c_to_compute_without_tail, is_tail_in_blocked_format);
+                preserve_zero_padding(total_c_to_compute_without_tail,
+                        is_tail_in_blocked_format);
         }
 
         add(reg_indices_, conf_.el_size_of_indices);
@@ -542,27 +605,97 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::linear_ncsp_format() {
 }
 
 template <cpu_isa_t isa, typename Vmm>
-void jit_uni_resampling_kernel_t<isa, Vmm>::linear_c_oriented_format(
-        const bool is_tail_in_blocked_format) {
-    const int c_to_compute_without_tail
-            = get_channels_to_compute_without_tail(is_tail_in_blocked_format);
-    const bool insert_tail_processsing_code
-            = (conf_.tag_kind == tag_kind::nspc && tail_size_ > 0)
-            || is_tail_in_blocked_format;
-
+void jit_uni_resampling_kernel_t<isa,
+        Vmm>::compute_ne_xf16_linear_c_interpolate(const int
+                c_to_compute_without_tail) {
     const Reg64 &reg_c = reg_tmp_;
-    const Reg64 &reg_index_left = reg_tmp_;
-    const Reg64 &reg_index_right = reg_tmp_;
 
-    const std::vector<std::reference_wrapper<const Reg64>> src_regs
-            = {reg_src_ftl_, reg_src_ftr_, reg_src_fbl_, reg_src_fbr_,
-                    reg_src_btl_, reg_src_btr_, reg_src_bbl_, reg_src_bbr_};
+    const std::vector<std::reference_wrapper<const Vmm>> src_vmms
+            = {src_ftl_even_, src_ftr_even_, src_fbl_even_, src_fbr_even_,
+                    src_ftl_odd_, src_ftr_odd_, src_fbl_odd_, src_fbr_odd_};
+    assert(src_vmms.size() >= 2 * conf_.number_of_corners);
+
+    auto linear_interpolation = [&](const Reg64 &reg_c, const bool is_tail) {
+        for (unsigned i = 0; i < conf_.number_of_corners; i += 2) {
+            const auto src_l_even = src_vmms[i].get();
+            const auto src_r_even = src_vmms[i + 1].get();
+            const auto src_l_odd = src_vmms[i + 4].get();
+            const auto src_r_odd = src_vmms[i + 5].get();
+
+            io_.at(conf_.src_data_type)
+                    ->load_two_simdw_xf16(
+                            ptr[src_regs_[i].get()], src_l_even, src_l_odd);
+            io_.at(conf_.src_data_type)
+                    ->merge_interleaved_to_plain(
+                            src_l_even, src_l_odd, vmm_tmp_);
+            io_.at(conf_.src_data_type)
+                    ->load_two_simdw_xf16(
+                            ptr[src_regs_[i + 1].get()], src_r_even, src_r_odd);
+            io_.at(conf_.src_data_type)
+                    ->merge_interleaved_to_plain(
+                            src_r_even, src_r_odd, vmm_tmp_);
+
+            uni_vmulps(src_l_even, src_l_even, weight_left_);
+            uni_vfmadd231ps(src_l_even, src_r_even, weight_right_);
+            uni_vmulps(src_l_odd, src_l_odd, weight_left_);
+            uni_vfmadd231ps(src_l_odd, src_r_odd, weight_right_);
+        }
+        if (conf_.ndims == 4) {
+            uni_vmulps(src_ftl_even_, src_ftl_even_, weight_top_);
+            uni_vfmadd231ps(src_ftl_even_, src_fbl_even_, weight_bottom_);
+            uni_vmulps(src_ftl_odd_, src_ftl_odd_, weight_top_);
+            uni_vfmadd231ps(src_ftl_odd_, src_fbl_odd_, weight_bottom_);
+        }
+
+        if (conf_.with_postops) {
+            apply_postops(src_ftl_even_.getIdx(), false);
+            apply_postops(src_ftl_odd_.getIdx(), false);
+        }
+
+        if (conf_.is_saturation_needed && conf_.ndims >= 4) {
+            // When saturation is needed, and the shape has larger than
+            // 4 dimemsions, we have no space for holding information for
+            // saturation in registers when using NE_CONVERT instructions.
+            // Therefore, it is needed to repeat resaturation initialization
+            // before every store operation
+            push(reg_tmp_);
+            io_.init_saturate_f32({conf_.dst_data_type});
+            pop(reg_tmp_);
+        }
+        io_.at(conf_.dst_data_type)->store(src_ftl_even_, ptr[reg_dst_], false);
+        io_.at(conf_.dst_data_type)
+                ->store(src_ftl_odd_,
+                        ptr[reg_dst_ + simd_w_ * conf_.dst_dt_size], false);
+    };
+
+    Label c_loop_begin, c_loop_end;
+    xor_(reg_c, reg_c);
+    L(c_loop_begin);
+    {
+        cmp(reg_c, c_to_compute_without_tail);
+        je(c_loop_end, T_NEAR);
+
+        linear_interpolation(reg_c, false);
+        add(reg_dst_, 2 * simd_w_ * conf_.dst_dt_size);
+
+        for (unsigned i = 0; i < conf_.number_of_corners; i++)
+            add(src_regs_[i], 2 * simd_w_ * conf_.src_dt_size);
+
+        add(reg_c, 2 * simd_w_);
+        jmp(c_loop_begin, T_NEAR);
+    }
+    L(c_loop_end);
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_resampling_kernel_t<isa, Vmm>::compute_linear_c_interpolate(
+        const int c_to_compute_without_tail, const bool is_tail) {
+    const Reg64 &reg_c = reg_tmp_;
+
     const std::vector<std::reference_wrapper<const Vmm>> src_vmms
             = {src_ftl_, src_ftr_, src_fbl_, src_fbr_, src_btl_, src_btr_,
                     src_bbl_, src_bbr_};
-
-    assert(src_regs.size() >= conf_.number_of_corners
-            && src_vmms.size() >= conf_.number_of_corners);
+    assert(src_vmms.size() >= conf_.number_of_corners);
 
     auto linear_interpolation = [&](const Reg64 &reg_c, const bool is_tail) {
         const bool load_and_store_with_tail
@@ -570,10 +703,9 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::linear_c_oriented_format(
 
         for (unsigned i = 0; i < conf_.number_of_corners; i++) {
             io_.at(conf_.src_data_type)
-                    ->load(ptr[src_regs[i].get()], src_vmms[i].get(),
+                    ->load(ptr[src_regs_[i].get()], src_vmms[i].get(),
                             load_and_store_with_tail);
         }
-
         // w_d[0]*(w_h[0]*(src[0][0][0]*w_w[0] + src[0][0][1]*w_w[1]) +
         //         w_h[1]*(src[0][1][0]*w_w[0] + src[0][1][1]*w_w[1]))
         // +
@@ -616,62 +748,94 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::linear_c_oriented_format(
                 ->store(src_ftl_, ptr[reg_dst_], load_and_store_with_tail);
     };
 
+    Label c_loop_begin, c_loop_end;
+    xor_(reg_c, reg_c);
+    L(c_loop_begin);
+    {
+        cmp(reg_c, c_to_compute_without_tail);
+        je(c_loop_end, T_NEAR);
+
+        linear_interpolation(reg_c, false);
+        add(reg_dst_, simd_w_ * conf_.dst_dt_size);
+
+        for (unsigned i = 0; i < conf_.number_of_corners; i++)
+            add(src_regs_[i], simd_w_ * conf_.src_dt_size);
+
+        add(reg_c, simd_w_);
+        jmp(c_loop_begin, T_NEAR);
+    }
+    L(c_loop_end);
+
+    if (is_tail) {
+        linear_interpolation(reg_c, true);
+        if (conf_.tag_kind == tag_kind::nspc)
+            add(reg_dst_, tail_size_ * conf_.dst_dt_size);
+        else if (conf_.tag_kind == tag_kind::blocked)
+            add(reg_dst_, simd_w_ * conf_.dst_dt_size);
+    }
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_resampling_kernel_t<isa, Vmm>::linear_c_oriented_format(
+        const bool is_tail_in_blocked_format) {
+    // Only supports NE_CONVERT instructions for xf16 when ndims <= 4
+    // because there are no enough registers to process data
+    const bool has_ne_xf16_supported = isa == avx2_vnni_2 && conf_.ndims <= 4
+            && utils::one_of(
+                    conf_.src_data_type, data_type::bf16, data_type::f16);
+    const int total_c_to_compute_without_tail
+            = get_channels_to_compute_without_tail(is_tail_in_blocked_format);
+    const int c_to_compute_ne_xf16_without_tail = has_ne_xf16_supported
+            ? utils::rnd_dn(total_c_to_compute_without_tail, 2 * simd_w_)
+            : 0;
+    const int c_to_compute_without_tail = total_c_to_compute_without_tail
+            - c_to_compute_ne_xf16_without_tail;
+    const bool insert_tail_processsing_code
+            = (conf_.tag_kind == tag_kind::nspc && tail_size_ > 0)
+            || is_tail_in_blocked_format;
+
+    const Reg64 &reg_index_left = reg_tmp_;
+    const Reg64 &reg_index_right = reg_tmp_;
+
+    assert(src_regs_.size() >= conf_.number_of_corners);
+
     xor_(reg_index_left, reg_index_left);
 
     Label loop_begin, loop_end;
+
     L(loop_begin);
     {
         cmp(reg_work_, 1);
         jl(loop_end, T_NEAR);
 
         for (unsigned i = 0; i < conf_.number_of_corners; i++) {
-            push(src_regs[i]);
+            push(src_regs_[i]);
         }
 
         mov(reg_index_left.cvt32(), dword[reg_indices_]);
         for (unsigned i = 0; i < conf_.number_of_corners / 2; i++) {
-            add(src_regs[2 * i], reg_index_left);
+            add(src_regs_[2 * i], reg_index_left);
         }
         mov(reg_index_right.cvt32(),
                 dword[reg_indices_ + conf_.el_size_of_indices]);
         for (unsigned i = 0; i < conf_.number_of_corners / 2; i++) {
-            add(src_regs[2 * i + 1], reg_index_right);
+            add(src_regs_[2 * i + 1], reg_index_right);
         }
 
         uni_vbroadcastss(weight_left_, ptr[reg_weights]);
         uni_vbroadcastss(weight_right_, ptr[reg_weights + sizeof(float)]);
 
-        Label c_loop_begin, c_loop_end;
-        xor_(reg_c, reg_c);
-        L(c_loop_begin);
-        {
-            cmp(reg_c, c_to_compute_without_tail);
-            je(c_loop_end, T_NEAR);
-
-            linear_interpolation(reg_c, false);
-            add(reg_dst_, simd_w_ * conf_.dst_dt_size);
-
-            for (unsigned i = 0; i < conf_.number_of_corners; i++)
-                add(src_regs[i], simd_w_ * conf_.src_dt_size);
-
-            add(reg_c, simd_w_);
-            jmp(c_loop_begin, T_NEAR);
-        }
-        L(c_loop_end);
+        if (has_ne_xf16_supported)
+            compute_ne_xf16_linear_c_interpolate(
+                    c_to_compute_ne_xf16_without_tail);
+        compute_linear_c_interpolate(c_to_compute_without_tail, false);
 
         if (insert_tail_processsing_code) {
-            if (tail_size_ > 0) {
-                linear_interpolation(reg_c, true);
-                if (conf_.tag_kind == tag_kind::nspc)
-                    add(reg_dst_, tail_size_ * conf_.dst_dt_size);
-                else if (conf_.tag_kind == tag_kind::blocked) {
-                    add(reg_dst_, simd_w_ * conf_.dst_dt_size);
-                }
-            }
+            if (tail_size_ > 0) compute_linear_c_interpolate(0, true);
 
             if (conf_.tag_kind == tag_kind::blocked)
-                preserve_zero_padding(
-                        c_to_compute_without_tail, is_tail_in_blocked_format);
+                preserve_zero_padding(total_c_to_compute_without_tail,
+                        is_tail_in_blocked_format);
         }
 
         // During one loop cycle are read two values for left and
@@ -682,7 +846,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::linear_c_oriented_format(
         add(reg_weights, 2 * sizeof(float));
 
         for (unsigned i = 0; i < conf_.number_of_corners; i++) {
-            pop(src_regs[(conf_.number_of_corners - 1) - i]);
+            pop(src_regs_[(conf_.number_of_corners - 1) - i]);
         }
 
         dec(reg_work_);
@@ -749,6 +913,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::generate() {
 template struct jit_uni_resampling_kernel_t<avx512_core_fp16, Zmm>;
 template struct jit_uni_resampling_kernel_t<avx512_core, Zmm>;
 template struct jit_uni_resampling_kernel_t<avx512_core, Ymm>;
+template struct jit_uni_resampling_kernel_t<avx2_vnni_2, Ymm>;
 template struct jit_uni_resampling_kernel_t<avx, Ymm>;
 template struct jit_uni_resampling_kernel_t<avx, Xmm>;
 template struct jit_uni_resampling_kernel_t<sse41, Xmm>;

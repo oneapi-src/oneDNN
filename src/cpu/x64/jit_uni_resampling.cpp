@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ static cpu_isa_t get_supported_isa(bool is_plain) {
     if (is_plain && mayiuse(avx512_core_fp16)) return avx512_core_fp16;
     if (mayiuse(avx512_core_bf16)) return avx512_core_bf16;
     if (mayiuse(avx512_core)) return avx512_core;
+    if (mayiuse(avx2_vnni_2)) return avx2_vnni_2;
     if (mayiuse(avx2)) return avx2;
     if (mayiuse(avx)) return avx;
     if (mayiuse(sse41)) return sse41;
@@ -48,8 +49,10 @@ static cpu_isa_t get_supported_isa(bool is_plain) {
 
 static bool impl_supports_datatype(data_type_t data_type) {
     switch (data_type) {
-        case data_type::bf16: return x64::mayiuse(x64::avx512_core);
-        case data_type::f16: return x64::mayiuse(x64::avx512_core_fp16);
+        case data_type::bf16:
+            return mayiuse(avx512_core) || mayiuse(avx2_vnni_2);
+        case data_type::f16:
+            return mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2);
         case data_type::f32:
         case data_type::s32:
         case data_type::s8:
@@ -209,6 +212,12 @@ status_t jit_uni_resampling_fwd_t::get_proper_kernel_for_avx(
 
     const bool is_src_i8 = utils::one_of(conf.src_data_type, s8, u8);
     const bool is_dst_i8 = utils::one_of(conf.dst_data_type, s8, u8);
+    const bool is_xf16 = utils::one_of(conf.src_data_type, bf16, f16)
+            || utils::one_of(conf.dst_data_type, bf16, f16);
+    if (is_xf16 && is_superset(conf.isa, avx2_vnni_2))
+        return safe_ptr_assign(kernel_,
+                new jit_uni_resampling_kernel_t<avx2_vnni_2, Xbyak::Ymm>(
+                        conf, dst_md));
     if (is_src_i8 || is_dst_i8)
         return safe_ptr_assign(kernel_,
                 new jit_uni_resampling_kernel_t<avx, Xbyak::Xmm>(conf, dst_md));
