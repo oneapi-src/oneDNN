@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,8 +121,6 @@ protected:
     const Xbyak::Reg64 imm_addr64_ = this->rbx;
     int single_pixel_offset_
             = VECTOR_LENGTH * sizeof(typename prec_traits<d_type>::type);
-    int tempIdx_ = 0;
-    int reg_block_idx_ = 0;
 };
 
 template <cpu_isa_t isa, data_type_t d_type>

@@ -30,17 +30,10 @@ namespace x64 {
 using namespace dnnl::impl::format_tag;
 
 #define IRB_LOOP(statement) \
-    if (1 == reg_block) { \
-        const int irb_off = 0; \
-        const int irb = this->reg_block_idx_ % vsum.size(); \
+    for (int irb = 0; irb < reg_block; irb++) { \
+        const int irb_off = irb * this->single_pixel_offset_; \
         statement; \
         MAYBE_UNUSED(irb_off); \
-    } else { \
-        for (int irb = 0; irb < reg_block; irb++) { \
-            const int irb_off = irb * this->single_pixel_offset_; \
-            statement; \
-            MAYBE_UNUSED(irb_off); \
-        } \
     }
 
 using namespace Xbyak;
@@ -281,38 +274,27 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
         int woff, int Woff, int stride, prop_kind_t pk, const int reg_block,
         int pixel_offset) {
 
-    static const std::array<Vmm, 3> vsum {{Vmm(2), Vmm(11), Vmm(20)}};
-    static const std::array<Vmm, 3> vsum2 {{Vmm(3), Vmm(12), Vmm(21)}};
-    static const std::array<Vmm, 3> vdst {{Vmm(4), Vmm(13), Vmm(22)}};
-    static const std::array<std::array<Vmm, 6u>, 3u> vtmp {
-            {{{Vmm(5), Vmm(6), Vmm(7), Vmm(8), Vmm(9), Vmm(14)}},
-                    {{Vmm(18), Vmm(15), Vmm(16), Vmm(17), Vmm(29), Vmm(30)}},
-                    {{Vmm(23), Vmm(24), Vmm(25), Vmm(26), Vmm(28), Vmm(31)}}}};
-    static const std::array<Vmm, 3> vscratch = {{Vmm(10), Vmm(19), Vmm(27)}};
-    static const std::size_t used_tmp_regs
-            = this->emulate_bfloat_ ? vtmp[0].size() - 2 : vtmp[0].size();
+    static const std::array<Vmm, 5> vsum {
+            {Vmm(2), Vmm(7), Vmm(12), Vmm(17), Vmm(22)}};
+    static const std::array<Vmm, 5> vsum2 {
+            {Vmm(3), Vmm(8), Vmm(13), Vmm(18), Vmm(23)}};
+    static const std::array<Vmm, 5> vdst {
+            {Vmm(4), Vmm(9), Vmm(14), Vmm(19), Vmm(24)}};
+    static const std::array<Vmm, 5> vtmp {
+            {Vmm(5), Vmm(10), Vmm(15), Vmm(20), Vmm(25)}};
+    static const std::array<Vmm, 5> vscratch {
+            {Vmm(6), Vmm(11), Vmm(16), Vmm(21), Vmm(26)}};
 
     IRB_LOOP(this->uni_vxorps(vsum[irb], vsum[irb], vsum[irb]));
     for (int i = hoff; i <= Hoff; ++i) {
         for (int j = woff; j <= Woff; ++j) {
-            if (i == 0 && j == 0) {
-                IRB_LOOP(this->load_data(
-                        vdst[irb], this->ptr[src_ + pixel_offset + irb_off]));
-                IRB_LOOP(this->vfmadd231ps(vsum[irb], vdst[irb], vdst[irb]));
-            } else {
-                const auto idx = this->tempIdx_ % used_tmp_regs;
-                IRB_LOOP(this->load_data(vtmp[irb][idx],
-                        this->ptr[(src_ + pixel_offset + irb_off)
-                                + (i * stride + j)
-                                        * this->single_pixel_offset_]));
-                IRB_LOOP(this->vfmadd231ps(
-                        vsum[irb], vtmp[irb][idx], vtmp[irb][idx]));
-                ++(this->tempIdx_);
-            }
+            const auto vdata = (i == 0 && j == 0) ? vdst : vtmp;
+            IRB_LOOP(this->load_data(vdata[irb],
+                    this->ptr[(src_ + pixel_offset + irb_off)
+                            + (i * stride + j) * this->single_pixel_offset_]));
+            IRB_LOOP(this->vfmadd231ps(vsum[irb], vdata[irb], vdata[irb]));
         }
     }
-
-    this->tempIdx_ = this->tempIdx_ % used_tmp_regs;
 
     IRB_LOOP(this->vfmadd132ps(
             vsum[irb], vk_, valpha_)); // ysum <- ysum*valpha_+yk_
@@ -338,9 +320,6 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
 
     IRB_LOOP(this->store_data(
             this->ptr[dst_ + pixel_offset + irb_off], vdst[irb]));
-
-    if (is_superset(isa, avx512_core))
-        this->reg_block_idx_ = (this->reg_block_idx_ % vsum.size()) + 1;
 }
 
 template <>
@@ -458,7 +437,9 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(
     this->load_constant(alpha_, valpha_, xalpha_);
     this->load_constant(k_, vk_, xk_);
 
-    static const int max_reg_blocks = is_superset(isa, avx512_core) ? 3 : 1;
+    static const int max_reg_blocks = is_superset(isa, avx512_core) ? 5
+            : is_superset(isa, avx2)                                ? 2
+                                                                    : 1;
     this->within_loop(config, max_reg_blocks, pk_);
 
     this->postamble();
@@ -1671,7 +1652,7 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::generate(
 #undef GET_OFF
     this->load_constant(nalphabeta_, vnalphabeta_, xnalphabeta_);
 
-    static const int max_reg_blocks = is_superset(isa, avx512_core) ? 3 : 1;
+    static const int max_reg_blocks = is_superset(isa, avx512_core) ? 4 : 2;
     this->within_loop(config, max_reg_blocks, prop_kind::backward);
 
     this->postamble();
@@ -1682,34 +1663,21 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
         int woff, int Woff, int stride, prop_kind_t pk, const int reg_block,
         int pixel_offset) {
 
-    static const std::array<Vmm, 3> vsum {{Vmm(1), Vmm(9), Vmm(18)}};
-    static const std::array<std::array<Vmm, 3>, 3> diff_dst {{
-            {{Vmm(2), Vmm(3), Vmm(6)}},
-            {{Vmm(10), Vmm(11), Vmm(23)}},
-            {{Vmm(19), Vmm(20), Vmm(26)}},
-    }};
-    static const std::array<std::array<Vmm, 3>, 3> ws1 {{
-            {{Vmm(4), Vmm(5), Vmm(15)}},
-            {{Vmm(12), Vmm(13), Vmm(27)}},
-            {{Vmm(21), Vmm(22), Vmm(28)}},
-    }};
-    static const std::array<Vmm, 3> ws0 = !this->emulate_bfloat_
-            ? std::array<Vmm, 3> {{Vmm(29), Vmm(30), Vmm(31)}}
-            : std::array<Vmm, 3> {{Vmm(6), Vmm(15), Vmm(23)}};
-    static const std::array<Vmm, 3> src {{Vmm(7), Vmm(16), Vmm(24)}};
-    static const std::array<Vmm, 3> a {{Vmm(8), Vmm(17), Vmm(25)}};
-
-    static const std::size_t used_tmp_regs
-            = this->emulate_bfloat_ ? ws1[0].size() - 1 : ws1[0].size();
+    static const std::array<Vmm, 4> vsum {{Vmm(1), Vmm(7), Vmm(13), Vmm(19)}};
+    static const std::array<Vmm, 4> diff_dst {
+            {Vmm(2), Vmm(8), Vmm(14), Vmm(20)}};
+    static const std::array<Vmm, 4> ws1 {{Vmm(3), Vmm(9), Vmm(15), Vmm(21)}};
+    static const std::array<Vmm, 4> ws0 {{Vmm(4), Vmm(10), Vmm(16), Vmm(22)}};
+    static const std::array<Vmm, 4> src {{Vmm(5), Vmm(11), Vmm(17), Vmm(23)}};
+    static const std::array<Vmm, 4> a {{Vmm(6), Vmm(12), Vmm(18), Vmm(24)}};
 
     IRB_LOOP(this->uni_vxorps(vsum[irb], vsum[irb], vsum[irb]));
     for (int i = hoff; i <= Hoff; ++i) {
         for (int j = woff; j <= Woff; ++j) {
-            const auto idx = this->tempIdx_ % used_tmp_regs;
-            IRB_LOOP(this->load_data(diff_dst[irb][idx],
+            IRB_LOOP(this->load_data(diff_dst[irb],
                     this->ptr[(diffdst_ + pixel_offset + irb_off)
                             + (i * stride + j) * this->single_pixel_offset_]));
-            IRB_LOOP(this->load_data(ws1[irb][idx],
+            IRB_LOOP(this->load_data(ws1[irb],
                     this->ptr[(bwd_intermediate_res_ + pixel_offset + irb_off)
                             + (i * stride + j) * this->single_pixel_offset_]));
 
@@ -1717,21 +1685,16 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
                 if (utils::one_of(d_type, data_type::bf16, data_type::f16)) {
                     IRB_LOOP(this->load_data(ws0[irb],
                             this->ptr[(scratch_ + pixel_offset + irb_off)]));
-                    IRB_LOOP(
-                            this->vdivps(a[irb], diff_dst[irb][idx], ws0[irb]));
+                    IRB_LOOP(this->vdivps(a[irb], diff_dst[irb], ws0[irb]));
                 } else {
-                    IRB_LOOP(this->vdivps(a[irb], diff_dst[irb][idx],
+                    IRB_LOOP(this->vdivps(a[irb], diff_dst[irb],
                             this->ptr[(scratch_ + pixel_offset + irb_off)]));
                 }
             }
 
-            IRB_LOOP(this->vfmadd231ps(
-                    vsum[irb], ws1[irb][idx], diff_dst[irb][idx]));
-            ++(this->tempIdx_);
+            IRB_LOOP(this->vfmadd231ps(vsum[irb], ws1[irb], diff_dst[irb]));
         }
     }
-
-    this->tempIdx_ = this->tempIdx_ % used_tmp_regs;
 
     if (utils::one_of(d_type, data_type::bf16, data_type::f16)) {
         IRB_LOOP(this->load_data(
@@ -1746,9 +1709,6 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
 
     IRB_LOOP(this->store_data(
             this->ptr[diffsrc_ + pixel_offset + irb_off], a[irb]));
-
-    if (is_superset(isa, avx512_core))
-        this->reg_block_idx_ = (this->reg_block_idx_ % vsum.size()) + 1;
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
