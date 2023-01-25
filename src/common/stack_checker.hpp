@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -262,6 +262,9 @@ private:
         void *stack_base;
         size_t stack_size;
         res = pthread_attr_getstack(&attr, &stack_base, &stack_size);
+        assert(res == 0);
+
+        res = pthread_attr_destroy(&attr);
         assert(res == 0);
         MAYBE_UNUSED(res);
 
