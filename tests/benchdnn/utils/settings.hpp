@@ -28,7 +28,7 @@ struct base_settings_t {
     std::vector<attr_t::zero_points_t> zero_points {attr_t::zero_points_t()};
     std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
-            dnnl_scratchpad_mode_library};
+            attr_t::get_default_scratchpad_mode()};
     std::vector<dnnl_fpmath_mode_t> fpmath_mode {dnnl_fpmath_mode_strict};
     std::vector<thr_ctx_t> ctx_init {default_thr_ctx};
     std::vector<thr_ctx_t> ctx_exe {default_thr_ctx};

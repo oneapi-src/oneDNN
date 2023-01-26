@@ -586,7 +586,7 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
 bool attr_t::is_def(bool skip_fpmath) const {
     return scales.is_def() && zero_points.is_def() && post_ops.is_def()
-            && scratchpad_mode == dnnl_scratchpad_mode_library
+            && scratchpad_mode == get_default_scratchpad_mode()
             && IMPLICATION(
                     !skip_fpmath, fpmath_mode == dnnl_fpmath_mode_strict);
 }
@@ -752,7 +752,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
             s << "--attr-zero-points=" << attr.zero_points << " ";
         if (!attr.post_ops.is_def())
             s << "--attr-post-ops=" << attr.post_ops << " ";
-        if (attr.scratchpad_mode != dnnl_scratchpad_mode_library)
+        if (attr.scratchpad_mode != attr_t::get_default_scratchpad_mode())
             s << "--attr-scratchpad=" << attr.scratchpad_mode << " ";
         if (attr.fpmath_mode != dnnl_fpmath_mode_strict)
             s << "--attr-fpmath=" << attr.fpmath_mode << " ";
@@ -831,7 +831,7 @@ dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str) {
         return dnnl_scratchpad_mode_user;
 
     assert(!"not expected");
-    return dnnl_scratchpad_mode_library;
+    return attr_t::get_default_scratchpad_mode();
 }
 
 dnnl_fpmath_mode_t str2fpmath_mode(const char *str) {

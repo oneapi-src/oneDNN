@@ -362,7 +362,7 @@ struct attr_t {
     };
 
     attr_t()
-        : scratchpad_mode(dnnl_scratchpad_mode_library)
+        : scratchpad_mode(get_default_scratchpad_mode())
         , fpmath_mode(dnnl_fpmath_mode_strict) {}
 
     template <typename First, typename... Rest>
@@ -376,6 +376,10 @@ struct attr_t {
     void insert(const post_ops_t &po) { this->post_ops = po; }
     void insert(dnnl_scratchpad_mode_t sm) { this->scratchpad_mode = sm; }
     void insert(dnnl_fpmath_mode_t fpm) { this->fpmath_mode = fpm; }
+
+    static dnnl_scratchpad_mode_t get_default_scratchpad_mode() {
+        return dnnl_scratchpad_mode_library;
+    }
 
     arg_scales_t scales;
     zero_points_t zero_points;
