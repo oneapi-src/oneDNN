@@ -164,6 +164,8 @@ std::vector<int> supported_exec_args(dir_t dir) {
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
         dnnl_primitive_t prim_ref) {
+    if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
+
     const auto &ref_engine = get_cpu_engine();
 
     for (auto &entry : mem_map) {

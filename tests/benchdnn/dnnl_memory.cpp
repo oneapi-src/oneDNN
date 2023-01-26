@@ -621,7 +621,7 @@ int dnn_mem_t::initialize(
     SAFE(initialize_memory_create(handle_info), CRIT);
 
     if (handle_info.is_allocate()) {
-        map();
+        if (!has_bench_mode_modifier(mode_modifier_t::no_host_memory)) map();
 
         for (int i = 0; i < (int)mapped_ptrs_.size(); i++) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
@@ -630,19 +630,20 @@ int dnn_mem_t::initialize(
             size_t sz = dnnl_memory_desc_get_size(md_);
 #endif
             if (is_canary_protected_) sz = pad_memory_size(sz, engine_kind_);
-            // Do not fill a memory if its size is zero. Moreover, memset expects
-            // defined pointer, nullptr is not allowed.
+            // Do not fill a memory if its size is zero. Moreover, memset
+            // expects defined pointer, nullptr is not allowed.
             if (sz != 0) {
-                // Fill memory with a magic number (NAN for fp data types) to catch
-                // possible uninitialized access.
-                ::memset(mapped_ptrs_[i], dnnl_mem_default_value, sz);
+                if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) {
+                    // Fill memory directly with 0x3F3F3F3F (0.747059f) number.
+                    this->memset(dnnl_mem_default_perf_test_value, sz);
+                } else {
+                    // Fill memory with a magic number (NAN for fp data types)
+                    // to catch possible uninitialized access.
+                    ::memset(mapped_ptrs_[i], dnnl_mem_default_value, sz);
+                }
             }
         }
-        unmap();
     }
-
-    // Keep memory mapped and unmap only before execution
-    map();
 
     return OK;
 }
@@ -682,7 +683,7 @@ static int cleanup_opencl(
 
 int dnn_mem_t::cleanup() {
     if (!active_) return OK;
-    unmap();
+    if (!has_bench_mode_modifier(mode_modifier_t::no_host_memory)) unmap();
     DNN_SAFE(dnnl_memory_desc_destroy(md_), CRIT);
     DNN_SAFE(dnnl_memory_destroy(m_), CRIT);
     if (is_data_owner_) {

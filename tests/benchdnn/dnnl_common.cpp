@@ -344,6 +344,8 @@ void execute_unmap_args(
 
 // Map the memory back after execute
 void execute_map_args(const args_t &args) {
+    if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return;
+
     for (int i = 0; i < args.size(); ++i)
         if (!args.dnn_mem(i).is_mapped()) args.dnn_mem(i).map();
 }
@@ -1113,6 +1115,20 @@ engine_t::engine_t(dnnl_engine_kind_t engine_kind) : is_owner_(true) {
     dnnl_status_t status = dnnl_engine_create(&engine_, engine_kind, idx);
     if (engine_kind == dnnl_cpu && status != dnnl_success)
         maybe_print_cpu_engine_error_message();
+    if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) {
+        if (engine_tgt_kind != dnnl_gpu) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: the modifier to disable host memory usage is "
+                    "supported for GPU engine only.");
+            status = dnnl_invalid_arguments;
+        }
+        if (!has_bench_mode_bit(mode_bit_t::perf)) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: the modifier to disable host memory usage is "
+                    "supported for performance mode only.");
+            status = dnnl_invalid_arguments;
+        }
+    }
     DNN_SAFE_V(status);
 }
 

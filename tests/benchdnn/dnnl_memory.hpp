@@ -30,6 +30,7 @@
 #include "utils/wrapper.hpp"
 
 #define dnnl_mem_default_value 0xFF
+#define dnnl_mem_default_perf_test_value 0x3F
 
 struct dnn_mem_t {
     struct handle_info_t {

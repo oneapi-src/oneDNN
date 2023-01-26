@@ -598,6 +598,7 @@ int doit(const prb_t *prb, res_t *res) {
         // A hack to pass brgemm attributes to reference since some members
         // change the computation flow for correctness validation.
         dnn_mem_t workspace(src_md, ref_engine, {false, (void *)&brgemm_attr});
+        workspace.map();
         ref_args.set(DNNL_ARG_WORKSPACE, workspace);
 
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);

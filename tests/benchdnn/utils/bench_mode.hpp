@@ -44,6 +44,10 @@ enum class mode_modifier_t : unsigned {
     // Enable parallel test object creation. Uses as many threads as identified
     // by `dnnl_get_max_threads()`.
     par_create = 0x1,
+    // Disable usage of host memories in the flow. It removes mapping,
+    // unmapping and filling functionality. Applicable for performance mode only
+    // and for GPU only.
+    no_host_memory = 0x2,
 };
 
 mode_modifier_t operator|(mode_modifier_t lhs, mode_modifier_t rhs);

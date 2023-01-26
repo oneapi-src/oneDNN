@@ -698,6 +698,10 @@ static bool parse_mode_modifier(
               "          The flow will create as many primitives in parallel \n"
               "          as number of threads identified on the system \n"
               "          first, then execute them one by one.\n"
+              "    * `M` to disable usage of host memory.\n"
+              "          It removes any overheads for mapping, unmapping and \n"
+              "          reorders used in filling functions (disabled).\n"
+              "          Applicable for performance mode and GPU engine only.\n"
               "    More details at "
             + doc_url + "benchdnn_general_info.md\n";
 
@@ -707,6 +711,8 @@ static bool parse_mode_modifier(
             switch (s) {
                 case 'p':
                 case 'P': modifier |= mode_modifier_t::par_create; break;
+                case 'm':
+                case 'M': modifier |= mode_modifier_t::no_host_memory; break;
                 default:
                     BENCHDNN_PRINT(0, "%s\n%s",
                             "Error: modifier value is invalid.", help.c_str());

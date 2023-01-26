@@ -97,6 +97,11 @@ The following modifiers are supported:
   used  unless "-DDNNL_ENABLE_CONCURRENT_EXEC=ON" is enabled at the build time.
   Otherwise scratchpad pointers are invalidated due to threads used for creation
   are no longer alive at the point when execution time comes.
+* Disabling usage of host memory (`M`). This is an extension of performance mode
+  when all work with host memory is disabled. It includes mapping/unmapping
+  memory objects and also skipping filling functions with their reorders. Every
+  value of a device memory object is assigned with a special value directly.
+  This is applicable for GPU only.
 
 ## Problem Statuses
 

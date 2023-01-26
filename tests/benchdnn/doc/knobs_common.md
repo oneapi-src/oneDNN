@@ -65,6 +65,7 @@ The following common options are supported:
   used for benchmarking. `MODIFIER` values can be:
     - empty for no modifiers (the default).
     - `P` or `p` for parallel backend object creation.
+    - `M` or `m` for disabling usage of host memory (GPU only).
   Refer to [mode modifiers](benchdnn_general_info.md) for details.
   Note: The `P` modifier flips the default value of scratchpad mode passed to
   the library. In order to have the functionality working properly, it is

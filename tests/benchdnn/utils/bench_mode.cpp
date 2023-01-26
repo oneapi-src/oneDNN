@@ -41,6 +41,7 @@ std::ostream &operator<<(std::ostream &s, bench_mode_t mode) {
 std::ostream &operator<<(std::ostream &s, mode_modifier_t modifier) {
     if (modifier == mode_modifier_t::none) s << "";
     if (has_bench_mode_modifier(mode_modifier_t::par_create)) s << "P";
+    if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) s << "M";
     return s;
 }
 
