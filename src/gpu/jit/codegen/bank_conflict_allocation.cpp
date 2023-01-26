@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -513,7 +513,11 @@ bool search(search_context_t &ctx, int block_idx = 0) {
     // 2. Update register constraints for other blocks
     // 3. If the remaining blocks still can be assigned, move to the next
     //    block. Otherwise try the next register in step 1.
-    for (int i = 0; i < ctx.hw_ctx->regs; i++) {
+    for (int k = 0; k < ctx.hw_ctx->regs; k++) {
+        // To mitigate fragmenation try to allocate large ranges from back end of register space and small ones from front.
+        int i = block.regs > 4 && hw_ctx->hw <= ngen::HW::XeLP
+                ? ctx.hw_ctx->regs - k - block.regs
+                : k;
         if (!mask0.test(i)) continue;
         if (!ctx.reg_mask.is_unset(i, block.regs)) continue;
         // Stop the search if it takes too many steps.
