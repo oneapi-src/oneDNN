@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -645,6 +645,7 @@ CPU_INST_TEST_CASE(TestGEMM_fractional_scales_row_offset,
         test_params {'n', 'n', 2, 2, 10000, 1.66f, 2.33f, 10000, 2, 2,
                 row_no_offsets});
 
+#ifndef DNNL_ENABLE_MEM_DEBUG
 CPU_INST_TEST_CASE(TestGEMV,
         test_params {'n', 'n', 2000, 1, 1000, 1.0f, 0.0f, 1000, 1, 1,
                 fix_no_offsets},
@@ -828,6 +829,7 @@ CPU_INST_TEST_CASE(TestGEMM_packed,
                 1, 200, 200, fix_no_offsets),
         make_test_params_pack({false, true}, 'n', 'T', 1, 200, 200, 1.0f, 0.0f,
                 200, 200, 200, fix_no_offsets));
+#endif
 
 CPU_INST_TEST_CASE(TestGEMM_heavy,
         test_params {'n', 'n', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
