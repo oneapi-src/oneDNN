@@ -2572,6 +2572,18 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
         }
         nthr_ic_b = jcp.nthr / (nthr_mb * nthr_oc_b);
         nthr = nthr_mb * nthr_g * nthr_oc_b * nthr_ic_b;
+    } else if (jcp.ngroups == 1 && (jcp.oc > 2048 || jcp.ic > 2048)) {
+        const bool more_oc = (jcp.ic < jcp.oc);
+        if (more_oc) {
+            nthr_oc_b = div_up(jcp.nthr, 8);
+            nthr_mb = div_up(jcp.nthr / nthr_oc_b, 2);
+            nthr_ic_b = jcp.nthr / (nthr_mb * nthr_oc_b);
+        } else {
+            nthr_ic_b = div_up(jcp.nthr, 8);
+            nthr_mb = div_up(jcp.nthr / nthr_ic_b, 2);
+            nthr_oc_b = jcp.nthr / (nthr_mb * nthr_ic_b);
+        }
+        nthr = nthr_mb * nthr_g * nthr_oc_b * nthr_ic_b;
     }
 
     jcp.nthr = nthr;
