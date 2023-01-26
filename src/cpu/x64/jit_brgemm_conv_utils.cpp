@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2474,6 +2474,18 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
             nthr_oc_b = more_oc ? 14 : 1;
         }
         nthr_ic_b = jcp.nthr / (nthr_mb * nthr_oc_b);
+        nthr = nthr_mb * nthr_g * nthr_oc_b * nthr_ic_b;
+    } else if (jcp.ngroups == 1 && (jcp.oc > 2048 || jcp.ic > 2048)) {
+        const bool more_oc = (jcp.ic < jcp.oc);
+        if (more_oc) {
+            nthr_oc_b = div_up(jcp.nthr, 8);
+            nthr_mb = div_up(jcp.nthr / nthr_oc_b, 2);
+            nthr_ic_b = jcp.nthr / (nthr_mb * nthr_oc_b);
+        } else {
+            nthr_ic_b = div_up(jcp.nthr, 8);
+            nthr_mb = div_up(jcp.nthr / nthr_ic_b, 2);
+            nthr_oc_b = jcp.nthr / (nthr_mb * nthr_ic_b);
+        }
         nthr = nthr_mb * nthr_g * nthr_oc_b * nthr_ic_b;
     }
 
