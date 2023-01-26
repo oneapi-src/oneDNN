@@ -1784,6 +1784,11 @@ private:
         if (cfg_.hw() < ngen::HW::XeHPC) return false;
         if (is_a && !prb.is_bwd_d && is_small_ic(prb) && cfg_.is_dp_fma())
             return false;
+        auto &tg = cfg_.thread_group_grid();
+        if (prb.is_bwd_w
+                && (!cfg_.pipeline().do_unroll()
+                        && (tg[1] == 1 || tg[0] >= tg[1])))
+            return false;
         return true;
     }
 
