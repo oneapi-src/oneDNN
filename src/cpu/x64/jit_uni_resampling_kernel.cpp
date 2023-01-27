@@ -231,11 +231,11 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::preserve_zero_padding_in_post_ops(
 
 template <cpu_isa_t isa, typename Vmm>
 void jit_uni_resampling_kernel_t<isa, Vmm>::apply_sum(
-        const int data_idx, const bool is_tail) {
+        const int data_idx, const bool is_tail, const size_t offset) {
     if (conf_.with_sum) {
         assert(!conf_.sum_scales.empty()
                 && "No scales for sum post operation.");
-        const auto sum_injector = [this, data_idx, is_tail]() {
+        const auto sum_injector = [this, data_idx, is_tail, offset]() {
             const Vmm vmm_prev_dst(vmm_tmp_.getIdx());
             const Vmm vmm_dst(data_idx);
 
@@ -244,7 +244,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::apply_sum(
                 uni_vxorps(vmm_prev_dst, vmm_prev_dst, vmm_prev_dst);
 
             io_.at(conf_.dst_data_type)
-                    ->load(ptr[reg_dst_], vmm_prev_dst, is_tail);
+                    ->load(ptr[reg_dst_ + offset], vmm_prev_dst, is_tail);
             const float sum_scale = sum_scales_.front();
             if (sum_scale == 1.f)
                 uni_vaddps(vmm_dst, vmm_dst, vmm_prev_dst);
@@ -277,7 +277,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::apply_sum(
 
 template <cpu_isa_t isa, typename Vmm>
 void jit_uni_resampling_kernel_t<isa, Vmm>::apply_postops(
-        const int data_idx, const bool is_tail) {
+        const int data_idx, const bool is_tail, const size_t offset) {
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
     const bool is_preserving_zero_padding_needed
             = is_tail && conf_.tag_kind == tag_kind::blocked;
@@ -285,10 +285,11 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::apply_postops(
             && (any_binary_postop_is_per_oc_bcast_type_
                     || any_binary_postop_is_per_oc_sp_bcast_type_);
 
-    if (conf_.with_sum) apply_sum(data_idx, is_tail);
+    if (conf_.with_sum) apply_sum(data_idx, is_tail, offset);
 
     if (apply_rhs_binary) {
         rhs_arg_params.vmm_idx_to_out_reg.emplace(data_idx, reg_dst_);
+        rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(data_idx, offset);
         if (is_tail) rhs_arg_params.vmm_tail_idx_.emplace(data_idx);
         postops_injector_->compute_vector(data_idx, rhs_arg_params);
     } else
@@ -467,7 +468,8 @@ void jit_uni_resampling_kernel_t<isa,
                         vmm_src_even_, vmm_src_odd_, vmm_tmp_);
         if (conf_.with_postops) {
             apply_postops(vmm_src_even_.getIdx(), false);
-            apply_postops(vmm_src_odd_.getIdx(), false);
+            apply_postops(
+                    vmm_src_odd_.getIdx(), false, simd_w_ * conf_.dst_dt_size);
         }
         io_.at(conf_.dst_data_type)->store(vmm_src_even_, ptr[reg_dst_], false);
         io_.at(conf_.dst_data_type)
@@ -649,7 +651,8 @@ void jit_uni_resampling_kernel_t<isa,
 
         if (conf_.with_postops) {
             apply_postops(src_ftl_even_.getIdx(), false);
-            apply_postops(src_ftl_odd_.getIdx(), false);
+            apply_postops(
+                    src_ftl_odd_.getIdx(), false, simd_w_ * conf_.dst_dt_size);
         }
 
         if (conf_.is_saturation_needed && conf_.ndims >= 4) {

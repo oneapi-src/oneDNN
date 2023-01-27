@@ -84,8 +84,10 @@ private:
     void get_params_for_linear_in_c_oriented_format();
 
     void preserve_zero_padding_in_post_ops(int data_idx);
-    void apply_sum(const int data_idx, const bool is_tail);
-    void apply_postops(const int data_idx, const bool is_tail);
+    void apply_sum(
+            const int data_idx, const bool is_tail, const size_t offset = 0);
+    void apply_postops(
+            const int data_idx, const bool is_tail, const size_t offset = 0);
 
     void preserve_zero_padding(
             int c_to_compute_without_tail, const bool is_tail);
