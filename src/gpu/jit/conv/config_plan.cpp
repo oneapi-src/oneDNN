@@ -845,6 +845,23 @@ std::string x2r_plan_t::str() const {
     return add_indent("x2r_plan", oss.str());
 }
 
+int get_dpas_block_rcount(const layout_t &layout, int dim_idx) {
+    if (layout.nblocks() < 2) return 1;
+
+    auto &b0 = layout.blocks()[0];
+    if (b0.block * layout.type().size() > 32) return 1;
+
+    auto &b1 = layout.blocks()[1];
+    if (b1.dim_idx != dim_idx) return 1;
+
+    int block_rcount = (int)b1.block;
+    int max_rcount = 8;
+
+    if (block_rcount % max_rcount == 0) return max_rcount;
+
+    return block_rcount;
+}
+
 bool fma_plan_t::can_split(abc_kind_t abc, int factor) const {
     ir_assert(factor > 1);
     bool is_a = (abc == abc_kind_t::a);
@@ -866,6 +883,11 @@ bool fma_plan_t::can_split(abc_kind_t abc, int factor) const {
 void fma_plan_t::set_split(abc_kind_t abc, int factor) {
     split_abc = abc;
     split_factor = factor;
+    if (fma_kind == fma_kind_t::mad) return;
+    auto blocks = a_layout.blocks();
+    blocks[1].block /= factor;
+    auto layout = layout_t(a_layout.type(), a_layout.ndims(), 0, blocks);
+    m_blk = get_dpas_block_rcount(layout, 1);
 }
 
 int fma_plan_t::a_buf_size() const {
@@ -1554,23 +1576,6 @@ bool is_dpas_src2_compatible(int simd, bool transpose, const layout_t &layout) {
     if (transpose) src2_layout = src2_layout.transpose();
     src2_layout = add_batch(src2_layout);
     return src2_layout <= layout;
-}
-
-int get_dpas_block_rcount(const layout_t &layout, int dim_idx) {
-    if (layout.nblocks() < 2) return 1;
-
-    auto &b0 = layout.blocks()[0];
-    if (b0.block * layout.type().size() > 32) return 1;
-
-    auto &b1 = layout.blocks()[1];
-    if (b1.dim_idx != dim_idx) return 1;
-
-    int block_rcount = (int)b1.block;
-    int max_rcount = 8;
-
-    if (block_rcount % max_rcount == 0) return max_rcount;
-
-    return block_rcount;
 }
 
 bool is_mad_compatible(int vec_size, const layout_t &a, const layout_t &b,
