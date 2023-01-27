@@ -28,7 +28,7 @@ oneDNN supports the following build-time options.
 | ONEDNN_AARCH64_USE_ACL          | ON, **OFF**                                | Enables integration with Arm Compute Library for AArch64 builds
 | ONEDNN_BLAS_VENDOR              | **NONE**, ARMPL                            | Defines an external BLAS library to link to for GEMM-like operations
 | ONEDNN_GPU_VENDOR               | **INTEL**, NVIDIA                          | Defines GPU vendor for GPU engines
-| ONEDNN_DPCPP_HOST_COMPILER      | **DEFAULT**, *GNU C++ compiler executable* | Specifies host compiler executable for DPCPP runtimes
+| ONEDNN_DPCPP_HOST_COMPILER      | **DEFAULT**, *GNU C++ compiler executable* | Specifies host compiler executable for SYCL runtime
 | ONEDNN_LIBRARY_NAME             | **dnnl**, *library name*                   | Specifies name of the library
 
 All building options listed support their counterparts with `DNNL` prefix

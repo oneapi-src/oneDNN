@@ -138,14 +138,14 @@ Processors, 64-bit Arm Architecture (AArch64) processors,
 
 The CPU engine is built by default but can be disabled at build time by setting
 `DNNL_CPU_RUNTIME` to `NONE`. In this case, GPU engine must be enabled.
-The CPU engine can be configured to use the OpenMP, TBB or DPCPP runtime.
+The CPU engine can be configured to use the OpenMP, TBB or SYCL runtime.
 The following additional requirements apply:
 * OpenMP runtime requires C++ compiler with OpenMP 2.0 or later
   standard support
 * TBB runtime requires
 [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
 2017 or later.
-* DPCPP runtime requires
+* SYCL runtime requires
   * [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
   * [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
 
@@ -163,11 +163,11 @@ is enabled:
     * OpenCL\* runtime library (OpenCL version 1.2 or later)
     * OpenCL driver (with kernel language support for OpenCL C 2.0 or later)
       with Intel subgroups and USM extensions support
-* DPCPP runtime requires
+* SYCL runtime requires
     * [Intel oneAPI DPC++/C++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
     * OpenCL runtime library (OpenCL version 1.2 or later)
     * [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
-* DPCPP runtime with NVIDIA GPU support requires
+* SYCL runtime with NVIDIA GPU support requires
     * [oneAPI DPC++/C++ Compiler](https://github.com/intel/llvm)
     * NVIDIA CUDA\* driver
     * cuBLAS 10.1 or later
@@ -201,9 +201,9 @@ Runtime-specific dependencies:
 | `DNNL_CPU_RUNTIME=OMP`   | Intel C/C++ Compiler          | Intel OpenMP runtime (`libiomp5.so`)
 | `DNNL_CPU_RUNTIME=OMP`   | Clang                         | Intel OpenMP runtime (`libiomp5.so`)
 | `DNNL_CPU_RUNTIME=TBB`   | any                           | TBB (`libtbb.so`)
-| `DNNL_CPU_RUNTIME=DPCPP` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`libsycl.so`), TBB (`libtbb.so`), OpenCL loader (`libOpenCL.so`)
+| `DNNL_CPU_RUNTIME=SYCL` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`libsycl.so`), TBB (`libtbb.so`), OpenCL loader (`libOpenCL.so`)
 | `DNNL_GPU_RUNTIME=OCL`   | any                           | OpenCL loader (`libOpenCL.so`)
-| `DNNL_GPU_RUNTIME=DPCPP` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`libsycl.so`), OpenCL loader (`libOpenCL.so`), oneAPI Level Zero loader (`libze_loader.so`)
+| `DNNL_GPU_RUNTIME=SYCL` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`libsycl.so`), OpenCL loader (`libOpenCL.so`), oneAPI Level Zero loader (`libze_loader.so`)
 
 #### Windows
 
@@ -217,9 +217,9 @@ Runtime-specific dependencies:
 | `DNNL_CPU_RUNTIME=OMP`   | Microsoft Visual C++ Compiler | No additional requirements
 | `DNNL_CPU_RUNTIME=OMP`   | Intel C/C++ Compiler          | Intel OpenMP runtime (`iomp5.dll`)
 | `DNNL_CPU_RUNTIME=TBB`   | any                           | TBB (`tbb.dll`)
-| `DNNL_CPU_RUNTIME=DPCPP` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`sycl.dll`), TBB (`tbb.dll`), OpenCL loader (`OpenCL.dll`)
+| `DNNL_CPU_RUNTIME=SYCL` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`sycl.dll`), TBB (`tbb.dll`), OpenCL loader (`OpenCL.dll`)
 | `DNNL_GPU_RUNTIME=OCL`   | any                           | OpenCL loader (`OpenCL.dll`)
-| `DNNL_GPU_RUNTIME=DPCPP` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`sycl.dll`), OpenCL loader (`OpenCL.dll`), oneAPI Level Zero loader (`ze_loader.dll`)
+| `DNNL_GPU_RUNTIME=SYCL` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`sycl.dll`), OpenCL loader (`OpenCL.dll`), oneAPI Level Zero loader (`ze_loader.dll`)
 
 #### macOS
 
