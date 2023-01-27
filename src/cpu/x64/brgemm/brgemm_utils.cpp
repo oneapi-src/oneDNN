@@ -458,7 +458,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
         recalc_ld_block(brg->ld_block);
         recalc_ld_block2(brg->ld_block2);
 
-        if (brg->brgattr.use_uker /*&& brg->brgattr.bd_mask_level == 0*/) {
+        if (brg->brgattr.use_uker) {
             // Blocking heuristics for some shapes
             // TODO: Review these criterias
             size_t eff_K
@@ -468,7 +468,6 @@ status_t brgemm_blocking(brgemm_t *brg) {
 
             // TODO: if rdb_tail != 0 then we should limit
             // blocking because we need extra tiles for A and B to load rdb_tail
-
             // if bd_mask_level != 0 it means it aligned to 16
 
             bool bdb_block_tail = !(brg->bd_block > 12
@@ -589,7 +588,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 recalc_ld_block2(2);
             } else if (brg->load_dim <= 16) {
                 recalc_bd_block(16);
-                recalc_ld_block(16); // we can't use ld_block other than 16 !!!
+                recalc_ld_block(16); // we can't use ld_block other than 16
                 recalc_bd_block2(
                         nstl::min((brg->bcast_dim % 16 != 0
                                           && brg->brgattr.bd_mask_level == 0)
