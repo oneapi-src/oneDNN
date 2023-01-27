@@ -50,7 +50,7 @@
 extern "C" dnnl_status_t dnnl_impl_gpu_set_profiling(int flag);
 extern "C" dnnl_status_t dnnl_impl_gpu_reset_profiling();
 extern "C" dnnl_status_t dnnl_impl_gpu_get_profile_info(
-        uint64_t &time, double &freq, int mode);
+        int *num_entries, uint64_t *nsecs, uint64_t *cycles);
 #endif
 
 int check_pd_cache(const_dnnl_primitive_desc_t pd) {
@@ -400,10 +400,16 @@ void reset_gpu_profiling() {
 #endif
 }
 
-void get_gpu_profiling_info(uint64_t &nsec, double &freq, int mode) {
+void get_gpu_profiling_info(
+        std::vector<uint64_t> &nsecs, std::vector<uint64_t> &cycles) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    DNN_SAFE_V(dnnl_impl_gpu_get_profile_info(nsec, freq, mode));
+    int num_entries = 0;
+    DNN_SAFE_V(dnnl_impl_gpu_get_profile_info(&num_entries, nullptr, nullptr));
+    nsecs.resize(num_entries);
+    cycles.resize(num_entries);
+    DNN_SAFE_V(dnnl_impl_gpu_get_profile_info(
+            &num_entries, nsecs.data(), cycles.data()));
 #endif
 }
 
@@ -425,7 +431,11 @@ inline int measure_perf_individual(timer::timer_t &t, dnnl_stream_t stream,
 
 inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
         perf_function_t &perf_func, std::vector<dnnl_exec_arg_t> &dnnl_args) {
-    const int max_batch_times = 10000;
+    // There seems to be some limit to how many kernels can be queued in OCL
+    // builds and 4096 seems to be a nice number under that limit.
+    // Otherwise, hangs in perf validation are observed due to many kernels
+    // being queued at once.
+    static constexpr int max_batch_times = 4096;
 
     // Warm-up run, this is not measured due to possibility the associated
     // kernel has not been built and skews the results.
@@ -445,11 +455,17 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
         }
         DNN_SAFE(dnnl_stream_wait(stream), WARN);
 
-        uint64_t nsec = 0;
-        double freq = 0;
-        get_gpu_profiling_info(nsec, freq, 0);
+        std::vector<uint64_t> nsecs;
+        std::vector<uint64_t> cycles;
+        get_gpu_profiling_info(nsecs, cycles);
         reset_gpu_profiling();
-        t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
+
+        // Profiling should have information to stop the cycle.
+        if (nsecs.empty()) SAFE(FAIL, WARN);
+
+        for (size_t i = 0; i < nsecs.size(); i++) {
+            t.stop(1, (int64_t)cycles[i], nsecs[i] / 1e6);
+        }
 
         if (should_stop(t)) break;
 
@@ -483,12 +499,13 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
         // For non-DPCPP CPU: measure individual iterations.
         // For DPCPP CPU and GPU: measure iterations in batches to hide driver
         // overhead. DPCPP CPU follows the model of GPU, thus, handled similar.
-        if (is_cpu() && !is_sycl_engine(engine))
+        if (is_cpu() && !is_sycl_engine(engine)) {
             ret = execute_in_thr_ctx(ctx, measure_perf_individual, t, stream,
                     perf_func, dnnl_args);
-        else
+        } else {
             ret = execute_in_thr_ctx(ctx, measure_perf_aggregate, t, stream,
                     perf_func, dnnl_args);
+        }
 
         if (ret != OK) res->state = FAILED;
         execute_map_args(args);

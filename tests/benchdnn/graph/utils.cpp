@@ -94,11 +94,17 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl::stream &stream,
         }
         DNN_GRAPH_SAFE(stream.wait(), WARN);
 
-        uint64_t nsec = 0;
-        double freq = 0;
-        get_gpu_profiling_info(nsec, freq, 0);
+        std::vector<uint64_t> nsecs;
+        std::vector<uint64_t> cycles;
+        get_gpu_profiling_info(nsecs, cycles);
         reset_gpu_profiling();
-        t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
+
+        // Profiling should have information to stop the cycle.
+        if (nsecs.empty()) SAFE(FAIL, WARN);
+
+        for (size_t i = 0; i < nsecs.size(); i++) {
+            t.stop(1, (int64_t)cycles[i], nsecs[i] / 1e6);
+        }
 
         if (should_stop(t)) break;
 

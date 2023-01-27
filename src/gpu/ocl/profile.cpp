@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -61,9 +61,15 @@ void register_profile_event(cl_event event, const ocl_stream_t *ocl_stream) {
     events.emplace_back(event, ocl_stream, stamp);
 }
 
-status_t get_profile_info(uint64_t &nsec, double &freq, int mode) {
-    nsec = 0;
-    freq = 0;
+status_t get_profile_info(int *num_entries, uint64_t *nsecs, uint64_t *cycles) {
+    if (!num_entries || !!nsecs != !!cycles) return status::invalid_arguments;
+    if (!nsecs && !cycles) {
+        std::unordered_set<uint64_t> seen;
+        for (auto &ev : events)
+            seen.insert(ev.stamp);
+        *num_entries = (int)seen.size();
+        return status::success;
+    }
     std::unordered_map<uint64_t, profile_entry_t> stamp2entry;
     for (auto &ev : events) {
         cl_ulong beg, end;
@@ -76,7 +82,7 @@ status_t get_profile_info(uint64_t &nsec, double &freq, int mode) {
         entry.freq += ev.stream->mdapi_helper().get_freq(ev.event);
         entry.kernel_count++;
     }
-    return get_profile_info_impl(nsec, freq, mode, stamp2entry);
+    return get_profile_info_impl(stamp2entry, nsecs, cycles);
 }
 
 status_t reset_profiling() {

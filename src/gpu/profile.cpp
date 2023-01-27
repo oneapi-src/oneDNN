@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,32 +39,16 @@ bool is_profiling_enabled() {
     return profile.get();
 }
 
-status_t get_profile_info_impl(uint64_t &nsec, double &freq, int _mode,
-        const std::unordered_map<uint64_t, profile_entry_t> &stamp2entry) {
-    auto mode = static_cast<profile_mode_t>(_mode);
-    switch (mode) {
-        case profile_mode_t::sum:
-            nsec = 0;
-            freq = 0;
-            for (auto &kv : stamp2entry) {
-                auto &e = kv.second;
-                nsec += e.nsec;
-                freq += e.freq / e.kernel_count;
-            }
-            freq /= stamp2entry.size();
-            break;
-        case profile_mode_t::min:
-            nsec = std::numeric_limits<uint64_t>::max();
-            freq = 0;
-            for (auto &kv : stamp2entry) {
-                auto &e = kv.second;
-                if (e.nsec < nsec) {
-                    nsec = e.nsec;
-                    freq = e.freq / e.kernel_count;
-                }
-            }
-            break;
-        default: assert(!"Unexpected mode");
+status_t get_profile_info_impl(
+        const std::unordered_map<uint64_t, profile_entry_t> &stamp2entry,
+        uint64_t *nsecs, uint64_t *cycles) {
+    int idx = 0;
+    for (auto &kv : stamp2entry) {
+        auto &e = kv.second;
+        double freq = e.freq / e.kernel_count;
+        nsecs[idx] = e.nsec;
+        cycles[idx] = freq * e.nsec / 1e9;
+        idx++;
     }
     return status::success;
 }
@@ -93,13 +77,14 @@ extern "C" status_t DNNL_API dnnl_impl_gpu_reset_profiling() {
 }
 
 extern "C" status_t DNNL_API dnnl_impl_gpu_get_profile_info(
-        uint64_t &nsec, double &freq, int mode) {
+        int *num_entries, uint64_t *nsecs, uint64_t *cycles) {
+
     using namespace dnnl::impl;
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    return dnnl::impl::gpu::ocl::get_profile_info(nsec, freq, mode);
+    return dnnl::impl::gpu::ocl::get_profile_info(num_entries, nsecs, cycles);
 #endif
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    return dnnl::impl::sycl::get_profile_info(nsec, freq, mode);
+    return dnnl::impl::sycl::get_profile_info(num_entries, nsecs, cycles);
 #endif
     return status::unimplemented;
 }

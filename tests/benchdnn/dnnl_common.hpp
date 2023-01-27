@@ -677,7 +677,8 @@ int execute_and_wait(
 void reset_gpu_profiling();
 void finalize();
 
-void get_gpu_profiling_info(uint64_t &nsec, double &freq, int mode);
+void get_gpu_profiling_info(
+        std::vector<uint64_t> &nsecs, std::vector<uint64_t> &cycles);
 int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
         args_t &args);
 int measure_perf(

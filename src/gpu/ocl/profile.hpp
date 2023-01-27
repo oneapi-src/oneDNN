@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,8 @@ struct ocl_stream_t;
 
 void notify_before_exec();
 void register_profile_event(cl_event event, const ocl_stream_t *stream);
-status_t get_profile_info(uint64_t &nsec, double &freq, int mode);
+status_t get_profile_info(int *num_entries, uint64_t *nsecs, uint64_t *cycles);
+
 status_t reset_profiling();
 
 } // namespace ocl

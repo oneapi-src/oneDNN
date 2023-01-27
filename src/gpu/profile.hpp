@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,8 +38,9 @@ struct profile_entry_t {
 
 bool is_profiling_enabled();
 
-status_t get_profile_info_impl(uint64_t &nsec, double &freq, int mode,
-        const std::unordered_map<uint64_t, profile_entry_t> &entries);
+status_t get_profile_info_impl(
+        const std::unordered_map<uint64_t, profile_entry_t> &entries,
+        uint64_t *nsecs, uint64_t *cycles);
 
 } // namespace gpu
 } // namespace impl
