@@ -177,7 +177,7 @@ public:
 
         int esize = operand.mod().getExecSize();
         if (esize == 0) esize = 1;
-        if (esize != expr.type().elems()) {
+        if (esize != expr.type().elems() && !expr.type().is_bool()) {
             ir_assert(expr.type().is_scalar() || esize == 1)
                     << "Expected broadcast.";
             if (operand.is_reg_buf_data() && esize != 1) {
