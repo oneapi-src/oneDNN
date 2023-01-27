@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -287,10 +287,10 @@ status_t ref_convolution_int8_bwd_data_t::execute_backward_data(
     CHECK(status);
 
     DEFINE_ARG_SCALES_BUFFER(diff_src_scales, DNNL_ARG_SRC);
-    DEFINE_ARG_SCALES_BUFFER(diff_wei_scales, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(diff_dst_scales, DNNL_ARG_DST);
 
-    const int diff_wei_scale_mask
+    const int wei_scale_mask
             = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
@@ -461,8 +461,8 @@ status_t ref_convolution_int8_bwd_data_t::execute_backward_data(
                     acc += ker(g, mb, ic, id, ih, iw);
 
                 float ds = static_cast<float>(acc);
-                dequantize(ds, g, IC, ic, diff_wei_scales, with_groups,
-                        diff_wei_scale_mask, diff_dst_scales);
+                dequantize(ds, g, IC, ic, wei_scales, with_groups,
+                        wei_scale_mask, diff_dst_scales);
                 quantize(ds, g, IC, ic, diff_src_scales);
 
                 const auto diff_src_off = ref_conv_utils::get_data_off(
