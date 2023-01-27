@@ -47,6 +47,21 @@ const std::vector<uniform_blocked_pattern_t> &get_uniform_blocked_patterns(
     }
 }
 
+const std::vector<uniform_2d_pattern_t> &get_uniform_2d_patterns(
+        compute::gpu_arch_t arch) {
+    switch (arch) {
+        case compute::gpu_arch_t::xe_hpc: {
+            static const std::vector<uniform_2d_pattern_t> xe_hpc_loads
+                    = {uniform_2d_pattern_t(0.125)};
+            return xe_hpc_loads;
+        }
+        default: {
+            static const std::vector<uniform_2d_pattern_t> default_list {};
+            return default_list;
+        }
+    }
+}
+
 class uniform_blocked_matcher_t : public ir_visitor_t {
 public:
     static bool is_match(const send_pattern_t &pattern, const stmt_t &stmt) {

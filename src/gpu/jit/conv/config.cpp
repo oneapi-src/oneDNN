@@ -1133,30 +1133,91 @@ send_pattern_t validate_blocking(
         return true;
     };
 
-    for (const auto &load : get_uniform_blocked_patterns(arch)) {
-        uniform_blocked_idiom_t<conv_dim_t> idiom(load);
-        auto layout = conv_stride_layout_t(cfg.prb(), tensor);
-        auto hints = idiom.get_hints(layout);
+    struct pattern_match_t {
+        pattern_match_t(send_pattern_t pattern,
+                std::vector<block_hint_t<conv_dim_t>> hints)
+            : pattern(pattern), hints(std::move(hints)) {};
+        send_pattern_t pattern;
+        std::vector<block_hint_t<conv_dim_t>> hints;
+    };
 
-        if (hints.empty()) continue;
+    auto layout = conv_stride_layout_t(cfg.prb(), tensor);
+    auto match_blocked = [&]() {
+        for (const auto &load : get_uniform_blocked_patterns(arch)) {
+            uniform_blocked_idiom_t<conv_dim_t> idiom(load);
+            auto hints = idiom.get_hints(layout);
 
-        bool found_match = false;
-        for (const auto &hint : hints) {
-            if (is_match(hint)) {
-                found_match = true;
-                break;
+            if (!hints.empty()) return pattern_match_t(load, hints);
+        }
+        return pattern_match_t(send_pattern_t(), {});
+    }();
+
+    auto match_2d = [&]() {
+        for (const auto &load : get_uniform_2d_patterns(arch)) {
+            uniform_2d_idiom_t<conv_dim_t> idiom(load);
+            auto hints = idiom.get_hints(layout);
+
+            if (!hints.empty()) {
+                dim_t max = 0;
+                std::vector<block_hint_t<conv_dim_t>> max_hints = {};
+                for (auto &h : hints) {
+                    auto hint_size = h.size();
+                    if (max < hint_size) {
+                        max = hint_size;
+                        max_hints = {h};
+                    } else if (max == hint_size) {
+                        max_hints.emplace_back(h);
+                    }
+                }
+                return pattern_match_t(load.with_size(max), max_hints);
             }
         }
-        if (!found_match) {
-            ir_suggestion()
-                    << "blocking disables " << load.str() << " load of the "
-                    << tensor << " tensor. Try a multiple of:\n";
-            for (auto &hint : hints) {
-                ir_suggestion() << "\t" << hint.str() << "\n";
-            }
-            return send_pattern_t();
+        return pattern_match_t(send_pattern_t(), {});
+    }();
+
+    // if (!match_blocked.hints.empty()) {
+    //     std::cout << "Best blocked hints: \n";
+    //     for (auto &hint : match_blocked.hints) {
+    //         std::cout << "\t" << hint.str() << "\n";
+    //     }
+    // } else {
+    //     std::cout << "No blocked matches found.\n";
+    // }
+    if (!match_2d.hints.empty()) {
+        ir_suggestion() << "Best 2d hints for " << tensor << ": " << layout
+                        << "\n";
+        for (auto &hint : match_2d.hints) {
+            ir_suggestion() << "\t" << hint.str() << "\n";
         }
-        return load;
+    } else {
+        ir_suggestion() << "No 2d matches found for " << tensor << ": "
+                        << layout << ".\n";
+    }
+
+    const pattern_match_t &best_match = [&]() {
+        if (match_2d.hints.empty()) return match_blocked;
+        if (match_blocked.hints.empty()) return match_2d;
+        if (match_blocked.hints[0].size() >= match_2d.hints[0].size())
+            return match_blocked;
+        return match_2d;
+    }();
+
+    if (best_match.hints.empty()) return send_pattern_t();
+
+    // ir_suggestion() << "Best Pattern:\n" << best_match.pattern;
+    // for (const auto &h : best_match.hints) {
+    //     ir_suggestion() << h << "\n";
+    // }
+
+    for (const auto &h : best_match.hints) {
+        if (is_match(h)) { return best_match.pattern; }
+    }
+
+    ir_suggestion() << "blocking disables " << best_match.pattern
+                    << " load of the " << tensor
+                    << " tensor. Try a multiple of:\n";
+    for (auto &hint : best_match.hints) {
+        ir_suggestion() << "\t" << hint.str() << "\n";
     }
     return send_pattern_t();
 }
