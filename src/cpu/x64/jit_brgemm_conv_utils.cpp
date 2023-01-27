@@ -1136,13 +1136,15 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
         kw_block_pad = kw;
     }
 
+    select_ic_block();
+
     if (exec_type == exec_vpad) {
         od_block = 1;
         oh_block = 1;
     } else if (exec_type == exec_trans) {
         const auto w_block_size
-                = 2 * src_dsz * ic * iwp + dst_dsz * ow * oc_block;
-        const auto other_size = wei_dsz * kd * kh * kw * ic * oc_block
+                = 2 * src_dsz * ic_block * iwp + dst_dsz * ow * oc_block;
+        const auto other_size = wei_dsz * kd * kh * kw * ic_block * oc_block
                 + acc_dsz * 2 * amx_h * oc_block;
         const auto L2_available = nstl::min(static_cast<size_t>(div_up(L2, 2)),
                 other_size > L2 ? 0 : L2 - other_size);
