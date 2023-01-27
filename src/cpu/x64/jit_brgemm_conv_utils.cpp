@@ -536,7 +536,22 @@ void brg_blocking_t::select_ic_block() {
     const auto nb_icb_eff_threshold = 0.5f;
     const auto padded_ic = last_ic_block_size * (is_ic_padded ? 16 : 1);
     if (is_amx(isa)) {
-        if (ic * kw_sets < simd_w) {
+        if (kd * kh * ic * src_dsz > 8 * 1024) {
+            // For huge ic try to split it by equal ic_blocks
+            const auto rnd_val = data_type_vnni_granularity(src_dt);
+
+            const auto max_ic_block
+                    = rnd_up(div_up(1024, kd * kh * src_dsz), rnd_val);
+            const auto min_ic_block = rnd_up(simd_w / 2, rnd_val);
+            ic_block = ic;
+            for (int iic_block = max_ic_block; iic_block >= min_ic_block;
+                    iic_block -= rnd_val) {
+                if (ic % iic_block == 0) {
+                    ic_block = iic_block;
+                    break;
+                }
+            }
+        } else if (ic * kw_sets < simd_w) {
             // this is current requirement from brgemm kernel
             ic_block = rnd_up(ic, last_ic_block_size);
         } else if (is_bf32) {
