@@ -381,7 +381,6 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args, res_t *res) {
 void enable_gpu_profiling() {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    if (!is_bench_mode(PROF)) return;
     DNN_SAFE_V(dnnl_impl_gpu_set_profiling(1));
 #endif
 }
@@ -389,7 +388,6 @@ void enable_gpu_profiling() {
 void disable_gpu_profiling() {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    if (!is_bench_mode(PROF)) return;
     DNN_SAFE_V(dnnl_impl_gpu_reset_profiling());
     DNN_SAFE_V(dnnl_impl_gpu_set_profiling(0));
 #endif
@@ -398,7 +396,6 @@ void disable_gpu_profiling() {
 void reset_gpu_profiling() {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    if (!is_bench_mode(PROF)) return;
     DNN_SAFE_V(dnnl_impl_gpu_reset_profiling());
 #endif
 }
@@ -406,7 +403,6 @@ void reset_gpu_profiling() {
 void get_gpu_profiling_info(uint64_t &nsec, double &freq, int mode) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    if (!is_bench_mode(PROF)) return;
     DNN_SAFE_V(dnnl_impl_gpu_get_profile_info(nsec, freq, mode));
 #endif
 }
@@ -449,15 +445,11 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl_stream_t stream,
         }
         DNN_SAFE(dnnl_stream_wait(stream), WARN);
 
-        if (is_bench_mode(PROF)) {
-            uint64_t nsec = 0;
-            double freq = 0;
-            get_gpu_profiling_info(nsec, freq, 0);
-            reset_gpu_profiling();
-            t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
-        } else {
-            t.stamp(cur_batch_times);
-        }
+        uint64_t nsec = 0;
+        double freq = 0;
+        get_gpu_profiling_info(nsec, freq, 0);
+        reset_gpu_profiling();
+        t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
 
         if (should_stop(t)) break;
 

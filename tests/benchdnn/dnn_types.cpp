@@ -796,7 +796,6 @@ std::ostream &operator<<(std::ostream &s, bench_mode_t mode) {
     if (is_bench_mode(CORR)) s << "C";
     if (is_bench_mode(PERF)) s << "P";
     if (is_bench_mode(LIST)) s << "L";
-    if (is_bench_mode(PROF)) s << "O";
     if (is_bench_mode(INIT)) s << "I";
     return s;
 }

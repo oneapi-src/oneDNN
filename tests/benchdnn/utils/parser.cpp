@@ -654,8 +654,6 @@ static bool parse_mode(
                 case 'P': mode |= PERF; break;
                 case 'l':
                 case 'L': mode |= LIST; break;
-                case 'o':
-                case 'O': mode |= PROF; break;
                 case 'i':
                 case 'I': mode |= INIT; break;
                 default: {

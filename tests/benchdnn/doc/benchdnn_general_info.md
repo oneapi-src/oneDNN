@@ -70,8 +70,6 @@ The following modes are supported:
 * Correctness mode: This is the default driver flow. It executes steps above
   skipping step 7.
 * Performance mode: This flow executes steps above skipping step 6.
-* Profiling-based performance mode (GPU only): This is the same as performance
-  mode but performance is measured based on profiling events.
 * Correctness & performance mode: This flow executes all step above.
 * Run mode: This flow executes steps 1-5 above. It allows to save time from
   running correctness when it is not needed. This mode is compatible with

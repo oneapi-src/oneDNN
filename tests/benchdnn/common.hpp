@@ -109,7 +109,7 @@ extern std::string driver_name;
     T &operator=(const T &) = delete;
 
 using bench_mode_t = std::bitset<8>;
-extern bench_mode_t RUN, CORR, PERF, LIST, PROF, INIT; // pre-defined modes
+extern bench_mode_t RUN, CORR, PERF, LIST, INIT; // pre-defined modes
 extern bench_mode_t bench_mode; // user mode
 
 bool is_bench_mode(bench_mode_t user_mode);

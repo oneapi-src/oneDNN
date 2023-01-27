@@ -94,15 +94,11 @@ inline int measure_perf_aggregate(timer::timer_t &t, dnnl::stream &stream,
         }
         DNN_GRAPH_SAFE(stream.wait(), WARN);
 
-        if (is_bench_mode(PROF)) {
-            uint64_t nsec = 0;
-            double freq = 0;
-            get_gpu_profiling_info(nsec, freq, 0);
-            reset_gpu_profiling();
-            t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
-        } else {
-            t.stamp(cur_batch_times);
-        }
+        uint64_t nsec = 0;
+        double freq = 0;
+        get_gpu_profiling_info(nsec, freq, 0);
+        reset_gpu_profiling();
+        t.stamp_with_frequency(cur_batch_times, nsec / 1e6, freq);
 
         if (should_stop(t)) break;
 
