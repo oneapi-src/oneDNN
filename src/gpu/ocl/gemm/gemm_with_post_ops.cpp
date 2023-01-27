@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     const auto &d = desc();
     const auto attr_skip_mask = primitive_attr_t::skip_mask_t::scales_runtime
             | primitive_attr_t::skip_mask_t::post_ops
-            | primitive_attr_t::skip_mask_t::zero_points;
+            | primitive_attr_t::skip_mask_t::zero_points_runtime;
 
     bool ok = d->c_desc.ndims <= 4
             && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k())
