@@ -49,22 +49,6 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (const auto &i_fpmath_mode : s.fpmath_mode) {
-        if (i_with_peephole && i_alg != VANILLA_LSTM) continue;
-
-        if (!(i_scale_policy == policy_t::COMMON
-                    || i_scale_policy == policy_t::PER_OC)) {
-            std::stringstream ss;
-            ss << i_scale_policy;
-            const std::string cpp_pstr = ss.str();
-            const char *policy_s = cpp_pstr.c_str();
-            fprintf(stderr,
-                    "ERROR: rnn driver: --scaling=%s is invalid, supported "
-                    "values are `common` and `per_oc`.\n",
-                    policy_s),
-                    fflush(stderr);
-            SAFE_V(FAIL);
-        }
-
         auto attr = settings_t::get_attr(i_scratchpad_mode, i_fpmath_mode);
 
         const prb_t prb(s.desc, dt_conf_t::create(i_cfg, attr), i_prop, i_alg,
@@ -88,6 +72,27 @@ void check_correctness(const settings_t &s) {
             pr.report(&res, pstr);
         }
     }
+}
+
+int verify_input(const settings_t &s) {
+
+    for (const auto &i_scale_policy : s.scale_policy) {
+        if (!(i_scale_policy == policy_t::COMMON
+                    || i_scale_policy == policy_t::PER_OC)) {
+            std::stringstream ss;
+            ss << i_scale_policy;
+            const std::string cpp_pstr = ss.str();
+            const char *policy_s = cpp_pstr.c_str();
+            fprintf(stderr,
+                    "ERROR: rnn driver: --scaling=%s is invalid, supported "
+                    "values are `common` and `per_oc`.\n",
+                    policy_s),
+                    fflush(stderr);
+            SAFE_V(FAIL);
+        }
+    }
+
+    return OK;
 }
 
 static const std::string help_direction
@@ -170,6 +175,8 @@ int bench(int argc, char **argv) {
             catch_unknown_options(argv[0]);
 
             SAFE(str2desc(&s.desc, argv[0]), CRIT);
+
+            SAFE(verify_input(s), WARN);
             check_correctness(s);
         }
     }

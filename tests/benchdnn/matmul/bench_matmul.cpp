@@ -26,7 +26,7 @@
 
 namespace matmul {
 
-void check_correctness(const settings_t &s, const settings_t &def) {
+void check_correctness(const settings_t &s) {
     std::vector<std::pair<dnnl_data_type_t, int>> bia_cfg;
     for (const auto &i_bia_dt : s.bia_dt) {
         if (i_bia_dt == dnnl_data_type_undef) {
@@ -54,6 +54,46 @@ void check_correctness(const settings_t &s, const settings_t &def) {
         auto attr = settings_t::get_attr(i_scales, i_zero_points, i_post_ops,
                 i_scratchpad_mode, i_fpmath_mode);
 
+        const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_strides,
+                i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks, attr,
+                i_ctx_init, i_ctx_exe);
+        std::stringstream ss;
+        ss << prb;
+        const std::string cpp_pstr = ss.str();
+        const char *pstr = cpp_pstr.c_str();
+        BENCHDNN_PRINT(1, "run: %s\n", pstr);
+
+        res_t res {};
+        doit(&prb, &res);
+
+        parse_result(res, pstr);
+
+        if (is_bench_mode(PERF)) {
+            perf_report_t pr(&prb, s.perf_template);
+            pr.report(&res, pstr);
+        }
+    }
+}
+
+int verify_input(const settings_t &s, const settings_t &def) {
+    static constexpr int n_inputs = 3;
+
+    for (const auto &i_dt : s.dt) {
+        if (i_dt.size() != 1 && i_dt.size() != n_inputs) {
+            fprintf(stderr,
+                    "ERROR: matmul driver: `dt` option expects either a single "
+                    "input or three inputs in SRC, WEI, DST order. Current "
+                    "size is: \"%ld\"\n",
+                    (long)i_dt.size()),
+                    fflush(stderr);
+            SAFE_V(FAIL);
+        }
+    }
+
+    for_(const auto &i_strides : s.strides)
+    for_(const auto &i_stag : s.stag)
+    for_(const auto &i_wtag : s.wtag)
+    for (const auto &i_dtag : s.dtag) {
         const bool strided_input = !i_strides[STRIDES_SRC].empty()
                 || !i_strides[STRIDES_WEI].empty()
                 || !i_strides[STRIDES_DST].empty();
@@ -75,37 +115,9 @@ void check_correctness(const settings_t &s, const settings_t &def) {
                 SAFE_V(FAIL);
             }
         }
-
-        static constexpr int n_inputs = 3;
-        if (i_dt.size() != 1 && i_dt.size() != n_inputs) {
-            fprintf(stderr,
-                    "ERROR: matmul driver: `dt` option expects either a single "
-                    "input or three inputs in SRC, WEI, DST order. Current "
-                    "size is: \"%ld\"\n",
-                    (long)i_dt.size()),
-                    fflush(stderr);
-            SAFE_V(FAIL);
-        }
-
-        const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_strides,
-                i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks, attr,
-                i_ctx_init, i_ctx_exe);
-        std::stringstream ss;
-        ss << prb;
-        const std::string cpp_pstr = ss.str();
-        const char *pstr = cpp_pstr.c_str();
-        BENCHDNN_PRINT(1, "run: %s\n", pstr);
-
-        res_t res {};
-        doit(&prb, &res);
-
-        parse_result(res, pstr);
-
-        if (is_bench_mode(PERF)) {
-            perf_report_t pr(&prb, s.perf_template);
-            pr.report(&res, pstr);
-        }
     }
+
+    return OK;
 }
 
 static const std::string help_bia_mask
@@ -153,7 +165,9 @@ int bench(int argc, char **argv) {
             catch_unknown_options(argv[0]);
 
             parse_prb_vdims(s.prb_vdims, argv[0]);
-            check_correctness(s, def);
+
+            SAFE(verify_input(s, def), WARN);
+            check_correctness(s);
         }
     }
 

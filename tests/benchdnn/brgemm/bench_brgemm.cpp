@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,25 +49,6 @@ void check_correctness(const settings_t &s, const settings_t &def) {
         auto attr = settings_t::get_attr(i_scales, i_zero_points, i_post_ops,
                 i_scratchpad_mode, i_fpmath_mode);
 
-        static constexpr int n_inputs = 3;
-        if (i_dt.size() != 1 && i_dt.size() != n_inputs) {
-            fprintf(stderr,
-                    "ERROR: brgemm driver: `dt` option expects either a single "
-                    "input or three inputs in SRC, WEI, and DST order. Current "
-                    "size is: \"%ld\"\n",
-                    (long)i_dt.size()),
-                    fflush(stderr);
-            SAFE_V(FAIL);
-        }
-
-        if (s.prb_vdims.ndims > 2) {
-            fprintf(stderr,
-                    "ERROR: brgemm driver: problem descriptor supports only "
-                    "MxK:KxN notion.\n"),
-                    fflush(stderr);
-            SAFE_V(FAIL);
-        }
-
         const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_ld,
                 i_bia_dt, i_alpha, i_beta, i_batch_size, i_brgemm_attr, attr,
                 i_ctx_init, i_ctx_exe);
@@ -87,6 +68,32 @@ void check_correctness(const settings_t &s, const settings_t &def) {
             pr.report(&res, pstr);
         }
     }
+}
+
+int verify_input(const settings_t &s) {
+    static constexpr int n_inputs = 3;
+
+    if (s.prb_vdims.ndims > 2) {
+        fprintf(stderr,
+                "ERROR: brgemm driver: problem descriptor supports only "
+                "MxK:KxN notion.\n"),
+                fflush(stderr);
+        SAFE_V(FAIL);
+    }
+
+    for (const auto &i_dt : s.dt) {
+        if (i_dt.size() != 1 && i_dt.size() != n_inputs) {
+            fprintf(stderr,
+                    "ERROR: brgemm driver: `dt` option expects either a single "
+                    "input or three inputs in SRC, WEI, and DST order. Current "
+                    "size is: \"%ld\"\n",
+                    (long)i_dt.size()),
+                    fflush(stderr);
+            SAFE_V(FAIL);
+        }
+    }
+
+    return OK;
 }
 
 static const std::string help_alpha
@@ -148,6 +155,8 @@ int bench(int argc, char **argv) {
             catch_unknown_options(argv[0]);
 
             parse_prb_vdims(s.prb_vdims, argv[0]);
+
+            SAFE(verify_input(s), WARN);
             check_correctness(s, def);
         }
     }

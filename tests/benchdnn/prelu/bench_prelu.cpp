@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,28 +33,6 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
-        // Expect exactly two inputs for problem dimensions.
-        static constexpr int n_inputs = 2;
-        if (s.prb_vdims.n_inputs() != n_inputs) {
-            BENCHDNN_PRINT(0, "%s\n",
-                    "Error: input tensors were specified in wrong format. "
-                    "Please use NxNxNxNxN:MxMxMxMxM as a problem description "
-                    "format.");
-            SAFE_V(FAIL);
-        }
-        if (i_sdt.size() != n_inputs) {
-            BENCHDNN_PRINT(0, "%s\n",
-                    "Error: input data types were specified in wrong format. "
-                    "Please use --sdt=X:X format.");
-            SAFE_V(FAIL);
-        }
-        if (i_stag.size() != n_inputs) {
-            BENCHDNN_PRINT(0, "%s\n",
-                    "Error: input format tags were specified in wrong format. "
-                    "Please use --stag=X:X format.");
-            SAFE_V(FAIL);
-        }
-
         auto attr = settings_t::get_attr(i_scratchpad_mode);
 
         const prb_t prb(
@@ -75,6 +53,38 @@ void check_correctness(const settings_t &s) {
             pr.report(&res, pstr);
         }
     }
+}
+
+int verify_input(const settings_t &s) {
+    // Expect exactly two inputs for problem dimensions.
+    static constexpr int n_inputs = 2;
+
+    if (s.prb_vdims.n_inputs() != n_inputs) {
+        BENCHDNN_PRINT(0, "%s\n",
+                "Error: input tensors were specified in wrong format. "
+                "Please use NxNxNxNxN:MxMxMxMxM as a problem description "
+                "format.");
+    }
+
+    for (const auto &i_sdt : s.sdt) {
+        if (i_sdt.size() != n_inputs) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: input data types were specified in wrong format. "
+                    "Please use --sdt=X:X format.");
+            SAFE_V(FAIL);
+        }
+    }
+
+    for (const auto &i_stag : s.stag) {
+        if (i_stag.size() != n_inputs) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: input format tags were specified in wrong format. "
+                    "Please use --stag=X:X format.");
+            SAFE_V(FAIL);
+        }
+    }
+
+    return OK;
 }
 
 int bench(int argc, char **argv) {
@@ -99,6 +109,8 @@ int bench(int argc, char **argv) {
             catch_unknown_options(argv[0]);
 
             parse_prb_vdims(s.prb_vdims, argv[0]);
+
+            SAFE(verify_input(s), WARN);
             check_correctness(s);
         }
     }

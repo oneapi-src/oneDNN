@@ -39,6 +39,30 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_inplace : s.inplace) {
+        auto attr = settings_t::get_attr(i_post_ops, i_scratchpad_mode);
+
+        const prb_t prb(s.prb_dims, i_dir, i_dt, i_tag, i_alg, i_alpha, i_beta,
+                i_inplace, attr, i_ctx_init, i_ctx_exe, i_mb);
+        std::stringstream ss;
+        ss << prb;
+        const std::string cpp_pstr = ss.str();
+        const char *pstr = cpp_pstr.c_str();
+        BENCHDNN_PRINT(1, "run: %s\n", pstr);
+
+        res_t res {};
+        doit(&prb, &res);
+
+        parse_result(res, pstr);
+
+        if (is_bench_mode(PERF)) {
+            perf_report_t pr(&prb, s.perf_template);
+            pr.report(&res, pstr);
+        }
+    }
+}
+
+int verify_input(const settings_t &s) {
+    for (const auto &i_alg : s.alg) {
         bool ok = i_alg > alg_t::ELTWISE_START && i_alg < alg_t::ELTWISE_END;
         if (!ok) {
             std::stringstream ss;
@@ -47,7 +71,11 @@ void check_correctness(const settings_t &s) {
                     ss.str().c_str(), "`.");
             SAFE_V(FAIL);
         }
+    }
 
+    for_(const auto &i_alg : s.alg)
+    for_(const auto &i_alpha : s.alpha)
+    for (const auto &i_beta : s.beta) {
         // iterator over alpha and beta (alphabetic order!)
         switch (i_alg) {
             case alg_t::ABS:
@@ -86,28 +114,10 @@ void check_correctness(const settings_t &s) {
                             "Consider adding --beta=0 to a command line.");
                 break;
             default:;
-        };
-
-        auto attr = settings_t::get_attr(i_post_ops, i_scratchpad_mode);
-
-        const prb_t prb(s.prb_dims, i_dir, i_dt, i_tag, i_alg, i_alpha, i_beta,
-                i_inplace, attr, i_ctx_init, i_ctx_exe, i_mb);
-        std::stringstream ss;
-        ss << prb;
-        const std::string cpp_pstr = ss.str();
-        const char *pstr = cpp_pstr.c_str();
-        BENCHDNN_PRINT(1, "run: %s\n", pstr);
-
-        res_t res {};
-        doit(&prb, &res);
-
-        parse_result(res, pstr);
-
-        if (is_bench_mode(PERF)) {
-            perf_report_t pr(&prb, s.perf_template);
-            pr.report(&res, pstr);
         }
     }
+
+    return OK;
 }
 
 static const std::string help_alpha_beta
@@ -145,6 +155,8 @@ int bench(int argc, char **argv) {
             catch_unknown_options(argv[0]);
 
             parse_prb_dims(s.prb_dims, argv[0]);
+
+            SAFE(verify_input(s), WARN);
             check_correctness(s);
         }
     }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,25 +36,6 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_inplace : s.inplace) {
-        const int n_inputs = static_cast<int>(i_sdt.size());
-        const int n_stags = static_cast<int>(i_stag.size());
-        if (n_stags != n_inputs && n_stags != 1) {
-            BENCHDNN_PRINT(0,
-                    "ERROR: Expected number of stag arguments is `1` or `%d`, "
-                    "provided `%d`.\n",
-                    n_inputs, n_stags);
-            SAFE_V(FAIL);
-        }
-
-        const int n_input_scales = static_cast<int>(i_input_scales.size());
-        if (n_input_scales != n_inputs && n_input_scales != 1) {
-            BENCHDNN_PRINT(0,
-                    "ERROR: Expected number of scales arguments is `1` or "
-                    "`%d`, provided `%d`.\n",
-                    n_inputs, n_input_scales);
-            SAFE_V(FAIL);
-        }
-
         auto attr = settings_t::get_attr(i_scratchpad_mode);
 
         const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag,
@@ -75,6 +56,36 @@ void check_correctness(const settings_t &s) {
             pr.report(&res, pstr);
         }
     }
+}
+
+int verify_input(const settings_t &s) {
+    for_(const auto &i_sdt : s.sdt)
+    for (const auto &i_stag : s.stag) {
+        const int n_inputs = static_cast<int>(i_sdt.size());
+        const int n_stags = static_cast<int>(i_stag.size());
+        if (n_stags != n_inputs && n_stags != 1) {
+            BENCHDNN_PRINT(0,
+                    "ERROR: Expected number of stag arguments is `1` or `%d`, "
+                    "provided `%d`.\n",
+                    n_inputs, n_stags);
+            SAFE_V(FAIL);
+        }
+    }
+
+    for_(const auto &i_sdt : s.sdt)
+    for (const auto &i_input_scales : s.input_scales) {
+        const int n_inputs = static_cast<int>(i_sdt.size());
+        const int n_input_scales = static_cast<int>(i_input_scales.size());
+        if (n_input_scales != n_inputs && n_input_scales != 1) {
+            BENCHDNN_PRINT(0,
+                    "ERROR: Expected number of scales arguments is `1` or "
+                    "`%d`, provided `%d`.\n",
+                    n_inputs, n_input_scales);
+            SAFE_V(FAIL);
+        }
+    }
+
+    return OK;
 }
 
 static const std::string help_scales
@@ -109,6 +120,8 @@ int bench(int argc, char **argv) {
             catch_unknown_options(argv[0]);
 
             parse_prb_dims(s.prb_dims, argv[0]);
+
+            SAFE(verify_input(s), WARN);
             check_correctness(s);
         }
     }
