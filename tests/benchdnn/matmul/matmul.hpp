@@ -118,6 +118,7 @@ struct prb_t : public prb_vdims_t {
         const auto nelems = std::accumulate(dst_dims.begin(), dst_dims.end(),
                 (dnnl_dim_t)1, std::multiplies<dnnl_dim_t>());
         ops = 2. * nelems * k;
+        repro = set_repro_line(); // must be last in ctor to collect right info
     }
 
     int64_t m, n, k, mb;
@@ -167,7 +168,13 @@ struct prb_t : public prb_vdims_t {
     // can't be used directly from query and memory objects can't be constructed.
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const;
 
+    const char *str() const { return repro.c_str(); }
+
 private:
+    std::string repro;
+
+    std::string set_repro_line();
+
     void init_dst_rt_dims_mask() {
         if (rt_dims_masks.size() > 2) return;
 
@@ -186,7 +193,6 @@ private:
         rt_dims_masks.push_back(dst_rt_dim_mask);
     }
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)

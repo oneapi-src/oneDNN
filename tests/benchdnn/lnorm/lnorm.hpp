@@ -17,12 +17,12 @@
 #ifndef LNORM_HPP
 #define LNORM_HPP
 
+#include <iostream>
+
 #include <assert.h>
 #include <limits.h>
 #include <numeric>
 #include <stdint.h>
-
-#include <iostream>
 
 #include "common.hpp"
 #include "dnn_types.hpp"
@@ -114,6 +114,7 @@ struct prb_t : public prb_dims_t {
             this->dt.assign(2, val);
         }
         if (tag.size() == 1) { this->tag.push_back(tag::any); }
+        repro = set_repro_line(); // must be last in ctor to collect right info
     }
 
     check_alg_t check_alg;
@@ -138,9 +139,14 @@ struct prb_t : public prb_dims_t {
         assert(!"No runtime dimensions support for this driver!");
         return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
     }
-};
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb);
+    const char *str() const { return repro.c_str(); }
+
+private:
+    std::string repro;
+
+    std::string set_repro_line();
+};
 
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)

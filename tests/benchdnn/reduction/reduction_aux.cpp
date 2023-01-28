@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include <sstream>
 
 #include "reduction.hpp"
 
@@ -73,28 +75,28 @@ dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
     return dnnl_alg_kind_undef;
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
+    std::stringstream s;
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
-    if (canonical || prb.ddt != def.ddt[0]) s << "--ddt=" << prb.ddt << " ";
-    if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
-    if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
-    if (canonical || prb.alg != def.alg[0])
-        s << "--alg=" << alg2str(prb.alg) << " ";
-    if (canonical || prb.p != def.p[0]) s << "--p=" << prb.p << " ";
-    if (canonical || prb.eps != def.eps[0]) s << "--eps=" << prb.eps << " ";
+    if (canonical || sdt != def.sdt[0]) s << "--sdt=" << sdt << " ";
+    if (canonical || ddt != def.ddt[0]) s << "--ddt=" << ddt << " ";
+    if (canonical || stag != def.stag[0]) s << "--stag=" << stag << " ";
+    if (canonical || dtag != def.dtag[0]) s << "--dtag=" << dtag << " ";
+    if (canonical || alg != def.alg[0]) s << "--alg=" << alg2str(alg) << " ";
+    if (canonical || p != def.p[0]) s << "--p=" << p << " ";
+    if (canonical || eps != def.eps[0]) s << "--eps=" << eps << " ";
 
-    s << prb.attr;
-    if (canonical || prb.ctx_init != def.ctx_init[0])
-        s << "--ctx-init=" << prb.ctx_init << " ";
-    if (canonical || prb.ctx_exe != def.ctx_exe[0])
-        s << "--ctx-exe=" << prb.ctx_exe << " ";
+    s << attr;
+    if (canonical || ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << ctx_init << " ";
+    if (canonical || ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << ctx_exe << " ";
 
-    s << static_cast<prb_vdims_t>(prb);
+    s << static_cast<prb_vdims_t>(*this);
 
-    return s;
+    return s.str();
 }
 
 } // namespace reduction

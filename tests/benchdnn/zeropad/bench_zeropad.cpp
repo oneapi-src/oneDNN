@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,8 +17,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <sstream>
-
 #include "dnnl_common.hpp"
 #include "utils/parser.hpp"
 
@@ -30,20 +28,16 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_dt : s.dt)
     for (const auto &i_tag : s.tag) {
         const prb_t prb(s.prb_dims, i_dt, i_tag);
-        std::stringstream ss;
-        ss << prb;
-        const std::string cpp_pstr = ss.str();
-        const char *pstr = cpp_pstr.c_str();
-        BENCHDNN_PRINT(1, "run: %s\n", pstr);
+        BENCHDNN_PRINT(1, "run: %s\n", prb.str());
 
         res_t res {};
         doit(&prb, &res);
 
-        parse_result(res, pstr);
+        parse_result(res, prb.str());
 
         if (is_bench_mode(PERF)) {
             perf_report_t pr(&prb, s.perf_template);
-            pr.report(&res, pstr);
+            pr.report(&res, prb.str());
         }
     }
 }

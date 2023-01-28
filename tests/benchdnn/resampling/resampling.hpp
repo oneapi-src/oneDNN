@@ -111,8 +111,8 @@ struct prb_t : public desc_t {
         , ctx_exe(ctx_exe)
         , user_mb(mb) {
         if (mb) this->mb = mb;
+        repro = set_repro_line(); // must be last in ctor to collect right info
     }
-    ~prb_t() {}
 
     dir_t dir;
     dnnl_data_type_t sdt, ddt;
@@ -128,8 +128,14 @@ struct prb_t : public desc_t {
         assert(!"No runtime dimensions support for this driver!");
         return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
     }
+
+    const char *str() const { return repro.c_str(); }
+
+private:
+    std::string repro;
+
+    std::string set_repro_line();
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include <sstream>
 
 #include <assert.h>
 #include <stdlib.h>
@@ -133,25 +135,25 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
+    std::stringstream s;
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
-    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
-    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
-    if (canonical || prb.alg != def.alg[0])
-        s << "--alg=" << alg2str(prb.alg) << " ";
+    if (canonical || dir != def.dir[0]) s << "--dir=" << dir << " ";
+    if (canonical || dt != def.dt[0]) s << "--dt=" << dt << " ";
+    if (canonical || tag != def.tag[0]) s << "--tag=" << tag << " ";
+    if (canonical || alg != def.alg[0]) s << "--alg=" << alg2str(alg) << " ";
 
-    s << prb.attr;
-    if (canonical || prb.ctx_init != def.ctx_init[0])
-        s << "--ctx-init=" << prb.ctx_init << " ";
-    if (canonical || prb.ctx_exe != def.ctx_exe[0])
-        s << "--ctx-exe=" << prb.ctx_exe << " ";
+    s << attr;
+    if (canonical || ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << ctx_init << " ";
+    if (canonical || ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << ctx_exe << " ";
 
-    s << static_cast<const desc_t &>(prb);
+    s << static_cast<const desc_t &>(*this);
 
-    return s;
+    return s.str();
 }
 
 } // namespace lrn

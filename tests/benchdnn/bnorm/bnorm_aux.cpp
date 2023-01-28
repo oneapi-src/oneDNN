@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <sstream>
+
 #include <assert.h>
 #include <stdlib.h>
+
 #include "bnorm/bnorm.hpp"
 
 namespace bnorm {
@@ -148,31 +151,32 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
+    std::stringstream s;
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
-    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
-    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
-    if (canonical || prb.flags != def.flags[0])
-        s << "--flags=" << flags2str(prb.flags) << " ";
-    if (canonical || prb.check_alg != def.check_alg)
-        s << "--check-alg=" << check_alg2str(prb.check_alg) << " ";
-    if (canonical || prb.inplace != def.inplace[0])
-        s << "--inplace=" << bool2str(prb.inplace) << " ";
-    if (canonical || prb.debug_check_ws != def.debug_check_ws)
-        s << "--debug-check-ws=" << bool2str(prb.debug_check_ws) << " ";
+    if (canonical || dir != def.dir[0]) s << "--dir=" << dir << " ";
+    if (canonical || dt != def.dt[0]) s << "--dt=" << dt << " ";
+    if (canonical || tag != def.tag[0]) s << "--tag=" << tag << " ";
+    if (canonical || flags != def.flags[0])
+        s << "--flags=" << flags2str(flags) << " ";
+    if (canonical || check_alg != def.check_alg)
+        s << "--check-alg=" << check_alg2str(check_alg) << " ";
+    if (canonical || inplace != def.inplace[0])
+        s << "--inplace=" << bool2str(inplace) << " ";
+    if (canonical || debug_check_ws != def.debug_check_ws)
+        s << "--debug-check-ws=" << bool2str(debug_check_ws) << " ";
 
-    s << prb.attr;
-    if (canonical || prb.ctx_init != def.ctx_init[0])
-        s << "--ctx-init=" << prb.ctx_init << " ";
-    if (canonical || prb.ctx_exe != def.ctx_exe[0])
-        s << "--ctx-exe=" << prb.ctx_exe << " ";
+    s << attr;
+    if (canonical || ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << ctx_init << " ";
+    if (canonical || ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << ctx_exe << " ";
 
-    s << static_cast<const desc_t &>(prb);
+    s << static_cast<const desc_t &>(*this);
 
-    return s;
+    return s.str();
 }
 
 } // namespace bnorm

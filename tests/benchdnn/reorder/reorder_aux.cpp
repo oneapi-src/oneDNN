@@ -151,31 +151,32 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> prb_t::get_md(int arg) const {
     }
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
+    std::stringstream s;
     dump_global_params(s);
     settings_t def;
 
-    s << "--sdt=" << prb.sdt << " ";
-    s << "--ddt=" << prb.ddt << " ";
-    s << "--stag=" << prb.stag << " ";
-    s << "--dtag=" << prb.dtag << " ";
+    s << "--sdt=" << sdt << " ";
+    s << "--ddt=" << ddt << " ";
+    s << "--stag=" << stag << " ";
+    s << "--dtag=" << dtag << " ";
 
-    if (canonical || (!prb.oflag.empty() && prb.oflag != def.oflag[0]))
-        s << "--oflag=" << prb.oflag << " ";
-    if (canonical || prb.cross_engine != def.cross_engine[0])
-        s << "--cross-engine=" << cross_engine2str(prb.cross_engine) << " ";
-    if (canonical || prb.runtime_dim_mask != def.runtime_dim_mask[0])
-        s << "--runtime-dim-mask=" << prb.runtime_dim_mask << " ";
+    if (canonical || (!oflag.empty() && oflag != def.oflag[0]))
+        s << "--oflag=" << oflag << " ";
+    if (canonical || cross_engine != def.cross_engine[0])
+        s << "--cross-engine=" << cross_engine2str(cross_engine) << " ";
+    if (canonical || runtime_dim_mask != def.runtime_dim_mask[0])
+        s << "--runtime-dim-mask=" << runtime_dim_mask << " ";
 
-    s << prb.attr;
-    if (canonical || prb.ctx_init != def.ctx_init[0])
-        s << "--ctx-init=" << prb.ctx_init << " ";
-    if (canonical || prb.ctx_exe != def.ctx_exe[0])
-        s << "--ctx-exe=" << prb.ctx_exe << " ";
+    s << attr;
+    if (canonical || ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << ctx_init << " ";
+    if (canonical || ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << ctx_exe << " ";
 
-    s << static_cast<prb_dims_t>(prb);
+    s << static_cast<prb_dims_t>(*this);
 
-    return s;
+    return s.str();
 }
 
 } // namespace reorder

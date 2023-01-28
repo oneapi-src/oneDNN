@@ -56,20 +56,16 @@ void check_correctness(const settings_t &s) {
                 i_scale_proj_policy, i_flags, i_activation, attr, i_ctx_init,
                 i_ctx_exe, s.alpha, s.beta, i_skip_nonlinear, i_trivial_strides,
                 i_n_layer, i_n_iter, i_mb);
-        std::stringstream ss;
-        ss << prb;
-        const std::string cpp_pstr = ss.str();
-        const char *pstr = cpp_pstr.c_str();
-        BENCHDNN_PRINT(1, "run: %s\n", pstr);
+        BENCHDNN_PRINT(1, "run: %s\n", prb.str());
 
         res_t res {};
         doit(prb, &res);
 
-        parse_result(res, pstr);
+        parse_result(res, prb.str());
 
         if (is_bench_mode(PERF)) {
             perf_report_t pr(&prb, s.perf_template);
-            pr.report(&res, pstr);
+            pr.report(&res, prb.str());
         }
     }
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <sstream>
+
 #include "dnnl_common.hpp"
 #include "dnnl_debug.hpp"
 
@@ -21,28 +23,29 @@
 
 namespace eltwise {
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
+    std::stringstream s;
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
-    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
-    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
-    s << "--alg=" << prb.alg << " ";
-    s << "--alpha=" << prb.alpha << " ";
-    s << "--beta=" << prb.beta << " ";
-    if (canonical || prb.inplace != def.inplace[0])
-        s << "--inplace=" << bool2str(prb.inplace) << " ";
+    if (canonical || dir != def.dir[0]) s << "--dir=" << dir << " ";
+    if (canonical || dt != def.dt[0]) s << "--dt=" << dt << " ";
+    if (canonical || tag != def.tag[0]) s << "--tag=" << tag << " ";
+    s << "--alg=" << alg << " ";
+    s << "--alpha=" << alpha << " ";
+    s << "--beta=" << beta << " ";
+    if (canonical || inplace != def.inplace[0])
+        s << "--inplace=" << bool2str(inplace) << " ";
 
-    s << prb.attr;
-    if (canonical || prb.ctx_init != def.ctx_init[0])
-        s << "--ctx-init=" << prb.ctx_init << " ";
-    if (canonical || prb.ctx_exe != def.ctx_exe[0])
-        s << "--ctx-exe=" << prb.ctx_exe << " ";
+    s << attr;
+    if (canonical || ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << ctx_init << " ";
+    if (canonical || ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << ctx_exe << " ";
 
-    s << static_cast<prb_dims_t>(prb);
+    s << static_cast<prb_dims_t>(*this);
 
-    return s;
+    return s.str();
 }
 
 } // namespace eltwise

@@ -16,8 +16,6 @@
 
 #include <string.h>
 
-#include <sstream>
-
 #include "dnnl_common.hpp"
 #include "utils/parser.hpp"
 
@@ -61,20 +59,16 @@ void check_correctness(const settings_t &s) {
             const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, attr,
                     i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
                     i_runtime_dim_mask);
-            std::stringstream ss;
-            ss << prb;
-            const std::string cpp_pstr = ss.str();
-            const char *pstr = cpp_pstr.c_str();
-            BENCHDNN_PRINT(1, "run: %s\n", pstr);
+            BENCHDNN_PRINT(1, "run: %s\n", prb.str());
 
             res_t res {};
             doit(&prb, &res);
 
-            parse_result(res, pstr);
+            parse_result(res, prb.str());
 
             if (is_bench_mode(PERF)) {
                 perf_report_t pr(&prb, s.perf_template);
-                pr.report(&res, pstr);
+                pr.report(&res, prb.str());
             }
         }
     }

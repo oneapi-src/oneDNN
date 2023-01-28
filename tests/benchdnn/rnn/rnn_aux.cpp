@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <sstream>
+
 #include "oneapi/dnnl/dnnl.h"
 
 #include "rnn/rnn_aux.hpp"
@@ -245,44 +247,43 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
+    std::stringstream s;
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || prb.prop != prop2prop_kind(def.prop[0]))
-        s << "--prop=" << prop2str(prb.prop) << " ";
-    if (canonical || prb.cfg.str() != def.cfg[0])
-        s << "--cfg=" << prb.cfg.str() << " ";
-    if (canonical || prb.alg != def.alg[0])
-        s << "--alg=" << alg2str(prb.alg) << " ";
-    if (canonical || prb.direction != def.direction[0])
-        s << "--direction=" << direction2str(prb.direction) << " ";
-    if (canonical || prb.activation != def.activation[0])
-        s << "--activation=" << activation2str(prb.activation) << " ";
-    if (canonical || prb.skip_nonlinear != def.skip_nonlinear[0])
-        s << "--skip-nonlinear=" << bool2str(prb.skip_nonlinear) << " ";
-    if (canonical || prb.flags != def.flags[0])
-        s << "--flags=" << flags2str(prb.flags) << " ";
-    if (canonical || prb.with_peephole != def.with_peephole[0])
-        s << "--with-peephole=" << bool2str(prb.with_peephole) << " ";
-    if (canonical || prb.with_projection != def.with_projection[0])
-        s << "--with-projection=" << bool2str(prb.with_projection) << " ";
-    if (canonical || prb.wei_scales_policy != def.scale_policy[0])
-        s << "--scaling=" << prb.wei_scales_policy << " ";
-    if (canonical || prb.wei_proj_scales_policy != def.scale_proj_policy[0])
-        s << "--scaling-proj=" << prb.wei_proj_scales_policy << " ";
-    if (canonical || prb.trivial_strides != def.trivial_strides[0])
-        s << "--trivial-strides=" << bool2str(prb.trivial_strides) << " ";
+    if (canonical || prop != prop2prop_kind(def.prop[0]))
+        s << "--prop=" << prop2str(prop) << " ";
+    if (canonical || cfg.str() != def.cfg[0]) s << "--cfg=" << cfg.str() << " ";
+    if (canonical || alg != def.alg[0]) s << "--alg=" << alg2str(alg) << " ";
+    if (canonical || direction != def.direction[0])
+        s << "--direction=" << direction2str(direction) << " ";
+    if (canonical || activation != def.activation[0])
+        s << "--activation=" << activation2str(activation) << " ";
+    if (canonical || skip_nonlinear != def.skip_nonlinear[0])
+        s << "--skip-nonlinear=" << bool2str(skip_nonlinear) << " ";
+    if (canonical || flags != def.flags[0])
+        s << "--flags=" << flags2str(flags) << " ";
+    if (canonical || with_peephole != def.with_peephole[0])
+        s << "--with-peephole=" << bool2str(with_peephole) << " ";
+    if (canonical || with_projection != def.with_projection[0])
+        s << "--with-projection=" << bool2str(with_projection) << " ";
+    if (canonical || wei_scales_policy != def.scale_policy[0])
+        s << "--scaling=" << wei_scales_policy << " ";
+    if (canonical || wei_proj_scales_policy != def.scale_proj_policy[0])
+        s << "--scaling-proj=" << wei_proj_scales_policy << " ";
+    if (canonical || trivial_strides != def.trivial_strides[0])
+        s << "--trivial-strides=" << bool2str(trivial_strides) << " ";
 
-    s << prb.attr;
-    if (canonical || prb.ctx_init != def.ctx_init[0])
-        s << "--ctx-init=" << prb.ctx_init << " ";
-    if (canonical || prb.ctx_exe != def.ctx_exe[0])
-        s << "--ctx-exe=" << prb.ctx_exe << " ";
+    s << attr;
+    if (canonical || ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << ctx_init << " ";
+    if (canonical || ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << ctx_exe << " ";
 
-    s << static_cast<const desc_t &>(prb);
+    s << static_cast<const desc_t &>(*this);
 
-    return s;
+    return s.str();
 }
 
 dnnl_status_t init_rnn_fwd_pd(dnnl_primitive_desc_t *pd, dnnl_engine_t engine,

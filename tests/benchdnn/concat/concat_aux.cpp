@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,37 +14,40 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <sstream>
+
 #include "concat/concat.hpp"
 #include "dnnl_debug.hpp"
 
 namespace concat {
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
     using ::operator<<;
 
+    std::stringstream s;
     dump_global_params(s);
     settings_t def;
 
     bool has_default_tags = true;
-    for (const auto &i_stag : prb.stag)
+    for (const auto &i_stag : stag)
         has_default_tags = has_default_tags && i_stag == tag::abx;
 
-    if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
-    if (canonical || (prb.dtag != def.dtag[0] && prb.ddt != def.ddt[0]))
-        s << "--ddt=" << prb.ddt << " ";
-    if (canonical || !has_default_tags) s << "--stag=" << prb.stag << " ";
-    if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
-    if (canonical || prb.axis != def.axis[0]) s << "--axis=" << prb.axis << " ";
+    if (canonical || sdt != def.sdt[0]) s << "--sdt=" << sdt << " ";
+    if (canonical || (dtag != def.dtag[0] && ddt != def.ddt[0]))
+        s << "--ddt=" << ddt << " ";
+    if (canonical || !has_default_tags) s << "--stag=" << stag << " ";
+    if (canonical || dtag != def.dtag[0]) s << "--dtag=" << dtag << " ";
+    if (canonical || axis != def.axis[0]) s << "--axis=" << axis << " ";
 
-    s << prb.attr;
-    if (canonical || prb.ctx_init != def.ctx_init[0])
-        s << "--ctx-init=" << prb.ctx_init << " ";
-    if (canonical || prb.ctx_exe != def.ctx_exe[0])
-        s << "--ctx-exe=" << prb.ctx_exe << " ";
+    s << attr;
+    if (canonical || ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << ctx_init << " ";
+    if (canonical || ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << ctx_exe << " ";
 
-    s << static_cast<prb_vdims_t>(prb);
+    s << static_cast<prb_vdims_t>(*this);
 
-    return s;
+    return s.str();
 }
 
 } // namespace concat

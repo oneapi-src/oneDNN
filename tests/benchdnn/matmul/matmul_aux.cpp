@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <sstream>
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,42 +61,43 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> prb_t::get_md(int arg) const {
     }
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
+    std::stringstream s;
     dump_global_params(s);
     settings_t def;
 
     bool has_default_dts = true;
-    for (const auto &i_dt : prb.dt)
+    for (const auto &i_dt : dt)
         has_default_dts = has_default_dts && i_dt == dnnl_f32;
 
-    if (canonical || !has_default_dts) s << "--dt=" << prb.dt << " ";
-    if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
-    if (canonical || prb.wtag != def.wtag[0]) s << "--wtag=" << prb.wtag << " ";
-    if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
-    if (canonical || prb.strides != def.strides[0])
-        s << "--strides=" << vdims2str(prb.strides) << " ";
+    if (canonical || !has_default_dts) s << "--dt=" << dt << " ";
+    if (canonical || stag != def.stag[0]) s << "--stag=" << stag << " ";
+    if (canonical || wtag != def.wtag[0]) s << "--wtag=" << wtag << " ";
+    if (canonical || dtag != def.dtag[0]) s << "--dtag=" << dtag << " ";
+    if (canonical || strides != def.strides[0])
+        s << "--strides=" << vdims2str(strides) << " ";
 
-    if (canonical || prb.src_runtime_dim_mask().any()
-            || prb.weights_runtime_dim_mask().any())
-        s << "--runtime_dims_masks=" << prb.src_runtime_dim_mask().to_ulong()
-          << ":" << prb.weights_runtime_dim_mask().to_ulong() << " ";
+    if (canonical || src_runtime_dim_mask().any()
+            || weights_runtime_dim_mask().any())
+        s << "--runtime_dims_masks=" << src_runtime_dim_mask().to_ulong() << ":"
+          << weights_runtime_dim_mask().to_ulong() << " ";
 
-    if (canonical || prb.bia_dt != def.bia_dt[0]) {
-        s << "--bia_dt=" << prb.bia_dt << " ";
+    if (canonical || bia_dt != def.bia_dt[0]) {
+        s << "--bia_dt=" << bia_dt << " ";
 
-        if (canonical || prb.bia_mask != def.bia_mask[0])
-            s << "--bia_mask=" << prb.bia_mask << " ";
+        if (canonical || bia_mask != def.bia_mask[0])
+            s << "--bia_mask=" << bia_mask << " ";
     }
 
-    s << prb.attr;
-    if (canonical || prb.ctx_init != def.ctx_init[0])
-        s << "--ctx-init=" << prb.ctx_init << " ";
-    if (canonical || prb.ctx_exe != def.ctx_exe[0])
-        s << "--ctx-exe=" << prb.ctx_exe << " ";
+    s << attr;
+    if (canonical || ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << ctx_init << " ";
+    if (canonical || ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << ctx_exe << " ";
 
-    s << static_cast<const prb_vdims_t &>(prb);
+    s << static_cast<const prb_vdims_t &>(*this);
 
-    return s;
+    return s.str();
 }
 
 } // namespace matmul

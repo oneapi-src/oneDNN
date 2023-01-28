@@ -18,9 +18,7 @@
 #define BRGEMM_HPP
 
 #include <algorithm>
-#include <bitset>
 #include <iostream>
-#include <map>
 #include <numeric>
 
 #include "oneapi/dnnl/dnnl.h"
@@ -111,6 +109,8 @@ struct prb_t : public prb_vdims_t {
         generate_dst_scales();
         src_zp = generate_zero_points(DNNL_ARG_SRC, attr.zero_points, k);
         dst_zp = generate_zero_points(DNNL_ARG_DST, attr.zero_points, n);
+
+        repro = set_repro_line(); // must be last in ctor to collect right info
     }
     ~prb_t() {
         if (scales) zfree(scales);
@@ -190,8 +190,14 @@ struct prb_t : public prb_vdims_t {
     }
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
+
+    const char *str() const { return repro.c_str(); }
+
+private:
+    std::string repro;
+
+    std::string set_repro_line();
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 // TODO: not supported as of now.
 struct perf_report_t : public base_perf_report_t {

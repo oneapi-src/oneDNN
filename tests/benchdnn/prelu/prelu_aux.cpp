@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <sstream>
+
 #include "dnnl_common.hpp"
 #include "dnnl_debug.hpp"
 
@@ -21,25 +23,26 @@
 
 namespace prelu {
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
+    std::stringstream s;
     using ::operator<<;
 
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
-    if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
-    if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
+    if (canonical || dir != def.dir[0]) s << "--dir=" << dir << " ";
+    if (canonical || sdt != def.sdt[0]) s << "--sdt=" << sdt << " ";
+    if (canonical || stag != def.stag[0]) s << "--stag=" << stag << " ";
 
-    s << prb.attr;
-    if (canonical || prb.ctx_init != def.ctx_init[0])
-        s << "--ctx-init=" << prb.ctx_init << " ";
-    if (canonical || prb.ctx_exe != def.ctx_exe[0])
-        s << "--ctx-exe=" << prb.ctx_exe << " ";
+    s << attr;
+    if (canonical || ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << ctx_init << " ";
+    if (canonical || ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << ctx_exe << " ";
 
-    s << static_cast<prb_vdims_t>(prb);
+    s << static_cast<prb_vdims_t>(*this);
 
-    return s;
+    return s.str();
 }
 
 } // namespace prelu

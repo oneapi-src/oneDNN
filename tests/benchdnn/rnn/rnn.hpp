@@ -368,6 +368,7 @@ struct prb_t : public desc_t {
         }
 
         set_qparams(-1., 1.);
+        repro = set_repro_line(); // must be last in ctor to collect right info
     }
     ~prb_t() {
         if (wei_scales) zfree(wei_scales);
@@ -436,6 +437,8 @@ struct prb_t : public desc_t {
         return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
     }
 
+    const char *str() const { return repro.c_str(); }
+
     const dt_conf_t &cfg;
     dnnl_prop_kind_t prop;
     dir_t dir; // Same as `prop`, for compatibility. TODO: remove me;
@@ -469,13 +472,16 @@ struct prb_t : public desc_t {
     float linear_cscale;
 
 private:
+    std::string repro;
+
+    std::string set_repro_line();
+
     /* Todo: fused the two functions in set_shifts_scales */
     void set_qparams(float fp_min, float fp_max);
     void set_tparams(float fp_min, float fp_max);
     prb_t(const prb_t &) = delete;
     prb_t &operator=(const prb_t &) = delete;
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)

@@ -61,8 +61,9 @@ struct prb_t : public prb_dims_t {
 
     prb_t(const prb_dims_t &prb_dims, dnnl_data_type_t dt,
             const std::string &tag)
-        : prb_dims_t(prb_dims), dt(dt), tag(tag) {}
-    ~prb_t() {}
+        : prb_dims_t(prb_dims), dt(dt), tag(tag) {
+        repro = set_repro_line(); // must be last in ctor to collect right info
+    }
 
     dnnl_data_type_t dt;
     std::string tag;
@@ -73,8 +74,14 @@ struct prb_t : public prb_dims_t {
         assert(!"No runtime dimensions support for this driver!");
         return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
     }
+
+    const char *str() const { return repro.c_str(); }
+
+private:
+    std::string repro;
+
+    std::string set_repro_line();
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)

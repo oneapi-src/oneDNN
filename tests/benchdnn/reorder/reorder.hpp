@@ -38,6 +38,7 @@ enum flag_bit_t {
 using flag_t = std::pair<flag_bit_t, int>;
 flag_t str2flag(const char *str);
 std::string flag2str(flag_bit_t flag);
+std::ostream &operator<<(std::ostream &s, const std::vector<flag_t> &oflag);
 
 struct dt_conf_s {
     dnnl_data_type_t dt;
@@ -113,7 +114,9 @@ struct prb_t : public prb_dims_t {
         , ctx_exe(ctx_exe)
         , oflag(oflag)
         , cross_engine(cross_engine)
-        , runtime_dim_mask(runtime_dim_mask) {}
+        , runtime_dim_mask(runtime_dim_mask) {
+        repro = set_repro_line(); // must be last in ctor to collect right info
+    }
 
     dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
     dnnl_data_type_t sdt, ddt;
@@ -134,12 +137,16 @@ struct prb_t : public prb_dims_t {
     // can't be used directly from query and memory objects can't be constructed.
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const;
 
+    const char *str() const { return repro.c_str(); }
+
 private:
+    std::string repro;
+
+    std::string set_repro_line();
+
     void get_compensation_parameters(
             dims_t &comp_dims, int &mask, flag_bit_t flag) const;
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &prb);
-std::ostream &operator<<(std::ostream &s, const std::vector<flag_t> &oflag);
 
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)

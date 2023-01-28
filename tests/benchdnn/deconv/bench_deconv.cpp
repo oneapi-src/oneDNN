@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,8 +17,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <sstream>
 
 #include "dnnl_common.hpp"
 #include "utils/parser.hpp"
@@ -47,22 +45,17 @@ void check_correctness(const settings_t &s) {
 
         const prb_t prb(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg,
                 attr, i_ctx_init, i_ctx_exe, i_mb);
-        std::stringstream ss;
-        ss << prb;
-        const std::string cpp_pstr = ss.str();
-        const char *pstr = cpp_pstr.c_str();
-
-        if (s.pattern && !match_regex(pstr, s.pattern)) return;
-        BENCHDNN_PRINT(1, "run: %s\n", pstr);
+        if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
+        BENCHDNN_PRINT(1, "run: %s\n", prb.str());
 
         res_t res {};
         deconv::doit(&prb, &res);
 
-        parse_result(res, pstr);
+        parse_result(res, prb.str());
 
         if (is_bench_mode(PERF)) {
             perf_report_t pr(&prb, s.perf_template);
-            pr.report(&res, pstr);
+            pr.report(&res, prb.str());
         }
     }
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,35 +14,37 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <sstream>
+
 #include "dnnl_debug.hpp"
 
 #include "binary/binary.hpp"
 
 namespace binary {
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
     using ::operator<<;
 
+    std::stringstream s;
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
-    if (canonical || prb.ddt != def.ddt[0]) s << "--ddt=" << prb.ddt << " ";
-    if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
-    if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
-    if (canonical || prb.alg != def.alg[0]) s << "--alg=" << prb.alg << " ";
-    if (canonical || prb.inplace != def.inplace[0])
-        s << "--inplace=" << bool2str(prb.inplace) << " ";
+    if (canonical || sdt != def.sdt[0]) s << "--sdt=" << sdt << " ";
+    if (canonical || ddt != def.ddt[0]) s << "--ddt=" << ddt << " ";
+    if (canonical || stag != def.stag[0]) s << "--stag=" << stag << " ";
+    if (canonical || dtag != def.dtag[0]) s << "--dtag=" << dtag << " ";
+    if (canonical || alg != def.alg[0]) s << "--alg=" << alg << " ";
+    if (canonical || inplace != def.inplace[0])
+        s << "--inplace=" << bool2str(inplace) << " ";
 
-    s << prb.attr;
-    if (canonical || prb.ctx_init != def.ctx_init[0])
-        s << "--ctx-init=" << prb.ctx_init << " ";
-    if (canonical || prb.ctx_exe != def.ctx_exe[0])
-        s << "--ctx-exe=" << prb.ctx_exe << " ";
+    s << attr;
+    if (canonical || ctx_init != def.ctx_init[0])
+        s << "--ctx-init=" << ctx_init << " ";
+    if (canonical || ctx_exe != def.ctx_exe[0])
+        s << "--ctx-exe=" << ctx_exe << " ";
 
-    s << static_cast<prb_vdims_t>(prb);
-
-    return s;
+    s << static_cast<prb_vdims_t>(*this);
+    return s.str();
 }
 
 } // namespace binary

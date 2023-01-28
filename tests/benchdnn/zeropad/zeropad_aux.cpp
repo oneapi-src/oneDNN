@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,22 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <sstream>
+
 #include "dnnl_common.hpp"
 
 #include "zeropad/zeropad.hpp"
 
 namespace zeropad {
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
+    std::stringstream s;
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
-    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
+    if (canonical || dt != def.dt[0]) s << "--dt=" << dt << " ";
+    if (canonical || tag != def.tag[0]) s << "--tag=" << tag << " ";
 
-    s << static_cast<prb_dims_t>(prb);
+    s << static_cast<prb_dims_t>(*this);
 
-    return s;
+    return s.str();
 }
 
 } // namespace zeropad

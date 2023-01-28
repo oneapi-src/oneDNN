@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <sstream>
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -114,43 +116,42 @@ int32_t *prb_t::generate_zero_points(
     return zp;
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+std::string prb_t::set_repro_line() {
+    std::stringstream s;
     dump_global_params(s);
     settings_t def;
 
     bool has_default_dts = true;
-    for (const auto &i_dt : prb.dt)
+    for (const auto &i_dt : dt)
         has_default_dts = has_default_dts && i_dt == dnnl_f32;
 
-    if (canonical || !has_default_dts) s << "--dt=" << prb.dt << " ";
-    if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
-    if (canonical || prb.wtag != def.wtag[0]) s << "--wtag=" << prb.wtag << " ";
-    if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
-    if (canonical || prb.ld != def.ld[0]) {
+    if (canonical || !has_default_dts) s << "--dt=" << dt << " ";
+    if (canonical || stag != def.stag[0]) s << "--stag=" << stag << " ";
+    if (canonical || wtag != def.wtag[0]) s << "--wtag=" << wtag << " ";
+    if (canonical || dtag != def.dtag[0]) s << "--dtag=" << dtag << " ";
+    if (canonical || ld != def.ld[0]) {
         s << "--ld=";
-        if (prb.ld[0] != 0) s << prb.ld[0];
+        if (ld[0] != 0) s << ld[0];
         s << ":";
-        if (prb.ld[1] != 0) s << prb.ld[1];
+        if (ld[1] != 0) s << ld[1];
         s << ":";
-        if (prb.ld[2] != 0) s << prb.ld[2];
+        if (ld[2] != 0) s << ld[2];
         s << " ";
     }
 
-    if (canonical || prb.bia_dt != def.bia_dt[0])
-        s << "--bia_dt=" << prb.bia_dt << " ";
+    if (canonical || bia_dt != def.bia_dt[0]) s << "--bia_dt=" << bia_dt << " ";
 
-    if (canonical || prb.alpha != def.alpha[0])
-        s << "--alpha=" << prb.alpha << " ";
-    if (canonical || prb.beta != def.beta[0]) s << "--beta=" << prb.beta << " ";
-    if (canonical || prb.batch_size != def.batch_size[0])
-        s << "--bs=" << prb.batch_size << " ";
-    if (canonical || prb.brgemm_attr != def.brgemm_attr[0])
-        s << "--brgemm-attr=" << prb.brgemm_attr << " ";
+    if (canonical || alpha != def.alpha[0]) s << "--alpha=" << alpha << " ";
+    if (canonical || beta != def.beta[0]) s << "--beta=" << beta << " ";
+    if (canonical || batch_size != def.batch_size[0])
+        s << "--bs=" << batch_size << " ";
+    if (canonical || brgemm_attr != def.brgemm_attr[0])
+        s << "--brgemm-attr=" << brgemm_attr << " ";
 
-    s << prb.attr;
-    s << static_cast<const prb_vdims_t &>(prb);
+    s << attr;
+    s << static_cast<const prb_vdims_t &>(*this);
 
-    return s;
+    return s.str();
 }
 
 } // namespace brgemm
