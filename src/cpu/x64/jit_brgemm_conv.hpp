@@ -213,13 +213,10 @@ private:
     void ker_trans(brgemm_thread_ctx_t &btc, char *inp_buffer) const;
     void ker_vpad(brgemm_thread_ctx_t &btc) const;
 
-    void perform_outwork(char *dst_base, char *dst, char *c_buffer,
-            const char *bias_w, int od, int oh, int ow, int g_oc,
-            bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l, int kh_l,
-            const void *post_ops_binary_rhs_arg_vec, const float *oscales,
-            int32_t src_zp_vals, int32_t *src_zp_ptr, int32_t *dst_zp_ptr,
-            int32_t *s8s8_compensation, bool maybe_do_init, bool do_postwork,
-            bool do_post_comp, const float *dst_scales) const;
+    void perform_outwork(const brgemm_thread_ctx_t &btc, char *dst_base,
+            const char *bias_w, int ow, int g_oc, bool is_oc_tail, int ker_ow_s,
+            int ker_ow_f, int kd_l, int kh_l, bool maybe_do_init,
+            bool do_postwork, bool do_post_comp) const;
 
     void call_brgemm_kernel(brgemm_thread_ctx_t &btc,
             const brgemm_kernel_t *brg_ker, int batch_size, const void *ptrA,

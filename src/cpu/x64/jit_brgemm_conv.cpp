@@ -1374,12 +1374,10 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::cal_compensation(
 
 template <cpu_isa_t isa, bool use_inversion>
 void brgemm_convolution_fwd_t<isa, use_inversion>::perform_outwork(
-        char *dst_base, char *dst, char *c_buffer, const char *bias_w, int od,
-        int oh, int ow, int g_oc, bool is_oc_tail, int ker_ow_s, int ker_ow_f,
-        int kd_l, int kh_l, const void *post_ops_binary_rhs_arg_vec,
-        const float *oscales, int32_t src_zp_vals, int32_t *src_zp_ptr,
-        int32_t *dst_zp_ptr, int32_t *s8s8_compensation, bool maybe_do_init,
-        bool do_postwork, bool do_post_comp, const float *dst_scales) const {
+        const brgemm_thread_ctx_t &btc, char *dst_base, const char *bias_w,
+        int ow, int g_oc, bool is_oc_tail, int ker_ow_s, int ker_ow_f, int kd_l,
+        int kh_l, bool maybe_do_init, bool do_postwork,
+        bool do_post_comp) const {
 
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
@@ -1401,12 +1399,13 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::perform_outwork(
     brgemm_kernel_post_ops_t p;
     if (do_postwork) {
         p.ptr_bias = (void *)(bias_w);
-        p.ptr_scales = (void *)(&oscales[jcp.is_oc_scale * g_oc]);
-        p.ptr_binary_post_ops_rhs = post_ops_binary_rhs_arg_vec;
-        p.dst_orig = dst;
-        p.c_zp_values = dst_zp_ptr;
-        p.a_comp_val = src_zp_vals;
-        p.ptr_dst_scales = (void *)dst_scales;
+        p.ptr_scales = (void *)(&btc.oscales[jcp.is_oc_scale * g_oc]);
+        p.ptr_binary_post_ops_rhs
+                = btc.brgemm_ctx.post_ops_binary_rhs_arg_vec.data();
+        p.dst_orig = btc.brgemm_ctx.dst;
+        p.c_zp_values = btc.dst_zp_vals;
+        p.a_comp_val = btc.src_zp_vals;
+        p.ptr_dst_scales = (void *)btc.dst_scales;
     }
 
     auto call_outwork_ker = [&](bool is_postwork, bool has_postcomp,
@@ -1417,26 +1416,27 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::perform_outwork(
         if (is_postwork) {
             p.apply_comp = has_postcomp;
             p.a_zp_compensation = has_postcomp && jcp.src_zero_point
-                    ? &src_zp_ptr[ow_pw_s * jcp.LDB]
-                    : src_zp_ptr;
+                    ? &btc.src_zp_comp_ptr[ow_pw_s * jcp.LDB]
+                    : btc.src_zp_comp_ptr;
             p.s8s8_compensation = has_postcomp && jcp.s8s8_compensation_required
-                    ? &s8s8_compensation[ow_pw_s * jcp.LDB]
-                    : s8s8_compensation;
+                    ? &btc.s8s8_comp_ptr[ow_pw_s * jcp.LDB]
+                    : btc.s8s8_comp_ptr;
 
             p.ptr_out = dst_base
                     + dst_dsz
-                            * (od * dst_h_sz + oh * dst_w_sz
+                            * (btc.od * dst_h_sz + btc.oh * dst_w_sz
                                     + ow_pw_s * jcp.oc_without_padding);
-            p.ptr_in = static_cast<void *>(jcp.use_buffer
-                            ? (c_buffer + acc_dsz * (ow_pw_s - ow) * jcp.LDC)
-                            : p.ptr_out);
+            p.ptr_in = static_cast<void *>(
+                    jcp.use_buffer ? (
+                            btc.c_buffer + acc_dsz * (ow_pw_s - ow) * jcp.LDC)
+                                   : p.ptr_out);
         } else {
             p.apply_comp = has_postcomp;
             char *const ptr_Cz = jcp.use_buffer
-                    ? (c_buffer + acc_dsz * (ow_pw_s - ow) * jcp.LDC)
+                    ? (btc.c_buffer + acc_dsz * (ow_pw_s - ow) * jcp.LDC)
                     : dst_base
                             + dst_dsz
-                                    * (od * dst_h_sz + oh * dst_w_sz
+                                    * (btc.od * dst_h_sz + btc.oh * dst_w_sz
                                             + ow_pw_s * jcp.oc_without_padding);
             p.ptr_out = static_cast<void *>(ptr_Cz);
         }
@@ -1646,7 +1646,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(int ithr,
     const char *const __restrict src = btc.brgemm_ctx.src; \
     const char *const __restrict weights = btc.brgemm_ctx.weights; \
     const char *const __restrict bias = btc.brgemm_ctx.bias; \
-    char *const __restrict dst = btc.brgemm_ctx.dst; \
     const std::vector<const void *> &post_ops_binary_rhs_arg_vec \
             = btc.brgemm_ctx.post_ops_binary_rhs_arg_vec; \
     const int oc = btc.ocb * jcp.oc_block; \
@@ -1677,7 +1676,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::maybe_conv_inp(int ithr,
     const auto nb_ic_b = nstl::min(jcp.nb_ic_blocking, jcp.nb_ic - icb) \
             - (is_ic_tail ? 1 : 0); \
     char *const __restrict dst_base \
-            = dst + dst_dsz * (btc.n * dst_d_sz + g_oc); \
+            = btc.brgemm_ctx.dst + dst_dsz * (btc.n * dst_d_sz + g_oc); \
     char *ptr_C; \
     char *ptr_D; \
     int kd_b(0), kd_e(0), kh_b(0), kh_e(0), k_l(0), iiw_b(0);
@@ -1790,11 +1789,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
             }
         }
 
-        perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
-                g_oc, is_oc_tail, ow_b, ow_e, kd_l, kh_l,
-                post_ops_binary_rhs_arg_vec.data(), btc.oscales,
-                btc.src_zp_vals, btc.src_zp_comp_ptr, btc.dst_zp_vals,
-                btc.s8s8_comp_ptr, do_init, do_postwork, false, btc.dst_scales);
+        perform_outwork(btc, dst_base, bias_w, ow, g_oc, is_oc_tail, ow_b, ow_e,
+                kd_l, kh_l, do_init, do_postwork, false);
     };
 
     if (kd_f > kd_s && kh_f > kh_s && kw_f > kw_s) {
@@ -1845,11 +1841,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
         const auto do_init = btc.icc == 0;
         const auto do_postwork
                 = _pd->need_postwork && btc.icc == (_pd->ic_chunks - 1);
-        perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
-                g_oc, is_oc_tail, ow, ow, kd_l, kh_l,
-                post_ops_binary_rhs_arg_vec.data(), btc.oscales,
-                btc.src_zp_vals, btc.src_zp_comp_ptr, btc.dst_zp_vals,
-                btc.s8s8_comp_ptr, do_init, do_postwork, false, btc.dst_scales);
+        perform_outwork(btc, dst_base, bias_w, ow, g_oc, is_oc_tail, ow, ow,
+                kd_l, kh_l, do_init, do_postwork, false);
     }
 }
 
@@ -1976,11 +1969,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
         const auto do_init = btc.icc == 0;
         const auto do_postwork
                 = _pd->need_postwork && btc.icc == (_pd->ic_chunks - 1);
-        perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
-                g_oc, is_oc_tail, ow, ow, kd_l, kh_l,
-                post_ops_binary_rhs_arg_vec.data(), btc.oscales,
-                btc.src_zp_vals, btc.src_zp_comp_ptr, btc.dst_zp_vals,
-                btc.s8s8_comp_ptr, do_init, do_postwork, false, btc.dst_scales);
+        perform_outwork(btc, dst_base, bias_w, ow, g_oc, is_oc_tail, ow, ow,
+                kd_l, kh_l, do_init, do_postwork, false);
     }
 }
 
@@ -2096,11 +2086,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
         const auto do_init = btc.icc == 0;
         const auto do_postwork
                 = _pd->need_postwork && btc.icc == (_pd->ic_chunks - 1);
-        perform_outwork(dst_base, dst, btc.c_buffer, bias_w, btc.od, btc.oh, ow,
-                g_oc, is_oc_tail, ow, ow, kd_l, kh_l,
-                post_ops_binary_rhs_arg_vec.data(), btc.oscales,
-                btc.src_zp_vals, btc.src_zp_comp_ptr, btc.dst_zp_vals,
-                btc.s8s8_comp_ptr, do_init, do_postwork, false, btc.dst_scales);
+        perform_outwork(btc, dst_base, bias_w, ow, g_oc, is_oc_tail, ow, ow,
+                kd_l, kh_l, do_init, do_postwork, false);
     }
 }
 
