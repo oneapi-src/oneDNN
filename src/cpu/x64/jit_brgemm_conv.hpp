@@ -218,12 +218,10 @@ private:
             int ker_ow_f, int kd_l, int kh_l, bool maybe_do_init,
             bool do_postwork, bool do_post_comp) const;
 
-    void call_brgemm_kernel(brgemm_thread_ctx_t &btc,
-            const brgemm_kernel_t *brg_ker, int batch_size, const void *ptrA,
-            const void *ptrB, char *ptr_C, char *ptr_D, const char *bias_w,
-            int g_oc, bool do_postops, const void *binary_post_ops_rhs,
-            int32_t src_zp_vals, int32_t *src_zp_ptr, int32_t *dst_zp_ptr,
-            int32_t *s8s8_comp, bool do_only_comp) const;
+    void call_brgemm_kernel(const brgemm_thread_ctx_t &btc,
+            const brgemm_kernel_t *brg_ker, int batch_size, char *ptr_C,
+            char *ptr_D, const char *bias_w, int g_oc, bool do_postops,
+            int comp_ker_offs, bool do_only_comp) const;
 
     void maybe_conv_inp(int ithr, const char *__restrict src,
             char *__restrict inp_buffer, uint8_t *__restrict inp_buffer_mask,
