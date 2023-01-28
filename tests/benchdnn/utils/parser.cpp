@@ -591,7 +591,16 @@ static bool parse_max_ms_per_prb(
               "`MS` is a positive integer in a range [10, 60000].\n";
     bool parsed = parse_single_value_option(max_ms_per_prb,
             default_max_ms_per_prb, atof, str, option_name, help);
-    if (parsed) max_ms_per_prb = MAX2(10, MIN2(max_ms_per_prb, 60e3));
+    if (parsed) {
+        if (bench_mode == bench_mode_t::perf_fast) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: mode=F can't be adjusted. Please use full command "
+                    "mode=F aliases with custom max-ms-per-prb input.");
+            exit(2);
+        }
+
+        max_ms_per_prb = MAX2(10, MIN2(max_ms_per_prb, 60e3));
+    }
     return parsed;
 }
 
@@ -638,6 +647,7 @@ static bool parse_mode(
               "    * `R` for execution mode (no correctness validation).\n"
               "    * `C` for correctness testing.\n"
               "    * `P` for performance testing.\n"
+              "    * `F` for fast performance testing (GPU only).\n"
               "    * `CP` for both correctness and performance testing.\n"
               "    More details at "
             + doc_url + "benchdnn_general_info.md\n";
@@ -674,6 +684,13 @@ static bool parse_mode(
                 case 'C': mode = bench_mode_t::corr; break;
                 case 'p':
                 case 'P': mode = bench_mode_t::perf; break;
+                case 'f':
+                case 'F':
+                    mode = bench_mode_t::perf_fast;
+                    max_ms_per_prb = 10;
+                    bench_mode_modifier = mode_modifier_t::par_create
+                            | mode_modifier_t::no_host_memory;
+                    break;
                 default:
                     BENCHDNN_PRINT(0, "%s\n%s", "Error: mode value is invalid.",
                             help.c_str());

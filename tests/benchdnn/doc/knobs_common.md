@@ -55,6 +55,8 @@ The following common options are supported:
   `MODE` values can be:
     - `C` or `c` for correctness testing (the default),
     - `P` or `p` for performance testing,
+    - `F` or `f` for fast performance testing, an alias for
+                 `--mode=P --mode-modifier=PM --max-ms-per-prb=10`,
     - `CP` or `cp` for both correctness and performance testing,
     - `R` or `r` for run mode.
     - `I` or `i` for initialization mode.

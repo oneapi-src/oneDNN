@@ -34,6 +34,8 @@ enum class mode_bit_t : unsigned {
     corr = 0x8,
     // `perf` bit is for a test object performance validation.
     perf = 0x10,
+    // `fast` bit is for a modified performance validation flow.
+    fast = 0x20,
 };
 
 // Mode modifiers is an extension of `bench_mode_t` abstraction which specifies
@@ -63,6 +65,7 @@ enum class bench_mode_t : unsigned {
     exec = init | static_cast<unsigned>(mode_bit_t::exec),
     corr = exec | static_cast<unsigned>(mode_bit_t::corr),
     perf = exec | static_cast<unsigned>(mode_bit_t::perf),
+    perf_fast = perf | static_cast<unsigned>(mode_bit_t::fast),
     corr_perf = corr | perf,
 };
 

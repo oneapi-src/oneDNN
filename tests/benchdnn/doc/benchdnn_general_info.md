@@ -79,6 +79,8 @@ otherwise. The following modes (`--mode`) are supported:
 * Correctness (`C`). This is the default driver flow. It executes all steps,
   skipping step 7.
 * Performance (`P`): This flow executes all steps, skipping step 6.
+* Fast Performance (`F`): This flow executes Performance mode with `P` and `M`
+  modifiers (see below) enabled and updated maximum measuring time per case.
 * Correctness & performance (`CP`). This flow executes all steps above.
 
 ## Mode modifiers
