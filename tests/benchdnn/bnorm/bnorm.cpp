@@ -147,6 +147,7 @@ static int prepare_fwd_no_stats(const prb_t *prb, const dnn_mem_t &src,
 
                 if (alg == ALG_0 && !flip_coin(l / 2 * 257ULL, density)) {
                     s[sp] = 0;
+                    if (fill_src_add) src_add.set_elem(off + sp, 1.f);
                     continue;
                 }
 
