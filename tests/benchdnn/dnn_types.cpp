@@ -719,11 +719,9 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":" << e.eltwise.alpha;
         } else if (e.is_binary_kind()) {
             s << ":" << e.binary.src1_dt;
-            if (e.binary.policy != policy_t::COMMON) {
+            if (e.binary.policy != policy_t::COMMON || e.binary.tag != tag::any)
                 s << ":" << e.binary.policy;
-                if (attr_t::get_default_mask(e.binary.policy) >= 4)
-                    s << ":" << e.binary.tag;
-            }
+            if (e.binary.tag != tag::any) s << ":" << e.binary.tag;
         } else if (e.is_prelu_kind()) {
             if (e.prelu.policy != policy_t::COMMON) {
                 s << ":" << e.prelu.policy;
