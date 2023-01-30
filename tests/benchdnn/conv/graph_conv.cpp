@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,12 +101,14 @@ static quant_data_t get_qdata_for(int arg, const ::conv::prb_t *prb) {
 
 static quant_data_t get_qdata_for(
         const attr_t::post_ops_t::entry_t &entry, const ::conv::prb_t *prb) {
+    auto default_dt = convert_dt(prb->cfg[DST].dt);
+    if (default_dt != graph_dt::u8 && default_dt != graph_dt::s8) {
+        default_dt = graph_dt::u8;
+    }
     if (entry.is_binary_kind())
-        return bin_po_entry2quant_data(
-                entry, prb->dtag, convert_dt(prb->cfg[DST].dt));
+        return bin_po_entry2quant_data(entry, prb->dtag, default_dt);
     else if (entry.is_sum_kind())
-        return sum_po_entry2quant_data(
-                entry, prb->dtag, convert_dt(prb->cfg[DST].dt));
+        return sum_po_entry2quant_data(entry, prb->dtag, default_dt);
 
     printf("warning: returning default quant_data_t for unsupported post op\n");
     return quant_data_t();
@@ -351,7 +353,6 @@ int doit(const ::conv::prb_t *prb, res_t *res) {
     const auto outs = par.get_out_ports();
 
     auto cp = compile_partition(::conv::init_pd, prb, res, par, ins, outs);
-
     int idx_ins = 0;
     auto src_fp
             = make_dnn_mem(ins[idx_ins], prb->src_dims(), dt::f32, tag::abx);
