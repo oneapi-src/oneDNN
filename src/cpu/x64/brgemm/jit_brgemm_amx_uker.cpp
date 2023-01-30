@@ -114,6 +114,9 @@ private:
     // Register decomposition
     const reg64_t param1 = abi_param1;
 
+    const reg64_t reg_iter_label = r9;
+    const reg64_t reg_iter_labels_list = rax;
+
     const reg64_t reg_addr_batch = r13;
     const reg64_t reg_aux1_batch = rbp;
     const reg64_t reg_A = r11;
@@ -139,14 +142,15 @@ private:
     const reg64_t reg_aux_zp_comp_a = rbx;
     const reg64_t reg_zp_comp_b = rbx;
     const reg64_t reg_zp_c_values = rbx;
-    const reg64_t reg_ptr_sum_zp = r9;
+    const reg64_t reg_ptr_sum_zp = rsi;
     const reg64_t reg_bf32_stride = rsi;
 
     constexpr static int abi_param1_offs_ = 0;
     constexpr static int reg_zp_comp_a_offs_ = 8;
     constexpr static int reg_zp_comp_b_offs_ = 16;
     constexpr static int reg_zp_c_values_offs_ = 24;
-    constexpr static int stack_space_needed_ = 32;
+    constexpr static int reg_iter_labels_list_offs_ = 32;
+    constexpr static int stack_space_needed_ = 40;
 
     bool are_post_ops_applicable_ = false;
     bool need_to_apply_alpha_beta_ = false;
@@ -208,10 +212,14 @@ private:
     struct dim_iteration_t {
         size_t idx = 0;
         std ::vector<iteration_block_t> blocks;
-
         size_t pos(size_t b) const {
             assert(b < blocks.size());
             return blocks[b].pos;
+        }
+
+        size_t rel_pos(size_t b) const {
+            assert(b < blocks.size());
+            return (blocks[b].pos - blocks[0].pos);
         }
 
         int block(size_t b) const {
@@ -237,8 +245,12 @@ private:
     };
 
     struct bd_iteration_t : public dim_iteration_t {
+        size_t A_shift {0};
+        size_t C_shift {0};
+        size_t D_shift {0};
         std::vector<char> bd_mask;
         std::vector<size_t> adj_bd_mask;
+        Label lstart;
     };
 
     struct bs_iteration_t {
@@ -589,7 +601,8 @@ size_t jit_brgemm_amx_uker_base_t::A_offset(
             : 0;
     auto rd_block = bi.rdi->block(0);
     if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
-    const auto bdb_offs = bi.bdi->pos(bdb);
+    const auto bdb_offs
+            = ununroll_bd_loop ? bi.bdi->rel_pos(bdb) : bi.bdi->pos(bdb);
     return bdb_offs * LDA2_size_ + bs_offs
             + bi.rdi->pos(0) * rd_block * brg.typesize_A;
 }
@@ -613,14 +626,18 @@ size_t jit_brgemm_amx_uker_base_t::B_offset(
 
 size_t jit_brgemm_amx_uker_base_t::C_offset(const brgemm_iteration_t &bi,
         int bdb, int inp_bd, int ldb) const noexcept {
+    const auto bi_bd_start = get_out_bd(bi.bdi, 0, 0);
     const auto bd = get_out_bd(bi.bdi, bdb, inp_bd);
-    return (size_t)bd * LDC2_size_M_ + (size_t)ldb * LDC2_size_N_;
+    const auto bd_shift = bd - (ununroll_bd_loop ? bi_bd_start : 0);
+    return (size_t)bd_shift * LDC2_size_M_ + (size_t)ldb * LDC2_size_N_;
 }
 
 size_t jit_brgemm_amx_uker_base_t::D_offset(const brgemm_iteration_t &bi,
         int bdb, int inp_bd, int ldb) const noexcept {
+    const auto bi_bd_start = get_out_bd(bi.bdi, 0, 0);
     const auto bd = get_out_bd(bi.bdi, bdb, inp_bd);
-    return (size_t)bd * LDD_size_ + (size_t)ldb * ld_block_D_size_;
+    const auto bd_shift = bd - (ununroll_bd_loop ? bi_bd_start : 0);
+    return (size_t)bd_shift * LDD_size_ + (size_t)ldb * ld_block_D_size_;
 }
 
 size_t jit_brgemm_amx_uker_base_t::lda() const noexcept {
@@ -709,8 +726,6 @@ void jit_brgemm_amx_uker_base_t::cvt2ps(data_type_t type_in,
 void jit_brgemm_amx_uker_base_t::read_params() {
     Label label_done;
 
-    mov(reg_C, ptr[param1 + GET_OFF(ptr_C)]);
-    mov(reg_D, ptr[param1 + GET_OFF(ptr_D)]);
     mov(reg_BS, ptr[param1 + GET_OFF(BS)]);
 
     mov(reg_addr_batch, ptr[param1 + GET_OFF(batch)]);
@@ -1792,6 +1807,21 @@ void jit_brgemm_amx_uker_base_t::bs_loop_body(brgemm_iteration_t &bi) {
 
 void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
     const auto &tloop = imap_[bi.apply_postops];
+    if (ununroll_bd_loop && was_prev_bi_) {
+        if (bi.bdi->idx != prev_bi_.bdi->idx) add(reg_A, bi.bdi->A_shift);
+
+        const auto real_ils = actual_ils(bi.apply_postops);
+
+        brgemm_iteration_t *bi_shift = nullptr;
+        if (!real_ils && bi.bdi->idx != prev_bi_.bdi->idx)
+            bi_shift = &bi;
+        else if (real_ils && prev_bi_.bdi->idx > 0 && prev_bi_.ldi->idx == 0)
+            bi_shift = &prev_bi_;
+        if (bi_shift != nullptr) {
+            add(reg_C, bi_shift->bdi->C_shift);
+            add(reg_D, bi_shift->bdi->D_shift);
+        }
+    }
 
     load_accumulators(bi);
 
@@ -1879,19 +1909,50 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_base_t::bdb_loop_body(brgemm_iteration_t &bi) {
+    auto &tloop = imap_[bi.apply_postops];
+    if (ununroll_bd_loop) {
+        align(64);
+        L(tloop.bdis[bi.bdi->idx].lstart);
+        mov(reg_iter_labels_list, ptr[rsp + reg_iter_labels_list_offs_]);
+        mov(reg_iter_label, ptr[reg_iter_labels_list]);
+        add(reg_iter_labels_list, 8);
+        mov(ptr[rsp + reg_iter_labels_list_offs_], reg_iter_labels_list);
+    }
+
     if (brg.innermost_loop == brgemm_ld_loop_innermost)
         ldb_loop(bi);
     else if (brg.innermost_loop == brgemm_bd_loop_innermost)
         bs_loop(bi);
     else
         assert(!"Unknown loop order!");
+    if (ununroll_bd_loop) { jmp(reg_iter_label); }
 };
 
 void jit_brgemm_amx_uker_base_t::bdb_loop(brgemm_iteration_t &bi) {
     const auto &tloop = imap_[bi.apply_postops];
+    Label iteration_pointers;
+    if (ununroll_bd_loop) {
+        mov(reg_iter_labels_list, iteration_pointers);
+        // shift to load address for jmp for next iteration
+        add(reg_iter_labels_list, 8);
+        mov(ptr[rsp + reg_iter_labels_list_offs_], reg_iter_labels_list);
+    }
+
     for (size_t ibdi = 0; ibdi < tloop.bdis.size(); ibdi++) {
         bi.bdi = &(tloop.bdis[ibdi]);
         bdb_loop_body(bi);
+    }
+    if (ununroll_bd_loop) {
+        Label loop_end;
+        jmp(loop_end, T_NEAR); //just skip list of iteration labels
+
+        align(64);
+        L(iteration_pointers);
+        for (size_t ibdi = 0; ibdi < tloop.bdis.size(); ibdi++) {
+            putL(tloop.bdis[ibdi].lstart);
+        }
+        putL(loop_end);
+        L(loop_end);
     }
 }
 
@@ -1916,6 +1977,13 @@ void jit_brgemm_amx_uker_base_t::top_loop(brgemm_iteration_t &bi) {
         }
     }
 
+    const auto &tloop = imap_[bi.apply_postops];
+    if (actual_ils(bi.apply_postops) && ununroll_bd_loop
+            && tloop.ldis.size() == 1) {
+        // update reg_C and reg_D if they they were not updated yet
+        add(reg_C, bi.bdi->C_shift);
+        add(reg_D, bi.bdi->D_shift);
+    }
     interleave_store(bi, true);
 }
 
@@ -1952,6 +2020,27 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
             }
             bdi.idx = tloop.bdis.size();
 
+            if (brg.brgattr.bd_mask_level > 0) {
+                const auto lidx = bdi.blocks.size() - 1;
+                const auto bdm_sz = bdi.rel_pos(lidx) + bdi.blocks[lidx].block;
+                bdi.bd_mask.resize(bdm_sz);
+                bdi.adj_bd_mask.resize(bdm_sz);
+                for (size_t i = 0; i < bdm_sz; i++) {
+                    bdi.bd_mask[i] = bd_mask_buffer_ptr_[bdi.pos(0) + i];
+                    bdi.adj_bd_mask[i] = adj_bd_mask_buffer_[bdi.pos(0) + i];
+                }
+            }
+
+            if (ununroll_bd_loop && bdi.idx > 0) {
+                const auto prev_bdi = &tloop.bdis[bdi.idx - 1];
+                const auto inp_shift = (bdi.pos(0) - prev_bdi->pos(0));
+                bdi.A_shift = inp_shift * LDA2_size_;
+
+                const auto out_shift
+                        = (get_out_bd(&bdi, 0, 0) - get_out_bd(prev_bdi, 0, 0));
+                bdi.C_shift = out_shift * LDC2_size_M_;
+                bdi.D_shift = out_shift * LDD_size_;
+            }
             tloop.bdis.push_back(bdi);
         }
 
@@ -2107,6 +2196,13 @@ void jit_brgemm_amx_uker_base_t::generate() {
 
     const auto full_mask = size_t {0xffffffffffffffff};
     const auto tail_mask = size_t((1 << brg.ldb_tail) - 1);
+    reg64_t reg_mask = rbx;
+
+    mov(reg_mask, full_mask);
+    kmovq(ld_full_mask, reg_mask);
+    mov(reg_mask, tail_mask);
+    kmovq(ld_tail_mask, reg_mask);
+
     LDA_size_ = brg.typesize_A * brg.LDA;
     LDB_size_ = brg.typesize_B * brg.LDB;
     LDC_size_ = brg.typesize_C * brg.LDC;
@@ -2158,13 +2254,6 @@ void jit_brgemm_amx_uker_base_t::generate() {
         mov(reg_tmp_gpr, permute_index_table);
         vmovups(zmm_bf32_pemute, ptr[reg_tmp_gpr]);
     }
-
-    reg64_t reg_mask = rax;
-
-    mov(reg_mask, full_mask);
-    kmovq(ld_full_mask, reg_mask);
-    mov(reg_mask, tail_mask);
-    kmovq(ld_tail_mask, reg_mask);
 
     mov(reg_stride_lda, lda());
     mov(reg_stride_ldb, ldb());
