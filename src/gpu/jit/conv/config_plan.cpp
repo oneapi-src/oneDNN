@@ -1588,6 +1588,7 @@ enum class plan_status_t {
     error,
     ab_layout_mismatch,
     invalid_layout,
+    invalid_send,
     out_of_registers,
 };
 
@@ -1891,6 +1892,10 @@ private:
                 send_address_t::slm, abc, thr_view);
         load = create_send_plan(cfg_.exec_cfg(), thr_view, params);
         layout = load.reg_layout();
+        if (load.is_scattered()) {
+            // Do not use SLM with scattered SLM load.
+            return plan_status_t::invalid_send;
+        }
         return plan_status_t::success;
     }
 
