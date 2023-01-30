@@ -78,15 +78,14 @@ public:
         const dim_t *strides = blk.strides;
         const int plain_ndims = mdw.ndims();
 
-        m_ndims = plain_ndims + blk.inner_nblks;
+        ndims_ = plain_ndims + blk.inner_nblks;
 
         for (int i = 0; i < plain_ndims; i++) {
             dim_t src_stride = strides[i];
             dim_t dim_idx = i;
             for (int j = 0; j < i; j++) {
-                if (src_stride > strides[perm_[j]]) {
+                if (src_stride > strides_[j]) {
                     // Insert this stride/idx into ordering
-                    src_stride = strides[perm_[j]];
                     nstl::swap(perm_[j], dim_idx);
                     nstl::swap(strides_[j], src_stride);
                 }
@@ -94,37 +93,41 @@ public:
             perm_[i] = dim_idx;
             strides_[i] = src_stride;
         }
+
         for (int i = 0; i < plain_ndims; i++) {
-            dims_[i] = dims[i];
-            padded_dims_[i] = padded_dims[i];
+            dims_[i] = dims[perm_[i]];
+            padded_dims_[i] = padded_dims[perm_[i]];
         }
         // Incorporate inner blocks into permutations/strides
         int inner_elems = 1;
         for (int i = blk.inner_nblks - 1; i >= 0; --i) {
-            perm_[i + plain_ndims] = plain_ndims + i;
+            const dim_t blk_idx = blk.inner_idxs[i];
+            const dim_t blk_size = blk.inner_blks[i];
+            perm_[i + plain_ndims] = blk_idx;
             strides_[i + plain_ndims] = inner_elems;
-            inner_elems *= blk.inner_blks[i];
+            inner_elems *= blk_size;
 
             // Split up blocked dims into different components
             // (loses some information about padding)
             padded_dims_[i + plain_ndims] = blk.inner_blks[i];
-            padded_dims_[blk.inner_idxs[i]] = utils::div_up(
-                    padded_dims_[blk.inner_idxs[i]], blk.inner_blks[i]);
-            dims_[i + plain_ndims]
-                    = std::min(dims_[blk.inner_idxs[i]], blk.inner_blks[i]);
-            dims_[blk.inner_idxs[i]] = utils::div_up(
-                    dims_[blk.inner_idxs[i]], blk.inner_blks[i]);
+            padded_dims_[blk_idx]
+                    = utils::div_up(padded_dims_[blk_idx], blk_size);
+            dims_[i + plain_ndims] = std::min(dims_[blk_idx], blk_size);
+            dims_[blk_idx] = utils::div_up(dims_[blk_idx], blk_size);
         }
     }
 
-    inline int ndims() const { return m_ndims; }
+    inline int ndims() const { return ndims_; }
     inline dim_t *perm() { return perm_; }
     inline dim_t *strides() { return strides_; }
     inline dim_t *dims() { return dims_; }
     inline dim_t *padded_dims() { return padded_dims_; }
 
 private:
-    int m_ndims;
+    int ndims_;
+    // strides_, dims_, and padded_dims_ are ordered by decreasing stride
+    // perm_[i] is the original mdw index for each dimension before reordering,
+    // encoding the format tag (i.e. aBc16b => perm_ = {0, 1, 2, 1})
     extended_dims_t perm_, strides_;
     extended_dims_t dims_, padded_dims_;
 };
@@ -224,21 +227,18 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     // Split the extended dims into 3 sets of dims: outer, inner, and reduction
     int separate_ndims[3] = {0};
     extended_dims_t src_sep_dims[3];
-    dim_t *ext_perm = src_ext.perm();
     int state = 0; // 0=outer, 1=reduction, 2=inner
     for (int i = 0; i < src_ext.ndims(); i++) {
         // If in outer dims and reduced, move to reduced dims
         // If in reduced dims and not reduced, move to inner dims
-        if ((state == 0 && ext_reduced_dim[ext_perm[i]])
-                || (state == 1 && !ext_reduced_dim[ext_perm[i]])) {
+        if ((state == 0 && ext_reduced_dim[i])
+                || (state == 1 && !ext_reduced_dim[i])) {
             state += 1;
         }
         // If in inner dims and reduced, unimplemented
-        if (state == 2 && ext_reduced_dim[ext_perm[i]]) {
-            return status::unimplemented;
-        }
-        src_sep_dims[state][separate_ndims[state]]
-                = src_ext.padded_dims()[src_ext.perm()[i]];
+        if (state == 2 && ext_reduced_dim[i]) return status::unimplemented;
+
+        src_sep_dims[state][separate_ndims[state]] = src_ext.padded_dims()[i];
         separate_ndims[state] += 1;
     }
 
