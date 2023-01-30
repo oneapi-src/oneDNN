@@ -77,7 +77,7 @@ struct memory_desc_wrapper : public c_compatible {
         return md_->format_desc.sparse_desc;
     }
 
-    const data_type_t metadata_type(int idx = 0) const {
+    data_type_t metadata_type(int idx = 0) const {
         assert(is_sparse_desc() && idx < sparse_desc_t::max_metadata_types);
         return sparse_desc().metadata_types[idx];
     }
