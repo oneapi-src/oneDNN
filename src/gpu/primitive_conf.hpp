@@ -669,7 +669,6 @@ struct reduction_conf_t {
 
     // Used by combined implementation
     std::vector<reduction_phase_t> phases;
-    size_t sp_size[2];
 };
 
 // Reorder

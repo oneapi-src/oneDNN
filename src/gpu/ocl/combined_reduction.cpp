@@ -53,16 +53,18 @@ static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
 void combined_reduction_t::pd_t::init_scratchpad() {
     // Only need scratchpads for the first 2 phases, since we can reuse them
     // and memory requirements are monotonically decreasing each phase.
-    uint32_t keys[2] = {memory_tracking::names::key_reduction,
+    const uint32_t keys[2] = {memory_tracking::names::key_reduction,
             memory_tracking::names::key_reduction_1};
 
-    for (int phase_num = 0;
-            phase_num < std::min(2, (int)conf.phases.size() - 1); phase_num++) {
-        const size_t sp_data_size
-                = types::data_type_size(conf.phases[phase_num].dst_type);
-        auto scratchpad = scratchpad_registry().registrar();
-        scratchpad.book(keys[phase_num], conf.sp_size[phase_num], sp_data_size,
-                OCL_BUFFER_ALIGNMENT);
+    auto scratchpad = scratchpad_registry().registrar();
+    const int num_phases = static_cast<int>(conf.phases.size());
+    const int num_scratchpads = std::min(num_phases - 1, 2);
+    for (int i = 0; i < num_scratchpads; i++) {
+        const reduction_phase_t &phase = conf.phases[i];
+        const size_t sp_data_size = types::data_type_size(phase.dst_type);
+        const int num_dst_elems = phase.outer_dim_size * phase.inner_dim_size;
+        scratchpad.book(
+                keys[i], num_dst_elems, sp_data_size, OCL_BUFFER_ALIGNMENT);
     }
 }
 
@@ -138,6 +140,46 @@ dim_t get_previous_factor(dim_t big_num, dim_t target) {
         if (big_num % (target - i) == 0) return target - i;
     }
     return 1;
+}
+
+status_t set_reduction_phases(dim_t outer_elems, dim_t reduction_elems,
+        dim_t inner_elems, data_type_t accum_data_type, int subgroup_size,
+        std::vector<reduction_phase_t> &phases) {
+    // Heuristic:
+    // If reduction_elems*inner_elems < single_phase_threshold,
+    // it doesn't help to add another phase, regardless of EU saturation
+    const float single_phase_threshold = 1900;
+
+    while (reduction_elems > 1) {
+        // Heuristically determine reduction_end
+        dim_t reduction_end;
+        if (reduction_elems * inner_elems < single_phase_threshold) {
+            // If reduction + inner_size is small, do a single phase
+            reduction_end = 1;
+        } else {
+            // Approximation of the number of remaining phases
+            int N = std::ceil(std::log2(reduction_elems)
+                    / std::log2(single_phase_threshold / inner_elems));
+            N = std::max(N, 1); // avoid negative N for large inner_elems
+            reduction_end = static_cast<dim_t>(
+                    std::pow(reduction_elems, (float)(N - 1) / N));
+        }
+        // End Heuristic
+
+        // To help the compiler, only allow reduction_end which is a FACTOR of reduction_elems.
+        // Otherwise, each work item could have a vastly different amount of work than its neighbors
+        reduction_end = get_previous_factor(reduction_elems, reduction_end);
+        dim_t reduction_size = reduction_elems / reduction_end;
+
+        phases.push_back(init_phase(outer_elems * reduction_end, reduction_size,
+                inner_elems, accum_data_type, accum_data_type, subgroup_size));
+
+        reduction_elems = reduction_end;
+
+        // To break out of potentially infinite while loops
+        if (phases.size() > 20) return status::runtime_error;
+    }
+    return status::success;
 }
 
 status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
@@ -265,54 +307,15 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
 
     conf.sub_group_size = compute_engine->device_info()->max_subgroup_size();
 
-    // Heuristic:
-    // If reduction_size*inner_dim_size < single_phase_threshold,
-    // it doesn't help to add another phase, regardless EU saturation
-    const float single_phase_threshold = 1900;
-
-    // Each phase actually consists of 2 stages:
-    // 1. Parallelized across work items in a subgroup: reduce by num_horizontal_reductions
-    // 2. Between work items in a subgroup: reduce by conf.inner_dim_per_sg
-    // The minimum possible reduction per subgroup is conf.inner_dim_per_sg
+    // Heuristically determine the phases required for this block of reduced dimensions
     dim_t reduced_dim_size = composite_dims[1];
     data_type_t accum_data_type = types::default_accum_data_type(
             src_mdw.data_type(), data_type::undef);
-    while (reduced_dim_size > 1) {
-        // Heuristically determine reduction_end
-        dim_t reduction_end;
-        if (reduced_dim_size * inner_dim_size < single_phase_threshold) {
-            // If reduction + inner_size is small, do a single phase
-            reduction_end = 1;
-        } else {
-            // Approximation of the number of remaining phases
-            int N = std::ceil(std::log2(reduced_dim_size)
-                    / std::log2(single_phase_threshold / inner_dim_size));
-            N = std::max(N, 1); // avoid negative N for large inner_dim_size
-            reduction_end = static_cast<dim_t>(
-                    std::pow(reduced_dim_size, (float)(N - 1) / N));
-        }
-        // End Heuristic
-
-        // To help the compiler, only allow reduction_end which is a FACTOR of reduced_dim_size.
-        // This results in not needing padding due to reduction chunks
-        reduction_end = get_previous_factor(reduced_dim_size, reduction_end);
-        dim_t reduction_size = reduced_dim_size / reduction_end;
-
-        const dim_t num_dst_elems
-                = outer_dim_size * inner_dim_size * reduction_end;
-
-        // Set scratchpad sizes
-        const int phase_num = static_cast<int>(conf.phases.size());
-        if (phase_num < 2) conf.sp_size[phase_num] = num_dst_elems;
-
-        conf.phases.push_back(init_phase(outer_dim_size * reduction_end,
-                reduction_size, inner_dim_size, accum_data_type,
-                accum_data_type, conf.sub_group_size));
-
-        reduced_dim_size = reduction_end;
-
-        // To break out of potentially infinite while loops
-        if (conf.phases.size() > 20) return status::runtime_error;
+    status_t status = set_reduction_phases(outer_dim_size, reduced_dim_size,
+            inner_dim_size, accum_data_type, conf.sub_group_size, conf.phases);
+    if (status != status::success) {
+        // Ran into some issue with choosing phases
+        return status::unimplemented;
     }
 
     // Set variables that matter for first/last phases
