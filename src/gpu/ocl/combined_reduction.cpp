@@ -236,31 +236,51 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     layout_t src_ext(src_mdw);
     layout_t dst_ext(dst_mdw);
 
-    // Requirement: src/dst have same dim ordering
-    if (src_ext.ndims() != dst_ext.ndims()) return status::unimplemented;
-    if (!utils::array_cmp(src_ext.perm(), dst_ext.perm(), src_ext.ndims())) {
+    // Requirement: non-reduced dimensions appear in the same order in src and dst
+    dim_t *src_ext_dims = src_ext.dims();
+    dim_t *src_ext_perm = src_ext.perm();
+    extended_dims_t non_reduced_src_perm;
+    extended_dims_t non_reduced_src_dims;
+    int non_reduced_src_ndims = 0;
+    for (int i = 0; i < src_ext.ndims(); i++) {
+        if (is_dim_reduced[src_ext_perm[i]]) continue;
+
+        non_reduced_src_perm[non_reduced_src_ndims] = src_ext_perm[i];
+        non_reduced_src_dims[non_reduced_src_ndims++] = src_ext_dims[i];
+    }
+
+    dim_t *dst_ext_dims = dst_ext.dims();
+    dim_t *dst_ext_perm = dst_ext.perm();
+    extended_dims_t non_reduced_dst_perm;
+    extended_dims_t non_reduced_dst_dims;
+    int non_reduced_dst_ndims = 0;
+    for (int i = 0; i < dst_ext.ndims(); i++) {
+        if (is_dim_reduced[dst_ext_perm[i]]) continue;
+
+        non_reduced_dst_perm[non_reduced_dst_ndims] = dst_ext_perm[i];
+        non_reduced_dst_dims[non_reduced_dst_ndims++] = dst_ext_dims[i];
+    }
+
+    // same number of non-reduced dims (plain + blocked)
+    if (non_reduced_src_ndims != non_reduced_dst_ndims) {
         return status::unimplemented;
     }
 
-    // Requirement: each dim must remain unchanged (src=dst) or be completely reduced (src!=1, dst=1)
-    dim_t *src_ext_dims = src_ext.dims();
-    dim_t *dst_ext_dims = dst_ext.dims();
-    dim_t *src_ext_padded_dims = src_ext.padded_dims();
-    dim_t *dst_ext_padded_dims = dst_ext.padded_dims();
-    bool ext_reduced_dim[2 * DNNL_MAX_NDIMS];
-    for (int i = 0; i < src_ext.ndims(); i++) {
-        if (src_ext_dims[i] == dst_ext_dims[i]) {
-            ext_reduced_dim[i] = false;
-            continue;
-        }
-        if (dst_ext_dims[i] != 1) return status::unimplemented;
-        ext_reduced_dim[i] = true;
+    // non-reduced dims have the same order (plain + blocked)
+    if (!utils::array_cmp(non_reduced_src_perm, non_reduced_dst_perm,
+                non_reduced_src_ndims)) {
+        return status::unimplemented;
     }
 
-    // Same for padded dims (can't change blocking structure)
+    // non-reduced dims have the same sizes (plain + blocked)
+    if (!utils::array_cmp(non_reduced_src_dims, non_reduced_dst_dims,
+                non_reduced_src_ndims)) {
+        return status::unimplemented;
+    }
+
+    bool ext_reduced_dim[2 * DNNL_MAX_NDIMS];
     for (int i = 0; i < src_ext.ndims(); i++) {
-        if (src_ext_padded_dims[i] == dst_ext_padded_dims[i]) continue;
-        if (dst_ext_padded_dims[i] != 1) return status::unimplemented;
+        ext_reduced_dim[i] = is_dim_reduced[src_perm[i]];
     }
 
     const compute::compute_engine_t *compute_engine
@@ -273,12 +293,14 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     for (int i = 0; i < src_ext.ndims(); i++) {
         // If in outer dims and reduced, move to reduced dims
         // If in reduced dims and not reduced, move to inner dims
-        if ((state == 0 && ext_reduced_dim[i])
+        if ((state == 0 && ext_reduced_dim[i] && src_ext.dims()[i] != 1)
                 || (state == 1 && !ext_reduced_dim[i])) {
             state += 1;
         }
         // If in inner dims and reduced, unimplemented
-        if (state == 2 && ext_reduced_dim[i]) return status::unimplemented;
+        if (state == 2 && ext_reduced_dim[i] && src_ext.dims()[i] != 1) {
+            return status::unimplemented;
+        }
 
         src_sep_dims[state][separate_ndims[state]] = src_ext.padded_dims()[i];
         separate_ndims[state] += 1;
