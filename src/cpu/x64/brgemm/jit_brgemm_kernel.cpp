@@ -2265,7 +2265,9 @@ void jit_brgemm_kernel_t<isa, Wmm>::bdb_loop() {
             // first bd_block --------------
             auto bdblocks = brg.bdb;
             if (bdblocks >= 1) {
-                bdb_loop_body(1, false, true, brg.bdb == 1 && brg.bdb_tail == 0,
+                bdb_loop_body(1, false, true,
+                        (brg.bcast_dim - brg.brgattr.max_bottom_vpad)
+                                < brg.bd_block,
                         brg.bdb - bd_blocks_for_rd_tail > 0 ? 0
                                                             : rows_for_rd_tail,
                         skip_accumulation);
