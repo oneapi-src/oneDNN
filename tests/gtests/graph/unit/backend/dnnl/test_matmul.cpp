@@ -896,6 +896,151 @@ TEST(ExecuteSubgraphInt8, MatmulNdx2d) {
     }
 }
 
+TEST(ExecuteSubgraphInt8, MatmulU8U8) {
+    // compare results between:
+    // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
+    // case 2: [quantize] - [int8_matmul]
+    graph::engine_t *engine = get_engine();
+    SKIP_IF(engine->kind() != graph::engine_kind::cpu,
+            "only cpu u8 to s8 for matmul");
+    graph::stream_t *strm = get_stream();
+
+    std::vector<std::string> qtypes {"per_tensor"};
+    std::vector<std::vector<int64_t>> src_shapes {
+            {3, 3, 3, 8, 4}, {3, 3, 8, 4}, {3, 8, 4}, {8, 4}, {4}};
+    std::vector<std::vector<int64_t>> weight_shapes {{4, 2}};
+    std::vector<std::vector<int64_t>> dst_shapes {
+            {3, 3, 3, 8, 2}, {3, 3, 8, 2}, {3, 8, 2}, {8, 2}, {2}};
+    for_(const auto &qtype : qtypes)
+    for_(size_t i = 0; i < src_shapes.size(); ++i)
+    for (size_t j = 0; j < weight_shapes.size(); ++j) {
+        // prepare fp32 data
+        std::vector<int64_t> src_shape = src_shapes[i];
+        std::vector<int64_t> weight_shape = weight_shapes[j];
+        std::vector<int64_t> bias_shape {2};
+        std::vector<int64_t> dst_shape = dst_shapes[i];
+
+        test::vector<uint8_t> src_data(product(src_shape));
+        test::vector<uint8_t> weight_data(product(weight_shape));
+        test::vector<float> bias_data(product(bias_shape));
+
+        // random generate src, weight and bias data random seed = 7
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> f32_distribution(0.0f, 1.0f);
+        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+        std::generate(src_data.begin(), src_data.end(), [&]() {
+            return static_cast<uint8_t>(u8_distribution(generator));
+        });
+        std::generate(weight_data.begin(), weight_data.end(), [&]() {
+            return static_cast<uint8_t>(u8_distribution(generator));
+        });
+        std::generate(bias_data.begin(), bias_data.end(),
+                [&]() { return f32_distribution(generator); });
+        float scale_src = 1 / 255.f; // map to 0~255
+        int64_t zp_src = 0;
+
+        size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
+        std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
+        std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
+
+        graph::op_t dqdata_op(1, graph::op_kind::Dequantize, "dqdata_op");
+        dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+        graph::op_t dqweight_op(2, graph::op_kind::Dequantize, "dqweight_op");
+        dqweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+
+        graph::op_t matmul_op(3, graph::op_kind::MatMul, "matmul_op");
+        matmul_op.set_attr<bool>(graph::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(graph::op_attr::transpose_b, false);
+
+        // prepare logical tensor
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_u8 = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::u8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t bias_f32 = utils::logical_tensor_init(
+                6, bias_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_f32 = utils::logical_tensor_init(
+                7, dst_shape, graph::data_type::f32);
+
+        dqdata_op.add_input(src_u8);
+        dqdata_op.add_output(src_f32_dq);
+
+        dqweight_op.add_input(weight_u8);
+        dqweight_op.add_output(weight_f32_dq);
+
+        matmul_op.add_input(src_f32_dq);
+        matmul_op.add_input(weight_f32_dq);
+        matmul_op.add_input(bias_f32);
+        matmul_op.add_output(dst_f32);
+
+        graph::graph_t g(engine->kind());
+        g.add_op(&dqdata_op);
+        g.add_op(&dqweight_op);
+        g.add_op(&matmul_op);
+        g.finalize();
+
+        graph::tensor_t src_u8_ts(src_u8, engine, src_data.data());
+        graph::tensor_t weight_u8_ts(weight_u8, engine, weight_data.data());
+        graph::tensor_t bias_f32_ts(bias_f32, engine, bias_data.data());
+
+        // -------------------------case 1----------------------------------
+        test::vector<float> case1_out_data(product(dst_shape));
+        graph::tensor_t dst_f32_ts(dst_f32, engine, case1_out_data.data());
+        ASSERT_EQ(run_graph(g, {src_u8_ts, weight_u8_ts, bias_f32_ts},
+                          {dst_f32_ts}, *engine, *strm),
+                graph::status::success);
+        // -------------------------case 2----------------------------------
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
+                                ? "int8_matmul_post_ops_fusion_gpu"
+                                : "int8_matmul_post_ops_fusion_cpu");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
+        auto part = g.get_partitions()[0];
+        ASSERT_EQ(part->get_ops().size(), 3U);
+
+        // compile
+        graph::partition_t p;
+        p.init(part);
+
+        graph::compiled_partition_t cp(p);
+
+        std::vector<const graph::logical_tensor_t *> lt_ins {
+                &src_u8, &weight_u8, &bias_f32};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_f32};
+
+        p.compile(&cp, lt_ins, lt_outs, engine);
+
+        test::vector<float> case2_out_data(product(dst_shape));
+        graph::tensor_t dst_f32_case2_ts(
+                dst_f32, engine, case2_out_data.data());
+        cp.execute(strm, {src_u8_ts, weight_u8_ts, bias_f32_ts},
+                {dst_f32_case2_ts});
+        strm->wait();
+        static auto isa = dnnl_get_effective_cpu_isa();
+        if (engine->kind() == graph::engine_kind::cpu
+                && isa < dnnl_cpu_isa_avx512_core_vnni)
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.1f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose(case1_out_data, case2_out_data, /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
+    }
+}
+
 TEST(ExecuteSubgraphInt8, MatmulNdx1d) {
     // compare results between: case 1: [quantize] - [dequantize] -
     // [fp32_matmul] - [quantize] case 2: [quantize] - [int8_matmul]

@@ -177,6 +177,7 @@ status_t replace_quant_data_with_binary_post_op(
             bin_op->add_input(in_val);
             auto out_val = quant_data_op->get_output_value(0);
             bin_op->add_output(out_val);
+            in_val->set_data_type(out_val->get_logical_tensor().data_type);
             insert_empty_scratchpad(bin_op);
 
             // add quant data as a constant input
