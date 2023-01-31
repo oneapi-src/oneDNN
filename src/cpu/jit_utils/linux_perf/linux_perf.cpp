@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -136,6 +136,8 @@ private:
         };
 
         std::string path(get_jit_profiling_jitdumpdir());
+        if (path.empty()) return false;
+
         path.reserve(PATH_MAX);
 
         if (!make_dir(path)) return false;

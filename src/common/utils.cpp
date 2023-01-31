@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -237,8 +237,10 @@ dnnl_status_t init_jit_profiling_jitdumpdir(
 std::string get_jit_profiling_jitdumpdir() {
     std::string jitdumpdir;
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    if (!jit_profiling_jitdumpdir.initialized())
-        init_jit_profiling_jitdumpdir(nullptr, false);
+    if (!jit_profiling_jitdumpdir.initialized()) {
+        auto status = init_jit_profiling_jitdumpdir(nullptr, false);
+        if (status != status::success) return std::string();
+    }
     jitdumpdir = jit_profiling_jitdumpdir.get();
 #endif
     return jitdumpdir;
