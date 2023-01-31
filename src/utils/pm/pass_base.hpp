@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,6 +83,17 @@ public:
     }
 };
 
+// Pattern kind. It defines the capability to support static or dynamic shape
+// usages of each pattern.
+enum class pattern_type_t {
+    // patterns that only support static shape cases
+    static_shape_only = 0,
+    // patterns that only support dynamic shape cases
+    dynamic_shape_only,
+    // patterns support both static and dynamic shape
+    static_and_dynamic_shape,
+};
+
 /*!
  * \brief pass_base provides a base class for pass creation.
  *        A pass is used to do pattern matching on a given graph,
@@ -155,6 +166,13 @@ public:
 
     partition_kind_t get_kind() const { return pkind_; }
 
+    pass_base &set_type(pattern_type_t ptype) {
+        ptype_ = ptype;
+        return *this;
+    }
+
+    pattern_type_t get_type() const { return ptype_; }
+
     pass_base &set_engine_kind(engine_kind_t kind) {
         engine_kind_ = kind;
         return *this;
@@ -225,6 +243,7 @@ private:
     partition_kind_t pkind_ {partition_kind::undef};
     engine_kind_t engine_kind_ {engine_kind::any_engine};
     std::unordered_set<size_t> input_index_has_context_ {};
+    pattern_type_t ptype_ {pattern_type_t::static_shape_only};
 };
 
 } // namespace pass
