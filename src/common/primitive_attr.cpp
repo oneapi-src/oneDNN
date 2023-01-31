@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,6 +33,17 @@ const primitive_attr_t &default_attr() {
     return default_attr_instance;
 }
 
+void scales_t::set_single_scale(float scale) {
+    count_ = 1;
+    mask_ = 0;
+    scales_ = scales_buf_;
+    if (is_runtime_value(scale)) {
+        scales_[0] = scale;
+    } else {
+        utils::array_set(scales_, scale, scales_buf_size);
+    }
+}
+
 status_t scales_t::set(dim_t count, int mask, const float *scales) {
     cleanup();
 
@@ -43,8 +54,7 @@ status_t scales_t::set(dim_t count, int mask, const float *scales) {
         scales_ = scales_buf_;
         scales_[0] = *scales;
     } else if (count_ == 1) {
-        scales_ = scales_buf_;
-        utils::array_set(scales_, scales[0], scales_buf_size);
+        set_single_scale(scales[0]);
     } else {
         scales_ = (float *)impl::malloc(count_ * sizeof(*scales_), 64);
         if (scales_ == nullptr) return status::out_of_memory;
@@ -334,7 +344,8 @@ status_t primitive_attr_t::set_scratchpad_mode(
 }
 
 status_t primitive_attr_t::set_post_ops(const post_ops_t &post_ops) {
-    return post_ops_.copy_from(post_ops);
+    post_ops_.copy_from(post_ops);
+    return status::success;
 }
 
 status_t primitive_attr_t::set_default_formats(const memory_desc_t *dst_md) {

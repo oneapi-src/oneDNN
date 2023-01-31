@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -123,10 +123,8 @@ private:
 
 // Note: keep for RNN quantization
 struct scales_t : public c_compatible {
-    scales_t() : count_(1), mask_(0), scales_(scales_buf_) { set(1.); }
-    scales_t(dim_t count, int mask, const float *scales)
-        : scales_(scales_buf_) {
-        set(count, mask, scales);
+    scales_t() : count_(1), mask_(0), scales_(scales_buf_) {
+        set_single_scale(1.);
     }
 
     ~scales_t() { cleanup(); }
@@ -150,8 +148,12 @@ struct scales_t : public c_compatible {
 
     bool defined() const { return !is_runtime_value(scales_[0]); }
 
+    void set_single_scale(float single_scale);
     status_t set(dim_t count, int mask, const float *scales);
-    status_t set(float single_scale) { return this->set(1, 0, &single_scale); }
+    status_t set(float single_scale) {
+        set_single_scale(single_scale);
+        return status::success;
+    }
 
     status_t copy_from(const scales_t &other) {
         return set(other.count_, other.mask_, other.scales_);
@@ -372,9 +374,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         entry_t() : kind(dnnl::impl::primitive_kind::undefined) {}
         entry_t(const entry_t &other) { copy_from(other); }
 
-        dnnl::impl::status_t copy_from(const entry_t &other) {
-            return set(other);
-        }
+        void copy_from(const entry_t &other) { set(other); }
 
         // TODO: This operator has to be deleted, and its usage has to be
         // replaced with copy_from() or copy/move constructors in order to
@@ -514,21 +514,17 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         }
 
     private:
-        dnnl::impl::status_t set(const entry_t &other) {
+        void set(const entry_t &other) {
             // Copying by if (is_convolution()) {} else if(is_sum()) {}
             // else if(is_relu()) {} seems to be unreliable. memcpying for now.
             dnnl::impl::utils::array_copy(
                     (char *)this, (char *)&other, sizeof(*this));
-            return dnnl::impl::status::success;
         }
     };
 
     dnnl_post_ops() : entry_() {}
 
-    dnnl_post_ops(const dnnl_post_ops &other) {
-        if (copy_from(other) != dnnl::impl::status::success)
-            is_initialized_ = false;
-    }
+    dnnl_post_ops(const dnnl_post_ops &other) { copy_from(other); }
 
     dnnl::impl::status_t append_sum(float scale, int32_t zero_point = 0,
             dnnl::impl::data_type_t dt = dnnl_data_type_undef);
@@ -591,7 +587,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         return ret;
     }
 
-    dnnl::impl::status_t copy_from(const dnnl_post_ops &other) {
+    void copy_from(const dnnl_post_ops &other) {
         using namespace dnnl::impl;
 
         for (int idx = 0; idx < other.len(); ++idx) {
@@ -600,10 +596,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             } else {
                 entry_.emplace_back();
             }
-            CHECK(entry_[idx].copy_from(other.entry_[idx]));
+            entry_[idx].copy_from(other.entry_[idx]);
         }
-
-        return status::success;
     }
 
     bool is_initialized() const { return is_initialized_; }
@@ -641,7 +635,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         zero_points_ = other.zero_points_;
         scratchpad_mode_ = other.scratchpad_mode_;
         fpmath_mode_ = other.fpmath_mode_;
-        CHECK(post_ops_.copy_from(other.post_ops_));
+        post_ops_.copy_from(other.post_ops_);
         rnn_data_qparams_ = other.rnn_data_qparams_;
         CHECK(rnn_weights_qparams_.copy_from(other.rnn_weights_qparams_));
         CHECK(rnn_weights_projection_qparams_.copy_from(

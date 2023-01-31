@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,8 +64,8 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
     auto dw_po_len = attr_1x1.post_ops_.len() - (dw_po_index + 1);
     attr_dw.post_ops_.entry_.resize(dw_po_len);
     for (int i = 0; i < dw_po_len; ++i) {
-        CHECK(attr_dw.post_ops_.entry_[i].copy_from(
-                attr_1x1.post_ops_.entry_[i + dw_po_index + 1]));
+        attr_dw.post_ops_.entry_[i].copy_from(
+                attr_1x1.post_ops_.entry_[i + dw_po_index + 1]);
     }
 
     attr_dw.scratchpad_mode_ = attr_1x1.scratchpad_mode_;
