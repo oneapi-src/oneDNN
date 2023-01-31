@@ -766,7 +766,7 @@ static size_t get_cpu_ram_size() {
 }
 #endif
 
-static size_t get_gpu_ram_size() {
+static int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
     // XXX: create a tmp engine to query what we need.
     // It will be removed in the future as part of switching back
     // to the global engine.
@@ -780,15 +780,31 @@ static size_t get_gpu_ram_size() {
     engine_t engine_tgt(engine_tgt_kind);
     cl_device_id ocl_device = dnnl::ocl_interop::get_device(eng);
 
-    cl_ulong ram_size = 0;
+    cl_ulong ram_sz = 0;
     status = clGetDeviceInfo(ocl_device, CL_DEVICE_GLOBAL_MEM_SIZE,
-            sizeof(cl_ulong), &ram_size, nullptr);
-    if (status == CL_SUCCESS) return (size_t)ram_size;
+            sizeof(cl_ulong), &ram_sz, nullptr);
+    if (status != CL_SUCCESS) return FAIL;
+
+    cl_ulong max_alloc_sz = 0;
+    status = clGetDeviceInfo(ocl_device, CL_DEVICE_MAX_MEM_ALLOC_SIZE,
+            sizeof(cl_ulong), &max_alloc_sz, nullptr);
+    if (status != CL_SUCCESS) return FAIL;
+
+    ram_size = (size_t)ram_sz;
+    max_alloc_size = (size_t)max_alloc_sz;
+    return OK;
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
     auto sycl_dev = dnnl::sycl_interop::get_device(eng);
-    return (size_t)sycl_dev.get_info<::sycl::info::device::global_mem_size>();
+    ram_size = (size_t)sycl_dev
+                       .get_info<::sycl::info::device::global_mem_size>();
+    max_alloc_size
+            = (size_t)sycl_dev
+                      .get_info<::sycl::info::device::max_mem_alloc_size>();
+    return OK;
 #endif
-    return 0;
+    ram_size = 0;
+    max_alloc_size = 0;
+    return OK;
 }
 
 struct check_mem_size_args_t {
@@ -809,6 +825,7 @@ struct check_mem_size_args_t {
     bool is_scratchpad;
 
     // Output args.
+    std::vector<size_t> sizes;
     size_t total_size_device;
     size_t total_size_cpu;
     size_t scratchpad_size;
@@ -817,7 +834,9 @@ struct check_mem_size_args_t {
 static int check_total_size(
         const check_mem_size_args_t &check_mem_size_args, res_t *res) {
     static uint64_t cpu_device_capacity = get_cpu_ram_size();
-    static uint64_t gpu_device_capacity = get_gpu_ram_size();
+    uint64_t gpu_device_capacity = 0;
+    uint64_t gpu_max_alloc_capacity = 0;
+    SAFE(get_gpu_ram_sizes(gpu_device_capacity, gpu_max_alloc_capacity), WARN);
 
     const uint64_t device_max_capacity
             = is_cpu() ? cpu_device_capacity : gpu_device_capacity;
@@ -831,6 +850,11 @@ static int check_total_size(
 
     const bool fits_device_ram = is_gpu()
             ? (check_mem_size_args.total_size_device <= benchdnn_device_limit)
+                    && std::all_of(check_mem_size_args.sizes.cbegin(),
+                            check_mem_size_args.sizes.cend(),
+                            [&](size_t s) {
+                                return s < gpu_max_alloc_capacity;
+                            })
             : true;
     if (!fits_device_ram) {
         BENCHDNN_PRINT(
@@ -894,6 +918,7 @@ static void add_md_size(const_dnnl_memory_desc_t md,
     if (mem_size == 0 || mem_size == DNNL_RUNTIME_SIZE_VAL) return;
 
     check_mem_size_args.total_size_device += mem_size; // Original memory size.
+    check_mem_size_args.sizes.push_back(mem_size);
     if (!check_mem_size_args.add_ref_size) return;
 
     // Reference memories are always tag::abx fp32, hence need re-creating
