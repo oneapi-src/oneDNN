@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ struct serialization_stream_t {
     serialization_stream_t() = default;
 
     template <typename T>
-    status_t write(const T ptr, size_t nelems = 1) {
+    void write(const T ptr, size_t nelems = 1) {
         using non_pointer_type = typename std::remove_pointer<T>::type;
 
         static_assert(std::is_pointer<T>::value,
@@ -41,7 +41,7 @@ struct serialization_stream_t {
         static_assert(!std::is_array<non_pointer_type>::value,
                 "non-pointer type cannot be an array.");
 
-        return write_impl((const void *)ptr, sizeof(non_pointer_type) * nelems);
+        write_impl((const void *)ptr, sizeof(non_pointer_type) * nelems);
     }
 
     bool empty() const { return data_.empty(); }
@@ -49,10 +49,9 @@ struct serialization_stream_t {
     const std::vector<uint8_t> &get_data() const { return data_; }
 
 private:
-    status_t write_impl(const void *ptr, size_t size) {
+    void write_impl(const void *ptr, size_t size) {
         const auto *p = reinterpret_cast<const uint8_t *>(ptr);
         data_.insert(data_.end(), p, p + size);
-        return status::success;
     }
 
     std::vector<uint8_t> data_;
