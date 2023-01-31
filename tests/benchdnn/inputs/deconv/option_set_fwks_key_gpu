@@ -1,0 +1,10 @@
+#fastpitch2.inf.fp16.pt.mb8
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abc --wtag=bac --dtag=abc mb1_ic512oc256_iw283ow2264kw16sw8dw0pw4n"fastpitch2.inf.fp16.pt.mb8*2"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abc --wtag=bac --dtag=abc mb1_ic256oc128_iw2264ow18112kw16sw8dw0pw4n"fastpitch2.inf.fp16.pt.mb8*2"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abc --wtag=bac --dtag=abc mb1_ic128oc64_iw18112ow36224kw4sw2dw0pw1n"fastpitch2.inf.fp16.pt.mb8*2"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abc --wtag=bac --dtag=abc mb1_ic64oc32_iw36224ow72448kw4sw2dw0pw1n"fastpitch2.inf.fp16.pt.mb8*2"
+#hifigan.inf.fp16.pt.mb8
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abc --wtag=bac --dtag=abc mb8_ic512oc256_iw820ow6560kw16sw8dw0pw4n"hifigan.inf.fp16.pt.mb8*2"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abc --wtag=bac --dtag=abc mb8_ic256oc128_iw6560ow52480kw16sw8dw0pw4n"hifigan.inf.fp16.pt.mb8*2"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abc --wtag=bac --dtag=abc mb8_ic128oc64_iw52480ow104960kw4sw2dw0pw1n"hifigan.inf.fp16.pt.mb8*2"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=abc --wtag=bac --dtag=abc mb8_ic64oc32_iw104960ow209920kw4sw2dw0pw1n"hifigan.inf.fp16.pt.mb8*2"

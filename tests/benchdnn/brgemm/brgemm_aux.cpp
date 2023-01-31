@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,6 +81,15 @@ void prb_t::generate_oscales() {
             if (s[si] > K) s[si] /= K * K; // turn around to become ~K
         }
     }
+}
+
+void prb_t::generate_dst_scales() {
+    const auto &dst_sc = attr.scales.get(DNNL_ARG_DST);
+
+    assert(dst_sc.policy == policy_t::COMMON);
+    dst_scales = (float *)zmalloc(sizeof(float), 4);
+    SAFE_V(dst_scales != nullptr ? OK : FAIL);
+    dst_scales[0] = dst_sc.scale;
 }
 
 int32_t *prb_t::generate_zero_points(

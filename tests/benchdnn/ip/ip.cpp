@@ -23,6 +23,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "utils/fill.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
@@ -47,6 +48,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, 2, prb->dst_dims().data());
+    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
+    if (wei_scale.policy == policy_t::PER_OC) {
+        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, 1);
+    }
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -115,6 +120,9 @@ int init_prim_ref(
 
 int fill_src(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
+    const size_t nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
     const auto &c = prb->get_dt_conf(SRC);
     const int range = c.f_max - c.f_min + 1;
     const float sparsity
@@ -127,7 +135,8 @@ int fill_src(
                 const bool non_base = flip_coin(gen, sparsity);
                 const float value
                         = non_base ? c.f_min + gen * 1 % range : c.f_base;
-                ((float *)mem_fp)[src_off_f(prb, mb, ic, id, ih, iw)] = value;
+                ((float *)mem_fp)[src_off_f(prb, mb, ic, id, ih, iw)]
+                        = round_to_nearest_representable(mem_dt.dt(), value);
             });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
@@ -137,8 +146,8 @@ int fill_src(
 
 int fill_wei(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const bool s8_s8
-            = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dnnl_s8;
+    const size_t nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
 
     const auto &c = prb->get_dt_conf(WEI);
     const int range = c.f_max - c.f_min + 1;
@@ -152,10 +161,14 @@ int fill_wei(
                 const bool non_base = flip_coin(gen, sparsity);
                 const float value
                         = non_base ? c.f_min + gen * 1 % range : c.f_base;
-                ((float *)mem_fp)[wei_off_f(prb, oc, ic, kd, kh, kw)] = value;
+                ((float *)mem_fp)[wei_off_f(prb, oc, ic, kd, kh, kw)]
+                        = round_to_nearest_representable(mem_dt.dt(), value);
             });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    const bool s8_s8
+            = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dnnl_s8;
     if (s8_s8 && is_cpu()) {
         // Check that s8 -> s8_comp exists in the library since users may have
         // already quantized data.
@@ -183,15 +196,20 @@ int fill_bia(
         const int gen = (int)(151 * i + 11);
         const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value = non_base ? c.f_min + gen * 1 % range : c.f_base;
-        ((float *)mem_fp)[i] = value;
+        ((float *)mem_fp)[i]
+                = round_to_nearest_representable(mem_dt.dt(), value);
     }
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
+
     return OK;
 }
 
 int fill_dst(
         const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
+    const size_t nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
     const auto &c = prb->get_dt_conf(DST);
     const int range = c.f_max - c.f_min + 1;
 
@@ -200,7 +218,8 @@ int fill_dst(
         const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value = non_base ? c.f_min + gen * 1 % range : c.f_base;
 
-        ((float *)mem_fp)[dst_off_f(prb, mb, oc)] = value;
+        ((float *)mem_fp)[dst_off_f(prb, mb, oc)]
+                = round_to_nearest_representable(mem_dt.dt(), value);
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
@@ -318,18 +337,8 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                         SAFE(binary::fill_mem(exec_arg, mem, ref_mem), WARN);
                 } else if (is_scales_arg) {
                     int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    float *prb_ptr = nullptr;
-                    switch (local_exec_arg) {
-                        case DNNL_ARG_SRC: prb_ptr = prb->src_scales; break;
-                        case DNNL_ARG_WEIGHTS: prb_ptr = prb->wei_scales; break;
-                        case DNNL_ARG_DST: prb_ptr = prb->dst_scales; break;
-                        default: break;
-                    }
-                    // Fill library scales directly.
-                    for (int64_t idx = 0; idx < mem.nelems(); ++idx) {
-                        ref_mem.set_elem(idx, prb_ptr[idx]);
-                        mem.reorder(ref_mem);
-                    }
+                    SAFE(fill_scales(prb->attr, local_exec_arg, mem, ref_mem),
+                            WARN);
                 }
             } break;
         }

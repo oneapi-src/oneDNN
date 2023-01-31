@@ -1,0 +1,1 @@
+--reset --case=pattern/bf16/conv_post_ops_fusion.json

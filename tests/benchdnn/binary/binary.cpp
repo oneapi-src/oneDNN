@@ -145,7 +145,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
               };
     cmp.set_driver_check_function(binary_add_check);
 
-    const std::vector<alg_t> cmp_alg = {
+    static const std::vector<alg_t> cmp_alg = {
             alg_t::GE, alg_t::GT, alg_t::LE, alg_t::LT, alg_t::EQ, alg_t::NE};
     const bool is_cmp = std::any_of(
             cmp_alg.cbegin(), cmp_alg.cend(), [&](const alg_t alg) {

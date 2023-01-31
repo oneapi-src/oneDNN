@@ -1,0 +1,122 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "any",
+  "graph": [
+    {
+      "id": 0,
+      "name": "reciprocal",
+      "kind": "Reciprocal",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "mul",
+      "kind": "Multiply",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 3,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

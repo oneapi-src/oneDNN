@@ -143,16 +143,9 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
     // Average pooling without padding can't handle cases when kernel window is
     // applied to padded area only.
-    if (prb->alg == avg_np) {
-        bool ker_in_pad_d = prb->pd >= prb->kd || prb->pd_r >= prb->kd;
-        bool ker_in_pad_h = prb->ph >= prb->kh || prb->ph_r >= prb->kh;
-        bool ker_in_pad_w = prb->pw >= prb->kw || prb->pw_r >= prb->kw;
-        bool ker_in_pad = ker_in_pad_d || ker_in_pad_h || ker_in_pad_w;
-
-        if (ker_in_pad) {
-            res->state = SKIPPED, res->reason = INVALID_CASE;
-            return;
-        }
+    if (prb->alg == avg_np && prb->has_ker_in_pad()) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
     }
 }
 
@@ -162,6 +155,10 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     // Backward may have most zeroes for ker_in_pad with huge kernels problems.
     const float zero_percent = (prb->dir & FLAG_FWD) ? 99.f : 100.f;
     cmp.set_zero_trust_percent(zero_percent); // TODO: consider enabling
+
+    const bool has_inf_output = prb->alg == alg_t::max && prb->has_ker_in_pad()
+            && prb->attr.post_ops.len();
+    cmp.set_op_output_has_nans(has_inf_output);
 
     const auto pooling_add_check
             = [&](const compare::compare_t::driver_check_func_args_t &args) {

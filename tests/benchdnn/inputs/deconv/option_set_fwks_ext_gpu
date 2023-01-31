@@ -1,0 +1,48 @@
+#colorization-siggraph_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=sum+relu mb1_ic512oc256_ih32oh64kh4sh2dh0ph1_iw32ow64kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=sum+relu mb1_ic256oc128_ih64oh128kh4sh2dh0ph1_iw64ow128kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=sum+relu mb1_ic128oc128_ih128oh256kh4sh2dh0ph1_iw128ow256kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.fp16.ov.b1*1"
+#colorization-siggraph_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=sum+relu mb32_ic512oc256_ih32oh64kh4sh2dh0ph1_iw32ow64kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=sum+relu mb32_ic256oc128_ih64oh128kh4sh2dh0ph1_iw64ow128kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=sum+relu mb32_ic128oc128_ih128oh256kh4sh2dh0ph1_iw128ow256kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.fp16.ov.b32*1"
+#colorization-siggraph_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic512oc256_ih32oh64kh4sh2dh0ph1_iw32ow64kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic256oc128_ih64oh128kh4sh2dh0ph1_iw64ow128kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic128oc128_ih128oh256kh4sh2dh0ph1_iw128ow256kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.int8.ov.b1*1"
+#colorization-siggraph_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb32_ic512oc256_ih32oh64kh4sh2dh0ph1_iw32ow64kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb32_ic256oc128_ih64oh128kh4sh2dh0ph1_iw64ow128kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb32_ic128oc128_ih128oh256kh4sh2dh0ph1_iw128ow256kw4sw2dw0pw1n"colorization-siggraph_onnx.inf.int8.ov.b32*1"
+#instance-segmentation-security-0010_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0 mb100_ic256oc256_ih14oh28kh2sh2dh0ph0_iw14ow28kw2sw2dw0pw0n"instance-segmentation-security-0010_onnx.inf.int8.ov.b1*1"
+#text-image-super-resolution-0001_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=bacd --dtag=any --attr-post-ops=relu mb1_ic36oc4_ih360oh1080kh3sh3dh0ph0_iw640ow1920kw3sw3dw0pw0n"text-image-super-resolution-0001_onnx.inf.fp16.ov.b1*1"
+#text-image-super-resolution-0001_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=bacd --dtag=any --attr-post-ops=relu mb32_ic36oc4_ih360oh1080kh3sh3dh0ph0_iw640ow1920kw3sw3dw0pw0n"text-image-super-resolution-0001_onnx.inf.fp16.ov.b32*1"
+#unet3d_mlperf_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_I --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic320oc320_id7od14kd2sd2dd0pd0_ih7oh14kh2sh2dh0ph0_iw5ow10kw2sw2dw0pw0n"unet3d_mlperf_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_I --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic320oc256_id14od28kd2sd2dd0pd0_ih14oh28kh2sh2dh0ph0_iw10ow20kw2sw2dw0pw0n"unet3d_mlperf_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_I --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic256oc128_id28od56kd2sd2dd0pd0_ih28oh56kh2sh2dh0ph0_iw20ow40kw2sw2dw0pw0n"unet3d_mlperf_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_I --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic128oc64_id56od112kd2sd2dd0pd0_ih56oh112kh2sh2dh0ph0_iw40ow80kw2sw2dw0pw0n"unet3d_mlperf_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=s8s8s8 --dir=FWD_I --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic64oc32_id112od224kd2sd2dd0pd0_ih112oh224kh2sh2dh0ph0_iw80ow160kw2sw2dw0pw0n"unet3d_mlperf_onnx.inf.int8.ov.b1*1"
+#unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any mb1_ic1024oc512_ih23oh46kh2sh2dh0ph0_iw30ow60kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any mb1_ic512oc256_ih46oh92kh2sh2dh0ph0_iw60ow120kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any mb1_ic256oc128_ih92oh184kh2sh2dh0ph0_iw120ow240kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any mb1_ic128oc64_ih184oh368kh2sh2dh0ph0_iw240ow480kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b1*1"
+#unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any mb32_ic1024oc512_ih23oh46kh2sh2dh0ph0_iw30ow60kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any mb32_ic512oc256_ih46oh92kh2sh2dh0ph0_iw60ow120kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any mb32_ic256oc128_ih92oh184kh2sh2dh0ph0_iw120ow240kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=f16 --dir=FWD_B --stag=any --wtag=any --dtag=any mb32_ic128oc64_ih184oh368kh2sh2dh0ph0_iw240ow480kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.fp16.ov.b32*1"
+#unet-camvid-onnx-0001_onnx.inf.int8.ov.b1
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic1024oc512_ih23oh46kh2sh2dh0ph0_iw30ow60kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic512oc256_ih46oh92kh2sh2dh0ph0_iw60ow120kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic256oc128_ih92oh184kh2sh2dh0ph0_iw120ow240kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b1*1"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb1_ic128oc64_ih184oh368kh2sh2dh0ph0_iw240ow480kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b1*1"
+#unet-camvid-onnx-0001_onnx.inf.int8.ov.b32
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb32_ic1024oc512_ih23oh46kh2sh2dh0ph0_iw30ow60kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb32_ic512oc256_ih46oh92kh2sh2dh0ph0_iw60ow120kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb32_ic256oc128_ih92oh184kh2sh2dh0ph0_iw120ow240kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b32*1"
+--reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_B --stag=any --wtag=any --dtag=any --attr-post-ops=mul:f32:per_dim_0+add:f32:per_dim_0 mb32_ic128oc64_ih184oh368kh2sh2dh0ph0_iw240ow480kw2sw2dw0pw0n"unet-camvid-onnx-0001_onnx.inf.int8.ov.b32*1"

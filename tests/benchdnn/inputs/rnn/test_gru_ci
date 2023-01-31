@@ -20,7 +20,6 @@
 --batch=shapes_small
 --attr-fpmath=
 
-
 # int8
 --trivial-strides=true
 --prop=FWD_I
@@ -31,4 +30,13 @@
 
 --cfg=u8u8u8f32,f32u8f32u8
 --scaling=per_oc
+--batch=shapes_small
+
+# flags
+--scaling=
+--flags=O
+--prop=BWD_DW
+--cfg=f32
+
+--direction=right2left,concat,sum
 --batch=shapes_small

@@ -33,27 +33,48 @@ namespace reduction {
 // second: maximum range
 using problem_bounds = std::pair<const int, const int>;
 
-// int | acc | elems | value_range | worst case
-//  Y  | mul |  10   |       3     |     3^10=2^16, out of 2^30 (max integer)
-//  N  | mul |  30   |       3     | (2^3)^30=2^90, out of 2^128 (max exponent)
-//  Y  | sum | 10000 |      50     | 10000*50=2^19, out of 2^30 (max integer)
-//  N  | sum | 10000 |      16     | 10000*16=2^18, out of 2^23 (max mantissa/integer)
+// acc | acc | elems | value_range | worst case
+// s32 | mul |  10   |       3     |     3^10=2^16, out of 2^30 (max integer)
+// f16 | mul |  10   |       1     | (2^1)^10=2^10, out of 2^16 (max exponent)
+// f32 | mul |  30   |       3     | (2^3)^30=2^90, out of 2^128 (max exponent)
+// s32 | sum | 10000 |      50     | 10000*50=2^19, out of 2^30 (max integer)
+// f16 | sum | 1000  |       8     | 1000*8=2^13, out of 2^10 (max mantissa/integer)
+// f32 | sum | 10000 |      16     | 10000*16=2^18, out of 2^23 (max mantissa/integer)
 //  min/max  |  all  |    1000     | no limits on accumulation chain
+
+// In f16 cases, the worst case exceeds the data type bounds, however it's rare
+// to reach these extreme cases as long as they're close (can't just use f32 bounds)
 const problem_bounds MUL_INT = problem_bounds(10, 3);
-const problem_bounds MUL_FP = problem_bounds(30, 3);
+const problem_bounds MUL_F16 = problem_bounds(10, 1);
+const problem_bounds MUL_F32 = problem_bounds(30, 3);
 const problem_bounds SUM_INT = problem_bounds(10000, 50);
-const problem_bounds SUM_FP = problem_bounds(10000, 16);
+const problem_bounds SUM_F16 = problem_bounds(1000, 8);
+const problem_bounds SUM_F32 = problem_bounds(10000, 16);
 const problem_bounds MINMAX_INT = problem_bounds(-1, 1000);
 const problem_bounds MINMAX_FP = problem_bounds(-1, 1000);
 
 problem_bounds get_problem_bounds(alg_t alg, dnnl_data_type_t dt) {
     const bool is_int = is_integral_dt(dt);
+
+    // Integer cases
+    if (is_int) {
+        switch (alg) {
+            case alg_t::max:
+            case alg_t::min: return MINMAX_INT;
+            case alg_t::mul: return MUL_INT;
+            // All remaining cases accumulate via sum
+            default: return SUM_INT;
+        }
+    }
+
+    // Floating-point cases
+    const bool is_f16 = (dt == dnnl_f16);
     switch (alg) {
         case alg_t::max:
-        case alg_t::min: return is_int ? MINMAX_INT : MINMAX_FP;
-        case alg_t::mul: return is_int ? MUL_INT : MUL_FP;
+        case alg_t::min: return MINMAX_FP;
+        case alg_t::mul: return is_f16 ? MUL_F16 : MUL_F32;
         // All remaining cases accumulate via sum
-        default: return is_int ? SUM_INT : SUM_FP;
+        default: return is_f16 ? SUM_F16 : SUM_F32;
     }
 }
 
@@ -122,7 +143,7 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
             float value = neutral_value;
             if (flip_coin(idx, non_neutral_prob)) {
                 const int gen = igen(msr);
-                value = is_mul_fp ? std::pow(2, gen) : gen;
+                value = fill_with_powers_of_two ? std::pow(2, gen) : gen;
 
                 if (!only_positive_values && is_signed && fifty_fifty(msr) == 1)
                     value = -value;
@@ -184,6 +205,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     // accounts for inaccurate rootn/pow functions in norm algs.
     float scale = is_norm_alg(prb->alg) ? 5.0f : 1.0f;
     cmp.set_threshold(scale * epsilon_dt(prb->ddt));
+
     if (is_amd_gpu()) {
         // MIOpen implementation is less accurate for f16 data type therefore
         // adjust the threshold.

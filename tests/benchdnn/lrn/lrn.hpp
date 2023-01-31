@@ -115,8 +115,6 @@ struct prb_t : public desc_t {
         assert(!"No runtime dimensions support for this driver!");
         return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
     }
-
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 

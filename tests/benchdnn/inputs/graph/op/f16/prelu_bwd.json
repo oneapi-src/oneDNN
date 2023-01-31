@@ -1,0 +1,112 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "PRELU_0",
+      "kind": "PReLUBackward",
+      "attrs": {
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f16",
+          "shape": [
+            4,
+            16,
+            3,
+            4
+          ],
+          "stride": [
+            192,
+            12,
+            4,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f16",
+          "shape": [
+            4,
+            16,
+            3,
+            4
+          ],
+          "stride": [
+            192,
+            12,
+            4,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 2,
+          "dtype": "f16",
+          "shape": [
+            4,
+            16,
+            3,
+            4
+          ],
+          "stride": [
+            192,
+            12,
+            4,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 3,
+          "dtype": "f16",
+          "shape": [
+            4,
+            16,
+            3,
+            4
+          ],
+          "stride": [
+            192,
+            12,
+            4,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 4,
+          "dtype": "f16",
+          "shape": [
+            4,
+            16,
+            3,
+            4
+          ],
+          "stride": [
+            192,
+            12,
+            4,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

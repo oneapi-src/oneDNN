@@ -1,0 +1,68 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "MATMUL_0",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_b": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            32,
+            384
+          ],
+          "stride": [
+            384,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            384,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            32,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

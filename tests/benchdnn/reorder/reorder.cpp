@@ -24,6 +24,7 @@
 // TODO: refactor the driver to avoid using extra flags of a memory descriptor.
 #include "common/memory_desc.hpp"
 
+#include "utils/fill.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnn_types.hpp"
@@ -434,26 +435,13 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
                 if (is_scales_arg) {
                     int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    float *prb_ptr = nullptr;
-                    switch (local_exec_arg) {
-                        case DNNL_ARG_SRC: prb_ptr = prb->src_scales; break;
-                        case DNNL_ARG_DST: prb_ptr = prb->dst_scales; break;
-                        default: break;
-                    }
-                    // Fill library scales directly.
-                    for (int64_t idx = 0; idx < mem.nelems(); ++idx) {
-                        ref_mem.set_elem(idx, prb_ptr[idx]);
-                        mem.reorder(ref_mem);
-                    }
+                    SAFE(fill_scales(prb->attr, local_exec_arg, mem, ref_mem),
+                            WARN);
                 } else if (is_zero_point_arg) {
                     int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
-                    const auto *prb_ptr = (local_exec_arg == DNNL_ARG_SRC)
-                            ? prb->src_zp
-                            : (local_exec_arg == DNNL_ARG_DST) ? prb->dst_zp
-                                                               : nullptr;
-                    // Fill library zero points directly.
-                    for (int64_t idx = 0; idx < mem.nelems(); ++idx)
-                        mem.set_elem(idx, prb_ptr[idx]);
+                    SAFE(fill_zero_points(
+                                 prb->attr, local_exec_arg, mem, ref_mem),
+                            WARN);
                 }
             } break;
         }

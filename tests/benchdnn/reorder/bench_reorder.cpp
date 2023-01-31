@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,10 +52,10 @@ void check_correctness(const settings_t &s) {
         for_(const auto &i_src_test_scale : src_test_scales)
         for (const auto &i_dst_test_scale : dst_test_scales) {
             attr_t::arg_scales_t test_arg_scales;
-            test_arg_scales.set(DNNL_ARG_SRC,
-                    {src_scale.policy, i_src_test_scale, src_scale.runtime});
-            test_arg_scales.set(DNNL_ARG_DST,
-                    {dst_scale.policy, i_dst_test_scale, dst_scale.runtime});
+            test_arg_scales.set(
+                    DNNL_ARG_SRC, {src_scale.policy, i_src_test_scale});
+            test_arg_scales.set(
+                    DNNL_ARG_DST, {dst_scale.policy, i_dst_test_scale});
             auto attr = settings_t::get_attr(test_arg_scales, i_zero_points,
                     i_post_ops, i_scratchpad_mode);
 

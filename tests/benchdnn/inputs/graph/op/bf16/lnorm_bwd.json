@@ -1,0 +1,116 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "LNORM_0",
+      "kind": "LayerNormBackward",
+      "attrs": {
+        "epsilon": {
+          "type": "f32",
+          "value": 0.0625
+        },
+        "use_affine": {
+          "type": "bool",
+          "value": 0
+        },
+        "begin_norm_axis": {
+          "type": "s64",
+          "value": -1
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "bf16",
+          "shape": [
+            64,
+            128,
+            28,
+            28
+          ],
+          "stride": [
+            100352,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "bf16",
+          "shape": [
+            64,
+            128,
+            28,
+            28
+          ],
+          "stride": [
+            100352,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            64,
+            128,
+            28
+          ],
+          "stride": [
+            3584,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 3,
+          "dtype": "f32",
+          "shape": [
+            64,
+            128,
+            28
+          ],
+          "stride": [
+            3584,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 4,
+          "dtype": "bf16",
+          "shape": [
+            64,
+            128,
+            28,
+            28
+          ],
+          "stride": [
+            100352,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

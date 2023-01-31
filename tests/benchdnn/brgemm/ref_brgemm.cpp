@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
     }
 
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
-    auto attr_scale_arg = wei_scale.runtime ? DNNL_ARG_WEIGHTS : DNNL_ARG_SRC;
+    auto attr_scale_arg = !wei_scale.is_def() ? DNNL_ARG_WEIGHTS : DNNL_ARG_SRC;
 
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
     static constexpr int bias_broadcast_mask = 2;
@@ -92,18 +92,19 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
         float &dst = ((float *)dst_m)[dst_off];
 
         float tmp = ((float *)dst_tmp)[dst_off];
+        maybe_scale(prb->attr, tmp, prb->scales, n, attr_scale_arg);
         if (prb->bia_dt != dnnl_data_type_undef) {
             int64_t bia_off = dst_m.get_scale_idx(dst_off, bias_broadcast_mask);
             float *bia_ptr = (float *)bia_m;
             tmp += bia_ptr[bia_off];
         }
-        maybe_scale(prb->attr, tmp, prb->scales, n, attr_scale_arg);
 
         const auto v_po_vals
                 = prepare_po_vals(dst_m, args, v_po_masks, dst_off);
 
         maybe_post_ops(prb->attr, tmp, dst, v_po_vals);
 
+        maybe_scale(prb->attr, tmp, prb->dst_scales, n, DNNL_ARG_DST, true);
         maybe_zero_point(prb->attr, tmp, prb->dst_zp, n, DNNL_ARG_DST, true);
         dst = tmp;
     });

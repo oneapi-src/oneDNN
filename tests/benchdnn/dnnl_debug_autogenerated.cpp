@@ -49,6 +49,22 @@ dnnl_data_type_t str2dt(const char *str) {
     return dnnl_data_type_undef;
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+dnnl_sparse_encoding_t str2sparse_encoding(const char *str) {
+#define CASE(_case) do { \
+    if (!strcmp(STRINGIFY(_case), str) \
+            || !strcmp("dnnl_" STRINGIFY(_case), str)) \
+        return CONCAT2(dnnl_, _case); \
+} while (0)
+    CASE(csr);
+#undef CASE
+    if (!strcmp("undef", str) || !strcmp("dnnl_sparse_encoding_undef", str))
+        return dnnl_sparse_encoding_undef;
+    assert(!"unknown sparse_encoding");
+    return dnnl_sparse_encoding_undef;
+}
+
+#endif
 dnnl_format_tag_t str2fmt_tag(const char *str) {
 #define CASE(_case) do { \
     if (!strcmp(STRINGIFY(_case), str) \
@@ -1362,6 +1378,12 @@ const char *dt2str(dnnl_data_type_t dt) {
 const char *fmt_tag2str(dnnl_format_tag_t tag) {
     return dnnl_fmt_tag2str(tag);
 }
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+const char *sparse_encoding2str(dnnl_sparse_encoding_t encoding) {
+    return dnnl_sparse_encoding2str(encoding);
+}
+#endif
 
 const char *engine_kind2str(dnnl_engine_kind_t kind) {
     return dnnl_engine_kind2str(kind);

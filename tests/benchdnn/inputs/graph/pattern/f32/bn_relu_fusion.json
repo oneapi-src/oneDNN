@@ -1,0 +1,156 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "BNORM_0",
+      "kind": "BatchNormInference",
+      "attrs": {
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "epsilon": {
+          "type": "f32",
+          "value": 0.0625
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            2,
+            192,
+            71,
+            71
+          ],
+          "stride": [
+            967872,
+            5041,
+            71,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            192
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            192
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 3,
+          "dtype": "f32",
+          "shape": [
+            192
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 4,
+          "dtype": "f32",
+          "shape": [
+            192
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 5,
+          "dtype": "f32",
+          "shape": [
+            2,
+            192,
+            71,
+            71
+          ],
+          "stride": [
+            967872,
+            5041,
+            71,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "ELTWISE_0",
+      "kind": "ReLU",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 5,
+          "dtype": "f32",
+          "shape": [
+            2,
+            192,
+            71,
+            71
+          ],
+          "stride": [
+            967872,
+            5041,
+            71,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 6,
+          "dtype": "f32",
+          "shape": [
+            2,
+            192,
+            71,
+            71
+          ],
+          "stride": [
+            967872,
+            5041,
+            71,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

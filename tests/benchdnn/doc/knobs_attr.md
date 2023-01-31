@@ -4,9 +4,8 @@
 ```
     --attr-scratchpad=MODE
     --attr-fpmath=MATHMODE
-    --attr-oscale=POLICY[:SCALE[*]]
-    --attr-scales=ARG:POLICY[:SCALE[*]][+...]
-    --attr-zero-points=ARG:POLICY:ZEROPOINT[*][+...]
+    --attr-scales=ARG:POLICY[:SCALE*][+...]
+    --attr-zero-points=ARG:POLICY:ZEROPOINT*[+...]
     --attr-post-ops=SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]
                     ELTWISE[:ALPHA[:BETA[:SCALE]]]
                     DW:KkSsPp[:DST_DT[:WEI_SCALE[:DST_SCALE]]]
@@ -25,16 +24,18 @@ or `any`. Refer to
 [fpmath primitve attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_fpmath_mode.html)
 for details.
 
-`--attr-oscale` defines output scale primitive attribute. `POLICY` specifies the
-way scale values will be applied to the output tensor. `SCALE` is optional
-argument, parsed as a real number that specifies either a common output scale
-(for `common` policy) or a starting point for a policy with non-zero mask
-(e.g. `per_oc`), which uses many scales. The default scale is `1.0`. Asterisk
-mark (`*`) is an optional addition to `SCALE` indicating the scales will be
-passed to a primitive at run-time.
+`--attr-scales` defines scales per memory argument primitive attribute.
+`ARG` specifies which memory argument will be modified with input scale.
+`POLICY` specifies the way scale values will be applied to the `ARG` tensor. 
+`SCALE` is an optional argument, parsed as a real number that specifies either a 
+common scale (for `common` policy) or a starting point for a policy with 
+non-zero mask (e.g. `per_oc`), which uses many scales. The default scale is 
+`1.0`. Asterisk mark (`*`) is a required addition to `SCALE` indicating the 
+scales will be passed to a primitive at run-time. To specify more than one memory 
+argument, plus delimiter `+` is used.
 
 `POLICY` supported values are:
-  - `none`           (the default) means no output scale is applied.
+  - `none`           (the default) means no scale is applied.
   - `common`         corresponds to `mask = 0` and means a whole tensor will be
                      multiplied by a single SCALE value.
   - `per_oc`         corresponds to `mask = 1 << 1` and means elements of dim1
@@ -75,12 +76,6 @@ passed to a primitive at run-time.
                      by a unique number. Number of scale factor is equal to
                      `nelems`. As of now supported only by binary post-ops.
 
-`--attr-scales` defines input scales per memory argument primitive attribute.
-`ARG` specifies which memory argument will be modified with input scale.
-`POLICY`, `SCALE` and `*` have the same semantics and meaning as for
-`--attr-oscale`. To specify more than one memory argument, plus delimiter `+` is
-used.
-
 `ARG` supported values are:
   - `src` or `src0` corresponds to `DNNL_ARG_SRC`
   - `src1` corresponds to `DNNL_ARG_SRC_1`
@@ -93,9 +88,9 @@ used.
 `--attr-zero-points` defines zero points per memory argument primitive
 attribute. This attribute is supported only for integer data types as of now.
 `ARG` specifies which memory argument will be modified with zero points.
-`POLICY` has the same semantics and meaning as for `--attr-oscale`. `ZEROPOINT`
+`POLICY` has the same semantics and meaning as for `--attr-scales`. `ZEROPOINT`
 is an integer value which will be subtracted from each tensor point. Asterisk
-mark (`*`) is an optional addition to `ZEROPOINT` indicating the value will be
+mark (`*`) is a required addition to `ZEROPOINT` indicating the value will be
 passed to a primitive at run-time. To specify more than one memory argument,
 plus delimiter `+` is used.
 
@@ -106,7 +101,7 @@ plus delimiter `+` is used.
 
 `POLICY` supported values are:
   - `common`
-  - `per_dim_1` (for `src` and `dst`, at run-time only)
+  - `per_dim_1` (for `src` and `dst`)
 
 `--attr-post-ops` defines post operations primitive attribute. Depending on
 post operations kind, the syntax differs. To specify more than one post
@@ -212,28 +207,28 @@ destination and perform relu on the output with scale set to 0.5:
 
 Run a 1D-spatial reorder problem with s8 input data and u8 output data in four
 different physical memory layout combinations {ncw, ncw}, {ncw, nwc},
-{nwc, ncw} and {nwc, nwc} applying output scale 2.5 for each output point:
+{nwc, ncw} and {nwc, nwc} applying source scale 2.5 for each source point:
 ``` sh
     ./benchdnn --reorder --sdt=s8 --ddt=u8 \
                --stag=ncw,nwc --dtag=ncw,nwc \
-               --attr-oscale=common:2.5 2x8x8
+               --attr-scales=src:common:2.5* 2x8x8
 ```
 
 Run a binary problem with s8 input data and u8 output data in nc layout
 applying scales to both inputs without any post operations:
 ``` sh
     ./benchdnn --binary --sdt=u8:s8 --ddt=u8 --stag=nc:nc \
-               --attr-scales=src:common:1.5+src1:common:2.5 \
+               --attr-scales=src:common:1.5*+src1:common:2.5* \
                100x100:100x100
 ```
 
-Run a 1x1 convolution fused with depthwise convolution where output scales set
-to 0.5 for 1x1 convolution and 1.5 for depthwise post-op followed by a relu
-post-op. The final dst datatype after the fusion in the example below is `s8`.
-The weights datatype is inferred as `s8`, `f32` and `bf16` for int8, f32 and
-bf16 convolutions respectively.
+Run a 1x1 convolution fused with depthwise convolution where destination scales
+are set to 0.5 for 1x1 convolution and 1.5 for depthwise post-op followed by a 
+relu post-op. The final dst datatype after the fusion in the example below is 
+`s8`. The weights datatype is inferred as `s8`, `f32` and `bf16` for int8, f32 
+and bf16 convolutions respectively.
 ``` sh
-  ./benchdnn --conv --cfg=u8s8u8 --attr-oscale=per_oc:0.5 \
+  ./benchdnn --conv --cfg=u8s8u8 --attr-scales=dst:per_oc:0.5* \
              --attr-post-ops=relu+dw_k3s1p1:s8:per_oc:1.5+relu \
              ic16oc16ih4oh4kh1ph0
 ```

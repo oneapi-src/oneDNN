@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -177,9 +177,6 @@ bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
 
 bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
         const char *str, const std::string &option_name = "mb");
-
-bool parse_attr_oscale(std::vector<attr_t::scale_t> &oscale, const char *str,
-        const std::string &option_name = "attr-oscale");
 
 bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
         const std::string &option_name = "attr-post-ops");

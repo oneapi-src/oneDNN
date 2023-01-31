@@ -100,10 +100,7 @@ struct prb_t : public prb_vdims_t {
         , rt_dims_masks(rt_dims_masks)
         , attr(attr)
         , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe)
-        , src_scales(NULL)
-        , wei_scales(NULL)
-        , dst_scales(NULL) {
+        , ctx_exe(ctx_exe) {
 
         // Broadcast data types if needed
         if (dt.size() == 1) {
@@ -126,19 +123,6 @@ struct prb_t : public prb_vdims_t {
         const auto nelems = std::accumulate(dst_dims.begin(), dst_dims.end(),
                 (dnnl_dim_t)1, std::multiplies<dnnl_dim_t>());
         ops = 2. * nelems * k;
-
-        src_scales = generate_scales(DNNL_ARG_SRC);
-        wei_scales = generate_scales(DNNL_ARG_WEIGHTS);
-        dst_scales = generate_scales(DNNL_ARG_DST);
-        src_zp = generate_zero_points(DNNL_ARG_SRC, attr.zero_points, k);
-        dst_zp = generate_zero_points(DNNL_ARG_DST, attr.zero_points, n);
-    }
-    ~prb_t() {
-        if (src_scales) zfree(src_scales);
-        if (wei_scales) zfree(wei_scales);
-        if (dst_scales) zfree(dst_scales);
-        if (src_zp) zfree(src_zp);
-        if (dst_zp) zfree(dst_zp);
     }
 
     int64_t m, n, k, mb;
@@ -154,8 +138,6 @@ struct prb_t : public prb_vdims_t {
     thr_ctx_t ctx_init, ctx_exe;
 
     double ops;
-    float *src_scales, *wei_scales, *dst_scales;
-    int32_t *src_zp, *dst_zp;
 
     const dims_t &src_dims() const { return vdims[0]; }
     const dims_t &weights_dims() const { return vdims[1]; }
@@ -186,15 +168,9 @@ struct prb_t : public prb_vdims_t {
     dnnl_data_type_t dst_dt() const { return dt[2]; }
     dnnl_data_type_t get_dt(data_kind_t data_kind) const;
 
-    float *generate_scales(int arg) const;
-    int32_t *generate_zero_points(
-            int arg, const attr_t::zero_points_t &zero_points, int N) const;
-
     // Used to construct memory desc when dimensions are runtime since such mds
     // can't be used directly from query and memory objects can't be constructed.
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> get_md(int arg) const;
-
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 
 private:
     void init_dst_rt_dims_mask() {

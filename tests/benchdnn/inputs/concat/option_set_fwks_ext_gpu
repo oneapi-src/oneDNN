@@ -144,6 +144,11 @@
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b:aBcd16b --dtag=aBcd16b --axis=1 1x32x128x128:1x32x128x128n"modnet_webcam_portrait_matting.inf.fp16.ov.mb1*2"
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b:aBcd16b --dtag=aBcd16b --axis=1 1x32x256x256:1x32x256x256n"modnet_webcam_portrait_matting.inf.fp16.ov.mb1*1"
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b:aBcd16b --dtag=aBcd16b --axis=1 1x16x256x256:1x16x256x256n"modnet_webcam_portrait_matting.inf.fp16.ov.mb1*2"
+#yolo_v5m_onnx.inf.fp16.ov.mb1
+--reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcd16b:aBcd16b:aBcd16b:aBcd16b --dtag=aBcd16b --axis=1 1x384x20x20:1x384x20x20:1x384x20x20:1x384x20x20n"yolo_v5m_onnx.inf.fp16.ov.mb1*1"
+#yolo_v5m_onnx.inf.int8.ov.mb1
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b:aBcd32b --dtag=aBcd32b --axis=1 1x48x160x160:1x48x160x160n"yolo_v5m_onnx.inf.int8.ov.mb1*1"
+--reset --allow-enum-tags-only=0 --sdt=s8 --ddt=s8 --stag=aBcd32b:aBcd32b:aBcd32b:aBcd32b --dtag=aBcd32b --axis=1 1x384x20x20:1x384x20x20:1x384x20x20:1x384x20x20n"yolo_v5m_onnx.inf.int8.ov.mb1*1"
 #brain-tumor-segmentation-0002_onnx.inf.fp16.ov.b1
 --reset --allow-enum-tags-only=0 --sdt=f16 --ddt=f16 --stag=aBcde16b:aBcde16b --dtag=aBcde16b --axis=1 1x16x128x128x128:1x16x128x128x128n"brain-tumor-segmentation-0002_onnx.inf.fp16.ov.b1*1"
 #colorization-siggraph_onnx.inf.int8.ov.b32

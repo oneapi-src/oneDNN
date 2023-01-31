@@ -113,18 +113,7 @@ struct prb_t : public prb_dims_t {
         , ctx_exe(ctx_exe)
         , oflag(oflag)
         , cross_engine(cross_engine)
-        , runtime_dim_mask(runtime_dim_mask) {
-        src_zp = generate_zero_points(DNNL_ARG_SRC);
-        dst_zp = generate_zero_points(DNNL_ARG_DST);
-        src_scales = generate_scales(DNNL_ARG_SRC);
-        dst_scales = generate_scales(DNNL_ARG_DST);
-    }
-    ~prb_t() {
-        if (src_zp) zfree(src_zp);
-        if (dst_zp) zfree(dst_zp);
-        if (src_scales) zfree(src_scales);
-        if (dst_scales) zfree(dst_scales);
-    }
+        , runtime_dim_mask(runtime_dim_mask) {}
 
     dir_t dir = FLAG_FWD; // Lack of prop_kind, always considered as forward.
     dnnl_data_type_t sdt, ddt;
@@ -135,13 +124,10 @@ struct prb_t : public prb_dims_t {
     cross_engine_t cross_engine;
     unsigned runtime_dim_mask;
     int32_t *src_zp, *dst_zp;
-    float *src_scales, *dst_scales;
 
     bool is_reorder_with_compensation(flag_bit_t flag) const;
     dims_t get_compensation_dims(flag_bit_t flag) const;
     int get_compensation_mask(flag_bit_t flag) const;
-    int32_t *generate_zero_points(int arg) const;
-    float *generate_scales(int arg) const;
     dt_conf_t get_conf(data_kind_t kind) const;
 
     // Used to construct memory desc when dimensions are runtime since such mds

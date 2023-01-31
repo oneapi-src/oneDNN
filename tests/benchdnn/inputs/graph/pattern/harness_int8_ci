@@ -1,0 +1,1 @@
+--reset --mb=2 --case=pattern/int8/int8_conv_post_ops_fusion.json
