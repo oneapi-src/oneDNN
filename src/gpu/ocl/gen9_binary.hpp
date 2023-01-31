@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -117,7 +117,7 @@ struct gen9_binary_t : public gpu_primitive_t {
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        create_kernel(engine, &kernel_, "gen9_binary", kernel_ctx);
+        CHECK(create_kernel(engine, &kernel_, "gen9_binary", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;
