@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,8 +67,8 @@ void *malloc_host(engine_t *engine, size_t size) {
             "clHostMemAllocINTEL");
     cl_int err;
     void *p = ext_func(engine, get_ocl_context(engine), nullptr, size, 0, &err);
-    assert(utils::one_of(
-            err, CL_SUCCESS, CL_OUT_OF_RESOURCES, CL_OUT_OF_HOST_MEMORY));
+    assert(utils::one_of(err, CL_SUCCESS, CL_OUT_OF_RESOURCES,
+            CL_OUT_OF_HOST_MEMORY, CL_INVALID_BUFFER_SIZE));
     return p;
 }
 
@@ -83,8 +83,8 @@ void *malloc_device(engine_t *engine, size_t size) {
     cl_int err;
     void *p = ext_func(engine, get_ocl_context(engine), get_ocl_device(engine),
             nullptr, size, 0, &err);
-    assert(utils::one_of(
-            err, CL_SUCCESS, CL_OUT_OF_RESOURCES, CL_OUT_OF_HOST_MEMORY));
+    assert(utils::one_of(err, CL_SUCCESS, CL_OUT_OF_RESOURCES,
+            CL_OUT_OF_HOST_MEMORY, CL_INVALID_BUFFER_SIZE));
     return p;
 }
 
@@ -99,8 +99,8 @@ void *malloc_shared(engine_t *engine, size_t size) {
     cl_int err;
     void *p = ext_func(engine, get_ocl_context(engine), get_ocl_device(engine),
             nullptr, size, 0, &err);
-    assert(utils::one_of(
-            err, CL_SUCCESS, CL_OUT_OF_RESOURCES, CL_OUT_OF_HOST_MEMORY));
+    assert(utils::one_of(err, CL_SUCCESS, CL_OUT_OF_RESOURCES,
+            CL_OUT_OF_HOST_MEMORY, CL_INVALID_BUFFER_SIZE));
     return p;
 }
 
