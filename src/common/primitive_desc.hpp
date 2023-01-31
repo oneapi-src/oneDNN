@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -167,10 +167,10 @@ struct primitive_desc_t : public c_compatible {
         return idx == 0 ? &scratchpad_md_ : &glob_zero_md;
     }
 
-    void init_scratchpad_md() {
+    status_t init_scratchpad_md() {
         auto size = scratchpad_size(scratchpad_mode::user);
         dims_t dims = {size};
-        memory_desc_init_by_tag(
+        return memory_desc_init_by_tag(
                 scratchpad_md_, size ? 1 : 0, dims, data_type::u8, dnnl_x);
     }
 
@@ -328,7 +328,7 @@ protected:
             return unimplemented;
         }
 
-        _pd->init_scratchpad_md();
+        CHECK(_pd->init_scratchpad_md());
         *pd = _pd;
         return success;
     }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2221,7 +2221,7 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         return status::unimplemented;
     }
     _pd->ker_desc_ = ker_desc;
-    _pd->init_scratchpad_md();
+    CHECK(_pd->init_scratchpad_md());
 
     return safe_ptr_assign(*reorder_pd, _pd);
 }
@@ -2631,7 +2631,7 @@ status_t jit_blk_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         delete _pd;
         return status::unimplemented;
     }
-    _pd->init_scratchpad_md();
+    CHECK(_pd->init_scratchpad_md());
 
     return safe_ptr_assign(*reorder_pd, _pd);
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2181,7 +2181,7 @@ struct simple_reorder_t : public primitive_t {
                         D_mask);
             }
 
-            _pd->init_scratchpad_md();
+            CHECK(_pd->init_scratchpad_md());
             return safe_ptr_assign(*reorder_pd, _pd);
         }
         friend dnnl::impl::impl_list_item_t;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 * Copyright 2020-2022 FUJITSU LIMITED
 * Copyright 2022 Arm Ltd. and affiliates
 *
@@ -2559,7 +2559,7 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         return status::unimplemented;
     }
     _pd->ker_desc_ = ker_desc;
-    _pd->init_scratchpad_md();
+    CHECK(_pd->init_scratchpad_md());
 
     return safe_ptr_assign(*reorder_pd, _pd);
 }
@@ -2945,7 +2945,7 @@ status_t jit_blk_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         delete _pd;
         return status::unimplemented;
     }
-    _pd->init_scratchpad_md();
+    CHECK(_pd->init_scratchpad_md());
 
     return safe_ptr_assign(*reorder_pd, _pd);
 }

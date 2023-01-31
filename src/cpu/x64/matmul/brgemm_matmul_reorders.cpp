@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -142,7 +142,7 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::create(
         return unimplemented;
     }
 
-    _pd->init_scratchpad_md();
+    CHECK(_pd->init_scratchpad_md());
     return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
 }
 

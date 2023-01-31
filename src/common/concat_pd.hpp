@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -248,7 +248,7 @@ private:
             delete _pd; \
             return unimplemented; \
         } \
-        _pd->init_scratchpad_md(); \
+        CHECK(_pd->init_scratchpad_md()); \
         return safe_ptr_assign(*concat_pd, _pd); \
     } \
     status_t create_primitive( \

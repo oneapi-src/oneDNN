@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -225,7 +225,7 @@ struct rnn_data_reorder_t : public primitive_t {
                 delete _pd;
                 return unimplemented;
             }
-            _pd->init_scratchpad_md();
+            CHECK(_pd->init_scratchpad_md());
             return safe_ptr_assign(*reorder_pd, _pd);
         }
         friend dnnl::impl::impl_list_item_t;
@@ -393,7 +393,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
                 delete _pd;
                 return unimplemented;
             }
-            _pd->init_scratchpad_md();
+            CHECK(_pd->init_scratchpad_md());
             const bool is_s8s8 = dst_md->extra.flags
                     & memory_extra_flags::rnn_s8s8_compensation;
             _pd->gemm_pack = is_s8s8 ? &gemm_s8s8s32_pack : &gemm_s8u8s32_pack;
@@ -588,7 +588,7 @@ struct rnn_weights_reorder_t : public primitive_t {
                 return unimplemented;
             }
             _pd->itag_ = itag;
-            _pd->init_scratchpad_md();
+            CHECK(_pd->init_scratchpad_md());
             return safe_ptr_assign(*reorder_pd, _pd);
         }
 
@@ -817,7 +817,7 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
                 delete _pd;
                 return invalid_arguments;
             }
-            _pd->init_scratchpad_md();
+            CHECK(_pd->init_scratchpad_md());
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
 
