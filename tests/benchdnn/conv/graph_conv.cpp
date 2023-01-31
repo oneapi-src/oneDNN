@@ -101,12 +101,14 @@ static quant_data_t get_qdata_for(int arg, const ::conv::prb_t *prb) {
 
 static quant_data_t get_qdata_for(
         const attr_t::post_ops_t::entry_t &entry, const ::conv::prb_t *prb) {
+    auto default_dt = convert_dt(prb->cfg[DST].dt);
+    if (default_dt != graph_dt::u8 && default_dt != graph_dt::s8) {
+        default_dt = graph_dt::u8;
+    }
     if (entry.is_binary_kind())
-        return bin_po_entry2quant_data(
-                entry, prb->dtag, convert_dt(prb->cfg[DST].dt));
+        return bin_po_entry2quant_data(entry, prb->dtag, default_dt);
     else if (entry.is_sum_kind())
-        return sum_po_entry2quant_data(
-                entry, prb->dtag, convert_dt(prb->cfg[DST].dt));
+        return sum_po_entry2quant_data(entry, prb->dtag, default_dt);
 
     printf("warning: returning default quant_data_t for unsupported post op\n");
     return quant_data_t();
