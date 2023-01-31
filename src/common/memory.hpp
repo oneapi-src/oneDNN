@@ -70,12 +70,7 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
         status = zero_pad(ctx);
         return memory_storage(0);
     }
-    /** returns the underlying memory storage */
-    dnnl::impl::memory_storage_t *memory_storage_clean(
-            const dnnl::impl::exec_ctx_t &ctx) const {
-        zero_pad(ctx);
-        return memory_storage(0);
-    }
+
     /** returns data handle */
     dnnl::impl::status_t get_data_handle(void **handle, int index = 0) const {
         return memory_storage(index)->get_data_handle(handle);
