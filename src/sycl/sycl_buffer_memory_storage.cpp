@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ status_t sycl_buffer_memory_storage_t::map_data(
 
     auto &guard_manager = guard_manager_t<map_buffer_tag>::instance();
 
-    auto acc = buffer_->get_access<::sycl::access::mode::read_write>();
+    auto acc = buffer_->get_host_access();
     auto *acc_ptr = new decltype(acc)(acc);
     *mapped_ptr = static_cast<void *>(acc_ptr->get_pointer());
     auto unmap_callback = [=]() { delete acc_ptr; };
