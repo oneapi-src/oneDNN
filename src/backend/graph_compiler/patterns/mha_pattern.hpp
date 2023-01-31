@@ -195,6 +195,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative)
         .set_priority(4.5f) // lower priority than non-alternative
         .set_kind(impl::partition_kind::mha)
+        .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(
@@ -246,6 +247,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_distill_bert_mha_pattern)
         .set_priority(5.0f)
         .set_kind(impl::partition_kind::mha)
+        .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(
@@ -740,6 +742,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_pattern_alternative)
         .set_priority(4.5f) // lower priority than non-alternative
         .set_kind(impl::partition_kind::mha)
+        .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(
@@ -791,6 +794,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_distill_bert_mha_pattern)
         .set_priority(5.0f)
         .set_kind(impl::partition_kind::mha)
+        .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(
@@ -1258,6 +1262,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_mha_pattern_alternative)
         .set_priority(5.0f)
         .set_kind(impl::partition_kind::quantized_mha)
+        .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto dequantize_query = pgraph->append_op(
@@ -1344,6 +1349,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_mha_pattern_alternative)
         .set_priority(5.0f)
         .set_kind(impl::partition_kind::quantized_mha)
+        .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto dequantize_query = pgraph->append_op(
@@ -1448,6 +1454,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_distill_bert_mha_pattern)
         .set_priority(5.0f)
         .set_kind(impl::partition_kind::quantized_mha)
+        .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto dequantize_query = pgraph->append_op(

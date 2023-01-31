@@ -60,7 +60,7 @@ public:
 
             // match the given pattern in the graph
             std::vector<std::vector<op_t *>> matched_pairs_list;
-            pu.match(agraph, pgraph, matched_pairs_list, get_pass_name());
+            pu.match(agraph, pgraph, matched_pairs_list, get_type());
             if (!matched_pairs_list.empty()) {
                 // temporary solution here for showing which pattern matched
                 if (impl::utils::getenv_int_user("DUMP", 0) > 0

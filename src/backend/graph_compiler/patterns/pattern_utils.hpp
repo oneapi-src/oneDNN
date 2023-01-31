@@ -41,7 +41,7 @@ public:
     inline void match(dnnl::graph::impl::graph_t &backend_graph,
             std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
             std::vector<std::vector<op_t *>> &fusion_ops,
-            const std::string &pname);
+            const impl::pass::pattern_type_t &ptype);
     inline void set_partitions(dnnl::graph::impl::graph_t &backend_graph,
             std::vector<std::vector<op_t *>> &fusion_ops,
             const dnnl::graph::impl::partition_kind_t &pkind,
@@ -56,25 +56,15 @@ public:
 inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
         std::shared_ptr<impl::utils::pm::pb_graph_t> pgraph,
         std::vector<std::vector<op_t *>> &fusion_ops,
-        const std::string &pname) {
+        const impl::pass::pattern_type_t &ptype) {
     // dfs_visit graph, do pattern matching
     topo_order_visit(backend_graph.get_output_ops(), [&](op_t *cur_op) {
         std::vector<op_t *> candidate_fusion;
         if (!impl::utils::pm::match_pattern(cur_op, pgraph, candidate_fusion)) {
             return status::success;
         }
-        std::unordered_set<std::string> dynamic_shape_allowlist = {
-                "fp32_mlp_forward_pattern", "int8_mlp_pattern",
-                "bf16_mlp_forward_pattern", "fp32_mha_pattern_alternative",
-                "int8_bf16_mha_pattern_alternative",
-                "bf16_mha_pattern_alternative", "fp32_distill_bert_mha_pattern",
-                "int8_bf16_distill_bert_mha_pattern",
-                "bf16_distill_bert_mha_pattern"};
-        std::unordered_set<std::string> dynamic_only_list
-                = {"fp32_mlp_single_layer", "int8_mlp_single_layer",
-                        "int8_bf16_mlp_single_layer", "bf16_mlp_single_layer"};
-        // check if those candidate ops have dynamic input shape && the pattern
-        // does not support dynamic
+        // check the partition use case (static || dynamic) and
+        // the corresponding pattern supported type
         bool is_dynamic_partition = false;
         for (const auto &c : candidate_fusion) {
             for (const auto &in_val : c->get_input_values()) {
@@ -84,13 +74,16 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
                     break;
                 }
             }
+            if (is_dynamic_partition) break;
         }
-
-        if (dynamic_only_list.find(pname) != dynamic_only_list.end()) {
-            if (!is_dynamic_partition) return status::success;
-        } else if (dynamic_shape_allowlist.find(pname)
-                == dynamic_shape_allowlist.end()) {
-            if (is_dynamic_partition) return status::success;
+        if ((ptype == impl::pass::pattern_type_t::dynamic_shape_only
+                    && !is_dynamic_partition)
+                || (ptype == impl::pass::pattern_type_t::static_shape_only
+                        && is_dynamic_partition)) {
+            for (const auto &c : candidate_fusion) {
+                c->remove_attr(op_attr::matched);
+            }
+            return status::success;
         }
 
         fusion_ops.emplace_back(candidate_fusion);

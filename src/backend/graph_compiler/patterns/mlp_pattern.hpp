@@ -146,6 +146,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_mlp_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mlp_single_layer)
         .set_priority(3.5f)
         .set_kind(impl::partition_kind::mlp)
+        .set_type(impl::pass::pattern_type_t::dynamic_shape_only)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     single_layer_mlp(pgraph, false, false);
@@ -167,6 +168,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mlp_forward_pattern)
         .set_priority(5.0f)
         .set_kind(impl::partition_kind::mlp)
+        .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
@@ -415,6 +417,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_mlp_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_single_layer)
         .set_priority(4.0f)
         .set_kind(impl::partition_kind::quantized_mlp)
+        .set_type(impl::pass::pattern_type_t::dynamic_shape_only)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     single_layer_mlp(pgraph, false, true);
@@ -439,6 +442,7 @@ repetition unit:
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
         .set_priority(6.0f)
         .set_kind(impl::partition_kind::quantized_mlp)
+        .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
@@ -478,6 +482,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, int8_bf16_mlp_single_layer)
         .set_priority(4.0f)
         .set_kind(impl::partition_kind::quantized_mlp)
+        .set_type(impl::pass::pattern_type_t::dynamic_shape_only)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     single_layer_mlp(pgraph, true, true);
@@ -501,6 +506,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_mlp_pattern)
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mlp_single_layer)
         .set_priority(3.5f)
         .set_kind(impl::partition_kind::mlp)
+        .set_type(impl::pass::pattern_type_t::dynamic_shape_only)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     single_layer_mlp(pgraph, true, false);
@@ -522,6 +528,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mlp_forward_pattern)
         .set_priority(5.0f)
         .set_kind(impl::partition_kind::mlp)
+        .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto mlp_layer = std::make_shared<pb_graph_t>("mlp_layer");
