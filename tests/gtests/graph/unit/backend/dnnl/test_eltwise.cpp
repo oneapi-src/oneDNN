@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -298,6 +298,41 @@ TEST(Execute, GeluBackward) {
 
     test_eltwise_bwd_common({src, true}, diff_dst, ref_diff_src, dims,
             graph::op_kind::GELUBackward, "gelu_bw");
+}
+
+TEST(Execute, HardSigmoid) {
+    float a = 1.0f / 6;
+    float b = 0.5f;
+    test::vector<float> src {-3.1f, -3.f, -1.5f, 0.f, 0.6f, 3.f, 3.1f, 100.f};
+    test::vector<float> ref_dst = hardsigmoid_func(src, a, b);
+
+    graph::dims dims {1, 2, 4};
+    std::map<graph::op_attr_t, float> attrs_data {
+            {graph::op_attr::alpha, a},
+            {graph::op_attr::beta, b},
+    };
+
+    test_eltwise_common(src, ref_dst, dims, graph::op_kind::HardSigmoid,
+            "hardsigmoid", attrs_data);
+}
+
+TEST(Execute, HardSigmoidBackward) {
+    float a = 1.0f / 6;
+    float b = 0.5f;
+    const test::vector<float> src {
+            -3.1f, -3.f, -1.5f, 0.f, 0.6f, 3.f, 3.1f, 100.f};
+    const test::vector<float> diff_dst(8, 0.5f);
+    test::vector<float> ref_diff_src
+            = hardsigmoidbackward_func(src, diff_dst, a, b);
+
+    graph::dims dims {1, 2, 4};
+    std::map<graph::op_attr_t, float> attrs_data {
+            {graph::op_attr::alpha, a},
+            {graph::op_attr::beta, b},
+    };
+
+    test_eltwise_bwd_common({src, false}, diff_dst, ref_diff_src, dims,
+            graph::op_kind::HardSigmoidBackward, "hardsigmoid_bw", attrs_data);
 }
 
 TEST(Execute, HardSwish) {

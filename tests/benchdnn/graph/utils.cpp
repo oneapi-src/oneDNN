@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -368,6 +368,8 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
             {"Exp", dnnl::graph::op::kind::Exp},
             {"GELU", dnnl::graph::op::kind::GELU},
             {"GELUBackward", dnnl::graph::op::kind::GELUBackward},
+            {"HardSigmoid", dnnl::graph::op::kind::HardSigmoid},
+            {"HardSigmoidBackward", dnnl::graph::op::kind::HardSigmoidBackward},
             {"HardSwish", dnnl::graph::op::kind::HardSwish},
             {"HardSwishBackward", dnnl::graph::op::kind::HardSwishBackward},
             {"Interpolate", dnnl::graph::op::kind::Interpolate},

@@ -552,6 +552,35 @@ DNNL_GRAPH_OP_SCHEMA(GELUBackward, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(HardSigmoid, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "src", "input tensor", "T")
+                .set_output(0, "dst", "output tensor", "T")
+                .set_attr(op_attr::alpha, "alpha", true, attribute_kind::f)
+                .set_attr(op_attr::beta, "beta", true, attribute_kind::f)
+                .set_type_constraints(
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(HardSigmoidBackward, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "src", "forward input tensor of HardSigmoid", "T")
+                .set_input(1, "diff_dst",
+                        "gradient with respect to the forward output tensor",
+                        "T")
+                .set_output(0, "diff_src",
+                        "gradient with respect to the input of HardSigmoid",
+                        "T")
+                .set_attr(op_attr::alpha, "alpha", true, attribute_kind::f)
+                .set_attr(op_attr::beta, "beta", true, attribute_kind::f)
+                .set_type_constraints(
+                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_shape_inference_function(infer_identity_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(HardSwish, 1,
         op_schema_t()
                 .set_num_inputs(1)

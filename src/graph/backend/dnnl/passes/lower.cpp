@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -606,6 +606,7 @@ static const std::unordered_map<graph::op_kind_t, handler_func> handler_table {
         ITEM(Elu, eltwise_fwd_handler),
         ITEM(Exp, eltwise_fwd_handler),
         ITEM(GELU, eltwise_fwd_handler),
+        ITEM(HardSigmoid, eltwise_fwd_handler),
         ITEM(HardSwish, eltwise_fwd_handler),
         ITEM(LeakyReLU, eltwise_fwd_handler),
         ITEM(Log, eltwise_fwd_handler),
@@ -621,6 +622,7 @@ static const std::unordered_map<graph::op_kind_t, handler_func> handler_table {
         ITEM(ClampBackward, eltwise_bwd_handler),
         ITEM(EluBackward, eltwise_bwd_handler),
         ITEM(GELUBackward, eltwise_bwd_handler),
+        ITEM(HardSigmoidBackward, eltwise_bwd_handler),
         ITEM(HardSwishBackward, eltwise_bwd_handler),
         ITEM(MishBackward, eltwise_bwd_handler),
         ITEM(ReLUBackward, eltwise_bwd_handler),

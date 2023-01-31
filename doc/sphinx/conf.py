@@ -236,6 +236,8 @@ def addTocTrees(app, env, docnames):
                     'dev_guide_op_exp',
                     'dev_guide_op_gelu',
                     'dev_guide_op_gelubackward',
+                    'dev_guide_op_hardsigmoid',
+                    'dev_guide_op_hardsigmoidbackward',
                     'dev_guide_op_hardswish',
                     'dev_guide_op_hardswishbackward',
                     'dev_guide_op_interpolate.rst',

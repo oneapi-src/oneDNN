@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -221,6 +221,8 @@ void flex_rewrite::infer_output_shape(deserialized_graph &dgraph) {
             case dnnl::graph::op::kind::Exp:
             case dnnl::graph::op::kind::GELU:
             case dnnl::graph::op::kind::GELUBackward:
+            case dnnl::graph::op::kind::HardSigmoid:
+            case dnnl::graph::op::kind::HardSigmoidBackward:
             case dnnl::graph::op::kind::HardSwish:
             case dnnl::graph::op::kind::HardSwishBackward:
             case dnnl::graph::op::kind::InterpolateBackward:

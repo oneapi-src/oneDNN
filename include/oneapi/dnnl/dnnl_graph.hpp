@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -738,6 +738,8 @@ public:
         Exp = dnnl_graph_op_exp,
         GELU = dnnl_graph_op_gelu,
         GELUBackward = dnnl_graph_op_gelu_backward,
+        HardSigmoid = dnnl_graph_op_hard_sigmoid,
+        HardSigmoidBackward = dnnl_graph_op_hard_sigmoid_backward,
         HardSwish = dnnl_graph_op_hard_swish,
         HardSwishBackward = dnnl_graph_op_hard_swish_backward,
         Interpolate = dnnl_graph_op_interpolate,

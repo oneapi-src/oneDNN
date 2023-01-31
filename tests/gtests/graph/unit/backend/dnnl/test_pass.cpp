@@ -3084,6 +3084,7 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
             op_kind::Elu,
             op_kind::Exp,
             op_kind::GELU,
+            op_kind::HardSigmoid,
             op_kind::HardSwish,
             op_kind::Log,
             op_kind::Sigmoid,
@@ -3153,12 +3154,22 @@ TEST(Pass, FuseConvBiasPostOpsChain) {
                 } else {
                     // eltwise
                     op_t eltwise {op_id++, opkind, "eltwise"};
-                    if (opkind == op_kind::Elu) {
-                        eltwise.set_attr<float>(op_attr::alpha, 1.0f);
-                    } else if (opkind == op_kind::Clamp) {
-                        eltwise.set_attr<float>(op_attr::min, 1.0f);
-                        eltwise.set_attr<float>(op_attr::max, 3.0f);
+                    switch (opkind) {
+                        case graph::op_kind::Elu:
+                            eltwise.set_attr<float>(graph::op_attr::alpha, 1.f);
+                            break;
+                        case graph::op_kind::Clamp:
+                            eltwise.set_attr<float>(graph::op_attr::min, -1.f);
+                            eltwise.set_attr<float>(graph::op_attr::max, 2.f);
+                            break;
+                        case graph::op_kind::HardSigmoid:
+                            eltwise.set_attr<float>(
+                                    graph::op_attr::alpha, 1.0f / 6);
+                            eltwise.set_attr<float>(graph::op_attr::beta, 0.5f);
+                            break;
+                        default: break;
                     }
+
                     if (i == 0) {
                         eltwise.add_input(conv_out);
                     } else {
@@ -3208,6 +3219,7 @@ TEST(Pass, FuseConvPostOpsChain) {
             op_kind::Elu,
             op_kind::Exp,
             op_kind::GELU,
+            op_kind::HardSigmoid,
             op_kind::HardSwish,
             op_kind::Log,
             op_kind::Sigmoid,
@@ -3274,12 +3286,22 @@ TEST(Pass, FuseConvPostOpsChain) {
                 } else {
                     // eltwise
                     op_t eltwise {op_id++, opkind, "eltwise"};
-                    if (opkind == op_kind::Elu) {
-                        eltwise.set_attr<float>(op_attr::alpha, 1.0f);
-                    } else if (opkind == op_kind::Clamp) {
-                        eltwise.set_attr<float>(op_attr::min, 1.0f);
-                        eltwise.set_attr<float>(op_attr::max, 3.0f);
+                    switch (opkind) {
+                        case graph::op_kind::Elu:
+                            eltwise.set_attr<float>(graph::op_attr::alpha, 1.f);
+                            break;
+                        case graph::op_kind::Clamp:
+                            eltwise.set_attr<float>(graph::op_attr::min, -1.f);
+                            eltwise.set_attr<float>(graph::op_attr::max, 2.f);
+                            break;
+                        case graph::op_kind::HardSigmoid:
+                            eltwise.set_attr<float>(
+                                    graph::op_attr::alpha, 1.0f / 6);
+                            eltwise.set_attr<float>(graph::op_attr::beta, 0.5f);
+                            break;
+                        default: break;
                     }
+
                     if (i == 0) {
                         eltwise.add_input(conv_out);
                     } else {
@@ -4755,6 +4777,7 @@ TEST(Pass, DnnlSingleOpReplacement) {
             MaxPoolBackward,
             Elu,
             Exp,
+            HardSigmoid,
             HardSwish,
             Log,
             LogSoftmax,
@@ -14751,6 +14774,7 @@ TEST(Pass, BinaryPostops) {
             Elu,
             Exp,
             GELU,
+            HardSigmoid,
             HardSwish,
             Log,
             Maximum,
@@ -14783,11 +14807,17 @@ TEST(Pass, BinaryPostops) {
         op_t post_op {1, pop, "post op"};
 
         // set additional parameters for specific ops
-        if (pop == Elu) {
-            post_op.set_attr<float>(op_attr::alpha, 1.0f);
-        } else if (pop == Clamp) {
-            post_op.set_attr<float>(op_attr::min, 1.0f);
-            post_op.set_attr<float>(op_attr::max, 3.0f);
+        switch (pop) {
+            case Elu: post_op.set_attr<float>(op_attr::alpha, 1.0f); break;
+            case Clamp:
+                post_op.set_attr<float>(op_attr::min, 1.0f);
+                post_op.set_attr<float>(op_attr::max, 3.0f);
+                break;
+            case HardSigmoid:
+                post_op.set_attr<float>(op_attr::alpha, 1.0f / 6);
+                post_op.set_attr<float>(op_attr::beta, 0.5f);
+                break;
+            default: break;
         }
 
         std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
@@ -14852,6 +14882,7 @@ TEST(Pass, Binary3Postops) {
             Elu,
             Exp,
             GELU,
+            HardSigmoid,
             HardSwish,
             Log,
             Maximum,
@@ -14881,6 +14912,7 @@ TEST(Pass, Binary3Postops) {
             {Round, Multiply},
             {Add, Elu},
             {Clamp, Minimum},
+            {HardSigmoid, ReLU},
     };
     for_(const auto &pop_seq : post_op_seqs)
     for (const auto &pop : pop_seq)
@@ -14910,11 +14942,19 @@ TEST(Pass, Binary3Postops) {
             post_ops.emplace_back(op_t {i + 1, pop, "post op"});
 
             // set additional parameters for specific ops
-            if (pop == Elu) {
-                post_ops.back().set_attr<float>(op_attr::alpha, 1.0f);
-            } else if (pop == Clamp) {
-                post_ops.back().set_attr<float>(op_attr::min, 1.0f);
-                post_ops.back().set_attr<float>(op_attr::max, 3.0f);
+            switch (pop) {
+                case Elu:
+                    post_ops.back().set_attr<float>(op_attr::alpha, 1.0f);
+                    break;
+                case Clamp:
+                    post_ops.back().set_attr<float>(op_attr::min, 1.0f);
+                    post_ops.back().set_attr<float>(op_attr::max, 3.0f);
+                    break;
+                case HardSigmoid:
+                    post_ops.back().set_attr<float>(op_attr::alpha, 1.0f / 6);
+                    post_ops.back().set_attr<float>(op_attr::beta, 0.5f);
+                    break;
+                default: break;
             }
 
             post_ops.back().add_input(lt_vec[lt_idx]);
@@ -15028,6 +15068,7 @@ TEST(Pass, ConvtransposePostops) {
             Elu,
             Exp,
             GELU,
+            HardSigmoid,
             HardSwish,
             Log,
             Maximum,
@@ -15067,11 +15108,20 @@ TEST(Pass, ConvtransposePostops) {
                     op_t activation {2, Activation, "activation"};
 
                     // set additional parameters for specific ops
-                    if (Activation == Elu) {
-                        activation.set_attr<float>(op_attr::alpha, 1.0f);
-                    } else if (Activation == Clamp) {
-                        activation.set_attr<float>(op_attr::min, 1.0f);
-                        activation.set_attr<float>(op_attr::max, 3.0f);
+                    switch (Activation) {
+                        case Elu:
+                            activation.set_attr<float>(op_attr::alpha, 1.0f);
+                            break;
+                        case Clamp:
+                            activation.set_attr<float>(op_attr::min, 1.0f);
+                            activation.set_attr<float>(op_attr::max, 3.0f);
+                            break;
+                        case HardSigmoid:
+                            activation.set_attr<float>(
+                                    op_attr::alpha, 1.0f / 6);
+                            activation.set_attr<float>(op_attr::beta, 0.5f);
+                            break;
+                        default: break;
                     }
 
                     std::vector<logical_tensor_t> lt_vec
@@ -15162,6 +15212,7 @@ TEST(Pass, Convtranspose3Postops) {
             Elu,
             Exp,
             GELU,
+            HardSigmoid,
             HardSwish,
             Log,
             Maximum,
@@ -15189,6 +15240,7 @@ TEST(Pass, Convtranspose3Postops) {
             {Round, Multiply},
             {Add, Elu},
             {Clamp, Minimum},
+            {HardSigmoid, ReLU},
     };
 
     for_(auto conv_bias_on : with_conv_bias)
@@ -15229,11 +15281,19 @@ TEST(Pass, Convtranspose3Postops) {
                 auto activation_t = pop_seq[i];
                 op_t activation {i + 2, activation_t, "activation"};
                 // set additional parameters for specific ops
-                if (activation_t == Elu) {
-                    activation.set_attr<float>(op_attr::alpha, 1.0f);
-                } else if (activation_t == Clamp) {
-                    activation.set_attr<float>(op_attr::min, 1.0f);
-                    activation.set_attr<float>(op_attr::max, 3.0f);
+                switch (activation_t) {
+                    case Elu:
+                        activation.set_attr<float>(op_attr::alpha, 1.0f);
+                        break;
+                    case Clamp:
+                        activation.set_attr<float>(op_attr::min, 1.0f);
+                        activation.set_attr<float>(op_attr::max, 3.0f);
+                        break;
+                    case HardSigmoid:
+                        activation.set_attr<float>(op_attr::alpha, 1.0f / 6);
+                        activation.set_attr<float>(op_attr::beta, 0.5f);
+                        break;
+                    default: break;
                 }
 
                 activation.add_input(lt_vec[lt_idx]);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,36 @@ static inline test::vector<float> mish_func(
         out.emplace_back(ret);
     }
     return out;
+}
+
+static inline test::vector<float> hardsigmoid_func(
+        const test::vector<float> &src, float alpha, float beta) {
+    test::vector<float> dst;
+    for (auto &in : src) {
+        float ret = in * alpha + beta;
+        if (ret > 1.f)
+            ret = 1.f;
+        else if (ret < 0.f)
+            ret = 0.f;
+
+        dst.emplace_back(ret);
+    }
+    return dst;
+}
+
+static inline test::vector<float> hardsigmoidbackward_func(
+        const test::vector<float> &src, const test::vector<float> &diff_dst,
+        float alpha, float beta) {
+    test::vector<float> diff_src;
+    for (size_t i = 0; i < src.size(); ++i) {
+        const float check = src[i] * alpha + beta;
+        float ret = 0.f;
+        if (check < 1.f && check > 0.f) { ret = alpha * diff_dst[i]; }
+
+        diff_src.emplace_back(ret);
+    }
+
+    return diff_src;
 }
 
 static inline test::vector<float> sigmoid_func(

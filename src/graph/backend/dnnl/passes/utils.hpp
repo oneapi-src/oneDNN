@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -153,6 +153,7 @@ inline const std::map<op_kind_t, dnnl::algorithm> &get_eltwise_alg_map() {
             {graph::op_kind::Elu, dnnl::algorithm::eltwise_elu},
             {graph::op_kind::Exp, dnnl::algorithm::eltwise_exp},
             {graph::op_kind::GELU, dnnl::algorithm::eltwise_gelu_erf},
+            {graph::op_kind::HardSigmoid, dnnl::algorithm::eltwise_hardsigmoid},
             {graph::op_kind::HardSwish, dnnl::algorithm::eltwise_hardswish},
             {graph::op_kind::LeakyReLU, dnnl::algorithm::eltwise_relu},
             {graph::op_kind::Log, dnnl::algorithm::eltwise_log},
@@ -177,6 +178,8 @@ inline dnnl::algorithm get_eltwise_bwd_alg(op_kind_t kind, bool use_dst) {
             if (use_dst) return algo::eltwise_elu_use_dst_for_bwd;
             return algo::eltwise_elu;
         case graph::op_kind::GELUBackward: return algo::eltwise_gelu_erf;
+        case graph::op_kind::HardSigmoidBackward:
+            return algo::eltwise_hardsigmoid;
         case graph::op_kind::HardSwishBackward: return algo::eltwise_hardswish;
         case graph::op_kind::MishBackward: return algo::eltwise_mish;
         case graph::op_kind::ReLUBackward:
@@ -216,6 +219,7 @@ inline bool is_eltwise_kind(op_kind_t kind) {
             graph::op_kind::Elu,
             graph::op_kind::Exp,
             graph::op_kind::GELU,
+            graph::op_kind::HardSigmoid,
             graph::op_kind::HardSwish,
             graph::op_kind::LeakyReLU,
             graph::op_kind::Log,
@@ -237,6 +241,7 @@ inline bool is_eltwise_bwd_kind(op_kind_t kind) {
             graph::op_kind::ClampBackward,
             graph::op_kind::EluBackward,
             graph::op_kind::GELUBackward,
+            graph::op_kind::HardSigmoidBackward,
             graph::op_kind::HardSwishBackward,
             graph::op_kind::MishBackward,
             graph::op_kind::ReLUBackward,

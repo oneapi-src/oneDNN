@@ -1266,12 +1266,20 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
     // some cases with Exp post-ops can't pass correctness check on GPU
     SKIP_IF(engine->kind() == graph::engine_kind::gpu, "skip on gpu");
 
-    const std::vector<dnnl_graph_op_kind_t> eltwise_kinds
-            = {graph::op_kind::Abs, graph::op_kind::Elu, graph::op_kind::Exp,
-                    graph::op_kind::GELU, graph::op_kind::Clamp,
-                    graph::op_kind::HardSwish, graph::op_kind::Log,
-                    graph::op_kind::ReLU, graph::op_kind::Round,
-                    graph::op_kind::Sigmoid, graph::op_kind::Tanh};
+    const std::vector<dnnl_graph_op_kind_t> eltwise_kinds = {
+            graph::op_kind::Abs,
+            graph::op_kind::Elu,
+            graph::op_kind::Exp,
+            graph::op_kind::GELU,
+            graph::op_kind::Clamp,
+            graph::op_kind::HardSigmoid,
+            graph::op_kind::HardSwish,
+            graph::op_kind::Log,
+            graph::op_kind::ReLU,
+            graph::op_kind::Round,
+            graph::op_kind::Sigmoid,
+            graph::op_kind::Tanh,
+    };
 
     std::vector<size_t> nds = {2};
     std::vector<int64_t> groups = {1};
@@ -1369,11 +1377,19 @@ TEST(ExecuteSubgraphInt8, ConvTranspose2dEltwise) {
 
         graph::op_t eltwise_node(3, eltwise_kind, "eltwise_node");
 
-        if (eltwise_kind == graph::op_kind::Elu) {
-            eltwise_node.set_attr<float>(graph::op_attr::alpha, 1.f);
-        } else if (eltwise_kind == graph::op_kind::Clamp) {
-            eltwise_node.set_attr<float>(graph::op_attr::min, -1.f);
-            eltwise_node.set_attr<float>(graph::op_attr::max, 2.f);
+        switch (eltwise_kind) {
+            case graph::op_kind::Elu:
+                eltwise_node.set_attr<float>(graph::op_attr::alpha, 1.f);
+                break;
+            case graph::op_kind::Clamp:
+                eltwise_node.set_attr<float>(graph::op_attr::min, -1.f);
+                eltwise_node.set_attr<float>(graph::op_attr::max, 2.f);
+                break;
+            case graph::op_kind::HardSigmoid:
+                eltwise_node.set_attr<float>(graph::op_attr::alpha, 1.0f / 6);
+                eltwise_node.set_attr<float>(graph::op_attr::beta, 0.5f);
+                break;
+            default: break;
         }
 
         graph::op_t qout_node(4, graph::op_kind::Quantize, "qout_node");
