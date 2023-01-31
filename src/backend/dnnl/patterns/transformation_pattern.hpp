@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,8 +67,12 @@ inline void pattern_utils_t::match(dnnl::graph::impl::graph_t &backend_graph,
         for (const auto &c : candidate_fusion) {
             for (const auto &in_val : c->get_input_values()) {
                 auto in_lt = in_val->get_logical_tensor();
-                if (impl::logical_tensor_wrapper_t(in_lt).has_dynamic_dim())
+                if (impl::logical_tensor_wrapper_t(in_lt).has_dynamic_dim()) {
+                    for (const auto &op : candidate_fusion) {
+                        op->remove_attr(op_attr::matched);
+                    }
                     return status::success;
+                }
             }
         }
 
