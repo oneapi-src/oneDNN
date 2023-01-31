@@ -188,11 +188,24 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper dst_mdw(dst_md());
     const int ndims = src_mdw.ndims();
     const dim_t *src_dims = src_mdw.dims();
+    const dim_t *src_padded_dims = src_mdw.padded_dims();
     const dim_t *dst_dims = dst_mdw.dims();
 
     dims_t is_dim_reduced;
     for (int i = 0; i < ndims; i++) {
-        is_dim_reduced[i] = src_dims[i] != dst_dims[i];
+        // Actually reduced dimensions
+        if (src_dims[i] != dst_dims[i]) {
+            is_dim_reduced[i] = true;
+            continue;
+        }
+
+        // Size-1 dims can be treated as reducible (at no cost):
+        if (src_dims[i] == 1 && src_padded_dims[i] == 1) {
+            is_dim_reduced[i] = true;
+            continue;
+        }
+
+        is_dim_reduced[i] = false;
     }
 
     // Zero padding is not supported when dim is reduced
@@ -279,66 +292,81 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
 
     bool ext_reduced_dim[2 * DNNL_MAX_NDIMS];
+    dim_t *src_ext_padded_dims = src_ext.padded_dims();
     for (int i = 0; i < src_ext.ndims(); i++) {
-        ext_reduced_dim[i] = is_dim_reduced[src_perm[i]];
+        if (is_dim_reduced[src_ext_perm[i]]) {
+            ext_reduced_dim[i] = true;
+            continue;
+        }
+
+        // Size-1 dims -- need to redo this check here since blocking
+        // can create size-1 "dimensions" in the outer/plain slots
+        if (src_ext_dims[i] == 1 && src_ext_padded_dims[i] == 1) {
+            ext_reduced_dim[i] = true;
+            continue;
+        }
+
+        // Remaining dims CANNOT be reduced
+        ext_reduced_dim[i] = false;
     }
 
     const compute::compute_engine_t *compute_engine
             = utils::downcast<compute::compute_engine_t *>(engine);
 
-    // Split the extended dims into 3 sets of dims: outer, inner, and reduction
-    int separate_ndims[3] = {0};
-    extended_dims_t src_sep_dims[3];
-    int state = 0; // 0=outer, 1=reduction, 2=inner
-    for (int i = 0; i < src_ext.ndims(); i++) {
-        // If in outer dims and reduced, move to reduced dims
-        // If in reduced dims and not reduced, move to inner dims
-        if ((state == 0 && ext_reduced_dim[i] && src_ext.dims()[i] != 1)
-                || (state == 1 && !ext_reduced_dim[i])) {
-            state += 1;
-        }
-        // If in inner dims and reduced, unimplemented
-        if (state == 2 && ext_reduced_dim[i] && src_ext.dims()[i] != 1) {
-            return status::unimplemented;
-        }
+    conf.sub_group_size = compute_engine->device_info()->max_subgroup_size();
+    // Starting from the innermost dimension, find the reduction dimensions and group neighboring
+    // ones to be reduced simultaneously.
+    data_type_t accum_data_type = types::default_accum_data_type(
+            src_mdw.data_type(), data_type::undef);
+    dim_t inner_elems = 1;
+    dim_t outer_elems
+            = utils::array_product(src_ext.padded_dims(), src_ext.ndims());
+    for (int dim_idx = src_ext.ndims() - 1; dim_idx >= 0; --dim_idx) {
+        // Check if this dimension is reduced
+        if (ext_reduced_dim[dim_idx]) {
+            int start_reduction_idx = dim_idx;
+            int num_reduced_dims = 1;
+            while (num_reduced_dims <= start_reduction_idx
+                    && ext_reduced_dim[start_reduction_idx
+                            - num_reduced_dims]) {
+                ++num_reduced_dims;
+            }
+            int end_reduction_idx = start_reduction_idx - num_reduced_dims + 1;
 
-        src_sep_dims[state][separate_ndims[state]] = src_ext.padded_dims()[i];
-        separate_ndims[state] += 1;
+            // Compute outer, reduction, and inner sizes for this chunk
+            dim_t reduction_elems = utils::array_product(
+                    src_ext_padded_dims + end_reduction_idx, num_reduced_dims);
+            outer_elems /= reduction_elems;
+
+            // Skip this phase if it's just a size-1 dimension (nop phase)
+            if (reduction_elems > 1) {
+                status_t status = set_reduction_phases(outer_elems,
+                        reduction_elems, inner_elems, accum_data_type,
+                        conf.sub_group_size, conf.phases);
+                if (status != status::success) {
+                    // Some error hit within the set_reduction_phases function
+                    return status::unimplemented;
+                }
+            }
+            dim_idx = end_reduction_idx;
+        } else {
+            // Just move this dimension to the inside
+            outer_elems /= src_ext.padded_dims()[dim_idx];
+            inner_elems *= src_ext.padded_dims()[dim_idx];
+        }
     }
 
-    // Combine each separate dim to a single composite one
-    dim_t composite_dims[3] = {1};
-    composite_dims[0]
-            = utils::array_product(src_sep_dims[0], separate_ndims[0]);
-    composite_dims[1]
-            = utils::array_product(src_sep_dims[1], separate_ndims[1]);
-    composite_dims[2]
-            = utils::array_product(src_sep_dims[2], separate_ndims[2]);
+    // Compute div from basic mdw dims
+    conf.div = 1;
+    for (int i = 0; i < src_mdw.ndims(); i++) {
+        if (is_dim_reduced[i]) conf.div *= src_dims[i];
+    }
 
-    // Set up conf variables that don't change between phases
-    conf.ndims = ndims;
+    // Set conf values
     conf.alg = desc()->alg_kind;
     conf.power = desc()->p;
     conf.eps = desc()->eps;
-
-    const dim_t outer_dim_size = composite_dims[0];
-    conf.div = composite_dims[1];
-    const dim_t inner_dim_size = composite_dims[2];
-
     conf.attr_info = attr_info_t::create(attr());
-
-    conf.sub_group_size = compute_engine->device_info()->max_subgroup_size();
-
-    // Heuristically determine the phases required for this block of reduced dimensions
-    dim_t reduced_dim_size = composite_dims[1];
-    data_type_t accum_data_type = types::default_accum_data_type(
-            src_mdw.data_type(), data_type::undef);
-    status_t status = set_reduction_phases(outer_dim_size, reduced_dim_size,
-            inner_dim_size, accum_data_type, conf.sub_group_size, conf.phases);
-    if (status != status::success) {
-        // Ran into some issue with choosing phases
-        return status::unimplemented;
-    }
 
     // Set variables that matter for first/last phases
     conf.phases.front().is_first = true;
