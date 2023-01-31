@@ -658,7 +658,9 @@ void brg_blocking_t::select_ic_block() {
                 ic_block = simd_w;
         }
     } else {
-        const auto est_ur = nstl::min(sp_block, estimate_ur(oc_block));
+        const auto est_ur = sp_block > 0
+                ? nstl::min(sp_block, estimate_ur(oc_block))
+                : estimate_ur(oc_block);
         const auto inp_ur = is_os_blocking ? est_ur : inp_w(est_ur, kw_block);
 
         if (kw_block > 1) {
@@ -1136,6 +1138,7 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
         kw_block_pad = kw;
     }
 
+    sp_block = -1;
     select_ic_block();
 
     if (exec_type == exec_vpad) {
