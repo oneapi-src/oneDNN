@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -294,7 +294,7 @@ protected:
         for (int i = 0; i < ntasks; i++) {
             auto task = std::make_shared<conv_fwd_task_t>(i);
 
-            task->set_reuse_engine(i % 2 == 0);
+            task->set_reuse_engine(i % 100 != 0);
             task->set_reuse_stream(i % 3 == 0);
             task->set_reuse_primitive(i % 5 == 0);
 
