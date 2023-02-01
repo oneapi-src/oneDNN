@@ -138,11 +138,11 @@ dnnl_status_t brgemm_attr_init(
 }
 
 std::string prepare_wei_format_string(
-        dnnl_data_type_t dt, int64_t n, bool is_vnni_layout) {
+        dnnl_data_type_t dt, int64_t ldb, bool is_vnni_layout) {
     // `dt` affects the choice of last inner block (for VNNI-friendliness).
     // `n` affects the choice of B block.
     std::string wtag("BA16a");
-    wtag += std::to_string(n) + "b";
+    wtag += std::to_string(ldb) + "b";
     if (is_vnni_layout) {
         switch (dt) {
             case dnnl_f32: break;
@@ -384,7 +384,7 @@ int doit(const prb_t *prb, res_t *res) {
     // handle from bigger one (where LDB is an actual dim value) to smaller, but
     // there's some reorder bug resulting in an error.
     const auto wtag = prepare_wei_format_string(
-            prb->wei_dt(), prb->n, brgemm_desc.is_b_data_layout_vnni());
+            prb->wei_dt(), prb->get_ldb(), brgemm_desc.is_b_data_layout_vnni());
     BENCHDNN_PRINT(6, "wtag: %s\n", wtag.c_str());
     auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(), wtag);
 
