@@ -122,10 +122,15 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     // Follow table in comments of fill_src
     int value_range = get_problem_bounds(prb->alg, sdt).second;
 
-    if (expanded_range) value_range = 1000;
-
     const bool is_mul_fp = prb->alg == alg_t::mul && !is_int;
     const int min_range = is_mul_fp ? -value_range : 1;
+
+    bool fill_with_powers_of_two = is_mul_fp;
+    if (expanded_range) {
+        // when using the expanded range, never fill with powers of 2
+        fill_with_powers_of_two = false;
+        value_range = 1000;
+    }
 
     const int64_t n_chunks = 16;
     const int64_t chunk_size = div_up(nelems, n_chunks);
@@ -180,7 +185,7 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 
 int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const bool only_positive_values = is_norm_alg(prb->alg);
-    return fill_mem(prb, mem_dt, mem_fp, 1.0f, false, only_positive_values);
+    return fill_mem(prb, mem_dt, mem_fp, 1.0f, true, only_positive_values);
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
