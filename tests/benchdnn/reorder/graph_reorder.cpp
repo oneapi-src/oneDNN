@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -150,18 +150,27 @@ static int fill_zps(const ::reorder::prb_t *prb, const int64_t axis,
     return OK;
 }
 
-static int fill_scales(const ::reorder::prb_t *prb, const int64_t axis,
+static int fill_scales(dnn_mem_map_t &mem_map, dnn_mem_map_t &ref_mem_map,
+        const ::reorder::prb_t *prb, const int64_t axis,
         std::vector<float> &scales) {
     if (prb->attr.scales.get(DNNL_ARG_SRC).policy == attr_t::policy_t::COMMON) {
         if (prb->attr.scales.is_def()) {
             scales.emplace_back(1.f);
         } else {
-            scales.emplace_back(prb->src_scales[0]);
+            graph_fill_scales(mem_map, ref_mem_map, prb, 1, DNNL_ARG_SRC);
+            const auto &mem_scale
+                    = ref_mem_map[DNNL_ARG_ATTR_SCALES ^ DNNL_ARG_SRC];
+            scales.emplace_back(mem_scale.get_elem(0));
         }
     } else {
         //TODO: needs update for PER_DIM_01
-        for (int i = 0; i < prb->dims[axis]; i++) {
-            scales.emplace_back(prb->src_scales[i]);
+        graph_fill_scales(
+                mem_map, ref_mem_map, prb, prb->dims[axis], DNNL_ARG_SRC);
+        const auto &mem_scale
+                = ref_mem_map[DNNL_ARG_ATTR_SCALES ^ DNNL_ARG_SRC];
+        scales.resize(mem_scale.nelems());
+        for (auto idx = 0; idx < mem_scale.nelems(); idx++) {
+            scales[idx] = mem_scale.get_elem(idx);
         }
     }
     //Need to inverse scale
@@ -173,12 +182,13 @@ static int fill_scales(const ::reorder::prb_t *prb, const int64_t axis,
     return OK;
 }
 
-static void prepare_runtime_scales(const ::reorder::prb_t *prb,
+static void prepare_runtime_scales(dnn_mem_map_t &mem_map,
+        dnn_mem_map_t &ref_mem_map, const ::reorder::prb_t *prb,
         dnn_mem_t &scales_dt, const dnnl::graph::logical_tensor &in,
         std::vector<float> scales, int64_t axis) {
     // scales is required input for dynamic q/deq
     scales_dt = make_dnn_mem(in, dt::f32, tag::x);
-    fill_scales(prb, axis, scales);
+    fill_scales(mem_map, ref_mem_map, prb, axis, scales);
     for (size_t i = 0; i < scales.size(); i++) {
         scales_dt.set_elem(i, scales[i]);
     }
@@ -205,7 +215,8 @@ static void maybe_prepare_runtime_zero_points(const ::reorder::prb_t *prb,
     }
 }
 
-fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
+fill_status_t append_graph_with_block(dnn_mem_map_t &mem_map,
+        dnn_mem_map_t &ref_mem_map, const ::reorder::prb_t *prb) {
     using graph_dt = dnnl::graph::logical_tensor::data_type;
 
     graph_t &graph = graph_t::get();
@@ -216,7 +227,7 @@ fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
     const auto dst_dt = convert_dt(prb->ddt);
     const auto qtype
             = convert_attr_policy(prb->attr.scales.get(DNNL_ARG_SRC).policy);
-    bool runtime = prb->attr.scales.get(DNNL_ARG_SRC).runtime;
+    bool runtime = !prb->attr.scales.get(DNNL_ARG_SRC).is_def();
     // axis is used only for PER_DIM_0 and PER_DIM_1 policies
     int64_t axis = prb->attr.scales.get(DNNL_ARG_SRC).policy
                     == attr_t::policy_t::PER_DIM_1
@@ -237,7 +248,7 @@ fill_status_t append_graph_with_block(const ::reorder::prb_t *prb) {
     std::vector<int64_t> src_zps, dst_zps;
 
     if (!runtime || is_runtime_to_static(src_dt, dst_dt)) {
-        fill_scales(prb, axis, scales);
+        fill_scales(mem_map, ref_mem_map, prb, axis, scales);
         fill_zps(prb, axis, src_zps, dst_zps);
     }
 
@@ -402,7 +413,8 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const auto status = append_graph_with_block(prb);
+    dnn_mem_map_t mem_map, ref_mem_map;
+    const auto status = append_graph_with_block(mem_map, ref_mem_map, prb);
     if (status != fill_status::DONE
             && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
         cleanup();
@@ -443,7 +455,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
     dnn_mem_t scales_dt, zps_dt;
     std::vector<float> scales;
     std::vector<int64_t> src_zps, dst_zps;
-    if (prb->attr.scales.get(DNNL_ARG_SRC).runtime
+    if (!prb->attr.scales.get(DNNL_ARG_SRC).is_def()
             && !is_runtime_to_static(
                     convert_dt(prb->sdt), convert_dt(prb->ddt))) {
         // axis is used only for PER_DIM_0 and PER_DIM_1 policies
@@ -452,7 +464,8 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
                 ? 1
                 : 0;
 
-        prepare_runtime_scales(prb, scales_dt, ins[1], scales, axis);
+        prepare_runtime_scales(
+                mem_map, ref_mem_map, prb, scales_dt, ins[1], scales, axis);
         maybe_prepare_runtime_zero_points(
                 prb, zps_dt, ins[2], src_zps, dst_zps, axis);
     }
@@ -464,9 +477,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
 
     tensors_in.emplace_back(
             dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
-    if (prb->attr.scales.get(DNNL_ARG_SRC).runtime
-            && !is_runtime_to_static(
-                    convert_dt(prb->sdt), convert_dt(prb->ddt))) {
+    if (!is_runtime_to_static(convert_dt(prb->sdt), convert_dt(prb->ddt))) {
         tensors_in.emplace_back(dnnl::graph::tensor(
                 ins[1], eng, static_cast<void *>(scales_dt)));
         if (!prb->attr.zero_points.is_def())
@@ -500,7 +511,7 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
         assign_comp_mem(dst_s8_comp_ref, ::reorder::FLAG_S8S8_COMP);
         assign_comp_mem(dst_zp_comp_ref, ::reorder::FLAG_ZP_COMP);
 
-        args_t args, ref_args;
+        args_t args(mem_map), ref_args(ref_mem_map);
 
         args.set(DNNL_ARG_TO, dst_dt);
         ref_args.set(DNNL_ARG_FROM, src_fp);

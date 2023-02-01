@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -388,15 +388,6 @@ dims_t calculate_strides(dims_t dims, dt dtype, const std::string &tag) {
     std::memcpy(strides.data(), query_md_strides(md),
             strides.size() * sizeof(dnnl_dim_t));
     return strides;
-}
-
-std::vector<float> get_scales(const attr_t::scale_t &scales_info,
-        const float *raw_scales, int64_t channel_size) {
-    const auto q_vals
-            = scales_info.policy == policy_t::COMMON ? 1 : channel_size;
-    return scales_info.is_def()
-            ? std::vector<float>(q_vals, 1.f)
-            : std::vector<float>(raw_scales, raw_scales + q_vals);
 }
 
 // Get indices, on which post binary ops are located.

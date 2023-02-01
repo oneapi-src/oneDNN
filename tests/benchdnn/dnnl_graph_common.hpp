@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "test_allocator.hpp"
+#include "utils/fill.hpp"
 
 namespace benchdnnext {
 
@@ -72,8 +73,6 @@ void check_graph_eltwise_params(res_t *res,
         const attr_t::post_ops_t::kind_t alg, const float alpha,
         const float beta);
 bool check_has_sum_po(const std::vector<attr_t::post_ops_t::entry_t> &post_ops);
-std::vector<float> get_scales(const attr_t::scale_t &scales_info,
-        const float *raw_scales, int64_t channel_size);
 dnnl::graph::logical_tensor::data_type convert_dt(
         const dnnl_data_type_t dt) noexcept;
 dnnl_data_type_t convert_dt(
@@ -575,6 +574,43 @@ private:
 
 inline void cleanup() {
     graph_t::get().clear();
+}
+
+template <typename prb_t>
+void graph_fill_scales(dnn_mem_map_t &mem_map, dnn_mem_map_t &ref_mem_map,
+        const prb_t *prb, const int64_t channel_size, const int exec_arg) {
+    const auto &ref_engine = ::get_cpu_engine();
+    const auto q_vals
+            = prb->attr.scales.get(exec_arg).policy == policy_t::COMMON
+            ? 1
+            : channel_size;
+    auto scales_md = dnn_mem_t::init_md(1, &q_vals, dnnl_f32, tag::abx);
+    auto local_exec_arg = exec_arg | DNNL_ARG_ATTR_SCALES;
+    mem_map.emplace(local_exec_arg, dnn_mem_t(scales_md, ref_engine));
+    auto &mem = mem_map[local_exec_arg];
+    ref_mem_map.emplace(
+            local_exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+    auto &ref_mem = ref_mem_map[local_exec_arg];
+    fill_scales(prb->attr, local_exec_arg ^ DNNL_ARG_ATTR_SCALES, mem, ref_mem);
+}
+
+template <typename prb_t>
+void graph_fill_zps(dnn_mem_map_t &mem_map, dnn_mem_map_t &ref_mem_map,
+        const prb_t *prb, const int64_t channel_size, const int exec_arg) {
+    const auto &ref_engine = ::get_cpu_engine();
+    const auto q_vals
+            = prb->attr.zero_points.get(exec_arg).policy == policy_t::COMMON
+            ? 1
+            : channel_size;
+    auto zps_md = dnn_mem_t::init_md(1, &q_vals, dnnl_f32, tag::abx);
+    auto local_exec_arg = exec_arg | DNNL_ARG_ATTR_ZERO_POINTS;
+    mem_map.emplace(local_exec_arg, dnn_mem_t(zps_md, ref_engine));
+    auto &mem = mem_map[local_exec_arg];
+    ref_mem_map.emplace(
+            local_exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+    auto &ref_mem = ref_mem_map[local_exec_arg];
+    fill_zero_points(prb->attr, local_exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS, mem,
+            ref_mem);
 }
 
 } // namespace benchdnnext

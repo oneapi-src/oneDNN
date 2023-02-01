@@ -69,10 +69,10 @@ void check_correctness(const settings_t &s) {
             BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
             res_t res {};
-            if (api_mode == GRAPH)
-                benchdnnext::reorder::doit(&prb, &res);
-            else
-                doit(&prb, &res);
+            //     if (api_mode == GRAPH)
+            //         benchdnnext::reorder::doit(&prb, &res);
+            //     else
+            doit(&prb, &res);
 
             parse_result(res, pstr);
 

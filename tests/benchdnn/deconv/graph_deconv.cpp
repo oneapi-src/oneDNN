@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -123,19 +123,43 @@ static dims_t get_acbdx_strides(
     }
 }
 
-static quant_data_t get_qdata_for(int arg, const ::deconv::prb_t *prb) {
+static quant_data_t get_qdata_for(dnn_mem_map_t &mem_map,
+        dnn_mem_map_t &ref_mem_map, int arg, const ::deconv::prb_t *prb) {
     const auto q_dt = convert_dt(prb->cfg[arg].dt);
     if (arg == SRC) {
-        const auto scales_src = get_scales(
-                prb->attr.scales.get(DNNL_ARG_SRC), prb->src_scales, prb->oc);
+        std::vector<float> scales_src;
+        if (prb->attr.scales.is_def(DNNL_ARG_SRC)) {
+            scales_src = {1.f};
+        } else {
+            graph_fill_scales(mem_map, ref_mem_map, prb, prb->oc, DNNL_ARG_SRC);
+            const auto &mem_scale
+                    = ref_mem_map[DNNL_ARG_ATTR_SCALES ^ DNNL_ARG_SRC];
+            scales_src.resize(mem_scale.nelems());
+            for (auto idx = 0; idx < mem_scale.nelems(); idx++) {
+                scales_src[idx] = mem_scale.get_elem(idx);
+            }
+        }
+        graph_fill_zps(mem_map, ref_mem_map, prb, prb->oc, DNNL_ARG_SRC);
+        const auto &mem_zp
+                = ref_mem_map[DNNL_ARG_ATTR_ZERO_POINTS ^ DNNL_ARG_SRC];
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_SRC)
                 ? 0L
-                : prb->src_zp[0];
+                : mem_zp.get_elem(0);
         return quant_data_t(q_dt, scales_src, {zp_val}, prb->stag);
     } else if (arg == WEI) {
-        const auto scales_wei
-                = get_scales(prb->attr.scales.get(DNNL_ARG_WEIGHTS),
-                        prb->wei_scales, prb->oc);
+        std::vector<float> scales_wei;
+        if (prb->attr.scales.is_def(DNNL_ARG_WEIGHTS)) {
+            scales_wei = {1.f};
+        } else {
+            graph_fill_scales(
+                    mem_map, ref_mem_map, prb, prb->oc, DNNL_ARG_WEIGHTS);
+            const auto &mem_scale
+                    = ref_mem_map[DNNL_ARG_ATTR_SCALES ^ DNNL_ARG_WEIGHTS];
+            scales_wei.resize(mem_scale.nelems());
+            for (auto idx = 0; idx < mem_scale.nelems(); idx++) {
+                scales_wei[idx] = mem_scale.get_elem(idx);
+            }
+        }
         const std::vector<int64_t> zps(scales_wei.size(), 0L);
         const std::string q_type = prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy
                         == policy_t::COMMON
@@ -148,11 +172,24 @@ static quant_data_t get_qdata_for(int arg, const ::deconv::prb_t *prb) {
         return quant_data_t(
                 q_dt, scales_wei, zps, q_type, /* axis */ 1, wei_strides);
     } else if (arg == DST) {
-        const auto scales_dst = get_scales(
-                prb->attr.scales.get(DNNL_ARG_DST), prb->dst_scales, prb->oc);
+        std::vector<float> scales_dst;
+        if (prb->attr.scales.is_def(DNNL_ARG_DST)) {
+            scales_dst = {1.f};
+        } else {
+            graph_fill_scales(mem_map, ref_mem_map, prb, prb->oc, DNNL_ARG_DST);
+            const auto &mem_scale
+                    = ref_mem_map[DNNL_ARG_ATTR_SCALES ^ DNNL_ARG_DST];
+            scales_dst.resize(mem_scale.nelems());
+            for (auto idx = 0; idx < mem_scale.nelems(); idx++) {
+                scales_dst[idx] = mem_scale.get_elem(idx);
+            }
+        }
+        graph_fill_zps(mem_map, ref_mem_map, prb, prb->oc, DNNL_ARG_DST);
+        const auto &mem_zp
+                = ref_mem_map[DNNL_ARG_ATTR_ZERO_POINTS ^ DNNL_ARG_DST];
         const int64_t zp_val = prb->attr.zero_points.is_def(DNNL_ARG_DST)
                 ? 0L
-                : prb->dst_zp[0];
+                : mem_zp.get_elem(0);
         return quant_data_t(q_dt, scales_dst, {zp_val}, prb->dtag);
     }
 
@@ -180,7 +217,8 @@ static std::vector<dnnl::graph::logical_tensor::data_type> collect_data_types(
             convert_dt(prb->cfg[DST].dt)};
 }
 
-fill_status_t append_graph_with_block(const ::deconv::prb_t *prb) {
+fill_status_t append_graph_with_block(dnn_mem_map_t &mem_map,
+        dnn_mem_map_t &ref_mem_map, const ::deconv::prb_t *prb) {
     graph_t &graph = graph_t::get();
 
     const auto orig_dts = collect_data_types(prb);
@@ -273,9 +311,11 @@ fill_status_t append_graph_with_block(const ::deconv::prb_t *prb) {
     fill_status_t status;
     // if required - apply dequantize to block inputs
     if (with_dq) {
-        status = insert_dequant_before(src_id, get_qdata_for(SRC, prb));
+        status = insert_dequant_before(
+                src_id, get_qdata_for(mem_map, ref_mem_map, SRC, prb));
         BENCHDNNEXT_VERIFY(status);
-        status = insert_dequant_before(wei_id, get_qdata_for(WEI, prb), true);
+        status = insert_dequant_before(
+                wei_id, get_qdata_for(mem_map, ref_mem_map, WEI, prb), true);
         BENCHDNNEXT_VERIFY(status);
     }
 
@@ -308,8 +348,8 @@ fill_status_t append_graph_with_block(const ::deconv::prb_t *prb) {
 
     // if required - add quantize op
     if (is_low_precision({orig_dts[2]})) {
-        status = insert_quant_after(
-                graph.get_cur_block_out_id(), get_qdata_for(DST, prb));
+        status = insert_quant_after(graph.get_cur_block_out_id(),
+                get_qdata_for(mem_map, ref_mem_map, DST, prb));
         BENCHDNNEXT_VERIFY(status);
     }
 
@@ -326,7 +366,8 @@ int doit(const ::deconv::prb_t *prb, res_t *res) {
     check_known_skipped_case_graph(prb, res);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
-    const auto status = append_graph_with_block(prb);
+    dnn_mem_map_t mem_map, ref_mem_map;
+    const auto status = append_graph_with_block(mem_map, ref_mem_map, prb);
     if (status != fill_status::DONE
             && status != fill_status::UNHANDLED_CONFIG_OPTIONS) {
         cleanup();
@@ -467,7 +508,7 @@ int doit(const ::deconv::prb_t *prb, res_t *res) {
                             | DNNL_ARG_SRC_1));
         }
 
-        args_t args, ref_args;
+        args_t args(mem_map), ref_args(ref_mem_map);
         if (prb->dir & FLAG_FWD) {
             args.set(DNNL_ARG_DST, dst_dt);
             ref_args.set(DNNL_ARG_SRC, src_fp);
