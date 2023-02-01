@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -122,7 +122,7 @@ status_t gen9_eltwise_fwd_t::execute_forward_dense(
 
     if (!gpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
                 pd()->desc()->alg_kind, alpha, beta)) {
-        ctx.zero_pad_output(DNNL_ARG_DST);
+        CHECK(ctx.zero_pad_output(DNNL_ARG_DST));
     }
 
     return status;
@@ -176,7 +176,7 @@ status_t gen9_eltwise_bwd_t::execute_backward_dense(
 
     if (!gpu_eltwise_bwd_pd_t::eltwise_preserves_zero(
                 pd()->desc()->alg_kind, alpha, beta)) {
-        ctx.zero_pad_output(DNNL_ARG_DIFF_SRC);
+        CHECK(ctx.zero_pad_output(DNNL_ARG_DIFF_SRC));
     }
 
     return status;

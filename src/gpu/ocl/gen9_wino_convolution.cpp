@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -440,7 +440,7 @@ status_t gen9_wino_convolution_fwd_t::execute_forward(
             && !gpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
                     attr_info.eltwise_alg, attr_info.eltwise_alpha,
                     attr_info.eltwise_beta)) {
-        ctx.zero_pad_output(DNNL_ARG_DST);
+        CHECK(ctx.zero_pad_output(DNNL_ARG_DST));
     }
     return status;
 }

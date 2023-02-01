@@ -1128,7 +1128,7 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     if (!post_ops_preserves_zeroes(ctx, pd()->attr()->post_ops_)) {
-        ctx.zero_pad_output(DNNL_ARG_DST);
+        CHECK(ctx.zero_pad_output(DNNL_ARG_DST));
     }
     return status;
 }

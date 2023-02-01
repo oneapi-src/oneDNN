@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -282,7 +282,7 @@ status_t xe_lp_x8s8x_1x1_convolution_fwd_t::execute_forward(
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     if (!post_ops_preserves_zeroes(ctx, pd()->attr()->post_ops_)) {
-        ctx.zero_pad_output(DNNL_ARG_DST);
+        CHECK(ctx.zero_pad_output(DNNL_ARG_DST));
     }
 
     return status;
