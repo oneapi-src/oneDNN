@@ -257,24 +257,19 @@ private:
         std::vector<bd_iteration_t> bdis;
         std::vector<bs_iteration_t> bsis;
         std::vector<dim_iteration_t> rdis;
-        bool is_last_ldi(const dim_iteration_t &ldi) const {
-            return (ldi.idx == ldis.size() - 1);
-        }
-        bool is_last_bdi(const bd_iteration_t &bdi) const {
-            return (bdi.idx == bdis.size() - 1);
-        }
-        bool is_last_rdi(const dim_iteration_t &rdi) const {
-            return (rdi.idx == rdis.size() - 1);
+        bool is_last_rdi(const dim_iteration_t *rdi) const {
+            return (rdi->idx == rdis.size() - 1);
         }
     };
 
     struct brgemm_iteration_t {
-        bd_iteration_t bdi;
-        dim_iteration_t ldi;
-        bs_iteration_t bsi;
-        dim_iteration_t rdi;
-        brgemm_iteration_t *prev_iter = nullptr;
-        bool apply_postops = false;
+        const bd_iteration_t *bdi {nullptr};
+        const dim_iteration_t *ldi {nullptr};
+        const bs_iteration_t *bsi {nullptr};
+        const dim_iteration_t *rdi {nullptr};
+        bool apply_postops {false};
+        bool first_bsi {false};
+        bool last_bsi {false};
         brgemm_iteration_t() = default;
     };
 
@@ -453,8 +448,8 @@ private:
     size_t zp_comp_a_offset(int ldb) const noexcept;
     size_t zp_comp_b_offset(int bd) const noexcept;
     size_t zp_c_values_offset(brgemm_iteration_t &bi, int ldb) const noexcept;
-    bool is_out_bd(const bd_iteration_t &bdi, int bdb, int inp_bd) const;
-    int get_out_bd(const bd_iteration_t &bdi, int bdb, int inp_bd) const;
+    bool is_out_bd(const bd_iteration_t *bdi, int bdb, int inp_bd) const;
+    int get_out_bd(const bd_iteration_t *bdi, int bdb, int inp_bd) const;
 
     void maybe_tilestore(brgemm_iteration_t &bi, int bdb_idx, int ldb_idx,
             bool do_pre_tilestore, bool do_post_tilestore);
@@ -473,20 +468,20 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_output(
     size_t bd_idx = 0;
     size_t ld_idx = 0;
     if (brg.innermost_loop == brgemm_ld_loop_innermost) {
-        lidx = bi.bdi.idx * imap_.ldis.size() + bi.ldi.idx;
+        lidx = bi.bdi->idx * imap_.ldis.size() + bi.ldi->idx;
         lidx += shift;
         bd_idx = lidx / imap_.ldis.size();
         ld_idx = lidx % imap_.ldis.size();
     } else if (brg.innermost_loop == brgemm_bd_loop_innermost) {
-        lidx = bi.ldi.idx * imap_.bdis.size() + bi.bdi.idx;
+        lidx = bi.ldi->idx * imap_.bdis.size() + bi.bdi->idx;
         lidx += shift;
         ld_idx = lidx / imap_.bdis.size();
         bd_idx = lidx % imap_.bdis.size();
     } else
         assert(!"Unknown loop order!");
     if (lidx >= imap_.ldis.size() * imap_.bdis.size()) return false;
-    res_bi.bdi = imap_.bdis[bd_idx];
-    res_bi.ldi = imap_.ldis[ld_idx];
+    res_bi.bdi = &(imap_.bdis[bd_idx]);
+    res_bi.ldi = &(imap_.ldis[ld_idx]);
 
     return true;
 }
@@ -494,15 +489,15 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_output(
 bool jit_brgemm_amx_uker_base_t::bi_shift_A(
         brgemm_iteration_t &bi, int shift, brgemm_iteration_t &res_bi) {
     res_bi = bi;
-    auto lidx = bi.bdi.idx * imap_.rdis.size() + bi.rdi.idx;
+    auto lidx = bi.bdi->idx * imap_.rdis.size() + bi.rdi->idx;
     lidx += shift;
     if (lidx >= imap_.rdis.size() * imap_.bdis.size()) return false;
 
     const auto bd_idx = lidx / imap_.rdis.size();
     const auto rd_idx = lidx % imap_.rdis.size();
 
-    res_bi.bdi = imap_.bdis[bd_idx];
-    res_bi.rdi = imap_.rdis[rd_idx];
+    res_bi.bdi = &(imap_.bdis[bd_idx]);
+    res_bi.rdi = &(imap_.rdis[rd_idx]);
 
     return true;
 }
@@ -510,22 +505,22 @@ bool jit_brgemm_amx_uker_base_t::bi_shift_A(
 bool jit_brgemm_amx_uker_base_t::bi_shift_B(
         brgemm_iteration_t &bi, int shift, brgemm_iteration_t &res_bi) {
     res_bi = bi;
-    auto lidx = bi.ldi.idx * imap_.rdis.size() + bi.rdi.idx;
+    auto lidx = bi.ldi->idx * imap_.rdis.size() + bi.rdi->idx;
     lidx += shift;
     if (lidx >= imap_.rdis.size() * imap_.ldis.size()) return false;
 
     const auto ld_idx = lidx / imap_.rdis.size();
     const auto rd_idx = lidx % imap_.rdis.size();
 
-    res_bi.ldi = imap_.ldis[ld_idx];
-    res_bi.rdi = imap_.rdis[rd_idx];
+    res_bi.ldi = &(imap_.ldis[ld_idx]);
+    res_bi.rdi = &(imap_.rdis[rd_idx]);
 
     return true;
 }
 
 int jit_brgemm_amx_uker_base_t::get_C_tensor(
         brgemm_iteration_t &bi, int m, int n) const noexcept {
-    return brg.get_C_tensor(m, n, bi.bdi.is_tail(m), bi.ldi.is_tail(n));
+    return brg.get_C_tensor(m, n, bi.bdi->is_tail(m), bi.ldi->is_tail(n));
 }
 
 void jit_brgemm_amx_uker_base_t::prepare_bd_mask() noexcept {
@@ -561,25 +556,26 @@ int jit_brgemm_amx_uker_base_t::skipped_bd_mask(int inp_bd) noexcept {
 size_t jit_brgemm_amx_uker_base_t::A_offset(
         const brgemm_iteration_t &bi, int bdb) const noexcept {
     const auto bs_offs = (brg.type == brgemm_static_offs)
-            ? brg.brgattr.static_offsets[bi.bsi.idx].offset.A
+            ? brg.brgattr.static_offsets[bi.bsi->idx].offset.A
             : 0;
-    auto rd_block = bi.rdi.block(0);
+    auto rd_block = bi.rdi->block(0);
     if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
-    return bi.rdi.pos(0) * rd_block * brg.typesize_A
-            + bi.bdi.pos(bdb) * LDA2_size_ + bs_offs;
+    const auto bdb_offs = bi.bdi->pos(bdb);
+    return bdb_offs * LDA2_size_ + bs_offs
+            + bi.rdi->pos(0) * rd_block * brg.typesize_A;
 }
 
 size_t jit_brgemm_amx_uker_base_t::B_offset(
         const brgemm_iteration_t &bi, int ldb) const noexcept {
     const auto bs_offs = (brg.type == brgemm_static_offs)
-            ? brg.brgattr.static_offsets[bi.bsi.idx].offset.B
+            ? brg.brgattr.static_offsets[bi.bsi->idx].offset.B
             : 0;
 
-    auto rd_block = bi.rdi.block(0);
+    auto rd_block = bi.rdi->block(0);
     if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
-    const auto rdb_B_offset = bi.rdi.pos(0) * rd_block * LDB_size_;
+    const auto rdb_B_offset = bi.rdi->pos(0) * rd_block * LDB_size_;
 
-    const auto ldb_B_offset = bi.ldi.pos(0) * ld_block_B_size_ * brg.ld_step;
+    const auto ldb_B_offset = bi.ldi->pos(0) * ld_block_B_size_ * brg.ld_step;
 
     return rdb_B_offset + ldb_B_offset
             + (brg.is_blocked ? 1 : brg.rd_step) * ldb * ld_block_B_size_
@@ -625,27 +621,27 @@ size_t jit_brgemm_amx_uker_base_t::zp_comp_b_offset(int bd) const noexcept {
 size_t jit_brgemm_amx_uker_base_t::zp_c_values_offset(
         brgemm_iteration_t &bi, int ldb) const noexcept {
     if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
-        return (bi.ldi.is_tail(ldb)) ? ldb_tail_zp_size_
-                                     : bi.ldi.pos(ldb) * ld_block_zp_size_;
+        return (bi.ldi->is_tail(ldb)) ? ldb_tail_zp_size_
+                                      : bi.ldi->pos(ldb) * ld_block_zp_size_;
     }
 
     return 0;
 }
 
 bool jit_brgemm_amx_uker_base_t::is_out_bd(
-        const bd_iteration_t &bdi, int bdb, int inp_bd) const {
-    const auto bd = bdi.pos(bdb) + inp_bd;
+        const bd_iteration_t *bdi, int bdb, int inp_bd) const {
+    const auto bd = bdi->pos(bdb) + inp_bd;
     return IMPLICATION(
-            brg.brgattr.bd_mask_level, bdi.bd_mask[bd - bdi.pos(0)] != 0);
+            brg.brgattr.bd_mask_level, bdi->bd_mask[bd - bdi->pos(0)] != 0);
 }
 
 int jit_brgemm_amx_uker_base_t::get_out_bd(
-        const bd_iteration_t &bdi, int bdb, int inp_bd) const {
+        const bd_iteration_t *bdi, int bdb, int inp_bd) const {
     if (!is_out_bd(bdi, bdb, inp_bd)) return -1;
-    const auto bd = bdi.pos(bdb) + inp_bd;
+    const auto bd = bdi->pos(bdb) + inp_bd;
     if (brg.brgattr.bd_mask_level) {
-        assert(bdi.adj_bd_mask[bd - bdi.pos(0)] == adj_bd_mask_buffer_[bd]);
-        return bdi.adj_bd_mask[bd - bdi.pos(0)];
+        assert(bdi->adj_bd_mask[bd - bdi->pos(0)] == adj_bd_mask_buffer_[bd]);
+        return bdi->adj_bd_mask[bd - bdi->pos(0)];
     } else
         return bd;
 }
@@ -711,18 +707,17 @@ void jit_brgemm_amx_uker_base_t::read_params() {
 void jit_brgemm_amx_uker_base_t::load_accumulators(brgemm_iteration_t &bi) {
     if (may_load_accumulators_) mov(reg_stride_ld_block, LDC_size_);
 
-    for (int bdb = 0; bdb < bi.bdi.block2(); bdb++) {
-        for (int ldb = 0; ldb < bi.ldi.block2(); ldb++) {
-            if (may_load_accumulators_) {
-                const auto c_offset = C_offset(bi, bdb, 0, bi.ldi.pos(ldb));
-                tileloadd(Tmm(get_C_tensor(bi, bdb, ldb)),
-                        ptr[reg_C + c_offset + reg_stride_ld_block]);
-            } else {
-                // call tilezero on very first iteration
-                if (!brg.interleave_tilestores_
-                        || everyone_is(0u, bi.bdi.idx, bi.ldi.idx))
-                    tilezero(Tmm(get_C_tensor(bi, bdb, ldb)));
-            }
+    for_(int bdb = 0; bdb < bi.bdi->block2(); bdb++)
+    for (int ldb = 0; ldb < bi.ldi->block2(); ldb++) {
+        if (may_load_accumulators_) {
+            const auto c_offset = C_offset(bi, bdb, 0, bi.ldi->pos(ldb));
+            tileloadd(Tmm(get_C_tensor(bi, bdb, ldb)),
+                    ptr[reg_C + c_offset + reg_stride_ld_block]);
+        } else {
+            // call tilezero on very first iteration
+            if (!brg.interleave_tilestores_
+                    || everyone_is(0u, bi.bdi->idx, bi.ldi->idx))
+                tilezero(Tmm(get_C_tensor(bi, bdb, ldb)));
         }
     }
 }
@@ -771,8 +766,8 @@ void jit_brgemm_amx_uker_base_t::apply_alpha_beta_to_vector(
 void jit_brgemm_amx_uker_base_t::apply_post_ops_to_range(
         brgemm_iteration_t &bi, int bd_start, int bd_finish, int bdb, int ldb) {
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-    const auto ldb_pos = bi.ldi.pos(ldb);
-    const auto is_ld_tail = bi.ldi.is_tail(ldb);
+    const auto ldb_pos = bi.ldi->pos(ldb);
+    const auto is_ld_tail = bi.ldi->is_tail(ldb);
 
     if (brg.with_binary) {
         if (handle_binary_po_offset_) {
@@ -851,12 +846,12 @@ void jit_brgemm_amx_uker_base_t::maybe_saturation(Xbyak::Zmm &zmm) {
 void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers_ldb(
         brgemm_iteration_t &bi, int ldb) {
     if (!bi.apply_postops) return;
-    auto k_mask = (!bi.ldi.is_tail(ldb)) ? ld_full_mask : ld_tail_mask;
+    auto k_mask = (!bi.ldi->is_tail(ldb)) ? ld_full_mask : ld_tail_mask;
 
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
         mov(reg_aux_zp_comp_a, ptr[rsp + reg_zp_comp_a_offs_]);
 
-        const auto zp_comp_a_off = zp_comp_a_offset(bi.ldi.pos(ldb));
+        const auto zp_comp_a_off = zp_comp_a_offset(bi.ldi->pos(ldb));
         const auto zp_comp_a_addr
                 = EVEX_compress_addr(reg_aux_zp_comp_a, zp_comp_a_off);
         cvt2ps(data_type::s32, zmm_zp_comp_a, zp_comp_a_addr, true, false,
@@ -880,25 +875,25 @@ void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers_ldb(
 void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers(
         brgemm_iteration_t &bi) {
     if (!bi.apply_postops) return;
-    dim_iteration_t &ldi = bi.ldi;
+    const auto ldi = bi.ldi;
 
     if (brg.with_bias) {
         mov(reg_bias, ptr[param1 + GET_OFF(ptr_bias)]);
 
-        for (int ldb = 0; ldb < ldi.block2(); ldb++) {
+        for (int ldb = 0; ldb < ldi->block2(); ldb++) {
             auto ptr_bias
-                    = EVEX_compress_addr(reg_bias, bias_offset(ldi.pos(ldb)));
-            auto k_mask = ldi.is_tail(ldb) ? ld_tail_mask : ld_full_mask;
+                    = EVEX_compress_addr(reg_bias, bias_offset(ldi->pos(ldb)));
+            auto k_mask = ldi->is_tail(ldb) ? ld_tail_mask : ld_full_mask;
             cvt2ps(brg.dt_bias, zmm_bias(ldb), ptr_bias, true, false, k_mask);
         }
     }
 
     if (brg.with_scales) {
         mov(reg_scales, ptr[param1 + GET_OFF(ptr_scales)]);
-        for (int ldb = 0; ldb < ldi.block2(); ldb++) {
+        for (int ldb = 0; ldb < ldi->block2(); ldb++) {
             auto scales_ptr = EVEX_compress_addr(
-                    reg_scales, scales_offset(ldi.pos(ldb)));
-            auto k_mask = ldi.is_tail(ldb) ? ld_tail_mask : ld_full_mask;
+                    reg_scales, scales_offset(ldi->pos(ldb)));
+            auto k_mask = ldi->is_tail(ldb) ? ld_tail_mask : ld_full_mask;
             vmovups(zmm_scales(ldb) | k_mask | T_z, scales_ptr);
         }
     }
@@ -915,7 +910,7 @@ void jit_brgemm_amx_uker_base_t::uni_prefetch(
 void jit_brgemm_amx_uker_base_t::prefetch_CD_range(brgemm_iteration_t &bi,
         brgemm_kernel_prefetching_t pft, int bd_start, int bd_finish, int bdb,
         int ldb) {
-    const auto ldb_pos = bi.ldi.pos(ldb);
+    const auto ldb_pos = bi.ldi->pos(ldb);
     for (int bd = bd_start; bd < bd_finish; bd++) {
         if (!is_out_bd(bi.bdi, bdb, bd)) continue;
         if (bi.apply_postops) {
@@ -936,7 +931,7 @@ void jit_brgemm_amx_uker_base_t::prefetch_CD_range(brgemm_iteration_t &bi,
 
 int jit_brgemm_amx_uker_base_t::calc_ops_CD(
         brgemm_iteration_t &bi) const noexcept {
-    return imap_.rdis.size() * bi.ldi.block2() * bi.bdi.block2()
+    return imap_.rdis.size() * bi.ldi->block2() * bi.bdi->block2()
             * (brg.brgattr.var_bs ? 1 : brg.brgattr.max_bs);
 }
 
@@ -944,8 +939,8 @@ void jit_brgemm_amx_uker_base_t::prefetch_CD(brgemm_iteration_t &bi,
         brgemm_iteration_t &pfo_bi, prf_t &prf, bool prefetch_all) {
 
     const auto calc_ops = calc_ops_CD(bi);
-    const auto bdb_row = pfo_bi.bdi.block(0) * pfo_bi.ldi.block2();
-    const auto tot_vecs = pfo_bi.bdi.length() * pfo_bi.ldi.block2();
+    const auto bdb_row = pfo_bi.bdi->block(0) * pfo_bi.ldi->block2();
+    const auto tot_vecs = pfo_bi.bdi->length() * pfo_bi.ldi->block2();
     const auto pfo_vecs_per_store = (calc_ops) ? div_up(tot_vecs, calc_ops) : 0;
 
     const auto nvecs = prefetch_all
@@ -959,10 +954,10 @@ void jit_brgemm_amx_uker_base_t::prefetch_CD(brgemm_iteration_t &bi,
     for (int iv = 0; iv < nvecs && prf.vec < tot_vecs; iv++) {
         const auto bdb = prf.vec / bdb_row;
         const auto vec_in_bdb_row = prf.vec - bdb * bdb_row;
-        const auto ldb = vec_in_bdb_row / pfo_bi.bdi.block(bdb);
-        const auto bd = vec_in_bdb_row % pfo_bi.bdi.block(bdb);
+        const auto ldb = vec_in_bdb_row / pfo_bi.bdi->block(bdb);
+        const auto bd = vec_in_bdb_row % pfo_bi.bdi->block(bdb);
         // prefetch output cache lines only once
-        if (pfo_bi.ldi.pos(ldb) % (4 / out_typesize) == 0) {
+        if (pfo_bi.ldi->pos(ldb) % (4 / out_typesize) == 0) {
             prefetch_CD_range(pfo_bi, prf.pft, bd, bd + 1, bdb, ldb);
         }
         prf.vec++;
@@ -972,8 +967,8 @@ void jit_brgemm_amx_uker_base_t::prefetch_CD(brgemm_iteration_t &bi,
 void jit_brgemm_amx_uker_base_t::prefetch_A(brgemm_iteration_t &bi,
         brgemm_iteration_t &pfo_bi, prf_t &prf, bool prefetch_all) {
 
-    const auto calc_ops = bi.ldi.block2() * bi.bdi.block2();
-    const auto tot_vecs = pfo_bi.bdi.length();
+    const auto calc_ops = bi.ldi->block2() * bi.bdi->block2();
+    const auto tot_vecs = pfo_bi.bdi->length();
     const auto pfo_vecs_per_store = (calc_ops) ? div_up(tot_vecs, calc_ops) : 0;
 
     const auto nvecs = prefetch_all
@@ -981,8 +976,8 @@ void jit_brgemm_amx_uker_base_t::prefetch_A(brgemm_iteration_t &bi,
             : nstl::min(pfo_vecs_per_store, tot_vecs - prf.vec);
 
     for (int iv = 0; iv < nvecs && prf.vec < tot_vecs; iv++) {
-        const auto bdb = prf.vec / pfo_bi.bdi.block(0);
-        const auto bd = prf.vec % pfo_bi.bdi.block(0);
+        const auto bdb = prf.vec / pfo_bi.bdi->block(0);
+        const auto bd = prf.vec % pfo_bi.bdi->block(0);
 
         //TODO: looks like we have to prefetch in each bs separately
         const auto ptr_A = EVEX_compress_addr(
@@ -995,8 +990,8 @@ void jit_brgemm_amx_uker_base_t::prefetch_A(brgemm_iteration_t &bi,
 void jit_brgemm_amx_uker_base_t::prefetch_B(brgemm_iteration_t &bi,
         brgemm_iteration_t &pfo_bi, prf_t &prf, bool prefetch_all) {
 
-    const auto calc_ops = bi.ldi.block2() * bi.bdi.block2();
-    const auto tot_vecs = pfo_bi.ldi.length();
+    const auto calc_ops = bi.ldi->block2() * bi.bdi->block2();
+    const auto tot_vecs = pfo_bi.ldi->length();
     const auto pfo_vecs_per_store = (calc_ops) ? div_up(tot_vecs, calc_ops) : 0;
 
     const auto nvecs = prefetch_all
@@ -1006,8 +1001,8 @@ void jit_brgemm_amx_uker_base_t::prefetch_B(brgemm_iteration_t &bi,
     // TODO: check these addressing for correctness
     for (int iv = 0; iv < nvecs && prf.vec < tot_vecs; iv++) {
 
-        const auto ldb = prf.vec / pfo_bi.rdi.block(0);
-        const auto rb = prf.vec % pfo_bi.rdi.block(0);
+        const auto ldb = prf.vec / pfo_bi.rdi->block(0);
+        const auto rb = prf.vec % pfo_bi.rdi->block(0);
         //TODO: looks like we have to prefetch in each bs separately
         const auto ptr_B = EVEX_compress_addr(
                 reg_B, B_offset(pfo_bi, ldb) + rb * LDB_size_);
@@ -1020,7 +1015,7 @@ void jit_brgemm_amx_uker_base_t::prefetch_B(brgemm_iteration_t &bi,
 void jit_brgemm_amx_uker_base_t::prefetching(
         brgemm_iteration_t &bi, bool prefetch_all) {
     // for var_bs we do prefetch on last iteration by bs only
-    if (brg.brgattr.var_bs && !bi.bsi.is_last) return;
+    if (brg.brgattr.var_bs && !bi.last_bsi) return;
     brgemm_iteration_t pfo_bi;
     if (brg.prfC.dist1 >= 0) {
         bool is_pfo_bi = false;
@@ -1074,11 +1069,11 @@ void jit_brgemm_amx_uker_base_t::process_output_range(
         brgemm_iteration_t &bi, int bd_start, int bd_finish, int bdb, int ldb) {
 
     const auto wsp_offset = (use_ils_ || brg.interleave_tilestores_)
-            ? (bdb * prev_bi_.ldi.block2() + ldb) * prev_bi_.bdi.block(0)
+            ? (bdb * prev_bi_.ldi->block2() + ldb) * prev_bi_.bdi->block(0)
                     * ld_block_C_size_
             : 0;
 
-    const auto k_mask = bi.ldi.is_tail(ldb) ? ld_tail_mask : ld_full_mask;
+    const auto k_mask = bi.ldi->is_tail(ldb) ? ld_tail_mask : ld_full_mask;
 
     // if (brg.is_int8 && alpha_or_beta_applicable && !beta_uses_vadd) ->
     // accumulated values are already converted to ps in apply_alpha_beta()
@@ -1093,19 +1088,19 @@ void jit_brgemm_amx_uker_base_t::process_output_range(
         auto zmm = accm(bd);
         if (!is_out_bd(bi.bdi, bdb, bd)) continue;
 
-        auto vreg_acc = bi.ldi.is_tail(ldb) ? accm(bd) | ld_tail_mask | T_z
-                                            : accm(bd);
+        auto vreg_acc = bi.ldi->is_tail(ldb) ? accm(bd) | ld_tail_mask | T_z
+                                             : accm(bd);
         some_bd_mask = true;
 
         const auto buf_offset = bd * ld_block_C_size_;
         vmovups(vreg_acc, ptr[reg_buf + buf_offset + wsp_offset]);
 
-        const auto c_offset = C_offset(bi, bdb, bd, bi.ldi.pos(ldb));
+        const auto c_offset = C_offset(bi, bdb, bd, bi.ldi->pos(ldb));
         const auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
 
         if (need_to_apply_alpha_beta_)
             apply_alpha_beta_to_vector(
-                    zmm.getIdx(), ptr_C, bi.ldi.is_tail(ldb));
+                    zmm.getIdx(), ptr_C, bi.ldi->is_tail(ldb));
 
         if (!bi.apply_postops) continue;
 
@@ -1231,11 +1226,11 @@ void jit_brgemm_amx_uker_base_t::store_vector(
 
     if (!is_out_bd(bi.bdi, bdb, inp_bd)) return;
 
-    auto vreg_acc = bi.ldi.is_tail(ldb) ? accm(inp_bd) | ld_tail_mask | T_z
-                                        : accm(inp_bd);
+    auto vreg_acc = bi.ldi->is_tail(ldb) ? accm(inp_bd) | ld_tail_mask | T_z
+                                         : accm(inp_bd);
 
-    auto ldb_pos = bi.ldi.pos(ldb);
-    auto is_ld_tail = bi.ldi.is_tail(ldb);
+    auto ldb_pos = bi.ldi->pos(ldb);
+    auto is_ld_tail = bi.ldi->is_tail(ldb);
     const auto c_offset = C_offset(bi, bdb, inp_bd, ldb_pos);
     const auto d_offset = D_offset(bi, bdb, inp_bd, ldb_pos);
 
@@ -1269,7 +1264,7 @@ void jit_brgemm_amx_uker_base_t::interleave_store(
         }
         prepare_post_ops_registers_ldb(prev_bi_, 0);
         ils_bd_start_ = 0;
-        auto bd_finish = nstl::min(ils_bd_step_, prev_bi_.bdi.block(0));
+        auto bd_finish = nstl::min(ils_bd_step_, prev_bi_.bdi->block(0));
         process_output_range(prev_bi_, 0, bd_finish, cur_bdb, cur_ldb);
     }
 
@@ -1277,20 +1272,20 @@ void jit_brgemm_amx_uker_base_t::interleave_store(
     // we use maximum estimation (prev_bi_.bdi.block2() * prev_bi_.bdi.block())
     // to calculate ils_store_ops to avoid error when we didn't store all
     // vectors from tile buffer but it is already overwritten in a new iteration
-    const auto ils_store_ops = prev_bi_.ldi.block2() * prev_bi_.bdi.block2()
-            * prev_bi_.bdi.block(0);
+    const auto ils_store_ops = prev_bi_.ldi->block2() * prev_bi_.bdi->block2()
+            * prev_bi_.bdi->block(0);
     const auto ils_vecs_per_store
             = (calc_ops) ? div_up(ils_store_ops, calc_ops) : 0;
 
     // last bd_block may be bd_tail
-    const auto bdb_row = prev_bi_.bdi.block(0) * prev_bi_.ldi.block2();
-    const auto total_vectors = prev_bi_.bdi.length() * prev_bi_.ldi.block2();
+    const auto bdb_row = prev_bi_.bdi->block(0) * prev_bi_.ldi->block2();
+    const auto total_vectors = prev_bi_.bdi->length() * prev_bi_.ldi->block2();
     const auto nvecs = store_all ? total_vectors : ils_vecs_per_store;
     for (int vec = 0; vec < nvecs && ils_vec_ < total_vectors; vec++) {
         const auto bdb = ils_vec_ / bdb_row;
         const auto vec_in_bdb_row = ils_vec_ - bdb * bdb_row;
-        const auto ldb = vec_in_bdb_row / prev_bi_.bdi.block(bdb);
-        const auto bd = vec_in_bdb_row % prev_bi_.bdi.block(bdb);
+        const auto ldb = vec_in_bdb_row / prev_bi_.bdi->block(bdb);
+        const auto bd = vec_in_bdb_row % prev_bi_.bdi->block(bdb);
 
         if (ldb != cur_ldb) prepare_post_ops_registers_ldb(prev_bi_, ldb);
 
@@ -1298,7 +1293,7 @@ void jit_brgemm_amx_uker_base_t::interleave_store(
                 || rnd_dn(bd, ils_bd_step_) != ils_bd_start_) {
             ils_bd_start_ = rnd_dn(bd, ils_bd_step_);
             auto bd_finish = nstl::min(
-                    ils_bd_start_ + ils_bd_step_, prev_bi_.bdi.block(bdb));
+                    ils_bd_start_ + ils_bd_step_, prev_bi_.bdi->block(bdb));
             process_output_range(prev_bi_, ils_bd_start_, bd_finish, bdb, ldb);
         }
 
@@ -1334,35 +1329,34 @@ void jit_brgemm_amx_uker_base_t::store_accumulators(brgemm_iteration_t &bi) {
     if (store_by_vectors && !use_ils_ && !prepare_post_ops_registers_once_)
         prepare_post_ops_registers(bi);
 
-    for (int bdb = 0; bdb < bi.bdi.block2(); bdb++) {
-        for (int ldb = 0; ldb < bi.ldi.block2(); ldb++) {
-            if (store_by_vectors) {
-                if (!brg.interleave_tilestores_) {
-                    const auto wsp_offset = use_ils_
-                            ? (bdb * bi.ldi.block2() + ldb) * bi.bdi.block(0)
-                                    * ld_block_C_size_
-                            : 0;
-                    tilestored(ptr[reg_buf + reg_stride_ld_block + wsp_offset],
-                            Tmm(get_C_tensor(bi, bdb, ldb)));
-                }
-                if (use_ils_) continue;
-
-                prepare_post_ops_registers_ldb(bi, ldb);
-
-                for (int bd_step = 0; bd_step < bi.bdi.block(bdb);
-                        bd_step += ils_bd_step_) {
-                    auto bd_finish = nstl::min(
-                            bd_step + ils_bd_step_, bi.bdi.block(bdb));
-                    process_output_range(bi, bd_step, bd_finish, bdb, ldb);
-
-                    for (auto bd = bd_step; bd < bd_finish; bd++)
-                        store_vector(bi, bdb, bd, ldb);
-                }
-            } else if (!brg.interleave_tilestores_) {
-                const auto c_offset = C_offset(bi, bdb, 0, bi.ldi.pos(ldb));
-                tilestored(ptr[reg_C + reg_stride_ld_block + c_offset],
+    for_(int bdb = 0; bdb < bi.bdi->block2(); bdb++)
+    for (int ldb = 0; ldb < bi.ldi->block2(); ldb++) {
+        if (store_by_vectors) {
+            if (!brg.interleave_tilestores_) {
+                const auto wsp_offset = use_ils_
+                        ? (bdb * bi.ldi->block2() + ldb) * bi.bdi->block(0)
+                                * ld_block_C_size_
+                        : 0;
+                tilestored(ptr[reg_buf + reg_stride_ld_block + wsp_offset],
                         Tmm(get_C_tensor(bi, bdb, ldb)));
             }
+            if (use_ils_) continue;
+
+            prepare_post_ops_registers_ldb(bi, ldb);
+
+            for (int bd_step = 0; bd_step < bi.bdi->block(bdb);
+                    bd_step += ils_bd_step_) {
+                auto bd_finish
+                        = nstl::min(bd_step + ils_bd_step_, bi.bdi->block(bdb));
+                process_output_range(bi, bd_step, bd_finish, bdb, ldb);
+
+                for (auto bd = bd_step; bd < bd_finish; bd++)
+                    store_vector(bi, bdb, bd, ldb);
+            }
+        } else if (!brg.interleave_tilestores_) {
+            const auto c_offset = C_offset(bi, bdb, 0, bi.ldi->pos(ldb));
+            tilestored(ptr[reg_C + reg_stride_ld_block + c_offset],
+                    Tmm(get_C_tensor(bi, bdb, ldb)));
         }
     }
 }
@@ -1446,8 +1440,8 @@ void jit_brgemm_amx_uker_base_t::maybe_tileloadd_nt(
     const bool is_A = mk == matrix_kind_t::matrix_A;
     bool load_nt = is_A ? brg.load_nt_A : brg.load_nt_B;
 
-    auto t1 = Tmm(is_A ? brg.get_A_tensor(xdb, bi.bdi.is_tail(xdb))
-                       : brg.get_B_tensor(xdb, bi.ldi.is_tail(xdb)));
+    auto t1 = Tmm(is_A ? brg.get_A_tensor(xdb, bi.bdi->is_tail(xdb))
+                       : brg.get_B_tensor(xdb, bi.ldi->is_tail(xdb)));
     auto reg_base = is_A ? reg_A : reg_B;
     auto reg_stride = is_A ? reg_stride_lda : reg_stride_ldb;
 
@@ -1470,41 +1464,40 @@ void jit_brgemm_amx_uker_base_t::maybe_tilestore(brgemm_iteration_t &bi,
     const auto current_tensor_number
             = current_tensor_idx - get_C_tensor(bi, 0, 0);
     const auto store_tensor_shift
-            = do_pre_tilestore ? (bi.bdi.block2() == 1 ? 2 : 1) : 0;
+            = do_pre_tilestore ? (bi.bdi->block2() == 1 ? 2 : 1) : 0;
     const auto store_tensor_idx = current_tensor_idx + store_tensor_shift;
     const auto store_tensor_number = current_tensor_number + store_tensor_shift;
 
-    const auto max_store_tensor_number
-            = prev_bi_.bdi.block2() * prev_bi_.ldi.block2();
+    const auto &store_bi = do_pre_tilestore ? prev_bi_ : bi;
+    const int max_store_tensor_number
+            = store_bi.bdi->blocks.size() * store_bi.ldi->blocks.size();
     bool perform_store
             = (do_pre_tilestore
                       && (store_tensor_number >= 2
                               && store_tensor_number < max_store_tensor_number))
             || (do_post_tilestore && (store_tensor_number < 2));
 
-    if (perform_store) {
-        if (do_pre_tilestore) {
-            bdb_idx = store_tensor_idx / bi.ldi.block2();
-            ldb_idx = store_tensor_idx % bi.ldi.block2();
-        }
-        const bool store_by_vectors = get_store_by_vectors(bi.apply_postops);
-        Tmm acc = Tmm(store_tensor_idx);
-        if (store_by_vectors) {
-            const auto wsp_offset = (use_ils_ || brg.interleave_tilestores_)
-                    ? (bdb_idx * bi.ldi.block2() + ldb_idx) * bi.bdi.block(0)
-                            * ld_block_C_size_
-                    : 0;
-            tilestored(ptr[reg_buf + reg_stride_ld_block + wsp_offset], acc);
-        } else {
-            const auto &store_inp_bi = do_pre_tilestore ? prev_bi_ : bi;
-            const auto store_ldb_ind
-                    = do_pre_tilestore ? prev_bi_.ldi.pos(0) : bi.ldi.pos(0);
-            const auto c_offset = C_offset(
-                    store_inp_bi, bdb_idx, 0, store_ldb_ind + ldb_idx);
-            tilestored(ptr[reg_C + reg_stride_ld_block + c_offset], acc);
-        }
-        tilezero(acc);
+    if (!perform_store) return;
+    if (do_pre_tilestore) {
+        bdb_idx = store_tensor_idx / bi.ldi->block2();
+        ldb_idx = store_tensor_idx % bi.ldi->block2();
     }
+    const bool store_by_vectors = get_store_by_vectors(bi.apply_postops);
+    Tmm acc = Tmm(store_tensor_idx);
+    if (store_by_vectors) {
+        const auto wsp_offset = (use_ils_ || brg.interleave_tilestores_)
+                ? (bdb_idx * bi.ldi->block2() + ldb_idx) * bi.bdi->block(0)
+                        * ld_block_C_size_
+                : 0;
+        tilestored(ptr[reg_buf + reg_stride_ld_block + wsp_offset], acc);
+    } else {
+        const auto store_ldb_ind
+                = do_pre_tilestore ? prev_bi_.ldi->pos(0) : bi.ldi->pos(0);
+        const auto c_offset
+                = C_offset(store_bi, bdb_idx, 0, store_ldb_ind + ldb_idx);
+        tilestored(ptr[reg_C + reg_stride_ld_block + c_offset], acc);
+    }
+    tilezero(acc);
 }
 
 void jit_brgemm_amx_uker_base_t::tdpbxxd(brgemm_iteration_t &bi, int bdb_idx,
@@ -1513,8 +1506,8 @@ void jit_brgemm_amx_uker_base_t::tdpbxxd(brgemm_iteration_t &bi, int bdb_idx,
     maybe_tilestore(bi, bdb_idx, ldb_idx, do_pre_tilestore, false);
 
     const Tmm &x1 = Tmm(get_C_tensor(bi, bdb_idx, ldb_idx));
-    const Tmm &x2 = Tmm(brg.get_A_tensor(bdb_idx, bi.bdi.is_tail(bdb_idx)));
-    const Tmm &x3 = Tmm(brg.get_B_tensor(ldb_idx, bi.ldi.is_tail(ldb_idx)));
+    const Tmm &x2 = Tmm(brg.get_A_tensor(bdb_idx, bi.bdi->is_tail(bdb_idx)));
+    const Tmm &x3 = Tmm(brg.get_B_tensor(ldb_idx, bi.ldi->is_tail(ldb_idx)));
 
     if (brg.is_bf32
             || (brg.dt_a == data_type::bf16 && brg.dt_b == data_type::bf16)) {
@@ -1541,7 +1534,7 @@ void jit_brgemm_amx_uker_base_t::tdpbxxd(brgemm_iteration_t &bi, int bdb_idx,
 void jit_brgemm_amx_uker_base_t::bf32_downconvert(brgemm_iteration_t &bi,
         int num_rows, int tile_num_col_bytes, reg64_t reg_data, int offset,
         reg64_t reg_data_stride, reg64_t reg_buf) {
-    const auto rd_block = bi.rdi.block(0);
+    const auto rd_block = bi.rdi->block(0);
     const auto max_num_cols
             = nstl::min<int>(tile_num_col_bytes / sizeof(bfloat16_t), rd_block);
     const auto col_tail = max_num_cols % simd_w;
@@ -1612,7 +1605,7 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert_to_vnni(
     const auto reg_data_aux = reg_tmp_gpr;
     lea(reg_data_aux, ptr[reg_data + offset]);
 
-    const auto rd_block = bi.rdi.block(0);
+    const auto rd_block = bi.rdi->block(0);
     const int vnni_granularity
             = data_type_vnni_granularity(data_type_t::dnnl_bf16);
     const auto r_end
@@ -1670,7 +1663,7 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
                                     * max_bdb2 * max_rdb));
     const auto matrix_offset = is_A ? matrix_a_offset : matrix_b_offset;
     const std::string key
-            = std::to_string(bi.bsi.pos) + "_" + std::to_string(offset);
+            = std::to_string(bi.bsi->pos) + "_" + std::to_string(offset);
 
     if (transform_buf.find(key) != transform_buf.end()) {
         auto buf_idx = transform_buf[key];
@@ -1716,39 +1709,39 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(brgemm_iteration_t &bi) {
 
     const auto store_by_vectors = get_store_by_vectors(bi.apply_postops);
 
-    bool do_post_tilestore = (brg.interleave_tilestores_ && bi.bsi.is_last
+    bool do_post_tilestore = (brg.interleave_tilestores_ && bi.last_bsi
             && imap_.is_last_rdi(bi.rdi));
 
-    bool do_pre_tilestore = (brg.interleave_tilestores_ && bi.bsi.is_first
-            && bi.rdi.pos(0) == 0 && was_prev_bi_);
+    bool do_pre_tilestore = (brg.interleave_tilestores_ && bi.first_bsi
+            && bi.rdi->pos(0) == 0 && was_prev_bi_);
 
     if (store_by_vectors)
         mov(reg_stride_ld_block, ld_block_C_size_);
     else
         mov(reg_stride_ld_block, LDC_size_);
 
-    for (int bdb = 0; bdb < bi.bdi.block2(); bdb++) {
+    for (int bdb = 0; bdb < bi.bdi->block2(); bdb++) {
         maybe_tileloadd_nt(bi, matrix_kind_t::matrix_A, bdb, A_offset(bi, bdb));
-        for (int ldb = 0; ldb < bi.ldi.block2(); ldb++) {
+        for (int ldb = 0; ldb < bi.ldi->block2(); ldb++) {
             if (bdb == 0)
                 maybe_tileloadd_nt(
                         bi, matrix_kind_t::matrix_B, ldb, B_offset(bi, ldb));
             if (ldb == 0) {
                 if (bdb > 0)
-                    tdpbxxd(bi, bdb - 1, bi.ldi.block2() - 1, do_pre_tilestore,
+                    tdpbxxd(bi, bdb - 1, bi.ldi->block2() - 1, do_pre_tilestore,
                             do_post_tilestore);
             } else
                 tdpbxxd(bi, bdb, ldb - 1, do_pre_tilestore, do_post_tilestore);
         }
     }
     // last tdpbxxd
-    tdpbxxd(bi, bi.bdi.block2() - 1, bi.ldi.block2() - 1, do_pre_tilestore,
+    tdpbxxd(bi, bi.bdi->block2() - 1, bi.ldi->block2() - 1, do_pre_tilestore,
             do_post_tilestore);
 }
 
 void jit_brgemm_amx_uker_base_t::rdb_loop(brgemm_iteration_t &bi) {
     for (size_t irdi = 0; irdi < imap_.rdis.size(); irdi++) {
-        bi.rdi = imap_.rdis[irdi];
+        bi.rdi = &(imap_.rdis[irdi]);
         gemm_microkernel_amx(bi);
     }
 }
@@ -1759,7 +1752,7 @@ void jit_brgemm_amx_uker_base_t::bs_loop_body(brgemm_iteration_t &bi) {
         add(reg_aux1_batch, sizeof(brgemm_batch_element_t));
         prefetcht0(ptr[reg_aux1_batch]);
     } else {
-        set_A_B_matrices(bi.bsi.pos);
+        set_A_B_matrices(bi.bsi->pos);
     }
 
     rdb_loop(bi);
@@ -1783,17 +1776,17 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
             cmp(reg_BS_loop, 1);
             jg(first_BS_loop_label, T_NEAR);
 
-            bi.bsi = imap_.bsis[0];
+            bi.bsi = &(imap_.bsis[0]);
             // only one BS iteration: first and last
-            bi.bsi.is_first = true;
-            bi.bsi.is_last = true;
+            bi.first_bsi = true;
+            bi.last_bsi = true;
             bs_loop_body(bi);
             jmp(end_BS_loop_label, T_NEAR);
 
             // first BS iteration
             L_aligned(first_BS_loop_label, 64);
-            bi.bsi.is_first = true;
-            bi.bsi.is_last = false;
+            bi.first_bsi = true;
+            bi.last_bsi = false;
             bs_loop_body(bi);
 
             dec(reg_BS_loop);
@@ -1803,8 +1796,8 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
             // middle BS iterations
             L_aligned(BS_loop_label, 64);
             {
-                bi.bsi.is_first = false;
-                bi.bsi.is_last = false;
+                bi.first_bsi = false;
+                bi.last_bsi = false;
                 bs_loop_body(bi);
                 dec(reg_BS_loop);
                 cmp(reg_BS_loop, 1);
@@ -1812,8 +1805,8 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
             }
             // last BS iteration
             L_aligned(last_BS_loop_label, 64);
-            bi.bsi.is_first = false;
-            bi.bsi.is_last = true;
+            bi.first_bsi = false;
+            bi.last_bsi = true;
             bs_loop_body(bi);
 
             L_aligned(end_BS_loop_label, 64);
@@ -1822,7 +1815,9 @@ void jit_brgemm_amx_uker_base_t::bs_loop(brgemm_iteration_t &bi) {
     } else {
         if (brg.alpha != 0.f) {
             for (int bs = 0; bs < brg.brgattr.max_bs; bs++) {
-                bi.bsi = imap_.bsis[bs];
+                bi.bsi = &(imap_.bsis[bs]);
+                bi.first_bsi = bi.bsi->is_first;
+                bi.last_bsi = bi.bsi->is_last;
                 bs_loop_body(bi);
             }
         }
@@ -1844,7 +1839,7 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(brgemm_iteration_t &bi) {
     // we move to next bdb2 block.
     transform_buf_map_A_.clear();
     for (size_t ildi = 0; ildi < imap_.ldis.size(); ildi++) {
-        bi.ldi = imap_.ldis[ildi];
+        bi.ldi = &(imap_.ldis[ildi]);
         ldb_loop_body(bi);
     }
 }
@@ -1860,7 +1855,7 @@ void jit_brgemm_amx_uker_base_t::bdb_loop_body(brgemm_iteration_t &bi) {
 
 void jit_brgemm_amx_uker_base_t::bdb_loop(brgemm_iteration_t &bi) {
     for (size_t ibdi = 0; ibdi < imap_.bdis.size(); ibdi++) {
-        bi.bdi = imap_.bdis[ibdi];
+        bi.bdi = &(imap_.bdis[ibdi]);
         bdb_loop_body(bi);
     }
 }
@@ -1876,9 +1871,11 @@ void jit_brgemm_amx_uker_base_t::top_loop(brgemm_iteration_t &bi) {
 
     // bi is last iteration now
     if (brg.interleave_tilestores_) {
-        for_(int bdb = 0; bdb < bi.bdi.block2(); bdb++)
-        for (int ldb = 0; ldb < bi.ldi.block2(); ldb++) {
-            maybe_tilestore(bi, bdb, ldb, true, false);
+        prev_bi_ = bi;
+        was_prev_bi_ = true;
+        for_(int bdb = 0; bdb < prev_bi_.bdi->block2(); bdb++)
+        for (int ldb = 0; ldb < prev_bi_.ldi->block2(); ldb++) {
+            maybe_tilestore(prev_bi_, bdb, ldb, true, false);
         }
     }
 
@@ -2025,18 +2022,18 @@ void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
     } else if (brg.ldb2 == 1) {
         if (brg.ldb2_tail == 0 && brg.ldb_tail == 0) {
             prepare_post_ops_registers_once_ = true;
-            bi.ldi = imap_.ldis[0];
+            bi.ldi = &(imap_.ldis[0]);
             prepare_post_ops_registers(bi);
         }
     } else if (brg.ldb2_tail > 0) {
         if (brg.ldb_tail == 0) {
             prepare_post_ops_registers_once_ = true;
-            bi.ldi = imap_.ldis[0];
+            bi.ldi = &(imap_.ldis[0]);
             prepare_post_ops_registers(bi);
         }
     } else {
         prepare_post_ops_registers_once_ = true;
-        bi.ldi = imap_.ldis[0];
+        bi.ldi = &(imap_.ldis[0]);
         prepare_post_ops_registers(bi);
     }
     if (bi.apply_postops)
