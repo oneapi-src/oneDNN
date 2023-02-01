@@ -602,6 +602,8 @@ size_t dnnl_data_type_size(dnnl_data_type_t data_type) {
 
 status_t dnnl_memory_desc_query(
         const memory_desc_t *md, query_t what, void *result) {
+    if (any_null(md, result)) return invalid_arguments;
+
     const bool is_blocked = md->format_kind == format_kind::blocked;
 
     switch (what) {
@@ -648,6 +650,7 @@ status_t dnnl_memory_desc_query(
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 status_t dnnl_memory_desc_query_v2(
         const memory_desc_t *md, query_t what, int index, void *result) {
+    if (any_null(md, result)) return invalid_arguments;
     const bool is_sparse = md->format_kind == format_kind::sparse;
     if ((!is_sparse && index > 0)
             || (is_sparse && index > 0 && what != query::data_type))
