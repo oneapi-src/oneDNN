@@ -86,7 +86,7 @@ void jit_engine_t::set_target_machine(
 #if SC_LLVM_BACKEND <= 8
             tm.cpu_flags_.fAVX512BF16 = false;
 #endif
-#if SC_LLVM_BACKEND >= 11
+#if SC_LLVM_BACKEND >= 12
             sc_flags.jit_support_amx_intrinsics_ = true;
 #else
             sc_flags.jit_support_amx_intrinsics_ = false;
