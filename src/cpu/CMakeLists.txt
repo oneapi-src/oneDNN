@@ -115,9 +115,5 @@ if (DNNL_TARGET_ARCH STREQUAL "PPC64")
 endif()
 
 if (DNNL_TARGET_ARCH STREQUAL "RV64")
-    if(DNNL_RISCV_USE_RVV)
-        add_definitions(-DDNNL_RISCV_USE_RVV)
-    endif()
-
     add_subdirectory(rv64)
 endif()

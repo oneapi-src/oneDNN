@@ -19,8 +19,7 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
 )
 
-message(STATUS DNNL_RISCV_USE_RVV: ${DNNL_RISCV_USE_RVV})
-if(NOT DNNL_RISCV_USE_RVV)
+if(NOT DNNL_RISCV_USE_RVV_INTRINSICS)
     # Do not compile RISC-V implementations optimized with RVV intrinsics
     list(FILTER SOURCES EXCLUDE REGEX "rvv_*")
 

@@ -34,10 +34,10 @@ using namespace dnnl::impl::cpu::aarch64;
 #include "cpu/aarch64/acl_pooling.hpp"
 #endif // DNNL_AARCH64_USE_ACL
 #elif DNNL_RV64
-#if DNNL_RISCV_USE_RVV
+#if DNNL_RISCV_USE_RVV_INTRINSICS
 #include "cpu/rv64/rvv_nchw_pooling.hpp"
 using namespace dnnl::impl::cpu::rv64;
-#endif // DNNL_RISCV_USE_RVV
+#endif // DNNL_RISCV_USE_RVV_INTRINSICS
 #endif
 
 namespace dnnl {
