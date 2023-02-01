@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2021 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,8 +83,8 @@ struct exec_ctx_t {
 
     void register_memory_mapping(void *handle, void *host_ptr);
 
-    void *host_ptr(
-            int arg, bool do_zeropad = false, status_t *status = nullptr) const;
+    void *host_ptr(int arg, bool do_zeropad = false, status_t *status = nullptr,
+            int index = 0) const;
     void *host_ptr(const memory_storage_t *mem_storage) const;
 
     void *map_memory_storage(const memory_storage_t *storage, stream_t *stream,

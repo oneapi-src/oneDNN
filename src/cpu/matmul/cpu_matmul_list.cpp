@@ -22,6 +22,7 @@
 #include "cpu/matmul/gemm_x8s8s32x_matmul.hpp"
 #include "cpu/matmul/ref_matmul.hpp"
 #include "cpu/matmul/ref_matmul_int8.hpp"
+#include "cpu/matmul/ref_sparse_matmul.hpp"
 
 #if DNNL_X64
 #include "cpu/x64/matmul/brgemm_matmul.hpp"
@@ -42,6 +43,15 @@ namespace {
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::cpu::matmul;
 
+// Some compilers do not allow guarding implementations with macros
+// in the impl list.
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+constexpr auto ref_sparse_matmul_impl = impl_list_item_t(
+        impl_list_item_t::type_deduction_helper_t<ref_sparse_matmul_t::pd_t>());
+#else
+constexpr auto ref_sparse_matmul_impl = nullptr;
+#endif
+
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_MATMUL_P({
         CPU_INSTANCE_AARCH64_ACL(acl_matmul_t)
@@ -59,6 +69,7 @@ constexpr impl_list_item_t impl_list[] = REG_MATMUL_P({
         CPU_INSTANCE_AVX512(brgemm_matmul_t<avx512_core_fp16>)
         CPU_INSTANCE(ref_matmul_t)
         CPU_INSTANCE(ref_matmul_int8_t)
+        ref_sparse_matmul_impl,
         /* eol */
         nullptr,
 });
