@@ -156,8 +156,12 @@ public:
     void create_output_fusion_anchor(const std::vector<tensor_slice> &src,
             const std::vector<tensor_slice> &dst = {});
 
+    std::vector<fuse_anchor_t> input_anchor_list_;
+    void create_input_fusion_anchor(const std::vector<tensor_slice> &dst,
+            const std::vector<tensor_slice> &src = {});
+
     std::vector<iter_fuse_anchor_t> iter_anchor_list_;
-    void create_iterated_fusion_anchor(expr iter, expr tsr,
+    void create_output_fusion_anchor(expr iter, expr tsr,
             slice_range_list slice_list, stmt dispatch_helper = stmt());
 
     // clear anchor and reset their status.
@@ -189,6 +193,9 @@ public:
 
     std::vector<std::pair<stmts, std::unordered_map<expr, slice_range_list>>>
     unpack_src_anchor();
+    std::vector<std::pair<stmts, std::unordered_map<expr, slice_range_list>>>
+    unpack_dst_anchor();
+
     /**
      * transform the graph if necessary before really committing code
      * @param has_main_op if the fusion happens after another main op

@@ -674,7 +674,6 @@ bool gen_nested_conv1x1_backprop_data_t::generate(context_ptr ctx,
   } else {
     return false; // TODO(zhangyan): support reduction on OC axis
   }
-
   loops = {};
   return true;
 }

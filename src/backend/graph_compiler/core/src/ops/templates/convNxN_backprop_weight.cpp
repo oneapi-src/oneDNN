@@ -236,7 +236,7 @@ bool gen_convNxN_backprop_weight::generate_reduce_N(const context_ptr &ctx,
     _named_for_(ln, n_o, 0, N_num_block, 1, for_type::PARALLEL) {
       _named_for_(lk, k_o, 0, K_num_block) {
         _named_for_(lc, c_o, 0, C_num_block) {
-          // p_o here shall not be merged; set as temp.loop_no_fuse in the end
+          // p_o here shall not be merged; set as temp.no_loop_fuse in the end
           _named_for_(lp, p_o, 0, P) {
             _if_(p_o * stride_h + R > padding_h
               && p_o * stride_h < H + padding_h) {
@@ -370,7 +370,7 @@ bool gen_convNxN_backprop_weight::generate_reduce_N(const context_ptr &ctx,
       loops = {ln, lk, lc, lr, ls};
     }
   }
-  lp->attr().set("temp.loop_no_fuse", true);
+  lp->attr().set(stmt_attr_key::no_loop_fuse, true);
   return true;
 }
 

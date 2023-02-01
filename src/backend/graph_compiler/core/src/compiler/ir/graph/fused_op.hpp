@@ -193,8 +193,7 @@ public:
     get_inplace_map() override;
 };
 
-void schedule_loop_body(
-        const stmt &body, std::unordered_map<expr, expr> *expr_remap = nullptr);
+void schedule_loop_body(const stmt &body, node_ptr_map *node_remap = nullptr);
 } // namespace sc
 
 #endif

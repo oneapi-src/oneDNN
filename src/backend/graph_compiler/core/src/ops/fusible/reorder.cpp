@@ -148,7 +148,6 @@ reorder_op_t::reorder_op_t(const std::vector<graph_tensor_ptr> &ins,
         if (use_output_loop()) {
             attrs_.set(op_attr_key::break_pre_fuse, true);
         }
-        if (check_padding()) { attrs_.set(op_attr_key::break_post_fuse, true); }
     }
     // currently we don't fuse reorder in dynamic as it should query next op.
     if (is_dynamic()) {
@@ -800,21 +799,23 @@ void reorder_op_t::infer_slice_ranges(
 
     slice_range_list reorder_ranges_list;
 
-    infer_reorder_slice(
-            input_slice_list, input_format, output_format, reorder_ranges_list);
+    // infer reorder slice only makes sense for non-padding cases in new fusion
+    // mgr
+    if (is_dynamic() || !check_padding()) {
+        infer_reorder_slice(input_slice_list, input_format, output_format,
+                reorder_ranges_list);
+    }
+
+    // TODO(yunfei) remove this if scope when old fusion mgr is deprecated
     if (reorder_ranges_list.empty()) {
         for (auto &user : get_outputs()[0]->uses_) {
             if (user.second->isa<output_op>()) {
                 continue;
-            } else {
-                if (stat_map.is_recursive_mode()) {
-                    user.second->attrs_.set(op_attr_key::fused_mode_hint,
-                            op_attr_key::break_pre_fuse);
-                    stat_map.append_ops_by_status(
-                            user.second.get(), infer_status_code::FAIL);
-                } else {
-                    user.second->attrs_.set(op_attr_key::break_pre_fuse, true);
-                }
+            } else if (stat_map.is_recursive_mode() && !check_padding()) {
+                user.second->attrs_.set(op_attr_key::fused_mode_hint,
+                        op_attr_key::break_pre_fuse);
+                stat_map.append_ops_by_status(
+                        user.second.get(), infer_status_code::FAIL);
                 return;
             }
         }
@@ -835,9 +836,14 @@ void reorder_op_t::pre_slice_ranges(
         return;
     }
     if (fsmap.get(get_inputs()[0]).empty()) {
+        if (check_padding()) {
+            if (!use_output_loop() || stat_map.is_recursive_mode()) {
+                stat_map.append_ops_by_status(this, infer_status_code::RETRY);
+            }
+            return;
+        }
         slice_range_list known_ranges_list = fsmap.get(get_outputs()[0]);
         slice_range_list input_slice_list;
-
         infer_reorder_slice(known_ranges_list, get_output_format(),
                 get_input_format(), input_slice_list);
         if (input_slice_list.size() != 1 || !support_output_loop()) {

@@ -51,19 +51,19 @@ constexpr const char *retried_graph = "retried_graph";
 
 class mxp_replacer_t : public ir_inplace_visitor_t {
 private:
-    std::unordered_map<expr, expr> expr_map_;
+    node_ptr_map node_remap_;
 
 public:
-    mxp_replacer_t(std::unordered_map<expr, expr> &expr_map)
-        : expr_map_(expr_map) {}
+    mxp_replacer_t(node_ptr_map &node_remap) : node_remap_(node_remap) {}
 
     using ir_inplace_visitor_t::dispatch_impl;
     using ir_inplace_visitor_t::visit_impl;
     expr visit_impl(var v) override {
-        auto itr = expr_map_.find(v);
-        if (itr != expr_map_.end()) {
+        auto itr = node_remap_.find(v.impl);
+        if (itr != node_remap_.end()) {
             changed_ = true;
-            return itr->second;
+            return static_cast<expr_base *>(itr->second.get())
+                    ->node_ptr_from_this();
         }
         return v;
     }
@@ -81,12 +81,29 @@ public:
                     shrink_info.shape_, _new_expr);
         }
 
-        auto itr = expr_map_.find(v);
-        if (itr != expr_map_.end()) {
+        auto itr = node_remap_.find(v.impl);
+        if (itr != node_remap_.end()) {
             changed_ = true;
-            return itr->second;
+            return static_cast<expr_base *>(itr->second.get())
+                    ->node_ptr_from_this();
         }
         return v;
+    }
+
+    stmt visit_impl(for_loop v) override {
+        // redirect reduce_root_loop if necessary
+        if (v->attr_) {
+            if (auto praw = v->attr_->get_or_null<std::weak_ptr<stmt_base_t>>(
+                        stmt_attr_key::reduce_root_loop)) {
+                auto raw = praw->lock();
+                COMPILE_ASSERT(raw, "reduce_root_loop weak ptr invalidated");
+                auto itr = node_remap_.find(raw);
+                if (itr != node_remap_.end()) {
+                    *praw = std::static_pointer_cast<stmt_base_t>(itr->second);
+                }
+            }
+        }
+        return ir_inplace_visitor_t::visit_impl(v);
     }
 
     void replace_func(func_t &func) {
@@ -99,7 +116,7 @@ struct mxp_buffer_allocator {
     gt2buf_map g2b_map_; // record graph tensor to ir tensor/tensorptr
             // mapping(maybe n-to-one)
     std::unordered_map<expr, fuse_anchor_map_ptr>
-            tsr_anch_map_; // real tensor-to-anchor mapping
+            tsr2anch_map_; // real tensor-to-anchor mapping
     std::unordered_map<expr, graph_tensor_ptr>
             b2g_map_; // buffer-to-gt mapping(one-to-one)
 
@@ -283,6 +300,14 @@ struct mixed_parti_t : fusion_partition_t {
         return static_cast<mixed_parti_t *>(fusion_partition_t::get_root());
     }
 
+    size_t get_ops_size() const { return get_root()->ops.size(); }
+
+    sc_op_ptr get_ith_op(size_t ith) const {
+        COMPILE_ASSERT(ith < get_root()->committed_ops_.size(),
+                "Could not get " << ith << "-th op")
+        return get_root()->committed_ops_[ith];
+    }
+
     // get outer loops of which body(stmts) contains only one stmt or two with
     // the second one is empty fanchor
     std::vector<for_loop> get_outer_loops(
@@ -305,7 +330,8 @@ struct mixed_parti_t : fusion_partition_t {
             const fuse_anchor_map_ptr &parent_fanchor) const;
 
     // get anchor inside given loop
-    fuse_anchor_map_ptr get_anchor_inside_loop(const for_loop &loop) const;
+    fuse_anchor_map_ptr get_anchor_inside_loop(
+            const for_loop &loop, bool input_anchor = false) const;
 
     /// get next inner loop including anchor
     for_loop get_next_inner_loop_with_anchor(const for_loop &cur_loop,
@@ -352,6 +378,12 @@ struct mixed_parti_t : fusion_partition_t {
         }
         return cnt;
     }
+
+    // query partition whether contains input fusion anchor
+    bool contain_input_anchor() const;
+
+    // query partition whether is constant partition
+    bool is_const_parti() const;
 
     // query partition whether contains op with given type
     template <typename T>
@@ -405,7 +437,7 @@ size_t get_buffer_usage_from_trace(
         const std::vector<memory_optim::memory_alloc_trace_t> &mem_trace,
         const context_ptr &ctx);
 
-bool need_optimize_loop_order_for_ops(
+bool need_optimize_loop_order_for_parti(
         const mixed_parti_t *parti, bool allow_tensorview = false);
 
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph);

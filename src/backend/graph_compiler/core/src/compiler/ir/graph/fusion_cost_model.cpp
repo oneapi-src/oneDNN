@@ -82,8 +82,8 @@ bool fusion_cost_model::make_decision_for_parti(const mixed_parti_t *parti,
     COMPILE_ASSERT(merge_kind == parti_merge_kind::vertical,
             "No cost metric found for parallel merge")
     // in avoid of loss for loop optimize opportunity
-    if (need_optimize_loop_order_for_ops(binded_mxp_, true)
-            ^ need_optimize_loop_order_for_ops(parti, true)) {
+    if (need_optimize_loop_order_for_parti(binded_mxp_, true)
+            ^ need_optimize_loop_order_for_parti(parti, true)) {
         return false;
     }
 
@@ -137,6 +137,8 @@ bool fusion_cost_model::make_decision_for_op(
     // auto skip
     if (!binded_mxp_->contain_tunable_op() && !op->isa<tunable_op_t>())
         return true;
+    // skip nested parallel for
+    if (binded_mxp_->contain_nested_parallel_for()) return true;
     auto orig_loop_parallelism
             = evaluate_loop_parallel_balance(binded_mxp_->get_outer_loops());
 

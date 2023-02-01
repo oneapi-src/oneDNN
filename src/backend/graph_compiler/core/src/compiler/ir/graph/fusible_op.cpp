@@ -100,15 +100,12 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
     // if last fanchor used, mark break post fusion, otherwise remove the last
     // fanchor
     if (parti->lookup_anchor_map(this) == parti->fanchors_.back()) {
-        attrs_.set(op_attr_key::break_post_fuse, true);
         for (auto iter = parti->fanchors_.begin();
                 iter < parti->fanchors_.end(); iter++) {
             if (iter == (parti->fanchors_.end() - 1)) continue;
             parti->clear_fanchor(*iter);
         }
         auto last_anchor = parti->fanchors_.back();
-        parti->fanchors_.clear();
-        parti->fanchors_ = {last_anchor};
         // clear invalid IR
         auto parent_scope = last_anchor->get_parent_scope();
         for (auto iter = parent_scope->seq_.begin();
@@ -116,6 +113,11 @@ void fusible_op_t::create_mixed_partition(mixed_parti_t *parti) {
             if ((*iter).ptr_same(last_anchor->anchor_position_)) continue;
             parent_scope->seq_.erase(iter);
         }
+        // clear all fanchor in void of post op fusion
+        parti->fanchors_.clear();
+        // remove all field related to anchor
+        parti->op_anchor_map_.erase(this);
+        parti->buf_alloc_.tsr2anch_map_.clear();
     } else {
         parti->clear_fanchor(parti->fanchors_.back());
         parti->fanchors_.pop_back();
@@ -206,33 +208,34 @@ void fusible_op_t::commit_into_anchor(mixed_parti_t *parti) {
     std::tie(in_tsrs, out_tsrs) = parti->buf_alloc_.get_buffer(this);
     std::vector<std::vector<tensor_slice>> inputs(in_tsrs.size()),
             outputs(out_tsrs.size());
-
+    auto ths = this;
+    auto wrap_tsr2tsl_ = [&ths](const expr &tsr,
+                                 const slice_range_list &range_list) {
+        std::vector<tensor_slice> multi_tsl;
+        if (!range_list.empty()) {
+            for (auto &range : range_list) {
+                multi_tsl.emplace_back(tensor_slice(tsr, slice_range(range)));
+            }
+        } else {
+            COMPILE_ASSERT(ths->isa<reorder_op_t>(),
+                    "only reorder op support this case, but got "
+                            << ths->op_name_)
+            multi_tsl.emplace_back(tensor_slice(tsr));
+        }
+        return multi_tsl;
+    };
     auto committed_anchor = parti->lookup_anchor_map(this);
     std::transform(get_inputs().begin(), get_inputs().end(), in_tsrs.begin(),
             inputs.begin(),
-            [&committed_anchor](const graph_tensor_ptr &gt, const expr &tsr) {
-                std::vector<tensor_slice> multi_tsl;
-                for (auto &range : committed_anchor->fsmap_.get(gt)) {
-                    multi_tsl.emplace_back(
-                            tensor_slice(tsr, slice_range(range)));
-                }
-                return multi_tsl;
+            [&wrap_tsr2tsl_, &committed_anchor](
+                    const graph_tensor_ptr &gt, const expr &tsr) {
+                return wrap_tsr2tsl_(tsr, committed_anchor->fsmap_.get(gt));
             });
     std::transform(get_outputs().begin(), get_outputs().end(), out_tsrs.begin(),
             outputs.begin(),
-            [&committed_anchor](const graph_tensor_ptr &gt, const expr &tsr) {
-                std::vector<tensor_slice> multi_tsl;
-                if (!committed_anchor->fsmap_.get(gt).empty()) {
-                    for (auto &range : committed_anchor->fsmap_.get(gt)) {
-                        multi_tsl.emplace_back(
-                                tensor_slice(tsr, slice_range(range)));
-                    }
-                } else {
-                    COMPILE_ASSERT(gt->producer_owner_->isa<reorder_op_t>(),
-                            "only reorder op support this case")
-                    multi_tsl.emplace_back(tensor_slice(tsr));
-                }
-                return multi_tsl;
+            [&wrap_tsr2tsl_, &committed_anchor](
+                    const graph_tensor_ptr &gt, const expr &tsr) {
+                return wrap_tsr2tsl_(tsr, committed_anchor->fsmap_.get(gt));
             });
     auto in_slice_size = inputs[0].size();
     COMPILE_ASSERT(in_slice_size, "No input slice found for " << op_name_);

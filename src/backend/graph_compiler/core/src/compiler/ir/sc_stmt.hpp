@@ -72,6 +72,9 @@ constexpr const char *no_post_barrier = "no_post_barrier";
 
 // Bound_axis. Give the hint of axis binding for loop
 constexpr const char *loop_axis_hint = "loop_axis_hint";
+
+// Boolean. If true, the certain loop could not be fused.
+constexpr const char *no_loop_fuse = "no_loop_fuse";
 }; // namespace stmt_attr_key
 
 std::ostream &operator<<(std::ostream &os, sc_stmt_type val);
@@ -277,6 +280,10 @@ public:
 using define = node_ptr<define_node_t, stmt_base_t>;
 using define_c = node_ptr<const define_node_t, stmt_base_t>;
 
+// the mapping of node pointer: either stmt or expr node
+using node_ptr_map = std::unordered_map<std::shared_ptr<node_base>,
+        std::shared_ptr<node_base>>;
+
 /**
  * The types of for-loops
  * */
@@ -347,8 +354,7 @@ public:
      * @param block the length of the inner loop
      * @return the for_loop node_ptr of the inner loop
      * */
-    ptr_type split(int64_t block,
-            std::unordered_map<expr, expr> *expr_remap = nullptr);
+    ptr_type split(int64_t block, node_ptr_map *node_remap = nullptr);
 
     /**
      * Change the original loop's end and num_threads
@@ -375,8 +381,8 @@ public:
      * @param num_groups the num_threads_ of inner loop
      * @return the for_loop node_ptr of the inner loop
      * */
-    ptr_type split_on_num_threads(int64_t num_groups,
-            std::unordered_map<expr, expr> *expr_remap = nullptr);
+    ptr_type split_on_num_threads(
+            int64_t num_groups, node_ptr_map *node_remap = nullptr);
 
     /**
      * Do in-place fusion of two nested loop. This is a reverse operaion of
@@ -400,8 +406,7 @@ public:
      * @param ax the for-loop node_ptr to fuse. Should be the next nested-loop
      * @return The fused for-loop. Should have the same ptr of `this`
      * */
-    ptr_type fuse(const ptr_type &ax,
-            std::unordered_map<expr, expr> *expr_remap = nullptr);
+    ptr_type fuse(const ptr_type &ax, node_ptr_map *node_remap = nullptr);
 
     /**
      * Do in-place reordering on some nested loops. Except the most inner loop,
