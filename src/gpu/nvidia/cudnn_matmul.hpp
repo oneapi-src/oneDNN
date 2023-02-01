@@ -54,7 +54,7 @@ struct cudnn_matmul_t : public primitive_t {
             bool s8_case = utils::everyone_is(s8, src_dt, wei_dt)
                     && utils::one_of(dst_dt, s8, f32);
 
-            bool ok = blocking_ok()
+            bool ok = is_dense_data() && blocking_ok()
                     && attr()->has_default_values(
                             smask_t::oscale_runtime | smask_t::post_ops)
                     && attr_oscale_ok() && attr_post_ops_ok(attr())

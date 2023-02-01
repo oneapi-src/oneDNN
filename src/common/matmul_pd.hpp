@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -163,6 +163,18 @@ protected:
             }
         }
 
+        return true;
+    }
+
+    // All implementations that do not support sparse inputs/outputs should
+    // call this function.
+    bool is_dense_data() {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        for (auto md : {&src_md_, &weights_md_, &bias_md_, &dst_md_}) {
+            if (memory_desc_wrapper(md).format_kind() == format_kind::sparse)
+                return false;
+        }
+#endif
         return true;
     }
 };

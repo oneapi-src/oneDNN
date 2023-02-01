@@ -72,7 +72,8 @@ struct gemm_matmul_t : public gpu_primitive_t {
             const auto acc_dt = desc()->accum_data_type;
 
             // We create a gemm_pd and resolve 'any' desc by querying gemm_pd
-            bool ok = status::success
+            bool ok = is_dense_data()
+                    && status::success
                             == create_gemm_pd(gemm_pd_, engine, src_md(),
                                     weights_md(), dst_md(), weights_md(1),
                                     acc_dt, &gemm_attr)

@@ -81,7 +81,8 @@ struct acl_matmul_t : public primitive_t {
                     = utils::everyone_is(data_type::f16, src_md()->data_type,
                               weights_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(data_type::f16);
-            bool ok = utils::one_of(true, is_fp32_ok, is_fp16_ok)
+            bool ok = is_dense_data()
+                    && utils::one_of(true, is_fp32_ok, is_fp16_ok)
                     && !has_zero_dim_memory() && set_default_formats()
                     && attr()->has_default_values(
                             smask_t::oscale | smask_t::post_ops)

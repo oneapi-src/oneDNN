@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,7 +95,8 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
                                 *this));
     };
 
-    bool ok = !has_zero_dim_memory() && one_of(src_md()->data_type, s8, u8)
+    bool ok = is_dense_data() && !has_zero_dim_memory()
+            && one_of(src_md()->data_type, s8, u8)
             && weights_md()->data_type == s8 && desc()->accum_data_type == s32
             && one_of(dst_md()->data_type, f32, s32, s8, u8)
             && IMPLICATION(with_bias(),

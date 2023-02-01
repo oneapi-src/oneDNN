@@ -99,7 +99,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             = [&]() -> bool { return attr()->zero_points_.common(); };
 
     const bool problem_dt_correct = is_int8 || is_bf16 || is_f32 || is_f16;
-    bool ok = mayiuse(isa) && problem_dt_correct
+    bool ok = is_dense_data() && mayiuse(isa) && problem_dt_correct
             && IMPLICATION(is_f16, isa == avx512_core_fp16)
             && !has_zero_dim_memory() && !has_runtime_dims_or_strides()
             && attr()->has_default_values(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ struct ref_matmul_t : public primitive_t {
             const auto bia_type = weights_md(1)->data_type;
             const auto dst_type = dst_md(0)->data_type;
 
-            bool ok = utils::one_of(src_type, f32, bf16, f16)
+            bool ok = is_dense_data() && utils::one_of(src_type, f32, bf16, f16)
                     && utils::one_of(wei_type, f32, bf16, f16)
                     && utils::one_of(dst_type, f32, bf16, f16)
                     && src_type == wei_type
