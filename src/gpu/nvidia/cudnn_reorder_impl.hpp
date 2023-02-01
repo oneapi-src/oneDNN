@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,8 +47,8 @@ struct cudnn_reorder_generic_t {
 public:
     virtual status_t init(const reorder_pd_t *pd) = 0;
 
-    virtual void execute(
-            cudnnHandle_t handle, void *src, void *dst, void *alpha) const = 0;
+    virtual void execute(cudnnHandle_t handle, void *src, void *dst,
+            void *src_scale, void *dst_scale) const = 0;
 
     virtual ~cudnn_reorder_generic_t() {
         CUDNN_EXECUTE_FUNC_V(cudnnDestroyTensorDescriptor, src_desc_);
@@ -114,12 +114,27 @@ public:
         return status::success;
     }
 
-    void execute(cudnnHandle_t handle, void *src, void *dst,
-            void *alpha) const override {
+    void execute(cudnnHandle_t handle, void *src, void *dst, void *src_scale,
+            void *dst_scale) const override {
+        float alpha = 1.0f;
+        if (src_scale) {
+            float host_src_scale = 1.0f;
+            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_src_scale,
+                    (CUdeviceptr)src_scale, sizeof(float));
+            alpha *= host_src_scale;
+        }
+        float beta = beta_;
+        if (dst_scale) {
+            float host_dst_scale = 1.0f;
+            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_dst_scale,
+                    (CUdeviceptr)dst_scale, sizeof(float));
+            alpha /= host_dst_scale;
+            beta /= host_dst_scale;
+        }
         // cudnnTransformTensorEx() function is required to support blocking.
         // It requires the output tensor to be in cuDNN supported format.
-        CUDNN_EXECUTE_FUNC(cudnnTransformTensorEx, handle, trans_desc_, alpha,
-                src_desc_, src, &beta_, dst_desc_, dst);
+        CUDNN_EXECUTE_FUNC(cudnnTransformTensorEx, handle, trans_desc_, &alpha,
+                src_desc_, src, &beta, dst_desc_, dst);
     }
 
     ~cudnn_reorder_ex_t() {
@@ -179,13 +194,28 @@ public:
         return status::success;
     }
 
-    void execute(cudnnHandle_t handle, void *src, void *dst,
-            void *alpha) const override {
+    void execute(cudnnHandle_t handle, void *src, void *dst, void *src_scale,
+            void *dst_scale) const override {
+        float alpha = 1.0f;
+        if (src_scale) {
+            float host_src_scale = 1.0f;
+            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_src_scale,
+                    (CUdeviceptr)src_scale, sizeof(float));
+            alpha *= host_src_scale;
+        }
+        float beta = beta_;
+        if (dst_scale) {
+            float host_dst_scale = 1.0f;
+            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_dst_scale,
+                    (CUdeviceptr)dst_scale, sizeof(float));
+            alpha /= host_dst_scale;
+            beta /= host_dst_scale;
+        }
         // We don't need to specify the format (deducible using the strides)
         // in case of cudnnTransformTensor().
         // For example, this is useful when converting from abcd to bacd
-        CUDNN_EXECUTE_FUNC(cudnnTransformTensor, handle, alpha, src_desc_, src,
-                &beta_, dst_desc_, dst);
+        CUDNN_EXECUTE_FUNC(cudnnTransformTensor, handle, &alpha, src_desc_, src,
+                &beta, dst_desc_, dst);
     }
 
 private:

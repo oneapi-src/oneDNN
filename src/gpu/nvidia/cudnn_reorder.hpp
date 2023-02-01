@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -69,21 +69,32 @@ struct cudnn_reorder_t : public primitive_t {
             return ok;
         }
 
-        bool check_scales_mask() const {
+        bool scales_ok() const {
+            const auto &scales = attr()->scales_;
+            const auto &supported_args = {DNNL_ARG_FROM, DNNL_ARG_TO};
+            if (!scales.has_default_values(supported_args)) return false;
             // cuDNN does not support scaling per dimension.
-            if (attr()->output_scales_.mask_ != 0) { return false; }
+            for (auto arg : supported_args)
+                if (scales.get(arg).mask_ != 0) return false;
             return true;
+        }
+
+        bool post_ops_ok() const {
+            // only sum post-op is supported
+            const auto &p = attr()->post_ops_;
+            return p.len() == 0 || (p.len() == 1 && p.entry_[0].is_sum(false));
         }
 
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
-            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
+            const auto attr_skip_mask
+                    = primitive_attr_t::skip_mask_t::scales_runtime
                     | primitive_attr_t::skip_mask_t::post_ops;
             bool ok = engine == dst_engine
                     && src_engine->kind() == engine_kind::gpu
                     && valid_data_n_mem_format()
-                    && attr()->has_default_values(attr_skip_mask)
-                    && check_scales_mask();
+                    && attr()->has_default_values(attr_skip_mask) && scales_ok()
+                    && post_ops_ok();
             if (!ok) return status::unimplemented;
 
             if (has_different_block_size(src_md(), dst_md())) {
@@ -100,19 +111,10 @@ struct cudnn_reorder_t : public primitive_t {
         DECLARE_GPU_REORDER_CREATE();
     };
 
-    status_t init(engine_t *engine) override {
-        alpha_ = new float;
-        if (!alpha_) return status::out_of_memory;
-        *alpha_ = 1.0f;
-        return status::success;
-    }
-
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
-    float *alpha_ = nullptr;
 };
 
 } // namespace nvidia

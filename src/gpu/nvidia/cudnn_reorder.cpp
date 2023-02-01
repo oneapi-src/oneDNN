@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020-2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,13 +34,13 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-    if (!pd()->attr()->output_scales_.defined())
-        CHECK(stream_utils::copy_input_arg_to_host(ctx, cuda_stream, alpha_,
-                DNNL_ARG_ATTR_OUTPUT_SCALES, sizeof(float)));
-
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
         auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+        auto arg_src_scale
+                = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+        auto arg_dst_scale
+                = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
@@ -56,7 +56,10 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
             auto b = static_cast<uint8_t *>(dst_)
                     + pd()->reorder_->dst_offset_in_bytes();
 
-            pd()->reorder_->execute(handle, a, b, alpha_);
+            void *src_sc = arg_src_scale.get_native_pointer(ih);
+            void *dst_sc = arg_dst_scale.get_native_pointer(ih);
+
+            pd()->reorder_->execute(handle, a, b, src_sc, dst_sc);
         });
     });
 }
