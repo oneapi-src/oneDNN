@@ -118,6 +118,9 @@ status_t memory_desc_init_by_csr_encoding(memory_desc_t &memory_desc, int ndims,
         return success;
     }
 
+    // This is the only number of dims that is supported at this point.
+    if (ndims > 2) return unimplemented;
+
     bool args_ok = memory_desc_sanity_check(
             ndims, dims, data_type, format_kind::undef);
     if (!args_ok) return invalid_arguments;
