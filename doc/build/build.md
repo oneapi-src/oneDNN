@@ -128,7 +128,7 @@ make -j
 
 ### Windows
 
-#### Microsoft Visual C++ Compiler or Intel oneAPI DPC++/C++ Compiler
+#### Microsoft Visual C++ Compiler
 
 - Generate a Microsoft Visual Studio solution
 ~~~bat
@@ -136,18 +136,11 @@ mkdir build
 cd build
 cmake -G "Visual Studio 16 2019" ..
 ~~~
-For the solution to use the Intel C++ Compiler, select the corresponding
-toolchain using the cmake `-T` switch:
-~~~bat
-cmake -G "Visual Studio 16 2019" -T "Intel C++ Compiler 2022" ..
-~~~
 
 - Build the library
 ~~~bat
 cmake --build . --config=Release
 ~~~
-
-@warning Intel oneAPI DPC++/C++ Compiler on Windows requires CMake v3.21 or later.
 
 @note CMake's Microsoft Visual Studio generator does not respect `CMAKE_BUILD_TYPE` option.
 Solution file supports both Debug and Release builds with Debug being the default.
@@ -167,16 +160,7 @@ Microsoft Visual Studio IDE.
 ~~~
 or open `Intel oneAPI Commmand Prompt` instead.
 
-- Generate a Microsoft Visual Studio solution
-~~~bat
-cmake .. -G "Visual Studio 16 2019" ^
-         -T "Intel C++ Compiler 2022" ^
-         -DDNNL_CPU_RUNTIME=SYCL ^
-         -DDNNL_GPU_RUNTIME=SYCL ^
-         <extra build options>
-~~~
-
-- Alternatively, you can use CMake's Ninja generator
+- Configure CMake and generate Ninja project
 ~~~bat
 mkdir build
 cd build
@@ -189,11 +173,10 @@ cmake .. -G Ninja -DDNNL_CPU_RUNTIME=SYCL ^
                   <extra build options>
 ~~~
 
-@warning Intel oneAPI DPC++/C++ Compiler on Windows requires CMake v3.21 or later.
+@warning Intel oneAPI DPC++/C++ Compiler on Windows requires CMake v3.23 or later.
 
-@note CMake's Microsoft Visual Studio generator does not respect `CMAKE_BUILD_TYPE` option.
-Solution file supports both Debug and Release builds with Debug being the default.
-You can choose specific build type with `--config` option.
+@warning Intel oneAPI DPC++/C++ Compiler does not support CMake's Microsoft Visual
+Studio generator.
 
 @note Open-source version of oneAPI DPC++ Compiler does not have the icx driver,
 use clang/clang++ instead. Open-source version of oneAPI DPC++ Compiler may not
