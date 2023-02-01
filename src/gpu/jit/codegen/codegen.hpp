@@ -1140,9 +1140,15 @@ private:
             case op_kind_t::_ne: {
                 ir_assert(!dst.is_negated()) << "Destination can't be negated.";
                 ngen::InstructionModifier cmp_mod = mod;
-                cmp_mod |= cmp_op_to_ngen(obj.op_kind);
-                cmp_mod |= dst.flag_register();
-                host_->ecmp(cmp_mod, src0, src1);
+                if (!src0.is_reg_data()) {
+                    cmp_mod |= cmp_op_to_ngen(negate_cmp_op(obj.op_kind));
+                    cmp_mod |= dst.flag_register();
+                    host_->ecmp(cmp_mod, src1, src0);
+                } else {
+                    cmp_mod |= cmp_op_to_ngen(obj.op_kind);
+                    cmp_mod |= dst.flag_register();
+                    host_->ecmp(cmp_mod, src0, src1);
+                }
                 break;
             }
             case op_kind_t::_and: host_->eand(mod, dst, src0, src1); break;
