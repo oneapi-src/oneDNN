@@ -39,6 +39,9 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_wtag : s.wtag)
     for_(const auto &i_dtag : s.dtag)
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    for_(const auto &i_sparse_options : s.sparse_options)
+#endif
     for_(const auto &i_strides : s.strides)
     for_(const auto &i_rt_dims_masks : s.rt_dims_masks)
     for_(const auto &i_scales : s.scales)
@@ -53,8 +56,11 @@ void check_correctness(const settings_t &s) {
                 i_scratchpad_mode, i_fpmath_mode);
 
         const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_strides,
-                i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks, attr,
-                i_ctx_init, i_ctx_exe);
+                i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks,
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+                i_sparse_options,
+#endif
+                attr, i_ctx_init, i_ctx_exe);
         BENCHDNN_PRINT(1, "run: %s\n", prb.str());
 
         res_t res {};
@@ -136,6 +142,9 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.wtag, def.wtag, argv[0], "wtag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+                || parse_encoding(s.sparse_options, argv[0], "encoding")
+#endif
                 || parse_strides(s.strides, def.strides, argv[0], "strides")
                 || parse_dt(s.bia_dt, def.bia_dt, argv[0], "bia_dt")
                 || parse_vector_option(s.bia_mask, def.bia_mask, atoi, argv[0],

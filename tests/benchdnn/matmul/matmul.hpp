@@ -47,6 +47,10 @@ struct settings_t : public base_settings_t {
 
     std::vector<std::vector<dnnl_data_type_t>> dt {{dnnl_f32}};
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    std::vector<sparse_options_t> sparse_options {{DNNL_ARG_SRC,
+            sparse_options_t::def_encoding, sparse_options_t::def_sparsity}};
+#endif
     std::vector<vdims_t> strides {vdims_t(STRIDES_SIZE)};
     std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
     std::vector<int> bia_mask {2};
@@ -72,6 +76,9 @@ struct prb_t : public prb_vdims_t {
     prb_t(const settings_t &s)
         : prb_t(s.prb_vdims, s.dt[0], s.stag[0], s.wtag[0], s.dtag[0],
                 s.strides[0], s.bia_dt[0], s.bia_mask[0], s.rt_dims_masks[0],
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+                s.sparse_options[0],
+#endif
                 settings_t::get_attr(s.scales[0], s.zero_points[0],
                         s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
                 s.ctx_init[0], s.ctx_exe[0]) {
@@ -82,8 +89,12 @@ struct prb_t : public prb_vdims_t {
             const std::string &stag, const std::string &wtag,
             const std::string &dtag, const vdims_t &strides,
             dnnl_data_type_t bia_dt, int bia_mask,
-            const std::vector<dims_mask_t> &rt_dims_masks, const attr_t &attr,
-            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe)
+            const std::vector<dims_mask_t> &rt_dims_masks,
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            sparse_options_t sparse_options,
+#endif
+            const attr_t &attr, const thr_ctx_t &ctx_init,
+            const thr_ctx_t &ctx_exe)
         : prb_vdims_t(prb_vdims)
         , dt(dt)
         , stag(stag)
@@ -93,6 +104,9 @@ struct prb_t : public prb_vdims_t {
         , bia_dt(bia_dt)
         , bia_mask(bia_mask)
         , rt_dims_masks(rt_dims_masks)
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        , sparse_options(sparse_options)
+#endif
         , attr(attr)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe) {
@@ -129,6 +143,9 @@ struct prb_t : public prb_vdims_t {
     dnnl_data_type_t bia_dt;
     int bia_mask;
     std::vector<dims_mask_t> rt_dims_masks;
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    sparse_options_t sparse_options;
+#endif
 
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;

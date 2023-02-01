@@ -431,6 +431,66 @@ struct isa_hints_t {
 
 using policy_t = attr_t::policy_t;
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+struct sparse_options_t {
+    static constexpr dnnl_sparse_encoding_t def_encoding
+            = dnnl_sparse_encoding_undef;
+    static constexpr float def_sparsity = 0.9;
+
+    sparse_options_t() = default;
+    sparse_options_t(int arg, dnnl_sparse_encoding_t encoding, float sparsity) {
+        add(arg, encoding, sparsity);
+    }
+
+    void add(int arg, dnnl_sparse_encoding_t encoding, float sparsity) {
+        options_.insert({arg, {encoding, sparsity}});
+    }
+
+    dnnl_sparse_encoding_t get_encoding(int arg) const {
+        if (options_.count(arg) == 0) return dnnl_sparse_encoding_undef;
+        return options_.at(arg).first;
+    }
+
+    float get_sparsity(int arg) const {
+        if (options_.count(arg) == 0) return 0.0f;
+        return options_.at(arg).second;
+    }
+
+    bool is_encoding_def(int arg) const {
+        return get_encoding(arg) == def_encoding;
+    }
+
+    bool is_sparsity_def(int arg) const {
+        return get_sparsity(arg) == def_sparsity;
+    }
+
+    bool is_def() const {
+        bool ret = true;
+        for (const auto &opt : options_) {
+            ret = ret && is_encoding_def(opt.first)
+                    && is_sparsity_def(opt.first);
+        }
+        return ret;
+    }
+
+    std::vector<int> get_args() const {
+        std::vector<int> args;
+        for (const auto &opt : options_) {
+            args.push_back(opt.first);
+        }
+        return args;
+    }
+
+    int from_str(const std::string &s);
+
+private:
+    std::unordered_map<int, std::pair<dnnl_sparse_encoding_t, float>> options_;
+};
+
+std::ostream &operator<<(
+        std::ostream &s, const sparse_options_t &sparse_options);
+#endif
+
 std::ostream &operator<<(std::ostream &s, const policy_t &policy);
 std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points);

@@ -144,6 +144,10 @@ foreach(driver ${all_drivers})
     file(GLOB test_files_ci RELATIVE ${driver_dir} inputs/${driver}/test_*_ci)
     file(GLOB test_files_cpu RELATIVE ${driver_dir} inputs/${driver}/test_*)
 
+    if(NOT DNNL_EXPERIMENTAL_SPARSE)
+        list(REMOVE_ITEM test_files_cpu "test_matmul_sparse")
+    endif()
+
     # Register ci input files for ci only
     if((DNNL_TEST_SET LESS DNNL_TEST_SET_CI) OR (DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI))
         # gpu_ci files may happen if cpu coverage can not be used on gpu

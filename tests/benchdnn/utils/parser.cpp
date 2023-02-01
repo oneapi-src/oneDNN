@@ -123,29 +123,23 @@ bool parse_tag(std::vector<std::string> &tag,
 }
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
-bool parse_encoding(std::vector<dnnl_sparse_encoding_t> &encoding,
-        const std::vector<dnnl_sparse_encoding_t> &def_encoding,
+bool parse_encoding(std::vector<sparse_options_t> &sparse_options,
         const char *str, const std::string &option_name /* = "encoding"*/) {
     static const std::string help
-            = "ENCODING    (Default: `undef`)\n Specifies memory sparse "
-              "encoding `ENCODING` for source, weights, or destination.\n    "
-              "Valid `ENCODING` values can be found at "
-            + doc_url + "knobs_encoding.md\n";
+            = "ENCODING[+SPARSITY]:ENCODING[+SPARSITY]:ENCODING[+SPARSITY]\n   "
+              "Specifies sparse encodings and sparsity.\n    More details at "
+              "https://github.com/oneapi-src/oneDNN/blob/master/tests/benchdnn/"
+              "doc/knobs_encoding.md\n";
 
-    return parse_vector_option(encoding, def_encoding, str2sparse_encoding, str,
-            option_name, help);
-}
+    std::vector<sparse_options_t> def {sparse_options_t()};
+    auto parse_sparse_options_func = [](const std::string &s) {
+        sparse_options_t v;
+        SAFE_V(v.from_str(s));
+        return v;
+    };
 
-bool parse_sparsity(std::vector<float> &sparsity,
-        const std::vector<float> &def_sparsity, const char *str,
-        const std::string &option_name /* = "sparsity"*/) {
-    static const std::string help
-            = "SPARSITY    (Default: `0.9`)\n    Specifies sparsity of a "
-              "sparse tensor. Sparsity equal to one means all values are "
-              "zeros, sparsity of 0 means all values are non-zeros.\n";
-
-    return parse_vector_option(
-            sparsity, def_sparsity, atof, str, option_name, help);
+    return parse_vector_option(sparse_options, def, parse_sparse_options_func,
+            str, option_name, help);
 }
 #endif
 

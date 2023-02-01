@@ -760,6 +760,36 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     return s;
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+std::ostream &operator<<(std::ostream &s, dnnl_sparse_encoding_t se) {
+    s << sparse_encoding2str(se);
+    return s;
+}
+
+std::ostream &operator<<(
+        std::ostream &s, const sparse_options_t &sparse_options) {
+    if (!sparse_options.is_def()) {
+        s << "--encoding=";
+        const std::vector<int> args
+                = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+
+        for (int i = 0; i < (int)args.size(); i++) {
+            const int arg = args[i];
+            if (!sparse_options.is_encoding_def(arg)) {
+                s << sparse_options.get_encoding(arg);
+                if (!sparse_options.is_sparsity_def(arg))
+                    s << "+" << sparse_options.get_sparsity(arg);
+            }
+            if (i != (int)args.size() - 1)
+                s << ":";
+            else
+                s << " ";
+        }
+    }
+    return s;
+}
+#endif
+
 std::ostream &operator<<(std::ostream &s, bench_mode_t mode) {
     if (is_bench_mode(RUN) && !(is_bench_mode(CORR) || is_bench_mode(PERF)))
         s << "R";
@@ -1478,5 +1508,50 @@ void update_cpu_ref_attrs(attr_t &attr, dnnl_data_type_t new_dt) {
         e.binary.tag = tag::abx; // Hardcoded in local fill functions.
     }
 }
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+int sparse_options_t::from_str(const std::string &s) {
+    *this = sparse_options_t();
+    if (s.empty()) return OK;
+
+    const auto get_arg = [](int i) {
+        switch (i) {
+            case 0: return DNNL_ARG_SRC;
+            case 1: return DNNL_ARG_WEIGHTS;
+            case 2: return DNNL_ARG_DST;
+            default: return -1;
+        }
+    };
+
+    int options_count = 0;
+    size_t start_pos = 0;
+    while (start_pos != std::string::npos) {
+        auto subs = parser::get_substr(s, start_pos, ':');
+
+        if (subs.empty()) {
+            add(get_arg(options_count), sparse_options_t::def_encoding,
+                    sparse_options_t::def_sparsity);
+            options_count++;
+            continue;
+        }
+
+        if (subs.find("+") == std::string::npos) {
+            add(get_arg(options_count), str2sparse_encoding(subs.c_str()),
+                    sparse_options_t::def_sparsity);
+        } else {
+            size_t subs_pos = 0;
+            auto encoding_str = parser::get_substr(subs, subs_pos, '+');
+            auto sparsity_str = parser::get_substr(subs, subs_pos, '+');
+            if (encoding_str.empty() || sparsity_str.empty()) { return FAIL; }
+            add(get_arg(options_count),
+                    str2sparse_encoding(encoding_str.c_str()),
+                    atof(sparsity_str.c_str()));
+        }
+        options_count++;
+    }
+    static const int expected_num_options = 3;
+    return options_count == expected_num_options ? OK : FAIL;
+}
+#endif
 
 #undef BENCHDNN_DNNL_ARG_UNDEF

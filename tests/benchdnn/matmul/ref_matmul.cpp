@@ -122,6 +122,65 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     });
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+void compute_ref_matmul_csr(const prb_t *prb, const args_t &args) {
+    const dnn_mem_t &src_m = args.find(DNNL_ARG_SRC);
+    const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
+    const dnn_mem_t &dst_m = args.find(DNNL_ARG_DST);
+    const int64_t M = prb->m;
+    const int64_t N = prb->n;
+    const int64_t K = prb->k;
+
+    // Batch is not supported.
+    const int64_t mb = 0;
+
+    float *dst = dst_m.get_mapped_pointer<float>();
+
+    benchdnn_parallel_nd(M, N, [&](int64_t m, int64_t n) {
+        dst[dst_off_f(prb, mb, m, n)] = 0.0f;
+    });
+
+    if (prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS) == dnnl_csr) {
+        const float *src = src_m.get_mapped_pointer<float>();
+        const float *wei_values = wei_m.get_mapped_pointer<float>(0);
+        const int32_t *wei_indices = wei_m.get_mapped_pointer<int32_t>(1);
+        const int32_t *wei_pointers = wei_m.get_mapped_pointer<int32_t>(2);
+
+        benchdnn_parallel_nd(M, [&](int64_t m) {
+            for (int64_t k = 0; k < K; k++) {
+                const int64_t row_start = wei_pointers[k];
+                const int64_t row_end = wei_pointers[k + 1];
+                for (int64_t n = row_start; n < row_end; n++) {
+                    const int64_t src_idx = src_off_f(prb, mb, m, k);
+                    const int64_t dst_idx
+                            = dst_off_f(prb, mb, m, wei_indices[n]);
+                    dst[dst_idx] = dst[dst_idx] + src[src_idx] * wei_values[n];
+                }
+            }
+        });
+    } else if (prb->sparse_options.get_encoding(DNNL_ARG_SRC) == dnnl_csr) {
+        const float *weights = wei_m.get_mapped_pointer<float>();
+        const float *src_values = src_m.get_mapped_pointer<float>(0);
+        const int32_t *src_indices = src_m.get_mapped_pointer<int32_t>(1);
+        const int32_t *src_pointers = src_m.get_mapped_pointer<int32_t>(2);
+
+        benchdnn_parallel_nd(M, [&](int64_t m) {
+            const int64_t row_start = src_pointers[m];
+            const int64_t row_end = src_pointers[m + 1];
+            for (int64_t k = row_start; k < row_end; k++) {
+                for (int64_t n = 0; n < N; n++) {
+                    const int64_t dst_idx = dst_off_f(prb, mb, m, n);
+                    const int64_t wei_idx
+                            = wei_off_f(prb, mb, src_indices[k], n);
+                    dst[dst_idx]
+                            = dst[dst_idx] + src_values[k] * weights[wei_idx];
+                }
+            }
+        });
+    }
+}
+#endif
+
 void compute_ref(
         const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     if (prim_ref) {
@@ -129,7 +188,19 @@ void compute_ref(
         return;
     }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    const auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
+    const auto wei_encoding
+            = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
+
+    if (src_encoding == dnnl_csr || wei_encoding == dnnl_csr) {
+        compute_ref_matmul_csr(prb, args);
+    } else {
+        compute_ref_matmul(prb, args);
+    }
+#else
     compute_ref_matmul(prb, args);
+#endif
 }
 
 } // namespace matmul

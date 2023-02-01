@@ -17,6 +17,7 @@
 #include <float.h>
 #include <math.h>
 #include <random>
+#include <set>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -43,22 +44,74 @@ dims_t get_runtime_dims(const dims_t &dims, const dims_mask_t &mask) {
     return runtime_dims;
 }
 
+// TODO: Generalize md creation for sparse data when other primitives
+// start supporting it.
+benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
+        data_kind_t kind, dnnl_data_type_t dt = dnnl_data_type_undef) {
+    if (kind == SRC) {
+        if (dt == dnnl_data_type_undef) dt = prb->src_dt();
+        const auto &src_rt_dims = get_runtime_dims(
+                prb->src_dims(), prb->src_runtime_dim_mask());
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
+        auto src_sparsity = prb->sparse_options.get_sparsity(DNNL_ARG_SRC);
+        if (src_encoding != dnnl_sparse_encoding_undef) {
+            const dnnl_dim_t nnz
+                    = std::max(prb->m * prb->k * (1.0f - src_sparsity), 1.0f);
+            switch (src_encoding) {
+                case dnnl_csr:
+                    return dnn_mem_t::init_csr_md(prb->ndims,
+                            src_rt_dims.data(), dt, nnz, dnnl_s32, dnnl_s32);
+                    break;
+                default: assert(!"unsupported encoding"); return nullptr;
+            }
+        } else
+#endif
+            return dnn_mem_t::init_md(prb->ndims, src_rt_dims.data(),
+                    prb->src_dt(), prb->stag, prb->strides[STRIDES_SRC]);
+    }
+
+    if (kind == WEI) {
+        if (dt == dnnl_data_type_undef) dt = prb->wei_dt();
+        const auto &weights_rt_dims = get_runtime_dims(
+                prb->weights_dims(), prb->weights_runtime_dim_mask());
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        auto wei_encoding = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
+        auto wei_sparsity = prb->sparse_options.get_sparsity(DNNL_ARG_WEIGHTS);
+
+        if (wei_encoding != dnnl_sparse_encoding_undef) {
+            const dnnl_dim_t nnz
+                    = std::max(prb->k * prb->n * (1.0f - wei_sparsity), 1.0f);
+            switch (wei_encoding) {
+                case dnnl_csr:
+                    return dnn_mem_t::init_csr_md(prb->ndims,
+                            weights_rt_dims.data(), dt, nnz, dnnl_s32,
+                            dnnl_s32);
+                    break;
+                default: assert(!"unsupported encoding"); return nullptr;
+            }
+        } else
+#endif
+            return dnn_mem_t::init_md(prb->ndims, weights_rt_dims.data(),
+                    prb->wei_dt(), prb->wtag, prb->strides[STRIDES_WEI]);
+    }
+
+    if (kind == DST) {
+        if (dt == dnnl_data_type_undef) dt = prb->dst_dt();
+        const auto &dst_rt_dims
+                = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
+        return dnn_mem_t::init_md(prb->ndims, dst_rt_dims.data(), dt, prb->dtag,
+                prb->strides[STRIDES_DST]);
+    }
+    return nullptr;
+}
+
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
 
-    const auto &src_rt_dims
-            = get_runtime_dims(prb->src_dims(), prb->src_runtime_dim_mask());
-    const auto &weights_rt_dims = get_runtime_dims(
-            prb->weights_dims(), prb->weights_runtime_dim_mask());
-    const auto &dst_rt_dims
-            = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
-
-    auto src_d = dnn_mem_t::init_md(prb->ndims, src_rt_dims.data(),
-            prb->src_dt(), prb->stag, prb->strides[STRIDES_SRC]);
-    auto wei_d = dnn_mem_t::init_md(prb->ndims, weights_rt_dims.data(),
-            prb->wei_dt(), prb->wtag, prb->strides[STRIDES_WEI]);
-    auto dst_d = dnn_mem_t::init_md(prb->ndims, dst_rt_dims.data(),
-            prb->dst_dt(), prb->dtag, prb->strides[STRIDES_DST]);
+    auto src_d = create_md(prb, SRC);
+    auto wei_d = create_md(prb, WEI);
+    auto dst_d = create_md(prb, DST);
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> bia_d {};
     if (prb->bia_dt != dnnl_data_type_undef) {
@@ -73,6 +126,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     // Overload PER_OC wei_mask definition for batched case
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
     if (wei_scale.policy == policy_t::PER_OC) {
+        const auto &dst_rt_dims
+                = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
         int wei_mask = (1 << (dst_rt_dims.size() - 1));
         attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
     }
@@ -91,6 +146,14 @@ int init_prim_ref(
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref, const prb_t *prb) {
     if (!(is_bench_mode(CORR) && is_gpu() && fast_ref_gpu)) return OK;
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    if (prb->sparse_options.get_encoding(DNNL_ARG_SRC)
+                    != dnnl_sparse_encoding_undef
+            || prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS)
+                    != dnnl_sparse_encoding_undef)
+        return OK;
+#endif
+
     // Create a new copy of prb to avoid potentially corrupting the test by
     // modifying prb in place.
     const auto cpu_bia_dt = prb->bia_dt == dnnl_data_type_undef
@@ -102,6 +165,9 @@ int init_prim_ref(
     update_cpu_ref_attrs(cpu_attr);
     prb_t prb_cpu {*prb, {dnnl_f32}, tag::abx, tag::abx, tag::abx,
             {vdims_t(STRIDES_SIZE)}, cpu_bia_dt, cpu_bia_mask, {0, 0, 0},
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            sparse_options_t(),
+#endif
             cpu_attr, prb->ctx_init, prb->ctx_exe};
 
     init_pd_args_t<prb_t> init_pd_args(
@@ -124,6 +190,123 @@ int init_prim_ref(
     return OK;
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+// The main idea is to generate values and metadata directly without generating
+// the dense matrix to avoid excessive memory consumption for large problem
+// sizes.
+int fill_csr_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *res) {
+    if (query_md_num_handles(mem_dt.md_) != 3
+            || query_md_num_handles(mem_dt.md_) != 3)
+        return FAIL;
+
+    if (kind != SRC && kind != WEI) return FAIL;
+
+    const int64_t dim0 = kind == SRC ? prb->m : prb->k;
+    const int64_t dim1 = kind == SRC ? prb->k : prb->n;
+
+    // Coefficient for distribution of nnz per row.
+    const int64_t coef = 3;
+    const int64_t nnz = query_md_nnz(mem_fp.md_);
+    const int64_t avg_nnz_per_row = nnz / dim0;
+
+    int64_t distributed_nnz_cnt = 0;
+
+    std::uniform_int_distribution<> pointers_gen(0, avg_nnz_per_row * coef);
+    std::minstd_rand pointers_seed;
+
+    // Distribute nnz across all rows.
+    std::vector<int64_t> distributed_nnz(dim0);
+    for (int64_t i = 0; i < dim0; i++) {
+        int64_t nnz_per_row = std::min(pointers_gen(pointers_seed), (int)dim1);
+        nnz_per_row = std::min(nnz_per_row, (nnz - distributed_nnz_cnt));
+        distributed_nnz[i] = nnz_per_row;
+        distributed_nnz_cnt += nnz_per_row;
+    }
+
+    // Distribute remaining nnz.
+    int64_t remaining_nnz_cnt = nnz - distributed_nnz_cnt;
+    while (remaining_nnz_cnt > 0) {
+        const int64_t remaining_nnz_per_row
+                = std::max((int)(remaining_nnz_cnt / dim0), 1);
+        for (int64_t i = 0; i < dim0; i++) {
+            int64_t nnz_to_add = std::min(
+                    remaining_nnz_per_row, (dim1 - distributed_nnz[i]));
+            nnz_to_add = std::min(nnz_to_add, remaining_nnz_cnt);
+            distributed_nnz[i] += nnz_to_add;
+            remaining_nnz_cnt -= nnz_to_add;
+            distributed_nnz_cnt += nnz_to_add;
+
+            if (remaining_nnz_cnt == 0) break;
+        }
+    }
+
+    if (remaining_nnz_cnt != 0) return FAIL;
+
+    const int values_idx = 0;
+    const int indices_idx = 1;
+    const int pointers_idx = 2;
+
+    // Fill pointers.
+    mem_fp.set_elem(0, 0, pointers_idx);
+    mem_dt.set_elem(0, 0, pointers_idx);
+
+    for (int64_t i = 0; i < dim0; i++) {
+        const int32_t pointer
+                = mem_fp.get_elem(i, pointers_idx) + distributed_nnz[i];
+        mem_fp.set_elem(i + 1, pointer, pointers_idx);
+        mem_dt.set_elem(i + 1, pointer, pointers_idx);
+    }
+
+    std::uniform_int_distribution<> indices_gen(0, dim1 - 1);
+    std::minstd_rand indices_seed;
+
+    // Generate indices.
+    std::vector<int32_t> indices;
+    std::set<int32_t> indices_set;
+    for (int64_t i = 0; i < dim0; i++) {
+        while ((int64_t)indices_set.size() != distributed_nnz[i]) {
+            int index = indices_gen(indices_seed);
+            if (indices_set.count(index)) continue;
+            indices_set.insert(index);
+        }
+        indices.insert(indices.end(), indices_set.begin(), indices_set.end());
+        indices_set.clear();
+    }
+
+    benchdnn_parallel_nd((int)indices.size(), [&](int64_t i) {
+        const int32_t index = indices[i];
+        mem_fp.set_elem(i, index, indices_idx);
+        mem_dt.set_elem(i, index, indices_idx);
+    });
+
+    // Generate values.
+    cfg_t cfg(prb, {SRC, WEI, BIA, DST});
+
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nnz, n_chunks);
+
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nnz);
+
+        std::uniform_int_distribution<> values_gen(
+                cfg.get_range_min(kind), cfg.get_range_max(kind));
+        std::minstd_rand values_seed(kind * nnz + idx_start + 1);
+        values_seed.discard(1);
+
+        for (int64_t i = idx_start; i < idx_end; i++) {
+            float val = values_gen(values_seed);
+            mem_fp.set_elem(i, val, values_idx);
+            mem_dt.set_elem(i, val, values_idx);
+        }
+    });
+
+    return OK;
+}
+#endif
+
 int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *res) {
 
@@ -131,6 +314,13 @@ int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
     if (nelems == 0) return OK;
 
     assert(mem_dt.nelems() == mem_fp.nelems());
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
+    auto wei_encoding = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
+    if ((kind == SRC && src_encoding == dnnl_csr)
+            || (kind == WEI && wei_encoding == dnnl_csr))
+        return fill_csr_data(kind, prb, mem_dt, mem_fp, res);
+#endif
 
     cfg_t cfg(prb, {SRC, WEI, BIA, DST});
     cfg_t::density_args_t density_args;
@@ -312,8 +502,30 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         const int exec_arg = entry.first;
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
-        ref_mem_map.emplace(
-                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
+        auto wei_encoding = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
+
+        const bool is_sparse_src = exec_arg == DNNL_ARG_SRC
+                && src_encoding != dnnl_sparse_encoding_undef;
+
+        const bool is_sparse_wei = exec_arg == DNNL_ARG_WEIGHTS
+                && wei_encoding != dnnl_sparse_encoding_undef;
+
+        if (is_sparse_src || is_sparse_wei) {
+            if (is_sparse_src) {
+                auto src_fp_d = create_md(prb, SRC, dnnl_f32);
+                ref_mem_map.emplace(exec_arg, dnn_mem_t(src_fp_d, ref_engine));
+            }
+
+            if (is_sparse_wei) {
+                auto wei_fp_d = create_md(prb, WEI, dnnl_f32);
+                ref_mem_map.emplace(exec_arg, dnn_mem_t(wei_fp_d, ref_engine));
+            }
+        } else
+#endif
+            ref_mem_map.emplace(exec_arg,
+                    dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
         auto &ref_mem = ref_mem_map[exec_arg];
 
         switch (exec_arg) {
