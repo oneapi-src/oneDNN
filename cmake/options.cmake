@@ -158,6 +158,11 @@ set(DNNL_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
     - For GNU* Compiler Collection and Clang, the default option is `-msse4.1` which
       behaves similarly to the description above.
 
+    - For Clang and GCC compilers on RISC-V architecture this option accepts `-march=<ISA-string>` flag
+      to control wthether or not oneDNN should be compiled with RVV Intrinsics. Use this option with
+      `-march=rv64gc` or `-march=rv64gcv` value to compile oneDNN with and without RVV Intrinsics respectively.
+      If the option is not provided, CMake will decide based on the active toolchain and compiler flags.
+
     - For all other cases there are no special optimizations flags.
 
     If the library is to be built for generic architecture (e.g. built by a
@@ -347,9 +352,3 @@ option(DNNL_AARCH64_USE_ACL "Enables use of AArch64 optimised functions
     This is only supported on AArch64 builds and assumes there is a
     functioning Compute Library build available at the location specified by the
     environment variable ACL_ROOT_DIR." OFF)
-
-
-# ==============================================
-# RISC-V optimizations with RVV intrinsics
-# ==============================================
-option(DNNL_RISCV_USE_RVV "Enables use of RISC-V implementations optimized with RVV" OFF)

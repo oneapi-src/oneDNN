@@ -30,7 +30,6 @@ oneDNN supports the following build-time options.
 | ONEDNN_GPU_VENDOR               | **INTEL**, NVIDIA                          | Defines GPU vendor for GPU engines
 | ONEDNN_DPCPP_HOST_COMPILER      | **DEFAULT**, *GNU C++ compiler executable* | Specifies host compiler executable for SYCL runtime
 | ONEDNN_LIBRARY_NAME             | **dnnl**, *library name*                   | Specifies name of the library
-| DNNL_RISCV_USE_RVV              | ON, **OFF**                                | Enables use of RISC-V implementations optimized with RVV
 
 All building options listed support their counterparts with `DNNL` prefix
 instead of `ONEDNN`. `DNNL` options would take precedence over `ONEDNN`
