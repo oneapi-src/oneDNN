@@ -383,7 +383,7 @@ bool gen_convNxN_backprop_data::generate(context_ptr ctx,
     }
   }
   loops = {ln, lc};
-  lp->attr().set("temp.loop_no_fuse", true);
+  lp->attr().set(stmt_attr_key::no_loop_fuse, true);
   return true;
 }
 } // namespace ops

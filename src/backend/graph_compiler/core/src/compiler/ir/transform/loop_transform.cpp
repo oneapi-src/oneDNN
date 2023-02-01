@@ -252,7 +252,7 @@ void for_loop_node_t::unroll(uint64_t factor, const stmt &parent) {
 }
 
 static for_loop build_inner_for(for_loop_node_t *ths, int64_t min,
-        int64_t block, std::unordered_map<expr, expr> *expr_remap) {
+        int64_t block, node_ptr_map *node_remap) {
     // make new variables
     var varptr = ths->var_.checked_as<var>();
     // remake a new var to replace old one. Call "remake" to avoid infinite
@@ -277,7 +277,9 @@ static for_loop build_inner_for(for_loop_node_t *ths, int64_t min,
         remapped = remapped + make_expr<constant_node>(min, ths->var_->dtype_);
     }
     std::unordered_map<var_node *, expr> remap = {{varptr.get(), remapped}};
-    if (expr_remap) { expr_remap->insert(std::make_pair(varptr, remapped)); }
+    if (node_remap) {
+        node_remap->insert(std::make_pair(varptr.impl, remapped.impl));
+    }
     var_inplace_replacer_t pass(&remap);
     pass.dispatch_impl(ths->body_);
 
@@ -286,8 +288,7 @@ static for_loop build_inner_for(for_loop_node_t *ths, int64_t min,
     return inner_for;
 }
 
-for_loop for_loop_node_t::split(
-        int64_t block, std::unordered_map<expr, expr> *expr_remap) {
+for_loop for_loop_node_t::split(int64_t block, node_ptr_map *node_remap) {
     COMPILE_ASSERT(isvalid(), "Transforming an invalid for-loop");
     int64_t min, max, step;
     get_constant_from_for_loop(this, min, max, step);
@@ -303,14 +304,14 @@ for_loop for_loop_node_t::split(
     iter_begin_ = make_expr<constant_node>(int64_t(0), var_->dtype_);
     iter_end_ = make_expr<constant_node>(outer_len, var_->dtype_);
 
-    auto inner_for = build_inner_for(this, min, block, expr_remap);
+    auto inner_for = build_inner_for(this, min, block, node_remap);
 
     body_ = make_stmt<stmts_node_t>(std::vector<stmt>({inner_for}));
     return inner_for;
 }
 
 for_loop for_loop_node_t::split_on_num_threads(
-        int64_t num_groups, std::unordered_map<expr, expr> *expr_remap) {
+        int64_t num_groups, node_ptr_map *node_remap) {
     COMPILE_ASSERT(isvalid(), "Transforming an invalid for-loop");
     int64_t min, max, step;
     get_constant_from_for_loop(this, min, max, step);
@@ -325,7 +326,7 @@ for_loop for_loop_node_t::split_on_num_threads(
     num_threads_ = ori_num_threads / num_groups;
     iter_end_ = make_expr<constant_node>(uint64_t(num_threads_), var_->dtype_);
 
-    auto inner_for = build_inner_for(this, min, num_groups, expr_remap);
+    auto inner_for = build_inner_for(this, min, num_groups, node_remap);
     inner_for->num_threads_ = num_groups;
     inner_for->kind_ = for_type::PARALLEL;
     if (attr_ && attr_->has_key(stmt_attr_key::parallel_loop_balanced)) {
@@ -374,8 +375,7 @@ for_loop get_last_loop_in_body(const stmt &body) {
     return for_loop();
 }
 
-for_loop for_loop_node_t::fuse(
-        const for_loop &ax, std::unordered_map<expr, expr> *expr_remap) {
+for_loop for_loop_node_t::fuse(const for_loop &ax, node_ptr_map *node_remap) {
     COMPILE_ASSERT(ax->isvalid(), "Transforming an invalid for-loop: ax");
     COMPILE_ASSERT(isvalid(), "Transforming an invalid for-loop: this");
     if (!get_inner_for_loop(this).ptr_same(ax)) {
@@ -411,13 +411,17 @@ for_loop for_loop_node_t::fuse(
     outer = outer + min1;
     outer = do_cast_and_fold(outer);
     var_remap.insert(std::make_pair(var1.get(), outer));
-    if (expr_remap) { expr_remap->insert(std::make_pair(var1, outer)); }
+    if (node_remap) {
+        node_remap->insert(std::make_pair(var1.impl, outer.impl));
+    }
     expr inner = vout % loop_len2;
     inner = inner + min2;
     inner = do_cast_and_fold(inner).remove_const();
 
     var_remap.insert(std::make_pair(var2.get(), inner));
-    if (expr_remap) { expr_remap->insert(std::make_pair(var2, inner)); }
+    if (node_remap) {
+        node_remap->insert(std::make_pair(var2.impl, inner.impl));
+    }
     var_inplace_replacer_t pass(&var_remap);
     auto newbody = pass.dispatch_impl(ax->body_);
 

@@ -233,6 +233,12 @@ struct op_or_fuse_anchor_map_cmper {
 };
 
 struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
+private:
+    // control whether the fusion anchor is output anchor or input, default is
+    // output anchor.
+    bool is_input_anchor_;
+
+public:
     stmts anchor_position_;
     fslice_map fsmap_;
 
@@ -254,13 +260,17 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
 
     fuse_anchor_map_t() = default;
     fuse_anchor_map_t(stmts pos, const fslice_map &fsmap,
-            const std::shared_ptr<fuse_anchor_map_t> &parent = nullptr)
-        : anchor_position_(std::move(pos))
+            const std::shared_ptr<fuse_anchor_map_t> &parent = nullptr,
+            bool is_input_anchor = false)
+        : is_input_anchor_(is_input_anchor)
+        , anchor_position_(std::move(pos))
         , fsmap_(std::move(fsmap))
         , parent_(parent) {
         if (parent) { parent_->append_content(this); }
     };
     bool defined() const { return anchor_position_.defined(); }
+
+    bool is_input_anchor() const { return is_input_anchor_; };
 
     // commit `stmt` to anchor and bind parent node to commited anchor
     virtual void commit_stmt(stmt &s) {
@@ -392,6 +402,7 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
      * }
      * */
     bool is_parent_for(const fuse_anchor_map_t *cur) const {
+        if (is_input_anchor_ != cur->is_input_anchor_) return false;
         if (!cur) return false;
         while (cur->parent_) {
             cur = cur->parent_.get();
@@ -417,6 +428,7 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
      * }
      * */
     bool is_sibling_for(const fuse_anchor_map_t *other) const {
+        if (is_input_anchor_ != other->is_input_anchor_) return false;
         if (is_parent_for(other)) return false;
         auto this_loop = get_parent_loop();
         auto other_loop = other->get_parent_loop();
@@ -448,6 +460,7 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
      * }
      * */
     bool is_cousin_for(const fuse_anchor_map_t *cur) const {
+        if (is_input_anchor_ != cur->is_input_anchor_) return false;
         return !(this->is_parent_for(cur) || cur->is_parent_for(this)
                        || this->is_sibling_for(cur)
                        || cur->is_sibling_for(this))
@@ -464,7 +477,7 @@ struct fuse_anchor_map_t : std::enable_shared_from_this<fuse_anchor_map_t> {
     bool check_input_for_op(
             const sc_op *op, std::unordered_set<graph_tensor_ptr> &known_gt);
 
-    void forbid_op_in_anchor(
+    void forbid_op(
             const sc_op *op, std::unordered_set<graph_tensor_ptr> &known_gt);
 
     bool check_dep_for_op(const sc_op *op);
@@ -487,8 +500,9 @@ struct fuse_iter_anchor_map_t : fuse_anchor_map_t {
 
     fuse_iter_anchor_map_t(expr iter_var, stmts pos, const fslice_map &fsmap,
             size_t iter_size, stmt dispatch_helper = stmt(),
-            const fuse_anchor_map_ptr &parent = nullptr)
-        : fuse_anchor_map_t(pos, fsmap, parent)
+            const fuse_anchor_map_ptr &parent = nullptr,
+            bool is_input_anchor = false)
+        : fuse_anchor_map_t(pos, fsmap, parent, is_input_anchor)
         , iter_(std::move(iter_var))
         , iter_size_(iter_size)
         , dispatch_helper_(std::move(dispatch_helper)) {

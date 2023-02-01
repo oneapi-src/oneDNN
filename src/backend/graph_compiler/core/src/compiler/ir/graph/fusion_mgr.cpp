@@ -1329,6 +1329,18 @@ void fusion_manager::do_compute_block(
     }
 }
 
+void fusion_manager::create_input_fusion_anchor(
+        const std::vector<tensor_slice> &dst,
+        const std::vector<tensor_slice> &src) {
+    COMPILE_ASSERT(!dst.empty(), "No dst tensor slice is found");
+
+    auto bld = builder::get_current_builder();
+    auto s = bld->push_anchor();
+    auto fanchor = fuse_anchor_t(s, std::make_pair(src, dst));
+    // append to fuse anchor
+    input_anchor_list_.emplace_back(std::move(fanchor));
+}
+
 void fusion_manager::create_output_fusion_anchor(
         const std::vector<tensor_slice> &src,
         const std::vector<tensor_slice> &dst) {
@@ -1341,7 +1353,7 @@ void fusion_manager::create_output_fusion_anchor(
     fanchor_list_.emplace_back(std::move(fanchor));
 }
 
-void fusion_manager::create_iterated_fusion_anchor(expr iter, expr tsr,
+void fusion_manager::create_output_fusion_anchor(expr iter, expr tsr,
         slice_range_list slice_list, stmt dispatch_helper) {
     auto bld = builder::get_current_builder();
     auto s = bld->push_anchor();
@@ -1358,6 +1370,22 @@ fusion_manager::unpack_src_anchor() {
         for (auto &src_tsr_slice : anchor.anchor_slice_.first) {
             anchor_map[src_tsr_slice.get_real_tensor()]
                     = slice_range_list {src_tsr_slice.get_ranges()};
+        }
+        anchor_map_list.emplace_back(
+                std::make_pair(anchor.anchor_position_, anchor_map));
+    }
+    return anchor_map_list;
+}
+
+std::vector<std::pair<stmts, std::unordered_map<expr, slice_range_list>>>
+fusion_manager::unpack_dst_anchor() {
+    std::vector<std::pair<stmts, std::unordered_map<expr, slice_range_list>>>
+            anchor_map_list;
+    for (auto &anchor : input_anchor_list_) {
+        std::unordered_map<expr, slice_range_list> anchor_map;
+        for (auto &dst_tsr_slice : anchor.anchor_slice_.second) {
+            anchor_map[dst_tsr_slice.get_real_tensor()]
+                    = slice_range_list {dst_tsr_slice.get_ranges()};
         }
         anchor_map_list.emplace_back(
                 std::make_pair(anchor.anchor_position_, anchor_map));

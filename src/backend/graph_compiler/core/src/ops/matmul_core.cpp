@@ -1261,7 +1261,7 @@ void pre_matmul_binding_axis(tunable_op_t *cur, bound_axis_map &bdax_map) {
                 }
                 in_axis.emplace_back(ret);
             }
-            inpaxis = outaxis;
+            inpaxis = in_axis;
             if (auto bd_op = input->producer_owner_->dyn_cast<
                              op_traits::mixed_partition_acceptable>()) {
                 bd_op->pre_binding_axis(bdax_map);

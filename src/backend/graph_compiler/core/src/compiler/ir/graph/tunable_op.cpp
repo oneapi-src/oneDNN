@@ -92,10 +92,15 @@ func_t tunable_op_t::get_func(mixed_parti_t *parti,
 
     auto func = builder::make_func(std::string(""), std::vector<expr> {},
             std::move(body), datatypes::boolean);
-    // record anchor
+    // record output anchor
     extract_anchor_from_fmgr_to_parti(&fmgr, parti, outs, get_outputs(),
             parti->ready_for_op(this) ? parti->lookup_anchor_map(this)
                                       : nullptr);
+    // record input anchor if necessary
+    if (parti->empty()) {
+        extract_anchor_from_fmgr_to_parti(
+                &fmgr, parti, ins, get_inputs(), nullptr);
+    }
     // bind outer_loop with axis
     if (!loops.empty() && (loops[0].get())
             && loops[0]->attr().has_key(stmt_attr_key::loop_axis_hint)) {
@@ -175,12 +180,12 @@ void tunable_op_t::commit_into_anchor(mixed_parti_t *parti) {
                 return transform_tsr2stsr_with_range(tsr, range);
             });
 
-    std::unordered_map<expr, expr> def_to_call_map;
+    node_ptr_map def_to_call_map;
     for (size_t i = 0; i < ins.size(); i++) {
-        def_to_call_map[strd_ins[i]] = tptr_ins[i];
+        def_to_call_map[strd_ins[i].impl] = tptr_ins[i].impl;
     }
     for (size_t i = 0; i < outs.size(); i++) {
-        def_to_call_map[strd_outs[i]] = tptr_outs[i];
+        def_to_call_map[strd_outs[i].impl] = tptr_outs[i].impl;
     }
     // commit content id to anchor
     committed_anchor->append_content(static_cast<sc_op *>(this));

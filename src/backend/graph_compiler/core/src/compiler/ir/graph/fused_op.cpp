@@ -1563,8 +1563,7 @@ ir_module_ptr mixed_fuse_op_t::get_func(context_ptr ctx) {
     return modu;
 }
 
-void schedule_loop_body(
-        const stmt &body, std::unordered_map<expr, expr> *expr_remap) {
+void schedule_loop_body(const stmt &body, node_ptr_map *node_remap) {
     stmt target_loop = body;
     if (target_loop.isa<stmts>()) {
         auto ss = target_loop.static_as<stmts>();
@@ -1595,25 +1594,22 @@ void schedule_loop_body(
                 && (inner_loop->step_.isa<constant>()
                         && get_expr_as_int(inner_loop->step_) == 1)
                 && !inner_loop->attr().get_or_else(
-                        "temp.loop_no_fuse", false)) {
-            std::unordered_map<expr, expr> cur_remap;
+                        stmt_attr_key::no_loop_fuse, false)) {
+            node_ptr_map cur_remap;
             outer_most_loop->fuse(
-                    inner_loop, expr_remap ? &cur_remap : nullptr);
+                    inner_loop, node_remap ? &cur_remap : nullptr);
             cur_loop = inner_loop;
-            if (expr_remap) {
-                for (auto &exp_m : (*expr_remap)) {
+            if (node_remap) {
+                for (auto &exp_m : (*node_remap)) {
                     auto iter = cur_remap.find(exp_m.second);
                     if (iter != cur_remap.end()) {
                         exp_m.second = iter->second;
                         cur_remap.erase(iter);
                     }
                 }
-                expr_remap->insert(cur_remap.begin(), cur_remap.end());
+                node_remap->insert(cur_remap.begin(), cur_remap.end());
             }
         } else {
-            if (cur_loop->body_->attr().has_key("builder.parent_node")) {
-                add_parent_node(cur_loop->body_, outer_most_loop);
-            }
             break;
         }
     }

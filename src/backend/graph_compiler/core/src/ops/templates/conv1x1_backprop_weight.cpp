@@ -201,9 +201,9 @@ void gen_conv1x1_backprop_weight_t::schedule_loops(context_ptr ctx,
       rlko->fuse(rlco);
     } else if (config.loop_sched == 2) {
       lk->fuse(lc);
-      ln->attr().set("temp.loop_no_fuse", true);
-      ld->attr().set("temp.loop_no_fuse", true);
-      lp->attr().set("temp.loop_no_fuse", true);
+      ln->attr().set(stmt_attr_key::no_loop_fuse, true);
+      ld->attr().set(stmt_attr_key::no_loop_fuse, true);
+      lp->attr().set(stmt_attr_key::no_loop_fuse, true);
     }
   }
 }
@@ -390,8 +390,8 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_N(const context_ptr &ctx,
     }
     loops = {ln, lk, lc, rlko, rlco};
   }
-  ld->attr().set("temp.loop_no_fuse", true);
-  lp->attr().set("temp.loop_no_fuse", true);
+  ld->attr().set(stmt_attr_key::no_loop_fuse, true);
+  lp->attr().set(stmt_attr_key::no_loop_fuse, true);
   return true;
 }
 
@@ -816,7 +816,7 @@ bool gen_conv1x1_backprop_weight_t::generate_reduce_ALL2(const context_ptr &ctx,
           }
           if (config.loop_sched == 2 && fusion) {
             auto loop = ln->fuse(ld)->fuse(lp);
-            loop->attr().set("temp.loop_no_fuse", true);
+            loop->attr().set(stmt_attr_key::no_loop_fuse, true);
             trace_guard_t trg(ctx, "post_fusion");
             fusion->create_output_fusion_anchor({tensor_slice(real_out_tmp_buf,
               {{oc, 1}, {ic, 1}, {0, 1}, {0, 1}, {0, OC_block},

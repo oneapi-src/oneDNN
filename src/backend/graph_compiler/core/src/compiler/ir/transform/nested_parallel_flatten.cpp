@@ -267,6 +267,7 @@ void work() {
                         body->seq_.end());
                 single_thread_body = stmts();
             } else if (old_body[i].isa<define_c>()) {
+                single_thread_body = stmts();
                 new_body->seq_.emplace_back(
                         dispatch(old_body[i]).remove_const());
             } else {
