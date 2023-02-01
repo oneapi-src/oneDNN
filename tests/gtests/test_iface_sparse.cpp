@@ -74,8 +74,7 @@ TEST(iface_sparse_test_t, TestSparseMDQueries) {
     ASSERT_EQ(md.get_dims(), dims);
     ASSERT_EQ(md.get_data_type(), data_type);
     ASSERT_EQ(md.get_data_type(0), data_type);
-    // Format kind is expected to be "undef" when data kind is sparse.
-    ASSERT_EQ(md.get_format_kind(), memory::format_kind::undef);
+    ASSERT_EQ(md.get_format_kind(), memory::format_kind::sparse);
 
     ASSERT_EQ(md.get_nnz(), nnz);
     ASSERT_EQ(md.get_sparse_encoding(), memory::sparse_encoding::csr);
