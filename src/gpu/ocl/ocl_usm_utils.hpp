@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,8 @@ status_t set_kernel_arg_usm(engine_t *engine, cl_kernel kernel, int arg_index,
 status_t DNNL_API memcpy(
         stream_t *stream, void *dst, const void *src, size_t size);
 status_t fill(stream_t *stream, void *ptr, const void *pattern,
-        size_t pattern_size, size_t size);
+        size_t pattern_size, size_t size, cl_uint num_events,
+        const cl_event *events, cl_event *out_event);
 status_t DNNL_API memset(stream_t *stream, void *ptr, int value, size_t size);
 ocl_usm_kind_t DNNL_API get_pointer_type(engine_t *engine, const void *ptr);
 

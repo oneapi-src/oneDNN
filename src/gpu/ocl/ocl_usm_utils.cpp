@@ -134,19 +134,21 @@ status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size) {
 }
 
 status_t fill(stream_t *stream, void *ptr, const void *pattern,
-        size_t pattern_size, size_t size) {
+        size_t pattern_size, size_t size, cl_uint num_events,
+        const cl_event *events, cl_event *out_event) {
     using clEnqueueMemFillINTEL_func_t
             = cl_int (*)(cl_command_queue, void *, const void *, size_t, size_t,
                     cl_uint, const cl_event *, cl_event *);
     static ext_func_t<clEnqueueMemFillINTEL_func_t> ext_func(
             "clEnqueueMemFillINTEL");
     return convert_to_dnnl(ext_func(stream->engine(), get_ocl_queue(stream),
-            ptr, pattern, pattern_size, size, 0, nullptr, nullptr));
+            ptr, pattern, pattern_size, size, num_events, events, out_event));
 }
 
 status_t memset(stream_t *stream, void *ptr, int value, size_t size) {
     uint8_t pattern = (uint8_t)value;
-    return fill(stream, ptr, &pattern, sizeof(uint8_t), size);
+    return fill(
+            stream, ptr, &pattern, sizeof(uint8_t), size, 0, nullptr, nullptr);
 }
 
 ocl_usm_kind_t get_pointer_type(engine_t *engine, const void *ptr) {

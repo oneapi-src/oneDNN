@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -205,19 +205,39 @@ status_t ocl_stream_t::fill(
 
     const auto *ocl_dst = downcast<const ocl_memory_storage_base_t *>(&dst);
 
+    std::vector<cl_event> events = [&] {
+        if (flags() & stream_flags::out_of_order) {
+            const auto &event_wrappers = get_deps();
+            return std::vector<cl_event>(
+                    event_wrappers.begin(), event_wrappers.end());
+        }
+        return std::vector<cl_event> {};
+    }();
+    cl_uint num_events = (cl_uint)events.size();
+    const cl_event *events_ptr = events.data();
+
+    cl_event out_event;
+    bool need_out_event
+            = is_profiling_enabled() || flags() & stream_flags::out_of_order;
+    cl_event *out_event_ptr = need_out_event ? &out_event : nullptr;
+
     if (ocl_dst->memory_kind() == memory_kind::usm) {
         const auto *ocl_usm_dst
                 = downcast<const ocl_usm_memory_storage_t *>(ocl_dst);
-        CHECK(usm::fill(
-                this, ocl_usm_dst->usm_ptr(), &pattern, sizeof(pattern), size));
+        CHECK(usm::fill(this, ocl_usm_dst->usm_ptr(), &pattern, sizeof(pattern),
+                size, num_events, events_ptr, out_event_ptr));
     } else {
         const auto *ocl_buffer_dst
                 = downcast<const ocl_buffer_memory_storage_t *>(ocl_dst);
         cl_int err = clEnqueueFillBuffer(queue(), ocl_buffer_dst->mem_object(),
-                &pattern, sizeof(uint8_t), dst.offset(), size, 0, nullptr,
-                nullptr);
+                &pattern, sizeof(uint8_t), dst.offset(), size, num_events,
+                events_ptr, out_event_ptr);
         OCL_CHECK(err);
     }
+
+    if (is_profiling_enabled()) register_profile_event(out_event, this);
+    if (flags() & stream_flags::out_of_order) set_deps({out_event});
+
     return status::success;
 }
 
