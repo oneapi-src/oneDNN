@@ -1444,8 +1444,7 @@ private:
         if (!src_layout_.is_dense()) return false;
         if (!dst_layout_.is_dense()) return false;
 
-        int max_tile_size = 512;
-        int max_tile_elems = max_tile_size / src_layout_.type().size();
+        int max_tile_elems = std::max(src_layout_.elems(), dst_layout_.elems());
         auto tile = find_max_2d_dense_tile(
                 src_layout_, dst_layout_, max_tile_elems);
 
