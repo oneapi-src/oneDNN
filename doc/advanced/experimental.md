@@ -34,6 +34,8 @@ Both kinds of experimental features can be enabled simultaneously.
 This option extends the existing API and adds a new one to support sparse
 functionality in oneDNN.
 
+#### API
+
 The main change is in oneDNN memory object semantics. Now, the memory object can
 have multiple underlying buffers. In the case of regular dense computations, the
 memory object always contains a single buffer. But in the case of sparse
@@ -109,6 +111,36 @@ Pseudo-code with creating a memory object for CSR sparse encoding.
     assert(indices_handle == (void *)csr_indices.data());
     assert(pointers_handle == (void *)csr_pointers.data());
 ~~~
+
+#### Primitives
+
+The option enables a matmul primitive that can work with sparse input tensors.
+Only one of the input tensors is allowed to be sparse. The output tensor is
+always dense.
+
+The following data types combinations are supported:
+
+| Values | Indices | Pointers
+| :----- | :-----  | :-----
+| f32    | s32     | s32
+
+The following sparse encodings are supported:
+
+| Sparse encoding |
+| :---            |
+| CSR             |
+
+The following format tags are supported for dense input/output tensors:
+
+| Format tag |
+| :---       |
+| ab         |
+
+Benchdnn can be used to test the sparse matmul as follows:
+`./benchdnn --matmul --encoding=csr+0.99:: --wtag=ab --dtag=ab 4x1000000:1000000x128`
+
+For the case above, the number of non-zero elements for the source tensor is
+calculated as max(4 * 1000000 * (1 - 0.99)), 1).
 
 @warning
 - Enabling experimental features does not guarantee that the library will utilize them

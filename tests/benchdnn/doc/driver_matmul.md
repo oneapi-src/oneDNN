@@ -50,7 +50,10 @@ where *matmul-knobs* are:
             `DNNL_RUNTIME_DIM_VAL` (indicated as 1-bit in the corresponding
             dimension position). The default is `0` for all dimensions, meaning
             all tensor dimensions are fully defined at primitive creation.
-
+- `--encoding=STRING` - sparse encodings and sparsity. No encodings are set by
+            default. Refer to [encodings](knobs_encoding.md) for details. This
+            is an experimental feature that must be enabled via a build time
+            CMake option `DNNL_EXPERIMENTAL_SPARSE`.
 
 and *matmul-desc* is a problem descriptor. The canonical form is:
 ```
