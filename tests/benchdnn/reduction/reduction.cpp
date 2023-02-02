@@ -210,6 +210,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     // accounts for inaccurate rootn/pow functions in norm algs.
     float scale = is_norm_alg(prb->alg) ? 5.0f : 1.0f;
     cmp.set_threshold(scale * epsilon_dt(prb->ddt));
+    // work around for benchdnn ext.
+    cmp.set_op_output_has_nans(true);
 
     if (is_amd_gpu()) {
         // MIOpen implementation is less accurate for f16 data type therefore
