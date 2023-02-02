@@ -214,8 +214,12 @@ endif()
 # Setting compiler flags
 ##########################
 
-if(${SC_LLVM_VERSION} GREATER 8)
+if(${SC_LLVM_VERSION} LESS 9)
+    # default to c++11
+elseif(${SC_LLVM_VERSION} LESS 16)
     set(SC_CPP_VER "14")
+else()
+    set(SC_CPP_VER "17")
 endif()
 
 if(NOT MSVC)

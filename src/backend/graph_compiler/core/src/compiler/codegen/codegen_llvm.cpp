@@ -48,6 +48,7 @@
 #else
 #include <llvm/Support/TargetRegistry.h>
 #endif
+#include <llvm/MC/SubtargetFeature.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
@@ -56,6 +57,12 @@
 #include <util/bf16.hpp>
 #include <util/file.hpp>
 #include <util/scoped_timer.hpp>
+
+#if SC_LLVM_BACKEND > 15
+#include <llvm/ADT/None.h>
+#include <llvm/ADT/Optional.h>
+#include <llvm/Support/ModRef.h>
+#endif
 
 #if SC_LLVM_BACKEND > 8
 #include <llvm/IR/IntrinsicsX86.h>
@@ -78,11 +85,27 @@ std::unique_ptr<TargetMachine> get_llvm_target_machine(
     std::string err;
     auto target = TargetRegistry::lookupTarget(target_triple, err);
     if (!target) { throw std::runtime_error(err); }
-
     TargetOptions opt;
+#if SC_LLVM_BACKEND > 15
+    auto the_none = std::nullopt;
+#else
+    auto the_none = llvm::None;
+#endif
+
     auto reloc_model = Optional<Reloc::Model>(Reloc::Static);
-    auto tm = target->createTargetMachine(target_triple, sys::getHostCPUName(),
-            /*Features*/ "", opt, reloc_model, llvm::None, optlevel, true);
+    auto host_cpu = sys::getHostCPUName();
+    std::string features;
+    if (host_cpu == "generic") {
+        llvm::StringMap<bool> feature_map;
+        sys::getHostCPUFeatures(feature_map);
+        llvm::SubtargetFeatures f;
+        for (auto &feature : feature_map) {
+            f.AddFeature(feature.first(), feature.second);
+        }
+        features = f.getString();
+    }
+    auto tm = target->createTargetMachine(target_triple, host_cpu, features,
+            opt, reloc_model, the_none, optlevel, true);
     return std::unique_ptr<TargetMachine>(tm);
 }
 
@@ -209,7 +232,12 @@ public:
         }
         name_to_func_.insert(std::make_pair(v->name_, F));
         if (v->attr_ && v->attr_->get_or_else(function_attrs::pure, false)) {
+#if SC_LLVM_BACKEND < 16
             F->addFnAttr(llvm::Attribute::AttrKind::ReadNone);
+#else
+            F->addFnAttr(llvm::Attribute::getWithMemoryEffects(
+                    context_, llvm::MemoryEffects::none()));
+#endif
 #if SC_LLVM_BACKEND > 10
             F->addFnAttr(llvm::Attribute::AttrKind::Speculatable);
 #endif

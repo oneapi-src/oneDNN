@@ -66,8 +66,9 @@ static void optimize_llvm_module(llvm::TargetMachine *tm, llvm::Module *module,
     passbuilder.SLPVectorize = true;
     llvm::legacy::PassManager MPM;
     llvm::legacy::FunctionPassManager FPM(module);
+#if SC_LLVM_BACKEND < 16
     tm->adjustPassManager(passbuilder);
-
+#endif
     passbuilder.Inliner = llvm::createFunctionInliningPass(
             static_cast<unsigned int>(llvm_opt), 0, false);
 
