@@ -487,8 +487,6 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     bool ok = true
             && one_of(cell_kind, alg_kind::vanilla_rnn, alg_kind::vanilla_lstm,
                     alg_kind::lbr_gru, alg_kind::vanilla_gru)
-            // diff_weights_overwrite is not supported
-            && this->desc()->flags == rnn_flags::undef
             && !this->is_lstm_peephole() && !this->is_lstm_projection()
             && IMPLICATION(aprop == prop_kind::forward,
                     one_of(this->desc()->prop_kind, forward_training,
@@ -1132,6 +1130,19 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
     int n_dir = rnn.n_dir;
     int n_iter = rnn.n_iter;
 
+    if (aprop == prop_kind::backward && pd()->diff_weights_overwrite()) {
+        compute::compute_stream_t *compute_stream
+                = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+        auto zero = [&](const memory_storage_t &data, int arg_id) {
+            auto mdw = memory_desc_wrapper(pd()->arg_md(arg_id));
+            return compute_stream->fill(data, 0, mdw.size());
+        };
+
+        CHECK(zero(diff_bias, DNNL_ARG_DIFF_BIAS));
+        CHECK(zero(diff_weights_layer, DNNL_ARG_DIFF_WEIGHTS_LAYER));
+        CHECK(zero(diff_weights_iter, DNNL_ARG_DIFF_WEIGHTS_ITER));
+    }
+
     // Grid Computation for RNN with a cell execution call
     for (int dir = 0; dir < n_dir; dir++) {
         for (int j = 0; j < n_layer; j++) {
@@ -1184,6 +1195,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             }
         }
     }
+    return status::success;
 }
 //********* GRID computations strategy: utility functions **********//
 
