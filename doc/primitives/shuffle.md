@@ -7,15 +7,16 @@ Shuffle {#dev_guide_shuffle}
 
 ## General
 
-The shuffle primitive shuffles data along the shuffle axis (here is designated
-as \f$C\f$) with the group parameter \f$G\f$. Namely, the shuffle axis is
-thought to be a 2D tensor of size \f$(\frac{C}{G} \times G)\f$ and it is being
-transposed to \f$(G \times \frac{C}{G})\f$. Variable names follow the standard
-@ref dev_guide_conventions.
-
-The formal definition is shown below:
+The shuffle primitive shuffles data along the shuffle axis (here designated as
+\f$C\f$) with group parameter \f$G\f$. If the shuffle axis is thought of as a
+\f$(\frac{C}{G} \times G)\f$ matrix in row-major order, then the shuffle
+operation transposes the shuffle axis to a \f$(G \times \frac{C}{G})\f$ matrix
+in row-major order.
 
 ### Forward
+
+The formal definition is as follows (variable names follow the standard
+@ref dev_guide_conventions):
 
 \f[
     \dst(\overline{ou}, c, \overline{in}) =
@@ -47,12 +48,12 @@ and #dnnl_forward_inference propagation kinds.
 ### Backward
 
 The backward propagation computes
-\f$\diffsrc(ou, c, in)\f$,
+\f$\diffsrc(\overline{ou}, c', \overline{in})\f$,
 based on
-\f$\diffdst(ou, c, in)\f$.
+\f$\diffdst(\overline{ou}, c, \overline{in})\f$.
 
 Essentially, backward propagation is the same as forward propagation with
-\f$g\f$ replaced by \f$C / g\f$.
+\f$G\f$ replaced by \f$C / G\f$.
 
 ## Execution Arguments
 

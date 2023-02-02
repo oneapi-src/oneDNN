@@ -13,9 +13,11 @@ where *shuffle-knobs* are:
             Refer to [data types](knobs_dt.md) for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
- - `--axis=INT` -- dimension on which operation will be performed.
-            Default is `1`, corresponds to channels in logical memory layout.
- - `--group=INT` -- number of elements to shuffle. The default is `1`.
+ - `--axis=INT` -- dimension on which operation will be performed, also called
+            the shuffle axis. The default is `1` and corresponds to channels in
+            logical memory layout.
+ - `--group=INT` -- group size along the shuffle axis. Must evenly divide the
+            shuffle axis. The default is `1`.
 
 and *shuffle-desc* is a problem descriptor. The canonical form is:
 ```
