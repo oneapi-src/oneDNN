@@ -833,14 +833,14 @@ struct check_mem_size_args_t {
 
 static int check_total_size(
         const check_mem_size_args_t &check_mem_size_args, res_t *res) {
-    static uint64_t cpu_device_capacity = get_cpu_ram_size();
-    uint64_t gpu_device_capacity = 0;
-    uint64_t gpu_max_alloc_capacity = 0;
+    static size_t cpu_device_capacity = get_cpu_ram_size();
+    size_t gpu_device_capacity = 0;
+    size_t gpu_max_alloc_capacity = 0;
     SAFE(get_gpu_ram_sizes(gpu_device_capacity, gpu_max_alloc_capacity), WARN);
 
-    const uint64_t device_max_capacity
+    const size_t device_max_capacity
             = is_cpu() ? cpu_device_capacity : gpu_device_capacity;
-    const uint64_t cpu_max_capacity = cpu_device_capacity;
+    const size_t cpu_max_capacity = cpu_device_capacity;
 
     // 0.75f is taken randomly and is subject to change in future.
     const double capacity_factor = 0.75;
