@@ -8,13 +8,18 @@
 --l=1,2
 --t=1,2,3
 --mb=1,3,4
---prop=FWD_I,BWD_DW
+--prop=FWD_I
 
-# RNN, LSTM
+# RNN, LSTM, GRU
 --alg=VANILLA_RNN --activation=RELU,TANH,LOGISTIC --batch=shapes_small
 --alg=VANILLA_LSTM --activation=UNDEF --batch=shapes_small
+--alg=LBR_GRU,VANILLA_GRU --batch=shapes_small_gru
 
-# GRU
+--prop=BWD_DW
+--flag=,O
+# RNN, LSTM, GRU
+--alg=VANILLA_RNN --activation=RELU,TANH,LOGISTIC --batch=shapes_small
+--alg=VANILLA_LSTM --activation=UNDEF --batch=shapes_small
 --alg=LBR_GRU,VANILLA_GRU --batch=shapes_small_gru
 
 --reset
@@ -56,8 +61,11 @@
 --t=1,2,3
 --mb=1,16,65
 
---alg=VANILLA_LSTM --prop=FWD_I,BWD_DW --batch=shapes_large
---alg=LBR_GRU,VANILLA_GRU --prop=FWD_I,BWD_DW --batch=shapes_large_gru
+--alg=VANILLA_LSTM --prop=FWD_I --batch=shapes_large
+--alg=LBR_GRU,VANILLA_GRU --prop=FWD_I --batch=shapes_large_gru
+
+--alg=VANILLA_LSTM --prop=BWD_DW --flag=,O --batch=shapes_large
+--alg=LBR_GRU,VANILLA_GRU --prop=BWD_DW --flag=,O --batch=shapes_large_gru
 
 # RNN
 # f16
