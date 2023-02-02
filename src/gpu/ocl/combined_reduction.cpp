@@ -250,7 +250,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     layout_t dst_ext(dst_mdw);
 
     // Requirement: non-reduced dimensions appear in the same order in src and dst
-    dim_t *src_ext_dims = src_ext.dims();
+    dim_t *src_ext_padded_dims = src_ext.padded_dims();
     dim_t *src_ext_perm = src_ext.perm();
     extended_dims_t non_reduced_src_perm;
     extended_dims_t non_reduced_src_dims;
@@ -259,10 +259,10 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
         if (is_dim_reduced[src_ext_perm[i]]) continue;
 
         non_reduced_src_perm[non_reduced_src_ndims] = src_ext_perm[i];
-        non_reduced_src_dims[non_reduced_src_ndims++] = src_ext_dims[i];
+        non_reduced_src_dims[non_reduced_src_ndims++] = src_ext_padded_dims[i];
     }
 
-    dim_t *dst_ext_dims = dst_ext.dims();
+    dim_t *dst_ext_padded_dims = dst_ext.padded_dims();
     dim_t *dst_ext_perm = dst_ext.perm();
     extended_dims_t non_reduced_dst_perm;
     extended_dims_t non_reduced_dst_dims;
@@ -271,7 +271,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
         if (is_dim_reduced[dst_ext_perm[i]]) continue;
 
         non_reduced_dst_perm[non_reduced_dst_ndims] = dst_ext_perm[i];
-        non_reduced_dst_dims[non_reduced_dst_ndims++] = dst_ext_dims[i];
+        non_reduced_dst_dims[non_reduced_dst_ndims++] = dst_ext_padded_dims[i];
     }
 
     // same number of non-reduced dims (plain + blocked)
@@ -292,7 +292,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     }
 
     bool ext_reduced_dim[2 * DNNL_MAX_NDIMS];
-    dim_t *src_ext_padded_dims = src_ext.padded_dims();
+    dim_t *src_ext_dims = src_ext.dims();
     for (int i = 0; i < src_ext.ndims(); i++) {
         if (is_dim_reduced[src_ext_perm[i]]) {
             ext_reduced_dim[i] = true;

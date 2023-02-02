@@ -98,8 +98,7 @@ combined_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
     const int sg_per_inner_dim = div_up(INNER_DIM_SIZE, SUBGROUP_SIZE);
     const int inner_dims_per_sg
             = min(REDUCTION_SIZE, max(1, SUBGROUP_SIZE / INNER_DIM_SIZE));
-    const int num_horiz_reductions
-            = min(DIV, div_up(REDUCTION_SIZE, inner_dims_per_sg));
+    const int num_horiz_reductions = div_up(REDUCTION_SIZE, inner_dims_per_sg);
 
     // Direct indices from gws
     const int sgid = get_global_id(0) / SUBGROUP_SIZE;
