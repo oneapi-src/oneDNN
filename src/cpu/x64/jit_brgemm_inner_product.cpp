@@ -340,7 +340,8 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
         enum loop_order order = osc_occ_osb_ocb_icc;
 
         // Optimize loop order for f32, if buffer is not required.
-        const bool ocb_inner_most = is_f32 && !jbgp.is_bf32 && !jbgp.use_buffer;
+        const bool is_f32_compute = is_f32 && !jbgp.is_bf32;
+        const bool ocb_inner_most = is_f32_compute && !jbgp.use_buffer;
         if (ocb_inner_most) {
             order = osc_occ_icc_osb_ocb;
 
@@ -436,7 +437,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     });
 
     if (jbgp.nthr_ic_b > 1) {
-        assert(jbgp.use_buffer && is_f32);
+        assert(jbgp.use_buffer && is_f32_compute);
 
         const auto get_dst_reduced_off = [&](int ithr_ic, int osb, int ocb) {
             assert(jbgp.nthr_ic_b > 1);
