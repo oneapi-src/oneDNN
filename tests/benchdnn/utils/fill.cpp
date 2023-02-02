@@ -21,12 +21,17 @@
 
 int fill_scales(
         const attr_t &attr, int arg, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const auto &e = attr.scales.get(arg);
+    return fill_scales(e, mem_dt, mem_fp);
+}
+
+int fill_scales(const attr_t::arg_scales_t::entry_t &e, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
-    assert(mem_dt.nelems() == mem_fp.nelems());
+    if (mem_dt) { assert(mem_dt.nelems() == mem_fp.nelems()); }
 
-    const auto &e = attr.scales.get(arg);
     if (e.policy == policy_t::COMMON) {
         assert(nelems == 1);
         mem_fp.set_elem(0, e.scale);
@@ -57,7 +62,7 @@ int fill_scales(
         });
     }
 
-    SAFE(mem_dt.reorder(mem_fp), WARN);
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
