@@ -90,6 +90,9 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                     * group_size;
             gws[1] = gws[2] = 1;
 
+            //subgroup block write requires the tensor to be 16-byte aligned
+            if (axis_size() % byte_alignment == 0) is_aligned = true;
+
             auto src_padded_dims = src_d.padded_dims();
             mb = src_padded_dims[0] * src_padded_dims[2] * src_padded_dims[3]
                     & src_padded_dims[4];
@@ -98,12 +101,14 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
 
         bool is_nhwc = false;
         bool is_blocked = false;
+        bool is_aligned = false;
         size_t gws[3] = {};
         size_t lws[3] = {};
         size_t block[3] = {};
         size_t group_size = 0;
         size_t mb = 0;
         const int subgroup_size = 16;
+        const int byte_alignment = 16;
         // 8x16 load and store commands (Vector_Size x Sub_Group_Size)
         const int buffer_size = 128;
     };
@@ -125,6 +130,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                                  : pd()->src_md(0)->padded_dims[1]);
         kernel_ctx.define_int("IS_NHWC", pd()->is_nhwc);
         kernel_ctx.define_int("IS_BLOCKED", pd()->is_blocked);
+        kernel_ctx.define_int("IS_ALIGNED", pd()->is_aligned);
         kernel_ctx.define_int("IS_FWD", 1);
         kernel_ctx.add_option("-cl-std=CL2.0");
         kernel_ctx.define_int("LOGSOFTMAX", pd()->is_logsoftmax());

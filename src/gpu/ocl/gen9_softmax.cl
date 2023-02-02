@@ -28,6 +28,7 @@
 
 #define VECT_SIZE 8
 #define SV (SUB_GROUP_SIZE * VECT_SIZE)
+#define HAS_TAIL (SOFTMAX_AXIS_SIZE % SV != 0)
 #define NUM_BUF ((SOFTMAX_AXIS_SIZE + SV - 1) / SV)
 
 #if IS_FWD
@@ -121,17 +122,20 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     float8 d[NUM_BUF];
     float max_ = -FLT_MAX;
     float denom_ = 0.f;
+    int last_buf = HAS_TAIL ? (NUM_BUF - 1) : NUM_BUF;
 
     src += data_off;
 
-    for (int k = 0; k < NUM_BUF - 1; ++k) {
+    for (int k = 0; k < last_buf; ++k) {
         d[k] = LOAD_FLOAT8(SRC, &src[k * VECT_SIZE * SUB_GROUP_SIZE]);
         for (int i = 0; i < VECT_SIZE; ++i) {
             max_ = max(d[k][i], max_);
         }
     }
+
+#if HAS_TAIL
     {
-        int k = NUM_BUF - 1;
+        int k = last_buf;
         for (int i = 0; i < VECT_SIZE; ++i) {
             int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
                     + get_sub_group_local_id();
@@ -140,10 +144,11 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
             max_ = max(d[k][i], max_);
         }
     }
+#endif
 
     max_ = sub_group_reduce_max(max_);
 
-    for (int k = 0; k < NUM_BUF - 1; ++k) {
+    for (int k = 0; k < last_buf; ++k) {
 #if LOGSOFTMAX
         for (int i = 0; i < VECT_SIZE; ++i)
             denom_ += exp(d[k][i] - max_);
@@ -154,8 +159,9 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #endif
     }
 
+#if HAS_TAIL
     {
-        int k = NUM_BUF - 1;
+        int k = last_buf;
 #if LOGSOFTMAX
         for (int i = 0; i < VECT_SIZE; ++i) {
             int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
@@ -171,6 +177,7 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         }
 #endif
     }
+#endif
 
     denom_ = sub_group_reduce_add(denom_);
 
@@ -181,17 +188,19 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #endif
 
     dst += data_off;
-    for (int k = 0; k < NUM_BUF - 1; ++k) {
+#if IS_ALIGNED
+    for (int k = 0; k < last_buf; ++k) {
 #if LOGSOFTMAX
         d[k] = d[k] - max_ - denom_;
 #else
         d[k] = d[k] * denom_;
 #endif
-        STORE_FLOAT8(DST, &dst[k * VECT_SIZE * SUB_GROUP_SIZE], scale * d[k]);
-    }
 
+        STORE_FLOAT8(DST, &dst[k * SV], scale * d[k]);
+    }
+#if HAS_TAIL // for tail cases with 16-byte aligned tensor shapes
     {
-        int k = NUM_BUF - 1;
+        int k = last_buf;
 #if LOGSOFTMAX
         d[k] = d[k] - max_ - denom_;
 #else
@@ -204,6 +213,22 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
                 dst[off] = FLOAT_TO_DATA(DST, scale * d[k][i]);
         }
     }
+#endif
+#else // for test-cases not aligned by 16 bytes
+    for (int k = 0; k < NUM_BUF; k++) {
+#if LOGSOFTMAX
+        d[k] = d[k] - max_ - denom_;
+#else
+        d[k] = d[k] * denom_;
+#endif
+        for (int i = 0; i < VECT_SIZE; i++) {
+            int off = k * VECT_SIZE * SUB_GROUP_SIZE + i * SUB_GROUP_SIZE
+                    + get_sub_group_local_id();
+            if (off < SOFTMAX_AXIS_SIZE)
+                dst[off] = FLOAT_TO_DATA(DST, scale * d[k][i]);
+        }
+    }
+#endif
 #endif
 }
 
