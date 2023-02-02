@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -275,6 +275,10 @@ using const_scales_filler
         = const_memory_filler_t<op_attr::scales, float, float>;
 using const_zps_filler = const_memory_filler_t<op_attr::zps, int64_t, int32_t>;
 
+extern "C" dnnl_status_t dnnl_memory_desc_create_with_string_tag(
+        dnnl_memory_desc_t *, int, const dnnl_dims_t, dnnl_data_type_t,
+        const char *);
+
 struct conv_fwd_executable_t : public op_executable_t {
     DECLARE_DESC_CLASS_AND_CREATOR(dnnl::convolution_forward::primitive_desc);
     DECLARE_ARG_INDICES_GETTER;
@@ -302,9 +306,16 @@ struct conv_fwd_executable_t : public op_executable_t {
                         && dst_mem.get_desc().get_data_type()
                                 == dnnl::memory::data_type::u8) {
                     dnnl::memory::desc to_desc = dst_mem.get_desc();
-                    desc new_to_desc(to_desc.get_dims(),
-                            psrc_mem.get_desc().get_data_type(),
-                            to_desc.get_strides());
+                    auto format_tag = get_format_tag_str(to_desc);
+                    const auto &dims = to_desc.get_dims();
+                    const auto &dtype = psrc_mem.get_desc().get_data_type();
+                    dnnl_memory_desc_t new_to_desc_c;
+                    dnnl_memory_desc_create_with_string_tag(&new_to_desc_c,
+                            static_cast<int>(dims.size()), dims.data(),
+                            static_cast<dnnl_data_type_t>(dtype),
+                            format_tag.data());
+                    dnnl::memory::desc new_to_desc;
+                    new_to_desc.reset(new_to_desc_c, true);
                     const memory to_mem
                             = dnnl::memory(new_to_desc, psrc_mem.get_engine());
                     to_mem.set_data_handle(dst_mem.get_data_handle());
@@ -339,9 +350,16 @@ struct conv_fwd_executable_t : public op_executable_t {
                         && dst_mem.get_desc().get_data_type()
                                 == dnnl::memory::data_type::u8) {
                     dnnl::memory::desc to_desc = dst_mem.get_desc();
-                    desc new_to_desc(to_desc.get_dims(),
-                            psrc_mem.get_desc().get_data_type(),
-                            to_desc.get_strides());
+                    auto format_tag = get_format_tag_str(to_desc);
+                    const auto &dims = to_desc.get_dims();
+                    const auto &dtype = psrc_mem.get_desc().get_data_type();
+                    dnnl_memory_desc_t new_to_desc_c;
+                    dnnl_memory_desc_create_with_string_tag(&new_to_desc_c,
+                            static_cast<int>(dims.size()), dims.data(),
+                            static_cast<dnnl_data_type_t>(dtype),
+                            format_tag.data());
+                    dnnl::memory::desc new_to_desc;
+                    new_to_desc.reset(new_to_desc_c, true);
                     const memory to_mem
                             = dnnl::memory(new_to_desc, psrc_mem.get_engine());
                     to_mem.set_data_handle(dst_mem.get_data_handle());
