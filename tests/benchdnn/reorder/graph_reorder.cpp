@@ -121,22 +121,28 @@ static void set_quant_op_attr(dnnl::graph::op &op, const std::string &qtype,
     if (qtype == "per_channel") op.set_attr("axis", axis);
 }
 
-static int fill_zps(const ::reorder::prb_t *prb, const int64_t axis,
+static int fill_zps(dnn_mem_map_t &mem_map, dnn_mem_map_t &ref_mem_map,
+        const ::reorder::prb_t *prb, const int64_t axis,
         std::vector<int64_t> &src_zps, std::vector<int64_t> &dst_zps) {
     if (prb->attr.scales.get(DNNL_ARG_SRC).policy == attr_t::policy_t::COMMON) {
         if (prb->attr.zero_points.is_def()) {
             src_zps.emplace_back(0);
             dst_zps.emplace_back(0);
-        } else if (prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8) {
-            //Quantize Op
-            src_zps.emplace_back(0);
-            dst_zps.emplace_back(prb->dst_zp[0]);
-        } else if ((prb->sdt == dnnl_s8 || prb->sdt == dnnl_u8)
-                && prb->ddt == dnnl_f32) {
-            //Dequantize Op
-            src_zps.emplace_back(prb->src_zp[0]);
-            dst_zps.emplace_back(0);
+        } else {
+            graph_fill_zps(mem_map, ref_mem_map, prb, 1, DNNL_ARG_SRC);
+            graph_fill_zps(mem_map, ref_mem_map, prb, 1, DNNL_ARG_DST);
+            const auto &src_mem_zp
+                    = ref_mem_map[DNNL_ARG_ATTR_ZERO_POINTS ^ DNNL_ARG_SRC];
+            const auto &dst_mem_zp
+                    = ref_mem_map[DNNL_ARG_ATTR_ZERO_POINTS ^ DNNL_ARG_DST];
+            const auto &src_zp_e = prb->attr.zero_points.get(DNNL_ARG_SRC);
+            const auto &dst_zp_e = prb->attr.zero_points.get(DNNL_ARG_DST);
+            src_mem_zp.set_elem(0, src_zp_e.value);
+            dst_mem_zp.set_elem(0, dst_zp_e.value);
+            src_zps.emplace_back(src_zp_e.value);
+            dst_zps.emplace_back(dst_zp_e.value);
         }
+
     } else {
         //TODO: needs update for PER_DIM_01
         for (int i = 0; i < prb->dims[axis]; i++) {
@@ -194,7 +200,8 @@ static void prepare_runtime_scales(dnn_mem_map_t &mem_map,
     }
 }
 
-static void maybe_prepare_runtime_zero_points(const ::reorder::prb_t *prb,
+static void maybe_prepare_runtime_zero_points(dnn_mem_map_t &mem_map,
+        dnn_mem_map_t &ref_mem_map, const ::reorder::prb_t *prb,
         dnn_mem_t &zps_dt, const dnnl::graph::logical_tensor &in,
         std::vector<int64_t> src_zps, std::vector<int64_t> dst_zps,
         int64_t axis) {
@@ -202,7 +209,7 @@ static void maybe_prepare_runtime_zero_points(const ::reorder::prb_t *prb,
     if (prb->attr.zero_points.is_def()) return;
 
     zps_dt = make_dnn_mem(in, dt::s32, tag::x);
-    fill_zps(prb, axis, src_zps, dst_zps);
+    fill_zps(mem_map, ref_mem_map, prb, axis, src_zps, dst_zps);
 
     if (is_quantize(convert_dt(prb->sdt), convert_dt(prb->ddt))) {
         for (size_t i = 0; i < dst_zps.size(); i++) {
@@ -249,7 +256,7 @@ fill_status_t append_graph_with_block(dnn_mem_map_t &mem_map,
 
     if (!runtime || is_runtime_to_static(src_dt, dst_dt)) {
         fill_scales(mem_map, ref_mem_map, prb, axis, scales);
-        fill_zps(prb, axis, src_zps, dst_zps);
+        fill_zps(mem_map, ref_mem_map, prb, axis, src_zps, dst_zps);
     }
 
     if (is_dq_r_q) {
@@ -466,8 +473,8 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
 
         prepare_runtime_scales(
                 mem_map, ref_mem_map, prb, scales_dt, ins[1], scales, axis);
-        maybe_prepare_runtime_zero_points(
-                prb, zps_dt, ins[2], src_zps, dst_zps, axis);
+        maybe_prepare_runtime_zero_points(mem_map, ref_mem_map, prb, zps_dt,
+                ins[2], src_zps, dst_zps, axis);
     }
 
     //TODO: fill for sum / zeropoints
@@ -477,7 +484,9 @@ int doit(const ::reorder::prb_t *prb, res_t *res) {
 
     tensors_in.emplace_back(
             dnnl::graph::tensor(ins[0], eng, static_cast<void *>(src_dt)));
-    if (!is_runtime_to_static(convert_dt(prb->sdt), convert_dt(prb->ddt))) {
+    if (!prb->attr.scales.get(DNNL_ARG_SRC).is_def()
+            && !is_runtime_to_static(
+                    convert_dt(prb->sdt), convert_dt(prb->ddt))) {
         tensors_in.emplace_back(dnnl::graph::tensor(
                 ins[1], eng, static_cast<void *>(scales_dt)));
         if (!prb->attr.zero_points.is_def())

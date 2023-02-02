@@ -159,7 +159,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const bool has_inf_output = prb->alg == alg_t::max && prb->has_ker_in_pad()
             && prb->attr.post_ops.len();
     cmp.set_op_output_has_nans(has_inf_output);
-    //work around now
+    // work around for benchdnn ext
     cmp.set_op_output_has_nans(true);
 
     const auto pooling_add_check

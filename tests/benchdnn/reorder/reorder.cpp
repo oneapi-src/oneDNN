@@ -375,6 +375,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     // This value can be exact without scales. Scales may affect the value.
     // Avoid any scales logic involved until needed.
     cmp.set_zero_trust_percent(80.f);
+    // work around for benchdnn ext
+    cmp.set_op_output_has_nans(true);
 
     // Additional check to avoid false-positive result from f32->s32 conversion
     // in case of sum post-op on GPU happening when two max_dt values
