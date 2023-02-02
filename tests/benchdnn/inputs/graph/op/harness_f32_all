@@ -10,7 +10,7 @@
 --reset --op-attrs=0:auto_pad:SAME_UPPER --case=op/f32/avgpool_bwd.json
 --reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/avgpool_bwd.json
 --reset --op-attrs=0:auto_pad:VALID*kernel:2x2 --case=op/f32/avgpool_bwd.json
---reset --in-shapes=0:1x300x300x64 --op-attrs=0:data_format:NXC*src_shape:1x600x600x64 --case=op/f32/avgpool_bwd.json
+--reset --in-shapes=0:1x300x300x64 --op-attrs=0:data_format:NXC*input_shape:1x600x600x64 --case=op/f32/avgpool_bwd.json
 --reset --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f32/bnorm.json
 --reset --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f32/bnorm_fwd_d.json
 --reset --in-shapes=0:2x71x71x192+1:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f32/bnorm_bwd.json
@@ -23,20 +23,20 @@
 --reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/conv_2d.json
 --reset --op-attrs=0:auto_pad:VALID --case=op/f32/conv_2d.json
 --reset --in-shapes=0:2x28x28x32 --op-attrs=0:data_format:NXC --case=op/f32/conv_2d.json
---reset --in-shapes=1:1x1x32x128 --op-attrs=0:weights_format:XIO --case=op/f32/conv_2d.json
---reset --in-shapes=0:2x28x28x32+1:1x1x32x128 --op-attrs=0:data_format:NXC*weights_format:XIO --case=op/f32/conv_2d.json
+--reset --in-shapes=1:1x1x32x128 --op-attrs=0:filter_format:XIO --case=op/f32/conv_2d.json
+--reset --in-shapes=0:2x28x28x32+1:1x1x32x128 --op-attrs=0:data_format:NXC*filter_format:XIO --case=op/f32/conv_2d.json
 --reset --case=op/f32/conv_2d_bwd_d.json
 --reset --op-attrs=0:auto_pad:SAME_UPPER --case=op/f32/conv_2d_bwd_d.json
 --reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/conv_2d_bwd_d.json
 --reset --op-attrs=0:auto_pad:VALID --case=op/f32/conv_2d_bwd_d.json
 --reset --op-attrs=0:output_padding:2x2 --case=op/f32/conv_2d_bwd_d.json
---reset --in-shapes=0:1x14x14x128 --op-attrs=0:data_format:NXC*dst_shape:1x28x28x32 --case=op/f32/conv_2d_bwd_d.json
---reset --in-shapes=1:1x1x32x128 --op-attrs=0:weights_format:XIO --case=op/f32/conv_2d_bwd_d.json
+--reset --in-shapes=0:1x14x14x128 --op-attrs=0:data_format:NXC*output_shape:1x28x28x32 --case=op/f32/conv_2d_bwd_d.json
+--reset --in-shapes=1:1x1x32x128 --op-attrs=0:filter_format:XIO --case=op/f32/conv_2d_bwd_d.json
 --reset --case=op/f32/conv_2d_bwd_w.json
 --reset --op-attrs=0:auto_pad:SAME_UPPER --case=op/f32/conv_2d_bwd_w.json
 --reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/conv_2d_bwd_w.json
 --reset --op-attrs=0:auto_pad:VALID --case=op/f32/conv_2d_bwd_w.json
---reset --op-attrs=0:weights_format:XIO*weights_shape:1x1x32x128 --case=op/f32/conv_2d_bwd_w.json
+--reset --op-attrs=0:filter_format:XIO*filter_shape:1x1x32x128 --case=op/f32/conv_2d_bwd_w.json
 --reset --in-shapes=0:1x28x28x32+1:1x14x14x128 --op-attrs=0:data_format:NXC --case=op/f32/conv_2d_bwd_w.json
 --reset --case=op/f32/deconv.json
 --reset --op-attrs=0:auto_pad:SAME_UPPER --case=op/f32/deconv.json
@@ -44,17 +44,17 @@
 --reset --op-attrs=0:auto_pad:VALID --case=op/f32/deconv.json
 --reset --op-attrs=0:output_padding:1x1 --case=op/f32/deconv.json
 --reset --in-shapes=0:1x28x28x32  --op-attrs=0:data_format:NXC --case=op/f32/deconv.json
---reset --in-shapes=1:3x3x128x32 --op-attrs=0:weights_format:XOI --case=op/f32/deconv.json
+--reset --in-shapes=1:3x3x128x32 --op-attrs=0:filter_format:XOI --case=op/f32/deconv.json
 --reset --case=op/f32/deconv_bwd_d.json
 --reset --op-attrs=0:auto_pad:SAME_UPPER --case=op/f32/deconv_bwd_d.json
 --reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/deconv_bwd_d.json
 --reset --op-attrs=0:auto_pad:VALID --case=op/f32/deconv_bwd_d.json
 --reset --case=op/f32/deconv_bwd_d.json
 --reset --in-shapes=0:1x16x16x128 --op-attrs=0:data_format:NXC --case=op/f32/deconv_bwd_d.json
---reset --in-shapes=1:3x3x128x32 --op-attrs=0:weights_format:XOI --case=op/f32/deconv_bwd_d.json
+--reset --in-shapes=1:3x3x128x32 --op-attrs=0:filter_format:XOI --case=op/f32/deconv_bwd_d.json
 --reset --case=op/f32/deconv_bwd_w.json
 --reset --case=op/f32/deconv_bwd_w.json
---reset --op-attrs=0:weights_format:XOI*weights_shape:3x3x128x32 --case=op/f32/deconv_bwd_w.json
+--reset --op-attrs=0:filter_format:XOI*filter_shape:3x3x128x32 --case=op/f32/deconv_bwd_w.json
 --reset --in-shapes=1:1x128x56x56 --op-attrs=0:auto_pad:SAME_UPPER --case=op/f32/deconv_bwd_w.json
 --reset --in-shapes=1:1x128x56x56 --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/deconv_bwd_w.json
 --reset --in-shapes=1:1x128x57x57 --op-attrs=0:auto_pad:VALID --case=op/f32/deconv_bwd_w.json

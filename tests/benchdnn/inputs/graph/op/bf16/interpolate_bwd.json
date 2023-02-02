@@ -6,7 +6,7 @@
     {
       "id": 0,
       "name": "RESAMPLING_0",
-      "kind": "InterpolateBackward",
+      "kind": "InterpolateBackprop",
       "attrs": {
         "sizes": {
           "type": "s64[]",

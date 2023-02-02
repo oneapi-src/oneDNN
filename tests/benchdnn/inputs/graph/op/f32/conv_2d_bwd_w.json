@@ -6,7 +6,7 @@
     {
       "id": 0,
       "name": "CONV_0",
-      "kind": "ConvolutionBackwardWeights",
+      "kind": "ConvolutionBackpropFilters",
       "attrs": {
         "data_format": {
           "type": "string",
@@ -23,7 +23,7 @@
           "type": "string",
           "value": "None"
         },
-        "weights_format": {
+        "filter_format": {
           "type": "string",
           "value": "OIX"
         },
@@ -41,7 +41,7 @@
             0
           ]
         },
-        "weights_shape": {
+        "filter_shape": {
           "type": "s64[]",
           "value": [
             128,

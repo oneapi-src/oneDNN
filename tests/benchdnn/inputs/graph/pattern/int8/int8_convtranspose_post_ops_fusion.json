@@ -157,7 +157,7 @@
           "type": "string",
           "value": "None"
         },
-        "weights_format": {
+        "filter_format": {
           "type": "string",
           "value": "IOX"
         },

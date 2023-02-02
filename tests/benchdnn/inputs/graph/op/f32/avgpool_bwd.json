@@ -6,9 +6,9 @@
     {
       "id": 0,
       "name": "POOL_0",
-      "kind": "AvgPoolBackward",
+      "kind": "AvgPoolBackprop",
       "attrs": {
-        "src_shape": {
+        "input_shape": {
           "type": "s64[]",
           "value": [
             1,

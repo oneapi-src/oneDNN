@@ -182,7 +182,7 @@
             1
           ]
         },
-        "weights_format": {
+        "filter_format": {
           "type": "string",
           "value": "OIX"
         }

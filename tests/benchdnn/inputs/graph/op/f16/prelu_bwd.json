@@ -6,7 +6,7 @@
     {
       "id": 0,
       "name": "PRELU_0",
-      "kind": "PReLUBackward",
+      "kind": "PReLUBackprop",
       "attrs": {
         "data_format": {
           "type": "string",

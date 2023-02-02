@@ -6,7 +6,7 @@
     {
       "id": 0,
       "name": "SOFTMAX_0",
-      "kind": "LogSoftmaxBackward",
+      "kind": "LogSoftmaxBackprop",
       "attrs": {
         "axis": {
           "type": "s64",

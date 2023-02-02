@@ -6,9 +6,9 @@
     {
       "id": 0,
       "name": "CONV_0",
-      "kind": "ConvolutionBackwardData",
+      "kind": "ConvolutionBackpropData",
       "attrs": {
-        "dst_shape": {
+        "output_shape": {
           "type": "s64[]",
           "value": [
             1,
@@ -32,7 +32,7 @@
           "type": "string",
           "value": "None"
         },
-        "weights_format": {
+        "filter_format": {
           "type": "string",
           "value": "OIX"
         },

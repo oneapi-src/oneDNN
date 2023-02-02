@@ -6,7 +6,7 @@
     {
       "id": 0,
       "name": "LNORM_0",
-      "kind": "LayerNormBackward",
+      "kind": "LayerNormBackprop",
       "attrs": {
         "epsilon": {
           "type": "f32",

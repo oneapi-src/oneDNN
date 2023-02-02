@@ -6,7 +6,7 @@
     {
       "id": 0,
       "name": "POOL_0",
-      "kind": "MaxPoolBackward",
+      "kind": "MaxPoolBackprop",
       "attrs": {
         "dilations": {
           "type": "s64[]",

@@ -6,7 +6,7 @@
     {
       "id": 0,
       "name": "DECONV_0",
-      "kind": "ConvTransposeBackwardWeights",
+      "kind": "ConvTransposeBackpropFilters",
       "attrs": {
         "data_format": {
           "type": "string",
@@ -23,7 +23,7 @@
           "type": "string",
           "value": "None"
         },
-        "weights_format": {
+        "filter_format": {
           "type": "string",
           "value": "IOX"
         },
@@ -41,7 +41,7 @@
             0
           ]
         },
-        "weights_shape": {
+        "filter_shape": {
           "type": "s64[]",
           "value": [
             32,
