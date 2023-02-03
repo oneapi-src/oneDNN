@@ -31,11 +31,8 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_CONV(cond, msg, ...) \
-    do { \
-        ok = ok && (cond); \
-        VCONDCHECK(profile_create, check, convolution, (cond), msg, \
-                ##__VA_ARGS__); \
-    } while (0)
+    VCONDCHECK(profile_create, check, convolution, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {
@@ -44,12 +41,12 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
         const memory_desc_t *weights_desc, const memory_desc_t *bias_desc,
         const memory_desc_t *dst_desc, const dims_t strides,
         const dims_t dilates, const dims_t padding_l, const dims_t padding_r) {
-    bool args_ok = true
-            && !any_null(conv_desc, src_desc, weights_desc, dst_desc, strides,
-                    padding_l)
-            && one_of(alg_kind, convolution_auto, convolution_direct,
-                    convolution_winograd);
-    if (!args_ok) return invalid_arguments;
+    VCHECK_CONV(!any_null(conv_desc, src_desc, weights_desc, dst_desc, strides,
+                        padding_l),
+            VERBOSE_NULL_ARG);
+    VCHECK_CONV(one_of(alg_kind, convolution_auto, convolution_direct,
+                        convolution_winograd),
+            VERBOSE_BAD_ALGORITHM);
 
     if (padding_r == nullptr) padding_r = padding_l;
 
@@ -75,7 +72,8 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
     if (with_bias)
         runtime_dims_or_strides = runtime_dims_or_strides
                 || memory_desc_wrapper(bias_desc).has_runtime_dims_or_strides();
-    if (runtime_dims_or_strides) return unimplemented;
+    VCONDCHECK(create, check, conv, !runtime_dims_or_strides,
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     (prop_kind == backward_data ? cd.diff_src_desc : cd.src_desc) = *src_desc;
     (is_fwd ? cd.dst_desc : cd.diff_dst_desc) = *dst_desc;
@@ -87,25 +85,32 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
 
     cd.accum_data_type = types::default_accum_data_type(src_desc->data_type,
             weights_desc->data_type, dst_desc->data_type, prop_kind);
-    if (cd.accum_data_type == data_type::undef) return invalid_arguments;
+    VCHECK_CONV(cd.accum_data_type != data_type::undef,
+            VERBOSE_INVALID_DATATYPE, "accumulation");
 
-    bool consistency = memory_desc_wrapper(weights_desc).nelems()
-            && src_desc->ndims == dst_desc->ndims
-            && utils::one_of(src_desc->ndims, 3, 4, 5)
-            && utils::one_of(
-                    weights_desc->ndims, src_desc->ndims, src_desc->ndims + 1);
-    if (!consistency) return invalid_arguments;
+    VCHECK_CONV(memory_desc_wrapper(weights_desc).nelems(),
+            VERBOSE_EMPTY_TENSOR, "weights");
+    VCHECK_CONV(src_desc->ndims == dst_desc->ndims, VERBOSE_INCONSISTENT_NDIMS,
+            "src", "dst");
+    VCHECK_CONV(utils::one_of(src_desc->ndims, 3, 4, 5), VERBOSE_BAD_NDIMS,
+            "src", src_desc->ndims);
+    VCHECK_CONV(utils::one_of(weights_desc->ndims, src_desc->ndims,
+                        src_desc->ndims + 1),
+            VERBOSE_INCONSISTENT_NDIMS, "src", "weights");
 
     const int g = with_groups ? weights_desc->dims[0] : 1;
     const int bias_dim = prop_kind == backward_data ? src_desc->dims[1]
                                                     : dst_desc->dims[1];
-    consistency
-            = IMPLICATION(with_bias,
-                      bias_desc->ndims == 1 && bias_desc->dims[0] == bias_dim)
-            && src_desc->dims[0] == dst_desc->dims[0]
-            && src_desc->dims[1] == g * weights_desc->dims[with_groups + 1]
-            && dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0];
-    if (!consistency) return invalid_arguments;
+    VCHECK_CONV(
+            IMPLICATION(with_bias,
+                    bias_desc->ndims == 1 && bias_desc->dims[0] == bias_dim),
+            VERBOSE_BAD_DIM, "bias", 0);
+    VCHECK_CONV(src_desc->dims[0] == dst_desc->dims[0],
+            VERBOSE_INCONSISTENT_DIM, "src", 0, "dst", 0);
+    VCHECK_CONV(src_desc->dims[1] == g * weights_desc->dims[with_groups + 1],
+            VERBOSE_INCONSISTENT_DIM, "src", 1, "weights", with_groups + 1);
+    VCHECK_CONV(dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0],
+            VERBOSE_INCONSISTENT_DIM, "dst", 1, "weights", with_groups + 0);
 
     int sp_dims = src_desc->ndims - 2;
     utils::array_copy(cd.strides, strides, sp_dims);
@@ -125,12 +130,12 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
         int str = strides[i - 2];
         int dst = dst_desc->dims[i];
         int ker_range = 1 + (ker - 1) * (dil + 1);
-
-        if (str < 1) return invalid_arguments;
-        consistency = consistency && dil >= 0 && pad_l >= 0 && pad_r + str > 0
-                && (src - ker_range + pad_l + pad_r) / str + 1 == dst;
+        VCHECK_CONV(str > 0, VERBOSE_BAD_DIM, "strides", i - 2);
+        VCHECK_CONV(dil >= 0 && pad_l >= 0 && pad_r + str > 0,
+                VERBOSE_INCONSISTENT_PRB);
+        VCHECK_CONV((src - ker_range + pad_l + pad_r) / str + 1 == dst,
+                VERBOSE_INCONSISTENT_PRB);
     }
-    if (!consistency) return invalid_arguments;
 
     *conv_desc = cd;
     return success;
