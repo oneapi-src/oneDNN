@@ -73,9 +73,7 @@ std::string get_descriptor(dim_t M, dim_t N, dim_t K) {
         status = __VA_ARGS__; \
         double duration_ms = get_msec() - start_ms; \
         std::stringstream ss; \
-        ss << "onednn_verbose,"; \
-        if (get_verbose_timestamp()) ss << start_ms << ","; \
-        ss << "exec,cpu,gemm_api,,undef,"; \
+        ss << "cpu,gemm_api,,undef,"; \
         const bool is_src_ab = (transa == 'N' || transa == 'n'); \
         ss << "src_" << sdt_ << "::blocked:" << (is_src_ab ? "ab" : "ba") \
            << ":f0 "; \
@@ -90,8 +88,7 @@ std::string get_descriptor(dim_t M, dim_t N, dim_t K) {
         if (alpha != 1.f) ss << "attr-oscale:common:" << alpha << " "; \
         if (beta != 0.f) ss << "attr-post-ops:sum:" << beta << " "; \
         ss << ",," << get_descriptor(M, N, K); \
-        ss << "," << duration_ms << std::flush; \
-        printf("%s\n", ss.str().c_str()); \
+        VPROF(start_ms, profile_exec, "", ss.str().c_str(), duration_ms); \
     } else { \
         status = __VA_ARGS__; \
     }

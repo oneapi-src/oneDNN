@@ -73,11 +73,8 @@ status_t primitive_create(primitive_iface_t **primitive_iface,
         const char *str = p_iface.second ? "cache_hit" : "cache_miss";
         if (cache_blob) str = "from_cache_blob";
 
-        std::string stamp;
-        if (get_verbose_timestamp()) stamp = "," + std::to_string(start_ms);
-        printf("onednn_verbose%s,create:%s,%s,%g\n", stamp.c_str(), str,
-                p_iface.first->pd()->info(), duration_ms);
-        fflush(stdout);
+        VPROF(start_ms, profile_create, str, p_iface.first->pd()->info(),
+                duration_ms);
     } else {
         CHECK(primitive_desc_iface->create_primitive_iface(
                 p_iface, cache_blob));
@@ -102,12 +99,8 @@ status_t primitive_execute(
         status = stream->enqueue_primitive(primitive_iface, ctx);
         stream->wait();
         double duration_ms = get_msec() - start_ms;
-        std::string stamp;
-        if (get_verbose_timestamp()) stamp = "," + std::to_string(start_ms);
-
-        printf("onednn_verbose%s,exec,%s,%g\n", stamp.c_str(),
-                primitive_iface->pd()->info(), duration_ms);
-        fflush(stdout);
+        VPROF(start_ms, profile_exec, "", primitive_iface->pd()->info(),
+                duration_ms);
     } else {
         status = stream->enqueue_primitive(primitive_iface, ctx);
     }
