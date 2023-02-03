@@ -2,7 +2,7 @@
 --reset
 --skip-impl=ref
 
---cfg=f32
+--dt=f32
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --bia_dt=undef,f32 --bia_mask=2
 

@@ -1,7 +1,7 @@
 # bf32
 --reset
 --skip-impl=ref,x64:gemm
---cfg=f32 --attr-fpmath=bf16
+--dt=f32 --attr-fpmath=bf16
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 
 # test any + blocked
@@ -11,7 +11,7 @@
 # 3d
 --reset
 --skip-impl=ref,x64:gemm
---cfg=f32 --attr-fpmath=bf16
+--dt=f32 --attr-fpmath=bf16
 --stag=abc,acb --wtag=abc,acb --dtag=abc
 --batch=shapes_3d
 2x20x30:2x30x4

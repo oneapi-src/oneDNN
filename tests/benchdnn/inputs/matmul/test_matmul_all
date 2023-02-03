@@ -1,7 +1,7 @@
 # f32
 --reset
 
---cfg=f32
+--dt=f32
 --stag=ab --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1,1:0,3:1
 --bia_dt=undef,f32 --bia_mask=2
@@ -28,13 +28,13 @@
 
 # test any
 --reset
---cfg=f32
+--dt=f32
 --stag=ab,ba,any --wtag=ab,ba,any --dtag=ab,any
 --batch=shapes_2d
 
 # 3d
 --reset
---cfg=f32
+--dt=f32
 --stag=abc,acb --wtag=abc,acb --dtag=abc,bac
 --bia_dt=undef,f32 --bia_mask=4,6
 
@@ -81,7 +81,7 @@
 # 4d
 
 --reset
---cfg=f32
+--dt=f32
 --stag=abcd,abdc --wtag=abcd,abdc --dtag=abcd,abdc
 --bia_dt=undef,f32
 

@@ -2,7 +2,7 @@
 --reset
 --skip-impl=ref
 
---cfg=u8s8u8,s8s8f32
+--dt=u8:s8:u8,s8:s8:f32
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,1:0
 --bia_dt=undef,f32,u8 --bia_mask=2
@@ -15,7 +15,7 @@
 --reset
 --skip-impl=ref
 
---cfg=u8s8u8,s8s8f32
+--dt=u8:s8:u8,s8:s8:f32
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1
 --bia_dt=undef,f32,u8 --bia_mask=2
@@ -35,7 +35,7 @@
 --batch=shapes_2d
 
 # zero point doesn't belong to the data type (e.g. -1 is not u8)
---cfg=u8s8s8
+--dt=u8:s8:s8
 --runtime_dims_masks=0
 --bia_dt=undef
 --attr-scales=src:common:0.25*+wei:common:0.5*+dst:common:1*

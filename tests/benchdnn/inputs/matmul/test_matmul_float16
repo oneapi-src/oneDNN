@@ -1,7 +1,7 @@
 # f16
 --reset
 
---cfg=f16f16f32,f16
+--dt=f16:f16:f32,f16
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1,1:0,3:1
 --bia_dt=undef,f32 --bia_mask=2
@@ -28,13 +28,13 @@
 
 # test any
 --reset
---cfg=f16f16f32,f16
+--dt=f16:f16:f32,f16
 --stag=ab,ba,any --wtag=ab,ba,any --dtag=ab,any
 --batch=shapes_2d
 
 # 3d
 --reset
---cfg=f16f16f32,f16
+--dt=f16:f16:f32,f16
 --stag=abc,acb --wtag=abc,acb --dtag=abc
 --bia_dt=undef,f32 --bia_mask=4,6
 
@@ -51,7 +51,7 @@
 --reset
 --skip-impl=ref
 
---cfg=f16f16f32,f16
+--dt=f16:f16:f32,f16
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1,0:2,2:3
 --bia_dt=undef,f32
@@ -65,7 +65,7 @@
 --reset
 --skip-impl=ref
 --allow-enum-tags-only=0
---cfg=f16
+--dt=f16
 --stag=acbde,bacde,cabde,abced,abdce
 --dtag=acbde,bacde,cabde,abced,abdce
 --wtag=abcde,acbde
@@ -74,6 +74,6 @@
 # batch size smaller than num_threads
 --reset
 --stag=abc --wtag=abc --dtag=abc
---cfg=f16 --bia_dt=f32 --bia_mask=4
+--dt=f16 --bia_dt=f32 --bia_mask=4
 2x20x30:2x30x4
 2x20x30:1x30x4

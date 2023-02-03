@@ -1,5 +1,5 @@
 --reset
---cfg=f32,u8s8u8,s8s8s8,u8s8s32,s8s8f32,bf16bf16f32,bf16bf16bf16
+--dt=f32,u8:s8:u8,s8:s8:s8,u8:s8:s32,s8:s8:f32,bf16:bf16:f32,bf16
 --batch=shapes_multidim
 --stag=abcd,abdc
 --wtag=abcd,abdc
@@ -9,14 +9,14 @@
 --batch=shapes_4d
 
 --reset
---cfg=f32,s8s8s8,s8s8s32,bf16bf16bf16
+--dt=f32,s8:s8:s8,s8:s8:s32,bf16
 --stag=acbd
 --wtag=acbd
 --dtag=acbd
 --batch=shapes_4d
 
 --reset
---cfg=f32,bf16bf16bf16
+--dt=f32,bf16
 --stag=adbc
 --wtag=adbc
 --dtag=acbd
@@ -24,7 +24,7 @@
 
 --reset
 --skip-impl=ref,x64:gemm
---cfg=f32 --attr-fpmath=bf16
+--dt=f32 --attr-fpmath=bf16
 --batch=shapes_multidim
 --stag=abcd,abdc
 --wtag=abcd,abdc
@@ -40,7 +40,7 @@
 --batch=shapes_4d
 
 --reset
---cfg=f32,u8s8f32,s8s8s32,bf16bf16f32,bf16bf16bf16
+--dt=f32,u8:s8:f32,s8:s8:s32,bf16:bf16:f32,bf16
 --bia_dt=f32
 --bia_mask=0,1,2047,2048,4094,4095
 --stag=abx,abcdefghijlk
