@@ -1611,7 +1611,9 @@ void compute_reorder_block2block(sc_graph_t &graph, const context_ptr &ctx,
                                             std::vector<stmt> {std::move(cur)});
             cur = make_stmt<for_loop_node_t>(std::move(iter_vars.at(i)),
                     expr(0),
-                    no_padding ? dst.get_shape()[i] : output_blocking_exprs[i],
+                    (no_padding || !dst.get_offset()[i].isa<constant>())
+                            ? dst.get_shape()[i]
+                            : output_blocking_exprs[i],
                     i == static_cast<int>(output_blocking_dims.size()) - 1
                                     && can_vectorize
                             ? expr(static_cast<int>(step))
