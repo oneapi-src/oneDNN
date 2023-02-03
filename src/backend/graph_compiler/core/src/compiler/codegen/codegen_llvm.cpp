@@ -94,16 +94,14 @@ std::unique_ptr<TargetMachine> get_llvm_target_machine(
 
     auto reloc_model = Optional<Reloc::Model>(Reloc::Static);
     auto host_cpu = sys::getHostCPUName();
-    std::string features;
-    if (host_cpu == "generic") {
-        llvm::StringMap<bool> feature_map;
-        sys::getHostCPUFeatures(feature_map);
-        llvm::SubtargetFeatures f;
-        for (auto &feature : feature_map) {
-            f.AddFeature(feature.first(), feature.second);
-        }
-        features = f.getString();
+
+    llvm::StringMap<bool> feature_map;
+    sys::getHostCPUFeatures(feature_map);
+    llvm::SubtargetFeatures f;
+    for (auto &feature : feature_map) {
+        f.AddFeature(feature.first(), feature.second);
     }
+    std::string features = f.getString();
     auto tm = target->createTargetMachine(target_triple, host_cpu, features,
             opt, reloc_model, the_none, optlevel, true);
     return std::unique_ptr<TargetMachine>(tm);
