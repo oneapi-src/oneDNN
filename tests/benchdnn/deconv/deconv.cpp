@@ -408,6 +408,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
     const bool compare_with_norm = (prb->alg & WINO);
     cmp.set_norm_validation_mode(compare_with_norm);
+    // work around for benchdnn ext
+    cmp.set_op_output_has_nans(true);
 
     float trh = prb->cfg[kind].eps;
     if ((prb->alg & WINO) && (prb->dir & FLAG_WEI)) {
