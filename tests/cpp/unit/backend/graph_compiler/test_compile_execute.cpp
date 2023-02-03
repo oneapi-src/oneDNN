@@ -605,6 +605,24 @@ TEST(GCGraphTest, BF16MHAAlternativeCompileExecution) {
     compile_execution_pipeline(agraph, 1);
 }
 
+TEST(GCGraphTest, FP32MHAAlternative4CompileExecution) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative4(&agraph, false);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8MHAAlternative4CompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative4(&agraph, true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
 TEST(GCGraphTest, FP32MHADynamicGraphCompileExecution) {
     REQUIRE_AVX512();
     impl::graph_t agraph;

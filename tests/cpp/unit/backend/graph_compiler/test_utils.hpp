@@ -2598,6 +2598,212 @@ static inline void add_MHA_subgraph_alternative2(impl::graph_t *agraph,
     agraph->add_op(&reshape_output);
 }
 
+static inline void add_MHA_subgraph_alternative4(impl::graph_t *agraph,
+        bool use_int8 = false, int batch_size = 16, int seq_len = 2048,
+        int num_head = 12, int head_dim = 768) {
+    size_t logical_tensor_idx = 0;
+    size_t op_idx = 0;
+    int size_per_head = head_dim / num_head;
+    std::vector<impl::dim_t> QV_TRANSPOSE_SHAPE {
+            batch_size * num_head, seq_len, size_per_head};
+    std::vector<impl::dim_t> K_TRANSPOSE_SHAPE {
+            batch_size * num_head, size_per_head, seq_len};
+    std::vector<impl::dim_t> MATMUL_QK_SHAPE {
+            batch_size * num_head, seq_len, seq_len};
+    std::vector<impl::dim_t> MATMUL_QK_VIEWED_SHAPE {
+            batch_size, num_head, seq_len, seq_len};
+    std::vector<impl::dim_t> MATMUL_V_SHAPE {
+            batch_size * num_head, seq_len, size_per_head};
+    std::vector<impl::dim_t> MASK_SHAPE {batch_size, 1, 1, seq_len};
+
+    auto dtype = impl::data_type::f32;
+
+    impl::logical_tensor_t query_dequantize_input, key_dequantize_input,
+            value_dequantize_input;
+    query_dequantize_input = utils::logical_tensor_init(
+            logical_tensor_idx++, QV_TRANSPOSE_SHAPE, impl::data_type::u8);
+    key_dequantize_input = utils::logical_tensor_init(
+            logical_tensor_idx++, K_TRANSPOSE_SHAPE, impl::data_type::u8);
+    value_dequantize_input = utils::logical_tensor_init(
+            logical_tensor_idx++, QV_TRANSPOSE_SHAPE, impl::data_type::u8);
+
+    impl::logical_tensor_t query_matmul_input, key_matmul_input,
+            value_matmul_input;
+    query_matmul_input = utils::logical_tensor_init(
+            logical_tensor_idx++, QV_TRANSPOSE_SHAPE, dtype);
+    key_matmul_input = utils::logical_tensor_init(
+            logical_tensor_idx++, K_TRANSPOSE_SHAPE, dtype);
+    value_matmul_input = utils::logical_tensor_init(
+            logical_tensor_idx++, QV_TRANSPOSE_SHAPE, dtype);
+
+    impl::logical_tensor_t matmul_qk_out;
+    matmul_qk_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_SHAPE, dtype);
+
+    impl::logical_tensor_t attention_mask_flt, max_in_flt;
+    attention_mask_flt = utils::logical_tensor_init(
+            logical_tensor_idx++, MASK_SHAPE, dtype);
+    max_in_flt = utils::logical_tensor_init(
+            logical_tensor_idx++, MASK_SHAPE, dtype);
+
+    impl::logical_tensor_t fscore_reshape1_out, fscore_add_out, fscore_max_out,
+            fscore_reshape2_out, softmax_out;
+    fscore_reshape1_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_VIEWED_SHAPE, dtype);
+    fscore_add_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_VIEWED_SHAPE, dtype);
+    fscore_max_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_VIEWED_SHAPE, dtype);
+    fscore_reshape2_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_SHAPE, dtype);
+    softmax_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_SHAPE, dtype);
+
+    impl::logical_tensor_t softmax_quantize_out, softmax_dequantize_out;
+    softmax_quantize_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_SHAPE, impl::data_type::u8);
+    softmax_dequantize_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_SHAPE, impl::data_type::f32);
+
+    impl::logical_tensor_t matmul_v_out;
+    matmul_v_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_V_SHAPE, dtype);
+
+    impl::logical_tensor_t context_quantize_out;
+    context_quantize_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_V_SHAPE, impl::data_type::u8);
+
+    impl::op_t dequantize_query {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_query"};
+    dequantize_query.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_query.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_query.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_query.set_attr(impl::op_attr::axis, (int64_t)0);
+    impl::op_t dequantize_key {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_key"};
+    dequantize_key.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_key.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_key.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_key.set_attr(impl::op_attr::axis, (int64_t)0);
+    impl::op_t dequantize_value {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_value"};
+    dequantize_value.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_value.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_value.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_value.set_attr(impl::op_attr::axis, (int64_t)0);
+
+    impl::op_t matmul_qk {op_idx++, impl::op_kind::MatMul, "matmul_qk"};
+
+    impl::op_t fscore_view1 {
+            op_idx++, impl::op_kind::StaticReshape, "fscore_view1"};
+    fscore_view1.set_attr(impl::op_attr::shape, MATMUL_QK_VIEWED_SHAPE);
+    fscore_view1.set_attr(impl::op_attr::special_zero, false);
+    impl::op_t fscore_add {op_idx++, impl::op_kind::Add, "fscore_add"};
+    fscore_add.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
+    impl::op_t fscore_max {op_idx++, impl::op_kind::Maximum, "fscore_max"};
+    fscore_max.set_attr(impl::op_attr::auto_broadcast, std::string("numpy"));
+    impl::op_t fscore_view2 {
+            op_idx++, impl::op_kind::StaticReshape, "fscore_view2"};
+    fscore_view2.set_attr(impl::op_attr::shape, MATMUL_QK_SHAPE);
+    fscore_view2.set_attr(impl::op_attr::special_zero, false);
+    impl::op_t softmax {op_idx++, impl::op_kind::SoftMax, "softmax"};
+    softmax.set_attr(impl::op_attr::axis, (int64_t)2);
+
+    impl::op_t quantize_softmax {
+            op_idx++, impl::op_kind::Quantize, "quantize_softmax"};
+    quantize_softmax.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_softmax.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    impl::op_t dequantize_softmax {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_softmax"};
+    dequantize_softmax.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_softmax.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+
+    impl::op_t matmul_v {op_idx++, impl::op_kind::MatMul, "matmul_v"};
+
+    impl::op_t quantize_output {
+            op_idx++, impl::op_kind::Quantize, "quantize_output"};
+    quantize_output.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
+
+    if (use_int8) {
+        dequantize_query.add_input(query_dequantize_input);
+        dequantize_key.add_input(key_dequantize_input);
+        dequantize_value.add_input(value_dequantize_input);
+        dequantize_query.add_output(query_matmul_input);
+        dequantize_key.add_output(key_matmul_input);
+        dequantize_value.add_output(value_matmul_input);
+    }
+
+    matmul_qk.add_input(query_matmul_input);
+    matmul_qk.add_input(key_matmul_input);
+    matmul_qk.add_output(matmul_qk_out);
+
+    fscore_view1.add_input(matmul_qk_out);
+    fscore_view1.add_output(fscore_reshape1_out);
+    fscore_add.add_input(fscore_reshape1_out);
+    fscore_add.add_input(attention_mask_flt);
+    fscore_add.add_output(fscore_add_out);
+    fscore_max.add_input(fscore_add_out);
+    fscore_max.add_input(max_in_flt);
+    fscore_max.add_output(fscore_max_out);
+    fscore_view2.add_input(fscore_max_out);
+    fscore_view2.add_output(fscore_reshape2_out);
+    softmax.add_input(fscore_reshape2_out);
+    softmax.add_output(softmax_out);
+
+    if (use_int8) {
+        quantize_softmax.add_input(softmax_out);
+        quantize_softmax.add_output(softmax_quantize_out);
+        dequantize_softmax.add_input(softmax_quantize_out);
+        dequantize_softmax.add_output(softmax_dequantize_out);
+        matmul_v.add_input(softmax_dequantize_out);
+    } else {
+        matmul_v.add_input(softmax_out);
+    }
+
+    matmul_v.add_input(value_matmul_input);
+    matmul_v.add_output(matmul_v_out);
+
+    if (use_int8) {
+        quantize_output.add_input(matmul_v_out);
+        quantize_output.add_output(context_quantize_out);
+    }
+
+    if (use_int8) {
+        agraph->add_op(&dequantize_query);
+        agraph->add_op(&dequantize_key);
+        agraph->add_op(&dequantize_value);
+    }
+
+    agraph->add_op(&matmul_qk);
+    agraph->add_op(&fscore_view1);
+    agraph->add_op(&fscore_add);
+    agraph->add_op(&fscore_max);
+    agraph->add_op(&fscore_view2);
+    agraph->add_op(&softmax);
+
+    if (use_int8) {
+        agraph->add_op(&quantize_softmax);
+        agraph->add_op(&dequantize_softmax);
+    }
+
+    agraph->add_op(&matmul_v);
+
+    if (use_int8) { agraph->add_op(&quantize_output); }
+}
+
 // returned vector with shape {ic, ks, oc}
 static std::vector<impl::dim_t> extract_filter_info(
         const impl::dims &shape, const std::string &filter_format) {

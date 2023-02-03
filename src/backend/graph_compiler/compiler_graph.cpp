@@ -53,7 +53,7 @@ static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
                         "batchnorm_forward_training"},
                 {op_kind::BatchNormTrainingBackprop,
                         "batchnorm_training_backprop"},
-                {op_kind::Select, "select"}};
+                {op_kind::Select, "select"}, {op_kind::Maximum, "max"}};
 
 // we convert all int64[] to int32[] except for allowlist
 static std::unordered_set<impl::op_attr_t> type_conversion_allowlist {
