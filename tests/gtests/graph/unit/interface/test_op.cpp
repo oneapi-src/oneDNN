@@ -39,8 +39,10 @@ TEST(Op, OpResetAttr) {
 
 TEST(Op, Attr2str) {
     namespace graph = dnnl::impl::graph;
-    using namespace graph::op_attr;
-#define CASE(a) ASSERT_EQ(std::string(#a), graph::op_t::attr2str(a))
+
+#define CASE(a) \
+    ASSERT_EQ(std::string(#a), graph::op_t::attr2str(graph::op_attr::a))
+
     CASE(alpha);
     CASE(beta);
     CASE(epsilon);
