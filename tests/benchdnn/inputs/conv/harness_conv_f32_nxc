@@ -9,3 +9,9 @@
 
 --mb=0                      # for bwd_w use the actual mb for 1 topology
 --dir=BWD_WB --batch=shapes_resnet_50
+
+# plain weights
+--dir=FWD_B
+--mb=2
+--wtag=xba --batch=shapes_resnet_50_v1_5
+--wtag=xcab --batch=shapes_basic --batch=shapes_googlenet_v3 --batch=shapes_mobilenet
