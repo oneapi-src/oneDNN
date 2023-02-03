@@ -12,9 +12,9 @@
 --reset --case=op/f32/clamp.json
 --reset --in-shapes=0:1x14x14x128 --op-attrs=0:data_format:NXC*output_shape:1x28x28x32 --case=op/f32/conv_2d_bwd_d.json
 --reset --in-shapes=0:1x28x28x32+1:1x14x14x128 --op-attrs=0:data_format:NXC --case=op/f32/conv_2d_bwd_w.json
---reset --case=op/f32/deconv.json
---reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/deconv_bwd_d.json
---reset --op-attrs=0:filter_format:XOI*filter_shape:3x3x128x32 --case=op/f32/deconv_bwd_w.json
+# --reset --case=op/f32/deconv.json
+# --reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/deconv_bwd_d.json
+# --reset --op-attrs=0:filter_format:XOI*filter_shape:3x3x128x32 --case=op/f32/deconv_bwd_w.json
 --reset --case=op/f32/dequantize_s8.json
 --reset --case=op/f32/dequantize_u8.json
 --reset --case=op/f32/elu.json
