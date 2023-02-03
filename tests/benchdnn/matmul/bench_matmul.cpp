@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,8 +37,7 @@ void check_correctness(const settings_t &s, const settings_t &def) {
             bia_cfg.emplace_back(i_bia_dt, i_bia_mask);
     }
 
-    for_(const auto &i_dt_ : s.dt)
-    for_(const auto &i_cfg : s.cfg)
+    for_(const auto &i_dt : s.dt)
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_wtag : s.wtag)
     for_(const auto &i_dtag : s.dtag)
@@ -72,20 +71,6 @@ void check_correctness(const settings_t &s, const settings_t &def) {
                         "ERROR: matmul driver: both `strides` and `tag` knobs "
                         "can not be used with either of `src`, `wei`, and `dst`"
                         " tensors.\n"),
-                        fflush(stderr);
-                SAFE_V(FAIL);
-            }
-        }
-
-        auto i_dt = i_dt_;
-        if (!i_cfg.empty()) {
-            if (i_dt.size() == 1 && i_dt[0] == dnnl_f32) {
-                handle_legacy_cfg(i_dt, i_cfg);
-            } else {
-                fprintf(stderr,
-                        "ERROR: matmul driver: `dt` and `cfg` knobs are "
-                        "incompatible with each other. Please specify only one "
-                        "of them at a time.\n"),
                         fflush(stderr);
                 SAFE_V(FAIL);
             }
@@ -142,7 +127,6 @@ int bench(int argc, char **argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])
                 || parse_multi_dt(s.dt, def.dt, argv[0], "dt")
-                || parse_cfg(s.cfg, def.cfg, str2cfg, argv[0])
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.wtag, def.wtag, argv[0], "wtag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")

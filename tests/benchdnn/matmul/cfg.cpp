@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,89 +88,6 @@ cfg_t::cfg_entry_t::cfg_map_t cfg_t::get_cfg_map(data_kind_t kind) const {
     }
     static cfg_t::cfg_entry_t::cfg_map_t dummy;
     return dummy;
-}
-
-std::string str2cfg(const char *str) {
-    std::string s;
-#define CASE(cfg) \
-    if (!strcasecmp(STRINGIFY(cfg), str)) return s = str, s;
-    CASE(f32);
-    CASE(f16);
-    CASE(f16f16f32);
-    CASE(f16f16s8);
-    CASE(f16f16u8);
-    CASE(u8s8f32);
-    CASE(u8s8s32);
-    CASE(u8s8s8);
-    CASE(u8s8u8);
-    CASE(s8s8f32);
-    CASE(s8s8s32);
-    CASE(s8s8s8);
-    CASE(s8s8u8);
-    CASE(s8s8bf16);
-    CASE(u8s8bf16);
-    CASE(s8s8f16);
-    CASE(u8s8f16);
-    CASE(bf16bf16f32);
-    CASE(bf16bf16bf16);
-    CASE(f32bf16bf16);
-    CASE(bf16f32bf16);
-#undef CASE
-
-    BENCHDNN_PRINT(0, "Config name \'%s\' is not supported.\n", str);
-    SAFE_V(CRIT);
-    return std::string();
-}
-
-void handle_legacy_cfg(
-        std::vector<dnnl_data_type_t> &dt, const std::string &cfg) {
-    if (cfg == "f32")
-        dt = {dnnl_f32};
-    else if (cfg == "bf16bf16bf16")
-        dt = {dnnl_bf16};
-    else if (cfg == "f16")
-        dt = {dnnl_f16};
-    else if (cfg == "f16f16f32")
-        dt = {dnnl_f16, dnnl_f16, dnnl_f16};
-    else if (cfg == "f16f16s8")
-        dt = {dnnl_f16, dnnl_f16, dnnl_s8};
-    else if (cfg == "f16f16u8")
-        dt = {dnnl_f16, dnnl_f16, dnnl_u8};
-    else if (cfg == "u8s8f32")
-        dt = {dnnl_u8, dnnl_s8, dnnl_f32};
-    else if (cfg == "u8s8s32")
-        dt = {dnnl_u8, dnnl_s8, dnnl_s32};
-    else if (cfg == "u8s8s8")
-        dt = {dnnl_u8, dnnl_s8, dnnl_s8};
-    else if (cfg == "u8s8u8")
-        dt = {dnnl_u8, dnnl_s8, dnnl_u8};
-    else if (cfg == "s8s8f32")
-        dt = {dnnl_s8, dnnl_s8, dnnl_f32};
-    else if (cfg == "s8s8s32")
-        dt = {dnnl_s8, dnnl_s8, dnnl_s32};
-    else if (cfg == "s8s8s8")
-        dt = {dnnl_s8, dnnl_s8, dnnl_s8};
-    else if (cfg == "s8s8u8")
-        dt = {dnnl_s8, dnnl_s8, dnnl_u8};
-    else if (cfg == "s8s8bf16")
-        dt = {dnnl_s8, dnnl_s8, dnnl_bf16};
-    else if (cfg == "u8s8bf16")
-        dt = {dnnl_u8, dnnl_s8, dnnl_bf16};
-    else if (cfg == "s8s8f16")
-        dt = {dnnl_s8, dnnl_s8, dnnl_f16};
-    else if (cfg == "u8s8f16")
-        dt = {dnnl_u8, dnnl_s8, dnnl_f16};
-    else if (cfg == "bf16bf16f32")
-        dt = {dnnl_bf16, dnnl_bf16, dnnl_f32};
-    else if (cfg == "f32bf16bf16")
-        dt = {dnnl_f32, dnnl_bf16, dnnl_bf16};
-    else if (cfg == "bf16f32bf16")
-        dt = {dnnl_bf16, dnnl_f32, dnnl_bf16};
-    else {
-        BENCHDNN_PRINT(
-                0, "Config name \'%s\' is not supported.\n", cfg.c_str());
-        SAFE_V(CRIT);
-    }
 }
 
 } // namespace matmul

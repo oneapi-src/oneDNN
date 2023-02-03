@@ -35,9 +35,6 @@ namespace matmul {
 
 typedef std::bitset<DNNL_MAX_NDIMS> dims_mask_t;
 
-const int64_t LD_GOOD = INT64_MAX;
-const int64_t LD_NONE = INT64_MAX - 1;
-
 struct settings_t : public base_settings_t {
     settings_t() = default;
 
@@ -48,7 +45,6 @@ struct settings_t : public base_settings_t {
 
     prb_vdims_t prb_vdims;
 
-    std::vector<std::string> cfg {std::string()};
     std::vector<std::vector<dnnl_data_type_t>> dt {{dnnl_f32}};
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
     std::vector<vdims_t> strides {vdims_t(STRIDES_SIZE)};
@@ -57,17 +53,16 @@ struct settings_t : public base_settings_t {
     std::vector<std::vector<dims_mask_t>> rt_dims_masks {{}};
 
     const char *perf_template_csv() const {
-        static const std::string args = "%cfg%,%stag%,%wtag%,%dtag%";
+        static const std::string args = "%sdt%,%stag%,%wtag%,%dtag%";
         return perf_template_csv_base(args);
     }
 
     void reset() { *this = settings_t(perf_template); }
 
     bool has_single_setup() const override {
-        return cfg.size() && dt.size() == 1 && stag.size() == 1
-                && wtag.size() == 1 && dtag.size() == 1 && strides.size() == 1
-                && bia_dt.size() == 1 && bia_mask.size() == 1
-                && rt_dims_masks.size() == 1
+        return dt.size() == 1 && stag.size() == 1 && wtag.size() == 1
+                && dtag.size() == 1 && strides.size() == 1 && bia_dt.size() == 1
+                && bia_mask.size() == 1 && rt_dims_masks.size() == 1
                 && base_settings_t::has_single_setup();
     }
 };
@@ -193,10 +188,6 @@ private:
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
-/* some extra control parameters which shouldn't be placed in prb_t */
-
-std::string str2cfg(const char *str);
-
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const prb_t *prb, const char *perf_template)
         : base_perf_report_t(perf_template)
@@ -256,9 +247,6 @@ inline int64_t wei_off_f(const prb_t *prb, int64_t mb, int64_t k, int64_t n) {
 inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t m, int64_t n) {
     return (mb * prb->m + m) * prb->n + n;
 }
-
-void handle_legacy_cfg(
-        std::vector<dnnl_data_type_t> &dt, const std::string &cfg);
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,

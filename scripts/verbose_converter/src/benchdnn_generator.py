@@ -1,5 +1,5 @@
 ################################################################################
-# Copyright 2020-2022 Intel Corporation
+# Copyright 2020-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -232,15 +232,6 @@ def convert_dts(mds, prim_kind):
                         cfg += md['data_type']
         return cfg
 
-    def convert_dts_cfg_with_bias(mds):
-        cfg = convert_dts_cfg(mds)
-        mds_bias = [md for md in mds if 'bia' in md['arg']]
-        if len(mds_bias) != 0:
-            md_bias = mds_bias[0]
-            bias_dt = md_bias['data_type']
-            cfg += ' ' + f"--bia_dt={bias_dt}"
-        return cfg
-
     def convert_dts_cfg_pool(mds):
         cfg = mds[0]['data_type']
         return f"--cfg={cfg}"
@@ -299,6 +290,15 @@ def convert_dts(mds, prim_kind):
                     dts += f' --{md_arg[0]}dt={md_dt}'
         return src_dts + dts
 
+    def convert_dts_with_bias(mds):
+        dt = convert_dts_multiple(mds)
+        mds_bias = [md for md in mds if 'bia' in md['arg']]
+        if len(mds_bias) != 0:
+            md_bias = mds_bias[0]
+            bias_dt = md_bias['data_type']
+            dt += ' ' + f"--bia_dt={bias_dt}"
+        return dt
+
     convert_dts = {
         'batch_normalization': convert_dts_common,
         'binary': convert_dts_multiple_src,
@@ -309,7 +309,7 @@ def convert_dts(mds, prim_kind):
         'inner_product': convert_dts_cfg,
         'layer_normalization': convert_dts_multiple,
         'lrn': convert_dts_common,
-        'matmul': convert_dts_cfg_with_bias,
+        'matmul': convert_dts_with_bias,
         'pooling': convert_dts_cfg_pool,
         'prelu': convert_dts_prelu,
         'reduction': convert_dts_all,
