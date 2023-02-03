@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
+#include "common/primitive_desc_iterator.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
@@ -108,24 +109,24 @@ status_t brgemm_convolution_bwd_t<isa>::pd_t::init(engine_t *engine) {
     convolution_desc_t fwd_conv_d = convolution_desc_t();
     CHECK(fwd_conv_desc_create(&fwd_conv_d, desc()));
 
-    primitive_desc_t *pd;
-    do {
-        // try creating fwd 1x1 conv prim desc
+    primitive_desc_iterator_t it(engine,
+            reinterpret_cast<const op_desc_t *>(&fwd_conv_d), attr(), nullptr);
+    if (!it.is_initialized()) return status::out_of_memory;
+
+    while (++it != it.end()) {
+        fwd_pd_ = *it;
         using fwd_1x1_conv_pd_t =
                 typename brgemm_1x1_convolution_fwd_t<isa>::pd_t;
-        status_t s = primitive_desc_t::create<fwd_1x1_conv_pd_t>(&pd,
-                reinterpret_cast<const op_desc_t *>(&fwd_conv_d), attr(),
-                engine, nullptr);
-        if (s == status::success) break;
-        // try creating fwd conv prim desc
+        const auto pd_1x1 = dynamic_cast<fwd_1x1_conv_pd_t *>((*it).get());
+        if (pd_1x1 != nullptr) break; // 1x1 implementation found
+
         constexpr bool use_inversion = true; // invert weights' spatial indices
         using fwd_conv_pd_t =
                 typename brgemm_convolution_fwd_t<isa, use_inversion>::pd_t;
-        CHECK(primitive_desc_t::create<fwd_conv_pd_t>(&pd,
-                reinterpret_cast<const op_desc_t *>(&fwd_conv_d), attr(),
-                engine, nullptr));
-    } while (false);
-    fwd_pd_.reset(pd);
+        const auto pd = dynamic_cast<fwd_conv_pd_t *>((*it).get());
+        if (pd != nullptr) break; // non-1x1 implementation found
+    }
+    if (it == it.end()) return status::unimplemented;
 
     if (weights_md_.format_kind == format_kind::any)
         CHECK(weights_axes_permutation(
