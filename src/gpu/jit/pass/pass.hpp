@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,10 +56,6 @@ stmt_t split_wide_stores(const stmt_t &s, ir_context_t &ir_ctx);
 // After (for SIMD8):
 //     if (bcast8(cond)) { ... }
 stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx);
-
-// Remove prefetches is they exceed available registers
-stmt_t maybe_strip_prefetches(
-        const stmt_t &s, ir_context_t &ir_ctx, int reserved_regs);
 
 } // namespace jit
 } // namespace gpu

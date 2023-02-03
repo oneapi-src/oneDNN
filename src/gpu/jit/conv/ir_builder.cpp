@@ -770,7 +770,6 @@ void conv_ir_builder_t::build() {
             cfg_.reserved_regs());
     stmt_ = unroll_loops(stmt_, ir_ctx);
     stmt_ = simplify(stmt_, ir_ctx);
-    stmt_ = maybe_strip_prefetches(stmt_, ir_ctx, cfg_.reserved_regs());
     stmt_ = optimize_alloc_let(stmt_, ir_ctx);
 
     stmt_ = optimize_peephole(stmt_, ir_ctx);
