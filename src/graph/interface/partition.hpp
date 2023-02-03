@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@
 #include "graph/interface/op.hpp"
 #include "graph/interface/partition_impl.hpp"
 
-#include "graph/utils/compatible.hpp"
 #include "graph/utils/id.hpp"
 #include "graph/utils/utils.hpp"
 #include "graph/utils/verbose.hpp"

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -483,7 +483,7 @@ status_t fill_layout_info(logical_tensor_t *lt, const memory::desc &md) {
             graph::utils::array_copy(lt->layout.strides,
                     md.get_strides().data(), md.get_ndims());
         } else {
-            graph::utils::optional<size_t> layout_id
+            graph::utils::optional_t<size_t> layout_id
                     = dnnl_backend::get_singleton().set_mem_desc(md);
             lt->layout.layout_id = layout_id.value();
             lt->layout_type = layout_type::opaque;

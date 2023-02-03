@@ -16,23 +16,8 @@
 #include <string>
 #include <gtest/gtest.h>
 
-#include "utils/compatible.hpp"
+#include "utils/any.hpp"
 #include "utils/utils.hpp"
-
-#ifndef DNNL_GRAPH_SUPPORT_CXX17
-TEST(utils_test, optional) {
-    using namespace dnnl::impl::graph::utils;
-    //init, copy constructor
-    optional_impl_t<int64_t> o1, o2 = 2, o3 = o2;
-    ASSERT_EQ(*o2, 2);
-    ASSERT_EQ(*o3, 2);
-    optional_impl_t<float> o4(nullopt), o5 = nullopt;
-    ASSERT_EQ(o4.has_value(), false);
-    ASSERT_EQ(o4, o5);
-    EXPECT_THROW(o4.value(), std::logic_error);
-    EXPECT_THROW(o1.value(), std::logic_error);
-}
-#endif
 
 TEST(utils_test, any) {
     using namespace dnnl::impl::graph::utils;
@@ -48,6 +33,13 @@ TEST(utils_test, any) {
     any_t b;
     ASSERT_EQ(b.empty(), true);
     EXPECT_THROW(any_cast<int>(b), bad_any_cast_t);
+}
+
+TEST(BadAnyCast, What) {
+    using namespace dnnl::impl::graph::utils;
+
+    bad_any_cast_t bad_any;
+    ASSERT_EQ(std::string(bad_any.what()), std::string("bad any_cast"));
 }
 
 TEST(utils_test, iffy_getenv) {

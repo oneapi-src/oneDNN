@@ -33,6 +33,7 @@
 #include "graph/interface/c_types_map.hpp"
 #include "graph/interface/op.hpp"
 
+#include "graph/utils/any.hpp"
 #include "graph/utils/attribute_value.hpp"
 
 namespace dnnl {

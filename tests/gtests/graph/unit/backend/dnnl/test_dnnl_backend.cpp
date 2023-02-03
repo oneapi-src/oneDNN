@@ -17,7 +17,8 @@
 
 #include "backend/dnnl/dnnl_backend.hpp"
 
-#include "utils/compatible.hpp"
+#include "utils/any.hpp"
+#include "utils/utils.hpp"
 
 namespace graph = dnnl::impl::graph;
 
@@ -33,7 +34,8 @@ TEST(LayoutIdManager, GetMemDesc) {
     size_t layout_id1 = 1;
     ASSERT_FALSE(manager.get_mem_desc(layout_id1).has_value());
     graph::utils::any_t mem_desc(int64_t(12));
-    graph::utils::optional<size_t> layout_id2 = manager.set_mem_desc(mem_desc);
+    graph::utils::optional_t<size_t> layout_id2
+            = manager.set_mem_desc(mem_desc);
     ASSERT_TRUE(layout_id2.has_value());
 
     ASSERT_TRUE(manager.get_mem_desc(layout_id2.value()).has_value());

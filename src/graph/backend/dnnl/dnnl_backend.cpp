@@ -16,7 +16,8 @@
 
 #include <utility>
 
-#include "graph/utils/compatible.hpp"
+#include "graph/utils/any.hpp"
+#include "graph/utils/utils.hpp"
 
 #include "graph/backend/dnnl/dnnl_backend.hpp"
 #include "graph/backend/dnnl/dnnl_opset.hpp"
@@ -88,12 +89,12 @@ bool dnnl_backend::compare_logical_tensor(
     return md1 == md2;
 }
 
-graph::utils::optional<size_t> dnnl_backend::set_mem_desc(
+graph::utils::optional_t<size_t> dnnl_backend::set_mem_desc(
         const graph::utils::any_t &mem_desc) {
     return layout_id_manager_.set_mem_desc(mem_desc);
 }
 
-graph::utils::optional<graph::utils::any_t> dnnl_backend::get_mem_desc(
+graph::utils::optional_t<graph::utils::any_t> dnnl_backend::get_mem_desc(
         const size_t &layout_id) const {
     return layout_id_manager_.get_mem_desc(layout_id);
 }

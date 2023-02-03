@@ -32,7 +32,6 @@
 #include "graph/interface/value.hpp"
 
 #include "graph/utils/attribute_value.hpp"
-#include "graph/utils/compatible.hpp"
 #include "graph/utils/json.hpp"
 
 namespace dnnl {

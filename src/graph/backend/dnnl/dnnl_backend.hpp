@@ -28,8 +28,9 @@
 #include "graph/interface/c_types_map.hpp"
 #include "graph/interface/logical_tensor.hpp"
 
-#include "graph/utils/compatible.hpp"
+#include "graph/utils/any.hpp"
 #include "graph/utils/pm/pass_manager.hpp"
+#include "graph/utils/utils.hpp"
 
 #include "graph/backend/dnnl/common.hpp"
 #include "graph/backend/dnnl/internal_ops.hpp"
@@ -59,7 +60,7 @@ public:
     * \note This function should be invoked in every where we want to
     * convert a md to layout id
     */
-    virtual graph::utils::optional<size_t> set_mem_desc(
+    virtual graph::utils::optional_t<size_t> set_mem_desc(
             const graph::utils::any_t &mem_desc) {
         std::lock_guard<std::mutex> lock(mem_descs_.m_);
 
@@ -89,10 +90,10 @@ public:
     * is a cached memory descriptor; otherwise, the return value will
     * be a utils::nullopt
     */
-    virtual graph::utils::optional<graph::utils::any_t> get_mem_desc(
+    virtual graph::utils::optional_t<graph::utils::any_t> get_mem_desc(
             size_t layout_id) const {
         std::lock_guard<std::mutex> lock(mem_descs_.m_);
-        if (layout_id >= mem_descs_.data_.size()) return {};
+        if (layout_id >= mem_descs_.data_.size()) return graph::utils::nullopt;
         return mem_descs_.data_[layout_id];
     }
 
@@ -261,9 +262,10 @@ public:
     }
 
     // Used by DNNL backend to cache memory descriptor and get layout id
-    graph::utils::optional<size_t> set_mem_desc(
+    graph::utils::optional_t<size_t> set_mem_desc(
             const graph::utils::any_t &mem_desc);
-    graph::utils::optional<graph::utils::any_t> get_mem_desc(
+
+    graph::utils::optional_t<graph::utils::any_t> get_mem_desc(
             const size_t &layout_id) const;
 
     graph::pass::pass_registry_t &get_pass_registry() { return pass_registry_; }

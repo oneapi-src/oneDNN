@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,9 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GRAPH_UTILS_COMPATIBLE_HPP
-#define GRAPH_UTILS_COMPATIBLE_HPP
+#ifndef GRAPH_UTILS_ANY_HPP
+#define GRAPH_UTILS_ANY_HPP
 
-#ifdef DNNL_GRAPH_SUPPORT_CXX17
-#include <optional>
-#endif
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -186,90 +183,6 @@ inline T any_cast(any_t &&v) {
     // return any_cast<std::forward<T>>(v);
     return any_cast<T>(v);
 }
-
-template <typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args &&...args) {
-    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-
-#ifdef DNNL_GRAPH_SUPPORT_CXX17
-template <typename T>
-using optional = std::optional<T>;
-#else
-struct nullopt_t {
-    enum class _construct { _token };
-    explicit constexpr nullopt_t(_construct) {}
-};
-
-constexpr const nullopt_t nullopt {nullopt_t::_construct::_token};
-
-template <typename T>
-class optional_impl_t {
-public:
-    optional_impl_t() : is_null_(true) {}
-    optional_impl_t(const T &value) {
-        is_null_ = false;
-        new (&value_) T(value);
-    }
-
-    optional_impl_t(const optional_impl_t<T> &opt) {
-        is_null_ = opt.is_null_;
-        if (!is_null_) { new (&value_) T(opt.value()); }
-    }
-
-    optional_impl_t(nullopt_t) : is_null_(true) {}
-
-    ~optional_impl_t() {
-        // explicitly deconstructor
-        if (!is_null_) { reinterpret_cast<T *>(&value_)->~T(); }
-    }
-
-    void swap(optional_impl_t<T> &another) {
-        std::swap(value_, another.value_);
-        std::swap(is_null_, another.is_null_);
-    }
-
-    optional_impl_t<T> &operator=(const optional_impl_t<T> &another) {
-        (optional_impl_t<T>(another)).swap(*this);
-        return *this;
-    }
-
-    optional_impl_t<T> &operator=(const T &value) {
-        (optional_impl_t<T>(value)).swap(*this);
-        return *this;
-    }
-
-    optional_impl_t<T> &operator=(nullopt_t) {
-        (optional_impl_t<T>()).swap(*this);
-        return *this;
-    }
-
-    const T &operator*() const { return *reinterpret_cast<const T *>(&value_); }
-    T &operator*() { return *reinterpret_cast<T *>(&value_); }
-
-    const T &value() const {
-        if (is_null_) {
-            const std::string err_msg = "bad optional access";
-            throw std::logic_error(err_msg);
-        }
-        return *reinterpret_cast<const T *>(&value_);
-    }
-
-    bool operator==(const optional_impl_t<T> &other) const {
-        return this->is_null_ == other.is_null_
-                && (this->is_null_ == true || this->value() == other.value());
-    }
-
-    bool has_value() const { return !is_null_; }
-
-private:
-    typename std::aligned_storage<sizeof(T), alignof(T)>::type value_;
-    bool is_null_;
-};
-
-template <typename T>
-using optional = optional_impl_t<T>;
-#endif // DNNL_GRAPH_SUPPORT_CXX17
 
 } // namespace utils
 } // namespace graph

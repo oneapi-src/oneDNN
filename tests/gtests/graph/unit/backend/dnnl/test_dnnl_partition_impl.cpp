@@ -21,8 +21,6 @@
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 #include "backend/dnnl/kernels/pool.hpp"
 
-#include "utils/compatible.hpp"
-
 #include "interface/partition.hpp"
 
 #include "graph/unit/unit_test_common.hpp"

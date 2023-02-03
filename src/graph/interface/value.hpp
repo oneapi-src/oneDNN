@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@
 #include "graph/interface/c_types_map.hpp"
 #include "graph/interface/logical_tensor.hpp"
 
-#include "graph/utils/compatible.hpp"
 #include "graph/utils/debug.hpp"
 #include "graph/utils/json.hpp"
+#include "graph/utils/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -151,7 +151,7 @@ public:
     /// input offset, useful for binary ops.
     /// @returns an optional contained size_t, representing the offset of
     /// the found consumer
-    utils::optional<size_t> find_consumer(const size_t start_index,
+    graph::utils::optional_t<size_t> find_consumer(const size_t start_index,
             const op_kind_t kind, const size_t expected_input_offset,
             bool ignore_expected_input_offset = false);
 

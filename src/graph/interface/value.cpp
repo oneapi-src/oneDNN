@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@
 
 using namespace dnnl::impl::graph;
 
-utils::optional<size_t> value_t::find_consumer(const size_t start_index,
+utils::optional_t<size_t> value_t::find_consumer(const size_t start_index,
         const op_kind_t kind, const size_t expected_input_offset,
         bool ignore_expected_input_offset) {
-    if (start_index >= consumers_.size()) return {};
+    if (start_index >= consumers_.size()) return utils::nullopt;
     for (size_t i = start_index; i < consumers_.size(); i++) {
         const op_t &op1 = consumers_[i].get_op();
         const size_t input_offset = consumers_[i].get_offset();
@@ -32,5 +32,5 @@ utils::optional<size_t> value_t::find_consumer(const size_t start_index,
             return i;
         }
     }
-    return {};
+    return utils::nullopt;
 }

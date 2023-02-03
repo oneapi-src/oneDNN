@@ -19,7 +19,6 @@ set(OBJ_LIB graph_unit_test_utils)
 add_library(${OBJ_LIB} OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/test_allocator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_compatible.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_debug.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern_matcher.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_utils.cpp

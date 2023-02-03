@@ -38,7 +38,6 @@
 #include "graph/interface/partition_impl.hpp"
 #include "graph/interface/value.hpp"
 
-#include "graph/utils/compatible.hpp"
 #include "graph/utils/debug.hpp"
 #include "graph/utils/id.hpp"
 #include "graph/utils/json.hpp"
