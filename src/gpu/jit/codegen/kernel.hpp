@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -527,38 +527,27 @@ public:
 
     void efdiv(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
             const ngen_operand_t &src0, const ngen_operand_t &src1) {
-        ir_assert(!src1.is_immediate());
-
         int esize = mod.getExecSize();
         int grf_size = ngen::GRF::bytes(hw);
         int div_esize = std::min(esize, grf_size / int(sizeof(float)));
 
-        int tmp_regs = utils::div_up(esize * int(sizeof(float)), grf_size);
+        ir_assert(dst.type() == ngen::DataType::f);
+        ir_assert(src0.type() == ngen::DataType::f);
+        ir_assert(src1.type() == ngen::DataType::f);
+        ir_assert(src1.reg_data().getHS() == 0);
 
         // fdiv_ieee() is not supported in XeHPG so we use a less precise, inv-based sequence.
         if (hw < ngen::HW::XeHPC) {
-            auto tmp = ra_.alloc_range(tmp_regs);
-            auto tmp_buf = reg_buf_t(hw, tmp);
-            auto tmp_reg_buf = reg_buf_data_t(tmp_buf).format(
-                    0, src1.reg_buf_data().type(), esize);
-            inv(mod, tmp[0].f(), src1.reg_buf_data());
-            emul(mod, dst, src0, ngen_operand_t(tmp_reg_buf));
+            auto tmp = ra_.alloc_sub<float>();
+            inv(1, tmp, src1.reg_data());
+            emul(mod, dst, src0, ngen_operand_t(reg_buf_data_t(hw, tmp)));
             ra_.safeRelease(tmp);
             return;
         }
 
         auto one = ra_.alloc().f();
         auto zero = ra_.alloc().f();
-
         auto tmp = ra_.alloc_range(4);
-
-        auto src0_tmp = ra_.alloc_range(tmp_regs);
-        auto src1_tmp = ra_.alloc_range(tmp_regs);
-
-        // Copy to temporary registers to ensure dst, num and denom are
-        // distinct as required for fdiv_ieee.
-        mov(mod, src0_tmp[0].f(), src0.reg_data());
-        mov(mod, src1_tmp[0].f(), src1.reg_data());
 
         auto div_mod = ngen::InstructionModifier(mod);
         div_mod.setExecSize(div_esize);
@@ -566,22 +555,28 @@ public:
         mov(div_mod, one, ngen::Immediate(1));
         mov(div_mod, zero, ngen::Immediate(0));
 
-        // Enable mask as fdiv_ieee relies on masked if/endif flow.
-        setDefaultNoMask(false);
-
         for (int i = 0; i < mod.getExecSize(); i += div_esize) {
-            fdiv_ieee(div_mod, f0[0], dst.sub_reg_data(i, div_esize).reg_data(),
-                    src0_tmp[i / div_esize].f(), src1_tmp[i / div_esize].f(),
-                    zero, one, tmp);
+            // Copy to temporary registers to ensure dst, num and denom are
+            // distinct as required for fdiv_ieee.
+            auto d = dst.sub_reg_data(i, div_esize).reg_data();
+            auto s0 = src0.sub_reg_data(i, div_esize).reg_data();
+            auto s1 = src1.sub_reg_data(i, 1).reg_data();
+            bool force_spill = overlaps(div_esize, d, s0)
+                    || overlaps(div_esize, d, s1)
+                    || overlaps(div_esize, s0, s1);
+            auto dst_rd = w_spill(d, div_esize, force_spill);
+            auto src0_rd = r_spill(s0, div_esize, force_spill);
+            auto src1_rd = r_spill(s1, div_esize, force_spill);
+            // Enable mask as fdiv_ieee relies on masked if/endif flow.
+            setDefaultNoMask(false);
+            fdiv_ieee(div_mod, f0[0], dst_rd(), src0_rd(), src1_rd(), zero, one,
+                    tmp);
+            setDefaultNoMask(true);
         }
 
         ra_.safeRelease(one);
         ra_.safeRelease(zero);
-        ra_.safeRelease(src0_tmp);
-        ra_.safeRelease(src1_tmp);
         ra_.safeRelease(tmp);
-
-        setDefaultNoMask(true);
     }
 
     void emod(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
@@ -788,6 +783,92 @@ public:
     }
 
 protected:
+    class spiller_t {
+    public:
+        spiller_t(ir_kernel_t<hw> *host, const ngen::RegData &rd, int esize,
+                bool read, bool write, bool force_copy)
+            : host_(host), rd_(rd), esize_(esize), read_(read), write_(write) {
+            if (rd.getOffset() == 0 && !force_copy) return;
+
+            int w = rd.getWidth();
+            int hs = rd.getHS();
+            int vs = rd.getVS();
+            int grf_size = ngen::GRF::bytes(hw);
+            int regs = utils::div_up(esize * hs * rd.getBytes(), grf_size);
+            tmp_range_ = host_->ra_.alloc_range(regs);
+            auto tmp = tmp_range_[0].retype(rd_.getType());
+            tmp_ = ngen::RegisterRegion(tmp, vs, w, hs);
+            if (read_) host_->mov(esize_, to_xd(tmp_), to_xd(rd_));
+        }
+
+        spiller_t(spiller_t &&other) : spiller_t(other) {
+            other.tmp_range_ = ngen::GRFRange();
+        }
+
+        ngen::RegData operator()() const {
+            return tmp_.isInvalid() ? rd_ : tmp_;
+        }
+
+        ~spiller_t() {
+            if (tmp_range_.isInvalid()) return;
+            if (write_) host_->mov(esize_, to_xd(rd_), to_xd(tmp_));
+            host_->ra_.safeRelease(tmp_range_);
+        }
+
+    private:
+        spiller_t(const spiller_t &) = default;
+
+        static ngen::RegData to_xd(const ngen::RegData &rd) {
+            auto ret = rd;
+            switch (rd.getBytes()) {
+                case 1: ret.setType(ngen::DataType::ub); break;
+                case 2: ret.setType(ngen::DataType::uw); break;
+                case 4: ret.setType(ngen::DataType::ud); break;
+                default: ir_error_not_expected();
+            }
+            return ret;
+        }
+
+        ir_kernel_t<hw> *host_ = nullptr;
+        ngen::RegData rd_;
+        int esize_;
+        bool read_ = false;
+        bool write_ = false;
+        ngen::GRFRange tmp_range_;
+        ngen::RegData tmp_;
+    };
+
+    spiller_t spill(const ngen::RegData &rd, int esize, bool read, bool write,
+            bool force_copy) {
+        return spiller_t(this, rd, esize, read, write, force_copy);
+    }
+
+    spiller_t r_spill(
+            const ngen::RegData &rd, int esize, bool force_copy = false) {
+        return spill(rd, esize, true, false, force_copy);
+    }
+
+    spiller_t w_spill(
+            const ngen::RegData &rd, int esize, bool force_copy = false) {
+        return spill(rd, esize, false, true, force_copy);
+    }
+
+    static bool overlaps(
+            int esize, const ngen::RegData &a, const ngen::RegData &b) {
+        int grf_size = ngen::GRF::bytes(hw);
+        int a_beg = a.getBase() * grf_size + a.getByteOffset();
+        int b_beg = b.getBase() * grf_size + b.getByteOffset();
+        int a_end = a_beg + esize * a.getHS() * a.getBytes() - 1;
+        int b_end = b_beg + esize * b.getHS() * b.getBytes() - 1;
+        a_beg /= grf_size;
+        b_beg /= grf_size;
+        a_end /= grf_size;
+        b_end /= grf_size;
+        if (a_beg <= b_beg && b_beg <= a_end) return true;
+        if (a_beg <= b_end && b_end <= a_end) return true;
+        return false;
+    }
+
     std::string kernel_name_;
     exec_config_t exec_cfg_;
     kernel_info_t kernel_info_;
