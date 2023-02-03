@@ -26,8 +26,85 @@
 #include "utils.hpp"
 #include "z_magic.hpp"
 
+#include "profiler.hpp"
+#include "verbose_msg.hpp"
+
 namespace dnnl {
 namespace impl {
+
+// Trick to print filename only on all compilers supporting C++11
+namespace utility {
+
+template <typename T, size_t S>
+inline constexpr size_t get_file_name_offset(
+        const T (&str)[S], size_t i = S - 1) {
+    return (str[i] == '/' || str[i] == '\\')
+            ? i + 1
+            : (i > 0 ? get_file_name_offset(str, i - 1) : 0);
+}
+
+template <typename T>
+inline constexpr size_t get_file_name_offset(T (&str)[1]) {
+    return 0;
+}
+template <typename T, T v>
+struct const_expr_value {
+    static constexpr const T value = v;
+};
+
+} // namespace utility
+
+#define UTILITY_CONST_EXPR_VALUE(exp) \
+    utility::const_expr_value<decltype(exp), exp>::value
+
+#define __FILENAME__ (&__FILE__[utility::get_file_name_offset(__FILE__)])
+
+// General formatting macro for verbose.
+// msg is typically a constant string pulled from verbose_msg.hpp
+// The string can contain format specifiers which are provided in VA_ARGS
+// Note: using ##__VAR_ARGS__ is necessary to avoid trailing comma in printf call
+
+#define VFORMAT(stamp, logtype, logsubtype, msg, ...) \
+    do { \
+        std::string stamp_; \
+        if (get_verbose_timestamp()) stamp_ = "," + std::to_string(stamp); \
+        printf("onednn_verbose%s," CONCAT2(VERBOSE_, logtype) "%s," msg "\n", \
+                stamp_.c_str(), logsubtype, ##__VA_ARGS__); \
+    } while (0)
+
+// Macro for boolean checks
+#define VCONDCHECK( \
+        logtype, logsubtype, component, condition, status, msg, ...) \
+    do { \
+        if (!(condition)) { \
+            if (verbose_has_##logtype()) \
+                VFORMAT(get_msec(), logtype, #logsubtype, \
+                        #component "," msg ",%s:%d", ##__VA_ARGS__, \
+                        __FILENAME__, __LINE__); \
+            return status; \
+        } \
+    } while (0)
+
+// Macro for status checks
+#define VCHECK(logtype, logsubtype, component, f, msg, ...) \
+    do { \
+        status_t _status_ = f; \
+        VCONDCHECK(logtype, logsubtype, component, \
+                _status_ == status::success, _status_, msg, ##__VA_ARGS__); \
+    } while (0)
+
+// Special syntactic sugar for error, plus flush of the output stream
+#define VERROR(component, msg, ...) \
+    do { \
+        if (verbose_has_error()) { \
+            VFORMAT(get_msec(), error, "", #component "," msg, ##__VA_ARGS__); \
+        } \
+        fflush(stdout); \
+    } while (0)
+
+// Special syntactic sugar for logging performance
+#define VPROF(stamp, logtype, logsubtype, info, duration) \
+    { VFORMAT(stamp, logtype, logsubtype, "%s,%g", info, duration); }
 
 bool verbose_has_error();
 bool verbose_has_profile_create();

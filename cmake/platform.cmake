@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2022 Intel Corporation
+# Copyright 2016-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -112,6 +112,8 @@ if(MSVC)
         append(CMAKE_CCXX_FLAGS "/MP")
         # increase number of sections in obj file
         append(CMAKE_CCXX_FLAGS "/bigobj")
+        # make preprocessor standard compliant
+        append(CMAKE_CCXX_FLAGS "/Zc:preprocessor")
         # int -> bool
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4800")
         # unknown pragma
@@ -122,6 +124,8 @@ if(MSVC)
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4551")
         # int64_t -> int (tent)
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4244")
+        # workaround: macro outputs defined token in msvs header
+        append(CMAKE_CCXX_NOWARN_FLAGS "/wd5105")
     endif()
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         append(CMAKE_CCXX_FLAGS "/MP")
