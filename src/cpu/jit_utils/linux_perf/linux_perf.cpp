@@ -105,20 +105,16 @@ private:
     bool open_file() {
         auto path_len_ok = [&](const std::string &path) {
             if (path.length() >= PATH_MAX) {
-                if (verbose_has_error())
-                    printf("onednn_verbose,jit_perf,error,"
-                           "dump directory path '%s' is too long\n",
-                            path.c_str());
+                VERROR(linux_perf, "dump directory path '%s' is too long",
+                        path.c_str());
                 return false;
             }
             return true;
         };
 
         auto complain = [](const std::string &path) {
-            if (verbose_has_error())
-                printf("onednn_verbose,jit_perf,error,"
-                       "cannot create dump directory '%s' (%m)\n",
-                        path.c_str());
+            VERROR(linux_perf, "cannot create dump directory '%s' (%m)",
+                    path.c_str());
             return false;
         };
 
@@ -156,10 +152,8 @@ private:
 
         fd_ = open(path.c_str(), O_CREAT | O_TRUNC | O_RDWR, 0666);
         if (fd_ == -1) {
-            if (verbose_has_error())
-                printf("onednn_verbose,jit_perf,error,"
-                       "cannot open jitdump file '%s' (%m)\n",
-                        path.c_str());
+            VERROR(linux_perf, "cannot open jitdump file '%s' (%m)",
+                    path.c_str());
             return false;
         }
 
@@ -197,9 +191,9 @@ private:
         }
 #else
         if (use_tsc) {
-            fprintf(stderr,
+            VERROR(linux_perf,
                     "TSC timestamps is not supported. clock_gettime() is used "
-                    "instead.\n");
+                    "instead.");
         }
 #endif
 

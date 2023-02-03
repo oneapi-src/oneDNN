@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,13 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
+
+#define VCHECK_CONV(cond, msg, ...) \
+    do { \
+        ok = ok && (cond); \
+        VCONDCHECK(profile_create, check, convolution, (cond), msg, \
+                ##__VA_ARGS__); \
+    } while (0)
 
 namespace dnnl {
 namespace impl {

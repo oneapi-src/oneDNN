@@ -270,13 +270,10 @@ inline status_t check_scalar_arguments(const kernel_arg_list_t &arg_list,
             }
 
             if (req_arg_type != arg.scalar_type()) {
-                if (verbose_has_error()) {
-                    printf("onednn_verbose,gpu,error,type of a scalar kernel "
-                           "argument #%d is different from the type of the "
-                           "given scalar\n",
-                            i);
-                    fflush(nullptr);
-                }
+                VERROR(gpu,
+                        "type of a scalar kernel argument #%d is "
+                        "different from the type of the given scalar",
+                        i);
                 return status::invalid_arguments;
             }
         }

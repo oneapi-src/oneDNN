@@ -98,14 +98,12 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
 
 #define MAYBE_REPORT_ERROR(msg) \
     do { \
-        if (verbose_has_error()) \
-            printf("onednn_verbose,gpu,error,%s\n", (msg)); \
+        VERROR(gpu, (msg)); \
     } while (0)
 
 #define MAYBE_REPORT_OCL_ERROR(s) \
     do { \
-        if (dnnl::impl::verbose_has_error()) \
-            printf("onednn_verbose,gpu,ocl_error,%d\n", (int)(s)); \
+        VERROR(ocl, "errcode %d", int(s)); \
     } while (0)
 
 #define OCL_CHECK_V(x) \

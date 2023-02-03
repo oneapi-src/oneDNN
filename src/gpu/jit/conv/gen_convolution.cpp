@@ -77,9 +77,7 @@ public:
         } catch (std::runtime_error &err) {
             // If verbose is enabled, print the primitive case and rethrow the
             // exception.
-            if (verbose_has_error())
-                printf("onednn_verbose,error,%s\n", pd->info(engine));
-            std::cerr << err.what() << "\n";
+            VERROR(gpu, "%s,%s", pd->info(engine), err.what());
             return status::runtime_error;
         }
     }
@@ -164,10 +162,7 @@ public:
         } catch (std::runtime_error &err) {
             // If verbose is enabled, print the primitive case and rethrow the
             // exception.
-            if (get_verbose())
-                printf("onednn_verbose,error,%s\n",
-                        primitive->pd()->info(engine));
-            std::cerr << err.what() << "\n";
+            VERROR(gpu, "%s,%s", primitive->pd()->info(engine), err.what());
             return status::runtime_error;
         }
 
