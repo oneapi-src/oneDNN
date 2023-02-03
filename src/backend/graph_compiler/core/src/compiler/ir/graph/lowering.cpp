@@ -1092,6 +1092,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     // record the node, index is op id.
     std::vector<bool> query_visited(graph.ops_.size(), false);
     std::vector<std::pair<sc_op_ptr, stmt>> op_execution_log;
+    int num_ops = 0;
     vis.visit_graph(graph, [&](op_visitor_t *vis, const sc_op_ptr &node) {
         std::vector<expr> ins, outs;
         // special kinds of Ops that we need to take care of
@@ -1239,6 +1240,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     executed_in_main_body = true;
                     op_execution_log.emplace_back(
                             node, target_body->seq_.back());
+                    num_ops++;
                 }
             }
         }
@@ -1304,8 +1306,20 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
     if (utils::compiler_configs_t::get().print_pass_result_) {
         SC_MODULE_INFO << ret_mod;
     }
-    ret_mod->attr_[ir_module_t::attr_key_t::GFLOP]
-            = graph.attrs_.get_or_else(sc_graph_t::attr_key_t::gflop, 0.0f);
+    auto gflop = graph.attrs_.get_or_else(sc_graph_t::attr_key_t::gflop, 0.0f);
+    ret_mod->attr_[ir_module_t::attr_key_t::GFLOP] = gflop;
+
+    // if the workload is too small, directly use thread pool backend instead of
+    // managed thread pool. if gflop per thread is large enough, or there is
+    // only one single thread, enable managed thread pool. For MLP workload on
+    // 24-core cascade lake, 1.6Gflop is turning point of choosing
+    // managed/native thread pool
+    auto &rtl_cfg = runtime_config_t::get();
+    bool use_managed_thread_pool = rtl_cfg.managed_thread_pool_
+            && (num_ops > 2 || rtl_cfg.get_num_threads() == 1
+                    || gflop / rtl_cfg.get_num_threads() > 0.0666f);
+    ret_mod->attr_[ir_module_t::attr_key_t::MANAGED_THREAD_POOL]
+            = use_managed_thread_pool;
     if (graph_name != default_graph_name) {
         ret_mod->attr_[ir_module_t::attr_key_t::NAME] = graph_name;
     }

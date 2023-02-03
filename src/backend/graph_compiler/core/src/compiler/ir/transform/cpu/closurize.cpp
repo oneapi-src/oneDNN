@@ -225,15 +225,9 @@ public:
 const_ir_module_ptr closurizer_cpu_t::operator()(const_ir_module_ptr inmod) {
     float gflop
             = inmod->attr_.get_or_else(ir_module_t::attr_key_t::GFLOP, 0.0f);
-    // if the workload is too small, directly use thread pool backend instead of
-    // managed thread pool. if gflop per thread is large enough, or there is
-    // only one single thread, enable managed thread pool. For MLP workload on
-    // 24-core cascade lake, 1.6Gflop is turning point of choosing
-    // managed/native thread pool
-    auto &rtl_cfg = runtime_config_t::get();
-    bool use_managed_thread_pool = rtl_cfg.managed_thread_pool_
-            && (rtl_cfg.get_num_threads() == 1
-                    || gflop / rtl_cfg.get_num_threads() > 0.0666f);
+
+    bool use_managed_thread_pool = inmod->attr_.get_or_else(
+            ir_module_t::attr_key_t::MANAGED_THREAD_POOL, false);
 
     SC_MODULE_INFO << "Use managed thread pool? " << use_managed_thread_pool
                    << ". Module gflops = " << gflop;
