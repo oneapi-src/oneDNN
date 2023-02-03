@@ -301,7 +301,7 @@ std::string md2fmt_tag_str(const memory_desc_t *md) {
 //  - extra    -- shows extra fields (underspecified)
 std::string md2fmt_str(const memory_desc_t *md) {
     std::stringstream ss;
-    if (!md) {
+    if (!md || types::is_zero_md(md)) {
         ss << data_type::undef << "::" << format_kind::undef << "::";
         return ss.str();
     }
