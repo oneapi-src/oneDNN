@@ -172,7 +172,7 @@ void conv1d_flatten(sc_graph_t &graph, const context_ptr &ctx) {
                                     {"expand_dim", std::vector<int> {}},
                                     {"push_back", true}});
                     origin_out->replace_with(view->get_outputs()[0]);
-                    view->get_dispatch_key_set() = op->get_dispatch_key_set();
+                    view->copy_dispatch_key_set_from_op(node);
                     vis->update_state_for_visited(reorder_op);
                     vis->update_state_for_visited(view);
                 }

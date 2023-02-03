@@ -237,7 +237,7 @@ public:
 
     virtual const dispatch_set_ptr &get_dispatch_key_set() const;
     virtual dispatch_set_ptr &get_dispatch_key_set();
-
+    void copy_dispatch_key_set_from_op(const sc_op_ptr &other);
     /**
      * Repalces an input logical tensor
      * @param index the index within get_inputs()

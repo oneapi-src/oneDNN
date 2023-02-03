@@ -429,6 +429,12 @@ dispatch_set_ptr &sc_op::get_dispatch_key_set() {
     return info_.dispatch_key_set_;
 }
 
+void sc_op::copy_dispatch_key_set_from_op(const sc_op_ptr &other) {
+    if (other->info_.dispatch_key_set_) {
+        info_.dispatch_key_set_ = other->info_.dispatch_key_set_->copy();
+    }
+}
+
 void sc_op::remove() {
     for (auto &in : info_.inputs_) {
         in->detach_use(shared_from_this());
