@@ -53,6 +53,16 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     const auto dst_type = dst_md(0)->data_type;
     const bool is_int8 = one_of(src_type, u8, s8);
 
+    // The following check will detect if this implementation is being
+    // executed through a BWD_D Convolution call and prevent the primitive from
+    // executing 'use_inversion == true' as FWD. This can only work if the
+    // diff_src_desc and diff_dst_desc are defined in the aforementioned.
+    const convolution_desc_t &cd = *desc();
+    if (use_inversion
+            && one_of(true, types::is_zero_md(&cd.diff_src_desc),
+                    types::is_zero_md(&cd.diff_dst_desc)))
+        return status::unimplemented;
+
     using skip_mask_t = primitive_attr_t::skip_mask_t;
     auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt
             | skip_mask_t::zero_points_runtime;
