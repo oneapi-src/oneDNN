@@ -2509,8 +2509,8 @@ bool mixed_parti_t::contain_convolution() const {
 bool mixed_parti_t::contain_nested_parallel_for() const {
     auto outer_loops = get_outer_loops();
     if (outer_loops.size() < 2) return false;
-    return outer_loops[0]->kind_ == for_type::PARALLEL
-            && outer_loops[1]->kind_ == for_type::PARALLEL;
+    return (outer_loops[0]->num_threads_ > 0)
+            && (outer_loops[1]->num_threads_ > 0);
 }
 
 bool mixed_parti_t::contain_tunable_op() const {
@@ -2725,7 +2725,7 @@ static mixed_parti_t::ptr try_execute_post_op_fusion(const sc_op_ptr &op,
                                 inp_parti, parent_partition, op);
                     } else {
                         try_merge_mixed_parti_with_joint_op(
-                                inp_parti, inp_parti, op);
+                                parent_partition, inp_parti, op);
                     }
                 }
                 parent_partition = std::static_pointer_cast<mixed_parti_t>(
