@@ -9,7 +9,9 @@
 --bia_dt=undef,f32
 --brgemm-attr=
 --attr-fpmath=,bf16
+--ld=,:96:96
 --batch=shapes_2d_no_tail_f32
+--ld=
 --attr-fpmath=
 
 --dt=f16,f16:f32:f32,f32:f16:f32
