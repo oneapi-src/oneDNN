@@ -42,3 +42,12 @@ mb50ic64ih56oc64oh56kh1ph0
 # oneDNN graph is not limited by it, because of additional reorder
 --attr-post-ops=,relu,sum:1:0:s8+relu
 mb50ic64ih56oc64oh56kh1ph0
+
+--reset
+--cfg=u8s8f32
+--dir=FWD_I,FWD_B
+--stag=acdb --wtag=any --dtag=acdb
+--attr-post-ops=sum:0.00518924:128+relu
+--attr-oscale=per_oc:0.5
+--attr-zero-points=src0:common:128
+mb1_ic5oc5_ih12oh7kh1sh2dh0ph1_iw12ow4kw7sw2dw0pw1
