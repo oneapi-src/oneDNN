@@ -3421,7 +3421,8 @@ TEST(ExecuteSubgraphInt8, Conv2dSumReluWithDifferentSrc1AndDstTypeOnGPU) {
 
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
-            = get_pass("int8_conv_post_ops_int8_add_fusion_gpu");
+            = get_pass("int8_conv_post_ops_fusion_gpu");
+    ASSERT_NE(apass, nullptr);
 
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
