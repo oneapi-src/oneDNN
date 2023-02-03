@@ -260,6 +260,10 @@ dispatch_key_set_t::get_inner_set() {
     return set_;
 }
 
+dispatch_set_ptr dispatch_key_set_t::copy() const {
+    return std::make_shared<dispatch_key_set_t>(set_);
+}
+
 void combined_dispatch_key_set_t::for_each_key_process(
         const std::function<void(const op_dispatch_key_base_t *)> &callback) {
     for (auto &key : set_) {
@@ -271,6 +275,10 @@ std::set<op_dispatch_key_t, dispatch_key_cmper_t> &
 combined_dispatch_key_set_t::get_inner_set() {
     throw std::runtime_error(
             "Combined dispatch key set can not get its inner set");
+}
+
+dispatch_set_ptr combined_dispatch_key_set_t::copy() const {
+    return std::make_shared<combined_dispatch_key_set_t>(set_);
 }
 
 std::vector<int> get_default_impl_dispatch_candidates() {

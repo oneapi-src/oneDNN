@@ -97,15 +97,19 @@ struct dispatch_key_set_base_t {
             = 0;
     virtual std::set<op_dispatch_key_t, dispatch_key_cmper_t> &get_inner_set()
             = 0;
+    virtual std::shared_ptr<dispatch_key_set_base_t> copy() const = 0;
 };
 
 struct dispatch_key_set_t : public dispatch_key_set_base_t {
     using inner_set_t = std::set<op_dispatch_key_t, dispatch_key_cmper_t>;
+    dispatch_key_set_t() = default;
+    dispatch_key_set_t(const inner_set_t &set) : set_(set) {}
     size_t size() const override { return set_.size(); }
     void for_each_key_process(
             const std::function<void(const op_dispatch_key_base_t *)> &callback)
             override;
     inner_set_t &get_inner_set() override;
+    std::shared_ptr<dispatch_key_set_base_t> copy() const override;
     inner_set_t set_;
 };
 
@@ -120,6 +124,7 @@ struct combined_dispatch_key_set_t : public dispatch_key_set_base_t {
     combined_dispatch_key_set_t(
             const std::vector<std::shared_ptr<dispatch_key_set_base_t>>
                     &dispatch_sets);
+    combined_dispatch_key_set_t(const inner_set_t &set) : set_(set) {}
     void internal_construct(
             const std::vector<std::shared_ptr<dispatch_key_set_base_t>>
                     &dispatch_sets,
@@ -131,6 +136,7 @@ struct combined_dispatch_key_set_t : public dispatch_key_set_base_t {
             const std::function<void(const op_dispatch_key_base_t *)> &callback)
             override;
     std::set<op_dispatch_key_t, dispatch_key_cmper_t> &get_inner_set() override;
+    std::shared_ptr<dispatch_key_set_base_t> copy() const override;
     inner_set_t set_;
 };
 

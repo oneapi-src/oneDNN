@@ -3126,7 +3126,7 @@ static std::shared_ptr<mixed_fuse_op_t> transform_pa_to_mixed_op(
         auto copyable = op->dyn_cast<op_traits::copyable_t>();
         assert(copyable);
         auto copied = copyable->copy(new_graph_in, new_graph_ou, sub_graph);
-        copied->get_dispatch_key_set() = op->get_dispatch_key_set();
+        copied->copy_dispatch_key_set_from_op(op);
 
         // build the fused op name
         if (!op_name.empty()) op_name += '_';

@@ -445,9 +445,12 @@ void matmul_core_op_t::query_format(context_ptr ctx,
         // break the m loop if it is static
         if (!dynamic) { break; }
     }
-    auto &dispatch_key_set = get_dispatch_key_set();
-    dispatch_key_set->get_inner_set().insert(
-            cur_dispatch_key_set.set_.begin(), cur_dispatch_key_set.set_.end());
+    if (dynamic) {
+        auto &dispatch_key_set = get_dispatch_key_set();
+        dispatch_key_set->get_inner_set().insert(
+                cur_dispatch_key_set.set_.begin(),
+                cur_dispatch_key_set.set_.end());
+    }
     // To calculate padded K of input A
     auto pad_K_num = utils::divide_and_ceil(K, K_block);
     attrs_["temp.padded_A_K"].get<std::shared_ptr<VConst>>()->var_
