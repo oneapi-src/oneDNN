@@ -190,12 +190,12 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
             ? 1
             : data_type_vnni_granularity(src_type);
 
-    wei_oc_sz = jcp.wei_plain ? jcp.oc : jcp.oc_block;
-    wei_ic_sz = jcp.wei_plain
+    wei_ic_stride = jcp.wei_plain ? jcp.oc : jcp.oc_block;
+    wei_ocb_stride = jcp.wei_plain
             ? (dim_t)rnd_up(jcp.ic, last_ic_block) * jcp.oc
             : (dim_t)rnd_up(jcp.ic, last_ic_block) * jcp.oc_block;
-    wei_ocb_sz = jcp.wei_plain ? jcp.oc_block * last_ic_block
-                               : jcp.nb_oc * wei_ic_sz;
+    wei_g_stride = jcp.wei_plain ? jcp.oc_block * last_ic_block
+                                 : jcp.nb_oc * wei_ocb_stride;
 
     for (int i = 0; i < 16; i++)
         brg_kernels_[i] = nullptr;
@@ -373,8 +373,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
             + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
     const auto src_base
             = jcp.is_rtus ? inp_buffer : src + src_dt_size * src_offset;
-    const auto wei_offset = jcp.wei_plain ? g * wei_ic_sz + ocb * wei_ocb_sz
-                                          : g * wei_ocb_sz + ocb * wei_ic_sz;
+    const auto wei_offset = g * wei_g_stride + ocb * wei_ocb_stride;
     const auto wei_base = weights + wei_dt_size * wei_offset;
     const auto ptr_D = dst
             + dst_dt_size
@@ -419,7 +418,7 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
             const auto src_ic = ic_off;
             const auto wei_ic = ic + ic_off;
             const auto ptr_A = src_base + src_dt_size * src_ic;
-            const auto ptr_B = wei_base + wei_dt_size * wei_ic * wei_oc_sz;
+            const auto ptr_B = wei_base + wei_dt_size * wei_ic * wei_ic_stride;
             brg_batch[k].ptr.A = ptr_A;
             brg_batch[k].ptr.B = ptr_B;
             brg_batch[k].vvpad.top = 0;

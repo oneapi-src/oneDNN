@@ -565,11 +565,11 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     dst_h_sz = OH * dst_w_sz;
     dst_d_sz = OD * dst_h_sz;
 
-    wei_ic_sz = static_cast<dim_t>(jcp.icp) * jcp.oc_block;
-    wei_kw_sz = KW * wei_ic_sz;
-    wei_kh_sz = KH * wei_kw_sz;
-    wei_kd_sz = KD * wei_kh_sz;
-    wei_ocb_sz = jcp.nb_oc * wei_kd_sz;
+    wei_kw_stride = static_cast<dim_t>(jcp.icp) * jcp.oc_block;
+    wei_kh_stride = KW * wei_kw_stride;
+    wei_kd_stride = KH * wei_kh_stride;
+    wei_ocb_stride = KD * wei_kd_stride;
+    wei_g_stride = jcp.nb_oc * wei_ocb_stride;
 
     comp_kw_sz = static_cast<dim_t>(jcp.oc_block);
     comp_ker_sz = jcp.ker_ranges_size * comp_kw_sz;
@@ -1127,8 +1127,9 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::cal_compensation(
 
             const auto buffer_offs
                     = g * comp_ocb_sz + ocb * comp_ker_sz + k * comp_kw_sz;
-            const auto wei_offs = (g * jcp.nb_oc + ocb) * wei_kd_sz
-                    + kd_b * wei_kh_sz + kh_b * wei_kw_sz + kw_b * wei_ic_sz;
+            const auto wei_offs = g * wei_g_stride + ocb * wei_ocb_stride
+                    + kd_b * wei_kd_stride + kh_b * wei_kh_stride
+                    + kw_b * wei_kw_stride;
 
             jit_brgemm_conv_comp_pad_call_s p;
 
@@ -1475,8 +1476,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
     get_kw_range(ow, kw_s, kw_full_s, kw_full_f, kw_f);
 
     const auto src_base = src + src_dsz * (btc.n * src_d_sz + g_ic);
-    const auto wei_base
-            = weights + wei_dsz * (btc.g * wei_ocb_sz + btc.ocb * wei_kd_sz);
+    const auto wei_base = weights
+            + wei_dsz * (btc.g * wei_g_stride + btc.ocb * wei_ocb_stride);
 
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      int32_t *src_zp, int32_t *s8s8_comp,
@@ -1497,13 +1498,13 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
                 const auto id = iid + kd * DD;
                 const auto src_base_kd = src_base_ic + src_dsz * id * src_h_sz;
                 const auto wei_base_kd = wei_base_ic
-                        + wei_dsz * maybe_invert(kd, KD) * wei_kh_sz;
+                        + wei_dsz * maybe_invert(kd, KD) * wei_kd_stride;
                 for (int kh = kh_b; kh < kh_e; kh++) {
                     const auto ih = iih + kh * DH;
                     const auto src_base_kh
                             = src_base_kd + src_dsz * ih * src_w_sz;
                     const auto wei_base_kh = wei_base_kd
-                            + wei_dsz * maybe_invert(kh, KH) * wei_kw_sz;
+                            + wei_dsz * maybe_invert(kh, KH) * wei_kh_stride;
                     for (int kw = kw_b; kw < kw_e; kw++) {
                         const auto iw = iiw_b + kw * DW;
                         btc.brg_batch[n_icb_off + k].ptr.A = src_base_kh
@@ -1513,7 +1514,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
                         btc.brg_batch[n_icb_off + k].vvpad.bottom = 0;
                         // general wei layout is gOdhwI<block_o><block_i>
                         btc.brg_batch[n_icb_off + k].ptr.B = wei_base_kh
-                                + wei_dsz * maybe_invert(kw, KW) * wei_ic_sz;
+                                + wei_dsz * maybe_invert(kw, KW)
+                                        * wei_kw_stride;
                         k++;
                     }
                 }
@@ -1665,8 +1667,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
     MAYBE_UNUSED(g_ic);
     MAYBE_UNUSED(src);
 
-    const auto wei_base
-            = weights + wei_dsz * (btc.g * wei_ocb_sz + btc.ocb * wei_kd_sz);
+    const auto wei_base = weights
+            + wei_dsz * (btc.g * wei_g_stride + btc.ocb * wei_ocb_stride);
     const int ow_b {ow},
             ow_e {ow + (is_ow_tail ? jcp.ow % jcp.ow_block : jcp.ow_block)};
     const int oh_b {oh},
@@ -1722,7 +1724,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
                 const auto pbuf_base_kd
                         = pbuf_base_ic + src_dsz * id * pbuf_h_sz;
                 const auto wei_base_kd = wei_base_ic
-                        + wei_dsz * maybe_invert(kd, KD) * wei_kh_sz;
+                        + wei_dsz * maybe_invert(kd, KD) * wei_kd_stride;
                 for (int kh = kh_b; kh < kh_ee; kh++) {
                     const auto ih = jcp.kh_sets > 1
                             ? (iih + 2 * TP)
@@ -1733,7 +1735,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
                             + wei_dsz
                                     * ((jcp.kh_sets > 1 ? 0
                                                         : maybe_invert(kh, KH))
-                                            * wei_kw_sz);
+                                            * wei_kh_stride);
                     for (int kw = 0; kw < kw_e; kw++) {
                         const auto iw = iiw_b - iiw_shift + kw * DW + LP;
                         // inp_buffer layout is Cdhw<ic_block>c
@@ -1744,7 +1746,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
                         btc.brg_batch[n_icb_off + k].vvpad.bottom = 0;
                         // general wei layout is gOdhwI<block_o><block_i>
                         btc.brg_batch[n_icb_off + k].ptr.B = wei_base_kh
-                                + wei_dsz * maybe_invert(kw, KW) * wei_ic_sz;
+                                + wei_dsz * maybe_invert(kw, KW)
+                                        * wei_kw_stride;
                         k++;
                     }
                 }
@@ -1824,8 +1827,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
     const char *const __restrict src_base
             = src + src_dsz * (btc.n * src_d_sz + g_ic);
 
-    const char *const __restrict wei_base
-            = weights + wei_dsz * (btc.g * wei_ocb_sz + btc.ocb * wei_kd_sz);
+    const char *const __restrict wei_base = weights
+            + wei_dsz * (btc.g * wei_g_stride + btc.ocb * wei_ocb_stride);
 
     const int ow_b {ow}, ow_e {ow + (is_ow_tail ? jcp.M_tail : jcp.M)};
     iiw_b = ow_b * SW - LP;
@@ -1867,13 +1870,13 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
                 const char *const __restrict src_base_kd
                         = src_base_ic + src_dsz * id * src_h_sz;
                 const char *const __restrict wei_base_kd = wei_base_ic
-                        + wei_dsz * maybe_invert(kd, KD) * wei_kh_sz;
+                        + wei_dsz * maybe_invert(kd, KD) * wei_kd_stride;
                 for (int kh = kh_b; kh < kh_e; kh++) {
                     const auto ih = iih + kh * DH;
                     const char *const __restrict src_base_kh
                             = src_base_kd + src_dsz * ih * src_w_sz;
                     const char *const __restrict wei_base_kh = wei_base_kd
-                            + wei_dsz * maybe_invert(kh, KH) * wei_kw_sz;
+                            + wei_dsz * maybe_invert(kh, KH) * wei_kh_stride;
                     for (int kw = 0; kw < KW; kw++) {
                         const auto iw = iiw_b + kw * DW;
                         const auto ptr_A = src_base_kh
@@ -1885,7 +1888,8 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
                         }
                         // general wei layout is gOdhwI<block_o><block_i>
                         const auto ptr_B = wei_base_kh
-                                + wei_dsz * maybe_invert(kw, KW) * wei_ic_sz;
+                                + wei_dsz * maybe_invert(kw, KW)
+                                        * wei_kw_stride;
 
                         icb_batch[k].ptr.A = ptr_A;
                         icb_batch[k].ptr.B = ptr_B;
