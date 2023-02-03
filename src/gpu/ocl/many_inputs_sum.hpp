@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -114,7 +114,7 @@ struct many_inputs_sum_t : public gpu_primitive_t {
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    enum { max_num_arrs = 94 };
+    enum { max_num_arrs = 16 };
     enum { SCALES_ = 0 };
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;

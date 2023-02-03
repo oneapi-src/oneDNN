@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,8 +51,9 @@ status_t many_inputs_sum_t::execute(const exec_ctx_t &ctx) const {
             } else
                 arg_list.set(a, memory_storage_t::empty_storage());
         }
-        arg_list.set(94, output);
-        arg_list.set(95, CTX_GPU_RES_STORAGE(SCALES_));
+        arg_list.set(many_inputs_sum_t::max_num_arrs, output);
+        arg_list.set(many_inputs_sum_t::max_num_arrs + 1,
+                CTX_GPU_RES_STORAGE(SCALES_));
 
         const size_t total_width = nelems * kernel_num_arrs;
         const size_t lws = utils::rnd_dn(256, kernel_num_arrs);
