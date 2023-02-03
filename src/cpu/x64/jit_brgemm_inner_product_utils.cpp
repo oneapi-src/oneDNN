@@ -401,9 +401,10 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
 
     // NOTE: comment about is_gigantic_shape is in get_os_block()
     const bool is_gigantic_shape = jbgp.oc >= 4096 && jbgp.os >= 512;
-    const int oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
-    const int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
-    const int num_work_to_parallel = oc_chunks * os_chunks;
+
+    int oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
+    int os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+    int num_work_to_parallel = oc_chunks * os_chunks;
 
     // TODO: although the below heuristic produces good performance for fp32,
     // num_work_to_parallel needs to compared with nthr (instead of nb_ic)
@@ -501,6 +502,26 @@ status_t init_ip_conf_fwd(jit_brgemm_primitive_conf_t &jbgp,
         jbgp.nb_ic_blocking = nb_k_blocking * ic_blks_per_k;
         jbgp.K = k_blk;
         jbgp.gemm_batch_size = nb_k_blocking;
+    }
+
+    const int nthrs_other = jbgp.nthr / jbgp.nthr_ic_b;
+    const int min_work = 5;
+
+    bool balanced = is_balanced(num_work_to_parallel, min_work, nthrs_other);
+
+    // Reduce os-block as needed for better thread balance for f32 case.
+    const bool is_avx512 = is_superset(jbgp.isa, avx512_core);
+    const int min_os_block = 6;
+    while (!balanced && jbgp.os_block > min_os_block && is_f32_compute
+            && is_avx512) {
+        int max_os_block = jbgp.os_block - 1;
+        jbgp.os_block = max_div(jbgp.os, max_os_block);
+        jbgp.os_block = nstl::max(jbgp.os_block, min_os_block);
+        jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
+        jbgp.nb_os_blocking = max_div(jbgp.nb_os, jbgp.nb_os_blocking);
+        os_chunks = div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+        num_work_to_parallel = os_chunks * oc_chunks;
+        balanced = is_balanced(num_work_to_parallel, min_work, nthrs_other);
     }
 
     // to avoid cache concurrent write access from different threads
