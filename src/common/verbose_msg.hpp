@@ -20,6 +20,7 @@
 #define VERBOSE_error "error"
 #define VERBOSE_profile_create "create:"
 #define VERBOSE_profile_exec "exec"
+#define VERBOSE_dispatch "create:dispatch"
 
 #define VERBOSE_NULL_ARG "one of the mandatory arguments is nullptr"
 #define VERBOSE_BAD_ALGORITHM "bad algorithm"
@@ -53,5 +54,6 @@
     "datatype configuration not supported on this isa"
 #define VERBOSE_BLOCKING_FAIL "blocking heuristic failed"
 #define VERBOSE_SMALL_SHAPES "small shapes fall back"
+#define VERBOSE_NONTRIVIAL_STRIDE "only trivial strides are supported"
 
 #endif

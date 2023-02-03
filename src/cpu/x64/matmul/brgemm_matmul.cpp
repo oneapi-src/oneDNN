@@ -29,6 +29,11 @@
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/matmul/brgemm_matmul.hpp"
 
+#define VCHECK_MATMUL(cond, msg, ...) \
+    VCONDCHECK(profile_create, dispatch, matmul, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -93,18 +98,27 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             = !memory_desc_wrapper(weights_md_).has_runtime_strides()
             && !memory_desc_wrapper(dst_md_).has_runtime_strides();
     const bool problem_dt_correct = is_int8 || is_bf16 || is_f32 || is_f16;
-    bool ok = is_dense_data() && mayiuse(isa) && problem_dt_correct
-            && IMPLICATION(is_f16, isa == avx512_core_fp16)
-            && !has_zero_dim_memory() && no_dynamic_strides_for_B_and_C
-            && attr()->has_default_values(
+    VCHECK_MATMUL(is_dense_data(), VERBOSE_NONTRIVIAL_STRIDE);
+    VCHECK_MATMUL(mayiuse(isa), VERBOSE_UNSUPPORTED_ISA);
+    VCHECK_MATMUL(problem_dt_correct, VERBOSE_UNSUPPORTED_DT);
+    VCHECK_MATMUL(IMPLICATION(is_f16, isa == avx512_core_fp16),
+            VERBOSE_ISA_DT_MISMATCH);
+    VCHECK_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VCHECK_MATMUL(
+            no_dynamic_strides_for_B_and_C, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VCHECK_MATMUL(
+            attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::scales_runtime
                             | primitive_attr_t::skip_mask_t::zero_points_runtime
                             | primitive_attr_t::skip_mask_t::post_ops
                             | primitive_attr_t::skip_mask_t::sum_dt,
-                    dst_dt)
-            && attr()->post_ops_.check_sum_consistent_dt(dst_dt)
-            && check_attr_scales() && check_attr_zero_points() && check_bias();
-    if (!ok) return status::unimplemented;
+                    dst_dt),
+            VERBOSE_UNSUPPORTED_ATTR);
+    VCHECK_MATMUL(attr()->post_ops_.check_sum_consistent_dt(dst_dt),
+            VERBOSE_UNSUPPORTED_DT);
+    VCHECK_MATMUL(check_attr_scales(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+    VCHECK_MATMUL(check_attr_zero_points(), VERBOSE_UNSUPPORTED_ZP_CFG);
+    VCHECK_MATMUL(check_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
 
     CHECK(init_brgemm_matmul_conf(isa, bgmmc_, *desc(), src_md_, weights_md_,
             dst_md_, bias_md_, attr_));

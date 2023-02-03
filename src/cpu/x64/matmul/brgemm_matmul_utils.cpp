@@ -25,6 +25,14 @@
 #include "cpu/matmul/matmul_utils.hpp"
 #include "oneapi/dnnl/dnnl_debug.h"
 
+// TODO add a method to print brgemm conf info
+#define VCONDCHECK_BG(cond, msg, ...) \
+    VCONDCHECK(profile_create, dispatch, brgemm_matmul, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
+
+#define VCHECK_BG(f, msg, ...) \
+    VCHECK(profile_create, dispatch, brgemm_matmul, f, msg, ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -178,7 +186,8 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
                 : plain_tensor_layout_tag;
         if (format_tag::undef == bgmmc.wei_tag) return status::unimplemented;
 
-        CHECK(memory_desc_init_by_tag(B_md, bgmmc.wei_tag));
+        VCHECK_BG(memory_desc_init_by_tag(B_md, bgmmc.wei_tag),
+                VERBOSE_UNSUPPORTED_TAG);
         const int dmax = nstl::min(bgmmc.ndims, 3);
         const memory_desc_wrapper B_d(&B_md);
         for (int d = 0; d < dmax; d++) {
@@ -229,7 +238,8 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
         memory_desc_t &C_md, memory_desc_t &bias_md) const {
     if (A_any_layout) {
         const format_tag_t desired_A_tag = plain_tensor_layout_tag;
-        CHECK(memory_desc_init_by_tag(A_md, desired_A_tag));
+        VCHECK_BG(memory_desc_init_by_tag(A_md, desired_A_tag),
+                VERBOSE_UNSUPPORTED_TAG);
         bgmmc.src_tag = desired_A_tag;
     } else {
         bgmmc.src_tag = (this->is_bf16() || this->is_f32() || this->is_bf32()
@@ -242,7 +252,8 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
 
     if (C_any_layout) {
         const format_tag_t desired_C_tag = plain_tensor_layout_tag;
-        CHECK(memory_desc_init_by_tag(C_md, desired_C_tag));
+        VCHECK_BG(memory_desc_init_by_tag(C_md, desired_C_tag),
+                VERBOSE_UNSUPPORTED_TAG);
         bgmmc.dst_tag = desired_C_tag;
     } else {
         bgmmc.dst_tag = memory_desc_matches_one_of_tag(
@@ -253,7 +264,8 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
         return status::unimplemented;
 
     if (bgmmc.with_bias && bias_any_layout)
-        CHECK(memory_desc_init_by_tag(bias_md, plain_tensor_layout_tag));
+        VCHECK_BG(memory_desc_init_by_tag(bias_md, plain_tensor_layout_tag),
+                VERBOSE_UNSUPPORTED_TAG);
 
     return status::success;
 }
@@ -797,8 +809,7 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
                 = bgmmc.K % bgmmc.wei_k_blk > 0 && bgmmc.K > bgmmc.wei_k_blk;
         bgmmc.K_blk = bgmmc.K < bgmmc.wei_k_blk
                 ? rnd_up(bgmmc.K, bgmmc.required_k_granularity)
-                : fixed_K_tail_size ? bgmmc.wei_k_blk
-                                    : bgmmc.K;
+                : fixed_K_tail_size ? bgmmc.wei_k_blk : bgmmc.K;
         bgmmc.brgemm_batch_size
                 = nstl::max(bgmmc.K / bgmmc.K_blk, static_cast<dim_t>(1));
 
@@ -806,8 +817,8 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
 
         compute_blocking_heuristic_amx(bgmmc, bm_conf_utils, best_blocking);
 
-        if (best_blocking.get_blocking_scores() == 0.0f)
-            return status::unimplemented;
+        VCONDCHECK_BG(best_blocking.get_blocking_scores() != 0.0f,
+                VERBOSE_BLOCKING_FAIL);
 
         best_blocking.update_configuration(bgmmc);
 
@@ -908,7 +919,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             dst_d.format_kind() == format_kind::any,
             bias_md.format_kind == format_kind::any);
 
-    CHECK(check_isa_with_datatype(isa, bm_conf_utils));
+    VCHECK_BG(check_isa_with_datatype(isa, bm_conf_utils),
+            VERBOSE_ISA_DT_MISMATCH);
 
     bgmmc.is_amx = is_superset(isa, avx512_core_amx);
     bgmmc.a_dt_sz = bgmmc.tr_a_dt_sz = types::data_type_size(bgmmc.src_dt);
@@ -945,8 +957,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         bgmmc.is_oscale_per_n = wei_scales.mask_ == 1 << (bgmmc.ndims - 1);
 
         // only common and per-oc-channel scales are supported
-        const bool oscales_ok = wei_scales.mask_ == 0 || bgmmc.is_oscale_per_n;
-        if (!oscales_ok) return status::unimplemented;
+        VCONDCHECK_BG(wei_scales.mask_ == 0 || bgmmc.is_oscale_per_n,
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
@@ -962,16 +974,17 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     const int binary_ind = p.find(primitive_kind::binary);
     bgmmc.with_binary = binary_ind != -1;
 
-    if (!post_ops_ok(bgmmc, attr, dst_d)) return status::unimplemented;
+    VCONDCHECK_BG(post_ops_ok(bgmmc, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
 
     bgmmc.src_zp_type = get_zp_type(attr, DNNL_ARG_SRC);
     bgmmc.wei_zp_type = get_zp_type(attr, DNNL_ARG_WEIGHTS);
     bgmmc.dst_zp_type = get_zp_type(attr, DNNL_ARG_DST);
 
-    if (!IMPLICATION(!bm_conf_utils.is_int8(),
-                everyone_is(brgemm_broadcast_t::none, bgmmc.src_zp_type,
-                        bgmmc.wei_zp_type, bgmmc.dst_zp_type)))
-        return status::unimplemented;
+    VCONDCHECK_BG(
+            IMPLICATION(!bm_conf_utils.is_int8(),
+                    everyone_is(brgemm_broadcast_t::none, bgmmc.src_zp_type,
+                            bgmmc.wei_zp_type, bgmmc.dst_zp_type)),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
 
     matmul_helper_t helper(src_d, weights_d, dst_d);
 
@@ -1009,20 +1022,22 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             && ((bgmmc.M == 1 && bgmmc.K == 256)
                     || (bgmmc.M <= 32 && bgmmc.M * bgmmc.N <= 256)
                     || bgmmc.K <= 16);
-    if (is_small_shapes) return status::unimplemented;
+    VCONDCHECK_BG(!is_small_shapes, VERBOSE_SMALL_SHAPES);
 
     // required granularity for k dimension
     bgmmc.required_k_granularity
             = bgmmc.is_amx ? data_type_vnni_granularity(bgmmc.wei_dt) : 1;
-    if (bgmmc.required_k_granularity == 0) return status::unimplemented;
+    VCONDCHECK_BG(bgmmc.required_k_granularity > 0, VERBOSE_BLOCKING_FAIL);
     bgmmc.wei_k_blk = data_type_vnni_simd_elems<avx512_core>(bgmmc.wei_dt);
 
-    CHECK(bm_conf_utils.set_or_check_tags(src_md, dst_md, bias_md));
-    CHECK(bm_conf_utils.set_or_check_B_tag(weights_md));
+    VCHECK_BG(bm_conf_utils.set_or_check_tags(src_md, dst_md, bias_md),
+            VERBOSE_UNSUPPORTED_TAG);
+    VCHECK_BG(bm_conf_utils.set_or_check_B_tag(weights_md),
+            VERBOSE_UNSUPPORTED_TAG);
 
     bgmmc.req_wei_vnni_downconvert = bm_conf_utils.wei_down_convert_to_vnni();
 
-    CHECK(attr.set_default_formats(&dst_md));
+    VCHECK_BG(attr.set_default_formats(&dst_md), VERBOSE_UNSUPPORTED_TAG);
 
     bgmmc.wei_n_blk = get_default_n_block(bgmmc.wei_tag);
 
@@ -1083,29 +1098,32 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     // BF32 'Hint' Heuristic:
     // Under the following conditions, F32 through AVX512_CORE performs better
     // than using BF32 arithmetic.
-    if (bgmmc.is_bf32 && (bgmmc.M < 8)
-            && ((bgmmc.wei_tag == abcd) || bm_conf_utils.is_any_B_layout()))
-        return status::unimplemented;
+    VCONDCHECK_BG(!(bgmmc.is_bf32 && (bgmmc.M < 8)
+                          && ((bgmmc.wei_tag == abcd)
+                                  || bm_conf_utils.is_any_B_layout())),
+            VERBOSE_UNSUPPORTED_FPMATH_MODE);
 
     // Heuristic tries to optimize the following parameters:
     // - M_blk, M_Chunk
     // - N_blk, N_Chunk
     // - K_blk, batch_size
     // - nthr_K
-    CHECK(compute_blocking_heuristic(bgmmc, bm_conf_utils));
+    VCHECK_BG(compute_blocking_heuristic(bgmmc, bm_conf_utils),
+            VERBOSE_BLOCKING_FAIL);
 
     if (bgmmc.wei_n_blk > bgmmc.N_blk
             && IMPLICATION(
                     bgmmc.N == bgmmc.N_blk, bgmmc.N >= bgmmc.wei_n_blk)) {
         bgmmc.wei_n_blk = bgmmc.N_blk;
-        CHECK(bm_conf_utils.update_and_check_B_tag(
-                weights_md, bgmmc.wei_n_blk));
+        VCHECK_BG(bm_conf_utils.update_and_check_B_tag(
+                          weights_md, bgmmc.wei_n_blk),
+                VERBOSE_UNSUPPORTED_TAG);
 
         bgmmc.req_wei_vnni_downconvert
                 = bm_conf_utils.wei_down_convert_to_vnni();
     }
 
-    CHECK(bm_conf_utils.set_B_flags(weights_md));
+    VCHECK_BG(bm_conf_utils.set_B_flags(weights_md), VERBOSE_BLOCKING_FAIL);
 
     bgmmc.M_tail = bgmmc.is_runtime_M ? 0 : bgmmc.M % bgmmc.M_blk;
     bgmmc.N_tail = bgmmc.N % bgmmc.N_blk;

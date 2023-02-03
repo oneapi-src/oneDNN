@@ -20,6 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
+#include "common/verbose.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
 
 namespace dnnl {
