@@ -342,3 +342,10 @@ g90mb1_ic360oc180_ih12oh16kh1sh1dh1ph2_iw14ow7kw3sw2dw1pw2_n"brgemm_post-op-jit_
 mb1_ic2oc2_ih10oh12kh1sh1dh0ph1_iw7ow7kw1sw1dw0pw0_n"brgemm_post-op-jit_sum-with-zp:1"
 --attr-zero-points=dst:common:2*+src:common:1*
 mb1ic2ih10iw7oc2oh6ow4kh1kw1sh2sw2ph1pw0dh1dw1_n"brgemm_post-op-jit_sum-with-zp:2"
+
+# test primitive cache correctly dispatching proper CPU ISA
+--reset
+--dir=fwd_d --cfg=f16 --stag=axb --dtag=axb --mb=1
+ic256ih56oc64oh56kh1ph0n"primitive-cache_dispatch_shape-1"
+--dir=bwd_d
+ic64ih56oc256oh56kh1ph0n"primitive-cache_dispatch_shape-2"
