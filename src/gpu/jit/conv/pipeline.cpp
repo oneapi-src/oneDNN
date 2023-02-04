@@ -1011,8 +1011,10 @@ pipeline_ctx_t pipeline(
             "prefetch_");
 
     expr_t A_idx = idx + pipe_len;
-    stmt_t body = if_t::make(
-            idx < (bound - pipe_len), substitute(A_block, idx, A_idx));
+    stmt_t body;
+    if (init < (bound - pipe_len))
+        body = if_t::make(
+                idx < (bound - pipe_len), substitute(A_block, idx, A_idx));
     body = body.append(B_block);
     body = for_t::make(idx, init, bound, body, loop.unroll());
 
