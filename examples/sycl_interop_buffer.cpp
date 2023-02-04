@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -206,7 +206,7 @@ void sycl_interop_buffer_tutorial(engine::kind engine_kind) {
     /// We can run validation codes on the host accordingly.
     /// @snippet sycl_interop_buffer.cpp Check the results
     // [Check the results]
-    auto host_acc = sycl_buf.get_access<access::mode::read>();
+    auto host_acc = sycl_buf.get_host_access();
     for (size_t i = 0; i < N; i++) {
         float exp_value = (i % 2) ? 0.0f : i;
         if (host_acc[i] != (float)exp_value)

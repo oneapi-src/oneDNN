@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,13 +64,13 @@ TEST_P(sycl_memory_buffer_test, BasicInteropCtor) {
     auto buf_from_mem = sycl_interop::get_buffer<float>(mem);
 
     {
-        auto a = buf.get_access<access::mode::write>();
+        auto a = buf.get_host_access();
         for (size_t i = 0; i < sz; ++i)
             a[i] = float(i);
     }
 
     {
-        auto a = buf_from_mem.get_access<access::mode::read>();
+        auto a = buf_from_mem.get_host_access();
         for (size_t i = 0; i < sz; ++i)
             ASSERT_EQ(a[i], float(i));
     }
@@ -124,7 +124,7 @@ TEST_P(sycl_memory_buffer_test, ConstructorAllocate) {
     auto buf = sycl_interop::get_buffer<float>(mem);
 
     {
-        auto acc = buf.get_access<access::mode::write>();
+        auto acc = buf.get_host_access();
         for (int i = 0; i < n; i++) {
             acc[i] = float(i);
         }
@@ -166,13 +166,13 @@ TEST_P(sycl_memory_buffer_test, BasicInteropGetSet) {
     auto sycl_buf = sycl_interop::get_buffer<float>(mem);
 
     {
-        auto a = interop_sycl_buf.get_access<access::mode::write>();
+        auto a = interop_sycl_buf.get_host_access();
         for (size_t i = 0; i < sz; ++i)
             a[i] = float(i);
     }
 
     {
-        auto a = sycl_buf.get_access<access::mode::read>();
+        auto a = sycl_buf.get_host_access();
         for (size_t i = 0; i < sz; ++i)
             ASSERT_EQ(a[i], float(i));
     }
@@ -380,7 +380,7 @@ TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
     eltwise.execute(s, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
     s.wait();
 
-    auto host_acc = sycl_buf.get_access<access::mode::read>();
+    auto host_acc = sycl_buf.get_host_access();
 
     for (int i = 0; i < N; i++) {
         float exp_value = (i - N / 2) <= 0 ? 0 : (i - N / 2);

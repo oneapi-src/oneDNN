@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -201,7 +201,7 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
         auto mkind = dnnl::sycl_interop::get_memory_kind(mem);
         if (mkind == dnnl::sycl_interop::memory_kind::buffer) {
             auto buffer = dnnl::sycl_interop::get_buffer<uint8_t>(mem);
-            auto src = buffer.get_access<::sycl::access::mode::read>();
+            auto src = buffer.get_host_access();
             uint8_t *src_ptr = src.get_pointer();
             if (!src_ptr)
                 throw std::runtime_error("get_pointer returned nullptr.");
@@ -260,7 +260,7 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
         auto mkind = dnnl::sycl_interop::get_memory_kind(mem);
         if (mkind == dnnl::sycl_interop::memory_kind::buffer) {
             auto buffer = dnnl::sycl_interop::get_buffer<uint8_t>(mem);
-            auto dst = buffer.get_access<::sycl::access::mode::write>();
+            auto dst = buffer.get_host_access();
             uint8_t *dst_ptr = dst.get_pointer();
             if (!dst_ptr)
                 throw std::runtime_error("get_pointer returned nullptr.");
