@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2022 Intel Corporation
+# Copyright 2017-2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -256,7 +256,7 @@ function(register_benchdnn_graph_test engine bench_mode test_file)
     endif()
 endfunction()
 
-file(GLOB benchdnn_graph_ci RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs/graph inputs/graph/test*)
+file(GLOB benchdnn_graph_ci RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs/graph inputs/graph/test_*_ci)
 
 foreach(test_file ${benchdnn_graph_ci})
     if(DNNL_GRAPH_TEST_SET EQUAL DNNL_GRAPH_TEST_SET_CI)

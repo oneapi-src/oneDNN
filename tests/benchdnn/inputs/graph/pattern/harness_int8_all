@@ -4,6 +4,6 @@
 # --reset --case=pattern/int8/int8_conv_bias_fusion.json
 --reset --case=pattern/int8/int8_conv_post_ops_fusion.json
 --reset --case=pattern/int8/int8_conv_post_ops_int8_add_fusion.json
-# --reset --case=pattern/int8/int8_convtranspose_post_ops_fusion.json
+--reset --case=pattern/int8/int8_convtranspose_post_ops_fusion.json
 --reset --case=pattern/int8/int8_matmul_div_add_fusion.json
 --reset --case=pattern/int8/int8_matmul_post_ops_fusion.json

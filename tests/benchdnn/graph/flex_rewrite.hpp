@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,16 +84,25 @@ struct flex_rewrite {
     }
     void split_oix(std::string data_format, dims_t &in, dims_t &oi, dims_t &x) {
         x.clear();
-        if (data_format == "OIX") {
-            oi = {in[0], in[1]};
+        if (data_format == "OIX" || data_format == "IOX") {
             for (size_t i = 2; i < in.size(); i++) {
                 x.push_back(in[i]);
             }
-        } else { // XIO
+            if (data_format == "OIX") {
+                oi = {in[0], in[1]};
+            } else { //IOX
+                oi = {in[1], in[0]};
+            }
+
+        } else if (data_format == "XIO" || data_format == "XOI") {
             for (size_t i = 0; i < in.size() - 2; i++) {
                 x.push_back(in[i]);
             }
-            oi = {in[in.size() - 1], in[in.size() - 2]};
+            if (data_format == "XIO") {
+                oi = {in[in.size() - 1], in[in.size() - 2]};
+            } else { // XOI
+                oi = {in[in.size() - 2], in[in.size() - 1]};
+            }
         }
     }
 
@@ -186,10 +195,13 @@ struct flex_rewrite {
             } else {
                 auto_broadcast = "numpy";
             }
-            if (aop.attrs_.find("filter_format") != aop.attrs_.end()
-                    && aop.attrs_["filter_format"].get_string() == "OIX") {
-                filter_format = "OIX";
+            if (aop.attrs_.find("filter_format") != aop.attrs_.end()) {
+                filter_format = aop.attrs_["filter_format"].str_value_;
+            } else if (aop.kind_.find("ConvTranspose") != std::string::npos) {
+                // ConvTanspose fwd/bwd ops
+                filter_format = "XOI";
             } else {
+                // Conv fwd/bwd ops
                 filter_format = "XIO";
             }
             if (aop.attrs_.find("groups") != aop.attrs_.end()) {

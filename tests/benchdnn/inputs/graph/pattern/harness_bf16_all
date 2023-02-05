@@ -6,7 +6,7 @@
 # partitions with GPU engine
 --reset --case=pattern/bf16/conv_depthwise_fusion_cpu.json
 --reset --case=pattern/bf16/conv_post_ops_fusion.json
-# --reset --case=pattern/bf16/convtranspose_post_ops_fusion.json
+--reset --case=pattern/bf16/convtranspose_post_ops_fusion.json
 --reset --case=pattern/bf16/matmul_bias_post_ops_chain_fusion.json
 --reset --case=pattern/bf16/matmul_post_ops_chain_fusion.json
 --reset --case=pattern/bf16/reciprocal_multiply_fusion.json
