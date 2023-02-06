@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -6582,7 +6582,7 @@ void gemm_kernel_generator_t<hw>::outerProductSystolic(int h, int ha, int hb,
 // Decide whether to use the legacy post-op injector inside C update.
 // Needed if we can't convert C to f32 in-place, but doesn't support binary post-ops.
 static inline bool useEltwiseInjector(const GEMMProblem &problem) {
-    return problem.hasPostOp() && (problem.Tc.size() < 4);
+    return problem.hasNonSum1PostOp() && (problem.Tc.size() < 4);
 }
 
 // Perform C update operation on C_acc, given original C data in C_load.
@@ -14546,6 +14546,12 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
             subproblem.beta_real = 1;
             subproblem.beta_imag = 0;
 
+            if (subproblem.postOps.len() > 0) {
+                auto &lastPO = subproblem.postOps
+                                       .entry_[subproblem.postOps.len() - 1];
+                if (lastPO.kind == primitive_kind::sum) lastPO.sum.scale = 1.0f;
+            }
+
             if (!gemmUpdateC(subproblem, strategy, substate)) return false;
 
             if (checkBeta0) {
@@ -14565,6 +14571,14 @@ bool gemm_kernel_generator_t<hw>::gemmBodyInternal(
 
             subproblem.beta_real = 0;
             subproblem.beta_imag = 0;
+
+            if (subproblem.postOps.len() > 0) {
+                auto &lastPO = subproblem.postOps
+                                       .entry_[subproblem.postOps.len() - 1];
+                if (lastPO.kind == primitive_kind::sum)
+                    subproblem.postOps.entry_.resize(
+                            subproblem.postOps.len() - 1);
+            }
 
             substrategy.C.atomic = false;
 
