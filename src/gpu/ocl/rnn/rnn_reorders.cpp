@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -150,8 +150,9 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
 
     // Copy to gpu
     memory_desc_wrapper src_mdw(pd()->src_md());
-    status = compute_stream->copy(
-            input, do_reorder ? *wspace : output, src_mdw.size());
+    status = compute_stream->copy(input, do_reorder ? *wspace : output,
+            src_mdw.size(), compute_stream->ctx().get_deps(),
+            compute_stream->ctx().get_deps());
 
     if (status == status::success && do_reorder)
         status = ocl_reorder(*wspace, *scales_buf, output);

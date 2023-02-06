@@ -123,14 +123,15 @@ void ocl_stream_t::after_exec_hook() {
     ocl_ctx().set_deps(ocl_event_t());
 }
 
-status_t ocl_stream_t::copy(
-        const memory_storage_t &src, const memory_storage_t &dst, size_t size) {
+status_t ocl_stream_t::copy(const memory_storage_t &src,
+        const memory_storage_t &dst, size_t size, const compute::event_t &deps,
+        compute::event_t &out_dep) {
 
     if (size == 0) return status::success;
 
     std::vector<cl_event> events = [&] {
         if (flags() & stream_flags::out_of_order) {
-            const auto &event_wrappers = get_deps();
+            const auto &event_wrappers = ocl_event_t::from(deps).events;
             return std::vector<cl_event>(
                     event_wrappers.begin(), event_wrappers.end());
         }
@@ -254,20 +255,21 @@ status_t ocl_stream_t::copy(
     }
 
     if (is_profiling_enabled()) register_profile_event(out_event, this);
-    if (flags() & stream_flags::out_of_order) set_deps({out_event});
+    if (flags() & stream_flags::out_of_order)
+        ocl_event_t::from(out_dep).events = {out_event};
 
     return status::success;
 }
 
-status_t ocl_stream_t::fill(
-        const memory_storage_t &dst, uint8_t pattern, size_t size) {
+status_t ocl_stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
+        size_t size, const compute::event_t &deps, compute::event_t &out_dep) {
     using namespace dnnl::impl::utils;
 
     const auto *ocl_dst = downcast<const ocl_memory_storage_base_t *>(&dst);
 
     std::vector<cl_event> events = [&] {
         if (flags() & stream_flags::out_of_order) {
-            const auto &event_wrappers = get_deps();
+            const auto &event_wrappers = ocl_event_t::from(deps).events;
             return std::vector<cl_event>(
                     event_wrappers.begin(), event_wrappers.end());
         }
@@ -296,7 +298,8 @@ status_t ocl_stream_t::fill(
     }
 
     if (is_profiling_enabled()) register_profile_event(out_event, this);
-    if (flags() & stream_flags::out_of_order) set_deps({out_event});
+    if (flags() & stream_flags::out_of_order)
+        ocl_event_t::from(out_dep).events = {out_event};
 
     return status::success;
 }

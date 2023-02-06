@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1168,12 +1168,14 @@ status_t gen9_convolution_bwd_weights_t::execute_backward_weights(
     memory_desc_wrapper wei_mdw(temp_wei_md);
     CHECK(compute_stream->fill(
             conf.reorder_wei ? *wspace_ptr_wei : diff_weights, zero,
-            wei_mdw.size()));
+            wei_mdw.size(), compute_stream->ctx().get_deps(),
+            compute_stream->ctx().get_deps()));
     if (conf.with_bias) {
         memory_desc_wrapper bia_mdw(temp_bia_md);
         CHECK(compute_stream->fill(
                 conf.reorder_bias ? *wspace_ptr_bia : diff_bias, zero,
-                bia_mdw.size()));
+                bia_mdw.size(), compute_stream->ctx().get_deps(),
+                compute_stream->ctx().get_deps()));
     }
 
     compute::kernel_arg_list_t arg_list;

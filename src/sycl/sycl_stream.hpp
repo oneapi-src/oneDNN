@@ -113,7 +113,8 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
     }
 
     status_t copy(const memory_storage_t &src, const memory_storage_t &dst,
-            size_t size) override {
+            size_t size, const gpu::compute::event_t &deps,
+            gpu::compute::event_t &out_dep) override {
         if (size == 0) return status::success;
         // TODO: add src and dst sizes check
 
@@ -154,7 +155,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             auto *usm_dst
                     = utils::downcast<const sycl_usm_memory_storage_t *>(&dst);
             e = queue_->submit([&](::sycl::handler &cgh) {
-                register_deps(cgh);
+                cgh.depends_on(sycl_event_t::from(deps).events);
                 cgh.memcpy(usm_dst->usm_ptr(), usm_src->usm_ptr(), size);
             });
         } else if (usm_src && !usm_dst) {
@@ -165,7 +166,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                             &dst);
             auto &b_dst = buffer_dst->buffer();
             e = queue_->submit([&](::sycl::handler &cgh) {
-                register_deps(cgh);
+                cgh.depends_on(sycl_event_t::from(deps).events);
                 auto acc_dst
                         = b_dst.get_access<::sycl::access::mode::write>(cgh);
                 cgh.copy(usm_src->usm_ptr(), acc_dst);
@@ -178,7 +179,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             auto *usm_dst
                     = utils::downcast<const sycl_usm_memory_storage_t *>(&dst);
             e = queue_->submit([&](::sycl::handler &cgh) {
-                register_deps(cgh);
+                cgh.depends_on(sycl_event_t::from(deps).events);
                 auto acc_src
                         = b_src.get_access<::sycl::access::mode::read>(cgh);
                 cgh.copy(acc_src, usm_dst->usm_ptr());
@@ -198,18 +199,19 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                         = b_src.get_access<::sycl::access::mode::read>(cgh);
                 auto acc_dst
                         = b_dst.get_access<::sycl::access::mode::write>(cgh);
-                register_deps(cgh);
+                cgh.depends_on(sycl_event_t::from(deps).events);
                 cgh.copy(acc_src, acc_dst);
             });
         }
         if (gpu::is_profiling_enabled()) register_profile_event(e);
-        sycl_ctx().set_deps({e});
+        sycl_event_t::from(out_dep).events = {e};
 
         return status::success;
     }
 
-    status_t fill(const memory_storage_t &dst, uint8_t pattern,
-            size_t size) override {
+    status_t fill(const memory_storage_t &dst, uint8_t pattern, size_t size,
+            const gpu::compute::event_t &deps,
+            gpu::compute::event_t &out_dep) override {
         auto *sycl_dst
                 = utils::downcast<const sycl_memory_storage_base_t *>(&dst);
         bool usm = sycl_dst->memory_kind() == memory_kind::usm;
@@ -223,7 +225,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             // Note: we cannot use queue_.fill since it cannot handle
             // events as input
             out_event = queue_->submit([&](::sycl::handler &cgh) {
-                register_deps(cgh);
+                cgh.depends_on(sycl_event_t::from(deps).events);
                 cgh.memset(dst_ptr, pattern, size);
             });
         } else {
@@ -236,12 +238,12 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                         compat::target_device>
                         acc_dst(buffer_dst->buffer(), cgh,
                                 ::sycl::range<1>(size), ::sycl::id<1>(0));
-                register_deps(cgh);
+                cgh.depends_on(sycl_event_t::from(deps).events);
                 cgh.fill(acc_dst, pattern);
             });
         }
         if (gpu::is_profiling_enabled()) register_profile_event(out_event);
-        sycl_ctx().set_deps({out_event});
+        sycl_event_t::from(out_dep).events = {out_event};
         return status::success;
     }
 

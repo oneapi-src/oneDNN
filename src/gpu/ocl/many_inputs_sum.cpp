@@ -35,7 +35,9 @@ status_t many_inputs_sum_t::execute(const exec_ctx_t &ctx) const {
     if (!is_inplace) {
         auto *compute_stream
                 = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-        CHECK(compute_stream->copy(input0, output, o_d.size()));
+        CHECK(compute_stream->copy(input0, output, o_d.size(),
+                compute_stream->ctx().get_deps(),
+                compute_stream->ctx().get_deps()));
     }
     status_t status;
     for (int batch_iter = 0; batch_iter < num_batches; batch_iter++) {

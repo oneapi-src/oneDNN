@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -128,8 +128,9 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
         memory_desc_wrapper dst_mdw(pd()->dst_md());
         if (pd()->do_reorder_) {
             if (pd()->beta() != 0.f) {
-                status = compute_stream->copy(
-                        dst, *wspace->memory_storage(), dst_mdw.size());
+                status = compute_stream->copy(dst, *wspace->memory_storage(),
+                        dst_mdw.size(), compute_stream->ctx().get_deps(),
+                        compute_stream->ctx().get_deps());
             }
             if (status == status::success)
                 status = exec_reorder(ctx.input(DNNL_ARG_FROM), wspace.get(),
@@ -139,14 +140,16 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
         if (status == status::success) {
             status = compute_stream->copy(
                     pd()->do_reorder_ ? *wspace->memory_storage() : src, dst,
-                    dst_mdw.size());
+                    dst_mdw.size(), compute_stream->ctx().get_deps(),
+                    compute_stream->ctx().get_deps());
         }
     } else {
         // CPU -> GPU
         memory_desc_wrapper src_mdw(pd()->src_md());
         status = compute_stream->copy(src,
                 pd()->do_reorder_ ? *wspace->memory_storage() : dst,
-                src_mdw.size());
+                src_mdw.size(), compute_stream->ctx().get_deps(),
+                compute_stream->ctx().get_deps());
         if (status == status::success && pd()->do_reorder_) {
             status = exec_reorder(wspace.get(), ctx.output(DNNL_ARG_TO),
                     ctx.input(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC),

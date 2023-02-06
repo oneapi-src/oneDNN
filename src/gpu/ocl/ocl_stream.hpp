@@ -78,10 +78,11 @@ struct ocl_stream_t : public compute::compute_stream_t {
     const mdapi_helper_t &mdapi_helper() const { return *mdapi_helper_; }
 
     status_t copy(const memory_storage_t &src, const memory_storage_t &dst,
-            size_t size) override;
+            size_t size, const compute::event_t &deps,
+            compute::event_t &out_dep) override;
 
-    status_t fill(
-            const memory_storage_t &dst, uint8_t pattern, size_t size) override;
+    status_t fill(const memory_storage_t &dst, uint8_t pattern, size_t size,
+            const compute::event_t &deps, compute::event_t &out_dep) override;
 
     ~ocl_stream_t() override {
         wait();

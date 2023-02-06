@@ -1135,7 +1135,9 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                 = utils::downcast<compute::compute_stream_t *>(ctx.stream());
         auto zero = [&](const memory_storage_t &data, int arg_id) {
             auto mdw = memory_desc_wrapper(pd()->arg_md(arg_id));
-            return compute_stream->fill(data, 0, mdw.size());
+            return compute_stream->fill(data, 0, mdw.size(),
+                    compute_stream->ctx().get_deps(),
+                    compute_stream->ctx().get_deps());
         };
 
         CHECK(zero(diff_bias, DNNL_ARG_DIFF_BIAS));

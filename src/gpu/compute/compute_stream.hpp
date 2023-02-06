@@ -36,10 +36,11 @@ public:
     using stream_t::stream_t;
 
     virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size)
+            const memory_storage_t &dst, size_t size, const event_t &dep,
+            event_t &out_dep)
             = 0;
-    virtual status_t fill(
-            const memory_storage_t &dst, uint8_t pattern, size_t size)
+    virtual status_t fill(const memory_storage_t &dst, uint8_t pattern,
+            size_t size, const event_t &deps, event_t &out_dep)
             = 0;
 
     virtual context_t &ctx() = 0;
