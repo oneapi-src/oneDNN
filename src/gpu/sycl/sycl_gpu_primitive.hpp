@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,23 +44,6 @@ protected:
         auto exe_bundle = ::sycl::build(input_bundle);
         (*kernel) = compute::kernel_t(
                 new gpu::sycl::sycl_gpu_kernel_t(exe_bundle));
-        return status::success;
-    }
-
-    status_t parallel_for(const exec_ctx_t &ctx,
-            const compute::kernel_t &kernel,
-            const std::function<void(::sycl::handler &)> &cgf) const {
-        using namespace impl::sycl;
-
-        const auto cvt_void2handler = [=](void *cgh) {
-            ::sycl::handler &handler
-                    = *(reinterpret_cast<::sycl::handler *>(cgh));
-            cgf(handler);
-        };
-
-        compute::compute_stream_t *compute_stream
-                = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-        CHECK(compute_stream->parallel_for(kernel, cvt_void2handler));
         return status::success;
     }
 };

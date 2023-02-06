@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,9 +33,6 @@ struct sycl_gpu_kernel_t : public compute::kernel_impl_t {
     sycl_gpu_kernel_t(const kernel_bundle_e_t &kernel_bundle)
         : kernel_bundle_(utils::make_unique<kernel_bundle_e_t>(kernel_bundle)) {
     }
-
-    status_t parallel_for(
-            stream_t &stream, const std::function<void(void *)> &cgf) override;
 
 private:
     std::unique_ptr<kernel_bundle_e_t> kernel_bundle_;

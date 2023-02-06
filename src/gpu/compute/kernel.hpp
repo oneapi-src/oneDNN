@@ -50,9 +50,6 @@ public:
             const kernel_arg_list_t &arg_list, const event_t &deps,
             event_t &out_dep) const;
 
-    status_t parallel_for(
-            stream_t &stream, const std::function<void(void *)> &cgf) const;
-
     status_t get_binary_size(const engine_t *engine, size_t *binary_size) const;
     status_t get_binary(
             const engine_t *engine, compute::binary_t &binary) const;
@@ -78,12 +75,6 @@ public:
         return status::runtime_error;
     }
 
-    virtual status_t parallel_for(
-            stream_t &stream, const std::function<void(void *)> &cgf) {
-        assert(!"unexpected");
-        return status::runtime_error;
-    }
-
     virtual status_t get_binary_size(
             const engine_t *engine, size_t *binary_size) const {
         assert(!"unexpected");
@@ -105,10 +96,6 @@ inline status_t kernel_t::parallel_for(stream_t &stream,
         const nd_range_t &range, const kernel_arg_list_t &arg_list,
         const event_t &deps, event_t &out_dep) const {
     return impl_->parallel_for(stream, range, arg_list, deps, out_dep);
-}
-inline status_t kernel_t::parallel_for(
-        stream_t &stream, const std::function<void(void *)> &cgf) const {
-    return impl_->parallel_for(stream, cgf);
 }
 
 inline status_t kernel_t::get_binary_size(
