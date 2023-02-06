@@ -460,9 +460,10 @@ status_t memory_desc_init_by_string_tag(memory_desc_t &md, int ndims,
         if (dim_idx >= ndims) return invalid_arguments;
         ndims_from_tag = std::max(dim_idx + 1, ndims_from_tag);
         int block_str_len = pos0 - pos - 1;
-        int block = (block_str_len == 0)
-                ? 1
-                : std::stoi(tag.substr(pos + 1, block_str_len));
+        bool is_blocked = block_str_len > 0;
+        int block = is_blocked ? std::stoi(tag.substr(pos + 1, block_str_len))
+                               : 1;
+        if (is_blocked && block == 1) continue; // skip trivial blocks
         dim_blocks.emplace_back(dim_idx, block);
     }
     if (ndims_from_tag != ndims) return invalid_arguments;
