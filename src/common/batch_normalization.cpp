@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,25 +30,32 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
+#define VCHECK_BNORM(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, bnorm, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
 namespace {
 status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, const memory_desc_t *diff_src_desc,
         const memory_desc_t *diff_dst_desc, float epsilon, unsigned flags) {
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-    bool args_ok = !any_null(bnrm_desc, src_desc)
-            && one_of(prop_kind, forward_training, forward_inference,
-                    backward_data, backward)
-            && IMPLICATION(is_fwd, dst_desc != nullptr)
-            && IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc))
-            && IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any());
-    if (!args_ok) return invalid_arguments;
+    VCHECK_BNORM(!any_null(bnrm_desc, src_desc), VERBOSE_NULL_ARG);
+    VCHECK_BNORM(one_of(prop_kind, forward_training, forward_inference,
+                         backward_data, backward),
+            VERBOSE_BAD_PROPKIND);
+    VCHECK_BNORM(IMPLICATION(is_fwd, dst_desc != nullptr), VERBOSE_NULL_ARG);
+    VCHECK_BNORM(IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc)),
+            VERBOSE_NULL_ARG);
+    VCHECK_BNORM(
+            IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any()),
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
 
     unsigned bnorm_flags = normalization_flags::use_global_stats
             | normalization_flags::fuse_norm_relu
             | normalization_flags::fuse_norm_add_relu
             | normalization_flags::use_scale | normalization_flags::use_shift;
-    if ((~bnorm_flags & flags) != 0) return invalid_arguments;
+    VCHECK_BNORM((~bnorm_flags & flags) == 0, VERBOSE_BAD_FLAGS);
 
     auto bd = batch_normalization_desc_t();
     bd.primitive_kind = primitive_kind::batch_normalization;
@@ -66,7 +73,8 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
     }
-    if (runtime_dims_or_strides) return unimplemented;
+    VCONDCHECK(create, check, bnorm, !runtime_dims_or_strides,
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     bd.src_desc = *src_desc;
     if (is_fwd) bd.dst_desc = *dst_desc;
@@ -91,21 +99,24 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     bd.batch_norm_epsilon = epsilon;
     bd.flags = flags;
 
-    bool consistency = bd.src_desc.ndims >= 2;
-    if (consistency && is_fwd) {
-        consistency = bd.dst_desc.ndims == bd.src_desc.ndims
-                && array_cmp(
-                        bd.dst_desc.dims, bd.src_desc.dims, bd.src_desc.ndims);
+    VCHECK_BNORM(bd.src_desc.ndims >= 2, VERBOSE_BAD_NDIMS, "src",
+            bd.src_desc.ndims);
+#define CHECK_DIMS(t1, t2) \
+    do { \
+        VCHECK_BNORM(bd.t2##_desc.ndims == bd.t1##_desc.ndims, \
+                VERBOSE_INCONSISTENT_NDIMS, #t1, #t2); \
+        VCHECK_BNORM(array_cmp(bd.t2##_desc.dims, bd.t1##_desc.dims, \
+                             bd.t1##_desc.ndims), \
+                VERBOSE_INCONSISTENT_DIM, #t1, -1, #t2, -1); \
+    } while (0)
+
+    if (is_fwd) {
+        CHECK_DIMS(src, dst);
+    } else {
+        CHECK_DIMS(src, diff_dst);
+        CHECK_DIMS(diff_src, diff_dst);
     }
-    if (consistency && !is_fwd) {
-        consistency = bd.diff_dst_desc.ndims == bd.src_desc.ndims
-                && bd.diff_dst_desc.ndims == bd.diff_src_desc.ndims
-                && array_cmp(bd.diff_dst_desc.dims, bd.src_desc.dims,
-                        bd.src_desc.ndims)
-                && array_cmp(bd.diff_src_desc.dims, bd.diff_dst_desc.dims,
-                        bd.diff_dst_desc.ndims);
-    }
-    if (!consistency) return invalid_arguments;
+#undef CHECK_DIMS
 
     *bnrm_desc = bd;
     return success;
