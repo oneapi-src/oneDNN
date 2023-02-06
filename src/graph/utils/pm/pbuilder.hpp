@@ -88,8 +88,6 @@ protected:
     friend class pb_graph_t;
     pb_node_t() = default;
     bool set_producer(iport_t p_port, std::shared_ptr<producer_t> p_producer);
-    bool set_consumers(
-            oport_t p_port, std::shared_ptr<consumers_t> p_consumers);
     bool add_consumer(
             oport_t p_port, const std::shared_ptr<consumer_t> &p_consumer);
     std::vector<std::shared_ptr<producer_t>> ins_;

@@ -58,13 +58,6 @@ bool pb_node_t::set_producer(
     return true;
 }
 
-bool pb_node_t::set_consumers(
-        oport_t p_port, std::shared_ptr<consumers_t> p_consumers) {
-    if (outs_.size() <= p_port) { outs_.resize(p_port + 1, nullptr); }
-    outs_[p_port] = std::move(p_consumers);
-    return true;
-}
-
 bool pb_node_t::add_consumer(
         oport_t p_port, const std::shared_ptr<consumer_t> &p_consumer) {
     if (outs_.size() <= p_port) { outs_.resize(p_port + 1, nullptr); }
