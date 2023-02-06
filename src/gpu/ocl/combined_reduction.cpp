@@ -24,6 +24,14 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+// Returns the next factor of big_num less than (or equal to) target
+dim_t get_previous_factor(dim_t big_num, dim_t target) {
+    for (dim_t i = 0; i < target; i++) {
+        if (big_num % (target - i) == 0) return target - i;
+    }
+    return 1;
+}
+
 using extended_dims_t = dim_t[2 * DNNL_MAX_NDIMS];
 
 static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
@@ -39,8 +47,9 @@ static reduction_phase_t init_phase(dim_t outer_dim_size, dim_t reduction_size,
     const dim_t sg_per_inner_dim
             = utils::div_up(phase.inner_dim_size, subgroup_size);
     const int num_subgroups = phase.outer_dim_size * sg_per_inner_dim;
+    const int threads_per_wg = get_previous_factor(num_subgroups, 8);
     gws[0] = num_subgroups * subgroup_size;
-    lws[0] = subgroup_size;
+    lws[0] = threads_per_wg * subgroup_size;
     phase.nd_range = compute::nd_range_t(gws, lws);
 
     phase.src_type = src_type;
@@ -133,14 +142,6 @@ private:
     extended_dims_t perm_, strides_;
     extended_dims_t dims_, padded_dims_;
 };
-
-// Returns the next factor of big_num less than (or equal to) target
-dim_t get_previous_factor(dim_t big_num, dim_t target) {
-    for (dim_t i = 0; i < target; i++) {
-        if (big_num % (target - i) == 0) return target - i;
-    }
-    return 1;
-}
 
 status_t set_reduction_phases(dim_t outer_elems, dim_t reduction_elems,
         dim_t inner_elems, data_type_t accum_data_type, int subgroup_size,
@@ -399,6 +400,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             = utils::div_up(phase.reduction_size, inner_dim_per_sg);
 
     kernel_ctx.define_int("SUBGROUP_SIZE", conf.sub_group_size);
+    kernel_ctx.define_int("LWS_SIZE", phase.nd_range.local_range()[0]);
 
     kernel_ctx.define_int("DIV", conf.div);
     kernel_ctx.define_int("POWER", conf.power);

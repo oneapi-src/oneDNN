@@ -90,7 +90,7 @@
 
 // Specifying wg size since larger work groups reduce performance.
 // TODO: Look into why this is the case
-__attribute__((reqd_work_group_size(SUBGROUP_SIZE, 1, 1))) // attr:no-format
+__attribute__((reqd_work_group_size(LWS_SIZE, 1, 1))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) // attr:no-format
 __kernel void
 combined_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
