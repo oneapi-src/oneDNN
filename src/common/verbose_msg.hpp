@@ -24,6 +24,7 @@
 
 #define VERBOSE_NULL_ARG "one of the mandatory arguments is nullptr"
 #define VERBOSE_BAD_ALGORITHM "bad algorithm"
+#define VERBOSE_BAD_PROPKIND "bad propagation kind"
 #define VERBOSE_RUNTIMEDIM_UNSUPPORTED "runtime dimension is not supported"
 #define VERBOSE_RUNTIMEDIM_INCONSISTENT \
     "runtime dimension %d is inconsistent across tensors"
@@ -35,6 +36,8 @@
 #define VERBOSE_INCONSISTENT_DIM "dimension %s:%d is inconsistent with %s:%d"
 #define VERBOSE_INCONSISTENT_NDIMS \
     "tensors %s and %s have inconsistent number of dimensions"
+#define VERBOSE_INCONSISTENT_ALPHA_BETA \
+    "alpha and beta parameters are not properly set"
 #define VERBOSE_INCONSISTENT_PRB "problem is not mathematically consistent"
 #define VERBOSE_BAD_NDIMS "%s has a bad number of dimensions %d"
 #define VERBOSE_BAD_DIM "bad dimension %s:%d"
@@ -49,6 +52,7 @@
 #define VERBOSE_UNSUPPORTED_BIAS_CFG "unsupported bias configuration"
 
 #define VERBOSE_UNSUPPORTED_TAG "unsupported format tag"
+#define VERBOSE_UNSUPPORTED_TAG_S "unsupported format tag for %s"
 
 #define VERBOSE_ISA_DT_MISMATCH \
     "datatype configuration not supported on this isa"

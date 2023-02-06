@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,20 +31,32 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
+#define VCHECK_ELTWISE(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, eltwise, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
 namespace {
 status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, const memory_desc_t *diff_src_desc,
         const memory_desc_t *diff_dst_desc, float alpha, float beta) {
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-    bool args_ok = !any_null(eltwise_desc, src_desc, dst_desc)
-            && one_of(prop_kind, forward_training, forward_inference,
-                    backward_data)
-            && math::is_eltwise_ok(src_desc->data_type, alg_kind, alpha, beta)
-            && IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc))
-            && IMPLICATION(alg_kind == eltwise_round, is_fwd)
-            && IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any());
-    if (!args_ok) return invalid_arguments;
+    VCHECK_ELTWISE(
+            !any_null(eltwise_desc, src_desc, dst_desc), VERBOSE_NULL_ARG);
+    VCHECK_ELTWISE(one_of(prop_kind, forward_training, forward_inference,
+                           backward_data),
+            VERBOSE_BAD_PROPKIND);
+    VCHECK_ELTWISE(
+            math::is_eltwise_ok(src_desc->data_type, alg_kind, alpha, beta),
+            VERBOSE_INCONSISTENT_ALPHA_BETA);
+    VCHECK_ELTWISE(
+            IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc)),
+            VERBOSE_NULL_ARG);
+    VCHECK_ELTWISE(IMPLICATION(alg_kind == eltwise_round, is_fwd),
+            VERBOSE_BAD_PROPKIND);
+    VCHECK_ELTWISE(
+            IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any()),
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
 
     bool runtime_dims_or_strides
             = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
@@ -55,7 +67,8 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
                            .has_runtime_dims_or_strides()
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
-    if (runtime_dims_or_strides) return unimplemented;
+    VCONDCHECK(create, check, eltwise, !runtime_dims_or_strides,
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     auto ed = eltwise_desc_t();
     ed.primitive_kind = primitive_kind::eltwise;
@@ -72,21 +85,22 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
     ed.alpha = alpha;
     ed.beta = beta;
 
-    bool consistency = true;
-    if (consistency && is_fwd) {
-        consistency = ed.dst_desc.ndims == ed.src_desc.ndims
-                && array_cmp(
-                        ed.dst_desc.dims, ed.src_desc.dims, ed.src_desc.ndims);
+#define CHECK_DIMS(t1, t2) \
+    do { \
+        VCHECK_ELTWISE(ed.t2##_desc.ndims == ed.t1##_desc.ndims, \
+                VERBOSE_INCONSISTENT_NDIMS, #t1, #t2); \
+        VCHECK_ELTWISE(array_cmp(ed.t2##_desc.dims, ed.t1##_desc.dims, \
+                               ed.t1##_desc.ndims), \
+                VERBOSE_INCONSISTENT_DIM, #t1, -1, #t2, -1); \
+    } while (0)
+
+    if (is_fwd) {
+        CHECK_DIMS(src, dst);
+    } else {
+        CHECK_DIMS(src, diff_dst);
+        CHECK_DIMS(diff_src, diff_dst);
     }
-    if (consistency && !is_fwd) {
-        consistency = ed.diff_dst_desc.ndims == ed.src_desc.ndims
-                && ed.diff_dst_desc.ndims == ed.diff_src_desc.ndims
-                && array_cmp(ed.diff_dst_desc.dims, ed.src_desc.dims,
-                        ed.src_desc.ndims)
-                && array_cmp(ed.diff_src_desc.dims, ed.diff_dst_desc.dims,
-                        ed.diff_dst_desc.ndims);
-    }
-    if (!consistency) return invalid_arguments;
+#undef CHECK_DIMS
 
     *eltwise_desc = ed;
     return success;
