@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@
 #if DNNL_X64
 #include "cpu/x64/jit_uni_reorder.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_reorders.hpp"
-#include "cpu/x64/wino_reorder.hpp"
 #elif DNNL_AARCH64
 #include "cpu/aarch64/jit_uni_reorder.hpp"
 #endif

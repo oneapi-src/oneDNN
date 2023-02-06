@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -69,8 +69,6 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             nullptr,
         }},
         {{f32, f32, 4}, {
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::wino_reorder_t<f32, f32>))
-
             CPU_REORDER_INSTANCE(rnn_weights_reorder_t<f32, f32>)
 
             REG_FAST_DIRECT_COPY_F32_F32
@@ -119,7 +117,6 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             nullptr,
         }},
         {{f32, f32, 5}, {
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::wino_reorder_t<f32, f32>))
             CPU_REORDER_INSTANCE(rnn_weights_reorder_t<f32, f32>)
 
             REG_FAST_DIRECT_COPY_F32_F32
