@@ -64,14 +64,6 @@ public:
             const layout_t &src, const layout_t &dst) {
         return reorder_ir_builder_t::nd_range(exec_cfg, src, dst);
     }
-
-private:
-    ngen::Subregister src_ptr_;
-    ngen::Subregister dst_ptr_;
-    ngen::AddressBase src_surf_;
-    ngen::AddressBase dst_surf_;
-    ngen::Subregister elems_;
-    ngen::Subregister global_id_;
 };
 
 } // namespace jit
