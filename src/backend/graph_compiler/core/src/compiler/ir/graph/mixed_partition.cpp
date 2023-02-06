@@ -74,11 +74,11 @@ void mxp_replacer_t::replace_anchor(
 namespace graph {
 void tensor_detail_to_ir_tensor(sc_graph_t &graph, const std::string &name,
         const graph_tensor_ptr &gt, mxp_buffer_allocator *buf_alloc) {
-    bool is_cost_model_enabled = buf_alloc->binded_mxp_->cost_.is_enabled();
+    bool is_cost_model_enabled = buf_alloc->binded_mxp_->cost_->is_enabled();
     if (!buf_alloc->g2b_map_.haskey(gt)) {
         auto tsr = graph::tensor_detail_to_ir_tensor(graph, name, gt->details_);
         buf_alloc->g2b_map_.get(gt) = tsr;
-        if (is_cost_model_enabled) {
+        if (!graph.is_dynamic() && is_cost_model_enabled) {
             auto dim_prod = get_dims_product(
                     get_expr_to_dims(tsr.checked_as<tensor>()->dims_));
             auto dtype_size = utils::get_sizeof_etype(
@@ -92,7 +92,7 @@ void tensor_detail_to_ir_tensor(sc_graph_t &graph, const std::string &name,
                     memory_optim::memory_alloc_trace_t {
                             (uintptr_t)tsr.get(), (size_t)0});
         }
-    } else if (is_cost_model_enabled) {
+    } else if (!graph.is_dynamic() && is_cost_model_enabled) {
         auto tsr = get_real_tensor(buf_alloc->g2b_map_.get(gt));
         // update last use trace
         auto last_trace = std::remove_if(buf_alloc->mem_trace_.begin(),
@@ -1242,7 +1242,7 @@ void search_op_anchor_in_parti(sc_op *op, mixed_parti_t *parti) {
             }
             // check parallelism: it should be ensured new commited anchor would
             // not break parallelism
-            if (!parti->cost_.make_decision_for_op(op, fanchor)) {
+            if (!parti->cost_->make_decision_for_op(op, fanchor)) {
                 fanchor->forbid_op(op, known_gt);
                 continue;
             }
@@ -1861,7 +1861,8 @@ static bool try_merge_mixed_parti_horizontally(
             || outer_loops_B[0]->num_threads_ > 0)
         return false;
     // check cost model
-    if (!A->cost_.make_decision_for_parti(B, 1, parti_merge_kind::horizontal)) {
+    if (!A->cost_->make_decision_for_parti(
+                B, 1, parti_merge_kind::horizontal)) {
         return false;
     }
 
@@ -2158,7 +2159,7 @@ static bool try_merge_mixed_parti_vertically(mixed_parti_t *A, mixed_parti_t *B,
     if (!merged_loop_size) return false;
 
     // check cost model
-    if (!pa_to_merge->cost_.make_decision_for_parti(
+    if (!pa_to_merge->cost_->make_decision_for_parti(
                 parti_be_merged, merged_loop_size, parti_merge_kind::vertical))
         return false;
 
@@ -2203,7 +2204,14 @@ static void try_merge_mixed_parti_with_joint_op(const mixed_parti_t::ptr &A,
 mixed_parti_t::mixed_parti_t(
         const context_ptr &ctx, const sc_op_ptr &op, const dep_mat_ptr &dep_m)
     : dep_m_(dep_m), ctx_(ctx) {
-    if (op->get_owner_graph().is_dynamic()) cost_.disable();
+    auto &graph = op->get_owner_graph();
+    if (graph.is_dynamic()) {
+        cost_ = std::make_shared<dynamic_fusion_cost_model_t>(this,
+                graph.attrs_.get_or_else("temp.dynamic_fusion_policy",
+                        dynamic_fusion_policy_t::max_fusion));
+    } else {
+        cost_ = std::make_shared<static_fusion_cost_model_t>(this);
+    }
     if (!op->isa<constant_op_t>() && !op->isa<tensor_view_op_t>()) {
         SC_MODULE_INFO << "================  create new partition: "
                        << op->op_name_ << "_" << op->logical_op_id_
@@ -2594,7 +2602,7 @@ void mixed_parti_t::clear() {
 
 float mixed_parti_t::evaluate_perf() {
     if (merged_to) { return get_root()->evaluate_perf(); }
-    return cost_.evaluate();
+    return cost_->evaluate();
 }
 
 static std::vector<mixed_parti_t::ptr> collect_non_const_parti(
@@ -3037,6 +3045,7 @@ static bool try_optimize_reduce(const mixed_parti_t *parti, sc_graph_t &g) {
 
 static bool try_optimize_parti(
         const mixed_parti_t *parti, sc_graph_t &sub_graph) {
+    if (sub_graph.is_dynamic()) { return false; }
     bool redo = false;
     // can add more optimize rules here
     redo |= try_optimize_reduce(parti, sub_graph);
@@ -3376,6 +3385,15 @@ static void crossover_partition(std::vector<mixed_parti_t::ptr> &op_2_partition,
     }
 }
 
+static expr merge_fusion_condition_by_parti_list(
+        const std::vector<mixed_parti_t::ptr> &partis) {
+    expr ret = false;
+    for (auto &parti : partis) {
+        if (parti) { ret = ret || parti->get_fusion_policy_condition(); }
+    }
+    return ret;
+}
+
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
     op_dep_matrix_t dep(graph);
     auto op_size = graph.ops_.size();
@@ -3383,11 +3401,18 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
     std::vector<mixed_parti_t::ptr> op_2_partition;
     // set max iter times
     constexpr int maxiter = 3;
+    // dynamic policy condition
+    expr fusion_policy_condition = false;
     for (int i = 0; i < maxiter; i++) {
         op_2_partition.clear();
         op_2_partition.resize(op_size);
-        if (do_partition(ctx, graph, dep, op_2_partition)) break;
+        bool ret = do_partition(ctx, graph, dep, op_2_partition);
+        auto parti_vec = collect_non_const_parti(op_2_partition);
+        auto cur_cond = merge_fusion_condition_by_parti_list(parti_vec);
+        fusion_policy_condition = fusion_policy_condition || cur_cond;
+        if (ret) break;
     }
+    graph.attrs_.set("temp.fusion_policy_condition", fusion_policy_condition);
 
     std::vector<crossover_alg> algs
             = {horizontal_crossover, parallel_crossover, vertical_crossover};
