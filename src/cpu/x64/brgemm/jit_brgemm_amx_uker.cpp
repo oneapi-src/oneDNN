@@ -2119,7 +2119,8 @@ void jit_brgemm_amx_uker_base_t::generate() {
             && brg.dt_c == brg.dt_d && !brg.is_bf32
             && IMPLICATION(
                     brg.is_f32 || brg.is_bf16, brg.dt_c == data_type::f32)
-            && IMPLICATION(brg.is_int8, brg.dt_c == data_type::s32);
+            && IMPLICATION(brg.is_int8, brg.dt_c == data_type::s32)
+            && brg.brgattr.bd_mask_level == 0;
     need_to_apply_alpha_beta_
             = (brg.beta != 0.f && !may_load_accumulators_) || brg.alpha != 1.f;
     const bool has_zero_points = !everyone_is(brgemm_broadcast_t::none,
