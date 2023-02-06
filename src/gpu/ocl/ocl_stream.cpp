@@ -128,7 +128,58 @@ status_t ocl_stream_t::copy(
 
     if (size == 0) return status::success;
 
-    if (src.engine()->kind() == engine_kind::cpu
+    std::vector<cl_event> events = [&] {
+        if (flags() & stream_flags::out_of_order) {
+            const auto &event_wrappers = get_deps();
+            return std::vector<cl_event>(
+                    event_wrappers.begin(), event_wrappers.end());
+        }
+        return std::vector<cl_event> {};
+    }();
+    cl_uint num_events = (cl_uint)events.size();
+    const cl_event *events_ptr = events.data();
+
+    cl_event out_event;
+    bool need_out_event
+            = is_profiling_enabled() || flags() & stream_flags::out_of_order;
+    cl_event *out_event_ptr = need_out_event ? &out_event : nullptr;
+
+    if (dst.engine()->kind() == engine_kind::gpu
+            && src.engine() == dst.engine()) {
+        auto *ocl_src
+                = utils::downcast<const ocl_memory_storage_base_t *>(&src);
+        auto *ocl_dst
+                = utils::downcast<const ocl_memory_storage_base_t *>(&dst);
+
+        if (ocl_src->memory_kind() == ocl_dst->memory_kind()) {
+            if (ocl_src->memory_kind() == memory_kind::usm
+                    && ocl_dst->memory_kind() == memory_kind::usm) {
+                const auto *ocl_usm_src
+                        = utils::downcast<const ocl_usm_memory_storage_t *>(
+                                ocl_src);
+                const auto *ocl_usm_dst
+                        = utils::downcast<const ocl_usm_memory_storage_t *>(
+                                ocl_dst);
+                CHECK(usm::memcpy(this, ocl_usm_dst->usm_ptr(),
+                        ocl_usm_src->usm_ptr(), size, num_events, events_ptr,
+                        out_event_ptr));
+            }
+            if (ocl_src->memory_kind() == memory_kind::buffer
+                    && ocl_dst->memory_kind() == memory_kind::buffer) {
+                const auto *ocl_buffer_src
+                        = utils::downcast<const ocl_buffer_memory_storage_t *>(
+                                ocl_src);
+                const auto *ocl_buffer_dst
+                        = utils::downcast<const ocl_buffer_memory_storage_t *>(
+                                ocl_dst);
+                OCL_CHECK(clEnqueueCopyBuffer(queue(),
+                        ocl_buffer_src->mem_object(),
+                        ocl_buffer_dst->mem_object(), src.offset(),
+                        dst.offset(), size, num_events, events_ptr,
+                        out_event_ptr));
+            }
+        }
+    } else if (src.engine()->kind() == engine_kind::cpu
             && is_native_runtime(src.engine()->runtime_kind())) {
         assert(dst.engine()->kind() == engine_kind::gpu);
 
@@ -143,7 +194,8 @@ status_t ocl_stream_t::copy(
             const auto *ocl_usm_dst
                     = utils::downcast<const ocl_usm_memory_storage_t *>(
                             ocl_dst);
-            CHECK(usm::memcpy(this, ocl_usm_dst->usm_ptr(), src_ptr, size));
+            CHECK(usm::memcpy(this, ocl_usm_dst->usm_ptr(), src_ptr, size,
+                    num_events, events_ptr, out_event_ptr));
         } else {
             const auto *ocl_buffer_dst
                     = utils::downcast<const ocl_buffer_memory_storage_t *>(
@@ -151,7 +203,7 @@ status_t ocl_stream_t::copy(
 
             cl_mem ocl_mem = ocl_buffer_dst->mem_object();
             cl_int err = clEnqueueWriteBuffer(queue(), ocl_mem, CL_TRUE, 0,
-                    size, src_ptr, 0, nullptr, nullptr);
+                    size, src_ptr, num_events, events_ptr, out_event_ptr);
             OCL_CHECK(err);
         }
     } else if (dst.engine()->kind() == engine_kind::cpu
@@ -169,7 +221,8 @@ status_t ocl_stream_t::copy(
             const auto *ocl_usm_src
                     = utils::downcast<const ocl_usm_memory_storage_t *>(
                             ocl_src);
-            CHECK(usm::memcpy(this, dst_ptr, ocl_usm_src->usm_ptr(), size));
+            CHECK(usm::memcpy(this, dst_ptr, ocl_usm_src->usm_ptr(), size,
+                    num_events, events_ptr, out_event_ptr));
         } else {
             const auto *ocl_buffer_src
                     = utils::downcast<const ocl_buffer_memory_storage_t *>(
@@ -177,7 +230,7 @@ status_t ocl_stream_t::copy(
 
             cl_mem ocl_mem = ocl_buffer_src->mem_object();
             cl_int err = clEnqueueReadBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
-                    dst_ptr, 0, nullptr, nullptr);
+                    dst_ptr, num_events, events_ptr, out_event_ptr);
             OCL_CHECK(err);
         }
     } else {
@@ -195,7 +248,14 @@ status_t ocl_stream_t::copy(
 
         CHECK(src.unmap_data(src_mapped_ptr, this));
         CHECK(dst.unmap_data(dst_mapped_ptr, this));
+
+        // Short-circuit event management due to calls to wait
+        return status::success;
     }
+
+    if (is_profiling_enabled()) register_profile_event(out_event, this);
+    if (flags() & stream_flags::out_of_order) set_deps({out_event});
+
     return status::success;
 }
 

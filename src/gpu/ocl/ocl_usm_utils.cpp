@@ -123,14 +123,20 @@ status_t set_kernel_arg_usm(engine_t *engine, cl_kernel kernel, int arg_index,
     return convert_to_dnnl(ext_func(engine, kernel, arg_index, arg_value));
 }
 
-status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size) {
+status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size,
+        cl_uint num_events, const cl_event *events, cl_event *out_event) {
     using clEnqueueMemcpyINTEL_func_t
             = cl_int (*)(cl_command_queue, cl_bool, void *, const void *,
                     size_t, cl_uint, const cl_event *, cl_event *);
     static ext_func_t<clEnqueueMemcpyINTEL_func_t> ext_func(
             "clEnqueueMemcpyINTEL");
     return convert_to_dnnl(ext_func(stream->engine(), get_ocl_queue(stream),
-            /* blocking */ CL_FALSE, dst, src, size, 0, nullptr, nullptr));
+            /* blocking */ CL_FALSE, dst, src, size, num_events, events,
+            out_event));
+}
+
+status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size) {
+    return memcpy(stream, dst, src, size, 0, nullptr, nullptr);
 }
 
 status_t fill(stream_t *stream, void *ptr, const void *pattern,
