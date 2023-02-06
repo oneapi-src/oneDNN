@@ -121,6 +121,7 @@ combined_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
     int src_off = _SRC_OFF(
             outer_idx, red_off, WITH_BLOCK_READ ? inner_idx_start : inner_idx);
     int off = 0;
+    __attribute__((opencl_unroll_hint(UNROLL_FACTOR))) // attr:no-format
     for (; off < num_horiz_reductions - 1;
             off++, src_off += _SRC_OFF(0, inner_dims_per_sg, 0)) {
         // Load

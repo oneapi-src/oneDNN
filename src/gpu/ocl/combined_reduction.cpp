@@ -411,6 +411,19 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("IS_FINAL", phase.is_final);
     kernel_ctx.define_int("IS_FIRST", phase.is_first);
 
+    // Because the reduction loop is quite tight, we can override the compiler's
+    // loop unrolling logic to increase it a lot and get a bit more speed
+    // Heuristic determined on ATS-m, set to exclude the possibility of
+    // exceeding the instruction cache
+    const dim_t max_unroll = 1024;
+    const dim_t inner_dims_per_sg = std::min(phase.reduction_size,
+            std::max((dim_t)1, conf.sub_group_size / phase.inner_dim_size));
+    const dim_t num_horiz_reductions
+            = utils::div_up(phase.reduction_size, inner_dims_per_sg);
+    const dim_t unroll_factor = std::max(
+            (dim_t)1, std::min(max_unroll, num_horiz_reductions - 1));
+    kernel_ctx.define_int("UNROLL_FACTOR", unroll_factor);
+
     // Block loading
     // 2 requirements:
     //  1) Pointer is 4-byte aligned (pointer has 3 access patterns, one for each dimension)
