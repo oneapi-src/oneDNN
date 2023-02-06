@@ -56,8 +56,8 @@ struct cudnn_matmul_t : public primitive_t {
 
             bool ok = is_dense_data() && blocking_ok()
                     && attr()->has_default_values(
-                            smask_t::oscale_runtime | smask_t::post_ops)
-                    && attr_oscale_ok() && attr_post_ops_ok(attr())
+                            smask_t::scales_runtime | smask_t::post_ops)
+                    && attr_scales_ok() && attr_post_ops_ok(attr())
                     && set_default_formats()
                     && (f32_case || f16_case || s8_case)
                     && IMPLICATION(with_bias(),
@@ -75,9 +75,15 @@ struct cudnn_matmul_t : public primitive_t {
         }
 
     private:
-        bool attr_oscale_ok() const {
-            const auto &oscale = attr()->output_scales_;
-            return oscale.mask_ == 0;
+        bool attr_scales_ok() const {
+            const auto &scales = attr()->scales_;
+            const auto &supported_args
+                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+            if (!scales.has_default_values(supported_args)) return false;
+            // cuDNN does not support scaling per dimension.
+            for (auto arg : supported_args)
+                if (scales.get(arg).mask_ != 0) return false;
+            return true;
         }
 
         bool blocking_ok() const {
@@ -98,10 +104,7 @@ struct cudnn_matmul_t : public primitive_t {
         matmul_impl_.reset(new cudnn_matmul_impl_t());
         const auto status
                 = matmul_impl_->init((matmul_pd_t *)primitive_t::pd().get());
-
-        // Only single-element scale is supported
-        output_scale_ = new float;
-        output_scale_[0] = 1.f;
+        if (status != status::success) return status;
 
         const bool with_bias = matmul_impl_->with_bias();
         const bool has_runtime_args = matmul_impl_->has_runtime_params();
@@ -132,15 +135,11 @@ struct cudnn_matmul_t : public primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
-    virtual ~cudnn_matmul_t() { delete output_scale_; }
-
     std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_;
     std::shared_ptr<cudnn_matmul_exec_base_t> executor_;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
-    float *output_scale_;
 };
 
 } // namespace nvidia

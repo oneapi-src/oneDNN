@@ -112,6 +112,8 @@ struct cudnn_matmul_impl_t {
         memory_desc_wrapper weights_d = memory_desc_wrapper(pd->weights_md());
         memory_desc_wrapper dst_d = memory_desc_wrapper(pd->dst_md());
 
+        with_dst_scale_
+                = !pd->attr()->scales_.get(DNNL_ARG_DST).has_default_values();
         with_bias_ = pd->with_bias();
         if ((with_bias_)
                 && (pd->weights_md(1)->data_type != pd->dst_md()->data_type)) {
@@ -259,7 +261,8 @@ struct cudnn_matmul_impl_t {
         // We need to initialize them in the execute function.
         CHECK(init_gemm_parameters(src_d, weights_d, dst_d));
 
-        if (with_bias_ || reorder_required_ || with_eltwise_) {
+        if (with_bias_ || reorder_required_ || with_eltwise_
+                || with_dst_scale_) {
             // Initialise cuDNN descriptors
             cudnnDataType_t data_types[NUM_IO];
             int ndims = dst_d.ndims() < 4 ? 4 : dst_d.ndims();
@@ -304,7 +307,7 @@ struct cudnn_matmul_impl_t {
 
     void execute(cublasHandle_t cublas_handle, cudnnHandle_t cudnn_handle,
             void *a, void *b, void *c, void *bias, void *scratch,
-            const void *scales) {
+            void *src_scale, void *wei_scale, void *dst_scale) {
         float gemm_beta = 0;
         if (!bias_dt_mismatch_ && !reorder_required_) {
             // Case where no reorder is required, scratchpad points to dst (c)
@@ -317,18 +320,35 @@ struct cudnn_matmul_impl_t {
                     ? cublasOperation_t::CUBLAS_OP_N
                     : cublasOperation_t::CUBLAS_OP_T;
         };
+
+        float scale = 1.0f;
+        if (src_scale || wei_scale) {
+            if (src_scale) {
+                float host_src_scale = 1.0f;
+                CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_src_scale,
+                        (CUdeviceptr)src_scale, sizeof(float));
+                scale *= host_src_scale;
+            }
+            if (wei_scale) {
+                float host_wei_scale = 1.0f;
+                CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_wei_scale,
+                        (CUdeviceptr)wei_scale, sizeof(float));
+                scale *= host_wei_scale;
+            }
+        }
+
         if (isbatched_) {
             // Calls cublasGemmStridedBatchedEx()
             if (transC_ == cublasOperation_t::CUBLAS_OP_T) {
                 CUBLAS_EXECUTE_FUNC(cublasGemmStridedBatchedEx, cublas_handle,
-                        flip_op(transB_), flip_op(transA_), N_, M_, K_, scales,
+                        flip_op(transB_), flip_op(transA_), N_, M_, K_, &scale,
                         b, src_type_, ldb_, stride_b_, a, weights_type_, lda_,
                         stride_a_, &gemm_beta, scratch, dst_type_, ldc_,
                         stride_c_, batch_count_, acc_type_, gemm_algo_);
 
             } else {
                 CUBLAS_EXECUTE_FUNC(cublasGemmStridedBatchedEx, cublas_handle,
-                        transA_, transB_, M_, N_, K_, scales, a, weights_type_,
+                        transA_, transB_, M_, N_, K_, &scale, a, weights_type_,
                         lda_, stride_a_, b, src_type_, ldb_, stride_b_,
                         &gemm_beta, scratch, dst_type_, ldc_, stride_c_,
                         batch_count_, acc_type_, gemm_algo_);
@@ -337,12 +357,12 @@ struct cudnn_matmul_impl_t {
             // Calls cublasGemmEx()
             if (transC_ == cublasOperation_t::CUBLAS_OP_T) {
                 CUBLAS_EXECUTE_FUNC(cublasGemmEx, cublas_handle,
-                        flip_op(transB_), flip_op(transA_), N_, M_, K_, scales,
+                        flip_op(transB_), flip_op(transA_), N_, M_, K_, &scale,
                         b, src_type_, ldb_, a, weights_type_, lda_, &gemm_beta,
                         scratch, dst_type_, ldc_, acc_type_, gemm_algo_);
             } else {
                 CUBLAS_EXECUTE_FUNC(cublasGemmEx, cublas_handle, transA_,
-                        transB_, M_, N_, K_, scales, a, weights_type_, lda_, b,
+                        transB_, M_, N_, K_, &scale, a, weights_type_, lda_, b,
                         src_type_, ldb_, &gemm_beta, scratch, dst_type_, ldc_,
                         acc_type_, gemm_algo_);
             }
@@ -350,7 +370,7 @@ struct cudnn_matmul_impl_t {
         if (with_bias_) {
             // When bias is specified call cudnnAddTensor()
             float bias_beta = 1;
-            CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, scales,
+            CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, &scale,
                     tensor_descs_[io::bias], bias, &bias_beta, temp_mem_desc_,
                     scratch);
         }
@@ -368,6 +388,15 @@ struct cudnn_matmul_impl_t {
             CUDNN_EXECUTE_FUNC(cudnnTransformTensor, cudnn_handle,
                     &reorder_alpha, temp_mem_desc_, scratch, &post_op_sum_,
                     tensor_descs_[io::dst], c);
+        }
+
+        if (dst_scale) {
+            float host_dst_scale = 1.0f;
+            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_dst_scale,
+                    (CUdeviceptr)dst_scale, sizeof(float));
+            float inv_scale = 1.0f / host_dst_scale;
+            CUDNN_EXECUTE_FUNC(cudnnScaleTensor, cudnn_handle,
+                    tensor_descs_[io::dst], c, &inv_scale);
         }
     }
 
@@ -415,7 +444,8 @@ private:
     int M_, N_, K_;
     int lda_, ldb_, ldc_;
     long long int stride_a_, stride_b_, stride_c_;
-    bool isbatched_ = false, with_bias_ = false, bias_dt_mismatch_ = false;
+    bool isbatched_ = false, with_bias_ = false, bias_dt_mismatch_ = false,
+         with_dst_scale_ = false;
     bool reorder_required_ = false, with_eltwise_ = false;
     bool with_scratchpad_ = false, has_runtime_params_ = false;
     dnnl_data_type_t scratchpad_type_;

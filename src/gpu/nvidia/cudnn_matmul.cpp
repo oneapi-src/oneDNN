@@ -25,6 +25,7 @@
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/sycl_cuda_stream_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -54,38 +55,13 @@ status_t cudnn_matmul_t::execute(const exec_ctx_t &ctx) const {
     nvidia::sycl_cuda_stream_t *cuda_stream
             = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
 
-    if (!pd()->attr()->output_scales_.defined()) {
-        cuda_stream->interop_task([&](::sycl::handler &cgh) {
-            auto arg_out_scales
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_OUTPUT_SCALES);
-
-            compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-                auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
-                        cuda_stream->engine());
-                auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
-
-                uint8_t *out_scale_ptr = static_cast<uint8_t *>(
-                        arg_out_scales.get_native_pointer(ih));
-                uint8_t *out_scale_dst_ptr
-                        = reinterpret_cast<uint8_t *>(output_scale_);
-
-                // output_scale only supports single value floats
-                size_t out_scale_size = sizeof(float);
-                CUDA_EXECUTE_FUNC(cuMemcpyAsync, (CUdeviceptr)out_scale_dst_ptr,
-                        (CUdeviceptr)out_scale_ptr, out_scale_size,
-                        cuda_stream->get_underlying_stream());
-                cudaDeviceSynchronize();
-            });
-        });
-    }
-
     const auto scratchpad_type = matmul_impl_->get_scratchpad_type();
     const auto scratchpad_size = matmul_impl_->with_scratchpad()
             ? (dst_d.nelems() * types::data_type_size(scratchpad_type))
             : 0;
 
-    status = executor_->execute(ctx, ctx.stream()->engine(), matmul_impl_,
-            output_scale_, scratchpad_size);
+    status = executor_->execute(
+            ctx, ctx.stream()->engine(), matmul_impl_, scratchpad_size);
 
     if (has_runtime_args) {
         auto &evts = cuda_stream->sycl_ctx().get_sycl_deps().events;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,7 +35,7 @@ namespace nvidia {
 struct cudnn_matmul_exec_base_t {
     virtual status_t execute(const exec_ctx_t &ctx, engine_t *engine,
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
-            const float *output_scale, std::size_t scratchpad_size)
+            std::size_t scratchpad_size)
             = 0;
     virtual ~cudnn_matmul_exec_base_t() = default;
 
@@ -50,7 +50,12 @@ protected:
             impl::sycl::sycl_memory_arg_t<::sycl::access::mode::write> arg_dst,
             impl::sycl::sycl_memory_arg_t<bias_m> arg_bias,
             impl::sycl::sycl_memory_arg_t<scratch_m> arg_scratch,
-            const float *output_scale) {
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read>
+                    arg_src_scale,
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read>
+                    arg_wei_scale,
+            impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read>
+                    arg_dst_scale) {
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
@@ -70,8 +75,12 @@ protected:
             void *src = arg_src.get_native_pointer(ih);
             void *dst = arg_dst.get_native_pointer(ih);
 
+            void *src_scale = arg_src_scale.get_native_pointer(ih);
+            void *wei_scale = arg_wei_scale.get_native_pointer(ih);
+            void *dst_scale = arg_dst_scale.get_native_pointer(ih);
+
             matmul_impl_->execute(cublas_handle, cudnn_handle, weights, src,
-                    dst, bias, scratch, output_scale);
+                    dst, bias, scratch, src_scale, wei_scale, dst_scale);
         });
     }
 
@@ -92,7 +101,7 @@ struct cudnn_matmul_scratch_runtime_args_base_exec_t
     : public cudnn_matmul_exec_base_t {
     virtual status_t execute(const exec_ctx_t &ctx, engine_t *engine,
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
-            const float *output_scale, std::size_t scratchpad_size)
+            std::size_t scratchpad_size)
             = 0;
     virtual ~cudnn_matmul_scratch_runtime_args_base_exec_t() = default;
 
@@ -110,7 +119,7 @@ struct cudnn_matmul_scratch_runtime_args_bias_exec_t
     : public cudnn_matmul_scratch_runtime_args_base_exec_t {
     status_t execute(const exec_ctx_t &ctx, engine_t *engine,
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
-            const float *output_scale, std::size_t scratchpad_size) override {
+            std::size_t scratchpad_size) override {
 
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
@@ -125,8 +134,16 @@ struct cudnn_matmul_scratch_runtime_args_bias_exec_t
             auto arg_scratch = impl::sycl::sycl_memory_arg_t<
                     ::sycl::access::mode::read_write>(*scratch_buff_, cgh);
 
+            auto arg_src_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+            auto arg_dst_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+
             interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, arg_bias, arg_scratch, output_scale);
+                    arg_src, arg_dst, arg_bias, arg_scratch, arg_src_scale,
+                    arg_wei_scale, arg_dst_scale);
         });
     }
 };
@@ -135,7 +152,7 @@ struct cudnn_matmul_runtime_args_scratch_exec_t
     : public cudnn_matmul_scratch_runtime_args_base_exec_t {
     status_t execute(const exec_ctx_t &ctx, engine_t *engine,
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
-            const float *output_scale, std::size_t scratchpad_size) override {
+            std::size_t scratchpad_size) override {
 
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
@@ -151,9 +168,16 @@ struct cudnn_matmul_runtime_args_scratch_exec_t
             auto arg_bias = impl::sycl::sycl_memory_arg_t<
                     ::sycl::access::mode::read>();
 
+            auto arg_src_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+            auto arg_dst_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+
             interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
                     arg_src, arg_dst, /*nullptr*/ arg_bias, arg_scratch,
-                    output_scale);
+                    arg_src_scale, arg_wei_scale, arg_dst_scale);
         });
     }
 };
@@ -161,7 +185,7 @@ struct cudnn_matmul_runtime_args_scratch_exec_t
 struct cudnn_matmul_runtime_args_bias_exec_t : public cudnn_matmul_exec_base_t {
     status_t execute(const exec_ctx_t &ctx, engine_t *engine,
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
-            const float *output_scale, std::size_t scratchpad_size) override {
+            std::size_t scratchpad_size) override {
 
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
@@ -175,9 +199,16 @@ struct cudnn_matmul_runtime_args_bias_exec_t : public cudnn_matmul_exec_base_t {
             auto arg_scratch = impl::sycl::sycl_memory_arg_t<
                     ::sycl::access::mode::read_write>();
 
+            auto arg_src_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+            auto arg_dst_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+
             interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
                     arg_src, arg_dst, arg_bias, /*nullptr*/ arg_scratch,
-                    output_scale);
+                    arg_src_scale, arg_wei_scale, arg_dst_scale);
         });
     }
 };
@@ -185,7 +216,7 @@ struct cudnn_matmul_runtime_args_bias_exec_t : public cudnn_matmul_exec_base_t {
 struct cudnn_matmul_runtime_args_exec_t : public cudnn_matmul_exec_base_t {
     status_t execute(const exec_ctx_t &ctx, engine_t *engine,
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
-            const float *output_scale, std::size_t scratchpad_size) override {
+            std::size_t scratchpad_size) override {
 
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
@@ -200,9 +231,17 @@ struct cudnn_matmul_runtime_args_exec_t : public cudnn_matmul_exec_base_t {
             auto arg_scratch = impl::sycl::sycl_memory_arg_t<
                     ::sycl::access::mode::read_write>();
 
+            auto arg_src_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+            auto arg_dst_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+
             interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
                     arg_src, arg_dst, /*nullptr*/ arg_bias,
-                    /*nullptr*/ arg_scratch, output_scale);
+                    /*nullptr*/ arg_scratch, arg_src_scale, arg_wei_scale,
+                    arg_dst_scale);
         });
     }
 };
@@ -210,7 +249,7 @@ struct cudnn_matmul_runtime_args_exec_t : public cudnn_matmul_exec_base_t {
 struct cudnn_matmul_bias_scratch_exec_t : public cudnn_matmul_exec_base_t {
     status_t execute(const exec_ctx_t &ctx, engine_t *engine,
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
-            const float *output_scale, std::size_t scratchpad_size) override {
+            std::size_t scratchpad_size) override {
 
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
@@ -223,8 +262,16 @@ struct cudnn_matmul_bias_scratch_exec_t : public cudnn_matmul_exec_base_t {
             auto arg_scratch = CTX_SCRATCH_SYCL_MEMORY(
                     memory_tracking::names::key_matmul_dst_in_acc_dt);
 
+            auto arg_src_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+            auto arg_dst_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+
             interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, arg_bias, arg_scratch, output_scale);
+                    arg_src, arg_dst, arg_bias, arg_scratch, arg_src_scale,
+                    arg_wei_scale, arg_dst_scale);
         });
     }
 };
@@ -232,7 +279,7 @@ struct cudnn_matmul_bias_scratch_exec_t : public cudnn_matmul_exec_base_t {
 struct cudnn_matmul_scratch_exec_t : public cudnn_matmul_exec_base_t {
     status_t execute(const exec_ctx_t &ctx, engine_t *engine,
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
-            const float *output_scale, std::size_t scratchpad_size) override {
+            std::size_t scratchpad_size) override {
 
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
@@ -247,9 +294,16 @@ struct cudnn_matmul_scratch_exec_t : public cudnn_matmul_exec_base_t {
             auto arg_bias = impl::sycl::sycl_memory_arg_t<
                     ::sycl::access::mode::read>();
 
+            auto arg_src_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+            auto arg_dst_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+
             interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
                     arg_src, arg_dst, /*nullptr*/ arg_bias, arg_scratch,
-                    output_scale);
+                    arg_src_scale, arg_wei_scale, arg_dst_scale);
         });
     }
 };
@@ -257,7 +311,7 @@ struct cudnn_matmul_scratch_exec_t : public cudnn_matmul_exec_base_t {
 struct cudnn_matmul_bias_exec_t : public cudnn_matmul_exec_base_t {
     status_t execute(const exec_ctx_t &ctx, engine_t *engine,
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
-            const float *output_scale, std::size_t scratchpad_size) override {
+            std::size_t scratchpad_size) override {
 
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
@@ -271,9 +325,16 @@ struct cudnn_matmul_bias_exec_t : public cudnn_matmul_exec_base_t {
             auto arg_scratch = impl::sycl::sycl_memory_arg_t<
                     ::sycl::access::mode::read_write>();
 
+            auto arg_src_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+            auto arg_dst_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+
             interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
                     arg_src, arg_dst, arg_bias, /*nullptr*/ arg_scratch,
-                    output_scale);
+                    arg_src_scale, arg_wei_scale, arg_dst_scale);
         });
     }
 };
@@ -281,7 +342,7 @@ struct cudnn_matmul_bias_exec_t : public cudnn_matmul_exec_base_t {
 struct cudnn_matmul_exec_t : public cudnn_matmul_exec_base_t {
     status_t execute(const exec_ctx_t &ctx, engine_t *engine,
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
-            const float *output_scale, std::size_t scratchpad_size) override {
+            std::size_t scratchpad_size) override {
 
         nvidia::sycl_cuda_stream_t *cuda_stream
                 = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
@@ -296,9 +357,17 @@ struct cudnn_matmul_exec_t : public cudnn_matmul_exec_base_t {
             auto arg_scratch = impl::sycl::sycl_memory_arg_t<
                     ::sycl::access::mode::read_write>();
 
+            auto arg_src_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+            auto arg_dst_scale
+                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+
             interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
                     arg_src, arg_dst, /*nullptr*/ arg_bias,
-                    /*nullptr*/ arg_scratch, output_scale);
+                    /*nullptr*/ arg_scratch, arg_src_scale, arg_wei_scale,
+                    arg_dst_scale);
         });
     }
 };
