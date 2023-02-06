@@ -20,14 +20,15 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <compiler/ir/sc_expr.hpp>
 #include <unordered_set>
-
 namespace sc {
 
 class sc_op;
 struct mixed_parti_t;
 struct fuse_anchor_map_t;
 enum class parti_merge_kind;
+enum class dynamic_fusion_policy_t;
 
 using cost_eval = std::function<int(mixed_parti_t *)>;
 
@@ -38,30 +39,70 @@ using cost_eval = std::function<int(mixed_parti_t *)>;
  * 2. evaluate fusion partition and throw warning when prediction is under
  * expectation.
  * */
-struct fusion_cost_model {
-private:
-    float max_scores_; // cache the top scores
-    std::vector<std::pair<float, cost_eval>> evaluators_;
+struct fusion_cost_model_base_t {
+protected:
     mixed_parti_t *binded_mxp_;
     bool enable_;
 
 public:
-    fusion_cost_model(mixed_parti_t *parti);
-    // evaluate current mixed partition by several evaluator
-    float evaluate();
-    // append new defined evaluator
-    void append_evaluator(float weight, const cost_eval &eval);
+    fusion_cost_model_base_t(mixed_parti_t *parti);
+    virtual ~fusion_cost_model_base_t() {}
     // disable cost model
     void disable() { enable_ = false; }
     // judge if it is enabled
     bool is_enabled() const { return enable_; }
+    // evaluate current mixed partition by several evaluator
+    virtual float evaluate() = 0;
+    // make decision for partition merge
+    virtual bool make_decision_for_parti(const mixed_parti_t *parti,
+            size_t merge_loop_size, parti_merge_kind merge_kind)
+            = 0;
+    // make decision for op and fusion anchor
+    virtual bool make_decision_for_op(
+            const sc_op *op, const std::shared_ptr<fuse_anchor_map_t> &fanchor)
+            = 0;
+    virtual expr get_fusion_policy_condition() const { return false; }
+};
+
+struct static_fusion_cost_model_t : public fusion_cost_model_base_t {
+private:
+    float max_scores_; // cache the top scores
+    std::vector<std::pair<float, cost_eval>> evaluators_;
+
+public:
+    static_fusion_cost_model_t(mixed_parti_t *parti);
+    // evaluate current mixed partition by several evaluator
+    float evaluate() override;
+    // append new defined evaluator
+    void append_evaluator(float weight, const cost_eval &eval);
     // make decision for partition merge
     bool make_decision_for_parti(const mixed_parti_t *parti,
-            size_t merge_loop_size, parti_merge_kind merge_kind);
+            size_t merge_loop_size, parti_merge_kind merge_kind) override;
     // make decision for op and fusion anchor
-    bool make_decision_for_op(
-            const sc_op *op, const std::shared_ptr<fuse_anchor_map_t> &fanchor);
+    bool make_decision_for_op(const sc_op *op,
+            const std::shared_ptr<fuse_anchor_map_t> &fanchor) override;
 };
+
+struct dynamic_fusion_cost_model_t : public fusion_cost_model_base_t {
+private:
+    expr cond_;
+    dynamic_fusion_policy_t policy_;
+
+public:
+    dynamic_fusion_cost_model_t(
+            mixed_parti_t *parti, dynamic_fusion_policy_t policy);
+    // evaluate current mixed partition by several evaluator
+    float evaluate() override { return 0.f; }
+    expr get_fusion_policy_condition() const override { return cond_; }
+    // make decision for partition merge
+    bool make_decision_for_parti(const mixed_parti_t *parti,
+            size_t merge_loop_size, parti_merge_kind merge_kind) override;
+    // make decision for op and fusion anchor
+    bool make_decision_for_op(const sc_op *op,
+            const std::shared_ptr<fuse_anchor_map_t> &fanchor) override;
+};
+
+using fusion_cost_model_ptr = std::shared_ptr<fusion_cost_model_base_t>;
 
 } // namespace sc
 #endif

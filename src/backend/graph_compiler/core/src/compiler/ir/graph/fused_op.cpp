@@ -1534,14 +1534,89 @@ ir_module_ptr mixed_fuse_op_t::get_func(context_ptr ctx) {
             = get_owner_graph().attrs_.get_or_else("temp.force_static", false);
     ir_module_ptr modu;
     if (!use_cache && can_op_be_dispatched(shared_from_this())) {
-        auto cpy_graph = copy_graph(sub_graph_);
-        mixed_partition(cpy_graph, ctx);
-        std::vector<sc_op_ptr> lower_args(cpy_graph.get_output_ops());
-        auto input_ops = cpy_graph.get_input_ops();
-        lower_args.insert(lower_args.end(), input_ops.begin(), input_ops.end());
-        cpy_graph.attrs_.set("temp.force_static", true);
-        modu = lower_graph(ctx, cpy_graph, lower_args);
-        func = modu->get_entry_func();
+        modu = std::make_shared<ir_module_t>(ctx);
+        // max fusion policy don't need any conditions.
+        expr max_loop_parallelism_cond;
+        func_t max_fusion_func, max_loop_parallel_func;
+        ir_module_ptr max_fusion_modu, max_loop_parallel_modu;
+        std::vector<expr> ins, outs;
+        func = graph::create_func_decl_for_op(this, ins, outs);
+        outs.insert(outs.end(), ins.begin(), ins.end());
+        func->name_ = op_name_;
+        func->decl_->name_ = op_name_;
+        func->name_ += "_" + std::to_string(logical_op_id_);
+        func->decl_->name_ += "_" + std::to_string(logical_op_id_);
+        auto return_stmt = builder::make_returns_unattached(true);
+        stmt policy_dispatch;
+        {
+            // max_loop_parallelism policy
+            auto cpy_graph = copy_graph(sub_graph_);
+            cpy_graph.attrs_.set("temp.dynamic_fusion_policy",
+                    dynamic_fusion_policy_t::max_loop_parallelism);
+            mixed_partition(cpy_graph, ctx);
+            std::vector<sc_op_ptr> lower_args(cpy_graph.get_output_ops());
+            auto input_ops = cpy_graph.get_input_ops();
+            lower_args.insert(
+                    lower_args.end(), input_ops.begin(), input_ops.end());
+            cpy_graph.attrs_.set("temp.force_static", true);
+            max_loop_parallel_modu = lower_graph(ctx, cpy_graph, lower_args);
+            max_loop_parallel_func = max_loop_parallel_modu->get_entry_func();
+            max_loop_parallel_func->name_ = op_name_;
+            max_loop_parallel_func->decl_->name_ = op_name_;
+            max_loop_parallel_func->name_
+                    += "_max_loop_parallism_" + std::to_string(logical_op_id_);
+            max_loop_parallel_func->decl_->name_
+                    += "_max_loop_parallism_" + std::to_string(logical_op_id_);
+            max_loop_parallelism_cond = cpy_graph.attrs_.get<expr>(
+                    "temp.fusion_policy_condition");
+            max_loop_parallel_func->attr().set(attr_keys::always_trans, true);
+            schedule_loops(max_loop_parallel_func->body_);
+        }
+        // if condition is true or false after simplify, keep only one module
+        // for less functions.
+        max_loop_parallelism_cond = do_cast_and_fold(max_loop_parallelism_cond);
+        if (max_loop_parallelism_cond->equals(expr(true))) {
+            modu->merge(*max_loop_parallel_modu);
+            policy_dispatch = builder::make_evaluate_unattached(
+                    builder::make_call(max_loop_parallel_func->decl_, outs));
+        } else {
+            // max_fusion policy
+            auto cpy_graph = copy_graph(sub_graph_);
+            cpy_graph.attrs_.set("temp.dynamic_fusion_policy",
+                    dynamic_fusion_policy_t::max_fusion);
+            mixed_partition(cpy_graph, ctx);
+            std::vector<sc_op_ptr> lower_args(cpy_graph.get_output_ops());
+            auto input_ops = cpy_graph.get_input_ops();
+            lower_args.insert(
+                    lower_args.end(), input_ops.begin(), input_ops.end());
+            cpy_graph.attrs_.set("temp.force_static", true);
+            max_fusion_modu = lower_graph(ctx, cpy_graph, lower_args);
+            max_fusion_func = max_fusion_modu->get_entry_func();
+            max_fusion_func->name_ = op_name_;
+            max_fusion_func->name_
+                    += "_max_fusion_" + std::to_string(logical_op_id_);
+            max_fusion_func->decl_->name_
+                    += "_max_fusion_" + std::to_string(logical_op_id_);
+            max_fusion_func->attr().set(attr_keys::always_trans, true);
+            schedule_loops(max_fusion_func->body_);
+            modu->merge(*max_fusion_modu);
+            if (max_loop_parallelism_cond->equals(expr(false))) {
+                policy_dispatch = builder::make_evaluate_unattached(
+                        builder::make_call(max_fusion_func->decl_, outs));
+            } else {
+                modu->merge(*max_loop_parallel_modu);
+                policy_dispatch = builder::make_if_else_unattached(
+                        max_loop_parallelism_cond,
+                        builder::make_evaluate_unattached(builder::make_call(
+                                max_loop_parallel_func->decl_, outs)),
+                        builder::make_evaluate_unattached(builder::make_call(
+                                max_fusion_func->decl_, outs)));
+            }
+        }
+        func->body_ = builder::make_stmts_unattached(
+                {policy_dispatch, return_stmt});
+        modu->add_func({func});
+        modu->set_entry_func_idx(modu->get_contents().size() - 1);
     } else {
         // if mod_ is not empty, usually when redo occurs in partition stage.
         if (mod_) return mod_;
@@ -1555,11 +1630,13 @@ ir_module_ptr mixed_fuse_op_t::get_func(context_ptr ctx) {
         modu = std::make_shared<ir_module_t>(ctx);
         modu->add_func({func});
         modu->set_entry_func_idx(0);
+        func->name_ = op_name_;
+        func->decl_->name_ = op_name_;
+        func->name_ += "_" + std::to_string(logical_op_id_);
+        func->decl_->name_ += "_" + std::to_string(logical_op_id_);
+        schedule_loops(func->body_);
     }
-    func->name_ = op_name_;
-    func->name_ += "_" + std::to_string(logical_op_id_);
-    func->decl_->name_ += "_" + std::to_string(logical_op_id_);
-    schedule_loops(func->body_);
+
     return modu;
 }
 

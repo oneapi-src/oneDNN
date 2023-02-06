@@ -139,7 +139,12 @@ cmp_res cmp_slice_range(const slice_range_list &left_slice_range_list,
 // pass for tensor sequential access analysis in future
 static constexpr size_t workload_penalty_coefficient = 16UL;
 
-float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops);
+float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
+        bool check_use_full_threads = false);
+// return static loop parallelism coefficient to satisfy the parallelism and the
+// related condition expr.
+float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
+        expr &cond, bool check_use_full_threads = false);
 expr cast_to_s32(const expr &in);
 // compare expr in slice equal or not, constant slice may have different
 // datatypes but same value as we use `int` for static.

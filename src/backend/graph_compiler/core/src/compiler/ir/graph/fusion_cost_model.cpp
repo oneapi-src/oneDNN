@@ -41,14 +41,15 @@ std::vector<std::pair<float, cost_eval>> create_default_evaluator() {
     return inits;
 }
 
-fusion_cost_model::fusion_cost_model(mixed_parti_t *parti) {
-    binded_mxp_ = parti;
-    enable_ = parti->ctx_->flags_.use_cost_model_;
-    max_scores_ = 0;
-    evaluators_ = create_default_evaluator();
-}
+fusion_cost_model_base_t::fusion_cost_model_base_t(mixed_parti_t *parti)
+    : binded_mxp_(parti), enable_(parti->ctx_->flags_.use_cost_model_) {}
 
-float fusion_cost_model::evaluate() {
+static_fusion_cost_model_t::static_fusion_cost_model_t(mixed_parti_t *parti)
+    : fusion_cost_model_base_t(parti)
+    , max_scores_(0)
+    , evaluators_(create_default_evaluator()) {}
+
+float static_fusion_cost_model_t::evaluate() {
     float new_scores = 0;
     if (!enable_) return new_scores;
     for (auto &eval : evaluators_) {
@@ -58,12 +59,14 @@ float fusion_cost_model::evaluate() {
     return new_scores;
 }
 
-void fusion_cost_model::append_evaluator(float weight, const cost_eval &eval) {
+void static_fusion_cost_model_t::append_evaluator(
+        float weight, const cost_eval &eval) {
     evaluators_.emplace_back(std::make_pair(weight, eval));
 }
 
-bool fusion_cost_model::make_decision_for_parti(const mixed_parti_t *parti,
-        size_t merged_loop_size, parti_merge_kind merge_kind) {
+bool static_fusion_cost_model_t::make_decision_for_parti(
+        const mixed_parti_t *parti, size_t merged_loop_size,
+        parti_merge_kind merge_kind) {
     // query if turn on
     if (!enable_) return true;
     /* loop_parallelism */
@@ -130,7 +133,7 @@ bool fusion_cost_model::make_decision_for_parti(const mixed_parti_t *parti,
     }
 }
 
-bool fusion_cost_model::make_decision_for_op(
+bool static_fusion_cost_model_t::make_decision_for_op(
         const sc_op *op, const fuse_anchor_map_ptr &fanchor) {
     // query if turn on
     if (!enable_) return true;
@@ -145,6 +148,19 @@ bool fusion_cost_model::make_decision_for_op(
     bool ret = evaluate_loop_parallel_balance(
                        binded_mxp_->get_outer_loops(fanchor))
             >= orig_loop_parallelism;
+
+    if (op->isa<tunable_op_t>()
+            && evaluate_loop_parallel_balance(
+                       binded_mxp_->get_outer_loops(), true)
+                    == 0.f) {
+        mixed_parti_t tunable_parti(binded_mxp_->ctx_,
+                std::const_pointer_cast<sc_op>(op->shared_from_this()),
+                nullptr);
+        if (evaluate_loop_parallel_balance(tunable_parti.get_outer_loops())
+                > orig_loop_parallelism) {
+            ret = false;
+        }
+    }
     if (!ret) {
         SC_MODULE_INFO << "rejects current inferring result "
                           "for op: "
@@ -153,6 +169,109 @@ bool fusion_cost_model::make_decision_for_op(
                           "perspective of parallellism";
     }
     return ret;
+}
+
+dynamic_fusion_cost_model_t::dynamic_fusion_cost_model_t(
+        mixed_parti_t *parti, dynamic_fusion_policy_t policy)
+    : fusion_cost_model_base_t(parti), cond_(false), policy_(policy) {}
+
+bool dynamic_fusion_cost_model_t::make_decision_for_parti(
+        const mixed_parti_t *parti, size_t merged_loop_size,
+        parti_merge_kind merge_kind) {
+    // query if turn on
+    if (!enable_ || policy_ == dynamic_fusion_policy_t::max_fusion) return true;
+    /* loop_parallelism */
+    auto ths_outer_loops = binded_mxp_->get_outer_loops();
+    auto other_outer_loops = parti->get_outer_loops();
+    COMPILE_ASSERT(!ths_outer_loops.empty() && !other_outer_loops.empty(),
+            "Could not merge empty loop")
+    COMPILE_ASSERT((merged_loop_size <= ths_outer_loops.size())
+                    && (merged_loop_size <= other_outer_loops.size()),
+            "merge loop size should less than both loop");
+    expr res_cond, dummy_cond;
+    if (merge_kind == parti_merge_kind::horizontal) {
+        float ths_parallelism = evaluate_loop_parallel_balance(
+                {ths_outer_loops[0]}, res_cond);
+        float other_parallelism = evaluate_loop_parallel_balance(
+                {other_outer_loops[0]}, dummy_cond);
+        bool ret = ths_parallelism != 1.0f && other_parallelism != 1.0f;
+        if (!ret) { cond_ = cond_ || !(res_cond && dummy_cond); }
+        return ret;
+    }
+    /* for verticall merge*/
+    COMPILE_ASSERT(merge_kind == parti_merge_kind::vertical,
+            "No cost metric found for parallel merge")
+    // in avoid of loss for loop optimize opportunity
+    if (need_optimize_loop_order_for_parti(binded_mxp_, true)
+            ^ need_optimize_loop_order_for_parti(parti, true)) {
+        return false;
+    }
+
+    // check loop parallelism
+    float ths_parallelism
+            = evaluate_loop_parallel_balance(ths_outer_loops, dummy_cond);
+    float other_parallelism
+            = evaluate_loop_parallel_balance(other_outer_loops, dummy_cond);
+    auto merged_outer_loop = std::vector<for_loop> {ths_outer_loops.begin(),
+            ths_outer_loops.begin() + merged_loop_size};
+    float merged_parallelism
+            = evaluate_loop_parallel_balance(merged_outer_loop, res_cond);
+    if (merged_parallelism < ths_parallelism
+            || merged_parallelism < other_parallelism) {
+        SC_MODULE_INFO << "rejects to merge two "
+                          "partition: "
+                       << binded_mxp_->func_->name_ << " and "
+                       << parti->func_->name_
+                       << " from perspective of loop parallelism";
+        cond_ = cond_ || res_cond;
+        return false;
+    }
+    // don't set cond_ if accept the parti.
+    /* find how to describe cache efficiency */
+    return true;
+}
+
+bool dynamic_fusion_cost_model_t::make_decision_for_op(
+        const sc_op *op, const fuse_anchor_map_ptr &fanchor) {
+    // query if turn on
+    if (!enable_ || policy_ == dynamic_fusion_policy_t::max_fusion) return true;
+    // auto skip
+    if (!binded_mxp_->contain_tunable_op() && !op->isa<tunable_op_t>())
+        return true;
+    expr res_cond, thr_cond, dummy_cond;
+    auto ths_outer_loops = binded_mxp_->get_outer_loops();
+    auto other_outer_loops = binded_mxp_->get_outer_loops(fanchor);
+
+    auto ths_parallelism
+            = evaluate_loop_parallel_balance(ths_outer_loops, dummy_cond);
+    auto other_parallelism
+            = evaluate_loop_parallel_balance(other_outer_loops, res_cond);
+    bool ret = ths_parallelism <= other_parallelism;
+    if (op->isa<tunable_op_t>()
+            && evaluate_loop_parallel_balance(
+                       binded_mxp_->get_outer_loops(), thr_cond, true)
+                    == 0.f) {
+        mixed_parti_t tunable_parti(binded_mxp_->ctx_,
+                std::const_pointer_cast<sc_op>(op->shared_from_this()),
+                nullptr);
+        if (evaluate_loop_parallel_balance(
+                    tunable_parti.get_outer_loops(), dummy_cond)
+                > other_parallelism) {
+            ret = false;
+            cond_ = cond_ || thr_cond;
+        }
+    }
+    if (!ret) {
+        SC_MODULE_INFO << "rejects current inferring result "
+                          "for op: "
+                       << op->op_name_ << op->logical_op_id_
+                       << " under current fusion anchor from "
+                          "perspective of parallellism";
+        cond_ = cond_ || res_cond;
+        return false;
+    }
+    // don't set cond_ when accept the op
+    return true;
 }
 
 } // namespace sc

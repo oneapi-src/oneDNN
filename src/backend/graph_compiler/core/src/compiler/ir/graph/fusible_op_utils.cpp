@@ -819,27 +819,42 @@ expr transform_tptr2stsr(const expr &tptr) {
             t->name_ + "_strd", tp->shape_, t->strides_, t->elem_dtype_);
 }
 
-float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops) {
-    sc_dims loop_ranges;
-    for (auto &loop : loops) {
+float evaluate_loop_parallel_balance(
+        const std::vector<for_loop> &loops, bool check_use_full_threads) {
+    expr dummy;
+    return evaluate_loop_parallel_balance(loops, dummy, check_use_full_threads);
+}
+
+float evaluate_loop_parallel_balance(const std::vector<for_loop> &loops,
+        expr &cond, bool check_use_full_threads) {
+    expr dyn_loops = 1;
+    sc_dim stc_loops = 1;
+    const int run_threads = runtime_config_t::get().get_num_threads();
+    cond = false;
+    for (size_t i = 0; i < loops.size(); i++) {
+        auto &loop = loops[i];
         if (!(loop->iter_begin_.isa<constant_c>()
                     && loop->iter_end_.isa<constant_c>())) {
-            loop_ranges.emplace_back(0);
+            dyn_loops = dyn_loops * (loop->iter_end_ - loop->iter_begin_);
         } else {
             auto begin = get_expr_as_int(loop->iter_begin_),
                  end = get_expr_as_int(loop->iter_end_);
             COMPILE_ASSERT(
                     end > begin, "loop end is expected to larger than begin")
-            loop_ranges.emplace_back(end - begin);
+            stc_loops = stc_loops * (end - begin);
+            dyn_loops = dyn_loops * static_cast<uint64_t>(stc_loops);
         }
     }
-
-    sc_dim prod = get_dims_product(loop_ranges);
-    if (prod == 1) return 0.f;
-    const int run_threads = runtime_config_t::get().get_num_threads();
-    bool parallelism = (prod / run_threads > 8)
-            || (prod % run_threads == 0 && prod >= run_threads);
-    return parallelism ? 1.0f : ((prod % run_threads) / float(run_threads));
+    if (check_use_full_threads) {
+        cond = dyn_loops < run_threads;
+        return stc_loops >= run_threads;
+    }
+    if (stc_loops == 1) { return 0.0f; }
+    cond = !((dyn_loops % run_threads == 0) || (dyn_loops > run_threads * 8));
+    bool parallelism = (stc_loops / run_threads > 8)
+            || (stc_loops % run_threads == 0 && stc_loops >= run_threads);
+    return parallelism ? 1.0f
+                       : ((stc_loops % run_threads) / float(run_threads));
 }
 
 bool slice_full_on_axis(
