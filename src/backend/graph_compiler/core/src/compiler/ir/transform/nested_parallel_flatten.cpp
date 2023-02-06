@@ -28,6 +28,7 @@
 #include <runtime/barrier.hpp>
 #include <runtime/config.hpp>
 #include <unordered_map>
+#include <util/any_map.hpp>
 
 namespace sc {
 
@@ -55,6 +56,7 @@ class nested_parallel_flatten_impl_t : public ir_visitor_t {
     int runtime_threads_ = runtime_config_t::get().get_num_threads();
     int count_ = 0;
     int var_count_ = 0;
+    int for_count_ = 0;
     bool cannot_parallel_ = false;
     bool need_pre_barrier_ = false;
     bool need_post_barrier_ = false;
@@ -101,10 +103,16 @@ public:
         return builder::tensor_ptr(info_.back().barriers_, {idx});
     }
 
-    void gen_call_to_barrier(std::vector<stmt> *cur_insert_point) {
+    void gen_call_to_barrier(
+            std::vector<stmt> *cur_insert_point, int post_barrier_id) {
         auto b = get_barrier_for_current_for();
-        cur_insert_point->emplace_back(builder::make_evaluate_unattached(
-                builtin::get_barrier_arrive_func()(b)));
+        auto the_call = builtin::get_barrier_arrive_func()(
+                b, get_ir_null(), get_ir_null());
+        cur_insert_point->emplace_back(
+                builder::make_evaluate_unattached(the_call));
+        if (post_barrier_id >= 0) {
+            the_call->attr()["post_barrier_id"] = post_barrier_id;
+        }
     }
 
     /*
@@ -179,6 +187,8 @@ void work() {
     void transform_loop(const for_loop_c &v, int num_threads_parent_group,
             std::vector<stmt> &seq, expr tid0, bool need_pre_barrier, // NOLINT
             bool need_post_barrier) {
+        int cur_post_barrier_id = for_count_;
+        for_count_++;
         COMPILE_ASSERT(info_.empty() || info_.front().threads_per_group_ != 0,
                 "Cannot handle nested parallel-for without num threads in most "
                 "outer parallel-for");
@@ -206,7 +216,7 @@ void work() {
             stmts gid_skip_body;
             if (need_pre_barrier) {
                 gid_skip_body = make_stmt<stmts_node_t>(std::vector<stmt> {});
-                gen_call_to_barrier(&gid_skip_body->seq_);
+                gen_call_to_barrier(&gid_skip_body->seq_, -1);
             }
             seq.emplace_back(builder::make_if_else_unattached(
                     gid1 < make_expr<constant_node>(
@@ -220,7 +230,7 @@ void work() {
                 num_threads, v->iter_begin_, v->iter_end_, v->step_, gid1,
                 [&](const char *v) { return make_name(v); }, &begin, nullptr,
                 &end, cur_insert_point);
-        if (need_pre_barrier) { gen_call_to_barrier(cur_insert_point); }
+        if (need_pre_barrier) { gen_call_to_barrier(cur_insert_point, -1); }
 
         auto new_body = make_stmt<stmts_node_t>(std::vector<stmt> {});
         auto step_expr = v->step_->dtype_ == datatypes::index
@@ -272,8 +282,21 @@ void work() {
                         dispatch(old_body[i]).remove_const());
             } else {
                 cannot_parallel_ = true;
-                if (threads_per_group > 1) {
-                    auto dispatched = dispatch(old_body[i]).remove_const();
+                auto dispatched = dispatch(old_body[i]).remove_const();
+                bool is_set_idle_func_call = dispatched.isa<evaluate>()
+                        && dispatched.static_as<evaluate>()
+                                   ->value_.isa<intrin_call>()
+                        && dispatched.static_as<evaluate>()
+                                        ->value_.static_as<intrin_call>()
+                                        ->type_
+                                == intrin_type::set_thread_idle_func;
+                if (is_set_idle_func_call) {
+                    dispatched.static_as<evaluate_c>()
+                            ->value_.static_as<intrin_call>()
+                            ->attr()["post_barrier_id"]
+                            = for_count_;
+                }
+                if (threads_per_group > 1 && !is_set_idle_func_call) {
                     if (dispatched.isa<stmts>()
                             && dispatched.static_as<stmts>()->seq_.empty()) {
                         // if it is a hoisted tensor..., don't need to add to
@@ -291,12 +314,13 @@ void work() {
                     }
 
                 } else {
-                    new_body->seq_.emplace_back(
-                            dispatch(old_body[i]).remove_const());
+                    new_body->seq_.emplace_back(dispatched);
                 }
             }
         }
-        if (need_post_barrier) { gen_call_to_barrier(&seq); }
+        if (need_post_barrier) {
+            gen_call_to_barrier(&seq, cur_post_barrier_id);
+        }
 
         info_.pop_back();
     }

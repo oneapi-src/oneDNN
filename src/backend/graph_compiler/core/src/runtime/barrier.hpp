@@ -28,13 +28,17 @@ struct barrier_t {
     std::atomic<uint64_t> rounds_;
     uint64_t total_;
     // pad barrier to size of cacheline to avoid false sharing
-    char padding_[64 - 3 * sizeof(uint64_t)];
+    char padding_[64 - 4 * sizeof(uint64_t)];
 };
+
+typedef uint64_t (*barrier_idle_func)(
+        std::atomic<uint64_t> *remaining, uint64_t expected_remain, void *args);
 
 } // namespace runtime
 } // namespace sc
 
-extern "C" SC_API void sc_arrive_at_barrier(sc::runtime::barrier_t *b);
+extern "C" SC_API void sc_arrive_at_barrier(sc::runtime::barrier_t *b,
+        sc::runtime::barrier_idle_func idle_func, void *idle_args);
 extern "C" SC_API void sc_init_barrier(
         sc::runtime::barrier_t *b, int num_barriers, uint64_t thread_count);
 #endif

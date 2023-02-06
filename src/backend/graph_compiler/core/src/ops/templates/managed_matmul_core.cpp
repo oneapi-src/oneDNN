@@ -530,11 +530,17 @@ void gen_managed_matmul_core_t::generate_prefetcher_body_for_tensor(
         utils::rnd_up(in_tensors_[1].get_plain_dims()[1], iin_block_)),
       K = static_cast<int>(
         utils::rnd_up(in_tensors_[0].get_plain_dims()[1], iik_block_));
-
+  auto num_threads = runtime_config_t::get().get_num_threads();
+  auto threads_per_group = num_threads / config.M_split_num;
+  if (config.N_split_num * config.M_split_num != num_threads) {
+    _if_(tid % threads_per_group >= config.N_split_num) {
+      _return_(UINT64_C(0));
+    }
+  }
   _var_(cnt, datatypes::index);
   cnt = 0;
   expr n_idx, N_single_thr_size, X_bigger_num;
-  _for_(n_s, tid % config.N_split_num, tid % config.N_split_num + 1) {
+  _for_(n_s, tid % threads_per_group, tid % threads_per_group + 1) {
     N_single_thr_size = get_balance211_length(
       N / iin_block_, config.N_split_num, n_s, n_idx, X_bigger_num);
     N_single_thr_size = N_single_thr_size * iin_block_;

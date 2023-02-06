@@ -16,35 +16,59 @@
 
 #include <assert.h>
 #include <atomic>
+#include <chrono>
 #include <immintrin.h>
 #include "barrier.hpp"
 #include "trace.hpp"
 #include <runtime/microkernel/cpu/kernel_timer.hpp>
 #include <runtime/runtime.hpp>
+#include <runtime/thread_locals.hpp>
 
 #ifdef SC_KERNEL_PROFILE
-static void make_trace(int in_or_out) {
-    if (sc_is_trace_enabled()) { sc_make_trace_kernel(2, in_or_out, 0); }
+static void make_trace(int in_or_out, int count) {
+    if (sc_is_trace_enabled()) { sc_make_trace_kernel(3, in_or_out, count); }
 }
-
+static void make_trace_prefetch(int in_or_out, int count) {
+    if (sc_is_trace_enabled()) { sc_make_trace_kernel(4, in_or_out, count); }
+}
 #else
-#define make_trace(v)
+#define make_trace(v, count) SC_UNUSED(count)
+#define make_trace_prefetch(v, count) SC_UNUSED(count)
 #endif
 
-extern "C" SC_API void sc_arrive_at_barrier(sc::runtime::barrier_t *b) {
-    make_trace(0);
-    auto cur_round = b->rounds_.load();
+static thread_local int backoff = 0;
+
+static uint64_t calc_backoff(uint64_t old, int cnt, int max_int) {
+    if (cnt > max_int / 2 + max_int / 4) { return 2 * old + 128; }
+    if (cnt > max_int / 2) { return old + 16; }
+    if (cnt > max_int / 4) { return old > 32 ? old - 32 : 0; }
+    return old / 2;
+}
+
+extern "C" SC_API void sc_arrive_at_barrier(sc::runtime::barrier_t *b,
+        sc::runtime::barrier_idle_func idle_func, void *idle_args) {
+    make_trace(0, 0);
+    auto cur_round = b->rounds_.load(std::memory_order_acquire);
     auto cnt = --b->pending_;
     assert(cnt >= 0);
+    int count = 0;
     if (cnt == 0) {
         b->pending_.store(b->total_);
         b->rounds_.store(cur_round + 1);
     } else {
+        if (idle_func) {
+            if (cur_round != b->rounds_.load()) {
+                make_trace(1, 0);
+                return;
+            }
+            auto ret = idle_func(&b->rounds_, cur_round + 1, idle_args);
+            count = ret & 0xffffffff;
+        }
         while (cur_round == b->rounds_.load()) {
             _mm_pause();
         }
     }
-    make_trace(1);
+    make_trace(1, count);
 }
 
 extern "C" SC_API void sc_init_barrier(

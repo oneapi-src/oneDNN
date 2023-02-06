@@ -951,8 +951,11 @@ static func_t insert_prefetch(const context_ptr &ctx,
     for (int64_t i = op_execution_log.size() - 1; i >= 0; i--) {
         if (op_execution_log[i].second.defined()) {
             // if the op is executed in main body (not in cached const/input)
-            // auto gflop = op_execution_log[i].first->get_gflop();
-            bool is_good_for_insert = true;
+            auto gflop = op_execution_log[i].first->get_gflop();
+            // todo(yijie): currently gflop>0 means the op has a complex op like
+            // matmul so we only need to compare gflop with 0. We should later
+            // set a reasonable threshold
+            bool is_good_for_insert = gflop > 0;
             if (is_good_for_insert) {
                 auto func = op_execution_log[i]
                                     .second.checked_as<evaluate>()
@@ -978,15 +981,15 @@ static func_t insert_prefetch(const context_ptr &ctx,
     }
 
     std::vector<int> filtered_prefetch_index;
+    auto cache_thres = ctx->machine_.cpu_flags_.getDCacheSize(2)
+            * runtime_config_t::get().get_num_threads();
     // we need to check at this point (at "pos"), which input of the Op ("node")
     // is ready to prefetch
     for (auto in_idx : can_prefetch_index) {
         auto &tsr = node->get_inputs().at(in_idx);
         // todo (yijie): add more detailed cache size management
         // skip prefetch on this tensor if it is too large
-        if (tsr->details_.get_blocking_byte_size() * 2
-                > ctx->machine_.cpu_flags_.getDCacheSize(2)
-                        * runtime_config_t::get().get_num_threads()) {
+        if (tsr->details_.get_blocking_byte_size() * 2 > cache_thres) {
             continue;
         }
         auto producer_op = tsr->producer_owner_;

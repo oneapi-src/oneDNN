@@ -31,6 +31,7 @@
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <compiler/ir/visitor.hpp>
 #include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
+#include <unordered_map>
 #include <util/any_map.hpp>
 
 namespace sc {
@@ -371,6 +372,8 @@ public:
     int parallel_depth_ = 0;
     // use a var instead of complex arg expr
     std::vector<std::vector<std::pair<expr_c, expr_c>>> need_defs_;
+    const stmts_node_t *cur_scope_ = nullptr;
+    std::unordered_map<int, std::pair<expr, expr>> barrier_idle_func_args_;
 
     std::vector<expr_c> visit_need_def_args(const std::vector<expr> &args) {
         std::vector<expr_c> new_args;
@@ -461,12 +464,59 @@ public:
         return ret;
     }
 
+    int get_barrier_id(const node_base *v) {
+        int barrier_id = -1;
+        if (v->attr_) {
+            barrier_id = v->attr_->get_or_else("post_barrier_id", -1);
+        }
+        return barrier_id;
+    }
+
+    expr_c visit(call_c v) override {
+        auto ret = ir_visitor_t::visit(v);
+        if (v->func_ == builtin::get_barrier_arrive_func()) {
+            int bar_id = get_barrier_id(v.get());
+            auto itr = barrier_idle_func_args_.find(bar_id);
+            if (bar_id >= 0 && itr != barrier_idle_func_args_.end()) {
+                auto ret2 = ret.static_as<call_c>();
+                // pass idle_func and idle_args to barrier func
+                return copy_attr(*v,
+                        builtin::get_barrier_arrive_func()(ret2->args_.at(0),
+                                itr->second.first, itr->second.second));
+            }
+        }
+        return ret;
+    }
     expr_c visit(intrin_call_c v) override {
         auto ret = ir_visitor_t::visit(v);
         if (v->type_ == intrin_type::set_thread_idle_func) {
-            COMPILE_ASSERT(parallel_depth_ == 0,
-                    "set_thread_idle_func in parallel is not yet "
-                    "implemented");
+            int barrier_id = -1;
+            if (parallel_depth_ > 0) {
+                // get the barrier id of the set_thread_idle_func call, and find
+                // the barrier call of the same id
+                barrier_id = get_barrier_id(v.get());
+                bool found_consumer = false;
+                for (auto &seq : cur_scope_->seq_) {
+                    if (seq.isa<evaluate>()) {
+                        auto &val = seq.static_as<evaluate>()->value_;
+                        if (val.isa<call>()) {
+                            auto call_node = val.static_as<call>();
+                            if (call_node->func_
+                                    == builtin::get_barrier_arrive_func()) {
+                                auto call_id = get_barrier_id(call_node.get());
+                                if (call_id == barrier_id) {
+                                    found_consumer = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!found_consumer) {
+                    // remove the intrinsic call
+                    return 0;
+                }
+            }
             std::vector<stmt_c> insert_before;
             expr args_pack;
 
@@ -488,7 +538,14 @@ public:
                 }
                 insert_seq_before_ = std::move(insert_before);
             }
-
+            if (parallel_depth_ > 0) {
+                // inform the barrier call to set the idle
+                // functions
+                barrier_idle_func_args_[barrier_id] = {v->args_[0], args_pack};
+                // remove the intrinsic call. The idle function will be passed
+                // in barrier call
+                return 0;
+            }
             return builtin::get_set_idle_func_managed_func()(
                     v->args_[0], args_pack);
         }
@@ -582,6 +639,8 @@ public:
 
     std::vector<stmt_c> insert_seq_before_;
     stmt_c visit(stmts_c v) override {
+        auto old_scope = cur_scope_;
+        cur_scope_ = v.get();
         bool changed = false;
         need_defs_.emplace_back();
         std::vector<stmt_c> seqs;
@@ -609,8 +668,10 @@ public:
         changed |= seqs.size() != v->seq_.size();
         if (changed) {
             stmt newv = copy_attr(*v, builder::make_stmts_unattached(seqs));
+            cur_scope_ = old_scope;
             return std::move(newv);
         }
+        cur_scope_ = old_scope;
         return v;
     }
 

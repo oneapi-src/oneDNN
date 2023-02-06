@@ -643,7 +643,9 @@ func_t get_is_in_parallel_func() {
 
 func_t get_barrier_arrive_func() {
     static func_t func = _decl_func("sc_arrive_at_barrier", datatypes::void_t,
-            {_arg_("b", datatypes::pointer)});
+            {_arg_("b", datatypes::pointer),
+                    _arg_("idle_func", datatypes::pointer),
+                    _arg_("idle_args", datatypes::pointer)});
     return func;
 }
 

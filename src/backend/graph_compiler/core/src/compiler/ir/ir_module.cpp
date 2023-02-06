@@ -51,6 +51,24 @@ public:
         return ret;
     }
 
+    expr visit_impl(func_addr c) override {
+        auto ret = ir_inplace_visitor_t::visit_impl(std::move(c))
+                           .as<func_addr>();
+        func_t callee = std::dynamic_pointer_cast<func_base>(ret->func_);
+        if (!callee) { return ret; }
+        // if the callee has a function body, unlink the call_node with the
+        // function with body. Use the decl_ instead
+        if (callee->body_.defined()) {
+            assert(callee->decl_);
+            ret->func_ = callee->decl_;
+            return ret;
+        } else {
+            assert(!callee->decl_);
+        }
+        // if the call is to a decl_, no changes
+        return ret;
+    }
+
     func_t dispatch_impl(func_t f) override {
         if (f->decl_) {
             if (f->decl_->name_ != f->name_) { f->decl_->name_ = f->name_; }
