@@ -145,25 +145,35 @@ private:
 
 status_t set_reduction_phases(dim_t outer_elems, dim_t reduction_elems,
         dim_t inner_elems, data_type_t accum_data_type, int subgroup_size,
+        const compute::compute_engine_t *compute_engine,
         std::vector<reduction_phase_t> &phases) {
     // Heuristic:
     // If reduction_elems*inner_elems < single_phase_threshold,
     // it doesn't help to add another phase, regardless of EU saturation
     const float single_phase_threshold = 1900;
+    const int num_EU = compute_engine->device_info()->eu_count();
+    const float frac_EU = 15; // Heuristic determined on ATS-m
+    const dim_t max_parallelism = num_EU * frac_EU;
 
+    const dim_t sg_per_inner_dim = utils::div_up(inner_elems, subgroup_size);
+    const dim_t sg_per_reduction_end = outer_elems * sg_per_inner_dim;
     while (reduction_elems > 1) {
         // Heuristically determine reduction_end
-        dim_t reduction_end;
+        // Approximation of the number of remaining phases
+        int N = std::ceil(std::log2(reduction_elems)
+                / std::log2(single_phase_threshold / inner_elems));
+        N = std::max(N, 1); // avoid negative N for large inner_elems
+        dim_t reduction_end = static_cast<dim_t>(
+                std::pow(reduction_elems, (float)(N - 1) / N));
+
+        // Heuristic 1: For large # of subgroups, reduce phases to avoid excess parallelism
+        reduction_end = std::min(
+                reduction_end, max_parallelism / sg_per_reduction_end);
+
+        // Heuristic 2: for small reduction_elems + inner_elems, always cut back to 1 phase
         if (reduction_elems * inner_elems < single_phase_threshold) {
             // If reduction + inner_size is small, do a single phase
             reduction_end = 1;
-        } else {
-            // Approximation of the number of remaining phases
-            int N = std::ceil(std::log2(reduction_elems)
-                    / std::log2(single_phase_threshold / inner_elems));
-            N = std::max(N, 1); // avoid negative N for large inner_elems
-            reduction_end = static_cast<dim_t>(
-                    std::pow(reduction_elems, (float)(N - 1) / N));
         }
         // End Heuristic
 
@@ -343,7 +353,7 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
             if (reduction_elems > 1) {
                 status_t status = set_reduction_phases(outer_elems,
                         reduction_elems, inner_elems, accum_data_type,
-                        conf.sub_group_size, conf.phases);
+                        conf.sub_group_size, compute_engine, conf.phases);
                 if (status != status::success) {
                     // Some error hit within the set_reduction_phases function
                     return status::unimplemented;
