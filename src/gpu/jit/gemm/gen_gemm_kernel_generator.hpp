@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -817,6 +817,11 @@ struct GEMMProblem : public CommonProblem {
     std::vector<bool> binaryBatch;
 
     bool hasPostOp() const { return postOps.len() > 0; }
+    bool hasNonSum1PostOp() const {
+        for (const auto &e : postOps.entry_)
+            if (!e.is_sum()) return true;
+        return false;
+    }
     bool hasBinaryPostOp() const {
         for (int idx = 0; idx < postOps.len(); idx++)
             if (postOps.entry_[idx].is_binary()) return true;
@@ -840,7 +845,7 @@ struct GEMMProblem : public CommonProblem {
         if (!(alpha1() || alphaM1())) return true;
         if (!(beta0() || beta1())) return true;
         if (beta1() && !Tc_ext.isSubsetOf(Tc)) return true;
-        if (hasPostOp()) return true;
+        if (hasNonSum1PostOp()) return true;
         return false;
     }
 
