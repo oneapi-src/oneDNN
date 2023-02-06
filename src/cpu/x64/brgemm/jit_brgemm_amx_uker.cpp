@@ -1623,7 +1623,8 @@ void jit_brgemm_amx_uker_base_t::generate() {
     // if beta == 1 and C datatype is f32 it is better to perform addition by
     // reading tiles directly from C instead of by reading/writing by vectors
     may_load_accumulators_
-            = (brg.beta == 1.f && brg.dt_c == data_type::f32 && !brg.is_bf32);
+            = (brg.beta == 1.f && brg.dt_c == data_type::f32 && !brg.is_bf32)
+            && brg.brgattr.bd_mask_level == 0;
     need_to_apply_alpha_beta_
             = (brg.beta != 0.f && !may_load_accumulators_) || brg.alpha != 1.f;
     const bool has_zero_points = !everyone_is(brgemm_broadcast_t::none,
