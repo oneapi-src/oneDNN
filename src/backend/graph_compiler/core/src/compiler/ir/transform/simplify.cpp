@@ -116,6 +116,13 @@ public:
         return v;
     }
 
+    stmt_c visit(evaluate_c v) override {
+        if (v->value_.isa<call_c>() || v->value_.isa<intrin_call_c>()) {
+            return ir_visitor_t::visit(std::move(v));
+        }
+        return stmt_c();
+    }
+
     // Rename for_loop var if same
     // Will case potential error especially in nested loops
     stmt_c visit(for_loop_c v) override {

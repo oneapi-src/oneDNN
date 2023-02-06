@@ -143,6 +143,7 @@ func_t may_prefetch_t::generate_prefetcher_and_set_idle(const context_ptr &ctx,
             func_name, func_args, func_body, datatypes::index);
     retfunc->attr()[function_attrs::low_level] = true;
     retfunc->attr()[function_attrs::private_] = true;
+    retfunc->decl_->attr()[function_attrs::private_] = true;
 
     vis.old_args_[0] = builder::make_func_addr(retfunc);
     out_set_idle_code.emplace_back(builder::make_evaluate_unattached(

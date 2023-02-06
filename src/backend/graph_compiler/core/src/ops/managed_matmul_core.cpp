@@ -83,7 +83,6 @@ managed_matmul_core_op_t::managed_matmul_core_op_t(
 std::vector<int> managed_matmul_core_op_t::query_prefetch(
         const context_ptr &ctx, bool is_global,
         const std::vector<tensor_slice> &ins) {
-    if (!is_global) { return {0, 1}; }
     auto gen = create_generator();
     auto gen_ptr = static_cast<gen_managed_matmul_core_t *>(gen.get());
     if (gen_ptr->is_okay_to_prefetch(

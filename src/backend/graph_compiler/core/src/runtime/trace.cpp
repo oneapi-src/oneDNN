@@ -41,7 +41,8 @@ SC_MODULE(runtime.trace);
 
 static struct trace_env_t {
     std::mutex name_lock_;
-    std::vector<std::string> names_ {"brgemm", "list_brgemm", "barrier"};
+    std::vector<std::string> names_ {
+            "brgemm", "list_brgemm", "barrier", "barrier_internal", "prefetch"};
 } env;
 
 namespace runtime {
@@ -66,9 +67,10 @@ static void write_json_traces(FILE *outf,
             fprintf(outf,
                     R"({"pid":1, "tid":%zu, "ts":%lf, "ph":"%c", "name":"%s@%d", "args":{"flop":%d}, "cat":"call" }%c
 )",
-                    (size_t)tlb, (v.tick_ - min_val) / 1000.0,
-                    v.in_or_out_ ? 'E' : 'B', env.names_[v.func_id_].c_str(),
-                    v.func_id_, v.arg_, i == trace_size - 1 ? ' ' : ',');
+                    (size_t)tlb->additional_->linear_thread_id_,
+                    (v.tick_ - min_val) / 1000.0, v.in_or_out_ ? 'E' : 'B',
+                    env.names_[v.func_id_].c_str(), v.func_id_, v.arg_,
+                    i == trace_size - 1 ? ' ' : ',');
             i++;
         }
         tlb->additional_->trace_.trace_logs_.clear();

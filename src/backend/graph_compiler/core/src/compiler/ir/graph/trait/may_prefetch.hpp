@@ -34,7 +34,7 @@ struct may_prefetch_t : public virtual op_base_trait_t {
      * @return std::vector<int> a vector of input tensor indices
      */
     virtual std::vector<int> query_prefetch(const context_ptr &ctx,
-            bool is_local, const std::vector<tensor_slice> &ins)
+            bool is_global, const std::vector<tensor_slice> &ins)
             = 0;
 
     /**

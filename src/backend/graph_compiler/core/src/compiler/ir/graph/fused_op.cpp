@@ -1862,6 +1862,10 @@ struct inplace_recursion_context_t {
     }
 };
 
+float mixed_fuse_op_t::get_gflop() {
+    return sub_graph_.get_gflop();
+}
+
 std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
 mixed_fuse_op_t::get_inplace_map() {
     std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>> ret;

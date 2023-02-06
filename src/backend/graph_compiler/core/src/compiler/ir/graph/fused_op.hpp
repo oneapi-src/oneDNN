@@ -191,6 +191,7 @@ public:
             const std::vector<int> &indices) override;
     std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
     get_inplace_map() override;
+    float get_gflop() override;
 };
 
 void schedule_loop_body(const stmt &body, node_ptr_map *node_remap = nullptr);

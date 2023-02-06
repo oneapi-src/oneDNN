@@ -50,7 +50,7 @@ struct scflags_t {
     bool print_ir_ = false;
     bool ssa_passes_ = false;
     bool brgemm_use_amx_ = false;
-    bool prefetch_ = false;
+    bool prefetch_ = true;
     bool mixed_fusion_ = true;
     bool use_cost_model_ = true;
     bool debug_info_ = false;

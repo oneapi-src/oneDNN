@@ -1366,6 +1366,27 @@ static bool check_parti_ring_risk(mixed_parti_t *A, mixed_parti_t *B) {
     return false;
 }
 
+static stmts find_last_parallel_for(const stmts &scope, int64_t &out_index) {
+    auto &outer_body = scope.static_as<stmts>()->seq_;
+    int64_t prefetch_insertion_point = -1;
+    if (!outer_body.empty()) {
+        for (int64_t i = outer_body.size() - 1; i >= 0; i--) {
+            auto &s = outer_body[i];
+            if (s.isa<stmts>()) {
+                auto ret = find_last_parallel_for(
+                        s.static_as<stmts>(), out_index);
+                if (ret.defined()) { return ret; }
+            }
+            if (s.isa<for_loop>()
+                    && s.static_as<for_loop>()->kind_ == for_type::PARALLEL) {
+                out_index = i;
+                return scope;
+            }
+        }
+    }
+    return stmts();
+}
+
 /**
  * Check two partition is forked, like
  *            input
@@ -1610,6 +1631,37 @@ static bool try_merge_mixed_parti_parallel_inners(
     SC_MODULE_INFO << "parallel merging two partition:";
     SC_MODULE_INFO << pa_to_merge->func_;
     SC_MODULE_INFO << parti_be_merged->func_;
+
+    // try to add prefetch code
+    if (pa_to_merge->ctx_->flags_.prefetch_) {
+        auto op_first = pa_to_merge->committed_ops_[0];
+        auto op_second = parti_be_merged->committed_ops_[0];
+        if (auto second_prefetch
+                = op_second->dyn_cast<op_traits::may_prefetch_t>()) {
+            int64_t prefetch_insertion_point = -1;
+            auto last_for_parent = find_last_parallel_for(
+                    outer_loops_to_merge[0]->body_.static_as<stmts>(),
+                    prefetch_insertion_point);
+
+            std::vector<tensor_slice> in_slice;
+            in_slice.reserve(op_second->get_inputs().size());
+            for (auto &inp : op_second->get_inputs()) {
+                auto second_in = parti_be_merged->buf_alloc_.g2b_map_.get(inp);
+                in_slice.emplace_back(second_in);
+            }
+            auto prefetch_idx = second_prefetch->query_prefetch(
+                    pa_to_merge->ctx_, false, in_slice);
+            if (prefetch_insertion_point != -1 && !prefetch_idx.empty()) {
+                std::vector<stmt> out_seq;
+                second_prefetch->generate_prefetcher_and_set_idle(
+                        pa_to_merge->ctx_, false, in_slice, prefetch_idx,
+                        out_seq);
+                auto &outer_body = last_for_parent->seq_;
+                outer_body.insert(outer_body.begin() + prefetch_insertion_point,
+                        out_seq.begin(), out_seq.end());
+            }
+        }
+    }
 
     /* * * * * * * * * * * * * * * * *
      * Step 1: Merge func_
