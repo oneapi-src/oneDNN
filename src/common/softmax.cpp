@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,21 +30,31 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
+#define VCHECK_SOFTMAX(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, softmax, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
 namespace {
 status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, const memory_desc_t *diff_src_desc,
         const memory_desc_t *diff_dst_desc, int softmax_axis) {
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-    bool args_ok = !any_null(softmax_desc, dst_desc)
-            && IMPLICATION(is_fwd, src_desc != nullptr)
-            && IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc))
-            && one_of(alg_kind, softmax_accurate, softmax_log)
-            && 0 <= softmax_axis && softmax_axis < dst_desc->ndims
-            && IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any())
-            && IMPLICATION(
-                    !is_fwd, !memory_desc_wrapper(dst_desc).format_any());
-    if (!args_ok) return invalid_arguments;
+    VCHECK_SOFTMAX(!any_null(softmax_desc, dst_desc), VERBOSE_NULL_ARG);
+    VCHECK_SOFTMAX(IMPLICATION(is_fwd, src_desc != nullptr), VERBOSE_NULL_ARG);
+    VCHECK_SOFTMAX(
+            IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc)),
+            VERBOSE_NULL_ARG);
+    VCHECK_SOFTMAX(one_of(alg_kind, softmax_accurate, softmax_log),
+            VERBOSE_BAD_ALGORITHM);
+    VCHECK_SOFTMAX(0 <= softmax_axis && softmax_axis < dst_desc->ndims,
+            VERBOSE_BAD_AXIS);
+    VCHECK_SOFTMAX(
+            IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any()),
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
+    VCHECK_SOFTMAX(
+            IMPLICATION(!is_fwd, !memory_desc_wrapper(dst_desc).format_any()),
+            VERBOSE_UNSUPPORTED_TAG_S, "dst");
 
     bool runtime_dims_or_strides
             = memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides();
@@ -58,7 +68,8 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
     }
-    if (runtime_dims_or_strides) return unimplemented;
+    VCONDCHECK(create, check, softmax, !runtime_dims_or_strides,
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     auto sd = softmax_desc_t();
     sd.primitive_kind = primitive_kind::softmax;
