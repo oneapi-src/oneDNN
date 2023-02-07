@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,10 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::alg_kind;
 
+#define VCHECK_RED(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, reduction, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 
@@ -33,45 +37,51 @@ status_t reduction_desc_init(reduction_desc_t *reduction_desc,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, float p, float eps) {
 
-    bool args_ok = !any_null(src_desc, dst_desc)
-            && src_desc->format_kind != format_kind::any
-            && one_of(alg_kind, reduction_max, reduction_min, reduction_sum,
-                    reduction_mul, reduction_mean, reduction_norm_lp_max,
-                    reduction_norm_lp_sum, reduction_norm_lp_power_p_max,
-                    reduction_norm_lp_power_p_sum)
-            && IMPLICATION(one_of(alg_kind, reduction_norm_lp_max,
+    VCHECK_RED(!any_null(src_desc, dst_desc), VERBOSE_NULL_ARG);
+    VCHECK_RED(src_desc->format_kind != format_kind::any,
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
+    VCHECK_RED(one_of(alg_kind, reduction_max, reduction_min, reduction_sum,
+                       reduction_mul, reduction_mean, reduction_norm_lp_max,
+                       reduction_norm_lp_sum, reduction_norm_lp_power_p_max,
+                       reduction_norm_lp_power_p_sum),
+            VERBOSE_BAD_ALGORITHM);
+    VCHECK_RED(IMPLICATION(one_of(alg_kind, reduction_norm_lp_max,
                                    reduction_norm_lp_sum,
                                    reduction_norm_lp_power_p_max,
                                    reduction_norm_lp_power_p_sum),
-                    p >= 1.0f)
-            && IMPLICATION(one_of(alg_kind, reduction_norm_lp_max,
+                       p >= 1.0f),
+            VERBOSE_BAD_PARAM, "p");
+    VCHECK_RED(IMPLICATION(one_of(alg_kind, reduction_norm_lp_max,
                                    reduction_norm_lp_sum,
                                    reduction_norm_lp_power_p_max,
                                    reduction_norm_lp_power_p_sum),
-                    one_of(src_desc->data_type, data_type::f32, data_type::bf16,
-                            data_type::f16));
-    if (!args_ok) return invalid_arguments;
+                       one_of(src_desc->data_type, data_type::f32,
+                               data_type::bf16, data_type::f16)),
+            VERBOSE_INVALID_DATATYPE, "src");
 
-    if (src_desc->ndims != dst_desc->ndims) return invalid_arguments;
+    VCHECK_RED(src_desc->ndims == dst_desc->ndims, VERBOSE_INCONSISTENT_NDIMS,
+            "src", "dst");
 
     for (auto d = 0; d < src_desc->ndims; ++d) {
         const auto dst_dim_d = dst_desc->dims[d];
-        if (!one_of(dst_dim_d, 1, src_desc->dims[d])) return invalid_arguments;
+        VCHECK_RED(one_of(dst_dim_d, 1, src_desc->dims[d]),
+                VERBOSE_INCONSISTENT_DIM, "src", d, "dst", d);
     }
 
     // reduction primitive doesn't support identity operation
-    if (array_cmp(src_desc->dims, dst_desc->dims, src_desc->ndims))
-        return invalid_arguments;
+    VCHECK_RED(!array_cmp(src_desc->dims, dst_desc->dims, src_desc->ndims),
+            VERBOSE_INCONSISTENT_DIM, "src", -1, "dst", -1);
 
-    if (src_desc->format_kind != format_kind::blocked
-            || !one_of(dst_desc->format_kind, format_kind::blocked,
-                    format_kind::any))
-        return invalid_arguments;
+    VCHECK_RED(src_desc->format_kind == format_kind::blocked,
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
+    VCHECK_RED(one_of(dst_desc->format_kind, format_kind::blocked,
+                       format_kind::any),
+            VERBOSE_UNSUPPORTED_TAG_S, "dst");
 
-    if (src_desc->extra.flags != 0
-            || !IMPLICATION(dst_desc->format_kind == format_kind::blocked,
-                    dst_desc->extra.flags == 0))
-        return invalid_arguments;
+    VCHECK_RED(src_desc->extra.flags == 0, VERBOSE_UNSUPPORTED_MD_FLAG, "src");
+    VCHECK_RED(IMPLICATION(dst_desc->format_kind == format_kind::blocked,
+                       dst_desc->extra.flags == 0),
+            VERBOSE_UNSUPPORTED_MD_FLAG, "dst");
 
     auto rd = reduction_desc_t();
     rd.primitive_kind = primitive_kind::reduction;

@@ -50,6 +50,7 @@
 
 #define VERBOSE_UNSUPPORTED_ISA "unsupported isa"
 #define VERBOSE_UNSUPPORTED_DT "unsupported datatype"
+#define VERBOSE_UNSUPPORTED_MD_FLAG "unsupported %s md flags"
 #define VERBOSE_UNSUPPORTED_ATTR "unsupported attribute"
 #define VERBOSE_UNSUPPORTED_FPMATH_MODE "unsupported fpmath mode"
 #define VERBOSE_UNSUPPORTED_POSTOP "unsupported post-ops"
