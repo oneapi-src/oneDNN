@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,6 +34,10 @@ using namespace dnnl::impl::status;
 namespace dnnl {
 namespace impl {
 
+#define VCHECK_REORDER(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, reorder, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
 namespace {
 engine_t *get_reorder_engine(engine_t *src_engine, engine_t *dst_engine) {
     auto s_ek = src_engine->kind();
@@ -64,27 +68,30 @@ status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
     auto s_ek = src_engine->kind();
     auto d_ek = dst_engine->kind();
 
-    bool args_ok = !memory_desc_wrapper(src_md).format_any()
-            && !memory_desc_wrapper(dst_md).format_any()
-            && IMPLICATION(
-                    s_ek != d_ek, utils::one_of(engine_kind::cpu, s_ek, d_ek));
-    if (!args_ok) return invalid_arguments;
+    VCHECK_REORDER(!memory_desc_wrapper(src_md).format_any(),
+            VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VCHECK_REORDER(!memory_desc_wrapper(dst_md).format_any(),
+            VERBOSE_UNSUPPORTED_TAG_S, "dst");
+    VCHECK_REORDER(IMPLICATION(s_ek != d_ek,
+                           utils::one_of(engine_kind::cpu, s_ek, d_ek)),
+            VERBOSE_BAD_ENGINE_KIND);
 
     auto s_mdw = memory_desc_wrapper(*src_md);
     auto d_mdw = memory_desc_wrapper(*dst_md);
-
-    if (!s_mdw.consistent_with(d_mdw)) return invalid_arguments;
+    VCHECK_REORDER(s_mdw.consistent_with(d_mdw), VERBOSE_INCONSISTENT_MDS,
+            "src", "dst");
 
     if (attr == nullptr) attr = &default_attr();
 
     // Zero points are only allowed for integral data types
     auto zero_points = attr->zero_points_;
-    const bool is_src_zp_ok = types::is_integral_dt(src_md->data_type)
-            || zero_points.has_default_values(DNNL_ARG_SRC);
-    if (!is_src_zp_ok) return status::unimplemented;
-    const bool is_dst_zp_ok = types::is_integral_dt(dst_md->data_type)
-            || zero_points.has_default_values(DNNL_ARG_DST);
-    if (!is_dst_zp_ok) return status::unimplemented;
+    VCHECK_REORDER(IMPLICATION(!types::is_integral_dt(src_md->data_type),
+                           zero_points.has_default_values(DNNL_ARG_SRC)),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
+
+    VCHECK_REORDER(IMPLICATION(!types::is_integral_dt(dst_md->data_type),
+                           zero_points.has_default_values(DNNL_ARG_DST)),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
 
     bool is_cross_engine = src_engine != dst_engine
             && utils::one_of(

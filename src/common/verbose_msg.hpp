@@ -23,6 +23,7 @@
 #define VERBOSE_dispatch "create:dispatch"
 
 #define VERBOSE_NULL_ARG "one of the mandatory arguments is nullptr"
+#define VERBOSE_BAD_ENGINE_KIND "bad engine kind"
 #define VERBOSE_BAD_ALGORITHM "bad algorithm"
 #define VERBOSE_BAD_PROPKIND "bad propagation kind"
 #define VERBOSE_BAD_AXIS "bad axis"
@@ -40,6 +41,7 @@
 #define VERBOSE_INCONSISTENT_NDIMS \
     "tensors %s and %s have inconsistent number of dimensions"
 #define VERBOSE_INCONSISTENT_DT "tensors %s and %s have inconsistent datatypes"
+#define VERBOSE_INCONSISTENT_MDS "inconsistent %s and %s mds"
 #define VERBOSE_INCONSISTENT_ALPHA_BETA \
     "alpha and beta parameters are not properly set"
 #define VERBOSE_INCONSISTENT_PRB "problem is not mathematically consistent"
