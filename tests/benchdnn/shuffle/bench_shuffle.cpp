@@ -29,11 +29,13 @@ namespace shuffle {
 using create_func_t = std::function<int(
         std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, const prb_t *,
         res_t *)>;
+using check_cache_func_t = std::function<int(
+        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, res_t *)>;
 using do_func_t = std::function<int(
         const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &,
         const prb_t *, res_t *)>;
-using driver_task_executor_t
-        = task_executor_t<prb_t, perf_report_t, create_func_t, do_func_t>;
+using driver_task_executor_t = task_executor_t<prb_t, perf_report_t,
+        create_func_t, check_cache_func_t, do_func_t>;
 
 void check_correctness(
         const settings_t &s, driver_task_executor_t &task_executor) {
@@ -50,7 +52,8 @@ void check_correctness(
         const prb_t prb(s.prb_dims, i_dir, i_dt, i_tag, i_axis, i_group, attr,
                 i_ctx_init, i_ctx_exe);
 
-        task_executor.submit(prb, s.perf_template, createit, doit);
+        task_executor.submit(
+                prb, s.perf_template, createit, check_cacheit, doit);
     }
 }
 

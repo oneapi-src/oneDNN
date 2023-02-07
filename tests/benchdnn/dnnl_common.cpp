@@ -53,7 +53,7 @@ extern "C" dnnl_status_t dnnl_impl_gpu_get_profile_info(
         int *num_entries, uint64_t *nsecs, uint64_t *cycles);
 #endif
 
-int check_pd_cache(const_dnnl_primitive_desc_t pd) {
+int check_pd_cache(const_dnnl_primitive_desc_t pd, res_t *res) {
     // Disable this check for stack checker since:
     // * Stack validation is performed with threadpool environment only.
     // * Threadpool is always defined in validation infrastructure, but stack
@@ -66,10 +66,11 @@ int check_pd_cache(const_dnnl_primitive_desc_t pd) {
 #if !defined(DNNL_DISABLE_PRIMITIVE_CACHE) \
         && !defined(DNNL_ENABLE_STACK_CHECKER)
     int capacity = 0;
-    DNN_SAFE(dnnl_get_primitive_cache_capacity(&capacity), CRIT);
+    DNN_SAFE(dnnl_get_primitive_cache_capacity(&capacity), FAIL);
     if (capacity && !dnnl::impl::is_pd_in_cache(pd)) {
-        BENCHDNN_PRINT(0, "error: %s\n",
-                "primitive descriptor is expected to be fetched from "
+        res->state = FAILED;
+        BENCHDNN_PRINT(0, "%s\n",
+                "Error: primitive descriptor is expected to be fetched from "
                 "the primitive cache");
         return FAIL;
     }
@@ -77,15 +78,16 @@ int check_pd_cache(const_dnnl_primitive_desc_t pd) {
     return OK;
 }
 
-int check_primitive_cache(dnnl_primitive_t p) {
+int check_primitive_cache(dnnl_primitive_t p, res_t *res) {
     // See the comment in `check_pd_cache`.
 #if !defined(DNNL_DISABLE_PRIMITIVE_CACHE) \
         && !defined(DNNL_ENABLE_STACK_CHECKER)
     int capacity = 0;
-    DNN_SAFE(dnnl_get_primitive_cache_capacity(&capacity), CRIT);
+    DNN_SAFE(dnnl_get_primitive_cache_capacity(&capacity), WARN);
     if (capacity && !dnnl::impl::is_primitive_in_cache(p)) {
-        BENCHDNN_PRINT(0, "error: %s\n",
-                "primitive is expected to be fetched from the primitive "
+        res->state = FAILED;
+        BENCHDNN_PRINT(0, "%s\n",
+                "Error: primitive is expected to be fetched from the primitive "
                 "cache");
         return FAIL;
     }
@@ -171,19 +173,21 @@ lru_cache_t &get_test_cache() {
     return cache;
 }
 
-int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
-        const_dnnl_primitive_desc_t pd, res_t *res) {
+int test_persistent_cache_api(
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim, res_t *res) {
     if (!is_gpu() || (is_gpu() && DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL)) {
         return OK;
     }
 
+    auto pd = query_pd(prim);
     // Start testing persistent cache API.
     // 1. Disable primitive cache to make sure that the next primitive will
     // be created from the cache blob and not fetched from the primitive cache.
     const auto old_capacity = set_primitive_cache_capacity_without_clearing(0);
     // 2. Get cache blob ID to use it as a key for the `test_cache`.
     std::vector<uint8_t> cache_blob_id;
-    SAFE(get_cache_blob_id(cache_blob_id, pd), WARN);
+    auto st = get_cache_blob_id(cache_blob_id, pd);
+    if (st != OK) return res->state = FAILED, FAIL;
     // 3. Check if a cache blob for the obtained cache blob ID is present in the
     //    `test_cache`.
     //    a) If the cache blob is found the primitive is created from it.
@@ -196,12 +200,13 @@ int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
     if (!cache_value.empty()) {
         const size_t size = cache_value.size();
         const uint8_t *cache_blob = cache_value.data();
-        DNN_SAFE(
-                dnnl_primitive_create_from_cache_blob(&p, pd, size, cache_blob),
-                WARN);
+        auto dnnl_st = dnnl_primitive_create_from_cache_blob(
+                &p, pd, size, cache_blob);
+        if (dnnl_st != dnnl_success) return res->state = FAILED, FAIL;
     } else {
         std::vector<uint8_t> cache_blob;
-        SAFE(get_cache_blob(cache_blob, prim), WARN);
+        st = get_cache_blob(cache_blob, prim);
+        if (st != OK) return res->state = FAILED, FAIL;
 
         // The cross-engine reorder is a special primitive that may contain no
         // kernels therefore the cache blob will always be empty, which is
@@ -217,9 +222,9 @@ int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
             return FAIL;
         }
 
-        DNN_SAFE(dnnl_primitive_create_from_cache_blob(
-                         &p, pd, cache_blob.size(), cache_blob.data()),
-                WARN);
+        auto dnnl_st = dnnl_primitive_create_from_cache_blob(
+                &p, pd, cache_blob.size(), cache_blob.data());
+        if (dnnl_st != dnnl_success) return res->state = FAILED, FAIL;
         cache.add(cache_blob_id, cache_blob);
     }
     prim.reset(p);
@@ -662,6 +667,21 @@ int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res) {
             "ERROR: attributes caused impl fallback from [%s] to [%s]\n",
             pd_no_attr_name.c_str(), res->impl_name.c_str());
     return FAIL;
+}
+
+int check_caches(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw, res_t *res) {
+    if (!primw) return OK;
+
+    // Check primitive descriptor is picked up from the cache if applicable.
+    SAFE(check_pd_cache(query_pd(primw), res), WARN);
+    // Check primitive is picked up from the cache if applicable.
+    SAFE(check_primitive_cache(primw, res), WARN);
+    // Check primitive is picked up from the persistent cache if applicable.
+    // Note: primw get re-written here to put a primitive from cache blob, if
+    // GPU backend is OCL.
+    SAFE(test_persistent_cache_api(primw, res), WARN);
+
+    return OK;
 }
 
 bool is_cpu(const dnnl_engine_t &engine) {

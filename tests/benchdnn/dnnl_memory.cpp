@@ -622,6 +622,7 @@ int dnn_mem_t::initialize(
 
     if (handle_info.is_allocate()) {
         map();
+
         for (int i = 0; i < (int)mapped_ptrs_.size(); i++) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
             size_t sz = dnnl_memory_desc_get_size_v2(md_, i);

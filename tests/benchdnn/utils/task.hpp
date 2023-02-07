@@ -22,12 +22,15 @@
 #include <vector>
 
 template <typename prb_t, typename perf_report_t, typename create_func_t,
-        typename do_func_t>
+        typename check_cache_func_t, typename do_func_t>
 struct task_t {
     task_t(const prb_t &prb, const std::string &perf_template,
-            const create_func_t &create_func, const do_func_t &do_func)
+            const create_func_t &create_func,
+            const check_cache_func_t &check_cache_func,
+            const do_func_t &do_func)
         : prb_(std::move(prb))
         , create_func_(create_func)
+        , check_cache_func_(check_cache_func)
         , do_func_(do_func)
         , perf_template_(perf_template) {}
 
@@ -40,6 +43,15 @@ struct task_t {
         const prb_t *prb = &prb_;
         SAFE(create_func_(*v_prim_, prb, &res_), WARN);
         return OK;
+    }
+
+    // Since task_t doesn't have a control over primitives, it has to pass this
+    // control to a driver which is aware of what primitives should be checked
+    // for being in the cache.
+    int check_cache() {
+        if (!has_bench_mode_bit(mode_bit_t::corr)) return OK;
+
+        return check_cache_func_(*v_prim_, &res_);
     }
 
     int exec() {
@@ -55,6 +67,7 @@ struct task_t {
 private:
     prb_t prb_;
     create_func_t create_func_;
+    check_cache_func_t check_cache_func_;
     do_func_t do_func_;
     std::string perf_template_;
     res_t res_ {};

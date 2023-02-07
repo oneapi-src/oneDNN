@@ -27,9 +27,6 @@
 #include "src/common/float16.hpp"
 #include "src/common/nstl.hpp"
 
-int check_pd_cache(const_dnnl_primitive_desc_t pd);
-int check_primitive_cache(dnnl_primitive_t p);
-
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_debug.hpp"
@@ -74,6 +71,9 @@ int check_primitive_cache(dnnl_primitive_t p);
         dnnl_status_t status__ = f; \
         if (status__ != dnnl_success) { return status__; } \
     } while (0)
+
+int check_pd_cache(const_dnnl_primitive_desc_t pd, res_t *res);
+int check_primitive_cache(dnnl_primitive_t p, res_t *res);
 
 /* aux */
 using bfloat16_t = dnnl::impl::bfloat16_t;
@@ -334,8 +334,8 @@ struct init_pd_args_t {
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
-int test_persistent_cache_api(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim,
-        const_dnnl_primitive_desc_t pd, res_t *res);
+int test_persistent_cache_api(
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim, res_t *res);
 int check_mem_size(const_dnnl_memory_desc_t md, res_t *res);
 int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res);
 
@@ -355,6 +355,7 @@ void skip_unimplemented_sum_po(const attr_t &attr, res_t *res,
 void skip_invalid_inplace(res_t *res, dnnl_data_type_t sdt,
         dnnl_data_type_t ddt, const std::string &stag, const std::string &dtag);
 void skip_unimplemented_arg_scale(const attr_t &attr, res_t *res);
+int check_caches(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw, res_t *res);
 
 // `check_dnnl_status` function is called to validate the result of primitive
 // descriptor creation. Based on the status, it produces additional checks:
@@ -551,14 +552,6 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         SAFE(check_pd_w_and_wo_attr(
                      get_test_engine(), init_pd_func, prb, res, dir, hint),
                 WARN);
-        // Check primitive descriptor is picked up from the cache if applicable.
-        SAFE(check_pd_cache(pd), WARN);
-        // Check primitive is picked up from the cache if applicable.
-        SAFE(check_primitive_cache(primw), WARN);
-        // Check primitive is picked up from the persistent cache if applicable.
-        // TODO: disable persistent cache check for now as it causes a race
-        // condition with other cache checks.
-        // SAFE(test_persistent_cache_api(primw, pd, res), WARN);
     }
 
     user_prim.reset(primw.release());

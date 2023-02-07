@@ -430,6 +430,14 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     return OK;
 }
 
+int check_cacheit(
+        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        res_t *res) {
+    SAFE(check_caches(v_prim[0], res), WARN);
+    if (v_prim[1]) { SAFE(check_caches(v_prim[1], res), WARN); }
+    return OK;
+}
+
 int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
     const auto &prim = prb->dir & FLAG_FWD ? v_prim[0] : v_prim[1];

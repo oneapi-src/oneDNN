@@ -175,6 +175,13 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     SAFE(init_prim(prb->ctx_init, v_prim[0], init_pd, prb, res), WARN);
     return OK;
 }
+
+int check_cacheit(
+        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+        res_t *res) {
+    return check_caches(v_prim[0], res);
+}
+
 int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
     const auto &prim = v_prim[0];

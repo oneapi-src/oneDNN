@@ -27,11 +27,13 @@ namespace reorder {
 using create_func_t = std::function<int(
         std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, const prb_t *,
         res_t *)>;
+using check_cache_func_t = std::function<int(
+        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, res_t *)>;
 using do_func_t = std::function<int(
         const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &,
         const prb_t *, res_t *)>;
-using driver_task_executor_t
-        = task_executor_t<prb_t, perf_report_t, create_func_t, do_func_t>;
+using driver_task_executor_t = task_executor_t<prb_t, perf_report_t,
+        create_func_t, check_cache_func_t, do_func_t>;
 
 void check_correctness(
         const settings_t &s, driver_task_executor_t &task_executor) {
@@ -71,7 +73,8 @@ void check_correctness(
                     i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
                     i_runtime_dim_mask);
 
-            task_executor.submit(prb, s.perf_template, createit, doit);
+            task_executor.submit(
+                    prb, s.perf_template, createit, check_cacheit, doit);
         }
     }
 }
