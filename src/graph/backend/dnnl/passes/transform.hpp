@@ -170,8 +170,6 @@ status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg);
 // - zero points = [0] or [0, ..., 0]
 status_t remove_quant_data_with_no_effect(std::shared_ptr<subgraph_t> &sg);
 
-status_t move_scalar_div_behind_matmul(std::shared_ptr<subgraph_t> &sg);
-
 // This pass will move per_tensor quantize before Reshape and Transpose. So that
 // it can have the opportunity to be fused into computation operators
 impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg);
