@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,22 +29,32 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
+#define VCHECK_SHUFFLE(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, shuffle, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
 namespace {
 status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc, int axis,
         dim_t group_size) {
-    bool args_ok = !any_null(shuffle_desc, src_desc, dst_desc)
-            && one_of(prop_kind, forward_training, forward_inference,
-                    backward_data)
-            && IMPLICATION(prop_kind != backward_data,
-                    src_desc->format_kind != format_kind::any)
-            && axis >= 0 && axis < src_desc->ndims && group_size > 0
-            && group_size <= src_desc->dims[axis];
-    if (!args_ok) return invalid_arguments;
+    VCHECK_SHUFFLE(
+            !any_null(shuffle_desc, src_desc, dst_desc), VERBOSE_NULL_ARG);
+    VCHECK_SHUFFLE(one_of(prop_kind, forward_training, forward_inference,
+                           backward_data),
+            VERBOSE_BAD_PROPKIND);
+    VCHECK_SHUFFLE(IMPLICATION(prop_kind != backward_data,
+                           src_desc->format_kind != format_kind::any),
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
+    VCHECK_SHUFFLE(axis >= 0 && axis < src_desc->ndims, VERBOSE_BAD_AXIS);
+    VCHECK_SHUFFLE(group_size > 0 && group_size <= src_desc->dims[axis],
+            VERBOSE_BAD_PARAM, "group_size");
 
-    if (memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
-            || memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides())
-        return unimplemented;
+    VCONDCHECK(create, check, shuffle,
+            !memory_desc_wrapper(src_desc).has_runtime_dims_or_strides(),
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VCONDCHECK(create, check, shuffle,
+            !memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides(),
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     auto sd = shuffle_desc_t();
     sd.primitive_kind = primitive_kind::shuffle;
@@ -54,10 +64,13 @@ status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
     sd.axis = axis;
     sd.group_size = group_size;
 
-    bool consistency = sd.src_desc.dims[axis] % sd.group_size == 0
-            && sd.dst_desc.ndims == sd.src_desc.ndims
-            && array_cmp(sd.dst_desc.dims, sd.src_desc.dims, sd.src_desc.ndims);
-    if (!consistency) return invalid_arguments;
+    VCHECK_SHUFFLE(sd.src_desc.dims[axis] % sd.group_size == 0,
+            VERBOSE_INCONSISTENT_DIM, "src", axis, "group_size", 0);
+    VCHECK_SHUFFLE(sd.dst_desc.ndims == sd.src_desc.ndims,
+            VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
+    VCHECK_SHUFFLE(
+            array_cmp(sd.dst_desc.dims, sd.src_desc.dims, sd.src_desc.ndims),
+            VERBOSE_INCONSISTENT_DIM, "src", -1, "dst", -1);
 
     *shuffle_desc = sd;
     return success;
@@ -69,8 +82,8 @@ dnnl_status_t dnnl_shuffle_forward_primitive_desc_create(
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, int axis, dim_t group_size,
         const primitive_attr_t *attr) {
-    if (!one_of(prop_kind, forward_training, forward_inference))
-        return invalid_arguments;
+    VCHECK_SHUFFLE(one_of(prop_kind, forward_training, forward_inference),
+            VERBOSE_BAD_PROPKIND);
 
     auto shuffle_desc = shuffle_desc_t();
     CHECK(shuffle_desc_init(
