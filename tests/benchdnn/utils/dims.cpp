@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "utils/dims.hpp"
+#include <algorithm>
 
 int64_t dims_nelems(const dims_t &dims, int ndims, int mask) {
     int64_t nelems = 1;
