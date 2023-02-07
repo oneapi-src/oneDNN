@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,6 +30,10 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
+#define VCHECK_DECONV(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, deconvolution, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__)
+
 namespace {
 status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
@@ -37,11 +41,12 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t dilates, const dims_t padding_l,
         const dims_t padding_r) {
-    bool args_ok = true
-            && !any_null(deconv_desc, src_desc, weights_desc, dst_desc, strides,
-                    padding_l)
-            && one_of(alg_kind, deconvolution_direct, deconvolution_winograd);
-    if (!args_ok) return invalid_arguments;
+    VCHECK_DECONV(!any_null(deconv_desc, src_desc, weights_desc, dst_desc,
+                          strides, padding_l),
+            VERBOSE_NULL_ARG);
+    VCHECK_DECONV(
+            one_of(alg_kind, deconvolution_direct, deconvolution_winograd),
+            VERBOSE_BAD_ALGORITHM);
 
     if (padding_r == nullptr) padding_r = padding_l;
 
@@ -67,7 +72,8 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
     if (with_bias)
         runtime_dims_or_strides = runtime_dims_or_strides
                 || memory_desc_wrapper(bias_desc).has_runtime_dims_or_strides();
-    if (runtime_dims_or_strides) return unimplemented;
+    VCONDCHECK(create, check, deconv, !runtime_dims_or_strides,
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     (prop_kind == backward_data ? dd.diff_src_desc : dd.src_desc) = *src_desc;
     (is_fwd ? dd.dst_desc : dd.diff_dst_desc) = *dst_desc;
@@ -88,18 +94,28 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
 
     dd.accum_data_type = types::default_accum_data_type(src_desc->data_type,
             weights_desc->data_type, dst_desc->data_type, prop_kind);
-    if (dd.accum_data_type == data_type::undef) return invalid_arguments;
+    VCHECK_DECONV(dd.accum_data_type != data_type::undef,
+            VERBOSE_INVALID_DATATYPE, "accumulation");
 
     const int g = with_groups ? weights_desc->dims[0] : 1;
-    bool consistency = true && src_desc->ndims == dst_desc->ndims
-            && utils::one_of(src_desc->ndims, 3, 4, 5)
-            && utils::one_of(
-                    weights_desc->ndims, src_desc->ndims, src_desc->ndims + 1)
-            && (with_bias ? bias_desc->ndims == 1 : true)
-            && (with_bias ? bias_desc->dims[0] == dst_desc->dims[1] : true)
-            && src_desc->dims[0] == dst_desc->dims[0]
-            && src_desc->dims[1] == g * weights_desc->dims[with_groups + 1]
-            && dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0];
+    VCHECK_DECONV(src_desc->ndims == dst_desc->ndims,
+            VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
+    VCHECK_DECONV(utils::one_of(src_desc->ndims, 3, 4, 5), VERBOSE_BAD_NDIMS,
+            "src", src_desc->ndims);
+    VCHECK_DECONV(utils::one_of(weights_desc->ndims, src_desc->ndims,
+                          src_desc->ndims + 1),
+            VERBOSE_INCONSISTENT_NDIMS, "src", "weights");
+    VCHECK_DECONV(IMPLICATION(with_bias, bias_desc->ndims == 1),
+            VERBOSE_BAD_NDIMS, "bias", bias_desc->ndims);
+    VCHECK_DECONV(
+            IMPLICATION(with_bias, bias_desc->dims[0] == dst_desc->dims[1]),
+            VERBOSE_INCONSISTENT_DIM, "bias", 0, "dst", 1);
+    VCHECK_DECONV(src_desc->dims[0] == dst_desc->dims[0],
+            VERBOSE_INCONSISTENT_DIM, "src", 0, "dst", 0);
+    VCHECK_DECONV(src_desc->dims[1] == g * weights_desc->dims[with_groups + 1],
+            VERBOSE_INCONSISTENT_DIM, "src", 1, "weights", with_groups + 1);
+    VCHECK_DECONV(dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0],
+            VERBOSE_INCONSISTENT_DIM, "dst", 1, "weights", with_groups + 0);
     for (int i = 2; i < src_desc->ndims; ++i) {
         int src = src_desc->dims[i];
         int ker = weights_desc->dims[with_groups + i];
@@ -110,11 +126,12 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
         int dst = dst_desc->dims[i];
         int ker_range = 1 + (ker - 1) * (dil + 1);
 
-        if (str < 1) return invalid_arguments;
-        consistency = consistency && dil >= 0 && pad_l >= 0 && pad_r + str > 0
-                && (dst - ker_range + pad_l + pad_r) / str + 1 == src;
+        VCHECK_DECONV(str > 0, VERBOSE_BAD_DIM, "strides", i - 2);
+        VCHECK_DECONV(dil >= 0 && pad_l >= 0 && pad_r + str > 0,
+                VERBOSE_INCONSISTENT_PRB);
+        VCHECK_DECONV((dst - ker_range + pad_l + pad_r) / str + 1 == src,
+                VERBOSE_INCONSISTENT_PRB);
     }
-    if (!consistency) return invalid_arguments;
 
     *deconv_desc = dd;
     return success;
