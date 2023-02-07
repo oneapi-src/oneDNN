@@ -74,9 +74,9 @@
 #bert-base-ner.int8.ov.mb128.log
 --reset --allow-enum-tags-only=0 --cfg=u8s8f16 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+mul:f32:per_dim_0 mb16384ic768ih1iw1oc768n"bert-base-ner.int8.ov.mb128.log*24"
 --reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+mul:f32:per_dim_0+linear:2:1 mb16384ic768ih1iw1oc768n"bert-base-ner.int8.ov.mb128.log*6"
---reset --allow-enum-tags-only=0 --cfg=u8s8f32 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_1:abcd mb16384ic768ih1iw1oc768n"bert-base-ner.int8.ov.mb128.log*12"
+--reset --allow-enum-tags-only=0 --cfg=u8s8f32 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_1:ab mb16384ic768ih1iw1oc768n"bert-base-ner.int8.ov.mb128.log*12"
 --reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+mul:f32:per_dim_0+gelu_tanh+linear:2:1 mb16384ic768ih1iw1oc3072n"bert-base-ner.int8.ov.mb128.log*3"
---reset --allow-enum-tags-only=0 --cfg=u8s8f32 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_1:abcd mb16384ic3072ih1iw1oc768n"bert-base-ner.int8.ov.mb128.log*12"
+--reset --allow-enum-tags-only=0 --cfg=u8s8f32 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+mul:f32:per_dim_0+add:f16:per_dim_1:ab mb16384ic3072ih1iw1oc768n"bert-base-ner.int8.ov.mb128.log*12"
 --reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+mul:f32:per_dim_0+linear:2:1 mb16384ic768ih1iw1oc768n"bert-base-ner.int8.ov.mb128.log*5"
 --reset --allow-enum-tags-only=0 --cfg=u8s8u8 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+mul:f32:per_dim_0+gelu_tanh+linear:2:1 mb16384ic768ih1iw1oc3072n"bert-base-ner.int8.ov.mb128.log*9"
 --reset --allow-enum-tags-only=0 --cfg=u8s8s8 --dir=FWD_I --stag=abcd --wtag=abcd --dtag=ab --attr-post-ops=mul:f32:per_dim_0+mul:f32:per_dim_0+linear:2:1 mb16384ic768ih1iw1oc768n"bert-base-ner.int8.ov.mb128.log*1"

@@ -26,7 +26,6 @@ void compute_ref(
     const dnn_mem_t &dst = args.find(DNNL_ARG_TO);
     const dnn_mem_t &s8_comp = args.find(DNNL_ARG_SRC_1);
     const dnn_mem_t &zp_comp = args.find(DNNL_ARG_SRC_2);
-
     const dnn_mem_t &src_scales
             = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
     const dnn_mem_t &dst_scales
@@ -92,9 +91,6 @@ void compute_ref(
 
     if (!need_comp) return;
 
-    int *s8_comp_ptr = (int *)s8_comp;
-    int *zp_comp_ptr = (int *)zp_comp;
-
     // mostly following benchdnn/ref_reduction.cpp/compute_ref
     const auto nelems_s8_comp = s8_comp.nelems();
     const auto nelems_zp_comp = zp_comp.nelems();
@@ -151,9 +147,9 @@ void compute_ref(
             const float value = src.get_elem(src_off) * alpha * s8_scale_factor;
             comp_val -= maybe_saturate(dst_dt, value);
         }
-        if (need_zp_comp) zp_comp_ptr[f] = comp_val;
+        if (need_zp_comp) zp_comp.set_elem(f, comp_val);
         comp_val *= 128;
-        if (need_s8_comp) s8_comp_ptr[f] = comp_val;
+        if (need_s8_comp) s8_comp.set_elem(f, comp_val);
     });
 }
 

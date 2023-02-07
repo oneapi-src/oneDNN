@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,11 +50,17 @@ const_dnnl_primitive_desc_t query_pd(dnnl_primitive_t prim);
 
 dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine);
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+dnnl_sparse_encoding_t query_md_sparse_encoding(const_dnnl_memory_desc_t md);
+dnnl_dim_t query_md_nnz(const_dnnl_memory_desc_t md);
+#endif
+int query_md_num_handles(const_dnnl_memory_desc_t md);
 int query_md_ndims(const_dnnl_memory_desc_t md);
 int query_md_inner_nblks(const_dnnl_memory_desc_t md);
 
 dnnl_dim_t query_md_submemory_offset(const_dnnl_memory_desc_t md);
-dnnl_data_type_t query_md_data_type(const_dnnl_memory_desc_t md);
+dnnl_data_type_t query_md_data_type(
+        const_dnnl_memory_desc_t md, int buffer_index = 0);
 dnnl_format_kind_t query_md_format_kind(const_dnnl_memory_desc_t md);
 
 const dnnl_dims_t &query_md_dims(const_dnnl_memory_desc_t md);

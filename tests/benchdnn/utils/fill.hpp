@@ -22,6 +22,8 @@
 
 int fill_scales(
         const attr_t &attr, int arg, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp);
+int fill_scales(const attr_t::arg_scales_t::entry_t &e, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp);
 
 int fill_zero_points(
         const attr_t &attr, int arg, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp);

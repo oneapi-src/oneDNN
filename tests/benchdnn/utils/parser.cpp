@@ -122,6 +122,33 @@ bool parse_tag(std::vector<std::string> &tag,
     return true;
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+bool parse_encoding(std::vector<dnnl_sparse_encoding_t> &encoding,
+        const std::vector<dnnl_sparse_encoding_t> &def_encoding,
+        const char *str, const std::string &option_name /* = "encoding"*/) {
+    static const std::string help
+            = "ENCODING    (Default: `undef`)\n Specifies memory sparse "
+              "encoding `ENCODING` for source, weights, or destination.\n    "
+              "Valid `ENCODING` values can be found at "
+            + doc_url + "knobs_encoding.md\n";
+
+    return parse_vector_option(encoding, def_encoding, str2sparse_encoding, str,
+            option_name, help);
+}
+
+bool parse_sparsity(std::vector<float> &sparsity,
+        const std::vector<float> &def_sparsity, const char *str,
+        const std::string &option_name /* = "sparsity"*/) {
+    static const std::string help
+            = "SPARSITY    (Default: `0.9`)\n    Specifies sparsity of a "
+              "sparse tensor. Sparsity equal to one means all values are "
+              "zeros, sparsity of 0 means all values are non-zeros.\n";
+
+    return parse_vector_option(
+            sparsity, def_sparsity, atof, str, option_name, help);
+}
+#endif
+
 bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
         const std::vector<std::vector<std::string>> &def_tag, const char *str,
         const std::string &option_name /* = "stag"*/) {
@@ -364,34 +391,15 @@ void parse_prb_vdims(
         exit(1);
     }
 
-    parse_multivector_str(
-            prb_vdims.vdims, {dims_t()}, atoi, vdims_str, ':', 'x');
+    std::string name;
+    if (start_pos != eol) name = str.substr(start_pos);
 
+    vdims_t vdims;
+    parse_multivector_str(vdims, {dims_t()}, atoi, vdims_str, ':', 'x');
     // Expect at least two inputs provided
-    SAFE_V(prb_vdims.vdims.size() >= min_inputs ? OK : FAIL);
+    SAFE_V(vdims.size() >= min_inputs ? OK : FAIL);
 
-    prb_vdims.ndims = static_cast<int>(prb_vdims.vdims[0].size());
-    // If second and consecutive inputs are provided with less dimensions
-    // (ndims0 > ndims1), then fill these tensors with ones to match ndims,
-    // e.g., 8x3x5:8 -> 8x3x5:8x1x1
-    // We put this implicit broadcast feature on parser since `ndims` would be
-    // set next and can't be updated by driver, but `ndims` mismatch triggers
-    // the library `invalid_arguments` error.
-    for (int i = 1; i < prb_vdims.n_inputs(); i++)
-        if (prb_vdims.ndims > static_cast<int>(prb_vdims.vdims[i].size()))
-            prb_vdims.vdims[i].resize(prb_vdims.ndims, 1);
-
-    prb_vdims.dst_dims = prb_vdims.vdims[0];
-    for_(int i = 1; i < prb_vdims.n_inputs(); i++)
-    for (int d = 0; d < prb_vdims.ndims; ++d) {
-        bool has_zero_dim
-                = prb_vdims.dst_dims[d] == 0 || prb_vdims.vdims[i][d] == 0;
-        prb_vdims.dst_dims[d] = has_zero_dim
-                ? 0
-                : std::max(prb_vdims.dst_dims[d], prb_vdims.vdims[i][d]);
-    }
-
-    if (start_pos != eol) prb_vdims.name = str.substr(start_pos);
+    prb_vdims = prb_vdims_t(vdims, name);
 }
 
 void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str) {

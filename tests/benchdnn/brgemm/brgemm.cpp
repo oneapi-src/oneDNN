@@ -425,8 +425,11 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t acc_dt(acc_md, test_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     dnn_mem_t bia_dt;
-    if (prb->bia_dt != dnnl_data_type_undef)
+    const char *bia_dt_ptr = nullptr;
+    if (prb->bia_dt != dnnl_data_type_undef) {
         bia_dt = dnn_mem_t(bia_md, test_engine);
+        bia_dt_ptr = (const char *)bia_dt;
+    }
 
     dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, ref_engine);
     dnn_mem_t wei_fp(wei_md, dnnl_f32, tag::abx, ref_engine);
@@ -544,7 +547,7 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     brgemm_post_ops_data_t post_ops_data(
-            /* bias */ (const char *)bia_dt,
+            /* bias */ bia_dt_ptr,
             /* scales */ scales_ptr, /* binary_post_ops_rhs */ nullptr,
             /* oc_logical_off */ 0, /* dst_row_logical_off */ 0,
             /* data_C_ptr_ */ acc_ptr, /* first_mb_matrix_addr_off */ 0,

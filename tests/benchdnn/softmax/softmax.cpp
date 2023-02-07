@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <random>
 
 #include <float.h>
@@ -140,7 +141,8 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
             i = 0;
             for (int64_t as = 0; as < axis_size; as++) {
                 auto offset = inner_size * (idx * axis_size + as) + in;
-                float value = INT_MIN;
+                float value
+                        = std::max(lowest_dt(mem_dt.dt()), lowest_dt(prb->ddt));
                 if (as >= axis_idx_start && as < axis_idx_start + n_sum) {
                     value = top_val[i];
                     n_top[i]--;
