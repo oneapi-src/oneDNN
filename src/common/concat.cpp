@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,50 +32,68 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 
+#define VCHECK_CONCAT(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, concat, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 
 status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
         engine_t *engine, const memory_desc_t *dst_md, int n, int concat_dim,
         const memory_desc_t *const *src_mds, const primitive_attr_t *attr) {
-
-    bool args_ok = !any_null(src_mds) && n > 0;
-    if (!args_ok) return invalid_arguments;
+    VCHECK_CONCAT(!any_null(src_mds) && n > 0, VERBOSE_NULL_ARG);
 
     if (attr == nullptr) attr = &default_attr();
 
     const int ndims = src_mds[0]->ndims;
     const dims_t &dims = src_mds[0]->dims;
     const data_type_t dt = src_mds[0]->data_type;
-    if (memory_desc_wrapper(src_mds[0]).has_runtime_dims_or_strides())
-        return unimplemented;
+    VCONDCHECK(create, check, concat,
+            !memory_desc_wrapper(src_mds[0]).has_runtime_dims_or_strides(),
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     int concat_dim_sz = dims[concat_dim];
-    if (memory_desc_wrapper(src_mds[0]).format_any()) return invalid_arguments;
+    VCHECK_CONCAT(!memory_desc_wrapper(src_mds[0]).format_any(),
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
+
+#define SRC2STR(i) (std::string("src_") + std::to_string(i)).c_str()
     for (int i = 1; i < n; ++i) {
         const memory_desc_t &src_md = *src_mds[i];
-        if (src_md.ndims != ndims || memory_desc_wrapper(src_md).format_any())
-            return invalid_arguments;
-        if (memory_desc_wrapper(src_md).has_runtime_dims_or_strides())
-            return unimplemented;
+        VCHECK_CONCAT(src_md.ndims == ndims, VERBOSE_INCONSISTENT_NDIMS,
+                "src_0", SRC2STR(i));
+        VCHECK_CONCAT(!memory_desc_wrapper(src_md).format_any(),
+                VERBOSE_UNSUPPORTED_TAG_S, SRC2STR(i));
+        VCONDCHECK(create, check, concat,
+                !memory_desc_wrapper(src_md).has_runtime_dims_or_strides(),
+                status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
         for (int d = 0; d < ndims; ++d) {
             if (d == concat_dim) continue;
-            if (src_md.dims[d] != dims[d]) return invalid_arguments;
+            VCHECK_CONCAT(src_md.dims[d] == dims[d], VERBOSE_INCONSISTENT_DIM,
+                    "src_0", d, SRC2STR(i), d);
         }
-        if (src_md.data_type != dt) return invalid_arguments;
+        VCHECK_CONCAT(src_md.data_type == dt, VERBOSE_INCONSISTENT_DT, "src_0",
+                SRC2STR(i));
         concat_dim_sz += src_md.dims[concat_dim];
     }
+#undef SRC2STR
 
     memory_desc_t dummy_dst_md;
     if (dst_md) {
-        if (dst_md->ndims != ndims) return invalid_arguments;
-        if (memory_desc_wrapper(dst_md).has_runtime_dims_or_strides())
-            return unimplemented;
-        for (int d = 0; d < ndims; ++d) {
-            if (dst_md->dims[d] != (d == concat_dim ? concat_dim_sz : dims[d]))
-                return invalid_arguments;
-        }
+        VCHECK_CONCAT(dst_md->ndims == ndims, VERBOSE_INCONSISTENT_NDIMS,
+                "src_0", "dst");
+        VCHECK_CONCAT(
+                !memory_desc_wrapper(dst_md).has_runtime_dims_or_strides(),
+                VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+        for (int d = 0; d < ndims; ++d)
+            if (d == concat_dim) {
+                VCHECK_CONCAT(dst_md->dims[d] == concat_dim_sz, VERBOSE_BAD_DIM,
+                        "dst", d);
+            } else {
+                VCHECK_CONCAT(dst_md->dims[d] == dims[d],
+                        VERBOSE_INCONSISTENT_DIM, "src_0", d, "dst", d);
+            }
     } else {
         dummy_dst_md = *src_mds[0];
         dummy_dst_md.dims[concat_dim] = concat_dim_sz;

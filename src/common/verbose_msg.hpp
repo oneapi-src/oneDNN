@@ -38,6 +38,7 @@
 #define VERBOSE_INCONSISTENT_DIM "dimension %s:%d is inconsistent with %s:%d"
 #define VERBOSE_INCONSISTENT_NDIMS \
     "tensors %s and %s have inconsistent number of dimensions"
+#define VERBOSE_INCONSISTENT_DT "tensors %s and %s have inconsistent datatypes"
 #define VERBOSE_INCONSISTENT_ALPHA_BETA \
     "alpha and beta parameters are not properly set"
 #define VERBOSE_INCONSISTENT_PRB "problem is not mathematically consistent"
