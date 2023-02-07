@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,28 +30,38 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
+#define VCHECK_BINARY(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, binary, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
 status_t dnnl_binary_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
         alg_kind_t alg_kind, const memory_desc_t *src0_md,
         const memory_desc_t *src1_md, const memory_desc_t *dst_md,
         const primitive_attr_t *attr) {
-    bool args_ok = !any_null(src0_md, src1_md, dst_md)
-            && one_of(alg_kind, binary_add, binary_mul, binary_max, binary_min,
+    VCHECK_BINARY(!any_null(src0_md, src1_md, dst_md), VERBOSE_NULL_ARG);
+    VCHECK_BINARY(
+            one_of(alg_kind, binary_add, binary_mul, binary_max, binary_min,
                     binary_div, binary_sub, binary_ge, binary_gt, binary_le,
-                    binary_lt, binary_eq, binary_ne)
-            // TODO - Add support for mutual or bi-directional broadcasts
-            && !memory_desc_wrapper(src0_md).format_any();
-    if (!args_ok) return invalid_arguments;
+                    binary_lt, binary_eq, binary_ne),
+            VERBOSE_BAD_ALGORITHM);
+    // TODO - Add support for mutual or bi-directional broadcasts
+    VCHECK_BINARY(!memory_desc_wrapper(src0_md).format_any(),
+            VERBOSE_UNSUPPORTED_TAG_S, "src0");
 
     auto bod = binary_desc_t();
     bod.primitive_kind = primitive_kind::binary;
     bod.alg_kind = alg_kind;
 
-    bool runtime_dims_or_strides
-            = memory_desc_wrapper(src0_md).has_runtime_dims_or_strides()
-            || memory_desc_wrapper(src1_md).has_runtime_dims_or_strides()
-            || memory_desc_wrapper(dst_md).has_runtime_dims_or_strides();
-    if (runtime_dims_or_strides) return unimplemented;
+    VCONDCHECK(create, check, binary,
+            !memory_desc_wrapper(src0_md).has_runtime_dims_or_strides(),
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VCONDCHECK(create, check, binary,
+            !memory_desc_wrapper(src1_md).has_runtime_dims_or_strides(),
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VCONDCHECK(create, check, binary,
+            !memory_desc_wrapper(dst_md).has_runtime_dims_or_strides(),
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     bod.src_desc[0] = *src0_md;
     bod.src_desc[1] = *src1_md;
@@ -60,15 +70,19 @@ status_t dnnl_binary_primitive_desc_create(
     const int ndims = dst_md->ndims;
     const dims_t &dims = dst_md->dims;
 
-    if (!(src0_md->ndims == ndims && src1_md->ndims == ndims))
-        return invalid_arguments;
+    VCHECK_BINARY(
+            src0_md->ndims == ndims, VERBOSE_INCONSISTENT_NDIMS, "src0", "dst");
+    VCHECK_BINARY(
+            src1_md->ndims == ndims, VERBOSE_INCONSISTENT_NDIMS, "src1", "dst");
     for (int d = 0; d < ndims; ++d) {
         //dims must equal eachother or equal 1 (broadcast)
-        const bool ok = utils::one_of(src0_md->dims[d], 1, dims[d])
-                && utils::one_of(src1_md->dims[d], 1, dims[d])
-                && IMPLICATION(src0_md->dims[d] != dims[d],
-                        src1_md->dims[d] == dims[d]);
-        if (!ok) return invalid_arguments;
+        VCHECK_BINARY(utils::one_of(src0_md->dims[d], 1, dims[d]),
+                VERBOSE_BAD_DIM, "src0", d);
+        VCHECK_BINARY(utils::one_of(src1_md->dims[d], 1, dims[d]),
+                VERBOSE_BAD_DIM, "src1", d);
+        VCHECK_BINARY(IMPLICATION(src0_md->dims[d] != dims[d],
+                              src1_md->dims[d] == dims[d]),
+                VERBOSE_INCONSISTENT_DIM, "src1", d, "dst", d);
     }
 
     return primitive_desc_create(primitive_desc_iface, engine,
