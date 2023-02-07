@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
+
 #include "utils/dims.hpp"
 
 int64_t dims_nelems(const dims_t &dims, int ndims, int mask) {
