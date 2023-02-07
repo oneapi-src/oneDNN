@@ -58,6 +58,13 @@ static void set_mlp_dynamic_parti_ltsrs(std::vector<int64_t> batch_sizes,
     parti_inputs[0].dims[0] = batch_sizes[iteration];
 }
 
+static void set_bart_mha_dynamic_parti_ltsrs(std::vector<int64_t> seq_lengths,
+        int iteration, ltsr_vec &parti_inputs) {
+    parti_inputs[0].dims[1] = seq_lengths[iteration];
+    parti_inputs[1].dims[2] = seq_lengths[iteration];
+    parti_inputs[2].dims[1] = seq_lengths[iteration];
+}
+
 static void compile_execution_pipeline(impl::graph_t &agraph,
         int expected_part_size,
         std::function<void(int, ltsr_vec &)> dynamic_callback = nullptr,
@@ -472,6 +479,94 @@ TEST(GCGraphTest, INT8BF16DistillBertMHACompileExecution) {
     agraph.build_graph();
 
     compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, FP32BartMHACompileExecution) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, false, false);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, BF16BartMHACompileExecution) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, true, false);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BartMHACompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, false, true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, INT8BF16BartMHACompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, true, true);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1);
+}
+
+TEST(GCGraphTest, FP32BartMHADynamicCompileExecution) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, false, false, 1, -2);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_bart_mha_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {1, 6, 20}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
+}
+
+TEST(GCGraphTest, BF16BartMHADynamicCompileExecution) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, true, false, 1, -2);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_bart_mha_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {1, 6, 20}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
+}
+
+TEST(GCGraphTest, INT8BartMHADynamicCompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, false, true, 1, -2);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_bart_mha_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {1, 6, 20}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
+}
+
+TEST(GCGraphTest, INT8BF16BartMHADynamicCompileExecution) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_bart_MHA(&agraph, true, true, 1, -2);
+    agraph.build_graph();
+
+    compile_execution_pipeline(agraph, 1,
+            std::bind(set_bart_mha_dynamic_parti_ltsrs,
+                    std::vector<int64_t> {1, 6, 20}, std::placeholders::_1,
+                    std::placeholders::_2),
+            3);
 }
 
 TEST(GCGraphTest, FP32DistillBertMHACompileExecution2) {

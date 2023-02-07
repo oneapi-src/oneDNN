@@ -3308,6 +3308,230 @@ inline void construct_instance_norm_subgraph(impl::graph_t &agraph,
     }
 }
 
+inline void add_bart_MHA(impl::graph_t *agraph, bool use_bf16 = false,
+        bool use_int8 = false, int batch_size = 1, int seq_len = 6,
+        int num_head = 12, int head_dim = 768) {
+    size_t logical_tensor_idx = 0;
+    size_t op_idx = 0;
+    int batch_dim = batch_size * num_head;
+    int size_per_head = head_dim / num_head;
+    std::vector<impl::dim_t> QKV_TRANSPOSED_SHAPE {
+            batch_dim, seq_len, size_per_head};
+    std::vector<impl::dim_t> KEY_TRANSPOSED_SHAPE {
+            batch_dim, size_per_head, seq_len};
+    std::vector<impl::dim_t> MATMUL_QK_OUTPUT_SHAPE {
+            batch_dim, seq_len, seq_len};
+    std::vector<impl::dim_t> MATMUL_V_OUTPUT_SHAPE {
+            batch_dim, seq_len, size_per_head};
+    auto dtype = use_bf16 ? impl::data_type::bf16 : impl::data_type::f32;
+
+    impl::logical_tensor_t query_dequantize_input, key_dequantize_input,
+            value_dequantize_input;
+    query_dequantize_input = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, impl::data_type::u8);
+    key_dequantize_input = utils::logical_tensor_init(
+            logical_tensor_idx++, KEY_TRANSPOSED_SHAPE, impl::data_type::u8);
+    value_dequantize_input = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, impl::data_type::u8);
+
+    impl::logical_tensor_t query_typecast_input, key_typecast_input,
+            value_typecast_input;
+    query_typecast_input = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, impl::data_type::f32);
+    key_typecast_input = utils::logical_tensor_init(
+            logical_tensor_idx++, KEY_TRANSPOSED_SHAPE, impl::data_type::f32);
+    value_typecast_input = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, impl::data_type::f32);
+
+    impl::logical_tensor_t query_matmul_input, key_matmul_input,
+            value_matmul_input;
+    query_matmul_input = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, dtype);
+    key_matmul_input = utils::logical_tensor_init(
+            logical_tensor_idx++, KEY_TRANSPOSED_SHAPE, dtype);
+    value_matmul_input = utils::logical_tensor_init(
+            logical_tensor_idx++, QKV_TRANSPOSED_SHAPE, dtype);
+
+    impl::logical_tensor_t matmul_qk_out;
+    matmul_qk_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t softmax_out;
+    softmax_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t softmax_cast_out;
+    softmax_cast_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, impl::data_type::f32);
+
+    impl::logical_tensor_t softmax_quantize_out;
+    softmax_quantize_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, impl::data_type::u8);
+    impl::logical_tensor_t softmax_dequantize_out;
+    softmax_dequantize_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_QK_OUTPUT_SHAPE, impl::data_type::f32);
+
+    impl::logical_tensor_t softmax_dequantize_out_cast;
+    softmax_dequantize_out_cast
+            = utils::logical_tensor_init(logical_tensor_idx++,
+                    MATMUL_QK_OUTPUT_SHAPE, impl::data_type::bf16);
+
+    impl::logical_tensor_t matmul_v_out;
+    matmul_v_out = utils::logical_tensor_init(
+            logical_tensor_idx++, MATMUL_V_OUTPUT_SHAPE, dtype);
+
+    impl::logical_tensor_t context_cast_out;
+    context_cast_out = utils::logical_tensor_init(
+            logical_tensor_idx++, impl::data_type::f32);
+
+    impl::logical_tensor_t context_quantize_out;
+    context_quantize_out = utils::logical_tensor_init(
+            logical_tensor_idx++, impl::data_type::u8);
+
+    impl::op_t dequantize_query {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_query"};
+    dequantize_query.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_query.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_query.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_query.set_attr(impl::op_attr::axis, (int64_t)0);
+    impl::op_t dequantize_key {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_key"};
+    dequantize_key.set_attr(impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_key.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_key.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_key.set_attr(impl::op_attr::axis, (int64_t)0);
+    impl::op_t dequantize_value {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_value"};
+    dequantize_value.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_value.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_value.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_value.set_attr(impl::op_attr::axis, (int64_t)0);
+    impl::op_t typecast_query {
+            op_idx++, impl::op_kind::TypeCast, "typecast_query"};
+    impl::op_t typecast_key {op_idx++, impl::op_kind::TypeCast, "typecast_key"};
+    impl::op_t typecast_value {
+            op_idx++, impl::op_kind::TypeCast, "typecast_value"};
+
+    impl::op_t matmul_qk {op_idx++, impl::op_kind::MatMul, "matmul_qk"};
+    impl::op_t softmax {op_idx++, impl::op_kind::SoftMax, "softmax"};
+    softmax.set_attr(impl::op_attr::axis, (int64_t)2);
+
+    impl::op_t softmax_cast {op_idx++, impl::op_kind::TypeCast, "softmax_cast"};
+    impl::op_t quantize_softmax {
+            op_idx++, impl::op_kind::Quantize, "quantize_softmax"};
+    quantize_softmax.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_softmax.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+    impl::op_t dequantize_softmax {
+            op_idx++, impl::op_kind::Dequantize, "dequantize_softmax"};
+    dequantize_softmax.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_softmax.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_softmax.set_attr(
+            impl::op_attr::qtype, std::string("per_tensor"));
+    dequantize_softmax.set_attr(impl::op_attr::axis, (int64_t)0);
+
+    impl::op_t dequantize_softmax_cast {
+            op_idx++, impl::op_kind::TypeCast, "dequantize_softmax_cast"};
+
+    impl::op_t matmul_v {op_idx++, impl::op_kind::MatMul, "matmul_v"};
+    impl::op_t typecast_output {
+            op_idx++, impl::op_kind::TypeCast, "typecast_output"};
+    impl::op_t quantize_output {
+            op_idx++, impl::op_kind::Quantize, "quantize_output"};
+    quantize_output.set_attr(
+            impl::op_attr::scales, std::vector<float>({0.12f}));
+    quantize_output.set_attr(impl::op_attr::zps, std::vector<int64_t>({2}));
+    quantize_output.set_attr(impl::op_attr::qtype, std::string("per_tensor"));
+    quantize_output.set_attr(impl::op_attr::axis, (int64_t)0);
+
+    if (use_int8) {
+        dequantize_query.add_input(query_dequantize_input);
+        dequantize_key.add_input(key_dequantize_input);
+        dequantize_value.add_input(value_dequantize_input);
+        if (!use_bf16) {
+            dequantize_query.add_output(query_matmul_input);
+            dequantize_key.add_output(key_matmul_input);
+            dequantize_value.add_output(value_matmul_input);
+        } else {
+            dequantize_query.add_output(query_typecast_input);
+            dequantize_key.add_output(key_typecast_input);
+            dequantize_value.add_output(value_typecast_input);
+            typecast_query.add_input(query_typecast_input);
+            typecast_key.add_input(key_typecast_input);
+            typecast_value.add_input(value_typecast_input);
+            typecast_query.add_output(query_matmul_input);
+            typecast_key.add_output(key_matmul_input);
+            typecast_value.add_output(value_matmul_input);
+        }
+    }
+    matmul_qk.add_input(query_matmul_input);
+    matmul_qk.add_input(key_matmul_input);
+    matmul_qk.add_output(matmul_qk_out);
+    softmax.add_input(matmul_qk_out);
+    softmax.add_output(softmax_out);
+    if (use_int8) {
+        quantize_softmax.add_output(softmax_quantize_out);
+        dequantize_softmax.add_input(softmax_quantize_out);
+        dequantize_softmax.add_output(softmax_dequantize_out);
+        if (!use_bf16) {
+            quantize_softmax.add_input(softmax_out);
+            matmul_v.add_input(softmax_dequantize_out);
+        } else {
+            softmax_cast.add_input(softmax_out);
+            softmax_cast.add_output(softmax_cast_out);
+            quantize_softmax.add_input(softmax_cast_out);
+            dequantize_softmax_cast.add_input(softmax_dequantize_out);
+            dequantize_softmax_cast.add_output(softmax_dequantize_out_cast);
+            matmul_v.add_input(softmax_dequantize_out_cast);
+        }
+    } else {
+        matmul_v.add_input(softmax_out);
+    }
+    matmul_v.add_input(value_matmul_input);
+    matmul_v.add_output(matmul_v_out);
+    if (use_int8) {
+        quantize_output.add_output(context_quantize_out);
+        if (!use_bf16) {
+            quantize_output.add_input(matmul_v_out);
+        } else {
+            typecast_output.add_input(matmul_v_out);
+            typecast_output.add_output(context_cast_out);
+            quantize_output.add_input(context_cast_out);
+        }
+    }
+
+    if (use_int8) {
+        agraph->add_op(&dequantize_query);
+        agraph->add_op(&dequantize_key);
+        agraph->add_op(&dequantize_value);
+        if (use_bf16) {
+            agraph->add_op(&typecast_query);
+            agraph->add_op(&typecast_key);
+            agraph->add_op(&typecast_value);
+        }
+    }
+    agraph->add_op(&matmul_qk);
+    agraph->add_op(&softmax);
+    if (use_int8) {
+        agraph->add_op(&quantize_softmax);
+        agraph->add_op(&dequantize_softmax);
+        if (use_bf16) {
+            agraph->add_op(&softmax_cast);
+            agraph->add_op(&dequantize_softmax_cast);
+        }
+    }
+    agraph->add_op(&matmul_v);
+    if (use_int8) {
+        agraph->add_op(&quantize_output);
+        if (use_bf16) { agraph->add_op(&typecast_output); }
+    }
+}
+
 } // namespace utils
 } // namespace compiler
 } // namespace unit
