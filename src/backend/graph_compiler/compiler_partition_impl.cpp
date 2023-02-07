@@ -165,6 +165,8 @@ impl::status_t compiler_partition_impl_t::compile(
             inputs_map[in_lt.id] = in_ret;
             sc_inputs.emplace_back(in_ret);
             in_ret->attrs_.set("unique_id", id++);
+            in_ret->attrs_.set(
+                    "temp.name", "logical_tensor_" + std::to_string(in_lt.id));
         }
         if (is_dynamic) {
             dyn_inputs.resize(inputs.size());
@@ -225,6 +227,8 @@ impl::status_t compiler_partition_impl_t::compile(
                     auto out_ret
                             = sub_graph.make_output({ret->get_outputs()[i]});
                     out_ret->attrs_.set("unique_id", id++);
+                    out_ret->attrs_.set("temp.name",
+                            "logical_tensor_" + std::to_string(lt.id));
                     sc::sc_data_format_t output_format
                             = out_ret->get_inputs()[0]->details_.get_format();
                     sc::sc_dims output_strides
@@ -252,6 +256,8 @@ impl::status_t compiler_partition_impl_t::compile(
         if (!sc::check_graph_connection(backend_graph_obj)) {
             return impl::status::invalid_graph;
         }
+        backend_graph_obj.attrs_["temp.name"]
+                = pname_ + "_" + std::to_string(this->id_);
 
         COMPILE_ASSERT(aengine->kind() == impl::engine_kind_t::dnnl_graph_cpu,
                 "Graph compiler backend only supports cpu engine");
