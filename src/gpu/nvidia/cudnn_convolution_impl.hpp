@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -58,7 +58,6 @@ protected:
     cudnnTensorFormat_t formats[NUM_IO];
     bool filter_needs_transform = false;
     cudnnFilterDescriptor_t weights_desc;
-    float alpha = 0.f;
     float beta = 0.f;
     int group_count = 1;
     bool with_groups = false;
@@ -66,8 +65,6 @@ protected:
     bool with_bias = false;
 
     bool do_scaling = false;
-    bool runtime_scaling = false;
-    float oscale = 1.0f;
     bool use_temp_dst_ = false;
     cudnnDataType_t computation_data_type = CUDNN_DATA_FLOAT;
     cudnnDataType_t reorder_type = CUDNN_DATA_INT8;
@@ -135,10 +132,8 @@ public:
         CHECK(set_padding_and_dilation(pd));
         with_groups = pd->with_groups();
         with_bias = pd->with_bias();
-        alpha = 1.0f;
         beta = 0.0f;
-        do_scaling = !pd->attr()->output_scales_.has_default_values();
-        runtime_scaling = !pd->attr()->output_scales_.defined();
+        do_scaling = !pd->attr()->scales_.has_default_values();
         dnnl_descs[x] = *pd->invariant_src_md();
         dnnl_descs[weights] = *pd->invariant_wei_md();
         dnnl_descs[y] = *pd->invariant_dst_md();
@@ -308,13 +303,6 @@ public:
         float beta = beta_;
         CUDNN_EXECUTE_FUNC_V(cudnnAddTensor, handle, &alpha, descs[io::y], x,
                 &beta, descs[io::y], y);
-    }
-
-    void execute_scale(cudnnHandle_t handle, void *y, void *rt_oscale) const {
-        if (do_scaling) {
-            const void *s = runtime_scaling ? rt_oscale : &oscale;
-            CUDNN_EXECUTE_FUNC_V(cudnnScaleTensor, handle, descs[io::y], y, s);
-        }
     }
 
     void execute_set_weights_bias(
@@ -503,16 +491,35 @@ public:
             const std::vector<void *> &args) const override {
         auto x = args[0], weights = args[1], y = args[2], bias = args[3],
              scratchpad = args[4], post_op_scratch = args[6],
-             post_op_reorder = args[7], runtime_oscale = args[8];
+             post_op_reorder = args[7], src_scale = args[8],
+             wei_scale = args[9], dst_scale = args[10];
         void *output = use_temp_dst_ ? post_op_scratch : y;
         if (using_transformed_filter()) {
             auto w_scratch = args[5];
             transform_filter(handle, weights, w_scratch);
             weights = w_scratch;
         }
+
         bool fused = conv_bias || conv_bias_eltwise;
+
+        float scale = 1.0f;
+        if (src_scale || wei_scale) {
+            if (src_scale) {
+                float host_src_scale = 1.0f;
+                CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_src_scale,
+                        (CUdeviceptr)src_scale, sizeof(float));
+                scale *= host_src_scale;
+            }
+            if (wei_scale) {
+                float host_wei_scale = 1.0f;
+                CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_wei_scale,
+                        (CUdeviceptr)wei_scale, sizeof(float));
+                scale *= host_wei_scale;
+            }
+        }
+
         if (fused) {
-            auto err = cudnnConvolutionBiasActivationForward(handle, &alpha,
+            auto err = cudnnConvolutionBiasActivationForward(handle, &scale,
                     descs[io::x], x, weights_desc, weights, conv_desc,
                     fwd_alg_kind, scratchpad, scratchpad_size, &beta,
                     descs[io::y], output, descs[io::bias], bias,
@@ -529,7 +536,7 @@ public:
         if (!fused) {
             const float bias_alpha = 1.0f;
             const float bias_beta = 1.0f;
-            CUDNN_EXECUTE_FUNC_V(cudnnConvolutionForward, handle, &alpha,
+            CUDNN_EXECUTE_FUNC_V(cudnnConvolutionForward, handle, &scale,
                     descs[io::x], x, weights_desc, weights, conv_desc,
                     fwd_alg_kind, scratchpad, scratchpad_size, &beta,
                     descs[io::y], output);
@@ -539,7 +546,6 @@ public:
                         output);
             }
         }
-        execute_scale(handle, output, runtime_oscale);
         // skip first eltwise in case it is fused into convolution
         const int post_ops_start_pos = fused && conv_bias_eltwise;
         for (int i = post_ops_start_pos; i < num_post_ops; i++) {
@@ -573,6 +579,15 @@ public:
 
         if (need_reorder) {
             execute_reorder(handle, post_op_scratch, y, false);
+        }
+
+        if (dst_scale) {
+            float host_dst_scale = 1.0f;
+            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_dst_scale,
+                    (CUdeviceptr)dst_scale, sizeof(float));
+            float inv_scale = 1.0f / host_dst_scale;
+            CUDNN_EXECUTE_FUNC(
+                    cudnnScaleTensor, handle, descs[io::y], y, &inv_scale);
         }
     }
     status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) override {
@@ -821,6 +836,7 @@ protected:
             transform_filter(handle, weights, w_scratch);
             weights = w_scratch;
         }
+        const float alpha = 1.0f;
         const float bias_alpha = 1.0f;
         const float bias_beta = 1.0f;
         CUDNN_EXECUTE_FUNC_V(cudnnConvolutionBackwardData, handle, &alpha,
@@ -974,6 +990,7 @@ public:
             transform_filter(handle, weights, w_scratch);
             filter = w_scratch;
         }
+        const float alpha = 1.0f;
         const float bias_alpha = 1.0f;
         const float bias_beta = 0.0f;
         CUDNN_EXECUTE_FUNC_V(cudnnConvolutionBackwardFilter, handle, &alpha,

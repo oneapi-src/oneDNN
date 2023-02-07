@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,7 +40,12 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
                 memory_tracking::names::key_conv_cudnn_algo);
         auto arg_filter_scratch = CTX_SCRATCH_SYCL_MEMORY(
                 memory_tracking::names::key_conv_cudnn_filter);
-        auto arg_oscale = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_OUTPUT_SCALES);
+        auto arg_src_scale
+                = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+        auto arg_wei_scale
+                = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+        auto arg_dst_scale
+                = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
         impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read_write>
                 temp_dst;
@@ -71,7 +76,9 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
             args.push_back(arg_filter_scratch.get_native_pointer(ih));
             args.push_back(temp_dst.get_native_pointer(ih));
             args.push_back(temp_reorder.get_native_pointer(ih));
-            args.push_back(arg_oscale.get_native_pointer(ih));
+            args.push_back(arg_src_scale.get_native_pointer(ih));
+            args.push_back(arg_wei_scale.get_native_pointer(ih));
+            args.push_back(arg_dst_scale.get_native_pointer(ih));
 
             pd()->impl_->execute(handle, args);
         });

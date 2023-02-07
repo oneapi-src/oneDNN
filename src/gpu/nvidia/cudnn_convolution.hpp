@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,7 +49,7 @@ struct cudnn_convolution_fwd_t : public primitive_t {
             using namespace data_type;
 
             using sm_t = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm_t::oscale_runtime | sm_t::post_ops;
+            const auto attr_skip_mask = sm_t::scales_runtime | sm_t::post_ops;
 
             bool ok = utils::one_of(desc()->prop_kind,
                     prop_kind::forward_training, prop_kind::forward_inference);
@@ -70,9 +70,9 @@ struct cudnn_convolution_fwd_t : public primitive_t {
                             desc()->alg_kind == dnnl_convolution_winograd,
                             ndims() < 5 && src_md_.data_type != s8);
             ok = ok
-                    && IMPLICATION(!attr()->output_scales_.has_default_values(),
-                            src_md_.data_type == s8
-                                    && attr()->output_scales_.mask_ == 0);
+                    && IMPLICATION(!attr()->scales_.has_default_values(),
+                            utils::one_of(src_md_.data_type, s8)
+                                    && attr_scales_ok());
             ok = ok
                     && IMPLICATION(
                             src_md_.data_type == s8, check_s8_configuration())
@@ -136,6 +136,17 @@ struct cudnn_convolution_fwd_t : public primitive_t {
                     && check_nhwc(weights_md_, true)
                     && (src_md_.dims[1] % 4) == 0 && (dst_md_.dims[1] % 4) == 0
                     && ndims() < 5;
+        }
+
+        bool attr_scales_ok() const {
+            const auto &scales = attr()->scales_;
+            const auto &supported_args
+                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+            if (!scales.has_default_values(supported_args)) return false;
+            // cuDNN does not support scaling per dimension.
+            for (auto arg : supported_args)
+                if (scales.get(arg).mask_ != 0) return false;
+            return true;
         }
     };
 
