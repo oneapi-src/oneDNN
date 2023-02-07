@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,33 +30,36 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
+#define VCHECK_RS(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, resampling, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
 namespace {
 status_t resampling_desc_init(resampling_desc_t *resampling_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind, const float *factors,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc) {
-    bool args_ok = true
-            && one_of(alg_kind, resampling_nearest, resampling_linear)
-            && src_desc && IMPLICATION(dst_desc == nullptr, factors)
-            && utils::one_of(src_desc->ndims, 3, 4, 5);
-    if (!args_ok) return invalid_arguments;
+    VCHECK_RS(one_of(alg_kind, resampling_nearest, resampling_linear),
+            VERBOSE_BAD_ALGORITHM);
+    VCHECK_RS(src_desc, VERBOSE_NULL_ARG);
+    VCHECK_RS(IMPLICATION(dst_desc == nullptr, factors), VERBOSE_NULL_ARG);
+    VCHECK_RS(utils::one_of(src_desc->ndims, 3, 4, 5), VERBOSE_BAD_NDIMS, "src",
+            src_desc->ndims);
 
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-    if (is_fwd) {
-        args_ok = args_ok && src_desc->format_kind != format_kind::any;
-        if (!args_ok) return invalid_arguments;
-    }
+    VCHECK_RS(IMPLICATION(is_fwd, src_desc->format_kind != format_kind::any),
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
 
     auto rd = resampling_desc_t();
     rd.primitive_kind = primitive_kind::resampling;
     rd.prop_kind = prop_kind;
     rd.alg_kind = alg_kind;
 
-    bool runtime_dims_or_strides
-            = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
-            || (dst_desc
-                    && memory_desc_wrapper(dst_desc)
-                               .has_runtime_dims_or_strides());
-    if (runtime_dims_or_strides) return unimplemented;
+    VCHECK_RS(!memory_desc_wrapper(src_desc).has_runtime_dims_or_strides(),
+            VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VCHECK_RS(IMPLICATION(dst_desc,
+                      !memory_desc_wrapper(dst_desc)
+                               .has_runtime_dims_or_strides()),
+            VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     auto fill_dst_md = [](const memory_desc_t *i_md, const float *factors,
                                memory_desc_t *o_md) {
@@ -83,11 +86,11 @@ status_t resampling_desc_init(resampling_desc_t *resampling_desc,
         rd.factors[i] = (float)((double)dst_desc->dims[2 + i]
                 / src_desc->dims[2 + i]);
 
-    bool consistency = src_desc->ndims == dst_desc->ndims
-            && src_desc->dims[0] == dst_desc->dims[0]
-            && src_desc->dims[1] == dst_desc->dims[1];
-
-    if (!consistency) return invalid_arguments;
+    VCHECK_RS(src_desc->ndims == dst_desc->ndims, VERBOSE_INCONSISTENT_NDIMS,
+            "src", "dst");
+    for (int i : {0, 1})
+        VCHECK_RS(src_desc->dims[i] == dst_desc->dims[i],
+                VERBOSE_INCONSISTENT_DIM, "src", i, "dst", i);
 
     *resampling_desc = rd;
     return success;
