@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,6 +30,10 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
+#define VCHECK_LRN(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, lrn, (cond), status::invalid_arguments, \
+            msg, ##__VA_ARGS__)
+
 namespace {
 status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
         alg_kind_t alg_kind, const memory_desc_t *src_desc,
@@ -37,14 +41,18 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
         const memory_desc_t *diff_dst_desc, dim_t local_size, float alpha,
         float beta, float k) {
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
-    bool args_ok = !any_null(lrn_desc, src_desc)
-            && one_of(alg_kind, lrn_within_channel, lrn_across_channels)
-            && one_of(prop_kind, forward_training, forward_inference,
-                    backward_data)
-            && local_size >= 0 && IMPLICATION(is_fwd, dst_desc != nullptr)
-            && IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc))
-            && IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any());
-    if (!args_ok) return invalid_arguments;
+    VCHECK_LRN(!any_null(lrn_desc, src_desc), VERBOSE_NULL_ARG);
+    VCHECK_LRN(one_of(alg_kind, lrn_within_channel, lrn_across_channels),
+            VERBOSE_BAD_ALGORITHM);
+    VCHECK_LRN(one_of(prop_kind, forward_training, forward_inference,
+                       backward_data),
+            VERBOSE_BAD_PROPKIND);
+    VCHECK_LRN(local_size >= 0, VERBOSE_BAD_PARAM, "local_size");
+    VCHECK_LRN(IMPLICATION(is_fwd, dst_desc != nullptr), VERBOSE_NULL_ARG);
+    VCHECK_LRN(IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc)),
+            VERBOSE_NULL_ARG);
+    VCHECK_LRN(IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any()),
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
 
     auto ld = lrn_desc_t();
     ld.primitive_kind = primitive_kind::lrn;
@@ -63,7 +71,8 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
     }
-    if (runtime_dims_or_strides) return unimplemented;
+    VCONDCHECK(create, check, lrn, !runtime_dims_or_strides,
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     ld.src_desc = *src_desc;
     if (is_fwd) ld.dst_desc = *dst_desc;
@@ -77,21 +86,24 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
     ld.lrn_beta = beta;
     ld.lrn_k = k;
 
-    bool consistency = ld.src_desc.ndims >= 2;
-    if (consistency && is_fwd) {
-        consistency = ld.dst_desc.ndims == ld.src_desc.ndims
-                && array_cmp(
-                        ld.dst_desc.dims, ld.src_desc.dims, ld.src_desc.ndims);
+#define CHECK_DIMS(t1, t2) \
+    do { \
+        VCHECK_LRN(ld.t2##_desc.ndims == ld.t1##_desc.ndims, \
+                VERBOSE_INCONSISTENT_NDIMS, #t1, #t2); \
+        VCHECK_LRN(array_cmp(ld.t2##_desc.dims, ld.t1##_desc.dims, \
+                           ld.t1##_desc.ndims), \
+                VERBOSE_INCONSISTENT_DIM, #t1, -1, #t2, -1); \
+    } while (0)
+
+    VCHECK_LRN(ld.src_desc.ndims >= 2, VERBOSE_BAD_NDIMS, "src",
+            ld.src_desc.ndims);
+    if (is_fwd) {
+        CHECK_DIMS(src, dst);
+    } else {
+        CHECK_DIMS(src, diff_dst);
+        CHECK_DIMS(diff_src, diff_dst);
     }
-    if (consistency && !is_fwd) {
-        consistency = ld.diff_dst_desc.ndims == ld.src_desc.ndims
-                && ld.diff_dst_desc.ndims == ld.diff_src_desc.ndims
-                && array_cmp(ld.diff_dst_desc.dims, ld.src_desc.dims,
-                        ld.src_desc.ndims)
-                && array_cmp(ld.diff_src_desc.dims, ld.diff_dst_desc.dims,
-                        ld.diff_dst_desc.ndims);
-    }
-    if (!consistency) return invalid_arguments;
+#undef CHECK_DIMS
 
     *lrn_desc = ld;
     return success;

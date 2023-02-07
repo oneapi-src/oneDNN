@@ -27,6 +27,7 @@
 #define VERBOSE_BAD_PROPKIND "bad propagation kind"
 #define VERBOSE_BAD_AXIS "bad axis"
 #define VERBOSE_BAD_FLAGS "bad flags"
+#define VERBOSE_BAD_PARAM "bad param %s"
 #define VERBOSE_RUNTIMEDIM_UNSUPPORTED "runtime dimension is not supported"
 #define VERBOSE_RUNTIMEDIM_INCONSISTENT \
     "runtime dimension %d is inconsistent across tensors"
