@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,6 +33,10 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 
+#define VCHECK_SUM(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, sum, (cond), status::invalid_arguments, \
+            msg, ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 
@@ -41,35 +45,45 @@ status_t sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
         const memory_desc_t *const *src_mds, const primitive_attr_t *attr,
         engine_t *engine) {
 
-    bool args_ok = !any_null(sum_pd_iface, src_mds, scales) && n > 0;
-    if (!args_ok) return invalid_arguments;
+    VCHECK_SUM(!any_null(sum_pd_iface, src_mds, scales) && n > 0,
+            VERBOSE_NULL_ARG);
 
     if (attr == nullptr) attr = &default_attr();
 
     const int ndims = src_mds[0]->ndims;
     const dims_t &dims = src_mds[0]->dims;
-    if (memory_desc_wrapper(src_mds[0]).has_runtime_dims_or_strides())
-        return unimplemented;
+    VCONDCHECK(create, check, sum,
+            !memory_desc_wrapper(src_mds[0]).has_runtime_dims_or_strides(),
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
-    if (memory_desc_wrapper(src_mds[0]).format_any()) return invalid_arguments;
+    VCHECK_SUM(!memory_desc_wrapper(src_mds[0]).format_any(),
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
+
+#define SRC2STR(i) (std::string("src_") + std::to_string(i)).c_str()
     for (int i = 1; i < n; ++i) {
         const memory_desc_t &src_md = *src_mds[i];
-        if (src_md.ndims != ndims || memory_desc_wrapper(src_md).format_any())
-            return invalid_arguments;
-        if (memory_desc_wrapper(src_md).has_runtime_dims_or_strides())
-            return unimplemented;
-        for (int d = 0; d < ndims; ++d) {
-            if (src_md.dims[d] != dims[d]) return invalid_arguments;
-        }
+        VCHECK_SUM(src_md.ndims == ndims, VERBOSE_INCONSISTENT_NDIMS, "src_0",
+                SRC2STR(i));
+        VCHECK_SUM(!memory_desc_wrapper(src_md).format_any(),
+                VERBOSE_UNSUPPORTED_TAG_S, SRC2STR(i));
+        VCONDCHECK(create, check, sum,
+                !memory_desc_wrapper(src_md).has_runtime_dims_or_strides(),
+                status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+        for (int d = 0; d < ndims; ++d)
+            VCHECK_SUM(src_md.dims[d] == dims[d], VERBOSE_INCONSISTENT_DIM,
+                    "src_0", d, SRC2STR(i), d);
     }
+#undef SRC2STR
 
     memory_desc_t dummy_dst_md;
     if (dst_md) {
-        if (dst_md->ndims != ndims) return invalid_arguments;
-        if (memory_desc_wrapper(dst_md).has_runtime_dims_or_strides())
-            return unimplemented;
+        VCHECK_SUM(dst_md->ndims == ndims, VERBOSE_INCONSISTENT_NDIMS, "src_0",
+                "dst");
+        VCHECK_SUM(!memory_desc_wrapper(dst_md).has_runtime_dims_or_strides(),
+                VERBOSE_RUNTIMEDIM_UNSUPPORTED);
         for (int d = 0; d < ndims; ++d) {
-            if (dst_md->dims[d] != dims[d]) return invalid_arguments;
+            VCHECK_SUM(dst_md->dims[d] == dims[d], VERBOSE_INCONSISTENT_DIM,
+                    "src_0", d, "dst", d);
         }
     } else {
         dummy_dst_md = *src_mds[0];
