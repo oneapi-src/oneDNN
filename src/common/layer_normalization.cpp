@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,27 +29,35 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
+#define VCHECK_LNORM(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, lnorm, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
 namespace {
 status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
         const memory_desc_t *dst_desc, const memory_desc_t *stat_desc,
         const memory_desc_t *diff_src_desc, const memory_desc_t *diff_dst_desc,
         float epsilon, unsigned flags) {
-    bool args_ok = !any_null(lnorm_desc, src_desc) && 2 <= src_desc->ndims
-            && src_desc->ndims <= 5
-            && (flags
-                       & ~(normalization_flags::use_global_stats
-                               | normalization_flags::use_scale
-                               | normalization_flags::use_shift))
-                    == 0;
-    if (!args_ok) return invalid_arguments;
+    VCHECK_LNORM(!any_null(lnorm_desc, src_desc), VERBOSE_NULL_ARG);
+    VCHECK_LNORM(2 <= src_desc->ndims && src_desc->ndims <= 5,
+            VERBOSE_BAD_NDIMS, "src", src_desc->ndims);
+
+    VCHECK_LNORM((flags
+                         & ~(normalization_flags::use_global_stats
+                                 | normalization_flags::use_scale
+                                 | normalization_flags::use_shift))
+                    == 0,
+            VERBOSE_BAD_FLAGS);
 
     bool is_fwd
             = prop_kind == forward_training || prop_kind == forward_inference;
-    args_ok = IMPLICATION(is_fwd, dst_desc != nullptr)
-            && IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc))
-            && IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any());
-    if (!args_ok) return invalid_arguments;
+    VCHECK_LNORM(IMPLICATION(is_fwd, dst_desc != nullptr), VERBOSE_NULL_ARG);
+    VCHECK_LNORM(IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc)),
+            VERBOSE_NULL_ARG);
+    VCHECK_LNORM(
+            IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any()),
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
 
     auto ld = layer_normalization_desc_t();
     ld.primitive_kind = primitive_kind::layer_normalization;
@@ -67,7 +75,8 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
                            .has_runtime_dims_or_strides()
                 || memory_desc_wrapper(diff_dst_desc)
                            .has_runtime_dims_or_strides();
-    if (runtime_dims_or_strides) return unimplemented;
+    VCONDCHECK(create, check, lnorm, !runtime_dims_or_strides,
+            status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     ld.src_desc = *src_desc;
     if (is_fwd) ld.dst_desc = *dst_desc;
@@ -77,8 +86,11 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
     if (stat_desc)
         ld.stat_desc = *stat_desc;
     else
-        CHECK(memory_desc_init_by_tag(ld.stat_desc, ld.src_desc.ndims - 1,
-                ld.src_desc.dims, data_type::f32, format_tag::any));
+        VCHECK_LNORM(
+                memory_desc_init_by_tag(ld.stat_desc, ld.src_desc.ndims - 1,
+                        ld.src_desc.dims, data_type::f32, format_tag::any)
+                        == success,
+                VERBOSE_UNSUPPORTED_TAG_S, "stats");
 
     int ndims = src_desc->ndims;
     ld.data_scaleshift_desc = zero_md();
@@ -101,23 +113,23 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
 
     ld.flags = flags;
 
+#define CHECK_DIMS(t1, t2, off_ndims) \
+    do { \
+        VCHECK_LNORM(ld.t1##_desc.ndims == ld.t2##_desc.ndims + (off_ndims), \
+                VERBOSE_INCONSISTENT_NDIMS, #t1, #t2); \
+        VCHECK_LNORM(array_cmp(ld.t1##_desc.dims, ld.t2##_desc.dims, \
+                             ld.t2##_desc.ndims), \
+                VERBOSE_INCONSISTENT_DIM, #t1, -1, #t2, -1); \
+    } while (0)
+
     if (is_fwd) {
-        bool consistency = ld.src_desc.ndims == ld.dst_desc.ndims
-                && array_cmp(
-                        ld.src_desc.dims, ld.dst_desc.dims, ld.src_desc.ndims);
-        if (!consistency) return invalid_arguments;
+        CHECK_DIMS(src, dst, 0);
     } else {
-        bool consistency = ld.diff_src_desc.ndims == ld.src_desc.ndims
-                && array_cmp(ld.diff_src_desc.dims, ld.src_desc.dims,
-                        ld.diff_src_desc.ndims)
-                && ld.diff_src_desc.ndims == ld.diff_dst_desc.ndims
-                && array_cmp(ld.diff_src_desc.dims, ld.diff_dst_desc.dims,
-                        ld.diff_src_desc.ndims)
-                && ld.src_desc.ndims == ld.stat_desc.ndims + 1
-                && array_cmp(ld.stat_desc.dims, ld.src_desc.dims,
-                        ld.stat_desc.ndims);
-        if (!consistency) return invalid_arguments;
+        CHECK_DIMS(src, diff_src, 0);
+        CHECK_DIMS(src, diff_dst, 0);
+        CHECK_DIMS(src, stat, 1);
     }
+#undef CHECK_DIMS
 
     *lnorm_desc = ld;
     return success;
