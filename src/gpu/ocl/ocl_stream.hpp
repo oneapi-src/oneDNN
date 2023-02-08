@@ -85,7 +85,6 @@ struct ocl_stream_t : public compute::compute_stream_t {
             const compute::event_t &deps, compute::event_t &out_dep) override;
 
     ~ocl_stream_t() override {
-        wait();
         if (queue_) { clReleaseCommandQueue(queue_); }
     }
 
