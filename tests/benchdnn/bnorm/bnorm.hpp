@@ -141,6 +141,7 @@ struct prb_t : public desc_t {
                 && !(dir & FLAG_INF);
     }
 
+    bool use_stats() const { return flags & GLOB_STATS; }
     bool use_sc() const { return flags & USE_SCALE; }
     bool use_sh() const { return flags & USE_SHIFT; }
     bool fuse_relu() const {

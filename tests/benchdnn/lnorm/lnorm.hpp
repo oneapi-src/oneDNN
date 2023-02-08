@@ -128,6 +128,7 @@ struct prb_t : public prb_dims_t {
     int64_t n, c;
     float eps;
 
+    bool use_stats() const { return flags & GLOB_STATS; }
     bool use_sc() const { return flags & USE_SCALE; }
     bool use_sh() const { return flags & USE_SHIFT; }
 

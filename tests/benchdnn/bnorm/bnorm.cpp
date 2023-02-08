@@ -212,10 +212,10 @@ int prepare_fwd(const prb_t *prb, dnn_mem_map_t &mem_map,
     if (src_add) SAFE(src_add.reorder(ref_src_add), WARN);
 
     auto &mean = mem_map[DNNL_ARG_MEAN];
-    if (mean) SAFE(mean.reorder(ref_mean), WARN);
+    if (mean && prb->use_stats()) SAFE(mean.reorder(ref_mean), WARN);
 
     auto &var = mem_map[DNNL_ARG_VARIANCE];
-    if (var) SAFE(var.reorder(ref_var), WARN);
+    if (var && prb->use_stats()) SAFE(var.reorder(ref_var), WARN);
 
     auto &sc = mem_map[DNNL_ARG_SCALE];
     if (sc) SAFE(sc.reorder(ref_sc), WARN);
