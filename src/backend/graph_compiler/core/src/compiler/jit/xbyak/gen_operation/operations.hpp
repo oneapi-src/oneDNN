@@ -156,6 +156,14 @@ namespace sc_xbyak {
         (GEN).INS(OP_1.get_xmm(), OP_2.get_xmm(), OP_3.get_imm()); \
     }
 
+#define AVX_X_X_RM(GEN, INS, OP_1, OP_2, OP_3) \
+    { \
+        COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_xyz() && OP_3.is_r_m(), \
+                "Invalid avx_" #INS << ": " << OP_1 << ", " << OP_2 << ", " \
+                                    << OP_3); \
+        (GEN).INS(OP_1.get_xmm(), OP_2.get_xmm(), OP_3.get_operand()); \
+    }
+
 #define AVX_X_XM_I(GEN, INS, OP_1, OP_2, OP_3) \
     { \
         COMPILE_ASSERT(OP_1.is_xyz() && OP_2.is_x_m() && OP_3.is_imm(), \
