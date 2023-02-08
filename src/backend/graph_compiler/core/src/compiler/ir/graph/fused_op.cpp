@@ -1559,7 +1559,8 @@ ir_module_ptr mixed_fuse_op_t::get_func(context_ptr ctx) {
             lower_args.insert(
                     lower_args.end(), input_ops.begin(), input_ops.end());
             cpy_graph.attrs_.set("temp.force_static", true);
-            max_loop_parallel_modu = lower_graph(ctx, cpy_graph, lower_args);
+            max_loop_parallel_modu
+                    = lower_graph(ctx, cpy_graph, lower_args, false);
             max_loop_parallel_func = max_loop_parallel_modu->get_entry_func();
             max_loop_parallel_func->name_ = op_name_;
             max_loop_parallel_func->decl_->name_ = op_name_;
@@ -1590,7 +1591,7 @@ ir_module_ptr mixed_fuse_op_t::get_func(context_ptr ctx) {
             lower_args.insert(
                     lower_args.end(), input_ops.begin(), input_ops.end());
             cpy_graph.attrs_.set("temp.force_static", true);
-            max_fusion_modu = lower_graph(ctx, cpy_graph, lower_args);
+            max_fusion_modu = lower_graph(ctx, cpy_graph, lower_args, false);
             max_fusion_func = max_fusion_modu->get_entry_func();
             max_fusion_func->name_ = op_name_;
             max_fusion_func->name_
@@ -1717,7 +1718,17 @@ static op_traits::may_prefetch_t *find_prefetch_op(const sc_graph_t &graph) {
 std::vector<int> mixed_fuse_op_t::query_prefetch(const context_ptr &ctx,
         bool is_global, const std::vector<tensor_slice> &ins) {
     if (auto found_op = find_prefetch_op(sub_graph_)) {
-        return found_op->query_prefetch(ctx, is_global, ins);
+        auto ret = found_op->query_prefetch(ctx, is_global, ins);
+        auto &ins = dynamic_cast<sc_op *>(found_op)->get_inputs();
+        // check that the inputs to prefetch are from the sub-graph inputs
+        for (auto itr = ret.begin(); itr != ret.end();) {
+            if (!(ins.at(*itr)->producer_owner_->isa<input_op>())) {
+                itr = ret.erase(itr);
+            } else {
+                ++itr;
+            }
+        }
+        return ret;
     }
     return {};
 }
