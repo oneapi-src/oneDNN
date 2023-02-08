@@ -1228,7 +1228,7 @@ ir_module_ptr lower_graph(context_ptr ctx, sc_graph_t &graph,
                     }
                     callee_name = callee->name_;
                     kernel_call = builder::make_call(callee, exprargs);
-                    if (const_type == const_kind::not_const) {
+                    if (mark_as_main && const_type == const_kind::not_const) {
                         insert_prefetch(ctx, op_execution_log, node.get(), ins,
                                 *ret_mod, func_body->seq_);
                     }

@@ -688,6 +688,7 @@ const_ir_module_ptr target_specific_lowering_cpu_t::operator()(
     for (size_t i = 0; i < sz; i++) {
         auto f = std::const_pointer_cast<func_base>(pass.dispatch(contents[i]));
         contents[i] = std::move(f);
+        pass.barrier_idle_func_args_.clear();
     }
     return ret;
 }

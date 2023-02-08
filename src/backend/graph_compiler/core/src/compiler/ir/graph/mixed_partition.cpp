@@ -1651,6 +1651,14 @@ static bool try_merge_mixed_parti_parallel_inners(
             }
             auto prefetch_idx = second_prefetch->query_prefetch(
                     pa_to_merge->ctx_, false, in_slice);
+            for (auto itr = prefetch_idx.begin(); itr != prefetch_idx.end();) {
+                auto input = op_second->get_inputs()[*itr]->producer_owner_;
+                if (pa_to_merge->contains(input)) {
+                    itr = prefetch_idx.erase(itr);
+                } else {
+                    ++itr;
+                }
+            }
             if (prefetch_insertion_point != -1 && !prefetch_idx.empty()) {
                 std::vector<stmt> out_seq;
                 second_prefetch->generate_prefetcher_and_set_idle(
@@ -2740,6 +2748,11 @@ static mixed_parti_t::ptr try_execute_pre_op_fusion(const sc_op_ptr &op,
         parent_partition->clear();
         // reset
         parent_partition = nullptr;
+    } else {
+        auto &ops = parent_partition->committed_ops_;
+        auto old_op = std::move(ops.front());
+        ops.erase(ops.begin());
+        ops.emplace_back(std::move(old_op));
     }
     return parent_partition;
 }
