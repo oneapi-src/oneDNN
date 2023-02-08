@@ -78,6 +78,45 @@ SC_MODULE(codegen.llvm);
 
 using namespace llvm;
 namespace sc {
+
+#define WHEN_ARCH_NAME(...) __VA_ARGS__
+#define ARCH_GraniteRapids \
+    case 0xae: \
+    case 0xad:
+#define ARCH_EmeraldRapids case 0xcf:
+#define ARCH_SapphireRapids case 0x8f:
+#define END_ARCH() break;
+
+#define WHEN_LLVM_VER_GE(V, VALUE) \
+    if (SC_LLVM_BACKEND >= (V)) { return VALUE; }
+#define WHEN_LLVM_VER_RANGE(V1, V2, VALUE) \
+    if (SC_LLVM_BACKEND >= (V1) && SC_LLVM_BACKEND <= (V2)) { return VALUE; }
+
+// Handle the case that the CPU is known to us, but not to current version of
+// LLVM. We help LLVM to better fallback to a closer generation of CPU known to
+// it.
+static const char *handle_cpu_name(runtime::cpu_flags_t &flags) {
+    if (flags.family != 6) { return nullptr; }
+    constexpr const char *sapphirerapids = "sapphirerapids";
+    constexpr const char *icelake_server = "icelake-server";
+    constexpr const char *let_llvm_handle = nullptr;
+    switch (flags.model) {
+        // clang-format off
+        WHEN_ARCH_NAME(ARCH_GraniteRapids ARCH_EmeraldRapids)
+            WHEN_LLVM_VER_GE(16, let_llvm_handle)
+            WHEN_LLVM_VER_RANGE(12, 15, sapphirerapids)
+            WHEN_LLVM_VER_RANGE(9, 11, icelake_server)
+        END_ARCH()
+        WHEN_ARCH_NAME(ARCH_SapphireRapids)
+            WHEN_LLVM_VER_GE(12, let_llvm_handle)
+            WHEN_LLVM_VER_RANGE(9, 11, icelake_server)
+        END_ARCH()
+        // clang-format on
+    }
+    // default, let llvm decide
+    return let_llvm_handle;
+}
+
 std::unique_ptr<TargetMachine> get_llvm_target_machine(
         CodeGenOpt::Level optlevel = CodeGenOpt::Level::Default) {
     auto target_triple = sys::getProcessTriple();
@@ -93,8 +132,14 @@ std::unique_ptr<TargetMachine> get_llvm_target_machine(
 #endif
 
     auto reloc_model = Optional<Reloc::Model>(Reloc::Static);
-    auto host_cpu = sys::getHostCPUName();
-
+    auto inferred_cpu_name
+            = handle_cpu_name(runtime::get_runtime_target_machine().cpu_flags_);
+    auto host_cpu
+            = inferred_cpu_name ? inferred_cpu_name : sys::getHostCPUName();
+    if (inferred_cpu_name) {
+        SC_MODULE_WARN << "Your CPU is not recognized by LLVM. Falling back to "
+                       << inferred_cpu_name;
+    }
     llvm::StringMap<bool> feature_map;
     sys::getHostCPUFeatures(feature_map);
     llvm::SubtargetFeatures f;
@@ -141,8 +186,8 @@ public:
         , module_(utils::make_unique<Module>("name", context_))
         , dbuilder_(utils::make_unique<DIBuilder>(*module_)) {
         static bool initialized = []() {
-            // make sure LLVM native targets are initialized once and avoid race
-            // condition
+            // make sure LLVM native targets are initialized once and avoid
+            // race condition
             InitializeNativeTarget();
             InitializeNativeTargetAsmParser();
             InitializeNativeTargetAsmPrinter();
@@ -481,9 +526,9 @@ public:
             dbg_scopes_.push_back(SP);
 
             // Unset the location for the prologue emission (leading
-            // instructions with no location in a function are considered part
-            // of the prologue and the debugger will run past them when breaking
-            // on a function)
+            // instructions with no location in a function are considered
+            // part of the prologue and the debugger will run past them when
+            // breaking on a function)
             emit_location(nullptr);
         }
 
@@ -519,8 +564,8 @@ public:
             }
         }
 
-        // if has custom alias info, need to construct alias scope/noalias for
-        // LLVM each alias scope are exclusive to each other
+        // if has custom alias info, need to construct alias scope/noalias
+        // for LLVM each alias scope are exclusive to each other
         if (has_alias) {
             MDBuilder MDB(context_);
             MDNode *alias_domain
@@ -545,8 +590,8 @@ public:
         }
         bool is_low_level = v->attr_
                 && v->attr_->get_or_else(function_attrs::low_level, false);
-        // LLVM func args are SSA values and cannot be modified. We use alloca
-        // to alloc modifiable slots for each params
+        // LLVM func args are SSA values and cannot be modified. We use
+        // alloca to alloc modifiable slots for each params
         for (size_t i = 0; i < v->params_.size(); i++) {
             Value *arg = F->args().begin() + i;
             auto &p = v->params_[i];
@@ -1394,7 +1439,8 @@ public:
                 COMPILE_ASSERT(v->dtype_.type_code_ == sc_data_etype::S32
                                 && v->args_[0]->dtype_.type_code_
                                         == sc_data_etype::F32,
-                        "LLVM backend has not yet support round_and_cast like "
+                        "LLVM backend has not yet support round_and_cast "
+                        "like "
                         "this: " << v);
                 switch (v->dtype_.lanes_) {
                     case 1:
@@ -1419,7 +1465,7 @@ public:
                                 {inval1, UndefValue::get(get_type(v->dtype_)),
                                         /*mask*/ builder_.getInt16(0xffff),
                                         /*rounding mode =
-                                           _MM_FROUND_CUR_DIRECTION    0x04*/
+                                           _MM_FROUND_CUR_DIRECTION 0x04*/
                                         builder_.getInt32(0x04)});
                         break;
                     default:
@@ -1586,7 +1632,8 @@ public:
                         {builder_.CreatePointerCast(
                                  inval1, builder_.getInt8PtrTy()),
                                 /*rw*/ builder_.getInt32(0),
-                                /*locality*/ builder_.getInt32(3 - locality),
+                                /*locality*/
+                                builder_.getInt32(3 - locality),
                                 /*type:i/d*/ builder_.getInt32(1)});
             } break;
             default: {
@@ -1748,7 +1795,8 @@ public:
     void view(define_c v) override {
         COMPILE_ASSERT(v->linkage_ != linkage::static_local
                         && v->linkage_ != linkage::private_global,
-                "LLVM backend cannot handle non-local variable definitions");
+                "LLVM backend cannot handle non-local variable "
+                "definitions");
         if (v->var_.isa<var>()) {
             auto thevar = v->var_.static_as<var>();
             if (thevar->attr_
@@ -1780,7 +1828,8 @@ public:
                     tsr_to_alias_scope_[t] = &alias_itr->second;
                 }
             }
-            // if it is a view of the rescheduled buffer/ local tensor on heap
+            // if it is a view of the rescheduled buffer/ local tensor on
+            // heap
             if (v->init_.defined()) {
                 Value *ptr = generate_expr(v->init_);
                 ptr = builder_.CreatePointerCast(ptr,
