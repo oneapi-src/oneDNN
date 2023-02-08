@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,9 +68,7 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
                     && attr()->post_ops_.check_sum_consistent_dt(
                             dst_md(0)->data_type);
 
-            bool ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && (is_bf16_convolution || is_int8_convolution)
+            bool ok = is_fwd() && (is_bf16_convolution || is_int8_convolution)
                     && !has_zero_dim_memory() && attr_scales_ok()
                     && zero_points_ok();
             if (!ok) return status::unimplemented;

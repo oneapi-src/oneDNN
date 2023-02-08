@@ -44,9 +44,8 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
     const auto diff_wei_type = diff_weights_md(0)->data_type;
     const auto diff_bia_type = diff_weights_md(1)->data_type;
     const auto diff_dst_type = diff_dst_md(0)->data_type;
-    bool ok = true && is_bwd_w()
-            && set_default_alg_kind(alg_kind::convolution_direct)
-            && utils::one_of(src_type, bf16, f16) && diff_dst_type == src_type
+    bool ok = true && is_bwd_w() && utils::one_of(src_type, bf16, f16)
+            && diff_dst_type == src_type
             && utils::one_of(diff_wei_type, f32, src_type)
             && utils::one_of(diff_bia_type, data_type::undef, f32, src_type)
             && attr()->has_default_values() && !has_zero_dim_memory();

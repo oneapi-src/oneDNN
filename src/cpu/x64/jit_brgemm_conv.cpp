@@ -68,7 +68,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
             | skip_mask_t::zero_points_runtime;
     if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
 
-    bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
+    bool ok = is_fwd()
             && IMPLICATION(is_int8,
                     one_of(bias_md_.data_type, data_type::undef, f32, s32, s8,
                             u8))

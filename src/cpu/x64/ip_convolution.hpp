@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -183,7 +183,6 @@ struct ip_convolution_fwd_t : public primitive_t {
             using smask_t = primitive_attr_t::skip_mask_t;
 
             const bool ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && attr()->has_default_values(
                             smask_t::scales_runtime | smask_t::post_ops);
             if (!ok) return status::unimplemented;
@@ -285,7 +284,6 @@ struct ip_convolution_bwd_data_t : public primitive_t {
             using namespace format_tag;
 
             const bool ok = desc()->prop_kind == prop_kind::backward_data
-                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -382,7 +380,6 @@ struct ip_convolution_bwd_weights_t : public primitive_t {
             using namespace format_tag;
 
             const bool ok = desc()->prop_kind == prop_kind::backward_weights
-                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

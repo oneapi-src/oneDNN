@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,9 +45,8 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
             const auto bia_type = weights_md(1)->data_type;
             const auto dst_type = dst_md(0)->data_type;
 
-            bool ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && utils::one_of(src_type, s8, u8) && wei_type == s8
+            bool ok = is_fwd() && utils::one_of(src_type, s8, u8)
+                    && wei_type == s8
                     && IMPLICATION(with_bias(),
                             utils::one_of(bia_type, f32, bf16, s32, s8, u8))
                     && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
@@ -119,7 +118,6 @@ struct ref_convolution_int8_bwd_data_t : public primitive_t {
             const auto diff_dst_type = diff_dst_md(0)->data_type;
 
             bool ok = desc()->prop_kind == prop_kind::backward_data
-                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && utils::one_of(diff_dst_type, s8, u8) && wei_type == s8
                     && utils::one_of(diff_src_type, f32, bf16, s32, s8, u8)
                     && set_default_formats()

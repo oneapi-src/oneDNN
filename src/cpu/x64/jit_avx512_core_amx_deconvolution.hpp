@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,7 +66,6 @@ struct jit_avx512_core_amx_deconvolution_fwd_t : public primitive_t {
                     && attr_scales_ok();
 
             bool ok = is_fwd()
-                    && (desc()->alg_kind & alg_kind::deconvolution_direct)
                     && (is_bf16_deconvolution || is_int8_deconvolution)
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;

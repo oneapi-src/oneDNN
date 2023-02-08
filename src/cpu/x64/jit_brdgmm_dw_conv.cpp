@@ -113,8 +113,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     auto skip_mask = skip_mask_t::post_ops;
     if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
 
-    bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
-            && one_of(true, is_f32, is_int8, is_bf16, is_f16)
+    bool ok = is_fwd() && one_of(true, is_f32, is_int8, is_bf16, is_f16)
             && (isa != isa_undef) && mayiuse(isa)
             && IMPLICATION(is_int8,
                     one_of(bia_type, data_type::undef, f32, s32, s8, u8))

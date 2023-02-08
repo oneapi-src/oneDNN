@@ -101,9 +101,8 @@ status_t brgemm_convolution_bwd_t<isa>::pd_t::init(engine_t *engine) {
     using namespace data_type;
     using namespace utils;
 
-    const bool ok = is_bwd_d()
-            && set_default_alg_kind(alg_kind::convolution_direct)
-            && attr()->has_default_values() && !has_zero_dim_memory();
+    const bool ok = is_bwd_d() && attr()->has_default_values()
+            && !has_zero_dim_memory();
     if (!ok) return status::unimplemented;
 
     convolution_desc_t fwd_conv_d = convolution_desc_t();

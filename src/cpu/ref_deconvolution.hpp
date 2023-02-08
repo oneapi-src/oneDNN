@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,9 +51,7 @@ static status_t conv_descr_create(const deconvolution_desc_t *dd,
         convolution_desc_t *cd, const memory_desc_t *bias_md = nullptr,
         data_type_t src_dt = data_type::undef) {
     using namespace prop_kind;
-    alg_kind_t alg_kind = dd->alg_kind == alg_kind::deconvolution_direct
-            ? alg_kind::convolution_direct
-            : alg_kind::convolution_winograd;
+    alg_kind_t alg_kind = alg_kind::convolution_direct;
 
     const memory_desc_t *src_md, *dst_md, *d_weights_d;
     memory_desc_t src_md_patched;

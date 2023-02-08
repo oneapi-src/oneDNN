@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,9 +80,7 @@ struct jit_uni_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
-            bool ok = is_fwd()
-                    && desc()->alg_kind == alg_kind::deconvolution_direct
-                    && !has_zero_dim_memory()
+            bool ok = is_fwd() && !has_zero_dim_memory()
                     && utils::one_of(src_md(0)->data_type, s8, u8)
                     && weights_md(0)->data_type == s8
                     && IMPLICATION(with_bias(),

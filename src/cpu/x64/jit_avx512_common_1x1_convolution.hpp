@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,7 +59,6 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace utils;
             bool ok = true && is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, wei_type, dst_type, dst_type,
                             data_type::undef)
                     && attr()->has_default_values(
@@ -320,7 +319,6 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, wei_type,
                             data_type::undef, diff_dst_type, data_type::undef)
                     && attr()->has_default_values() && !has_zero_dim_memory()
@@ -426,7 +424,6 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
-                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
                     && attr()->has_default_values() && !has_zero_dim_memory()

@@ -86,9 +86,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
                     with_bias(), one_of(bias_md_.data_type, f32, s32, s8, u8))
             && is_deconv /* only deconv uses int8 */;
 
-    const bool ok = is_bwd_d()
-            && set_default_alg_kind(alg_kind::convolution_direct)
-            && impl_supports_datatype(diff_src_type)
+    const bool ok = is_bwd_d() && impl_supports_datatype(diff_src_type)
             && impl_supports_datatype(wei_type)
             && impl_supports_datatype(diff_dst_type)
             && one_of(true, is_f32_supported, is_xf16_supported,

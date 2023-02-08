@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,9 +59,7 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
-            bool ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && utils::one_of(src_md(0)->data_type, s8, u8)
+            bool ok = is_fwd() && utils::one_of(src_md(0)->data_type, s8, u8)
                     && weights_md(0)->data_type == s8
                     && IMPLICATION(with_bias(), weights_md(1)->data_type == f32)
                     && utils::one_of(

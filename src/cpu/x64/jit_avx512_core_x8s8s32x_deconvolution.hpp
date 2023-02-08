@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -249,7 +249,6 @@ struct jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             const bool ok = is_fwd()
-                    && (desc()->alg_kind & alg_kind::deconvolution_direct)
                     && utils::one_of(src_md(0)->data_type, s8, u8)
                     && weights_md(0)->data_type == s8
                     && IMPLICATION(with_bias(),

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,7 +44,6 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, src_type, data_type::undef,
                             dst_type, data_type::f32)
                     && IMPLICATION(this->with_bias(),
@@ -116,7 +115,6 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, diff_dst_type,
                             data_type::undef, diff_dst_type, data_type::f32)
                     && attr()->has_default_values() && !has_zero_dim_memory();
@@ -187,7 +185,6 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
-                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, diff_weights_type,
                             data_type::undef, src_type, data_type::f32)
                     && IMPLICATION(this->with_bias(),

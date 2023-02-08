@@ -136,7 +136,6 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         skip_mask |= smask_t::scales_runtime | smask_t::zero_points_runtime;
 
     const bool ok = is_fwd()
-            && (desc()->alg_kind & alg_kind::deconvolution_direct)
             && IMPLICATION(src_type == f16, isa == avx512_core_amx_fp16)
             && attr()->has_default_values(skip_mask, dst_type)
             && attr()->post_ops_.check_sum_consistent_dt(dst_type)

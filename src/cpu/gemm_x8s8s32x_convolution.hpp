@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,9 +53,7 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             const auto dst_type = dst_md(0)->data_type;
 
-            bool ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && utils::one_of(src_md()->data_type, s8, u8)
+            bool ok = is_fwd() && utils::one_of(src_md()->data_type, s8, u8)
                     && weights_md()->data_type == s8
                     && utils::one_of(
                             dst_md()->data_type, f32, bf16, s32, s8, u8)
@@ -126,7 +124,6 @@ struct gemm_x8s8s32x_convolution_bwd_data_t : public primitive_t {
             using namespace data_type;
 
             bool ok = desc()->prop_kind == prop_kind::backward_data
-                    && set_default_alg_kind(alg_kind::convolution_direct)
                     && utils::one_of(diff_dst_md()->data_type, s8, u8)
                     && weights_md()->data_type == s8
                     && utils::one_of(
