@@ -225,6 +225,8 @@ xbyak_lowering_viewer::xbyak_lowering_viewer(const xbyak_jit_engine &xje,
         func_name_to_entry_label_[f->name_] = Xbyak::Label();
         func_name_to_exit_label_[f->name_] = Xbyak::Label();
     }
+    // default jmp type tp T_NEAR
+    gen_->setDefaultJmpNEAR(true);
 
     // ir_mod.get_module_vars() have been resolved in __module_data
 
@@ -977,9 +979,9 @@ void xbyak_lowering_viewer::handle_cast(const expr_c &lhs, const cast_c &v) {
     } else if (out_dtype == datatypes::f32 && in_dtype == datatypes::generic) {
         XBYAK_GEN(vmovd, AVX_XMR32_XMR32, op_out, op_in);
     } else if (out_dtype == datatypes::s32 && in_dtype == datatypes::f32) {
-        XBYAK_GEN(cvttss2si, AVX_XMR32_XMR32, op_out, op_in);
+        XBYAK_GEN(vcvttss2si, AVX_R32_XM, op_out, op_in);
     } else if (out_dtype == datatypes::f32 && in_dtype == datatypes::s32) {
-        XBYAK_GEN(cvtsi2ss, AVX_XMR32_XMR32, op_out, op_in);
+        XBYAK_GEN(vcvtsi2ss, AVX_X_X_RM, op_out, op_out, op_in);
     } else if (elem_cast_simd(sc_data_etype::S32, sc_data_etype::F32)) {
         XBYAK_GEN(vcvttps2dq, AVX_X_XM, op_out, op_in);
     } else if (elem_cast_simd(sc_data_etype::F32, sc_data_etype::S32)) {
@@ -1892,6 +1894,7 @@ void xbyak_lowering_viewer::handle_avx_mask_mov(const operand &op_dst,
         const operand &op_src, const operand &op_cond,
         const x86_64::cpu_data_type &cpu_dtype, bool zero) {
     COMPILE_ASSERT(op_cond.is_mask(), "op_cond must be Opmask.");
+    COMPILE_ASSERT(!(op_dst.is_addr() && zero), "cannot zero mask store.");
     switch (cpu_dtype) {
         // may have other datatypes needs to support
         case cpu_data_type::uint_8_x16:

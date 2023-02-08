@@ -542,18 +542,29 @@ protected:
                 if (spilled_args_sum(v->args_) > 1) { return resolve(); }
             } break;
         }
-        // Special case of local tensor as all stack arg
-        if (static_cast<xbyak_intrin_type>(v->type_)
-                == xbyak_intrin_type::call_arg) {
+        // Special cases
+        auto type = static_cast<xbyak_intrin_type>(v->type_);
+        if (type == xbyak_intrin_type::call_arg) {
             auto &arg = v->args_.back();
             auto &virt_reg = GET_VIRTUAL_REG(arg);
             if (dst_is_mem_ && virt_reg.buffered()) {
+                // local stack tensor as func arg passed to stack
                 auto node = builder::make_cast(sc_data_type_t::generic(), arg);
                 v->args_ = {insert_load(std::move(node), cur_index_)};
                 return v;
             } else if (dst_is_mem_ && const_exceed_32bit(arg)) {
+                // int exceeds 32bit as func arg passed to stack
                 v->args_ = {insert_load(std::move(arg), cur_index_)};
                 return v;
+            }
+        } else if (type == xbyak_intrin_type::mask_mov) {
+            if (dst_is_mem_ && v->modifier_.zero_mask_) {
+                // store to a var in memory with zero-masking
+                resolve_dst_ = resolve_dst::store;
+            } else if (dst_is_mem_ && spilled_args_sum(v->args_) > 0) {
+                // dst might be indexing, do not change ptr/idx liveness
+                resolve_dst_ = resolve_dst::none;
+                return resolve();
             }
         }
         return v;
