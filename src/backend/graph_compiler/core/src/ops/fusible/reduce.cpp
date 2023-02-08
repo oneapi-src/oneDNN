@@ -676,6 +676,8 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
                 cur = make_stmt<assign_node_t>(reduce_value,
                         builder::make_min(indexed_input, reduce_value));
             }
+            cur->attr()[op_traits::workload_computable_t::workload_number]
+                    = wkld;
         }
         body = cur.isa<stmts>()
                 ? cur
@@ -723,8 +725,6 @@ static void compute_block_reduce(const std::vector<const tensor_slice *> &src,
                                         ? builder::make_reduce_min(reduce_value)
                                         : reduce_value)});
             }
-            cur->attr()[op_traits::workload_computable_t::workload_number]
-                    = wkld;
             // try to create inner anchor for reduce op
             create_fusible_output_anchor(
                     cur, dst, iter_vars, {rd_axis}, vx_info, attrs);
@@ -823,11 +823,7 @@ size_t reduce_op_t::compute_workload(const std::vector<shape_dtype_pair> &ins,
     auto &dtype = ins[0].second;
     auto real_rd_axis = get_rd_axis();
     size_t wkld = utils::get_sizeof_type(dtype) * read_weight;
-    for (auto &rd_axis : real_rd_axis) {
-        wkld *= shape[rd_axis];
-    }
     wkld += utils::get_sizeof_type(dtype) * write_weight;
-    wkld *= workload_penalty_coefficient;
     return wkld;
 }
 
