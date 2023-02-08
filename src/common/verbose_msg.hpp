@@ -57,6 +57,7 @@
 #define VERBOSE_UNSUPPORTED_SCALES_CFG "unsupported scales configuration"
 #define VERBOSE_UNSUPPORTED_ZP_CFG "unsupported zero-point configuration"
 #define VERBOSE_UNSUPPORTED_BIAS_CFG "unsupported bias configuration"
+#define VERBOSE_UNSUPPORTED_DT_CFG "unsupported datatype combination"
 
 #define VERBOSE_UNSUPPORTED_TAG "unsupported format tag"
 #define VERBOSE_UNSUPPORTED_TAG_S "unsupported format tag for %s"

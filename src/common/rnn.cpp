@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,13 @@
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#define VCHECK_RNN(f, msg, ...) \
+    VCHECK(profile_create, check, rnn, (f), msg, ##__VA_ARGS__);
+
+#define VCONDCHECK_RNN(cond, msg, ...) \
+    VCONDCHECK(profile_create, check, rnn, (cond), status::invalid_arguments, \
+            msg, ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {
@@ -215,54 +222,65 @@ status_t check_dim_consistency(const rnn_desc_t &r) {
     const dim_t dlc_multiplier
             = (r.direction == dnnl_bidirectional_concat) ? 2 : 1;
 
-    bool args_ok
-            = IMPLICATION(utils::one_of(r.cell_kind, alg_kind::vanilla_gru,
-                                  alg_kind::lbr_gru, alg_kind::vanilla_augru,
-                                  alg_kind::lbr_augru),
-                      SIC == DHC)
-            && dlc_multiplier * DIC == DLC
-            && IMPLICATION(L > 1, dlc_multiplier * SLC == DLC)
-            && IMPLICATION(T > 1, SIC == DIC);
-    if (!args_ok) return invalid_arguments;
+    VCONDCHECK_RNN(
+            IMPLICATION(utils::one_of(r.cell_kind, alg_kind::vanilla_gru,
+                                alg_kind::lbr_gru, alg_kind::vanilla_augru,
+                                alg_kind::lbr_augru),
+                    SIC == DHC),
+            VERBOSE_INCONSISTENT_DIM, "weights_iter", 2, "weights_layer", 4);
+    VCONDCHECK_RNN(dlc_multiplier * DIC == DLC, VERBOSE_INCONSISTENT_DIM,
+            is_lstm_projection ? "weights_proj" : "weithts_layer",
+            is_lstm_projection ? 3 : 4, "dst_layer", 2);
+    VCONDCHECK_RNN(IMPLICATION(L > 1, dlc_multiplier * SLC == DLC),
+            VERBOSE_INCONSISTENT_DIM, "src_layer", 2, "dst_layer", 2);
+    VCONDCHECK_RNN(IMPLICATION(T > 1, SIC == DIC), VERBOSE_INCONSISTENT_DIM,
+            "weights_iter", 2,
+            is_lstm_projection ? "weights_proj" : "weithts_layer",
+            is_lstm_projection ? 3 : 4);
+
+#define CHECK_DIMS(t, allow_empty, ...) \
+    do { \
+        std::initializer_list<dim_t> _dims_ = {__VA_ARGS__}; \
+        VCHECK_RNN((expect_dims(r.t##_desc, _dims_, allow_empty)), \
+                VERBOSE_BAD_DIM, #t, -1); \
+    } while (0)
 
     const bool is_augru = utils::one_of(
             r.cell_kind, alg_kind::vanilla_augru, alg_kind::lbr_augru);
-    CHECK(expect_dims(r.src_layer_desc, {T, N, SLC}, false));
-    CHECK(expect_dims(r.src_iter_desc, {L, D, N, SIC}));
-    CHECK(expect_dims(r.src_iter_c_desc, {L, D, N, DHC}));
-    CHECK(expect_dims(r.weights_layer_desc, {L, D, SLC, G, DHC}, false));
-    CHECK(expect_dims(r.weights_iter_desc, {L, D, SIC, G, DHC}, false));
+    CHECK_DIMS(src_layer, false, T, N, SLC);
+    CHECK_DIMS(src_iter, true, L, D, N, SIC);
+    CHECK_DIMS(src_iter_c, true, L, D, N, DHC);
+    CHECK_DIMS(weights_layer, false, L, D, SLC, G, DHC);
+    CHECK_DIMS(weights_iter, false, L, D, SIC, G, DHC);
     if (is_augru)
-        CHECK(expect_dims(r.weights_peephole_desc, {T, N, 1}));
+        CHECK_DIMS(weights_peephole, true, T, N, 1);
     else
-        CHECK(expect_dims(r.weights_peephole_desc, {L, D, 3, DHC}));
-    CHECK(expect_dims(r.weights_projection_desc, {L, D, DHC, DIC}));
-    CHECK(expect_dims(r.bias_desc, {L, D, G + extra_bias, DHC}));
-    CHECK(expect_dims(r.dst_layer_desc, {T, N, DLC}, false));
-    CHECK(expect_dims(r.dst_iter_desc, {L, D, N, DIC}));
-    CHECK(expect_dims(r.dst_iter_c_desc, {L, D, N, DHC}));
+        CHECK_DIMS(weights_peephole, true, L, D, 3, DHC);
+    CHECK_DIMS(weights_projection, true, L, D, DHC, DIC);
+    CHECK_DIMS(bias, true, L, D, G + extra_bias, DHC);
+    CHECK_DIMS(dst_layer, false, T, N, DLC);
+    CHECK_DIMS(dst_iter, true, L, D, N, DIC);
+    CHECK_DIMS(dst_iter_c, true, L, D, N, DHC);
 
     if (r.prop_kind == prop_kind::backward) {
-        CHECK(expect_dims(r.diff_src_layer_desc, {T, N, SLC}, false));
-        CHECK(expect_dims(r.diff_src_iter_desc, {L, D, N, SIC}));
-        CHECK(expect_dims(r.diff_src_iter_c_desc, {L, D, N, DHC}));
-        CHECK(expect_dims(
-                r.diff_weights_layer_desc, {L, D, SLC, G, DHC}, false));
-        CHECK(expect_dims(
-                r.diff_weights_iter_desc, {L, D, SIC, G, DHC}, false));
+        CHECK_DIMS(diff_src_layer, false, T, N, SLC);
+        CHECK_DIMS(diff_src_iter, true, L, D, N, SIC);
+        CHECK_DIMS(diff_src_iter_c, true, L, D, N, DHC);
+        CHECK_DIMS(diff_weights_layer, false, L, D, SLC, G, DHC);
+        CHECK_DIMS(diff_weights_iter, false, L, D, SIC, G, DHC);
         if (is_augru)
-            CHECK(expect_dims(r.diff_weights_peephole_desc, {T, N, 1}));
+            CHECK_DIMS(diff_weights_peephole, true, T, N, 1);
         else
-            CHECK(expect_dims(r.diff_weights_peephole_desc, {L, D, 3, DHC}));
-        CHECK(expect_dims(r.diff_weights_projection_desc, {L, D, DHC, DIC}));
-        CHECK(expect_dims(r.diff_bias_desc, {L, D, G + extra_bias, DHC}));
-        CHECK(expect_dims(r.diff_dst_layer_desc, {T, N, DLC}, false));
-        CHECK(expect_dims(r.diff_dst_iter_desc, {L, D, N, DIC}));
-        CHECK(expect_dims(r.diff_dst_iter_c_desc, {L, D, N, DHC}));
+            CHECK_DIMS(diff_weights_peephole, true, L, D, 3, DHC);
+        CHECK_DIMS(diff_weights_projection, true, L, D, DHC, DIC);
+        CHECK_DIMS(diff_bias, true, L, D, G + extra_bias, DHC);
+        CHECK_DIMS(diff_dst_layer, false, T, N, DLC);
+        CHECK_DIMS(diff_dst_iter, true, L, D, N, DIC);
+        CHECK_DIMS(diff_dst_iter_c, true, L, D, N, DHC);
     }
-
+#undef CHECK_DIMS
     return success;
-}
+} // namespace
 
 status_t rnn_common_fwd_desc_init(rnn_desc_t *rnn_desc, prop_kind_t prop_kind,
         alg_kind_t cell_kind, const rnn_direction_t direction,
@@ -278,46 +296,46 @@ status_t rnn_common_fwd_desc_init(rnn_desc_t *rnn_desc, prop_kind_t prop_kind,
         const memory_desc_t *dst_iter_c_desc, unsigned flags,
         alg_kind_t activation = alg_kind::undef, float alpha = 0.0f,
         float beta = 0.0f) {
+    using namespace alg_kind;
 
     // check that a supported cell kind has been passed
-    bool args_ok = one_of(cell_kind, dnnl_vanilla_rnn, dnnl_vanilla_lstm,
-            dnnl_vanilla_gru, dnnl_lbr_gru, dnnl_vanilla_augru, dnnl_lbr_augru);
-    if (!args_ok) return invalid_arguments;
+    VCONDCHECK_RNN(one_of(cell_kind, vanilla_rnn, vanilla_lstm, vanilla_gru,
+                           lbr_gru, vanilla_augru, lbr_augru),
+            VERBOSE_BAD_ALGORITHM);
 
     // check that all mandatory parameters are non-null
-    args_ok = args_ok
-            && !any_null(src_layer_desc, weights_layer_desc, weights_iter_desc,
-                    dst_layer_desc);
-    if (!args_ok) return invalid_arguments;
+    VCONDCHECK_RNN(!any_null(src_layer_desc, weights_layer_desc,
+                           weights_iter_desc, dst_layer_desc),
+            VERBOSE_NULL_ARG);
 
     if (cell_kind == dnnl_vanilla_rnn) {
-        using namespace alg_kind;
-        args_ok = args_ok
-                && one_of(activation, eltwise_relu, eltwise_tanh,
-                        eltwise_logistic);
-        if (!args_ok) return invalid_arguments;
+        VCONDCHECK_RNN(one_of(activation, eltwise_relu, eltwise_tanh,
+                               eltwise_logistic),
+                VERBOSE_BAD_ALGORITHM);
     }
 
     if (cell_kind == dnnl_vanilla_lstm) {
         // check if optional *_iter is provided then *_iter_c is provided too
-        args_ok = args_ok && xnor_md(src_iter_desc, src_iter_c_desc)
-                && xnor_md(dst_iter_desc, dst_iter_c_desc);
-        if (!args_ok) return invalid_arguments;
+        VCONDCHECK_RNN(xnor_md(src_iter_desc, src_iter_c_desc)
+                        && xnor_md(dst_iter_desc, dst_iter_c_desc),
+                VERBOSE_NULL_ARG);
     }
 
     // check augru-specific restrictions
     const bool is_augru = one_of(cell_kind, dnnl_vanilla_augru, dnnl_lbr_augru);
     if (is_augru) {
-        const dim_t L = weights_layer_desc->dims[0];
-        args_ok = args_ok && direction == dnnl_unidirectional_left2right
-                && L == 1;
-        if (!args_ok) return invalid_arguments;
+        VCONDCHECK_RNN(direction == dnnl_unidirectional_left2right,
+                VERBOSE_BAD_PARAM, "direction != unidirectional_left2right");
+        VCONDCHECK_RNN(weights_layer_desc->dims[0] == 1, VERBOSE_BAD_PARAM,
+                "num_layers != 1");
     }
 
-    CHECK(check_runtime_dims_or_strides({src_layer_desc, src_iter_desc,
-            src_iter_c_desc, weights_layer_desc, weights_iter_desc,
-            weights_peephole_desc, weights_projection_desc, bias_desc,
-            dst_layer_desc, dst_iter_desc, dst_iter_c_desc}));
+    VCHECK_RNN(
+            check_runtime_dims_or_strides({src_layer_desc, src_iter_desc,
+                    src_iter_c_desc, weights_layer_desc, weights_iter_desc,
+                    weights_peephole_desc, weights_projection_desc, bias_desc,
+                    dst_layer_desc, dst_iter_desc, dst_iter_c_desc}),
+            VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     // Create the descriptor
     auto rd = rnn_desc_t();
@@ -344,7 +362,7 @@ status_t rnn_common_fwd_desc_init(rnn_desc_t *rnn_desc, prop_kind_t prop_kind,
     rd.alpha = alpha;
     rd.beta = beta;
 
-    CHECK(check_data_type_consistency_fwd(rd));
+    VCHECK_RNN(check_data_type_consistency_fwd(rd), VERBOSE_UNSUPPORTED_DT_CFG);
     CHECK(check_dim_consistency(rd));
 
     *rnn_desc = rd;
@@ -378,65 +396,72 @@ status_t rnn_common_bwd_desc_init(rnn_desc_t *rnn_desc, prop_kind_t prop_kind,
         const memory_desc_t *diff_dst_iter_c_desc, unsigned flags,
         alg_kind_t activation = alg_kind::undef, float alpha = 0.0f,
         float beta = 0.0f) {
+    using namespace alg_kind;
 
     // check that a supported cell kind has been passed
-    bool args_ok = one_of(cell_kind, dnnl_vanilla_rnn, dnnl_vanilla_lstm,
-            dnnl_vanilla_gru, dnnl_lbr_gru, dnnl_vanilla_augru, dnnl_lbr_augru);
-    if (!args_ok) return invalid_arguments;
+    VCONDCHECK_RNN(one_of(cell_kind, vanilla_rnn, vanilla_lstm, vanilla_gru,
+                           lbr_gru, vanilla_augru, lbr_augru),
+            VERBOSE_BAD_ALGORITHM);
 
     // check that all mandatory parameters are non-null
-    args_ok = args_ok
-            && !any_null(src_layer_desc, weights_layer_desc, weights_iter_desc,
-                    dst_layer_desc, diff_src_layer_desc,
-                    diff_weights_layer_desc, diff_weights_iter_desc,
-                    diff_dst_layer_desc);
-    if (!args_ok) return invalid_arguments;
+    VCONDCHECK_RNN(!any_null(src_layer_desc, weights_layer_desc,
+                           weights_iter_desc, dst_layer_desc,
+                           diff_src_layer_desc, diff_weights_layer_desc,
+                           diff_weights_iter_desc, diff_dst_layer_desc),
+            VERBOSE_NULL_ARG);
 
     if (cell_kind == dnnl_vanilla_rnn) {
-        using namespace alg_kind;
-        args_ok = args_ok
-                && one_of(activation, eltwise_relu, eltwise_tanh,
-                        eltwise_logistic);
-        if (!args_ok) return invalid_arguments;
+        VCONDCHECK_RNN(one_of(activation, eltwise_relu, eltwise_tanh,
+                               eltwise_logistic),
+                VERBOSE_BAD_ALGORITHM);
     }
 
     if (cell_kind == dnnl_vanilla_lstm) {
         // check if optional *_iter is provided then *_iter_c is provided too
-        args_ok = args_ok && xnor_md(src_iter_desc, src_iter_c_desc)
-                && xnor_md(dst_iter_desc, dst_iter_c_desc);
-        if (!args_ok) return invalid_arguments;
+        VCONDCHECK_RNN(xnor_md(src_iter_desc, src_iter_c_desc)
+                        && xnor_md(dst_iter_desc, dst_iter_c_desc),
+                VERBOSE_NULL_ARG);
     }
 
     const bool is_augru = one_of(cell_kind, dnnl_vanilla_augru, dnnl_lbr_augru);
     // check augru-specific restrictions
     if (is_augru) {
-        const dim_t L = weights_layer_desc->dims[0];
-        const bool dims_ok = args_ok
-                && direction == dnnl_unidirectional_left2right && L == 1;
-        const bool descs_ok = !any_null(attention_desc, diff_attention_desc);
-        const bool args_ok = dims_ok && descs_ok;
-        if (!args_ok) return invalid_arguments;
+        VCONDCHECK_RNN(direction == dnnl_unidirectional_left2right,
+                VERBOSE_BAD_PARAM, "direction != unidirectional_left2right");
+        VCONDCHECK_RNN(weights_layer_desc->dims[0] == 1, VERBOSE_BAD_PARAM,
+                "num_layers != 1");
+        VCONDCHECK_RNN(!any_null(attention_desc, diff_attention_desc),
+                VERBOSE_NULL_ARG);
     }
 
     // check if optional md is provided then diff_md is provided too
-    args_ok = args_ok && xnor_md(bias_desc, diff_bias_desc)
-            && xnor_md(weights_peephole_desc, diff_weights_peephole_desc)
-            && xnor_md(weights_projection_desc, diff_weights_projection_desc)
-            && xnor_md(src_iter_desc, diff_src_iter_desc)
-            && xnor_md(src_iter_c_desc, diff_src_iter_c_desc)
-            && xnor_md(dst_iter_desc, diff_dst_iter_desc)
-            && xnor_md(dst_iter_c_desc, diff_dst_iter_c_desc);
-    if (!args_ok) return invalid_arguments;
+    VCONDCHECK_RNN(xnor_md(bias_desc, diff_bias_desc), VERBOSE_NULL_ARG);
+    VCONDCHECK_RNN(xnor_md(weights_peephole_desc, diff_weights_peephole_desc),
+            VERBOSE_NULL_ARG);
+    VCONDCHECK_RNN(
+            xnor_md(weights_projection_desc, diff_weights_projection_desc),
+            VERBOSE_NULL_ARG);
+    VCONDCHECK_RNN(
+            xnor_md(src_iter_desc, diff_src_iter_desc), VERBOSE_NULL_ARG);
+    VCONDCHECK_RNN(
+            xnor_md(src_iter_c_desc, diff_src_iter_c_desc), VERBOSE_NULL_ARG);
+    VCONDCHECK_RNN(
+            xnor_md(dst_iter_desc, diff_dst_iter_desc), VERBOSE_NULL_ARG);
+    VCONDCHECK_RNN(
+            xnor_md(dst_iter_c_desc, diff_dst_iter_c_desc), VERBOSE_NULL_ARG);
 
-    CHECK(check_runtime_dims_or_strides({src_layer_desc, src_iter_desc,
-            src_iter_c_desc, attention_desc, weights_layer_desc,
-            weights_iter_desc, weights_peephole_desc, weights_projection_desc,
-            bias_desc, dst_layer_desc, dst_iter_desc, dst_iter_c_desc,
-            diff_src_layer_desc, diff_src_iter_desc, diff_src_iter_c_desc,
-            diff_attention_desc, diff_weights_layer_desc,
-            diff_weights_iter_desc, diff_weights_peephole_desc,
-            diff_weights_projection_desc, diff_bias_desc, diff_dst_layer_desc,
-            diff_dst_iter_desc, diff_dst_iter_c_desc}));
+    VCHECK_RNN(check_runtime_dims_or_strides({src_layer_desc, src_iter_desc,
+                       src_iter_c_desc, attention_desc, weights_layer_desc,
+                       weights_iter_desc, weights_peephole_desc,
+                       weights_projection_desc, bias_desc, dst_layer_desc,
+                       dst_iter_desc, dst_iter_c_desc, diff_src_layer_desc,
+                       diff_src_iter_desc, diff_src_iter_c_desc,
+                       diff_attention_desc, diff_weights_layer_desc,
+                       diff_weights_iter_desc, diff_weights_peephole_desc,
+                       diff_weights_projection_desc, diff_bias_desc,
+                       diff_dst_layer_desc, diff_dst_iter_desc,
+                       diff_dst_iter_c_desc}),
+            VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     auto rd = rnn_desc_t();
 

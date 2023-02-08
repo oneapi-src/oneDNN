@@ -88,7 +88,7 @@ struct const_expr_value {
 // Macro for status checks
 #define VCHECK(logtype, logsubtype, component, f, msg, ...) \
     do { \
-        status_t _status_ = f; \
+        status_t _status_ = (f); \
         VCONDCHECK(logtype, logsubtype, component, \
                 _status_ == status::success, _status_, msg, ##__VA_ARGS__); \
     } while (0)
