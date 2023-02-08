@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,18 +66,48 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
     for (long m = 0; m < M; ++m) {
         ACC_DATA_T acc = 0;
         for (long k = 0; k < K; ++k) {
+#if RUNTIME_DIMS
             long src_off
                     = offset6D(m, k, d0, d1, d2, d3, a_stride_m, a_stride_k,
                             a_stride_d0, a_stride_d1, a_stride_d2, a_stride_d3);
             long wei_off
                     = offset6D(k, n, d0, d1, d2, d3, b_stride_k, b_stride_n,
                             b_stride_d0, b_stride_d1, b_stride_d2, b_stride_d3);
+#else
+#if NDIMS == 5
+            long src_off = SRC_OFF(d2 % SRC_D0, d1 % SRC_D1, d0 % SRC_D2, m, k);
+            long wei_off
+                    = WEI_OFF(0, d2 % WEI_D0, d1 % WEI_D1, d0 % WEI_D2, k, n);
+#elif NDIMS == 4
+            long src_off = SRC_OFF(d1 % SRC_D0, d0 % SRC_D1, 0, m, k);
+            long wei_off = WEI_OFF(0, d1 % WEI_D0, d0 % WEI_D1, 0, k, n);
+#elif NDIMS == 3
+            long src_off = SRC_OFF(d0 % SRC_D0, m, 0, 0, k);
+            long wei_off = WEI_OFF(0, d0 % WEI_D0, k, 0, 0, n);
+#else
+            long src_off = SRC_OFF(m, k, 0, 0, 0);
+            long wei_off = WEI_OFF(0, k, n, 0, 0, 0);
+#endif
+#endif
             acc += TO_ACC(SRC_TO_REF(A[src_off]) - src_zp)
                     * TO_ACC(WEI_TO_REF(B[wei_off]) - wei_zp);
         }
 
+#if RUNTIME_DIMS
         long dst_off = offset6D(m, n, d0, d1, d2, d3, c_stride_m, c_stride_n,
                 c_stride_d0, c_stride_d1, c_stride_d2, c_stride_d3);
+#else
+#if NDIMS == 5
+        long dst_off = DST_OFF(d2 % DST_D0, d1 % DST_D1, d0 % DST_D2, m, n);
+#elif NDIMS == 4
+        long dst_off = DST_OFF(d1 % DST_D0, d0 % DST_D1, 0, m, n);
+#elif NDIMS == 3
+        long dst_off = DST_OFF(d0 % DST_D0, m, 0, 0, n);
+#else
+        long dst_off = DST_OFF(m, n, 0, 0, 0);
+#endif
+#endif
+
 #if WITH_BIAS || NON_DEFAULT_ATTRS
         POST_OP_DATA_T temp = (POST_OP_DATA_T)acc;
 #if WITH_SRC_SCALES

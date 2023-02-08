@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ struct ref_matmul_t : public gpu_primitive_t {
                     && attr()->has_default_values(smask_t::scales_runtime
                             | smask_t::zero_points_runtime | smask_t::post_ops)
                     && attr_scales_ok() && set_default_formats()
-                    && !has_blocks()
+                    && IMPLICATION(has_blocks(), dst_md()->ndims < 6)
                     && ((utils::one_of(src_dt_, u8, s8)
                                 && utils::one_of(wei_dt_, u8, s8)
                                 && utils::one_of(dst_dt_, f32, s8, u8, s32, f16)
@@ -119,12 +119,29 @@ struct ref_matmul_t : public gpu_primitive_t {
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
-        kernel_ctx.define_int("DST_NDIMS", pd()->dst_md()->ndims);
+        int ndims = pd()->dst_md()->ndims;
+        kernel_ctx.define_int("DST_NDIMS", ndims);
         kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
         kernel_ctx.define_int("NON_DEFAULT_ATTRS", pd()->non_default_attrs_);
 
         kernel_ctx.set_data_type(pd()->dst_dt_);
         def_attr_info(kernel_ctx, pd()->attr_info_, pd()->attr()->post_ops_);
+
+        bool runtime_dims = pd()->has_runtime_dims_or_strides() || ndims > 5;
+        if (!runtime_dims) {
+            const memory_desc_wrapper src_d(pd()->src_md(0));
+            const memory_desc_wrapper wei_d(pd()->weights_md(0));
+            const memory_desc_wrapper dst_d(pd()->dst_md(0));
+            offsets_t off;
+            set_offsets(src_d, off.src_off);
+            set_offsets(wei_d, off.wei_off);
+            set_offsets(dst_d, off.dst_off);
+            def_offsets(off.src_off, kernel_ctx, "SRC", ndims);
+            def_offsets(off.wei_off, kernel_ctx, "WEI", ndims);
+            def_offsets(off.dst_off, kernel_ctx, "DST", ndims);
+            kernel_ctx.define_int("NDIMS", ndims);
+        }
+        kernel_ctx.define_int("RUNTIME_DIMS", runtime_dims);
 
         def_data_type(kernel_ctx, pd()->src_dt_, "SRC");
         def_data_type(kernel_ctx, pd()->wei_dt_, "WEI");
