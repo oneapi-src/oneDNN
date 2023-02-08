@@ -1386,8 +1386,8 @@ private:
         });
     }
 
-    static tensor_t find_max_2d_dense_tile(
-            const layout_t &a, const layout_t &b, dim_t max_elems) {
+    static std::vector<tensor_t> find_2d_dense_tiles(
+            const layout_t &a, const layout_t &b) {
         using tile_pair_t = std::array<tensor_t, 2>;
         auto dense_2d_blocks = []() {
             dim_t stride = 1;
@@ -1413,104 +1413,75 @@ private:
 
         auto to_single_tile = [](const tile_pair_t &p) { return p[0]; };
 
-        auto a_tiles = inner_tiles(
-                a.blocks() | filter(dense_2d_blocks()), a.ndims());
-        auto b_tiles = inner_tiles(
-                b.blocks() | filter(dense_2d_blocks()), b.ndims());
-        auto shared_inner_tiles = merge(a_tiles, b_tiles, take_smaller)
-                | filter(equal_tiles) | transform(to_single_tile);
-
-        tensor_t max_tile;
-        auto all_pow2 = [](const tensor_t &tile) {
+        auto all_dims_pow2 = [](const tensor_t &tile) {
             for (auto d : tile.dims())
                 if (!math::is_pow2(d)) return false;
             return true;
         };
 
-        for (auto tile : shared_inner_tiles) {
-            if (tile.elems() > max_elems) break;
-            if (all_pow2(tile)) max_tile = tile;
-        }
-        // No point in tiling with a 1x1 tile
-        return max_tile.elems() > 1 ? max_tile : tensor_t();
+        auto a_tiles = inner_tiles(
+                a.blocks() | filter(dense_2d_blocks()), a.ndims());
+        auto b_tiles = inner_tiles(
+                b.blocks() | filter(dense_2d_blocks()), b.ndims());
+        auto tiles = merge(a_tiles, b_tiles, take_smaller) | filter(equal_tiles)
+                | transform(to_single_tile) | filter(all_dims_pow2);
+        std::vector<tensor_t> ret;
+        for (const auto &tile : tiles)
+            ret.insert(ret.begin(), tile);
+        return ret;
     }
 
     template <typename GeneratorT>
     bool try_emit_2d(GeneratorT *host, ngen_register_scope_t &scope,
             const reg_buf_data_t &src_rd, const reg_buf_data_t &dst_rd) {
+        const int grf_size = ngen::GRF::bytes(hw_);
+
         if (src_layout_.type() != dst_layout_.type()) return false;
         // long / f64 swizzle emits scalar instructions
         if (src_layout_.type().scalar().size() >= 8) return false;
         if (!src_layout_.is_dense()) return false;
         if (!dst_layout_.is_dense()) return false;
 
-        int max_tile_elems = std::max(src_layout_.elems(), dst_layout_.elems());
-        auto tile = find_max_2d_dense_tile(
-                src_layout_, dst_layout_, max_tile_elems);
+        const auto type = to_ngen(src_layout_.type());
+        for (const auto &tile : find_2d_dense_tiles(src_layout_, dst_layout_)) {
+            if (tile.is_empty()) continue;
+            auto src_tile_layout = src_layout_.map(tile);
+            auto dst_tile_layout = dst_layout_.map(tile);
+            if (!dst_tile_layout.is_dense()) continue;
 
-        // Couldn't find tile, 2D reorder is not supported.
-        if (tile.is_empty()) return false;
+            // Set layout offset to 0 since the offset is handled by fixing up
+            // the register input to try_emit_2d_impl
+            src_tile_layout.set_offset(0);
+            dst_tile_layout.set_offset(0);
 
-        auto src_tile_layout = src_layout_.map(tile);
-        auto dst_tile_layout = dst_layout_.map(tile);
-        if (!dst_tile_layout.is_dense()) return false;
-        auto layout_ok = [](const layout_t &l) {
-            if (l.blocks().size() < 2) return false;
-            for (auto &b : l.blocks()) {
-                if (math::is_pow2(b.block)) continue;
-                for (int i = 2; i < (int)b.block / 2; i++)
-                    if (b.block % i != 0) return false;
-            }
+            // Try to allocate/release a temporary buffer to avoid
+            // out_of_registers exception.
+            auto dummy = scope.try_alloc_range(
+                    utils::div_up(dst_tile_layout.size(), grf_size));
+            if (dummy.isInvalid()) continue;
+
+            // Allocation succeeded, can proceed further.
+            scope.safeRelease(dummy);
+
+            reorder_2d_impl_t r(hw_, src_tile_layout, dst_tile_layout);
+            if (r.tile().elems() < 16) break;
+
+            src_layout_.for_each_tile(
+                    tile, [&](const std::vector<dim_t> &start) {
+                        auto src_off
+                                = src_layout_.offset_in_bytes<dim_t>(start);
+                        auto dst_off
+                                = dst_layout_.offset_in_bytes<dim_t>(start);
+                        auto src_tile_rd = src_rd.format(int(src_off), type);
+                        auto dst_tile_rd = dst_rd.format(int(dst_off), type);
+
+                        ngen_register_scope_t tile_scope(
+                                scope.register_allocator());
+                        r.emit(host, tile_scope, src_tile_rd, dst_tile_rd);
+                    });
             return true;
-        };
-
-        if (!layout_ok(src_tile_layout)) return false;
-        if (!layout_ok(dst_tile_layout)) return false;
-
-        // Set layout offset to 0 since the offset is handled by fixing up the
-        // register input to try_emit_2d_impl
-        src_tile_layout.set_offset(0);
-        dst_tile_layout.set_offset(0);
-
-        bool ok = true;
-        auto type = to_ngen(src_layout_.type());
-        src_layout_.for_each_tile(tile, [&](const std::vector<dim_t> &start) {
-            auto src_off = src_layout_.offset_in_bytes<dim_t>(start);
-            auto dst_off = dst_layout_.offset_in_bytes<dim_t>(start);
-            auto src_tile_rd = src_rd.format(int(src_off), type);
-            auto dst_tile_rd = dst_rd.format(int(dst_off), type);
-
-            ngen_register_scope_t tile_scope(scope.register_allocator());
-            ok &= try_emit_2d_impl(host, tile_scope, src_tile_layout,
-                    dst_tile_layout, src_tile_rd, dst_tile_rd);
-        });
-        return ok;
-    }
-
-    template <typename GeneratorT>
-    bool try_emit_2d_impl(GeneratorT *host, ngen_register_scope_t &scope,
-            const layout_t &src_layout, const layout_t &dst_layout,
-            const reg_buf_data_t &src_rd, const reg_buf_data_t &dst_rd) {
-        // Try to allocate/release a temporary buffer to avoid out_of_registers
-        // exception.
-        const int grf_size = ngen::GRF::bytes(hw_);
-        auto dummy = scope.try_alloc_range(
-                utils::div_up(dst_layout.size(), grf_size));
-        if (dummy.isInvalid()) {
-            ir_warning() << "Can't allocate buffer for 2D reorder. Reorder "
-                            "performance may be suboptimal.\n";
-            return false;
         }
-
-        // Allocation succeeded, can proceed further.
-        scope.safeRelease(dummy);
-
-        reorder_2d_impl_t r(hw_, src_layout, dst_layout);
-        int tile_elems = int(r.tile().elems());
-        if (tile_elems < 16 || tile_elems > 512) return false;
-
-        r.emit(host, scope, src_rd, dst_rd);
-        return true;
+        return false;
     }
 
     static tensor_t find_max_tile_with_fixed_stride(const layout_t &src,
