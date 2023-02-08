@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 #include <compiler/ir/builder.hpp>
+#include <compiler/ir/builtin.hpp>
 #include <compiler/ir/graph/traits.hpp>
 #include <compiler/ir/pass/ir_copy.hpp>
 #include <compiler/ir/pass_dep_util.hpp>
@@ -32,12 +33,9 @@ SC_DECL_PASS_INFO(parallel_workload_dispatcher,
         SC_PASS_REQUIRE_STATE(), SC_PASS_REQUIRE_NOT_STATE(),
         SC_PASS_SET_STATE(), SC_PASS_UNSET_STATE());
 
-// the workload allocated to a thread can not exceed
-// threshold_per_thread * coefficient
-static float threshold_coefficient = 1.f;
-
 // workload should be marked on stmts or for_loop
-static inline size_t extract_workload_from_stmt(const stmt &v) {
+static inline size_t extract_workload_from_stmt(
+        const stmt &v, int runtime_num_threads, bool &is_brgemm) {
     if (!v.defined()) return 0UL;
     if (v->attr().has_key(op_traits::workload_computable_t::workload_number)) {
         return v->attr().get<size_t>(
@@ -50,40 +48,43 @@ static inline size_t extract_workload_from_stmt(const stmt &v) {
             const auto &intrin = eval->value_.as<intrin_call>();
             if (intrin->type_ == intrin_type::brgemm
                     || intrin->type_ == intrin_type::list_brgemm) {
-                return memory_access_threshold_per_thread;
+                is_brgemm = true;
+                return memory_access_threshold_per_thread * runtime_num_threads;
             }
         }
     }
     return 0UL;
 }
 
-static void split_parallel_loop(const for_loop &v, size_t wkld) {
-    bool need_split_parallel = v->kind_ == for_type::PARALLEL
-            && wkld < memory_access_threshold_per_thread && wkld;
-    if (need_split_parallel) {
-        size_t block = 1UL;
-        size_t best_block = 1UL;
-        size_t new_wkld = wkld;
-        assert(v->iter_begin_.isa<constant>() && v->iter_end_.isa<constant>()
-                && v->step_.isa<constant>());
-        size_t begin = get_expr_as_int(v->iter_begin_);
-        size_t end = get_expr_as_int(v->iter_end_);
-        size_t step = get_expr_as_int(v->step_);
-        size_t loop_len = end - begin;
-        while (block <= loop_len
-                && static_cast<float>(new_wkld)
-                        < static_cast<float>(memory_access_threshold_per_thread)
-                                * threshold_coefficient) {
-            best_block = block;
-            block++;
-            while (block <= loop_len && loop_len % block > 0UL) {
-                block++;
-            }
-            if (block > loop_len) { break; }
-            new_wkld = wkld * block;
-        }
-        if (best_block > 1UL && step == 1) { v->split(best_block); }
+static stmt split_parallel_loop(
+        const for_loop &v, size_t wkld, int runtime_num_threads) {
+    if (v->kind_ != for_type::PARALLEL || runtime_num_threads == 1) {
+        return v;
     }
+    bool need_split_parallel = wkld != 0;
+    if (wkld < (unsigned)runtime_num_threads
+                    * memory_access_threshold_per_thread) {
+        runtime_num_threads = utils::divide_and_ceil(
+                wkld, memory_access_threshold_per_thread);
+    }
+    if (need_split_parallel) {
+        auto tid = builder::make_var(datatypes::index, "tid");
+        auto seq = builder::make_stmts_unattached({}).static_as<stmts>();
+        auto thread_for = builder::make_for_loop_unattached(tid, UINT64_C(0),
+                uint64_t(runtime_num_threads), UINT64_C(1), seq, true,
+                for_type::PARALLEL, 0);
+        expr start, end;
+        builtin::generate_balance211(runtime_num_threads, v->iter_begin_,
+                v->iter_end_, v->step_, tid, nullptr, &start, nullptr, &end,
+                &seq->seq_);
+        v->iter_begin_ = start;
+        v->iter_end_ = end;
+        v->num_threads_ = 0;
+        v->kind_ = for_type::NORMAL;
+        seq->seq_.emplace_back(v);
+        return thread_for;
+    }
+    return v;
 }
 class workload_accumulator_t : public ir_visitor_t {
 public:
@@ -92,11 +93,22 @@ public:
     bool record_workload;
     std::unordered_map<stmt_c, size_t> &stmt_workload_map;
     size_t cur_workload = 0UL;
+    const int runtime_num_threads = runtime_config_t::get().get_num_threads();
+    // if the current parallel for contains complex operations like brgemm, the
+    // function may has complex body. The parallel workload dispatch may break
+    // buffer scheduling inside the function. We may skip this pass on this
+    // case.
+    bool is_complex_pfor_ = false;
     using ir_visitor_t::dispatch;
     using ir_visitor_t::visit;
 
+    expr_c dispatch(expr_c v) override { return v; }
+
     stmt_c dispatch(stmt_c v) override {
-        size_t stmt_workload = extract_workload_from_stmt(v.remove_const());
+        bool is_brgemm = false;
+        size_t stmt_workload = extract_workload_from_stmt(
+                v.remove_const(), runtime_num_threads, is_brgemm);
+        is_complex_pfor_ |= is_brgemm;
         cur_workload = 0UL;
         auto newv = ir_visitor_t::dispatch(v);
         cur_workload = stmt_workload + cur_workload;
@@ -147,6 +159,10 @@ public:
         return std::move(v);
     }
     stmt_c visit(for_loop_c v) override {
+        bool is_normal_parallel
+                = v->kind_ == for_type::PARALLEL && v->num_threads_ == 0;
+        bool old_is_complex = is_complex_pfor_;
+        if (is_normal_parallel) { is_complex_pfor_ = false; }
         size_t total_wkld = 0UL;
         auto var = dispatch(v->var_);
         auto begin = dispatch(v->iter_begin_);
@@ -163,7 +179,8 @@ public:
                     + (get_expr_as_int(end) - get_expr_as_int(begin))
                             * body_wkld;
         } else {
-            total_wkld = memory_access_threshold_per_thread;
+            total_wkld
+                    = memory_access_threshold_per_thread * runtime_num_threads;
         }
         cur_workload = total_wkld;
         changed |= (body_wkld > 0UL);
@@ -171,21 +188,19 @@ public:
             stmt_c newv = copy_attr(*v,
                     builder::make_for_loop_unattached(var, begin, end, step,
                             body, v->incremental_, v->kind_, v->num_threads_));
-            // todo: for dynamic boundary cases, try split of quotient and
-            // remainder process with if-else.
-            if (v->kind_ == for_type::PARALLEL && begin.isa<constant>()
-                    && end.isa<constant>() && step.isa<constant>()) {
-                // copy whole for loop as split is inplace
-                std::unordered_map<expr_c, expr> rmap;
-                ir_copier_t cpier(rmap, false);
-                newv = cpier(newv);
-                split_parallel_loop(newv.checked_as<for_loop>(), body_wkld);
+            if (is_normal_parallel) {
+                if (!is_complex_pfor_) {
+                    newv = split_parallel_loop(newv.checked_as<for_loop>(),
+                            total_wkld, runtime_num_threads);
+                }
+                is_complex_pfor_ = old_is_complex;
             }
             if (record_workload) { stmt_workload_map[newv] = total_wkld; }
             return newv;
         }
+        if (is_normal_parallel) { is_complex_pfor_ = old_is_complex; }
         if (record_workload) { stmt_workload_map[v] = total_wkld; }
-        return std::move(v);
+        return v;
     }
 };
 

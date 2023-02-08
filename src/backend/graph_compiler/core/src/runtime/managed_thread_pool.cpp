@@ -188,6 +188,11 @@ static void do_dispatch(thread_manager *s, int tid) {
     size_t step = s->state.task.step;
     size_t len = end - begin;
     size_t num_jobs = utils::divide_and_ceil(len, s->state.task.step);
+    if (num_jobs == (unsigned)s->state.num_threads) {
+        s->state.task.pfunc(s->state.task.stream, s->state.task.module_env,
+                begin + step * tid, s->state.task.args);
+        return;
+    }
     size_t my_jobs = utils::divide_and_ceil(num_jobs, s->state.num_threads);
     assert(my_jobs > 0);
     size_t my_jobs_2 = my_jobs - 1;
