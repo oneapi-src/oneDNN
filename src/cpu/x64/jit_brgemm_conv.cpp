@@ -257,6 +257,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
     brgattr.use_interleave_stores = jcp_.use_interleave_stores;
     brgattr.hint_prefetching = jcp_.hint_prefetching;
     brgattr.max_bs = bs;
+    brgattr.hint_ununroll_bd_loop = jcp_.ununroll_bd_loop;
     brgattr.hint_innermost_loop = jcp_.brgemm_bd_loop_innermost
             ? brgemm_bd_loop_innermost
             : brgemm_innermost_undef;

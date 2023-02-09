@@ -117,6 +117,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                 : brgemm_innermost_undef;
         brgattr.max_top_vpad = jcp_.max_vpad;
         brgattr.max_bottom_vpad = jcp_.max_vpad;
+        brgattr.hint_ununroll_bd_loop = jcp_.ununroll_bd_loop;
 
         // assuming 2x2 decomposition in amx brgemm kernel
         const auto bd_blocking = 2 * jcp_.amx_h;

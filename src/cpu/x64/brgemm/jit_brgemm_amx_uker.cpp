@@ -310,6 +310,8 @@ private:
 
     bool dt_requires_saturation_ = false;
 
+    bool ununroll_bd_loop = false;
+
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
     Xbyak::Opmask bf32_col_mask = Xbyak::Opmask(4);
@@ -2004,6 +2006,7 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
 
 void jit_brgemm_amx_uker_base_t::init(brgemm_iteration_t &bi) {
     was_prev_bi_ = false;
+    ununroll_bd_loop = brg.brgattr.hint_ununroll_bd_loop;
     if (brg.type == brgemm_static_offs) {
         if (brg.layout == brgemm_row_major) {
             mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);
