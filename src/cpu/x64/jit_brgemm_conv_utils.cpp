@@ -59,7 +59,7 @@ namespace brgemm_convolution_utils {
 bool is_any_eligible(const jit_brgemm_conv_conf_t &jcp) {
     return (jcp.prop_kind == prop_kind::forward_inference || jcp.wei_plain
             || one_of(jcp.wei_dt, data_type::s8, data_type::f16)
-            || (jcp.isa == avx2_vnni_2) || is_amx(jcp.isa));
+            || one_of(jcp.isa, avx2_vnni_2) || is_amx(jcp.isa));
 }
 
 inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
@@ -1877,8 +1877,9 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.s8s8_compensation_required = is_signed_input && !isa_has_s8s8(jcp.isa);
     jcp.has_vnni = is_superset(jcp.isa, avx512_core_vnni)
             || is_superset(jcp.isa, avx2_vnni);
-
-    if (!IMPLICATION(jcp.wei_dt == s8, mayiuse(avx512_core)))
+    if (!IMPLICATION(jcp.wei_dt == s8,
+                mayiuse(avx512_core)
+                        || one_of(jcp.isa, avx2_vnni, avx2_vnni_2)))
         return status::unimplemented;
     if (!IMPLICATION(jcp.wei_dt == bf16,
                 mayiuse(avx512_core_bf16) || mayiuse(avx2_vnni_2)))

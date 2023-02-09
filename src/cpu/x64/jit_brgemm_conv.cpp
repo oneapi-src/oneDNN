@@ -37,7 +37,7 @@ using namespace nstl;
 using namespace data_type;
 
 using namespace jit_avx512_core_brgemm_conv_trans_kernel;
-using namespace jit_avx512_core_brgemm_conv_comp_pad_kernel;
+using namespace jit_uni_brgemm_conv_comp_pad_kernel;
 
 #define ndims_pick(v5, v4, v3) \
     ((ndims == 5) ? (v5) : (ndims == 4) ? (v4) : (ndims == 3) ? (v3) : 0)
@@ -832,9 +832,16 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     }
 
     if (jcp.req_cal_comp_pad) {
-        CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
-                new jit_avx512_core_brgemm_conv_comp_pad_kernel_t<Xbyak::Zmm>(
-                        jcp)));
+        if (is_superset(isa, avx512_core))
+            CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
+                    new jit_uni_brgemm_conv_comp_pad_kernel_t<Xbyak::Zmm>(
+                            jcp)));
+        else {
+            assert(one_of(isa, avx2_vnni, avx2_vnni_2));
+            CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
+                    new jit_uni_brgemm_conv_comp_pad_kernel_t<Xbyak::Ymm>(
+                            jcp)));
+        }
         CHECK(comp_vpad_pbuffer_->create_kernel());
     }
 

@@ -401,7 +401,8 @@ private:
     data_type_t out_dt_;
     data_type_t bia_dt_;
     static constexpr cpu_isa_t po_isa_t = utils::map(isa, avx512_core, avx2,
-            avx2, avx2_vnni_2, avx2_vnni_2, avx512_core_fp16, avx512_core_fp16);
+            avx2, avx2_vnni, avx2, avx2_vnni_2, avx2_vnni_2, avx512_core_fp16,
+            avx512_core_fp16);
     std::unique_ptr<injector::jit_uni_postops_injector_t<po_isa_t>>
             postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
@@ -416,9 +417,9 @@ private:
     constexpr static int max_vregs_ = cpu_isa_traits<po_isa_t>::n_vregs;
 
     using reg64_t = const Xbyak::Reg64;
-    using Vmm =
-            typename utils::conditional<utils::one_of(isa, avx2, avx2_vnni_2),
-                    Xbyak::Ymm, Xbyak::Zmm>::type;
+    using Vmm = typename utils::conditional<utils::one_of(isa, avx2, avx2_vnni,
+                                                    avx2_vnni_2),
+            Xbyak::Ymm, Xbyak::Zmm>::type;
     using Vmm_lower_t = typename vreg_traits<Vmm>::Vmm_lower_t;
 
     // Register decomposition
@@ -536,7 +537,7 @@ private:
             load_data(type_in, vmm_in, op.getAddress(), tail_size);
         }
         if (!skip_cvt2ps && types::is_integral_dt(type_in))
-            vcvtdq2ps(vmm_in, vmm_in);
+            uni_vcvtdq2ps(vmm_in, vmm_in);
     }
 
     Vmm vector(int m, int n, int n_block) { return Vmm(m * n_block + n); };
@@ -555,7 +556,12 @@ private:
             auto vmm_sum_zp = vmm_tmp(1);
             if (*p_sum_zp != 0) {
                 mov(reg_ptr_sum_zp, (size_t)p_sum_zp);
-                vcvtdq2ps(vmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+                if (is_superset(isa, avx512_core)) {
+                    vcvtdq2ps(vmm_sum_zp, ptr_b[reg_ptr_sum_zp]);
+                } else {
+                    vpbroadcastd(vmm_sum_zp, ptr[reg_ptr_sum_zp]);
+                    uni_vcvtdq2ps(vmm_sum_zp, vmm_sum_zp);
+                }
             }
 
             for_(int m = 0; m < m_block; m++)
@@ -566,15 +572,16 @@ private:
 
                 const auto vmm_prev_dst = vmm_tmp(0);
                 cvt2ps(sum_dt, vmm_prev_dst, addr, tail, false, k_mask);
-                if (*p_sum_zp != 0) vsubps(vmm_prev_dst, vmm_sum_zp);
+                if (*p_sum_zp != 0)
+                    uni_vsubps(vmm_prev_dst, vmm_prev_dst, vmm_sum_zp);
                 if (*p_sum_scale == 1.f)
-                    vaddps(vmm, vmm_prev_dst);
+                    uni_vaddps(vmm, vmm, vmm_prev_dst);
                 else {
                     if (is_superset(isa, avx512_core)) {
                         vfmadd231ps(
                                 vmm, vmm_prev_dst, ptr_b[reg_ptr_sum_scale]);
                     } else {
-                        auto vmm_sum_scale = vmm_tmp(1);
+                        auto vmm_sum_scale = vmm_tmp(2);
                         vpbroadcastd(vmm_sum_scale, ptr[reg_ptr_sum_scale]);
                         vfmadd231ps(vmm, vmm_prev_dst, vmm_sum_scale);
                     }
@@ -606,28 +613,35 @@ private:
         postops_injector_->compute_vector_range(
                 0, m_block * n_block, rhs_arg_params);
     }
-
     void apply_comp(int m_block, int n_block, int tail = 0) {
         auto k_mask = (tail == 0) ? k_full_mask : k_tail_mask;
+        const bool has_tail = tail > 0;
 
         if (brg.zp_type_a != brgemm_broadcast_t::none) {
             auto vmm_zp_a_val = vmm_tmp(1);
             mov(reg_zp_a_val, ptr[rsp + reg_zp_a_val_offs_]);
-            vpbroadcastd(vmm_zp_a_val, reg_zp_a_val.cvt32());
+            uni_vpbroadcastd(vmm_zp_a_val, reg_zp_a_val.cvt32());
 
             mov(aux_reg_zp_a_comp, ptr[rsp + aux_reg_zp_a_comp_offs_]);
             for (int n = 0; n < n_block; n++) {
                 auto vmm_zp_comp_a = vmm_tmp(0);
-                auto zp_comp_a_addr = EVEX_compress_addr(aux_reg_zp_a_comp,
-                        sizeof(int32_t) * (n * brg.ld_block));
-                vmm_zp_comp_a
-                        = maybe_mask(vmm_zp_comp_a, tail > 0, false, k_mask);
-                vmovups(vmm_zp_comp_a, zp_comp_a_addr);
-                vpmulld(vmm_zp_comp_a, vmm_zp_a_val, zp_comp_a_addr);
-
+                const size_t zp_comp_offset
+                        = sizeof(int32_t) * (n * brg.ld_block);
+                auto zp_comp_a_addr = is_superset(isa, avx512_core)
+                        ? EVEX_compress_addr(aux_reg_zp_a_comp, zp_comp_offset)
+                        : ptr[aux_reg_zp_a_comp + zp_comp_offset];
+                if (IMPLICATION(has_tail, isa_has_masks(isa))) {
+                    vmm_zp_comp_a = maybe_mask(
+                            vmm_zp_comp_a, has_tail, false, k_mask);
+                    vmovups(vmm_zp_comp_a, zp_comp_a_addr);
+                } else {
+                    load_data(data_type::f32, vmm_zp_comp_a, zp_comp_a_addr,
+                            tail);
+                }
+                uni_vpmulld(vmm_zp_comp_a, vmm_zp_a_val, zp_comp_a_addr);
                 for (int m = 0; m < m_block; m++) {
                     auto vmm = vector(m, n, n_block);
-                    vpaddd(vmm, vmm, vmm_zp_comp_a);
+                    uni_vpaddd(vmm, vmm, vmm_zp_comp_a);
                 }
             }
         }
@@ -636,19 +650,24 @@ private:
             mov(aux_reg_s8s8_comp, ptr[rsp + aux_reg_s8s8_comp_offs_]);
             for (int n = 0; n < n_block; n++) {
                 auto vmm_comp = vmm_tmp(0);
-                auto comp_addr = EVEX_compress_addr(aux_reg_s8s8_comp,
-                        sizeof(int32_t) * (n * brg.ld_block));
-                vmm_comp = maybe_mask(vmm_comp, tail > 0, false, k_mask);
-                vmovups(vmm_comp, comp_addr);
-
+                const size_t s8s8_comp_offset
+                        = sizeof(int32_t) * (n * brg.ld_block);
+                auto comp_addr = is_superset(isa, avx512_core)
+                        ? EVEX_compress_addr(
+                                aux_reg_s8s8_comp, s8s8_comp_offset)
+                        : ptr[aux_reg_s8s8_comp + s8s8_comp_offset];
+                if (IMPLICATION(tail > 0, isa_has_masks(isa))) {
+                    vmm_comp = maybe_mask(vmm_comp, tail > 0, false, k_mask);
+                    vmovups(vmm_comp, comp_addr);
+                } else
+                    load_data(data_type::f32, vmm_comp, comp_addr, tail);
                 for (int m = 0; m < m_block; m++) {
                     auto vmm = vector(m, n, n_block);
-                    vpaddd(vmm, vmm, vmm_comp);
+                    uni_vpaddd(vmm, vmm, vmm_comp);
                 }
             }
         }
     }
-
     void maybe_apply_comp(int m_block, int n_block, int tail = 0) {
         Xbyak::Label label_apply_without_comp;
         mov(reg_apply_comp, ptr[rsp + reg_apply_comp_offs_]);
@@ -659,7 +678,7 @@ private:
 
         for_(int m = 0; m < m_block; m++)
         for (int n = 0; n < n_block; n++) {
-            vcvtdq2ps(vector(m, n, n_block), vector(m, n, n_block));
+            uni_vcvtdq2ps(vector(m, n, n_block), vector(m, n, n_block));
         }
     }
 
@@ -742,19 +761,27 @@ private:
             mov(aux_reg_zp_c_values, ptr[rsp + aux_reg_zp_c_values_offs_]);
             auto vmm_zp_c = vmm_tmp(0);
             if (brg.zp_type_c == brgemm_broadcast_t::per_tensor) {
-                vcvtdq2ps(vmm_zp_c,
-                        EVEX_compress_addr(aux_reg_zp_c_values, 0, true));
+                if (is_superset(isa, avx512_core))
+                    vcvtdq2ps(vmm_zp_c,
+                            EVEX_compress_addr(aux_reg_zp_c_values, 0, true));
+                else {
+                    uni_vbroadcastss(vmm_zp_c, ptr[aux_reg_zp_c_values]);
+                    uni_vcvtdq2ps(vmm_zp_c, vmm_zp_c);
+                }
             }
             for (int n = 0; n < n_block; n++) {
                 if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
                     int zp_c_off = zp_c_values_offset(n);
-                    auto zp_c_addr
-                            = EVEX_compress_addr(aux_reg_zp_c_values, zp_c_off);
+                    auto zp_c_addr = is_superset(isa, avx512_core)
+                            ? EVEX_compress_addr(aux_reg_zp_c_values, zp_c_off)
+                            : ptr[aux_reg_zp_c_values + zp_c_off];
                     cvt2ps(data_type::s32, vmm_zp_c, zp_c_addr, tail, false,
                             k_mask);
                 }
-                for (int m = 0; m < m_block; m++)
-                    vaddps(vector(m, n), vmm_zp_c);
+                for (int m = 0; m < m_block; m++) {
+                    const auto vmm = vector(m, n);
+                    uni_vaddps(vmm, vmm, vmm_zp_c);
+                }
             }
         }
 
@@ -792,7 +819,7 @@ private:
                 switch (out_dt_) {
                     case data_type::f32:
                     case data_type::s32: uni_vmovups(addr, vmm_masked); break;
-                    case data_type::bf16: // TODO - clean
+                    case data_type::bf16:
                         if (brg.is_bf16_emu) {
                             bf16_emu_->vcvtneps2bf16(vmm_low, vmm);
                             vmovdqu16(addr, vmm_low_masked);

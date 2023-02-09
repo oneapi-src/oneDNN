@@ -25,7 +25,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-namespace jit_avx512_core_brgemm_conv_comp_pad_kernel {
+namespace jit_uni_brgemm_conv_comp_pad_kernel {
 struct jit_brgemm_conv_comp_pad_call_s {
     const void *ptr_in;
     void *ptr_zp_out;
@@ -36,17 +36,19 @@ struct jit_brgemm_conv_comp_pad_call_s {
 };
 
 template <typename Vmm>
-struct jit_avx512_core_brgemm_conv_comp_pad_kernel_t : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_brgemm_conv_comp_pad_kernel_t)
+struct jit_uni_brgemm_conv_comp_pad_kernel_t : public jit_generator {
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_brgemm_conv_comp_pad_kernel_t)
 
     using reg64_t = const Xbyak::Reg64;
 
-    jit_avx512_core_brgemm_conv_comp_pad_kernel_t(
-            const jit_brgemm_conv_conf_t &ajcp);
+    jit_uni_brgemm_conv_comp_pad_kernel_t(const jit_brgemm_conv_conf_t &ajcp);
 
-    ~jit_avx512_core_brgemm_conv_comp_pad_kernel_t() = default;
+    ~jit_uni_brgemm_conv_comp_pad_kernel_t() = default;
 
 protected:
+    static constexpr bool is_ymm_ = std::is_same<Vmm, Xbyak::Ymm>::value;
+
     jit_brgemm_conv_conf_t jcp_;
     const int inp_dsz_;
     const int out_dsz_;
@@ -83,7 +85,7 @@ protected:
 
     const int last_ic_block_ = 4;
     const int n_block2_ = 4;
-    const int m_block2_ = 16;
+    const int m_block2_ = vreg_traits<Vmm>::vlen / sizeof(int32_t);
     const int n_max_regs_ = 4;
 
     const Vmm &vmm_tmp_1() const noexcept { return vmm_tmp; }
@@ -107,7 +109,7 @@ protected:
     void generate() override;
 };
 
-} // namespace jit_avx512_core_brgemm_conv_comp_pad_kernel
+} // namespace jit_uni_brgemm_conv_comp_pad_kernel
 
 } // namespace x64
 } // namespace cpu
