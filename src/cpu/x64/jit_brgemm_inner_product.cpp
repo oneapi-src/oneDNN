@@ -216,9 +216,11 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                                 + get_blk_off(src_d, jbgp.src_dt, n,
                                         ic + b * jbgp.K));
                 addr_batch[b].ptr.A = A_ptr;
+                const int ic_curr
+                        = ic + b * ic_blocks_per_batch * jbgp.ic_block;
                 addr_batch[b].ptr.B = weights
-                        + get_blk_off(weights_d, jbgp.wei_dt, ocb,
-                                icb + b * ic_blocks_per_batch);
+                        + types::data_type_size(jbgp.wei_dt)
+                                * weights_d.off(oc, ic_curr);
             }
 
             auto ptr_D = dst + dst_off;
@@ -262,8 +264,10 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             addr_batch[0].ptr.A = src
                     + get_blk_off(src_d, jbgp.src_dt, n,
                             ic + ic_block * jbgp.ic_block);
+            const int ic_curr = ic + jbgp.K * gemm_batch;
             addr_batch[0].ptr.B = weights
-                    + get_blk_off(weights_d, jbgp.wei_dt, ocb, icb + ic_block);
+                    + types::data_type_size(jbgp.wei_dt)
+                            * weights_d.off(oc, ic_curr);
 
             auto brg_kernel_ic_tail = brg_kernels_[brg_ker_ic_tail_idx].get();
             auto ptr_D = dst + dst_off;
@@ -547,6 +551,7 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     return status::success;
 }
 
+template struct brgemm_inner_product_fwd_t<avx2>;
 template struct brgemm_inner_product_fwd_t<avx2_vnni>;
 template struct brgemm_inner_product_fwd_t<avx2_vnni_2>;
 template struct brgemm_inner_product_fwd_t<avx512_core>;

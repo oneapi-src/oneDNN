@@ -134,7 +134,7 @@ int get_os_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust,
     return os_block;
 }
 
-std::vector<format_tag_t> get_desired_weights_tag(
+std::unordered_map<int, format_tag_t> get_desired_weights_tag(
         const jit_brgemm_primitive_conf_t &jbgp) {
     using namespace format_tag;
     const int n_sp_dims = jbgp.ndims - 2;
@@ -142,43 +142,73 @@ std::vector<format_tag_t> get_desired_weights_tag(
     const bool is_not_vnni_tag = jbgp.wei_dt == f32
             || (jbgp.wei_dt == f16 && jbgp.isa == avx512_core_fp16);
     if (is_not_vnni_tag) {
-        return {pick(n_sp_dims, OI16i64o, OIw16i64o, OIhw16i64o, OIdhw16i64o),
-                pick(n_sp_dims, OI16i32o, OIw16i32o, OIhw16i32o, OIdhw16i32o),
-                pick(n_sp_dims, OI16i16o, OIw16i16o, OIhw16i16o, OIdhw16i16o)};
+        if (is_superset(jbgp.isa, avx512_core))
+            return {{64,
+                            pick(n_sp_dims, OI16i64o, OIw16i64o, OIhw16i64o,
+                                    OIdhw16i64o)},
+                    {32,
+                            pick(n_sp_dims, OI16i32o, OIw16i32o, OIhw16i32o,
+                                    OIdhw16i32o)},
+                    {16,
+                            pick(n_sp_dims, OI16i16o, OIw16i16o, OIhw16i16o,
+                                    OIdhw16i16o)}};
+        else
+            return {{32,
+                            pick(n_sp_dims, OI8i32o, OIw8i32o, OIhw8i32o,
+                                    OIdhw8i32o)},
+                    {24,
+                            pick(n_sp_dims, OI8i24o, OIw8i24o, OIhw8i24o,
+                                    OIdhw8i24o)},
+                    {16,
+                            pick(n_sp_dims, OI8i16o, OIw8i16o, OIhw8i16o,
+                                    OIdhw8i16o)},
+                    {8, pick(n_sp_dims, OI8i8o, OIw8i8o, OIhw8i8o, OIdhw8i8o)}};
     } else if (is_xf16) {
         if (jbgp.is_amx) {
-            return {pick(n_sp_dims, OI16i64o2i, OIw16i64o2i, OIhw16i64o2i,
-                            OIdhw16i64o2i),
-                    pick(n_sp_dims, OI16i32o2i, OIw16i32o2i, OIhw16i32o2i,
-                            OIdhw16i32o2i),
-                    pick(n_sp_dims, OI16i16o2i, OIw16i16o2i, OIhw16i16o2i,
-                            OIdhw16i16o2i)};
+            return {{64,
+                            pick(n_sp_dims, OI16i64o2i, OIw16i64o2i,
+                                    OIhw16i64o2i, OIdhw16i64o2i)},
+                    {32,
+                            pick(n_sp_dims, OI16i32o2i, OIw16i32o2i,
+                                    OIhw16i32o2i, OIdhw16i32o2i)},
+                    {16,
+                            pick(n_sp_dims, OI16i16o2i, OIw16i16o2i,
+                                    OIhw16i16o2i, OIdhw16i16o2i)}};
         } else {
-            return {pick(n_sp_dims, OI8i64o2i, OIw8i64o2i, OIhw8i64o2i,
-                            OIdhw8i64o2i),
-                    pick(n_sp_dims, OI8i32o2i, OIw8i32o2i, OIhw8i32o2i,
-                            OIdhw8i32o2i),
-                    pick(n_sp_dims, OI8i16o2i, OIw8i16o2i, OIhw8i16o2i,
-                            OIdhw8i16o2i)};
+            return {{64,
+                            pick(n_sp_dims, OI8i64o2i, OIw8i64o2i, OIhw8i64o2i,
+                                    OIdhw8i64o2i)},
+                    {32,
+                            pick(n_sp_dims, OI8i32o2i, OIw8i32o2i, OIhw8i32o2i,
+                                    OIdhw8i32o2i)},
+                    {16,
+                            pick(n_sp_dims, OI8i16o2i, OIw8i16o2i, OIhw8i16o2i,
+                                    OIdhw8i16o2i)}};
         }
     } else if (jbgp.wei_dt == data_type::s8) {
         if (jbgp.is_amx) {
-            return {pick(n_sp_dims, OI16i64o4i, OIw16i64o4i, OIhw16i64o4i,
-                            OIdhw16i64o4i),
-                    pick(n_sp_dims, OI16i32o4i, OIw16i32o4i, OIhw16i32o4i,
-                            OIdhw16i32o4i),
-                    pick(n_sp_dims, OI16i16o4i, OIw16i16o4i, OIhw16i16o4i,
-                            OIdhw16i16o4i)};
+            return {{64,
+                            pick(n_sp_dims, OI16i64o4i, OIw16i64o4i,
+                                    OIhw16i64o4i, OIdhw16i64o4i)},
+                    {32,
+                            pick(n_sp_dims, OI16i32o4i, OIw16i32o4i,
+                                    OIhw16i32o4i, OIdhw16i32o4i)},
+                    {16,
+                            pick(n_sp_dims, OI16i16o4i, OIw16i16o4i,
+                                    OIhw16i16o4i, OIdhw16i16o4i)}};
         } else {
-            return {pick(n_sp_dims, OI4i64o4i, OIw4i64o4i, OIhw4i64o4i,
-                            OIdhw4i64o4i),
-                    pick(n_sp_dims, OI4i32o4i, OIw4i32o4i, OIhw4i32o4i,
-                            OIdhw4i32o4i),
-                    pick(n_sp_dims, OI4i16o4i, OIw4i16o4i, OIhw4i16o4i,
-                            OIdhw4i16o4i)};
+            return {{64,
+                            pick(n_sp_dims, OI4i64o4i, OIw4i64o4i, OIhw4i64o4i,
+                                    OIdhw4i64o4i)},
+                    {32,
+                            pick(n_sp_dims, OI4i32o4i, OIw4i32o4i, OIhw4i32o4i,
+                                    OIdhw4i32o4i)},
+                    {16,
+                            pick(n_sp_dims, OI4i16o4i, OIw4i16o4i, OIhw4i16o4i,
+                                    OIdhw4i16o4i)}};
         }
     } else {
-        return std::vector<format_tag_t> {format_tag::undef};
+        return {{0, format_tag::undef}};
     }
 }
 
@@ -189,27 +219,26 @@ int get_oc_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust) {
         constexpr int amx_xf16_row = 64;
         return amx_xf16_row;
     } else if (!jbgp.is_wei_layout_any) {
-        std::vector<format_tag_t> weights_tag = get_desired_weights_tag(jbgp);
-        if (jbgp.wei_tag == weights_tag[0])
-            return 64;
-        else if (jbgp.wei_tag == weights_tag[1])
-            return 32;
-        else
-            return 16;
+        const auto weights_tags = get_desired_weights_tag(jbgp);
+        for (const auto &k : weights_tags)
+            if (jbgp.wei_tag == k.second) return k.first;
+        assert(!"invalid_tag");
+        return 0;
     } else {
         int oc_block = 0;
-        if (jbgp.oc >= 64) {
-            oc_block = 64;
-        } else if (jbgp.oc >= 32) {
-            oc_block = 32;
+        const int max_block = is_superset(jbgp.isa, avx512_core) ? 4 : 3;
+        if (jbgp.oc >= max_block * jbgp.simd_w) {
+            oc_block = max_block * jbgp.simd_w;
+        } else if (jbgp.oc >= 2 * jbgp.simd_w) {
+            oc_block = 2 * jbgp.simd_w;
         } else {
-            oc_block = 16;
+            oc_block = jbgp.simd_w;
         }
 
         // Use smaller oc-block to reduce bandwidth requirement for weights and
         // increase parallelism, since no threading will be done in
         // os-direction.
-        if (jbgp.use_small_os_kernels) oc_block = 32;
+        if (jbgp.use_small_os_kernels) oc_block = 2 * jbgp.simd_w;
 
         return oc_block;
     }
@@ -217,7 +246,8 @@ int get_oc_block(const jit_brgemm_primitive_conf_t &jbgp, bool try_to_adjust) {
 
 int ip_fwd_get_nb_oc_blocking(
         const jit_brgemm_primitive_conf_t &jbgp, bool is_adjustment) {
-    const int small_oc_threshold = 256;
+    const int small_oc_threshold
+            = is_superset(jbgp.isa, avx512_core) ? 256 : 128;
     const int small_os_threshold = 8;
     if (jbgp.os <= small_os_threshold && jbgp.oc <= small_oc_threshold) {
         // For small problems compute all oc blocks as a single chunk to avoid
@@ -276,14 +306,15 @@ int ip_fwd_get_adjusted_oc_block(const jit_brgemm_primitive_conf_t &jbgp) {
 format_tag_t get_brgemm_ip_weights_tag(cpu_isa_t isa,
         const jit_brgemm_primitive_conf_t &jbgp,
         const memory_desc_t &weights_md) {
-    std::vector<format_tag_t> weights_tag = get_desired_weights_tag(jbgp);
+    auto weights_tags = get_desired_weights_tag(jbgp);
     if (!jbgp.is_wei_layout_any) {
-        return memory_desc_matches_one_of_tag(
-                weights_md, weights_tag[0], weights_tag[1], weights_tag[2]);
+        for (const auto &k : weights_tags) {
+            if (memory_desc_matches_tag(weights_md, k.second)) return k.second;
+        }
+        return format_tag::undef;
     } else {
         const int oc_block = ip_fwd_get_adjusted_oc_block(jbgp);
-        const int idx = (oc_block == 64 ? 0 : (oc_block == 32 ? 1 : 2));
-        return weights_tag[idx];
+        return weights_tags[oc_block];
     }
 }
 
@@ -992,8 +1023,6 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     const memory_desc_wrapper dst_d(&dst_md);
 
     using namespace prop_kind;
-    if (!mayiuse(avx512_core) && !mayiuse(avx2_vnni))
-        return status::unimplemented;
 
     int ndims = src_d.ndims();
     if (weights_d.ndims() != ndims || dst_d.ndims() != 2)
@@ -1026,9 +1055,6 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
         return status::unimplemented;
     if (!everyone_is(1, jbgp.kw, jbgp.kh, jbgp.kd))
         return status::unimplemented;
-
-    const int full_simd_w = 16;
-    jbgp.simd_w = full_simd_w;
 
     jbgp.with_bias
             = pick_by_prop_kind(jbgp.prop_kind, ipd.bias_desc.format_kind,
@@ -1073,7 +1099,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
     if (!IMPLICATION(is_bf16,
                 one_of(isa, avx2_vnni_2, avx512_core_bf16, avx512_core_amx)))
         return status::unimplemented;
-    if (!IMPLICATION(is_f32, jbgp.is_bf32 || (isa == avx512_core)))
+    if (!IMPLICATION(is_f32, jbgp.is_bf32 || one_of(isa, avx512_core, avx2)))
         return status::unimplemented;
     if (!IMPLICATION(is_f16,
                 one_of(isa, avx2_vnni_2, avx512_core_fp16,
@@ -1088,6 +1114,8 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
         jbgp.with_dst_scales = true;
     } else
         jbgp.acc_dt = f32;
+
+    jbgp.simd_w = isa_max_vlen(jbgp.isa) / types::data_type_size(jbgp.acc_dt);
 
     // Dispatch small shapes to VNNI for better performance
     const bool is_amx_int8 = jbgp.is_amx && one_of(jbgp.wei_dt, s8, u8);

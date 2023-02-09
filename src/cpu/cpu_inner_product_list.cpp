@@ -46,6 +46,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
         {{forward, f32, f32, f32}, {
             CPU_INSTANCE_AMX(brgemm_inner_product_fwd_t<avx512_core_amx>) // bf32
             CPU_INSTANCE_AVX512(brgemm_inner_product_fwd_t<avx512_core>)
+            CPU_INSTANCE_AVX2(brgemm_inner_product_fwd_t<avx2>)
             CPU_INSTANCE_AARCH64_ACL(acl_inner_product_fwd_t)
             CPU_INSTANCE(gemm_inner_product_fwd_t<f32>)
             CPU_INSTANCE(ref_inner_product_fwd_t)
