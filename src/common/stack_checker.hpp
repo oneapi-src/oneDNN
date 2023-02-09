@@ -85,13 +85,10 @@ namespace stack_checker {
  *
  * Implementation details
  *
- * The stack checker uses pthread API to create a new thread with
- * an application-managed stack. The application-managed stack is a memory
- * buffer allocated by an application and designated as a stack via
- * a certain pthread API. Since the stack checker has control over the
- * memory buffer it can populate it with a particular pattern. Once
- * the thread completed execution of the function being checked it can check
- * how much memory was actually used for the stack by checking the pattern.
+ * The stack checker populates started thread with a particular pattern before
+ * calling function to be checked.  Once the thread completed execution of the
+ * function being checked, it sweeps the stack for the pattern to compute how
+ * much stack memory was actually used.
  *
  * The stack checker is disabled in the default build configuration. It can
  * be enabled via CMake option `DNNL_ENABLE_STACK_CHECKER=ON` at the build time.
@@ -177,33 +174,21 @@ struct stack_checker_t {
         auto thread_args = utils::make_unique<thread_args_t<F, const Targs...>>(
                 func, std::forward<const Targs>(func_args)...);
 
-        int8_t *stack_buffer;
-        int res = posix_memalign(
-                (void **)&stack_buffer, get_page_size(), get_stack_size());
-        assert(res == 0);
-
-        std::memset(stack_buffer, pattern_, sizeof(int8_t) * get_stack_size());
-
         // Stack grows downwards.
-        int8_t *stack_start = stack_buffer + get_stack_size();
-        int8_t *stack_end
-                = stack_start - get_page_size() * get_hard_stack_limit();
         size_t protected_region
                 = get_stack_size() - get_page_size() * get_hard_stack_limit();
 
-        res = mprotect(
-                stack_end - protected_region, protected_region, PROT_NONE);
-        assert(res == 0);
-
         pthread_t thread;
         pthread_attr_t attr;
-        res = pthread_attr_init(&attr);
+        int res = pthread_attr_init(&attr);
         assert(res == 0);
 
-        res = pthread_attr_setstack(&attr, stack_buffer, get_stack_size());
+        // Use a reduce stack size to account for protected/guard region.
+        res = pthread_attr_setstacksize(
+                &attr, get_stack_size() - protected_region);
         assert(res == 0);
 
-        res = pthread_attr_setguardsize(&attr, 0);
+        res = pthread_attr_setguardsize(&attr, protected_region);
         assert(res == 0);
 
         res = pthread_create(
@@ -232,11 +217,6 @@ struct stack_checker_t {
         res = pthread_attr_destroy(&attr);
         assert(res == 0);
         MAYBE_UNUSED(res);
-        // POSIX Thread standard: 2.9.8 Use of Application-Managed Thread Stacks
-        // The application grants to the implementation permanent ownership of
-        // and control over the application-managed stack when the attributes
-        // object in which the stack or stackaddr attribute has been set is used
-        // free(stack_buffer);
 
         return thread_args->func_retval;
     }
@@ -253,7 +233,6 @@ private:
                 = *reinterpret_cast<thread_args_t<F, Types...> *>(args);
         constexpr size_t n_args
                 = get_number_args<decltype(thread_args.func_args)>();
-        executor_t<n_args>::execute(thread_args);
 
         pthread_attr_t attr;
         int res = pthread_getattr_np(pthread_self(), &attr);
@@ -264,14 +243,16 @@ private:
         res = pthread_attr_getstack(&attr, &stack_base, &stack_size);
         assert(res == 0);
 
+        write_pattern((int8_t *)stack_base, pattern_);
+
+        executor_t<n_args>::execute(thread_args);
+
         res = pthread_attr_destroy(&attr);
         assert(res == 0);
         MAYBE_UNUSED(res);
 
         size_t stack_consumption = 0;
-        size_t start_unprotected_buffer
-                = get_stack_size() - get_page_size() * get_hard_stack_limit();
-        for (size_t i = start_unprotected_buffer; i < stack_size; i++) {
+        for (size_t i = 0; i < stack_size; i++) {
             if (((const int8_t *)stack_base)[i] != pattern_) {
                 stack_consumption = stack_size - i;
                 break;
@@ -320,6 +301,49 @@ private:
         static const size_t page_size = ::getpagesize();
         return page_size;
     }
+
+#ifdef __GNUC__
+#define NOINLINE __attribute__((noinline))
+#else
+#define NOINLINE
+#endif
+
+    // Computes frame size of its caller.
+    static NOINLINE size_t get_frame_size(int8_t *base_addr) {
+        volatile int8_t rough_stack_top = 0;
+        MAYBE_UNUSED(rough_stack_top);
+        assert(base_addr > &rough_stack_top);
+
+#ifdef __GNUC__
+        return base_addr - (int8_t *)__builtin_frame_address(0);
+#else
+        return base_addr - &rough_stack_top;
+#endif
+    }
+
+    // This function writes on its own stack.
+    static NOINLINE void write_pattern(int8_t *stack_base, int8_t pattern) {
+        volatile int8_t rough_stack_top = 0;
+
+        int8_t *base_addr = nullptr;
+#ifdef __GNUC__
+        base_addr = (int8_t *)__builtin_frame_address(0);
+#else
+        base_addr = (int8_t *)&rough_stack_top;
+#endif
+        size_t frame_sz = get_frame_size(base_addr);
+
+        // Write pattern without overwriting its locals variables on the stack.
+        // NOTE: To use memset, one would have to account for the frame size of
+        // memset.
+        int8_t *p = stack_base;
+        while (p + frame_sz < &rough_stack_top) {
+            *p = pattern;
+            p++;
+        }
+    }
+
+#undef NOINLINE
 };
 
 } // namespace stack_checker
