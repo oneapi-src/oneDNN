@@ -17,6 +17,8 @@
 #ifndef GPU_OCL_REF_SUM_HPP
 #define GPU_OCL_REF_SUM_HPP
 
+#include <mutex>
+
 #include "common/primitive.hpp"
 #include "common/reorder.hpp"
 #include "common/reorder_pd.hpp"
@@ -102,6 +104,11 @@ struct ref_sum_t : public gpu_primitive_t {
 
     status_t init_res_storage(
             engine_t *engine, gpu_resource_t *r) const override {
+        // TODO: this is a dirty fix to a real problem that pops up when
+        // multiple threads creating this primitive. Execution hangs at unmap().
+        static std::mutex mutex;
+        std::lock_guard<std::mutex> lock(mutex);
+
         const dim_t count = pd()->n_inputs();
         const float *s_data = pd()->scales();
         for (dim_t i = 0; i < count; i++) {
