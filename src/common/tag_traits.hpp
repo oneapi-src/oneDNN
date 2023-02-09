@@ -73,6 +73,9 @@ enum class inner_blk_t {
     _8a8b,
     _8b8a,
     _8b2c,
+    _8b16a,
+    _8b24a,
+    _8b32a,
     _8b8c,
     _8c8b,
     _16a16b,
@@ -178,25 +181,26 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
     using ib = inner_blk_t;
     static_assert(
             utils::one_of(f, ib::_4a4b, ib::_4b4a, ib::_4b4c, ib::_4c4b,
-                    ib::_8a2b, ib::_8b2c, ib::_8a8b, ib::_8b8a, ib::_8b8c,
-                    ib::_8c8b, ib::_16a16b, ib::_16b64a, ib::_16b32a,
-                    ib::_16b16a, ib::_16b16c, ib::_16c16b, ib::_32a32b,
-                    ib::_16a2b, ib::_16a4b, ib::_16b2c, ib::_16b4c, ib::_2c8b4c,
-                    ib::_8a16b2a, ib::_4b64a4b, ib::_4b32a4b, ib::_4b16a4b,
-                    ib::_2b8a4b, ib::_8b64a2b, ib::_8b32a2b, ib::_8b16a2b,
-                    ib::_8b16c2b, ib::_4c16b4c, ib::_8c16b2c, ib::_2b4c2b,
-                    ib::_2c4b2c, ib::_4b8c2b, ib::_4c8b2c, ib::_16a32b,
-                    ib::_16a48b, ib::_16a64b, ib::_16a16b2a, ib::_16a32b2a,
-                    ib::_16a48b2a, ib::_16a64b2a, ib::_16a16b4a, ib::_16a32b4a,
-                    ib::_16a48b4a, ib::_16a64b4a, ib::_16b16a2b, ib::_16b16a4b,
-                    ib::_16b16c2b, ib::_16c16b2c, ib::_16c16b4c, ib::_2a8b8a2b,
-                    ib::_2b8c8b2c, ib::_4a8b8a4b, ib::_4b8c8b4c, ib::_16b32a2b,
-                    ib::_16b48a2b, ib::_16b64a2b, ib::_16b32a4b, ib::_16b48a4b,
-                    ib::_16b64a4b, ib::_16c32b2c, ib::_16c48b2c, ib::_16c64b2c,
-                    ib::_16c32b4c, ib::_16c48b4c, ib::_16c64b4c, ib::_16b32c,
-                    ib::_16b48c, ib::_16b64c, ib::_16b32c2b, ib::_16b48c2b,
-                    ib::_16b64c2b, ib::_16b16c4b, ib::_16b32c4b, ib::_16b48c4b,
-                    ib::_16b64c4b, ib::_24a2b, ib::_24b2c),
+                    ib::_8a2b, ib::_8b2c, ib::_8a8b, ib::_8b8a, ib::_8b16a,
+                    ib::_8b24a, ib::_8b32a, ib::_8b8c, ib::_8c8b, ib::_16a16b,
+                    ib::_16b64a, ib::_16b32a, ib::_16b16a, ib::_16b16c,
+                    ib::_16c16b, ib::_32a32b, ib::_16a2b, ib::_16a4b,
+                    ib::_16b2c, ib::_16b4c, ib::_2c8b4c, ib::_8a16b2a,
+                    ib::_4b64a4b, ib::_4b32a4b, ib::_4b16a4b, ib::_2b8a4b,
+                    ib::_8b64a2b, ib::_8b32a2b, ib::_8b16a2b, ib::_8b16c2b,
+                    ib::_4c16b4c, ib::_8c16b2c, ib::_2b4c2b, ib::_2c4b2c,
+                    ib::_4b8c2b, ib::_4c8b2c, ib::_16a32b, ib::_16a48b,
+                    ib::_16a64b, ib::_16a16b2a, ib::_16a32b2a, ib::_16a48b2a,
+                    ib::_16a64b2a, ib::_16a16b4a, ib::_16a32b4a, ib::_16a48b4a,
+                    ib::_16a64b4a, ib::_16b16a2b, ib::_16b16a4b, ib::_16b16c2b,
+                    ib::_16c16b2c, ib::_16c16b4c, ib::_2a8b8a2b, ib::_2b8c8b2c,
+                    ib::_4a8b8a4b, ib::_4b8c8b4c, ib::_16b32a2b, ib::_16b48a2b,
+                    ib::_16b64a2b, ib::_16b32a4b, ib::_16b48a4b, ib::_16b64a4b,
+                    ib::_16c32b2c, ib::_16c48b2c, ib::_16c64b2c, ib::_16c32b4c,
+                    ib::_16c48b4c, ib::_16c64b4c, ib::_16b32c, ib::_16b48c,
+                    ib::_16b64c, ib::_16b32c2b, ib::_16b48c2b, ib::_16b64c2b,
+                    ib::_16b16c4b, ib::_16b32c4b, ib::_16b48c4b, ib::_16b64c4b,
+                    ib::_24a2b, ib::_24b2c),
             "unexpected inner_blk format");
 
     // clang-format off
@@ -207,8 +211,9 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
         : (f == ib::_8b8a || f == ib::_8c8b) ? 8 * x1 + x0
         : (f == ib::_16a16b || f == ib::_16b16c) ? 16 * x0 + x1
         : (f == ib::_16b64a) ? 64 * x1 + x0
-        : (f == ib::_16b32a) ? 32 * x1 + x0
-        : (f == ib::_16b16a || f == ib::_16c16b) ? 16 * x1 + x0
+        : (f == ib::_8b32a || f == ib::_16b32a) ? 32 * x1 + x0
+        : (f == ib::_8b24a) ? 24 * x1 + x0
+        : (f == ib::_8b16a || f == ib::_16b16a || f == ib::_16c16b) ? 16 * x1 + x0
         : (f == ib::_8a2b || f == ib::_8b2c || f == ib::_16a2b || f == ib::_16b2c || f == ib::_24a2b || f == ib::_24b2c ) ? 2 * x0 + x1
         : (f == ib::_16a4b || f == ib::_16b4c) ? 4 * x0 + x1
         : (utils::one_of(f, ib::_32a32b, ib::_16a32b, ib::_16b32c)) ? 32 * x0 + x1
@@ -765,6 +770,20 @@ DECL_TRAITS(AcdeB24a2b, _AB, _24a2b, 5);
 DECL_TRAITS(aBdC24b2c, _BC, _24b2c, 4);
 DECL_TRAITS(aBdeC24b2c, _BC, _24b2c, 5);
 DECL_TRAITS(aBdefC24b2c, _BC, _24b2c, 6);
+
+DECL_TRAITS(AB8b32a, _AB, _8b32a, 2);
+DECL_TRAITS(ABc8b32a, _AB, _8b32a, 3);
+DECL_TRAITS(ABcd8b32a, _AB, _8b32a, 4);
+DECL_TRAITS(ABcde8b32a, _AB, _8b32a, 5);
+DECL_TRAITS(AB8b24a, _AB, _8b24a, 2);
+DECL_TRAITS(ABc8b24a, _AB, _8b24a, 3);
+DECL_TRAITS(ABcd8b24a, _AB, _8b24a, 4);
+DECL_TRAITS(ABcde8b24a, _AB, _8b24a, 5);
+DECL_TRAITS(AB8b16a, _AB, _8b16a, 2);
+DECL_TRAITS(ABc8b16a, _AB, _8b16a, 3);
+DECL_TRAITS(ABcd8b16a, _AB, _8b16a, 4);
+DECL_TRAITS(ABcde8b16a, _AB, _8b16a, 5);
+DECL_TRAITS(AB8b8a, _AB, _8b8a, 2);
 } // namespace impl
 } // namespace dnnl
 

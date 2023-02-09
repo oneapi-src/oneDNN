@@ -857,6 +857,19 @@ const format_tag_t AcdeB24a2b = dnnl_AcdeB24a2b;
 const format_tag_t aBdC24b2c = dnnl_aBdC24b2c;
 const format_tag_t aBdeC24b2c = dnnl_aBdeC24b2c;
 const format_tag_t aBdefC24b2c = dnnl_aBdefC24b2c;
+const format_tag_t AB8b32a = dnnl_AB8b32a;
+const format_tag_t ABc8b32a = dnnl_ABc8b32a;
+const format_tag_t ABcd8b32a = dnnl_ABcd8b32a;
+const format_tag_t ABcde8b32a = dnnl_ABcde8b32a;
+const format_tag_t AB8b24a = dnnl_AB8b24a;
+const format_tag_t ABc8b24a = dnnl_ABc8b24a;
+const format_tag_t ABcd8b24a = dnnl_ABcd8b24a;
+const format_tag_t ABcde8b24a = dnnl_ABcde8b24a;
+const format_tag_t AB8b16a = dnnl_AB8b16a;
+const format_tag_t ABc8b16a = dnnl_ABc8b16a;
+const format_tag_t ABcd8b16a = dnnl_ABcd8b16a;
+const format_tag_t ABcde8b16a = dnnl_ABcde8b16a;
+const format_tag_t AB8b8a = dnnl_AB8b8a;
 
 const format_tag_t last = dnnl_format_tag_last;
 
@@ -1530,6 +1543,20 @@ const format_tag_t OdhwI24o2i = dnnl_OdhwI24o2i;
 const format_tag_t gOwI24o2i = dnnl_gOwI24o2i;
 const format_tag_t gOhwI24o2i = dnnl_gOhwI24o2i;
 const format_tag_t gOdhwI24o2i = dnnl_gOdhwI24o2i;
+
+const format_tag_t OI8i32o = dnnl_OI8i32o;
+const format_tag_t OIw8i32o = dnnl_OIw8i32o;
+const format_tag_t OIhw8i32o = dnnl_OIhw8i32o;
+const format_tag_t OIdhw8i32o = dnnl_OIdhw8i32o;
+const format_tag_t OI8i24o = dnnl_OI8i24o;
+const format_tag_t OIw8i24o = dnnl_OIw8i24o;
+const format_tag_t OIhw8i24o = dnnl_OIhw8i24o;
+const format_tag_t OIdhw8i24o = dnnl_OIdhw8i24o;
+const format_tag_t OI8i16o = dnnl_OI8i16o;
+const format_tag_t OIw8i16o = dnnl_OIw8i16o;
+const format_tag_t OIhw8i16o = dnnl_OIhw8i16o;
+const format_tag_t OIdhw8i16o = dnnl_OIdhw8i16o;
+const format_tag_t OI8i8o = dnnl_OI8i8o;
 } // namespace format_tag
 
 using normalization_flags_t = dnnl_normalization_flags_t;
