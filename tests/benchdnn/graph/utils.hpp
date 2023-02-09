@@ -125,6 +125,7 @@ private:
 };
 bool is_sycl_engine();
 dnnl::engine &get_engine();
+sycl::queue &get_queue();
 #endif // DNNL_WITH_SYCL
 
 void compiled_partition_executor(dnnl::graph::compiled_partition &cp,

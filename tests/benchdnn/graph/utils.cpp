@@ -250,6 +250,14 @@ void sycl_free_wrapper(
     }
 }
 
+sycl::queue &get_queue() {
+    static dnnl::engine test_eng {::get_test_engine()};
+    static sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
+    static sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
+    static sycl::queue q {ctx, dev, sycl::property::queue::in_order {}};
+    return q;
+}
+
 const dnnl::engine &get_graph_engine() {
     static dnnl::graph::allocator sycl_allocator {
             dnnl::graph::sycl_interop::make_allocator(
@@ -264,14 +272,8 @@ const dnnl::engine &get_graph_engine() {
 }
 
 dnnl::stream &get_graph_stream() {
-    static dnnl::engine test_eng {::get_test_engine()};
-    static sycl::device dev {dnnl::sycl_interop::get_device(test_eng)};
-    static sycl::context ctx {dnnl::sycl_interop::get_context(test_eng)};
-
-    static sycl::queue q {ctx, dev, sycl::property::queue::in_order {}};
-
     static dnnl::stream strm {
-            dnnl::sycl_interop::make_stream(get_graph_engine(), q)};
+            dnnl::sycl_interop::make_stream(get_graph_engine(), get_queue())};
     return strm;
 }
 #endif // DNNL_WITH_SYCL

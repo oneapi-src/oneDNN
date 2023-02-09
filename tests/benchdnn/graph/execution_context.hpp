@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,11 +66,11 @@ private:
     bool has(size_t id) const { return data_.find(id) != data_.end(); }
 
 public:
-    tensor_map() = default;
-
+    tensor_map() {
 #ifdef DNNL_WITH_SYCL
-    tensor_map(const ::sycl::queue &q) : q_(q) {}
+        q_ = get_queue();
 #endif
+    };
 
     /// destructor - free all of allocated memory buffer
     ~tensor_map() = default;
