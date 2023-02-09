@@ -323,6 +323,9 @@ struct mixed_parti_t : fusion_partition_t {
     void try_split_outermost_loop(int64_t block);
     void try_split_outermost_loop_on_num_threads(int64_t num_groups);
 
+    // query if partition can optimize its loop order
+    bool can_optimize_loop_order_for_parti(bool allow_tensorview = false) const;
+
     // return op whether in op_anchor_map_
     bool ready_for_op(sc_op *op) const;
 
@@ -448,9 +451,6 @@ std::vector<memory_optim::memory_alloc_trace_t> merge_real_mem_trace(
 size_t get_buffer_usage_from_trace(
         const std::vector<memory_optim::memory_alloc_trace_t> &mem_trace,
         const context_ptr &ctx);
-
-bool need_optimize_loop_order_for_parti(
-        const mixed_parti_t *parti, bool allow_tensorview = false);
 
 void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph);
 
