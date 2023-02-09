@@ -198,9 +198,7 @@ unsigned get_num_cores() {
     int num_cores = x64::cpu().getNumCores(Xbyak::util::CoreLevel);
     // Sometimes getNumCores() can't detect number of cores and returns
     // 0 (e.g. in AMD Systems), so we need to read the system info
-    if (num_cores > 0) {
-        return num_cores;
-    }
+    if (num_cores > 0) { return num_cores; }
 #ifdef _WIN32
     SYSTEM_INFO sys_info;
     GetSystemInfo(&sys_info);
