@@ -178,9 +178,9 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 /*only avx512 or more can bcast*/
                 && is_superset(brg->isa_impl, avx512_core);
 
-        const auto ld_block
+        const auto ld_block2
                 = (brg->ldb2 != 0) ? brg->ld_block2 : brg->ldb2_tail;
-        const auto adj_ld_block = (ld_block == 0) ? (ld_block + 1) : ld_block;
+        const auto adj_ld_block2 = nstl::max(1, ld_block2);
 
         const int max_isa_regs
                 = is_superset(brg->isa_impl, avx512_core) ? 32 : 16;
@@ -191,7 +191,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 = (brg->req_cal_comp_pads || brg->brgattr.max_top_vpad > 0
                           || brg->brgattr.max_bottom_vpad > 0)
                 && brg->zp_type_a != brgemm_broadcast_t::none;
-        const auto max_regs = max_isa_regs - (adj_ld_block + max_bcst_regs);
+        const auto max_regs = max_isa_regs - (adj_ld_block2 + max_bcst_regs);
         auto max_block
                 = (brg->embd_bcst ? max_regs - 4
                                   : ((brg->beta == 1.f || brg->beta == 0.f)
@@ -205,7 +205,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
                     = nstl::min(max_block, 28); // bf16_emu only for avx512_core
         // non-VNNI INT8 dot product required 2 temp vectors
         if (brg->is_int8 && !brg->has_vnni) max_block -= 2;
-        max_block /= adj_ld_block;
+        max_block /= adj_ld_block2;
         const int min_block = 1;
         float best_bd_block_eff = 0.f;
         brg->bd_block = 1;
@@ -213,8 +213,8 @@ status_t brgemm_blocking(brgemm_t *brg) {
             const auto bd_block_disb = static_cast<float>(brg->bcast_dim)
                     / rnd_up(brg->bcast_dim, bd_block);
             const auto brgemm_microkernel_eff
-                    = (static_cast<float>(adj_ld_block) * bd_block)
-                    / (((adj_ld_block) + bd_block) * max_block);
+                    = (static_cast<float>(adj_ld_block2) * bd_block)
+                    / (((adj_ld_block2) + bd_block) * max_block);
             const auto bd_block_eff = bd_block_disb * brgemm_microkernel_eff;
 
             float block_foot_print = static_cast<float>(brg->typesize_A)
