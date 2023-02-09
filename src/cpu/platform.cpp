@@ -195,7 +195,25 @@ unsigned get_per_core_cache_size(int level) {
 
 unsigned get_num_cores() {
 #if DNNL_X64
-    return x64::cpu().getNumCores(Xbyak::util::CoreLevel);
+    int num_cores = x64::cpu().getNumCores(Xbyak::util::CoreLevel);
+    // Sometimes getNumCores() can't detect number of cores and returns
+    // 0 (e.g. in AMD Systems), so we need to read the system info
+    if (num_cores > 0) {
+        return num_cores;
+    }
+#ifdef _WIN32
+    SYSTEM_INFO sys_info;
+    GetSystemInfo(&sys_info);
+    return sys_info.dwNumberOfProcessors;
+#elif defined(__GLIBC__)
+    cpu_set_t cpu_set;
+    sched_getaffinity(0, sizeof(cpu_set_t), &cpu_set);
+    int cpu_count = CPU_COUNT(&cpu_set);
+    assert(cpu_count > 0);
+    return cpu_count;
+#else
+    return 1;
+#endif
 #elif DNNL_AARCH64_USE_ACL
     return arm_compute::cpuinfo::num_threads_hint();
 #else
