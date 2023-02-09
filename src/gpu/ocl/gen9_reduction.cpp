@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -113,8 +113,10 @@ bool gen9_reduction_t::is_compatible(const memory_desc_wrapper &src_mdw,
         if (src_dims[0] != dst_dims[0]) { return false; }
         if (src_dims[1] != dst_dims[1]) { return false; }
     } else {
-        // blocked layouts: src C must have blocks of 16 or 32
+        // blocked layouts: IC/OC must have blocks of 16 or 32
         if (!(is_c_blocked_by(src_mdw, 16) || is_c_blocked_by(src_mdw, 32)))
+            return false;
+        if (!(is_c_blocked_by(dst_mdw, 16) || is_c_blocked_by(dst_mdw, 32)))
             return false;
     }
 
