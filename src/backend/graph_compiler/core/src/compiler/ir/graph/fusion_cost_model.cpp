@@ -85,8 +85,8 @@ bool static_fusion_cost_model_t::make_decision_for_parti(
     COMPILE_ASSERT(merge_kind == parti_merge_kind::vertical,
             "No cost metric found for parallel merge")
     // in avoid of loss for loop optimize opportunity
-    if (need_optimize_loop_order_for_parti(binded_mxp_, true)
-            ^ need_optimize_loop_order_for_parti(parti, true)) {
+    if (binded_mxp_->can_optimize_loop_order_for_parti(true)
+            ^ parti->can_optimize_loop_order_for_parti(true)) {
         return false;
     }
 
@@ -137,35 +137,50 @@ bool static_fusion_cost_model_t::make_decision_for_op(
         const sc_op *op, const fuse_anchor_map_ptr &fanchor) {
     // query if turn on
     if (!enable_) return true;
-    // auto skip
-    if (!binded_mxp_->contain_tunable_op() && !op->isa<tunable_op_t>())
+    /** Auto Skip List:
+     * 1. empty partition
+     * 2. nested parallel template
+     * 3. non tunable op committed into partition without tunable op
+     * */
+    // Sometimes, cost model need to double check standalone op parallelism,
+    // usually for tunable op or broadcast op.
+    bool consider_standalone_op_parallel = op->isa<tunable_op_t>()
+            || (op->isa<op_traits::may_broadcast_t>()
+                    && op->dyn_cast<const op_traits::may_broadcast_t>()
+                                    ->get_broadcast_input()
+                            != -1
+                    && !binded_mxp_->contain_tunable_op()
+                    && !binded_mxp_->can_optimize_loop_order_for_parti(true));
+    if (binded_mxp_->empty() || binded_mxp_->contain_nested_parallel_for()
+            || !(binded_mxp_->contain_tunable_op() || op->isa<tunable_op_t>()
+                    || consider_standalone_op_parallel))
         return true;
-    // skip nested parallel for
-    if (binded_mxp_->contain_nested_parallel_for()) return true;
     auto orig_loop_parallelism
             = evaluate_loop_parallel_balance(binded_mxp_->get_outer_loops());
+    auto fanchor_loop_parallelism = evaluate_loop_parallel_balance(
+            binded_mxp_->get_outer_loops(fanchor));
 
-    bool ret = evaluate_loop_parallel_balance(
-                       binded_mxp_->get_outer_loops(fanchor))
-            >= orig_loop_parallelism;
+    bool ret = fanchor_loop_parallelism >= orig_loop_parallelism;
 
-    if (op->isa<tunable_op_t>()
+    // Also need to compare parallelism of standalone op
+    if (consider_standalone_op_parallel
             && evaluate_loop_parallel_balance(
                        binded_mxp_->get_outer_loops(), true)
                     == 0.f) {
-        mixed_parti_t tunable_parti(binded_mxp_->ctx_,
+        mixed_parti_t op_parti(binded_mxp_->ctx_,
                 std::const_pointer_cast<sc_op>(op->shared_from_this()),
                 nullptr);
-        if (evaluate_loop_parallel_balance(tunable_parti.get_outer_loops())
-                > orig_loop_parallelism) {
+        // if new parti created by op owning more loop parallelism, reject to
+        // fuse it
+        if (evaluate_loop_parallel_balance(op_parti.get_outer_loops())
+                > fanchor_loop_parallelism) {
             ret = false;
         }
     }
     if (!ret) {
-        SC_MODULE_INFO << "rejects current inferring result "
-                          "for op: "
-                       << op->op_name_ << op->logical_op_id_
-                       << " under current fusion anchor from "
+        SC_MODULE_INFO << "rejects to commit op: " << op->op_name_
+                       << op->logical_op_id_
+                       << " into current fusion anchor from "
                           "perspective of parallellism";
     }
     return ret;
@@ -202,8 +217,8 @@ bool dynamic_fusion_cost_model_t::make_decision_for_parti(
     COMPILE_ASSERT(merge_kind == parti_merge_kind::vertical,
             "No cost metric found for parallel merge")
     // in avoid of loss for loop optimize opportunity
-    if (need_optimize_loop_order_for_parti(binded_mxp_, true)
-            ^ need_optimize_loop_order_for_parti(parti, true)) {
+    if (binded_mxp_->can_optimize_loop_order_for_parti(true)
+            ^ parti->can_optimize_loop_order_for_parti(true)) {
         return false;
     }
 
@@ -262,10 +277,9 @@ bool dynamic_fusion_cost_model_t::make_decision_for_op(
         }
     }
     if (!ret) {
-        SC_MODULE_INFO << "rejects current inferring result "
-                          "for op: "
-                       << op->op_name_ << op->logical_op_id_
-                       << " under current fusion anchor from "
+        SC_MODULE_INFO << "rejects to commit op: " << op->op_name_
+                       << op->logical_op_id_
+                       << " into current fusion anchor from "
                           "perspective of parallellism";
         cond_ = cond_ || res_cond;
         return false;
