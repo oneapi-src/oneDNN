@@ -183,6 +183,10 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 
     CHECK(brgemm_blocking(brg));
 
+    // avx2_vnni_2 kernel requires blocked weights
+    if (brg->isa_impl == avx2_vnni_2 && brg->LDB % brg->ld_block > 0)
+        return status::unimplemented;
+
     return status::success;
 }
 
