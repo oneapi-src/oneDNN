@@ -1721,14 +1721,23 @@ std::vector<int> mixed_fuse_op_t::query_prefetch(const context_ptr &ctx,
         auto ret = found_op->query_prefetch(ctx, is_global, ins);
         auto &ins = dynamic_cast<sc_op *>(found_op)->get_inputs();
         // check that the inputs to prefetch are from the sub-graph inputs
-        for (auto itr = ret.begin(); itr != ret.end();) {
-            if (!(ins.at(*itr)->producer_owner_->isa<input_op>())) {
-                itr = ret.erase(itr);
-            } else {
-                ++itr;
+        std::vector<int> indices;
+        auto graph_inputs = sub_graph_.get_input_ops();
+        for (auto in_of_op : ret) {
+            if (auto the_in_op
+                    = ins.at(in_of_op)->producer_owner_->dyn_cast<input_op>()) {
+                // find the index of the input op in graph inputs
+                int idx = std::find(graph_inputs.begin(), graph_inputs.end(),
+                                  the_in_op->shared_from_this())
+                        - graph_inputs.begin();
+                // if idx is not in indices, push
+                if (std::find(indices.begin(), indices.end(), idx)
+                        == indices.end()) {
+                    indices.emplace_back(idx);
+                }
             }
         }
-        return ret;
+        return indices;
     }
     return {};
 }
@@ -1737,8 +1746,19 @@ void mixed_fuse_op_t::generate_prefetcher_body_for_tensor(
         const context_ptr &ctx, const std::vector<expr> &func_args,
         const std::vector<expr> &ins, const std::vector<int> &indices) {
     if (auto found_op = find_prefetch_op(sub_graph_)) {
+        auto graph_inputs = sub_graph_.get_input_ops();
+        auto &op_ins = dynamic_cast<sc_op *>(found_op)->get_inputs();
+        std::vector<int> indices_in_op;
+        for (auto idx : indices) {
+            auto input_op_ptr = graph_inputs.at(idx).get();
+            for (size_t i = 0; i < op_ins.size(); i++) {
+                if (op_ins[i]->producer_owner_ == input_op_ptr) {
+                    indices_in_op.emplace_back(i);
+                }
+            }
+        }
         found_op->generate_prefetcher_body_for_tensor(
-                ctx, func_args, ins, indices);
+                ctx, func_args, ins, indices_in_op);
     }
 }
 
