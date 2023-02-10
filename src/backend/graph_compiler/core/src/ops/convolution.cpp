@@ -362,6 +362,7 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
             : attrs_.get<sc_dims>("paddings");
     const sc_dims &weight_shape = info_.inputs_[1]->details_.get_plain_dims();
     const sc_dims &data_shape = info_.inputs_[0]->details_.get_plain_dims();
+    const sc_dims &output_shape = info_.outputs_[0]->details_.get_plain_dims();
     auto has_pad = std::any_of(
             pads_begin.begin(), pads_begin.end(), [](int x) { return x > 0; });
     auto is_1x1 = std::all_of(weight_shape.begin() + 2, weight_shape.end(),
@@ -370,9 +371,9 @@ bool conv_fwd_core_op_t::use_nested_conv_fwd_generator() {
             info_.inputs_[0]->details_.dtype_, datatypes::u8, datatypes::s8);
     // Only support conv 3x3 with os blocking currently
     // TODO(zhicong): the config of nested conv 3x3 with big
-    // shape(150x150,300x300) needs to be further tuned
+    // shape(150x150,300x300, 7x7 oc split) needs to be further tuned
     auto use_nested_conv = ndims_ == 4 && !has_pad && !is_1x1 && is_int8
-            && data_shape.back() <= 56;
+            && data_shape.back() <= 56 && output_shape.back() > 7;
     return use_nested_conv;
 }
 

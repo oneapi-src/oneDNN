@@ -45,7 +45,8 @@ sc_dims get_conv1d_flatten_shape(const sc_data_format_t &format,
         out_shape.push_back(origin_shape[1] * origin_shape[2]);
     }
     COMPILE_ASSERT(out_shape[0] % merge_bs == 0,
-            "N % merge_bs should be equal to zero but get"
+            "N % merge_bs should be equal to zero but get "
+                    << out_shape[0] << " % " << merge_bs << " = "
                     << out_shape[0] % merge_bs);
     out_shape[2] *= merge_bs;
     out_shape[0] /= merge_bs;
@@ -57,12 +58,12 @@ sc_dims get_conv1d_flatten_shape(const sc_data_format_t &format,
 // benefit to single layer
 int get_minibatch(const int &bs, const int &min_os) {
     auto num_threads = runtime_config_t::get().get_num_threads();
-    int minibatch = std::max(sc_dim(1), sc_dim(28) / sc_dim(std::sqrt(min_os)));
+    int minibatch = std::max(sc_dim(1), sc_dim(392) / sc_dim(min_os));
     if ((bs / minibatch % num_threads != 0
                 && bs / minibatch < 4 * num_threads)) {
-        return 1;
+        return bs;
     }
-    return bs % minibatch == 0 ? minibatch : 1;
+    return bs % minibatch == 0 ? minibatch : bs;
 }
 
 int minimum_spatial_shape(sc_graph_t &graph, bool &is_support) {
