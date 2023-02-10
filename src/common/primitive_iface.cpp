@@ -64,17 +64,16 @@ status_t primitive_create(primitive_iface_t **primitive_iface,
 
     std::pair<primitive_iface_t *, bool> p_iface;
 
-    if (verbose_has_profile_create()) {
+    if (verbose_has_create_profile()) {
         double start_ms = get_msec();
         CHECK(primitive_desc_iface->create_primitive_iface(
                 p_iface, cache_blob));
         double duration_ms = get_msec() - start_ms;
 
-        const char *str = p_iface.second ? "cache_hit" : "cache_miss";
-        if (cache_blob) str = "from_cache_blob";
+        const char *str = p_iface.second ? ":cache_hit" : ":cache_miss";
+        if (cache_blob) str = ":from_cache_blob";
 
-        VPROF(start_ms, profile_create, str, p_iface.first->pd()->info(),
-                duration_ms);
+        VPROF(start_ms, create, str, p_iface.first->pd()->info(), duration_ms);
     } else {
         CHECK(primitive_desc_iface->create_primitive_iface(
                 p_iface, cache_blob));
@@ -93,13 +92,13 @@ status_t primitive_execute(
         itt::primitive_task_start(primitive_iface->pd()->impl()->kind());
 #endif
 
-    if (verbose_has_profile_exec()) {
+    if (verbose_has_exec_profile()) {
         stream->wait();
         double start_ms = get_msec();
         status = stream->enqueue_primitive(primitive_iface, ctx);
         stream->wait();
         double duration_ms = get_msec() - start_ms;
-        VPROF(start_ms, profile_exec, "", primitive_iface->pd()->info(),
+        VPROF(start_ms, exec, VERBOSE_profile, primitive_iface->pd()->info(),
                 duration_ms);
     } else {
         status = stream->enqueue_primitive(primitive_iface, ctx);

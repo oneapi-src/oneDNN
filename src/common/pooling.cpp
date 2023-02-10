@@ -31,8 +31,8 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_POOLING(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, pooling, (cond), \
-            status::invalid_arguments, msg, ##__VA_ARGS__);
+    VCONDCHECK(create, check, pooling, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__);
 
 namespace {
 status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,

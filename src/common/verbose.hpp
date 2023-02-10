@@ -38,9 +38,12 @@ namespace utility {
 template <typename T, size_t S>
 inline constexpr size_t get_file_name_offset(
         const T (&str)[S], size_t i = S - 1) {
-    return (str[i] == '/' || str[i] == '\\')
-            ? i + 1
-            : (i > 0 ? get_file_name_offset(str, i - 1) : 0);
+    // we match 'src/' from the right
+    return (i + 3 < S) && str[i] == 's' && str[i + 1] == 'r'
+                    && str[i + 2] == 'c'
+                    && (str[i + 3] == '/' || str[i + 3] == '\\')
+            ? i
+            : (i > 3 ? get_file_name_offset(str, i - 1) : 0);
 }
 
 template <typename T>
@@ -77,8 +80,8 @@ struct const_expr_value {
         logtype, logsubtype, component, condition, status, msg, ...) \
     do { \
         if (!(condition)) { \
-            if (verbose_has_##logtype()) \
-                VFORMAT(get_msec(), logtype, #logsubtype, \
+            if (verbose_has_##logtype##_##logsubtype()) \
+                VFORMAT(get_msec(), logtype, VERBOSE_##logsubtype, \
                         #component "," msg ",%s:%d", ##__VA_ARGS__, \
                         __FILENAME__, __LINE__); \
             return status; \
@@ -103,14 +106,38 @@ struct const_expr_value {
     } while (0)
 
 // Special syntactic sugar for logging performance
+// NOTE: the VPROF macro does not check for verbose flags, it is the
+// responsibility of the caller do check those (it should happen
+// anyway to condition collecting stamp/duration)
 #define VPROF(stamp, logtype, logsubtype, info, duration) \
     { VFORMAT(stamp, logtype, logsubtype, "%s,%g", info, duration); }
 
+struct verbose_t {
+    enum flag_kind : int {
+        // we reserve the 24 lower bits for user info
+        none = 0,
+        // We reserve bits 0,1 to maintain backward compatibility support
+        // of VERBOSE={1,2}
+        error = 1 << 2,
+        create_check = 1 << 3,
+        create_dispatch = 1 << 4,
+        create_profile = 1 << 5,
+        exec_profile = 1 << 6,
+        // the upper 8 bits are reserved for devinfo levels
+        debuginfo = 1 << 24,
+        //
+        all = -1,
+    };
+
+    static int make_debuginfo(int level) { return level << 24; }
+};
+
 bool verbose_has_error();
-bool verbose_has_profile_create();
-bool verbose_has_profile_exec();
-bool verbose_has_dispatch();
-int verbose_devinfo();
+bool verbose_has_create_check();
+bool verbose_has_create_dispatch();
+bool verbose_has_create_profile();
+bool verbose_has_exec_profile();
+int verbose_debuginfo();
 
 bool get_verbose_timestamp();
 

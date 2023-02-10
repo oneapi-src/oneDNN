@@ -25,11 +25,11 @@
 #include "utils.hpp"
 
 #define VCHECK_RNN(f, msg, ...) \
-    VCHECK(profile_create, check, rnn, (f), msg, ##__VA_ARGS__);
+    VCHECK(create, check, rnn, (f), msg, ##__VA_ARGS__);
 
 #define VCONDCHECK_RNN(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, rnn, (cond), status::invalid_arguments, \
-            msg, ##__VA_ARGS__);
+    VCONDCHECK(create, check, rnn, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {

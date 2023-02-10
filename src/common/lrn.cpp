@@ -31,8 +31,8 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_LRN(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, lrn, (cond), status::invalid_arguments, \
-            msg, ##__VA_ARGS__)
+    VCONDCHECK(create, check, lrn, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__)
 
 namespace {
 status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,

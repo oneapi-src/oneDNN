@@ -29,8 +29,8 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::types;
 
 #define VCHECK_MATMUL(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, matmul, (cond), \
-            status::invalid_arguments, msg, ##__VA_ARGS__);
+    VCONDCHECK(create, check, matmul, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__);
 
 status_t dnnl_matmul_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,

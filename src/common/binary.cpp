@@ -31,8 +31,8 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_BINARY(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, binary, (cond), \
-            status::invalid_arguments, msg, ##__VA_ARGS__);
+    VCONDCHECK(create, check, binary, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__);
 
 status_t dnnl_binary_primitive_desc_create(
         primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,

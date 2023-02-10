@@ -30,8 +30,8 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_IP(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, ip, (cond), status::invalid_arguments, \
-            msg, ##__VA_ARGS__)
+    VCONDCHECK(create, check, ip, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

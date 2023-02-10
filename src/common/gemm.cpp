@@ -68,7 +68,7 @@ std::string get_descriptor(dim_t M, dim_t N, dim_t K) {
 #endif
 
 #define MAYBE_VERBOSE(status, sdt_, wdt_, ddt_, ...) \
-    if (verbose_has_profile_exec()) { \
+    if (verbose_has_exec_profile()) { \
         double start_ms = get_msec(); \
         status = __VA_ARGS__; \
         double duration_ms = get_msec() - start_ms; \
@@ -88,7 +88,7 @@ std::string get_descriptor(dim_t M, dim_t N, dim_t K) {
         if (alpha != 1.f) ss << "attr-oscale:common:" << alpha << " "; \
         if (beta != 0.f) ss << "attr-post-ops:sum:" << beta << " "; \
         ss << ",," << get_descriptor(M, N, K); \
-        VPROF(start_ms, profile_exec, "", ss.str().c_str(), duration_ms); \
+        VPROF(start_ms, exec, VERBOSE_profile, ss.str().c_str(), duration_ms); \
     } else { \
         status = __VA_ARGS__; \
     }

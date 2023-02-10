@@ -30,8 +30,8 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_SHUFFLE(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, shuffle, (cond), \
-            status::invalid_arguments, msg, ##__VA_ARGS__);
+    VCONDCHECK(create, check, shuffle, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__);
 
 namespace {
 status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,

@@ -27,8 +27,8 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::alg_kind;
 
 #define VCHECK_RED(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, reduction, (cond), \
-            status::invalid_arguments, msg, ##__VA_ARGS__);
+    VCONDCHECK(create, check, reduction, (cond), status::invalid_arguments, \
+            msg, ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {

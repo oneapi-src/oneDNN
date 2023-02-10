@@ -30,9 +30,8 @@
 #include "cpu/x64/matmul/brgemm_matmul.hpp"
 
 #define VCHECK_MATMUL(cond, msg, ...) \
-    VCONDCHECK(profile_create, dispatch, matmul, (cond), \
-            status::unimplemented, "%s," msg, this->info(engine), \
-            ##__VA_ARGS__)
+    VCONDCHECK(create, dispatch, matmul, (cond), status::unimplemented, \
+            "%s," msg, this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

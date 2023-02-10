@@ -35,8 +35,8 @@ namespace dnnl {
 namespace impl {
 
 #define VCHECK_REORDER(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, reorder, (cond), \
-            status::invalid_arguments, msg, ##__VA_ARGS__);
+    VCONDCHECK(create, check, reorder, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__);
 
 namespace {
 engine_t *get_reorder_engine(engine_t *src_engine, engine_t *dst_engine) {

@@ -67,20 +67,16 @@ status_t compute_stream_t::zero_pad(
     // is available only with incoming memory at execution point here, that's
     // why separate logic is written apart from a common place.
     // XXX: re-consider, once zeropad appears in other places in the library.
-    if (verbose_has_profile_exec()) {
+    if (verbose_has_exec_profile()) {
         CHECK(this->wait());
         double start_ms = get_msec();
         CHECK(zero_pad_primitive->execute(zero_pad_ctx));
         status_t status = this->wait();
         double duration_ms = get_msec() - start_ms;
-        std::string stamp;
-        if (get_verbose_timestamp()) stamp = "," + std::to_string(start_ms);
-        std::string md_fmt_str = md2fmt_str(memory->md());
-        std::string md_dim_str = md2dim_str(memory->md());
-
-        VPROF(start_ms, profile_exec, "", "gpu,zero_pad,%s,undef,%s,,,%s",
-                zero_pad_primitive->pd()->name(), md_fmt_str.c_str(),
-                md_dim_str.c_str(), duration_ms);
+        std::stringstream info;
+        info << "gpu,zero_pad," << zero_pad_primitive->pd()->name() << ",undef,"
+             << md2fmt_str(memory->md()) << ",,," << md2dim_str(memory->md());
+        VPROF(start_ms, exec, VERBOSE_profile, info.str().c_str(), duration_ms);
 
         return status;
     } else {

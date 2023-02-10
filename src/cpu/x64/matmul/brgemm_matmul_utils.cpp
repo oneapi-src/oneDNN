@@ -27,11 +27,11 @@
 
 // TODO add a method to print brgemm conf info
 #define VCONDCHECK_BG(cond, msg, ...) \
-    VCONDCHECK(profile_create, dispatch, brgemm_matmul, (cond), \
-            status::unimplemented, msg, ##__VA_ARGS__);
+    VCONDCHECK(create, dispatch, brgemm_matmul, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__);
 
 #define VCHECK_BG(f, msg, ...) \
-    VCHECK(profile_create, dispatch, brgemm_matmul, f, msg, ##__VA_ARGS__);
+    VCHECK(create, dispatch, brgemm_matmul, f, msg, ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {
@@ -809,7 +809,8 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
                 = bgmmc.K % bgmmc.wei_k_blk > 0 && bgmmc.K > bgmmc.wei_k_blk;
         bgmmc.K_blk = bgmmc.K < bgmmc.wei_k_blk
                 ? rnd_up(bgmmc.K, bgmmc.required_k_granularity)
-                : fixed_K_tail_size ? bgmmc.wei_k_blk : bgmmc.K;
+                : fixed_K_tail_size ? bgmmc.wei_k_blk
+                                    : bgmmc.K;
         bgmmc.brgemm_batch_size
                 = nstl::max(bgmmc.K / bgmmc.K_blk, static_cast<dim_t>(1));
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -557,6 +557,25 @@ inline void dim_iterator(const dims_t dims, dims_t indices, int ndims) {
     while (--ndims >= 0 && ++indices[ndims] >= dims[ndims]) {
         indices[ndims] = 0;
     }
+}
+
+inline std::vector<std::string> str_split(const std::string &str, char delim) {
+    const char *s = str.c_str();
+    int cur_pos = 0, token_start = 0;
+    std::vector<std::string> res;
+
+    while (s[cur_pos] != '\0') {
+        if (s[cur_pos] == delim) {
+            res.emplace_back(s + token_start, cur_pos - token_start);
+            token_start = cur_pos + 1;
+        }
+        ++cur_pos;
+    }
+    // We reached the last token and no delimiter is ending the string
+    if (cur_pos - token_start > 0)
+        res.emplace_back(s + token_start, cur_pos - token_start);
+
+    return res;
 }
 
 } // namespace utils

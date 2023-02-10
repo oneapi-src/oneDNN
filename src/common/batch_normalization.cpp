@@ -31,8 +31,8 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_BNORM(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, bnorm, (cond), \
-            status::invalid_arguments, msg, ##__VA_ARGS__);
+    VCONDCHECK(create, check, bnorm, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__);
 
 namespace {
 status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,

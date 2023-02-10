@@ -18,9 +18,11 @@
 #define COMMON_VERBOSE_MSG_HPP
 
 #define VERBOSE_error "error"
-#define VERBOSE_profile_create "create:"
-#define VERBOSE_profile_exec "exec"
-#define VERBOSE_dispatch "create:dispatch"
+#define VERBOSE_create "create"
+#define VERBOSE_exec "exec"
+#define VERBOSE_check ":check"
+#define VERBOSE_dispatch ":dispatch"
+#define VERBOSE_profile ""
 
 #define VERBOSE_NULL_ARG "one of the mandatory arguments is nullptr"
 #define VERBOSE_BAD_ENGINE_KIND "bad engine kind"

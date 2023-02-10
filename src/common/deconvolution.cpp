@@ -31,7 +31,7 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_DECONV(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, deconvolution, (cond), \
+    VCONDCHECK(create, check, deconvolution, (cond), \
             status::invalid_arguments, msg, ##__VA_ARGS__)
 
 namespace {

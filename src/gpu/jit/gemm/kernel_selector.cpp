@@ -143,7 +143,7 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns,
     const kcatalog::Entry *bestEntry = nullptr;
     int bestIPattern = -1;
 
-    bool verbose = (verbose_devinfo() >= 5);
+    bool verbose = (verbose_debuginfo() >= 5);
 
     // TODO: omit evaluation if only one match, if aux output not needed.
     for (int ipattern = 0; ipattern < npatterns; ipattern++) {

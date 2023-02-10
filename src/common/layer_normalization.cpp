@@ -30,8 +30,8 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_LNORM(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, lnorm, (cond), \
-            status::invalid_arguments, msg, ##__VA_ARGS__);
+    VCONDCHECK(create, check, lnorm, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__);
 
 namespace {
 status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,

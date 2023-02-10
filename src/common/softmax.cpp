@@ -31,8 +31,8 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_SOFTMAX(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, softmax, (cond), \
-            status::invalid_arguments, msg, ##__VA_ARGS__);
+    VCONDCHECK(create, check, softmax, (cond), status::invalid_arguments, msg, \
+            ##__VA_ARGS__);
 
 namespace {
 status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,

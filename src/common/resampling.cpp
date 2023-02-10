@@ -31,8 +31,8 @@ using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 #define VCHECK_RS(cond, msg, ...) \
-    VCONDCHECK(profile_create, check, resampling, (cond), \
-            status::invalid_arguments, msg, ##__VA_ARGS__);
+    VCONDCHECK(create, check, resampling, (cond), status::invalid_arguments, \
+            msg, ##__VA_ARGS__);
 
 namespace {
 status_t resampling_desc_init(resampling_desc_t *resampling_desc,

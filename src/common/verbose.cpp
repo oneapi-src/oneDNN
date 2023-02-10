@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <atomic>
+#include <regex>
 #include <sstream>
 #include <type_traits>
 
@@ -73,18 +74,6 @@ namespace dnnl {
 namespace impl {
 
 static setting_t<uint32_t> verbose {0};
-struct verbose_t {
-    enum flag_kind {
-        // we reserve the 24 lower bits for user info
-        none = 0,
-        error = 1 << 0,
-        profile_create = 1 << 1,
-        profile_exec = 1 << 2,
-        dispatch = 1 << 3,
-        // the upper 8 bits are reserved for devinfo levels
-        devinfo = 1 << 24,
-    };
-};
 
 uint32_t get_verbose() {
 #if defined(DISABLE_VERBOSE)
@@ -92,8 +81,40 @@ uint32_t get_verbose() {
 #else
     if (!verbose.initialized()) {
         // Assumes that all threads see the same environment
-        static int val = getenv_int_user("VERBOSE", verbose.get());
-        dnnl_set_verbose(val);
+        static std::string user_opt = getenv_string_user("VERBOSE");
+
+        auto tok2kind = [&](const std::string &s) -> int {
+            // Legacy: we accept values 0,1,2
+            if (s == "0" || s == "none") return verbose_t::none;
+            if (s == "1") return verbose_t::error | verbose_t::exec_profile;
+            if (s == "2")
+                return verbose_t::error | verbose_t::exec_profile
+                        | verbose_t::create_profile;
+            if (s == "all" || s == "-1") return verbose_t::all;
+            if (s == "error") return verbose_t::flag_kind::error;
+            if (s == "check") return verbose_t::flag_kind::create_check;
+            if (s == "dispatch") return verbose_t::flag_kind::create_dispatch;
+            if (s == "profile")
+                return verbose_t::flag_kind::create_profile
+                        | verbose_t::flag_kind::exec_profile;
+            if (s == "create_profile")
+                return verbose_t::flag_kind::create_profile;
+            if (s == "exec_profile") return verbose_t::flag_kind::exec_profile;
+            // we extract debug info debug_info=XX
+            if (s.rfind("debuginfo=", 0) == 0)
+                return verbose_t::make_debuginfo(std::stoi(s.substr(10)));
+
+            // Unknown option is ignored
+            // TODO: exit on unsupported or print a message?
+            return verbose_t::none;
+        };
+
+        int val = verbose_t::flag_kind::none;
+        for (auto &tok : utils::str_split(user_opt, ','))
+            val |= tok2kind(tok);
+
+        // We parse for explicit flags
+        verbose.set(val);
     }
 
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
@@ -142,16 +163,19 @@ uint32_t get_verbose() {
 bool verbose_has_error() {
     return get_verbose() & verbose_t::error;
 };
-bool verbose_has_profile_create() {
-    return get_verbose() & verbose_t::profile_create;
+bool verbose_has_create_dispatch() {
+    return get_verbose() & verbose_t::create_dispatch;
 };
-bool verbose_has_profile_exec() {
-    return get_verbose() & verbose_t::profile_exec;
+bool verbose_has_create_check() {
+    return get_verbose() & verbose_t::create_check;
 };
-bool verbose_has_dispatch() {
-    return get_verbose() & verbose_t::dispatch;
+bool verbose_has_create_profile() {
+    return get_verbose() & verbose_t::create_profile;
 };
-int verbose_devinfo() {
+bool verbose_has_exec_profile() {
+    return get_verbose() & verbose_t::exec_profile;
+};
+int verbose_debuginfo() {
     return get_verbose() >> 24;
 }
 
@@ -1076,12 +1100,15 @@ dnnl_status_t dnnl_set_verbose(int level) {
     using namespace dnnl::impl::status;
     using namespace dnnl::impl;
     if (level < 0 || level > 2) return invalid_arguments;
+
     uint32_t verbose_level = 0;
-    if (level >= 1) verbose_level = verbose_t::error | verbose_t::profile_exec;
-    if (level >= 2)
-        verbose_level |= verbose_t::profile_create | verbose_t::dispatch;
-    // we put the lower byte of level as devinfo
-    verbose_level |= (level << 24);
+    if (level == 1) verbose_level = verbose_t::error | verbose_t::exec_profile;
+    if (level == 2)
+        verbose_level = verbose_t::error | verbose_t::exec_profile
+                | verbose_t::create_profile;
+    // we put the lower byte of level as devinfo to preserve backward
+    // compatibility with historical VERBOSE={1,2}
+    if (level == 1 || level == 2) verbose_level |= (level << 24);
     verbose.set(verbose_level);
     return success;
 }

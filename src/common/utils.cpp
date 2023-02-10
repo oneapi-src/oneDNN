@@ -111,7 +111,7 @@ int getenv_int_user(const char *name, int default_value) {
 std::string getenv_string_user(const char *name) {
     // Random number to fit possible string input.
     std::string value;
-    const int len = 32;
+    const int len = 128;
     char value_str[len];
     for (const auto &prefix : {"ONEDNN_", "DNNL_"}) {
         std::string name_str = std::string(prefix) + std::string(name);
