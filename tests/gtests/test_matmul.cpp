@@ -105,9 +105,6 @@ protected:
                         && ((p.attr.zero_points.src & P::PER_N)
                                 || (p.attr.zero_points.dst & P::PER_N)),
                 "Per dimensional zero points are not supported on GPU");
-        SKIP_IF(get_test_engine_kind() == engine::kind::cpu
-                        && p.base.src.tag == impl::format_tag::AB8a4b,
-                "Don't test blocked formats on CPU");
 
         SKIP_IF_CUDA((p.attr.zero_points.src != 0 || p.attr.zero_points.dst != 0
                              || p.attr.zero_points.weights != 0),
@@ -447,12 +444,6 @@ static auto cases_ef = []() {
     // data_type::u8, tag::ab},
     //                           {{10, 20}, data_type::u8, tag::ab}},
     //        {}, true, dnnl_unimplemented});
-
-    // unimplemented formats (GPU only)
-    cases.push_back({{{{16, 16}, data_type::f32, tag::AB8a4b},
-                             {{16, 16}, data_type::f32, tag::AB8a4b},
-                             {{16, 16}, data_type::f32, tag::AB8a4b}},
-            {}, true, dnnl_unimplemented});
 
     // broken broadcast case
     cases.push_back(
