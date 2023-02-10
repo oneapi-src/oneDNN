@@ -245,6 +245,18 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
+    // Reorder does not support s8 and zp compensations for arbitrary shapes,
+    // so skip unsupported cases.
+    // Note: this check must be done here to avoid runtime error in benchdnn due
+    // to failed reorder creation.
+    // TODO: enable this support and remove this check.
+    const bool is_bad_ldb = prb->get_ldb() % 16 > 0 || prb->get_ldb() > 64;
+    const bool req_s8_comp = prb->src_dt() == dnnl_s8;
+    const bool req_zp_comp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
+    if (is_bad_ldb && (req_s8_comp || req_zp_comp)) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 }
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
