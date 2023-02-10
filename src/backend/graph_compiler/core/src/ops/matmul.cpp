@@ -201,11 +201,6 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         }
     }
 
-    if (is_bf16) {
-        matmul = graph->make("cast", matmul->get_outputs(), {},
-                {{"dtype", datatypes::bf16}});
-    }
-
     // view the shape back
     if (!is_dynamic()) {
         // Nd*2d cases
@@ -230,6 +225,10 @@ void matmul_op::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
                             matmul->get_outputs()[0]->details_.dtype_)},
                     {{"shape", reshape_dest}, {"format", sc_data_format_t()}});
         }
+    }
+    if (is_bf16) {
+        matmul = graph->make("cast", matmul->get_outputs(), {},
+                {{"dtype", datatypes::bf16}});
     }
 
     // check optional input lotgical tensor: bias

@@ -93,7 +93,7 @@ public:
     }
 };
 
-struct SC_API target_machine_t {
+struct SC_INTERNAL_API target_machine_t {
     enum class type {
         cpu,
     } device_type_;
