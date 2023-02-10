@@ -63,6 +63,7 @@ struct var_cmper_t {
 struct ssa_scope_t {
     // old var => ssa_var_status_t. Using ordered map to make unit tests happy
     std::map<expr_c, ssa_var_status_t, var_cmper_t> vars_;
+    std::vector<stmt> inserted_;
     enum class kind {
         normal,
         for_loop,
@@ -94,6 +95,20 @@ public:
         }
         return newret;
     }
+
+    define add_ssa_def_to_parent_scope(const expr_c &ret, ssa_scope_t *scope) {
+        // if is global variable, add a "load instance"
+        auto newret = make_def_and_process(ret);
+        // copy the function pointer prototype
+        if (ret->dtype_ == datatypes::pointer && ret->attr_) {
+            if (auto proto = ret->attr_->get_or_else("prototype", func_t())) {
+                newret->var_->attr()["prototype"] = proto;
+            }
+        }
+        scope->inserted_.emplace_back(newret);
+        return newret;
+    }
+
     ssa_scope_t &push_scope(ssa_scope_t::kind k) {
         int for_depth;
         if (scopes_.empty()) {
@@ -114,11 +129,16 @@ public:
 
     // add an old var definition to scopes, returns the new var
     ssa_var_status_t *insert_local_var(
-            const expr_c &old_var, const expr &new_val) {
-        auto itr = scopes_.back().vars_.insert(std::make_pair(old_var,
-                ssa_var_status_t {
-                        new_val, scopes_.size() - 1, std::vector<expr>()}));
+            const expr_c &old_var, const expr &new_val, size_t scope_idx) {
+        auto itr = scopes_[scope_idx].vars_.insert(std::make_pair(old_var,
+                ssa_var_status_t {new_val, scope_idx, std::vector<expr>()}));
         return &itr.first->second;
+    }
+
+    // add an old var definition to scopes, returns the new var
+    ssa_var_status_t *insert_local_var(
+            const expr_c &old_var, const expr &new_val) {
+        return insert_local_var(old_var, new_val, scopes_.size() - 1);
     }
 
     ssa_var_status_t *get_local_var_nothrow(const expr_c &old_var) {
@@ -127,6 +147,15 @@ public:
             if (varitr != (*itr).vars_.end()) { return &varitr->second; }
         }
         return nullptr;
+    }
+
+    // find the scope id where the local var is first defined
+    int64_t get_local_var_top_level(const expr_c &old_var) {
+        for (auto itr = scopes_.begin(); itr != scopes_.end(); ++itr) {
+            auto varitr = (*itr).vars_.find(old_var);
+            if (varitr != (*itr).vars_.end()) { return itr - scopes_.begin(); }
+        }
+        throw std::runtime_error("Undefined var in SSA transform");
     }
 
     ssa_var_status_t *get_local_var(const expr_c &old_var) {
@@ -196,15 +225,39 @@ public:
         auto ret = get_local_var(v);
         auto &cur_scope = scopes_.back();
         if (!ret->current_value->ssa_data_->is_global_) {
-            if (cur_scope.for_depth_
-                    > scopes_[ret->defined_scope_idx].for_depth_) {
+            auto parent_scope_id = ret->defined_scope_idx;
+            auto cur_val = ret->current_value;
+            if (cur_scope.for_depth_ > scopes_[parent_scope_id].for_depth_) {
                 // if the variable depends on a value created outside the
                 // current for loop
+                // we now need to create a phi node. The source of the phi is
+                // the value from parent for-loop scope
+                if (cur_scope.for_depth_
+                        != scopes_[parent_scope_id].for_depth_ + 1) {
+                    // if there is other for-loop scopes between current scope
+                    // and the parent loop scope, we need to insert a PHI for
+                    // each for-loop scopes between them
+                    for (size_t i = parent_scope_id + 1; i < scopes_.size() - 1;
+                            i++) {
+                        auto &the_scope = scopes_[i];
+                        if (the_scope.kind_ != ssa_scope_t::kind::for_loop) {
+                            continue;
+                        }
+                        auto phi = make_expr<ssa_phi_node>(
+                                std::vector<expr> {cur_val}, false);
+                        auto new_ssa_def
+                                = add_ssa_def_to_parent_scope(phi, &the_scope);
+                        cur_val = new_ssa_def->var_;
+                        rename_temp_var_with_version(
+                                cur_val.checked_as<var>(), v);
+                        insert_local_var(v, cur_val, i)
+                                ->for_loop_phi.emplace_back(cur_val);
+                    }
+                }
                 auto phi = add_ssa_def(make_expr<ssa_phi_node>(
-                        std::vector<expr> {ret->current_value}, false));
-                assert(ret->current_value.isa<var>()
-                        || ret->current_value.isa<tensor>()
-                        || ret->current_value.isa<constant>());
+                        std::vector<expr> {cur_val}, false));
+                assert(cur_val.isa<var>() || cur_val.isa<tensor>()
+                        || cur_val.isa<constant>());
                 rename_temp_var_with_version(phi.checked_as<var>(), v);
                 // update the local var mapping to the phi node
                 insert_local_var(v, phi)->for_loop_phi.emplace_back(phi);
@@ -278,8 +331,7 @@ public:
                     rename_temp_var_with_version(
                             cur_value, v->var_.static_as<var>());
                 }
-                return stmt_c(); // no extra instructions needs to
-                // be inserted
+                return stmt_c(); // no extra instructions needs to be inserted
             } else {
                 // if is global var
                 return copy_attr(*v,
@@ -347,6 +399,11 @@ public:
         init_ssa_data(thevar.get());
         auto body = dispatch(v->body_);
         ssa_scope_t scope = pop_scope();
+        if (!scope.inserted_.empty()) {
+            auto &bodyseq = body.checked_as<stmts>()->seq_;
+            bodyseq.insert(bodyseq.begin(), scope.inserted_.begin(),
+                    scope.inserted_.end());
+        }
         for (auto &kv : scope.vars_) {
             auto parent_var = get_local_var_nothrow(kv.first);
             if (parent_var) {

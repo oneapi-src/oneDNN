@@ -213,6 +213,12 @@ define ssa_visitor_t::make_def(const expr_c &v) {
             .static_as<define>();
 }
 
+define ssa_visitor_t::make_def_and_process(const expr_c &v) {
+    auto ret = make_def(v);
+    process_define_node_after_visit(ret);
+    return ret;
+}
+
 expr ssa_visitor_t::add_def(const expr_c &v) {
     assert(current_scope_);
     auto ret = make_def(v);
