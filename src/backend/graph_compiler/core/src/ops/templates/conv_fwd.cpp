@@ -31,6 +31,7 @@
 #include <runtime/config.hpp>
 #include <unordered_set>
 #include <util/any_map.hpp>
+#include <util/math_utils.hpp>
 #include <util/reflection.hpp>
 #include <util/utils.hpp>
 using namespace sc::builder;
@@ -1162,188 +1163,241 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
   COMPILE_ASSERT((pd_ == 0 && ph_ == 0 && pw_ == 0),
     "unexpected padding in no_padding kernels!");
   assert(loops.size() == 4 && "expected to have 4 level loops!");
+  loops.emplace_back(for_loop());
   for_loop &ln = loops.at(0), &lk = loops.at(1), &ld = loops.at(2),
-           &lp = loops.at(3);
+           &lp = loops.at(3), &lok = loops.at(4);
+
   auto LDA = blocking_input_ ? sw_ * config.C_block : sw_ * ic_;
   auto LDC = blocking_output_ ? config.K_block : oc_;
   auto input_expr_dims = input.checked_as<tensor>()->dims_;
   auto mb_expr_ = input_expr_dims[0];
-  _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
-    _named_for_(lk, k_o, 0, K_num_block) {
-      if (use_os_blocking) {
-        _named_for_(lp, o_o, 0, os / config.tile_os) {
-          _tensor_(A_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
-          _tensor_(B_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
-          auto out_tsr = tensor_ptr(output,
-            blocking_output_
-              ? std::vector<expr> {n, k_o, o_o * config.tile_os / ow_,
-                o_o * config.tile_os % ow_, 0}
-              : std::vector<expr> {n, o_o * config.tile_os / ow_,
-                o_o * config.tile_os % ow_, k_o * config.K_block});
-          int adj_ow = ow_ + (pack_rows ? num_elems_skip_per_ow_ : 0);
+  int oc_split = 1;
+  auto nthreads = runtime_config_t::get().get_num_threads();
+  bool parallel_space_is_enough
+    = (mb_ % nthreads == 0 || utils::divide_and_ceil(mb_, nthreads) > 8);
+  auto weight_size
+    = math_utils::get_dims_product(in_tensors_[1].get_blocking_dims())
+    * utils::get_sizeof_type(get_weight_dtype());
+  auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
+  if (weight_size >= L2_cache_size && parallel_space_is_enough) {
+    int expected_split_num = utils::divide_and_ceil(weight_size, L2_cache_size);
+    for (auto &factor : utils::get_factors(K_num_block)) {
+      if (factor >= expected_split_num) {
+        expected_split_num = factor;
+        break;
+      }
+    }
+    oc_split = K_num_block < expected_split_num ? 1 : expected_split_num;
+  }
 
-          if (pack_rows) {
-            if (os / config.tile_os == 1) {
-              out_tsr = tensor_ptr(output,
-                blocking_output_
-                  ? std::vector<expr> {n, k_o, 0, 0, 0}
-                  : std::vector<expr> {n, 0, 0, k_o * config.K_block});
-            } else {
-              auto acc_m = os_acc_size[{o_o}];
-              out_tsr = tensor_ptr(output,
-                blocking_output_
-                  ? std::vector<expr> {n, k_o, acc_m / ow_, acc_m % ow_, 0}
-                  : std::vector<expr> {
-                    n, acc_m / ow_, acc_m % ow_, k_o * config.K_block});
-            }
-          }
+  _named_for_(lok, outer_k, 0, oc_split, 1, for_type::PARALLEL) {
+    _named_for_(ln, n, 0, mb_expr_, 1) {
+      _named_for_(lk, k_i, 0, K_num_block / oc_split) {
+        expr k_o = outer_k * K_num_block / oc_split + k_i;
+        if (use_os_blocking) {
+          _named_for_(lp, o_o, 0, os / config.tile_os) {
+            _tensor_(A_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
+            _tensor_(B_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
+            auto out_tsr = tensor_ptr(output,
+              blocking_output_
+                ? std::vector<expr> {n, k_o, o_o * config.tile_os / ow_,
+                  o_o * config.tile_os % ow_, 0}
+                : std::vector<expr> {n, o_o * config.tile_os / ow_,
+                  o_o * config.tile_os % ow_, k_o * config.K_block});
+            int adj_ow = ow_ + (pack_rows ? num_elems_skip_per_ow_ : 0);
 
-          _for_(c_o, 0, C_num_block) {
-            _for_(r, 0, kh_) {
-              _for_(s, 0, kw_) {
-                auto idx = c_o * kh_ * kw_ + r * kw_ + s;
-                std::vector<expr> input_pos = blocking_input_
-                  ? std::vector<expr> {n, c_o,
-                    ((o_o * config.tile_os) / adj_ow) * sh_ + r,
-                    ((o_o * config.tile_os) % adj_ow) * sw_ + s, 0}
-                  : std::vector<expr> {n,
-                    ((o_o * config.tile_os) / adj_ow) * sh_ + r,
-                    ((o_o * config.tile_os) % adj_ow) * sw_ + s,
-                    c_o * config.C_block};
-                A_list[idx] = tensor_ptr(input, input_pos);
-                B_list[idx] = tensor_ptr(weight,
-                  kpack > 1 ? std::vector<expr> {k_o, c_o, r, s, 0, 0, 0}
-                            : std::vector<expr> {k_o, c_o, r, s, 0, 0});
+            if (pack_rows) {
+              if (os / config.tile_os == 1) {
+                out_tsr = tensor_ptr(output,
+                  blocking_output_
+                    ? std::vector<expr> {n, k_o, 0, 0, 0}
+                    : std::vector<expr> {n, 0, 0, k_o * config.K_block});
+              } else {
+                auto acc_m = os_acc_size[{o_o}];
+                out_tsr = tensor_ptr(output,
+                  blocking_output_
+                    ? std::vector<expr> {n, k_o, acc_m / ow_, acc_m % ow_, 0}
+                    : std::vector<expr> {
+                      n, acc_m / ow_, acc_m % ow_, k_o * config.K_block});
               }
             }
-          }
 
-          const auto hint_A_size
-            = config.tile_os * config.C_block * kh_ * kw_ * C_num_block;
-          const auto hint_B_size
-            = config.K_block * config.C_block * kh_ * kw_ * C_num_block;
-          // note, the actual C_size is <= tile_os if pack_rows=true
-          const auto hint_C_size = config.tile_os * config.K_block;
-          sc_brgemm_attrs_t brg_attrs {
-            {brgemm::attr_key::max_bs, kh_ * kw_ * C_num_block},
-            {brgemm::attr_key::hint_expected_A_size, hint_A_size},
-            {brgemm::attr_key::hint_expected_B_size, hint_B_size},
-            {brgemm::attr_key::hint_expected_C_size, hint_C_size},
-            {brgemm::attr_key::use_interleave_stores, true},
-            {brgemm::attr_key::use_uker, true},
-            {brgemm::attr_key::bd_mask_level, pack_rows ? 2 : 0}};
-
-          sc::builtin::brgemm_init_list_update(A_list, B_list, out_tsr, 1,
-            config.tile_os, config.K_block, config.C_block, LDA, config.K_block,
-            LDC, 1 /*useless*/, 1 /*useless*/, kh_ * kw_ * C_num_block,
-            get_input_dtype(), get_weight_dtype(), brg_attrs, os_mask, o_o,
-            os / config.tile_os);
-          auto os_num_block = os / config.tile_os;
-          if (fusion && !pack_rows) {
-            fusion->create_output_fusion_anchor({tensor_slice(output,
-              blocking_output_
-                ? slice_range {{n, 1}, {k_o, 1},
-                  {o_o * config.tile_os / ow_, 1},
-                  {o_o * config.tile_os % ow_, config.tile_os},
-                  {0, config.K_block}}
-                : slice_range {{n, 1}, {o_o * config.tile_os / ow_, 1},
-                  {o_o * config.tile_os % ow_, config.tile_os},
-                  {k_o * config.K_block, config.K_block}})});
-          } else if (fusion && oh_ % os_num_block == 0) {
-            fusion->create_output_fusion_anchor({tensor_slice(output,
-              blocking_output_
-                ? slice_range {{n, 1}, {k_o, 1},
-                  {o_o * (oh_ / os_num_block), (oh_ / os_num_block)}, {0, ow_},
-                  {0, config.K_block}}
-                : slice_range {{n, 1},
-                  {o_o * (oh_ / os_num_block), (oh_ / os_num_block)}, {0, ow_},
-                  {k_o * config.K_block, config.K_block}})});
-          }
-        }
-        if (fusion) {
-          // Note: slice tensor might across multi-rows with non-rectangular
-          // shapes. Currently, we just promote the fusion anchor to higher
-          // level of loop, which will consume larger buffer and is
-          // non-optimal This can be optimized in next version of fusion
-          // manager.
-          fusion->create_output_fusion_anchor({tensor_slice(output,
-            blocking_output_ ? slice_range {{n, 1}, {k_o, 1}, {0, oh_},
-              {0, ow_}, {0, config.K_block}}
-                             : slice_range {{n, 1}, {0, oh_}, {0, ow_},
-                               {k_o * config.K_block, config.K_block}})});
-        }
-      } else {
-        _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
-          _tensor_(A_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
-          _tensor_(B_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
-          _for_(q_o, 0, ow_ / config.tile_q) {
-            _for_(p_i, 0, config.tile_p) {
-              std::vector<expr> output_pos = blocking_output_
-                ? std::vector<expr> {n, k_o, p_o * config.tile_p + p_i,
-                  q_o * config.tile_q, 0}
-                : std::vector<expr> {n, p_o * config.tile_p + p_i,
-                  q_o * config.tile_q, k_o * config.K_block};
-              _for_(c_o, 0, C_num_block) {
-                _for_(r, 0, kh_) {
-                  _for_(s, 0, kw_) {
-                    auto idx = c_o * kh_ * kw_ + r * kw_ + s;
-                    std::vector<expr> input_pos = blocking_input_
-                      ? std::vector<expr> {n, c_o,
-                        (p_o * config.tile_p + p_i) * sh_ + r,
-                        q_o * config.tile_q * sw_ + s, 0}
-                      : std::vector<expr> {n,
-                        (p_o * config.tile_p + p_i) * sh_ + r,
-                        q_o * config.tile_q * sw_ + s, c_o * config.C_block};
-
-                    A_list[idx] = tensor_ptr(input, input_pos);
-                    B_list[idx] = tensor_ptr(weight,
-                      kpack > 1 ? std::vector<expr> {k_o, c_o, r, s, 0, 0, 0}
-                                : std::vector<expr> {k_o, c_o, r, s, 0, 0});
-                  }
+            _for_(c_o, 0, C_num_block) {
+              _for_(r, 0, kh_) {
+                _for_(s, 0, kw_) {
+                  auto idx = c_o * kh_ * kw_ + r * kw_ + s;
+                  std::vector<expr> input_pos = blocking_input_
+                    ? std::vector<expr> {n, c_o,
+                      ((o_o * config.tile_os) / adj_ow) * sh_ + r,
+                      ((o_o * config.tile_os) % adj_ow) * sw_ + s, 0}
+                    : std::vector<expr> {n,
+                      ((o_o * config.tile_os) / adj_ow) * sh_ + r,
+                      ((o_o * config.tile_os) % adj_ow) * sw_ + s,
+                      c_o * config.C_block};
+                  A_list[idx] = tensor_ptr(input, input_pos);
+                  B_list[idx] = tensor_ptr(weight,
+                    kpack > 1 ? std::vector<expr> {k_o, c_o, r, s, 0, 0, 0}
+                              : std::vector<expr> {k_o, c_o, r, s, 0, 0});
                 }
               }
+            }
 
-              const auto hint_A_size
-                = config.tile_q * config.C_block * kh_ * kw_ * C_num_block;
-              const auto hint_B_size
-                = config.K_block * config.C_block * kh_ * kw_ * C_num_block;
-              const auto hint_C_size = config.tile_q * config.K_block;
-              sc_brgemm_attrs_t brg_attrs {
-                {brgemm::attr_key::max_bs, kh_ * kw_ * C_num_block},
-                {brgemm::attr_key::hint_expected_A_size, hint_A_size},
-                {brgemm::attr_key::hint_expected_B_size, hint_B_size},
-                {brgemm::attr_key::hint_expected_C_size, hint_C_size},
-                {brgemm::attr_key::use_interleave_stores, true},
-                {brgemm::attr_key::use_uker, true},
-                {brgemm::attr_key::bd_mask_level, 0}};
+            const auto hint_A_size
+              = config.tile_os * config.C_block * kh_ * kw_ * C_num_block;
+            const auto hint_B_size
+              = config.K_block * config.C_block * kh_ * kw_ * C_num_block;
+            // note, the actual C_size is <= tile_os if pack_rows=true
+            const auto hint_C_size = config.tile_os * config.K_block;
+            sc_brgemm_attrs_t brg_attrs {
+              {brgemm::attr_key::max_bs, kh_ * kw_ * C_num_block},
+              {brgemm::attr_key::hint_expected_A_size, hint_A_size},
+              {brgemm::attr_key::hint_expected_B_size, hint_B_size},
+              {brgemm::attr_key::hint_expected_C_size, hint_C_size},
+              {brgemm::attr_key::use_interleave_stores, true},
+              {brgemm::attr_key::use_uker, true},
+              {brgemm::attr_key::bd_mask_level, pack_rows ? 2 : 0}};
 
-              sc::builtin::brgemm_init_list_update(A_list, B_list,
-                tensor_ptr(output, output_pos), 1, config.tile_q,
-                config.K_block, config.C_block, LDA, config.K_block, LDC,
-                1 /*useless*/, 1 /*useless*/, kh_ * kw_ * C_num_block,
-                get_input_dtype(), get_weight_dtype(), brg_attrs);
+            sc::builtin::brgemm_init_list_update(A_list, B_list, out_tsr, 1,
+              config.tile_os, config.K_block, config.C_block, LDA,
+              config.K_block, LDC, 1 /*useless*/, 1 /*useless*/,
+              kh_ * kw_ * C_num_block, get_input_dtype(), get_weight_dtype(),
+              brg_attrs, os_mask, o_o, os / config.tile_os);
+            auto os_num_block = os / config.tile_os;
+            if (fusion && !pack_rows) {
+              fusion->create_output_fusion_anchor({tensor_slice(output,
+                blocking_output_
+                  ? slice_range {{n, 1}, {k_o, 1},
+                    {o_o * config.tile_os / ow_, 1},
+                    {o_o * config.tile_os % ow_, config.tile_os},
+                    {0, config.K_block}}
+                  : slice_range {{n, 1}, {o_o * config.tile_os / ow_, 1},
+                    {o_o * config.tile_os % ow_, config.tile_os},
+                    {k_o * config.K_block, config.K_block}})});
+            } else if (fusion && oh_ % os_num_block == 0) {
+              fusion->create_output_fusion_anchor({tensor_slice(output,
+                blocking_output_
+                  ? slice_range {{n, 1}, {k_o, 1},
+                    {o_o * (oh_ / os_num_block), (oh_ / os_num_block)},
+                    {0, ow_}, {0, config.K_block}}
+                  : slice_range {{n, 1},
+                    {o_o * (oh_ / os_num_block), (oh_ / os_num_block)},
+                    {0, ow_}, {k_o * config.K_block, config.K_block}})});
+            }
+          }
+          if (fusion) {
+            // Note: slice tensor might across multi-rows with non-rectangular
+            // shapes. Currently, we just promote the fusion anchor to higher
+            // level of loop, which will consume larger buffer and is
+            // non-optimal This can be optimized in next version of fusion
+            // manager.
+            fusion->create_output_fusion_anchor({tensor_slice(output,
+              blocking_output_ ? slice_range {{n, 1}, {k_o, 1}, {0, oh_},
+                {0, ow_}, {0, config.K_block}}
+                               : slice_range {{n, 1}, {0, oh_}, {0, ow_},
+                                 {k_o * config.K_block, config.K_block}})});
+          }
+        } else {
+          _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
+            _tensor_(A_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
+            _tensor_(B_list, datatypes::pointer, {kh_ * kw_ * C_num_block});
+            _for_(q_o, 0, ow_ / config.tile_q) {
+              _for_(p_i, 0, config.tile_p) {
+                std::vector<expr> output_pos = blocking_output_
+                  ? std::vector<expr> {n, k_o, p_o * config.tile_p + p_i,
+                    q_o * config.tile_q, 0}
+                  : std::vector<expr> {n, p_o * config.tile_p + p_i,
+                    q_o * config.tile_q, k_o * config.K_block};
+                _for_(c_o, 0, C_num_block) {
+                  _for_(r, 0, kh_) {
+                    _for_(s, 0, kw_) {
+                      auto idx = c_o * kh_ * kw_ + r * kw_ + s;
+                      std::vector<expr> input_pos = blocking_input_
+                        ? std::vector<expr> {n, c_o,
+                          (p_o * config.tile_p + p_i) * sh_ + r,
+                          q_o * config.tile_q * sw_ + s, 0}
+                        : std::vector<expr> {n,
+                          (p_o * config.tile_p + p_i) * sh_ + r,
+                          q_o * config.tile_q * sw_ + s, c_o * config.C_block};
 
+                      A_list[idx] = tensor_ptr(input, input_pos);
+                      B_list[idx] = tensor_ptr(weight,
+                        kpack > 1 ? std::vector<expr> {k_o, c_o, r, s, 0, 0, 0}
+                                  : std::vector<expr> {k_o, c_o, r, s, 0, 0});
+                    }
+                  }
+                }
+
+                const auto hint_A_size
+                  = config.tile_q * config.C_block * kh_ * kw_ * C_num_block;
+                const auto hint_B_size
+                  = config.K_block * config.C_block * kh_ * kw_ * C_num_block;
+                const auto hint_C_size = config.tile_q * config.K_block;
+                sc_brgemm_attrs_t brg_attrs {
+                  {brgemm::attr_key::max_bs, kh_ * kw_ * C_num_block},
+                  {brgemm::attr_key::hint_expected_A_size, hint_A_size},
+                  {brgemm::attr_key::hint_expected_B_size, hint_B_size},
+                  {brgemm::attr_key::hint_expected_C_size, hint_C_size},
+                  {brgemm::attr_key::use_interleave_stores, true},
+                  {brgemm::attr_key::use_uker, true},
+                  {brgemm::attr_key::bd_mask_level, 0}};
+
+                sc::builtin::brgemm_init_list_update(A_list, B_list,
+                  tensor_ptr(output, output_pos), 1, config.tile_q,
+                  config.K_block, config.C_block, LDA, config.K_block, LDC,
+                  1 /*useless*/, 1 /*useless*/, kh_ * kw_ * C_num_block,
+                  get_input_dtype(), get_weight_dtype(), brg_attrs);
+
+                if (fusion) {
+                  fusion->create_output_fusion_anchor({tensor_slice(output,
+                    blocking_output_
+                      ? slice_range {{n, 1}, {k_o, 1},
+                        {p_o * config.tile_p + p_i, 1},
+                        {q_o * config.tile_q, config.tile_q},
+                        {0, config.K_block}}
+                      : slice_range {{n, 1}, {p_o * config.tile_p + p_i, 1},
+                        {q_o * config.tile_q, config.tile_q},
+                        {k_o * config.K_block, config.K_block}})});
+                }
+              }
               if (fusion) {
                 fusion->create_output_fusion_anchor({tensor_slice(output,
                   blocking_output_
                     ? slice_range {{n, 1}, {k_o, 1},
-                      {p_o * config.tile_p + p_i, 1},
+                      {p_o * config.tile_p, config.tile_p},
                       {q_o * config.tile_q, config.tile_q}, {0, config.K_block}}
-                    : slice_range {{n, 1}, {p_o * config.tile_p + p_i, 1},
+                    : slice_range {{n, 1}, {p_o * config.tile_p, config.tile_p},
                       {q_o * config.tile_q, config.tile_q},
                       {k_o * config.K_block, config.K_block}})});
               }
             }
+            if (fusion) {
+              fusion->create_output_fusion_anchor({tensor_slice(output,
+                blocking_output_
+                  ? slice_range {{n, 1}, {k_o, 1},
+                    {p_o * config.tile_p, config.tile_p}, {0, ow_},
+                    {0, config.K_block}}
+                  : slice_range {{n, 1}, {p_o * config.tile_p, config.tile_p},
+                    {0, ow_}, {k_o * config.K_block, config.K_block}})});
+            }
+          }
+          if (fusion) {
+            fusion->create_output_fusion_anchor({tensor_slice(output,
+              blocking_output_ ? slice_range {{n, 1}, {k_o, 1}, {0, oh_},
+                {0, ow_}, {0, config.K_block}}
+                               : slice_range {{n, 1}, {0, oh_}, {0, ow_},
+                                 {k_o * config.K_block, config.K_block}})});
           }
         }
       }
-    }
-    if (fusion) {
-      fusion->create_output_fusion_anchor({tensor_slice(output,
-        blocking_output_
-          ? slice_range {{n, 1}, {0, K_num_block}, {0, oh_}, {0, ow_},
-            {0, config.K_block}}
-          : slice_range {{n, 1}, {0, oh_}, {0, ow_}, {0, oc_}})});
+      if (fusion) {
+        fusion->create_output_fusion_anchor({tensor_slice(output,
+          blocking_output_ ? slice_range {{n, 1},
+            {outer_k * K_num_block / oc_split, K_num_block / oc_split},
+            {0, oh_}, {0, ow_}, {0, config.K_block}}
+                           : slice_range {{n, 1}, {0, oh_}, {0, ow_},
+                             {outer_k * K_num_block / oc_split * config.K_block,
+                               K_num_block / oc_split * config.K_block}})});
+      }
     }
   }
 }
@@ -2069,9 +2123,15 @@ void gen_conv_fwd_t::schedule_loops(context_ptr ctx,
     auto lpbs = fors[0], lps = fors[1], lpoc = fors[2], lpic = fors[3];
     lpbs->fuse(lps)->fuse(lpoc)->fuse(lpic);
   } else {
-    COMPILE_ASSERT(static_cast<int>(fors.size()) == 4,
+    COMPILE_ASSERT(
+      static_cast<int>(fors.size()) == 4 || static_cast<int>(fors.size()) == 5,
       "expected to have 4 for loops, but got " << fors.size() << " for loops.");
-    for_loop ln = fors.at(0), lk = fors.at(1), ld = fors.at(2), lp = fors.at(3);
+    for_loop ln = fors.at(0), lk = fors.at(1), ld = fors.at(2), lp = fors.at(3),
+             lok;
+    if (fors.size() == 5) {
+      lok = fors[4];
+      ln = lok->fuse(ln);
+    }
     auto loop_sched = config.loop_sched;
     if (loop_sched == 0) {
       // default loop order ln->lk->ld->lp
