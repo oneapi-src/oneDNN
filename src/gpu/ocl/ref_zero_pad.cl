@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -156,6 +156,9 @@ ref_zero_pad_subg_16(__global void *a, const uint type_size,
 
     for (unsigned b_midx = 0; b_midx < b_multiplier; ++b_midx) {
         switch (type_size) {
+            case 8:
+                intel_sub_group_block_write_ul((__global ulong *)p, 0);
+                break;
             case 4: intel_sub_group_block_write((__global uint *)p, 0); break;
             case 2:
                 intel_sub_group_block_write_us((__global ushort *)p, 0);

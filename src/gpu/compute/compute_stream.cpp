@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2021 Intel Corporation
+ * Copyright 2020-2023 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,8 +32,8 @@ status_t compute_stream_t::zero_pad(
 
     if (!has_zero_pad_primitive()) return stream_t::zero_pad(memory, ctx);
 
-    // Kernel only compiled to support data types of length 1, 2, or 4 currently
-    if (!utils::one_of(mdw.data_type_size(), 1u, 2u, 4u))
+    // Kernel only compiled to support data types of length 1, 2, 4 or 8 currently
+    if (!utils::one_of(mdw.data_type_size(), 1u, 2u, 4u, 8u))
         return status::unimplemented;
 
     const blocking_desc_t blocking_desc = mdw.blocking_desc();

@@ -141,8 +141,8 @@ The operation supports the following combinations of data types:
 
 | Propagation | Source                 | Destination            |
 | :--         | :--                    | :--                    |
-| forward     | f32, bf16, f16, u8, s8 | f32, bf16, f16, u8, s8 |
-| backward    | f32, bf16, f16         | f32, bf16, f16         |
+| forward     | f32, bf16, f16, u8, s8, f64 | f32, bf16, f16, u8, s8, f64 |
+| backward    | f32, bf16, f16, f64         | f32, bf16, f16, f64         |
 
 Mean, Variance and ScaleShift data types are always f32 and independent of
 Source or Destination data types.

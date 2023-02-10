@@ -31,7 +31,7 @@ oneDNN supports training and inference with the following data types:
     model implementation.
 
 @note
-    f64 is only supported for convolution primitive, on the GPU engine.
+    f64 is only supported for convolution and layer normalization primitives, on the GPU engine.
 
 See topics for the corresponding data types details:
  * @ref dev_guide_inference_int8

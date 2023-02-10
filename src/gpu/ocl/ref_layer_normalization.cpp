@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,7 +71,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     if (pd->is_fwd()) {
         if ((conf.norm_axis % 16 == 0) && ndims < 4 && c_is_last_physical
                 && (c_block == 1 || (c_block % 16 == 0 && ndims == 2)
-                        || src_mdw.is_dense())) {
+                        || src_mdw.is_dense())
+                && (conf.data_type != data_type::f64)) { //f64 for ref impl only
             conf.vectorize_calc_stats = true;
             conf.sub_group_size = 16;
             int vector_size = 8;
@@ -102,7 +103,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         if (conf.norm_axis % desired_sg_size == 0
                 && (src_mdw.matches_one_of_tag(ab, abc, abcd, abcde)
                         || (ndims == 2 && c_block % desired_sg_size == 0
-                                && c_is_last_physical))) {
+                                && c_is_last_physical))
+                && (conf.data_type != data_type::f64)) { //f64 for ref impl only
             conf.vectorize_bwd = true;
             conf.sub_group_size = desired_sg_size;
             conf.vect_dt_n = 8;
@@ -145,7 +147,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                             && (c_block == desired_sg_size
                                     || src_mdw.matches_tag(ab)))
                         || (ndims == 3 && src_mdw.matches_tag(abc)
-                                && dims[0] == 1));
+                                && dims[0] == 1))
+                && (conf.data_type != data_type::f64); //f64 for ref impl only
         if (conf.vectorize_bwd_scaleshift) {
             // Use partial reduction in order to increase number of used threads
             conf.vector_size_scaleshift = c_block == desired_sg_size ? 8 : 1;
