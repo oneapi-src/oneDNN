@@ -44,6 +44,7 @@ protected:
     stmt_c dispatch(stmt_c e) override;
 
     define make_def(const expr_c &v);
+    define make_def_and_process(const expr_c &v);
 
     // reference root of the expr nodes that has been visited during one call
     // of top_level_dispatch. will be cleared after top_level_dispatch returns
