@@ -200,9 +200,9 @@ public:
         memory::dims strides = {SH, SW};
         memory::dims padding_l = {PH, PW};
         memory::dims padding_r = {PH, PW};
-        auto src_md = memory::desc(src_dims, dt::f32, tag::nhwc);
+        auto src_md = memory::desc(src_dims, dt::f32, tag::nchw);
         auto wei_md = memory::desc(wei_dims, dt::f32, tag::oihw);
-        auto dst_md = memory::desc(dst_dims, dt::f32, tag::nhwc);
+        auto dst_md = memory::desc(dst_dims, dt::f32, tag::nchw);
 
         primitive_attr attr;
         attr.set_scratchpad_mode(scratchpad_mode::user);
