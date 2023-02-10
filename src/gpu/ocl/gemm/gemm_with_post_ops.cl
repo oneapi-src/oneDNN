@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@
 __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
         __global DST_DATA_T *dst POST_OP_ARGS, __global SPAD_DATA_T *scratchpad,
         global float *a_scales, global float *b_scales, global float *c_scales,
-        int scale_stride) {
+        int scale_stride, global int *dst_zp) {
     const uint d0 = GWS_GET_D0();
     const uint d1 = GWS_GET_D1();
     const uint d2 = GWS_GET_D2();
@@ -133,6 +133,9 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
 
 #if C_SCALES
     accumulator /= c_scales[0];
+#endif
+#if DST_ZERO_POINT
+    accumulator += dst_zp[0];
 #endif
 
     dst[data_idx] = TO_DST(accumulator);

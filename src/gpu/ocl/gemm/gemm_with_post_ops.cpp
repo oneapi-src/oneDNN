@@ -74,7 +74,14 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     gemm_desc.bias_desc = glob_zero_md;
     // Setup empty attributes but keep zero points for gemm.
     primitive_attr_t attributes_without_po;
-    attributes_without_po.zero_points_ = attributes_with_po->zero_points_;
+    int src_mask, wei_mask;
+    auto zp = attributes_with_po->zero_points_;
+    zp.get(DNNL_ARG_SRC, &src_mask);
+    zp.get(DNNL_ARG_WEIGHTS, &wei_mask);
+    if (!zp.has_default_values(DNNL_ARG_SRC))
+        attributes_without_po.zero_points_.set(DNNL_ARG_SRC, src_mask);
+    if (!zp.has_default_values(DNNL_ARG_WEIGHTS))
+        attributes_without_po.zero_points_.set(DNNL_ARG_WEIGHTS, wei_mask);
 
     primitive_desc_iterator_t it_gemm_without_po(engine,
             reinterpret_cast<const op_desc_t *>(&gemm_desc),
@@ -155,6 +162,10 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("A_SCALES", with_src_scales);
     kernel_ctx.define_int("B_SCALES", with_wei_scales);
     kernel_ctx.define_int("C_SCALES", with_dst_scales);
+    int dst_zp_mask;
+    attr()->zero_points_.get(DNNL_ARG_DST, &dst_zp_mask);
+    kernel_ctx.define_int("DST_ZERO_POINT",
+            !attr()->zero_points_.has_default_values(DNNL_ARG_DST));
     def_dispatch(kernel_ctx, dispatch_);
     return status::success;
 }
@@ -214,8 +225,9 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
     arg_list.set(idx++, GEMM_CTX_ARG_STORAGE(b_scales));
     arg_list.set(idx++, GEMM_CTX_ARG_STORAGE(a_scales));
     arg_list.set(idx++, GEMM_CTX_ARG_STORAGE(c_scales));
-    arg_list.set(idx,
+    arg_list.set(idx++,
             pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ != 0 ? 1 : 0);
+    arg_list.set(idx, GEMM_CTX_ARG_STORAGE(c_zero_point));
     auto nd_range = pd()->dispatch_.nd_range();
     exec_status = parallel_for(ctx, nd_range, post_process_kernel_, arg_list);
     return exec_status;
