@@ -79,7 +79,8 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             primitive_attr_t gemm_attr = *attr();
             auto wei_mask = gemm_attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
             if (wei_mask == 1) //transpose mask for gemm
-                gemm_attr.scales_.set(DNNL_ARG_WEIGHTS, 1 << (b_md.ndims - 1));
+                CHECK(gemm_attr.scales_.set(
+                        DNNL_ARG_WEIGHTS, 1 << (b_md.ndims - 1)));
             else if (wei_mask != 0)
                 return status::unimplemented;
             bool gemm_ok = status::success
@@ -276,8 +277,8 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                         = gemm_pd_->query(query::preferred_gpu_threads_per_eu,
                                 0, &threads_per_eu);
                 if (status == status::success)
-                    reduction_attr.set_gpu_attr(
-                            gpu_primitive_attr_t(threads_per_eu));
+                    CHECK(reduction_attr.set_gpu_attr(
+                            gpu_primitive_attr_t(threads_per_eu)));
                 primitive_desc_iterator_t it(engine, (op_desc_t *)&reduction_d,
                         &reduction_attr, nullptr);
                 if (!it.is_initialized()) return status::out_of_memory;

@@ -49,8 +49,8 @@ struct ref_sum_t : public gpu_primitive_t {
             reorder_pds_.resize(n_ + need_output_reorder());
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
-                r_attr.scales_.set(DNNL_ARG_SRC, 0);
-                if (i != 0) r_attr.post_ops_.append_sum(1.0);
+                CHECK(r_attr.scales_.set(DNNL_ARG_SRC, 0));
+                if (i != 0) CHECK(r_attr.post_ops_.append_sum(1.0));
 
                 CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
                         src_md(i), dst_acc_md(), &r_attr));

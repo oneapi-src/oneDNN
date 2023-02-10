@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ struct ref_concat_t : public gpu_primitive_t {
                 CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask, &is_set));
                 if (is_set) {
                     if (mask != 0) return status::unimplemented;
-                    r_attr.scales_.set(DNNL_ARG_SRC, mask);
+                    CHECK(r_attr.scales_.set(DNNL_ARG_SRC, mask));
                 }
                 CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
                         src_md(i), src_image_md(i), &r_attr));

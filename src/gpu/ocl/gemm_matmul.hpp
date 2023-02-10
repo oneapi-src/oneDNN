@@ -67,7 +67,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
                 gemm_attr.post_ops_.copy_from(attr()->post_ops_);
             }
 
-            gemm_attr.set_fpmath_mode(attr()->fpmath_mode_);
+            CHECK(gemm_attr.set_fpmath_mode(attr()->fpmath_mode_));
 
             const auto acc_dt = desc()->accum_data_type;
 
