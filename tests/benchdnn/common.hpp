@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -195,6 +195,7 @@ int batch(const char *fname, bench_f bench);
 int flip_coin(ptrdiff_t seed, float probability);
 
 int64_t div_up(const int64_t a, const int64_t b);
+int64_t rnd_up(const int64_t a, const int64_t b);
 int64_t next_pow2(int64_t a);
 int mxcsr_cvt(float f);
 

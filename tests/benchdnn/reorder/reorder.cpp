@@ -93,7 +93,7 @@ int compare_compensation(const prb_t *prb, dnn_mem_map_t &mem_map,
 
     const auto padded_nelems = mem_got.nelems(true);
     // Note: internally offset is aligned on 4, otherwise it's UB.
-    size_t first_comp_offset = div_up(padded_nelems, 4) * 4;
+    size_t first_comp_offset = rnd_up(padded_nelems, 4);
     int *comp_handle
             = reinterpret_cast<int *>((char *)mem_got + first_comp_offset);
 

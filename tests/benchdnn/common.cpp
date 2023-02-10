@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -172,7 +172,7 @@ static void *zmalloc_protect(size_t size) {
     const size_t page_sz = getpagesize();
 
     const size_t block_sz = size + 3 * sizeof(void *);
-    const size_t total_sz = div_up(block_sz, page_sz) * page_sz + page_sz;
+    const size_t total_sz = rnd_up(block_sz, page_sz) + page_sz;
 
     void *mem_ptr;
     int rc = ::posix_memalign(&mem_ptr, page_sz, total_sz);
@@ -472,6 +472,11 @@ int flip_coin(ptrdiff_t seed, float probability) {
 int64_t div_up(const int64_t a, const int64_t b) {
     SAFE_V(b != 0 ? OK : FAIL);
     return (a + b - 1) / b;
+}
+
+int64_t rnd_up(const int64_t a, const int64_t b) {
+    SAFE_V(b != 0 ? OK : FAIL);
+    return div_up(a, b) * b;
 }
 
 int64_t next_pow2(int64_t a) {
