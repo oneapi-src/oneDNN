@@ -386,6 +386,13 @@ status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
     conf.phases.back().is_final = true;
     conf.phases.back().dst_type = dst_mdw.data_type();
 
+    // Post-ops require a bit more information
+    if (attr()->post_ops_.len() > 0) {
+        conf.ndims = dst_mdw.ndims();
+        conf.dst_md_info = memory_desc_info_t::create(dst_mdw);
+        set_offsets(dst_mdw, conf.off.dst_off);
+    }
+
     return status::success;
 }
 
@@ -489,7 +496,20 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 status_t combined_reduction_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx,
         const reduction_phase_t &phase) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, phase);
+    status_t status = init_kernel_ctx_common(kernel_ctx, conf, phase);
+    if (status != status_t::dnnl_success) return status;
+
+    // Set post-op macros
+    def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_);
+    if (attr()->post_ops_.len() > 0) {
+        if (phase.is_final) {
+            // Can only do this for the final phase, since it overwrites def_data_type for DST
+            def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
+        }
+        def_offsets(conf.off.dst_off, kernel_ctx, "DST", conf.ndims);
+    }
+
+    return status;
 }
 
 status_t combined_reduction_t::execute_combined(const exec_ctx_t &ctx) const {
@@ -522,6 +542,9 @@ status_t combined_reduction_t::execute_combined(const exec_ctx_t &ctx) const {
         } else {
             reduction_arg_list.set(1, *sp_reduce[i % 2]);
         }
+
+        append_post_ops_to_arg_list(
+                ctx, reduction_arg_list, 2, pd()->attr()->post_ops_);
 
         status = parallel_for(ctx, nd_range, kernel, reduction_arg_list);
         CHECK(status);

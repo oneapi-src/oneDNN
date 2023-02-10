@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,8 +35,9 @@ struct combined_reduction_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using smask_t = primitive_attr_t::skip_mask_t;
+            const auto attr_skip_mask = smask_t::post_ops | smask_t::gpu_attr;
             bool ok = set_default_params() == status::success
-                    && attr_.has_default_values(smask_t::gpu_attr)
+                    && attr()->has_default_values(attr_skip_mask)
                     && !memory_desc_ndims_ok(src_md(), dst_md())
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5)
                     && attr_.set_default_formats(dst_md(0)) == status::success;

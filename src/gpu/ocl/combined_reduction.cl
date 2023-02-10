@@ -93,7 +93,8 @@
 __attribute__((reqd_work_group_size(LWS_SIZE, 1, 1))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) // attr:no-format
 __kernel void
-combined_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
+combined_reduce(
+        __global SRC_DATA_T *src, __global DST_DATA_T *dst POST_OP_ARGS) {
     // Compute constants deriving from defined constants
     const int sg_per_inner_dim = div_up(INNER_DIM_SIZE, SUBGROUP_SIZE);
     const int inner_dims_per_sg
@@ -157,9 +158,43 @@ combined_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
 
     if (get_sub_group_local_id() < INNER_DIM_SIZE) {
 #if IS_FINAL
-
         float res = convert_float(acc);
         res = FINALIZE(res);
+#if WITH_POST_OP
+        float dst_val;
+#if WITH_SUM
+        dst_val = DST_TO_REF(dst[dst_off]);
+#endif
+
+        // Reconstruct MB/C/D/H/W indices from dst_off
+        const int mb = (DST_S0 == 0)
+                ? 0
+                : dst_off / DST_S0 % div_up(DST_D0, DST_B0) * DST_B0
+                        + dst_off / DST_SB0 % DST_B0;
+        const int c = (DST_S1 == 0)
+                ? 0
+                : dst_off / DST_S1 % div_up(DST_D1, DST_B1) * DST_B1
+                        + dst_off / DST_SB1 % DST_B1;
+        const int d = (DST_S2 == 0)
+                ? 0
+                : dst_off / DST_S2 % div_up(DST_D2, DST_B2) * DST_B2
+                        + dst_off / DST_SB2 % DST_B2;
+        const int h = (DST_S3 == 0)
+                ? 0
+                : dst_off / DST_S3 % div_up(DST_D3, DST_B3) * DST_B3
+                        + dst_off / DST_SB3 % DST_B3;
+        const int w = (DST_S4 == 0)
+                ? 0
+                : dst_off / DST_S4 % div_up(DST_D4, DST_B4) * DST_B4
+                        + dst_off / DST_SB4 % DST_B4;
+
+        // Only use post-ops on non-zero-padded elements
+        if (mb < DST_D0 && c < DST_D1 && d < DST_D2 && h < DST_D3
+                && w < DST_D4) {
+            APPLY_POST_OPS_SERIAL(res, float, dst_val, float, mb, 1, c, 1, d, 1,
+                    h, 1, w, 1, 0, 1);
+        }
+#endif
 
         dst[dst_off] = TO_DST(res);
 #else
