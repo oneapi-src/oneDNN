@@ -52,13 +52,6 @@ inline std::vector<std::string> split(const std::string &s,
     return ret;
 }
 
-inline std::string to_lower(const std::string &s) {
-    auto ret = s;
-    std::transform(ret.begin(), ret.end(), ret.begin(),
-            [](char c) { return std::tolower(c); });
-    return ret;
-}
-
 std::string get_desc_str(const bnorm_conf_t &conf);
 
 enum class op_kind_t {
