@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -247,8 +247,9 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
                     pd()->desc()->b_type(), pd()->desc()->c_type());
             if (status != status::success) return status;
 
-            create_kernel(compute_engine, &compute_x8x8s32_kernel_[aligned],
-                    kernel_name, kernel_ctx);
+            CHECK(create_kernel(compute_engine,
+                    &compute_x8x8s32_kernel_[aligned], kernel_name,
+                    kernel_ctx));
             if (!compute_x8x8s32_kernel_[aligned]) return status::runtime_error;
         }
 
@@ -262,8 +263,8 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
                 pd()->desc()->c_type());
         if (status != status::success) return status;
 
-        create_kernel(compute_engine, &scale_x8x8s32_kernel_, kernel_name,
-                kernel_ctx);
+        CHECK(create_kernel(compute_engine, &scale_x8x8s32_kernel_, kernel_name,
+                kernel_ctx));
         if (!scale_x8x8s32_kernel_) return status::runtime_error;
 
         return status::success;

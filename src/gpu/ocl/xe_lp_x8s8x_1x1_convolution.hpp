@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -109,12 +109,12 @@ struct xe_lp_x8s8x_1x1_convolution_fwd_t : public gpu_primitive_t {
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        create_kernel(engine, &kernel_, kernel_name, kernel_ctx);
+        CHECK(create_kernel(engine, &kernel_, kernel_name, kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         if (pd()->conf.attr_info.with_src_zpoints) {
-            create_kernel(engine, &src_compensation_kernel_,
-                    "xe_lp_x8s8x_compensation", kernel_ctx);
+            CHECK(create_kernel(engine, &src_compensation_kernel_,
+                    "xe_lp_x8s8x_compensation", kernel_ctx));
             if (!src_compensation_kernel_) return status::runtime_error;
         }
 

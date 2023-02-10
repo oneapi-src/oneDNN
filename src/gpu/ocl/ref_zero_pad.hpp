@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,11 +46,17 @@ struct ref_zero_pad_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
-        create_kernel(engine, &kernel_, "ref_zero_pad", kernel_ctx);
-        create_kernel(
-                engine, &kernel_subg16_, "ref_zero_pad_subg_16", kernel_ctx);
-        create_kernel(engine, &kernel_subg16_mask_and_clear_dt_1b_,
-                "ref_zero_pad_subg_16_mask_and_clear_dt_1b", kernel_ctx);
+
+        std::vector<compute::kernel_t> kernels {};
+        CHECK(create_kernels(engine, &kernels,
+                {"ref_zero_pad", "ref_zero_pad_subg_16",
+                        "ref_zero_pad_subg_16_mask_and_clear_dt_1b"},
+                kernel_ctx));
+
+        kernel_ = kernels[0];
+        kernel_subg16_ = kernels[1];
+        kernel_subg16_mask_and_clear_dt_1b_ = kernels[2];
+
         if (!kernel_ || !kernel_subg16_ || !kernel_subg16_mask_and_clear_dt_1b_)
             return status::runtime_error;
         return status::success;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ struct ref_lrn_fwd_t : public gpu_primitive_t {
 
         def_dispatch(kernel_ctx, pd()->dispatch);
 
-        create_kernel(engine, &kernel_, "ref_lrn_fwd", kernel_ctx);
+        CHECK(create_kernel(engine, &kernel_, "ref_lrn_fwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -260,7 +260,7 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
 
         def_dispatch(kernel_ctx, pd()->dispatch);
 
-        create_kernel(engine, &kernel_, "ref_lrn_bwd", kernel_ctx);
+        CHECK(create_kernel(engine, &kernel_, "ref_lrn_bwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;

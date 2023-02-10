@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ struct simple_concat_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        create_kernel(engine, &kernel_, "simple_concat", kernel_ctx);
+        CHECK(create_kernel(engine, &kernel_, "simple_concat", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;

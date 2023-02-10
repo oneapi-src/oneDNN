@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -398,7 +398,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         auto kd = pd()->kernel_desc();
         kernel_t kernel(*kd);
 
-        create_kernel(engine, &nocopy_kernel_, &kernel);
+        CHECK(create_kernel(engine, &nocopy_kernel_, &kernel));
 
         scalar_type_ = kd->scalar_type();
 

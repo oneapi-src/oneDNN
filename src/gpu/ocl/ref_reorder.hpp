@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -100,7 +100,7 @@ struct ref_reorder_t : public gpu_primitive_t {
         const auto &conf = pd()->conf;
         if (conf.nelems == 0) return status::success;
 
-        create_kernel(engine, &kernel_, "ref_reorder", kernel_ctx);
+        CHECK(create_kernel(engine, &kernel_, "ref_reorder", kernel_ctx));
         if (!kernel_) return status::runtime_error;
         return status::success;
     }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -446,8 +446,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
                             pd()->desc()->acc_type, pd()->desc()->c_type());
             if (status != status::success) return status;
 
-            create_kernel(engine, &compute_kernel_[beta0], "gen9_gemm_compute",
-                    kernel_ctx);
+            CHECK(create_kernel(engine, &compute_kernel_[beta0],
+                    "gen9_gemm_compute", kernel_ctx));
             if (!compute_kernel_[beta0]) return status::runtime_error;
         }
 
@@ -464,8 +464,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
                             pd()->desc()->acc_type);
             if (status != status::success) return status;
 
-            create_kernel(engine, &copy_kernel_[outer][trans], "gen9_gemm_copy",
-                    kernel_ctx);
+            CHECK(create_kernel(engine, &copy_kernel_[outer][trans],
+                    "gen9_gemm_copy", kernel_ctx));
             if (!copy_kernel_[outer][trans]) return status::runtime_error;
         }
 
@@ -474,7 +474,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
                 kernel_ctx, pd()->desc()->c_type(), pd()->desc()->acc_type);
         if (status != status::success) return status;
 
-        create_kernel(engine, &beta_kernel_, "gen9_gemm_beta", kernel_ctx);
+        CHECK(create_kernel(
+                engine, &beta_kernel_, "gen9_gemm_beta", kernel_ctx));
         if (!beta_kernel_) return status::runtime_error;
 
         return status::success;
@@ -506,7 +507,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
                 pd()->desc()->c_type());
         if (status != status::success) return status;
 
-        create_kernel(engine, &nocopy_kernel_, kernel_name, kernel_ctx);
+        CHECK(create_kernel(engine, &nocopy_kernel_, kernel_name, kernel_ctx));
         if (!nocopy_kernel_) return status::runtime_error;
 
         return status::success;
@@ -524,8 +525,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
                 pd()->desc()->c_type());
         if (status != status::success) return status;
 
-        create_kernel(engine, &nocopy_superkernel_,
-                "gen9_gemm_nocopy_superkernel_f32", kernel_ctx);
+        CHECK(create_kernel(engine, &nocopy_superkernel_,
+                "gen9_gemm_nocopy_superkernel_f32", kernel_ctx));
         if (!nocopy_superkernel_) return status::runtime_error;
 
         return status::success;

@@ -409,8 +409,8 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
                     pd()->with_ab_zero_points(), clear_sum);
             if (status != status::success) return status;
 
-            create_kernel(engine, &copy_kernel_[copy_b][clear_sum],
-                    copy_kernel_t::name(arch_), kernel_ctx);
+            CHECK(create_kernel(engine, &copy_kernel_[copy_b][clear_sum],
+                    copy_kernel_t::name(arch_), kernel_ctx));
             if (!copy_kernel_[copy_b][clear_sum]) return status::runtime_error;
         }
     }
@@ -503,8 +503,8 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
 
                 kernel_t kernel(kd);
 
-                create_kernel(
-                        engine, &kernel_[first_k_block][last_k_block], &kernel);
+                CHECK(create_kernel(engine,
+                        &kernel_[first_k_block][last_k_block], &kernel));
 
                 if (!kernel_[first_k_block][last_k_block])
                     return status::runtime_error;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -423,8 +423,8 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         def_data_type(kernel_ctx, bias_data_type, "BIA");
         def_data_type(kernel_ctx, accum_data_type, "ACC");
 
-        create_kernel(
-                engine, &bias_kernel_, "ref_deconv_backward_bias", kernel_ctx);
+        CHECK(create_kernel(
+                engine, &bias_kernel_, "ref_deconv_backward_bias", kernel_ctx));
         if (!bias_kernel_) return status::runtime_error;
 
         return status::success;

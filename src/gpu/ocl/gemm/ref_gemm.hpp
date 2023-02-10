@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -142,7 +142,7 @@ struct ref_gemm_t : public gpu_gemm_t {
         def_data_type(kernel_ctx, d->c_type(), "C");
         def_data_type(kernel_ctx, d->acc_type, "ACC");
         def_data_type(kernel_ctx, bias_type, "BIA");
-        create_kernel(engine, &kernel_, "ref_gemm", kernel_ctx);
+        CHECK(create_kernel(engine, &kernel_, "ref_gemm", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;

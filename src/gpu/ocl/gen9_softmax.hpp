@@ -151,7 +151,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         for (int i = 0; i < 3; ++i)
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
-        create_kernel(engine, &kernel_, "gen9_softmax_fwd", kernel_ctx);
+        CHECK(create_kernel(engine, &kernel_, "gen9_softmax_fwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -264,7 +264,7 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
         for (int i = 0; i < 3; ++i)
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
-        create_kernel(engine, &kernel_, "gen9_softmax_bwd", kernel_ctx);
+        CHECK(create_kernel(engine, &kernel_, "gen9_softmax_bwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;

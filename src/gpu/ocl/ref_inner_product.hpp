@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -108,7 +108,8 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        create_kernel(engine, &kernel_, "ref_inner_product_fwd", kernel_ctx);
+        CHECK(create_kernel(
+                engine, &kernel_, "ref_inner_product_fwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -167,8 +168,8 @@ struct ref_inner_product_bwd_data_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        create_kernel(
-                engine, &kernel_, "ref_inner_product_bwd_data", kernel_ctx);
+        CHECK(create_kernel(
+                engine, &kernel_, "ref_inner_product_bwd_data", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -223,8 +224,8 @@ struct ref_inner_product_bwd_weights_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        create_kernel(
-                engine, &kernel_, "ref_inner_product_bwd_weights", kernel_ctx);
+        CHECK(create_kernel(
+                engine, &kernel_, "ref_inner_product_bwd_weights", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;

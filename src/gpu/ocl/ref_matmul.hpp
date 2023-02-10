@@ -148,7 +148,7 @@ struct ref_matmul_t : public gpu_primitive_t {
         def_data_type(kernel_ctx, pd()->dst_dt_, "DST");
         def_data_type(kernel_ctx, pd()->bia_dt_, "BIA");
         def_data_type(kernel_ctx, pd()->desc()->accum_data_type, "ACC");
-        create_kernel(engine, &kernel_, "ref_matmul", kernel_ctx);
+        CHECK(create_kernel(engine, &kernel_, "ref_matmul", kernel_ctx));
         if (!kernel_) return status::runtime_error;
         return status::success;
     }

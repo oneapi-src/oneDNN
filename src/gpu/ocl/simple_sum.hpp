@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ struct simple_sum_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
-        create_kernel(engine, &kernel_, "simple_sum", kernel_ctx);
+        CHECK(create_kernel(engine, &kernel_, "simple_sum", kernel_ctx));
         if (!kernel_) return status::runtime_error;
         return status::success;
     }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -191,8 +191,8 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
             def_attr_info(
                     kernel_ctx, pd()->attr_info_, pd()->attr()->post_ops_);
 
-            create_kernel(engine, &post_process_kernel_,
-                    "gemm_post_ops_inner_product", kernel_ctx);
+            CHECK(create_kernel(engine, &post_process_kernel_,
+                    "gemm_post_ops_inner_product", kernel_ctx));
             if (!post_process_kernel_) return status::runtime_error;
         }
 
