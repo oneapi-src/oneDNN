@@ -770,12 +770,14 @@ static size_t get_cpu_ram_size() {
 #endif
 
 static int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
+    if (ram_size > 0 && max_alloc_size > 0) return OK;
+
     // XXX: create a tmp engine to query what we need.
     // It will be removed in the future as part of switching back
     // to the global engine.
     engine_t eng_tmp(engine_tgt_kind);
     dnnl::engine eng(eng_tmp, true);
-    if (eng.get_kind() != dnnl::engine::kind::gpu) return 0;
+    if (eng.get_kind() != dnnl::engine::kind::gpu) return OK;
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     cl_int status = CL_SUCCESS;
@@ -837,8 +839,8 @@ struct check_mem_size_args_t {
 static int check_total_size(
         const check_mem_size_args_t &check_mem_size_args, res_t *res) {
     static size_t cpu_device_capacity = get_cpu_ram_size();
-    size_t gpu_device_capacity = 0;
-    size_t gpu_max_alloc_capacity = 0;
+    static size_t gpu_device_capacity = 0;
+    static size_t gpu_max_alloc_capacity = 0;
     SAFE(get_gpu_ram_sizes(gpu_device_capacity, gpu_max_alloc_capacity), WARN);
 
     const size_t device_max_capacity
