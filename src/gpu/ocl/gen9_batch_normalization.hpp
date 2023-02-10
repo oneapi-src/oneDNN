@@ -73,7 +73,7 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             if (is_training() && (fuse_norm_relu() || fuse_norm_add_relu()))
-                init_default_ws(8);
+                CHECK(init_default_ws(8));
 
             status_t status = init_conf(engine);
             if (status != status::success) return status;
@@ -220,7 +220,7 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             if (fuse_norm_relu() || fuse_norm_add_relu()) {
-                init_default_ws(8);
+                CHECK(init_default_ws(8));
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 

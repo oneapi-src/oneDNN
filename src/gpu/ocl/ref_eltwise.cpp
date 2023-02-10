@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         kernel_ctx.define_int("IS_FWD", 1);
     }
 
-    def_attr_info(kernel_ctx, conf.attr_info, post_ops);
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops));
     def_dispatch(kernel_ctx, conf.dispatch);
 
     return status::success;

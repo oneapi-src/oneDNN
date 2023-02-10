@@ -227,7 +227,7 @@ struct xe_lp_gemm_t : public gpu_gemm_t {
                 = utils::downcast<compute::compute_engine_t *>(engine);
 
         int cmask = 0;
-        pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask);
+        CHECK(pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask));
         bool fixed_c = (0 == cmask);
         bool column_c = (1 << 0 == cmask);
         bool row_c = (1 << 1 == cmask);

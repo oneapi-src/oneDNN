@@ -178,8 +178,8 @@ status_t xe_lp_x8s8x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
 
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
 
-    def_attr_info(
-            kernel_ctx, conf.attr_info, attr()->post_ops_, &(dst_md()->dims));
+    CHECK(def_attr_info(
+            kernel_ctx, conf.attr_info, attr()->post_ops_, &(dst_md()->dims)));
 
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
 

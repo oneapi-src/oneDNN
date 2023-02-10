@@ -82,9 +82,9 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
             is_int8_ = weights_md()->data_type == s8;
 
             memory_desc_t a_md, b_md, c_md;
-            init_2d_desc(&a_md, src_md());
-            init_2d_desc(&b_md, weights_md(), true);
-            init_2d_desc(&c_md, dst_md());
+            CHECK(init_2d_desc(&a_md, src_md()));
+            CHECK(init_2d_desc(&b_md, weights_md(), true));
+            CHECK(init_2d_desc(&c_md, dst_md()));
             c_md.data_type = desc()->accum_data_type;
             bool gemm_ok = status::success
                     == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
@@ -188,8 +188,8 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
 
             kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
 
-            def_attr_info(
-                    kernel_ctx, pd()->attr_info_, pd()->attr()->post_ops_);
+            CHECK(def_attr_info(
+                    kernel_ctx, pd()->attr_info_, pd()->attr()->post_ops_));
 
             CHECK(create_kernel(engine, &post_process_kernel_,
                     "gemm_post_ops_inner_product", kernel_ctx));

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -254,7 +254,7 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     def_memory_desc_info(kernel_ctx, conf.src1_md_info, "SRC1");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
-    def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_);
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_));
 
     def_dispatch(kernel_ctx, conf.dispatch);
 

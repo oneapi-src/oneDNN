@@ -1285,7 +1285,7 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
     return is_po_ok;
 }
 
-inline void def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
+inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
         const post_ops_t &post_ops, const dnnl_dims_t *dst_dims) {
     const int po_nop_id = 0;
     const int po_binary_id = 1;
@@ -1355,8 +1355,8 @@ inline void def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
                         break;
                 }
             }
-            memory_desc_init_by_tag(weight_mem_desc, weight_ndims, weight_dims,
-                    data_type_t::dnnl_f32, weights_tag);
+            CHECK(memory_desc_init_by_tag(weight_mem_desc, weight_ndims,
+                    weight_dims, data_type_t::dnnl_f32, weights_tag));
             const memory_desc_wrapper weight_mdw(weight_mem_desc);
             const auto mdi = memory_desc_info_t::create(weight_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
@@ -1367,8 +1367,8 @@ inline void def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
         } else {
             memory_desc_t empty_mem_desc;
             dnnl_dims_t empty_dims = {1, 1, 1, 1};
-            memory_desc_init_by_tag(empty_mem_desc, 4, empty_dims,
-                    data_type_t::dnnl_s8, format_tag_t::dnnl_nchw);
+            CHECK(memory_desc_init_by_tag(empty_mem_desc, 4, empty_dims,
+                    data_type_t::dnnl_s8, format_tag_t::dnnl_nchw));
             const memory_desc_wrapper src1_mdw(empty_mem_desc);
             const auto mdi = memory_desc_info_t::create(src1_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
@@ -1424,12 +1424,13 @@ inline void def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
         }
         po_kernel_args += ", const __global PO_" + std::to_string(idx)
                 + "_BIN_ARG_DATA_T *po_" + std::to_string(idx) + "_binary_arg";
+        return status::success;
     };
 
     for (int idx = 0; idx < post_ops.len(); ++idx, ++nof_supported_post_ops) {
         const std::string bin_arg_name
                 = "PO_" + std::to_string(idx) + "_BIN_ARG";
-        add_po_defines(bin_arg_name, post_ops.entry_[idx], idx);
+        CHECK(add_po_defines(bin_arg_name, post_ops.entry_[idx], idx));
     }
 
     kernel_ctx.define_int("POST_OP_CHAIN_LENGTH", nof_supported_post_ops);
@@ -1440,6 +1441,7 @@ inline void def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
     }
     po_kernel_args += "\"";
     kernel_ctx.add_option(po_kernel_args);
+    return status::success;
 }
 
 inline int append_post_ops_to_arg_list_base(const exec_args_t &args,
@@ -1506,7 +1508,7 @@ inline bool post_ops_preserves_zeroes(
     return preserve_zeroes;
 }
 
-inline void def_attr_info(compute::kernel_ctx_t &kernel_ctx,
+inline status_t def_attr_info(compute::kernel_ctx_t &kernel_ctx,
         const attr_info_t &attr_info, const post_ops_t &post_ops,
         const dnnl_dims_t *dst_dims = nullptr) {
     assert(attr_info.initialized);
@@ -1547,7 +1549,7 @@ inline void def_attr_info(compute::kernel_ctx_t &kernel_ctx,
     def_binary_alg_kinds(kernel_ctx);
     def_eltwise_alg_kinds(kernel_ctx);
 
-    def_post_ops_cfg(kernel_ctx, post_ops, dst_dims);
+    return def_post_ops_cfg(kernel_ctx, post_ops, dst_dims);
 }
 
 inline void def_dispatch(compute::kernel_ctx_t &kernel_ctx,

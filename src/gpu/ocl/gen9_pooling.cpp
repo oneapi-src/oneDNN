@@ -216,7 +216,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
     def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);
 
-    def_attr_info(kernel_ctx, conf.attr_info, post_ops);
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops));
 
     def_dispatch(kernel_ctx, conf.dispatch);
 

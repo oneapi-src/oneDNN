@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,20 +50,21 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
 
     int max_dims = adjust_dims(dims, dst_md, conf.ndims);
 
-    memory_desc_init_by_tag(
-            conv_dst_md, max_dims, dims, dst_md->data_type, format_tag::any);
+    CHECK(memory_desc_init_by_tag(
+            conv_dst_md, max_dims, dims, dst_md->data_type, format_tag::any));
 
     auto init_md = [&](memory_desc_t &out_md, const memory_desc_t *in_md) {
         max_dims = adjust_dims(dims, in_md, conf.ndims);
         if (in_md->format_kind == format_kind::any) {
-            memory_desc_init_by_tag(
-                    out_md, max_dims, dims, in_md->data_type, format_tag::any);
+            CHECK(memory_desc_init_by_tag(
+                    out_md, max_dims, dims, in_md->data_type, format_tag::any));
         } else {
             out_md = *in_md;
             out_md.ndims = max_dims;
 
             utils::array_copy(&out_md.dims[0], &dims[0], max_dims);
         }
+        return status::success;
     };
 
     init_md(conv_src_md, src_md);
@@ -93,10 +94,10 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
     auto wei_conv = *cpd_->weights_md();
     auto dst_conv = *cpd_->dst_md();
 
-    memory_desc_init_by_tag(ip_dst_md, conv_dst_md.ndims, conv_dst_md.dims,
-            dst_md->data_type,
+    CHECK(memory_desc_init_by_tag(ip_dst_md, conv_dst_md.ndims,
+            conv_dst_md.dims, dst_md->data_type,
             utils::pick(conv_dst_md.ndims - 2, format_tag::nc, format_tag::ncw,
-                    format_tag::nchw, format_tag::ncdhw));
+                    format_tag::nchw, format_tag::ncdhw)));
 
     if (dst_conv != ip_dst_md
             && dst_conv.format_desc.blocking.inner_nblks > 0) {
@@ -115,12 +116,12 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
     }
 
     if (src_md_.format_kind == format_kind::any) {
-        memory_desc_init_by_blocking_desc(
-                src_md_, src_conv.format_desc.blocking);
+        CHECK(memory_desc_init_by_blocking_desc(
+                src_md_, src_conv.format_desc.blocking));
     }
     if (weights_md_.format_kind == format_kind::any) {
-        memory_desc_init_by_blocking_desc(
-                weights_md_, wei_conv.format_desc.blocking);
+        CHECK(memory_desc_init_by_blocking_desc(
+                weights_md_, wei_conv.format_desc.blocking));
     }
 
     memory_desc_wrapper src_d(src_md_);

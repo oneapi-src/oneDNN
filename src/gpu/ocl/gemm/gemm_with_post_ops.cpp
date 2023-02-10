@@ -151,7 +151,7 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
             "D3_WO_PADDING", ndims > 3 ? gemm_pd_->dst_md()->dims[3] : 1);
     kernel_ctx.define_int(
             "D2_WO_PADDING", ndims > 2 ? gemm_pd_->dst_md()->dims[2] : 1);
-    def_attr_info(kernel_ctx, attr_info_, attr()->post_ops_);
+    CHECK(def_attr_info(kernel_ctx, attr_info_, attr()->post_ops_));
     const auto &attr_scales = attr()->scales_;
     const bool with_src_scales
             = !attr_scales.get(DNNL_ARG_SRC).has_default_values();

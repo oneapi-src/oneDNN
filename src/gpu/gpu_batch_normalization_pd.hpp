@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,10 +30,11 @@ namespace gpu {
 
 namespace {
 template <typename pd_t>
-inline void gpu_init_default_ws(pd_t *self, memory_desc_t &ws_md) {
+inline status_t gpu_init_default_ws(pd_t *self, memory_desc_t &ws_md) {
     auto mdw = memory_desc_wrapper(self->src_md(0));
     ws_md = *mdw.md_;
     ws_md.data_type = data_type::s8;
+    return status::success;
 }
 } // namespace
 
@@ -41,18 +42,18 @@ struct gpu_batch_normalization_fwd_pd_t : public batch_normalization_fwd_pd_t {
     using batch_normalization_fwd_pd_t::batch_normalization_fwd_pd_t;
 
 protected:
-    void init_default_ws(size_t bits_per_element) override {
+    status_t init_default_ws(size_t bits_per_element) override {
         UNUSED(bits_per_element);
-        gpu_init_default_ws(this, ws_md_);
+        return gpu_init_default_ws(this, ws_md_);
     }
 };
 
 struct gpu_batch_normalization_bwd_pd_t : public batch_normalization_bwd_pd_t {
     using batch_normalization_bwd_pd_t::batch_normalization_bwd_pd_t;
 
-    void init_default_ws(size_t bits_per_element) override {
+    status_t init_default_ws(size_t bits_per_element) override {
         UNUSED(bits_per_element);
-        gpu_init_default_ws(this, ws_md_);
+        return gpu_init_default_ws(this, ws_md_);
     }
 };
 

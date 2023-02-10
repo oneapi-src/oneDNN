@@ -472,8 +472,8 @@ status_t xe_lp_x8s8x_convolution_fwd_t::pd_t::init_kernel_ctx(
                     : conf.attr_info.sum_data_type,
             "SUM");
 
-    def_attr_info(
-            kernel_ctx, conf.attr_info, attr()->post_ops_, &(dst_md()->dims));
+    CHECK(def_attr_info(
+            kernel_ctx, conf.attr_info, attr()->post_ops_, &(dst_md()->dims)));
 
     kernel_ctx.add_option("-Dcl_intel_subgroups_char");
     kernel_ctx.add_option("-Dcl_intel_subgroups_long");

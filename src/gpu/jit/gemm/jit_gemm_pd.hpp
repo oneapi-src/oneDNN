@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,8 +106,8 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
             ok = ok && (mask == 0 || mask == (1 << (d->c_desc.ndims - 1)));
 
             dim_t dims = {(mask > 0) ? d->m() : 1};
-            memory_desc_init_by_tag(
-                    wei_scales_md, 1, &dims, f32, format_tag::a);
+            CHECK(memory_desc_init_by_tag(
+                    wei_scales_md, 1, &dims, f32, format_tag::a));
 
             auto status = post_ops_.prepend_binary(binary_mul, &wei_scales_md);
             if (status != status::success) return status;
@@ -119,8 +119,8 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
             ok = ok && (src_scales->mask_ == 0);
 
             dim_t dims = {1};
-            memory_desc_init_by_tag(
-                    src_scales_md, 1, &dims, f32, format_tag::a);
+            CHECK(memory_desc_init_by_tag(
+                    src_scales_md, 1, &dims, f32, format_tag::a));
 
             auto status = post_ops_.prepend_binary(binary_mul, &src_scales_md);
             if (status != status::success) return status;
@@ -132,7 +132,8 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
             ok = ok && (c_scales->mask_ == 0);
 
             dim_t dims = {1};
-            memory_desc_init_by_tag(c_scales_md, 1, &dims, f32, format_tag::a);
+            CHECK(memory_desc_init_by_tag(
+                    c_scales_md, 1, &dims, f32, format_tag::a));
 
             auto status = post_ops_.append_binary(binary_div, &c_scales_md);
             if (status != status::success) return status;

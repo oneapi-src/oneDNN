@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,9 +73,9 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             attr_info_ = attr_info_t::create(attr());
 
             memory_desc_t a_md, b_md, c_md;
-            init_2d_desc(&a_md, src_md());
-            init_2d_desc(&b_md, weights_md(), true);
-            init_2d_desc(&c_md, dst_md());
+            CHECK(init_2d_desc(&a_md, src_md()));
+            CHECK(init_2d_desc(&b_md, weights_md(), true));
+            CHECK(init_2d_desc(&c_md, dst_md()));
             primitive_attr_t gemm_attr = *attr();
             auto wei_mask = gemm_attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
             if (wei_mask == 1) //transpose mask for gemm
@@ -150,9 +150,9 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
             if (!ok) return status::unimplemented;
 
             memory_desc_t a_md, b_md, c_md;
-            init_2d_desc(&a_md, diff_dst_md());
-            init_2d_desc(&b_md, weights_md());
-            init_2d_desc(&c_md, diff_src_md());
+            CHECK(init_2d_desc(&a_md, diff_dst_md()));
+            CHECK(init_2d_desc(&b_md, weights_md()));
+            CHECK(init_2d_desc(&c_md, diff_src_md()));
 
             bool gemm_ok = status::success
                     == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
@@ -223,13 +223,13 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
 
             memory_desc_t a_md, b_md, c_md;
             if (wei_tr()) {
-                init_2d_desc(&a_md, src_md(), true);
-                init_2d_desc(&b_md, diff_dst_md());
-                init_2d_desc(&c_md, diff_weights_md(), true);
+                CHECK(init_2d_desc(&a_md, src_md(), true));
+                CHECK(init_2d_desc(&b_md, diff_dst_md()));
+                CHECK(init_2d_desc(&c_md, diff_weights_md(), true));
             } else {
-                init_2d_desc(&a_md, diff_dst_md(), true);
-                init_2d_desc(&b_md, src_md());
-                init_2d_desc(&c_md, diff_weights_md());
+                CHECK(init_2d_desc(&a_md, diff_dst_md(), true));
+                CHECK(init_2d_desc(&b_md, src_md()));
+                CHECK(init_2d_desc(&c_md, diff_weights_md()));
             }
             bool gemm_ok = false;
             auto reduce_bias = sum_ab::sum_none;

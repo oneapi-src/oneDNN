@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ static inline status_t check_gemm_x8x8s32_input(char offsetc, char transa,
 // the 2d tensor just collapes dims[1...ndims-1] from the nd tensor
 // The only reason we do not use reshape here is that we want to allow
 // fusing blocked dimensions and padded dimensions.
-static inline void init_2d_desc(memory_desc_t *md_2d,
+static inline status_t init_2d_desc(memory_desc_t *md_2d,
         const memory_desc_t *md_nd, bool transpose_dims = false) {
     auto p_dims = md_nd->padded_dims;
     auto blk = md_nd->format_desc.blocking;
@@ -79,25 +79,25 @@ static inline void init_2d_desc(memory_desc_t *md_2d,
     if (transpose_dims) {
         dnnl_dims_t dims_2d = {p_dim1, p_dims[0]};
         dnnl_dims_t strides_2d = {stride1, strides[0]};
-        memory_desc_init_by_strides(
+        return memory_desc_init_by_strides(
                 *md_2d, 2, dims_2d, md_nd->data_type, strides_2d);
     } else {
         dnnl_dims_t dims_2d = {p_dims[0], p_dim1};
         dnnl_dims_t strides_2d = {strides[0], stride1};
-        memory_desc_init_by_strides(
+        return memory_desc_init_by_strides(
                 *md_2d, 2, dims_2d, md_nd->data_type, strides_2d);
     }
 }
 
-static inline void create_2d_desc(memory_desc_t *md_2d, int d0, int d1,
+static inline status_t create_2d_desc(memory_desc_t *md_2d, int d0, int d1,
         data_type_t dt, transpose_t trans, int ld) {
     dnnl_dims_t dims_2d = {d0, d1};
     if (trans == transpose::notrans) {
         dnnl_dims_t strides_2d = {ld, 1};
-        memory_desc_init_by_strides(*md_2d, 2, dims_2d, dt, strides_2d);
+        return memory_desc_init_by_strides(*md_2d, 2, dims_2d, dt, strides_2d);
     } else {
         dnnl_dims_t strides_2d = {1, ld};
-        memory_desc_init_by_strides(*md_2d, 2, dims_2d, dt, strides_2d);
+        return memory_desc_init_by_strides(*md_2d, 2, dims_2d, dt, strides_2d);
     }
 }
 

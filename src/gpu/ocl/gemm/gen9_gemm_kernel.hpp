@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ struct gen9_gemm_compute_kernel_t : public gen9_gemm_kernel_t {
         kernel_ctx.define_int("UNROLL_M", copy_params_t::unroll_m);
         kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
 
-        def_attr_info(kernel_ctx, attr_info, post_ops);
+        CHECK(def_attr_info(kernel_ctx, attr_info, post_ops));
 
         kernel_ctx.print_options();
         return status::success;
@@ -138,7 +138,7 @@ struct gen9_gemm_nocopy_kernel_t : public gen9_gemm_kernel_t {
             kernel_ctx.add_option("-DWITH_K_UNROLL");
             kernel_ctx.define_int("UNROLL_K", unroll_k);
         }
-        def_attr_info(kernel_ctx, attr_info, post_ops);
+        CHECK(def_attr_info(kernel_ctx, attr_info, post_ops));
         kernel_ctx.print_options();
         return status::success;
     }

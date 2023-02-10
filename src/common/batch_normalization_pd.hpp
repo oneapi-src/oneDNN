@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -128,14 +128,15 @@ protected:
         , scaleshift_md_(desc_.scaleshift_desc)
         , ws_md_() {}
 
-    virtual void init_default_ws(size_t bits_per_element) {
+    virtual status_t init_default_ws(size_t bits_per_element) {
         const auto src_mdw = memory_desc_wrapper(src_md_);
 
         const dim_t nelems = src_mdw.nelems(true);
         const dim_t bits_per_byte = 8;
         const dims_t ws_sz = {
                 (dim_t)utils::div_up(nelems * bits_per_element, bits_per_byte)};
-        memory_desc_init_by_tag(ws_md_, 1, ws_sz, data_type::u8, format_tag::x);
+        return memory_desc_init_by_tag(
+                ws_md_, 1, ws_sz, data_type::u8, format_tag::x);
     }
 };
 

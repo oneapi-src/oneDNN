@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ struct xe_lp_gemm_x8x8s32_kernel_t : public xe_lp_gemm_kernel_t {
         kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
         kernel_ctx.define_int("UNROLL_K", copy_params_t::unroll_k);
 
-        def_attr_info(kernel_ctx, attr_info, post_ops);
+        CHECK(def_attr_info(kernel_ctx, attr_info, post_ops));
 
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");
 
@@ -134,7 +134,7 @@ struct xe_lp_gemm_scale_x8x8s32_kernel_t : public xe_lp_gemm_kernel_t {
         kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
         kernel_ctx.define_int("UNROLL_K", copy_params_t::unroll_k);
 
-        def_attr_info(kernel_ctx, attr_info, post_ops);
+        CHECK(def_attr_info(kernel_ctx, attr_info, post_ops));
 
         kernel_ctx.print_options();
         return status::success;
