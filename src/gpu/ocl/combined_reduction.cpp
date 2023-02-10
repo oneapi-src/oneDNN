@@ -427,7 +427,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     // loop unrolling logic to increase it a lot and get a bit more speed
     // Heuristic determined on ATS-m, set to exclude the possibility of
     // exceeding the instruction cache
-    const dim_t max_unroll = 1024;
+    const dim_t max_unroll = 256;
     const dim_t inner_dims_per_sg = std::min(phase.reduction_size,
             std::max((dim_t)1, conf.sub_group_size / phase.inner_dim_size));
     const dim_t num_horiz_reductions
