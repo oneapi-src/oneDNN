@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -115,7 +115,7 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
         exec_ctx_t r_ctx(ctx, std::move(r_args));
         nested_scratchpad_t ns(ctx, key_nested_multiple + 1, reduction_);
         r_ctx.set_scratchpad_grantor(ns.grantor());
-        reduction_->execute(r_ctx);
+        return reduction_->execute(r_ctx);
     }
 
     return status::success;
