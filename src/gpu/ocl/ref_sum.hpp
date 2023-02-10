@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -156,7 +156,7 @@ struct ref_sum_t : public gpu_primitive_t {
             r_ctx.set_scratchpad_grantor(ns.grantor());
             CHECK(reorders_[i]->execute(r_ctx));
 #ifndef DNNL_SYCL_CUDA
-            ctx.stream()->wait();
+            CHECK(ctx.stream()->wait());
 #endif
         }
 

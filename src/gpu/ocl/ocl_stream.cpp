@@ -235,7 +235,7 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
             OCL_CHECK(err);
         }
     } else {
-        wait();
+        CHECK(wait());
 
         // Use map/unmap
         void *src_mapped_ptr;
