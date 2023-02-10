@@ -68,6 +68,8 @@
 --reset --case=op/f32/exp.json
 --reset --case=op/f32/gelu.json
 --reset --case=op/f32/gelu_bwd.json
+--reset --case=op/f32/hardsigmoid.json
+--reset --case=op/f32/hardsigmoid_bwd.json
 --reset --case=op/f32/hardswish.json
 --reset --case=op/f32/hardswish_bwd.json
 --reset --case=op/f32/interpolate.json

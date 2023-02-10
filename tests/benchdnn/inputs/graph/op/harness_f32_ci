@@ -50,3 +50,4 @@
 --reset --case=op/f32/tanh.json
 --reset --case=op/f32/tanh_bwd.json
 --reset --case=op/f32/typecast.json
+--reset --op-attrs=0:alpha:2*beta:1 --case=op/f32/hardsigmoid_bwd.json

@@ -15,3 +15,4 @@
 --reset --case=op/bf16/reducemin.json
 --reset --case=op/bf16/sigmoid.json
 --reset --case=op/bf16/sub.json
+--reset --op-attrs=0:beta:1 --case=op/bf16/hardsigmoid.json

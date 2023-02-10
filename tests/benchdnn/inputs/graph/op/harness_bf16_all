@@ -66,6 +66,8 @@
 --reset --case=op/bf16/exp.json
 --reset --case=op/bf16/gelu.json
 --reset --case=op/bf16/gelu_bwd.json
+--reset --case=op/bf16/hardsigmoid.json
+--reset --case=op/bf16/hardsigmoid_bwd.json
 --reset --case=op/bf16/hardswish.json
 --reset --case=op/bf16/hardswish_bwd.json
 --reset --case=op/bf16/interpolate.json
