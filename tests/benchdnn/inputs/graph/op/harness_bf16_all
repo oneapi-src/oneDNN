@@ -136,3 +136,59 @@
 --reset --case=op/bf16/tanh.json
 --reset --case=op/bf16/tanh_bwd.json
 --reset --case=op/bf16/typecast.json
+# concat
+--reset  --in-shapes=0:1x4096x14x14+1:1x4096x14x14  --case=op/bf16/concat_2.json
+--reset  --in-shapes=0:64x128x28x28+1:64x128x28x28 --op-attrs=3:axis:1 --case=op/bf16/concat_2.json
+--reset  --in-shapes=0:8x16x384x64+1:8x16x384x384+2:8x16x384x384  --case=op/bf16/concat_3.json
+# softmax
+--reset  --in-shapes=0:64x128x28x28 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x3x224x224 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x512x7x7 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x64x112x112 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:8x16x384x384 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x128x28x28 --op-attrs=0:axis:3 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x3x224x224 --op-attrs=0:axis:3 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x512x7x7 --op-attrs=0:axis:3 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x64x112x112 --op-attrs=0:axis:3 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:8x16x384x384 --op-attrs=0:axis:3 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x128x28x28 --op-attrs=0:axis:2 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x3x224x224 --op-attrs=0:axis:2 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x512x7x7 --op-attrs=0:axis:2 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x64x112x112 --op-attrs=0:axis:2 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:8x16x384x384 --op-attrs=0:axis:2 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x128x28x28 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x3x224x224 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x512x7x7 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:64x64x112x112 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:8x16x384x384 --op-attrs=0:axis:0 --case=op/bf16/logsoftmax.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:1 --case=op/bf16/logsoftmax_3d.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:0 --case=op/bf16/logsoftmax_3d.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:1 --case=op/bf16/logsoftmax_3d_2.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:0 --case=op/bf16/logsoftmax_3d_2.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:2 --case=op/bf16/logsoftmax_3d_2.json
+--reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=14:axis:1 --case=op/bf16/softmax_bwd_d_3d.json
+--reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=14:axis:0 --case=op/bf16/softmax_bwd_d_3d.json
+--reset  --in-shapes=0:8x384x1024+1:8x384x1024 --op-attrs=14:axis:2 --case=op/bf16/softmax_bwd_d_3d.json
+--reset  --in-shapes=0:64x128x28x28 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x3x224x224 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x512x7x7 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x64x112x112 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:8x16x384x384 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x128x28x28 --op-attrs=0:axis:0 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x3x224x224 --op-attrs=0:axis:0 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x512x7x7 --op-attrs=0:axis:0 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x64x112x112 --op-attrs=0:axis:0 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:8x16x384x384 --op-attrs=0:axis:0 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x128x28x28 --op-attrs=0:axis:2 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x3x224x224 --op-attrs=0:axis:2 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x512x7x7 --op-attrs=0:axis:2 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x64x112x112 --op-attrs=0:axis:2 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:8x16x384x384 --op-attrs=0:axis:2 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x128x28x28 --op-attrs=0:axis:3 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x3x224x224 --op-attrs=0:axis:3 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x512x7x7 --op-attrs=0:axis:3 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:64x64x112x112 --op-attrs=0:axis:3 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:8x16x384x384 --op-attrs=0:axis:3 --case=op/bf16/softmax.json
+--reset  --in-shapes=0:8x384x1024 --case=op/bf16/softmax_3d.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:2 --case=op/bf16/softmax_3d.json
+--reset  --in-shapes=0:8x384x1024 --op-attrs=14:axis:1 --case=op/bf16/softmax_3d.json

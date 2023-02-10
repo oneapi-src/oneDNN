@@ -1,0 +1,123 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 4,
+      "name": "CONV_0",
+      "kind": "ConvolutionBackwardWeights",
+      "attrs": {
+        "weights_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1
+          ]
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            1
+          ]
+        },
+        "weights_shape": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            1
+          ]
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "groups": {
+          "type": "s64",
+          "value": 4
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            2,
+            16,
+            5
+          ],
+          "stride": [
+            80,
+            5,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            2,
+            16,
+            5
+          ],
+          "stride": [
+            80,
+            5,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 484,
+          "dtype": "f32",
+          "shape": [
+            16,
+            4,
+            3
+          ],
+          "stride": [
+            12,
+            3,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

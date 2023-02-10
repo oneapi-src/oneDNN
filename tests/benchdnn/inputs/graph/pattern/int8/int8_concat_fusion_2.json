@@ -1,0 +1,277 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 2065,
+      "name": "DEQUANTIZE_1",
+      "kind": "Dequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 0
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            0
+          ]
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            1
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "s8",
+          "shape": [
+            486,
+            256,
+            3,
+            3
+          ],
+          "stride": [
+            1,
+            486,
+            373248,
+            124416
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 611,
+          "dtype": "f32",
+          "shape": [
+            486,
+            256,
+            3,
+            3
+          ],
+          "stride": [
+            1,
+            486,
+            373248,
+            124416
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 4113,
+      "name": "DEQUANTIZE_2",
+      "kind": "Dequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 0
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            0
+          ]
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            1
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 1,
+          "dtype": "s8",
+          "shape": [
+            486,
+            256,
+            3,
+            3
+          ],
+          "stride": [
+            1,
+            486,
+            373248,
+            124416
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 643,
+          "dtype": "f32",
+          "shape": [
+            486,
+            256,
+            3,
+            3
+          ],
+          "stride": [
+            1,
+            486,
+            373248,
+            124416
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "CONCAT_0",
+      "kind": "Concat",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 611,
+          "dtype": "f32",
+          "shape": [
+            486,
+            256,
+            3,
+            3
+          ],
+          "stride": [
+            1,
+            486,
+            373248,
+            124416
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 643,
+          "dtype": "f32",
+          "shape": [
+            486,
+            256,
+            3,
+            3
+          ],
+          "stride": [
+            1,
+            486,
+            373248,
+            124416
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 163,
+          "dtype": "f32",
+          "shape": [
+            972,
+            256,
+            3,
+            3
+          ],
+          "stride": [
+            1,
+            972,
+            746496,
+            248832
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 6160,
+      "name": "QUANTIZE_3",
+      "kind": "Quantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 0
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            0
+          ]
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            1
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 163,
+          "dtype": "f32",
+          "shape": [
+            972,
+            256,
+            3,
+            3
+          ],
+          "stride": [
+            1,
+            972,
+            746496,
+            248832
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 6320,
+          "dtype": "s8",
+          "shape": [
+            972,
+            256,
+            3,
+            3
+          ],
+          "stride": [
+            1,
+            972,
+            746496,
+            248832
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}
