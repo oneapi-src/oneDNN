@@ -47,23 +47,27 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #if IS_NHWC || IS_BLOCKED
     // gws is the combination of mb and axis size
     const int group = get_global_id(0) / GROUP_SIZE;
-    const int mb = group / OC_PADDED;
-    const int local_oc = group % OC_PADDED;
+    const int mb = group / CHANNELS_PADDED;
+    const int channel_id = group % CHANNELS_PADDED;
 
     const int local_id = get_local_id(0);
-    const int axis_chunk = (local_id / SUB_GROUP_SIZE) * SOFTMAX_BUF;
+    const int buf_chunk = (local_id / SUB_GROUP_SIZE) * SOFTMAX_BUF;
 
     const int subgroup_id = get_sub_group_local_id();
-    const int oc_chunk = OC * VECT_SIZE * subgroup_id;
+
+    // since channel is the inner dim,
+    // in order to read the next elem in axis we have to skip by this offset
+    const int channel_offset = CHANNELS * VECT_SIZE * subgroup_id;
 
 #if IS_BLOCKED
-    const int oc_block_id = local_oc / OC;
-    const int oc_in_block = local_oc % OC;
+    const int channel_block = channel_id / CHANNELS;
+    const int channel_in_block = channel_id % CHANNELS;
 
-    int data_off = (MB * oc_block_id + mb) * OC * SOFTMAX_AXIS_SIZE + oc_chunk
-            + oc_in_block;
+    int data_off = mb * CHANNELS * SOFTMAX_AXIS_SIZE + channel_offset
+            + channel_in_block;
 #else
-    int data_off = mb * OC_PADDED * SOFTMAX_AXIS_SIZE + oc_chunk + local_oc;
+    int data_off = mb * CHANNELS_PADDED * SOFTMAX_AXIS_SIZE + channel_offset
+            + channel_id;
 #endif
 
     float d[VECT_SIZE];
@@ -71,8 +75,8 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     float denom_ = 0.f;
 
     src += data_off;
-    for (int k = 0, axis_channel_id = OC * axis_chunk; k < VECT_SIZE;
-            ++k, axis_channel_id += OC) {
+    for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < VECT_SIZE;
+            ++k, axis_channel_id += CHANNELS) {
         d[k] = DATA_TO_FLOAT(SRC, src[axis_channel_id]);
         max_ = max(d[k], max_);
     }
@@ -106,8 +110,8 @@ gen9_softmax_fwd(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 
     dst += data_off;
 
-    for (int k = 0, axis_channel_id = OC * axis_chunk; k < VECT_SIZE;
-            ++k, axis_channel_id += OC) {
+    for (int k = 0, axis_channel_id = CHANNELS * buf_chunk; k < VECT_SIZE;
+            ++k, axis_channel_id += CHANNELS) {
 #if LOGSOFTMAX
         d[k] = d[k] - max_ - denom_;
 #else

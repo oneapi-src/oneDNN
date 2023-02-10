@@ -58,8 +58,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
                     != format_tag::undef);
 
             bool ok = is_fwd()
-                    && IMPLICATION(
-                            (is_blocked || is_nhwc), axis_size() == buffer_size)
+                    && IMPLICATION(is_blocked, axis_size() % buffer_size == 0)
                     && !memory_desc_ndims_ok(src_md(), dst_md())
                     && axis() == src_d.ndims() - 1
                     && (src_d.is_plain() || is_blocked || is_nhwc)
@@ -93,9 +92,6 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
             //subgroup block write requires the tensor to be 16-byte aligned
             if (axis_size() % byte_alignment == 0) is_aligned = true;
 
-            auto src_padded_dims = src_d.padded_dims();
-            mb = src_padded_dims[0] * src_padded_dims[2] * src_padded_dims[3]
-                    & src_padded_dims[4];
             return status::success;
         }
 
@@ -106,7 +102,6 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         size_t lws[3] = {};
         size_t block[3] = {};
         size_t group_size = 0;
-        size_t mb = 0;
         const int subgroup_size = 16;
         const int byte_alignment = 16;
         // 8x16 load and store commands (Vector_Size x Sub_Group_Size)
@@ -123,9 +118,9 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("SOFTMAX_BUF", pd()->buffer_size);
         kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
         kernel_ctx.define_int("SUB_GROUP_SIZE", pd()->subgroup_size);
-        kernel_ctx.define_int("MB", pd()->mb);
-        kernel_ctx.define_int("OC_PADDED", pd()->src_md()->padded_dims[1]);
-        kernel_ctx.define_int("OC",
+        kernel_ctx.define_int(
+                "CHANNELS_PADDED", pd()->src_md()->padded_dims[1]);
+        kernel_ctx.define_int("CHANNELS",
                 pd()->is_blocked ? pd()->subgroup_size
                                  : pd()->src_md(0)->padded_dims[1]);
         kernel_ctx.define_int("IS_NHWC", pd()->is_nhwc);
