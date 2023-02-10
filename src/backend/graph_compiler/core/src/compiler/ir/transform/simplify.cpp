@@ -117,7 +117,8 @@ public:
     }
 
     stmt_c visit(evaluate_c v) override {
-        if (v->value_.isa<call_c>() || v->value_.isa<intrin_call_c>()) {
+        if (v->value_.isa<call_c>() || v->value_.isa<intrin_call_c>()
+                || v->value_.isa<low_level_intrin_c>()) {
             return ir_visitor_t::visit(std::move(v));
         }
         return stmt_c();
