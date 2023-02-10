@@ -116,7 +116,7 @@ The following common options are applicable only for a performance mode:
 
 * `--max-ms-per-prb=N` -- Specifies the limit in milliseconds for performance
   benchmarking set per problem. `N` is an integer positive number in a range
-  [1e2, 6e4]. If a value is out of the range, it will be saturated to range
+  [1e1, 6e4]. If a value is out of the range, it will be saturated to range
   board values. The default is `3e3`. This option helps to stabilize the
   performance numbers reported for small problems.
 

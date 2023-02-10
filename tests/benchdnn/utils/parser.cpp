@@ -588,10 +588,10 @@ static bool parse_max_ms_per_prb(
     static const std::string help
             = "MS    (Default: `3000`)\n    Specifies the limit in `MS` "
               "milliseconds for performance benchmarking per problem.\n    "
-              "`MS` is a positive integer in a range [100, 60000].\n";
+              "`MS` is a positive integer in a range [10, 60000].\n";
     bool parsed = parse_single_value_option(
             max_ms_per_prb, 3e3, atof, str, option_name, help);
-    if (parsed) max_ms_per_prb = MAX2(100, MIN2(max_ms_per_prb, 60e3));
+    if (parsed) max_ms_per_prb = MAX2(10, MIN2(max_ms_per_prb, 60e3));
     return parsed;
 }
 
