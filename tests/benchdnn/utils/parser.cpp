@@ -577,8 +577,8 @@ static bool parse_fix_times_per_prb(
               "rounds for performance benchmarking per problem.\n    If `UINT` "
               "is greater than `0`, the number of rounds criterion takes place "
               "over the time criterion.\n";
-    bool parsed = parse_single_value_option(
-            fix_times_per_prb, 0, atoi, str, option_name, help);
+    bool parsed = parse_single_value_option(fix_times_per_prb,
+            default_fix_times_per_prb, atoi, str, option_name, help);
     if (parsed) fix_times_per_prb = MAX2(0, fix_times_per_prb);
     return parsed;
 }
@@ -589,8 +589,8 @@ static bool parse_max_ms_per_prb(
             = "MS    (Default: `3000`)\n    Specifies the limit in `MS` "
               "milliseconds for performance benchmarking per problem.\n    "
               "`MS` is a positive integer in a range [10, 60000].\n";
-    bool parsed = parse_single_value_option(
-            max_ms_per_prb, 3e3, atof, str, option_name, help);
+    bool parsed = parse_single_value_option(max_ms_per_prb,
+            default_max_ms_per_prb, atof, str, option_name, help);
     if (parsed) max_ms_per_prb = MAX2(10, MIN2(max_ms_per_prb, 60e3));
     return parsed;
 }

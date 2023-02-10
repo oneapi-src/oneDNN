@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,9 +62,11 @@ bench_mode_t bench_mode {CORR};
 stat_t benchdnn_stat {0};
 std::string driver_name;
 
-double max_ms_per_prb {3e3};
+double max_ms_per_prb {default_max_ms_per_prb};
+double default_max_ms_per_prb {3e3};
 int min_times_per_prb {5};
-int fix_times_per_prb {0};
+int fix_times_per_prb {default_fix_times_per_prb};
+int default_fix_times_per_prb {0};
 
 bool fast_ref_gpu {DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE};
 

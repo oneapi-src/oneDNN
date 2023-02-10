@@ -115,9 +115,11 @@ extern bench_mode_t bench_mode; // user mode
 bool is_bench_mode(bench_mode_t user_mode);
 
 /* perf */
-extern double max_ms_per_prb; /** maximum time spends per prb in ms */
-extern int min_times_per_prb; /** minimal amount of runs per prb */
-extern int fix_times_per_prb; /** if non-zero run prb that many times */
+extern double max_ms_per_prb; // max time spend per prb in ms
+extern double default_max_ms_per_prb; // default max time spend per prb in ms
+extern int min_times_per_prb; // min number of runs per prb
+extern int fix_times_per_prb; // if non-zero run prb that many times
+extern int default_fix_times_per_prb; // 0, rely on time criterion
 
 extern bool fast_ref_gpu;
 extern bool allow_enum_tags_only;

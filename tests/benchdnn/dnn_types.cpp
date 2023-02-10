@@ -813,6 +813,11 @@ std::ostream &operator<<(std::ostream &s, memory_kind_ext_t memory_kind) {
 }
 
 std::ostream &dump_global_params(std::ostream &s) {
+    if (canonical || max_ms_per_prb != default_max_ms_per_prb)
+        s << "--max-ms-per-prb=" << max_ms_per_prb << " ";
+    if (canonical || fix_times_per_prb != default_fix_times_per_prb)
+        s << "--fix-times-per-prb=" << fix_times_per_prb << " ";
+
     s << "--" << driver_name << " ";
     if (canonical) s << "--canonical=" << bool2str(canonical) << " ";
     if (canonical || engine_tgt_kind != dnnl_cpu) {
