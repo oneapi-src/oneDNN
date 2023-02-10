@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -167,7 +167,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     bool transb = (pd()->desc()->transb() == dnnl_trans);
 
     int cmask = 0;
-    pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask);
+    CHECK(pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask));
 
     char offsetc_char;
 

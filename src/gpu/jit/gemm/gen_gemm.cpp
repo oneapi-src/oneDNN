@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -278,7 +278,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     if (pd()->with_c_zero_points()) {
         off_co0 = co->offset() / types::data_type_size(c_type)
                 + pd()->dyn_offset_co;
-        pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask);
+        CHECK(pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask));
     } else if (pd()->with_bias()) {
         off_co0 = bias.offset() / types::data_type_size(c_type);
         co = &bias;

@@ -941,8 +941,10 @@ bool zero_points_ok(const conv_problem_t &prb) {
     const auto input_type = (prb.is_fwd) ? pd->invariant_src_md()->data_type
                                          : pd->invariant_dst_md()->data_type;
     int mask_src = 0, mask_dst = 0;
-    attr->zero_points_.get(DNNL_ARG_SRC, &mask_src);
-    attr->zero_points_.get(DNNL_ARG_DST, &mask_dst);
+    if (attr->zero_points_.get(DNNL_ARG_SRC, &mask_src) != status::success)
+        return false;
+    if (attr->zero_points_.get(DNNL_ARG_DST, &mask_dst) != status::success)
+        return false;
 
     return IMPLICATION(!utils::one_of(input_type, s8, u8),
                    attr->zero_points_.has_default_values())

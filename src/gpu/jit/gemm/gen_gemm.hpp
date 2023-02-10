@@ -86,9 +86,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                 if (swap_ab_) std::swap(a_zp_, b_zp_);
 
                 int cmask_a = 0, cmask_b = 0, cmask_c = 0;
-                attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &cmask_b);
-                attr()->zero_points_.get(DNNL_ARG_SRC, &cmask_a);
-                attr()->zero_points_.get(DNNL_ARG_DST, &cmask_c);
+                CHECK(attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &cmask_b));
+                CHECK(attr()->zero_points_.get(DNNL_ARG_SRC, &cmask_a));
+                CHECK(attr()->zero_points_.get(DNNL_ARG_DST, &cmask_c));
                 ok &= (cmask_a == 0) && (cmask_b == 0)
                         && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
 

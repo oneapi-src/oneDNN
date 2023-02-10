@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,15 +51,16 @@ struct gemm_matmul_t : public gpu_primitive_t {
             auto map_gemm_zp = [&](int arg, int gemm_arg) {
                 if (!attr()->zero_points_.has_default_values(arg)) {
                     int mask = 0;
-                    attr()->zero_points_.get(arg, &mask);
-                    gemm_attr.zero_points_.set(gemm_arg, mask);
+                    CHECK(attr()->zero_points_.get(arg, &mask));
+                    CHECK(gemm_attr.zero_points_.set(gemm_arg, mask));
                 }
+                return status::success;
             };
 
             if (!attr()->zero_points_.has_default_values()) {
-                map_gemm_zp(DNNL_ARG_SRC, DNNL_ARG_B);
-                map_gemm_zp(DNNL_ARG_WEIGHTS, DNNL_ARG_A);
-                map_gemm_zp(DNNL_ARG_DST, DNNL_ARG_C);
+                CHECK(map_gemm_zp(DNNL_ARG_SRC, DNNL_ARG_B));
+                CHECK(map_gemm_zp(DNNL_ARG_WEIGHTS, DNNL_ARG_A));
+                CHECK(map_gemm_zp(DNNL_ARG_DST, DNNL_ARG_C));
             }
 
             if (!attr()->post_ops_.has_default_values()) {
