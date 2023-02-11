@@ -343,8 +343,8 @@ algorithms:
   implementation is based on the [Fast Algorithms for Convolutional Neural
   Networks by A. Lavin and S. Gray](https://arxiv.org/abs/1509.09308). The
   Winograd algorithm often results in the best performance, but it is
-  applicable only to particular shapes. Moreover, Winograd only supports
-  f32 and f16 data types.
+  applicable only to particular shapes. Winograd supports
+  GPU (f16 and f32) and AArch64 CPU engines.
 
 - _Implicit GEMM_. The convolution operation is reinterpreted in terms of
   matrix-matrix multiplication by rearranging the source data into a
@@ -374,31 +374,7 @@ fall back to an explicit GEMM algorithm.
 @anchor dg_winograd_conv
 ### Winograd Convolution
 
-oneDNN supports the Winograd convolution algorithm on systems with
-Intel(R) Advanced Vector Extensions 512 (Intel(R) AVX-512) support and
-Intel Deep Learning Boost (Intel DL Boost)
-under the following conditions:
-
-- Source, weights and destination data type is f32
-
-- Data and weights memory formats are defined by the convolution primitive
-  (user passes `any` as the data format).
-
-- The spatial domain is two-dimensional.
-
-- The weights shape is 3x3, there are no groups, dilation or strides
-  (\f$KH = KW = 3\f$, \f$SH = SW = 1\f$, and \f$DH = DW = 0\f$).
-
-The Winograd convolution algorithm implementation additionally chooses tile
-size based on the problem shape and
-[propagation kind](@ref dnnl_prop_kind_t):
-
-- For `forward_inference` oneDNN supports
-  \f$F(2 \times 2, 3 \times 3)\f$ or
-  \f$F(4 \times 4, 3 \times 3)\f$
-
-- oneDNN supports only \f$F(4 \times 4, 3 \times 3)\f$ Winograd for all
-  the training propagation kinds.
+oneDNN supports the Winograd convolution algorithm on GPU and AArch64 CPU systems.
 
 The following side effects should be weighed against the (potential)
 performance boost achieved from using the Winograd algorithm:
