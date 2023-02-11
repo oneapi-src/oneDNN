@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,7 +95,8 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
         auto M = (i) ? jcp_.M_tail : jcp_.M;
         if (M <= 0) continue;
         // init only needed brgemm descriptors
-        for (int bs = 0; bs <= jcp_.max_batch; bs++) {
+        const auto bs_end = jcp_.var_bs ? 1 : jcp_.max_batch;
+        for (int bs = 0; bs <= bs_end; bs++) {
             if (batchsizes[bs] == -1) continue;
             for_(int i_init = init_begin; i_init < init_end; i_init++)
             for_(int i_N = N_begin; i_N < N_end; i_N++)
@@ -271,7 +272,8 @@ status_t brgemm_convolution_bwd_weights_t::init(engine_t *engine) {
     int init_begin = 0;
     int init_end = 2;
 
-    for (int bs = 0; bs <= jcp.max_batch; bs++) {
+    const auto bs_end = jcp.var_bs ? 1 : jcp.max_batch;
+    for (int bs = 0; bs <= bs_end; bs++) {
         if (_pd->batchsizes[bs] == -1) continue;
 
         for_(int i_N = N_begin; i_N < N_end; i_N++)
