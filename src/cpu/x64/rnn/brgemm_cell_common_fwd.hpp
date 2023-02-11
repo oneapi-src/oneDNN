@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -177,7 +177,8 @@ private:
     scratch_t *const C_cell_;
     src_t *const Dl_;
     const dim_t LDAl_;
-    const dim_t LDAi_;
+    const dim_t LDAi_p1_;
+    const dim_t LDAi_p2_;
     const dim_t max_nthr_;
     const dim_t n_blocking_;
     const dim_t m_blocking_;
