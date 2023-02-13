@@ -2458,6 +2458,19 @@ for_loop mixed_parti_t::get_next_inner_loop_with_anchor(
                 }
             } else if (s.isa<for_loop>() && !next_loop.defined()) {
                 next_loop = s.checked_as<for_loop>();
+            } else if (s.cast<evaluate>()
+                               .map([](const evaluate &v) {
+                                   return v->value_.as<intrin_call>();
+                               })
+                               .filter([](const intrin_call &v) {
+                                   return v->type_
+                                           == intrin_type::set_thread_idle_func;
+                               })
+                               .has_value()) {
+                // When prefetch is enabled, a prefetcher function call
+                // `evaluate{set_thread_idle_func(...)}` would have been added
+                // to the loop. We should ignore it when finding next anchor.
+                continue;
             } else {
                 next_loop = for_loop();
                 break;
