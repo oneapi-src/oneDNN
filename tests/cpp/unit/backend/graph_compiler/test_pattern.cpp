@@ -1163,3 +1163,103 @@ TEST(GCPatternTests, DynamicOnlyPartitions) {
         ASSERT_EQ(partitions.size(), 1U);
     }
 }
+
+TEST(GCPatternTests, FP32MatMulSoftmaxPattern) {
+    REQUIRE_AVX512();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative(&agraph, false, false);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "fp32_matmul_softmax_fusion");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1U);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 4U);
+    ASSERT_EQ(partition_inputs.size(), 4U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+}
+
+TEST(GCPatternTests, BF16MatMulSoftmaxPattern) {
+    REQUIRE_BF16_AMXBF16();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative(&agraph, true, false);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "bf16_matmul_softmax_fusion");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1U);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 4U);
+    ASSERT_EQ(partition_inputs.size(), 4U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+}
+
+TEST(GCPatternTests, INT8MatMulSoftmaxPattern) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative(&agraph, false, true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "int8_matmul_softmax_fusion");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1U);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 7U);
+    ASSERT_EQ(partition_inputs.size(), 4U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+}
+
+TEST(GCPatternTests, INT8BF16MatMulSoftmaxPattern) {
+    REQUIRE_VNNI_AMXINT8();
+    impl::graph_t agraph;
+    compiler_utils::add_MHA_subgraph_alternative(&agraph, true, true);
+    agraph.build_graph();
+
+    auto &compiler_backend_ptr
+            = compiler_impl::compiler_backend_t::get_singleton();
+    pass::pass_base_ptr apass
+            = get_pass(compiler_backend_ptr, "int8_bf16_matmul_softmax_fusion");
+
+    apass->run(agraph);
+    auto partitions = agraph.get_partitions();
+    ASSERT_EQ(partitions.size(), 1U);
+
+    impl::partition_t p;
+    p.init(partitions[0]);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(p.num_ops(), 10U);
+    ASSERT_EQ(partition_inputs.size(), 4U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+}

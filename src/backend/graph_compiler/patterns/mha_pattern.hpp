@@ -499,6 +499,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {in_edge(0, query_transpose, 0),
                                     in_edge(1, mul, 0)},
                             "matmul_qk");
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<impl::data_type::f32>);
 
                     auto fscore_add = pgraph->append_op(impl::op_kind::Add,
                             {in_edge(0, matmul_qk, 0)}, "fscore_add");
@@ -651,7 +653,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fake_int8_mha_pattern)
 */
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, fp32_mha_pattern_alternative3)
-        .set_priority(5.0f)
+        .set_priority(4.4f) // lower priority than mha_pattern_alternative
         .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_kind(impl::partition_kind::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
@@ -1085,6 +1087,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
         compiler, bf16_mha_pattern_alternative3)
         .set_priority(5.0f)
+        .set_type(impl::pass::pattern_type_t::static_and_dynamic_shape)
         .set_kind(impl::partition_kind::mha)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
@@ -1098,6 +1101,37 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {in_edge(0, softmax, 0)}, "matmul_v");
                 });
 
+/*
+   (bf16)[Query]     [Key](bf16)
+              \     /
+               MatMul
+                 |
+         Divide|Multiply
+                 |
+                Add
+                 |
+              Softmax
+                 |
+            [output](bf16)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, bf16_matmul_softmax_fusion)
+        .set_priority(4.0f)
+        .set_kind(impl::partition_kind::matmul_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto matmul_qk = pgraph->append_op(
+                            impl::op_kind::MatMul, "matmul_qk");
+                    matmul_qk->append_decision_function(
+                            check_input_dtype<impl::data_type::bf16>);
+                    auto fscore_scale = pgraph->append_alternation(
+                            {impl::op_kind::Divide, impl::op_kind::Multiply},
+                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
+                    auto fscore_add = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                    pgraph->append_op(impl::op_kind::SoftMax,
+                            {in_edge(0, fscore_add, 0)}, "softmax");
+                });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
 COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_mha_pattern)
@@ -1763,6 +1797,130 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             {in_edge(0, cast_output, 0)}, "quantize_output");
                 });
 
+/*
+   (int8)[Query]     [Key](int8)
+            |          |
+      Dequantize   Dequantize
+              \     /
+               MatMul
+                 |
+         Divide|Multiply
+                 |
+                Add
+                 |
+              Softmax
+                 |
+             Quantize (optional)
+                 |
+            [output](int8/f32)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, int8_matmul_softmax_fusion)
+        .set_priority(4.1f)
+        .set_kind(impl::partition_kind::matmul_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto dequantize_query = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequantize_query");
+
+                    auto dequantize_key = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequantize_key");
+                    auto matmul_qk = pgraph->append_op(impl::op_kind::MatMul,
+                            {in_edge(0, dequantize_query, 0),
+                                    in_edge(1, dequantize_key, 0)},
+                            "matmul_qk");
+                    auto fscore_scale = pgraph->append_alternation(
+                            {impl::op_kind::Divide, impl::op_kind::Multiply},
+                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
+                    auto fscore_add = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                    auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
+                            {in_edge(0, fscore_add, 0)}, "softmax");
+
+                    auto optional_quantize_subgraph
+                            = std::make_shared<pb_graph_t>(
+                                    "optional_quantize_subgraph");
+                    auto optional_quantize
+                            = optional_quantize_subgraph->append_op(
+                                    impl::op_kind::Quantize,
+                                    "optional_quantize");
+                    optional_quantize_subgraph->create_input_port(
+                            0, optional_quantize, 0);
+                    optional_quantize_subgraph->create_output_port(
+                            0, optional_quantize, 0);
+                    pgraph->append_optional(optional_quantize_subgraph,
+                            {in_edge(0, softmax, 0)}, "quantize_softmax");
+                });
+
+/*
+   (int8)[Query]     [Key](int8)
+            |          |
+      Dequantize   Dequantize
+            |          |
+       TypeCast     TypeCast
+              \     /
+               MatMul
+                 |
+          Divide|Multiply
+                 |
+                Add
+                 |
+              Softmax
+                 |
+              TypeCast (optional)
+                 |
+              Quantize (optional)
+                 |
+            [output](int8/bf16)
+*/
+COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
+        compiler, int8_bf16_matmul_softmax_fusion)
+        .set_priority(4.1f)
+        .set_kind(impl::partition_kind::matmul_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto dequantize_query = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequantize_query");
+                    auto cast_query = pgraph->append_op(impl::op_kind::TypeCast,
+                            {in_edge(0, dequantize_query, 0)}, "cast_query");
+
+                    auto dequantize_key = pgraph->append_op(
+                            impl::op_kind::Dequantize, "dequantize_key");
+                    auto cast_key = pgraph->append_op(impl::op_kind::TypeCast,
+                            {in_edge(0, dequantize_key, 0)}, "cast_key");
+
+                    auto matmul_qk = pgraph->append_op(impl::op_kind::MatMul,
+                            {in_edge(0, cast_query, 0),
+                                    in_edge(1, cast_key, 0)},
+                            "matmul_qk");
+                    auto fscore_scale = pgraph->append_alternation(
+                            {impl::op_kind::Divide, impl::op_kind::Multiply},
+                            {in_edge(0, matmul_qk, 0)}, "fscore_scale");
+                    auto fscore_add = pgraph->append_op(impl::op_kind::Add,
+                            {in_edge(0, fscore_scale, 0)}, "fscore_add");
+                    auto softmax = pgraph->append_op(impl::op_kind::SoftMax,
+                            {in_edge(0, fscore_add, 0)}, "softmax");
+
+                    auto optional_output_subgraph
+                            = std::make_shared<pb_graph_t>(
+                                    "optional_output_subgraph");
+                    auto optional_typecast
+                            = optional_output_subgraph->append_op(
+                                    impl::op_kind::TypeCast,
+                                    "optional_typecast");
+                    auto optional_quantize
+                            = optional_output_subgraph->append_op(
+                                    impl::op_kind::Quantize,
+                                    {in_edge(0, optional_typecast, 0)},
+                                    "optional_quantize");
+
+                    optional_output_subgraph->create_input_port(
+                            0, optional_typecast, 0);
+                    optional_output_subgraph->create_output_port(
+                            0, optional_quantize, 0);
+                    pgraph->append_optional(optional_output_subgraph,
+                            {in_edge(0, softmax, 0)}, "cast_softmax");
+                });
 COMPILER_BACKEND_REGISTER_PASSES_DEF_END
 
 } // namespace pass
