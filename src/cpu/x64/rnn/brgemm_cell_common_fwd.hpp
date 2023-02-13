@@ -177,8 +177,8 @@ private:
     scratch_t *const C_cell_;
     src_t *const Dl_;
     const dim_t LDAl_;
-    const dim_t LDAi_p0_;
     const dim_t LDAi_p1_;
+    const dim_t LDAi_p2_;
     const dim_t max_nthr_;
     const dim_t n_blocking_;
     const dim_t m_blocking_;

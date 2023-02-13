@@ -583,8 +583,8 @@ brgemm_gru_t<src_t, weights_t, scratch_t, gemm_acc_t>::brgemm_gru_t(
     , C_cell_(scratch_cell)
     , Dl_(d_layer)
     , LDAl_(rnn_.src_layer_ld(cell_position))
-    , LDAi_p0_(rnn_.src_iter_ld(cell_position))
-    , LDAi_p1_(rnn_.dst_iter_part2_ld(cell_position))
+    , LDAi_p1_(rnn_.src_iter_ld(cell_position))
+    , LDAi_p2_(rnn_.dst_iter_part2_ld(cell_position))
     , max_nthr_(rnn_.nthr)
     , n_blocking_((rnn_.unfused_post_gemm) ? rnn_.N_blocks * rnn_.n_gates
                                            : rnn_.N_blocks)
@@ -688,8 +688,8 @@ void brgemm_gru_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
         dim_t mb = start;
         const auto m = mb * rnn_.m_block;
         const auto *const Al_m = Al_ + m * LDAl_;
-        const auto *const Ai_m = Ai_ + m * LDAi_p0_;
-        const auto *const Ai2_m = Dl_ + m * LDAi_p1_;
+        const auto *const Ai_m = Ai_ + m * LDAi_p1_;
+        const auto *const Ai2_m = Dl_ + m * LDAi_p2_;
 
         for (dim_t nb_i = 0; nb_i < n_blocking_; nb_i++) {
             const auto nb
