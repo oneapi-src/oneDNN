@@ -61,9 +61,9 @@ int get_minibatch(const int &bs, const int &min_os) {
     int minibatch = std::max(sc_dim(1), sc_dim(392) / sc_dim(min_os));
     if ((bs / minibatch % num_threads != 0
                 && bs / minibatch < 4 * num_threads)) {
-        return bs;
+        return 1;
     }
-    return bs % minibatch == 0 ? minibatch : bs;
+    return bs % minibatch == 0 ? minibatch : 1;
 }
 
 int minimum_spatial_shape(sc_graph_t &graph, bool &is_support) {
