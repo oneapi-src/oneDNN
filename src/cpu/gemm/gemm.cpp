@@ -44,6 +44,8 @@ using namespace dnnl::impl::cpu::x64;
 #elif DNNL_PPC64
 #include "cpu/ppc64/ppc64_gemm_driver.hpp"
 using namespace dnnl::impl::cpu::ppc64;
+#elif DNNL_S390X
+#include "cpu/s390x/gemm.h"
 #endif
 
 namespace dnnl {
@@ -187,6 +189,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const float *alpha, const int8_t *A, const dim_t *LDA, const int8_t *ao,
         const uint8_t *B, const dim_t *LDB, const uint8_t *bo,
         const float *beta, int32_t *C, const dim_t *LDC, const int32_t *co) {
+
     dnnl_status_t status = check_gemm_x8x8x32_input(offsetc, transa, transb, M,
             N, K, A, LDA, B, LDB, C, LDC, alpha, beta, false);
     if (status != dnnl_success) return status;
@@ -209,6 +212,11 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     return cblas_gemm_s8x8s32_ppc64(ATflag, BTflag, offsetc, *M, *N, *K, *alpha,
             A, *LDA, ao, B, *LDB, bo, C, *beta, *LDC, co, 0);
 #endif
+#elif DNNL_S390X
+#if defined(__VX__)
+    return s390x::gemmx8x8s32(transa, transb, offsetc, *M, *N, *K, *alpha, A,
+            *LDA, ao, B, *LDB, bo, *beta, C, *LDC, co);
+#endif
 #endif
 
     return ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K, alpha, A, LDA, ao,
@@ -221,6 +229,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const float *alpha, const int8_t *A, const dim_t *LDA, const int8_t *ao,
         const int8_t *B, const dim_t *LDB, const int8_t *bo, const float *beta,
         int32_t *C, const dim_t *LDC, const int32_t *co) {
+
     dnnl_status_t status = check_gemm_x8x8x32_input(offsetc, transa, transb, M,
             N, K, A, LDA, B, LDB, C, LDC, alpha, beta, false);
     if (status != dnnl_success) return status;
@@ -255,6 +264,11 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     return cblas_gemm_s8x8s32_ppc64(ATflag, BTflag, offsetc, *M, *N, *K, *alpha,
             A, *LDA, ao, (const uint8_t *)B, *LDB, (const uint8_t *)bo, C,
             *beta, *LDC, co, 1);
+#endif
+#elif DNNL_S390X
+#if defined(__VX__)
+    return s390x::gemmx8x8s32(transa, transb, offsetc, *M, *N, *K, *alpha, A,
+            *LDA, ao, B, *LDB, bo, *beta, C, *LDC, co);
 #endif
 #endif
 
