@@ -923,6 +923,8 @@ struct concat_conf_t {
     int concat_axis;
     int sub_group_size;
     int iter_dim_idx, iter_dim_chunk;
+    scales_query_t scale_src[64];
+    uint64_t scales_mask;
 };
 
 // Elementwise

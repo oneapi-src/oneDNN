@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -120,11 +120,15 @@ status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
     conf.concat_axis = pd->concat_dim();
 
     int concat_axis_end = 0;
+    conf.scales_mask = 0;
     for (int i = 0; i < conf.n; ++i) {
         const memory_desc_wrapper src_mdw(pd->src_md(i));
         concat_axis_end += src_mdw.md_->dims[conf.concat_axis];
         conf.offset[i] = concat_axis_end;
         conf.src_md_infos[i] = memory_desc_info_t::create(pd->src_md(i));
+        conf.scale_src[i] = scales_query_t(
+                pd->attr(), src_mdw, DNNL_ARG_MULTIPLE_SRC + i);
+        conf.scales_mask |= ((!conf.scale_src[i].has_default_values()) << i);
     }
 
     conf.sub_group_size = calculate_sub_group_size(compute_engine);
@@ -161,7 +165,6 @@ static status_t init_kernel_ctx_common(
                 utils::format("SRC%d", i).c_str());
     }
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
-
     kernel_ctx.set_data_type(conf.src_type);
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
@@ -173,6 +176,7 @@ static status_t init_kernel_ctx_common(
             conf.dst_md_info.padded_dims[conf.iter_dim_idx]);
     kernel_ctx.define_int("ITER_DIM_IDX", conf.iter_dim_idx);
     kernel_ctx.define_int("ITER_DIM_CHUNK", conf.iter_dim_chunk);
+    kernel_ctx.define_int("SCALES_MASK", conf.scales_mask);
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
@@ -187,14 +191,21 @@ status_t gen9_concat_t::pd_t::init_kernel_ctx(
 status_t gen9_concat_t::execute_concat(const exec_ctx_t &ctx) const {
     status_t status;
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
-
+    int next_arg = 0;
     const auto &conf = pd()->conf;
     compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, dst);
-    arg_list.set(1, conf.dst_offset0);
+    arg_list.set(next_arg++, dst);
+    arg_list.set(next_arg++, conf.dst_offset0);
     for (int i = 0; i < 16; ++i) {
         auto &src = CTX_IN_STORAGE(DNNL_ARG_MULTIPLE_SRC + i);
-        arg_list.set(i + 2, src);
+        arg_list.set(next_arg++, src);
+    }
+
+    // add scales for all inputs
+    if (conf.scales_mask) {
+        for (int i = 0; i < pd()->n_inputs(); ++i) {
+            arg_list.set(next_arg++, conf.scale_src[i].get_scales(ctx));
+        }
     }
 
     auto nd_range = conf.dispatch.nd_range();

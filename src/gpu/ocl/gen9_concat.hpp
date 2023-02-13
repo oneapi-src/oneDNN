@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,7 +45,10 @@ struct gen9_concat_t : public gpu_primitive_t {
         DECLARE_CONCAT_PD_T("gen9:any", gen9_concat_t);
 
         status_t init(engine_t *engine) {
-            bool ok = n_inputs() <= 16 && attr()->has_default_values()
+
+            using sm = primitive_attr_t::skip_mask_t;
+            bool ok = n_inputs() <= 16
+                    && attr()->has_default_values(sm::scales_runtime)
                     && set_default_params() == status::success
                     && !memory_desc_ndims_ok(dst_md());
             if (!ok) return status::unimplemented;

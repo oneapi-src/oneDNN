@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,11 +16,30 @@
 
 #include "gpu/ocl/ocl_types.h"
 
+#include "gpu/ocl/concat_common.h"
+
+#define SCALE_PTR(n) __global const float *scale##n
+
 #define IS_IN_PART(x) (dst_dims[CONCAT_AXIS] < CONCAT3(SRC, x, _END))
+#define WRITE_DST_X(x) dst[dst_off] = TO_DST(x);
+#if SCALES_MASK > 0
+#define EXTRACT_SCALES_IF(n) \
+    if (SCALES_MASK & (1 << n)) tmp_src_scale = *scale##n;
+#define WRITE_DST WRITE_DST_X((float)src_val *tmp_src_scale)
+#define INIT_FLOAT_SCALE float tmp_src_scale = 1.0;
+#define SCALE_PTRS , REDUCE(NUM_INPUTS, JOIN_COMMA, SCALE_PTR)
+#else
+#define WRITE_DST WRITE_DST_X(src_val)
+#define EXTRACT_SCALES_IF(n)
+#define INIT_FLOAT_SCALE
+#define SCALE_PTRS
+#define WRITE_SCALE dst[dst_off] = TO_DST(src_val);
+#endif
 
 #define SET_DIMS(x, y) \
     { \
         part = y; \
+        EXTRACT_SCALES_IF(y); \
         if (y > 0) { \
             src_dims[CONCAT_AXIS] \
                     = dst_dims[CONCAT_AXIS] - CONCAT3(SRC, x, _END); \
@@ -45,7 +64,8 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
         __global const SRC_DATA_T *src8, __global const SRC_DATA_T *src9,
         __global const SRC_DATA_T *src10, __global const SRC_DATA_T *src11,
         __global const SRC_DATA_T *src12, __global const SRC_DATA_T *src13,
-        __global const SRC_DATA_T *src14, __global const SRC_DATA_T *src15) {
+        __global const SRC_DATA_T *src14,
+        __global const SRC_DATA_T *src15 SCALE_PTRS) {
     dst += dst_offset0;
     int dst_dims[6], src_dims[6];
     src_dims[0] = dst_dims[0] = GWS_GET_D0();
@@ -77,6 +97,7 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
         int part;
         int src_off;
         __global SRC_DATA_T *src;
+        INIT_FLOAT_SCALE;
 
         if (IS_IN_PART(0)) SET_DIMS(0, 0)
 #if NUM_INPUTS >= 2
@@ -158,7 +179,7 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
 #else // DT_BF16 == 1
         SRC_DATA_T src_val = src[src_off];
 #endif // DT_BF16 == 1
-        dst[dst_off] = TO_DST(src_val);
+        WRITE_DST
 #endif // SUB_GROUP_SIZE > 1
     }
     for (; dst_dims[ITER_DIM_IDX] < iter_dim_end; dst_dims[ITER_DIM_IDX]++) {
