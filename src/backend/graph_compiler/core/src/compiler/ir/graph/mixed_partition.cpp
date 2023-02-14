@@ -2527,8 +2527,9 @@ void mixed_parti_t::try_split_outermost_loop_on_num_threads(
         // copy from original fsmap
         new_fsmap.datamap_ = origin_large_anchor->fsmap_.datamap_;
         // create var inplacer
-        std::unordered_map<expr_c, expr_c> vmap
-                = {{split_inner_loop->var_, expr(0)}};
+        std::unordered_map<expr_c, expr_c> vmap = {{split_inner_loop->var_,
+                make_expr<constant_node>(
+                        UINT64_C(0), split_inner_loop->var_->dtype_)}};
         var_replacer_t repl(vmap);
         //  modify slice range
         for (auto &fspair : new_fsmap.datamap_) {
